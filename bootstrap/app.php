@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -17,6 +18,17 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
+        ]);
+        $middleware->alias([
+            'role' => EnsureUserHasRole::class,
+        ]);
+        // The in-place text editor's ops carry exact characters, including
+        // leading/trailing spaces (e.g. an op that's just " ", or one ending
+        // right before more text is typed later) — trimming would silently
+        // corrupt them and make the server's replay-vs-submitted-text
+        // integrity check fail on ordinary input.
+        $middleware->trimStrings(except: [
+            fn (Request $request) => $request->is('transcriptions/*/text'),
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
