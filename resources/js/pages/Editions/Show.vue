@@ -566,19 +566,6 @@ function coveringAnchorIndex(
     return null;
 }
 
-// A run is only worth clicking into if there's actually something to show —
-// a real choice (variation), an already-made one (decided), a fragmentary
-// base needing a starting witness (gap), or coverage by a pending wider
-// candidate proposed elsewhere.
-function isRunMarked(passage: WindowPassage, run: Run, runIndex: number) {
-    return (
-        run.gap ||
-        run.decided ||
-        hasVariation(run) ||
-        coveringAnchorIndex(passage, runIndex) !== null
-    );
-}
-
 function toggleRun(passageId: number, runIndex: number) {
     if (!canEdit.value) {
         return;
@@ -597,12 +584,9 @@ function toggleRun(passageId: number, runIndex: number) {
         return;
     }
 
-    const run = passage.runs[runIndex];
-
-    if (!isRunMarked(passage, run, runIndex)) {
-        return;
-    }
-
+    // Every word can be opened, not only the disputed ones: an editor may
+    // want to say something about a word all the witnesses agree on, and a
+    // note is written from this panel.
     const anchorIndex = coveringAnchorIndex(passage, runIndex) ?? runIndex;
 
     if (isRunOpen(passageId, anchorIndex)) {
@@ -1250,31 +1234,69 @@ function differenceProvenance(run: Run): string | null {
  * Read from the tooltip rather than under the line, which is where they
  * belong while editing but clutters the text when reading it.
  */
+/** The runs an anchored note is pinned to, as [start, end], or null. */
+function noteSpan(
+    passage: WindowPassage,
+    comment: EditionComment,
+): [number, number] | null {
+    if (comment.lemma_id === null) {
+        return null;
+    }
+
+    const start = passage.runs.findIndex(
+        (run) => run.lemma_id === comment.lemma_id,
+    );
+
+    if (start === -1) {
+        return null;
+    }
+
+    const end =
+        comment.range_end_lemma_id === null
+            ? start
+            : passage.runs.findIndex(
+                  (run) => run.lemma_id === comment.range_end_lemma_id,
+              );
+
+    return [start, end === -1 ? start : end];
+}
+
+/** Where the anchored note covering this run begins, if one does. */
+function noteSpanStart(
+    passage: WindowPassage,
+    runIndex: number,
+): number | null {
+    for (const comment of passage.comments) {
+        const span = noteSpan(passage, comment);
+
+        if (span !== null && runIndex >= span[0] && runIndex <= span[1]) {
+            return span[0];
+        }
+    }
+
+    return null;
+}
+
+/** Whether the editor has written about this word in particular. */
+function hasAnchoredNote(passage: WindowPassage, runIndex: number): boolean {
+    return noteSpanStart(passage, runIndex) !== null;
+}
+
+/** Whether the editor has written about the line as a whole. */
+function hasPassageNote(passage: WindowPassage): boolean {
+    return passage.comments.some((comment) => comment.lemma_id === null);
+}
+
 function notesFor(passage: WindowPassage, run: Run): EditionComment[] {
     const runIndex = passage.runs.indexOf(run);
 
     return passage.comments.filter((comment) => {
-        if (comment.lemma_id === null) {
-            return true;
-        }
+        const span = noteSpan(passage, comment);
 
-        const start = passage.runs.findIndex(
-            (candidate) => candidate.lemma_id === comment.lemma_id,
-        );
-
-        if (start === -1) {
-            return false;
-        }
-
-        const end =
-            comment.range_end_lemma_id === null
-                ? start
-                : passage.runs.findIndex(
-                      (candidate) =>
-                          candidate.lemma_id === comment.range_end_lemma_id,
-                  );
-
-        return runIndex >= start && runIndex <= (end === -1 ? start : end);
+        // A note about the line bears on every word of it.
+        return span === null
+            ? comment.lemma_id === null
+            : runIndex >= span[0] && runIndex <= span[1];
     });
 }
 
@@ -1324,11 +1346,18 @@ function siteAnchorIndex(passage: WindowPassage, runIndex: number): number {
 }
 
 function sameSite(passage: WindowPassage, a: number, b: number): boolean {
-    return (
-        a >= 0 &&
-        b < passage.runs.length &&
-        siteAnchorIndex(passage, a) === siteAnchorIndex(passage, b)
-    );
+    if (a < 0 || b >= passage.runs.length) {
+        return false;
+    }
+
+    if (siteAnchorIndex(passage, a) === siteAnchorIndex(passage, b)) {
+        return true;
+    }
+
+    // A note pinned across several words holds them together too.
+    const start = noteSpanStart(passage, a);
+
+    return start !== null && start === noteSpanStart(passage, b);
 }
 
 /**
@@ -1364,7 +1393,11 @@ function runClasses(
         return ['rounded-sm bg-sky-100 dark:bg-sky-950/50'];
     }
 
-    if (!hasVariation(run) && coveringAnchorIndex(passage, runIndex) === null) {
+    if (
+        !hasVariation(run) &&
+        coveringAnchorIndex(passage, runIndex) === null &&
+        !hasAnchoredNote(passage, runIndex)
+    ) {
         return [];
     }
 
@@ -1819,7 +1852,12 @@ function orderRangeClasses(range: OrderRange): string[] {
                             "
                         >
                             <span
-                                class="mr-1 rounded bg-stone-200 px-1.5 py-0.5 align-middle font-sans text-xs tracking-wide text-stone-600 select-none dark:bg-stone-800 dark:text-stone-400"
+                                class="mr-1 rounded px-1.5 py-0.5 align-middle font-sans text-xs tracking-wide select-none"
+                                :class="
+                                    hasPassageNote(passage)
+                                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-400'
+                                        : 'bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400'
+                                "
                                 >{{ passage.label }}</span
                             >
 
