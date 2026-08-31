@@ -2492,6 +2492,56 @@ function orderRangeClasses(range: OrderRange): string[] {
                                     class="mt-1 block text-red-600 dark:text-red-400"
                                     >{{ submitError }}</span
                                 >
+
+                                <!-- A note belongs with the other things one
+                                     can say about the selected words, not
+                                     beside the line. Anchored by noteAnchor()
+                                     to whatever this panel is open on — one
+                                     column, a range, or the line as a whole. -->
+                                <template v-if="canEdit">
+                                    <button
+                                        v-if="notingPassageId !== passage.id"
+                                        type="button"
+                                        class="mt-2 block text-stone-500 underline dark:text-stone-400"
+                                        @click="openNoteComposer(passage)"
+                                    >
+                                        + Note
+                                    </button>
+
+                                    <div
+                                        v-else
+                                        class="mt-2 flex flex-col gap-1"
+                                    >
+                                        <textarea
+                                            v-model="noteDraft"
+                                            rows="2"
+                                            :placeholder="
+                                                noteAnchor(passage).lemma_id !==
+                                                null
+                                                    ? 'Note on the selected words'
+                                                    : 'Note on this line'
+                                            "
+                                            class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                                        ></textarea>
+                                        <span class="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                class="rounded bg-stone-900 px-2 py-0.5 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
+                                                :disabled="!noteDraft.trim()"
+                                                @click="saveNote(passage)"
+                                            >
+                                                Save note
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="text-stone-500 underline"
+                                                @click="cancelNote"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </span>
+                                    </div>
+                                </template>
                             </span>
 
                             <!-- The line as the base manuscript has it,
@@ -2508,10 +2558,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                  accentuation, word division, speaker
                                  assignment, why a reading was printed. -->
                             <div
-                                v-if="
-                                    passage.comments.length > 0 ||
-                                    notingPassageId === passage.id
-                                "
+                                v-if="passage.comments.length > 0"
                                 class="mt-2 border-l-2 border-stone-200 pl-3 font-sans text-sm dark:border-stone-800"
                             >
                                 <p
@@ -2550,25 +2597,17 @@ function orderRangeClasses(range: OrderRange): string[] {
                                     </template>
                                 </p>
 
+                                <!-- Rewording an existing note happens where
+                                     the note is; writing a new one happens in
+                                     the panel over the words it is about. -->
                                 <div
-                                    v-if="
-                                        canEdit &&
-                                        (notingPassageId === passage.id ||
-                                            editingNoteId !== null)
-                                    "
+                                    v-if="canEdit && editingNoteId !== null"
                                     class="mt-1 flex flex-col gap-1"
                                 >
                                     <textarea
                                         v-model="noteDraft"
                                         rows="2"
-                                        :placeholder="
-                                            editingNoteId !== null
-                                                ? 'Reword this note'
-                                                : noteAnchor(passage)
-                                                        .lemma_id !== null
-                                                  ? 'Note on the selected words'
-                                                  : 'Note on this line'
-                                        "
+                                        placeholder="Reword this note"
                                         class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
                                     ></textarea>
                                     <span class="flex items-center gap-2">
@@ -2590,15 +2629,6 @@ function orderRangeClasses(range: OrderRange): string[] {
                                     </span>
                                 </div>
                             </div>
-
-                            <button
-                                v-if="canEdit && notingPassageId !== passage.id"
-                                type="button"
-                                class="mt-1 font-sans text-xs text-stone-500 underline dark:text-stone-400"
-                                @click="openNoteComposer(passage)"
-                            >
-                                + Note
-                            </button>
                         </article>
                     </div>
                 </div>
