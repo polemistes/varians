@@ -2,18 +2,28 @@
 
 namespace Database\Seeders;
 
+use App\Enums\ConjectureType;
 use App\Enums\TranscriptionLayer;
 use App\Enums\Visibility;
 use App\Enums\WitnessType;
 use App\Models\CanonicalPassage;
+use App\Models\Conjecture;
+use App\Models\Edition;
+use App\Models\EditionComment;
+use App\Models\EditionLemma;
+use App\Models\Lemma;
+use App\Models\LemmaReading;
 use App\Models\Manuscript;
 use App\Models\ManuscriptImage;
 use App\Models\ReferenceScheme;
 use App\Models\Tag;
 use App\Models\Transcription;
+use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
+use App\Support\Edition\PassageAdder;
+use App\Support\Transcription\GreekText;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -105,19 +115,217 @@ class ScholarlyEditionSeeder extends Seeder
         // TranscriptionLayer. Only the normalized one is collated; without
         // that filter this witness would appear twice in its own apparatus,
         // disagreeing with itself.
-        $layers = [
-            [TranscriptionLayer::Diplomatic, ['diplomatic']],
-            [TranscriptionLayer::Normalized, ['normalized', 'punctuated']],
+        // Markup belongs to the diplomatic layer — what is lost or illegible —
+        // and is resolved away in the normalized one, which is what collation
+        // reads. Line 5 deliberately loses a word between the layers (the
+        // illegible {3} has no normalized counterpart), so the reader view has
+        // one line where the two cannot be lined up word by word.
+        $normalized = [
+            1 => 'μῆνιν ἄειδε θεὰ Πηληϊάδεω Ἀχιλῆος',
+            2 => 'οὐλομένην, ἣ μυρί᾽ Ἀχαιοῖς ἄλγε᾽ ἔθηκε,',
+            3 => 'πολλὰς δ᾽ ἰφθίμους ψυχὰς Ἄϊδι προΐαψεν',
+            4 => 'ἡρώων, αὐτοὺς δὲ ἑλώρια τεῦχε κύνεσσιν',
+            5 => 'οἰωνοῖσί τε πᾶσι, Διὸς δ᾽ ἐτελείετο βουλή,',
+            6 => 'ἐξ οὗ δὴ τὰ πρῶτα διαστήτην ἐρίσαντε',
+            7 => 'Ἀτρεΐδης τε ἄναξ ἀνδρῶν καὶ δῖος Ἀχιλλεύς.',
+            8 => 'τίς τ᾽ ἄρ σφῶε θεῶν ἔριδι ξυνέηκε μάχεσθαι;',
+            9 => 'Λητοῦς καὶ Διὸς υἱός· ὁ γὰρ βασιλῆϊ χολωθεὶς',
+            10 => 'νοῦσον ἀνὰ στρατὸν ὄρσε κακήν, ὀλέκοντο δὲ λαοί,',
         ];
 
-        foreach ($layers as [$layer, $tagNames]) {
-            $entries = array_values(collect($lines)->map(fn (string $text, int $line) => [
-                'text' => $text,
-                'passage' => $passages[$line],
-            ])->all());
+        $this->createTranscription($witness, $scholar, $this->entriesFor($lines, $passages), ['diplomatic'], TranscriptionLayer::Diplomatic);
+        $baseA = $this->createTranscription($witness, $scholar, $this->entriesFor($normalized, $passages), ['normalized', 'punctuated'], TranscriptionLayer::Normalized);
 
-            $this->createTranscription($witness, $scholar, $entries, $tagNames, $layer);
+        $this->seedIliadWitnesses($scholar, $passages, $normalized);
+        $this->seedIliadEdition($work, $scholar, $passages, $baseA);
+    }
+
+    /**
+     * A second and third witness, differing from A in the ways an apparatus
+     * exists to report: a word substituted, a phrase transposed, a line
+     * missing altogether, and — the case worth telling apart from the rest —
+     * a difference of accent alone.
+     *
+     * @param  array<int, CanonicalPassage>  $passages
+     * @param  array<int, string>  $normalized
+     */
+    private function seedIliadWitnesses(User $scholar, array $passages, array $normalized): void
+    {
+        $b = Witness::create([
+            'type' => WitnessType::Manuscript,
+            'siglum' => 'B',
+            'label' => 'Venetus B',
+        ]);
+
+        $bNormalized = $normalized;
+        $bNormalized[2] = 'οὐλομένην, ἣ μυρία Ἀχαιοῖς ἄλγεα θῆκε,';   // ἄλγε᾽ ἔθηκε
+        $bNormalized[4] = 'ἡρώων, αὐτοὺς δὲ ἕλωρα τεῦχε κύνεσσιν';     // ἑλώρια
+        $bNormalized[8] = 'τίς τ᾽ ἄρ σφωε θεῶν ἔριδι ξυνέηκε μάχεσθαι;'; // σφῶε — accent alone
+        $bNormalized[9] = 'Διὸς καὶ Λητοῦς υἱός· ὁ γὰρ βασιλῆϊ χολωθεὶς'; // transposed
+
+        // B's scribe writes without accents or breathings, so its diplomatic
+        // layer differs from its own normalized text in nearly every word
+        // while saying the same thing — which is what the reader toggle is for.
+        $bDiplomatic = array_map(fn (string $line) => GreekText::stripDiacritics($line), $bNormalized);
+
+        $this->createTranscription($b, $scholar, $this->entriesFor($bDiplomatic, $passages), ['diplomatic'], TranscriptionLayer::Diplomatic);
+        $this->createTranscription($b, $scholar, $this->entriesFor($bNormalized, $passages), ['normalized'], TranscriptionLayer::Normalized);
+
+        $c = Witness::create([
+            'type' => WitnessType::Manuscript,
+            'siglum' => 'C',
+            'label' => 'Codex Laurentianus',
+        ]);
+
+        // Fragmentary: lines 3 and 6 are lost. Absence is the gap — C simply
+        // has no reading there, which is not the same as omitting the words.
+        $cNormalized = $normalized;
+        unset($cNormalized[3], $cNormalized[6]);
+        $cNormalized[10] = 'νοῦσον ἀνὰ στρατὸν ὄρσε κακά, ὀλέκοντο δὲ λαοί,';
+
+        $this->createTranscription($c, $scholar, $this->entriesFor($cNormalized, $passages), ['normalized'], TranscriptionLayer::Normalized);
+    }
+
+    /**
+     * An edition over the whole ten lines, based throughout on A: a worked
+     * example with the apparatus already carrying witness variants, two
+     * conjectures — one adopted, one merely catalogued — a reading taken from
+     * B against A, and the editor's own notes.
+     *
+     * @param  array<int, CanonicalPassage>  $passages
+     */
+    private function seedIliadEdition(Work $work, User $scholar, array $passages, Transcription $baseA): void
+    {
+        $edition = Edition::create([
+            'work_id' => $work->id,
+            'user_id' => $scholar->id,
+            'title' => 'Iliad I, a working edition',
+            'description' => 'The opening of the Iliad, collated from three witnesses.',
+            'visibility' => Visibility::Published,
+        ]);
+
+        $position = 1.0;
+
+        foreach ($passages as $passage) {
+            $segment = TranscriptionSegment::where('transcription_id', $baseA->id)
+                ->where('canonical_passage_id', $passage->id)
+                ->sole();
+
+            PassageAdder::add($edition, $segment, $position++);
         }
+
+        // Zenodotus read δαῖτα here, reported by Athenaeus — a genuine
+        // ancient variant, and one this edition adopts, so the printed line
+        // departs from every surviving manuscript.
+        $daita = Conjecture::create([
+            'canonical_passage_id' => $passages[5]->id,
+            'user_id' => $scholar->id,
+            'type' => ConjectureType::Substitution,
+            'text' => 'δαῖτα,',
+            'proposed_by' => 'Zenodotus',
+            'bibliography' => 'Athenaeus, Deipnosophistae 1.12e',
+            'note' => 'Reported as the reading of Zenodotus; no surviving manuscript has it.',
+        ]);
+
+        $this->adopt($edition, $this->columnFor($passages[5], $baseA, 'πᾶσι,'), $daita);
+
+        // The seeding editor's own, catalogued as a candidate but not adopted:
+        // recording a conjecture and printing it are separate acts.
+        $heloria = Conjecture::create([
+            'canonical_passage_id' => $passages[4]->id,
+            'user_id' => $scholar->id,
+            'type' => ConjectureType::Substitution,
+            'text' => 'ἑλώριον',
+            'note' => 'Offered for the sake of the metre; not adopted here.',
+        ]);
+
+        $this->place($this->columnFor($passages[4], $baseA, 'ἑλώρια'), $heloria);
+
+        // A decision in B's favour against the base, so the edition is
+        // genuinely eclectic rather than a copy of one witness.
+        $this->adoptWitness($edition, $this->columnFor($passages[2], $baseA, 'ἄλγε᾽'), 'B');
+
+        EditionComment::create([
+            'edition_id' => $edition->id,
+            'canonical_passage_id' => $passages[8]->id,
+            'lemma_id' => $this->columnFor($passages[8], $baseA, 'σφῶε')?->id,
+            'user_id' => $scholar->id,
+            'note' => 'B writes σφωε without the circumflex. Orthographic only; not reported in the apparatus.',
+        ]);
+
+        EditionComment::create([
+            'edition_id' => $edition->id,
+            'canonical_passage_id' => $passages[9]->id,
+            'user_id' => $scholar->id,
+            'note' => 'B transposes Διὸς and Λητοῦς. The order printed here follows A and C.',
+        ]);
+    }
+
+    /** The column whose reading in the base is exactly this word. */
+    private function columnFor(CanonicalPassage $passage, Transcription $base, string $word): ?Lemma
+    {
+        return Lemma::where('canonical_passage_id', $passage->id)
+            ->orderBy('position')
+            ->with('readings')
+            ->get()
+            ->first(function (Lemma $lemma) use ($base, $word) {
+                $reading = $lemma->readings->firstWhere('transcription_id', $base->id);
+
+                return $reading !== null && mb_substr(
+                    $base->text,
+                    $reading->start_offset,
+                    $reading->end_offset - $reading->start_offset,
+                ) === $word;
+            });
+    }
+
+    /** Attach a conjecture to a column as one more candidate there. */
+    private function place(?Lemma $lemma, Conjecture $conjecture): ?LemmaReading
+    {
+        return $lemma?->readings()->create(['conjecture_id' => $conjecture->id]);
+    }
+
+    /** Attach a conjecture and let this edition print it. */
+    private function adopt(Edition $edition, ?Lemma $lemma, Conjecture $conjecture): void
+    {
+        $reading = $this->place($lemma, $conjecture);
+
+        if ($reading !== null) {
+            EditionLemma::create([
+                'edition_id' => $edition->id,
+                'lemma_id' => $lemma->id,
+                'selected_reading_id' => $reading->id,
+            ]);
+        }
+    }
+
+    /** Print the named witness's reading at this column instead of the base's. */
+    private function adoptWitness(Edition $edition, ?Lemma $lemma, string $siglum): void
+    {
+        $reading = $lemma?->readings->first(
+            fn (LemmaReading $candidate) => $candidate->transcription?->witness?->siglum === $siglum,
+        );
+
+        if ($reading !== null) {
+            EditionLemma::create([
+                'edition_id' => $edition->id,
+                'lemma_id' => $lemma->id,
+                'selected_reading_id' => $reading->id,
+            ]);
+        }
+    }
+
+    /**
+     * @param  array<int, string>  $lines
+     * @param  array<int, CanonicalPassage>  $passages
+     * @return list<array{text: string, passage: CanonicalPassage}>
+     */
+    private function entriesFor(array $lines, array $passages): array
+    {
+        return array_values(collect($lines)->map(fn (string $text, int $line) => [
+            'text' => $text,
+            'passage' => $passages[$line],
+        ])->all());
     }
 
     private function seedApology(User $scholar): void
