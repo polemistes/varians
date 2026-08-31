@@ -1367,11 +1367,12 @@ function sameSite(passage: WindowPassage, a: number, b: number): boolean {
  */
 function spacerClasses(passage: WindowPassage, runIndex: number): string[] {
     const next = runIndex + 1;
+    const fill = siteFill(passage, passage.runs[runIndex], runIndex);
 
     return next < passage.runs.length &&
         sameSite(passage, runIndex, next) &&
-        runClasses(passage, passage.runs[runIndex], runIndex).length > 0
-        ? ['bg-amber-100 dark:bg-amber-950/50']
+        fill !== null
+        ? [fill]
         : [];
 }
 
@@ -1384,20 +1385,55 @@ function spacerClasses(passage: WindowPassage, runIndex: number): string[] {
  * What a reader wants at a glance is where the tradition differs; what an
  * editor wants is the same thing.
  */
+/** Whether this edition prints a conjecture here rather than any witness. */
+function printsConjecture(run: Run): boolean {
+    const selected = run.candidates.find((candidate) => candidate.selected);
+
+    return selected !== undefined && selected.conjecture_id !== null;
+}
+
+/**
+ * The mark a word carries, or null for none. Three things are worth seeing at
+ * a glance, and they are told apart by colour:
+ *
+ * - the manuscripts differ here — the ordinary variant site;
+ * - the printed reading is nobody's manuscript but a conjecture, which is a
+ *   stronger claim about the text and so a stronger mark;
+ * - the editor has written about the word though the witnesses agree.
+ *
+ * Ordered by what most needs saying: a conjecture over a disputed word is
+ * still a conjecture, and a note beside a real variant is the lesser fact.
+ */
+function siteFill(
+    passage: WindowPassage,
+    run: Run,
+    runIndex: number,
+): string | null {
+    if (printsConjecture(run)) {
+        return 'bg-amber-300 dark:bg-amber-800/60';
+    }
+
+    if (hasVariation(run) || coveringAnchorIndex(passage, runIndex) !== null) {
+        return 'bg-amber-100 dark:bg-amber-950/50';
+    }
+
+    return hasAnchoredNote(passage, runIndex)
+        ? 'bg-sky-100 dark:bg-sky-950/50'
+        : null;
+}
+
 function runClasses(
     passage: WindowPassage,
     run: Run,
     runIndex: number,
 ): string[] {
     if (isRunInPendingRange(passage.id, runIndex)) {
-        return ['rounded-sm bg-sky-100 dark:bg-sky-950/50'];
+        return ['rounded-sm bg-sky-200 dark:bg-sky-900/60'];
     }
 
-    if (
-        !hasVariation(run) &&
-        coveringAnchorIndex(passage, runIndex) === null &&
-        !hasAnchoredNote(passage, runIndex)
-    ) {
+    const fill = siteFill(passage, run, runIndex);
+
+    if (fill === null) {
         return [];
     }
 
@@ -1407,7 +1443,7 @@ function runClasses(
     const closesSite = !sameSite(passage, runIndex, runIndex + 1);
 
     return [
-        'bg-amber-100 dark:bg-amber-950/50',
+        fill,
         opensSite ? 'rounded-l-sm' : '',
         closesSite ? 'rounded-r-sm' : '',
     ];
@@ -1855,7 +1891,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                 class="mr-1 rounded px-1.5 py-0.5 align-middle font-sans text-xs tracking-wide select-none"
                                 :class="
                                     hasPassageNote(passage)
-                                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-400'
+                                        ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300'
                                         : 'bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400'
                                 "
                                 >{{ passage.label }}</span
