@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\TranscriptionLayer;
 use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\TranscriptionSegment;
@@ -40,7 +41,9 @@ class StoreEditionPassagesBulkRequest extends FormRequest
         $edition = $this->route('edition');
 
         return [
-            'transcription_id' => ['required', Rule::exists('transcriptions', 'id')],
+            // Only the normalized layer collates and only it may be a base —
+            // see App\Enums\TranscriptionLayer.
+            'transcription_id' => ['required', Rule::exists('transcriptions', 'id')->where('layer', TranscriptionLayer::Normalized->value)],
             'from_canonical_passage_id' => ['required', Rule::exists('canonical_passages', 'id')->where('work_id', $edition->work_id)],
             'to_canonical_passage_id' => ['required', Rule::exists('canonical_passages', 'id')->where('work_id', $edition->work_id)],
         ];

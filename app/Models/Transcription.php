@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\Role;
+use App\Enums\TranscriptionLayer;
 use App\Enums\Visibility;
 use Database\Factories\TranscriptionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -20,18 +21,20 @@ use Illuminate\Support\Carbon;
  * @property int $witness_id
  * @property int $user_id
  * @property int|null $forked_from_id
+ * @property TranscriptionLayer $layer
  * @property string $text
  * @property Visibility $visibility
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['witness_id', 'user_id', 'forked_from_id', 'text', 'visibility'])]
+#[Fillable(['witness_id', 'user_id', 'forked_from_id', 'layer', 'text', 'visibility'])]
 class Transcription extends Model
 {
     /** @use HasFactory<TranscriptionFactory> */
     use HasFactory;
 
     protected $attributes = [
+        'layer' => TranscriptionLayer::Normalized,
         'visibility' => Visibility::Draft,
     ];
 
@@ -137,11 +140,26 @@ class Transcription extends Model
     }
 
     /**
+     * Scope a query to the layer collation runs on. See TranscriptionLayer
+     * for why a diplomatic transcription must never enter the apparatus: it
+     * would make a manuscript appear as its own variant, disagreeing with
+     * itself over the orthography the normalized layer regularized.
+     *
+     * @param  Builder<Transcription>  $query
+     */
+    #[Scope]
+    protected function collatable(Builder $query): void
+    {
+        $query->where('layer', TranscriptionLayer::Normalized);
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
     {
         return [
+            'layer' => TranscriptionLayer::class,
             'visibility' => Visibility::class,
         ];
     }

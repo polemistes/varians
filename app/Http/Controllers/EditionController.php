@@ -94,7 +94,13 @@ class EditionController extends Controller
         // viewer can actually see, same as the panel itself: a draft
         // transcription's own order must not leak to a non-editor via a
         // range marker either.
-        $transcriptions = Transcription::forWork($work)->visibleTo($request->user())
+        //
+        // Restricted to the collatable layer for both uses. The panel adds
+        // text to an edition, which only a normalized transcription may
+        // source. Ordering loses nothing by the same filter: a fork copies
+        // the citation segments verbatim, so the normalized layer carries
+        // the very same physical order its diplomatic parent does.
+        $transcriptions = Transcription::forWork($work)->visibleTo($request->user())->collatable()
             ->with([
                 'witness:id,siglum',
                 'segments' => fn ($query) => $query->whereHas('canonicalPassage', fn ($q) => $q->where('work_id', $work->id)),

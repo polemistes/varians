@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\ConjectureType;
+use App\Enums\TranscriptionLayer;
 use App\Models\Conjecture;
 use App\Models\Edition;
 use App\Models\TranscriptionSegment;
@@ -96,7 +97,10 @@ class StoreEditionVariantRequest extends FormRequest
             'range_end_base_offset' => ['nullable', 'integer', 'gte:range_start_base_offset'],
 
             'source' => ['required', Rule::in(['transcription', 'existing_conjecture', 'new_conjecture'])],
-            'transcription_id' => ['required_if:source,transcription', Rule::exists('transcriptions', 'id')],
+            // A witness reading placed here becomes a real LemmaReading (the
+            // one path that mints one outside PassageAdder), so it is bound
+            // by the same rule — see App\Enums\TranscriptionLayer.
+            'transcription_id' => ['required_if:source,transcription', Rule::exists('transcriptions', 'id')->where('layer', TranscriptionLayer::Normalized->value)],
             'start_offset' => ['required_if:source,transcription', 'integer', 'min:0'],
             'end_offset' => ['required_if:source,transcription', 'integer', 'gt:start_offset'],
             'conjecture_id' => [

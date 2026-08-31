@@ -14,13 +14,17 @@ use Inertia\Response;
 
 class TranscriptionForkController extends Controller
 {
+    /**
+     * The source's own witness is deliberately included: forking onto it is
+     * how a normalized layer is made from a diplomatic transcription (see
+     * App\Enums\TranscriptionLayer), which is the more common reason to fork
+     * now than copying wording onto a different witness.
+     */
     public function create(Transcription $transcription): Response
     {
         $transcription->load('witness');
 
-        $witnesses = Witness::where('id', '!=', $transcription->witness_id)
-            ->orderBy('siglum')
-            ->get(['id', 'siglum', 'label', 'type']);
+        $witnesses = Witness::orderBy('siglum')->get(['id', 'siglum', 'label', 'type']);
 
         return Inertia::render('Transcriptions/Fork', [
             'transcription' => $transcription,
@@ -29,9 +33,13 @@ class TranscriptionForkController extends Controller
     }
 
     /**
-     * Copy this transcription's text and citation spans onto a different
-     * witness. Image-alignment regions are not copied — a different witness
-     * means different (or no) images, so old alignments wouldn't apply.
+     * Copy this transcription's text and citation spans onto another witness
+     * — or onto the same one, to start a normalized layer from a diplomatic
+     * transcription (see App\Enums\TranscriptionLayer). Image-alignment
+     * regions are never copied: for a different witness they'd point at
+     * different (or no) images, and for a normalized layer they'd be
+     * meaningless, since only the diplomatic text corresponds to marks on
+     * parchment.
      */
     public function store(StoreTranscriptionForkRequest $request, Transcription $transcription): RedirectResponse
     {
@@ -40,6 +48,7 @@ class TranscriptionForkController extends Controller
                 'witness_id' => $request->validated('witness_id'),
                 'user_id' => $request->user()->id,
                 'forked_from_id' => $transcription->id,
+                'layer' => $request->validated('layer') ?? $transcription->layer,
                 'text' => $transcription->text,
                 'visibility' => Visibility::Draft,
             ]);

@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\TranscriptionLayer;
 use App\Enums\Visibility;
 use App\Enums\WitnessType;
 use App\Models\CanonicalPassage;
@@ -100,13 +101,22 @@ class ScholarlyEditionSeeder extends Seeder
             ]);
         }
 
-        foreach (['diplomatic' => ['diplomatic'], 'normalized' => ['normalized', 'punctuated']] as $tagNames) {
+        // Both layers of the same witness — the case that motivated
+        // TranscriptionLayer. Only the normalized one is collated; without
+        // that filter this witness would appear twice in its own apparatus,
+        // disagreeing with itself.
+        $layers = [
+            [TranscriptionLayer::Diplomatic, ['diplomatic']],
+            [TranscriptionLayer::Normalized, ['normalized', 'punctuated']],
+        ];
+
+        foreach ($layers as [$layer, $tagNames]) {
             $entries = array_values(collect($lines)->map(fn (string $text, int $line) => [
                 'text' => $text,
                 'passage' => $passages[$line],
             ])->all());
 
-            $this->createTranscription($witness, $scholar, $entries, $tagNames);
+            $this->createTranscription($witness, $scholar, $entries, $tagNames, $layer);
         }
     }
 
@@ -183,7 +193,9 @@ class ScholarlyEditionSeeder extends Seeder
 
         $entries = array_values($entries->all());
 
-        $this->createTranscription($witness, $scholar, $entries, ['diplomatic']);
+        // Normalized: this is the Apology edition's own base, and only the
+        // collatable layer may be one.
+        $this->createTranscription($witness, $scholar, $entries, ['normalized'], TranscriptionLayer::Normalized);
     }
 
     /**
@@ -195,7 +207,7 @@ class ScholarlyEditionSeeder extends Seeder
      * @param  list<array{text: string, passage: CanonicalPassage, paragraphBreakBefore?: bool}>  $entries
      * @param  list<string>  $tagNames
      */
-    private function createTranscription(Witness $witness, User $scholar, array $entries, array $tagNames): Transcription
+    private function createTranscription(Witness $witness, User $scholar, array $entries, array $tagNames, TranscriptionLayer $layer): Transcription
     {
         $text = '';
         $spans = [];
@@ -213,6 +225,7 @@ class ScholarlyEditionSeeder extends Seeder
         $transcription = Transcription::create([
             'witness_id' => $witness->id,
             'user_id' => $scholar->id,
+            'layer' => $layer,
             'text' => $text,
             'visibility' => Visibility::Published,
         ]);

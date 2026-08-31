@@ -2,6 +2,7 @@
 
 namespace App\Support\Edition;
 
+use App\Enums\TranscriptionLayer;
 use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\EditionPassage;
@@ -66,10 +67,18 @@ class PassageAdder
      * so looping unconditionally on every call closes a real gap for free: a
      * witness whose segment was cited *after* this passage was first
      * materialized (by this edition or another) still gets picked up.
+     *
+     * Restricted to the normalized layer (see TranscriptionLayer). A witness's
+     * diplomatic and normalized transcriptions cite the same passages — fork
+     * copies the citation segments verbatim — so without this filter both
+     * would align as if they were independent witnesses, and a manuscript
+     * would appear in its own apparatus disagreeing with itself over exactly
+     * the orthography the normalized layer regularized.
      */
     private static function materialize(CanonicalPassage $passage, TranscriptionSegment $addedSegment): void
     {
         $segments = TranscriptionSegment::where('canonical_passage_id', $passage->id)
+            ->whereRelation('transcription', 'layer', TranscriptionLayer::Normalized)
             ->with('transcription')
             ->get()
             ->sortBy(fn (TranscriptionSegment $citing) => $citing->transcription_id === $addedSegment->transcription_id ? 0 : 1)

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\TranscriptionLayer;
 use App\Models\Transcription;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -32,7 +33,9 @@ class StoreEditionPassageRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'transcription_id' => ['required', Rule::exists('transcriptions', 'id')],
+            // Only the normalized layer collates and only it may be a base —
+            // see App\Enums\TranscriptionLayer.
+            'transcription_id' => ['required', Rule::exists('transcriptions', 'id')->where('layer', TranscriptionLayer::Normalized->value)],
             'start_offset' => ['required', 'integer', 'min:0'],
             'end_offset' => ['required', 'integer', 'gt:start_offset'],
         ];
