@@ -22,6 +22,7 @@ use App\Models\TranscriptionSegment;
 use App\Models\Work;
 use App\Support\Edition\DiplomaticCounterpart;
 use App\Support\Edition\PermutationBlocks;
+use App\Support\Transcription\GreekText;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection as SupportCollection;
@@ -1061,6 +1062,24 @@ class EditionController extends Controller
     }
 
     /**
+     * Whether a reading says the same word as the base and merely spells it
+     * differently — accent, breathing or pointing alone.
+     *
+     * Reported rather than suppressed: whether an orthographic difference is
+     * worth printing is the editor's call, not the collator's, and she can
+     * say so in a note (see EditionComment). Identical spellings are not
+     * "orthographic variants" at all, so they are excluded.
+     */
+    private static function differsOnlyInOrthography(?string $baseText, string $text): bool
+    {
+        if ($baseText === null || $baseText === $text) {
+            return false;
+        }
+
+        return GreekText::foldOrthography($baseText) === GreekText::foldOrthography($text);
+    }
+
+    /**
      * `replaced_text` names the original span a range-shaped candidate
      * would consume if picked — the base witness's own wording from the
      * anchor lemma through the range's end, computed once here since a
@@ -1076,6 +1095,10 @@ class EditionController extends Controller
     {
         $replacedText = $this->replacedSpanText($reading, $anchor, $base, $byId);
         $extension = $this->witnessExtension($reading, $anchor, $referenceEnd);
+        $baseReading = $this->baseReadingOf($anchor, $base);
+        $baseText = $baseReading !== null
+            ? mb_substr($baseReading->transcription->text, $baseReading->start_offset, $baseReading->end_offset - $baseReading->start_offset)
+            : null;
 
         if ($reading->transcription_id !== null) {
             return [
@@ -1099,6 +1122,13 @@ class EditionController extends Controller
                 // What this manuscript physically shows here, null where its
                 // diplomatic layer is absent, unpublished, or divides the
                 // line into a different number of words.
+                // True where this reading differs from the base's only in
+                // accent, breathing or pointing — an orthographic variant
+                // rather than a different word. See GreekText::foldOrthography.
+                'orthographic_only' => self::differsOnlyInOrthography(
+                    $baseText,
+                    $extension['text'] ?? mb_substr($reading->transcription->text, $reading->start_offset, $reading->end_offset - $reading->start_offset),
+                ),
                 'diplomatic' => DiplomaticCounterpart::forSpan(
                     $passage,
                     $reading->transcription,
@@ -1128,6 +1158,7 @@ class EditionController extends Controller
             'replaced_text' => $replacedText,
             'extent_characters' => $reading->conjecture->extent_characters,
             'needs_review' => $reading->needs_review,
+            'orthographic_only' => false,
             // A conjecture is nobody's manuscript reading, so there is no
             // diplomatic layer behind it.
             'diplomatic' => null,

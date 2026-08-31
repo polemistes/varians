@@ -162,3 +162,54 @@ test('layers that divide the line differently report nothing rather than guessin
         // correspondence is untrustworthy.
         ->and($payload['base_diplomatic'])->toBe('ΚΑΓΩ ΕΙΠΟΝ');
 });
+
+test('a variant that differs only in accent is marked as orthographic', function () {
+    // The case the editor most wants distinguished: one manuscript accents a
+    // word and another does not, which is not a different reading.
+    $this->actingAs(User::factory()->editor()->create());
+
+    ['work' => $work, 'edition' => $edition] = collatedWithLayers([
+        'A' => ['τοσοῦτοι μὲν οὖν', 'ΤΟΣΟΥΤΟΙ ΜΕΝ ΟΥΝ'],
+        'B' => ['τοσοῦτοι μεν, οὖν', 'ΤΟΣΟΥΤΟΙ ΜΕΝ ΟΥΝ'],
+    ]);
+
+    $candidates = passagePayload($work, $edition)['runs'][1]['candidates'];
+
+    expect(collect($candidates)->map(fn ($c) => [$c['label'], $c['text'], $c['orthographic_only']])->all())
+        ->toBe([
+            ['A', 'μὲν', false],  // the base itself
+            ['B', 'μεν,', true],  // same word, different pointing
+        ]);
+});
+
+test('a genuinely different word is not marked as orthographic', function () {
+    $this->actingAs(User::factory()->editor()->create());
+
+    ['work' => $work, 'edition' => $edition] = collatedWithLayers([
+        'A' => ['τοσοῦτοι μὲν οὖν', 'ΤΟΣΟΥΤΟΙ ΜΕΝ ΟΥΝ'],
+        'B' => ['τοσοῦτοι δὲ οὖν', 'ΤΟΣΟΥΤΟΙ ΔΕ ΟΥΝ'],
+    ]);
+
+    $candidates = passagePayload($work, $edition)['runs'][1]['candidates'];
+
+    expect(collect($candidates)->pluck('orthographic_only')->all())->toBe([false, false]);
+});
+
+test('a conjecture is never an orthographic variant', function () {
+    $this->actingAs(User::factory()->editor()->create());
+
+    ['work' => $work, 'edition' => $edition, 'passage' => $passage] = collatedWithLayers([
+        'A' => ['τοσοῦτοι μὲν οὖν', 'ΤΟΣΟΥΤΟΙ ΜΕΝ ΟΥΝ'],
+    ]);
+
+    $middle = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->get()[1];
+    $middle->readings()->create([
+        // Spelled the same but for the accent — still a proposal, not a variant.
+        'conjecture_id' => Conjecture::factory()->for($passage, 'canonicalPassage')->create(['text' => 'μεν'])->id,
+    ]);
+
+    $conjecture = collect(passagePayload($work, $edition)['runs'][1]['candidates'])
+        ->firstWhere('conjecture_id', '!=', null);
+
+    expect($conjecture['orthographic_only'])->toBeFalse();
+});

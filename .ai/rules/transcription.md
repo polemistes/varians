@@ -49,6 +49,38 @@ What `applyReadings` does instead:
 `HandleInertiaRequests` shares a general `flash.message` for this. It is the
 app's only flash channel; keep it generic.
 
+## Greek regularization removes, never supplies
+`App\Support\Transcription\GreekText` strips accents, breathings, all
+diacritics, or punctuation — decidable without knowing the language, by
+decomposing and dropping named combining marks. Mirrored in
+`resources/js/lib/greekText.ts`, which the editor uses to build the same edit
+locally; keep the two in step.
+
+Deliberately absent is the opposite direction. *Adding* correct accents and
+breathings to text that lacks them needs morphological analysis against a
+lexicon and stays ambiguous even then (τίς/τις, ἦ/ἥ); a tool that got it
+silently wrong would be worse than none, since its errors would read as
+scribal variants. Do not add one.
+
+The Leiden markup delimiters `[ ] { } _` are never touched, and punctuation is
+a listed set rather than a Unicode class so that widening the definition
+cannot catch them.
+
+`stripOps()` returns the change as ordinary edit operations, in descending
+order so each one's offsets are still valid when applied. Never replace the
+text wholesale: every citation span, image region and collated reading is
+recorded as offsets into it, and one op covering the document reads as
+"everything was replaced", flagging or destroying all of them. Character-level
+ops fall strictly inside any span covering them, which merely shifts that
+span's end — verified: stripping accents left a citation span covering the
+same words, unflagged.
+
+`GreekText::foldOrthography` (diacritics + punctuation + case) is what
+`EditionController` uses to mark an apparatus candidate `orthographic_only`:
+the same word spelled differently, rather than a different word. Reported, not
+suppressed — whether an orthographic difference is worth printing is the
+editor's call, and she can say so in an EditionComment.
+
 ## Tokenization is a per-work strategy
 `App\Support\Transcription\Tokenizer` divides text into the tokens collation
 aligns on, chosen by `Work.tokenization`. Whitespace is the only implementation

@@ -10,6 +10,8 @@ import {
     describeDeletionImpact,
     pluralize,
 } from '@/lib/deletionImpact';
+import { stripOps } from '@/lib/greekText';
+import type { StripKind } from '@/lib/greekText';
 import { applyOps, transformSpans } from '@/lib/transcriptionEdit';
 import type { TextEditOp } from '@/lib/transcriptionEdit';
 import { store as storeImage } from '@/routes/manuscript-images';
@@ -218,6 +220,27 @@ const textSaveNotice = computed(() => page.props.flash?.message ?? null);
 
 function onEdit(op: TextEditOp) {
     editOps.value = [...editOps.value, op];
+    deleteConfirmed.value = false;
+    textSaveError.value = null;
+}
+
+/**
+ * Queue the edits that strip a class of marks from the whole text.
+ *
+ * Goes through the same pending-ops mechanism as typing, rather than
+ * replacing the text outright: every citation span, image region and collated
+ * reading is recorded as offsets into this text, and a wholesale replacement
+ * would read as "all of it changed" and flag or destroy them. The result is
+ * previewed like any other edit and only persists on Save.
+ */
+function stripMarks(kind: StripKind) {
+    const ops = stripOps(editedText.value, kind);
+
+    if (ops.length === 0) {
+        return;
+    }
+
+    editOps.value = [...editOps.value, ...ops];
     deleteConfirmed.value = false;
     textSaveError.value = null;
 }
@@ -963,6 +986,30 @@ function fixBoundaries() {
                     >
                         <span class="text-stone-500 dark:text-stone-400">
                             {{ markupLegend }}
+                        </span>
+
+                        <!-- Removing marks only; supplying them is the
+                             editor's own work — see lib/greekText.ts. Queued
+                             as ordinary pending edits, so they preview live
+                             and persist only on Save. -->
+                        <span class="flex flex-wrap items-center gap-2">
+                            <span class="text-stone-500 dark:text-stone-400"
+                                >Strip:</span
+                            >
+                            <button
+                                v-for="kind in [
+                                    'accents',
+                                    'breathings',
+                                    'diacritics',
+                                    'punctuation',
+                                ] as const"
+                                :key="kind"
+                                type="button"
+                                class="rounded border border-stone-300 px-2 py-0.5 dark:border-stone-700"
+                                @click="stripMarks(kind)"
+                            >
+                                {{ kind }}
+                            </button>
                         </span>
                         <span
                             v-if="needsDeleteConfirmation"
