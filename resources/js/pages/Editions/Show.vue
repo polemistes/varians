@@ -1185,14 +1185,57 @@ function conjectureCandidates(run: Run): Candidate[] {
 // every word — a full page of text is several hundred words.
 const hovered = ref<{ run: Run; left: number; top: number } | null>(null);
 
-function showReadings(event: MouseEvent, run: Run) {
+function showReadings(
+    event: MouseEvent,
+    passage: WindowPassage,
+    runIndex: number,
+) {
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    // The site's own run, so hovering any word of a transposition reports the
+    // whole competing phrase rather than the one word under the cursor.
+    const run = passage.runs[siteAnchorIndex(passage, runIndex)];
 
     hovered.value = { run, left: rect.left, top: rect.bottom + 4 };
 }
 
 function hideReadings() {
     hovered.value = null;
+}
+
+/**
+ * The run that speaks for a variant site: itself, or the earlier run whose
+ * wider reading covers it.
+ *
+ * A transposition or any many-to-one variant reaches the reader as several
+ * adjacent columns answering to one reading elsewhere — B's "Διὸς καὶ Λητοῦς"
+ * against three columns of the base. They are one place in the text where the
+ * tradition differs, and should read as one.
+ */
+function siteAnchorIndex(passage: WindowPassage, runIndex: number): number {
+    return coveringAnchorIndex(passage, runIndex) ?? runIndex;
+}
+
+function sameSite(passage: WindowPassage, a: number, b: number): boolean {
+    return (
+        a >= 0 &&
+        b < passage.runs.length &&
+        siteAnchorIndex(passage, a) === siteAnchorIndex(passage, b)
+    );
+}
+
+/**
+ * The space between two words, highlighted when both belong to the same
+ * variant site — otherwise a site spanning three words reads as three
+ * separate marks with gaps between them.
+ */
+function spacerClasses(passage: WindowPassage, runIndex: number): string[] {
+    const next = runIndex + 1;
+
+    return next < passage.runs.length &&
+        sameSite(passage, runIndex, next) &&
+        runClasses(passage, passage.runs[runIndex], runIndex).length > 0
+        ? ['bg-amber-100 dark:bg-amber-950/50']
+        : [];
 }
 
 /**
@@ -1217,7 +1260,16 @@ function runClasses(
         return [];
     }
 
-    return ['rounded-sm bg-amber-100 dark:bg-amber-950/50'];
+    // Rounded only where the site begins and ends, so the words between run
+    // together into one mark.
+    const opensSite = !sameSite(passage, runIndex - 1, runIndex);
+    const closesSite = !sameSite(passage, runIndex, runIndex + 1);
+
+    return [
+        'bg-amber-100 dark:bg-amber-950/50',
+        opensSite ? 'rounded-l-sm' : '',
+        closesSite ? 'rounded-r-sm' : '',
+    ];
 }
 
 // Three states, extending the same amber/emerald vocabulary runClasses()
@@ -1724,7 +1776,13 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                 ? 'inline-block text-center align-top'
                                                 : '',
                                         ]"
-                                        @mouseenter="showReadings($event, run)"
+                                        @mouseenter="
+                                            showReadings(
+                                                $event,
+                                                passage,
+                                                runIndex,
+                                            )
+                                        "
                                         @mouseleave="hideReadings"
                                         @click="toggleRun(passage.id, runIndex)"
                                         ><template
@@ -1747,7 +1805,12 @@ function orderRangeClasses(range: OrderRange): string[] {
                                             class="block font-sans text-xs leading-tight text-stone-400 dark:text-stone-500"
                                             >{{ run.diplomatic ?? '·' }}</span
                                         ></span
-                                    >{{ ' ' }}
+                                    ><span
+                                        :class="
+                                            spacerClasses(passage, runIndex)
+                                        "
+                                        >{{ ' ' }}</span
+                                    >
                                 </template>
                                 <span
                                     v-if="showsBoundaries(passage)"
