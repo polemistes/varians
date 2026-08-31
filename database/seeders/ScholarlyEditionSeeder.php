@@ -160,7 +160,12 @@ class ScholarlyEditionSeeder extends Seeder
         $bNormalized = $normalized;
         $bNormalized[2] = 'οὐλομένην, ἣ μυρία Ἀχαιοῖς ἄλγεα θῆκε,';   // ἄλγε᾽ ἔθηκε
         $bNormalized[4] = 'ἡρώων, αὐτοὺς δὲ ἕλωρα τεῦχε κύνεσσιν';     // ἑλώρια
-        $bNormalized[8] = 'τίς τ᾽ ἄρ σφωε θεῶν ἔριδι ξυνέηκε μάχεσθαι;'; // σφῶε — accent alone
+        // Ionic ξυν- against Attic συν-: a real difference in what the scribe
+        // wrote, visible in both layers. Not an accent difference — B's
+        // scribe supplies no accents at all, so any accent this edition
+        // prints for B is the editor's own and must not be reported as B's
+        // reading (see the note on 1.8).
+        $bNormalized[8] = 'τίς τ᾽ ἄρ σφῶε θεῶν ἔριδι συνέηκε μάχεσθαι;';
         $bNormalized[9] = 'Διὸς καὶ Λητοῦς υἱός· ὁ γὰρ βασιλῆϊ χολωθεὶς'; // transposed
 
         // B's scribe writes without accents or breathings, so its diplomatic
@@ -248,9 +253,9 @@ class ScholarlyEditionSeeder extends Seeder
         EditionComment::create([
             'edition_id' => $edition->id,
             'canonical_passage_id' => $passages[8]->id,
-            'lemma_id' => $this->columnFor($passages[8], $baseA, 'σφῶε')?->id,
+            'lemma_id' => $this->columnFor($passages[8], $baseA, 'ξυνέηκε')?->id,
             'user_id' => $scholar->id,
-            'note' => 'B writes σφωε without the circumflex. Orthographic only; not reported in the apparatus.',
+            'note' => 'B has the Attic συν- for the Ionic ξυν-. Printed as ξυν- throughout with A and C.',
         ]);
 
         EditionComment::create([

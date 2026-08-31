@@ -1175,6 +1175,37 @@ function manuscriptReadings(run: Run): ReadingGroup[] {
     return groupBy(run.candidates, (c) => c.diplomatic, '\u0000');
 }
 
+/**
+ * True where the witnesses' normalized readings differ but the manuscripts
+ * themselves agree.
+ *
+ * Such a difference did not arise in the tradition. It arose in normalizing —
+ * one witness given an accent, breathing or pointing another was not — and
+ * reporting it as a variant attributes to the scribes a decision the editor
+ * made. Said plainly in the tooltip, so it can be corrected rather than
+ * printed.
+ *
+ * Only witnesses whose manuscript reading is actually known count: a witness
+ * with no visible diplomatic layer settles nothing either way, and two are
+ * needed before "the manuscripts agree" means anything.
+ */
+function differsOnlyInNormalization(run: Run): boolean {
+    const known = run.candidates.filter(
+        (candidate) =>
+            candidate.transcription_id !== null &&
+            candidate.diplomatic !== null,
+    );
+
+    if (known.length < 2) {
+        return false;
+    }
+
+    return (
+        new Set(known.map((candidate) => candidate.diplomatic)).size === 1 &&
+        new Set(known.map((candidate) => candidate.text)).size > 1
+    );
+}
+
 function conjectureCandidates(run: Run): Candidate[] {
     return run.candidates.filter(
         (candidate) => candidate.conjecture_id !== null,
@@ -2599,6 +2630,14 @@ function orderRangeClasses(range: OrderRange): string[] {
                 <span class="text-stone-500 dark:text-stone-400">{{
                     candidate.label
                 }}</span>
+            </p>
+
+            <p
+                v-if="differsOnlyInNormalization(hovered.run)"
+                class="mt-1 text-xs text-amber-700 dark:text-amber-400"
+            >
+                The manuscripts agree here — this difference was made in
+                normalizing, not by the scribes.
             </p>
 
             <template v-if="manuscriptReadings(hovered.run).length > 0">

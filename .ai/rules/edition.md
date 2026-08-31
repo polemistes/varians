@@ -149,6 +149,20 @@ narrow column list and has no `work`). The toggle in `Editions/Show.vue` is
 available to every reader, not only editors — seeing what the manuscripts have
 is reading, not editing.
 
+## A difference made in normalizing is not a manuscript variant
+Where the witnesses' normalized readings differ but their diplomatic layers
+agree, the difference did not arise in the tradition — it arose in
+normalizing, one witness given an accent or pointing another was not.
+Reporting it as a variant attributes to the scribes a decision the editor
+made. `differsOnlyInNormalization()` in `Editions/Show.vue` detects it (only
+witnesses whose manuscript reading is actually known count, and two are needed
+before "the manuscripts agree" means anything) and the tooltip says so plainly,
+so it can be corrected rather than printed.
+
+This is a real trap, not a hypothetical: the seeded edition originally carried
+exactly such a false variant — A normalized σφωε to σφῶε and B was left
+unaccented, while both manuscripts write σφωε.
+
 ## Apparatus candidates have a defined order
 `EditionController::materializedCandidates` sorts: the base's own reading
 first, then other witnesses by siglum, then conjectures oldest first. Left
