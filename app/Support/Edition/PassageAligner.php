@@ -104,8 +104,16 @@ class PassageAligner
      */
     private static function representativeText(Lemma $lemma): string
     {
-        $reading = $lemma->readings->first(fn (LemmaReading $reading) => $reading->transcription_id !== null && $reading->range_end_lemma_id === null)
-            ?? $lemma->readings->first(fn (LemmaReading $reading) => $reading->transcription_id !== null);
+        // Ordered explicitly: `readings` is a bare hasMany with no ordering,
+        // so an unsorted `first()` would take whatever the database happened
+        // to return — leaving the consensus every later witness is diffed
+        // against, and so the column structure itself, resting on storage
+        // order. Sorting by transcription_id matches the order readings are
+        // created in today, but stops relying on that being true.
+        $readings = $lemma->readings->sortBy('transcription_id')->values();
+
+        $reading = $readings->first(fn (LemmaReading $reading) => $reading->transcription_id !== null && $reading->range_end_lemma_id === null)
+            ?? $readings->first(fn (LemmaReading $reading) => $reading->transcription_id !== null);
 
         if ($reading === null) {
             return '';
