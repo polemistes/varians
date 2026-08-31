@@ -892,11 +892,22 @@ class EditionController extends Controller
 
         $candidates = $this->materializedCandidates($lemma, $selectedReadingId, $base, $byId);
 
+        // With nothing selected the base's own wording stands. Where the base
+        // has no reading here it prints *nothing* and the run is a gap: a
+        // witness that omits a word the others have must not be made to say
+        // another manuscript's word for it. Only a passage with no base
+        // transcription at all (a whole-line lacuna, see
+        // EditionVariantController::storeWholeLineLacuna) falls back to a
+        // candidate, having no base to speak for it.
         $selectedCandidate = $candidates->first(fn (array $candidate) => $candidate['selected']);
+        $isGap = $selectedCandidate === null && $baseReading === null && $base !== null;
+
         $text = $selectedCandidate['text']
-            ?? ($baseReading !== null
-                ? mb_substr($baseReading->transcription->text, $baseReading->start_offset, $baseReading->end_offset - $baseReading->start_offset)
-                : ($candidates->first()['text'] ?? ''));
+            ?? match (true) {
+                $baseReading !== null => mb_substr($baseReading->transcription->text, $baseReading->start_offset, $baseReading->end_offset - $baseReading->start_offset),
+                $isGap => '',
+                default => $candidates->first()['text'] ?? '',
+            };
 
         $baseStart = $baseReading->start_offset ?? $lastBaseEnd;
         $baseEnd = $baseReading->end_offset ?? $lastBaseEnd;
@@ -910,7 +921,7 @@ class EditionController extends Controller
             'base_end' => $baseEnd,
             'text' => $text,
             'decided' => $selectedReadingId !== null,
-            'gap' => false,
+            'gap' => $isGap,
             'candidates' => $candidates->all(),
             'extent_characters' => $selectedCandidate['extent_characters'] ?? null,
         ];
