@@ -12,6 +12,7 @@ use App\Models\ReferenceScheme;
 use App\Models\Transcription;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
+use App\Models\Witness;
 use App\Models\Work;
 use App\Support\Edition\PassageAdder;
 use Inertia\Testing\AssertableInertia as AssertInertia;
@@ -32,13 +33,17 @@ function editionWithBase(string $baseText, ?string $witnessB = null): array
     $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
     $edition = Edition::factory()->for($work)->create();
     $passage = CanonicalPassage::factory()->for($work)->create(['address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1']);
-    $base = Transcription::factory()->create(['text' => $baseText]);
+    // Sigla pinned: witnesses are aligned in siglum order, so leaving these
+    // to the factory's random letters would let either witness build the
+    // columns and make every structural assertion below a coin flip. "A" is
+    // the base and so seeds them.
+    $base = Transcription::factory()->for(Witness::factory()->create(['siglum' => 'A']))->create(['text' => $baseText]);
     $baseSegment = TranscriptionSegment::factory()->for($base)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => mb_strlen($baseText)]);
 
     $result = compact('work', 'edition', 'passage', 'base');
 
     if ($witnessB !== null) {
-        $other = Transcription::factory()->create(['text' => $witnessB]);
+        $other = Transcription::factory()->for(Witness::factory()->create(['siglum' => 'B']))->create(['text' => $witnessB]);
         TranscriptionSegment::factory()->for($other)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => mb_strlen($witnessB)]);
         $result['other'] = $other;
     }

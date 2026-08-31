@@ -3,6 +3,7 @@
 namespace App\Support\Edition;
 
 use App\Models\CanonicalPassage;
+use App\Models\EditionLemma;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\TranscriptionSegment;
@@ -26,6 +27,76 @@ use Illuminate\Support\Collection;
  */
 class PassageAligner
 {
+    /**
+     * Collate a passage from every witness citing it — the entry point
+     * PassageAdder uses, and the one that decides between rebuilding the
+     * columns and appending to them.
+     *
+     * Aligning witnesses one at a time diffs each against a consensus the
+     * ones already present have set, so the column structure depends on the
+     * order they arrived. Ordering by siglum settles that for witnesses
+     * present from the start, but not for one whose citation appears after
+     * the passage has already been collated and which sorts before the
+     * witnesses that built it: appended, it never gets to seed the columns it
+     * should have. So while a passage is still nothing but aligner output,
+     * this throws the columns away and rebuilds from all witnesses at once.
+     *
+     * Once anything editorial is attached (see `hasEditorialContent`) it
+     * appends instead. That is not a compromise but the right behaviour:
+     * rebuilding would destroy placements and decisions that cannot be
+     * re-derived from witness tokens, and a passage someone has begun editing
+     * has a settled structure that should grow rather than churn.
+     *
+     * @param  Collection<int, TranscriptionSegment>  $segments  every normalized witness segment citing this passage
+     */
+    public static function collate(CanonicalPassage $passage, Collection $segments): void
+    {
+        // By siglum — the conventional order of an apparatus, and the only
+        // key here derived from the evidence rather than from bookkeeping.
+        // Not `transcription_id`, which is merely creation order and would
+        // make the collation depend on when each witness was typed up.
+        $ordered = $segments
+            ->sortBy(fn (TranscriptionSegment $segment) => [
+                $segment->transcription->witness->siglum,
+                $segment->transcription_id,
+            ])
+            ->values();
+
+        if (! self::hasEditorialContent($passage)) {
+            Lemma::where('canonical_passage_id', $passage->id)->delete();
+        }
+
+        foreach ($ordered as $segment) {
+            self::alignWitness($passage, $segment);
+        }
+    }
+
+    /**
+     * Whether anything on this passage's columns came from an editor rather
+     * than from alignment, and so could not be reproduced by rebuilding.
+     *
+     * Two checks cover it. A reading carrying a `conjecture_id` is a
+     * conjecture someone placed at a particular column, and that column is
+     * the only record of the placement — which also covers lacuna columns,
+     * since they exist solely to carry such a reading. An `EditionLemma` is
+     * an edition's decision, and because every path through
+     * EditionVariantController::store upserts one alongside whatever it
+     * creates, this catches hand-placed *witness* readings too — otherwise
+     * indistinguishable from aligner output, there being no provenance marker
+     * on LemmaReading at all.
+     */
+    private static function hasEditorialContent(CanonicalPassage $passage): bool
+    {
+        $lemmaIds = Lemma::where('canonical_passage_id', $passage->id)->pluck('id');
+
+        if ($lemmaIds->isEmpty()) {
+            return false;
+        }
+
+        return LemmaReading::whereIn('lemma_id', $lemmaIds)->whereNotNull('conjecture_id')->exists()
+            || EditionLemma::whereIn('lemma_id', $lemmaIds)->exists();
+    }
+
     /**
      * Align one witness's segment into a passage's existing Lemma columns,
      * creating the columns from scratch if this is the first witness

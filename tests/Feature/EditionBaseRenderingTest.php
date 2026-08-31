@@ -5,6 +5,7 @@ use App\Models\Edition;
 use App\Models\Transcription;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
+use App\Models\Witness;
 use App\Models\Work;
 use App\Support\Edition\PassageAdder;
 use Inertia\Testing\AssertableInertia as AssertInertia;
@@ -22,8 +23,10 @@ function printedByEachEdition(string $seedText, string $otherText): array
         'address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1',
     ]);
 
-    $seed = Transcription::factory()->create(['text' => $seedText]);
-    $other = Transcription::factory()->create(['text' => $otherText]);
+    // Sigla pinned so the seed witness is deterministic — witnesses align in
+    // siglum order, and these tests turn on which one built the columns.
+    $seed = Transcription::factory()->for(Witness::factory()->create(['siglum' => 'A']))->create(['text' => $seedText]);
+    $other = Transcription::factory()->for(Witness::factory()->create(['siglum' => 'B']))->create(['text' => $otherText]);
     $seedSegment = TranscriptionSegment::factory()->for($seed)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => mb_strlen($seedText)]);
     $otherSegment = TranscriptionSegment::factory()->for($other)->for($passage, 'canonicalPassage')
@@ -75,8 +78,10 @@ test('a run standing in for several columns says so', function () {
         'address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1',
     ]);
 
-    $seed = Transcription::factory()->create(['text' => 'the swift red fox sleeps']);
-    $other = Transcription::factory()->create(['text' => 'the creature sleeps']);
+    $seed = Transcription::factory()->for(Witness::factory()->create(['siglum' => 'A']))
+        ->create(['text' => 'the swift red fox sleeps']);
+    $other = Transcription::factory()->for(Witness::factory()->create(['siglum' => 'B']))
+        ->create(['text' => 'the creature sleeps']);
     TranscriptionSegment::factory()->for($seed)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 24]);
     $otherSegment = TranscriptionSegment::factory()->for($other)->for($passage, 'canonicalPassage')

@@ -7,6 +7,7 @@ use App\Models\LemmaReading;
 use App\Models\Transcription;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
+use App\Models\Witness;
 use App\Models\Work;
 use App\Support\Edition\PassageAdder;
 use Inertia\Testing\AssertableInertia as AssertInertia;
@@ -25,8 +26,10 @@ function passageBasedOnNonSeed(string $seedText, string $baseText): array
         'address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1',
     ]);
 
-    $seed = Transcription::factory()->create(['text' => $seedText]);
-    $base = Transcription::factory()->create(['text' => $baseText]);
+    // Sigla pinned so the seed witness is deterministic — witnesses align in
+    // siglum order, and these tests turn on which one built the columns.
+    $seed = Transcription::factory()->for(Witness::factory()->create(['siglum' => 'A']))->create(['text' => $seedText]);
+    $base = Transcription::factory()->for(Witness::factory()->create(['siglum' => 'B']))->create(['text' => $baseText]);
     $seedSegment = TranscriptionSegment::factory()->for($seed)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => mb_strlen($seedText)]);
     $baseSegment = TranscriptionSegment::factory()->for($base)->for($passage, 'canonicalPassage')

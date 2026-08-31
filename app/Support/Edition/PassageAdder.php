@@ -41,7 +41,7 @@ class PassageAdder
     {
         $passage = $segment->canonicalPassage;
 
-        self::materialize($passage, $segment);
+        self::materialize($passage);
 
         $alreadyAdded = EditionPassage::where('edition_id', $edition->id)
             ->where('canonical_passage_id', $passage->id)
@@ -60,13 +60,13 @@ class PassageAdder
     }
 
     /**
-     * Align every witness currently citing this passage, the added
-     * transcription's own segment first — not just conditionally on first
-     * touch. PassageAligner::alignWitness is a cheap idempotent no-op for a
-     * transcription already aligned (an existence check before any write),
-     * so looping unconditionally on every call closes a real gap for free: a
-     * witness whose segment was cited *after* this passage was first
-     * materialized (by this edition or another) still gets picked up.
+     * Hand every witness currently citing this passage to the collator — not
+     * just the one being added, and not only on first touch, so a witness
+     * whose segment was cited *after* this passage was first materialized
+     * (by this edition or another) still gets picked up. PassageAligner
+     * decides from there whether to rebuild the columns or append to them;
+     * the added segment gets no special standing, since letting it seed the
+     * structure was itself a source of order-dependence.
      *
      * Restricted to the normalized layer (see TranscriptionLayer). A witness's
      * diplomatic and normalized transcriptions cite the same passages — fork
@@ -75,17 +75,14 @@ class PassageAdder
      * would appear in its own apparatus disagreeing with itself over exactly
      * the orthography the normalized layer regularized.
      */
-    private static function materialize(CanonicalPassage $passage, TranscriptionSegment $addedSegment): void
+    private static function materialize(CanonicalPassage $passage): void
     {
-        $segments = TranscriptionSegment::where('canonical_passage_id', $passage->id)
-            ->whereRelation('transcription', 'layer', TranscriptionLayer::Normalized)
-            ->with('transcription')
-            ->get()
-            ->sortBy(fn (TranscriptionSegment $citing) => $citing->transcription_id === $addedSegment->transcription_id ? 0 : 1)
-            ->values();
-
-        foreach ($segments as $citing) {
-            PassageAligner::alignWitness($passage, $citing);
-        }
+        PassageAligner::collate(
+            $passage,
+            TranscriptionSegment::where('canonical_passage_id', $passage->id)
+                ->whereRelation('transcription', 'layer', TranscriptionLayer::Normalized)
+                ->with('transcription.witness:id,siglum')
+                ->get(),
+        );
     }
 }

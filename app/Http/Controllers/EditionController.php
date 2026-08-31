@@ -951,6 +951,15 @@ class EditionController extends Controller
     }
 
     /**
+     * A column's candidates in apparatus order: the base's own reading, then
+     * the other witnesses by siglum, then conjectures oldest first.
+     *
+     * Ordered explicitly because `readings` is a bare hasMany — left alone,
+     * candidates come out in whatever order they were created, which is the
+     * order the witnesses happened to be aligned in. That is incidental, not
+     * evidence, and it made the apparatus's own reading order depend on which
+     * witness first touched the passage.
+     *
      * @param  SupportCollection<int, Lemma>  $byId
      * @return SupportCollection<int, array<string, mixed>>
      */
@@ -958,9 +967,15 @@ class EditionController extends Controller
     {
         $referenceEnd = $this->widestRangeEnd($lemma, $byId);
 
-        return $lemma->readings->map(
-            fn (LemmaReading $reading): array => $this->materializedCandidate($reading, $selectedReadingId, $lemma, $base, $byId, $referenceEnd)
-        )->values();
+        return $lemma->readings
+            ->sortBy(fn (LemmaReading $reading): string => match (true) {
+                $base !== null && $reading->transcription_id === $base->id => '0',
+                $reading->transcription_id !== null => '1'.$reading->transcription->witness->siglum,
+                default => '2'.str_pad((string) $reading->id, 12, '0', STR_PAD_LEFT),
+            })
+            ->map(
+                fn (LemmaReading $reading): array => $this->materializedCandidate($reading, $selectedReadingId, $lemma, $base, $byId, $referenceEnd)
+            )->values();
     }
 
     /**
