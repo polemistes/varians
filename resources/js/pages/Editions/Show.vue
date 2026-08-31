@@ -1132,6 +1132,78 @@ function candidateSummary(candidate: Candidate): string {
         : candidate.text;
 }
 
+/**
+ * What the tradition has at one word, for the reader's tooltip.
+ *
+ * Readings are grouped by wording rather than listed per witness, the way an
+ * apparatus entry names a reading once and then its sigla — three manuscripts
+ * agreeing is one line, not three. The manuscripts' own spellings are grouped
+ * the same way, and collapse to a single line whenever they agree, which is
+ * the common case.
+ */
+type ReadingGroup = { text: string; sigla: string[]; printed: boolean };
+
+function groupBy(
+    candidates: Candidate[],
+    textOf: (candidate: Candidate) => string | null,
+    printedText: string,
+): ReadingGroup[] {
+    const groups = new Map<string, string[]>();
+
+    for (const candidate of candidates) {
+        const text = textOf(candidate);
+
+        if (text === null || candidate.transcription_id === null) {
+            continue;
+        }
+
+        groups.set(text, [...(groups.get(text) ?? []), candidate.label]);
+    }
+
+    return [...groups.entries()].map(([text, sigla]) => ({
+        text,
+        sigla: [...new Set(sigla)].sort(),
+        printed: text === printedText,
+    }));
+}
+
+function witnessReadings(run: Run): ReadingGroup[] {
+    return groupBy(run.candidates, (c) => c.text, run.text);
+}
+
+function manuscriptReadings(run: Run): ReadingGroup[] {
+    return groupBy(run.candidates, (c) => c.diplomatic, '\u0000');
+}
+
+function conjectureCandidates(run: Run): Candidate[] {
+    return run.candidates.filter(
+        (candidate) => candidate.conjecture_id !== null,
+    );
+}
+
+// One floating panel, positioned on hover, rather than a hidden one beside
+// every word — a full page of text is several hundred words.
+const hovered = ref<{ run: Run; left: number; top: number } | null>(null);
+
+function showReadings(event: MouseEvent, run: Run) {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+
+    hovered.value = { run, left: rect.left, top: rect.bottom + 4 };
+}
+
+function hideReadings() {
+    hovered.value = null;
+}
+
+/**
+ * A word is marked where the witnesses disagree, and for no other reason.
+ *
+ * Not whether the editor has "decided" it: the base transcription is itself a
+ * decision, standing until another reading is chosen, so every word of the
+ * text is already decided and there is no reviewed/unreviewed state to show.
+ * What a reader wants at a glance is where the tradition differs; what an
+ * editor wants is the same thing.
+ */
 function runClasses(
     passage: WindowPassage,
     run: Run,
@@ -1139,10 +1211,6 @@ function runClasses(
 ): string[] {
     if (isRunInPendingRange(passage.id, runIndex)) {
         return ['rounded-sm bg-sky-100 dark:bg-sky-950/50'];
-    }
-
-    if (run.decided) {
-        return ['rounded-sm bg-emerald-100 dark:bg-emerald-950/50'];
     }
 
     if (!hasVariation(run) && coveringAnchorIndex(passage, runIndex) === null) {
@@ -1656,6 +1724,8 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                 ? 'inline-block text-center align-top'
                                                 : '',
                                         ]"
+                                        @mouseenter="showReadings($event, run)"
+                                        @mouseleave="hideReadings"
                                         @click="toggleRun(passage.id, runIndex)"
                                         ><template
                                             v-if="
@@ -2432,6 +2502,58 @@ function orderRangeClasses(range: OrderRange): string[] {
                     />
                 </div>
             </div>
+        </div>
+
+        <!-- What the tradition has at the word under the cursor. Shown for
+             every word, not only the disputed ones: "all three manuscripts
+             agree here" is an answer a reader may want too. -->
+        <div
+            v-if="hovered"
+            class="pointer-events-none fixed z-30 max-w-md rounded border border-stone-300 bg-white px-3 py-2 text-sm shadow-lg dark:border-stone-700 dark:bg-stone-900"
+            :style="{ left: `${hovered.left}px`, top: `${hovered.top}px` }"
+        >
+            <p
+                v-for="group in witnessReadings(hovered.run)"
+                :key="`w-${group.text}`"
+                class="flex gap-2"
+            >
+                <span :class="group.printed ? 'font-medium' : ''">{{
+                    group.text
+                }}</span>
+                <span class="text-stone-500 dark:text-stone-400">{{
+                    group.sigla.join(' ')
+                }}</span>
+            </p>
+
+            <p
+                v-for="candidate in conjectureCandidates(hovered.run)"
+                :key="`c-${candidate.key}`"
+                class="flex gap-2 text-sky-800 dark:text-sky-300"
+            >
+                <span :class="candidate.selected ? 'font-medium' : ''">{{
+                    candidate.text
+                }}</span>
+                <span class="text-stone-500 dark:text-stone-400">{{
+                    candidate.label
+                }}</span>
+            </p>
+
+            <template v-if="manuscriptReadings(hovered.run).length > 0">
+                <hr class="my-1 border-stone-200 dark:border-stone-800" />
+                <p
+                    class="text-xs tracking-wide text-stone-400 uppercase dark:text-stone-500"
+                >
+                    as written
+                </p>
+                <p
+                    v-for="group in manuscriptReadings(hovered.run)"
+                    :key="`d-${group.text}`"
+                    class="flex gap-2 text-stone-500 dark:text-stone-400"
+                >
+                    <span>{{ group.text }}</span>
+                    <span>{{ group.sigla.join(' ') }}</span>
+                </p>
+            </template>
         </div>
     </div>
 </template>
