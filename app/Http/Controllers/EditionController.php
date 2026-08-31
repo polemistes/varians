@@ -838,10 +838,28 @@ class EditionController extends Controller
                 continue;
             }
 
-            $runs[] = $this->materializedSingleRun($lemma, $selection, $base, $lastBaseEnd, $byId);
+            // The base's own reading can span further columns too, quite
+            // apart from any selection: it does whenever the base was aligned
+            // *into* columns some other witness's wording had already set
+            // (see LemmaReading's range_end_lemma_id). Those covered columns
+            // hold no reading of the base's at all, so rendering them
+            // independently would splice other witnesses' words into this
+            // edition's printed text — producing a line no manuscript
+            // attests. Jump past them exactly as the selection branch above
+            // does.
             $baseReading = $this->baseReadingOf($lemma, $base);
+            $baseRangeEnd = $baseReading?->range_end_lemma_id !== null
+                ? $byId->get($baseReading->range_end_lemma_id)
+                : null;
+
+            $runs[] = $this->materializedSingleRun($lemma, $selection, $base, $lastBaseEnd, $byId, $baseRangeEnd);
             $lastBaseEnd = $baseReading->end_offset ?? $lastBaseEnd;
-            $index++;
+
+            $coveredUntil = $baseRangeEnd !== null
+                ? $lemmas->search(fn (Lemma $candidate) => $candidate->id === $baseRangeEnd->id)
+                : false;
+
+            $index = $coveredUntil !== false ? $coveredUntil + 1 : $index + 1;
         }
 
         return $runs;
@@ -864,9 +882,10 @@ class EditionController extends Controller
 
     /**
      * @param  SupportCollection<int, Lemma>  $byId
+     * @param  Lemma|null  $baseRangeEnd  last column the base's own reading here covers, when it spans more than this one
      * @return array<string, mixed>
      */
-    private function materializedSingleRun(Lemma $lemma, ?EditionLemma $selection, ?Transcription $base, ?int $lastBaseEnd, SupportCollection $byId): array
+    private function materializedSingleRun(Lemma $lemma, ?EditionLemma $selection, ?Transcription $base, ?int $lastBaseEnd, SupportCollection $byId, ?Lemma $baseRangeEnd = null): array
     {
         $selectedReadingId = $selection->selected_reading_id ?? null;
         $baseReading = $this->baseReadingOf($lemma, $base);
@@ -884,7 +903,9 @@ class EditionController extends Controller
 
         return [
             'lemma_id' => $lemma->id,
-            'range_end_lemma_id' => null,
+            // Reported so the client knows this run answers for more than its
+            // own column when the base's wording spans several.
+            'range_end_lemma_id' => $baseRangeEnd?->id,
             'base_start' => $baseStart,
             'base_end' => $baseEnd,
             'text' => $text,

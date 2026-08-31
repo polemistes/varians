@@ -1643,10 +1643,19 @@ function orderRangeClasses(range: OrderRange): string[] {
                                             under the current base &mdash; pick
                                             a starting point:
                                         </p>
+                                        <!-- Only a run collapsed by a chosen
+                                             reading can be reverted: reverting
+                                             deletes that choice. A run
+                                             collapsed because the base's own
+                                             wording spans these columns has no
+                                             choice behind it, and nothing to
+                                             undo. -->
                                         <p
                                             v-if="
                                                 canEdit &&
-                                                run.range_end_lemma_id !== null
+                                                run.range_end_lemma_id !==
+                                                    null &&
+                                                run.decided
                                             "
                                             class="mb-2"
                                         >
