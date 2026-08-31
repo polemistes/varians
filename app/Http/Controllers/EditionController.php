@@ -990,6 +990,7 @@ class EditionController extends Controller
                 'range_end_lemma_id' => $extension['range_end_lemma_id'] ?? $reading->range_end_lemma_id,
                 'replaced_text' => $replacedText,
                 'extent_characters' => null,
+                'needs_review' => $reading->needs_review,
             ];
         }
 
@@ -1010,6 +1011,7 @@ class EditionController extends Controller
             'range_end_lemma_id' => $reading->range_end_lemma_id,
             'replaced_text' => $replacedText,
             'extent_characters' => $reading->conjecture->extent_characters,
+            'needs_review' => $reading->needs_review,
         ];
     }
 

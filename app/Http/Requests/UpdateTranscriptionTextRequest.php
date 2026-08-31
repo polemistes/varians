@@ -32,6 +32,13 @@ class UpdateTranscriptionTextRequest extends FormRequest
      * transcription entirely is valid, and ConvertEmptyStringsToNull turns
      * that empty string into null before validation runs.
      *
+     * `lost_readings` is the editor's answer to "this edit destroys the
+     * source of readings already collated into an apparatus" — absent on an
+     * ordinary save, and supplied only on the re-submit after
+     * TranscriptionTextController::update has refused one and the editor has
+     * chosen. Deleting a reading cascades away its selection in every edition
+     * of the work, so that choice is never made on her behalf.
+     *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
@@ -42,6 +49,7 @@ class UpdateTranscriptionTextRequest extends FormRequest
             'ops.*.end' => ['required', 'integer', 'min:0'],
             'ops.*.text' => ['present', 'nullable', 'string'],
             'text' => ['present', 'nullable', 'string', new ValidTranscriptionMarkup],
+            'lost_readings' => ['sometimes', 'in:keep,delete'],
         ];
     }
 

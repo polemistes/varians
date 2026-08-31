@@ -31,10 +31,11 @@ use Illuminate\Support\Carbon;
  * @property int|null $end_offset
  * @property int|null $conjecture_id
  * @property int|null $range_end_lemma_id
+ * @property bool $needs_review
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['lemma_id', 'transcription_id', 'start_offset', 'end_offset', 'conjecture_id', 'range_end_lemma_id'])]
+#[Fillable(['lemma_id', 'transcription_id', 'start_offset', 'end_offset', 'conjecture_id', 'range_end_lemma_id', 'needs_review'])]
 class LemmaReading extends Model
 {
     /** @use HasFactory<LemmaReadingFactory> */
@@ -80,6 +81,7 @@ class LemmaReading extends Model
         return [
             'start_offset' => 'integer',
             'end_offset' => 'integer',
+            'needs_review' => 'boolean',
         ];
     }
 }

@@ -59,6 +59,9 @@ type Candidate = {
     range_end_lemma_id: number | null;
     replaced_text: string | null;
     extent_characters: number | null;
+    // The transcription text this reading was collated from has since been
+    // edited over — see TranscriptionTextController::applyReadings.
+    needs_review: boolean;
 };
 
 type Run = {
@@ -1695,6 +1698,14 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                             candidate,
                                                         )
                                                     }}
+                                                    <span
+                                                        v-if="
+                                                            candidate.needs_review
+                                                        "
+                                                        class="rounded bg-amber-100 px-1 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                                                        title="The transcription text this reading was collated from has since been edited — re-confirm it still says what the manuscript says."
+                                                        >needs review</span
+                                                    >
                                                     <em
                                                         v-if="
                                                             candidate.bibliography

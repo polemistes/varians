@@ -16,11 +16,13 @@ use App\Models\Witness;
 use App\Models\Work;
 
 /**
- * Plain counts of what else would be deleted alongside a Work, Witness,
- * Transcription, or ManuscriptImage — entirely derived from the DB's own
- * cascadeOnDelete() foreign keys (see the migrations), not a second source
- * of truth. Used only to build a confirmation warning before a destructive
- * delete; deletion itself never consults this class.
+ * Plain counts of what else would be destroyed alongside a Work, Witness,
+ * Transcription, or ManuscriptImage — or alongside a set of collation
+ * readings whose source text an edit is about to remove (forLostReadings).
+ * Entirely derived from the DB's own cascadeOnDelete() foreign keys (see the
+ * migrations), not a second source of truth. Used only to build a
+ * confirmation warning before something destructive; the deletions themselves
+ * never consult this class.
  */
 class DeletionImpact
 {
@@ -84,6 +86,27 @@ class DeletionImpact
                 ->whereHas('selectedReading', fn ($query) => $query->where('transcription_id', $transcription->id))
                 ->count(),
             'editionPassages' => EditionPassage::query()->where('transcription_id', $transcription->id)->count(),
+        ];
+    }
+
+    /**
+     * What discarding a set of collation readings would cost. Unlike the
+     * methods above this is not previewing a delete the user asked for — it
+     * previews collateral damage from editing a transcription's *text*, where
+     * an edit can remove the very words a reading was collated from (see
+     * TranscriptionTextController::update). Counted the same way regardless,
+     * since the cascade is the same one: edition_lemmas.selected_reading_id
+     * is NOT NULL and cascades, so a discarded reading takes every edition's
+     * selection of it with it.
+     *
+     * @param  list<int>  $readingIds
+     * @return array{readings: int, editionSelections: int}
+     */
+    public static function forLostReadings(array $readingIds): array
+    {
+        return [
+            'readings' => count($readingIds),
+            'editionSelections' => EditionLemma::query()->whereIn('selected_reading_id', $readingIds)->count(),
         ];
     }
 

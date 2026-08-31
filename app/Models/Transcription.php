@@ -84,6 +84,20 @@ class Transcription extends Model
     }
 
     /**
+     * Collation readings sourced from this transcription's text. Like
+     * segments and regions these carry character offsets into `text`, so they
+     * must be transformed whenever it is edited — see
+     * TranscriptionTextController. Conjecture-sourced readings have a null
+     * `transcription_id` and no offsets, and are not part of this relation.
+     *
+     * @return HasMany<LemmaReading, $this>
+     */
+    public function lemmaReadings(): HasMany
+    {
+        return $this->hasMany(LemmaReading::class);
+    }
+
+    /**
      * @return BelongsToMany<Tag, $this>
      */
     public function tags(): BelongsToMany
