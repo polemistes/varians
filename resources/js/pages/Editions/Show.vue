@@ -180,7 +180,14 @@ const alreadyAddedPassageIds = computed(() =>
 );
 
 const inertiaPage = usePage<{ auth: Auth }>();
-const canEdit = computed(() => isEditorOrAbove(inertiaPage.props.auth.user));
+const mayEdit = computed(() => isEditorOrAbove(inertiaPage.props.auth.user));
+
+// An editor can stand where a reader stands. Everything that edits is gated
+// on `canEdit`, so switching this off gives the reader's own view — no
+// panels, no markers, notes in the tooltip rather than under the line —
+// without needing a second account to check the work in.
+const readerView = ref(false);
+const canEdit = computed(() => mayEdit.value && !readerView.value);
 
 function goToPage(targetPage: number) {
     router.visit(
@@ -363,6 +370,13 @@ function saveNote(passage: WindowPassage) {
         return;
     }
 
+    // Writing a note and recording a conjecture are alternatives, so saving
+    // one closes the panel just as submitting the other does.
+    const done = () => {
+        cancelNote();
+        closePopover();
+    };
+
     router.post(
         storeComment.url(props.edition),
         {
@@ -370,7 +384,7 @@ function saveNote(passage: WindowPassage) {
             ...noteAnchor(passage),
             note: noteDraft.value,
         },
-        { preserveScroll: true, onSuccess: () => cancelNote() },
+        { preserveScroll: true, onSuccess: done },
     );
 }
 
@@ -1228,6 +1242,42 @@ function differenceProvenance(run: Run): string | null {
     return null;
 }
 
+/**
+ * The editor's notes bearing on one word: those anchored to the site it
+ * belongs to, and those about the line as a whole, which bear on every word
+ * of it.
+ *
+ * Read from the tooltip rather than under the line, which is where they
+ * belong while editing but clutters the text when reading it.
+ */
+function notesFor(passage: WindowPassage, run: Run): EditionComment[] {
+    const runIndex = passage.runs.indexOf(run);
+
+    return passage.comments.filter((comment) => {
+        if (comment.lemma_id === null) {
+            return true;
+        }
+
+        const start = passage.runs.findIndex(
+            (candidate) => candidate.lemma_id === comment.lemma_id,
+        );
+
+        if (start === -1) {
+            return false;
+        }
+
+        const end =
+            comment.range_end_lemma_id === null
+                ? start
+                : passage.runs.findIndex(
+                      (candidate) =>
+                          candidate.lemma_id === comment.range_end_lemma_id,
+                  );
+
+        return runIndex >= start && runIndex <= (end === -1 ? start : end);
+    });
+}
+
 function conjectureCandidates(run: Run): Candidate[] {
     return run.candidates.filter(
         (candidate) => candidate.conjecture_id !== null,
@@ -1236,7 +1286,12 @@ function conjectureCandidates(run: Run): Candidate[] {
 
 // One floating panel, positioned on hover, rather than a hidden one beside
 // every word — a full page of text is several hundred words.
-const hovered = ref<{ run: Run; left: number; top: number } | null>(null);
+const hovered = ref<{
+    passage: WindowPassage;
+    run: Run;
+    left: number;
+    top: number;
+} | null>(null);
 
 function showReadings(
     event: MouseEvent,
@@ -1248,7 +1303,7 @@ function showReadings(
     // whole competing phrase rather than the one word under the cursor.
     const run = passage.runs[siteAnchorIndex(passage, runIndex)];
 
-    hovered.value = { run, left: rect.left, top: rect.bottom + 4 };
+    hovered.value = { passage, run, left: rect.left, top: rect.bottom + 4 };
 }
 
 function hideReadings() {
@@ -1600,6 +1655,19 @@ function orderRangeClasses(range: OrderRange): string[] {
                             ? 'Hide the manuscripts'
                             : 'Show the manuscripts'
                     }}
+                </button>
+                <button
+                    v-if="mayEdit"
+                    type="button"
+                    class="rounded border px-2 py-1"
+                    :class="
+                        readerView
+                            ? 'border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300'
+                            : 'border-stone-300 dark:border-stone-700'
+                    "
+                    @click="readerView = !readerView"
+                >
+                    {{ readerView ? 'Back to editing' : 'Read as a reader' }}
                 </button>
                 <span v-if="showDiplomatic">
                     Under each word, and beneath each line, is what the base
@@ -2558,7 +2626,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                  accentuation, word division, speaker
                                  assignment, why a reading was printed. -->
                             <div
-                                v-if="passage.comments.length > 0"
+                                v-if="canEdit && passage.comments.length > 0"
                                 class="mt-2 border-l-2 border-stone-200 pl-3 font-sans text-sm dark:border-stone-800"
                             >
                                 <p
@@ -2690,6 +2758,23 @@ function orderRangeClasses(range: OrderRange): string[] {
             >
                 {{ differenceProvenance(hovered.run) }}
             </p>
+
+            <template
+                v-if="
+                    !canEdit &&
+                    notesFor(hovered.passage, hovered.run).length > 0
+                "
+            >
+                <hr class="my-1 border-stone-200 dark:border-stone-800" />
+                <p
+                    v-for="comment in notesFor(hovered.passage, hovered.run)"
+                    :key="`n-${comment.id}`"
+                    class="text-stone-600 dark:text-stone-400"
+                >
+                    {{ comment.note }}
+                    <span class="text-stone-400">— {{ comment.author }}</span>
+                </p>
+            </template>
 
             <template v-if="manuscriptReadings(hovered.run).length > 0">
                 <hr class="my-1 border-stone-200 dark:border-stone-800" />
