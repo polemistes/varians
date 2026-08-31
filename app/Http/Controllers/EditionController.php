@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ConjectureType;
+use App\Enums\Tokenization;
+use App\Enums\TranscriptionLayer;
 use App\Http\Requests\StoreEditionRequest;
 use App\Http\Requests\UpdateEditionRequest;
 use App\Models\CanonicalPassage;
@@ -18,6 +20,7 @@ use App\Models\LemmaReading;
 use App\Models\Transcription;
 use App\Models\TranscriptionSegment;
 use App\Models\Work;
+use App\Support\Edition\DiplomaticCounterpart;
 use App\Support\Edition\PermutationBlocks;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -111,6 +114,18 @@ class EditionController extends Controller
 
         $orderRanges = $this->orderRanges($window, $transcriptions, $passageOrders);
 
+        // Every witness's diplomatic layer, keyed by witness, so a reader can
+        // see through the regularized text to what the manuscript has — see
+        // DiplomaticCounterpart. Visibility-filtered like everything else: a
+        // draft diplomatic layer stays invisible even where its normalized
+        // counterpart is published.
+        $diplomaticLayers = Transcription::where('layer', TranscriptionLayer::Diplomatic)
+            ->visibleTo($request->user())
+            ->whereIn('witness_id', $transcriptions->pluck('witness_id')->unique())
+            ->with(['segments' => fn ($query) => $query->whereHas('canonicalPassage', fn ($q) => $q->where('work_id', $work->id))])
+            ->get(['id', 'witness_id', 'text'])
+            ->keyBy('witness_id');
+
         return Inertia::render('Editions/Show', [
             'work' => $work->only(['id', 'title', 'slug']),
             'edition' => $edition,
@@ -118,7 +133,7 @@ class EditionController extends Controller
             'totalPages' => $totalPages,
             'passages' => $this->annotatePassageStatus($orderedPassages, $edition),
             'windowPassages' => $window->values()
-                ->map(fn (EditionPassage $editionPassage, int $index) => $this->passageDetail($editionPassage, $edition, $orderRanges[$index] ?? null))
+                ->map(fn (EditionPassage $editionPassage, int $index) => $this->passageDetail($editionPassage, $edition, $orderRanges[$index] ?? null, $diplomaticLayers, $work->tokenization))
                 ->values(),
             // The work's *entire* citation space, regardless of what's in
             // this edition yet — the bulk "base a range" picker searches a
@@ -749,9 +764,10 @@ class EditionController extends Controller
 
     /**
      * @param  array{range_key: string, range_start_canonical_passage_id: int, range_end_canonical_passage_id: int, edition_passage_order_id: int|null, candidates: array<int, array<string, mixed>>}|null  $orderRange
+     * @param  SupportCollection<int, Transcription>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
      * @return array<string, mixed>
      */
-    private function passageDetail(EditionPassage $editionPassage, Edition $edition, ?array $orderRange): array
+    private function passageDetail(EditionPassage $editionPassage, Edition $edition, ?array $orderRange, SupportCollection $diplomaticLayers, Tokenization $tokenization): array
     {
         $passage = $editionPassage->canonicalPassage;
         $base = $editionPassage->transcription;
@@ -765,7 +781,11 @@ class EditionController extends Controller
                 'transcription_id' => $base->id,
                 'witness_siglum' => $base->witness->siglum,
             ] : null,
-            'runs' => $this->materializedRuns($passage, $base, $edition),
+            'runs' => $this->materializedRuns($passage, $base, $edition, $diplomaticLayers, $tokenization),
+            // The chosen witness's own line as the manuscript has it.
+            'base_diplomatic' => $base !== null
+                ? DiplomaticCounterpart::forPassage($passage, $diplomaticLayers->get($base->witness_id))
+                : null,
             // This edition's own notes here — see EditionComment. An
             // unanchored one (lemma_id null) is about the whole passage.
             'comments' => EditionComment::where('edition_id', $edition->id)
@@ -808,9 +828,10 @@ class EditionController extends Controller
      * EditionVariantController::storeWholeLineLacuna) — every reading
      * lookup below tolerates that via baseReadingOf().
      *
+     * @param  SupportCollection<int, Transcription>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
      * @return array<int, array<string, mixed>>
      */
-    private function materializedRuns(CanonicalPassage $passage, ?Transcription $base, Edition $edition): array
+    private function materializedRuns(CanonicalPassage $passage, ?Transcription $base, Edition $edition, SupportCollection $diplomaticLayers, Tokenization $tokenization): array
     {
         $lemmas = Lemma::where('canonical_passage_id', $passage->id)
             ->orderBy('position')
@@ -845,7 +866,7 @@ class EditionController extends Controller
             $rangeEndLemma = $endLemmaId !== null ? $byId->get($endLemmaId) : null;
 
             if ($rangeEndLemma !== null) {
-                $runs[] = $this->materializedRangeRun($lemma, $rangeEndLemma, $selection, $base, $byId);
+                $runs[] = $this->materializedRangeRun($lemma, $rangeEndLemma, $selection, $base, $byId, $passage, $diplomaticLayers, $tokenization);
                 $endReading = $this->baseReadingOf($rangeEndLemma, $base);
                 $lastBaseEnd = $endReading->end_offset ?? $lastBaseEnd;
                 $index = $lemmas->search(fn (Lemma $candidate) => $candidate->id === $rangeEndLemma->id) + 1;
@@ -867,7 +888,7 @@ class EditionController extends Controller
                 ? $byId->get($baseReading->range_end_lemma_id)
                 : null;
 
-            $runs[] = $this->materializedSingleRun($lemma, $selection, $base, $lastBaseEnd, $byId, $baseRangeEnd);
+            $runs[] = $this->materializedSingleRun($lemma, $selection, $base, $lastBaseEnd, $byId, $passage, $diplomaticLayers, $tokenization, $baseRangeEnd);
             $lastBaseEnd = $baseReading->end_offset ?? $lastBaseEnd;
 
             $coveredUntil = $baseRangeEnd !== null
@@ -898,14 +919,15 @@ class EditionController extends Controller
     /**
      * @param  SupportCollection<int, Lemma>  $byId
      * @param  Lemma|null  $baseRangeEnd  last column the base's own reading here covers, when it spans more than this one
+     * @param  SupportCollection<int, Transcription>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
      * @return array<string, mixed>
      */
-    private function materializedSingleRun(Lemma $lemma, ?EditionLemma $selection, ?Transcription $base, ?int $lastBaseEnd, SupportCollection $byId, ?Lemma $baseRangeEnd = null): array
+    private function materializedSingleRun(Lemma $lemma, ?EditionLemma $selection, ?Transcription $base, ?int $lastBaseEnd, SupportCollection $byId, CanonicalPassage $passage, SupportCollection $diplomaticLayers, Tokenization $tokenization, ?Lemma $baseRangeEnd = null): array
     {
         $selectedReadingId = $selection->selected_reading_id ?? null;
         $baseReading = $this->baseReadingOf($lemma, $base);
 
-        $candidates = $this->materializedCandidates($lemma, $selectedReadingId, $base, $byId);
+        $candidates = $this->materializedCandidates($lemma, $selectedReadingId, $base, $byId, $passage, $diplomaticLayers, $tokenization);
 
         // With nothing selected the base's own wording stands. Where the base
         // has no reading here it prints *nothing* and the run is a gap: a
@@ -927,6 +949,12 @@ class EditionController extends Controller
         $baseStart = $baseReading->start_offset ?? $lastBaseEnd;
         $baseEnd = $baseReading->end_offset ?? $lastBaseEnd;
 
+        // What the base manuscript itself shows for these words, so a reader
+        // can see through the printed text token by token.
+        $diplomatic = $baseReading !== null && $base !== null
+            ? DiplomaticCounterpart::forSpan($passage, $base, $diplomaticLayers->get($base->witness_id), $baseReading->start_offset, $baseReading->end_offset, $tokenization)
+            : null;
+
         return [
             'lemma_id' => $lemma->id,
             // Reported so the client knows this run answers for more than its
@@ -939,6 +967,7 @@ class EditionController extends Controller
             'gap' => $isGap,
             'candidates' => $candidates->all(),
             'extent_characters' => $selectedCandidate['extent_characters'] ?? null,
+            'diplomatic' => $diplomatic,
         ];
     }
 
@@ -953,15 +982,20 @@ class EditionController extends Controller
      * candidate to switch to as an identically-shaped one.
      *
      * @param  SupportCollection<int, Lemma>  $byId
+     * @param  SupportCollection<int, Transcription>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
      * @return array<string, mixed>
      */
-    private function materializedRangeRun(Lemma $startLemma, Lemma $endLemma, EditionLemma $selection, ?Transcription $base, SupportCollection $byId): array
+    private function materializedRangeRun(Lemma $startLemma, Lemma $endLemma, EditionLemma $selection, ?Transcription $base, SupportCollection $byId, CanonicalPassage $passage, SupportCollection $diplomaticLayers, Tokenization $tokenization): array
     {
-        $candidates = $this->materializedCandidates($startLemma, $selection->selected_reading_id, $base, $byId);
+        $candidates = $this->materializedCandidates($startLemma, $selection->selected_reading_id, $base, $byId, $passage, $diplomaticLayers, $tokenization);
         $selectedCandidate = $candidates->first(fn (array $candidate) => $candidate['selected']);
 
         $startReading = $this->baseReadingOf($startLemma, $base);
         $endReading = $this->baseReadingOf($endLemma, $base);
+
+        $diplomatic = $startReading !== null && $endReading !== null && $base !== null
+            ? DiplomaticCounterpart::forSpan($passage, $base, $diplomaticLayers->get($base->witness_id), $startReading->start_offset, $endReading->end_offset, $tokenization)
+            : null;
 
         return [
             'lemma_id' => $startLemma->id,
@@ -973,6 +1007,7 @@ class EditionController extends Controller
             'gap' => false,
             'candidates' => $candidates->all(),
             'extent_characters' => null,
+            'diplomatic' => $diplomatic,
         ];
     }
 
@@ -987,9 +1022,10 @@ class EditionController extends Controller
      * witness first touched the passage.
      *
      * @param  SupportCollection<int, Lemma>  $byId
+     * @param  SupportCollection<int, Transcription>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
      * @return SupportCollection<int, array<string, mixed>>
      */
-    private function materializedCandidates(Lemma $lemma, ?int $selectedReadingId, ?Transcription $base, SupportCollection $byId): SupportCollection
+    private function materializedCandidates(Lemma $lemma, ?int $selectedReadingId, ?Transcription $base, SupportCollection $byId, CanonicalPassage $passage, SupportCollection $diplomaticLayers, Tokenization $tokenization): SupportCollection
     {
         $referenceEnd = $this->widestRangeEnd($lemma, $byId);
 
@@ -1000,7 +1036,7 @@ class EditionController extends Controller
                 default => '2'.str_pad((string) $reading->id, 12, '0', STR_PAD_LEFT),
             })
             ->map(
-                fn (LemmaReading $reading): array => $this->materializedCandidate($reading, $selectedReadingId, $lemma, $base, $byId, $referenceEnd)
+                fn (LemmaReading $reading): array => $this->materializedCandidate($reading, $selectedReadingId, $lemma, $base, $byId, $referenceEnd, $passage, $diplomaticLayers, $tokenization)
             )->values();
     }
 
@@ -1033,9 +1069,10 @@ class EditionController extends Controller
      * scope.
      *
      * @param  SupportCollection<int, Lemma>  $byId
+     * @param  SupportCollection<int, Transcription>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
      * @return array<string, mixed>
      */
-    private function materializedCandidate(LemmaReading $reading, ?int $selectedReadingId, Lemma $anchor, ?Transcription $base, SupportCollection $byId, ?Lemma $referenceEnd): array
+    private function materializedCandidate(LemmaReading $reading, ?int $selectedReadingId, Lemma $anchor, ?Transcription $base, SupportCollection $byId, ?Lemma $referenceEnd, CanonicalPassage $passage, SupportCollection $diplomaticLayers, Tokenization $tokenization): array
     {
         $replacedText = $this->replacedSpanText($reading, $anchor, $base, $byId);
         $extension = $this->witnessExtension($reading, $anchor, $referenceEnd);
@@ -1059,6 +1096,17 @@ class EditionController extends Controller
                 'replaced_text' => $replacedText,
                 'extent_characters' => null,
                 'needs_review' => $reading->needs_review,
+                // What this manuscript physically shows here, null where its
+                // diplomatic layer is absent, unpublished, or divides the
+                // line into a different number of words.
+                'diplomatic' => DiplomaticCounterpart::forSpan(
+                    $passage,
+                    $reading->transcription,
+                    $diplomaticLayers->get($reading->transcription->witness_id),
+                    $reading->start_offset,
+                    $extension['end_offset'] ?? $reading->end_offset,
+                    $tokenization,
+                ),
             ];
         }
 
@@ -1080,6 +1128,9 @@ class EditionController extends Controller
             'replaced_text' => $replacedText,
             'extent_characters' => $reading->conjecture->extent_characters,
             'needs_review' => $reading->needs_review,
+            // A conjecture is nobody's manuscript reading, so there is no
+            // diplomatic layer behind it.
+            'diplomatic' => null,
         ];
     }
 

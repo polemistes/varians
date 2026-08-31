@@ -67,6 +67,11 @@ type Candidate = {
     // The transcription text this reading was collated from has since been
     // edited over — see TranscriptionTextController::applyReadings.
     needs_review: boolean;
+    // What this witness's manuscript physically shows here. Null for a
+    // conjecture (nobody's manuscript reading), for a witness with no visible
+    // diplomatic layer, and where the two layers divide the line into a
+    // different number of words. See App\Support\Edition\DiplomaticCounterpart.
+    diplomatic: string | null;
 };
 
 type Run = {
@@ -79,6 +84,8 @@ type Run = {
     candidates: Candidate[];
     range_end_lemma_id: number | null;
     extent_characters: number | null;
+    // The base manuscript's own wording for this run.
+    diplomatic: string | null;
 };
 
 type UnplacedConjecture = {
@@ -130,6 +137,8 @@ type WindowPassage = {
     runs: Run[];
     unplacedConjectures: UnplacedConjecture[];
     comments: EditionComment[];
+    // The base witness's whole line as the manuscript has it.
+    base_diplomatic: string | null;
 };
 
 type TranspositionAdoption = {
@@ -261,6 +270,12 @@ type OpenTarget =
 
 const openTarget = ref<OpenTarget | null>(null);
 const submitError = ref<string | null>(null);
+
+// Reading the manuscripts through the edition: with this on, each printed
+// word shows what the base witness physically has beneath it, the line as a
+// whole is given diplomatically, and every variant reports both layers. Off
+// by default — the normalized text is what an edition is for.
+const showDiplomatic = ref(false);
 
 // ---- editorial notes ----
 // Which passage has its note composer open, which note is being reworded,
@@ -1392,6 +1407,34 @@ function orderRangeClasses(range: OrderRange): string[] {
                 </form>
             </section>
 
+            <!-- Available to every reader, not only editors: seeing what the
+                 manuscripts actually have is reading, not editing. -->
+            <div
+                class="mb-4 flex flex-wrap items-center gap-3 text-xs text-stone-500 dark:text-stone-400"
+            >
+                <button
+                    type="button"
+                    class="rounded border px-2 py-1"
+                    :class="
+                        showDiplomatic
+                            ? 'border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300'
+                            : 'border-stone-300 dark:border-stone-700'
+                    "
+                    @click="showDiplomatic = !showDiplomatic"
+                >
+                    {{
+                        showDiplomatic
+                            ? 'Hide the manuscripts'
+                            : 'Show the manuscripts'
+                    }}
+                </button>
+                <span v-if="showDiplomatic">
+                    Under each word, and beneath each line, is what the base
+                    manuscript itself has. A dot means its diplomatic layer
+                    cannot be lined up there.
+                </span>
+            </div>
+
             <div
                 v-if="canEdit"
                 class="mb-4 flex flex-wrap items-center gap-3 text-xs text-stone-500 dark:text-stone-400"
@@ -1607,9 +1650,12 @@ function orderRangeClasses(range: OrderRange): string[] {
                                         class="cursor-pointer"
                                         :data-passage-id="passage.id"
                                         :data-run-index="runIndex"
-                                        :class="
-                                            runClasses(passage, run, runIndex)
-                                        "
+                                        :class="[
+                                            runClasses(passage, run, runIndex),
+                                            showDiplomatic
+                                                ? 'inline-block text-center align-top'
+                                                : '',
+                                        ]"
                                         @click="toggleRun(passage.id, runIndex)"
                                         ><template
                                             v-if="
@@ -1625,7 +1671,12 @@ function orderRangeClasses(range: OrderRange): string[] {
                                         ><template v-else>{{
                                             run.text ||
                                             (run.gap ? '⟨gap⟩' : '⟨insert⟩')
-                                        }}</template></span
+                                        }}</template
+                                        ><span
+                                            v-if="showDiplomatic"
+                                            class="block font-sans text-xs leading-tight text-stone-400 dark:text-stone-500"
+                                            >{{ run.diplomatic ?? '·' }}</span
+                                        ></span
                                     >{{ ' ' }}
                                 </template>
                                 <span
@@ -1858,6 +1909,16 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                             candidate,
                                                         )
                                                     }}
+                                                    <em
+                                                        v-if="
+                                                            showDiplomatic &&
+                                                            candidate.diplomatic
+                                                        "
+                                                        class="text-stone-500 dark:text-stone-400"
+                                                        >({{
+                                                            candidate.diplomatic
+                                                        }})</em
+                                                    >
                                                     <span
                                                         v-if="
                                                             candidate.needs_review
@@ -2246,6 +2307,15 @@ function orderRangeClasses(range: OrderRange): string[] {
                                     >{{ submitError }}</span
                                 >
                             </span>
+
+                            <!-- The line as the base manuscript has it,
+                                 whole, for reading rather than comparing. -->
+                            <p
+                                v-if="showDiplomatic && passage.base_diplomatic"
+                                class="mt-1 border-l-2 border-sky-200 pl-3 text-base text-stone-500 dark:border-sky-900 dark:text-stone-400"
+                            >
+                                {{ passage.base_diplomatic }}
+                            </p>
 
                             <!-- The editor's own notes on this line: the
                                  judgments the apparatus can't carry —

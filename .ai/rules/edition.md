@@ -126,6 +126,29 @@ rebuild (see `hasEditorialContent`), since the editor chose that column.
 Only the wording is editable. Moving a note to another passage or column is
 not an edit but a different note.
 
+## Reading through to the manuscripts
+`DiplomaticCounterpart` gives what a witness physically has where its
+normalized text reads something. The two layers are separate transcriptions
+with separate offsets and may differ in every character, so there is no
+mapping by position — only by **token index**, which holds whenever both
+layers divide the passage into the same number of words. That is the ordinary
+case, since the normalized layer is made by copying the diplomatic one and
+regularizing it in place.
+
+Where the counts differ (a crasis resolved, a word divided differently) it
+returns null rather than guessing: showing the wrong manuscript reading would
+be worse than showing none. The line as a whole is still given, since only the
+word-by-word correspondence is untrustworthy.
+
+A conjecture never has a counterpart — no manuscript attests it.
+
+`EditionController::show` preloads each witness's diplomatic layer keyed by
+witness, visibility-filtered, and passes the work's `Tokenization` down rather
+than reading it off a passage (the eager-loaded `canonicalPassage` carries a
+narrow column list and has no `work`). The toggle in `Editions/Show.vue` is
+available to every reader, not only editors — seeing what the manuscripts have
+is reading, not editing.
+
 ## Apparatus candidates have a defined order
 `EditionController::materializedCandidates` sorts: the base's own reading
 first, then other witnesses by siglum, then conjectures oldest first. Left
