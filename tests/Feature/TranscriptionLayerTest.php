@@ -111,16 +111,31 @@ test('forking onto the same witness starts a normalized layer', function () {
         ->and($fork->text)->toBe('τοσουτοι μεν ουν');
 });
 
-test('a fork inherits the source layer when none is given', function () {
+test('a copy must name the layer it is filling', function () {
+    // Layer is no longer inherited: a witness holds one transcription per
+    // layer, so a copy names the slot it fills rather than guessing.
     $this->actingAs(User::factory()->editor()->create());
     $diplomatic = Transcription::factory()->diplomatic()->create(['text' => 'the quick fox']);
 
     $this->post(route('transcriptions.fork.store', $diplomatic), [
         'witness_id' => Witness::factory()->create()->id,
-    ])->assertRedirect();
+    ])->assertInvalid(['layer']);
+});
 
-    expect(Transcription::where('forked_from_id', $diplomatic->id)->sole()->layer)
-        ->toBe(TranscriptionLayer::Diplomatic);
+test('a copy into an occupied slot is refused rather than overwriting', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $witness = Witness::factory()->create();
+    $diplomatic = Transcription::factory()->diplomatic()->for($witness)->create(['text' => 'ΤΟΣΟΥΤΟΙ']);
+    Transcription::factory()->normalized()->for($witness)->create(['text' => 'τοσοῦτοι']);
+
+    // The normalized slot already holds work; copying over it would take its
+    // citation spans and collated readings with it.
+    $this->post(route('transcriptions.fork.store', $diplomatic), [
+        'witness_id' => $witness->id,
+        'layer' => TranscriptionLayer::Normalized->value,
+    ])->assertInvalid(['layer']);
+
+    expect(Transcription::where('witness_id', $witness->id)->count())->toBe(2);
 });
 
 test('the add-text panel only offers collatable transcriptions', function () {

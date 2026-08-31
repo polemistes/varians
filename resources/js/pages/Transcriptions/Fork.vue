@@ -4,15 +4,25 @@ import { ref } from 'vue';
 import AppHeader from '@/components/AppHeader.vue';
 import { store } from '@/routes/transcriptions/fork';
 import { show as showWitness } from '@/routes/witnesses';
-import type { Transcription, Witness } from '@/types/models';
+import type {
+    Transcription,
+    TranscriptionLayer,
+    Witness,
+} from '@/types/models';
 
 const props = defineProps<{
     transcription: Transcription;
     witnesses: Witness[];
 }>();
 
+// Witness and layer together name the slot the copy fills. Defaults to the
+// other layer of this witness, which is the commonest copy: starting a
+// witness's normalized layer from its diplomatic one, or the reverse.
 const form = useForm({
-    witness_id: '' as number | '',
+    witness_id: props.transcription.witness_id as number | '',
+    layer: (props.transcription.layer === 'diplomatic'
+        ? 'normalized'
+        : 'diplomatic') as TranscriptionLayer,
     tags: [] as string[],
 });
 const newTagInput = ref('');
@@ -58,9 +68,12 @@ function submit() {
             </h1>
             <p class="mb-6 text-sm text-stone-500 dark:text-stone-400">
                 Copies this transcription's text (and its citation assignments)
-                onto a different witness, so it can be adapted — e.g. to what a
-                specific manuscript actually shows — without altering the
-                original.
+                into another slot, so it can be adapted without altering the
+                original — onto another witness, to reflect what that manuscript
+                shows, or onto this witness's other layer, to start its
+                normalized text from its diplomatic one or the reverse. A
+                witness holds one transcription per layer, so the slot you
+                choose must be empty.
             </p>
 
             <form class="flex flex-col gap-4" @submit.prevent="submit">
@@ -88,6 +101,29 @@ function submit() {
                         class="text-xs text-red-600 dark:text-red-400"
                     >
                         {{ form.errors.witness_id }}
+                    </span>
+                </label>
+
+                <label class="flex flex-col gap-1 text-sm">
+                    Target layer
+                    <select
+                        v-model="form.layer"
+                        class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                    >
+                        <option value="diplomatic">
+                            diplomatic &mdash; what the manuscript physically
+                            has
+                        </option>
+                        <option value="normalized">
+                            normalized &mdash; the editor's regularization;
+                            collation runs on this
+                        </option>
+                    </select>
+                    <span
+                        v-if="form.errors.layer"
+                        class="text-xs text-red-600 dark:text-red-400"
+                    >
+                        {{ form.errors.layer }}
                     </span>
                 </label>
 

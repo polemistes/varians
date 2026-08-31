@@ -426,6 +426,10 @@ function submitTranscription() {
                                     >
                                 </span>
                                 <span
+                                    class="rounded bg-stone-100 px-1 text-xs text-stone-600 dark:bg-stone-800 dark:text-stone-300"
+                                    >{{ transcription.layer }}</span
+                                >
+                                <span
                                     class="text-xs text-stone-500 dark:text-stone-400"
                                     >{{ transcription.visibility }}</span
                                 >

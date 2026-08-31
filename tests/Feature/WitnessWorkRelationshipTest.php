@@ -33,7 +33,7 @@ test('a witness whose transcriptions cite no work is related to none', function 
     expect($witness->relatedWorks()->count())->toBe(0);
 });
 
-test('a witness related to two works via different transcriptions appears under both', function () {
+test('a witness whose one transcription cites two works appears under both', function () {
     $firstWork = Work::factory()->create();
     $secondWork = Work::factory()->create();
     $witness = Witness::factory()->create();
@@ -41,11 +41,13 @@ test('a witness related to two works via different transcriptions appears under 
     $firstPassage = CanonicalPassage::factory()->for($firstWork)->create();
     $secondPassage = CanonicalPassage::factory()->for($secondWork)->create();
 
-    $firstTranscription = Transcription::factory()->for($witness)->create();
-    $secondTranscription = Transcription::factory()->for($witness)->create();
+    // One slot per layer is enough for a manuscript containing several works:
+    // a Transcription has no work_id, and its citations point into whichever
+    // works its text covers.
+    $transcription = Transcription::factory()->for($witness)->create();
 
-    TranscriptionSegment::factory()->for($firstTranscription)->for($firstPassage, 'canonicalPassage')->create();
-    TranscriptionSegment::factory()->for($secondTranscription)->for($secondPassage, 'canonicalPassage')->create();
+    TranscriptionSegment::factory()->for($transcription)->for($firstPassage, 'canonicalPassage')->create();
+    TranscriptionSegment::factory()->for($transcription)->for($secondPassage, 'canonicalPassage')->create();
 
     expect($witness->relatedWorks()->pluck('works.id')->all())
         ->toEqualCanonicalizing([$firstWork->id, $secondWork->id]);

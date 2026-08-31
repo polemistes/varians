@@ -48,8 +48,8 @@ test('an editor sees every witness regardless of publication status', function (
 test('a draft transcription stays hidden from a guest on an otherwise-visible witness page', function () {
     $this->actingAs(User::factory()->create());
     $witness = Witness::factory()->create();
-    Transcription::factory()->for($witness)->published()->create();
-    Transcription::factory()->for($witness)->create();
+    Transcription::factory()->for($witness)->normalized()->published()->create();
+    Transcription::factory()->for($witness)->diplomatic()->create();
 
     $response = $this->get(route('witnesses.show', $witness));
 

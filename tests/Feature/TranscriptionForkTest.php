@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\TranscriptionLayer;
 use App\Enums\Visibility;
 use App\Enums\WitnessType;
 use App\Models\CanonicalPassage;
@@ -25,6 +26,7 @@ test('forking a transcription copies its text and citation spans to a new witnes
 
     $response = $this->post(route('transcriptions.fork.store', $transcription), [
         'witness_id' => $targetWitness->id,
+        'layer' => TranscriptionLayer::Normalized->value,
     ]);
 
     $response->assertRedirect();
@@ -48,6 +50,7 @@ test('forking does not copy image-alignment regions — a different witness mean
 
     $this->post(route('transcriptions.fork.store', $transcription), [
         'witness_id' => $targetWitness->id,
+        'layer' => TranscriptionLayer::Normalized->value,
     ]);
 
     $fork = Transcription::where('id', '!=', $transcription->id)->sole();
@@ -61,6 +64,7 @@ test('a fork cannot target a witness that does not exist', function () {
 
     $response = $this->post(route('transcriptions.fork.store', $transcription), [
         'witness_id' => 999999,
+        'layer' => TranscriptionLayer::Normalized->value,
     ]);
 
     $response->assertInvalid(['witness_id']);
@@ -73,6 +77,7 @@ test('a transcription can be forked onto a witness unrelated to any of its segme
 
     $response = $this->post(route('transcriptions.fork.store', $transcription), [
         'witness_id' => $unrelatedWitness->id,
+        'layer' => TranscriptionLayer::Normalized->value,
     ]);
 
     $response->assertRedirect();
@@ -87,6 +92,7 @@ test('an editor can fork another editor\'s draft transcription — editing here 
 
     $response = $this->post(route('transcriptions.fork.store', $transcription), [
         'witness_id' => $targetWitness->id,
+        'layer' => TranscriptionLayer::Normalized->value,
     ]);
 
     $response->assertRedirect();
@@ -100,6 +106,7 @@ test('a guest cannot fork a transcription', function () {
 
     $response = $this->post(route('transcriptions.fork.store', $transcription), [
         'witness_id' => $targetWitness->id,
+        'layer' => TranscriptionLayer::Normalized->value,
     ]);
 
     $response->assertForbidden();

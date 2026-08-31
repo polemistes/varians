@@ -15,6 +15,19 @@ physically has (original orthography, Leiden markup, and the image-alignment
 regions, since only that layer corresponds to marks on parchment), and
 `normalized` is the editor's regularization — the layer collation runs on.
 
+**A witness holds at most one transcription per layer** — two slots, enforced
+by a unique index on `(witness_id, layer)`. The layer filter alone was not
+enough: nothing stopped a witness having two *normalized* transcriptions (a
+same-witness copy produced one), and both were collated, so the manuscript
+appeared in its own apparatus disagreeing with itself. Uniqueness also settles
+which normalized transcription is *the* one for a witness, a question the code
+could not otherwise answer. One slot per layer suffices even for a manuscript
+containing several works, since a Transcription has no `work_id`.
+
+A copy (`transcriptions.fork.store`) names the slot it fills — `witness_id`
+plus a required `layer` — and is refused if that slot is occupied, rather than
+overwriting citation spans, image regions and collated readings.
+
 Only normalized transcriptions enter the apparatus (`PassageAdder::materialize`
 filters via `whereRelation('transcription', 'layer', ...)`, mirrored by the
 `Transcription::collatable()` scope used in `EditionController::show`) and only

@@ -217,11 +217,20 @@ export type Tag = {
     name: string;
 };
 
+/**
+ * Which of a witness's two layers this is. A witness holds at most one
+ * transcription per layer: `diplomatic` records what the manuscript
+ * physically has, `normalized` is the editor's regularization and the layer
+ * collation runs on. See App\Enums\TranscriptionLayer.
+ */
+export type TranscriptionLayer = 'diplomatic' | 'normalized';
+
 export type Transcription = {
     id: number;
     witness_id: number;
     user_id: number;
     forked_from_id: number | null;
+    layer: TranscriptionLayer;
     text: string;
     visibility: Visibility;
     witness?: Witness;

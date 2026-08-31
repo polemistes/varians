@@ -39,9 +39,10 @@ test('an image mapped only to a draft transcription stays hidden from a guest', 
     $this->actingAs(User::factory()->create());
     $witness = Witness::factory()->create();
     // A published transcription makes the witness page reachable...
-    Transcription::factory()->for($witness)->published()->create();
-    // ...but the image is only mapped to a separate, still-draft transcription.
-    $draftTranscription = Transcription::factory()->for($witness)->create();
+    Transcription::factory()->for($witness)->normalized()->published()->create();
+    // ...but the image is only mapped to the still-draft diplomatic layer,
+    // which is where image regions belong (see TranscriptionLayer).
+    $draftTranscription = Transcription::factory()->for($witness)->diplomatic()->create();
     $manuscript = Manuscript::factory()->for($witness)->create();
     $image = ManuscriptImage::factory()->for($manuscript)->create();
     TranscriptionRegion::factory()->for($draftTranscription)->for($image, 'manuscriptImage')->create();
