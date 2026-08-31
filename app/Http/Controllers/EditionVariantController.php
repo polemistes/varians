@@ -14,6 +14,7 @@ use App\Models\LemmaReading;
 use App\Models\Transcription;
 use App\Support\Edition\CanonicalPassageResolver;
 use App\Support\Edition\ReadingSourceResolver;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -245,6 +246,19 @@ class EditionVariantController extends Controller
             }
         }
 
+        // Last resort: the base's own reading that *contains* this span, for
+        // a base whose words do not divide one-per-column — see
+        // baseReadingAt. Snaps the selection to the whole variant site.
+        $containing = $base !== null
+            ? $this->baseReadingAt($passage, $base, fn ($query) => $query
+                ->where('start_offset', '<=', (int) $request->validated('base_start_offset'))
+                ->where('end_offset', '>=', (int) $request->validated('base_end_offset')))
+            : null;
+
+        if ($containing !== null) {
+            return $containing->lemma;
+        }
+
         throw ValidationException::withMessages([
             'base_start_offset' => 'This passage\'s structure has changed — please refresh and try again.',
         ]);
@@ -324,7 +338,40 @@ class EditionVariantController extends Controller
             ]);
         }
 
+        $endLemma = $this->extendedOverBaseSpan($startLemma, $endLemma, $base);
+
         return [$startLemma, $endLemma->id === $startLemma->id ? null : $endLemma];
+    }
+
+    /**
+     * Widen a range to cover everything the base's own reading at its start
+     * already spans.
+     *
+     * The words an editor selected in the base may stand for more columns
+     * than they look like: where the base was aligned into columns another
+     * witness's wording set, one base reading can carry `range_end_lemma_id`
+     * over several. A new reading replacing those words has to claim the same
+     * ground — otherwise the columns it leaves uncovered go on rendering
+     * beside it, splicing another manuscript's words into the printed text
+     * (the chimera EditionController::materializedRuns now guards against for
+     * the base itself).
+     */
+    private function extendedOverBaseSpan(Lemma $startLemma, Lemma $endLemma, ?Transcription $base): Lemma
+    {
+        if ($base === null) {
+            return $endLemma;
+        }
+
+        $baseReading = LemmaReading::where('lemma_id', $startLemma->id)
+            ->where('transcription_id', $base->id)
+            ->whereNotNull('range_end_lemma_id')
+            ->first();
+
+        $spanEnd = $baseReading !== null ? Lemma::find($baseReading->range_end_lemma_id) : null;
+
+        return $spanEnd !== null && (float) $spanEnd->position > (float) $endLemma->position
+            ? $spanEnd
+            : $endLemma;
     }
 
     private function findLemmaEndingAt(CanonicalPassage $passage, ?Transcription $base, ?int $baseOffset, string $errorField): ?Lemma
@@ -333,10 +380,12 @@ class EditionVariantController extends Controller
             return null;
         }
 
-        $reading = LemmaReading::where('transcription_id', $base->id)
-            ->where('end_offset', $baseOffset)
-            ->whereHas('lemma', fn ($query) => $query->where('canonical_passage_id', $passage->id))
-            ->first();
+        $reading = $this->baseReadingAt($passage, $base, fn ($query) => $query->where('end_offset', $baseOffset))
+            // The offset falls *inside* one of the base's own readings — see
+            // baseReadingAt. Snap to the column that reading belongs to.
+            ?? $this->baseReadingAt($passage, $base, fn ($query) => $query
+                ->where('start_offset', '<', $baseOffset)
+                ->where('end_offset', '>', $baseOffset));
 
         if ($reading === null) {
             throw ValidationException::withMessages([
@@ -353,10 +402,10 @@ class EditionVariantController extends Controller
             return null;
         }
 
-        $reading = LemmaReading::where('transcription_id', $base->id)
-            ->where('start_offset', $baseOffset)
-            ->whereHas('lemma', fn ($query) => $query->where('canonical_passage_id', $passage->id))
-            ->first();
+        $reading = $this->baseReadingAt($passage, $base, fn ($query) => $query->where('start_offset', $baseOffset))
+            ?? $this->baseReadingAt($passage, $base, fn ($query) => $query
+                ->where('start_offset', '<', $baseOffset)
+                ->where('end_offset', '>', $baseOffset));
 
         if ($reading === null) {
             throw ValidationException::withMessages([
@@ -365,6 +414,32 @@ class EditionVariantController extends Controller
         }
 
         return $reading->lemma;
+    }
+
+    /**
+     * One of the base transcription's own readings on this passage, matched
+     * by whatever offset condition is given.
+     *
+     * The callers try an exact boundary match first and fall back to
+     * containment, because a base that did not itself build this passage's
+     * columns does not have one word per column: aligned into columns some
+     * other witness's wording set, its readings can span several, and an
+     * editor selecting one word inside such a span has no exact boundary to
+     * match. Falling back to the reading that contains the offset snaps the
+     * selection to the whole variant site, which is the honest unit — a
+     * reading cannot compete with half a column.
+     *
+     * Exact matching stays first so a base that *did* build the columns keeps
+     * resolving precisely as before.
+     *
+     * @param  callable(Builder<LemmaReading>): Builder<LemmaReading>  $offsets
+     */
+    private function baseReadingAt(CanonicalPassage $passage, Transcription $base, callable $offsets): ?LemmaReading
+    {
+        return $offsets(
+            LemmaReading::where('transcription_id', $base->id)
+                ->whereHas('lemma', fn ($query) => $query->where('canonical_passage_id', $passage->id))
+        )->first();
     }
 
     /**
