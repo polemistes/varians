@@ -217,7 +217,10 @@ class PassageAligner
      */
     private static function plan(array $consensusTexts, array $tokens, string $sourceText): array
     {
-        $ops = self::mergeSubstitutions(self::lcsOps($consensusTexts, array_map(fn (array $token) => $token['text'], $tokens)));
+        $tokenTexts = array_map(fn (array $token) => $token['text'], $tokens);
+        $ops = self::mergeSubstitutions(
+            self::mergeTranspositions(self::lcsOps($consensusTexts, $tokenTexts), $consensusTexts, $tokenTexts)
+        );
         $entries = [];
 
         foreach ($ops as $op) {
@@ -257,6 +260,116 @@ class PassageAligner
     }
 
     /**
+     * Collapse a reordering into one variant site before substitutions are
+     * merged.
+     *
+     * A word-order variant (*trajectio*) reaches `lcsOps` as a delete and an
+     * insert of the *same* token with untouched words in between — "the swift
+     * red fox" against "the red swift fox" deletes "swift" at one place and
+     * inserts it at another. Left alone that yields two single-witness
+     * columns, and the apparatus then reports one manuscript as *omitting* a
+     * word and *adding* it again elsewhere, which is not what happened and is
+     * not how a transposition is edited.
+     *
+     * The window from that delete to that insert is a pure reordering exactly
+     * when the two witnesses' tokens across it are the same multiset in a
+     * different order. It becomes one substitution spanning the whole window,
+     * so the site reads "swift red] red swift B" — the same shape
+     * `mergeSubstitutions` already gives an n:m substitution.
+     *
+     * The smallest qualifying window wins, so an unrelated later repetition of
+     * a word cannot drag half a line into one site.
+     *
+     * @param  list<array{type: string, a: int|null, b: int|null}>  $ops
+     * @param  array<int, string>  $aTexts
+     * @param  list<string>  $bTexts
+     * @return list<array{type: string, a: int|null, b: int|null, a_end?: int|null, b_end?: int|null}>
+     */
+    private static function mergeTranspositions(array $ops, array $aTexts, array $bTexts): array
+    {
+        $result = [];
+        $count = count($ops);
+        $i = 0;
+
+        while ($i < $count) {
+            $window = $ops[$i]['type'] === 'delete'
+                ? self::reorderingWindow($ops, $i, $aTexts, $bTexts)
+                : null;
+
+            if ($window === null) {
+                $result[] = $ops[$i];
+                $i++;
+
+                continue;
+            }
+
+            $result[] = $window['op'];
+            $i = $window['end'] + 1;
+        }
+
+        return $result;
+    }
+
+    /**
+     * The shortest window starting at `$start` whose two sides carry the same
+     * tokens in a different order, as a substitution op — or null if none
+     * does.
+     *
+     * @param  list<array{type: string, a: int|null, b: int|null}>  $ops
+     * @param  array<int, string>  $aTexts
+     * @param  list<string>  $bTexts
+     * @return array{op: array{type: string, a: int|null, b: int|null, a_end: int|null, b_end: int|null}, end: int}|null
+     */
+    private static function reorderingWindow(array $ops, int $start, array $aTexts, array $bTexts): ?array
+    {
+        $aIndexes = [];
+        $bIndexes = [];
+
+        for ($j = $start; $j < count($ops); $j++) {
+            $op = $ops[$j];
+
+            if ($op['a'] !== null) {
+                $aIndexes[] = $op['a'];
+            }
+
+            if ($op['b'] !== null) {
+                $bIndexes[] = $op['b'];
+            }
+
+            // Cheap precondition before the sort: the same multiset must have
+            // the same size, which rules out most candidate windows outright.
+            if ($op['type'] !== 'insert' || $aIndexes === [] || count($aIndexes) !== count($bIndexes)) {
+                continue;
+            }
+
+            $aWords = array_map(fn (int $index) => $aTexts[$index], $aIndexes);
+            $bWords = array_map(fn (int $index) => $bTexts[$index], $bIndexes);
+
+            $aSorted = $aWords;
+            $bSorted = $bWords;
+            sort($aSorted);
+            sort($bSorted);
+
+            if ($aSorted !== $bSorted || $aWords === $bWords) {
+                continue;
+            }
+
+            return [
+                'end' => $j,
+                'op' => [
+                    'type' => 'substitute',
+                    'a' => $aIndexes[0],
+                    'a_end' => count($aIndexes) > 1 ? $aIndexes[count($aIndexes) - 1] : null,
+                    'b' => $bIndexes[0],
+                    'b_end' => $bIndexes[count($bIndexes) - 1],
+                ],
+            ];
+        }
+
+        return null;
+    }
+
+    /**
      * A contiguous run of deletes immediately touching a contiguous run of
      * inserts becomes exactly ONE substitution, anchored at the *first*
      * deleted column and absorbing *every* inserted token as one merged
@@ -267,7 +380,10 @@ class PassageAligner
      * "absence is the gap" semantics already used for a fragmentary
      * witness, not an error.
      *
-     * @param  list<array{type: string, a: int|null, b: int|null}>  $ops
+     * Accepts ops that are already substitutions — mergeTranspositions runs
+     * first and emits them — and passes those through untouched.
+     *
+     * @param  list<array{type: string, a: int|null, b: int|null, a_end?: int|null, b_end?: int|null}>  $ops
      * @return list<array{type: string, a: int|null, b: int|null, a_end?: int|null, b_end?: int|null}>
      */
     private static function mergeSubstitutions(array $ops): array
