@@ -6,6 +6,7 @@ use App\Models\CanonicalPassage;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\TranscriptionSegment;
+use App\Support\Transcription\Tokenizer;
 use Illuminate\Support\Collection;
 
 /**
@@ -38,7 +39,12 @@ class PassageAligner
             ->with('readings.transcription')
             ->get();
 
-        $tokens = self::tokenize($segment->transcription->text, $segment->start_offset, $segment->end_offset);
+        $tokens = Tokenizer::tokenize(
+            $segment->transcription->text,
+            $segment->start_offset,
+            $segment->end_offset,
+            $passage->work->tokenization,
+        );
         $attributes = fn (array $token, ?int $rangeEndIndex = null): array => [
             'transcription_id' => $segment->transcription_id,
             'start_offset' => $token['start'],
@@ -87,33 +93,6 @@ class PassageAligner
             $lemma = Lemma::create(['canonical_passage_id' => $passage->id, 'position' => $entry['position']]);
             $lemma->readings()->create($attributes($token));
         }
-    }
-
-    /**
-     * @param  string  $fullText  the transcription's whole `text` field
-     * @return list<array{text: string, start: int, end: int}>
-     */
-    private static function tokenize(string $fullText, int $start, int $end): array
-    {
-        $substring = mb_substr($fullText, $start, $end - $start);
-        $tokens = [];
-        $offset = 0;
-        $pieces = preg_split('/(\s+)/u', $substring, -1, PREG_SPLIT_DELIM_CAPTURE) ?: [];
-
-        foreach ($pieces as $index => $piece) {
-            $length = mb_strlen($piece);
-
-            if ($piece === '' || $index % 2 === 1) {
-                $offset += $length;
-
-                continue;
-            }
-
-            $tokens[] = ['text' => $piece, 'start' => $start + $offset, 'end' => $start + $offset + $length];
-            $offset += $length;
-        }
-
-        return $tokens;
     }
 
     /**

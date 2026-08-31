@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\Role;
+use App\Enums\Tokenization;
 use App\Enums\Visibility;
 use Database\Factories\WorkFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -20,15 +21,23 @@ use Illuminate\Support\Carbon;
  * @property string $title
  * @property string|null $author
  * @property string $language
+ * @property Tokenization $tokenization
  * @property string $slug
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['reference_scheme_id', 'title', 'author', 'language', 'slug'])]
+#[Fillable(['reference_scheme_id', 'title', 'author', 'language', 'tokenization', 'slug'])]
 class Work extends Model
 {
     /** @use HasFactory<WorkFactory> */
     use HasFactory;
+
+    /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'tokenization' => Tokenization::Whitespace,
+    ];
 
     /**
      * @return BelongsTo<ReferenceScheme, $this>
@@ -91,5 +100,15 @@ class Work extends Model
             'canonicalPassages.transcriptionSegments.transcription',
             fn (Builder $q) => $q->where('visibility', Visibility::Published),
         );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'tokenization' => Tokenization::class,
+        ];
     }
 }
