@@ -3,6 +3,7 @@
 namespace App\Support\Edition;
 
 use App\Models\CanonicalPassage;
+use App\Models\EditionComment;
 use App\Models\EditionLemma;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
@@ -84,6 +85,11 @@ class PassageAligner
      * creates, this catches hand-placed *witness* readings too — otherwise
      * indistinguishable from aligner output, there being no provenance marker
      * on LemmaReading at all.
+     *
+     * A note anchored to a column counts as well (see EditionComment): an
+     * editor who wrote about a particular word chose that column, and a
+     * rebuild would move her argument under her. A note about the passage as
+     * a whole anchors to nothing and so does not block anything.
      */
     private static function hasEditorialContent(CanonicalPassage $passage): bool
     {
@@ -94,7 +100,8 @@ class PassageAligner
         }
 
         return LemmaReading::whereIn('lemma_id', $lemmaIds)->whereNotNull('conjecture_id')->exists()
-            || EditionLemma::whereIn('lemma_id', $lemmaIds)->exists();
+            || EditionLemma::whereIn('lemma_id', $lemmaIds)->exists()
+            || EditionComment::whereIn('lemma_id', $lemmaIds)->exists();
     }
 
     /**

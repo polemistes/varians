@@ -88,6 +88,31 @@ are random, so leaving them makes the seed witness — and therefore the
 structure — a coin flip. `editionWithBase()` pins "A" for the base and "B" for
 the second witness for this reason.
 
+## Editorial notes are free text, and deliberately so
+`EditionComment` carries what the apparatus's own vocabulary cannot: that two
+manuscripts differ in accentuation, breathing or word division in a way worth
+reporting rather than silently normalizing; which speaker a line belongs to in
+a dialogue; why this edition prints what it prints. Do not replace it with a
+typed vocabulary — these are matters of judgment, and prescribing terms for
+them would be prescribing the scholarship.
+
+Scoped to one `Edition`, like `EditionLemma`: two editions of a work can say
+different things about the same word. A note always names a
+`CanonicalPassage`; `lemma_id` (+ `range_end_lemma_id`) optionally narrows it
+to a column or span, following LemmaReading's convention that the range end
+carries a value only when more than one column is genuinely covered. With
+`lemma_id` null the note is about the passage as a whole, which is what a
+speaker assignment usually is.
+
+The lemma foreign keys are `nullOnDelete`, not cascading: if columns are ever
+rebuilt the note must survive, degrading to a passage-level note rather than
+being destroyed. A scholar's own words are never collateral damage. A note
+*anchored to a column* nonetheless counts as editorial content and blocks a
+rebuild (see `hasEditorialContent`), since the editor chose that column.
+
+Only the wording is editable. Moving a note to another passage or column is
+not an edit but a different note.
+
 ## Apparatus candidates have a defined order
 `EditionController::materializedCandidates` sorts: the base's own reading
 first, then other witnesses by siglum, then conjectures oldest first. Left

@@ -93,6 +93,16 @@ class Edition extends Model
     }
 
     /**
+     * This edition's own notes on points in the text — see EditionComment.
+     *
+     * @return HasMany<EditionComment, $this>
+     */
+    public function comments(): HasMany
+    {
+        return $this->hasMany(EditionComment::class);
+    }
+
+    /**
      * Scope a query to editions visible to the given viewer: editors and
      * administrators see everything; everyone else only sees published ones.
      *

@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateEditionRequest;
 use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
+use App\Models\EditionComment;
 use App\Models\EditionLemma;
 use App\Models\EditionPassage;
 use App\Models\EditionPassageOrder;
@@ -765,6 +766,20 @@ class EditionController extends Controller
                 'witness_siglum' => $base->witness->siglum,
             ] : null,
             'runs' => $this->materializedRuns($passage, $base, $edition),
+            // This edition's own notes here — see EditionComment. An
+            // unanchored one (lemma_id null) is about the whole passage.
+            'comments' => EditionComment::where('edition_id', $edition->id)
+                ->where('canonical_passage_id', $passage->id)
+                ->with('user:id,name')
+                ->orderBy('id')
+                ->get()
+                ->map(fn (EditionComment $comment) => [
+                    'id' => $comment->id,
+                    'lemma_id' => $comment->lemma_id,
+                    'range_end_lemma_id' => $comment->range_end_lemma_id,
+                    'note' => $comment->note,
+                    'author' => $comment->user->name,
+                ])->values(),
             'unplacedConjectures' => Conjecture::where('canonical_passage_id', $passage->id)
                 ->whereIn('type', [ConjectureType::Substitution, ConjectureType::Lacuna, ConjectureType::Supplement])
                 ->whereDoesntHave('lemmaReadings')

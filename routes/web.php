@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\ConjectureController;
 use App\Http\Controllers\ConjectureOrderingController;
+use App\Http\Controllers\EditionCommentController;
 use App\Http\Controllers\EditionController;
 use App\Http\Controllers\EditionLemmaController;
 use App\Http\Controllers\EditionPassageController;
@@ -138,6 +139,16 @@ Route::middleware('role:editor')->group(function () {
         ->name('edition-lemmas.select');
     Route::delete('/editions/{edition}/lemmas/{lemma}/selection', [EditionLemmaController::class, 'destroy'])
         ->name('edition-lemmas.destroy');
+
+    // An editor's own free-text notes on her edition — the judgments the
+    // apparatus's vocabulary can't carry (accentuation, word division,
+    // speaker assignment, why this reading was printed). See EditionComment.
+    Route::post('/editions/{edition}/comments', [EditionCommentController::class, 'store'])
+        ->name('edition-comments.store');
+    Route::patch('/edition-comments/{comment}', [EditionCommentController::class, 'update'])
+        ->name('edition-comments.update');
+    Route::delete('/edition-comments/{comment}', [EditionCommentController::class, 'destroy'])
+        ->name('edition-comments.destroy');
 
     Route::post('/canonical-passages/{canonicalPassage}/conjectures', [ConjectureController::class, 'store'])
         ->name('conjectures.store');

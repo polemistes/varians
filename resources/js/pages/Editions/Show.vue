@@ -6,6 +6,11 @@ import AppHeader from '@/components/AppHeader.vue';
 import HierarchicalPassagePicker from '@/components/HierarchicalPassagePicker.vue';
 import ReorderingAuthorPanel from '@/components/ReorderingAuthorPanel.vue';
 import { isEditorOrAbove } from '@/lib/auth';
+import {
+    destroy as destroyComment,
+    store as storeComment,
+    update as updateComment,
+} from '@/routes/edition-comments';
 import { destroy as destroyEditionLemma } from '@/routes/edition-lemmas';
 import {
     store as storeEditionPassageOrder,
@@ -104,6 +109,18 @@ type OrderRange = {
     candidates: OrderCandidate[];
 };
 
+// The editor's own note on a point in this edition — free text, because
+// what it carries (accentuation, word division, speaker assignment, why a
+// reading was printed) is judgment rather than data. `lemma_id` null means
+// the note is about the whole passage. See App\Models\EditionComment.
+type EditionComment = {
+    id: number;
+    lemma_id: number | null;
+    range_end_lemma_id: number | null;
+    note: string;
+    author: string;
+};
+
 type WindowPassage = {
     id: number;
     edition_passage_id: number;
@@ -112,6 +129,7 @@ type WindowPassage = {
     base: { transcription_id: number; witness_siglum: string } | null;
     runs: Run[];
     unplacedConjectures: UnplacedConjecture[];
+    comments: EditionComment[];
 };
 
 type TranspositionAdoption = {
@@ -243,6 +261,139 @@ type OpenTarget =
 
 const openTarget = ref<OpenTarget | null>(null);
 const submitError = ref<string | null>(null);
+
+// ---- editorial notes ----
+// Which passage has its note composer open, which note is being reworded,
+// and the text in hand. A note is anchored to whatever run is currently
+// open, if any, so writing about one word needs no separate gesture.
+const notingPassageId = ref<number | null>(null);
+const editingNoteId = ref<number | null>(null);
+const noteDraft = ref('');
+
+function openNoteComposer(passage: WindowPassage) {
+    notingPassageId.value = passage.id;
+    editingNoteId.value = null;
+    noteDraft.value = '';
+}
+
+function startEditingNote(comment: EditionComment) {
+    editingNoteId.value = comment.id;
+    noteDraft.value = comment.note;
+}
+
+function cancelNote() {
+    notingPassageId.value = null;
+    editingNoteId.value = null;
+    noteDraft.value = '';
+}
+
+/**
+ * The columns a new note will be pinned to, or nulls for a note about the
+ * passage as a whole. Follows whichever run or range is open, so writing
+ * about one word needs no separate gesture.
+ */
+function noteAnchor(passage: WindowPassage): {
+    lemma_id: number | null;
+    range_end_lemma_id: number | null;
+} {
+    const unanchored = { lemma_id: null, range_end_lemma_id: null };
+    const target = openTarget.value;
+
+    if (target === null || target.passageId !== passage.id) {
+        return unanchored;
+    }
+
+    if (target.kind === 'range') {
+        const startRun = passage.runs[target.startIndex];
+        const endRun = passage.runs[target.endIndex];
+
+        return startRun && endRun
+            ? {
+                  lemma_id: startRun.lemma_id,
+                  range_end_lemma_id:
+                      endRun.range_end_lemma_id ?? endRun.lemma_id,
+              }
+            : unanchored;
+    }
+
+    if (target.kind === 'run') {
+        const run = passage.runs[target.index];
+
+        return run
+            ? {
+                  lemma_id: run.lemma_id,
+                  range_end_lemma_id: run.range_end_lemma_id,
+              }
+            : unanchored;
+    }
+
+    return unanchored;
+}
+
+function saveNote(passage: WindowPassage) {
+    if (!noteDraft.value.trim()) {
+        return;
+    }
+
+    if (editingNoteId.value !== null) {
+        router.patch(
+            updateComment.url(editingNoteId.value),
+            { note: noteDraft.value },
+            { preserveScroll: true, onSuccess: () => cancelNote() },
+        );
+
+        return;
+    }
+
+    router.post(
+        storeComment.url(props.edition),
+        {
+            canonical_passage_id: passage.id,
+            ...noteAnchor(passage),
+            note: noteDraft.value,
+        },
+        { preserveScroll: true, onSuccess: () => cancelNote() },
+    );
+}
+
+function removeNote(comment: EditionComment) {
+    if (!window.confirm('Delete this note?')) {
+        return;
+    }
+
+    router.delete(destroyComment.url(comment.id), { preserveScroll: true });
+}
+
+/** The words a note is anchored to, for showing what it is about. */
+function noteAnchorText(
+    passage: WindowPassage,
+    comment: EditionComment,
+): string | null {
+    if (comment.lemma_id === null) {
+        return null;
+    }
+
+    const start = passage.runs.findIndex(
+        (run) => run.lemma_id === comment.lemma_id,
+    );
+
+    if (start === -1) {
+        return null;
+    }
+
+    const end =
+        comment.range_end_lemma_id === null
+            ? start
+            : passage.runs.findIndex(
+                  (run) => run.lemma_id === comment.range_end_lemma_id,
+              );
+
+    return passage.runs
+        .slice(start, (end === -1 ? start : end) + 1)
+        .map((run) => run.text)
+        .filter((text) => text !== '')
+        .join(' ');
+}
 
 // The one way to dismiss whichever popover (Add Conjecture, Select Variant,
 // or Insert Lacuna) is currently open, regardless of how it got opened —
@@ -2095,6 +2246,103 @@ function orderRangeClasses(range: OrderRange): string[] {
                                     >{{ submitError }}</span
                                 >
                             </span>
+
+                            <!-- The editor's own notes on this line: the
+                                 judgments the apparatus can't carry —
+                                 accentuation, word division, speaker
+                                 assignment, why a reading was printed. -->
+                            <div
+                                v-if="
+                                    passage.comments.length > 0 ||
+                                    notingPassageId === passage.id
+                                "
+                                class="mt-2 border-l-2 border-stone-200 pl-3 font-sans text-sm dark:border-stone-800"
+                            >
+                                <p
+                                    v-for="comment in passage.comments"
+                                    :key="comment.id"
+                                    class="mb-1 text-stone-600 dark:text-stone-400"
+                                >
+                                    <em
+                                        v-if="noteAnchorText(passage, comment)"
+                                        class="text-stone-800 dark:text-stone-200"
+                                        >{{ noteAnchorText(passage, comment) }}]
+                                    </em>
+                                    <template
+                                        v-if="editingNoteId !== comment.id"
+                                    >
+                                        {{ comment.note }}
+                                        <span class="text-stone-400"
+                                            >— {{ comment.author }}</span
+                                        >
+                                        <button
+                                            v-if="canEdit"
+                                            type="button"
+                                            class="ml-2 text-xs underline"
+                                            @click="startEditingNote(comment)"
+                                        >
+                                            edit
+                                        </button>
+                                        <button
+                                            v-if="canEdit"
+                                            type="button"
+                                            class="ml-1 text-xs text-red-600 underline dark:text-red-400"
+                                            @click="removeNote(comment)"
+                                        >
+                                            delete
+                                        </button>
+                                    </template>
+                                </p>
+
+                                <div
+                                    v-if="
+                                        canEdit &&
+                                        (notingPassageId === passage.id ||
+                                            editingNoteId !== null)
+                                    "
+                                    class="mt-1 flex flex-col gap-1"
+                                >
+                                    <textarea
+                                        v-model="noteDraft"
+                                        rows="2"
+                                        :placeholder="
+                                            editingNoteId !== null
+                                                ? 'Reword this note'
+                                                : noteAnchor(passage)
+                                                        .lemma_id !== null
+                                                  ? 'Note on the selected words'
+                                                  : 'Note on this line'
+                                        "
+                                        class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                                    ></textarea>
+                                    <span class="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            class="rounded bg-stone-900 px-2 py-0.5 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
+                                            :disabled="!noteDraft.trim()"
+                                            @click="saveNote(passage)"
+                                        >
+                                            Save note
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="text-stone-500 underline"
+                                            @click="cancelNote"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </span>
+                                </div>
+                            </div>
+
+                            <button
+                                v-if="canEdit && notingPassageId !== passage.id"
+                                type="button"
+                                class="mt-1 font-sans text-xs text-stone-500 underline dark:text-stone-400"
+                                @click="openNoteComposer(passage)"
+                            >
+                                + Note
+                            </button>
                         </article>
                     </div>
                 </div>
