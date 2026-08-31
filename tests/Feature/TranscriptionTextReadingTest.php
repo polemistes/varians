@@ -84,93 +84,115 @@ test('an edit partially clobbering a reading flags it without prompting', functi
         ->and($readings['fox']->fresh()->needs_review)->toBeTrue();
 });
 
-test('an edit destroying a reading is refused until the editor chooses', function () {
+test('a destroyed reading nothing selected is removed, with no prompt', function () {
+    // The case that motivated dropping the prompt: no edition prints this
+    // witness here, so there is nothing to decide and nothing to report.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = Transcription::factory()->create(['text' => 'the quick fox']);
     $readings = collatedReadings($transcription, 'the quick fox');
 
-    $response = $this->patch(route('transcriptions.text.update', $transcription), [
+    $this->patch(route('transcriptions.text.update', $transcription), [
         'ops' => [['start' => 3, 'end' => 9, 'text' => '']],
         'text' => 'the fox',
-    ]);
+    ])->assertRedirect()->assertSessionHasNoErrors();
 
-    $response->assertInvalid(['lost_readings']);
-
-    // Nothing was written — not the text, not the readings.
-    expect($transcription->fresh()->text)->toBe('the quick fox')
-        ->and(LemmaReading::whereKey($readings['quick']->id)->exists())->toBeTrue();
+    expect($transcription->fresh()->text)->toBe('the fox')
+        ->and(LemmaReading::whereKey($readings['quick']->id)->exists())->toBeFalse()
+        ->and(readingText($readings['fox']))->toBe('fox')
+        ->and(session('message'))->toBeNull();
 });
 
-test('the refusal names how many readings and edition selections are at stake', function () {
+test('a destroyed reading an edition selected is kept, collapsed and flagged', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $transcription = Transcription::factory()->create(['text' => 'the quick fox']);
+    $readings = collatedReadings($transcription, 'the quick fox');
+
+    $selection = EditionLemma::create([
+        'edition_id' => Edition::factory()->create()->id,
+        'lemma_id' => $readings['quick']->lemma_id,
+        'selected_reading_id' => $readings['quick']->id,
+    ]);
+
+    $this->patch(route('transcriptions.text.update', $transcription), [
+        'ops' => [['start' => 3, 'end' => 9, 'text' => '']],
+        'text' => 'the fox',
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $lost = $readings['quick']->fresh();
+
+    expect($lost)->not->toBeNull()
+        ->and($lost->needs_review)->toBeTrue()
+        ->and($lost->start_offset)->toBe($lost->end_offset) // collapsed at the edit point
+        ->and(EditionLemma::whereKey($selection->id)->exists())->toBeTrue();
+});
+
+test('editing the words an edition prints reports that edition by title', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = Transcription::factory()->create(['text' => 'the quick fox']);
     $readings = collatedReadings($transcription, 'the quick fox');
 
     EditionLemma::create([
-        'edition_id' => Edition::factory()->create()->id,
-        'lemma_id' => $readings['quick']->lemma_id,
-        'selected_reading_id' => $readings['quick']->id,
-    ]);
-
-    $response = $this->patch(route('transcriptions.text.update', $transcription), [
-        'ops' => [['start' => 3, 'end' => 9, 'text' => '']],
-        'text' => 'the fox',
-    ]);
-
-    $response->assertInvalid([
-        'lost_readings' => 'This edit removes the text 1 collated reading was taken from, including 1 lemma selection in an edition.',
-    ]);
-});
-
-test('choosing keep collapses the reading, flags it, and preserves the edition selection', function () {
-    $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the quick fox']);
-    $readings = collatedReadings($transcription, 'the quick fox');
-
-    $selection = EditionLemma::create([
-        'edition_id' => Edition::factory()->create()->id,
+        'edition_id' => Edition::factory()->create(['title' => 'Iliad, a new edition'])->id,
         'lemma_id' => $readings['quick']->lemma_id,
         'selected_reading_id' => $readings['quick']->id,
     ]);
 
     $this->patch(route('transcriptions.text.update', $transcription), [
-        'ops' => [['start' => 3, 'end' => 9, 'text' => '']],
-        'text' => 'the fox',
-        'lost_readings' => 'keep',
+        'ops' => [['start' => 4, 'end' => 9, 'text' => 'slow']],
+        'text' => 'the slow fox',
     ])->assertRedirect();
 
-    $lost = $readings['quick']->fresh();
-
-    expect($transcription->fresh()->text)->toBe('the fox')
-        ->and($lost)->not->toBeNull()
-        ->and($lost->needs_review)->toBeTrue()
-        ->and($lost->start_offset)->toBe($lost->end_offset) // collapsed at the edit point
-        ->and(EditionLemma::whereKey($selection->id)->exists())->toBeTrue();
-
-    // The surviving readings still resolve correctly against the new text.
-    expect(readingText($readings['fox']))->toBe('fox');
+    expect(session('message'))->toContain('Iliad, a new edition')
+        ->and(readingText($readings['quick']))->toBe('slow');
 });
 
-test('choosing delete removes the reading and lets its edition selection cascade', function () {
+test('editing a witness the edition does not print reports nothing', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $printed = Transcription::factory()->create(['text' => 'the quick fox']);
+    $other = Transcription::factory()->create(['text' => 'the quick fox']);
+
+    $passage = CanonicalPassage::factory()->create();
+    foreach ([$printed, $other] as $t) {
+        PassageAligner::alignWitness($passage, TranscriptionSegment::factory()->for($t)
+            ->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]));
+    }
+
+    $middle = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->get()[1];
+    EditionLemma::create([
+        'edition_id' => Edition::factory()->create(['title' => 'Iliad, a new edition'])->id,
+        'lemma_id' => $middle->id,
+        'selected_reading_id' => $middle->readings->firstWhere('transcription_id', $printed->id)->id,
+    ]);
+
+    // Edit the OTHER witness. The edition still prints $printed, so a reader
+    // sees no change — only the apparatus reports the new wording.
+    $this->patch(route('transcriptions.text.update', $other), [
+        'ops' => [['start' => 4, 'end' => 9, 'text' => 'slow']],
+        'text' => 'the slow fox',
+    ])->assertRedirect();
+
+    expect(session('message'))->toBeNull();
+});
+
+test('an edit that only shifts a selected reading reports nothing', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = Transcription::factory()->create(['text' => 'the quick fox']);
     $readings = collatedReadings($transcription, 'the quick fox');
 
-    $selection = EditionLemma::create([
-        'edition_id' => Edition::factory()->create()->id,
-        'lemma_id' => $readings['quick']->lemma_id,
-        'selected_reading_id' => $readings['quick']->id,
+    EditionLemma::create([
+        'edition_id' => Edition::factory()->create(['title' => 'Iliad, a new edition'])->id,
+        'lemma_id' => $readings['fox']->lemma_id,
+        'selected_reading_id' => $readings['fox']->id,
     ]);
 
+    // Insert before "fox" — its offsets move, its words do not.
     $this->patch(route('transcriptions.text.update', $transcription), [
-        'ops' => [['start' => 3, 'end' => 9, 'text' => '']],
-        'text' => 'the fox',
-        'lost_readings' => 'delete',
+        'ops' => [['start' => 4, 'end' => 4, 'text' => 'very ']],
+        'text' => 'the very quick fox',
     ])->assertRedirect();
 
-    expect($transcription->fresh()->text)->toBe('the fox')
-        ->and(LemmaReading::whereKey($readings['quick']->id)->exists())->toBeFalse()
-        ->and(EditionLemma::whereKey($selection->id)->exists())->toBeFalse();
+    expect(session('message'))->toBeNull()
+        ->and(readingText($readings['fox']))->toBe('fox');
 });
 
 test('a conjecture reading has no offsets and is never touched by a text edit', function () {
@@ -188,7 +210,6 @@ test('a conjecture reading has no offsets and is never touched by a text edit', 
     $this->patch(route('transcriptions.text.update', $transcription), [
         'ops' => [['start' => 0, 'end' => 13, 'text' => 'wholly new text']],
         'text' => 'wholly new text',
-        'lost_readings' => 'delete',
     ])->assertRedirect();
 
     $conjecture->refresh();

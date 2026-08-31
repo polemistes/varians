@@ -45,7 +45,10 @@ const props = defineProps<{
     existingTags: string[];
 }>();
 
-const page = usePage<{ auth: Auth }>();
+const page = usePage<{
+    auth: Auth;
+    flash?: { message?: string | null };
+}>();
 const canEdit = computed(() => isEditorOrAbove(page.props.auth.user));
 
 const markupLegend =
@@ -208,29 +211,24 @@ const canSaveText = computed(
 const savingText = ref(false);
 const textSaveError = ref<string | null>(null);
 
-// Set when the server refuses a save because it would destroy the source text
-// of readings already collated into an apparatus — holds its explanation of
-// what is at stake. The editor answers, and only then does the save go
-// through, carrying her choice (see TranscriptionTextController::applyReadings).
-// She is asked rather than told because deleting a reading cascades away its
-// selection in every edition of the work.
-const lostReadingsPrompt = ref<string | null>(null);
+// Set by the server when a saved edit also changed an edition's own printed
+// wording — the one consequence an editor cannot see from this page. Not an
+// error and nothing to confirm; see TranscriptionTextController::applyReadings.
+const textSaveNotice = computed(() => page.props.flash?.message ?? null);
 
 function onEdit(op: TextEditOp) {
     editOps.value = [...editOps.value, op];
     deleteConfirmed.value = false;
     textSaveError.value = null;
-    lostReadingsPrompt.value = null;
 }
 
 function discardTextEdits() {
     editOps.value = [];
     deleteConfirmed.value = false;
     textSaveError.value = null;
-    lostReadingsPrompt.value = null;
 }
 
-function saveText(lostReadings?: 'keep' | 'delete') {
+function saveText() {
     if (!canSaveText.value) {
         return;
     }
@@ -239,23 +237,11 @@ function saveText(lostReadings?: 'keep' | 'delete') {
 
     router.patch(
         updateTranscriptionText.url(props.transcription),
-        {
-            ops: editOps.value,
-            text: editedText.value,
-            ...(lostReadings ? { lost_readings: lostReadings } : {}),
-        },
+        { ops: editOps.value, text: editedText.value },
         {
             preserveScroll: true,
             onSuccess: () => discardTextEdits(),
             onError: (errors) => {
-                // Not a failure to correct — a question. The edits stay
-                // pending so answering re-submits exactly the same ops.
-                if (errors.lost_readings) {
-                    lostReadingsPrompt.value = errors.lost_readings;
-
-                    return;
-                }
-
                 textSaveError.value =
                     Object.values(errors)[0] ?? 'Could not save these changes.';
             },
@@ -1010,43 +996,14 @@ function fixBoundaries() {
                             {{ textSaveError }}
                         </span>
 
-                        <div
-                            v-if="lostReadingsPrompt"
-                            class="flex flex-col gap-2 rounded border border-amber-300 bg-amber-50 p-2 dark:border-amber-800 dark:bg-amber-950"
+                        <span
+                            v-if="textSaveNotice"
+                            class="rounded border border-sky-300 bg-white px-2 py-1 text-sky-800 dark:border-sky-800 dark:bg-stone-900 dark:text-sky-300"
                         >
-                            <span class="text-amber-800 dark:text-amber-300">
-                                {{ lostReadingsPrompt }} Keeping them leaves
-                                each one flagged for review; deleting them also
-                                discards any edition's selection of them.
-                            </span>
-                            <span class="flex flex-wrap items-center gap-2">
-                                <button
-                                    type="button"
-                                    class="rounded bg-stone-900 px-2 py-0.5 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
-                                    :disabled="savingText"
-                                    @click="saveText('keep')"
-                                >
-                                    Keep and flag for review
-                                </button>
-                                <button
-                                    type="button"
-                                    class="rounded border border-red-300 px-2 py-0.5 text-red-700 disabled:opacity-50 dark:border-red-800 dark:text-red-400"
-                                    :disabled="savingText"
-                                    @click="saveText('delete')"
-                                >
-                                    Delete the readings
-                                </button>
-                                <button
-                                    type="button"
-                                    class="text-stone-500 underline"
-                                    @click="lostReadingsPrompt = null"
-                                >
-                                    Cancel
-                                </button>
-                            </span>
-                        </div>
+                            {{ textSaveNotice }}
+                        </span>
 
-                        <span v-else class="flex items-center gap-2">
+                        <span class="flex items-center gap-2">
                             <button
                                 type="button"
                                 class="rounded bg-stone-900 px-2 py-0.5 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"

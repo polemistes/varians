@@ -3,15 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\UpdateTranscriptionTextRequest;
+use App\Models\EditionLemma;
 use App\Models\LemmaReading;
 use App\Models\Transcription;
 use App\Models\TranscriptionRegion;
 use App\Models\TranscriptionSegment;
-use App\Support\DeletionImpact;
 use App\Support\Transcription\SpanTransformer;
 use App\Support\Transcription\TextOpApplier;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -32,7 +33,7 @@ class TranscriptionTextController extends Controller
      */
     public function update(UpdateTranscriptionTextRequest $request, Transcription $transcription): RedirectResponse
     {
-        DB::transaction(function () use ($request, $transcription) {
+        $affectedEditions = DB::transaction(function () use ($request, $transcription): array {
             $ops = $this->normalizeOps($request->validated('ops'));
             $recomputedText = TextOpApplier::applyAll($transcription->text, $ops);
             $submittedText = $request->validated('text') ?? '';
@@ -45,10 +46,16 @@ class TranscriptionTextController extends Controller
 
             $this->applySpans($transcription->segments, $ops);
             $this->applySpans($transcription->regions, $ops, $recomputedText);
-            $this->applyReadings($transcription, $ops, $request->validated('lost_readings'));
+            $affected = $this->applyReadings($transcription, $ops, $recomputedText);
 
             $transcription->update(['text' => $recomputedText]);
+
+            return $affected;
         });
+
+        if ($affectedEditions !== []) {
+            session()->flash('message', $this->editionReport($affectedEditions));
+        }
 
         return back();
     }
@@ -108,27 +115,28 @@ class TranscriptionTextController extends Controller
 
     /**
      * Collation readings carry offsets into this same text, so they transform
-     * exactly like segments and regions — with one deliberate exception.
+     * exactly like segments and regions.
      *
-     * A span whose text is removed outright comes back `deleted` from
-     * SpanTransformer, and for a segment or region that simply means deleting
-     * the row. A LemmaReading is not disposable in the same way:
-     * edition_lemmas.selected_reading_id is NOT NULL and cascades, so
-     * deleting one silently discards that reading's selection in *every*
-     * edition of the work — an editorial decision, destroyed by what the
-     * editor experienced as a typo fix. So this refuses the save and asks
-     * (see UpdateTranscriptionTextRequest::rules `lost_readings`); only on
-     * the re-submit, carrying her answer, does it act. Keeping a reading
-     * leaves it collapsed at the edit point and flagged for review rather
-     * than reporting words the manuscript no longer has.
+     * Nothing here needs the editor's permission. An edit to a witness only
+     * reaches a reader when that witness is the reading some edition prints:
+     * where the edition prints a different manuscript, or a conjecture, the
+     * apparatus simply reports the witness's new wording and the printed text
+     * is untouched. So this acts, and `update()` reports afterwards on the one
+     * case an editor cannot see coming — that her correction also changed an
+     * edition's own printed words.
      *
-     * A merely *partial* overlap needs no such question — the reading
-     * survives with transformed offsets and `needs_review`, same as a
-     * segment.
+     * A destroyed span (`deleted` from SpanTransformer — an op removed the
+     * text outright) is handled by whether anything selected it. If nothing
+     * did, the reading goes: the manuscript genuinely no longer has those
+     * words, so dropping the candidate is the truthful outcome. If an edition
+     * did select it, the row is kept as a zero-width span and flagged, since
+     * edition_lemmas.selected_reading_id is NOT NULL and cascades — deleting
+     * would discard that edition's decision rather than merely emptying it.
      *
      * @param  list<array{start: int, end: int, text: string}>  $ops
+     * @return list<string> titles of editions whose printed wording changed
      */
-    private function applyReadings(Transcription $transcription, array $ops, ?string $lostReadings): void
+    private function applyReadings(Transcription $transcription, array $ops, string $newText): array
     {
         $readings = $transcription->lemmaReadings()
             ->whereNotNull('start_offset')
@@ -137,7 +145,7 @@ class TranscriptionTextController extends Controller
             ->values();
 
         if ($readings->isEmpty()) {
-            return;
+            return [];
         }
 
         $transformed = SpanTransformer::transform(
@@ -149,70 +157,77 @@ class TranscriptionTextController extends Controller
             $ops,
         );
 
-        $lostIds = array_values(
-            $readings
-                ->filter(fn (LemmaReading $reading, int $index) => $transformed[$index]['deleted'])
-                ->map(fn (LemmaReading $reading): int => $reading->id)
-                ->all()
-        );
-
-        if ($lostIds !== [] && $lostReadings === null) {
-            throw ValidationException::withMessages([
-                'lost_readings' => $this->lostReadingsMessage($lostIds),
-            ]);
-        }
+        $selectingEditions = $this->selectingEditions($readings);
+        $affected = [];
 
         foreach ($readings as $index => $reading) {
             $result = $transformed[$index];
+            $selectedBy = $selectingEditions[$reading->id] ?? [];
 
-            if ($result['deleted']) {
-                if ($lostReadings === 'delete') {
-                    $reading->delete();
+            $before = mb_substr(
+                $transcription->text,
+                (int) $reading->start_offset,
+                (int) $reading->end_offset - (int) $reading->start_offset,
+            );
 
-                    continue;
-                }
-
-                $reading->update([
-                    'start_offset' => $result['start'],
-                    'end_offset' => $result['start'],
-                    'needs_review' => true,
-                ]);
+            if ($result['deleted'] && $selectedBy === []) {
+                $reading->delete();
 
                 continue;
             }
 
+            // A destroyed span collapses to zero width at the edit point; an
+            // ordinary one keeps its transformed bounds.
+            $end = $result['deleted'] ? $result['start'] : $result['end'];
+
             $reading->update([
                 'start_offset' => $result['start'],
-                'end_offset' => $result['end'],
-                'needs_review' => $result['needsReview'],
+                'end_offset' => $end,
+                'needs_review' => $result['deleted'] ? true : $result['needsReview'],
             ]);
+
+            $after = mb_substr($newText, $result['start'], $end - $result['start']);
+
+            // Only a change to the *words* is edition-visible; an edit
+            // elsewhere that merely shifts this reading's offsets is not.
+            if ($selectedBy !== [] && $before !== $after) {
+                $affected = [...$affected, ...$selectedBy];
+            }
         }
+
+        return array_values(array_unique($affected));
     }
 
     /**
-     * Names the cost in the editor's own terms — how much collation, and how
-     * many editions' decisions, this edit stands to discard. The wording
-     * mirrors the existing deletion warnings (see resources/js/lib/
-     * deletionImpact.ts) so the two read alike.
+     * Edition titles keyed by the id of the reading they print, for just
+     * these readings — the one thing that decides whether an edit to a
+     * witness is visible to a reader at all.
      *
-     * @param  list<int>  $lostIds
+     * @param  SupportCollection<int, LemmaReading>  $readings
+     * @return array<int, list<string>>
      */
-    private function lostReadingsMessage(array $lostIds): string
+    private function selectingEditions(SupportCollection $readings): array
     {
-        $impact = DeletionImpact::forLostReadings($lostIds);
-        $readings = $impact['readings'];
-        $selections = $impact['editionSelections'];
+        return EditionLemma::query()
+            ->whereIn('selected_reading_id', $readings->map(fn (LemmaReading $reading): int => $reading->id)->all())
+            ->with('edition:id,title')
+            ->get()
+            ->groupBy('selected_reading_id')
+            ->map(fn (SupportCollection $selections) => array_values(array_unique(
+                $selections->map(fn (EditionLemma $selection): string => $selection->edition->title)->all()
+            )))
+            ->all();
+    }
 
-        $message = $readings === 1
-            ? 'This edit removes the text 1 collated reading was taken from'
-            : "This edit removes the text {$readings} collated readings were taken from";
+    /**
+     * @param  list<string>  $titles
+     */
+    private function editionReport(array $titles): string
+    {
+        $subject = count($titles) === 1
+            ? 'the edition “'.$titles[0].'”'
+            : 'the editions '.collect($titles)->map(fn (string $title) => '“'.$title.'”')->join(', ', ' and ');
 
-        if ($selections > 0) {
-            $message .= $selections === 1
-                ? ', including 1 lemma selection in an edition'
-                : ", including {$selections} lemma selections in editions";
-        }
-
-        return $message.'.';
+        return 'This also changed the printed wording of '.$subject.', which prints these words.';
     }
 }

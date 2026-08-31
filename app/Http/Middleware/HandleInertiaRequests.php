@@ -41,6 +41,14 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            // A general one-shot channel for telling the editor what an
+            // action did beyond what she asked for — not an error, and not
+            // something to confirm. First used to report that a text edit
+            // also changed an edition's printed wording, see
+            // TranscriptionTextController.
+            'flash' => [
+                'message' => fn () => $request->session()->get('message'),
+            ],
         ];
     }
 }
