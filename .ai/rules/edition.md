@@ -163,6 +163,17 @@ This is a real trap, not a hypothetical: the seeded edition originally carried
 exactly such a false variant — A normalized σφωε to σφῶε and B was left
 unaccented, while both manuscripts write σφωε.
 
+Where the manuscripts *cannot* be consulted — an edition with no diplomatic
+layers, or fewer than two witnesses having one — a difference of accent,
+breathing or pointing is still not attributable to them. Collation reads the
+normalized layer and those marks are supplied there, so such a difference
+belongs to the editor until a diplomatic layer shows the scribes differing.
+`EditionController::orthographicVariation` marks a site where *every*
+difference folds away under `GreekText::foldOrthography`; the client's
+`differenceProvenance()` combines it with the manuscript evidence and says
+which of the three cases holds. A site mixing an orthographic difference with
+a real one is not marked: it is a genuine variant site.
+
 ## Apparatus candidates have a defined order
 `EditionController::materializedCandidates` sorts: the base's own reading
 first, then other witnesses by siglum, then conjectures oldest first. Left

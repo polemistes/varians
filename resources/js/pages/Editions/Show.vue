@@ -86,6 +86,9 @@ type Run = {
     extent_characters: number | null;
     // The base manuscript's own wording for this run.
     diplomatic: string | null;
+    // Every way the witnesses differ here is a matter of accents, breathings
+    // or pointing — see EditionController::orthographicVariation.
+    orthographic_variation: boolean;
 };
 
 type UnplacedConjecture = {
@@ -1176,20 +1179,12 @@ function manuscriptReadings(run: Run): ReadingGroup[] {
 }
 
 /**
- * True where the witnesses' normalized readings differ but the manuscripts
- * themselves agree.
- *
- * Such a difference did not arise in the tradition. It arose in normalizing —
- * one witness given an accent, breathing or pointing another was not — and
- * reporting it as a variant attributes to the scribes a decision the editor
- * made. Said plainly in the tooltip, so it can be corrected rather than
- * printed.
- *
- * Only witnesses whose manuscript reading is actually known count: a witness
- * with no visible diplomatic layer settles nothing either way, and two are
- * needed before "the manuscripts agree" means anything.
+ * What the manuscripts themselves say about a difference, where they can be
+ * consulted: 'agree' when every known diplomatic reading is the same,
+ * 'differ' when they are not, and 'none' when fewer than two witnesses have a
+ * visible diplomatic layer and the question cannot be put to them.
  */
-function differsOnlyInNormalization(run: Run): boolean {
+function manuscriptEvidence(run: Run): 'agree' | 'differ' | 'none' {
     const known = run.candidates.filter(
         (candidate) =>
             candidate.transcription_id !== null &&
@@ -1197,13 +1192,40 @@ function differsOnlyInNormalization(run: Run): boolean {
     );
 
     if (known.length < 2) {
-        return false;
+        return 'none';
     }
 
-    return (
-        new Set(known.map((candidate) => candidate.diplomatic)).size === 1 &&
-        new Set(known.map((candidate) => candidate.text)).size > 1
-    );
+    return new Set(known.map((candidate) => candidate.diplomatic)).size === 1
+        ? 'agree'
+        : 'differ';
+}
+
+/**
+ * Where a difference came from, in the reader's terms, or null when there is
+ * nothing to say.
+ *
+ * The manuscripts settle it wherever they can be consulted. Where they cannot,
+ * a difference of accent, breathing or pointing is still not attributable to
+ * them: collation reads the normalized layer, and those marks are supplied in
+ * normalizing, so such a difference belongs to the editor until a diplomatic
+ * layer shows otherwise.
+ */
+function differenceProvenance(run: Run): string | null {
+    const evidence = manuscriptEvidence(run);
+
+    if (evidence === 'agree') {
+        return 'The manuscripts agree here — this difference was made in normalizing, not by the scribes.';
+    }
+
+    if (evidence === 'differ' && run.orthographic_variation) {
+        return 'The manuscripts themselves differ in accent or pointing here.';
+    }
+
+    if (evidence === 'none' && run.orthographic_variation) {
+        return 'Accents, breathings and pointing are supplied in normalizing. With no diplomatic layer to check against, this difference cannot be traced to the manuscripts.';
+    }
+
+    return null;
 }
 
 function conjectureCandidates(run: Run): Candidate[] {
@@ -2633,11 +2655,10 @@ function orderRangeClasses(range: OrderRange): string[] {
             </p>
 
             <p
-                v-if="differsOnlyInNormalization(hovered.run)"
+                v-if="differenceProvenance(hovered.run)"
                 class="mt-1 text-xs text-amber-700 dark:text-amber-400"
             >
-                The manuscripts agree here — this difference was made in
-                normalizing, not by the scribes.
+                {{ differenceProvenance(hovered.run) }}
             </p>
 
             <template v-if="manuscriptReadings(hovered.run).length > 0">

@@ -969,6 +969,7 @@ class EditionController extends Controller
             'candidates' => $candidates->all(),
             'extent_characters' => $selectedCandidate['extent_characters'] ?? null,
             'diplomatic' => $diplomatic,
+            'orthographic_variation' => $this->orthographicVariation($candidates, $base),
         ];
     }
 
@@ -1009,6 +1010,7 @@ class EditionController extends Controller
             'candidates' => $candidates->all(),
             'extent_characters' => null,
             'diplomatic' => $diplomatic,
+            'orthographic_variation' => $this->orthographicVariation($candidates, $base),
         ];
     }
 
@@ -1077,6 +1079,38 @@ class EditionController extends Controller
         }
 
         return GreekText::foldOrthography($baseText) === GreekText::foldOrthography($text);
+    }
+
+    /**
+     * Whether every way the witnesses differ here is a matter of accents,
+     * breathings or pointing.
+     *
+     * Collation reads the normalized layer, and that is exactly where such
+     * marks are supplied: an editor accenting one witness and not another
+     * produces a difference no scribe made. Without a diplomatic layer to
+     * check against there is no way to tell such a difference from a real
+     * one, so it is reported as the editorial choice it most likely is —
+     * where a diplomatic layer *does* show the manuscripts differing, the
+     * client says so instead.
+     *
+     * @param  SupportCollection<int, array<string, mixed>>  $candidates
+     */
+    private function orthographicVariation(SupportCollection $candidates, ?Transcription $base): bool
+    {
+        if ($base === null) {
+            return false;
+        }
+
+        $witnesses = $candidates->filter(fn (array $candidate) => $candidate['transcription_id'] !== null);
+        $baseText = $witnesses->firstWhere('transcription_id', $base->id)['text'] ?? null;
+
+        if ($baseText === null || $witnesses->pluck('text')->unique()->count() < 2) {
+            return false;
+        }
+
+        return $witnesses->every(
+            fn (array $candidate) => $candidate['text'] === $baseText || $candidate['orthographic_only'],
+        );
     }
 
     /**

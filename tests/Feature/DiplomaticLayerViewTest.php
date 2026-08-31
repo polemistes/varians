@@ -213,3 +213,56 @@ test('a conjecture is never an orthographic variant', function () {
 
     expect($conjecture['orthographic_only'])->toBeFalse();
 });
+
+test('a site whose differences are all orthographic is marked as such', function () {
+    // Collation reads the normalized layer, and accents are supplied there —
+    // so a difference of accent alone is the editor's until a diplomatic
+    // layer shows the scribes differing.
+    $this->actingAs(User::factory()->editor()->create());
+
+    ['work' => $work, 'edition' => $edition] = collatedWithLayers([
+        'A' => ['τοσοῦτοι μὲν οὖν', null],
+        'B' => ['τοσοῦτοι μεν, οὖν', null],
+    ]);
+
+    expect(array_column(passagePayload($work, $edition)['runs'], 'orthographic_variation'))
+        ->toBe([false, true, false]);
+});
+
+test('a site with a real difference of wording is not marked orthographic', function () {
+    $this->actingAs(User::factory()->editor()->create());
+
+    ['work' => $work, 'edition' => $edition] = collatedWithLayers([
+        'A' => ['τοσοῦτοι μὲν οὖν', null],
+        'B' => ['τοσοῦτοι δὲ οὖν', null],
+    ]);
+
+    expect(array_column(passagePayload($work, $edition)['runs'], 'orthographic_variation'))
+        ->toBe([false, false, false]);
+});
+
+test('a site is only orthographic when every difference at it is', function () {
+    // One witness differing in accent and another in wording is a real
+    // variant site, not an editorial artefact.
+    $this->actingAs(User::factory()->editor()->create());
+
+    ['work' => $work, 'edition' => $edition] = collatedWithLayers([
+        'A' => ['τοσοῦτοι μὲν οὖν', null],
+        'B' => ['τοσοῦτοι μεν οὖν', null],
+        'C' => ['τοσοῦτοι δὲ οὖν', null],
+    ]);
+
+    expect(passagePayload($work, $edition)['runs'][1]['orthographic_variation'])->toBeFalse();
+});
+
+test('where the witnesses agree there is nothing to attribute', function () {
+    $this->actingAs(User::factory()->editor()->create());
+
+    ['work' => $work, 'edition' => $edition] = collatedWithLayers([
+        'A' => ['τοσοῦτοι μὲν οὖν', null],
+        'B' => ['τοσοῦτοι μὲν οὖν', null],
+    ]);
+
+    expect(array_column(passagePayload($work, $edition)['runs'], 'orthographic_variation'))
+        ->toBe([false, false, false]);
+});
