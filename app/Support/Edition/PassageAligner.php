@@ -10,6 +10,7 @@ use App\Models\LemmaReading;
 use App\Models\TranscriptionSegment;
 use App\Support\Transcription\Tokenizer;
 use Illuminate\Support\Collection;
+use Normalizer;
 
 /**
  * Grows a passage's shared, transcription-independent Lemma columns by
@@ -174,6 +175,21 @@ class PassageAligner
     }
 
     /**
+     * The form a token is compared in — canonical composition, so that two
+     * spellings which differ only in Unicode encoding count as the same word.
+     *
+     * This is the seam where any further comparison-only regularization
+     * belongs (folding diacritics, say, to stop an accent-only difference
+     * reading as a variant). Anything added here must leave the stored text
+     * untouched: `TranscriptionSegment`, `TranscriptionRegion` and
+     * `LemmaReading` all index into it by character offset.
+     */
+    private static function comparisonForm(string $text): string
+    {
+        return Normalizer::normalize($text, Normalizer::FORM_C) ?: $text;
+    }
+
+    /**
      * The text a later witness gets diffed against for this column. Prefers
      * a plain (non-range) reading — once a column can also hold a *wider*
      * merged reading from some other witness (see class docblock), that one
@@ -224,10 +240,19 @@ class PassageAligner
      */
     private static function plan(array $consensusTexts, array $tokens, string $sourceText): array
     {
-        $tokenTexts = array_map(fn (array $token) => $token['text'], $tokens);
-        $ops = self::mergeSubstitutions(
-            self::mergeTranspositions(self::lcsOps($consensusTexts, $tokenTexts), $consensusTexts, $tokenTexts)
-        );
+        // Compared in a single Unicode form, never as typed. Greek can be
+        // encoded precomposed or decomposed — ὲ as one code point or as
+        // epsilon plus a combining varia — and the two are indistinguishable
+        // on screen but unequal as strings. Without this, pasting one witness
+        // from a source that uses the other encoding makes every word differ,
+        // and the whole line collapses into a single spurious variant.
+        //
+        // Comparison only: what is stored, displayed and indexed by every
+        // offset stays exactly as the editor typed it.
+        $a = array_map(self::comparisonForm(...), $consensusTexts);
+        $b = array_map(self::comparisonForm(...), array_map(fn (array $token) => $token['text'], $tokens));
+
+        $ops = self::mergeSubstitutions(self::mergeTranspositions(self::lcsOps($a, $b), $a, $b));
         $entries = [];
 
         foreach ($ops as $op) {

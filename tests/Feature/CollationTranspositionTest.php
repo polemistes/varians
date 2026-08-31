@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
 use App\Support\Edition\PassageAdder;
+use Normalizer;
 
 /**
  * Collate one passage from the given witnesses and return both the columns
@@ -137,4 +138,37 @@ test('an addition is not mistaken for a transposition', function () {
 
     expect($result['columns'][1])->toBe(['B:swift'])
         ->and($result['printed']['A'])->toBe('the red fox');
+});
+
+test('the same word encoded differently in Unicode collates as one word', function () {
+    // Precomposed against decomposed Greek: indistinguishable on screen,
+    // unequal as strings. Pasting two witnesses from sources that use
+    // different encodings used to make every word differ, collapsing the
+    // whole line into one spurious variant.
+    $this->actingAs(User::factory()->editor()->create());
+
+    $nfc = Normalizer::normalize('τοσοῦτοι μὲν οὖν', Normalizer::FORM_C);
+    $nfd = Normalizer::normalize('τοσοῦτοι μὲν οὖν', Normalizer::FORM_D);
+
+    expect($nfc)->not->toBe($nfd); // genuinely different strings
+
+    $result = collationOf(['A' => $nfc, 'B' => $nfd]);
+
+    // Three columns, each attested by both witnesses — no variants at all.
+    expect($result['columns'])->toHaveCount(3);
+
+    foreach ($result['columns'] as $column) {
+        expect($column)->toHaveCount(2);
+    }
+});
+
+test('storage keeps the encoding the editor typed', function () {
+    // Comparison normalizes; storage must not, or every character offset
+    // recorded against the text would shift under it.
+    $this->actingAs(User::factory()->editor()->create());
+
+    $nfd = Normalizer::normalize('τοσοῦτοι μὲν οὖν', Normalizer::FORM_D);
+    collationOf(['A' => $nfd]);
+
+    expect(Transcription::whereNotNull('text')->first()->text)->toBe($nfd);
 });
