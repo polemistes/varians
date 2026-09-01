@@ -18,7 +18,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('transcription_regions', function (Blueprint $table) {
-            $table->foreignId('transcription_id')->after('id')->constrained()->cascadeOnDelete();
+            $table->foreignId('transcription_id')->default(0)->after('id')->constrained()->cascadeOnDelete();
             $table->boolean('needs_review')->default(false)->after('height');
         });
 

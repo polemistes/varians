@@ -22,8 +22,8 @@ return new class extends Migration
         Schema::table('transcription_segments', function (Blueprint $table) {
             $table->dropIndex(['position']);
             $table->dropColumn(['position', 'text', 'starts_new_paragraph']);
-            $table->unsignedInteger('start_offset')->after('canonical_passage_id');
-            $table->unsignedInteger('end_offset')->after('start_offset');
+            $table->unsignedInteger('start_offset')->default(0)->after('canonical_passage_id');
+            $table->unsignedInteger('end_offset')->default(0)->after('start_offset');
             $table->boolean('needs_review')->default(false)->after('end_offset');
         });
     }
@@ -35,7 +35,7 @@ return new class extends Migration
     {
         Schema::table('transcription_segments', function (Blueprint $table) {
             $table->dropColumn(['start_offset', 'end_offset', 'needs_review']);
-            $table->decimal('position', 20, 10)->index();
+            $table->decimal('position', 20, 10)->default(0)->index();
             $table->longText('text');
             $table->boolean('starts_new_paragraph')->default(false);
         });
