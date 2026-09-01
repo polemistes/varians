@@ -10,7 +10,7 @@ name: Build and publish to production
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   workflow_dispatch:
 
 # One at a time: two deploys force-pushing the same branch would race.
