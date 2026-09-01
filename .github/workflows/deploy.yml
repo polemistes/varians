@@ -1,0 +1,68 @@
+# Builds the frontend and publishes it, with the rest of the code, to the
+# `production` branch that the server pulls.
+#
+# This exists because the server has no Node — and because building needs PHP
+# as well: vite.config.ts runs the Wayfinder plugin, which shells out to
+# `php artisan wayfinder:generate` to write resources/js/routes and
+# resources/js/actions. Both are gitignored, so neither the generated
+# TypeScript nor public/build reaches the server through `main`.
+name: Build and publish to production
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+# One at a time: two deploys force-pushing the same branch would race.
+concurrency:
+  group: production-branch
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 8.3 to match the server, so a build never succeeds here on syntax the
+      # host cannot parse.
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, fileinfo
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # Wayfinder boots the application to read its routes, so vendor and an
+      # .env have to exist even though none of this is what gets deployed.
+      - name: Install PHP dependencies
+        run: composer install --no-dev --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare an environment for artisan
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Build the frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Publish to the production branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B production
+          # Forced because public/build is gitignored on main, which is the
+          # whole reason this branch exists.
+          git add --force public/build
+          git commit --allow-empty --message "Build ${GITHUB_SHA:0:7}"
+          git push --force origin production
