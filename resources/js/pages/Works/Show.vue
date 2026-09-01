@@ -8,6 +8,7 @@ import {
     describeDeletionImpact,
     pluralize,
 } from '@/lib/deletionImpact';
+import { home } from '@/routes';
 import {
     create as createEdition,
     show as showEdition,
@@ -19,7 +20,7 @@ import {
     create as createWitness,
     show as showWitness,
 } from '@/routes/witnesses';
-import { destroy as destroyWork, index as worksIndex } from '@/routes/works';
+import { destroy as destroyWork } from '@/routes/works';
 import type { Auth } from '@/types/auth';
 import type { TranscriptionLayer, Witness, Work } from '@/types/models';
 
@@ -98,7 +99,7 @@ function submitImport() {
             <AppHeader />
 
             <Link
-                :href="worksIndex.url()"
+                :href="home.url()"
                 class="text-sm text-stone-500 hover:underline dark:text-stone-400"
             >
                 &larr; Works

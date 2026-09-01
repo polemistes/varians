@@ -19,20 +19,6 @@ use Inertia\Response;
 
 class WitnessController extends Controller
 {
-    public function index(Request $request): Response
-    {
-        $witnesses = Witness::visibleTo($request->user())->orderBy('siglum')->get();
-
-        $witnesses->each(fn (Witness $witness) => $witness->setRelation(
-            'works',
-            $witness->relatedWorks()->get(['works.id', 'works.title', 'works.slug']),
-        ));
-
-        return Inertia::render('Witnesses/Index', [
-            'witnesses' => $witnesses,
-        ]);
-    }
-
     public function create(): Response
     {
         return Inertia::render('Witnesses/Create');
@@ -164,6 +150,6 @@ class WitnessController extends Controller
     {
         $witness->delete();
 
-        return redirect()->route('witnesses.index');
+        return redirect()->route('home');
     }
 }

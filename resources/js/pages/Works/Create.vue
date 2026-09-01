@@ -2,7 +2,8 @@
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import AppHeader from '@/components/AppHeader.vue';
-import { index as worksIndex, store } from '@/routes/works';
+import { home } from '@/routes';
+import { store } from '@/routes/works';
 import type { ReferenceScheme } from '@/types/models';
 
 const props = defineProps<{
@@ -67,7 +68,7 @@ function submit() {
             <AppHeader />
 
             <Link
-                :href="worksIndex.url()"
+                :href="home.url()"
                 class="text-sm text-stone-500 hover:underline dark:text-stone-400"
             >
                 &larr; Works

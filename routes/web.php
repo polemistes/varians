@@ -39,14 +39,12 @@ use Illuminate\Support\Facades\Route;
 // Laravel matches routes in registration order and "create" would otherwise
 // be swallowed by the wildcard show route (tried as a slug/id and 404ing).
 Route::get('/', [HomeController::class, 'index'])->name('home');
-Route::get('/works', [WorkController::class, 'index'])->name('works.index');
 Route::get('/works/create', [WorkController::class, 'create'])->name('works.create')
     ->middleware('role:editor');
 Route::get('/works/{work:slug}', [WorkController::class, 'show'])->name('works.show');
 Route::get('/works/{work:slug}/editions/create', [EditionController::class, 'create'])->name('editions.create')
     ->middleware('role:editor');
 Route::get('/works/{work:slug}/editions/{edition}', [EditionController::class, 'show'])->name('editions.show');
-Route::get('/witnesses', [WitnessController::class, 'index'])->name('witnesses.index');
 Route::get('/witnesses/create', [WitnessController::class, 'create'])->name('witnesses.create')
     ->middleware('role:editor');
 Route::get('/witnesses/{witness}', [WitnessController::class, 'show'])->name('witnesses.show');

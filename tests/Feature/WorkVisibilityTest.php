@@ -11,10 +11,10 @@ test('a guest cannot see a work with no published transcription', function () {
     $this->actingAs(User::factory()->create());
     $work = Work::factory()->create();
 
-    $indexResponse = $this->get(route('works.index'));
+    $homeResponse = $this->get(route('home'));
     $showResponse = $this->get(route('works.show', $work));
 
-    $indexResponse->assertInertia(fn (AssertInertia $page) => $page->has('works', 0));
+    $homeResponse->assertInertia(fn (AssertInertia $page) => $page->has('works', 0));
     $showResponse->assertForbidden();
 });
 
@@ -25,10 +25,10 @@ test('a guest can see a work once one of its transcriptions is published', funct
     $transcription = TranscriptionLayer::factory()->published()->create();
     TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create();
 
-    $indexResponse = $this->get(route('works.index'));
+    $homeResponse = $this->get(route('home'));
     $showResponse = $this->get(route('works.show', $work));
 
-    $indexResponse->assertInertia(fn (AssertInertia $page) => $page->has('works', 1));
+    $homeResponse->assertInertia(fn (AssertInertia $page) => $page->has('works', 1));
     $showResponse->assertOk();
 });
 
@@ -44,10 +44,10 @@ test('an editor sees every work regardless of publication status', function () {
     $this->actingAs(User::factory()->editor()->create());
     $work = Work::factory()->create();
 
-    $indexResponse = $this->get(route('works.index'));
+    $homeResponse = $this->get(route('home'));
     $showResponse = $this->get(route('works.show', $work));
 
-    $indexResponse->assertInertia(fn (AssertInertia $page) => $page->has('works', 1));
+    $homeResponse->assertInertia(fn (AssertInertia $page) => $page->has('works', 1));
     $showResponse->assertOk();
 });
 

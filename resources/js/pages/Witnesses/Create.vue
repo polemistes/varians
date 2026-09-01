@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppHeader from '@/components/AppHeader.vue';
-import { index as witnessesIndex, store } from '@/routes/witnesses';
+import { home } from '@/routes';
+import { store } from '@/routes/witnesses';
 
 const form = useForm({
     type: 'manuscript',
@@ -27,7 +28,7 @@ function submit() {
             <AppHeader />
 
             <Link
-                :href="witnessesIndex.url()"
+                :href="home.url()"
                 class="text-sm text-stone-500 hover:underline dark:text-stone-400"
             >
                 &larr; Witnesses

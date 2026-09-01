@@ -15,13 +15,6 @@ use Inertia\Response;
 
 class WorkController extends Controller
 {
-    public function index(Request $request): Response
-    {
-        return Inertia::render('Works/Index', [
-            'works' => Work::visibleTo($request->user())->with('referenceScheme')->orderBy('title')->get(),
-        ]);
-    }
-
     public function create(): Response
     {
         return Inertia::render('Works/Create', [
@@ -92,6 +85,6 @@ class WorkController extends Controller
     {
         $work->delete();
 
-        return redirect()->route('works.index');
+        return redirect()->route('home');
     }
 }

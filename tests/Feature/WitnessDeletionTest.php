@@ -15,7 +15,7 @@ use App\Models\User;
 use App\Models\Witness;
 use Illuminate\Support\Facades\DB;
 
-test('deleting a witness cascades its manuscript, images, transcriptions, and their spans, and redirects to the index', function () {
+test('deleting a witness cascades its manuscript, images, transcriptions, and their spans, and redirects home', function () {
     $this->actingAs(User::factory()->editor()->create());
     $witness = Witness::factory()->create();
     $manuscript = Manuscript::factory()->for($witness)->create();
@@ -28,7 +28,7 @@ test('deleting a witness cascades its manuscript, images, transcriptions, and th
 
     $response = $this->delete(route('witnesses.destroy', $witness));
 
-    $response->assertRedirect(route('witnesses.index'));
+    $response->assertRedirect(route('home'));
     expect(Witness::find($witness->id))->toBeNull()
         ->and(Manuscript::find($manuscript->id))->toBeNull()
         ->and(ManuscriptImage::find($image->id))->toBeNull()

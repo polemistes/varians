@@ -14,6 +14,7 @@ import { stripOps } from '@/lib/greekText';
 import type { StripKind } from '@/lib/greekText';
 import { applyOps, transformSpans } from '@/lib/transcriptionEdit';
 import type { TextEditOp } from '@/lib/transcriptionEdit';
+import { home } from '@/routes';
 import { store as storeImage } from '@/routes/manuscript-images';
 import { store as storeManuscriptPage } from '@/routes/manuscript-pages';
 import { store as storePageBreak } from '@/routes/transcription-page-breaks';
@@ -34,10 +35,7 @@ import {
     update as updateTranscription,
 } from '@/routes/transcriptions';
 import { update as updateTranscriptionText } from '@/routes/transcriptions/text';
-import {
-    index as witnessesIndex,
-    show as showWitnessRoute,
-} from '@/routes/witnesses';
+import { show as showWitnessRoute } from '@/routes/witnesses';
 import { destroy as destroyWitness } from '@/routes/witnesses';
 import { store as storeTranscriptionRoute } from '@/routes/witnesses/transcriptions';
 import { show as showWork } from '@/routes/works';
@@ -1085,7 +1083,7 @@ function fixBoundaries() {
             <AppHeader />
 
             <Link
-                :href="witnessesIndex.url()"
+                :href="home.url()"
                 class="text-sm text-stone-500 hover:underline dark:text-stone-400"
             >
                 &larr; Witnesses

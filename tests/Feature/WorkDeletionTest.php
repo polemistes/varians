@@ -10,7 +10,7 @@ use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
 
-test('deleting a work cascades its passages, editions, lemmas, conjectures, and citation segments on any witness, and redirects to the index', function () {
+test('deleting a work cascades its passages, editions, lemmas, conjectures, and citation segments on any witness, and redirects home', function () {
     $this->actingAs(User::factory()->editor()->create());
     $work = Work::factory()->create();
     $passage = CanonicalPassage::factory()->for($work)->create();
@@ -26,7 +26,7 @@ test('deleting a work cascades its passages, editions, lemmas, conjectures, and 
 
     $response = $this->delete(route('works.destroy', $work));
 
-    $response->assertRedirect(route('works.index'));
+    $response->assertRedirect(route('home'));
     expect(Work::find($work->id))->toBeNull()
         ->and(CanonicalPassage::find($passage->id))->toBeNull()
         ->and(Edition::find($edition->id))->toBeNull()

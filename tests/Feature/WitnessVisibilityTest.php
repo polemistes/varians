@@ -9,10 +9,10 @@ test('a guest cannot see a witness with no published transcription', function ()
     $this->actingAs(User::factory()->create());
     $witness = Witness::factory()->create();
 
-    $indexResponse = $this->get(route('witnesses.index'));
+    $homeResponse = $this->get(route('home'));
     $showResponse = $this->get(route('witnesses.show', $witness));
 
-    $indexResponse->assertInertia(fn (AssertInertia $page) => $page->has('witnesses', 0));
+    $homeResponse->assertInertia(fn (AssertInertia $page) => $page->has('witnesses', 0));
     $showResponse->assertForbidden();
 });
 
@@ -21,10 +21,10 @@ test('a guest can see a witness once one of its transcriptions is published', fu
     $witness = Witness::factory()->create();
     TranscriptionLayer::factory()->for($witness)->published()->create();
 
-    $indexResponse = $this->get(route('witnesses.index'));
+    $homeResponse = $this->get(route('home'));
     $showResponse = $this->get(route('witnesses.show', $witness));
 
-    $indexResponse->assertInertia(fn (AssertInertia $page) => $page->has('witnesses', 1));
+    $homeResponse->assertInertia(fn (AssertInertia $page) => $page->has('witnesses', 1));
     $showResponse->assertOk();
 });
 
