@@ -11,3 +11,8 @@ parameters:
         - routes/
 
     level: 7
+
+    # The server this deploys to runs PHP 8.3, while development is on 8.5.
+    # Analysing at the lower version is what stops an 8.4-only feature from
+    # passing here and failing only in production.
+    phpVersion: 80300
