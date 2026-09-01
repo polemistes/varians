@@ -71,6 +71,12 @@ function submit() {
                         type="password"
                         class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
                     />
+                    <span class="text-xs text-stone-500 dark:text-stone-400">
+                        At least 15 characters. Four or five unrelated words
+                        make a password that is both easy to remember and hard
+                        to guess &mdash; <em>rowan thimble gravel dusk</em>. No
+                        capitals, digits or symbols are required.
+                    </span>
                     <span
                         v-if="form.errors.password"
                         class="text-xs text-red-600 dark:text-red-400"

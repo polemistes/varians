@@ -37,13 +37,20 @@ class AppServiceProvider extends ServiceProvider
             app()->isProduction(),
         );
 
+        // Length, and nothing else. Requiring mixed case, digits and symbols
+        // does not produce hard passwords: it produces "P@ssw0rd1" — highly
+        // predictable to an attacker and unpleasant for the person typing it.
+        // Fifteen characters admits the passphrase the registration form
+        // advises, four or five unrelated words, which is far stronger than
+        // anything a composition rule elicits. This follows NIST SP 800-63B,
+        // which recommends against composition requirements outright.
+        //
+        // `uncompromised()` is kept because it is not a composition rule: it
+        // checks the password against known breach corpora, which NIST does
+        // recommend. It never fires for a genuine passphrase and it fails open
+        // when the API cannot be reached.
         Password::defaults(fn (): ?Password => app()->isProduction()
-            ? Password::min(12)
-                ->mixedCase()
-                ->letters()
-                ->numbers()
-                ->symbols()
-                ->uncompromised()
+            ? Password::min(15)->uncompromised()
             : null,
         );
     }

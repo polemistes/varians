@@ -76,7 +76,10 @@ function submit() {
                         Change password
                     </legend>
                     <p class="mb-3 text-xs text-stone-500 dark:text-stone-400">
-                        Leave blank to keep your current password.
+                        Leave blank to keep your current password. A new one
+                        needs at least 15 characters; four or five unrelated
+                        words are easier to remember and harder to guess than
+                        anything shorter with symbols in it.
                     </p>
                     <div class="flex flex-col gap-3">
                         <label class="flex flex-col gap-1 text-sm">
