@@ -16,7 +16,6 @@ import { applyOps, transformSpans } from '@/lib/transcriptionEdit';
 import type { TextEditOp } from '@/lib/transcriptionEdit';
 import { store as storeImage } from '@/routes/manuscript-images';
 import { store as storeManuscriptPage } from '@/routes/manuscript-pages';
-import { store as storeTextImport } from '@/routes/text-imports';
 import { store as storePageBreak } from '@/routes/transcription-page-breaks';
 import {
     destroy as destroyRegion,
@@ -665,29 +664,72 @@ function openLayer(name: string) {
     );
 }
 
-// Importing loads a file into the layer that is open — not a way of starting
-// a transcription, but something done to one that exists. Neither the layer
-// nor the work is asked for: the layer is the one on screen, and which work
-// the text belongs to follows later, from the citations assigned to it.
+// Importing is an insertion, not a separate kind of operation: the file's text
+// goes in at the caret and becomes a pending edit like anything typed, so it
+// previews before it is saved and every citation span, image region, page
+// division and collated reading moves with it through the usual machinery.
+// Nothing is asked — not the layer, which is the one on screen, nor the work,
+// which follows later from the citations assigned to the text.
 const importing = ref(false);
-const importForm = useForm<{ file: File | null }>({ file: null });
+const importError = ref<string | null>(null);
+const textEl = ref<{ caretOffset: () => number | null } | null>(null);
 
-function onImportFileChange(event: Event) {
-    importForm.file = (event.target as HTMLInputElement).files?.[0] ?? null;
-}
+function importFile(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
 
-function submitImport() {
-    if (!layer.value || !importForm.file) {
+    if (!file || !layer.value) {
         return;
     }
 
-    importForm.post(storeTextImport.url(layer.value.id), {
-        preserveScroll: true,
-        onSuccess: () => {
-            importing.value = false;
-            importForm.reset();
-        },
-    });
+    if (!/\.txt$/i.test(file.name) && file.type !== 'text/plain') {
+        importError.value = 'That is not a plain-text file.';
+
+        return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+        const text = String(reader.result ?? '');
+
+        if (text.trim() === '') {
+            importError.value = 'The file has no text to import.';
+
+            return;
+        }
+
+        // Inserting is editing, so the pane has to be in that mode for the
+        // pending text to be shown at all.
+        if (interactionMode.value !== 'edit') {
+            setInteractionMode('edit');
+        }
+
+        // At the caret, and only there. Falling back to the end of the page
+        // put the text on the *next* one: an insertion at a page boundary
+        // belongs to the page that begins there, which is right but not what
+        // anyone would expect from a file they had just chosen.
+        const at = textEl.value?.caretOffset() ?? activeSelection.value?.start;
+
+        if (at === null || at === undefined) {
+            importError.value =
+                pageText.value === ''
+                    ? 'Click in the empty text area first, then choose the file again.'
+                    : 'Click where the text should go first, then choose the file again.';
+
+            return;
+        }
+
+        onEdit({ start: at, end: at, text });
+
+        importError.value = null;
+        importing.value = false;
+    };
+
+    reader.onerror = () => {
+        importError.value = 'That file could not be read.';
+    };
+
+    reader.readAsText(file);
 }
 
 function addTranscription() {
@@ -1262,7 +1304,7 @@ function fixBoundaries() {
                             + Add transcription
                         </button>
                         <button
-                            v-if="canEdit && layer && layer.text === ''"
+                            v-if="canEdit && layer"
                             type="button"
                             class="rounded border border-stone-300 px-2 py-1 dark:border-stone-700"
                             @click="importing = !importing"
@@ -1306,35 +1348,28 @@ function fixBoundaries() {
                         </span>
                     </div>
 
-                    <form
+                    <div
                         v-if="canEdit && importing && layer"
                         class="mb-3 flex flex-wrap items-center gap-2 rounded border border-stone-200 p-2 text-xs dark:border-stone-800"
-                        @submit.prevent="submitImport"
                     >
                         <span class="text-stone-500 dark:text-stone-400">
-                            Load a plain-text file into the
+                            Insert a plain-text file at the cursor, into the
                             {{ layer.layer }} layer:
                         </span>
                         <input
                             type="file"
                             accept=".txt,text/plain"
-                            @change="onImportFileChange"
+                            @change="importFile"
                         />
-                        <button
-                            type="submit"
-                            class="rounded bg-stone-900 px-2 py-1 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
-                            :disabled="
-                                importForm.processing || !importForm.file
-                            "
-                        >
-                            Import
-                        </button>
+                        <span class="text-stone-500 dark:text-stone-400">
+                            It appears as an unsaved edit, like anything typed.
+                        </span>
                         <span
-                            v-if="importForm.errors.file"
+                            v-if="importError"
                             class="w-full text-red-600 dark:text-red-400"
-                            >{{ importForm.errors.file }}</span
+                            >{{ importError }}</span
                         >
-                    </form>
+                    </div>
 
                     <!-- Which page is being worked on. The leaf on the right
                          follows this, and so does the text below: a page is
@@ -1573,6 +1608,7 @@ function fixBoundaries() {
 
                     <div class="font-serif text-lg leading-loose">
                         <AlignableText
+                            ref="textEl"
                             :text="pageText"
                             :regions="pageRegions"
                             :segments="pageSegments"

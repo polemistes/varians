@@ -20,7 +20,6 @@ use App\Http\Controllers\ManuscriptImageController;
 use App\Http\Controllers\ManuscriptImageFeatureController;
 use App\Http\Controllers\ManuscriptPageController;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\TextImportController;
 use App\Http\Controllers\TranscriptionController;
 use App\Http\Controllers\TranscriptionLayerCopyController;
 use App\Http\Controllers\TranscriptionPageBreakController;
@@ -72,9 +71,6 @@ Route::middleware('role:editor')->group(function () {
     Route::post('/works', [WorkController::class, 'store'])->name('works.store');
     Route::patch('/works/{work:slug}', [WorkController::class, 'update'])->name('works.update');
     Route::delete('/works/{work:slug}', [WorkController::class, 'destroy'])->name('works.destroy');
-
-    Route::post('/transcriptions/{transcription}/import', [TextImportController::class, 'store'])
-        ->name('text-imports.store');
 
     Route::post('/works/{work:slug}/editions', [EditionController::class, 'store'])->name('editions.store');
     Route::patch('/editions/{edition}', [EditionController::class, 'update'])->name('editions.update');

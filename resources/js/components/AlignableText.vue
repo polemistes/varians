@@ -244,6 +244,35 @@ function regionClasses(regionId: Chunk['regionId']) {
 // range.toString().length would overcount. Both are marked [data-non-text]
 // (as one unit each, so a menu's own buttons aren't double-subtracted) and
 // excluded here.
+/**
+ * Where the caret last was in this text.
+ *
+ * Remembered rather than read on demand, because whatever needs it is
+ * typically a control the writer has just clicked — a file picker, say — and
+ * clicking it moves focus out of the text, taking the live selection with it.
+ * A collapsed selection is ignored by the `select` handler above, since it is
+ * not a span to align or cite, but an insertion needs exactly that.
+ */
+const lastCaret = ref<number | null>(null);
+
+function rememberCaret(): void {
+    const selection = window.getSelection();
+
+    if (!selection || selection.rangeCount === 0 || !containerEl.value) {
+        return;
+    }
+
+    const node = selection.focusNode;
+
+    if (node === null || !containerEl.value.contains(node)) {
+        return;
+    }
+
+    lastCaret.value = offsetAt(node, selection.focusOffset);
+}
+
+defineExpose({ caretOffset: () => lastCaret.value });
+
 function offsetAt(node: Node, offset: number): number {
     const range = document.createRange();
     range.setStart(containerEl.value!, 0);
@@ -315,8 +344,14 @@ function onMouseUp() {
 // own box (onto its parent), where a listener scoped to the span would never
 // see the event. `contains()` above already filters to selections that
 // belong to this component, so listening globally is exactly as precise.
-onMounted(() => document.addEventListener('mouseup', onMouseUp));
-onUnmounted(() => document.removeEventListener('mouseup', onMouseUp));
+onMounted(() => {
+    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('selectionchange', rememberCaret);
+});
+onUnmounted(() => {
+    document.removeEventListener('mouseup', onMouseUp);
+    document.removeEventListener('selectionchange', rememberCaret);
+});
 
 // ---- edit-text mode: a controlled contenteditable surface ----
 //
