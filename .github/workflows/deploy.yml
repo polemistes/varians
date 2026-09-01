@@ -8,8 +8,13 @@
 # TypeScript nor public/build reaches the server through `main`.
 name: Build and publish to production
 
+# Only after `tests` has gone green on main: `production` should never carry a
+# build made from code that does not pass its own checks. A manual run is still
+# allowed, for when you know better.
 on:
-  push:
+  workflow_run:
+    workflows: ["tests"]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -25,8 +30,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    # A workflow_run fires whatever the outcome, so the conclusion is checked
+    # here rather than in the trigger.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The commit that passed, not whatever main points at now — they
+          # differ if another push landed while the tests were running.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
 
       # 8.3 to match the server, so a build never succeeds here on syntax the
       # host cannot parse.
