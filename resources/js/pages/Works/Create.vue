@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import AppHeader from '@/components/AppHeader.vue';
-import { home } from '@/routes';
 import { store } from '@/routes/works';
 import type { ReferenceScheme } from '@/types/models';
 
@@ -66,13 +65,6 @@ function submit() {
     >
         <div class="mx-auto max-w-2xl">
             <AppHeader />
-
-            <Link
-                :href="home.url()"
-                class="text-sm text-stone-500 hover:underline dark:text-stone-400"
-            >
-                &larr; Works
-            </Link>
 
             <h1 class="mt-2 mb-6 font-serif text-2xl font-medium">New work</h1>
 

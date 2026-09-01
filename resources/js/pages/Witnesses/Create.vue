@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, useForm } from '@inertiajs/vue3';
 import AppHeader from '@/components/AppHeader.vue';
-import { home } from '@/routes';
 import { store } from '@/routes/witnesses';
 
 const form = useForm({
@@ -26,13 +25,6 @@ function submit() {
     >
         <div class="mx-auto max-w-2xl">
             <AppHeader />
-
-            <Link
-                :href="home.url()"
-                class="text-sm text-stone-500 hover:underline dark:text-stone-400"
-            >
-                &larr; Witnesses
-            </Link>
 
             <h1 class="mt-2 mb-1 font-serif text-2xl font-medium">
                 New witness

@@ -70,6 +70,7 @@ Route::middleware('auth')->group(function () {
 // collaborative: any editor can act on anything, not just their own.
 Route::middleware('role:editor')->group(function () {
     Route::post('/works', [WorkController::class, 'store'])->name('works.store');
+    Route::patch('/works/{work:slug}', [WorkController::class, 'update'])->name('works.update');
     Route::delete('/works/{work:slug}', [WorkController::class, 'destroy'])->name('works.destroy');
 
     Route::post('/works/{work:slug}/text-imports', [TextImportController::class, 'store'])

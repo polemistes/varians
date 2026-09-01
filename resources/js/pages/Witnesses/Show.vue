@@ -14,9 +14,9 @@ import { stripOps } from '@/lib/greekText';
 import type { StripKind } from '@/lib/greekText';
 import { applyOps, transformSpans } from '@/lib/transcriptionEdit';
 import type { TextEditOp } from '@/lib/transcriptionEdit';
-import { home } from '@/routes';
 import { store as storeImage } from '@/routes/manuscript-images';
 import { store as storeManuscriptPage } from '@/routes/manuscript-pages';
+import { store as storeTextImport } from '@/routes/text-imports';
 import { store as storePageBreak } from '@/routes/transcription-page-breaks';
 import {
     destroy as destroyRegion,
@@ -665,6 +665,40 @@ function openLayer(name: string) {
     );
 }
 
+// Importing a file *is* a way of starting a transcription — it creates one,
+// with the text in whichever layer the editor names — so it belongs here
+// beside the blank one rather than on the work's page, which has no witness
+// to import into.
+const importing = ref(false);
+const importForm = useForm<{
+    witness_id: number | '';
+    layer: string;
+    file: File | null;
+}>({
+    witness_id: props.witness.id,
+    layer: 'normalized',
+    file: null,
+});
+
+function onImportFileChange(event: Event) {
+    importForm.file = (event.target as HTMLInputElement).files?.[0] ?? null;
+}
+
+const importWorkSlug = ref('');
+
+function submitImport() {
+    if (!importWorkSlug.value || !importForm.file) {
+        return;
+    }
+
+    importForm.post(storeTextImport.url(importWorkSlug.value), {
+        onSuccess: () => {
+            importing.value = false;
+            importForm.reset();
+        },
+    });
+}
+
 function addTranscription() {
     const name = window.prompt(
         'What is this transcription of? (e.g. "Main text", "Scholia")',
@@ -1082,13 +1116,6 @@ function fixBoundaries() {
         <div class="mx-auto max-w-7xl">
             <AppHeader />
 
-            <Link
-                :href="home.url()"
-                class="text-sm text-stone-500 hover:underline dark:text-stone-400"
-            >
-                &larr; Witnesses
-            </Link>
-
             <div class="mt-2 mb-1 flex items-baseline gap-3">
                 <h1 class="font-serif text-2xl font-medium">
                     {{ props.witness.siglum }}
@@ -1243,6 +1270,14 @@ function fixBoundaries() {
                         >
                             + Add transcription
                         </button>
+                        <button
+                            v-if="canEdit"
+                            type="button"
+                            class="rounded border border-stone-300 px-2 py-1 dark:border-stone-700"
+                            @click="importing = !importing"
+                        >
+                            {{ importing ? 'Cancel' : 'Import text' }}
+                        </button>
 
                         <select
                             v-if="canEdit && layer"
@@ -1279,6 +1314,60 @@ function fixBoundaries() {
                             </button>
                         </span>
                     </div>
+
+                    <form
+                        v-if="canEdit && importing"
+                        class="mb-3 flex flex-wrap items-end gap-2 rounded border border-stone-200 p-2 text-xs dark:border-stone-800"
+                        @submit.prevent="submitImport"
+                    >
+                        <label class="flex flex-col gap-1">
+                            Of which work
+                            <select
+                                v-model="importWorkSlug"
+                                class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                            >
+                                <option value="">Choose&hellip;</option>
+                                <option
+                                    v-for="work in props.works"
+                                    :key="work.id"
+                                    :value="work.slug"
+                                >
+                                    {{ work.title }}
+                                </option>
+                            </select>
+                        </label>
+                        <label class="flex flex-col gap-1">
+                            Into which layer
+                            <select
+                                v-model="importForm.layer"
+                                class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                            >
+                                <option value="normalized">normalized</option>
+                                <option value="diplomatic">diplomatic</option>
+                            </select>
+                        </label>
+                        <input
+                            type="file"
+                            accept=".txt,text/plain"
+                            @change="onImportFileChange"
+                        />
+                        <button
+                            type="submit"
+                            class="rounded bg-stone-900 px-2 py-1 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
+                            :disabled="
+                                importForm.processing ||
+                                !importWorkSlug ||
+                                !importForm.file
+                            "
+                        >
+                            Import
+                        </button>
+                        <span
+                            v-if="importForm.errors.file"
+                            class="w-full text-red-600 dark:text-red-400"
+                            >{{ importForm.errors.file }}</span
+                        >
+                    </form>
 
                     <!-- Which page is being worked on. The leaf on the right
                          follows this, and so does the text below: a page is

@@ -69,7 +69,7 @@ function removeEdition(edition: EditionRow) {
 function removeWork(work: WorkRow) {
     const parts = [
         pluralize(work.editions_count, 'edition'),
-        pluralize(work.canonical_passages_count, 'canonical passage'),
+        pluralize(work.canonical_passages_count, 'passage'),
     ].filter((part) => !part.startsWith('0 '));
 
     if (confirmDeletion(`the work "${work.title}"`, parts)) {
@@ -106,95 +106,6 @@ function removeWitness(witness: WitnessRow) {
             </header>
 
             <div class="grid grid-cols-1 gap-8 lg:grid-cols-3">
-                <!-- Editions -->
-                <section>
-                    <div class="mb-3 flex items-baseline justify-between gap-3">
-                        <h2 class="font-serif text-xl">Editions</h2>
-                        <button
-                            v-if="canEdit"
-                            type="button"
-                            class="text-xs text-stone-500 underline dark:text-stone-400"
-                            @click="choosingWork = !choosingWork"
-                        >
-                            {{ choosingWork ? 'Cancel' : '+ Add' }}
-                        </button>
-                    </div>
-
-                    <p
-                        v-if="choosingWork && props.works.length === 0"
-                        class="mb-3 text-xs text-stone-500 dark:text-stone-400"
-                    >
-                        An edition is of a work, so add a work first.
-                    </p>
-                    <select
-                        v-else-if="choosingWork"
-                        class="mb-3 w-full rounded border border-stone-300 bg-transparent px-2 py-1 text-sm dark:border-stone-700"
-                        @change="
-                            startEdition(
-                                ($event.target as HTMLSelectElement).value,
-                            )
-                        "
-                    >
-                        <option value="">Of which work&hellip;</option>
-                        <option
-                            v-for="work in props.works"
-                            :key="work.id"
-                            :value="work.slug"
-                        >
-                            {{ work.title }}
-                        </option>
-                    </select>
-
-                    <ul class="flex flex-col gap-2">
-                        <li
-                            v-for="edition in props.editions"
-                            :key="edition.id"
-                            class="flex items-baseline justify-between gap-2 rounded border border-stone-200 p-3 dark:border-stone-800"
-                        >
-                            <Link
-                                v-if="edition.work"
-                                :href="
-                                    showEdition.url({
-                                        work: edition.work.slug,
-                                        edition: edition.id,
-                                    })
-                                "
-                                class="min-w-0 flex-1"
-                            >
-                                <span class="font-serif">{{
-                                    edition.title
-                                }}</span>
-                                <span
-                                    class="block text-xs text-stone-500 dark:text-stone-400"
-                                >
-                                    {{ edition.work.title
-                                    }}<template
-                                        v-if="
-                                            edition.visibility !== 'published'
-                                        "
-                                    >
-                                        &middot; {{ edition.visibility }}
-                                    </template>
-                                </span>
-                            </Link>
-                            <button
-                                v-if="canEdit"
-                                type="button"
-                                class="text-xs text-red-600 underline dark:text-red-400"
-                                @click="removeEdition(edition)"
-                            >
-                                Delete
-                            </button>
-                        </li>
-                        <li
-                            v-if="props.editions.length === 0"
-                            class="text-sm text-stone-500 dark:text-stone-400"
-                        >
-                            No editions yet.
-                        </li>
-                    </ul>
-                </section>
-
                 <!-- Works -->
                 <section>
                     <div class="mb-3 flex items-baseline justify-between gap-3">
@@ -287,6 +198,95 @@ function removeWitness(witness: WitnessRow) {
                             class="text-sm text-stone-500 dark:text-stone-400"
                         >
                             No witnesses yet.
+                        </li>
+                    </ul>
+                </section>
+
+                <!-- Editions -->
+                <section>
+                    <div class="mb-3 flex items-baseline justify-between gap-3">
+                        <h2 class="font-serif text-xl">Editions</h2>
+                        <button
+                            v-if="canEdit"
+                            type="button"
+                            class="text-xs text-stone-500 underline dark:text-stone-400"
+                            @click="choosingWork = !choosingWork"
+                        >
+                            {{ choosingWork ? 'Cancel' : '+ Add' }}
+                        </button>
+                    </div>
+
+                    <p
+                        v-if="choosingWork && props.works.length === 0"
+                        class="mb-3 text-xs text-stone-500 dark:text-stone-400"
+                    >
+                        An edition is of a work, so add a work first.
+                    </p>
+                    <select
+                        v-else-if="choosingWork"
+                        class="mb-3 w-full rounded border border-stone-300 bg-transparent px-2 py-1 text-sm dark:border-stone-700"
+                        @change="
+                            startEdition(
+                                ($event.target as HTMLSelectElement).value,
+                            )
+                        "
+                    >
+                        <option value="">Of which work&hellip;</option>
+                        <option
+                            v-for="work in props.works"
+                            :key="work.id"
+                            :value="work.slug"
+                        >
+                            {{ work.title }}
+                        </option>
+                    </select>
+
+                    <ul class="flex flex-col gap-2">
+                        <li
+                            v-for="edition in props.editions"
+                            :key="edition.id"
+                            class="flex items-baseline justify-between gap-2 rounded border border-stone-200 p-3 dark:border-stone-800"
+                        >
+                            <Link
+                                v-if="edition.work"
+                                :href="
+                                    showEdition.url({
+                                        work: edition.work.slug,
+                                        edition: edition.id,
+                                    })
+                                "
+                                class="min-w-0 flex-1"
+                            >
+                                <span class="font-serif">{{
+                                    edition.title
+                                }}</span>
+                                <span
+                                    class="block text-xs text-stone-500 dark:text-stone-400"
+                                >
+                                    {{ edition.work.title
+                                    }}<template
+                                        v-if="
+                                            edition.visibility !== 'published'
+                                        "
+                                    >
+                                        &middot; {{ edition.visibility }}
+                                    </template>
+                                </span>
+                            </Link>
+                            <button
+                                v-if="canEdit"
+                                type="button"
+                                class="text-xs text-red-600 underline dark:text-red-400"
+                                @click="removeEdition(edition)"
+                            >
+                                Delete
+                            </button>
+                        </li>
+                        <li
+                            v-if="props.editions.length === 0"
+                            class="text-sm text-stone-500 dark:text-stone-400"
+                        >
+                            No editions yet.
                         </li>
                     </ul>
                 </section>

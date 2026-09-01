@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreWorkRequest;
+use App\Http\Requests\UpdateWorkRequest;
 use App\Models\ReferenceScheme;
 use App\Models\TranscriptionLayer;
 use App\Models\Witness;
@@ -81,6 +82,18 @@ class WorkController extends Controller
      * connection to this work. See App\Support\DeletionImpact for the
      * preview shown before this is confirmed.
      */
+    /**
+     * Rename a work, or correct its author. Not its slug — that is in the URL
+     * of every edition of it — and not its reference scheme, which every
+     * passage address was built against.
+     */
+    public function update(UpdateWorkRequest $request, Work $work): RedirectResponse
+    {
+        $work->update($request->validated());
+
+        return back();
+    }
+
     public function destroy(Work $work): RedirectResponse
     {
         $work->delete();

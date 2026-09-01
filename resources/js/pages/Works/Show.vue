@@ -8,19 +8,15 @@ import {
     describeDeletionImpact,
     pluralize,
 } from '@/lib/deletionImpact';
-import { home } from '@/routes';
 import {
     create as createEdition,
     show as showEdition,
 } from '@/routes/editions';
-import { store as storeTextImport } from '@/routes/text-imports';
-import { show as showTranscription } from '@/routes/transcriptions';
-import { create as createCopy } from '@/routes/transcriptions/copy';
 import {
     create as createWitness,
     show as showWitness,
 } from '@/routes/witnesses';
-import { destroy as destroyWork } from '@/routes/works';
+import { destroy as destroyWork, update as updateWork } from '@/routes/works';
 import type { Auth } from '@/types/auth';
 import type { TranscriptionLayer, Witness, Work } from '@/types/models';
 
@@ -33,11 +29,29 @@ const props = defineProps<{
 const page = usePage<{ auth: Auth }>();
 const canEdit = computed(() => isEditorOrAbove(page.props.auth.user));
 
+const editingDetails = ref(false);
+const detailsForm = useForm({
+    title: props.work.title,
+    author: props.work.author ?? '',
+});
+
+function saveDetails() {
+    detailsForm.patch(updateWork.url(props.work), {
+        preserveScroll: true,
+        onSuccess: () => (editingDetails.value = false),
+    });
+}
+
+function cancelDetails() {
+    detailsForm.reset();
+    editingDetails.value = false;
+}
+
 function removeWork() {
     const parts = describeDeletionImpact(props.work.deletion_impact, [
         {
             key: 'canonicalPassages',
-            label: (n) => pluralize(n, 'canonical passage'),
+            label: (n) => pluralize(n, 'passage'),
         },
         { key: 'editions', label: (n) => pluralize(n, 'edition of this work') },
         {
@@ -69,24 +83,6 @@ function manuscriptSummary(witness: Witness): string | null {
 
     return [location, date].filter(Boolean).join(' ') || null;
 }
-
-const showImportForm = ref(false);
-
-const importForm = useForm<{
-    witness_id: number | '';
-    file: File | null;
-}>({
-    witness_id: '',
-    file: null,
-});
-
-function onImportFileChange(event: Event) {
-    importForm.file = (event.target as HTMLInputElement).files?.[0] ?? null;
-}
-
-function submitImport() {
-    importForm.post(storeTextImport.url(props.work));
-}
 </script>
 
 <template>
@@ -98,19 +94,70 @@ function submitImport() {
         <div class="mx-auto max-w-3xl">
             <AppHeader />
 
-            <Link
-                :href="home.url()"
-                class="text-sm text-stone-500 hover:underline dark:text-stone-400"
+            <div class="mt-2 mb-1 flex items-baseline gap-3">
+                <h1 class="font-serif text-2xl font-medium">
+                    {{ props.work.title }}
+                </h1>
+                <button
+                    v-if="canEdit && !editingDetails"
+                    type="button"
+                    class="text-xs text-stone-500 underline dark:text-stone-400"
+                    @click="editingDetails = true"
+                >
+                    Edit title/author
+                </button>
+            </div>
+            <p
+                v-if="!editingDetails"
+                class="mb-1 text-stone-600 dark:text-stone-400"
             >
-                &larr; Works
-            </Link>
-
-            <h1 class="mt-2 mb-1 font-serif text-2xl font-medium">
-                {{ props.work.title }}
-            </h1>
-            <p class="mb-1 text-stone-600 dark:text-stone-400">
                 {{ props.work.author }}
             </p>
+
+            <!-- Title and author only: the slug is in the URL of every edition
+                 of this work, and the reference scheme is what every passage
+                 address was built against. -->
+            <form
+                v-if="editingDetails"
+                class="mb-3 flex flex-wrap items-end gap-2 text-sm"
+                @submit.prevent="saveDetails"
+            >
+                <label class="flex flex-col gap-1">
+                    Title
+                    <input
+                        v-model="detailsForm.title"
+                        type="text"
+                        class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                    />
+                </label>
+                <label class="flex flex-col gap-1">
+                    Author
+                    <input
+                        v-model="detailsForm.author"
+                        type="text"
+                        class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                    />
+                </label>
+                <button
+                    type="submit"
+                    class="rounded bg-stone-900 px-3 py-1 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
+                    :disabled="detailsForm.processing || !detailsForm.title"
+                >
+                    Save
+                </button>
+                <button
+                    type="button"
+                    class="text-stone-500 underline dark:text-stone-400"
+                    @click="cancelDetails"
+                >
+                    Cancel
+                </button>
+                <span
+                    v-if="detailsForm.errors.title"
+                    class="w-full text-xs text-red-600 dark:text-red-400"
+                    >{{ detailsForm.errors.title }}</span
+                >
+            </form>
             <div class="mb-8 flex items-center justify-between gap-4">
                 <p class="text-xs text-stone-500 dark:text-stone-500">
                     {{ props.work.language }} ·
@@ -222,140 +269,6 @@ function submitImport() {
                         class="text-sm text-stone-500 dark:text-stone-400"
                     >
                         No witness has any text assigned to this work yet.
-                    </li>
-                </ul>
-            </section>
-
-            <section v-if="canEdit" class="mb-10">
-                <div class="mb-3 flex items-center justify-between">
-                    <h2 class="font-serif text-lg">Import a text</h2>
-                    <button
-                        type="button"
-                        class="text-xs text-stone-600 underline dark:text-stone-400"
-                        @click="showImportForm = !showImportForm"
-                    >
-                        {{ showImportForm ? 'Cancel' : '+ Import text' }}
-                    </button>
-                </div>
-
-                <form
-                    v-if="showImportForm"
-                    class="flex flex-col gap-2 rounded-lg border border-dashed border-stone-300 p-3 text-sm dark:border-stone-700"
-                    @submit.prevent="submitImport"
-                >
-                    <p class="text-xs text-stone-500 dark:text-stone-400">
-                        The file's contents become a transcription of the
-                        witness you choose below, exactly as uploaded —
-                        <Link :href="createWitness.url()" class="underline">
-                            register a new witness first
-                        </Link>
-                        if the one you need isn't listed yet. Citations and
-                        image alignment are added afterward, in the
-                        transcription editor.
-                    </p>
-                    <div class="flex flex-wrap gap-2">
-                        <select
-                            v-model="importForm.witness_id"
-                            class="flex-1 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                        >
-                            <option value="" disabled>
-                                Choose a witness&hellip;
-                            </option>
-                            <option
-                                v-for="witness in allWitnesses"
-                                :key="witness.id"
-                                :value="witness.id"
-                            >
-                                {{ witness.siglum }} &mdash; {{ witness.label }}
-                            </option>
-                        </select>
-                        <input
-                            type="file"
-                            accept=".txt,text/plain"
-                            class="text-xs"
-                            @change="onImportFileChange"
-                        />
-                    </div>
-                    <span
-                        v-if="importForm.errors.file"
-                        class="text-xs text-red-600 dark:text-red-400"
-                    >
-                        {{ importForm.errors.file }}
-                    </span>
-                    <span
-                        v-if="importForm.errors.witness_id"
-                        class="text-xs text-red-600 dark:text-red-400"
-                    >
-                        {{ importForm.errors.witness_id }}
-                    </span>
-                    <button
-                        type="submit"
-                        class="self-start rounded bg-stone-900 px-3 py-1 text-xs text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
-                        :disabled="
-                            importForm.processing ||
-                            !importForm.witness_id ||
-                            !importForm.file
-                        "
-                    >
-                        {{
-                            importForm.processing ? 'Importing…' : 'Import text'
-                        }}
-                    </button>
-                </form>
-            </section>
-
-            <section>
-                <h2 class="mb-3 font-serif text-lg">Transcriptions</h2>
-                <p
-                    v-if="props.transcriptions.length === 0"
-                    class="text-sm text-stone-500 dark:text-stone-400"
-                >
-                    No transcription has any text assigned to this work yet.
-                </p>
-                <ul class="flex flex-col gap-3">
-                    <li
-                        v-for="transcription in props.transcriptions"
-                        :key="transcription.id"
-                        class="rounded-lg border border-stone-200 p-4 dark:border-stone-800"
-                    >
-                        <Link
-                            :href="showTranscription.url(transcription.id)"
-                            class="block hover:opacity-80"
-                        >
-                            <div
-                                class="flex items-baseline justify-between gap-4"
-                            >
-                                <span
-                                    class="flex flex-wrap items-baseline gap-1"
-                                >
-                                    {{ transcription.witness?.siglum }}
-                                    <span
-                                        v-for="tag in transcription.tags"
-                                        :key="tag.id"
-                                        class="rounded-full bg-stone-200 px-2 py-0.5 text-xs text-stone-700 dark:bg-stone-800 dark:text-stone-300"
-                                        >{{ tag.name }}</span
-                                    >
-                                </span>
-                                <span
-                                    class="text-xs text-stone-500 dark:text-stone-400"
-                                    >{{
-                                        transcription.transcription!.visibility
-                                    }}</span
-                                >
-                            </div>
-                            <div
-                                class="mt-1 text-xs text-stone-500 dark:text-stone-400"
-                            >
-                                by {{ transcription.user?.name }}
-                            </div>
-                        </Link>
-                        <Link
-                            v-if="canEdit"
-                            :href="createCopy.url(transcription.id)"
-                            class="mt-2 inline-block text-xs text-stone-500 underline dark:text-stone-400"
-                        >
-                            Copy &rarr;
-                        </Link>
                     </li>
                 </ul>
             </section>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import AddToEditionPanel from '@/components/AddToEditionPanel.vue';
 import AppHeader from '@/components/AppHeader.vue';
@@ -29,7 +29,6 @@ import {
     show as showEdition,
     update as updateEdition,
 } from '@/routes/editions';
-import { show as showWork } from '@/routes/works';
 import type { Auth } from '@/types/auth';
 import type {
     ConjectureType,
@@ -1522,13 +1521,6 @@ function orderRangeClasses(range: OrderRange): string[] {
     >
         <div class="mx-auto max-w-6xl">
             <AppHeader />
-
-            <Link
-                :href="showWork.url(props.work)"
-                class="text-sm text-stone-500 hover:underline dark:text-stone-400"
-            >
-                &larr; {{ props.work.title }}
-            </Link>
 
             <div
                 class="mt-2 mb-1 flex flex-wrap items-baseline justify-between gap-4"
