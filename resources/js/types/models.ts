@@ -13,6 +13,7 @@ export type DeletionImpact = {
     segments?: number;
     regions?: number;
     images?: number;
+    pages?: number;
     editionSelections?: number;
     editionPassages?: number;
     features?: number;
@@ -64,6 +65,7 @@ export type Witness = {
     manuscript?: Manuscript | null;
     works?: Work[];
     transcriptions?: Transcription[];
+    transcription_layers?: TranscriptionLayer[];
     deletion_impact?: DeletionImpact;
 };
 
@@ -75,12 +77,47 @@ export type Manuscript = {
     date_text: string | null;
     notes: string | null;
     images?: ManuscriptImage[];
+    pages?: ManuscriptPage[];
+};
+
+/**
+ * One page of a manuscript, named by `label`. A page exists whether or not
+ * anyone has photographed it: a transcription is often made from a printed
+ * facsimile or the manuscript itself, and its text still has to be divided
+ * onto pages.
+ */
+export type ManuscriptPage = {
+    id: number;
+    manuscript_id: number;
+    label: string;
+    position: number;
+    images?: ManuscriptImage[];
+};
+
+/**
+ * Where a manuscript page begins in a transcription, as a line number.
+ *
+ * One division for both layers: a page holds a stretch of the manuscript and
+ * both layers transcribe that same stretch. The coordinate is the line because
+ * it is the only one they share — their character offsets differ, but a line
+ * of the transcription is a line of the manuscript in either.
+ *
+ * A single number, not a range: the page runs from here to wherever the next
+ * begins, so pages cannot overlap or leave gaps.
+ */
+export type TranscriptionPageBreak = {
+    id: number;
+    transcription_id: number;
+    manuscript_page_id: number;
+    start_line: number;
+    manuscript_page?: ManuscriptPage;
 };
 
 export type ManuscriptImage = {
     id: number;
     manuscript_id: number;
-    folio_label: string;
+    manuscript_page_id: number;
+    manuscript_page?: ManuscriptPage;
     url: string;
     position: string;
     features?: ManuscriptImageFeature[];
@@ -135,7 +172,7 @@ export type Lemma = {
 export type LemmaReading = {
     id: number;
     lemma_id: number;
-    transcription_id: number | null;
+    transcription_layer_id: number | null;
     start_offset: number | null;
     end_offset: number | null;
     conjecture_id: number | null;
@@ -195,7 +232,7 @@ export type Conjecture = {
 
 /**
  * A canonical passage's membership in an edition — a passage is "in" an
- * edition iff it has a row here. `transcription_id` is the transcription its
+ * edition iff it has a row here. `transcription_layer_id` is the transcription its
  * segment was added from (null only for a whole-line lacuna, which has no
  * manuscript witness at all) and doubles as which transcription's own
  * wording is the display default for this passage. `position` is the order
@@ -206,7 +243,7 @@ export type EditionPassage = {
     id: number;
     edition_id: number;
     canonical_passage_id: number;
-    transcription_id: number | null;
+    transcription_layer_id: number | null;
     position: string;
 };
 
@@ -218,21 +255,42 @@ export type Tag = {
 };
 
 /**
- * Which of a witness's two layers this is. A witness holds at most one
+ * Which of a transcription's two layers this is. A transcription holds one
  * transcription per layer: `diplomatic` records what the manuscript
  * physically has, `normalized` is the editor's regularization and the layer
- * collation runs on. See App\Enums\TranscriptionLayer.
+ * collation runs on. See App\Enums\Layer.
  */
-export type TranscriptionLayer = 'diplomatic' | 'normalized';
+export type Layer = 'diplomatic' | 'normalized';
 
+/**
+ * One transcription of a witness, consisting of exactly two layers. A witness
+ * may be transcribed more than once — a manuscript can carry texts belonging
+ * to different works, or several kinds of text across the same pages — and
+ * nothing records which is the principal one. The editor names them.
+ */
 export type Transcription = {
     id: number;
     witness_id: number;
-    user_id: number;
-    forked_from_id: number | null;
-    layer: TranscriptionLayer;
-    text: string;
+    name: string;
+    position: number;
     visibility: Visibility;
+    witness?: Witness;
+    layers?: TranscriptionLayer[];
+};
+
+/**
+ * One layer of a transcription. It owns the continuous `text` and everything
+ * carrying character offsets into it. Visibility is not here: a transcription
+ * is public or it is not, and if it is, both of its layers are.
+ */
+export type TranscriptionLayer = {
+    id: number;
+    transcription_id: number;
+    user_id: number;
+    copied_from_id: number | null;
+    layer: Layer;
+    text: string;
+    transcription?: Transcription;
     witness?: Witness;
     user?: { id: number; name: string };
     segments?: TranscriptionSegment[];
@@ -249,7 +307,7 @@ export type Transcription = {
  */
 export type TranscriptionSegment = {
     id: number;
-    transcription_id: number;
+    transcription_layer_id: number;
     canonical_passage_id: number;
     start_offset: number;
     end_offset: number;
@@ -263,7 +321,7 @@ export type TranscriptionSegment = {
  */
 export type TranscriptionRegion = {
     id: number;
-    transcription_id: number;
+    transcription_layer_id: number;
     manuscript_image_id: number;
     text: string;
     start_offset: number;

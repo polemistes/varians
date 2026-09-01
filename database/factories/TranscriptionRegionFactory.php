@@ -3,7 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\ManuscriptImage;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -22,7 +22,7 @@ class TranscriptionRegionFactory extends Factory
         $word = fake()->word();
 
         return [
-            'transcription_id' => Transcription::factory(),
+            'transcription_layer_id' => TranscriptionLayer::factory(),
             'manuscript_image_id' => ManuscriptImage::factory(),
             'text' => $word,
             'start_offset' => 0,

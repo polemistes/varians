@@ -2,12 +2,12 @@
 
 use App\Enums\Visibility;
 use App\Models\Tag;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\User;
 
 test('tags can be set on a transcription, creating them as needed', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create();
+    $transcription = TranscriptionLayer::factory()->create();
 
     $response = $this->patch(route('transcriptions.update', $transcription), [
         'tags' => ['diplomatic', 'punctuated'],
@@ -21,7 +21,7 @@ test('tags can be set on a transcription, creating them as needed', function () 
 test('setting tags reuses an existing tag rather than duplicating it', function () {
     $this->actingAs(User::factory()->editor()->create());
     $tag = Tag::factory()->create(['name' => 'diplomatic']);
-    $transcription = Transcription::factory()->create();
+    $transcription = TranscriptionLayer::factory()->create();
 
     $this->patch(route('transcriptions.update', $transcription), [
         'tags' => ['diplomatic'],
@@ -33,7 +33,7 @@ test('setting tags reuses an existing tag rather than duplicating it', function 
 
 test('setting tags again replaces the previous set', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create();
+    $transcription = TranscriptionLayer::factory()->create();
     $transcription->tags()->attach(Tag::factory()->create(['name' => 'stale']));
 
     $this->patch(route('transcriptions.update', $transcription), [
@@ -46,12 +46,12 @@ test('setting tags again replaces the previous set', function () {
 test('a transcription\'s visibility can be published by any editor, not just its author', function () {
     $this->actingAs(User::factory()->editor()->create());
     $author = User::factory()->editor()->create();
-    $transcription = Transcription::factory()->for($author)->create(['text' => 'text']);
+    $transcription = TranscriptionLayer::factory()->for($author)->create(['text' => 'text']);
 
     $response = $this->patch(route('transcriptions.update', $transcription), [
         'visibility' => 'published',
     ]);
 
     $response->assertRedirect();
-    expect($transcription->fresh()->visibility)->toBe(Visibility::Published);
+    expect($transcription->transcription->fresh()->visibility)->toBe(Visibility::Published);
 });

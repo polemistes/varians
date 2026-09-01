@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\ConjectureType;
-use App\Enums\TranscriptionLayer;
+use App\Enums\Layer;
 use App\Enums\Visibility;
 use App\Enums\WitnessType;
 use App\Models\CanonicalPassage;
@@ -15,9 +15,11 @@ use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\Manuscript;
 use App\Models\ManuscriptImage;
+use App\Models\ManuscriptPage;
 use App\Models\ReferenceScheme;
 use App\Models\Tag;
 use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
@@ -102,17 +104,29 @@ class ScholarlyEditionSeeder extends Seeder
             'notes' => 'The principal manuscript of the Iliad, containing extensive scholia.',
         ]);
 
+        $pages = [];
+
         foreach (['12r', '12v'] as $index => $folio) {
+            $pages[$folio] = $manuscript->pages()->create([
+                'label' => $folio,
+                'position' => $index + 1,
+            ]);
+
             ManuscriptImage::create([
                 'manuscript_id' => $manuscript->id,
-                'folio_label' => $folio,
+                'manuscript_page_id' => $pages[$folio]->id,
                 'path' => $this->placeholderImage($manuscript->shelfmark, $folio),
                 'position' => $index + 1,
             ]);
         }
 
+        // A third page nobody has photographed, so that the two-pane view has
+        // the ordinary case to show: a page whose text is transcribed from
+        // something other than an image.
+        $pages['13r'] = $manuscript->pages()->create(['label' => '13r', 'position' => 3]);
+
         // Both layers of the same witness — the case that motivated
-        // TranscriptionLayer. Only the normalized one is collated; without
+        // Layer. Only the normalized one is collated; without
         // that filter this witness would appear twice in its own apparatus,
         // disagreeing with itself.
         // Markup belongs to the diplomatic layer — what is lost or illegible —
@@ -133,8 +147,14 @@ class ScholarlyEditionSeeder extends Seeder
             10 => 'νοῦσον ἀνὰ στρατὸν ὄρσε κακήν, ὀλέκοντο δὲ λαοί,',
         ];
 
-        $this->createTranscription($witness, $scholar, $this->entriesFor($lines, $passages), ['diplomatic'], TranscriptionLayer::Diplomatic);
-        $baseA = $this->createTranscription($witness, $scholar, $this->entriesFor($normalized, $passages), ['normalized', 'punctuated'], TranscriptionLayer::Normalized);
+        $transcriptionA = $this->startTranscription($witness);
+        $this->createTranscription($transcriptionA, $scholar, $this->entriesFor($lines, $passages), ['diplomatic'], Layer::Diplomatic);
+        $baseA = $this->createTranscription($transcriptionA, $scholar, $this->entriesFor($normalized, $passages), ['normalized', 'punctuated'], Layer::Normalized);
+
+        // Divide both layers onto the pages: five lines to 12r, three to 12v,
+        // the last two to the unphotographed 13r. Each layer is divided on its
+        // own offsets, since the two texts differ.
+        $this->divideOntoPages($transcriptionA, $pages, [1 => '12r', 6 => '12v', 9 => '13r']);
 
         $this->seedIliadWitnesses($scholar, $passages, $normalized);
         $this->seedIliadEdition($work, $scholar, $passages, $baseA);
@@ -173,8 +193,9 @@ class ScholarlyEditionSeeder extends Seeder
         // while saying the same thing — which is what the reader toggle is for.
         $bDiplomatic = array_map(fn (string $line) => GreekText::stripDiacritics($line), $bNormalized);
 
-        $this->createTranscription($b, $scholar, $this->entriesFor($bDiplomatic, $passages), ['diplomatic'], TranscriptionLayer::Diplomatic);
-        $this->createTranscription($b, $scholar, $this->entriesFor($bNormalized, $passages), ['normalized'], TranscriptionLayer::Normalized);
+        $transcriptionB = $this->startTranscription($b);
+        $this->createTranscription($transcriptionB, $scholar, $this->entriesFor($bDiplomatic, $passages), ['diplomatic'], Layer::Diplomatic);
+        $this->createTranscription($transcriptionB, $scholar, $this->entriesFor($bNormalized, $passages), ['normalized'], Layer::Normalized);
 
         $c = Witness::create([
             'type' => WitnessType::Manuscript,
@@ -188,7 +209,7 @@ class ScholarlyEditionSeeder extends Seeder
         unset($cNormalized[3], $cNormalized[6]);
         $cNormalized[10] = 'νοῦσον ἀνὰ στρατὸν ὄρσε κακά, ὀλέκοντο δὲ λαοί,';
 
-        $this->createTranscription($c, $scholar, $this->entriesFor($cNormalized, $passages), ['normalized'], TranscriptionLayer::Normalized);
+        $this->createTranscription($this->startTranscription($c), $scholar, $this->entriesFor($cNormalized, $passages), ['normalized'], Layer::Normalized);
     }
 
     /**
@@ -199,7 +220,7 @@ class ScholarlyEditionSeeder extends Seeder
      *
      * @param  array<int, CanonicalPassage>  $passages
      */
-    private function seedIliadEdition(Work $work, User $scholar, array $passages, Transcription $baseA): void
+    private function seedIliadEdition(Work $work, User $scholar, array $passages, TranscriptionLayer $baseA): void
     {
         $edition = Edition::create([
             'work_id' => $work->id,
@@ -212,7 +233,7 @@ class ScholarlyEditionSeeder extends Seeder
         $position = 1.0;
 
         foreach ($passages as $passage) {
-            $segment = TranscriptionSegment::where('transcription_id', $baseA->id)
+            $segment = TranscriptionSegment::where('transcription_layer_id', $baseA->id)
                 ->where('canonical_passage_id', $passage->id)
                 ->sole();
 
@@ -267,14 +288,14 @@ class ScholarlyEditionSeeder extends Seeder
     }
 
     /** The column whose reading in the base is exactly this word. */
-    private function columnFor(CanonicalPassage $passage, Transcription $base, string $word): ?Lemma
+    private function columnFor(CanonicalPassage $passage, TranscriptionLayer $base, string $word): ?Lemma
     {
         return Lemma::where('canonical_passage_id', $passage->id)
             ->orderBy('position')
             ->with('readings')
             ->get()
             ->first(function (Lemma $lemma) use ($base, $word) {
-                $reading = $lemma->readings->firstWhere('transcription_id', $base->id);
+                $reading = $lemma->readings->firstWhere('transcription_layer_id', $base->id);
 
                 return $reading !== null && mb_substr(
                     $base->text,
@@ -308,7 +329,7 @@ class ScholarlyEditionSeeder extends Seeder
     private function adoptWitness(Edition $edition, ?Lemma $lemma, string $siglum): void
     {
         $reading = $lemma?->readings->first(
-            fn (LemmaReading $candidate) => $candidate->transcription?->witness?->siglum === $siglum,
+            fn (LemmaReading $candidate) => $candidate->transcriptionLayer?->transcription?->witness?->siglum === $siglum,
         );
 
         if ($reading !== null) {
@@ -380,7 +401,10 @@ class ScholarlyEditionSeeder extends Seeder
 
         ManuscriptImage::create([
             'manuscript_id' => $manuscript->id,
-            'folio_label' => '1r',
+            'manuscript_page_id' => $manuscript->pages()->create([
+                'label' => '1r',
+                'position' => 1,
+            ])->id,
             'path' => $this->placeholderImage($manuscript->shelfmark, '1r'),
             'position' => 1,
         ]);
@@ -408,7 +432,39 @@ class ScholarlyEditionSeeder extends Seeder
 
         // Normalized: this is the Apology edition's own base, and only the
         // collatable layer may be one.
-        $this->createTranscription($witness, $scholar, $entries, ['normalized'], TranscriptionLayer::Normalized);
+        $this->createTranscription($this->startTranscription($witness), $scholar, $entries, ['normalized'], Layer::Normalized);
+    }
+
+    /**
+     * Place pages in a transcription, given which line each page starts on.
+     * One division for both layers: a page holds a stretch of the manuscript,
+     * and a line of the transcription is a line of the manuscript in either
+     * layer.
+     *
+     * @param  array<string, ManuscriptPage>  $pages
+     * @param  array<int, string>  $startsAtLine  Line number => page label.
+     */
+    private function divideOntoPages(Transcription $transcription, array $pages, array $startsAtLine): void
+    {
+        foreach ($startsAtLine as $lineNumber => $label) {
+            if (isset($pages[$label])) {
+                $transcription->pageBreaks()->create([
+                    'manuscript_page_id' => $pages[$label]->id,
+                    'start_line' => $lineNumber - 1,
+                ]);
+            }
+        }
+    }
+
+    /** A witness's transcription, whose two layers are then filled separately. */
+    private function startTranscription(Witness $witness): Transcription
+    {
+        return Transcription::create([
+            'witness_id' => $witness->id,
+            'name' => 'Transcription',
+            'position' => 1,
+            'visibility' => Visibility::Published,
+        ]);
     }
 
     /**
@@ -420,7 +476,7 @@ class ScholarlyEditionSeeder extends Seeder
      * @param  list<array{text: string, passage: CanonicalPassage, paragraphBreakBefore?: bool}>  $entries
      * @param  list<string>  $tagNames
      */
-    private function createTranscription(Witness $witness, User $scholar, array $entries, array $tagNames, TranscriptionLayer $layer): Transcription
+    private function createTranscription(Transcription $parent, User $scholar, array $entries, array $tagNames, Layer $layer): TranscriptionLayer
     {
         $text = '';
         $spans = [];
@@ -435,12 +491,11 @@ class ScholarlyEditionSeeder extends Seeder
             $spans[] = ['start' => $start, 'end' => mb_strlen($text), 'passage' => $entry['passage']];
         }
 
-        $transcription = Transcription::create([
-            'witness_id' => $witness->id,
+        $transcription = TranscriptionLayer::create([
+            'transcription_id' => $parent->id,
             'user_id' => $scholar->id,
             'layer' => $layer,
             'text' => $text,
-            'visibility' => Visibility::Published,
         ]);
 
         foreach ($spans as $span) {

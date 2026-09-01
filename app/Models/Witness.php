@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
@@ -44,7 +45,7 @@ class Witness extends Model
     public function relatedWorks(): Builder
     {
         return Work::query()->whereHas(
-            'canonicalPassages.transcriptionSegments.transcription',
+            'canonicalPassages.transcriptionSegments.transcriptionLayer.transcription',
             fn (Builder $query) => $query->where('witness_id', $this->id),
         );
     }
@@ -63,6 +64,16 @@ class Witness extends Model
     public function transcriptions(): HasMany
     {
         return $this->hasMany(Transcription::class);
+    }
+
+    /**
+     * Every layer of every transcription of this witness.
+     *
+     * @return HasManyThrough<TranscriptionLayer, Transcription, $this>
+     */
+    public function transcriptionLayers(): HasManyThrough
+    {
+        return $this->hasManyThrough(TranscriptionLayer::class, Transcription::class);
     }
 
     /**

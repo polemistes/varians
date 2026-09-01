@@ -4,7 +4,7 @@ use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
@@ -17,7 +17,7 @@ use Inertia\Testing\AssertableInertia as AssertInertia;
  * a second edition based on the other — the arrangement in which the base's
  * own words no longer divide one-per-column.
  *
- * @return array{work: Work, passage: CanonicalPassage, edition: Edition, base: Transcription}
+ * @return array{work: Work, passage: CanonicalPassage, edition: Edition, base: TranscriptionLayer}
  */
 function passageBasedOnNonSeed(string $seedText, string $baseText): array
 {
@@ -28,8 +28,8 @@ function passageBasedOnNonSeed(string $seedText, string $baseText): array
 
     // Sigla pinned so the seed witness is deterministic — witnesses align in
     // siglum order, and these tests turn on which one built the columns.
-    $seed = Transcription::factory()->for(Witness::factory()->create(['siglum' => 'A']))->create(['text' => $seedText]);
-    $base = Transcription::factory()->for(Witness::factory()->create(['siglum' => 'B']))->create(['text' => $baseText]);
+    $seed = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'A']))->create(['text' => $seedText]);
+    $base = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'B']))->create(['text' => $baseText]);
     $seedSegment = TranscriptionSegment::factory()->for($seed)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => mb_strlen($seedText)]);
     $baseSegment = TranscriptionSegment::factory()->for($base)->for($passage, 'canonicalPassage')

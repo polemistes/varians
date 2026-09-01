@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\TranscriptionLayer;
+use App\Enums\Layer;
 use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\TranscriptionSegment;
@@ -42,8 +42,8 @@ class StoreEditionPassagesBulkRequest extends FormRequest
 
         return [
             // Only the normalized layer collates and only it may be a base —
-            // see App\Enums\TranscriptionLayer.
-            'transcription_id' => ['required', Rule::exists('transcriptions', 'id')->where('layer', TranscriptionLayer::Normalized->value)],
+            // see App\Enums\Layer.
+            'transcription_layer_id' => ['required', Rule::exists('transcription_layers', 'id')->where('layer', Layer::Normalized->value)],
             'from_canonical_passage_id' => ['required', Rule::exists('canonical_passages', 'id')->where('work_id', $edition->work_id)],
             'to_canonical_passage_id' => ['required', Rule::exists('canonical_passages', 'id')->where('work_id', $edition->work_id)],
         ];
@@ -55,15 +55,15 @@ class StoreEditionPassagesBulkRequest extends FormRequest
             /** @var Edition $edition */
             $edition = $this->route('edition');
 
-            $transcriptionId = $this->input('transcription_id');
+            $transcriptionId = $this->input('transcription_layer_id');
 
             if (is_numeric($transcriptionId)) {
-                $belongsToWork = TranscriptionSegment::where('transcription_id', (int) $transcriptionId)
+                $belongsToWork = TranscriptionSegment::where('transcription_layer_id', (int) $transcriptionId)
                     ->whereHas('canonicalPassage', fn ($query) => $query->where('work_id', $edition->work_id))
                     ->exists();
 
                 if (! $belongsToWork) {
-                    $validator->errors()->add('transcription_id', 'That transcription has no citations in this work.');
+                    $validator->errors()->add('transcription_layer_id', 'That transcription has no citations in this work.');
                 }
             }
 

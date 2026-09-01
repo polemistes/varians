@@ -14,18 +14,18 @@ import {
 } from '@/routes/editions';
 import { store as storeTextImport } from '@/routes/text-imports';
 import { show as showTranscription } from '@/routes/transcriptions';
-import { create as createFork } from '@/routes/transcriptions/fork';
+import { create as createCopy } from '@/routes/transcriptions/copy';
 import {
     create as createWitness,
     show as showWitness,
 } from '@/routes/witnesses';
 import { destroy as destroyWork, index as worksIndex } from '@/routes/works';
 import type { Auth } from '@/types/auth';
-import type { Transcription, Witness, Work } from '@/types/models';
+import type { TranscriptionLayer, Witness, Work } from '@/types/models';
 
 const props = defineProps<{
     work: Work;
-    transcriptions: Transcription[];
+    transcriptions: TranscriptionLayer[];
     allWitnesses: Witness[];
 }>();
 
@@ -337,7 +337,9 @@ function submitImport() {
                                 </span>
                                 <span
                                     class="text-xs text-stone-500 dark:text-stone-400"
-                                    >{{ transcription.visibility }}</span
+                                    >{{
+                                        transcription.transcription!.visibility
+                                    }}</span
                                 >
                             </div>
                             <div
@@ -348,10 +350,10 @@ function submitImport() {
                         </Link>
                         <Link
                             v-if="canEdit"
-                            :href="createFork.url(transcription.id)"
+                            :href="createCopy.url(transcription.id)"
                             class="mt-2 inline-block text-xs text-stone-500 underline dark:text-stone-400"
                         >
-                            Fork &rarr;
+                            Copy &rarr;
                         </Link>
                     </li>
                 </ul>

@@ -2,7 +2,7 @@
 
 use App\Models\Manuscript;
 use App\Models\ManuscriptImage;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
 use App\Models\User;
 use App\Models\Witness;
@@ -11,7 +11,7 @@ use Inertia\Testing\AssertableInertia as AssertInertia;
 test('a guest cannot see an image with no region on a published transcription, even on an otherwise-visible witness', function () {
     $this->actingAs(User::factory()->create());
     $witness = Witness::factory()->create();
-    Transcription::factory()->for($witness)->published()->create();
+    TranscriptionLayer::factory()->for($witness)->published()->create();
     $manuscript = Manuscript::factory()->for($witness)->create();
     ManuscriptImage::factory()->for($manuscript)->create();
 
@@ -24,7 +24,7 @@ test('a guest cannot see an image with no region on a published transcription, e
 test('a guest can see an image once it has a region on a published transcription', function () {
     $this->actingAs(User::factory()->create());
     $witness = Witness::factory()->create();
-    $transcription = Transcription::factory()->for($witness)->published()->create();
+    $transcription = TranscriptionLayer::factory()->for($witness)->published()->create();
     $manuscript = Manuscript::factory()->for($witness)->create();
     $image = ManuscriptImage::factory()->for($manuscript)->create();
     TranscriptionRegion::factory()->for($transcription)->for($image, 'manuscriptImage')->create();
@@ -39,10 +39,10 @@ test('an image mapped only to a draft transcription stays hidden from a guest', 
     $this->actingAs(User::factory()->create());
     $witness = Witness::factory()->create();
     // A published transcription makes the witness page reachable...
-    Transcription::factory()->for($witness)->normalized()->published()->create();
+    TranscriptionLayer::factory()->for($witness)->normalized()->published()->create();
     // ...but the image is only mapped to the still-draft diplomatic layer,
-    // which is where image regions belong (see TranscriptionLayer).
-    $draftTranscription = Transcription::factory()->for($witness)->diplomatic()->create();
+    // which is where image regions belong (see Layer).
+    $draftTranscription = TranscriptionLayer::factory()->for($witness)->diplomatic()->create();
     $manuscript = Manuscript::factory()->for($witness)->create();
     $image = ManuscriptImage::factory()->for($manuscript)->create();
     TranscriptionRegion::factory()->for($draftTranscription)->for($image, 'manuscriptImage')->create();

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\Layer;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -25,6 +26,7 @@ class StoreTextImportRequest extends FormRequest
     {
         return [
             'witness_id' => ['required', Rule::exists('witnesses', 'id')],
+            'layer' => ['required', Rule::enum(Layer::class)],
             'file' => ['required', 'file', 'mimes:txt', 'max:5120'],
         ];
     }

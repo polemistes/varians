@@ -3,6 +3,7 @@
 use App\Enums\Visibility;
 use App\Models\ReferenceScheme;
 use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
@@ -24,6 +25,7 @@ test('importing a file creates a transcription with its raw contents, without ye
 
     $response = $this->post(route('text-imports.store', $work), [
         'witness_id' => $witness->id,
+        'layer' => 'normalized',
         'file' => uploadedTextFile("μῆνιν ἄειδε θεὰ\nΠηληϊάδεω Ἀχιλῆος"),
     ]);
 
@@ -33,11 +35,17 @@ test('importing a file creates a transcription with its raw contents, without ye
     // related to the work — that only happens once a segment cites it.
     expect($work->relatedWitnesses()->whereKey($witness->id)->exists())->toBeFalse();
 
+    // The imported text is a normalized text — someone's edition of the work,
+    // not a record of what this manuscript has — so it lands in that layer,
+    // and the diplomatic one is created empty beside it.
     $transcription = Transcription::sole();
+    $normalized = $transcription->normalized;
+
     expect($transcription->witness_id)->toBe($witness->id)
-        ->and($transcription->text)->toBe("μῆνιν ἄειδε θεὰ\nΠηληϊάδεω Ἀχιλῆος")
-        ->and($transcription->segments)->toHaveCount(0)
-        ->and($transcription->visibility)->toBe(Visibility::Draft);
+        ->and($normalized->text)->toBe("μῆνιν ἄειδε θεὰ\nΠηληϊάδεω Ἀχιλῆος")
+        ->and($normalized->segments)->toHaveCount(0)
+        ->and($transcription->visibility)->toBe(Visibility::Draft)
+        ->and($transcription->diplomatic->text)->toBe('');
 });
 
 test('importing preserves line breaks and any literal line numbers exactly as uploaded', function () {
@@ -50,10 +58,11 @@ test('importing preserves line breaks and any literal line numbers exactly as up
 
     $this->post(route('text-imports.store', $work), [
         'witness_id' => $witness->id,
+        'layer' => 'normalized',
         'file' => uploadedTextFile($content),
     ])->assertRedirect();
 
-    expect(Transcription::sole()->text)->toBe($content);
+    expect(Transcription::sole()->normalized->text)->toBe($content);
 });
 
 test('importing requires a witness and a file', function () {
@@ -64,7 +73,7 @@ test('importing requires a witness and a file', function () {
     $this->post(route('text-imports.store', $work), [])
         ->assertInvalid(['witness_id', 'file']);
 
-    expect(Transcription::count())->toBe(0);
+    expect(TranscriptionLayer::count())->toBe(0);
 });
 
 test('importing rejects an empty file', function () {
@@ -75,10 +84,11 @@ test('importing rejects an empty file', function () {
 
     $this->post(route('text-imports.store', $work), [
         'witness_id' => $witness->id,
+        'layer' => 'normalized',
         'file' => uploadedTextFile('   '),
     ])->assertInvalid(['file']);
 
-    expect(Transcription::count())->toBe(0);
+    expect(TranscriptionLayer::count())->toBe(0);
 });
 
 test('a guest cannot import a text', function () {
@@ -89,9 +99,10 @@ test('a guest cannot import a text', function () {
 
     $response = $this->post(route('text-imports.store', $work), [
         'witness_id' => $witness->id,
+        'layer' => 'normalized',
         'file' => uploadedTextFile('some text'),
     ]);
 
     $response->assertForbidden();
-    expect(Transcription::count())->toBe(0);
+    expect(TranscriptionLayer::count())->toBe(0);
 });

@@ -1,11 +1,12 @@
 <?php
 
-use App\Enums\TranscriptionLayer;
+use App\Enums\Layer;
 use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
@@ -13,7 +14,7 @@ use App\Models\Work;
 use App\Support\Edition\PassageAdder;
 
 /** Cite a passage from a transcription at the given span. */
-function citeLayer(Transcription $transcription, CanonicalPassage $passage, string $text): TranscriptionSegment
+function citeLayer(TranscriptionLayer $transcription, CanonicalPassage $passage, string $text): TranscriptionSegment
 {
     return TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => mb_strlen($text)]);
@@ -24,15 +25,15 @@ test('a diplomatic transcription citing the passage is not collated', function (
     $passage = CanonicalPassage::factory()->for($work)->create();
     $edition = Edition::factory()->for($work)->create();
 
-    $normalized = Transcription::factory()->normalized()->create(['text' => 'the quick fox']);
-    $diplomatic = Transcription::factory()->diplomatic()->create(['text' => 'THE QVICK FOX']);
+    $normalized = TranscriptionLayer::factory()->normalized()->create(['text' => 'the quick fox']);
+    $diplomatic = TranscriptionLayer::factory()->diplomatic()->create(['text' => 'THE QVICK FOX']);
     $segment = citeLayer($normalized, $passage, 'the quick fox');
     citeLayer($diplomatic, $passage, 'THE QVICK FOX');
 
     PassageAdder::add($edition, $segment, 1.0);
 
-    expect(LemmaReading::where('transcription_id', $diplomatic->id)->exists())->toBeFalse()
-        ->and(LemmaReading::where('transcription_id', $normalized->id)->count())->toBe(3);
+    expect(LemmaReading::where('transcription_layer_id', $diplomatic->id)->exists())->toBeFalse()
+        ->and(LemmaReading::where('transcription_layer_id', $normalized->id)->count())->toBe(3);
 });
 
 test('both layers of one witness collate as one witness, not two', function () {
@@ -44,9 +45,9 @@ test('both layers of one witness collate as one witness, not two', function () {
     $edition = Edition::factory()->for($work)->create();
     $witness = Witness::factory()->create();
 
-    $diplomatic = Transcription::factory()->diplomatic()->for($witness)->create(['text' => 'τοσουτοι μεν ουν']);
-    $normalized = Transcription::factory()->normalized()->for($witness)
-        ->create(['text' => 'τοσοῦτοι μὲν οὖν', 'forked_from_id' => $diplomatic->id]);
+    $diplomatic = TranscriptionLayer::factory()->diplomatic()->for($witness)->create(['text' => 'τοσουτοι μεν ουν']);
+    $normalized = TranscriptionLayer::factory()->normalized()->for($witness)
+        ->create(['text' => 'τοσοῦτοι μὲν οὖν', 'copied_from_id' => $diplomatic->id]);
 
     citeLayer($diplomatic, $passage, 'τοσουτοι μεν ουν');
     $segment = citeLayer($normalized, $passage, 'τοσοῦτοι μὲν οὖν');
@@ -68,14 +69,14 @@ test('an edition base must be a normalized transcription', function () {
     $passage = CanonicalPassage::factory()->for($work)->create();
     $edition = Edition::factory()->for($work)->create();
 
-    $diplomatic = Transcription::factory()->diplomatic()->create(['text' => 'the quick fox']);
+    $diplomatic = TranscriptionLayer::factory()->diplomatic()->create(['text' => 'the quick fox']);
     citeLayer($diplomatic, $passage, 'the quick fox');
 
     $this->post(route('edition-passages.store', $edition), [
-        'transcription_id' => $diplomatic->id,
+        'transcription_layer_id' => $diplomatic->id,
         'start_offset' => 0,
         'end_offset' => 13,
-    ])->assertInvalid(['transcription_id']);
+    ])->assertInvalid(['transcription_layer_id']);
 });
 
 test('a bulk range add rejects a diplomatic transcription', function () {
@@ -84,58 +85,49 @@ test('a bulk range add rejects a diplomatic transcription', function () {
     $passage = CanonicalPassage::factory()->for($work)->create();
     $edition = Edition::factory()->for($work)->create();
 
-    $diplomatic = Transcription::factory()->diplomatic()->create(['text' => 'the quick fox']);
+    $diplomatic = TranscriptionLayer::factory()->diplomatic()->create(['text' => 'the quick fox']);
     citeLayer($diplomatic, $passage, 'the quick fox');
 
     $this->post(route('edition-passages.store-bulk', $edition), [
-        'transcription_id' => $diplomatic->id,
+        'transcription_layer_id' => $diplomatic->id,
         'from_canonical_passage_id' => $passage->id,
         'to_canonical_passage_id' => $passage->id,
-    ])->assertInvalid(['transcription_id']);
+    ])->assertInvalid(['transcription_layer_id']);
 });
 
-test('forking onto the same witness starts a normalized layer', function () {
+test('a normalized layer can be started from the diplomatic one', function () {
     $this->actingAs(User::factory()->editor()->create());
     $witness = Witness::factory()->create();
-    $diplomatic = Transcription::factory()->diplomatic()->for($witness)->create(['text' => 'τοσουτοι μεν ουν']);
+    $transcription = Transcription::factory()->for($witness)->create();
+    $diplomatic = TranscriptionLayer::factory()->diplomatic()->for($transcription)
+        ->create(['text' => 'τοσουτοι μεν ουν']);
 
-    $this->post(route('transcriptions.fork.store', $diplomatic), [
-        'witness_id' => $witness->id,
-        'layer' => TranscriptionLayer::Normalized->value,
+    $this->post(route('transcriptions.copy.store', $diplomatic), [
+        'transcription_id' => $transcription->id,
     ])->assertRedirect();
 
-    $fork = Transcription::where('forked_from_id', $diplomatic->id)->sole();
+    $copy = TranscriptionLayer::where('copied_from_id', $diplomatic->id)->sole();
 
-    expect($fork->witness_id)->toBe($witness->id)
-        ->and($fork->layer)->toBe(TranscriptionLayer::Normalized)
-        ->and($fork->text)->toBe('τοσουτοι μεν ουν');
+    expect($copy->transcription->witness_id)->toBe($witness->id)
+        ->and($copy->layer)->toBe(Layer::Normalized)
+        ->and($copy->text)->toBe('τοσουτοι μεν ουν');
 });
 
-test('a copy must name the layer it is filling', function () {
-    // Layer is no longer inherited: a witness holds one transcription per
-    // layer, so a copy names the slot it fills rather than guessing.
+test('the layer a copy fills follows from its destination, and is never the source itself', function () {
+    // The destination is the only choice an editor makes: within a
+    // transcription there is just the other layer to fill, so a copy can
+    // never land back on the layer it came from.
     $this->actingAs(User::factory()->editor()->create());
-    $diplomatic = Transcription::factory()->diplomatic()->create(['text' => 'the quick fox']);
+    $transcription = Transcription::factory()->create();
+    $diplomatic = TranscriptionLayer::factory()->diplomatic()->for($transcription)
+        ->create(['text' => 'the quick fox']);
 
-    $this->post(route('transcriptions.fork.store', $diplomatic), [
-        'witness_id' => Witness::factory()->create()->id,
-    ])->assertInvalid(['layer']);
-});
+    $this->post(route('transcriptions.copy.store', $diplomatic), [
+        'transcription_id' => $transcription->id,
+    ])->assertRedirect();
 
-test('a copy into an occupied slot is refused rather than overwriting', function () {
-    $this->actingAs(User::factory()->editor()->create());
-    $witness = Witness::factory()->create();
-    $diplomatic = Transcription::factory()->diplomatic()->for($witness)->create(['text' => 'ΤΟΣΟΥΤΟΙ']);
-    Transcription::factory()->normalized()->for($witness)->create(['text' => 'τοσοῦτοι']);
-
-    // The normalized slot already holds work; copying over it would take its
-    // citation spans and collated readings with it.
-    $this->post(route('transcriptions.fork.store', $diplomatic), [
-        'witness_id' => $witness->id,
-        'layer' => TranscriptionLayer::Normalized->value,
-    ])->assertInvalid(['layer']);
-
-    expect(Transcription::where('witness_id', $witness->id)->count())->toBe(2);
+    expect($transcription->fresh()->normalized->text)->toBe('the quick fox')
+        ->and($diplomatic->fresh()->copied_from_id)->toBeNull();
 });
 
 test('the add-text panel only offers collatable transcriptions', function () {
@@ -144,8 +136,8 @@ test('the add-text panel only offers collatable transcriptions', function () {
     $passage = CanonicalPassage::factory()->for($work)->create();
     $edition = Edition::factory()->for($work)->create();
 
-    $normalized = Transcription::factory()->normalized()->create(['text' => 'the quick fox']);
-    $diplomatic = Transcription::factory()->diplomatic()->create(['text' => 'THE QVICK FOX']);
+    $normalized = TranscriptionLayer::factory()->normalized()->create(['text' => 'the quick fox']);
+    $diplomatic = TranscriptionLayer::factory()->diplomatic()->create(['text' => 'THE QVICK FOX']);
     citeLayer($normalized, $passage, 'the quick fox');
     citeLayer($diplomatic, $passage, 'THE QVICK FOX');
 

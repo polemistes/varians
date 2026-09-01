@@ -5,7 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Requests\UpdateTranscriptionTextRequest;
 use App\Models\EditionLemma;
 use App\Models\LemmaReading;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
+use App\Models\TranscriptionPageBreak;
 use App\Models\TranscriptionRegion;
 use App\Models\TranscriptionSegment;
 use App\Support\Transcription\SpanTransformer;
@@ -20,9 +21,9 @@ class TranscriptionTextController extends Controller
 {
     /**
      * Apply an ordered log of exact edit operations to a transcription's text,
-     * transforming every citation span, image-alignment region and collation
-     * reading's offsets deterministically in the same pass — see
-     * SpanTransformer for how.
+     * transforming every citation span, image-alignment region, collation
+     * reading and page break's offsets deterministically in the same pass —
+     * see SpanTransformer for how.
      *
      * The server never trusts the client's own offsets or resulting text
      * directly: it independently replays `ops` against its own stored text
@@ -31,7 +32,7 @@ class TranscriptionTextController extends Controller
      * transcription editing here is fully collaborative with no per-author
      * lock).
      */
-    public function update(UpdateTranscriptionTextRequest $request, Transcription $transcription): RedirectResponse
+    public function update(UpdateTranscriptionTextRequest $request, TranscriptionLayer $transcription): RedirectResponse
     {
         $affectedEditions = DB::transaction(function () use ($request, $transcription): array {
             $ops = $this->normalizeOps($request->validated('ops'));
@@ -46,6 +47,7 @@ class TranscriptionTextController extends Controller
 
             $this->applySpans($transcription->segments, $ops);
             $this->applySpans($transcription->regions, $ops, $recomputedText);
+            $this->applyPageBreaks($transcription, $ops, $recomputedText);
             $affected = $this->applyReadings($transcription, $ops, $recomputedText);
 
             $transcription->update(['text' => $recomputedText]);
@@ -71,6 +73,49 @@ class TranscriptionTextController extends Controller
             'end' => (int) $op['end'],
             'text' => $op['text'] ?? '',
         ], $ops);
+    }
+
+    /**
+     * Keep the transcription's page divisions where they belong when its text
+     * changes.
+     *
+     * A division is a line number shared by both layers, so it does not shift
+     * when characters change within a line — only when the edit adds or
+     * removes whole lines before it. Rather than reason about that directly,
+     * each break is resolved to this layer's offset, moved with the same
+     * machinery as everything else, and read back as a line.
+     *
+     * Points, not spans: `transformPoints` keeps an insertion made exactly at
+     * a break *after* it, so the first words typed at the top of a page belong
+     * to that page. A break is never deleted — emptying a page does not
+     * abolish it.
+     *
+     * @param  list<array{start: int, end: int, text: string}>  $ops
+     */
+    private function applyPageBreaks(TranscriptionLayer $transcription, array $ops, string $newText): void
+    {
+        $breaks = $transcription->transcription->pageBreaks()->orderBy('start_line')->get();
+
+        if ($breaks->isEmpty()) {
+            return;
+        }
+
+        $moved = SpanTransformer::transformPoints(
+            array_values($breaks->map(
+                fn (TranscriptionPageBreak $break) => $transcription->offsetOfLine($break->start_line)
+            )->all()),
+            $ops,
+        );
+
+        $after = $transcription->replicate()->forceFill(['text' => $newText]);
+
+        foreach ($breaks as $index => $break) {
+            $line = $after->lineOfOffset($moved[$index]);
+
+            if ($line !== (int) $break->start_line) {
+                $break->update(['start_line' => $line]);
+            }
+        }
     }
 
     /**
@@ -136,7 +181,7 @@ class TranscriptionTextController extends Controller
      * @param  list<array{start: int, end: int, text: string}>  $ops
      * @return list<string> titles of editions whose printed wording changed
      */
-    private function applyReadings(Transcription $transcription, array $ops, string $newText): array
+    private function applyReadings(TranscriptionLayer $transcription, array $ops, string $newText): array
     {
         $readings = $transcription->lemmaReadings()
             ->whereNotNull('start_offset')

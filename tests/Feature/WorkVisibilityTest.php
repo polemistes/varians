@@ -1,7 +1,7 @@
 <?php
 
 use App\Models\CanonicalPassage;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Work;
@@ -22,7 +22,7 @@ test('a guest can see a work once one of its transcriptions is published', funct
     $this->actingAs(User::factory()->create());
     $work = Work::factory()->create();
     $passage = CanonicalPassage::factory()->for($work)->create();
-    $transcription = Transcription::factory()->published()->create();
+    $transcription = TranscriptionLayer::factory()->published()->create();
     TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create();
 
     $indexResponse = $this->get(route('works.index'));
@@ -55,11 +55,11 @@ test('a draft transcription on an otherwise-published work stays hidden from a g
     $this->actingAs(User::factory()->create());
     $work = Work::factory()->create();
     $publishedPassage = CanonicalPassage::factory()->for($work)->create();
-    $publishedTranscription = Transcription::factory()->published()->create();
+    $publishedTranscription = TranscriptionLayer::factory()->published()->create();
     TranscriptionSegment::factory()->for($publishedTranscription)->for($publishedPassage, 'canonicalPassage')->create();
 
     $draftPassage = CanonicalPassage::factory()->for($work)->create();
-    $draftTranscription = Transcription::factory()->create();
+    $draftTranscription = TranscriptionLayer::factory()->create();
     TranscriptionSegment::factory()->for($draftTranscription)->for($draftPassage, 'canonicalPassage')->create();
 
     $response = $this->get(route('works.show', $work));

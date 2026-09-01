@@ -9,7 +9,7 @@ use App\Models\EditionPassage;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\ReferenceScheme;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
@@ -37,13 +37,13 @@ function editionWithBase(string $baseText, ?string $witnessB = null): array
     // to the factory's random letters would let either witness build the
     // columns and make every structural assertion below a coin flip. "A" is
     // the base and so seeds them.
-    $base = Transcription::factory()->for(Witness::factory()->create(['siglum' => 'A']))->create(['text' => $baseText]);
+    $base = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'A']))->create(['text' => $baseText]);
     $baseSegment = TranscriptionSegment::factory()->for($base)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => mb_strlen($baseText)]);
 
     $result = compact('work', 'edition', 'passage', 'base');
 
     if ($witnessB !== null) {
-        $other = Transcription::factory()->for(Witness::factory()->create(['siglum' => 'B']))->create(['text' => $witnessB]);
+        $other = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'B']))->create(['text' => $witnessB]);
         TranscriptionSegment::factory()->for($other)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => mb_strlen($witnessB)]);
         $result['other'] = $other;
     }
@@ -67,7 +67,7 @@ function editionSpanningTwoLines(): array
     $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
     $edition = Edition::factory()->for($work)->create();
     $passage = CanonicalPassage::factory()->for($work)->create(['address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1']);
-    $base = Transcription::factory()->create(['text' => 'the quick fox']);
+    $base = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
     $segment = TranscriptionSegment::factory()->for($base)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
 
     $editionPassage = PassageAdder::add($edition, $segment, 1.0);
@@ -91,7 +91,7 @@ test('picking a detected witness variant selects it', function () {
         'base_start_offset' => 4,
         'base_end_offset' => 9,
         'source' => 'transcription',
-        'transcription_id' => $other->id,
+        'transcription_layer_id' => $other->id,
         'start_offset' => 4,
         'end_offset' => 8,
     ]);
@@ -99,7 +99,7 @@ test('picking a detected witness variant selects it', function () {
     $response->assertRedirect();
 
     $selection = EditionLemma::where('edition_id', $edition->id)->sole();
-    expect($selection->selectedReading->transcription_id)->toBe($other->id)
+    expect($selection->selectedReading->transcription_layer_id)->toBe($other->id)
         ->and($selection->selectedReading->start_offset)->toBe(4)
         ->and($selection->selectedReading->end_offset)->toBe(8);
 
@@ -163,7 +163,7 @@ test('re-visiting an already-decided column still reports the full original cand
         'base_start_offset' => 4,
         'base_end_offset' => 9,
         'source' => 'transcription',
-        'transcription_id' => $other->id,
+        'transcription_layer_id' => $other->id,
         'start_offset' => 4,
         'end_offset' => 8,
     ]);
@@ -185,7 +185,7 @@ test('picking the same candidate twice does not create a duplicate reading', fun
         'base_start_offset' => 0,
         'base_end_offset' => 3,
         'source' => 'transcription',
-        'transcription_id' => $base->id,
+        'transcription_layer_id' => $base->id,
         'start_offset' => 0,
         'end_offset' => 3,
     ];
@@ -343,7 +343,7 @@ test('a witness reading cannot be used as a point insertion', function () {
         'placement' => 'insert',
         'insert_after_base_offset' => 3,
         'source' => 'transcription',
-        'transcription_id' => $base->id,
+        'transcription_layer_id' => $base->id,
         'start_offset' => 4,
         'end_offset' => 9,
     ]);
@@ -411,7 +411,7 @@ test('authoring a covering range conjecture does not itself clear an intermediat
     $this->post(route('edition-variants.store', $edition), [
         'canonical_passage_id' => $passage->id,
         'base_start_offset' => 10, 'base_end_offset' => 13,
-        'source' => 'transcription', 'transcription_id' => $base->id, 'start_offset' => 10, 'end_offset' => 13,
+        'source' => 'transcription', 'transcription_layer_id' => $base->id, 'start_offset' => 10, 'end_offset' => 13,
     ]);
     expect(EditionLemma::where('edition_id', $edition->id)->count())->toBe(1);
 
@@ -434,7 +434,7 @@ test('adopting a covering range conjecture clears an intermediate lemma\'s indiv
     $this->post(route('edition-variants.store', $edition), [
         'canonical_passage_id' => $passage->id,
         'base_start_offset' => 10, 'base_end_offset' => 13,
-        'source' => 'transcription', 'transcription_id' => $base->id, 'start_offset' => 10, 'end_offset' => 13,
+        'source' => 'transcription', 'transcription_layer_id' => $base->id, 'start_offset' => 10, 'end_offset' => 13,
     ]);
 
     $this->post(route('edition-variants.store', $edition), [
@@ -480,7 +480,7 @@ test('picking a normal candidate for a lemma inside an active range breaks the r
     $this->post(route('edition-variants.store', $edition), [
         'canonical_passage_id' => $passage->id,
         'base_start_offset' => 10, 'base_end_offset' => 13,
-        'source' => 'transcription', 'transcription_id' => $base->id, 'start_offset' => 10, 'end_offset' => 13,
+        'source' => 'transcription', 'transcription_layer_id' => $base->id, 'start_offset' => 10, 'end_offset' => 13,
     ]);
 
     // Only "red"'s own selection remains — the range was broken.
@@ -566,13 +566,13 @@ test('a witness reading can be placed as a range when its neighbours have nothin
         'placement' => 'range',
         'range_start_lemma_id' => $startLemma->id,
         'range_end_lemma_id' => $endLemma->id,
-        'source' => 'transcription', 'transcription_id' => $base->id, 'start_offset' => 4, 'end_offset' => 17,
+        'source' => 'transcription', 'transcription_layer_id' => $base->id, 'start_offset' => 4, 'end_offset' => 17,
     ]);
 
     $response->assertRedirect();
 
     $reading = LemmaReading::where('lemma_id', $startLemma->id)
-        ->where('transcription_id', $base->id)
+        ->where('transcription_layer_id', $base->id)
         ->where('start_offset', 4)->where('end_offset', 17)
         ->sole();
     expect($reading->range_end_lemma_id)->toBe($endLemma->id);
@@ -601,7 +601,7 @@ test('re-placing an already-persisted witness range does not create a duplicate 
         'canonical_passage_id' => $passage->id,
         'placement' => 'range',
         'range_start_base_offset' => 4, 'range_end_base_offset' => 17,
-        'source' => 'transcription', 'transcription_id' => $base->id, 'start_offset' => 4, 'end_offset' => 17,
+        'source' => 'transcription', 'transcription_layer_id' => $base->id, 'start_offset' => 4, 'end_offset' => 17,
     ];
 
     $this->post(route('edition-variants.store', $edition), $payload);
@@ -753,9 +753,9 @@ test('a fragmentary witness that does not reach as far as a competing range is l
     $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
     $edition = Edition::factory()->for($work)->create();
     $passage = CanonicalPassage::factory()->for($work)->create(['address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1']);
-    $base = Transcription::factory()->create(['text' => 'the swift red fox']);
+    $base = TranscriptionLayer::factory()->create(['text' => 'the swift red fox']);
     $baseSegment = TranscriptionSegment::factory()->for($base)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 18]);
-    $fragment = Transcription::factory()->create(['text' => 'swift']);
+    $fragment = TranscriptionLayer::factory()->create(['text' => 'swift']);
     TranscriptionSegment::factory()->for($fragment)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
 
     PassageAdder::add($edition, $baseSegment, 1.0);
@@ -783,7 +783,7 @@ test('picking a PassageAligner-detected multi-word witness variant selects the m
         'canonical_passage_id' => $passage->id,
         'base_start_offset' => 4, 'base_end_offset' => 7, // "fox"
         'source' => 'transcription',
-        'transcription_id' => $other->id,
+        'transcription_layer_id' => $other->id,
         'start_offset' => 4, 'end_offset' => 30, // "exceedingly swift creature"
     ]);
 
@@ -810,7 +810,7 @@ test('re-selecting an already-persisted range-shaped witness reading does not cr
         'canonical_passage_id' => $passage->id,
         'base_start_offset' => 4, 'base_end_offset' => 13, // "swift fox"
         'source' => 'transcription',
-        'transcription_id' => $other->id,
+        'transcription_layer_id' => $other->id,
         'start_offset' => 4, 'end_offset' => 25, // "creature very quickly"
     ];
 
@@ -830,7 +830,7 @@ test('a witness-sourced range run renders the witness\'s own text, not a conject
     $this->post(route('edition-variants.store', $edition), [
         'canonical_passage_id' => $passage->id,
         'base_start_offset' => 4, 'base_end_offset' => 13,
-        'source' => 'transcription', 'transcription_id' => $other->id,
+        'source' => 'transcription', 'transcription_layer_id' => $other->id,
         'start_offset' => 4, 'end_offset' => 25,
     ]);
 
@@ -1004,7 +1004,7 @@ test('a whole-line lacuna at an ordinary canonical number, never attested by any
     $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
     $edition = Edition::factory()->for($work)->create();
     $p33 = CanonicalPassage::factory()->for($work)->create(['address' => ['book' => 3, 'line' => 33], 'sort_key' => '00000003.00000033', 'label' => '3.33']);
-    $base = Transcription::factory()->create(['text' => 'the quick fox']);
+    $base = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
     $segment = TranscriptionSegment::factory()->for($base)->for($p33, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
     $editionPassage = PassageAdder::add($edition, $segment, 1.0);
 

@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\User;
 use App\Models\Witness;
 use Inertia\Testing\AssertableInertia as AssertInertia;
@@ -19,7 +19,7 @@ test('a guest cannot see a witness with no published transcription', function ()
 test('a guest can see a witness once one of its transcriptions is published', function () {
     $this->actingAs(User::factory()->create());
     $witness = Witness::factory()->create();
-    Transcription::factory()->for($witness)->published()->create();
+    TranscriptionLayer::factory()->for($witness)->published()->create();
 
     $indexResponse = $this->get(route('witnesses.index'));
     $showResponse = $this->get(route('witnesses.show', $witness));
@@ -48,11 +48,12 @@ test('an editor sees every witness regardless of publication status', function (
 test('a draft transcription stays hidden from a guest on an otherwise-visible witness page', function () {
     $this->actingAs(User::factory()->create());
     $witness = Witness::factory()->create();
-    Transcription::factory()->for($witness)->normalized()->published()->create();
-    Transcription::factory()->for($witness)->diplomatic()->create();
+    // Two transcriptions of the manuscript, only one of them published.
+    TranscriptionLayer::factory()->for($witness)->normalized()->published()->create();
+    TranscriptionLayer::factory()->for($witness)->diplomatic()->create();
 
     $response = $this->get(route('witnesses.show', $witness));
 
     $response->assertOk();
-    $response->assertInertia(fn (AssertInertia $page) => $page->has('witness.transcriptions', 1));
+    $response->assertInertia(fn (AssertInertia $page) => $page->has('transcriptions', 1));
 });

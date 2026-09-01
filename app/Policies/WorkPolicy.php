@@ -22,7 +22,7 @@ class WorkPolicy
         }
 
         return $work->canonicalPassages()
-            ->whereHas('transcriptionSegments.transcription', fn ($query) => $query->where('visibility', Visibility::Published))
+            ->whereHas('transcriptionSegments.transcriptionLayer.transcription', fn ($query) => $query->where('visibility', Visibility::Published))
             ->exists();
     }
 }

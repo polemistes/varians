@@ -26,11 +26,11 @@ class Tag extends Model
     use HasFactory;
 
     /**
-     * @return BelongsToMany<Transcription, $this>
+     * @return BelongsToMany<TranscriptionLayer, $this>
      */
     public function transcriptions(): BelongsToMany
     {
-        return $this->belongsToMany(Transcription::class);
+        return $this->belongsToMany(TranscriptionLayer::class);
     }
 
     /**

@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\TranscriptionLayer;
-use App\Models\Transcription;
+use App\Enums\Layer;
+use App\Models\TranscriptionLayer;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -34,8 +34,8 @@ class StoreEditionPassageRequest extends FormRequest
     {
         return [
             // Only the normalized layer collates and only it may be a base —
-            // see App\Enums\TranscriptionLayer.
-            'transcription_id' => ['required', Rule::exists('transcriptions', 'id')->where('layer', TranscriptionLayer::Normalized->value)],
+            // see App\Enums\Layer.
+            'transcription_layer_id' => ['required', Rule::exists('transcription_layers', 'id')->where('layer', Layer::Normalized->value)],
             'start_offset' => ['required', 'integer', 'min:0'],
             'end_offset' => ['required', 'integer', 'gt:start_offset'],
         ];
@@ -44,13 +44,13 @@ class StoreEditionPassageRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator) {
-            $transcriptionId = $this->input('transcription_id');
+            $transcriptionId = $this->input('transcription_layer_id');
 
             if (! is_numeric($transcriptionId)) {
                 return;
             }
 
-            $transcription = Transcription::find((int) $transcriptionId);
+            $transcription = TranscriptionLayer::find((int) $transcriptionId);
             $endOffset = $this->input('end_offset');
 
             if ($transcription !== null && is_numeric($endOffset) && (int) $endOffset > mb_strlen($transcription->text)) {

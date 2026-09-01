@@ -56,7 +56,7 @@ class Work extends Model
     }
 
     /**
-     * Unlike Witness/Transcription, an Edition is a real, direct relation —
+     * Unlike Witness/TranscriptionLayer, an Edition is a real, direct relation —
      * an editorial artifact the editor explicitly creates for a work, not
      * something inferable from citation data.
      *
@@ -77,7 +77,7 @@ class Work extends Model
     public function relatedWitnesses(): Builder
     {
         return Witness::query()->whereHas(
-            'transcriptions.segments.canonicalPassage',
+            'transcriptionLayers.segments.canonicalPassage',
             fn (Builder $query) => $query->where('work_id', $this->id),
         );
     }
@@ -97,7 +97,7 @@ class Work extends Model
         }
 
         $query->whereHas(
-            'canonicalPassages.transcriptionSegments.transcription',
+            'canonicalPassages.transcriptionSegments.transcriptionLayer.transcription',
             fn (Builder $q) => $q->where('visibility', Visibility::Published),
         );
     }

@@ -15,6 +15,8 @@ import type { StripKind } from '@/lib/greekText';
 import { applyOps, transformSpans } from '@/lib/transcriptionEdit';
 import type { TextEditOp } from '@/lib/transcriptionEdit';
 import { store as storeImage } from '@/routes/manuscript-images';
+import { store as storeManuscriptPage } from '@/routes/manuscript-pages';
+import { store as storePageBreak } from '@/routes/transcription-page-breaks';
 import {
     destroy as destroyRegion,
     store as storeRegion,
@@ -32,20 +34,44 @@ import {
     update as updateTranscription,
 } from '@/routes/transcriptions';
 import { update as updateTranscriptionText } from '@/routes/transcriptions/text';
-import { show as showWitness } from '@/routes/witnesses';
+import {
+    index as witnessesIndex,
+    show as showWitnessRoute,
+} from '@/routes/witnesses';
+import { destroy as destroyWitness } from '@/routes/witnesses';
+import { store as storeTranscriptionRoute } from '@/routes/witnesses/transcriptions';
+import { show as showWork } from '@/routes/works';
 import type { Auth } from '@/types/auth';
 import type {
     Transcription,
+    TranscriptionLayer,
+    TranscriptionPageBreak,
     TranscriptionRegion,
     TranscriptionSegment,
+    Witness,
     Work,
 } from '@/types/models';
 
 const props = defineProps<{
-    transcription: Transcription;
+    witness: Witness;
+    /** Every transcription of this witness, for the picker. */
+    transcriptions: Transcription[];
+    /** The layer being worked on, or null when the witness has none yet. */
+    transcription: TranscriptionLayer | null;
+    /** Where each page begins, in lines — shared by both layers. */
+    pageBreaks: TranscriptionPageBreak[];
     works: Work[];
     existingTags: string[];
 }>();
+
+// A witness may have no transcription at all, so everything below reads the
+// layer through these rather than assuming one is open. The pane is only
+// rendered when there is one; these keep the script total anyway, so a
+// half-loaded page cannot throw.
+const layer = computed(() => props.transcription);
+const layerText = computed(() => layer.value?.text ?? '');
+const layerSegments = computed(() => layer.value?.segments ?? []);
+const layerRegions = computed(() => layer.value?.regions ?? []);
 
 const page = usePage<{
     auth: Auth;
@@ -57,8 +83,60 @@ const markupLegend =
     '[abc] restored · [3] / [?] lost, extent known/unknown · ' +
     '{3} / {?} illegible, extent known/unknown · _abc_ uncertain reading';
 
+function removeWitness() {
+    const parts = describeDeletionImpact(props.witness.deletion_impact, [
+        {
+            key: 'transcriptions',
+            label: (n) => pluralize(n, 'transcription'),
+        },
+        { key: 'segments', label: (n) => pluralize(n, 'citation') },
+        { key: 'regions', label: (n) => pluralize(n, 'image alignment') },
+        { key: 'images', label: (n) => pluralize(n, 'manuscript image') },
+        { key: 'pages', label: (n) => pluralize(n, 'manuscript page') },
+        {
+            key: 'editionSelections',
+            label: (n) =>
+                pluralize(
+                    n,
+                    'lemma selection in a published edition',
+                    'lemma selections in published editions',
+                ),
+        },
+        {
+            key: 'editionPassages',
+            label: (n) =>
+                pluralize(
+                    n,
+                    'line currently sourced from this witness in a published edition',
+                    'lines currently sourced from this witness in published editions',
+                ),
+        },
+    ]);
+
+    if (!confirmDeletion(`witness ${props.witness.siglum}`, parts)) {
+        return;
+    }
+
+    router.delete(destroyWitness.url(props.witness));
+}
+
+const manuscriptSummary = computed(() => {
+    const manuscript = props.witness.manuscript;
+
+    if (!manuscript) {
+        return null;
+    }
+
+    const location = [manuscript.repository, manuscript.shelfmark]
+        .filter(Boolean)
+        .join(', ');
+    const date = manuscript.date_text ? `(${manuscript.date_text})` : '';
+
+    return [location, date].filter(Boolean).join(' ') || null;
+});
+
 function removeTranscription() {
-    const parts = describeDeletionImpact(props.transcription.deletion_impact, [
+    const parts = describeDeletionImpact(layer.value?.deletion_impact, [
         { key: 'segments', label: (n) => pluralize(n, 'citation') },
         { key: 'regions', label: (n) => pluralize(n, 'image alignment') },
         {
@@ -85,12 +163,14 @@ function removeTranscription() {
         return;
     }
 
-    router.delete(destroyTranscription.url(props.transcription));
+    if (layer.value) {
+        router.delete(destroyTranscription.url(layer.value));
+    }
 }
 
 // ---- tags ----
 const tagsForm = useForm({
-    tags: (props.transcription.tags ?? []).map((tag) => tag.name),
+    tags: (props.transcription?.tags ?? []).map((tag) => tag.name),
 });
 const newTagInput = ref('');
 
@@ -110,7 +190,11 @@ function removeTag(name: string) {
 }
 
 function saveTags() {
-    tagsForm.patch(updateTranscription.url(props.transcription), {
+    if (!layer.value) {
+        return;
+    }
+
+    tagsForm.patch(updateTranscription.url(layer.value), {
         preserveScroll: true,
     });
 }
@@ -121,12 +205,14 @@ function cancelTags() {
 
 // A plain ref (not a separate useForm) so this always PATCHes the *current*
 // visibility — a useForm's initial state is captured once at setup and would
-// go stale if it captured props.transcription.visibility instead.
-const visibility = ref(props.transcription.visibility);
+// go stale if it captured the transcription's visibility instead.
+const visibility = ref(
+    props.transcription?.transcription?.visibility ?? 'draft',
+);
 
 function saveVisibility() {
     router.patch(
-        updateTranscription.url(props.transcription),
+        updateTranscription.url(layer.value!),
         { visibility: visibility.value },
         { preserveScroll: true },
     );
@@ -139,9 +225,7 @@ function saveVisibility() {
 // authoritative server-side replay.
 const editOps = ref<TextEditOp[]>([]);
 
-const editedText = computed(() =>
-    applyOps(props.transcription.text, editOps.value),
-);
+const editedText = computed(() => applyOps(layerText.value, editOps.value));
 
 function transformedSpans<
     T extends {
@@ -180,25 +264,21 @@ function transformedSpans<
 }
 
 const editedSegments = computed<TranscriptionSegment[]>(() =>
-    transformedSpans(props.transcription.segments ?? []),
+    transformedSpans(layerSegments.value),
 );
 
 const editedRegions = computed<TranscriptionRegion[]>(() =>
-    transformedSpans(props.transcription.regions ?? []).map((region) => ({
+    transformedSpans(layerRegions.value).map((region) => ({
         ...region,
         text: editedText.value.slice(region.start_offset, region.end_offset),
     })),
 );
 
 const wouldDeleteAllSegments = computed(
-    () =>
-        (props.transcription.segments?.length ?? 0) > 0 &&
-        editedSegments.value.length === 0,
+    () => layerSegments.value.length > 0 && editedSegments.value.length === 0,
 );
 const wouldDeleteAllRegions = computed(
-    () =>
-        (props.transcription.regions?.length ?? 0) > 0 &&
-        editedRegions.value.length === 0,
+    () => layerRegions.value.length > 0 && editedRegions.value.length === 0,
 );
 const needsDeleteConfirmation = computed(
     () => wouldDeleteAllSegments.value || wouldDeleteAllRegions.value,
@@ -219,7 +299,12 @@ const textSaveError = ref<string | null>(null);
 const textSaveNotice = computed(() => page.props.flash?.message ?? null);
 
 function onEdit(op: TextEditOp) {
-    editOps.value = [...editOps.value, op];
+    // Typed inside the page, recorded against the whole text — that is what
+    // the server replays and what every other offset is measured in.
+    editOps.value = [
+        ...editOps.value,
+        { start: toFull(op.start), end: toFull(op.end), text: op.text },
+    ];
     deleteConfirmed.value = false;
     textSaveError.value = null;
 }
@@ -259,7 +344,7 @@ function saveText() {
     savingText.value = true;
 
     router.patch(
-        updateTranscriptionText.url(props.transcription),
+        updateTranscriptionText.url(layer.value!),
         { ops: editOps.value, text: editedText.value },
         {
             preserveScroll: true,
@@ -276,20 +361,14 @@ function saveText() {
 }
 
 // ---- manuscript images ----
-const manuscript = computed(
-    () => props.transcription.witness?.manuscript ?? null,
-);
+const manuscript = computed(() => props.witness.manuscript ?? null);
 const images = computed(() => manuscript.value?.images ?? []);
-const selectedImageId = ref<number | null>(images.value[0]?.id ?? null);
 
-// Freshly uploaded images arrive via a normal prop reload, but a plain ref
-// set once at setup time wouldn't notice — without this, a first upload
-// (going from no images to one) stayed invisible until a manual reload.
-watch(images, (current) => {
-    if (selectedImageId.value === null && current.length > 0) {
-        selectedImageId.value = current[0].id;
-    }
-});
+// Which leaf is on the right follows from which page is on the left — see the
+// page block below, where a watcher keeps this pointing at a photograph of the
+// selected page. A page may have several (recto shot twice, a detail), so it
+// stays a choice within the page rather than being derived outright.
+const selectedImageId = ref<number | null>(null);
 
 const selectedImage = computed(
     () =>
@@ -355,7 +434,7 @@ function uploadImage() {
 // what the toolbar is currently set to.
 type InteractionMode = 'align' | 'assign' | 'edit';
 const interactionMode = ref<InteractionMode>(
-    props.transcription.text === '' ? 'edit' : 'assign',
+    layerText.value === '' ? 'edit' : 'assign',
 );
 const activeMenu = ref<InteractionMode | null>(null);
 
@@ -363,20 +442,289 @@ const activeMenu = ref<InteractionMode | null>(null);
 // in edit mode (so highlighted spans visibly move as the scholar types),
 // otherwise exactly what's persisted.
 const activeText = computed(() =>
-    interactionMode.value === 'edit'
-        ? editedText.value
-        : props.transcription.text,
+    interactionMode.value === 'edit' ? editedText.value : layerText.value,
 );
 const activeSegments = computed(() =>
     interactionMode.value === 'edit'
         ? editedSegments.value
-        : (props.transcription.segments ?? []),
+        : layerSegments.value,
 );
 const activeRegions = computed(() =>
-    interactionMode.value === 'edit'
-        ? editedRegions.value
-        : (props.transcription.regions ?? []),
+    interactionMode.value === 'edit' ? editedRegions.value : layerRegions.value,
 );
+
+// ---- pages ----
+// The left pane shows only the text standing on the page being worked on, so
+// that it reads beside the leaf on the right rather than as one long scroll.
+//
+// A page runs from its own break to the next one — see TranscriptionPageBreak
+// — and text before the first break belongs to no page yet. Everything else in
+// this component works in whole-text offsets, so the slice is converted at
+// exactly two places inbound (a selection, an edit) and at the props handed to
+// AlignableText outbound. `toFull` and `toPage` are the only conversions.
+const pages = computed(() => manuscript.value?.pages ?? []);
+
+/** The character offset at which a line begins in the given text. */
+function offsetOfLine(text: string, line: number): number {
+    if (line <= 0) {
+        return 0;
+    }
+
+    const lines = text.split('\n');
+    let offset = 0;
+
+    for (let index = 0; index < line; index++) {
+        if (lines[index] === undefined) {
+            return text.length;
+        }
+
+        offset += lines[index].length + 1;
+    }
+
+    return Math.min(offset, text.length);
+}
+
+// The division is held in lines on the transcription, because that is the one
+// coordinate both layers share: their character offsets differ, but a line of
+// the transcription is a line of the manuscript in either. Each layer resolves
+// it against its own text here.
+const breaks = computed(() =>
+    [...props.pageBreaks]
+        .sort((a, b) => a.start_line - b.start_line)
+        .map((item) => ({
+            ...item,
+            start_offset: offsetOfLine(activeText.value, item.start_line),
+        })),
+);
+
+const selectedPageId = ref<number | null>(null);
+
+/** The break for the selected page, if that page has been placed here. */
+const selectedBreak = computed(
+    () =>
+        breaks.value.find(
+            (item) => item.manuscript_page_id === selectedPageId.value,
+        ) ?? null,
+);
+
+const pageStart = computed(() => selectedBreak.value?.start_offset ?? 0);
+
+const pageEnd = computed(() => {
+    // The stretch before the first page begins, which belongs to no page yet.
+    if (selectedPageId.value === null) {
+        return breaks.value[0]?.start_offset ?? activeText.value.length;
+    }
+
+    // A page not yet placed shows the whole text, because placing it *is*
+    // choosing where in the text it begins — there is nothing to narrow to
+    // yet. Running to the first break instead left the pane empty as soon as
+    // one page had been placed, so the second could never be.
+    if (selectedBreak.value === null) {
+        return activeText.value.length;
+    }
+
+    const next = breaks.value.find(
+        (item) => item.start_offset > selectedBreak.value!.start_offset,
+    );
+
+    return next?.start_offset ?? activeText.value.length;
+});
+
+/** Whether the selected page has been placed in this layer at all. */
+const selectedPageIsPlaced = computed(() => selectedBreak.value !== null);
+
+/**
+ * Whether any text stands before the first page begins. Shown as its own entry
+ * rather than being what an unplaced page falls back to — "this page has no
+ * break yet" and "this text is on no page yet" are different things.
+ */
+const hasUnplacedOpening = computed(
+    () => breaks.value.length > 0 && breaks.value[0].start_offset > 0,
+);
+
+const firstPlacedPageLabel = computed(() => {
+    const first = breaks.value[0];
+
+    return first
+        ? (pages.value.find((page) => page.id === first.manuscript_page_id)
+              ?.label ?? null)
+        : null;
+});
+
+function toFull(offset: number): number {
+    return offset + pageStart.value;
+}
+
+function toPage(offset: number): number {
+    return offset - pageStart.value;
+}
+
+/** The text, segments and regions of the page alone, in page coordinates. */
+const pageText = computed(() =>
+    activeText.value.slice(pageStart.value, pageEnd.value),
+);
+
+function withinPage<T extends { start_offset: number; end_offset: number }>(
+    spans: T[],
+): T[] {
+    return spans
+        .filter(
+            (span) =>
+                span.start_offset >= pageStart.value &&
+                span.end_offset <= pageEnd.value,
+        )
+        .map((span) => ({
+            ...span,
+            start_offset: toPage(span.start_offset),
+            end_offset: toPage(span.end_offset),
+        }));
+}
+
+const pageSegments = computed(() => withinPage(activeSegments.value));
+const pageRegions = computed(() => withinPage(activeRegions.value));
+
+const selectedPage = computed(
+    () => pages.value.find((page) => page.id === selectedPageId.value) ?? null,
+);
+
+// The image shown on the right is the one photographing the page on the left.
+// A page may have none — plenty are transcribed from a facsimile — in which
+// case the right pane says so rather than showing another page's leaf.
+const imagesForSelectedPage = computed(() =>
+    images.value.filter(
+        (image) => image.manuscript_page_id === selectedPageId.value,
+    ),
+);
+
+// Open on the first page this layer actually places, so an editor lands where
+// the text is rather than on a leaf that has none. Falls back to the first
+// page of the manuscript, and to nothing at all when none are recorded.
+watch(
+    [pages, breaks],
+    ([currentPages, currentBreaks]) => {
+        const stillThere = currentPages.some(
+            (page) => page.id === selectedPageId.value,
+        );
+
+        if (stillThere) {
+            return;
+        }
+
+        selectedPageId.value =
+            currentBreaks[0]?.manuscript_page_id ?? currentPages[0]?.id ?? null;
+    },
+    { immediate: true },
+);
+
+// The leaf follows the page. Freshly uploaded images arrive by a normal prop
+// reload, and this picks them up with everything else.
+watch(
+    imagesForSelectedPage,
+    (current) => {
+        const stillThere = current.some(
+            (image) => image.id === selectedImageId.value,
+        );
+
+        if (!stillThere) {
+            selectedImageId.value = current[0]?.id ?? null;
+        }
+    },
+    { immediate: true },
+);
+
+/** Pages this layer has actually placed, as against merely recorded. */
+const placedPageIds = computed(() =>
+    breaks.value.map((item) => item.manuscript_page_id),
+);
+
+// Which transcription and which layer are in the URL, since the server has to
+// load that layer's segments, regions and breaks — so choosing is a visit
+// rather than local state.
+function openTranscription(id: number) {
+    router.get(
+        showWitnessRoute.url(props.witness),
+        { transcription: id },
+        { preserveScroll: true },
+    );
+}
+
+function openLayer(name: string) {
+    if (!layer.value || layer.value.layer === name) {
+        return;
+    }
+
+    if (
+        editOps.value.length > 0 &&
+        !window.confirm('Discard your unsaved text edits?')
+    ) {
+        return;
+    }
+
+    router.get(
+        showWitnessRoute.url(props.witness),
+        { transcription: layer.value.transcription_id, layer: name },
+        { preserveScroll: true },
+    );
+}
+
+function addTranscription() {
+    const name = window.prompt(
+        'What is this transcription of? (e.g. "Main text", "Scholia")',
+        'Transcription',
+    );
+
+    if (name === null) {
+        return;
+    }
+
+    router.post(storeTranscriptionRoute.url(props.witness), {
+        name: name.trim() || 'Transcription',
+    });
+}
+
+/**
+ * Place the selected page at the current selection, or move it there.
+ *
+ * A page begins somewhere and runs to the next break, so saying where it
+ * starts is the whole of dividing the text — see TranscriptionPageBreak.
+ */
+function startPageHere() {
+    if (
+        !layer.value ||
+        !activeSelection.value ||
+        selectedPageId.value === null
+    ) {
+        return;
+    }
+
+    router.post(
+        storePageBreak.url(layer.value),
+        {
+            manuscript_page_id: selectedPageId.value,
+            start_offset: activeSelection.value.start,
+        },
+        { preserveScroll: true, onSuccess: () => clearSelection() },
+    );
+}
+
+const newPageLabel = ref('');
+
+function addPage() {
+    if (!manuscript.value || !newPageLabel.value.trim()) {
+        return;
+    }
+
+    router.post(
+        storeManuscriptPage.url(manuscript.value.id),
+        { label: newPageLabel.value.trim() },
+        { preserveScroll: true, onSuccess: () => (newPageLabel.value = '') },
+    );
+}
+
+function selectPage(id: number | null) {
+    selectedPageId.value = id;
+    clearSelection();
+}
 
 type ActiveSelection = { start: number; end: number; text: string };
 const activeSelection = ref<ActiveSelection | null>(null);
@@ -441,7 +789,7 @@ const matchingSegment = computed<TranscriptionSegment | null>(() => {
     }
 
     return (
-        (props.transcription.segments ?? []).find(
+        layerSegments.value.find(
             (segment) =>
                 segment.start_offset === activeSelection.value!.start &&
                 segment.end_offset === activeSelection.value!.end,
@@ -455,7 +803,7 @@ const overlappingReviewSegment = computed<TranscriptionSegment | null>(() => {
     }
 
     return (
-        (props.transcription.segments ?? []).find(
+        layerSegments.value.find(
             (segment) =>
                 segment.needs_review &&
                 segment.start_offset < activeSelection.value!.end &&
@@ -473,7 +821,7 @@ function selectRange(start: number, end: number, text: string) {
     regionError.value = null;
     assignError.value = null;
 
-    const existing = (props.transcription.segments ?? []).find(
+    const existing = layerSegments.value.find(
         (segment) =>
             segment.start_offset === start && segment.end_offset === end,
     );
@@ -494,7 +842,7 @@ function onTextSelect(selection: ActiveSelection) {
         return;
     }
 
-    selectRange(selection.start, selection.end, selection.text);
+    selectRange(toFull(selection.start), toFull(selection.end), selection.text);
     activeMenu.value = interactionMode.value;
 }
 
@@ -509,14 +857,12 @@ function onBadgeClick(segment: TranscriptionSegment) {
         return;
     }
 
-    selectRange(
-        segment.start_offset,
-        segment.end_offset,
-        props.transcription.text.slice(
-            segment.start_offset,
-            segment.end_offset,
-        ),
-    );
+    // The badge came from the page-scoped segments handed to AlignableText,
+    // so its offsets are the page's.
+    const start = toFull(segment.start_offset);
+    const end = toFull(segment.end_offset);
+
+    selectRange(start, end, layerText.value.slice(start, end));
     activeMenu.value = 'assign';
 }
 
@@ -559,7 +905,7 @@ function onRegionDrawn(box: {
 
     if (splitGranularity.value === 'span') {
         router.post(
-            storeRegion.url(props.transcription.id),
+            storeRegion.url(layer.value!.id),
             {
                 manuscript_image_id: selectedImageId.value,
                 text: selection.text,
@@ -581,7 +927,7 @@ function onRegionDrawn(box: {
     // into one evenly-spaced region per word/character, skipping spaces —
     // a uniform approximation to fine-tune afterward, not letter detection.
     router.post(
-        storeRegionBatch.url(props.transcription.id),
+        storeRegionBatch.url(layer.value!.id),
         {
             manuscript_image_id: selectedImageId.value,
             granularity: splitGranularity.value,
@@ -683,7 +1029,7 @@ function assignSelection() {
     const selection = activeSelection.value;
 
     router.post(
-        storeSegment.url(props.transcription.id),
+        storeSegment.url(layer.value!.id),
         {
             start_offset: selection.start,
             end_offset: selection.end,
@@ -728,39 +1074,62 @@ function fixBoundaries() {
 </script>
 
 <template>
-    <Head :title="`${props.transcription.witness?.siglum} transcription`" />
+    <Head
+        :title="`${props.witness.siglum} — ${props.witness.label ?? 'witness'}`"
+    />
 
     <div
         class="min-h-screen bg-[#FDFDFC] p-6 text-[#1b1b18] lg:p-8 dark:bg-[#0a0a0a] dark:text-[#EDEDEC]"
     >
-        <div class="mx-auto max-w-6xl">
+        <div class="mx-auto max-w-7xl">
             <AppHeader />
 
             <Link
-                :href="showWitness.url(props.transcription.witness_id)"
+                :href="witnessesIndex.url()"
                 class="text-sm text-stone-500 hover:underline dark:text-stone-400"
             >
-                &larr; {{ props.transcription.witness?.siglum }}
+                &larr; Witnesses
             </Link>
 
-            <div class="mt-2 mb-4 flex items-baseline justify-between gap-4">
+            <div class="mt-2 mb-1 flex items-baseline gap-3">
                 <h1 class="font-serif text-2xl font-medium">
-                    {{ props.transcription.witness?.siglum }} transcription
+                    {{ props.witness.siglum }}
+                    <template v-if="props.witness.label">
+                        &mdash; {{ props.witness.label }}
+                    </template>
                 </h1>
-                <select
+                <span class="text-xs text-stone-500 dark:text-stone-400">{{
+                    props.witness.type
+                }}</span>
+            </div>
+
+            <div
+                class="mb-6 flex flex-wrap items-center justify-between gap-4 text-sm"
+            >
+                <p class="text-stone-600 dark:text-stone-400">
+                    <span v-if="manuscriptSummary">{{
+                        manuscriptSummary
+                    }}</span>
+                    <span
+                        v-for="work in props.witness.works ?? []"
+                        :key="work.id"
+                        class="ml-2"
+                    >
+                        <Link
+                            :href="showWork.url(work)"
+                            class="underline underline-offset-2"
+                            >{{ work.title }}</Link
+                        >
+                    </span>
+                </p>
+                <button
                     v-if="canEdit"
-                    v-model="visibility"
-                    class="rounded border border-stone-300 bg-transparent px-2 py-0.5 text-xs dark:border-stone-700"
-                    @change="saveVisibility"
+                    type="button"
+                    class="text-xs text-red-600 underline dark:text-red-400"
+                    @click="removeWitness"
                 >
-                    <option value="published">Published</option>
-                    <option value="draft">Draft</option>
-                </select>
-                <span
-                    v-else
-                    class="text-xs text-stone-500 dark:text-stone-400"
-                    >{{ props.transcription.visibility }}</span
-                >
+                    Delete witness
+                </button>
             </div>
 
             <div v-if="canEdit" class="mb-4">
@@ -833,104 +1202,182 @@ function fixBoundaries() {
 
             <div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
                 <div>
-                    <p
-                        v-if="editableRegionId"
-                        class="mb-2 flex items-center justify-between text-xs text-sky-700 dark:text-sky-400"
+                    <!-- The left pane's own header: which transcription is
+                         being worked on, and how to start another. It sits
+                         here whether or not one is open, so the button does
+                         not move once a transcription is chosen. -->
+                    <div
+                        class="mb-3 flex flex-wrap items-center gap-2 border-b border-stone-200 pb-3 text-xs dark:border-stone-800"
                     >
-                        <span
-                            >Drag the box's body to move it, or a handle to
-                            resize.</span
+                        <select
+                            v-if="props.transcriptions.length > 1"
+                            :value="layer?.transcription_id ?? ''"
+                            class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                            @change="
+                                openTranscription(
+                                    Number(
+                                        ($event.target as HTMLSelectElement)
+                                            .value,
+                                    ),
+                                )
+                            "
                         >
-                        <span class="flex items-center gap-2">
-                            <button
-                                type="button"
-                                class="text-red-600 underline dark:text-red-400"
-                                @click="removeRegion(editableRegionId!)"
+                            <option
+                                v-for="transcription in props.transcriptions"
+                                :key="transcription.id"
+                                :value="transcription.id"
                             >
-                                Delete
-                            </button>
+                                {{ transcription.name }}
+                            </option>
+                        </select>
+                        <span
+                            v-else-if="layer"
+                            class="font-medium text-stone-600 dark:text-stone-400"
+                        >
+                            {{ layer.transcription?.name }}
+                        </span>
+
+                        <button
+                            v-if="canEdit"
+                            type="button"
+                            class="rounded border border-stone-300 px-2 py-1 dark:border-stone-700"
+                            @click="addTranscription"
+                        >
+                            + Add transcription
+                        </button>
+
+                        <select
+                            v-if="canEdit && layer"
+                            v-model="visibility"
+                            class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                            @change="saveVisibility"
+                        >
+                            <option value="published">Published</option>
+                            <option value="draft">Draft</option>
+                        </select>
+                        <span
+                            v-else-if="layer"
+                            class="text-stone-500 dark:text-stone-400"
+                            >{{ layer.transcription?.visibility }}</span
+                        >
+
+                        <span
+                            v-if="layer"
+                            class="ml-auto flex items-center gap-1"
+                        >
                             <button
+                                v-for="option in ['diplomatic', 'normalized']"
+                                :key="option"
                                 type="button"
-                                class="underline"
-                                @click="editableRegionId = null"
+                                class="rounded border px-2 py-1"
+                                :class="
+                                    layer.layer === option
+                                        ? 'border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300'
+                                        : 'border-stone-300 dark:border-stone-700'
+                                "
+                                @click="openLayer(option)"
                             >
-                                Done
+                                {{ option }}
                             </button>
                         </span>
-                    </p>
-                    <ManuscriptImageViewer
-                        :image="selectedImage"
-                        :regions="regionsForSelectedImage"
-                        :features="featuresForSelectedImage"
-                        :highlighted-region-id="hoveredRegionId"
-                        :editable-region-id="editableRegionId"
-                        :drawing-enabled="drawingActive"
-                        @region-drawn="onRegionDrawn"
-                        @region-moved="onRegionMoved"
-                        @select-region="selectRegionForEditing"
-                        @deselect="editableRegionId = null"
-                        @hover-region="(id) => (hoveredRegionId = id)"
-                    />
+                    </div>
+
+                    <!-- Which page is being worked on. The leaf on the right
+                         follows this, and so does the text below: a page is
+                         the stretch from its own break to the next. -->
                     <div
-                        v-if="images.length > 1"
-                        class="mt-3 flex flex-wrap gap-2"
+                        v-if="layer && pages.length > 0"
+                        class="mb-3 flex flex-wrap items-center gap-1 text-xs"
                     >
+                        <span class="mr-1 text-stone-500 dark:text-stone-400">
+                            Page:
+                        </span>
                         <button
-                            v-for="image in images"
-                            :key="image.id"
+                            v-if="hasUnplacedOpening"
                             type="button"
-                            class="rounded border px-2 py-1 text-xs"
+                            class="rounded border px-2 py-1"
                             :class="
-                                image.id === selectedImageId
-                                    ? 'border-stone-500 bg-stone-100 dark:bg-stone-800'
-                                    : 'border-stone-200 dark:border-stone-800'
+                                selectedPageId === null
+                                    ? 'border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300'
+                                    : 'border-stone-300 dark:border-stone-700'
                             "
-                            @click="selectedImageId = image.id"
+                            title="Text standing before the first page begins"
+                            @click="selectPage(null)"
                         >
-                            fol. {{ image.folio_label }}
+                            before {{ firstPlacedPageLabel }}
+                        </button>
+                        <button
+                            v-for="page in pages"
+                            :key="page.id"
+                            type="button"
+                            class="rounded border px-2 py-1"
+                            :class="[
+                                selectedPageId === page.id
+                                    ? 'border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300'
+                                    : 'border-stone-300 dark:border-stone-700',
+                                placedPageIds.includes(page.id)
+                                    ? ''
+                                    : 'text-stone-400 dark:text-stone-600',
+                            ]"
+                            :title="
+                                placedPageIds.includes(page.id)
+                                    ? undefined
+                                    : 'No text placed on this page yet'
+                            "
+                            @click="selectPage(page.id)"
+                        >
+                            {{ page.label }}
+                        </button>
+                        <button
+                            v-if="canEdit && activeSelection && selectedPage"
+                            type="button"
+                            class="ml-2 rounded border border-amber-300 px-2 py-1 text-amber-700 dark:border-amber-800 dark:text-amber-400"
+                            @click="startPageHere"
+                        >
+                            {{ selectedPageIsPlaced ? 'Move' : 'Start' }}
+                            {{ selectedPage.label }} here
                         </button>
                     </div>
 
-                    <form
-                        v-if="manuscript && canEdit"
-                        class="mt-3 flex flex-wrap items-center gap-2"
-                        @submit.prevent="uploadImage"
+                    <!-- An unplaced page shows the whole text, because placing
+                         it is choosing where in the text it begins. -->
+                    <p
+                        v-if="
+                            layer &&
+                            canEdit &&
+                            selectedPage &&
+                            !selectedPageIsPlaced
+                        "
+                        class="mb-3 text-xs text-amber-700 dark:text-amber-400"
                     >
-                        <input
-                            v-model="imageUploadForm.folio_label"
-                            type="text"
-                            placeholder="folio (e.g. 12r)"
-                            class="w-28 rounded border border-stone-300 bg-transparent px-2 py-1 text-xs dark:border-stone-700"
-                        />
-                        <input
-                            type="file"
-                            accept="image/*"
-                            class="text-xs"
-                            @change="onImageFileChange"
-                        />
-                        <button
-                            type="submit"
-                            class="rounded border border-stone-300 px-2 py-1 text-xs disabled:opacity-50 dark:border-stone-700"
-                            :disabled="
-                                imageUploadForm.processing ||
-                                !imageUploadForm.folio_label ||
-                                !imageUploadForm.image
-                            "
-                        >
-                            Upload page
-                        </button>
-                        <span
-                            v-if="imageUploadForm.errors.image"
-                            class="text-xs text-red-600 dark:text-red-400"
-                        >
-                            {{ imageUploadForm.errors.image }}
-                        </span>
-                    </form>
-                </div>
+                        {{ selectedPage.label }} has no text placed on it yet.
+                        Select the first words standing on it, then choose
+                        &ldquo;Start {{ selectedPage.label }} here&rdquo;. The
+                        page runs from there to wherever the next one begins.
+                    </p>
+                    <p
+                        v-if="layer && canEdit && pages.length === 0"
+                        class="mb-3 text-xs text-stone-500 dark:text-stone-400"
+                    >
+                        This manuscript has no pages recorded yet — add one on
+                        the right to divide the text onto it.
+                    </p>
 
-                <div>
+                    <p
+                        v-if="!layer"
+                        class="rounded border border-stone-200 p-4 text-sm text-stone-500 dark:border-stone-800 dark:text-stone-400"
+                    >
+                        This witness has no transcription yet.
+                        <template v-if="canEdit">
+                            Choose &ldquo;Add transcription&rdquo; to start one
+                            — both layers are created at once, and you can type
+                            into the diplomatic layer or import into the
+                            normalized one, whichever suits how you work.
+                        </template>
+                    </p>
+
                     <div
-                        v-if="canEdit"
+                        v-if="canEdit && layer"
                         class="mb-3 flex flex-wrap items-center gap-2 rounded border border-stone-200 p-2 text-xs dark:border-stone-800"
                     >
                         <span class="text-stone-500 dark:text-stone-400">
@@ -1072,13 +1519,21 @@ function fixBoundaries() {
 
                     <div class="font-serif text-lg leading-loose">
                         <AlignableText
-                            :text="activeText"
-                            :regions="activeRegions"
-                            :segments="activeSegments"
+                            :text="pageText"
+                            :regions="pageRegions"
+                            :segments="pageSegments"
                             :highlighted-region-id="hoveredRegionId"
                             :editable-region-id="editableRegionId"
-                            :selection-start="activeSelection?.start ?? null"
-                            :selection-end="activeSelection?.end ?? null"
+                            :selection-start="
+                                activeSelection
+                                    ? toPage(activeSelection.start)
+                                    : null
+                            "
+                            :selection-end="
+                                activeSelection
+                                    ? toPage(activeSelection.end)
+                                    : null
+                            "
                             :editable="interactionMode === 'edit'"
                             @select="onTextSelect"
                             @hover-region="(id) => (hoveredRegionId = id)"
@@ -1269,6 +1724,149 @@ function fixBoundaries() {
                             </template>
                         </AlignableText>
                     </div>
+                </div>
+
+                <div>
+                    <p
+                        v-if="editableRegionId"
+                        class="mb-2 flex items-center justify-between text-xs text-sky-700 dark:text-sky-400"
+                    >
+                        <span
+                            >Drag the box's body to move it, or a handle to
+                            resize.</span
+                        >
+                        <span class="flex items-center gap-2">
+                            <button
+                                type="button"
+                                class="text-red-600 underline dark:text-red-400"
+                                @click="removeRegion(editableRegionId!)"
+                            >
+                                Delete
+                            </button>
+                            <button
+                                type="button"
+                                class="underline"
+                                @click="editableRegionId = null"
+                            >
+                                Done
+                            </button>
+                        </span>
+                    </p>
+                    <ManuscriptImageViewer
+                        :image="selectedImage"
+                        :regions="regionsForSelectedImage"
+                        :features="featuresForSelectedImage"
+                        :highlighted-region-id="hoveredRegionId"
+                        :editable-region-id="editableRegionId"
+                        :drawing-enabled="drawingActive"
+                        @region-drawn="onRegionDrawn"
+                        @region-moved="onRegionMoved"
+                        @select-region="selectRegionForEditing"
+                        @deselect="editableRegionId = null"
+                        @hover-region="(id) => (hoveredRegionId = id)"
+                    >
+                        <!-- Plenty of pages are transcribed from a facsimile
+                             or the manuscript itself, so having no photograph
+                             is ordinary rather than an omission. -->
+                        <template #empty>
+                            <span v-if="selectedPage">
+                                No photograph of {{ selectedPage.label }} yet.
+                            </span>
+                            <span v-else-if="pages.length === 0">
+                                No pages recorded for this manuscript yet.
+                            </span>
+                            <span v-else>Choose a page.</span>
+                        </template>
+                    </ManuscriptImageViewer>
+                    <div
+                        v-if="imagesForSelectedPage.length > 1"
+                        class="mt-3 flex flex-wrap gap-2"
+                    >
+                        <!-- Photographs of *this* page only. Which leaf is
+                             shown follows the page chosen on the left, so
+                             offering another page's here would break the pair.
+                             A page can have more than one shot of it. -->
+                        <button
+                            v-for="image in imagesForSelectedPage"
+                            :key="image.id"
+                            type="button"
+                            class="rounded border px-2 py-1 text-xs"
+                            :class="
+                                image.id === selectedImageId
+                                    ? 'border-stone-500 bg-stone-100 dark:bg-stone-800'
+                                    : 'border-stone-200 dark:border-stone-800'
+                            "
+                            @click="selectedImageId = image.id"
+                        >
+                            fol. {{ image.manuscript_page?.label }}
+                        </button>
+                    </div>
+
+                    <!-- Pages can be recorded with no photograph at all: a
+                         manuscript is often transcribed from a facsimile, and
+                         its text still has to be divided onto its leaves.
+                         Uploading a photograph names a page too, and records
+                         it if it is new. -->
+                    <form
+                        v-if="manuscript && canEdit"
+                        class="mt-3 flex flex-wrap items-center gap-2 border-t border-stone-200 pt-3 dark:border-stone-800"
+                        @submit.prevent="addPage"
+                    >
+                        <input
+                            v-model="newPageLabel"
+                            type="text"
+                            placeholder="page (e.g. 13r)"
+                            class="w-28 rounded border border-stone-300 bg-transparent px-2 py-1 text-xs dark:border-stone-700"
+                        />
+                        <button
+                            type="submit"
+                            class="rounded border border-stone-300 px-2 py-1 text-xs disabled:opacity-50 dark:border-stone-700"
+                            :disabled="!newPageLabel.trim()"
+                        >
+                            Add page
+                        </button>
+                        <span
+                            class="text-xs text-stone-500 dark:text-stone-400"
+                        >
+                            no image needed
+                        </span>
+                    </form>
+
+                    <form
+                        v-if="manuscript && canEdit"
+                        class="mt-3 flex flex-wrap items-center gap-2"
+                        @submit.prevent="uploadImage"
+                    >
+                        <input
+                            v-model="imageUploadForm.folio_label"
+                            type="text"
+                            placeholder="folio (e.g. 12r)"
+                            class="w-28 rounded border border-stone-300 bg-transparent px-2 py-1 text-xs dark:border-stone-700"
+                        />
+                        <input
+                            type="file"
+                            accept="image/*"
+                            class="text-xs"
+                            @change="onImageFileChange"
+                        />
+                        <button
+                            type="submit"
+                            class="rounded border border-stone-300 px-2 py-1 text-xs disabled:opacity-50 dark:border-stone-700"
+                            :disabled="
+                                imageUploadForm.processing ||
+                                !imageUploadForm.folio_label ||
+                                !imageUploadForm.image
+                            "
+                        >
+                            Upload page
+                        </button>
+                        <span
+                            v-if="imageUploadForm.errors.image"
+                            class="text-xs text-red-600 dark:text-red-400"
+                        >
+                            {{ imageUploadForm.errors.image }}
+                        </span>
+                    </form>
                 </div>
             </div>
         </div>

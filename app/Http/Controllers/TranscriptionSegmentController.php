@@ -6,7 +6,7 @@ use App\Http\Requests\AssignTranscriptionSegmentRequest;
 use App\Http\Requests\StoreTranscriptionSegmentRequest;
 use App\Http\Requests\UpdateTranscriptionSegmentRequest;
 use App\Models\CanonicalPassage;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Models\Work;
 use App\Support\Edition\CanonicalPassageResolver;
@@ -18,7 +18,7 @@ class TranscriptionSegmentController extends Controller
      * Mark a span and cite it in one step — a span with no citation has no
      * use to anyone, so the two never happen separately.
      */
-    public function store(StoreTranscriptionSegmentRequest $request, Transcription $transcription): RedirectResponse
+    public function store(StoreTranscriptionSegmentRequest $request, TranscriptionLayer $transcription): RedirectResponse
     {
         $passage = $this->resolveCitation((int) $request->validated('work_id'), $request->validated('label'));
 

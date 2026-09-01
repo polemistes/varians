@@ -24,7 +24,7 @@ namespace App\Enums;
  * the better tool for description; `layer` exists because this distinction is
  * *structural* — it decides what enters the apparatus. Both can coexist.
  */
-enum TranscriptionLayer: string
+enum Layer: string
 {
     case Diplomatic = 'diplomatic';
     case Normalized = 'normalized';

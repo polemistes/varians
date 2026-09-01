@@ -8,7 +8,7 @@ use App\Models\EditionPassage;
 use App\Models\EditionPassageOrder;
 use App\Models\EditionTransposition;
 use App\Models\ReferenceScheme;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Work;
@@ -36,7 +36,7 @@ function addPassagesToEdition(Work $work, Edition $edition, int $count): Support
             'sort_key' => $formatted['sort_key'],
             'label' => $formatted['label'],
         ]);
-        $transcription = Transcription::factory()->create(['text' => 'word']);
+        $transcription = TranscriptionLayer::factory()->create(['text' => 'word']);
         $segment = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 4]);
         PassageAdder::add($edition, $segment, (float) $line);
 
@@ -246,7 +246,7 @@ test('a witness whose own physical order disagrees is flagged with the whole sha
 
     // Witness B cites the same passages 2 and 3, but has 3 physically
     // before 2 — the opposite of the edition's current order.
-    $witnessB = Transcription::factory()->create(['text' => 'gamma beta']);
+    $witnessB = TranscriptionLayer::factory()->create(['text' => 'gamma beta']);
     TranscriptionSegment::factory()->for($witnessB)->for($passages[2], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
     TranscriptionSegment::factory()->for($witnessB)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 6, 'end_offset' => 10]);
 
@@ -258,11 +258,11 @@ test('a witness whose own physical order disagrees is flagged with the whole sha
     $show->assertInertia(fn (AssertInertia $page) => $page
         ->where('windowPassages.0.order_range', null)
         ->where('windowPassages.1.order_range.edition_passage_order_id', null)
-        ->where('windowPassages.1.order_range.candidates.0.transcription_id', $witnessB->id)
+        ->where('windowPassages.1.order_range.candidates.0.transcription_layer_id', $witnessB->id)
         ->where('windowPassages.1.order_range.candidates.0.witness_siglum', $witnessB->witness->siglum)
         ->where('windowPassages.1.order_range.candidates.0.sequence', [$passages[2]->label, $passages[1]->label])
         ->where('windowPassages.1.order_range.candidates.0.matches_current', false)
-        ->where('windowPassages.2.order_range.candidates.0.transcription_id', $witnessB->id));
+        ->where('windowPassages.2.order_range.candidates.0.transcription_layer_id', $witnessB->id));
 });
 
 test('no order range when a witness agrees or only cites one passage of the pair', function () {
@@ -271,11 +271,11 @@ test('no order range when a witness agrees or only cites one passage of the pair
     $edition = Edition::factory()->for($work)->create();
     $passages = addPassagesToEdition($work, $edition, 2);
 
-    $agreeing = Transcription::factory()->create(['text' => 'alpha beta']);
+    $agreeing = TranscriptionLayer::factory()->create(['text' => 'alpha beta']);
     TranscriptionSegment::factory()->for($agreeing)->for($passages[0], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
     TranscriptionSegment::factory()->for($agreeing)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 6, 'end_offset' => 10]);
 
-    $fragmentary = Transcription::factory()->create(['text' => 'gamma']);
+    $fragmentary = TranscriptionLayer::factory()->create(['text' => 'gamma']);
     TranscriptionSegment::factory()->for($fragmentary)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
 
     $show = $this->get(route('editions.show', [$work, $edition]));
@@ -289,16 +289,16 @@ test('a draft witness\'s order disagreement is only visible to an editor', funct
     $edition = Edition::factory()->for($work)->published()->create();
     $passages = addPassagesToEdition($work, $edition, 2);
 
-    // Draft by default (TranscriptionFactory) — must not leak its order to
+    // Draft by default (TranscriptionLayerFactory) — must not leak its order to
     // a non-editor viewer, exactly like its text/segments already don't.
-    $draftWitness = Transcription::factory()->create(['text' => 'beta alpha']);
+    $draftWitness = TranscriptionLayer::factory()->create(['text' => 'beta alpha']);
     TranscriptionSegment::factory()->for($draftWitness)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 4]);
     TranscriptionSegment::factory()->for($draftWitness)->for($passages[0], 'canonicalPassage')->create(['start_offset' => 5, 'end_offset' => 10]);
 
     $this->actingAs(User::factory()->editor()->create());
     $asEditor = $this->get(route('editions.show', [$work, $edition]));
     $asEditor->assertInertia(fn (AssertInertia $page) => $page
-        ->where('windowPassages.1.order_range.candidates.0.transcription_id', $draftWitness->id));
+        ->where('windowPassages.1.order_range.candidates.0.transcription_layer_id', $draftWitness->id));
 
     $this->actingAs(User::factory()->create());
     $asGuest = $this->get(route('editions.show', [$work, $edition]));
@@ -312,20 +312,20 @@ test('choosing a witness order creates no Conjecture and clears the range agains
     $edition = Edition::factory()->for($work)->create();
     $passages = addPassagesToEdition($work, $edition, 2);
 
-    $witnessB = Transcription::factory()->create(['text' => 'beta alpha']);
+    $witnessB = TranscriptionLayer::factory()->create(['text' => 'beta alpha']);
     TranscriptionSegment::factory()->for($witnessB)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 4]);
     TranscriptionSegment::factory()->for($witnessB)->for($passages[0], 'canonicalPassage')->create(['start_offset' => 5, 'end_offset' => 10]);
 
     $before = $this->get(route('editions.show', [$work, $edition]));
     $before->assertInertia(fn (AssertInertia $page) => $page
-        ->where('windowPassages.1.order_range.candidates.0.transcription_id', $witnessB->id));
+        ->where('windowPassages.1.order_range.candidates.0.transcription_layer_id', $witnessB->id));
 
     // Follow witness B's order — never a scholarly transposition, since the
     // manuscript itself is the source, not a proposer to name.
     $this->post(route('edition-passage-orders.store', $edition), [
         'range_start_canonical_passage_id' => $passages[0]->id,
         'range_end_canonical_passage_id' => $passages[1]->id,
-        'transcription_id' => $witnessB->id,
+        'transcription_layer_id' => $witnessB->id,
     ]);
 
     expect(Conjecture::count())->toBe(0)
@@ -345,11 +345,11 @@ test('a range the editor has already settled is never re-flagged, even though th
     $edition = Edition::factory()->for($work)->create();
     $passages = addPassagesToEdition($work, $edition, 2); // edition order: A, B
 
-    $witnessQ = Transcription::factory()->create(['text' => 'alpha beta']);
+    $witnessQ = TranscriptionLayer::factory()->create(['text' => 'alpha beta']);
     TranscriptionSegment::factory()->for($witnessQ)->for($passages[0], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
     TranscriptionSegment::factory()->for($witnessQ)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 6, 'end_offset' => 10]);
 
-    $witnessR = Transcription::factory()->create(['text' => 'beta alpha']);
+    $witnessR = TranscriptionLayer::factory()->create(['text' => 'beta alpha']);
     TranscriptionSegment::factory()->for($witnessR)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 4]);
     TranscriptionSegment::factory()->for($witnessR)->for($passages[0], 'canonicalPassage')->create(['start_offset' => 5, 'end_offset' => 10]);
 
@@ -359,7 +359,7 @@ test('a range the editor has already settled is never re-flagged, even though th
     $before = $this->get(route('editions.show', [$work, $edition]));
     $before->assertInertia(fn (AssertInertia $page) => $page
         ->where('windowPassages.1.order_range.candidates', function ($candidates) use ($witnessQ, $witnessR) {
-            $bySiglum = collect($candidates)->keyBy('transcription_id');
+            $bySiglum = collect($candidates)->keyBy('transcription_layer_id');
 
             return $bySiglum->get($witnessR->id)['matches_current'] === false
                 && $bySiglum->get($witnessQ->id)['matches_current'] === true;
@@ -369,7 +369,7 @@ test('a range the editor has already settled is never re-flagged, even though th
     $this->post(route('edition-passage-orders.store', $edition), [
         'range_start_canonical_passage_id' => $passages[0]->id,
         'range_end_canonical_passage_id' => $passages[1]->id,
-        'transcription_id' => $witnessR->id,
+        'transcription_layer_id' => $witnessR->id,
     ]);
 
     // Witness Q now disagrees with the *new* order (B, A) — this is the
@@ -387,7 +387,7 @@ test('a range the editor has already settled is never re-flagged, even though th
         ->where('windowPassages.1.label', $passages[0]->label)
         ->where('windowPassages.1.order_range.edition_passage_order_id', fn ($id) => $id !== null)
         ->where('windowPassages.1.order_range.candidates', function ($candidates) use ($witnessQ, $witnessR) {
-            $bySiglum = collect($candidates)->keyBy('transcription_id');
+            $bySiglum = collect($candidates)->keyBy('transcription_layer_id');
 
             return $bySiglum->get($witnessR->id)['matches_current'] === true
                 && $bySiglum->get($witnessQ->id)['matches_current'] === false;

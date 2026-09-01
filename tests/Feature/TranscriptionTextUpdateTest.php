@@ -1,14 +1,14 @@
 <?php
 
 use App\Models\ManuscriptImage;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 
 test('an insertion persists and shifts a trailing span', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the cat sat']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
     $segment = TranscriptionSegment::factory()->for($transcription)->create([
         'start_offset' => 7, 'end_offset' => 11, // " sat"
     ]);
@@ -28,7 +28,7 @@ test('an insertion persists and shifts a trailing span', function () {
 
 test('deleting everything down to an empty transcription persists', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the cat sat']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
     $segment = TranscriptionSegment::factory()->for($transcription)->create([
         'start_offset' => 4, 'end_offset' => 7, // "cat"
     ]);
@@ -45,7 +45,7 @@ test('deleting everything down to an empty transcription persists', function () 
 
 test('typing inside an existing segment extends it without flagging', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the cat sat']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
     $segment = TranscriptionSegment::factory()->for($transcription)->create([
         'start_offset' => 4, 'end_offset' => 7, // "cat"
     ]);
@@ -64,7 +64,7 @@ test('typing inside an existing segment extends it without flagging', function (
 
 test('deleting a segment\'s entire text with nothing typed to replace it removes the segment', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the cat sat']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
     $segment = TranscriptionSegment::factory()->for($transcription)->create([
         'start_offset' => 4, 'end_offset' => 7, // "cat"
     ]);
@@ -80,7 +80,7 @@ test('deleting a segment\'s entire text with nothing typed to replace it removes
 
 test('replacing a segment\'s entire text keeps the row, resized and flagged', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the cat sat']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
     $segment = TranscriptionSegment::factory()->for($transcription)->create([
         'start_offset' => 4, 'end_offset' => 7, // "cat"
     ]);
@@ -99,7 +99,7 @@ test('replacing a segment\'s entire text keeps the row, resized and flagged', fu
 
 test('a region\'s denormalized text column stays synced with the edit', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the cat sat']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
     $image = ManuscriptImage::factory()->create();
     $region = TranscriptionRegion::factory()->for($transcription)->for($image, 'manuscriptImage')->create([
         'start_offset' => 4, 'end_offset' => 7, 'text' => 'cat',
@@ -119,7 +119,7 @@ test('a region\'s denormalized text column stays synced with the edit', function
 
 test('markup that would be malformed after the edit is rejected, nothing persists', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the cat sat']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
 
     $response = $this->patch(route('transcriptions.text.update', $transcription), [
         'ops' => [['start' => 4, 'end' => 4, 'text' => '[']],
@@ -132,7 +132,7 @@ test('markup that would be malformed after the edit is rejected, nothing persist
 
 test('a submitted text that doesn\'t match the server\'s own replay of ops is rejected', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the cat sat']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
 
     $response = $this->patch(route('transcriptions.text.update', $transcription), [
         'ops' => [['start' => 0, 'end' => 0, 'text' => '']],
@@ -145,7 +145,7 @@ test('a submitted text that doesn\'t match the server\'s own replay of ops is re
 
 test('several disjoint ops in one save each transform their own span correctly', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the cat sat']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
     $segmentA = TranscriptionSegment::factory()->for($transcription)->create([
         'start_offset' => 0, 'end_offset' => 3, // "the"
     ]);
@@ -172,7 +172,7 @@ test('several disjoint ops in one save each transform their own span correctly',
 
 test('a guest cannot edit a transcription\'s text', function () {
     $this->actingAs(User::factory()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the cat sat']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
 
     $response = $this->patch(route('transcriptions.text.update', $transcription), [
         'ops' => [['start' => 0, 'end' => 0, 'text' => 'X']],

@@ -5,7 +5,7 @@ use App\Models\Edition;
 use App\Models\EditionLemma;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Support\Edition\PassageAligner;
@@ -14,7 +14,7 @@ use App\Support\Edition\PassageAligner;
  * Collate one transcription into a passage and return its readings keyed by
  * the word each was taken from.
  */
-function collatedReadings(Transcription $transcription, string $text): array
+function collatedReadings(TranscriptionLayer $transcription, string $text): array
 {
     $passage = CanonicalPassage::factory()->create();
     $segment = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
@@ -33,14 +33,14 @@ function collatedReadings(Transcription $transcription, string $text): array
 function readingText(LemmaReading $reading): string
 {
     $reading->refresh();
-    $text = $reading->transcription->fresh()->text;
+    $text = $reading->transcriptionLayer->fresh()->text;
 
     return mb_substr($text, $reading->start_offset, $reading->end_offset - $reading->start_offset);
 }
 
 test('editing a word transforms the reading collated from it', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the quick fox']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
     $readings = collatedReadings($transcription, 'the quick fox');
 
     // Replace "quick" (4-9) with "slow" — the exact case that used to leave
@@ -57,7 +57,7 @@ test('editing a word transforms the reading collated from it', function () {
 
 test('an insertion before a reading shifts it rather than corrupting it', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the fox']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the fox']);
     $readings = collatedReadings($transcription, 'the fox');
 
     $this->patch(route('transcriptions.text.update', $transcription), [
@@ -71,7 +71,7 @@ test('an insertion before a reading shifts it rather than corrupting it', functi
 
 test('an edit partially clobbering a reading flags it without prompting', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the quick fox']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
     $readings = collatedReadings($transcription, 'the quick fox');
 
     // Replace "ick f" — straddles the "quick" and "fox" readings.
@@ -88,7 +88,7 @@ test('a destroyed reading nothing selected is removed, with no prompt', function
     // The case that motivated dropping the prompt: no edition prints this
     // witness here, so there is nothing to decide and nothing to report.
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the quick fox']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
     $readings = collatedReadings($transcription, 'the quick fox');
 
     $this->patch(route('transcriptions.text.update', $transcription), [
@@ -104,7 +104,7 @@ test('a destroyed reading nothing selected is removed, with no prompt', function
 
 test('a destroyed reading an edition selected is kept, collapsed and flagged', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the quick fox']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
     $readings = collatedReadings($transcription, 'the quick fox');
 
     $selection = EditionLemma::create([
@@ -128,7 +128,7 @@ test('a destroyed reading an edition selected is kept, collapsed and flagged', f
 
 test('editing the words an edition prints reports that edition by title', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the quick fox']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
     $readings = collatedReadings($transcription, 'the quick fox');
 
     EditionLemma::create([
@@ -148,8 +148,8 @@ test('editing the words an edition prints reports that edition by title', functi
 
 test('editing a witness the edition does not print reports nothing', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $printed = Transcription::factory()->create(['text' => 'the quick fox']);
-    $other = Transcription::factory()->create(['text' => 'the quick fox']);
+    $printed = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
+    $other = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
 
     $passage = CanonicalPassage::factory()->create();
     foreach ([$printed, $other] as $t) {
@@ -161,7 +161,7 @@ test('editing a witness the edition does not print reports nothing', function ()
     EditionLemma::create([
         'edition_id' => Edition::factory()->create(['title' => 'Iliad, a new edition'])->id,
         'lemma_id' => $middle->id,
-        'selected_reading_id' => $middle->readings->firstWhere('transcription_id', $printed->id)->id,
+        'selected_reading_id' => $middle->readings->firstWhere('transcription_layer_id', $printed->id)->id,
     ]);
 
     // Edit the OTHER witness. The edition still prints $printed, so a reader
@@ -176,7 +176,7 @@ test('editing a witness the edition does not print reports nothing', function ()
 
 test('an edit that only shifts a selected reading reports nothing', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the quick fox']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
     $readings = collatedReadings($transcription, 'the quick fox');
 
     EditionLemma::create([
@@ -197,12 +197,12 @@ test('an edit that only shifts a selected reading reports nothing', function () 
 
 test('a conjecture reading has no offsets and is never touched by a text edit', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the quick fox']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
     $readings = collatedReadings($transcription, 'the quick fox');
 
     $conjecture = LemmaReading::factory()->create([
         'lemma_id' => $readings['quick']->lemma_id,
-        'transcription_id' => null,
+        'transcription_layer_id' => null,
         'start_offset' => null,
         'end_offset' => null,
     ]);

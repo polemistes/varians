@@ -23,6 +23,7 @@ class StoreTranscriptionRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'name' => ['sometimes', 'string', 'max:255'],
             'tags' => ['sometimes', 'array'],
             'tags.*' => ['string', 'max:50'],
         ];

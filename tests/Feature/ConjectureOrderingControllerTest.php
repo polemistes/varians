@@ -7,7 +7,7 @@ use App\Models\Edition;
 use App\Models\EditionPassageOrder;
 use App\Models\EditionTransposition;
 use App\Models\ReferenceScheme;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Work;
@@ -31,7 +31,7 @@ function editionForOrdering(int $count): array
             'sort_key' => $formatted['sort_key'],
             'label' => $formatted['label'],
         ]);
-        $transcription = Transcription::factory()->create(['text' => 'word']);
+        $transcription = TranscriptionLayer::factory()->create(['text' => 'word']);
         $segment = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 4]);
         PassageAdder::add($edition, $segment, (float) $line);
 
@@ -61,7 +61,7 @@ test('authoring a new reordering conjecture creates it, its entries, and selects
 
     $order = EditionPassageOrder::sole();
     expect($order->conjecture_id)->toBe($conjecture->id)
-        ->and($order->transcription_id)->toBeNull()
+        ->and($order->transcription_layer_id)->toBeNull()
         ->and(EditionTransposition::count())->toBe(0);
 
     $show = $this->get(route('editions.show', [$work, $edition]));

@@ -26,7 +26,7 @@ use Illuminate\Support\Carbon;
  *
  * @property int $id
  * @property int $lemma_id
- * @property int|null $transcription_id
+ * @property int|null $transcription_layer_id
  * @property int|null $start_offset
  * @property int|null $end_offset
  * @property int|null $conjecture_id
@@ -35,7 +35,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['lemma_id', 'transcription_id', 'start_offset', 'end_offset', 'conjecture_id', 'range_end_lemma_id', 'needs_review'])]
+#[Fillable(['lemma_id', 'transcription_layer_id', 'start_offset', 'end_offset', 'conjecture_id', 'range_end_lemma_id', 'needs_review'])]
 class LemmaReading extends Model
 {
     /** @use HasFactory<LemmaReadingFactory> */
@@ -50,11 +50,11 @@ class LemmaReading extends Model
     }
 
     /**
-     * @return BelongsTo<Transcription, $this>
+     * @return BelongsTo<TranscriptionLayer, $this>
      */
-    public function transcription(): BelongsTo
+    public function transcriptionLayer(): BelongsTo
     {
-        return $this->belongsTo(Transcription::class);
+        return $this->belongsTo(TranscriptionLayer::class);
     }
 
     /**

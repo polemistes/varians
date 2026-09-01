@@ -20,19 +20,30 @@ use Illuminate\Support\Facades\Storage;
 /**
  * @property int $id
  * @property int $manuscript_id
- * @property string $folio_label
+ * @property int $manuscript_page_id
  * @property string $path
  * @property string $position
  * @property-read string $url
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['manuscript_id', 'folio_label', 'path', 'position'])]
+#[Fillable(['manuscript_id', 'manuscript_page_id', 'path', 'position'])]
 #[Appends(['url'])]
 class ManuscriptImage extends Model
 {
     /** @use HasFactory<ManuscriptImageFactory> */
     use HasFactory;
+
+    /**
+     * The page this is a photograph of. The label lives there: a page is
+     * named whether or not anyone has photographed it.
+     *
+     * @return BelongsTo<ManuscriptPage, $this>
+     */
+    public function manuscriptPage(): BelongsTo
+    {
+        return $this->belongsTo(ManuscriptPage::class);
+    }
 
     /**
      * @return BelongsTo<Manuscript, $this>
@@ -73,7 +84,7 @@ class ManuscriptImage extends Model
         }
 
         $query->whereHas(
-            'regions.transcription',
+            'regions.transcriptionLayer.transcription',
             fn (Builder $q) => $q->where('visibility', Visibility::Published),
         );
     }

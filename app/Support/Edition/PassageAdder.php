@@ -2,7 +2,7 @@
 
 namespace App\Support\Edition;
 
-use App\Enums\TranscriptionLayer;
+use App\Enums\Layer;
 use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\EditionPassage;
@@ -54,7 +54,7 @@ class PassageAdder
         return EditionPassage::create([
             'edition_id' => $edition->id,
             'canonical_passage_id' => $passage->id,
-            'transcription_id' => $segment->transcription_id,
+            'transcription_layer_id' => $segment->transcription_layer_id,
             'position' => $position,
         ]);
     }
@@ -68,7 +68,7 @@ class PassageAdder
      * the added segment gets no special standing, since letting it seed the
      * structure was itself a source of order-dependence.
      *
-     * Restricted to the normalized layer (see TranscriptionLayer). A witness's
+     * Restricted to the normalized layer (see Layer). A witness's
      * diplomatic and normalized transcriptions cite the same passages — fork
      * copies the citation segments verbatim — so without this filter both
      * would align as if they were independent witnesses, and a manuscript
@@ -80,8 +80,8 @@ class PassageAdder
         PassageAligner::collate(
             $passage,
             TranscriptionSegment::where('canonical_passage_id', $passage->id)
-                ->whereRelation('transcription', 'layer', TranscriptionLayer::Normalized)
-                ->with('transcription.witness:id,siglum')
+                ->whereRelation('transcriptionLayer', 'layer', Layer::Normalized)
+                ->with('transcriptionLayer.transcription.witness:id,siglum')
                 ->get(),
         );
     }

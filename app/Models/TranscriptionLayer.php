@@ -2,10 +2,10 @@
 
 namespace App\Models;
 
+use App\Enums\Layer;
 use App\Enums\Role;
-use App\Enums\TranscriptionLayer;
 use App\Enums\Visibility;
-use Database\Factories\TranscriptionFactory;
+use Database\Factories\TranscriptionLayerFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
@@ -14,36 +14,60 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 use Illuminate\Support\Carbon;
 
 /**
+ * One layer — diplomatic or normalized — of a witness's transcription. It
+ * owns the continuous `text` and everything that carries character offsets
+ * into it: citation segments, image-alignment regions and collation readings.
+ *
+ * Visibility is not here: a transcription is public or it is not, and if it
+ * is, both of its layers are. Which layer an editor writes first is how she
+ * chooses to work, not a claim that the other is more provisional.
+ *
  * @property int $id
- * @property int $witness_id
+ * @property int $transcription_id
  * @property int $user_id
- * @property int|null $forked_from_id
- * @property TranscriptionLayer $layer
+ * @property int|null $copied_from_id
+ * @property Layer $layer
  * @property string $text
- * @property Visibility $visibility
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['witness_id', 'user_id', 'forked_from_id', 'layer', 'text', 'visibility'])]
-class Transcription extends Model
+#[Fillable(['transcription_id', 'user_id', 'copied_from_id', 'layer', 'text'])]
+class TranscriptionLayer extends Model
 {
-    /** @use HasFactory<TranscriptionFactory> */
+    /** @use HasFactory<TranscriptionLayerFactory> */
     use HasFactory;
 
     protected $attributes = [
-        'layer' => TranscriptionLayer::Normalized,
-        'visibility' => Visibility::Draft,
+        'layer' => Layer::Normalized,
     ];
 
     /**
-     * @return BelongsTo<Witness, $this>
+     * @return BelongsTo<Transcription, $this>
      */
-    public function witness(): BelongsTo
+    public function transcription(): BelongsTo
     {
-        return $this->belongsTo(Witness::class);
+        return $this->belongsTo(Transcription::class);
+    }
+
+    /**
+     * The witness this layer transcribes, through its parent transcription.
+     *
+     * @return HasOneThrough<Witness, Transcription, $this>
+     */
+    public function witness(): HasOneThrough
+    {
+        return $this->hasOneThrough(
+            Witness::class,
+            Transcription::class,
+            'id',
+            'id',
+            'transcription_id',
+            'witness_id',
+        );
     }
 
     /**
@@ -55,19 +79,19 @@ class Transcription extends Model
     }
 
     /**
-     * @return BelongsTo<Transcription, $this>
+     * @return BelongsTo<TranscriptionLayer, $this>
      */
-    public function forkedFrom(): BelongsTo
+    public function copiedFrom(): BelongsTo
     {
-        return $this->belongsTo(Transcription::class, 'forked_from_id');
+        return $this->belongsTo(TranscriptionLayer::class, 'copied_from_id');
     }
 
     /**
-     * @return HasMany<Transcription, $this>
+     * @return HasMany<TranscriptionLayer, $this>
      */
-    public function forks(): HasMany
+    public function copies(): HasMany
     {
-        return $this->hasMany(Transcription::class, 'forked_from_id');
+        return $this->hasMany(TranscriptionLayer::class, 'copied_from_id');
     }
 
     /**
@@ -84,6 +108,40 @@ class Transcription extends Model
     public function regions(): HasMany
     {
         return $this->hasMany(TranscriptionRegion::class);
+    }
+
+    /**
+     * The character offset at which the given line begins in this text.
+     *
+     * Page divisions are held as line numbers on the transcription, because
+     * that is the coordinate both layers share; each layer resolves them
+     * against its own text here. A line past the end clamps to the end, which
+     * is what a page not yet transcribed looks like.
+     */
+    public function offsetOfLine(int $line): int
+    {
+        if ($line <= 0) {
+            return 0;
+        }
+
+        $offset = 0;
+        $lines = explode("\n", $this->text);
+
+        for ($index = 0; $index < $line; $index++) {
+            if (! isset($lines[$index])) {
+                return mb_strlen($this->text);
+            }
+
+            $offset += mb_strlen($lines[$index]) + 1;
+        }
+
+        return min($offset, mb_strlen($this->text));
+    }
+
+    /** The line the given character offset falls on. */
+    public function lineOfOffset(int $offset): int
+    {
+        return mb_substr_count(mb_substr($this->text, 0, max(0, $offset)), "\n");
     }
 
     /**
@@ -111,7 +169,7 @@ class Transcription extends Model
     /**
      * Scope a query to transcriptions with at least one segment assigned to the given work.
      *
-     * @param  Builder<Transcription>  $query
+     * @param  Builder<TranscriptionLayer>  $query
      */
     #[Scope]
     protected function forWork(Builder $query, Work $work): void
@@ -127,7 +185,7 @@ class Transcription extends Model
      * ones, plus everything if the viewer is an editor or administrator —
      * editing here is fully collaborative, so there's no per-author split.
      *
-     * @param  Builder<Transcription>  $query
+     * @param  Builder<TranscriptionLayer>  $query
      */
     #[Scope]
     protected function visibleTo(Builder $query, ?User $viewer): void
@@ -136,21 +194,39 @@ class Transcription extends Model
             return;
         }
 
-        $query->where('visibility', Visibility::Published);
+        $query->whereHas('transcription', fn (Builder $parent) => $parent->where('visibility', Visibility::Published));
     }
 
     /**
-     * Scope a query to the layer collation runs on. See TranscriptionLayer
+     * Scope a query to the layer collation runs on. See Layer
      * for why a diplomatic transcription must never enter the apparatus: it
      * would make a manuscript appear as its own variant, disagreeing with
      * itself over the orthography the normalized layer regularized.
      *
-     * @param  Builder<Transcription>  $query
+     * @param  Builder<TranscriptionLayer>  $query
      */
     #[Scope]
     protected function collatable(Builder $query): void
     {
-        $query->where('layer', TranscriptionLayer::Normalized);
+        $query->where('layer', Layer::Normalized);
+    }
+
+    /**
+     * Which layer of `$target` a copy of this one fills.
+     *
+     * The destination transcription is the only choice an editor makes:
+     * inside her own transcription there is just the other layer, and any
+     * other transcription receives the copy into its corresponding layer.
+     * Copying a diplomatic text into some other manuscript's normalized layer
+     * is not a thing an editor means.
+     */
+    public function destinationLayerIn(Transcription $target): Layer
+    {
+        if (! $target->is($this->transcription)) {
+            return $this->layer;
+        }
+
+        return $this->layer === Layer::Diplomatic ? Layer::Normalized : Layer::Diplomatic;
     }
 
     /**
@@ -159,8 +235,7 @@ class Transcription extends Model
     protected function casts(): array
     {
         return [
-            'layer' => TranscriptionLayer::class,
-            'visibility' => Visibility::class,
+            'layer' => Layer::class,
         ];
     }
 }

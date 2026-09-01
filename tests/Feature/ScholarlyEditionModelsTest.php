@@ -4,8 +4,9 @@ use App\Enums\WitnessType;
 use App\Models\CanonicalPassage;
 use App\Models\Manuscript;
 use App\Models\ManuscriptImage;
+use App\Models\ManuscriptPage;
 use App\Models\ReferenceScheme;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
@@ -24,10 +25,15 @@ test('a work belongs to a reference scheme and has canonical passages', function
 test('a manuscript witness has ordered images', function () {
     $witness = Witness::factory()->create(['type' => WitnessType::Manuscript]);
     $manuscript = Manuscript::factory()->for($witness)->create();
-    ManuscriptImage::factory()->for($manuscript)->create(['folio_label' => '2r', 'position' => 2]);
-    ManuscriptImage::factory()->for($manuscript)->create(['folio_label' => '1v', 'position' => 1]);
+    ManuscriptImage::factory()->for($manuscript)
+        ->for(ManuscriptPage::factory()->for($manuscript)->create(['label' => '2r']), 'manuscriptPage')
+        ->create(['position' => 2]);
+    ManuscriptImage::factory()->for($manuscript)
+        ->for(ManuscriptPage::factory()->for($manuscript)->create(['label' => '1v']), 'manuscriptPage')
+        ->create(['position' => 1]);
 
-    expect($manuscript->images()->orderBy('position')->pluck('folio_label')->all())
+    expect($manuscript->images()->orderBy('position')->with('manuscriptPage')->get()
+        ->map(fn ($image) => $image->manuscriptPage->label)->all())
         ->toBe(['1v', '2r']);
 });
 
@@ -41,7 +47,7 @@ test('transcription segment order can diverge from canonical passage order', fun
 
     // In this witness, line 1000 physically appears between 976 and 977.
     $lines = ['nine seven six', 'one thousand', 'nine seven seven'];
-    $transcription = Transcription::factory()
+    $transcription = TranscriptionLayer::factory()
         ->for($witness)
         ->for(User::factory(), 'user')
         ->create(['text' => implode("\n", $lines)]);
@@ -69,18 +75,18 @@ test('transcription segment order can diverge from canonical passage order', fun
         ->and($citationOrder)->toBe(['976', '977', '1000']);
 });
 
-test('a transcription can be forked', function () {
-    $original = Transcription::factory()->create();
-    $fork = Transcription::factory()->create(['forked_from_id' => $original->id]);
+test('a transcription layer can be copied', function () {
+    $original = TranscriptionLayer::factory()->create();
+    $fork = TranscriptionLayer::factory()->create(['copied_from_id' => $original->id]);
 
-    expect($fork->forkedFrom->is($original))->toBeTrue()
-        ->and($original->forks->first()->is($fork))->toBeTrue();
+    expect($fork->copiedFrom->is($original))->toBeTrue()
+        ->and($original->copies->first()->is($fork))->toBeTrue();
 });
 
 test('a transcription can have two separate spans citing the same canonical passage', function () {
     // e.g. a passage quoted twice, or split across a marginal interruption —
     // segments are independent offset spans, not one-per-passage slots.
-    $transcription = Transcription::factory()->create();
+    $transcription = TranscriptionLayer::factory()->create();
     $passage = CanonicalPassage::factory()->create();
 
     TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')

@@ -1,6 +1,8 @@
 <?php
 
+use App\Enums\Layer;
 use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\User;
 use App\Models\Witness;
 
@@ -10,12 +12,20 @@ test('a blank transcription can be started for a witness, without importing any 
 
     $response = $this->post(route('witnesses.transcriptions.store', $witness));
 
+    // Starting a transcription creates both its layers at once — a
+    // transcription always consists of the two — and lands the editor in the
+    // normalized one.
     $transcription = Transcription::sole();
-    $response->assertRedirect(route('transcriptions.show', $transcription));
+    $normalized = $transcription->normalized;
+
+    $response->assertRedirect(route('transcriptions.show', $normalized));
 
     expect($transcription->witness_id)->toBe($witness->id)
-        ->and($transcription->text)->toBe('')
-        ->and($transcription->segments)->toBeEmpty();
+        ->and($transcription->layers()->pluck('layer')->all())
+        ->toEqualCanonicalizing([Layer::Diplomatic, Layer::Normalized])
+        ->and($normalized->text)->toBe('')
+        ->and($normalized->segments)->toBeEmpty()
+        ->and($transcription->diplomatic->text)->toBe('');
 });
 
 test('a blank transcription can be started with initial tags', function () {
@@ -26,6 +36,6 @@ test('a blank transcription can be started with initial tags', function () {
         'tags' => ['diplomatic'],
     ]);
 
-    $transcription = Transcription::sole();
-    expect($transcription->tags()->pluck('name')->all())->toBe(['diplomatic']);
+    $normalized = TranscriptionLayer::where('layer', Layer::Normalized)->sole();
+    expect($normalized->tags()->pluck('name')->all())->toBe(['diplomatic']);
 });

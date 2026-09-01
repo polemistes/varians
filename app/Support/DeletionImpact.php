@@ -9,7 +9,7 @@ use App\Models\EditionLemma;
 use App\Models\EditionPassage;
 use App\Models\Lemma;
 use App\Models\ManuscriptImage;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
 use App\Models\TranscriptionSegment;
 use App\Models\Witness;
@@ -17,7 +17,7 @@ use App\Models\Work;
 
 /**
  * Plain counts of what else would be deleted alongside a Work, Witness,
- * Transcription, or ManuscriptImage — entirely derived from the DB's own
+ * TranscriptionLayer, or ManuscriptImage — entirely derived from the DB's own
  * cascadeOnDelete() foreign keys (see the migrations), not a second source
  * of truth. Used only to build a confirmation warning before a destructive
  * delete; deletion itself never consults this class.
@@ -49,41 +49,42 @@ class DeletionImpact
     }
 
     /**
-     * @return array{transcriptions: int, segments: int, regions: int, images: int, editionSelections: int, editionPassages: int}
+     * @return array{transcriptions: int, segments: int, regions: int, images: int, pages: int, editionSelections: int, editionPassages: int}
      */
     public static function forWitness(Witness $witness): array
     {
-        $transcriptionIds = Transcription::query()->where('witness_id', $witness->id)->pluck('id');
+        $transcriptionIds = $witness->transcriptionLayers()->pluck('transcription_layers.id');
         $imageIds = $witness->manuscript?->images()->pluck('id') ?? collect();
 
         return [
             'transcriptions' => $transcriptionIds->count(),
-            'segments' => TranscriptionSegment::query()->whereIn('transcription_id', $transcriptionIds)->count(),
+            'segments' => TranscriptionSegment::query()->whereIn('transcription_layer_id', $transcriptionIds)->count(),
             'regions' => TranscriptionRegion::query()
                 ->where(fn ($query) => $query
-                    ->whereIn('transcription_id', $transcriptionIds)
+                    ->whereIn('transcription_layer_id', $transcriptionIds)
                     ->orWhereIn('manuscript_image_id', $imageIds))
                 ->count(),
             'images' => $imageIds->count(),
+            'pages' => $witness->manuscript?->pages()->count() ?? 0,
             'editionSelections' => EditionLemma::query()
-                ->whereHas('selectedReading', fn ($query) => $query->whereIn('transcription_id', $transcriptionIds))
+                ->whereHas('selectedReading', fn ($query) => $query->whereIn('transcription_layer_id', $transcriptionIds))
                 ->count(),
-            'editionPassages' => EditionPassage::query()->whereIn('transcription_id', $transcriptionIds)->count(),
+            'editionPassages' => EditionPassage::query()->whereIn('transcription_layer_id', $transcriptionIds)->count(),
         ];
     }
 
     /**
      * @return array{segments: int, regions: int, editionSelections: int, editionPassages: int}
      */
-    public static function forTranscription(Transcription $transcription): array
+    public static function forTranscription(TranscriptionLayer $transcription): array
     {
         return [
-            'segments' => TranscriptionSegment::query()->where('transcription_id', $transcription->id)->count(),
-            'regions' => TranscriptionRegion::query()->where('transcription_id', $transcription->id)->count(),
+            'segments' => TranscriptionSegment::query()->where('transcription_layer_id', $transcription->id)->count(),
+            'regions' => TranscriptionRegion::query()->where('transcription_layer_id', $transcription->id)->count(),
             'editionSelections' => EditionLemma::query()
-                ->whereHas('selectedReading', fn ($query) => $query->where('transcription_id', $transcription->id))
+                ->whereHas('selectedReading', fn ($query) => $query->where('transcription_layer_id', $transcription->id))
                 ->count(),
-            'editionPassages' => EditionPassage::query()->where('transcription_id', $transcription->id)->count(),
+            'editionPassages' => EditionPassage::query()->where('transcription_layer_id', $transcription->id)->count(),
         ];
     }
 

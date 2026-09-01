@@ -22,7 +22,7 @@ class ReadingSourceResolver
     {
         return match ($data['source']) {
             'transcription' => [
-                'transcription_id' => $data['transcription_id'],
+                'transcription_layer_id' => $data['transcription_layer_id'],
                 'start_offset' => $data['start_offset'],
                 'end_offset' => $data['end_offset'],
             ],

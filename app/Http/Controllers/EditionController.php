@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ConjectureType;
+use App\Enums\Layer;
 use App\Enums\Tokenization;
-use App\Enums\TranscriptionLayer;
 use App\Http\Requests\StoreEditionRequest;
 use App\Http\Requests\UpdateEditionRequest;
 use App\Models\CanonicalPassage;
@@ -17,7 +17,7 @@ use App\Models\EditionPassageOrder;
 use App\Models\EditionTransposition;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Models\Work;
 use App\Support\Edition\DiplomaticCounterpart;
@@ -63,7 +63,7 @@ class EditionController extends Controller
 
         $editionPassages = EditionPassage::where('edition_id', $edition->id)
             ->orderBy('position')
-            ->with(['canonicalPassage:id,label,sort_key,address', 'transcription.witness:id,siglum'])
+            ->with(['canonicalPassage:id,label,sort_key,address', 'transcriptionLayer.transcription.witness:id,siglum'])
             ->get();
 
         // Two independent, structurally different sources of reordering:
@@ -105,27 +105,39 @@ class EditionController extends Controller
         // source. Ordering loses nothing by the same filter: a fork copies
         // the citation segments verbatim, so the normalized layer carries
         // the very same physical order its diplomatic parent does.
-        $transcriptions = Transcription::forWork($work)->visibleTo($request->user())->collatable()
+        $transcriptions = TranscriptionLayer::forWork($work)->visibleTo($request->user())->collatable()
             ->with([
-                'witness:id,siglum',
+                'transcription.witness:id,siglum',
                 'segments' => fn ($query) => $query->whereHas('canonicalPassage', fn ($q) => $q->where('work_id', $work->id)),
                 'segments.canonicalPassage:id,work_id,address,sort_key,label',
             ])
-            ->get(['id', 'witness_id', 'text']);
+            ->get(['id', 'transcription_id', 'text', 'layer']);
 
         $orderRanges = $this->orderRanges($window, $transcriptions, $passageOrders);
 
-        // Every witness's diplomatic layer, keyed by witness, so a reader can
-        // see through the regularized text to what the manuscript has — see
-        // DiplomaticCounterpart. Visibility-filtered like everything else: a
-        // draft diplomatic layer stays invisible even where its normalized
-        // counterpart is published.
-        $diplomaticLayers = Transcription::where('layer', TranscriptionLayer::Diplomatic)
+        // The diplomatic counterpart of each normalized layer above, keyed by
+        // the transcription both belong to, so a reader can see through the
+        // regularized text to what the manuscript has — see
+        // DiplomaticCounterpart.
+        //
+        // Keyed by transcription rather than by witness because a witness may
+        // be transcribed more than once: keying by witness would let one
+        // transcription's diplomatic layer silently answer for another's, and
+        // the two are different texts. The counterpart of a normalized layer
+        // is its own sibling, never merely some layer of the same manuscript.
+        //
+        // Visibility-filtered like everything else: a draft diplomatic layer
+        // stays invisible even where its normalized counterpart is published.
+        $diplomaticLayers = TranscriptionLayer::where('layer', Layer::Diplomatic)
             ->visibleTo($request->user())
-            ->whereIn('witness_id', $transcriptions->pluck('witness_id')->unique())
-            ->with(['segments' => fn ($query) => $query->whereHas('canonicalPassage', fn ($q) => $q->where('work_id', $work->id))])
-            ->get(['id', 'witness_id', 'text'])
-            ->keyBy('witness_id');
+            ->whereIn('transcription_id', $transcriptions->pluck('transcription_id')->unique())
+            ->with([
+                'transcription.witness:id,siglum',
+                'segments' => fn ($query) => $query->whereHas('canonicalPassage', fn ($q) => $q->where('work_id', $work->id)),
+                'segments.canonicalPassage:id,label',
+            ])
+            ->get(['id', 'transcription_id', 'text', 'layer'])
+            ->keyBy('transcription_id');
 
         return Inertia::render('Editions/Show', [
             'work' => $work->only(['id', 'title', 'slug']),
@@ -164,8 +176,98 @@ class EditionController extends Controller
             // *this* work, since a transcription can carry citations into
             // more than one work.
             'transcriptions' => $transcriptions,
+            // Every layer of every witness, trimmed to the passages on
+            // screen, for the right-hand witness pane. Both layers, unlike
+            // `transcriptions` above: that one feeds collation and the add
+            // panel, which only a normalized transcript may source, whereas
+            // reading a manuscript is exactly when the diplomatic layer is
+            // wanted.
+            'witnessTranscripts' => $this->witnessTranscripts(
+                $transcriptions,
+                $diplomaticLayers,
+                $window->pluck('canonical_passage_id')->all(),
+            ),
             'referenceLevels' => $work->referenceScheme->levels,
         ]);
+    }
+
+    /**
+     * Each visible transcript of the work, in both layers, cut down to the
+     * stretch covering the passages currently displayed.
+     *
+     * Ordered by siglum then layer, matching how the apparatus orders
+     * witnesses, so the pane's buttons don't move between page loads.
+     *
+     * @param  SupportCollection<int, TranscriptionLayer>  $normalized
+     * @param  SupportCollection<int, TranscriptionLayer>  $diplomatic  Keyed by witness id.
+     * @param  array<int, int>  $windowPassageIds
+     * @return array<int, array{id: int, witness_id: int, siglum: string, layer: string, text: string, segments: array<int, array<string, mixed>>, covers_window: bool}>
+     */
+    private function witnessTranscripts(SupportCollection $normalized, SupportCollection $diplomatic, array $windowPassageIds): array
+    {
+        return $normalized->values()
+            ->merge($diplomatic->values())
+            ->map(fn (TranscriptionLayer $transcription) => [
+                'id' => $transcription->id,
+                'witness_id' => $transcription->transcription->witness_id,
+                'siglum' => $transcription->transcription->witness->siglum,
+                'layer' => $transcription->layer->value,
+                ...$this->windowSlice($transcription, $windowPassageIds),
+            ])
+            ->sortBy(fn (array $entry) => [$entry['siglum'], $entry['layer']])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The span of a transcript's text that its cited segments occupy within
+     * the displayed passages, with segment offsets rebased onto that slice.
+     *
+     * Sending the whole manuscript would make the payload grow with the
+     * transcript rather than with the window, and the pane only ever shows
+     * what stands beside the edition on screen. The slice runs from the first
+     * covering segment to the last, so any text between two cited passages
+     * comes along — that is the witness's own continuous text, which is what
+     * the pane is for, not a per-passage extract.
+     *
+     * @param  array<int, int>  $windowPassageIds
+     * @return array{text: string, segments: array<int, array<string, mixed>>, covers_window: bool}
+     */
+    private function windowSlice(TranscriptionLayer $transcription, array $windowPassageIds): array
+    {
+        $covering = $transcription->segments
+            ->filter(fn (TranscriptionSegment $segment) => in_array($segment->canonical_passage_id, $windowPassageIds, true));
+
+        if ($covering->isEmpty()) {
+            return ['text' => '', 'segments' => [], 'covers_window' => false];
+        }
+
+        $start = (int) $covering->min('start_offset');
+        $end = (int) $covering->max('end_offset');
+
+        // Only segments lying wholly inside the slice: AlignableText discards
+        // any whose end runs past the text it was given, so a half-included
+        // segment would silently vanish rather than render clipped.
+        $segments = $transcription->segments
+            ->filter(fn (TranscriptionSegment $segment) => $segment->start_offset >= $start && $segment->end_offset <= $end)
+            ->map(fn (TranscriptionSegment $segment) => [
+                'id' => $segment->id,
+                'canonical_passage_id' => $segment->canonical_passage_id,
+                'start_offset' => $segment->start_offset - $start,
+                'end_offset' => $segment->end_offset - $start,
+                'canonical_passage' => [
+                    'id' => $segment->canonical_passage_id,
+                    'label' => $segment->canonicalPassage?->label,
+                ],
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'text' => mb_substr($transcription->text, $start, $end - $start),
+            'segments' => $segments,
+            'covers_window' => true,
+        ];
     }
 
     public function update(UpdateEditionRequest $request, Edition $edition): RedirectResponse
@@ -332,8 +434,8 @@ class EditionController extends Controller
     {
         if ($passageOrder->conjecture_id !== null) {
             $sequence = $passageOrder->conjecture?->orderingEntries->pluck('canonical_passage_id')->all();
-        } elseif ($passageOrder->transcription_id !== null) {
-            $sequence = TranscriptionSegment::where('transcription_id', $passageOrder->transcription_id)
+        } elseif ($passageOrder->transcription_layer_id !== null) {
+            $sequence = TranscriptionSegment::where('transcription_layer_id', $passageOrder->transcription_layer_id)
                 ->whereIn('canonical_passage_id', $canonicalPassageIds)
                 ->orderBy('start_offset')
                 ->pluck('canonical_passage_id')
@@ -469,7 +571,7 @@ class EditionController extends Controller
      * just because a transposition touched the area.
      *
      * @param  SupportCollection<int, EditionPassage>  $window
-     * @param  SupportCollection<int, Transcription>  $transcriptions  Each with `segments` (and `segments.canonicalPassage`) and `witness` already eager-loaded — see show().
+     * @param  SupportCollection<int, TranscriptionLayer>  $transcriptions  Each with `segments` (and `segments.canonicalPassage`) and `witness` already eager-loaded — see show().
      * @param  SupportCollection<int, EditionPassageOrder>  $passageOrders  Each with `conjecture.orderingEntries` already eager-loaded — see show().
      * @return array<int, array{range_key: string, range_start_canonical_passage_id: int, range_end_canonical_passage_id: int, edition_passage_order_id: int|null, candidates: array<int, array<string, mixed>>}>
      */
@@ -622,7 +724,7 @@ class EditionController extends Controller
 
     /**
      * @param  SupportCollection<int, EditionPassage>  $ordered
-     * @param  SupportCollection<int, Transcription>  $transcriptions
+     * @param  SupportCollection<int, TranscriptionLayer>  $transcriptions
      * @return array{range_key: string, range_start_canonical_passage_id: int, range_end_canonical_passage_id: int, edition_passage_order_id: int|null, candidates: array<int, array<string, mixed>>}|null
      */
     private function buildOrderRangeInfo(SupportCollection $ordered, int $startIndex, int $endIndex, SupportCollection $transcriptions, ?EditionPassageOrder $settlingOrder): ?array
@@ -653,11 +755,11 @@ class EditionController extends Controller
 
             $candidates[] = [
                 'source' => 'transcription',
-                'transcription_id' => $transcription->id,
+                'transcription_layer_id' => $transcription->id,
                 'conjecture_id' => null,
                 'proposed_by' => null,
                 'sequence' => collect($sequence)->map(fn (int $id) => $labelByPassageId->get($id)?->canonicalPassage->label)->all(),
-                'witness_siglum' => $transcription->witness->siglum,
+                'witness_siglum' => $transcription->transcription->witness->siglum,
                 'matches_current' => $sequence === $canonicalPassageIds,
             ];
         }
@@ -678,7 +780,7 @@ class EditionController extends Controller
 
             $candidates[] = [
                 'source' => 'conjecture',
-                'transcription_id' => null,
+                'transcription_layer_id' => null,
                 'conjecture_id' => $conjecture->id,
                 'proposed_by' => $conjecture->proposed_by ?? $conjecture->user->name,
                 'sequence' => collect($sequenceIds)->map(fn (int $id) => $labelByPassageId->get($id)?->canonicalPassage->label)->all(),
@@ -765,13 +867,13 @@ class EditionController extends Controller
 
     /**
      * @param  array{range_key: string, range_start_canonical_passage_id: int, range_end_canonical_passage_id: int, edition_passage_order_id: int|null, candidates: array<int, array<string, mixed>>}|null  $orderRange
-     * @param  SupportCollection<int, Transcription>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
+     * @param  SupportCollection<int, TranscriptionLayer>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
      * @return array<string, mixed>
      */
     private function passageDetail(EditionPassage $editionPassage, Edition $edition, ?array $orderRange, SupportCollection $diplomaticLayers, Tokenization $tokenization): array
     {
         $passage = $editionPassage->canonicalPassage;
-        $base = $editionPassage->transcription;
+        $base = $editionPassage->transcriptionLayer;
 
         return [
             'id' => $passage->id,
@@ -779,13 +881,13 @@ class EditionController extends Controller
             'label' => $passage->label,
             'order_range' => $orderRange,
             'base' => $base !== null ? [
-                'transcription_id' => $base->id,
-                'witness_siglum' => $base->witness->siglum,
+                'transcription_layer_id' => $base->id,
+                'witness_siglum' => $base->transcription->witness->siglum,
             ] : null,
             'runs' => $this->materializedRuns($passage, $base, $edition, $diplomaticLayers, $tokenization),
             // The chosen witness's own line as the manuscript has it.
             'base_diplomatic' => $base !== null
-                ? DiplomaticCounterpart::forPassage($passage, $diplomaticLayers->get($base->witness_id))
+                ? DiplomaticCounterpart::forPassage($passage, $diplomaticLayers->get($base->transcription_id))
                 : null,
             // This edition's own notes here — see EditionComment. An
             // unanchored one (lemma_id null) is about the whole passage.
@@ -829,16 +931,16 @@ class EditionController extends Controller
      * EditionVariantController::storeWholeLineLacuna) — every reading
      * lookup below tolerates that via baseReadingOf().
      *
-     * @param  SupportCollection<int, Transcription>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
+     * @param  SupportCollection<int, TranscriptionLayer>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
      * @return array<int, array<string, mixed>>
      */
-    private function materializedRuns(CanonicalPassage $passage, ?Transcription $base, Edition $edition, SupportCollection $diplomaticLayers, Tokenization $tokenization): array
+    private function materializedRuns(CanonicalPassage $passage, ?TranscriptionLayer $base, Edition $edition, SupportCollection $diplomaticLayers, Tokenization $tokenization): array
     {
         $lemmas = Lemma::where('canonical_passage_id', $passage->id)
             ->orderBy('position')
             ->with([
-                'readings.transcription:id,witness_id,text',
-                'readings.transcription.witness:id,siglum',
+                'readings.transcriptionLayer:id,transcription_id,text',
+                'readings.transcriptionLayer.transcription.witness:id,siglum',
                 'readings.conjecture.user:id,name',
             ])
             ->get()
@@ -906,24 +1008,24 @@ class EditionController extends Controller
      * The base transcription's own reading on a lemma, if any — null
      * whenever `$base` itself is null (a whole-line lacuna has no base
      * transcription at all), never a bare `null === null` false match
-     * against a conjecture reading's own null transcription_id.
+     * against a conjecture reading's own null transcription_layer_id.
      */
-    private function baseReadingOf(Lemma $lemma, ?Transcription $base): ?LemmaReading
+    private function baseReadingOf(Lemma $lemma, ?TranscriptionLayer $base): ?LemmaReading
     {
         if ($base === null) {
             return null;
         }
 
-        return $lemma->readings->first(fn (LemmaReading $reading) => $reading->transcription_id === $base->id);
+        return $lemma->readings->first(fn (LemmaReading $reading) => $reading->transcription_layer_id === $base->id);
     }
 
     /**
      * @param  SupportCollection<int, Lemma>  $byId
      * @param  Lemma|null  $baseRangeEnd  last column the base's own reading here covers, when it spans more than this one
-     * @param  SupportCollection<int, Transcription>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
+     * @param  SupportCollection<int, TranscriptionLayer>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
      * @return array<string, mixed>
      */
-    private function materializedSingleRun(Lemma $lemma, ?EditionLemma $selection, ?Transcription $base, ?int $lastBaseEnd, SupportCollection $byId, CanonicalPassage $passage, SupportCollection $diplomaticLayers, Tokenization $tokenization, ?Lemma $baseRangeEnd = null): array
+    private function materializedSingleRun(Lemma $lemma, ?EditionLemma $selection, ?TranscriptionLayer $base, ?int $lastBaseEnd, SupportCollection $byId, CanonicalPassage $passage, SupportCollection $diplomaticLayers, Tokenization $tokenization, ?Lemma $baseRangeEnd = null): array
     {
         $selectedReadingId = $selection->selected_reading_id ?? null;
         $baseReading = $this->baseReadingOf($lemma, $base);
@@ -942,7 +1044,7 @@ class EditionController extends Controller
 
         $text = $selectedCandidate['text']
             ?? match (true) {
-                $baseReading !== null => mb_substr($baseReading->transcription->text, $baseReading->start_offset, $baseReading->end_offset - $baseReading->start_offset),
+                $baseReading !== null => mb_substr($baseReading->transcriptionLayer->text, $baseReading->start_offset, $baseReading->end_offset - $baseReading->start_offset),
                 $isGap => '',
                 default => $candidates->first()['text'] ?? '',
             };
@@ -953,7 +1055,7 @@ class EditionController extends Controller
         // What the base manuscript itself shows for these words, so a reader
         // can see through the printed text token by token.
         $diplomatic = $baseReading !== null && $base !== null
-            ? DiplomaticCounterpart::forSpan($passage, $base, $diplomaticLayers->get($base->witness_id), $baseReading->start_offset, $baseReading->end_offset, $tokenization)
+            ? DiplomaticCounterpart::forSpan($passage, $base, $diplomaticLayers->get($base->transcription_id), $baseReading->start_offset, $baseReading->end_offset, $tokenization)
             : null;
 
         return [
@@ -984,10 +1086,10 @@ class EditionController extends Controller
      * candidate to switch to as an identically-shaped one.
      *
      * @param  SupportCollection<int, Lemma>  $byId
-     * @param  SupportCollection<int, Transcription>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
+     * @param  SupportCollection<int, TranscriptionLayer>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
      * @return array<string, mixed>
      */
-    private function materializedRangeRun(Lemma $startLemma, Lemma $endLemma, EditionLemma $selection, ?Transcription $base, SupportCollection $byId, CanonicalPassage $passage, SupportCollection $diplomaticLayers, Tokenization $tokenization): array
+    private function materializedRangeRun(Lemma $startLemma, Lemma $endLemma, EditionLemma $selection, ?TranscriptionLayer $base, SupportCollection $byId, CanonicalPassage $passage, SupportCollection $diplomaticLayers, Tokenization $tokenization): array
     {
         $candidates = $this->materializedCandidates($startLemma, $selection->selected_reading_id, $base, $byId, $passage, $diplomaticLayers, $tokenization);
         $selectedCandidate = $candidates->first(fn (array $candidate) => $candidate['selected']);
@@ -996,7 +1098,7 @@ class EditionController extends Controller
         $endReading = $this->baseReadingOf($endLemma, $base);
 
         $diplomatic = $startReading !== null && $endReading !== null && $base !== null
-            ? DiplomaticCounterpart::forSpan($passage, $base, $diplomaticLayers->get($base->witness_id), $startReading->start_offset, $endReading->end_offset, $tokenization)
+            ? DiplomaticCounterpart::forSpan($passage, $base, $diplomaticLayers->get($base->transcription_id), $startReading->start_offset, $endReading->end_offset, $tokenization)
             : null;
 
         return [
@@ -1025,17 +1127,17 @@ class EditionController extends Controller
      * witness first touched the passage.
      *
      * @param  SupportCollection<int, Lemma>  $byId
-     * @param  SupportCollection<int, Transcription>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
+     * @param  SupportCollection<int, TranscriptionLayer>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
      * @return SupportCollection<int, array<string, mixed>>
      */
-    private function materializedCandidates(Lemma $lemma, ?int $selectedReadingId, ?Transcription $base, SupportCollection $byId, CanonicalPassage $passage, SupportCollection $diplomaticLayers, Tokenization $tokenization): SupportCollection
+    private function materializedCandidates(Lemma $lemma, ?int $selectedReadingId, ?TranscriptionLayer $base, SupportCollection $byId, CanonicalPassage $passage, SupportCollection $diplomaticLayers, Tokenization $tokenization): SupportCollection
     {
         $referenceEnd = $this->widestRangeEnd($lemma, $byId);
 
         return $lemma->readings
             ->sortBy(fn (LemmaReading $reading): string => match (true) {
-                $base !== null && $reading->transcription_id === $base->id => '0',
-                $reading->transcription_id !== null => '1'.$reading->transcription->witness->siglum,
+                $base !== null && $reading->transcription_layer_id === $base->id => '0',
+                $reading->transcription_layer_id !== null => '1'.$reading->transcriptionLayer->transcription->witness->siglum,
                 default => '2'.str_pad((string) $reading->id, 12, '0', STR_PAD_LEFT),
             })
             ->map(
@@ -1095,14 +1197,14 @@ class EditionController extends Controller
      *
      * @param  SupportCollection<int, array<string, mixed>>  $candidates
      */
-    private function orthographicVariation(SupportCollection $candidates, ?Transcription $base): bool
+    private function orthographicVariation(SupportCollection $candidates, ?TranscriptionLayer $base): bool
     {
         if ($base === null) {
             return false;
         }
 
-        $witnesses = $candidates->filter(fn (array $candidate) => $candidate['transcription_id'] !== null);
-        $baseText = $witnesses->firstWhere('transcription_id', $base->id)['text'] ?? null;
+        $witnesses = $candidates->filter(fn (array $candidate) => $candidate['transcription_layer_id'] !== null);
+        $baseText = $witnesses->firstWhere('transcription_layer_id', $base->id)['text'] ?? null;
 
         if ($baseText === null || $witnesses->pluck('text')->unique()->count() < 2) {
             return false;
@@ -1122,26 +1224,26 @@ class EditionController extends Controller
      * scope.
      *
      * @param  SupportCollection<int, Lemma>  $byId
-     * @param  SupportCollection<int, Transcription>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
+     * @param  SupportCollection<int, TranscriptionLayer>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
      * @return array<string, mixed>
      */
-    private function materializedCandidate(LemmaReading $reading, ?int $selectedReadingId, Lemma $anchor, ?Transcription $base, SupportCollection $byId, ?Lemma $referenceEnd, CanonicalPassage $passage, SupportCollection $diplomaticLayers, Tokenization $tokenization): array
+    private function materializedCandidate(LemmaReading $reading, ?int $selectedReadingId, Lemma $anchor, ?TranscriptionLayer $base, SupportCollection $byId, ?Lemma $referenceEnd, CanonicalPassage $passage, SupportCollection $diplomaticLayers, Tokenization $tokenization): array
     {
         $replacedText = $this->replacedSpanText($reading, $anchor, $base, $byId);
         $extension = $this->witnessExtension($reading, $anchor, $referenceEnd);
         $baseReading = $this->baseReadingOf($anchor, $base);
         $baseText = $baseReading !== null
-            ? mb_substr($baseReading->transcription->text, $baseReading->start_offset, $baseReading->end_offset - $baseReading->start_offset)
+            ? mb_substr($baseReading->transcriptionLayer->text, $baseReading->start_offset, $baseReading->end_offset - $baseReading->start_offset)
             : null;
 
-        if ($reading->transcription_id !== null) {
+        if ($reading->transcription_layer_id !== null) {
             return [
                 'key' => 'reading:'.$reading->id,
-                'label' => $reading->transcription->witness->siglum,
-                'text' => $extension['text'] ?? mb_substr($reading->transcription->text, $reading->start_offset, $reading->end_offset - $reading->start_offset),
+                'label' => $reading->transcriptionLayer->transcription->witness->siglum,
+                'text' => $extension['text'] ?? mb_substr($reading->transcriptionLayer->text, $reading->start_offset, $reading->end_offset - $reading->start_offset),
                 'selected' => $reading->id === $selectedReadingId,
                 'reading_id' => $reading->id,
-                'transcription_id' => $reading->transcription_id,
+                'transcription_layer_id' => $reading->transcription_layer_id,
                 'start_offset' => $reading->start_offset,
                 'end_offset' => $extension['end_offset'] ?? $reading->end_offset,
                 'conjecture_id' => null,
@@ -1161,12 +1263,12 @@ class EditionController extends Controller
                 // rather than a different word. See GreekText::foldOrthography.
                 'orthographic_only' => self::differsOnlyInOrthography(
                     $baseText,
-                    $extension['text'] ?? mb_substr($reading->transcription->text, $reading->start_offset, $reading->end_offset - $reading->start_offset),
+                    $extension['text'] ?? mb_substr($reading->transcriptionLayer->text, $reading->start_offset, $reading->end_offset - $reading->start_offset),
                 ),
                 'diplomatic' => DiplomaticCounterpart::forSpan(
                     $passage,
-                    $reading->transcription,
-                    $diplomaticLayers->get($reading->transcription->witness_id),
+                    $reading->transcriptionLayer,
+                    $diplomaticLayers->get($reading->transcriptionLayer->transcription_id),
                     $reading->start_offset,
                     $extension['end_offset'] ?? $reading->end_offset,
                     $tokenization,
@@ -1180,7 +1282,7 @@ class EditionController extends Controller
             'text' => $this->conjectureDisplayText($reading->conjecture),
             'selected' => $reading->id === $selectedReadingId,
             'reading_id' => $reading->id,
-            'transcription_id' => null,
+            'transcription_layer_id' => null,
             'start_offset' => null,
             'end_offset' => null,
             'conjecture_id' => $reading->conjecture_id,
@@ -1202,7 +1304,7 @@ class EditionController extends Controller
     /**
      * @param  SupportCollection<int, Lemma>  $byId
      */
-    private function replacedSpanText(LemmaReading $reading, Lemma $anchor, ?Transcription $base, SupportCollection $byId): ?string
+    private function replacedSpanText(LemmaReading $reading, Lemma $anchor, ?TranscriptionLayer $base, SupportCollection $byId): ?string
     {
         if ($reading->range_end_lemma_id === null || $base === null) {
             return null;
@@ -1243,12 +1345,12 @@ class EditionController extends Controller
      */
     private function witnessExtension(LemmaReading $reading, Lemma $anchor, ?Lemma $referenceEnd): ?array
     {
-        if ($reading->transcription_id === null || $reading->range_end_lemma_id !== null || $referenceEnd === null) {
+        if ($reading->transcription_layer_id === null || $reading->range_end_lemma_id !== null || $referenceEnd === null) {
             return null;
         }
 
         $alreadyExtended = $anchor->readings->contains(
-            fn (LemmaReading $sibling) => $sibling->transcription_id === $reading->transcription_id
+            fn (LemmaReading $sibling) => $sibling->transcription_layer_id === $reading->transcription_layer_id
                 && $sibling->range_end_lemma_id === $referenceEnd->id
         );
 
@@ -1256,14 +1358,14 @@ class EditionController extends Controller
             return null;
         }
 
-        $endReading = $referenceEnd->readings->first(fn (LemmaReading $r) => $r->transcription_id === $reading->transcription_id);
+        $endReading = $referenceEnd->readings->first(fn (LemmaReading $r) => $r->transcription_layer_id === $reading->transcription_layer_id);
 
         if ($endReading === null) {
             return null;
         }
 
         return [
-            'text' => mb_substr($reading->transcription->text, $reading->start_offset, $endReading->end_offset - $reading->start_offset),
+            'text' => mb_substr($reading->transcriptionLayer->text, $reading->start_offset, $endReading->end_offset - $reading->start_offset),
             'end_offset' => $endReading->end_offset,
             'range_end_lemma_id' => $referenceEnd->id,
         ];

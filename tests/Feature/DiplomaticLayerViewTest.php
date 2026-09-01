@@ -5,6 +5,7 @@ use App\Models\Conjecture;
 use App\Models\Edition;
 use App\Models\Lemma;
 use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
@@ -19,7 +20,7 @@ use App\Support\Edition\PassageAdder;
  * @param  array<string, array{0: string, 1: ?string}>  $witnesses
  * @return array{work: Work, edition: Edition, passage: CanonicalPassage}
  */
-function collatedWithLayers(array $witnesses, bool $publishDiplomatic = true): array
+function collatedWithLayers(array $witnesses, bool $publish = true): array
 {
     $work = Work::factory()->create();
     $passage = CanonicalPassage::factory()->for($work)->create([
@@ -31,18 +32,23 @@ function collatedWithLayers(array $witnesses, bool $publishDiplomatic = true): a
     foreach ($witnesses as $siglum => [$normalizedText, $diplomaticText]) {
         $witness = Witness::factory()->create(['siglum' => $siglum]);
 
-        $normalized = Transcription::factory()->normalized()->for($witness)->published()
+        // Both layers belong to one transcription: a normalized layer's
+        // diplomatic counterpart is its own sibling, not merely some layer of
+        // the same manuscript, which may now be transcribed more than once.
+        // Visibility belongs to the transcription: publish it and both layers
+        // are visible, leave it a draft and neither is.
+        $transcription = Transcription::factory()->for($witness)->create([
+            'visibility' => $publish ? 'published' : 'draft',
+        ]);
+
+        $normalized = TranscriptionLayer::factory()->normalized()->for($transcription)
             ->create(['text' => $normalizedText]);
         $segment = TranscriptionSegment::factory()->for($normalized)->for($passage, 'canonicalPassage')
             ->create(['start_offset' => 0, 'end_offset' => mb_strlen($normalizedText)]);
 
         if ($diplomaticText !== null) {
-            $diplomatic = Transcription::factory()->diplomatic()->for($witness)
+            $diplomatic = TranscriptionLayer::factory()->diplomatic()->for($transcription)
                 ->create(['text' => $diplomaticText]);
-
-            if ($publishDiplomatic) {
-                $diplomatic->update(['visibility' => 'published']);
-            }
 
             TranscriptionSegment::factory()->for($diplomatic)->for($passage, 'canonicalPassage')
                 ->create(['start_offset' => 0, 'end_offset' => mb_strlen($diplomaticText)]);
@@ -132,10 +138,12 @@ test('a witness with no diplomatic layer simply has none to show', function () {
         ->and(array_column($payload['runs'], 'diplomatic'))->toBe([null, null, null]);
 });
 
-test('an unpublished diplomatic layer stays hidden from a reader', function () {
+test('a draft transcription\'s diplomatic layer stays hidden from a reader', function () {
+    // Not a layer of its own: a transcription is public or it is not, and if
+    // it is, both of its layers are.
     ['work' => $work, 'edition' => $edition] = collatedWithLayers([
         'A' => ['τοσοῦτοι μὲν οὖν', 'ΤΟΣΟΥΤΟΙ ΜΕΝ ΟΥΝ'],
-    ], publishDiplomatic: false);
+    ], publish: false);
 
     $edition->update(['visibility' => 'published']);
     $this->actingAs(User::factory()->create()); // a reader, not an editor

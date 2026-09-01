@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
@@ -8,7 +8,7 @@ use App\Models\User;
 test('an editor can update another editor\'s transcription text', function () {
     $author = User::factory()->editor()->create();
     $editor = User::factory()->editor()->create();
-    $transcription = Transcription::factory()->for($author)->create(['text' => 'old text']);
+    $transcription = TranscriptionLayer::factory()->for($author)->create(['text' => 'old text']);
     $this->actingAs($editor);
 
     $response = $this->patch(route('transcriptions.text.update', $transcription), [
@@ -23,7 +23,7 @@ test('an editor can update another editor\'s transcription text', function () {
 test('an editor can delete a segment created by another editor', function () {
     $author = User::factory()->editor()->create();
     $editor = User::factory()->editor()->create();
-    $transcription = Transcription::factory()->for($author)->create(['text' => 'the quick fox']);
+    $transcription = TranscriptionLayer::factory()->for($author)->create(['text' => 'the quick fox']);
     $segment = TranscriptionSegment::factory()->for($transcription)->create();
     $this->actingAs($editor);
 
@@ -36,7 +36,7 @@ test('an editor can delete a segment created by another editor', function () {
 test('an editor can move a region on another editor\'s transcription', function () {
     $author = User::factory()->editor()->create();
     $editor = User::factory()->editor()->create();
-    $transcription = Transcription::factory()->for($author)->create();
+    $transcription = TranscriptionLayer::factory()->for($author)->create();
     $region = TranscriptionRegion::factory()->for($transcription)->create(['x' => 0.1]);
     $this->actingAs($editor);
 
@@ -51,7 +51,7 @@ test('an editor can move a region on another editor\'s transcription', function 
 test('an administrator can also edit any editor\'s transcription', function () {
     $author = User::factory()->editor()->create();
     $admin = User::factory()->administrator()->create();
-    $transcription = Transcription::factory()->for($author)->create(['text' => 'old text']);
+    $transcription = TranscriptionLayer::factory()->for($author)->create(['text' => 'old text']);
     $this->actingAs($admin);
 
     $response = $this->patch(route('transcriptions.text.update', $transcription), [

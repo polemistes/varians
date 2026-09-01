@@ -11,7 +11,7 @@ use App\Models\EditionLemma;
 use App\Models\EditionPassage;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Support\Edition\CanonicalPassageResolver;
 use App\Support\Edition\ReadingSourceResolver;
 use Illuminate\Database\Eloquent\Builder;
@@ -64,7 +64,7 @@ class EditionVariantController extends Controller
             ]);
         }
 
-        $base = $editionPassage->transcription;
+        $base = $editionPassage->transcriptionLayer;
 
         DB::transaction(function () use ($request, $edition, $passage, $base, $placement) {
             [$lemma, $rangeEndLemma] = match ($placement) {
@@ -103,12 +103,12 @@ class EditionVariantController extends Controller
                 $request->validated('source') === 'new_conjecture' => $lemma->readings()->create($attributes),
                 $request->validated('source') === 'transcription' && $placement === 'range' => LemmaReading::firstOrCreate([
                     'lemma_id' => $lemma->id,
-                    'transcription_id' => $attributes['transcription_id'],
+                    'transcription_layer_id' => $attributes['transcription_layer_id'],
                     'start_offset' => $attributes['start_offset'],
                     'end_offset' => $attributes['end_offset'],
                 ], ['range_end_lemma_id' => $attributes['range_end_lemma_id']]),
                 $request->validated('source') === 'transcription' => LemmaReading::where('lemma_id', $lemma->id)
-                    ->where('transcription_id', $attributes['transcription_id'])
+                    ->where('transcription_layer_id', $attributes['transcription_layer_id'])
                     ->where('start_offset', $attributes['start_offset'])
                     ->where('end_offset', $attributes['end_offset'])
                     ->firstOrFail(),
@@ -150,7 +150,7 @@ class EditionVariantController extends Controller
 
     /**
      * A whole-line lacuna has no manuscript witness at all, so unlike every
-     * other placement it creates its own EditionPassage (transcription_id
+     * other placement it creates its own EditionPassage (transcription_layer_id
      * null) rather than requiring one to already exist —
      * `insert_after_edition_passage_id` anchors where it lands in this
      * edition's own order. Idempotent per label: a repeat submission finds
@@ -172,7 +172,7 @@ class EditionVariantController extends Controller
                 EditionPassage::create([
                     'edition_id' => $edition->id,
                     'canonical_passage_id' => $passage->id,
-                    'transcription_id' => null,
+                    'transcription_layer_id' => null,
                     'position' => $this->positionAfter($edition, $request->validated('insert_after_edition_passage_id')),
                 ]);
             }
@@ -211,7 +211,7 @@ class EditionVariantController extends Controller
         return $afterPosition + ($beforePosition - $afterPosition) / 2;
     }
 
-    private function resolveLemma(StoreEditionVariantRequest $request, CanonicalPassage $passage, ?Transcription $base): Lemma
+    private function resolveLemma(StoreEditionVariantRequest $request, CanonicalPassage $passage, ?TranscriptionLayer $base): Lemma
     {
         $lemmaId = $request->validated('lemma_id');
 
@@ -220,7 +220,7 @@ class EditionVariantController extends Controller
         }
 
         $reading = $base !== null
-            ? LemmaReading::where('transcription_id', $base->id)
+            ? LemmaReading::where('transcription_layer_id', $base->id)
                 ->where('start_offset', (int) $request->validated('base_start_offset'))
                 ->where('end_offset', (int) $request->validated('base_end_offset'))
                 ->whereHas('lemma', fn ($query) => $query->where('canonical_passage_id', $passage->id))
@@ -235,7 +235,7 @@ class EditionVariantController extends Controller
         // attest) has no base-anchored reading to match — locate it by the
         // specific candidate being picked instead.
         if ($request->validated('source') === 'transcription') {
-            $reading = LemmaReading::where('transcription_id', (int) $request->validated('transcription_id'))
+            $reading = LemmaReading::where('transcription_layer_id', (int) $request->validated('transcription_layer_id'))
                 ->where('start_offset', (int) $request->validated('start_offset'))
                 ->where('end_offset', (int) $request->validated('end_offset'))
                 ->whereHas('lemma', fn ($query) => $query->where('canonical_passage_id', $passage->id))
@@ -269,7 +269,7 @@ class EditionVariantController extends Controller
      * either end) — never a competing candidate for an existing word, which
      * is exactly what a lacuna needs: it doesn't replace anything.
      */
-    private function resolveInsertedLemma(StoreEditionVariantRequest $request, CanonicalPassage $passage, ?Transcription $base): Lemma
+    private function resolveInsertedLemma(StoreEditionVariantRequest $request, CanonicalPassage $passage, ?TranscriptionLayer $base): Lemma
     {
         $afterLemmaId = $request->validated('insert_after_lemma_id');
         $afterLemma = $afterLemmaId !== null
@@ -320,7 +320,7 @@ class EditionVariantController extends Controller
      *
      * @return array{0: Lemma, 1: ?Lemma}
      */
-    private function resolveRange(StoreEditionVariantRequest $request, CanonicalPassage $passage, ?Transcription $base): array
+    private function resolveRange(StoreEditionVariantRequest $request, CanonicalPassage $passage, ?TranscriptionLayer $base): array
     {
         $startLemmaId = $request->validated('range_start_lemma_id');
         $startLemma = $startLemmaId !== null
@@ -356,14 +356,14 @@ class EditionVariantController extends Controller
      * (the chimera EditionController::materializedRuns now guards against for
      * the base itself).
      */
-    private function extendedOverBaseSpan(Lemma $startLemma, Lemma $endLemma, ?Transcription $base): Lemma
+    private function extendedOverBaseSpan(Lemma $startLemma, Lemma $endLemma, ?TranscriptionLayer $base): Lemma
     {
         if ($base === null) {
             return $endLemma;
         }
 
         $baseReading = LemmaReading::where('lemma_id', $startLemma->id)
-            ->where('transcription_id', $base->id)
+            ->where('transcription_layer_id', $base->id)
             ->whereNotNull('range_end_lemma_id')
             ->first();
 
@@ -374,7 +374,7 @@ class EditionVariantController extends Controller
             : $endLemma;
     }
 
-    private function findLemmaEndingAt(CanonicalPassage $passage, ?Transcription $base, ?int $baseOffset, string $errorField): ?Lemma
+    private function findLemmaEndingAt(CanonicalPassage $passage, ?TranscriptionLayer $base, ?int $baseOffset, string $errorField): ?Lemma
     {
         if ($baseOffset === null || $base === null) {
             return null;
@@ -396,7 +396,7 @@ class EditionVariantController extends Controller
         return $reading->lemma;
     }
 
-    private function findLemmaStartingAt(CanonicalPassage $passage, ?Transcription $base, ?int $baseOffset, string $errorField): ?Lemma
+    private function findLemmaStartingAt(CanonicalPassage $passage, ?TranscriptionLayer $base, ?int $baseOffset, string $errorField): ?Lemma
     {
         if ($baseOffset === null || $base === null) {
             return null;
@@ -434,10 +434,10 @@ class EditionVariantController extends Controller
      *
      * @param  callable(Builder<LemmaReading>): Builder<LemmaReading>  $offsets
      */
-    private function baseReadingAt(CanonicalPassage $passage, Transcription $base, callable $offsets): ?LemmaReading
+    private function baseReadingAt(CanonicalPassage $passage, TranscriptionLayer $base, callable $offsets): ?LemmaReading
     {
         return $offsets(
-            LemmaReading::where('transcription_id', $base->id)
+            LemmaReading::where('transcription_layer_id', $base->id)
                 ->whereHas('lemma', fn ($query) => $query->where('canonical_passage_id', $passage->id))
         )->first();
     }

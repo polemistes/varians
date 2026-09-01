@@ -4,7 +4,7 @@ namespace App\Support\Edition;
 
 use App\Enums\Tokenization;
 use App\Models\CanonicalPassage;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Support\Transcription\Tokenizer;
 use Illuminate\Support\Collection;
@@ -37,14 +37,14 @@ class DiplomaticCounterpart
      * The diplomatic wording for the tokens a normalized span covers, or null
      * if the layers cannot be lined up.
      *
-     * @param  Transcription  $normalized  the transcription the span belongs to
-     * @param  Transcription|null  $diplomatic  its witness's diplomatic layer, if the viewer may see one
+     * @param  TranscriptionLayer  $normalized  the transcription the span belongs to
+     * @param  TranscriptionLayer|null  $diplomatic  its witness's diplomatic layer, if the viewer may see one
      * @param  Tokenization  $tokenization  the work's own strategy — passed in rather than read off the passage, since one edition is one work
      */
     public static function forSpan(
         CanonicalPassage $passage,
-        Transcription $normalized,
-        ?Transcription $diplomatic,
+        TranscriptionLayer $normalized,
+        ?TranscriptionLayer $diplomatic,
         int $start,
         int $end,
         Tokenization $tokenization,
@@ -85,7 +85,7 @@ class DiplomaticCounterpart
      * The whole passage as the manuscript has it, for reading the line rather
      * than one word of it.
      */
-    public static function forPassage(CanonicalPassage $passage, ?Transcription $diplomatic): ?string
+    public static function forPassage(CanonicalPassage $passage, ?TranscriptionLayer $diplomatic): ?string
     {
         if ($diplomatic === null) {
             return null;
@@ -101,7 +101,7 @@ class DiplomaticCounterpart
     /**
      * @return list<array{text: string, start: int, end: int}>|null
      */
-    private static function tokens(CanonicalPassage $passage, Transcription $transcription, Tokenization $tokenization): ?array
+    private static function tokens(CanonicalPassage $passage, TranscriptionLayer $transcription, Tokenization $tokenization): ?array
     {
         $segment = self::segment($passage, $transcription);
 
@@ -120,7 +120,7 @@ class DiplomaticCounterpart
      * relation when there is one, so a caller that eager-loaded segments pays
      * no query here.
      */
-    private static function segment(CanonicalPassage $passage, Transcription $transcription): ?TranscriptionSegment
+    private static function segment(CanonicalPassage $passage, TranscriptionLayer $transcription): ?TranscriptionSegment
     {
         /** @var Collection<int, TranscriptionSegment> $segments */
         $segments = $transcription->relationLoaded('segments')

@@ -6,7 +6,7 @@ use App\Models\Edition;
 use App\Models\EditionLemma;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Models\Witness;
 use App\Models\Work;
@@ -17,13 +17,13 @@ function columnsOf(CanonicalPassage $passage): array
 {
     return Lemma::where('canonical_passage_id', $passage->id)
         ->orderBy('position')
-        ->with('readings.transcription')
+        ->with('readings.transcriptionLayer')
         ->get()
         ->map(fn (Lemma $lemma) => $lemma->readings
-            ->map(fn (LemmaReading $reading) => $reading->transcription_id === null
+            ->map(fn (LemmaReading $reading) => $reading->transcription_layer_id === null
                 ? '(conjecture)'
                 : mb_substr(
-                    $reading->transcription->text,
+                    $reading->transcriptionLayer->text,
                     $reading->start_offset,
                     $reading->end_offset - $reading->start_offset,
                 ))
@@ -34,7 +34,7 @@ function columnsOf(CanonicalPassage $passage): array
 /** Cite a passage from a new witness with the given siglum. */
 function citeAs(CanonicalPassage $passage, string $siglum, string $text): TranscriptionSegment
 {
-    $transcription = Transcription::factory()
+    $transcription = TranscriptionLayer::factory()
         ->for(Witness::factory()->create(['siglum' => $siglum]))
         ->create(['text' => $text]);
 
@@ -86,7 +86,7 @@ test('the same witnesses collate identically whatever order they were added in',
 
 test('collation does not depend on the order the transcriptions were created', function () {
     // Same sigla and wording, rows created back to front, so every
-    // transcription_id is reversed. Ordering by siglum keeps the result a
+    // transcription_layer_id is reversed. Ordering by siglum keeps the result a
     // function of the evidence.
     $forward = ['A' => 'the fox sleeps', 'B' => 'the swift creature sleeps', 'C' => 'the creature sleeps'];
     $backward = array_reverse($forward, true);
@@ -133,7 +133,7 @@ test('a placed conjecture stops the rebuild and survives a later witness', funct
 
     expect(LemmaReading::whereKey($reading->id)->exists())->toBeTrue()
         ->and($reading->fresh()->lemma_id)->toBe($middle->id)
-        ->and(LemmaReading::where('transcription_id', '!=', null)->count())->toBeGreaterThan(3);
+        ->and(LemmaReading::where('transcription_layer_id', '!=', null)->count())->toBeGreaterThan(3);
 });
 
 test("an edition's selection stops the rebuild and survives a later witness", function () {
@@ -156,5 +156,5 @@ test("an edition's selection stops the rebuild and survives a later witness", fu
     expect(EditionLemma::whereKey($selection->id)->exists())->toBeTrue()
         ->and($selection->fresh()->selected_reading_id)->toBe($middle->readings->first()->id)
         // The newcomer still joined the collation, by appending.
-        ->and(LemmaReading::where('transcription_id', $later->transcription_id)->count())->toBeGreaterThan(0);
+        ->and(LemmaReading::where('transcription_layer_id', $later->transcription_layer_id)->count())->toBeGreaterThan(0);
 });

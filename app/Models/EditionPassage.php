@@ -11,7 +11,7 @@ use Illuminate\Support\Carbon;
 
 /**
  * A canonical passage's membership in an edition — a passage is "in" an
- * edition iff it has a row here. `transcription_id` is the transcription its
+ * edition iff it has a row here. `transcription_layer_id` is the transcription its
  * segment was added from (nullable only for a whole-line lacuna, which has
  * no manuscript witness at all — see App\Support\Edition\PassageAdder and
  * EditionVariantController's `new_passage` placement) and doubles as which
@@ -22,12 +22,12 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $edition_id
  * @property int $canonical_passage_id
- * @property int|null $transcription_id
+ * @property int|null $transcription_layer_id
  * @property string $position
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['edition_id', 'canonical_passage_id', 'transcription_id', 'position'])]
+#[Fillable(['edition_id', 'canonical_passage_id', 'transcription_layer_id', 'position'])]
 class EditionPassage extends Model
 {
     /** @use HasFactory<EditionPassageFactory> */
@@ -50,11 +50,11 @@ class EditionPassage extends Model
     }
 
     /**
-     * @return BelongsTo<Transcription, $this>
+     * @return BelongsTo<TranscriptionLayer, $this>
      */
-    public function transcription(): BelongsTo
+    public function transcriptionLayer(): BelongsTo
     {
-        return $this->belongsTo(Transcription::class);
+        return $this->belongsTo(TranscriptionLayer::class);
     }
 
     /**

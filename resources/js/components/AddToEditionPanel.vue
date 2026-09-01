@@ -78,7 +78,7 @@ function addSelection() {
     router.post(
         storeEditionPassage.url(props.edition),
         {
-            transcription_id: activeTranscription.value.id,
+            transcription_layer_id: activeTranscription.value.id,
             start_offset: selection.value.start,
             end_offset: selection.value.end,
         },
@@ -101,7 +101,7 @@ function addWholeTranscription() {
     router.post(
         storeEditionPassage.url(props.edition),
         {
-            transcription_id: activeTranscription.value.id,
+            transcription_layer_id: activeTranscription.value.id,
             start_offset: 0,
             end_offset: activeTranscription.value.text.length,
         },
@@ -129,7 +129,7 @@ function submitBulk() {
     const transcriptionId = activeTranscription.value.id;
 
     bulkForm
-        .transform((data) => ({ ...data, transcription_id: transcriptionId }))
+        .transform((data) => ({ ...data, transcription_layer_id: transcriptionId }))
         .post(storeEditionPassageBulk.url(props.edition), {
             preserveScroll: true,
             onSuccess: () => {

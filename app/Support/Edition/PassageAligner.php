@@ -55,12 +55,12 @@ class PassageAligner
     {
         // By siglum — the conventional order of an apparatus, and the only
         // key here derived from the evidence rather than from bookkeeping.
-        // Not `transcription_id`, which is merely creation order and would
+        // Not `transcription_layer_id`, which is merely creation order and would
         // make the collation depend on when each witness was typed up.
         $ordered = $segments
             ->sortBy(fn (TranscriptionSegment $segment) => [
-                $segment->transcription->witness->siglum,
-                $segment->transcription_id,
+                $segment->transcriptionLayer->witness->siglum,
+                $segment->transcription_layer_id,
             ])
             ->values();
 
@@ -115,17 +115,17 @@ class PassageAligner
     {
         $lemmas = Lemma::where('canonical_passage_id', $passage->id)
             ->orderBy('position')
-            ->with('readings.transcription')
+            ->with('readings.transcriptionLayer')
             ->get();
 
         $tokens = Tokenizer::tokenize(
-            $segment->transcription->text,
+            $segment->transcriptionLayer->text,
             $segment->start_offset,
             $segment->end_offset,
             $passage->work->tokenization,
         );
         $attributes = fn (array $token, ?int $rangeEndIndex = null): array => [
-            'transcription_id' => $segment->transcription_id,
+            'transcription_layer_id' => $segment->transcription_layer_id,
             'start_offset' => $token['start'],
             'end_offset' => $token['end'],
             'range_end_lemma_id' => $rangeEndIndex !== null ? $lemmas[$rangeEndIndex]->id : null,
@@ -143,7 +143,7 @@ class PassageAligner
         }
 
         $alreadyAligned = LemmaReading::whereIn('lemma_id', $lemmas->pluck('id'))
-            ->where('transcription_id', $segment->transcription_id)
+            ->where('transcription_layer_id', $segment->transcription_layer_id)
             ->exists();
 
         if ($alreadyAligned) {
@@ -151,7 +151,7 @@ class PassageAligner
         }
 
         $consensusTexts = $lemmas->map(fn (Lemma $lemma) => self::representativeText($lemma))->values()->all();
-        $plan = self::withPositions(self::plan($consensusTexts, $tokens, $segment->transcription->text), $lemmas);
+        $plan = self::withPositions(self::plan($consensusTexts, $tokens, $segment->transcriptionLayer->text), $lemmas);
 
         foreach ($plan as $entry) {
             $index = $entry['index'];
@@ -202,18 +202,18 @@ class PassageAligner
         // so an unsorted `first()` would take whatever the database happened
         // to return — leaving the consensus every later witness is diffed
         // against, and so the column structure itself, resting on storage
-        // order. Sorting by transcription_id matches the order readings are
+        // order. Sorting by transcription_layer_id matches the order readings are
         // created in today, but stops relying on that being true.
-        $readings = $lemma->readings->sortBy('transcription_id')->values();
+        $readings = $lemma->readings->sortBy('transcription_layer_id')->values();
 
-        $reading = $readings->first(fn (LemmaReading $reading) => $reading->transcription_id !== null && $reading->range_end_lemma_id === null)
-            ?? $readings->first(fn (LemmaReading $reading) => $reading->transcription_id !== null);
+        $reading = $readings->first(fn (LemmaReading $reading) => $reading->transcription_layer_id !== null && $reading->range_end_lemma_id === null)
+            ?? $readings->first(fn (LemmaReading $reading) => $reading->transcription_layer_id !== null);
 
         if ($reading === null) {
             return '';
         }
 
-        return mb_substr($reading->transcription->text, $reading->start_offset, $reading->end_offset - $reading->start_offset);
+        return mb_substr($reading->transcriptionLayer->text, $reading->start_offset, $reading->end_offset - $reading->start_offset);
     }
 
     /**

@@ -3,7 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\CanonicalPassage;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -20,7 +20,7 @@ class TranscriptionSegmentFactory extends Factory
     public function definition(): array
     {
         return [
-            'transcription_id' => Transcription::factory(),
+            'transcription_layer_id' => TranscriptionLayer::factory(),
             'canonical_passage_id' => CanonicalPassage::factory(),
             'start_offset' => 0,
             'end_offset' => 1,

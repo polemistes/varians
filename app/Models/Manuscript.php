@@ -35,6 +35,14 @@ class Manuscript extends Model
     }
 
     /**
+     * @return HasMany<ManuscriptPage, $this>
+     */
+    public function pages(): HasMany
+    {
+        return $this->hasMany(ManuscriptPage::class);
+    }
+
+    /**
      * @return HasMany<ManuscriptImage, $this>
      */
     public function images(): HasMany

@@ -2,19 +2,19 @@
 
 use App\Models\Edition;
 use App\Models\Lemma;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\User;
 
 test('an editor can choose which reading an edition prints for a lemma', function () {
     $this->actingAs(User::factory()->editor()->create());
     $lemma = Lemma::factory()->create();
     $first = $lemma->readings()->create([
-        'transcription_id' => Transcription::factory()->create(['text' => 'foo'])->id,
+        'transcription_layer_id' => TranscriptionLayer::factory()->create(['text' => 'foo'])->id,
         'start_offset' => 0,
         'end_offset' => 3,
     ]);
     $second = $lemma->readings()->create([
-        'transcription_id' => Transcription::factory()->create(['text' => 'bar'])->id,
+        'transcription_layer_id' => TranscriptionLayer::factory()->create(['text' => 'bar'])->id,
         'start_offset' => 0,
         'end_offset' => 3,
     ]);
@@ -31,7 +31,7 @@ test('selecting a reading for a lemma an edition has never seen creates the sele
     $this->actingAs(User::factory()->editor()->create());
     $lemma = Lemma::factory()->create();
     $reading = $lemma->readings()->create([
-        'transcription_id' => Transcription::factory()->create(['text' => 'foo'])->id,
+        'transcription_layer_id' => TranscriptionLayer::factory()->create(['text' => 'foo'])->id,
         'start_offset' => 0,
         'end_offset' => 3,
     ]);
@@ -48,7 +48,7 @@ test('a reading from a different lemma cannot be selected', function () {
     $lemma = Lemma::factory()->create();
     $otherLemma = Lemma::factory()->create();
     $unrelatedReading = $otherLemma->readings()->create([
-        'transcription_id' => Transcription::factory()->create(['text' => 'foo'])->id,
+        'transcription_layer_id' => TranscriptionLayer::factory()->create(['text' => 'foo'])->id,
         'start_offset' => 0,
         'end_offset' => 3,
     ]);
@@ -63,7 +63,7 @@ test('removing an edition\'s selection leaves the shared lemma and reading untou
     $this->actingAs(User::factory()->editor()->create());
     $lemma = Lemma::factory()->create();
     $reading = $lemma->readings()->create([
-        'transcription_id' => Transcription::factory()->create(['text' => 'foo'])->id,
+        'transcription_layer_id' => TranscriptionLayer::factory()->create(['text' => 'foo'])->id,
         'start_offset' => 0,
         'end_offset' => 3,
     ]);
@@ -82,7 +82,7 @@ test('removing one edition\'s selection does not affect another edition\'s selec
     $this->actingAs(User::factory()->editor()->create());
     $lemma = Lemma::factory()->create();
     $reading = $lemma->readings()->create([
-        'transcription_id' => Transcription::factory()->create(['text' => 'foo'])->id,
+        'transcription_layer_id' => TranscriptionLayer::factory()->create(['text' => 'foo'])->id,
         'start_offset' => 0,
         'end_offset' => 3,
     ]);
@@ -101,7 +101,7 @@ test('a guest cannot select a reading', function () {
     $this->actingAs(User::factory()->create());
     $lemma = Lemma::factory()->create();
     $reading = $lemma->readings()->create([
-        'transcription_id' => Transcription::factory()->create(['text' => 'foo'])->id,
+        'transcription_layer_id' => TranscriptionLayer::factory()->create(['text' => 'foo'])->id,
         'start_offset' => 0,
         'end_offset' => 3,
     ]);

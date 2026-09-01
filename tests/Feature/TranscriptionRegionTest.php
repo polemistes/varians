@@ -3,7 +3,7 @@
 use App\Enums\WitnessType;
 use App\Models\Manuscript;
 use App\Models\ManuscriptImage;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
 use App\Models\User;
 use App\Models\Witness;
@@ -13,7 +13,7 @@ function makeTranscriptionWithImage(): array
     $witness = Witness::factory()->create(['type' => WitnessType::Manuscript]);
     $manuscript = Manuscript::factory()->for($witness)->create();
     $image = ManuscriptImage::factory()->for($manuscript)->create();
-    $transcription = Transcription::factory()->for($witness)->create(['text' => 'λόγος καλός ἐστιν']);
+    $transcription = TranscriptionLayer::factory()->for($witness)->create(['text' => 'λόγος καλός ἐστιν']);
 
     return [$transcription, $image];
 }

@@ -35,7 +35,7 @@ class UpdateTranscriptionSegmentRequest extends FormRequest
                 'required',
                 'integer',
                 'gt:start_offset',
-                'max:'.mb_strlen($segment->transcription->text),
+                'max:'.mb_strlen($segment->transcriptionLayer->text),
             ],
         ];
     }

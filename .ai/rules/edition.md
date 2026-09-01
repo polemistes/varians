@@ -179,3 +179,72 @@ a real one is not marked: it is a genuine variant site.
 first, then other witnesses by siglum, then conjectures oldest first. Left
 unsorted, candidates come out in the order the witnesses were aligned, which is
 incidental rather than evidence.
+
+## The edition page is two panes; a mode is not a permission
+`Editions/Show.vue` always renders the edition on the left and one chosen view
+on the right (`rightPane`: add/remove text, the manuscripts, and images once
+witness image handling exists). The manuscripts used to be interlinear —
+diplomatic text printed under each word and under each line, behind a "Show the
+manuscripts" toggle. That read as clutter inside the text rather than as a
+manuscript, and it is gone; `run.diplomatic` survives only in the hover tooltip
+and the apparatus popover.
+
+Which pane *renders* is `activeRightPane`, which folds `canEdit` into the
+stored choice, exactly as the lacuna markers test `canEdit && lacunaMode`. Keep
+that shape. When the add-text panel was gated on its own mode alone, an editor
+who opened it and then switched to reader view kept an editing panel open on a
+page that had just hidden the toolbar which would have closed it — the mode
+recorded an intention, and nothing re-checked permission at render.
+
+`EditionController::windowSlice` trims each transcript to the stretch its cited
+segments occupy within the displayed passages and rebases the segment offsets
+onto that slice. Rebasing is not cosmetic: `AlignableText` discards any segment
+whose `end_offset` runs past the text it was given, so an unrebased segment
+silently disappears rather than rendering in the wrong place. Only segments
+lying wholly inside the slice are sent, for the same reason.
+
+## A witness has transcriptions; a transcription has two layers
+`Transcription` is the named thing an editor creates on a witness, and it
+consists of exactly two `TranscriptionLayer` rows — diplomatic and normalized.
+A witness may hold any number of transcriptions: a manuscript can carry texts
+belonging to different works, or several kinds of text across the same pages.
+Nothing records what kind of text a transcription holds or which is principal;
+the editor names them, and an edition reaches one through the citation
+segments on its normalized layer.
+
+The `transcription_layers` table is the old `transcriptions` table renamed — a
+row there always was one layer, and every FK to it (segments, regions,
+`lemma_readings`, `edition_passages`, `edition_passage_orders`, the tag pivot)
+still means a layer, now spelled `transcription_layer_id`.
+
+`visibility` is on the **transcription**, not the layer. A transcription is
+public or it is not, and if it is, both of its layers are. Holding it per layer
+encoded an assumption that does not hold — that a diplomatic layer is somehow
+more provisional than the normalized one — when which layer is written first is
+simply how the editor chooses to work. For the same reason, nothing assumes
+what kind of text an import contains: the editor names the layer it goes into.
+
+A normalized layer's diplomatic counterpart is its **sibling** — key by
+transcription, never by witness. `EditionController` keys `$diplomaticLayers`
+by `transcription_id` for exactly this reason: with a witness transcribed
+twice, keying by witness lets one transcription's diplomatic layer silently
+answer for another's, and the two are different texts.
+
+**Copying** a layer, not forking — "fork" came from the one-slot model. The
+destination transcription is the only choice; the layer follows from it
+(`TranscriptionLayer::destinationLayerIn`): within its own transcription there
+is just the other layer, and any other transcription receives the corresponding
+one. What travels with the text depends on whether it still describes the same
+physical document — inside the transcription the citation segments *and* the
+image regions come, since the other layer is the same manuscript text
+regularized; into another transcription only the citations do, because which
+passage of a work a stretch of text is stays true wherever it goes while where
+it sits on a page does not. Copying over a layer that already has text is
+refused: it would take that layer's spans, regions and collated readings with
+it.
+
+In tests, `TranscriptionLayerFactory::for($witness)` still works: it is
+overridden to mean "a layer of a transcription of this witness". Two such calls
+make two *separate* transcriptions, so a test that needs both layers of one
+must create the parent and pass it to both. `->published()` on a layer factory
+publishes its transcription, which is what publishing a layer now means.

@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreTranscriptionRegionBatchRequest;
 use App\Http\Requests\StoreTranscriptionRegionRequest;
 use App\Http\Requests\UpdateTranscriptionRegionRequest;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
 use App\Support\Transcription\RegionSplitter;
 use Illuminate\Http\RedirectResponse;
@@ -14,7 +14,7 @@ use Illuminate\Validation\ValidationException;
 
 class TranscriptionRegionController extends Controller
 {
-    public function store(StoreTranscriptionRegionRequest $request, Transcription $transcription): RedirectResponse
+    public function store(StoreTranscriptionRegionRequest $request, TranscriptionLayer $transcription): RedirectResponse
     {
         $transcription->regions()->create([
             ...$request->validated(),
@@ -31,7 +31,7 @@ class TranscriptionRegionController extends Controller
      * deliberately avoids as too unreliable. Each generated region can be
      * moved/resized individually afterward via `update()`.
      */
-    public function storeBatch(StoreTranscriptionRegionBatchRequest $request, Transcription $transcription): RedirectResponse
+    public function storeBatch(StoreTranscriptionRegionBatchRequest $request, TranscriptionLayer $transcription): RedirectResponse
     {
         $start = $request->validated('start_offset');
         $end = $request->validated('end_offset');

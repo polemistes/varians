@@ -5,7 +5,7 @@ namespace Database\Factories;
 use App\Models\Conjecture;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -25,7 +25,7 @@ class LemmaReadingFactory extends Factory
 
         return [
             'lemma_id' => Lemma::factory(),
-            'transcription_id' => Transcription::factory(['text' => $word]),
+            'transcription_layer_id' => TranscriptionLayer::factory(['text' => $word]),
             'start_offset' => 0,
             'end_offset' => mb_strlen($word),
             'conjecture_id' => null,
@@ -35,7 +35,7 @@ class LemmaReadingFactory extends Factory
     public function conjecture(): static
     {
         return $this->state(fn (array $attributes) => [
-            'transcription_id' => null,
+            'transcription_layer_id' => null,
             'start_offset' => null,
             'end_offset' => null,
             'conjecture_id' => Conjecture::factory(),

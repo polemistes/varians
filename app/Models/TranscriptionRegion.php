@@ -16,7 +16,7 @@ use Illuminate\Support\Carbon;
  * the two annotate the same text for unrelated purposes.
  *
  * @property int $id
- * @property int $transcription_id
+ * @property int $transcription_layer_id
  * @property int $manuscript_image_id
  * @property string $text
  * @property int $start_offset
@@ -30,18 +30,18 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['transcription_id', 'manuscript_image_id', 'text', 'start_offset', 'end_offset', 'position', 'x', 'y', 'width', 'height', 'needs_review'])]
+#[Fillable(['transcription_layer_id', 'manuscript_image_id', 'text', 'start_offset', 'end_offset', 'position', 'x', 'y', 'width', 'height', 'needs_review'])]
 class TranscriptionRegion extends Model
 {
     /** @use HasFactory<TranscriptionRegionFactory> */
     use HasFactory;
 
     /**
-     * @return BelongsTo<Transcription, $this>
+     * @return BelongsTo<TranscriptionLayer, $this>
      */
-    public function transcription(): BelongsTo
+    public function transcriptionLayer(): BelongsTo
     {
-        return $this->belongsTo(Transcription::class);
+        return $this->belongsTo(TranscriptionLayer::class);
     }
 
     /**

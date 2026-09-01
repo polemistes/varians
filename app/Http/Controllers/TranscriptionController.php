@@ -2,17 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\Visibility;
+use App\Enums\Layer;
 use App\Http\Requests\StoreTranscriptionRequest;
 use App\Http\Requests\UpdateTranscriptionRequest;
 use App\Models\Tag;
 use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\Witness;
-use App\Models\Work;
-use App\Support\DeletionImpact;
 use Illuminate\Http\RedirectResponse;
-use Inertia\Inertia;
-use Inertia\Response;
 
 class TranscriptionController extends Controller
 {
@@ -20,55 +17,77 @@ class TranscriptionController extends Controller
      * Start a blank transcription of a witness. Text and segmentation both
      * come later — this only records who it belongs to and, optionally, how
      * it's tagged.
+     *
+     * Both layers are created at once and stay empty: a transcription always
+     * consists of the two, and which one the editor starts in is a matter of
+     * how she works — typing from the manuscript begins in the diplomatic
+     * layer, importing a text begins in the normalized one.
      */
     public function store(StoreTranscriptionRequest $request, Witness $witness): RedirectResponse
     {
         $transcription = $witness->transcriptions()->create([
-            'user_id' => $request->user()->id,
-            'text' => '',
-            'visibility' => Visibility::Draft,
+            'name' => $request->validated('name') ?? 'Transcription',
+            'position' => ($witness->transcriptions()->max('position') ?? 0) + 1,
         ]);
 
-        $this->syncTags($transcription, $request->validated('tags', []));
+        $normalized = $this->createLayers($transcription, $request->user()->id);
 
-        return redirect()->route('transcriptions.show', $transcription);
+        $this->syncTags($normalized, $request->validated('tags', []));
+
+        return redirect()->route('transcriptions.show', $normalized);
     }
 
-    public function show(Transcription $transcription): Response
+    /**
+     * Both layers of a new transcription, empty. Returns the normalized one,
+     * since that is where an edition reaches the witness — but which layer
+     * the editor writes first is hers to choose.
+     */
+    private function createLayers(Transcription $transcription, int $userId, string $normalizedText = ''): TranscriptionLayer
     {
-        $this->authorize('view', $transcription);
-
-        $transcription->load([
-            'witness.manuscript.images' => fn ($query) => $query->orderBy('position'),
-            'witness.manuscript.images.features',
-            'segments' => fn ($query) => $query->orderBy('start_offset'),
-            'segments.canonicalPassage.work',
-            'regions' => fn ($query) => $query->orderBy('position'),
-            'tags',
+        $transcription->layers()->create([
+            'user_id' => $userId,
+            'layer' => Layer::Diplomatic,
+            'text' => '',
         ]);
 
-        $transcription->setAttribute('deletion_impact', DeletionImpact::forTranscription($transcription));
-
-        return Inertia::render('Transcriptions/Editor', [
-            'transcription' => $transcription,
-            'works' => Work::with('referenceScheme')->orderBy('title')->get(),
-            'existingTags' => Tag::orderBy('name')->pluck('name'),
+        return $transcription->layers()->create([
+            'user_id' => $userId,
+            'layer' => Layer::Normalized,
+            'text' => $normalizedText,
         ]);
     }
 
     /**
-     * Save the transcription's tags and/or visibility. Text is edited
-     * in-place through transcriptions.text.update instead — see
+     * A layer is worked on at its witness, where the manuscript stands beside
+     * it — see WitnessController::show. Kept so that existing links and
+     * bookmarks land in the right place rather than 404.
+     */
+    public function show(TranscriptionLayer $transcription): RedirectResponse
+    {
+        $this->authorize('view', $transcription);
+
+        return redirect()->route('witnesses.show', [
+            'witness' => $transcription->transcription->witness_id,
+            'transcription' => $transcription->transcription_id,
+            'layer' => $transcription->layer->value,
+        ]);
+    }
+
+    /**
+     * Save the layer's tags and/or its transcription's visibility. A
+     * transcription is public or it is not, and if it is, both of its layers
+     * are — so publishing from either layer publishes the transcription. Text
+     * is edited in-place through transcriptions.text.update instead — see
      * TranscriptionTextController.
      */
-    public function update(UpdateTranscriptionRequest $request, Transcription $transcription): RedirectResponse
+    public function update(UpdateTranscriptionRequest $request, TranscriptionLayer $transcription): RedirectResponse
     {
         if ($request->has('tags')) {
             $this->syncTags($transcription, $request->validated('tags', []));
         }
 
         if ($request->has('visibility')) {
-            $transcription->update(['visibility' => $request->validated('visibility')]);
+            $transcription->transcription->update(['visibility' => $request->validated('visibility')]);
         }
 
         return back();
@@ -81,7 +100,7 @@ class TranscriptionController extends Controller
      * that range. See App\Support\DeletionImpact for the preview shown
      * before this is confirmed.
      */
-    public function destroy(Transcription $transcription): RedirectResponse
+    public function destroy(TranscriptionLayer $transcription): RedirectResponse
     {
         $witness = $transcription->witness;
         $transcription->delete();
@@ -92,7 +111,7 @@ class TranscriptionController extends Controller
     /**
      * @param  list<string>  $tagNames
      */
-    private function syncTags(Transcription $transcription, array $tagNames): void
+    private function syncTags(TranscriptionLayer $transcription, array $tagNames): void
     {
         $transcription->tags()->sync(Tag::resolveIds($tagNames));
     }

@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * A citation-span annotation over its parent Transcription's continuous
+ * A citation-span annotation over its parent TranscriptionLayer's continuous
  * `text` — not an owner of text itself. Physical reading order is simply the
  * span's position within that string; citation order lives independently in
  * canonical_passage.sort_key, so the two can diverge (transpositions).
@@ -20,7 +20,7 @@ use Illuminate\Support\Carbon;
  * either given one at creation or never created at all.
  *
  * @property int $id
- * @property int $transcription_id
+ * @property int $transcription_layer_id
  * @property int $canonical_passage_id
  * @property int $start_offset
  * @property int $end_offset
@@ -28,18 +28,18 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['transcription_id', 'canonical_passage_id', 'start_offset', 'end_offset', 'needs_review'])]
+#[Fillable(['transcription_layer_id', 'canonical_passage_id', 'start_offset', 'end_offset', 'needs_review'])]
 class TranscriptionSegment extends Model
 {
     /** @use HasFactory<TranscriptionSegmentFactory> */
     use HasFactory;
 
     /**
-     * @return BelongsTo<Transcription, $this>
+     * @return BelongsTo<TranscriptionLayer, $this>
      */
-    public function transcription(): BelongsTo
+    public function transcriptionLayer(): BelongsTo
     {
-        return $this->belongsTo(Transcription::class);
+        return $this->belongsTo(TranscriptionLayer::class);
     }
 
     /**

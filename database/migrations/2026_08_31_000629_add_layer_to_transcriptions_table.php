@@ -8,7 +8,7 @@ return new class extends Migration
 {
     /**
      * Which of a witness's two layers a transcription is — see
-     * App\Enums\TranscriptionLayer, including why this deliberately reverses
+     * App\Enums\Layer, including why this deliberately reverses
      * the earlier removal of a `type` column.
      *
      * Existing rows default to `normalized`, which exactly preserves today's

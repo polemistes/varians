@@ -18,10 +18,12 @@ use App\Http\Controllers\LemmaController;
 use App\Http\Controllers\LemmaReadingController;
 use App\Http\Controllers\ManuscriptImageController;
 use App\Http\Controllers\ManuscriptImageFeatureController;
+use App\Http\Controllers\ManuscriptPageController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TextImportController;
 use App\Http\Controllers\TranscriptionController;
-use App\Http\Controllers\TranscriptionForkController;
+use App\Http\Controllers\TranscriptionLayerCopyController;
+use App\Http\Controllers\TranscriptionPageBreakController;
 use App\Http\Controllers\TranscriptionRegionController;
 use App\Http\Controllers\TranscriptionSegmentController;
 use App\Http\Controllers\TranscriptionTextController;
@@ -183,10 +185,20 @@ Route::middleware('role:editor')->group(function () {
     Route::delete('/transcription-segments/{segment}', [TranscriptionSegmentController::class, 'destroy'])
         ->name('transcription-segments.destroy');
 
-    Route::get('/transcriptions/{transcription}/fork', [TranscriptionForkController::class, 'create'])
-        ->name('transcriptions.fork.create');
-    Route::post('/transcriptions/{transcription}/fork', [TranscriptionForkController::class, 'store'])
-        ->name('transcriptions.fork.store');
+    Route::get('/transcriptions/{transcription}/copy', [TranscriptionLayerCopyController::class, 'create'])
+        ->name('transcriptions.copy.create');
+    Route::post('/transcriptions/{transcription}/copy', [TranscriptionLayerCopyController::class, 'store'])
+        ->name('transcriptions.copy.store');
+
+    Route::post('/manuscripts/{manuscript}/pages', [ManuscriptPageController::class, 'store'])
+        ->name('manuscript-pages.store');
+    Route::delete('/manuscript-pages/{page}', [ManuscriptPageController::class, 'destroy'])
+        ->name('manuscript-pages.destroy');
+
+    Route::post('/transcriptions/{transcription}/page-breaks', [TranscriptionPageBreakController::class, 'store'])
+        ->name('transcription-page-breaks.store');
+    Route::delete('/transcription-page-breaks/{pageBreak}', [TranscriptionPageBreakController::class, 'destroy'])
+        ->name('transcription-page-breaks.destroy');
 
     Route::post('/manuscripts/{manuscript}/images', [ManuscriptImageController::class, 'store'])
         ->name('manuscript-images.store');

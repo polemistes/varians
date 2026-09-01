@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -24,7 +24,7 @@ class StoreTranscriptionRegionRequest extends FormRequest
      */
     public function rules(): array
     {
-        /** @var Transcription $transcription */
+        /** @var TranscriptionLayer $transcription */
         $transcription = $this->route('transcription');
         $manuscriptId = $transcription->witness->manuscript?->id;
 

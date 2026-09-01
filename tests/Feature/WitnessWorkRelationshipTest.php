@@ -1,7 +1,7 @@
 <?php
 
 use App\Models\CanonicalPassage;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Models\Witness;
 use App\Models\Work;
@@ -18,7 +18,7 @@ test('a witness becomes related to a work once a segment cites one of its passag
     $work = Work::factory()->create();
     $witness = Witness::factory()->create();
     $passage = CanonicalPassage::factory()->for($work)->create();
-    $transcription = Transcription::factory()->for($witness)->create();
+    $transcription = TranscriptionLayer::factory()->for($witness)->create();
 
     TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create();
 
@@ -28,7 +28,7 @@ test('a witness becomes related to a work once a segment cites one of its passag
 
 test('a witness whose transcriptions cite no work is related to none', function () {
     $witness = Witness::factory()->create();
-    Transcription::factory()->for($witness)->create();
+    TranscriptionLayer::factory()->for($witness)->create();
 
     expect($witness->relatedWorks()->count())->toBe(0);
 });
@@ -42,9 +42,9 @@ test('a witness whose one transcription cites two works appears under both', fun
     $secondPassage = CanonicalPassage::factory()->for($secondWork)->create();
 
     // One slot per layer is enough for a manuscript containing several works:
-    // a Transcription has no work_id, and its citations point into whichever
+    // a TranscriptionLayer has no work_id, and its citations point into whichever
     // works its text covers.
-    $transcription = Transcription::factory()->for($witness)->create();
+    $transcription = TranscriptionLayer::factory()->for($witness)->create();
 
     TranscriptionSegment::factory()->for($transcription)->for($firstPassage, 'canonicalPassage')->create();
     TranscriptionSegment::factory()->for($transcription)->for($secondPassage, 'canonicalPassage')->create();

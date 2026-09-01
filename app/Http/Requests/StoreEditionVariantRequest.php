@@ -3,7 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\ConjectureType;
-use App\Enums\TranscriptionLayer;
+use App\Enums\Layer;
 use App\Models\Conjecture;
 use App\Models\Edition;
 use App\Models\TranscriptionSegment;
@@ -99,8 +99,8 @@ class StoreEditionVariantRequest extends FormRequest
             'source' => ['required', Rule::in(['transcription', 'existing_conjecture', 'new_conjecture'])],
             // A witness reading placed here becomes a real LemmaReading (the
             // one path that mints one outside PassageAdder), so it is bound
-            // by the same rule — see App\Enums\TranscriptionLayer.
-            'transcription_id' => ['required_if:source,transcription', Rule::exists('transcriptions', 'id')->where('layer', TranscriptionLayer::Normalized->value)],
+            // by the same rule — see App\Enums\Layer.
+            'transcription_layer_id' => ['required_if:source,transcription', Rule::exists('transcription_layers', 'id')->where('layer', Layer::Normalized->value)],
             'start_offset' => ['required_if:source,transcription', 'integer', 'min:0'],
             'end_offset' => ['required_if:source,transcription', 'integer', 'gt:start_offset'],
             'conjecture_id' => [
@@ -245,7 +245,7 @@ class StoreEditionVariantRequest extends FormRequest
             return;
         }
 
-        $transcriptionId = $this->input('transcription_id');
+        $transcriptionId = $this->input('transcription_layer_id');
         $startOffset = $this->input('start_offset');
         $endOffset = $this->input('end_offset');
 
@@ -253,7 +253,7 @@ class StoreEditionVariantRequest extends FormRequest
             return;
         }
 
-        $covered = TranscriptionSegment::where('transcription_id', (int) $transcriptionId)
+        $covered = TranscriptionSegment::where('transcription_layer_id', (int) $transcriptionId)
             ->where('canonical_passage_id', $this->input('canonical_passage_id'))
             ->where('start_offset', '<=', (int) $startOffset)
             ->where('end_offset', '>=', (int) $endOffset)

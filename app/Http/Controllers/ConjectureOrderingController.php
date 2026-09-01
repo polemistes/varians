@@ -60,7 +60,7 @@ class ConjectureOrderingController extends Controller
                     'range_end_canonical_passage_id' => $passagesByPosition->last()->canonical_passage_id,
                 ],
                 [
-                    'transcription_id' => null,
+                    'transcription_layer_id' => null,
                     'conjecture_id' => $conjecture->id,
                     'user_id' => $request->user()->id,
                 ],

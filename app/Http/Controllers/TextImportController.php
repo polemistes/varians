@@ -2,9 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\Visibility;
+use App\Enums\Layer;
 use App\Http\Requests\StoreTextImportRequest;
-use App\Models\Transcription;
 use App\Models\Witness;
 use App\Models\Work;
 use Illuminate\Http\RedirectResponse;
@@ -29,11 +28,29 @@ class TextImportController extends Controller
         }
 
         $transcription = $witness->transcriptions()->create([
-            'user_id' => $request->user()->id,
-            'text' => $text,
-            'visibility' => Visibility::Draft,
+            'name' => $request->file('file')->getClientOriginalName(),
+            'position' => ($witness->transcriptions()->max('position') ?? 0) + 1,
         ]);
 
-        return redirect()->route('transcriptions.show', $transcription);
+        // Which layer an imported text belongs in is the editor's call: a file
+        // may be a diplomatic transcript someone else typed just as easily as
+        // a normalized edition of the work. Both layers are created either
+        // way; the other one starts empty.
+        $chosen = Layer::from($request->validated('layer'));
+        $imported = null;
+
+        foreach (Layer::cases() as $layer) {
+            $created = $transcription->layers()->create([
+                'user_id' => $request->user()->id,
+                'layer' => $layer,
+                'text' => $layer === $chosen ? $text : '',
+            ]);
+
+            if ($layer === $chosen) {
+                $imported = $created;
+            }
+        }
+
+        return redirect()->route('transcriptions.show', $imported);
     }
 }

@@ -362,7 +362,7 @@ function drawBoxStyle() {
                 <img
                     ref="imgEl"
                     :src="image.url"
-                    :alt="`Folio ${image.folio_label}`"
+                    :alt="`Folio ${image.manuscript_page?.label ?? ''}`"
                     class="block h-[32rem] max-w-none select-none"
                     draggable="false"
                 />
@@ -424,14 +424,14 @@ function drawBoxStyle() {
                 v-else
                 class="flex h-full items-center justify-center text-sm text-stone-500 dark:text-stone-400"
             >
-                No image available for this witness.
+                <slot name="empty">No image available for this witness.</slot>
             </div>
         </div>
         <div
             v-if="image"
             class="flex items-center justify-between text-sm text-stone-600 dark:text-stone-400"
         >
-            <span>fol. {{ image.folio_label }}</span>
+            <span>fol. {{ image.manuscript_page?.label }}</span>
             <div class="flex items-center gap-2">
                 <button
                     type="button"

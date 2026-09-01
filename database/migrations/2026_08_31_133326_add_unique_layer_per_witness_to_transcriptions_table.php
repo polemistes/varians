@@ -19,7 +19,7 @@ return new class extends Migration
      * *the* one for this witness.
      *
      * One slot per layer is enough even for a manuscript containing several
-     * works, since a Transcription has no work_id — its text is continuous and
+     * works, since a transcription has no work_id — its text is continuous and
      * its citations point into whichever works it covers.
      */
     public function up(): void

@@ -2,7 +2,7 @@
 
 use App\Models\CanonicalPassage;
 use App\Models\Edition;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
@@ -25,8 +25,8 @@ function printedByEachEdition(string $seedText, string $otherText): array
 
     // Sigla pinned so the seed witness is deterministic — witnesses align in
     // siglum order, and these tests turn on which one built the columns.
-    $seed = Transcription::factory()->for(Witness::factory()->create(['siglum' => 'A']))->create(['text' => $seedText]);
-    $other = Transcription::factory()->for(Witness::factory()->create(['siglum' => 'B']))->create(['text' => $otherText]);
+    $seed = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'A']))->create(['text' => $seedText]);
+    $other = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'B']))->create(['text' => $otherText]);
     $seedSegment = TranscriptionSegment::factory()->for($seed)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => mb_strlen($seedText)]);
     $otherSegment = TranscriptionSegment::factory()->for($other)->for($passage, 'canonicalPassage')
@@ -78,9 +78,9 @@ test('a run standing in for several columns says so', function () {
         'address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1',
     ]);
 
-    $seed = Transcription::factory()->for(Witness::factory()->create(['siglum' => 'A']))
+    $seed = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'A']))
         ->create(['text' => 'the swift red fox sleeps']);
-    $other = Transcription::factory()->for(Witness::factory()->create(['siglum' => 'B']))
+    $other = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'B']))
         ->create(['text' => 'the creature sleeps']);
     TranscriptionSegment::factory()->for($seed)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 24]);
@@ -88,7 +88,7 @@ test('a run standing in for several columns says so', function () {
         ->create(['start_offset' => 0, 'end_offset' => 19]);
 
     $first = Edition::factory()->for($work)->create();
-    PassageAdder::add($first, TranscriptionSegment::where('transcription_id', $seed->id)->sole(), 1.0);
+    PassageAdder::add($first, TranscriptionSegment::where('transcription_layer_id', $seed->id)->sole(), 1.0);
 
     $second = Edition::factory()->for($work)->create();
     PassageAdder::add($second, $otherSegment, 1.0);
@@ -123,16 +123,16 @@ test('a column the base omits is reported as a gap, and stays a variant site', f
         'address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1',
     ]);
 
-    $seed = Transcription::factory()->for(Witness::factory()->create(['siglum' => 'A']))
+    $seed = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'A']))
         ->create(['text' => 'the swift red fox']);
-    $shorter = Transcription::factory()->for(Witness::factory()->create(['siglum' => 'B']))
+    $shorter = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'B']))
         ->create(['text' => 'the red fox']);
     TranscriptionSegment::factory()->for($seed)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 17]);
     $shorterSegment = TranscriptionSegment::factory()->for($shorter)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 11]);
 
-    PassageAdder::add(Edition::factory()->for($work)->create(), TranscriptionSegment::where('transcription_id', $seed->id)->sole(), 1.0);
+    PassageAdder::add(Edition::factory()->for($work)->create(), TranscriptionSegment::where('transcription_layer_id', $seed->id)->sole(), 1.0);
     $second = Edition::factory()->for($work)->create();
     PassageAdder::add($second, $shorterSegment, 1.0);
 

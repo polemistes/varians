@@ -5,6 +5,8 @@ import AddToEditionPanel from '@/components/AddToEditionPanel.vue';
 import AppHeader from '@/components/AppHeader.vue';
 import HierarchicalPassagePicker from '@/components/HierarchicalPassagePicker.vue';
 import ReorderingAuthorPanel from '@/components/ReorderingAuthorPanel.vue';
+import WitnessTranscriptPanel from '@/components/WitnessTranscriptPanel.vue';
+import type { WitnessTranscript } from '@/components/WitnessTranscriptPanel.vue';
 import { isEditorOrAbove } from '@/lib/auth';
 import {
     destroy as destroyComment,
@@ -53,7 +55,7 @@ type Candidate = {
     text: string;
     selected: boolean;
     reading_id: number | null;
-    transcription_id: number | null;
+    transcription_layer_id: number | null;
     start_offset: number | null;
     end_offset: number | null;
     conjecture_id: number | null;
@@ -103,7 +105,7 @@ type UnplacedConjecture = {
 
 type OrderCandidate = {
     source: 'transcription' | 'conjecture';
-    transcription_id: number | null;
+    transcription_layer_id: number | null;
     conjecture_id: number | null;
     proposed_by: string | null;
     witness_siglum: string | null;
@@ -136,7 +138,7 @@ type WindowPassage = {
     edition_passage_id: number;
     label: string;
     order_range: OrderRange | null;
-    base: { transcription_id: number; witness_siglum: string } | null;
+    base: { transcription_layer_id: number; witness_siglum: string } | null;
     runs: Run[];
     unplacedConjectures: UnplacedConjecture[];
     comments: EditionComment[];
@@ -171,6 +173,7 @@ const props = defineProps<{
     transcriptions: TranscriptionOption[];
     workPassages: { id: number; address: Record<string, string | number> }[];
     referenceLevels: ReferenceLevel[];
+    witnessTranscripts: WitnessTranscript[];
 }>();
 
 // Every canonical passage already in this edition, from any transcription —
@@ -280,12 +283,6 @@ type OpenTarget =
 
 const openTarget = ref<OpenTarget | null>(null);
 const submitError = ref<string | null>(null);
-
-// Reading the manuscripts through the edition: with this on, each printed
-// word shows what the base witness physically has beneath it, the line as a
-// whole is given diplomatically, and every variant reports both layers. Off
-// by default — the normalized text is what an edition is for.
-const showDiplomatic = ref(false);
 
 // ---- editorial notes ----
 // Which passage has its note composer open, which note is being reworded,
@@ -452,18 +449,48 @@ function toggleLacunaMode() {
     }
 }
 
-// ---- add/remove text: one toggle, off by default so the edition's own
-// continuous text stays full-width and uncluttered until asked for. Turning
-// it on does two things at once: the tabbed transcription panel opens in a
-// right-hand column (mirroring where the transcription editor's own editing
-// interface sits next to its image view), and a text selection on the left
-// — normally the start of authoring a conjecture — instead offers to remove
-// the selected passage from the edition (see onDocumentMouseUp). ----
-const textEditMode = ref(false);
+// ---- the right pane ----
+// The page is always two panes: the edition on the left, and on the right one
+// of these. Add/remove text also changes what a selection on the *left* means
+// — normally the start of authoring a conjecture, it instead offers to remove
+// the selected passage (see onDocumentMouseUp).
+type RightPane = 'add' | 'witness' | 'images';
 
-function toggleTextEditMode() {
-    textEditMode.value = !textEditMode.value;
-}
+// An edition with no text yet opens on the panel that can give it some;
+// everyone else opens on the manuscripts, which is what the pane replaced.
+const rightPane = ref<RightPane>(
+    mayEdit.value &&
+        props.windowPassages.length === 0 &&
+        props.transcriptions.length > 0
+        ? 'add'
+        : 'witness',
+);
+
+// What actually renders. Mirrors the `canEdit && lacunaMode` test at the
+// lacuna markers: the choice records what was asked for, `canEdit` decides
+// whether it takes effect. Without this an editor who picked "add / remove
+// text" and then switched to reader view kept an editing panel open on a page
+// that had just hidden every other way of closing it.
+const activeRightPane = computed<RightPane>(() =>
+    rightPane.value === 'add' && !canEdit.value ? 'witness' : rightPane.value,
+);
+
+const addingText = computed(() => activeRightPane.value === 'add');
+
+const rightPaneChoices = computed<
+    { value: RightPane; label: string; disabled?: boolean; note?: string }[]
+>(() => [
+    ...(canEdit.value
+        ? [{ value: 'add' as const, label: 'Add / remove text' }]
+        : []),
+    { value: 'witness' as const, label: 'The manuscripts' },
+    {
+        value: 'images' as const,
+        label: 'Manuscript images',
+        disabled: true,
+        note: 'Not yet — witness image handling is still being built.',
+    },
+]);
 
 // Authoring a brand-new reordering conjecture — a separate concern from
 // picking among *existing* candidates (see chooseOrder) — gets its own
@@ -744,7 +771,7 @@ function onDocumentMouseUp() {
     // While add/remove mode is on, a selection means "remove this passage" —
     // exactly which words were touched doesn't matter, removal is always
     // whole-passage.
-    if (textEditMode.value) {
+    if (addingText.value) {
         openTarget.value = { passageId, kind: 'remove' };
         submitError.value = null;
 
@@ -836,7 +863,7 @@ function pickWitness(passage: WindowPassage, run: Run, candidate: Candidate) {
             range_start_lemma_id: run.lemma_id,
             range_end_lemma_id: candidate.range_end_lemma_id,
             source: 'transcription',
-            transcription_id: candidate.transcription_id,
+            transcription_layer_id: candidate.transcription_layer_id,
             start_offset: candidate.start_offset,
             end_offset: candidate.end_offset,
         });
@@ -846,7 +873,7 @@ function pickWitness(passage: WindowPassage, run: Run, candidate: Candidate) {
 
     submitAtRun(passage, run, {
         source: 'transcription',
-        transcription_id: candidate.transcription_id,
+        transcription_layer_id: candidate.transcription_layer_id,
         start_offset: candidate.start_offset,
         end_offset: candidate.end_offset,
     });
@@ -1071,7 +1098,7 @@ function chooseOrder(range: OrderRange, candidate: OrderCandidate) {
                 range.range_start_canonical_passage_id,
             range_end_canonical_passage_id:
                 range.range_end_canonical_passage_id,
-            transcription_id: candidate.transcription_id,
+            transcription_layer_id: candidate.transcription_layer_id,
             conjecture_id: candidate.conjecture_id,
         },
         {
@@ -1154,7 +1181,7 @@ function groupBy(
     for (const candidate of candidates) {
         const text = textOf(candidate);
 
-        if (text === null || candidate.transcription_id === null) {
+        if (text === null || candidate.transcription_layer_id === null) {
             continue;
         }
 
@@ -1185,7 +1212,7 @@ function manuscriptReadings(run: Run): ReadingGroup[] {
 function manuscriptEvidence(run: Run): 'agree' | 'differ' | 'none' {
     const known = run.candidates.filter(
         (candidate) =>
-            candidate.transcription_id !== null &&
+            candidate.transcription_layer_id !== null &&
             candidate.diplomatic !== null,
     );
 
@@ -1403,6 +1430,14 @@ function printsConjecture(run: Run): boolean {
  *
  * Ordered by what most needs saying: a conjecture over a disputed word is
  * still a conjecture, and a note beside a real variant is the lesser fact.
+ *
+ * The steps are chosen by chroma, not by matching step numbers across hues —
+ * Tailwind's palette is not perceptually uniform, and `sky-100` carries less
+ * than half the saturation of `amber-100`, faint enough on an uncalibrated
+ * monitor to read as no highlight at all. Variant and note are deliberately
+ * level (amber-200 at 0.120, sky-300 at 0.111) so neither outshouts the other,
+ * and the conjecture sits clearly above both (amber-400 at 0.189). Move one of
+ * these and you must move the rest, or the ordering above stops holding.
  */
 function siteFill(
     passage: WindowPassage,
@@ -1410,15 +1445,15 @@ function siteFill(
     runIndex: number,
 ): string | null {
     if (printsConjecture(run)) {
-        return 'bg-amber-300 dark:bg-amber-800/60';
+        return 'bg-amber-400 dark:bg-amber-700/60';
     }
 
     if (hasVariation(run) || coveringAnchorIndex(passage, runIndex) !== null) {
-        return 'bg-amber-100 dark:bg-amber-950/50';
+        return 'bg-amber-200 dark:bg-amber-900/50';
     }
 
     return hasAnchoredNote(passage, runIndex)
-        ? 'bg-sky-100 dark:bg-sky-950/50'
+        ? 'bg-sky-300 dark:bg-sky-800/60'
         : null;
 }
 
@@ -1427,8 +1462,11 @@ function runClasses(
     run: Run,
     runIndex: number,
 ): string[] {
+    // Neutral, not blue: this marks what the editor is currently selecting,
+    // which is UI state rather than a fact about the text, and a blue fill
+    // here would read as a note that has already been saved.
     if (isRunInPendingRange(passage.id, runIndex)) {
-        return ['rounded-sm bg-sky-200 dark:bg-sky-900/60'];
+        return ['rounded-sm bg-stone-300 dark:bg-stone-600'];
     }
 
     const fill = siteFill(passage, run, runIndex);
@@ -1704,29 +1742,11 @@ function orderRangeClasses(range: OrderRange): string[] {
                 </form>
             </section>
 
-            <!-- Available to every reader, not only editors: seeing what the
-                 manuscripts actually have is reading, not editing. -->
             <div
+                v-if="mayEdit"
                 class="mb-4 flex flex-wrap items-center gap-3 text-xs text-stone-500 dark:text-stone-400"
             >
                 <button
-                    type="button"
-                    class="rounded border px-2 py-1"
-                    :class="
-                        showDiplomatic
-                            ? 'border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300'
-                            : 'border-stone-300 dark:border-stone-700'
-                    "
-                    @click="showDiplomatic = !showDiplomatic"
-                >
-                    {{
-                        showDiplomatic
-                            ? 'Hide the manuscripts'
-                            : 'Show the manuscripts'
-                    }}
-                </button>
-                <button
-                    v-if="mayEdit"
                     type="button"
                     class="rounded border px-2 py-1"
                     :class="
@@ -1738,11 +1758,6 @@ function orderRangeClasses(range: OrderRange): string[] {
                 >
                     {{ readerView ? 'Back to editing' : 'Read as a reader' }}
                 </button>
-                <span v-if="showDiplomatic">
-                    Under each word, and beneath each line, is what the base
-                    manuscript itself has. A dot means its diplomatic layer
-                    cannot be lined up there.
-                </span>
             </div>
 
             <div
@@ -1769,18 +1784,6 @@ function orderRangeClasses(range: OrderRange): string[] {
                     type="button"
                     class="rounded border px-2 py-1"
                     :class="
-                        textEditMode
-                            ? 'border-sky-300 bg-sky-100 text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-400'
-                            : 'border-stone-300 dark:border-stone-700'
-                    "
-                    @click="toggleTextEditMode"
-                >
-                    {{ textEditMode ? 'Done' : '+ Add / remove text' }}
-                </button>
-                <button
-                    type="button"
-                    class="rounded border px-2 py-1"
-                    :class="
                         showReorderingAuthor
                             ? 'border-sky-300 bg-sky-100 text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-400'
                             : 'border-stone-300 dark:border-stone-700'
@@ -1796,7 +1799,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                 <span v-if="lacunaMode">
                     Click a marker between two words to insert a lacuna there.
                 </span>
-                <span v-if="textEditMode">
+                <span v-if="addingText">
                     Select text on the left to remove that passage — the panel
                     on the right adds new text.
                 </span>
@@ -1809,36 +1812,28 @@ function orderRangeClasses(range: OrderRange): string[] {
                 :reference-levels="props.referenceLevels"
             />
 
-            <div
-                :class="
-                    textEditMode ? 'grid grid-cols-1 gap-8 lg:grid-cols-2' : ''
-                "
-            >
+            <!-- Always two panes: the edition on the left, and on the right
+                 whichever view the reader or editor picked. The manuscripts
+                 used to be shown interlinearly, printed under each word of
+                 the edition, which read as clutter in the middle of the text
+                 rather than as a manuscript. They get their own pane now. -->
+            <div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
                 <div
-                    :class="
-                        textEditMode &&
-                        'mb-6 rounded-lg border border-stone-200 p-3 text-xs dark:border-stone-800'
-                    "
+                    class="mb-6 rounded-lg border border-stone-200 p-3 text-xs dark:border-stone-800"
                 >
-                    <template v-if="textEditMode">
-                        <h3
-                            class="mb-2 font-medium tracking-wide text-stone-500 uppercase dark:text-stone-400"
-                        >
-                            Edition text
-                        </h3>
-                        <p class="mb-2 text-stone-500 dark:text-stone-400">
-                            The edition's own text, in the order each passage
-                            was added.
-                        </p>
-                    </template>
+                    <h3
+                        class="mb-2 font-medium tracking-wide text-stone-500 uppercase dark:text-stone-400"
+                    >
+                        Edition text
+                    </h3>
+                    <p class="mb-2 text-stone-500 dark:text-stone-400">
+                        The edition's own text, in the order each passage was
+                        added.
+                    </p>
 
                     <div
-                        v-if="props.totalPages > 1 || textEditMode"
-                        :class="
-                            textEditMode
-                                ? 'mb-2 flex items-center justify-between border-b border-stone-200 pb-2 text-stone-500 dark:border-stone-800 dark:text-stone-400'
-                                : 'mb-4 flex items-center justify-between text-xs text-stone-500 dark:text-stone-400'
-                        "
+                        v-if="props.totalPages > 1"
+                        class="mb-2 flex items-center justify-between border-b border-stone-200 pb-2 text-stone-500 dark:border-stone-800 dark:text-stone-400"
                     >
                         <button
                             type="button"
@@ -1863,17 +1858,35 @@ function orderRangeClasses(range: OrderRange): string[] {
                     </div>
 
                     <div
-                        :class="
-                            textEditMode &&
-                            'rounded border border-stone-200 p-2 font-serif text-lg leading-loose dark:border-stone-800'
-                        "
+                        class="rounded border border-stone-200 p-2 font-serif text-lg leading-loose dark:border-stone-800"
                     >
+                        <!-- An empty edition and a work nothing cites are
+                             different situations, and only the second is a
+                             dead end. Saying "this work has no canonical
+                             passages" for both told an editor with a perfectly
+                             good transcription that there was nothing to do,
+                             when the text was one click away in the panel. -->
                         <p
                             v-if="!props.windowPassages.length"
                             class="font-sans text-sm text-stone-500 dark:text-stone-400"
                         >
-                            This work has no canonical passages yet — nothing to
-                            edit until some transcription cites one.
+                            <template v-if="!props.transcriptions.length">
+                                No transcription cites this work yet. An edition
+                                takes its text from cited transcriptions, so
+                                there is nothing to add until one exists.
+                            </template>
+                            <template v-else-if="addingText">
+                                This edition has no text yet — add cited
+                                passages from the panel on the right.
+                            </template>
+                            <template v-else-if="canEdit">
+                                This edition has no text yet. Choose “Add /
+                                remove text” on the right to add passages from
+                                the transcriptions that cite this work.
+                            </template>
+                            <template v-else>
+                                This edition has no text yet.
+                            </template>
                         </p>
 
                         <article
@@ -1882,16 +1895,12 @@ function orderRangeClasses(range: OrderRange): string[] {
                             ) in props.windowPassages"
                             :id="`passage-${passage.id}`"
                             :key="passage.id"
-                            :class="
-                                !textEditMode &&
-                                'font-serif text-lg leading-loose'
-                            "
                         >
                             <span
                                 class="mr-1 rounded px-1.5 py-0.5 align-middle font-sans text-xs tracking-wide select-none"
                                 :class="
                                     hasPassageNote(passage)
-                                        ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300'
+                                        ? 'bg-sky-300 text-sky-950 dark:bg-sky-800/60 dark:text-sky-100'
                                         : 'bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400'
                                 "
                                 >{{ passage.label }}</span
@@ -1965,12 +1974,9 @@ function orderRangeClasses(range: OrderRange): string[] {
                                         class="cursor-pointer"
                                         :data-passage-id="passage.id"
                                         :data-run-index="runIndex"
-                                        :class="[
-                                            runClasses(passage, run, runIndex),
-                                            showDiplomatic
-                                                ? 'inline-block text-center align-top'
-                                                : '',
-                                        ]"
+                                        :class="
+                                            runClasses(passage, run, runIndex)
+                                        "
                                         @mouseenter="
                                             showReadings(
                                                 $event,
@@ -1994,12 +2000,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                         ><template v-else>{{
                                             run.text ||
                                             (run.gap ? '⟨gap⟩' : '⟨insert⟩')
-                                        }}</template
-                                        ><span
-                                            v-if="showDiplomatic"
-                                            class="block font-sans text-xs leading-tight text-stone-400 dark:text-stone-500"
-                                            >{{ run.diplomatic ?? '·' }}</span
-                                        ></span
+                                        }}</template></span
                                     ><span
                                         :class="
                                             spacerClasses(passage, runIndex)
@@ -2239,7 +2240,6 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                     }}
                                                     <em
                                                         v-if="
-                                                            showDiplomatic &&
                                                             candidate.diplomatic
                                                         "
                                                         class="text-stone-500 dark:text-stone-400"
@@ -2474,7 +2474,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                         <li
                                             v-for="candidate in passage
                                                 .order_range.candidates"
-                                            :key="`${candidate.source}-${candidate.transcription_id ?? candidate.conjecture_id}`"
+                                            :key="`${candidate.source}-${candidate.transcription_layer_id ?? candidate.conjecture_id}`"
                                             class="rounded p-1"
                                             :class="
                                                 candidate.matches_current
@@ -2686,15 +2686,6 @@ function orderRangeClasses(range: OrderRange): string[] {
                                 </template>
                             </span>
 
-                            <!-- The line as the base manuscript has it,
-                                 whole, for reading rather than comparing. -->
-                            <p
-                                v-if="showDiplomatic && passage.base_diplomatic"
-                                class="mt-1 border-l-2 border-sky-200 pl-3 text-base text-stone-500 dark:border-sky-900 dark:text-stone-400"
-                            >
-                                {{ passage.base_diplomatic }}
-                            </p>
-
                             <!-- The editor's own notes on this line: the
                                  judgments the apparatus can't carry —
                                  accentuation, word division, speaker
@@ -2775,18 +2766,45 @@ function orderRangeClasses(range: OrderRange): string[] {
                     </div>
                 </div>
 
-                <!-- Add text: select spans from any transcription and add them
-                to the edition, in the order added. Sits in the right column,
-                next to the edition's own continuous text, exactly where the
-                transcription editor's own editing interface sits next to its
-                image view. -->
-                <div v-if="textEditMode">
+                <!-- The right pane. Whichever view is chosen sits next to the
+                edition's own continuous text, exactly where the transcription
+                editor's own editing interface sits next to its image view. -->
+                <div>
+                    <div
+                        class="mb-2 flex flex-wrap items-center gap-1 text-xs text-stone-500 dark:text-stone-400"
+                    >
+                        <button
+                            v-for="choice in rightPaneChoices"
+                            :key="choice.value"
+                            type="button"
+                            class="rounded border px-2 py-1"
+                            :class="[
+                                activeRightPane === choice.value
+                                    ? 'border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300'
+                                    : 'border-stone-300 dark:border-stone-700',
+                                choice.disabled
+                                    ? 'cursor-not-allowed opacity-50'
+                                    : '',
+                            ]"
+                            :disabled="choice.disabled"
+                            :title="choice.note"
+                            @click="rightPane = choice.value"
+                        >
+                            {{ choice.label }}
+                        </button>
+                    </div>
+
                     <AddToEditionPanel
+                        v-if="activeRightPane === 'add'"
                         :edition="props.edition"
                         :transcriptions="props.transcriptions"
                         :already-added-passage-ids="alreadyAddedPassageIds"
                         :passages="props.workPassages"
                         :reference-levels="props.referenceLevels"
+                    />
+                    <WitnessTranscriptPanel
+                        v-else-if="activeRightPane === 'witness'"
+                        :transcripts="props.witnessTranscripts"
                     />
                 </div>
             </div>

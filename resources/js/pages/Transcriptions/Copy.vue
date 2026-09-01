@@ -1,54 +1,39 @@
 <script setup lang="ts">
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { computed } from 'vue';
 import AppHeader from '@/components/AppHeader.vue';
-import { store } from '@/routes/transcriptions/fork';
+import { store } from '@/routes/transcriptions/copy';
 import { show as showWitness } from '@/routes/witnesses';
-import type {
-    Transcription,
-    TranscriptionLayer,
-    Witness,
-} from '@/types/models';
+import type { Transcription, TranscriptionLayer } from '@/types/models';
 
 const props = defineProps<{
-    transcription: Transcription;
-    witnesses: Witness[];
+    layer: TranscriptionLayer;
+    transcriptions: Transcription[];
 }>();
 
-// Witness and layer together name the slot the copy fills. Defaults to the
-// other layer of this witness, which is the commonest copy: starting a
-// witness's normalized layer from its diplomatic one, or the reverse.
+const otherLayer = computed(() =>
+    props.layer.layer === 'diplomatic' ? 'normalized' : 'diplomatic',
+);
+
+// The destination transcription is the only choice: which layer receives the
+// text follows from it. Defaults to this layer's own transcription, which is
+// the commonest copy — starting the normalized text from the diplomatic one,
+// or the reverse.
 const form = useForm({
-    witness_id: props.transcription.witness_id as number | '',
-    layer: (props.transcription.layer === 'diplomatic'
-        ? 'normalized'
-        : 'diplomatic') as TranscriptionLayer,
-    tags: [] as string[],
+    transcription_id: props.layer.transcription_id as number | '',
 });
-const newTagInput = ref('');
 
-function addTag() {
-    const value = newTagInput.value.trim();
-
-    if (!value || form.tags.includes(value)) {
-        return;
-    }
-
-    form.tags.push(value);
-    newTagInput.value = '';
-}
-
-function removeTag(name: string) {
-    form.tags = form.tags.filter((tag) => tag !== name);
-}
+const staysHere = computed(
+    () => form.transcription_id === props.layer.transcription_id,
+);
 
 function submit() {
-    form.post(store.url(props.transcription.id));
+    form.post(store.url(props.layer.id));
 }
 </script>
 
 <template>
-    <Head title="Fork transcription" />
+    <Head title="Copy transcription layer" />
 
     <div
         class="min-h-screen bg-[#FDFDFC] p-6 text-[#1b1b18] lg:p-12 dark:bg-[#0a0a0a] dark:text-[#EDEDEC]"
@@ -57,109 +42,79 @@ function submit() {
             <AppHeader />
 
             <Link
-                :href="showWitness.url(props.transcription.witness_id)"
+                :href="showWitness.url(props.layer.transcription!.witness!.id)"
                 class="text-sm text-stone-500 hover:underline dark:text-stone-400"
             >
-                &larr; {{ props.transcription.witness?.siglum }}
+                &larr; {{ props.layer.transcription?.witness?.siglum }}
             </Link>
 
             <h1 class="mt-2 mb-1 font-serif text-2xl font-medium">
-                Fork {{ props.transcription.witness?.siglum }}
+                Copy the {{ props.layer.layer }} layer
             </h1>
             <p class="mb-6 text-sm text-stone-500 dark:text-stone-400">
-                Copies this transcription's text (and its citation assignments)
-                into another slot, so it can be adapted without altering the
-                original — onto another witness, to reflect what that manuscript
-                shows, or onto this witness's other layer, to start its
-                normalized text from its diplomatic one or the reverse. A
-                witness holds one transcription per layer, so the slot you
-                choose must be empty.
+                Copies this layer's text into another, leaving this one
+                untouched. The layer it lands in follows from where you send it:
+                within this transcription there is only the
+                {{ otherLayer }} layer, and any other transcription receives it
+                into its own {{ props.layer.layer }} layer.
             </p>
 
             <form class="flex flex-col gap-4" @submit.prevent="submit">
                 <label class="flex flex-col gap-1 text-sm">
-                    Target witness
+                    Copy into
                     <select
-                        v-model="form.witness_id"
+                        v-model="form.transcription_id"
                         class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
                     >
                         <option value="" disabled>
-                            Choose a witness&hellip;
+                            Choose a transcription&hellip;
                         </option>
                         <option
-                            v-for="witness in props.witnesses"
-                            :key="witness.id"
-                            :value="witness.id"
+                            v-for="transcription in props.transcriptions"
+                            :key="transcription.id"
+                            :value="transcription.id"
                         >
-                            {{ witness.siglum }} &mdash; {{ witness.label }} ({{
-                                witness.type
-                            }})
+                            {{ transcription.witness?.siglum }} &mdash;
+                            {{ transcription.name
+                            }}{{
+                                transcription.id ===
+                                props.layer.transcription_id
+                                    ? ' (this one)'
+                                    : ''
+                            }}
                         </option>
                     </select>
                     <span
-                        v-if="form.errors.witness_id"
+                        v-if="form.errors.transcription_id"
                         class="text-xs text-red-600 dark:text-red-400"
                     >
-                        {{ form.errors.witness_id }}
+                        {{ form.errors.transcription_id }}
                     </span>
                 </label>
 
-                <label class="flex flex-col gap-1 text-sm">
-                    Target layer
-                    <select
-                        v-model="form.layer"
-                        class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                    >
-                        <option value="diplomatic">
-                            diplomatic &mdash; what the manuscript physically
-                            has
-                        </option>
-                        <option value="normalized">
-                            normalized &mdash; the editor's regularization;
-                            collation runs on this
-                        </option>
-                    </select>
-                    <span
-                        v-if="form.errors.layer"
-                        class="text-xs text-red-600 dark:text-red-400"
-                    >
-                        {{ form.errors.layer }}
-                    </span>
-                </label>
-
-                <div class="flex flex-col gap-1 text-sm">
-                    Tags
-                    <div class="flex flex-wrap items-center gap-2">
-                        <span
-                            v-for="tag in form.tags"
-                            :key="tag"
-                            class="flex items-center gap-1 rounded-full bg-stone-200 px-2.5 py-0.5 text-xs text-stone-700 dark:bg-stone-800 dark:text-stone-300"
-                        >
-                            {{ tag }}
-                            <button
-                                type="button"
-                                class="text-stone-500 hover:text-red-600 dark:text-stone-400"
-                                @click="removeTag(tag)"
-                            >
-                                ×
-                            </button>
-                        </span>
-                        <input
-                            v-model="newTagInput"
-                            type="text"
-                            placeholder="+ tag"
-                            class="w-28 rounded border border-dashed border-stone-300 bg-transparent px-2 py-0.5 text-xs dark:border-stone-700"
-                            @keydown.enter.prevent="addTag()"
-                        />
-                    </div>
-                </div>
+                <p
+                    class="rounded border border-stone-200 p-3 text-xs text-stone-500 dark:border-stone-800 dark:text-stone-400"
+                >
+                    <template v-if="staysHere">
+                        The citation assignments and the image alignments come
+                        with it: the other layer is this same manuscript text
+                        regularized, standing on the same pages and the same
+                        marks on parchment.
+                    </template>
+                    <template v-else>
+                        Only the citation assignments come with it. Which
+                        passage of a work a stretch of text is stays true
+                        wherever it goes; where it sits on a manuscript page
+                        does not, because that is a different manuscript.
+                    </template>
+                </p>
 
                 <button
                     type="submit"
                     class="self-start rounded bg-stone-900 px-4 py-2 text-sm text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
-                    :disabled="form.processing || !form.witness_id"
+                    :disabled="form.processing || !form.transcription_id"
                 >
-                    {{ form.processing ? 'Creating…' : 'Create fork' }}
+                    {{ form.processing ? 'Copying…' : 'Copy' }}
                 </button>
             </form>
         </div>

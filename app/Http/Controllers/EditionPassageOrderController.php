@@ -29,7 +29,7 @@ class EditionPassageOrderController extends Controller
                 'range_end_canonical_passage_id' => $request->validated('range_end_canonical_passage_id'),
             ],
             [
-                'transcription_id' => $request->validated('transcription_id'),
+                'transcription_layer_id' => $request->validated('transcription_layer_id'),
                 'conjecture_id' => $request->validated('conjecture_id'),
                 'user_id' => $request->user()->id,
             ],

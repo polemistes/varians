@@ -11,8 +11,16 @@ class ManuscriptImageController extends Controller
 {
     public function store(StoreManuscriptImageRequest $request, Manuscript $manuscript): RedirectResponse
     {
+        // The label names a page, so uploading a photograph of one not yet
+        // recorded records it. Pages can equally be added on their own, for a
+        // manuscript being transcribed from something other than images.
+        $page = $manuscript->pages()->firstOrCreate(
+            ['label' => $request->validated('folio_label')],
+            ['position' => ($manuscript->pages()->max('position') ?? 0) + 1],
+        );
+
         $manuscript->images()->create([
-            'folio_label' => $request->validated('folio_label'),
+            'manuscript_page_id' => $page->id,
             'path' => $request->file('image')->store('manuscript-images', 'public'),
             'position' => ($manuscript->images()->max('position') ?? 0) + 1,
         ]);

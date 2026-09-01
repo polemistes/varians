@@ -90,3 +90,49 @@ orthographically (Devanagari for Sanskrit) will need another, and an editor
 there would not want spaces inserted into the normalized text to satisfy the
 collator. Add a second `Tokenization` case only together with its
 implementation.
+
+## Pages are their own thing; the division is one line number per transcription
+A `ManuscriptPage` exists whether or not anyone has photographed it —
+transcriptions are often made from a facsimile, a microfilm, or the manuscript
+itself, and the text still has to be divided onto pages. A `ManuscriptImage` is
+a photograph *of* a page and takes its label from there; before this, a page
+*was* an image and `path` is NOT NULL, so an unphotographed page could not be
+recorded at all.
+
+`TranscriptionPageBreak` says where a page begins in a **transcription**, as a
+**line number** — one division for both layers, not one each. A page holds a
+stretch of the manuscript and both layers transcribe that same stretch, so
+where it begins is a fact about the transcription; held per layer, the two were
+free to drift apart with nothing to say which was right.
+
+The coordinate is the line because it is the only one the layers share. Do not
+be tempted by tokens: they usually correspond, but crasis resolution, illegible
+or lost stretches, elision, and re-dividing words a scribe ran together all
+break the correspondence, and those are normalizing operations an editor wants.
+`DiplomaticCounterpart` already refuses to map when token counts differ, and a
+test pins that (ΚΑΓΩ ΕΙΠΟΝ → καὶ ἐγώ εἶπον). Lines survive all of it, because a
+line of the transcription is a line of the manuscript in either layer, and a
+page begins at a line start since a manuscript line does not span two pages.
+Each layer resolves the line to its own offsets with
+`TranscriptionLayer::offsetOfLine()`.
+
+A single number, not a range: the page runs to wherever the next one begins, so
+pages cannot overlap or leave gaps. Lines before the first break are on no page
+yet.
+
+Editing text still has to maintain the division, but only when whole lines come
+or go — changing characters within a line moves nothing.
+`TranscriptionTextController::applyPageBreaks` resolves each break to the edited
+layer's offset, moves it with the same machinery as everything else, and reads
+the line back, rather than reasoning about newlines directly.
+
+Breaks move by `SpanTransformer::transformPoints`, **not** `transform()`. A
+point is not a zero-width span: `transform()` gives a span's start
+right-gravity, so typing exactly at a zero-width span pushes it forward, and a
+break treated that way would put the first words typed at the top of a page
+onto the page before — the case an editor transcribing page by page hits every
+time she starts a page. `transformPoints` keeps an insertion at the break
+*after* it. A break is never deleted: deleting a page's text empties the page
+rather than abolishing it, leaving the break where the deletion began, possibly
+alongside the next one. That is why nothing enforces distinct offsets — two
+breaks at the same place is an empty page.

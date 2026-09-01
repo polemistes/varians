@@ -4,7 +4,7 @@ use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\EditionComment;
 use App\Models\Lemma;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
@@ -26,7 +26,7 @@ function commentableEdition(string $text = 'the swift red fox'): array
     ]);
     $edition = Edition::factory()->for($work)->create();
 
-    $transcription = Transcription::factory()->for(Witness::factory()->create(['siglum' => 'A']))
+    $transcription = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'A']))
         ->create(['text' => $text]);
     $segment = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => mb_strlen($text)]);
@@ -207,7 +207,7 @@ test('a note anchored to a column stops the collation being rebuilt', function (
 
     // "A" already seeded; this witness sorts first and would otherwise
     // trigger a rebuild.
-    $earlier = Transcription::factory()->for(Witness::factory()->create(['siglum' => 'AA']))
+    $earlier = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'AA']))
         ->create(['text' => 'the red fox']);
     PassageAdder::add($edition, TranscriptionSegment::factory()->for($earlier)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 11]), 2.0);
@@ -225,7 +225,7 @@ test('a passage-level note does not stop a rebuild, and survives one', function 
         'note' => 'About the line as a whole.',
     ]);
 
-    $earlier = Transcription::factory()->for(Witness::factory()->create(['siglum' => 'AA']))
+    $earlier = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'AA']))
         ->create(['text' => 'the red fox']);
     PassageAdder::add($edition, TranscriptionSegment::factory()->for($earlier)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 11]), 2.0);

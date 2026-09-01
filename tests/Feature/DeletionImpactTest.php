@@ -10,7 +10,7 @@ use App\Models\LemmaReading;
 use App\Models\Manuscript;
 use App\Models\ManuscriptImage;
 use App\Models\ManuscriptImageFeature;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
 use App\Models\TranscriptionSegment;
 use App\Models\Witness;
@@ -43,11 +43,11 @@ test('forWitness counts every cascaded category, without double-counting a regio
     $witness = Witness::factory()->create();
     $manuscript = Manuscript::factory()->for($witness)->create();
     $images = ManuscriptImage::factory()->for($manuscript)->count(2)->create();
-    $transcription = Transcription::factory()->for($witness)->create();
+    $transcription = TranscriptionLayer::factory()->for($witness)->create();
 
     TranscriptionSegment::factory()->for($transcription)->create();
 
-    // Matches via both transcription_id and manuscript_image_id — must
+    // Matches via both transcription_layer_id and manuscript_image_id — must
     // still count once, not twice.
     TranscriptionRegion::factory()
         ->for($transcription)
@@ -57,13 +57,14 @@ test('forWitness counts every cascaded category, without double-counting a regio
     $lemma = Lemma::factory()->create();
     $reading = LemmaReading::factory()->for($lemma)->for($transcription)->create();
     EditionLemma::factory()->create(['lemma_id' => $lemma->id, 'selected_reading_id' => $reading->id]);
-    EditionPassage::factory()->create(['transcription_id' => $transcription->id]);
+    EditionPassage::factory()->create(['transcription_layer_id' => $transcription->id]);
 
     expect(DeletionImpact::forWitness($witness))->toBe([
         'transcriptions' => 1,
         'segments' => 1,
         'regions' => 1,
         'images' => 2,
+        'pages' => 2,
         'editionSelections' => 1,
         'editionPassages' => 1,
     ]);
@@ -77,14 +78,15 @@ test('forWitness on a witness with no manuscript reports zero images and regions
         'segments' => 0,
         'regions' => 0,
         'images' => 0,
+        'pages' => 0,
         'editionSelections' => 0,
         'editionPassages' => 0,
     ]);
 });
 
 test('forTranscription counts segments, regions, and edition impact scoped to that transcription', function () {
-    $transcription = Transcription::factory()->create();
-    $otherTranscription = Transcription::factory()->create();
+    $transcription = TranscriptionLayer::factory()->create();
+    $otherTranscription = TranscriptionLayer::factory()->create();
 
     TranscriptionSegment::factory()->for($transcription)->create();
     TranscriptionSegment::factory()->for($otherTranscription)->create();
@@ -93,7 +95,7 @@ test('forTranscription counts segments, regions, and edition impact scoped to th
     $lemma = Lemma::factory()->create();
     $reading = LemmaReading::factory()->for($lemma)->for($transcription)->create();
     EditionLemma::factory()->create(['lemma_id' => $lemma->id, 'selected_reading_id' => $reading->id]);
-    EditionPassage::factory()->create(['transcription_id' => $transcription->id]);
+    EditionPassage::factory()->create(['transcription_layer_id' => $transcription->id]);
 
     expect(DeletionImpact::forTranscription($transcription))->toBe([
         'segments' => 1,
@@ -107,7 +109,7 @@ test('forManuscriptImage counts features and regions, regardless of which transc
     $image = ManuscriptImage::factory()->create();
     ManuscriptImageFeature::factory()->for($image, 'manuscriptImage')->create();
 
-    $unrelatedTranscription = Transcription::factory()->create();
+    $unrelatedTranscription = TranscriptionLayer::factory()->create();
     TranscriptionRegion::factory()->for($unrelatedTranscription)->for($image, 'manuscriptImage')->create();
 
     expect(DeletionImpact::forManuscriptImage($image))->toBe([

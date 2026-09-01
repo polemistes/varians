@@ -4,13 +4,12 @@ use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
 use App\Support\Edition\PassageAdder;
-use Normalizer;
 
 /**
  * Collate one passage from the given witnesses and return both the columns
@@ -30,7 +29,7 @@ function collationOf(array $texts): array
     $position = 1.0;
 
     foreach ($texts as $siglum => $text) {
-        $transcription = Transcription::factory()
+        $transcription = TranscriptionLayer::factory()
             ->for(Witness::factory()->create(['siglum' => $siglum]))
             ->create(['text' => $text]);
         $segment = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
@@ -43,11 +42,11 @@ function collationOf(array $texts): array
 
     $columns = Lemma::where('canonical_passage_id', $passage->id)
         ->orderBy('position')
-        ->with('readings.transcription.witness')
+        ->with('readings.transcriptionLayer.transcription.witness')
         ->get()
         ->map(fn (Lemma $lemma) => $lemma->readings
-            ->map(fn (LemmaReading $reading) => $reading->transcription->witness->siglum.':'.mb_substr(
-                $reading->transcription->text,
+            ->map(fn (LemmaReading $reading) => $reading->transcriptionLayer->witness->siglum.':'.mb_substr(
+                $reading->transcriptionLayer->text,
                 $reading->start_offset,
                 $reading->end_offset - $reading->start_offset,
             ))
@@ -170,5 +169,5 @@ test('storage keeps the encoding the editor typed', function () {
     $nfd = Normalizer::normalize('τοσοῦτοι μὲν οὖν', Normalizer::FORM_D);
     collationOf(['A' => $nfd]);
 
-    expect(Transcription::whereNotNull('text')->first()->text)->toBe($nfd);
+    expect(TranscriptionLayer::whereNotNull('text')->first()->text)->toBe($nfd);
 });

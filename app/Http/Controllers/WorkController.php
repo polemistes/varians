@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreWorkRequest;
 use App\Models\ReferenceScheme;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\Witness;
 use App\Models\Work;
 use App\Support\DeletionImpact;
@@ -63,9 +63,9 @@ class WorkController extends Controller
 
         $work->setRelation('witnesses', $work->relatedWitnesses()->with('manuscript')->orderBy('siglum')->get());
 
-        $transcriptions = Transcription::forWork($work)
+        $transcriptions = TranscriptionLayer::forWork($work)
             ->visibleTo($request->user())
-            ->with(['witness', 'user', 'tags'])
+            ->with(['witness', 'user', 'tags', 'transcription'])
             ->get();
 
         $allWitnesses = Witness::visibleTo($request->user())->orderBy('siglum')->get(['id', 'siglum', 'label', 'type']);

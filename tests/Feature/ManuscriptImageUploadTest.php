@@ -21,7 +21,7 @@ test('a manuscript image can be uploaded', function () {
 
     $image = $manuscript->images()->sole();
 
-    expect($image->folio_label)->toBe('13r')
+    expect($image->manuscriptPage->label)->toBe('13r')
         ->and((float) $image->position)->toBe(1.0);
 
     Storage::disk('public')->assertExists($image->path);
@@ -33,7 +33,7 @@ test('uploaded images are appended after existing ones', function () {
 
     $manuscript = Manuscript::factory()->create();
     $manuscript->images()->create([
-        'folio_label' => '1r',
+        'manuscript_page_id' => $manuscript->pages()->create(['label' => '1r', 'position' => 1])->id,
         'path' => 'manuscript-images/existing.jpg',
         'position' => 5,
     ]);
@@ -43,7 +43,7 @@ test('uploaded images are appended after existing ones', function () {
         'image' => UploadedFile::fake()->create('folio.jpg', 500, 'image/jpeg'),
     ]);
 
-    $newImage = $manuscript->images()->where('folio_label', '1v')->sole();
+    $newImage = $manuscript->images()->whereRelation('manuscriptPage', 'label', '1v')->sole();
 
     expect((float) $newImage->position)->toBe(6.0);
 });

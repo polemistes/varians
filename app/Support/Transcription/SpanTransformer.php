@@ -50,6 +50,56 @@ class SpanTransformer
     }
 
     /**
+     * The same transformation for single points rather than spans — where a
+     * manuscript page begins in this text (TranscriptionPageBreak).
+     *
+     * A point is not a zero-width span, because the gravity has to be the
+     * other way round. `transform()` gives a span's start right-gravity, so
+     * typing exactly at a zero-width span pushes it forward; a page break
+     * treated that way would mean the first words typed at the top of a page
+     * land on the page before it — precisely the case an editor transcribing
+     * page by page hits every time she starts a new one. Here an insertion
+     * exactly at the break stays after it, so what is typed at the top of a
+     * page belongs to that page.
+     *
+     * A point is never deleted: deleting the text a page held does not
+     * abolish the page, it empties it, leaving its break where the deletion
+     * began — possibly alongside the next page's break, which is what an
+     * empty page looks like.
+     *
+     * @param  list<int>  $points
+     * @param  list<array{start: int, end: int, text: string}>  $ops
+     * @return list<int>
+     */
+    public static function transformPoints(array $points, array $ops): array
+    {
+        foreach ($ops as $op) {
+            $insertedLen = mb_strlen($op['text']);
+
+            $points = array_map(function (int $point) use ($op, $insertedLen) {
+                if ($op['start'] === $op['end']) {
+                    return $op['start'] < $point ? $point + $insertedLen : $point;
+                }
+
+                if ($point <= $op['start']) {
+                    return $point;
+                }
+
+                if ($point >= $op['end']) {
+                    return $point + $insertedLen - ($op['end'] - $op['start']);
+                }
+
+                // The break stood inside the replaced stretch: the text that
+                // followed it is gone, so the page now starts where the
+                // replacement does.
+                return $op['start'];
+            }, $points);
+        }
+
+        return $points;
+    }
+
+    /**
      * @param  array{start: int, end: int, needsReview: bool, deleted: bool}  $span
      * @param  array{start: int, end: int, text: string}  $op
      * @return array{start: int, end: int, needsReview: bool, deleted: bool}

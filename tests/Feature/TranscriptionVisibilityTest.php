@@ -1,20 +1,25 @@
 <?php
 
-use App\Enums\Visibility;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\User;
 
 test('anyone can view a published transcription', function () {
-    $transcription = Transcription::factory()->published()->create();
+    $transcription = TranscriptionLayer::factory()->published()->create();
 
     $response = $this->get(route('transcriptions.show', $transcription));
 
-    $response->assertOk();
+    // A layer is worked on at its witness, where the manuscript stands beside
+    // it, so the old per-transcription URL sends you there.
+    $response->assertRedirect(route('witnesses.show', [
+        'witness' => $transcription->transcription->witness_id,
+        'transcription' => $transcription->transcription_id,
+        'layer' => $transcription->layer->value,
+    ]));
 });
 
 test('a guest cannot view a draft transcription', function () {
     $this->actingAs(User::factory()->create());
-    $transcription = Transcription::factory()->create(['visibility' => Visibility::Draft]);
+    $transcription = TranscriptionLayer::factory()->create();
 
     $response = $this->get(route('transcriptions.show', $transcription));
 
@@ -22,7 +27,7 @@ test('a guest cannot view a draft transcription', function () {
 });
 
 test('an anonymous visitor cannot view a draft transcription', function () {
-    $transcription = Transcription::factory()->create(['visibility' => Visibility::Draft]);
+    $transcription = TranscriptionLayer::factory()->create();
 
     $response = $this->get(route('transcriptions.show', $transcription));
 
@@ -32,19 +37,31 @@ test('an anonymous visitor cannot view a draft transcription', function () {
 test('any editor can view a draft transcription, not just its author', function () {
     $author = User::factory()->editor()->create();
     $viewer = User::factory()->editor()->create();
-    $transcription = Transcription::factory()->for($author)->create(['visibility' => Visibility::Draft]);
+    $transcription = TranscriptionLayer::factory()->for($author)->create();
     $this->actingAs($viewer);
 
     $response = $this->get(route('transcriptions.show', $transcription));
 
-    $response->assertOk();
+    // A layer is worked on at its witness, where the manuscript stands beside
+    // it, so the old per-transcription URL sends you there.
+    $response->assertRedirect(route('witnesses.show', [
+        'witness' => $transcription->transcription->witness_id,
+        'transcription' => $transcription->transcription_id,
+        'layer' => $transcription->layer->value,
+    ]));
 });
 
 test('an administrator can view a draft transcription', function () {
     $this->actingAs(User::factory()->administrator()->create());
-    $transcription = Transcription::factory()->create(['visibility' => Visibility::Draft]);
+    $transcription = TranscriptionLayer::factory()->create();
 
     $response = $this->get(route('transcriptions.show', $transcription));
 
-    $response->assertOk();
+    // A layer is worked on at its witness, where the manuscript stands beside
+    // it, so the old per-transcription URL sends you there.
+    $response->assertRedirect(route('witnesses.show', [
+        'witness' => $transcription->transcription->witness_id,
+        'transcription' => $transcription->transcription_id,
+        'layer' => $transcription->layer->value,
+    ]));
 });

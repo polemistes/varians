@@ -29,7 +29,7 @@ class StoreEditionPassageOrderRequest extends FormRequest
      * sequence to follow for the range `range_start_canonical_passage_id`
      * through `range_end_canonical_passage_id` (inclusive, by this
      * edition's own position order) — both must already be EditionPassages
-     * of this edition. Exactly one of `transcription_id`/`conjecture_id` is
+     * of this edition. Exactly one of `transcription_layer_id`/`conjecture_id` is
      * given (see withValidator): a transcription must cite *every* passage
      * in the range — a fragmentary witness has no whole-range order to
      * offer, unlike a real witness's own attested reading — and a
@@ -46,8 +46,8 @@ class StoreEditionPassageOrderRequest extends FormRequest
         return [
             'range_start_canonical_passage_id' => ['required', Rule::exists('edition_passages', 'canonical_passage_id')->where('edition_id', $edition->id)],
             'range_end_canonical_passage_id' => ['required', Rule::exists('edition_passages', 'canonical_passage_id')->where('edition_id', $edition->id)],
-            'transcription_id' => ['nullable', 'required_without:conjecture_id', Rule::exists('transcriptions', 'id')],
-            'conjecture_id' => ['nullable', 'required_without:transcription_id', Rule::exists('conjectures', 'id')->where('type', ConjectureType::Reordering->value)],
+            'transcription_layer_id' => ['nullable', 'required_without:conjecture_id', Rule::exists('transcription_layers', 'id')],
+            'conjecture_id' => ['nullable', 'required_without:transcription_layer_id', Rule::exists('conjectures', 'id')->where('type', ConjectureType::Reordering->value)],
         ];
     }
 
@@ -82,17 +82,17 @@ class StoreEditionPassageOrderRequest extends FormRequest
                 ->where('position', '<=', $end->position)
                 ->pluck('canonical_passage_id');
 
-            $transcriptionId = $this->input('transcription_id');
+            $transcriptionId = $this->input('transcription_layer_id');
             $conjectureId = $this->input('conjecture_id');
 
             if (is_numeric($transcriptionId)) {
-                $citedIds = TranscriptionSegment::where('transcription_id', (int) $transcriptionId)
+                $citedIds = TranscriptionSegment::where('transcription_layer_id', (int) $transcriptionId)
                     ->whereIn('canonical_passage_id', $rangePassageIds)
                     ->pluck('canonical_passage_id')
                     ->unique();
 
                 if ($citedIds->count() !== $rangePassageIds->count()) {
-                    $validator->errors()->add('transcription_id', 'That witness doesn\'t cite every passage in this range, so it has no whole-range order to follow here.');
+                    $validator->errors()->add('transcription_layer_id', 'That witness doesn\'t cite every passage in this range, so it has no whole-range order to follow here.');
                 }
 
                 return;

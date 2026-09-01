@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Manuscript;
 use App\Models\ManuscriptImage;
+use App\Models\ManuscriptPage;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -20,7 +21,12 @@ class ManuscriptImageFactory extends Factory
     {
         return [
             'manuscript_id' => Manuscript::factory(),
-            'folio_label' => fake()->numberBetween(1, 200).fake()->randomElement(['r', 'v']),
+            // The page belongs to the same manuscript as the image: an image
+            // is a photograph of one of its own manuscript's pages, and a
+            // factory that made two unrelated manuscripts would quietly
+            // produce impossible data.
+            'manuscript_page_id' => fn (array $attributes) => ManuscriptPage::factory()
+                ->create(['manuscript_id' => $attributes['manuscript_id']])->id,
             'path' => 'manuscript-images/'.fake()->uuid().'.jpg',
             'position' => fake()->unique()->randomFloat(4, 1, 1000),
         ];

@@ -3,7 +3,7 @@
 use App\Models\Manuscript;
 use App\Models\ManuscriptImage;
 use App\Models\ManuscriptImageFeature;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
 use App\Models\User;
 use App\Models\Witness;
@@ -46,7 +46,7 @@ test('a guest cannot remove a manuscript image feature', function () {
 
 test('a guest cannot align an image region to a transcription', function () {
     $this->actingAs(User::factory()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the quick fox']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
     $image = ManuscriptImage::factory()->create();
 
     $response = $this->post(route('transcription-regions.store', $transcription), [
@@ -82,12 +82,12 @@ test('a guest cannot delete a witness', function () {
 
 test('a guest cannot delete a transcription', function () {
     $this->actingAs(User::factory()->create());
-    $transcription = Transcription::factory()->create();
+    $transcription = TranscriptionLayer::factory()->create();
 
     $response = $this->delete(route('transcriptions.destroy', $transcription));
 
     $response->assertForbidden();
-    expect(Transcription::find($transcription->id))->not->toBeNull();
+    expect(TranscriptionLayer::find($transcription->id))->not->toBeNull();
 });
 
 test('a guest cannot delete a manuscript image', function () {

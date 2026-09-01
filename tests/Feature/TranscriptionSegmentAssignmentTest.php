@@ -2,14 +2,14 @@
 
 use App\Models\CanonicalPassage;
 use App\Models\ReferenceScheme;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Work;
 
 test('marking a span requires a citation — there is no unassigned state', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the quick brown fox']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
 
     $response = $this->post(route('transcription-segments.store', $transcription), [
         'start_offset' => 0,
@@ -22,7 +22,7 @@ test('marking a span requires a citation — there is no unassigned state', func
 
 test('marking a span creates it already cited, in one step', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the quick brown fox']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
     $scheme = ReferenceScheme::factory()->create();
     $work = Work::factory()->for($scheme, 'referenceScheme')->create();
 
@@ -38,12 +38,12 @@ test('marking a span creates it already cited, in one step', function () {
     $segment = $transcription->segments()->sole();
     expect($segment->canonicalPassage->work_id)->toBe($work->id)
         ->and($segment->canonicalPassage->label)->toBe('1.1')
-        ->and($work->relatedWitnesses()->whereKey($transcription->witness_id)->exists())->toBeTrue();
+        ->and($work->relatedWitnesses()->whereKey($transcription->transcription->witness_id)->exists())->toBeTrue();
 });
 
 test('a segment can be cited with an alphanumeric line label like "4a"', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the quick brown fox']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
     $scheme = ReferenceScheme::factory()->create();
     $work = Work::factory()->for($scheme, 'referenceScheme')->create();
 
@@ -96,7 +96,7 @@ test('a segment can be re-cited to a different work, creating the canonical pass
     expect($segment->canonicalPassage)->not->toBeNull()
         ->and($segment->canonicalPassage->work_id)->toBe($work->id)
         ->and($segment->canonicalPassage->label)->toBe('1.1')
-        ->and($work->relatedWitnesses()->whereKey($segment->transcription->witness_id)->exists())->toBeTrue();
+        ->and($work->relatedWitnesses()->whereKey($segment->transcriptionLayer->transcription->witness_id)->exists())->toBeTrue();
 });
 
 test('re-citing a segment reuses an existing canonical passage for the same citation', function () {

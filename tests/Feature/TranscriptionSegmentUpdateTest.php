@@ -1,14 +1,14 @@
 <?php
 
 use App\Models\ReferenceScheme;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Work;
 
 test('a span can be resized', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the quick brown fox']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
     $segment = TranscriptionSegment::factory()
         ->for($transcription)
         ->create(['start_offset' => 0, 'end_offset' => 3]);
@@ -27,7 +27,7 @@ test('a span can be resized', function () {
 
 test('resizing a span clears its needs_review flag', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the quick brown fox']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
     $segment = TranscriptionSegment::factory()
         ->for($transcription)
         ->create(['start_offset' => 0, 'end_offset' => 3, 'needs_review' => true]);
@@ -42,7 +42,7 @@ test('resizing a span clears its needs_review flag', function () {
 
 test('a span cannot be resized past the end of the transcription text', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'short']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'short']);
     $segment = TranscriptionSegment::factory()
         ->for($transcription)
         ->create(['start_offset' => 0, 'end_offset' => 3]);
@@ -57,7 +57,7 @@ test('a span cannot be resized past the end of the transcription text', function
 
 test('a new span starts out not needing review', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the quick brown fox']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
     $scheme = ReferenceScheme::factory()->create();
     $work = Work::factory()->for($scheme, 'referenceScheme')->create();
 
@@ -74,7 +74,7 @@ test('a new span starts out not needing review', function () {
 test('an editor can resize a span on another editor\'s transcription', function () {
     $this->actingAs(User::factory()->editor()->create());
     $author = User::factory()->editor()->create();
-    $transcription = Transcription::factory()->for($author)->create(['text' => 'the quick brown fox']);
+    $transcription = TranscriptionLayer::factory()->for($author)->create(['text' => 'the quick brown fox']);
     $segment = TranscriptionSegment::factory()
         ->for($transcription)
         ->create(['start_offset' => 0, 'end_offset' => 3]);
@@ -90,7 +90,7 @@ test('an editor can resize a span on another editor\'s transcription', function 
 
 test('a guest cannot modify a span', function () {
     $this->actingAs(User::factory()->create());
-    $transcription = Transcription::factory()->create(['text' => 'the quick brown fox']);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
     $segment = TranscriptionSegment::factory()
         ->for($transcription)
         ->create(['start_offset' => 0, 'end_offset' => 3]);

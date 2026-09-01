@@ -4,7 +4,7 @@ use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
 use App\Models\Lemma;
-use App\Models\Transcription;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
@@ -21,7 +21,7 @@ test('deleting a work cascades its passages, editions, lemmas, conjectures, and 
     // A witness with no other connection to this work, cited only via a
     // segment — the least obvious part of the cascade.
     $witness = Witness::factory()->create();
-    $transcription = Transcription::factory()->for($witness)->create();
+    $transcription = TranscriptionLayer::factory()->for($witness)->create();
     $segment = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create();
 
     $response = $this->delete(route('works.destroy', $work));
@@ -33,7 +33,7 @@ test('deleting a work cascades its passages, editions, lemmas, conjectures, and 
         ->and(Lemma::find($lemma->id))->toBeNull()
         ->and(Conjecture::find($conjecture->id))->toBeNull()
         ->and(TranscriptionSegment::find($segment->id))->toBeNull()
-        ->and(Transcription::find($transcription->id))->not->toBeNull()
+        ->and(TranscriptionLayer::find($transcription->id))->not->toBeNull()
         ->and(Witness::find($witness->id))->not->toBeNull();
 });
 
