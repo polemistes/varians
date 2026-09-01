@@ -26,6 +26,7 @@ import {
 import {
     assign as assignCitationRoute,
     destroy as destroySegment,
+    move as moveSegment,
     store as storeSegment,
     update as updateSegment,
 } from '@/routes/transcription-segments';
@@ -1115,6 +1116,49 @@ function assignSelection() {
     );
 }
 
+const movingSegment = ref<TranscriptionSegment | null>(null);
+const moveError = ref<string | null>(null);
+
+function startMove(segment: TranscriptionSegment) {
+    movingSegment.value = segment;
+    moveError.value = null;
+    clearSelection();
+}
+
+function cancelMove() {
+    movingSegment.value = null;
+    moveError.value = null;
+}
+
+/**
+ * Send the passage to wherever the caret is.
+ *
+ * The offsets on screen are the page's, so the destination is converted back
+ * to the whole text — which is what the segment's own offsets are measured in.
+ */
+function moveHere() {
+    const caret = textEl.value?.caretOffset();
+
+    if (movingSegment.value === null || caret === null || caret === undefined) {
+        moveError.value = 'Click where it should go first.';
+
+        return;
+    }
+
+    router.patch(
+        moveSegment.url(movingSegment.value.id),
+        { target_offset: toFull(caret) },
+        {
+            preserveScroll: true,
+            onSuccess: () => cancelMove(),
+            onError: (errors) => {
+                moveError.value =
+                    Object.values(errors)[0] ?? 'Could not move that passage.';
+            },
+        },
+    );
+}
+
 function removeSegment(segmentId: number) {
     router.delete(destroySegment.url(segmentId), {
         preserveScroll: true,
@@ -1606,6 +1650,42 @@ function fixBoundaries() {
                         </span>
                     </div>
 
+                    <!-- Moving carries the citation with the words, which a
+                         cut and paste cannot: a deletion covering a cited span
+                         destroys it. -->
+                    <p
+                        v-if="movingSegment"
+                        class="mb-2 flex flex-wrap items-center gap-2 rounded border border-amber-300 p-2 text-xs text-amber-800 dark:border-amber-800 dark:text-amber-300"
+                    >
+                        <span>
+                            Click where
+                            {{
+                                movingSegment.canonical_passage?.label ??
+                                'this passage'
+                            }}
+                            should go, then:
+                        </span>
+                        <button
+                            type="button"
+                            class="rounded border border-amber-300 px-2 py-1 dark:border-amber-800"
+                            @click="moveHere"
+                        >
+                            Move here
+                        </button>
+                        <button
+                            type="button"
+                            class="underline"
+                            @click="cancelMove"
+                        >
+                            Cancel
+                        </button>
+                        <span
+                            v-if="moveError"
+                            class="w-full text-red-600 dark:text-red-400"
+                            >{{ moveError }}</span
+                        >
+                    </p>
+
                     <div class="font-serif text-lg leading-loose">
                         <AlignableText
                             ref="textEl"
@@ -1789,6 +1869,16 @@ function fixBoundaries() {
                                                         ? 'Update citation'
                                                         : 'Mark & assign'
                                                 }}
+                                            </button>
+                                            <button
+                                                v-if="matchingSegment"
+                                                type="button"
+                                                class="underline"
+                                                @click="
+                                                    startMove(matchingSegment)
+                                                "
+                                            >
+                                                Move this passage
                                             </button>
                                             <button
                                                 v-if="matchingSegment"

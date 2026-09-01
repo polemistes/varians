@@ -175,6 +175,8 @@ Route::middleware('role:editor')->group(function () {
         ->name('transcription-segments.store');
     Route::patch('/transcription-segments/{segment}', [TranscriptionSegmentController::class, 'update'])
         ->name('transcription-segments.update');
+    Route::patch('/transcription-segments/{segment}/position', [TranscriptionSegmentController::class, 'move'])
+        ->name('transcription-segments.move');
     Route::patch('/transcription-segments/{segment}/assignment', [TranscriptionSegmentController::class, 'assignCitation'])
         ->name('transcription-segments.assign');
     Route::delete('/transcription-segments/{segment}', [TranscriptionSegmentController::class, 'destroy'])

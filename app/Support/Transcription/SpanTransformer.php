@@ -50,6 +50,37 @@ class SpanTransformer
     }
 
     /**
+     * The two operations that lift the text of [$start, $end) out and set it
+     * down at $target, and the offset it ends up at.
+     *
+     * Moving is a deletion and an insertion, but it cannot be done as a plain
+     * cut and paste: a deletion covering a cited span destroys it (see
+     * applyReplace), so the citation would be lost exactly when it is meant to
+     * travel. The caller relocates whatever was anchored inside the span
+     * explicitly and transforms everything else through these ops — see
+     * TranscriptionSegmentController::move.
+     *
+     * $target is given in the text as it stands now. Removing the span first
+     * shifts anything after it, so a destination beyond the span moves back by
+     * its length.
+     *
+     * @return array{ops: list<array{start: int, end: int, text: string}>, destination: int}
+     */
+    public static function relocation(string $text, int $start, int $end, int $target): array
+    {
+        $moved = mb_substr($text, $start, $end - $start);
+        $destination = $target > $end ? $target - ($end - $start) : $target;
+
+        return [
+            'ops' => [
+                ['start' => $start, 'end' => $end, 'text' => ''],
+                ['start' => $destination, 'end' => $destination, 'text' => $moved],
+            ],
+            'destination' => $destination,
+        ];
+    }
+
+    /**
      * The same transformation for single points rather than spans — where a
      * manuscript page begins in this text (TranscriptionPageBreak).
      *
