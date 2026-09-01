@@ -73,7 +73,7 @@ Route::middleware('role:editor')->group(function () {
     Route::patch('/works/{work:slug}', [WorkController::class, 'update'])->name('works.update');
     Route::delete('/works/{work:slug}', [WorkController::class, 'destroy'])->name('works.destroy');
 
-    Route::post('/works/{work:slug}/text-imports', [TextImportController::class, 'store'])
+    Route::post('/transcriptions/{transcription}/import', [TextImportController::class, 'store'])
         ->name('text-imports.store');
 
     Route::post('/works/{work:slug}/editions', [EditionController::class, 'store'])->name('editions.store');

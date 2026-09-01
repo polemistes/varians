@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Support\Carbon;
 
 /**
@@ -53,6 +54,19 @@ class Work extends Model
     public function canonicalPassages(): HasMany
     {
         return $this->hasMany(CanonicalPassage::class);
+    }
+
+    /**
+     * Every assignment of a stretch of some witness's text to one of this
+     * work's passages. This, rather than the passages themselves, is what a
+     * scholar spends her time on and what she would lose: a work of a hundred
+     * lines collated from seven manuscripts holds seven hundred of these.
+     *
+     * @return HasManyThrough<TranscriptionSegment, CanonicalPassage, $this>
+     */
+    public function transcriptionSegments(): HasManyThrough
+    {
+        return $this->hasManyThrough(TranscriptionSegment::class, CanonicalPassage::class);
     }
 
     /**

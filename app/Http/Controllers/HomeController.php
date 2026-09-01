@@ -31,7 +31,7 @@ class HomeController extends Controller
                 ->get(['id', 'work_id', 'title', 'visibility']),
 
             'works' => Work::visibleTo($request->user())
-                ->withCount(['editions', 'canonicalPassages'])
+                ->withCount(['editions', 'transcriptionSegments'])
                 ->orderBy('title')
                 ->get(['id', 'title', 'slug', 'author']),
 

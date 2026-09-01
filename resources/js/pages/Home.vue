@@ -31,7 +31,7 @@ type EditionRow = {
 
 type WorkRow = Pick<Work, 'id' | 'title' | 'slug' | 'author'> & {
     editions_count: number;
-    canonical_passages_count: number;
+    transcription_segments_count: number;
 };
 
 type WitnessRow = Pick<Witness, 'id' | 'siglum' | 'label' | 'type'> & {
@@ -69,7 +69,7 @@ function removeEdition(edition: EditionRow) {
 function removeWork(work: WorkRow) {
     const parts = [
         pluralize(work.editions_count, 'edition'),
-        pluralize(work.canonical_passages_count, 'passage'),
+        pluralize(work.transcription_segments_count, 'passage assignment'),
     ].filter((part) => !part.startsWith('0 '));
 
     if (confirmDeletion(`the work "${work.title}"`, parts)) {

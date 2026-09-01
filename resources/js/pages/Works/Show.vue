@@ -48,16 +48,17 @@ function cancelDetails() {
 }
 
 function removeWork() {
+    // Assignments first, and passages not at all: a passage is a citable line
+    // number, cheap to recreate, while assigning some witness's words to it is
+    // the work. A hundred lines across seven manuscripts is seven hundred
+    // assignments and only a hundred passages, and the second number is the
+    // one that sounds harmless.
     const parts = describeDeletionImpact(props.work.deletion_impact, [
         {
-            key: 'canonicalPassages',
-            label: (n) => pluralize(n, 'passage'),
+            key: 'segments',
+            label: (n) => pluralize(n, 'passage assignment on a witness'),
         },
         { key: 'editions', label: (n) => pluralize(n, 'edition of this work') },
-        {
-            key: 'segments',
-            label: (n) => pluralize(n, 'citation on a witness’ transcription'),
-        },
         { key: 'conjectures', label: (n) => pluralize(n, 'conjecture') },
         { key: 'lemmas', label: (n) => pluralize(n, 'lemma') },
     ]);

@@ -1194,12 +1194,24 @@ function groupBy(
     }));
 }
 
+/**
+ * Readings are grouped by what they say, so the key has to be normalized:
+ * text pasted or imported is stored in whatever Unicode form it arrived in,
+ * and NFC "ἄειδε" and NFD "ἄειδε" are the same word rendered identically but
+ * different strings. Ungrouped, one manuscript would be listed twice over a
+ * difference nobody can see. Collation already compares in this form — see
+ * PassageAligner::comparisonForm.
+ */
+function sameReading(text: string | null): string | null {
+    return text === null ? null : text.normalize('NFC');
+}
+
 function witnessReadings(run: Run): ReadingGroup[] {
-    return groupBy(run.candidates, (c) => c.text, run.text);
+    return groupBy(run.candidates, (c) => sameReading(c.text), run.text);
 }
 
 function manuscriptReadings(run: Run): ReadingGroup[] {
-    return groupBy(run.candidates, (c) => c.diplomatic, '\u0000');
+    return groupBy(run.candidates, (c) => sameReading(c.diplomatic), '\u0000');
 }
 
 /**

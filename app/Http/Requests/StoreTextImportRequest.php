@@ -2,31 +2,26 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\Layer;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class StoreTextImportRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return true;
     }
 
     /**
-     * Get the validation rules that apply to the request.
+     * A file, and nothing else: the layer it loads into is the route
+     * parameter, and which work the text belongs to is not decided here — it
+     * follows later, from the citations assigned to it.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
-            'witness_id' => ['required', Rule::exists('witnesses', 'id')],
-            'layer' => ['required', Rule::enum(Layer::class)],
             'file' => ['required', 'file', 'mimes:txt', 'max:5120'],
         ];
     }
