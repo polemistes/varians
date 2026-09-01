@@ -2,7 +2,6 @@
 
 use App\Enums\Layer;
 use App\Models\CanonicalPassage;
-use App\Models\ManuscriptImage;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;

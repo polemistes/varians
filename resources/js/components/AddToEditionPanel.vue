@@ -129,7 +129,10 @@ function submitBulk() {
     const transcriptionId = activeTranscription.value.id;
 
     bulkForm
-        .transform((data) => ({ ...data, transcription_layer_id: transcriptionId }))
+        .transform((data) => ({
+            ...data,
+            transcription_layer_id: transcriptionId,
+        }))
         .post(storeEditionPassageBulk.url(props.edition), {
             preserveScroll: true,
             onSuccess: () => {

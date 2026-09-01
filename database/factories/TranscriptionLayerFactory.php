@@ -9,6 +9,7 @@ use App\Models\TranscriptionLayer;
 use App\Models\User;
 use App\Models\Witness;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * @extends Factory<TranscriptionLayer>
@@ -42,7 +43,7 @@ class TranscriptionLayerFactory extends Factory
      * has always meant, and rewriting every call site would have meant
      * editing the safety net during the refactor it was there to catch.
      *
-     * @param  \Illuminate\Database\Eloquent\Factories\Factory<covariant \Illuminate\Database\Eloquent\Model>|\Illuminate\Database\Eloquent\Model  $factory
+     * @param  Factory<covariant \Illuminate\Database\Eloquent\Model>|Model  $factory
      */
     public function for($factory, $relationship = null): static
     {
