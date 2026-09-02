@@ -33,6 +33,27 @@ test('a page needs a label', function () {
         ->assertInvalid(['label']);
 });
 
+test('an editor can delete a page, taking its images and breaks but not the text', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $layer = TranscriptionLayer::factory()->create(['text' => "page one\npage two"]);
+    $page = ManuscriptPage::factory()->create();
+    TranscriptionPageBreak::factory()->for($layer->transcription)
+        ->for($page, 'manuscriptPage')->create(['start_line' => 1]);
+
+    $this->delete(route('manuscript-pages.destroy', $page))->assertRedirect();
+
+    expect(ManuscriptPage::count())->toBe(0)
+        ->and(TranscriptionPageBreak::count())->toBe(0)
+        ->and($layer->fresh()->text)->toBe("page one\npage two");
+});
+
+test('a guest cannot delete a page', function () {
+    $this->actingAs(User::factory()->create());
+
+    $this->delete(route('manuscript-pages.destroy', ManuscriptPage::factory()->create()))
+        ->assertForbidden();
+});
+
 test('a guest cannot add a page', function () {
     $this->actingAs(User::factory()->create());
 

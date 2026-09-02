@@ -16,7 +16,10 @@ import type { StripKind } from '@/lib/greekText';
 import { applyOps, transformSpans } from '@/lib/transcriptionEdit';
 import type { EditSource, TextEditOp } from '@/lib/transcriptionEdit';
 import { store as storeImage } from '@/routes/manuscript-images';
-import { store as storeManuscriptPage } from '@/routes/manuscript-pages';
+import {
+    destroy as destroyManuscriptPage,
+    store as storeManuscriptPage,
+} from '@/routes/manuscript-pages';
 import { store as storePageBreak } from '@/routes/transcription-page-breaks';
 import {
     destroy as destroyRegion,
@@ -1071,6 +1074,29 @@ function addPage() {
 function selectPage(id: number | null) {
     selectedPageId.value = id;
     clearSelection();
+}
+
+// Deleting cascades server-side: the page's photographs (with their
+// alignments) and every layer's break at it go too — the text itself is
+// untouched, it simply stops being divided there.
+function deleteSelectedPage() {
+    const page = selectedPage.value;
+
+    if (!page) {
+        return;
+    }
+
+    const confirmed = window.confirm(
+        `Delete page ${page.label}? Its photographs and every layer's division at it are deleted too. The text itself is kept.`,
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    router.delete(destroyManuscriptPage.url(page.id), {
+        preserveScroll: true,
+    });
 }
 
 type ActiveSelection = { start: number; end: number; text: string };
@@ -2518,6 +2544,14 @@ function fixBoundaries() {
                         >
                             no image needed
                         </span>
+                        <button
+                            v-if="selectedPage"
+                            type="button"
+                            class="ml-auto text-xs text-red-600 underline dark:text-red-400"
+                            @click="deleteSelectedPage"
+                        >
+                            Delete {{ selectedPage.label }}
+                        </button>
                     </form>
 
                     <form
