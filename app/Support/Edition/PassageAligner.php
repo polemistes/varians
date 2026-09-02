@@ -5,8 +5,10 @@ namespace App\Support\Edition;
 use App\Models\CanonicalPassage;
 use App\Models\EditionComment;
 use App\Models\EditionLemma;
+use App\Models\EditionLineBreak;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
+use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Support\Transcription\Tokenizer;
 use Illuminate\Support\Collection;
@@ -49,6 +51,11 @@ class PassageAligner
      * re-derived from witness tokens, and a passage someone has begun editing
      * has a settled structure that should grow rather than churn.
      *
+     * A layer may cite the passage with several spans — its text for the
+     * passage is discontinuous, a transposition having split it — so the unit
+     * of alignment is the *layer*, not the span: all of a layer's parts go to
+     * `alignWitness` together, as one witness with one token stream.
+     *
      * @param  Collection<int, TranscriptionSegment>  $segments  every normalized witness segment citing this passage
      */
     public static function collate(CanonicalPassage $passage, Collection $segments): void
@@ -57,10 +64,11 @@ class PassageAligner
         // key here derived from the evidence rather than from bookkeeping.
         // Not `transcription_layer_id`, which is merely creation order and would
         // make the collation depend on when each witness was typed up.
-        $ordered = $segments
-            ->sortBy(fn (TranscriptionSegment $segment) => [
-                $segment->transcriptionLayer->witness->siglum,
-                $segment->transcription_layer_id,
+        $orderedLayers = $segments
+            ->groupBy('transcription_layer_id')
+            ->sortBy(fn (Collection $layerSegments) => [
+                $layerSegments->first()->transcriptionLayer->witness->siglum,
+                $layerSegments->first()->transcription_layer_id,
             ])
             ->values();
 
@@ -68,8 +76,8 @@ class PassageAligner
             Lemma::where('canonical_passage_id', $passage->id)->delete();
         }
 
-        foreach ($ordered as $segment) {
-            self::alignWitness($passage, $segment);
+        foreach ($orderedLayers as $layerSegments) {
+            self::alignWitness($passage, $layerSegments);
         }
     }
 
@@ -90,7 +98,10 @@ class PassageAligner
      * A note anchored to a column counts as well (see EditionComment): an
      * editor who wrote about a particular word chose that column, and a
      * rebuild would move her argument under her. A note about the passage as
-     * a whole anchors to nothing and so does not block anything.
+     * a whole anchors to nothing and so does not block anything. A line
+     * break anchored to a column (EditionLineBreak — an edition's colometry)
+     * counts for the same reason, and doubly so: its lemma FK cascades, so a
+     * rebuild would not merely move the break but destroy it.
      */
     private static function hasEditorialContent(CanonicalPassage $passage): bool
     {
@@ -102,30 +113,63 @@ class PassageAligner
 
         return LemmaReading::whereIn('lemma_id', $lemmaIds)->whereNotNull('conjecture_id')->exists()
             || EditionLemma::whereIn('lemma_id', $lemmaIds)->exists()
-            || EditionComment::whereIn('lemma_id', $lemmaIds)->exists();
+            || EditionComment::whereIn('lemma_id', $lemmaIds)->exists()
+            || EditionLineBreak::whereIn('lemma_id', $lemmaIds)->exists();
     }
 
     /**
-     * Align one witness's segment into a passage's existing Lemma columns,
+     * Align one witness layer into a passage's existing Lemma columns,
      * creating the columns from scratch if this is the first witness
      * touching the passage. Idempotent — a transcription that already has a
      * reading somewhere on this passage is left alone.
+     *
+     * Takes ALL of the layer's spans citing the passage — several, when a
+     * transposition left its text for the passage discontinuous — and
+     * tokenizes them as one stream in part (content) order, NOT physical
+     * order: what aligns against the other witnesses is what the layer's
+     * text of the passage *reads as*, wherever its pieces physically sit.
+     *
+     * @param  Collection<int, TranscriptionSegment>  $segments  one layer's citations of this passage
      */
-    public static function alignWitness(CanonicalPassage $passage, TranscriptionSegment $segment): void
+    public static function alignWitness(CanonicalPassage $passage, Collection $segments): void
     {
+        $segments = TranscriptionSegment::sortByPartOrder($segments);
+        $first = $segments->first();
+
+        if ($first === null) {
+            return;
+        }
+
+        $layer = $first->transcriptionLayer;
+
         $lemmas = Lemma::where('canonical_passage_id', $passage->id)
             ->orderBy('position')
             ->with('readings.transcriptionLayer')
             ->get();
 
-        $tokens = Tokenizer::tokenize(
-            $segment->transcriptionLayer->text,
-            $segment->start_offset,
-            $segment->end_offset,
-            $passage->work->tokenization,
-        );
+        // Tokenized part by part so the boundaries between parts are known:
+        // a diff merge must never fuse tokens from different parts into one
+        // reading, whose offsets would then span the physical gap between
+        // them — or run backwards, when content order reverses physical.
+        $tokens = [];
+        $partStarts = [];
+
+        foreach ($segments as $segment) {
+            $partTokens = Tokenizer::tokenize(
+                $layer->text,
+                $segment->start_offset,
+                $segment->end_offset,
+                $passage->work->tokenization,
+            );
+
+            if ($tokens !== [] && $partTokens !== []) {
+                $partStarts[] = count($tokens);
+            }
+
+            $tokens = [...$tokens, ...$partTokens];
+        }
         $attributes = fn (array $token, ?int $rangeEndIndex = null): array => [
-            'transcription_layer_id' => $segment->transcription_layer_id,
+            'transcription_layer_id' => $layer->id,
             'start_offset' => $token['start'],
             'end_offset' => $token['end'],
             'range_end_lemma_id' => $rangeEndIndex !== null ? $lemmas[$rangeEndIndex]->id : null,
@@ -143,7 +187,7 @@ class PassageAligner
         }
 
         $alreadyAligned = LemmaReading::whereIn('lemma_id', $lemmas->pluck('id'))
-            ->where('transcription_layer_id', $segment->transcription_layer_id)
+            ->where('transcription_layer_id', $layer->id)
             ->exists();
 
         if ($alreadyAligned) {
@@ -151,7 +195,7 @@ class PassageAligner
         }
 
         $consensusTexts = $lemmas->map(fn (Lemma $lemma) => self::representativeText($lemma))->values()->all();
-        $plan = self::withPositions(self::plan($consensusTexts, $tokens, $segment->transcriptionLayer->text), $lemmas);
+        $plan = self::withPositions(self::plan($consensusTexts, $tokens, $layer->text, $partStarts), $lemmas);
 
         foreach ($plan as $entry) {
             $index = $entry['index'];
@@ -172,6 +216,97 @@ class PassageAligner
             $lemma = Lemma::create(['canonical_passage_id' => $passage->id, 'position' => $entry['position']]);
             $lemma->readings()->create($attributes($token));
         }
+    }
+
+    /**
+     * Re-align one layer whose citation of a passage changed after it was
+     * collated — a new part arrived, so its existing readings no longer cover
+     * its text of the passage. Deletes exactly that layer's readings on the
+     * passage's columns and aligns it afresh from all its current parts.
+     *
+     * Columns holding nothing but this layer's readings were this layer's own
+     * contribution, so they go too and the re-alignment rebuilds them — left
+     * standing empty, they would be diffed against as blank consensus text
+     * and corrupt the new alignment.
+     *
+     * Declines (returns false, touching nothing) when any of those readings
+     * is pinned: selected by an edition (`edition_lemmas.selected_reading_id`
+     * is NOT NULL and cascades, so deleting would discard the decision, not
+     * merely redo the alignment), carrying a conjecture placement, or on a
+     * column an EditionComment is anchored to (the editor chose that column —
+     * same rule as hasEditorialContent). The caller decides what to do with a
+     * declined layer — flag it for review, never delete unilaterally.
+     */
+    public static function realignLayer(CanonicalPassage $passage, TranscriptionLayer $layer): bool
+    {
+        $readings = self::layerReadings($passage, $layer);
+
+        if (self::pinnedReadings($passage, $layer)->isNotEmpty()) {
+            return false;
+        }
+
+        // "Another" reading includes conjecture-sourced ones, whose
+        // transcription_layer_id is NULL — a bare `!=` would let SQL's null
+        // comparison hide them and delete a column carrying a conjecture.
+        $emptyingLemmaIds = Lemma::where('canonical_passage_id', $passage->id)
+            ->whereDoesntHave('readings', fn ($query) => $query->where(
+                fn ($other) => $other->whereNull('transcription_layer_id')->orWhere('transcription_layer_id', '!=', $layer->id)
+            ))
+            ->pluck('id');
+
+        // An anchored note or a colometry break on a column this realignment
+        // would empty out pins it — same rule as hasEditorialContent, and for
+        // breaks the lemma FK cascades, so deletion would destroy them.
+        if (EditionComment::whereIn('lemma_id', $emptyingLemmaIds)->exists()
+            || EditionLineBreak::whereIn('lemma_id', $emptyingLemmaIds)->exists()) {
+            return false;
+        }
+
+        LemmaReading::whereIn('id', $readings->pluck('id'))->delete();
+        Lemma::whereIn('id', $emptyingLemmaIds)->delete();
+
+        self::alignWitness(
+            $passage,
+            TranscriptionSegment::where('canonical_passage_id', $passage->id)
+                ->where('transcription_layer_id', $layer->id)
+                ->get(),
+        );
+
+        return true;
+    }
+
+    /**
+     * One layer's collated readings on one passage's columns — non-empty
+     * exactly when the layer has already been aligned into the passage.
+     *
+     * @return Collection<int, LemmaReading>
+     */
+    public static function layerReadings(CanonicalPassage $passage, TranscriptionLayer $layer): Collection
+    {
+        return LemmaReading::whereIn('lemma_id', Lemma::where('canonical_passage_id', $passage->id)->pluck('id'))
+            ->where('transcription_layer_id', $layer->id)
+            ->get()
+            ->toBase();
+    }
+
+    /**
+     * The subset of a layer's readings on a passage that `realignLayer` must
+     * not delete: readings an edition selects (the selection cascades away
+     * with the reading) or that carry a conjecture placement. Non-empty means
+     * re-alignment is blocked for this layer.
+     *
+     * @return Collection<int, LemmaReading>
+     */
+    public static function pinnedReadings(CanonicalPassage $passage, TranscriptionLayer $layer): Collection
+    {
+        $readings = self::layerReadings($passage, $layer);
+
+        $selectedIds = EditionLemma::whereIn('selected_reading_id', $readings->pluck('id'))
+            ->pluck('selected_reading_id');
+
+        return $readings->filter(
+            fn (LemmaReading $reading) => $reading->conjecture_id !== null || $selectedIds->contains($reading->id)
+        )->values();
     }
 
     /**
@@ -233,12 +368,17 @@ class PassageAligner
      * plus phantom unfillable columns instead of one variant site with two
      * differently-worded candidates. See `mergeSubstitutions()`.
      *
+     * No merge may span a part boundary (`$partStarts`): the tokens either
+     * side of one come from physically separate spans, and one reading's
+     * start/end offsets can only describe a contiguous stretch of source.
+     *
      * @param  array<int, string>  $consensusTexts
      * @param  list<array{text: string, start: int, end: int}>  $tokens
      * @param  string  $sourceText  the witness's whole transcription text — needed to slice a merged multi-token span's exact source substring, never a rejoin
+     * @param  list<int>  $partStarts  token indexes at which a later part of a discontinuous citation begins
      * @return list<array<string, mixed>> each entry is {kind: string, index: int|null, token: array{text: string, start: int, end: int}|null, range_end_index: int|null}
      */
-    private static function plan(array $consensusTexts, array $tokens, string $sourceText): array
+    private static function plan(array $consensusTexts, array $tokens, string $sourceText, array $partStarts = []): array
     {
         // Compared in a single Unicode form, never as typed. Greek can be
         // encoded precomposed or decomposed — ὲ as one code point or as
@@ -252,7 +392,7 @@ class PassageAligner
         $a = array_map(self::comparisonForm(...), $consensusTexts);
         $b = array_map(self::comparisonForm(...), array_map(fn (array $token) => $token['text'], $tokens));
 
-        $ops = self::mergeSubstitutions(self::mergeTranspositions(self::lcsOps($a, $b), $a, $b));
+        $ops = self::mergeSubstitutions(self::mergeTranspositions(self::lcsOps($a, $b), $a, $b, $partStarts), $partStarts);
         $entries = [];
 
         foreach ($ops as $op) {
@@ -315,9 +455,10 @@ class PassageAligner
      * @param  list<array{type: string, a: int|null, b: int|null}>  $ops
      * @param  array<int, string>  $aTexts
      * @param  list<string>  $bTexts
+     * @param  list<int>  $partStarts
      * @return list<array{type: string, a: int|null, b: int|null, a_end?: int|null, b_end?: int|null}>
      */
-    private static function mergeTranspositions(array $ops, array $aTexts, array $bTexts): array
+    private static function mergeTranspositions(array $ops, array $aTexts, array $bTexts, array $partStarts = []): array
     {
         $result = [];
         $count = count($ops);
@@ -325,7 +466,7 @@ class PassageAligner
 
         while ($i < $count) {
             $window = $ops[$i]['type'] === 'delete'
-                ? self::reorderingWindow($ops, $i, $aTexts, $bTexts)
+                ? self::reorderingWindow($ops, $i, $aTexts, $bTexts, $partStarts)
                 : null;
 
             if ($window === null) {
@@ -347,12 +488,17 @@ class PassageAligner
      * tokens in a different order, as a substitution op — or null if none
      * does.
      *
+     * A window whose witness tokens straddle a part boundary never
+     * qualifies — its substitution would claim one contiguous source span
+     * that does not exist.
+     *
      * @param  list<array{type: string, a: int|null, b: int|null}>  $ops
      * @param  array<int, string>  $aTexts
      * @param  list<string>  $bTexts
+     * @param  list<int>  $partStarts
      * @return array{op: array{type: string, a: int|null, b: int|null, a_end: int|null, b_end: int|null}, end: int}|null
      */
-    private static function reorderingWindow(array $ops, int $start, array $aTexts, array $bTexts): ?array
+    private static function reorderingWindow(array $ops, int $start, array $aTexts, array $bTexts, array $partStarts = []): ?array
     {
         $aIndexes = [];
         $bIndexes = [];
@@ -386,6 +532,10 @@ class PassageAligner
                 continue;
             }
 
+            if (self::crossesPartBoundary($bIndexes[0], $bIndexes[count($bIndexes) - 1], $partStarts)) {
+                continue;
+            }
+
             return [
                 'end' => $j,
                 'op' => [
@@ -415,10 +565,16 @@ class PassageAligner
      * Accepts ops that are already substitutions — mergeTranspositions runs
      * first and emits them — and passes those through untouched.
      *
+     * An insert run straddling a part boundary is cut there: only the tokens
+     * up to the boundary merge into the substitution (a merged reading's
+     * offsets can only describe one contiguous source span), and the rest
+     * stay plain inserts, opening their own columns.
+     *
      * @param  list<array{type: string, a: int|null, b: int|null, a_end?: int|null, b_end?: int|null}>  $ops
+     * @param  list<int>  $partStarts
      * @return list<array{type: string, a: int|null, b: int|null, a_end?: int|null, b_end?: int|null}>
      */
-    private static function mergeSubstitutions(array $ops): array
+    private static function mergeSubstitutions(array $ops, array $partStarts = []): array
     {
         $result = [];
         $count = count($ops);
@@ -455,20 +611,51 @@ class PassageAligner
                 continue;
             }
 
+            $merged = [];
+
+            foreach ($inserts as $insert) {
+                if ($merged !== [] && in_array($insert['b'], $partStarts, true)) {
+                    break;
+                }
+
+                $merged[] = $insert;
+            }
+
             $result[] = [
                 'type' => 'substitute',
                 'a' => $deletes[0]['a'],
                 'a_end' => count($deletes) > 1 ? $deletes[count($deletes) - 1]['a'] : null,
-                'b' => $inserts[0]['b'],
-                'b_end' => $inserts[count($inserts) - 1]['b'],
+                'b' => $merged[0]['b'],
+                'b_end' => $merged[count($merged) - 1]['b'],
             ];
 
             for ($k = 1; $k < count($deletes); $k++) {
                 $result[] = $deletes[$k];
             }
+
+            foreach (array_slice($inserts, count($merged)) as $leftover) {
+                $result[] = $leftover;
+            }
         }
 
         return $result;
+    }
+
+    /**
+     * Whether any part boundary falls strictly inside the witness-token span
+     * `($from, $to]` — i.e. the span's tokens come from more than one part.
+     *
+     * @param  list<int>  $partStarts
+     */
+    private static function crossesPartBoundary(int $from, int $to, array $partStarts): bool
+    {
+        foreach ($partStarts as $boundary) {
+            if ($boundary > $from && $boundary <= $to) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

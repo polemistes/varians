@@ -36,8 +36,16 @@ class PassageAdder
      * edition's default there. Only the EditionPassage part — this
      * edition's own scope and order — is skipped (returns null) once the
      * passage is already in this edition, from any source.
+     *
+     * A freshly added passage also gets its lineation seeded from the
+     * segment's layer (`$lineation` carries the between-passage flags the
+     * caller derived from the previous segment in its batch; within-passage
+     * breaks come from the layer's own newlines) — a one-time copy the
+     * edition owns from then on, see LineationSeeder.
+     *
+     * @param  array{starts_new_line?: bool, starts_new_paragraph?: bool}  $lineation
      */
-    public static function add(Edition $edition, TranscriptionSegment $segment, float $position): ?EditionPassage
+    public static function add(Edition $edition, TranscriptionSegment $segment, float $position, array $lineation = []): ?EditionPassage
     {
         $passage = $segment->canonicalPassage;
 
@@ -51,12 +59,17 @@ class PassageAdder
             return null;
         }
 
-        return EditionPassage::create([
+        $editionPassage = EditionPassage::create([
             'edition_id' => $edition->id,
             'canonical_passage_id' => $passage->id,
             'transcription_layer_id' => $segment->transcription_layer_id,
             'position' => $position,
+            ...$lineation,
         ]);
+
+        LineationSeeder::seedWithinPassage($editionPassage, $segment->transcriptionLayer);
+
+        return $editionPassage;
     }
 
     /**

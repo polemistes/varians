@@ -3,34 +3,52 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\AssignTranscriptionSegmentRequest;
-use App\Http\Requests\MoveTranscriptionSegmentRequest;
 use App\Http\Requests\StoreTranscriptionSegmentRequest;
 use App\Http\Requests\UpdateTranscriptionSegmentRequest;
 use App\Models\CanonicalPassage;
+use App\Models\EditionLemma;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
 use App\Models\Work;
 use App\Support\Edition\CanonicalPassageResolver;
-use App\Support\Transcription\SpanTransformer;
-use App\Support\Transcription\TextOpApplier;
+use App\Support\Edition\PassageAligner;
+use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class TranscriptionSegmentController extends Controller
 {
     /**
      * Mark a span and cite it in one step — a span with no citation has no
      * use to anyone, so the two never happen separately.
+     *
+     * Citing a passage this layer already cites is not an error but another
+     * *part* of it — the witness's text for the passage is discontinuous, a
+     * transposition having split it. `after_part` places the new span in the
+     * passage's content order (0 = first; absent = last). When the layer was
+     * already collated on the passage, its readings no longer cover its text,
+     * so saving re-collates — behind `acknowledge_realignment`, since the
+     * editor should get to cancel before her collation is touched.
      */
     public function store(StoreTranscriptionSegmentRequest $request, TranscriptionLayer $transcription): RedirectResponse
     {
         $passage = $this->resolveCitation((int) $request->validated('work_id'), $request->validated('label'));
 
-        $transcription->segments()->create([
-            'canonical_passage_id' => $passage->id,
-            'start_offset' => $request->validated('start_offset'),
-            'end_offset' => $request->validated('end_offset'),
-        ]);
+        DB::transaction(function () use ($request, $transcription, $passage) {
+            $aligned = $this->guardLatePart($request, $transcription, $passage);
+
+            $transcription->segments()->create([
+                'canonical_passage_id' => $passage->id,
+                'start_offset' => $request->validated('start_offset'),
+                'end_offset' => $request->validated('end_offset'),
+                'part' => $this->placePart($request, $transcription, $passage),
+            ]);
+
+            if ($aligned) {
+                $this->recollateLayer($transcription, $passage);
+            }
+        });
 
         return back();
     }
@@ -48,94 +66,34 @@ class TranscriptionSegmentController extends Controller
     }
 
     /**
-     * Move a cited passage, text and citation together, to another place in
-     * the same layer.
-     *
-     * Done by hand this loses the citation: a deletion covering a cited span
-     * destroys it, so cutting the words and pasting them elsewhere leaves the
-     * assignment behind. Since assigning text to passages is most of the work
-     * of a collation, that is worth an operation of its own.
-     *
-     * What travels with the words is what is anchored *to those words* — the
-     * citation itself, any image alignment on them, any collated reading of
-     * them — because none of that is changed by the words sitting somewhere
-     * else in the document. Everything outside simply shifts, through the same
-     * SpanTransformer that handles an ordinary edit.
-     *
-     * Page divisions are the exception, and deliberately: a page is a leaf of
-     * a manuscript, and reordering a transcription does not move it. They go
-     * through the ordinary transform like any other edit — see
-     * TranscriptionTextController::applyPageBreaks.
-     */
-    public function move(MoveTranscriptionSegmentRequest $request, TranscriptionSegment $segment): RedirectResponse
-    {
-        DB::transaction(function () use ($request, $segment) {
-            $layer = $segment->transcriptionLayer;
-            $start = (int) $segment->start_offset;
-            $end = (int) $segment->end_offset;
-
-            // A cited passage is usually a whole line, and the line break is
-            // part of what makes it one. Moving the words without it fuses
-            // them with whatever they land against — προΐαψενμῆνιν — which
-            // changes what the text says, not merely its order, and turns two
-            // words into one for collation.
-            $atLineStart = $start === 0 || mb_substr($layer->text, $start - 1, 1) === "\n";
-            $atLineEnd = mb_substr($layer->text, $end, 1) === "\n";
-            $sliceEnd = $atLineStart && $atLineEnd ? $end + 1 : $end;
-
-            ['ops' => $ops, 'destination' => $destination] = SpanTransformer::relocation(
-                $layer->text, $start, $sliceEnd, (int) $request->validated('target_offset'),
-            );
-
-            $delta = $destination - $start;
-
-            foreach ([$layer->segments()->get(), $layer->regions()->get(), $layer->lemmaReadings()->whereNotNull('start_offset')->get()] as $anchored) {
-                foreach ($anchored as $span) {
-                    if ($span->start_offset >= $start && $span->end_offset <= $sliceEnd) {
-                        $span->update([
-                            'start_offset' => $span->start_offset + $delta,
-                            'end_offset' => $span->end_offset + $delta,
-                        ]);
-
-                        continue;
-                    }
-
-                    $result = SpanTransformer::transform([[
-                        'start' => (int) $span->start_offset,
-                        'end' => (int) $span->end_offset,
-                        'needsReview' => (bool) $span->needs_review,
-                    ]], $ops)[0];
-
-                    if ($result['deleted']) {
-                        $span->delete();
-
-                        continue;
-                    }
-
-                    $span->update([
-                        'start_offset' => $result['start'],
-                        'end_offset' => $result['end'],
-                        'needs_review' => $result['needsReview'],
-                    ]);
-                }
-            }
-
-            $layer->update(['text' => TextOpApplier::applyAll($layer->text, $ops)]);
-        });
-
-        return back();
-    }
-
-    /**
      * Re-cite this segment to a different passage within a work. There's no
      * way to clear a segment's citation — remove the span instead if it's no
      * longer wanted.
+     *
+     * Re-citing to a passage the layer already cites makes this span another
+     * part of it, through the same late-part guard as `store` — see there.
      */
     public function assignCitation(AssignTranscriptionSegmentRequest $request, TranscriptionSegment $segment): RedirectResponse
     {
         $passage = $this->resolveCitation((int) $request->validated('work_id'), $request->validated('label'));
 
-        $segment->update(['canonical_passage_id' => $passage->id]);
+        if ($segment->canonical_passage_id === $passage->id) {
+            return back();
+        }
+
+        DB::transaction(function () use ($request, $segment, $passage) {
+            $layer = $segment->transcriptionLayer;
+            $aligned = $this->guardLatePart($request, $layer, $passage);
+
+            $segment->update([
+                'canonical_passage_id' => $passage->id,
+                'part' => $this->placePart($request, $layer, $passage),
+            ]);
+
+            if ($aligned) {
+                $this->recollateLayer($layer, $passage);
+            }
+        });
 
         return back();
     }
@@ -155,5 +113,83 @@ class TranscriptionSegmentController extends Controller
     private function resolveCitation(int $workId, string $label): CanonicalPassage
     {
         return CanonicalPassageResolver::resolve(Work::findOrFail($workId), $label);
+    }
+
+    /**
+     * Whether this citation lands on a passage the layer was already collated
+     * into — in which case its existing readings no longer cover its text,
+     * and saving must re-collate (or flag, where re-collation is blocked).
+     *
+     * That consequence touches collation the editor may not have in view, so
+     * it is refused until acknowledged: the response tells her exactly what
+     * saving will do, and cancelling leaves everything untouched.
+     */
+    private function guardLatePart(FormRequest $request, TranscriptionLayer $layer, CanonicalPassage $passage): bool
+    {
+        $aligned = PassageAligner::layerReadings($passage, $layer)->isNotEmpty();
+
+        if ($aligned && ! $request->boolean('acknowledge_realignment')) {
+            throw ValidationException::withMessages([
+                'acknowledge_realignment' => $this->realignmentWarning($layer, $passage),
+            ]);
+        }
+
+        return $aligned;
+    }
+
+    private function realignmentWarning(TranscriptionLayer $layer, CanonicalPassage $passage): string
+    {
+        $pinned = PassageAligner::pinnedReadings($passage, $layer);
+
+        if ($pinned->isEmpty()) {
+            return 'This witness was already collated on “'.$passage->label.'” — saving will redo that collation from all its parts.';
+        }
+
+        $titles = EditionLemma::whereIn('selected_reading_id', $pinned->pluck('id'))
+            ->with('edition:id,title')
+            ->get()
+            ->map(fn (EditionLemma $selection) => $selection->edition->title)
+            ->unique()
+            ->values();
+
+        $editions = $titles->isEmpty()
+            ? 'editorial decisions'
+            : 'the edition'.($titles->count() === 1 ? '' : 's').' '.$titles->map(fn (string $title) => '“'.$title.'”')->join(', ', ' and ');
+
+        return 'This witness\'s collated readings for “'.$passage->label.'” are pinned by '.$editions
+            .', so they can\'t be redone automatically — saving keeps them as they are and flags the citation for review.';
+    }
+
+    /**
+     * The content-order slot for a span joining a passage's citation:
+     * `after_part` inserts it there (0 = first), shifting later parts down;
+     * absent, it reads last.
+     */
+    private function placePart(FormRequest $request, TranscriptionLayer $layer, CanonicalPassage $passage): int
+    {
+        $siblings = $layer->segments()->where('canonical_passage_id', $passage->id);
+        $afterPart = $request->validated('after_part');
+
+        if ($afterPart === null) {
+            return ((int) $siblings->max('part')) + 1;
+        }
+
+        $siblings->clone()->where('part', '>', (int) $afterPart)->increment('part');
+
+        return (int) $afterPart + 1;
+    }
+
+    /**
+     * Redo a layer's collation on a passage whose citation just changed —
+     * or, where its readings are pinned and must not be deleted, keep them
+     * and flag every part for review so the stale alignment is visible.
+     */
+    private function recollateLayer(TranscriptionLayer $layer, CanonicalPassage $passage): void
+    {
+        if (! PassageAligner::realignLayer($passage, $layer)) {
+            $layer->segments()
+                ->where('canonical_passage_id', $passage->id)
+                ->update(['needs_review' => true]);
+        }
     }
 }

@@ -9,8 +9,9 @@ use App\Http\Controllers\ConjectureOrderingController;
 use App\Http\Controllers\EditionCommentController;
 use App\Http\Controllers\EditionController;
 use App\Http\Controllers\EditionLemmaController;
+use App\Http\Controllers\EditionLineationController;
+use App\Http\Controllers\EditionOrderController;
 use App\Http\Controllers\EditionPassageController;
-use App\Http\Controllers\EditionPassageOrderController;
 use App\Http\Controllers\EditionTranspositionController;
 use App\Http\Controllers\EditionVariantController;
 use App\Http\Controllers\HomeController;
@@ -95,6 +96,14 @@ Route::middleware('role:editor')->group(function () {
     Route::post('/editions/{edition}/variants', [EditionVariantController::class, 'store'])
         ->name('edition-variants.store');
 
+    // This edition's own lineation — passage-boundary flags and
+    // within-passage (colometry) breaks. Pure display choices; see
+    // EditionLineationController.
+    Route::patch('/editions/{edition}/line-breaks', [EditionLineationController::class, 'updateBreak'])
+        ->name('edition-line-breaks.update');
+    Route::patch('/edition-passages/{editionPassage}/lineation', [EditionLineationController::class, 'updatePassage'])
+        ->name('edition-passages.lineation.update');
+
     // An edition-ordering proposal, not a word-level one — see
     // EditionTransposition. Recording one here both creates the underlying
     // Conjecture(type: transposition) and adopts it for this edition.
@@ -103,14 +112,14 @@ Route::middleware('role:editor')->group(function () {
     Route::delete('/edition-transpositions/{transposition}', [EditionTranspositionController::class, 'destroy'])
         ->name('edition-transpositions.destroy');
 
-    // Which source's own internal sequence this edition follows for a range
-    // of passages — sourced from either a transcription (never touches
-    // Conjecture: the manuscript itself is the source, not a scholar's
-    // proposal) or a catalogued Reordering conjecture. See EditionPassageOrder.
-    Route::post('/editions/{edition}/passage-order', [EditionPassageOrderController::class, 'store'])
-        ->name('edition-passage-orders.store');
-    Route::delete('/edition-passage-orders/{editionPassageOrder}', [EditionPassageOrderController::class, 'destroy'])
-        ->name('edition-passage-orders.destroy');
+    // Direct manipulation of the edition's stored passage order: a
+    // cut-and-paste range move, and applying an order-report candidate (a
+    // witness's sequence, a catalogued conjecture, or citation order) to a
+    // flagged range. See EditionOrderController.
+    Route::patch('/editions/{edition}/order', [EditionOrderController::class, 'move'])
+        ->name('edition-order.move');
+    Route::post('/editions/{edition}/order/apply', [EditionOrderController::class, 'applyCandidate'])
+        ->name('edition-order.apply');
 
     // Authors a brand-new ConjectureType::Reordering from a freely-arranged
     // sequence and immediately selects it for this edition in one step —
@@ -175,8 +184,6 @@ Route::middleware('role:editor')->group(function () {
         ->name('transcription-segments.store');
     Route::patch('/transcription-segments/{segment}', [TranscriptionSegmentController::class, 'update'])
         ->name('transcription-segments.update');
-    Route::patch('/transcription-segments/{segment}/position', [TranscriptionSegmentController::class, 'move'])
-        ->name('transcription-segments.move');
     Route::patch('/transcription-segments/{segment}/assignment', [TranscriptionSegmentController::class, 'assignCitation'])
         ->name('transcription-segments.assign');
     Route::delete('/transcription-segments/{segment}', [TranscriptionSegmentController::class, 'destroy'])

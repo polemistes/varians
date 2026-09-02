@@ -5,7 +5,6 @@ use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
 use App\Models\EditionPassage;
-use App\Models\EditionPassageOrder;
 use App\Models\EditionTransposition;
 use App\Models\ReferenceScheme;
 use App\Models\TranscriptionLayer;
@@ -255,14 +254,19 @@ test('a witness whose own physical order disagrees is flagged with the whole sha
     // Every passage in the shared range carries the *same* range info —
     // not just the ones that individually differ from a neighbor — since a
     // reader hovering any single one of them needs the whole block's story.
+    // Candidates are keyed by source, not index: citation order is now
+    // always listed as a candidate too.
     $show->assertInertia(fn (AssertInertia $page) => $page
         ->where('windowPassages.0.order_range', null)
-        ->where('windowPassages.1.order_range.edition_passage_order_id', null)
-        ->where('windowPassages.1.order_range.candidates.0.transcription_layer_id', $witnessB->id)
-        ->where('windowPassages.1.order_range.candidates.0.witness_siglum', $witnessB->witness->siglum)
-        ->where('windowPassages.1.order_range.candidates.0.sequence', [$passages[2]->label, $passages[1]->label])
-        ->where('windowPassages.1.order_range.candidates.0.matches_current', false)
-        ->where('windowPassages.2.order_range.candidates.0.transcription_layer_id', $witnessB->id));
+        ->where('windowPassages.1.order_range.candidates', function ($candidates) use ($witnessB, $passages) {
+            $witness = collect($candidates)->firstWhere('transcription_layer_id', $witnessB->id);
+
+            return $witness !== null
+                && $witness['witness_siglum'] === $witnessB->witness->siglum
+                && $witness['sequence'] === [$passages[2]->label, $passages[1]->label]
+                && $witness['matches_current'] === false;
+        })
+        ->where('windowPassages.2.order_range.candidates', fn ($candidates) => collect($candidates)->firstWhere('transcription_layer_id', $witnessB->id) !== null));
 });
 
 test('no order range when a witness agrees or only cites one passage of the pair', function () {
@@ -298,7 +302,7 @@ test('a draft witness\'s order disagreement is only visible to an editor', funct
     $this->actingAs(User::factory()->editor()->create());
     $asEditor = $this->get(route('editions.show', [$work, $edition]));
     $asEditor->assertInertia(fn (AssertInertia $page) => $page
-        ->where('windowPassages.1.order_range.candidates.0.transcription_layer_id', $draftWitness->id));
+        ->where('windowPassages.1.order_range.candidates', fn ($candidates) => collect($candidates)->firstWhere('transcription_layer_id', $draftWitness->id) !== null));
 
     $this->actingAs(User::factory()->create());
     $asGuest = $this->get(route('editions.show', [$work, $edition]));
@@ -306,7 +310,7 @@ test('a draft witness\'s order disagreement is only visible to an editor', funct
         ->where('windowPassages.1.order_range', null));
 });
 
-test('choosing a witness order creates no Conjecture and clears the range against the now-satisfied witness', function () {
+test('applying a witness\'s order rewrites the stored positions and creates no Conjecture', function () {
     $this->actingAs(User::factory()->editor()->create());
     $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
     $edition = Edition::factory()->for($work)->create();
@@ -318,28 +322,31 @@ test('choosing a witness order creates no Conjecture and clears the range agains
 
     $before = $this->get(route('editions.show', [$work, $edition]));
     $before->assertInertia(fn (AssertInertia $page) => $page
-        ->where('windowPassages.1.order_range.candidates.0.transcription_layer_id', $witnessB->id));
+        ->where('windowPassages.1.order_range.candidates', fn ($candidates) => collect($candidates)->firstWhere('transcription_layer_id', $witnessB->id) !== null));
 
     // Follow witness B's order — never a scholarly transposition, since the
-    // manuscript itself is the source, not a proposer to name.
-    $this->post(route('edition-passage-orders.store', $edition), [
+    // manuscript itself is the source, not a proposer to name; and no
+    // attribution record either, "matches witness B" being derivable.
+    $this->post(route('edition-order.apply', $edition), [
         'range_start_canonical_passage_id' => $passages[0]->id,
         'range_end_canonical_passage_id' => $passages[1]->id,
         'transcription_layer_id' => $witnessB->id,
-    ]);
+    ])->assertRedirect();
 
     expect(Conjecture::count())->toBe(0)
-        ->and(EditionTransposition::count())->toBe(0)
-        ->and(EditionPassageOrder::where('edition_id', $edition->id)->count())->toBe(1);
+        ->and(EditionTransposition::count())->toBe(0);
+
+    // The stored positions ARE the new order.
+    $stored = EditionPassage::where('edition_id', $edition->id)->orderBy('position')->pluck('canonical_passage_id')->all();
+    expect($stored)->toBe([$passages[1]->id, $passages[0]->id]);
 
     $after = $this->get(route('editions.show', [$work, $edition]));
     $after->assertInertia(fn (AssertInertia $page) => $page
         ->where('windowPassages.0.label', $passages[1]->label)
-        ->where('windowPassages.1.label', $passages[0]->label)
-        ->where('windowPassages.1.order_range.edition_passage_order_id', fn ($id) => $id !== null));
+        ->where('windowPassages.1.label', $passages[0]->label));
 });
 
-test('a range the editor has already settled is never re-flagged, even though the overridden witness still disagrees', function () {
+test('the order report is a calm derived statement: applying one source honestly keeps listing the other\'s disagreement', function () {
     $this->actingAs(User::factory()->editor()->create());
     $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
     $edition = Edition::factory()->for($work)->create();
@@ -353,46 +360,94 @@ test('a range the editor has already settled is never re-flagged, even though th
     TranscriptionSegment::factory()->for($witnessR)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 4]);
     TranscriptionSegment::factory()->for($witnessR)->for($passages[0], 'canonicalPassage')->create(['start_offset' => 5, 'end_offset' => 10]);
 
-    // Witness R disagrees with the initial order (A, B); Q agrees — both
-    // fully cover the range, so both are candidates (order in the array
-    // isn't guaranteed, hence the keyBy instead of an index assumption).
+    // Witness R disagrees with the initial order (A, B); Q agrees.
     $before = $this->get(route('editions.show', [$work, $edition]));
     $before->assertInertia(fn (AssertInertia $page) => $page
         ->where('windowPassages.1.order_range.candidates', function ($candidates) use ($witnessQ, $witnessR) {
-            $bySiglum = collect($candidates)->keyBy('transcription_layer_id');
+            $byLayer = collect($candidates)->keyBy('transcription_layer_id');
 
-            return $bySiglum->get($witnessR->id)['matches_current'] === false
-                && $bySiglum->get($witnessQ->id)['matches_current'] === true;
+            return $byLayer->get($witnessR->id)['matches_current'] === false
+                && $byLayer->get($witnessQ->id)['matches_current'] === true;
         }));
 
-    // Follow R's order: move B before A.
-    $this->post(route('edition-passage-orders.store', $edition), [
+    // Follow R's order: B before A.
+    $this->post(route('edition-order.apply', $edition), [
         'range_start_canonical_passage_id' => $passages[0]->id,
         'range_end_canonical_passage_id' => $passages[1]->id,
         'transcription_layer_id' => $witnessR->id,
     ]);
 
-    // Witness Q now disagrees with the *new* order (B, A) — this is the
-    // real incident this guards against: a Lysistrata edition ended up
-    // with six adopted transpositions flip-flopping the same pair, because
-    // adopting one witness's order kept re-flagging the boundary against
-    // the other, inviting another "Adopt" click that just flipped it back.
-    // The editor already settled this range; it must stay settled, and
-    // still shows (with its id) rather than disappearing, so it stays
-    // undoable — but Q's continuing disagreement is honestly still listed
-    // among the candidates, unlike the blanket suppression this replaces.
+    // The historical flip-flop incident (a Lysistrata edition accumulated
+    // six adopted transpositions flipping the same pair) cannot recur:
+    // there is no "unsettled" state prompting action — the report simply
+    // states, calmly, that Q orders this differently and R matches. The
+    // stored positions are the decision.
     $after = $this->get(route('editions.show', [$work, $edition]));
     $after->assertInertia(fn (AssertInertia $page) => $page
         ->where('windowPassages.0.label', $passages[1]->label)
         ->where('windowPassages.1.label', $passages[0]->label)
-        ->where('windowPassages.1.order_range.edition_passage_order_id', fn ($id) => $id !== null)
         ->where('windowPassages.1.order_range.candidates', function ($candidates) use ($witnessQ, $witnessR) {
-            $bySiglum = collect($candidates)->keyBy('transcription_layer_id');
+            $byLayer = collect($candidates)->keyBy('transcription_layer_id');
 
-            return $bySiglum->get($witnessR->id)['matches_current'] === true
-                && $bySiglum->get($witnessQ->id)['matches_current'] === false;
+            return $byLayer->get($witnessR->id)['matches_current'] === true
+                && $byLayer->get($witnessQ->id)['matches_current'] === false;
         }));
+});
 
-    expect(EditionPassageOrder::where('edition_id', $edition->id)->count())->toBe(1)
-        ->and(EditionTransposition::where('edition_id', $edition->id)->count())->toBe(0);
+test('a direct cut-and-paste range move rewrites positions with no record beyond the order itself', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
+    $edition = Edition::factory()->for($work)->create();
+    $passages = addPassagesToEdition($work, $edition, 4);
+
+    // Cut [2..3] and paste after 4: 1,2,3,4 → 1,4,2,3.
+    $this->patch(route('edition-order.move', $edition), [
+        'range_start_canonical_passage_id' => $passages[1]->id,
+        'range_end_canonical_passage_id' => $passages[2]->id,
+        'target_canonical_passage_id' => $passages[3]->id,
+        'move_position' => 'after',
+    ])->assertRedirect();
+
+    $stored = EditionPassage::where('edition_id', $edition->id)->orderBy('position')->pluck('canonical_passage_id')->all();
+    expect($stored)->toBe([$passages[0]->id, $passages[3]->id, $passages[1]->id, $passages[2]->id])
+        ->and(Conjecture::count())->toBe(0)
+        ->and(EditionTransposition::count())->toBe(0);
+});
+
+test('a cut-and-paste target inside the moved range is refused', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
+    $edition = Edition::factory()->for($work)->create();
+    $passages = addPassagesToEdition($work, $edition, 3);
+
+    $this->patch(route('edition-order.move', $edition), [
+        'range_start_canonical_passage_id' => $passages[0]->id,
+        'range_end_canonical_passage_id' => $passages[2]->id,
+        'target_canonical_passage_id' => $passages[1]->id,
+        'move_position' => 'after',
+    ])->assertInvalid(['target_canonical_passage_id']);
+});
+
+test('un-adopting an applied transposition removes only the attribution — the order stays', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
+    $edition = Edition::factory()->for($work)->create();
+    $passages = addPassagesToEdition($work, $edition, 2);
+
+    $this->post(route('edition-transpositions.store', $edition), [
+        'canonical_passage_id' => $passages[1]->id,
+        'move_target_canonical_passage_id' => $passages[0]->id,
+        'move_position' => 'before',
+    ]);
+
+    $adoption = EditionTransposition::sole();
+    $this->delete(route('edition-transpositions.destroy', $adoption))->assertRedirect();
+
+    // One-way apply (deliberate): moving the passages back is an ordinary
+    // rearrangement, not an automatic revert that would be unreliable once
+    // anything else moved on top.
+    $stored = EditionPassage::where('edition_id', $edition->id)->orderBy('position')->pluck('canonical_passage_id')->all();
+    expect($stored)->toBe([$passages[1]->id, $passages[0]->id])
+        ->and(EditionTransposition::count())->toBe(0)
+        ->and(Conjecture::count())->toBe(1);
 });

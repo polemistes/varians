@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
-import type { TextEditOp } from '@/lib/transcriptionEdit';
+import type { EditSource, TextEditOp } from '@/lib/transcriptionEdit';
 import { parseTranscriptionMarkup } from '@/lib/transcriptionMarkup';
 import type { MarkupToken } from '@/lib/transcriptionMarkup';
 import type { TranscriptionRegion, TranscriptionSegment } from '@/types/models';
@@ -20,6 +20,11 @@ const props = withDefaults(
         // treatment. Purely visual (see AddToEditionPanel.vue); rendering
         // doesn't otherwise change what's selectable.
         unavailableSegmentIds?: number[];
+        // How many spans cite each passage (by canonical_passage_id) in the
+        // whole layer — so a badge can say "part 1/2" even when the sibling
+        // part sits outside the text handed to this component (another page,
+        // another window). Absent, it's derived from `segments`.
+        partTotals?: Record<number, number> | null;
     }>(),
     {
         regions: () => [],
@@ -30,6 +35,7 @@ const props = withDefaults(
         selectionEnd: null,
         editable: false,
         unavailableSegmentIds: () => [],
+        partTotals: null,
     },
 );
 
@@ -40,7 +46,14 @@ const emit = defineEmits<{
     ): void;
     (e: 'hover-region', id: number | null): void;
     (e: 'badge-click', segment: TranscriptionSegment): void;
-    (e: 'edit', op: TextEditOp): void;
+    // `source` distinguishes a clipboard cut/paste (which the parent may pair
+    // into a citation-preserving relocation) from ordinary typing.
+    (e: 'edit', op: TextEditOp, source: EditSource): void;
+    (e: 'undo'): void;
+    (e: 'redo'): void;
+    // The user collapsed the selection (clicked in the text) — whatever
+    // selection the parent remembered no longer reflects what's on screen.
+    (e: 'selection-cleared'): void;
 }>();
 
 const containerEl = ref<HTMLElement | null>(null);
@@ -53,6 +66,10 @@ type Chunk = {
     segmentStart: boolean;
     selected: boolean;
     menuAfter: boolean;
+    // Zero-width (tombstoned) citation spans sitting exactly at this chunk's
+    // start — destroyed by a text edit, kept flagged for the editor to
+    // resolve. They cover no characters, so they render as badge-only.
+    tombstonesBefore: TranscriptionSegment[];
 };
 
 // Region boundaries (image-alignment), citation-span boundaries, and
@@ -94,6 +111,16 @@ const chunks = computed<Chunk[]>(() => {
         points.add(segment.end_offset);
     }
 
+    // A tombstone's offset must be a chunk boundary so its badge has an
+    // exact place in the text flow to render at.
+    const tombstones = segments.filter(
+        (segment) => segment.start_offset === segment.end_offset,
+    );
+
+    for (const tombstone of tombstones) {
+        points.add(tombstone.start_offset);
+    }
+
     for (const span of markupSpans) {
         points.add(span.start);
         points.add(span.end);
@@ -126,7 +153,10 @@ const chunks = computed<Chunk[]>(() => {
             (r) => r.start_offset <= start && r.end_offset >= end,
         );
         const segment = segments.find(
-            (s) => s.start_offset <= start && s.end_offset >= end,
+            (s) =>
+                s.start_offset <= start &&
+                s.end_offset >= end &&
+                s.end_offset > s.start_offset,
         );
         const markup = markupSpans.find(
             (span) => span.start <= start && span.end >= end,
@@ -145,11 +175,24 @@ const chunks = computed<Chunk[]>(() => {
                 end <= props.selectionEnd,
             menuAfter:
                 props.selectionEnd !== null && end === props.selectionEnd,
+            tombstonesBefore: tombstones.filter(
+                (tombstone) => tombstone.start_offset === start,
+            ),
         });
     }
 
     return result;
 });
+
+// Tombstones at the very end of the text have no following chunk to attach
+// to, so they render after the last one.
+const trailingTombstones = computed<TranscriptionSegment[]>(() =>
+    props.segments.filter(
+        (segment) =>
+            segment.start_offset === segment.end_offset &&
+            segment.start_offset >= props.text.length,
+    ),
+);
 
 function markupClasses(markup: Chunk['markup']) {
     if (!markup) {
@@ -216,7 +259,34 @@ function badgeTitle(segment: TranscriptionSegment): string {
         return 'Already added to the edition';
     }
 
-    return segment.canonical_passage?.work?.title ?? '';
+    const title = segment.canonical_passage?.work?.title ?? '';
+
+    if (partTotalFor(segment) > 1) {
+        const note = `This passage's text stands in ${partTotalFor(segment)} separate places in this layer`;
+
+        return title ? `${title} — ${note}` : note;
+    }
+
+    return title;
+}
+
+// A passage cited by several spans (its text is physically discontinuous —
+// a transposition split it) shows which part of it each span is.
+function partTotalFor(segment: TranscriptionSegment): number {
+    if (props.partTotals) {
+        return props.partTotals[segment.canonical_passage_id] ?? 1;
+    }
+
+    return props.segments.filter(
+        (s) => s.canonical_passage_id === segment.canonical_passage_id,
+    ).length;
+}
+
+function badgeText(segment: TranscriptionSegment): string {
+    const label = segment.canonical_passage?.label ?? '';
+    const total = partTotalFor(segment);
+
+    return total > 1 ? `${label} · ${segment.part}/${total}` : label;
 }
 
 // A region mapping has no persistent highlight of its own — it only lights
@@ -271,7 +341,12 @@ function rememberCaret(): void {
     lastCaret.value = offsetAt(node, selection.focusOffset);
 }
 
-defineExpose({ caretOffset: () => lastCaret.value });
+defineExpose({
+    caretOffset: () => lastCaret.value,
+    // Lets the parent restore the caret after applying ops of its own
+    // making (undo/redo), which never pass through applyAndRestoreCaret.
+    restoreCaretAt: (offset: number) => restoreCaret(offset),
+});
 
 function offsetAt(node: Node, offset: number): number {
     const range = document.createRange();
@@ -290,32 +365,68 @@ function offsetAt(node: Node, offset: number): number {
 }
 
 function onBadgeClick(segment: TranscriptionSegment) {
-    // Badges stay visible while editing (so a scholar sees existing
-    // citation boundaries move live while typing) but aren't clickable —
-    // the align/assign popovers make no sense mid-edit.
-    if (props.editable) {
-        return;
-    }
-
     emit('badge-click', segment);
 }
 
-function onMouseUp() {
-    // In edit mode, text selection is just normal caret/selection behavior
-    // for cut/copy/delete — not a request to align or cite a span.
-    if (props.editable) {
+/**
+ * Whether the current mouse interaction BEGAN on the text itself (as
+ * opposed to on a badge, a menu control, or outside the component). This is
+ * what decides dismissal of a remembered selection — but the decision is
+ * only EXECUTED at mouseup: clearing state at mousedown re-renders the
+ * chunks and destroys the DOM under an in-progress drag, which broke every
+ * selection made after the first (real bug). And mouseup position alone
+ * can never decide, because a native <select> popup releases its closing
+ * mouseup at the pointer's position on the page UNDERNEATH the popup —
+ * over the text — which dismissed the assign menu mid-use (also a real
+ * bug). Origin at mousedown, action at mouseup.
+ */
+let interactionBeganOnText = false;
+
+function onContainerMousedown(event: MouseEvent) {
+    if (!props.editable) {
         return;
     }
 
+    const target = event.target;
+
+    interactionBeganOnText = !(
+        target instanceof Element && target.closest('[data-non-text]') !== null
+    );
+}
+
+function onMouseUp() {
+    const beganOnText = interactionBeganOnText;
+    interactionBeganOnText = false;
+
     const selection = window.getSelection();
 
+    if (!selection || !containerEl.value) {
+        return;
+    }
+
+    // While editable, BOTH outcomes of a mouseup — reporting a selection and
+    // clearing one — require that the interaction began on the text. The
+    // live selection is preserved after release now, so any stray mouseup
+    // (a toolbar click, a native <select> popup releasing over the page)
+    // would otherwise find that still-valid selection and re-emit it as if
+    // freshly made — which closed the menu the editor had just opened for
+    // it (real bug, the second one caused by that popup's mouseup).
+    if (props.editable && !beganOnText) {
+        return;
+    }
+
     if (
-        !selection ||
         selection.isCollapsed ||
-        !containerEl.value ||
         !selection.anchorNode ||
         !selection.focusNode
     ) {
+        // The interaction started on the text and produced no selection — a
+        // plain click into it, placing the caret. Only now, with the drag
+        // definitely over, is it safe to dismiss what was remembered.
+        if (props.editable && beganOnText) {
+            emit('selection-cleared');
+        }
+
         return;
     }
 
@@ -331,11 +442,22 @@ function onMouseUp() {
     const [start, end] = a < b ? [a, b] : [b, a];
 
     if (end - start < 1) {
+        if (props.editable && beganOnText) {
+            emit('selection-cleared');
+        }
+
         return;
     }
 
     emit('select', { start, end, text: props.text.slice(start, end) });
-    selection.removeAllRanges();
+
+    // While editable, the selection stays live — it is normal editor
+    // selection (type over it, cut it) that the parent merely remembers for
+    // the assign/align buttons. Read-only consumers keep the old behavior:
+    // the selection's job is done once it's emitted.
+    if (!props.editable) {
+        selection.removeAllRanges();
+    }
 }
 
 // Listening on `document` rather than on this (inline, tightly-wrapped)
@@ -407,19 +529,172 @@ function opFromBeforeInput(event: InputEvent): TextEditOp | null {
     }
 }
 
-function applyAndRestoreCaret(op: TextEditOp) {
+function applyAndRestoreCaret(op: TextEditOp, source: EditSource = 'typing') {
     const targetOffset = op.start + [...op.text].length;
 
-    emit('edit', op);
+    emit('edit', op, source);
     void nextTick(() => restoreCaret(targetOffset));
 }
 
+// beforeinput (and composition events) bubble — a nested form control
+// rendered through the #selection-menu slot (e.g. the "assign" citation
+// label input) fires them too, and intercepting those would prevent every
+// keystroke typed there. Slot content is wrapped in [data-non-text], so
+// anything originating inside one belongs to a control, not to the text.
+function originatesInControl(event: Event): boolean {
+    return event
+        .composedPath()
+        .some(
+            (target) =>
+                target instanceof HTMLElement &&
+                target !== containerEl.value &&
+                target.hasAttribute('data-non-text'),
+        );
+}
+
+function editSourceOf(inputType: string): EditSource {
+    if (inputType === 'deleteByCut' || inputType === 'deleteByDrag') {
+        return 'cut';
+    }
+
+    if (
+        inputType === 'insertFromPaste' ||
+        inputType === 'insertFromPasteAsQuotation' ||
+        inputType === 'insertFromDrop'
+    ) {
+        return 'paste';
+    }
+
+    return 'typing';
+}
+
+/**
+ * Copy and cut own the clipboard: the browser's own serialization of a
+ * selection includes the citation badges' visible text ("1.1the quick fox"),
+ * so a paste never exactly matched what a cut removed and the
+ * citation-preserving relocation silently failed whenever the selection
+ * covered a badge (real bug). Both handlers put the PURE text — the same
+ * characters the offsets describe — on the clipboard; cut additionally
+ * performs the deletion as an ordinary tagged edit op (preventing the event
+ * means the browser does neither, and no deleteByCut beforeinput follows).
+ */
+function selectionOffsets(): { start: number; end: number } | null {
+    const selection = window.getSelection();
+
+    if (
+        !selection ||
+        selection.isCollapsed ||
+        !selection.anchorNode ||
+        !selection.focusNode ||
+        !containerEl.value ||
+        !containerEl.value.contains(selection.anchorNode) ||
+        !containerEl.value.contains(selection.focusNode)
+    ) {
+        return null;
+    }
+
+    const a = offsetAt(selection.anchorNode, selection.anchorOffset);
+    const b = offsetAt(selection.focusNode, selection.focusOffset);
+    const [start, end] = a < b ? [a, b] : [b, a];
+
+    return end - start < 1 ? null : { start, end };
+}
+
+function onCopy(event: ClipboardEvent) {
+    if (!props.editable || originatesInControl(event)) {
+        return;
+    }
+
+    const offsets = selectionOffsets();
+
+    if (!offsets || !event.clipboardData) {
+        return;
+    }
+
+    event.preventDefault();
+    event.clipboardData.setData(
+        'text/plain',
+        props.text.slice(offsets.start, offsets.end),
+    );
+}
+
+function onCut(event: ClipboardEvent) {
+    if (!props.editable || originatesInControl(event)) {
+        return;
+    }
+
+    const offsets = selectionOffsets();
+
+    if (!offsets || !event.clipboardData) {
+        return;
+    }
+
+    event.preventDefault();
+    event.clipboardData.setData(
+        'text/plain',
+        props.text.slice(offsets.start, offsets.end),
+    );
+    applyAndRestoreCaret(
+        { start: offsets.start, end: offsets.end, text: '' },
+        'cut',
+    );
+}
+
+/**
+ * Undo/redo shortcuts are caught at the KEYBOARD, not via the
+ * `historyUndo`/`historyRedo` beforeinput types: browsers only fire those
+ * when their own native undo stack is non-empty, and this editor prevents
+ * every native mutation, so the native stack is permanently empty and
+ * Ctrl+Z never produced an event at all (real bug). The beforeinput cases
+ * below stay as a harmless fallback for any UI path that does fire them.
+ */
+function onContainerKeydown(event: KeyboardEvent) {
+    if (!props.editable || originatesInControl(event)) {
+        return;
+    }
+
+    const modifier = event.ctrlKey || event.metaKey;
+
+    if (!modifier || event.altKey) {
+        return;
+    }
+
+    const key = event.key.toLowerCase();
+
+    if (key === 'z') {
+        event.preventDefault();
+
+        if (event.shiftKey) {
+            emit('redo');
+        } else {
+            emit('undo');
+        }
+
+        return;
+    }
+
+    if (key === 'y' && !event.shiftKey) {
+        event.preventDefault();
+        emit('redo');
+    }
+}
+
 function onBeforeInput(event: InputEvent) {
-    // beforeinput bubbles — a nested form control rendered through the
-    // #selection-menu slot (e.g. the "assign" citation label input) fires it
-    // too, and without this guard every keystroke typed there would be
-    // intercepted and prevented even outside edit mode.
-    if (!props.editable) {
+    if (!props.editable || originatesInControl(event)) {
+        return;
+    }
+
+    if (event.inputType === 'historyUndo') {
+        event.preventDefault();
+        emit('undo');
+
+        return;
+    }
+
+    if (event.inputType === 'historyRedo') {
+        event.preventDefault();
+        emit('redo');
+
         return;
     }
 
@@ -445,12 +720,12 @@ function onBeforeInput(event: InputEvent) {
     const op = opFromBeforeInput(event);
 
     if (op) {
-        applyAndRestoreCaret(op);
+        applyAndRestoreCaret(op, editSourceOf(event.inputType));
     }
 }
 
-function onCompositionStart() {
-    if (!props.editable) {
+function onCompositionStart(event: CompositionEvent) {
+    if (!props.editable || originatesInControl(event)) {
         return;
     }
 
@@ -466,7 +741,11 @@ function onCompositionStart() {
 }
 
 function onCompositionEnd(event: CompositionEvent) {
-    if (!props.editable || compositionStart === null) {
+    if (
+        !props.editable ||
+        originatesInControl(event) ||
+        compositionStart === null
+    ) {
         return;
     }
 
@@ -547,6 +826,10 @@ function restoreCaret(offset: number) {
             'block min-h-24 rounded border border-stone-300 p-2 dark:border-stone-700'
         "
         :contenteditable="editable"
+        @mousedown="onContainerMousedown"
+        @keydown="onContainerKeydown"
+        @copy="onCopy"
+        @cut="onCut"
         @beforeinput="onBeforeInput"
         @compositionstart="onCompositionStart"
         @compositionend="onCompositionEnd"
@@ -561,6 +844,20 @@ function restoreCaret(offset: number) {
         </span>
         <template v-for="(chunk, index) in chunks" :key="index">
             <button
+                v-for="tombstone in chunk.tombstonesBefore"
+                :key="`tombstone-${tombstone.id}`"
+                type="button"
+                data-non-text
+                contenteditable="false"
+                class="mr-1 rounded px-1.5 py-0.5 align-middle font-sans text-xs tracking-wide hover:opacity-80"
+                :class="badgeClasses(tombstone)"
+                :title="'This citation\'s text was deleted — reselect its span or remove it'"
+                @mousedown.prevent
+                @click="onBadgeClick(tombstone)"
+            >
+                {{ badgeText(tombstone) }}
+            </button>
+            <button
                 v-if="chunk.segmentStart && chunk.segment"
                 type="button"
                 data-non-text
@@ -568,9 +865,10 @@ function restoreCaret(offset: number) {
                 class="mr-1 rounded px-1.5 py-0.5 align-middle font-sans text-xs tracking-wide hover:opacity-80"
                 :class="badgeClasses(chunk.segment)"
                 :title="badgeTitle(chunk.segment)"
+                @mousedown.prevent
                 @click="onBadgeClick(chunk.segment)"
             >
-                {{ chunk.segment.canonical_passage?.label }}
+                {{ badgeText(chunk.segment) }}
             </button>
             <span
                 :title="markupTitle(chunk.markup)"
@@ -586,9 +884,40 @@ function restoreCaret(offset: number) {
                 @pointerleave="chunk.regionId && emit('hover-region', null)"
                 >{{ chunk.text }}</span
             >
-            <span v-if="chunk.menuAfter" data-non-text class="block w-full">
+            <!-- Only when the parent actually provides menu content: the
+                 wrapper is block-level, so rendering it empty (selection
+                 made, no menu opened yet) forced a stray line break right
+                 after the selection.
+
+                 contenteditable="false" is required, exactly like on the
+                 badges: the surface is always editable now, and form
+                 controls inside EDITABLE content are broken in Firefox — a
+                 click on the work <select> was retargeted to the editable
+                 host, which read as "clicked into the text" and dismissed
+                 the very menu being used. An atomic non-editable island
+                 lets its controls behave like normal form controls. -->
+            <span
+                v-if="chunk.menuAfter && $slots['selection-menu']"
+                data-non-text
+                contenteditable="false"
+                class="block w-full"
+            >
                 <slot name="selection-menu" />
             </span>
         </template>
+        <button
+            v-for="tombstone in trailingTombstones"
+            :key="`trailing-tombstone-${tombstone.id}`"
+            type="button"
+            data-non-text
+            contenteditable="false"
+            class="mr-1 rounded px-1.5 py-0.5 align-middle font-sans text-xs tracking-wide hover:opacity-80"
+            :class="badgeClasses(tombstone)"
+            :title="'This citation\'s text was deleted — reselect its span or remove it'"
+            @mousedown.prevent
+            @click="onBadgeClick(tombstone)"
+        >
+            {{ badgeText(tombstone) }}
+        </button>
     </span>
 </template>

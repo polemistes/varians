@@ -27,6 +27,23 @@ class Tokenizer
     }
 
     /**
+     * Tokenize several spans as one sequence — the token stream of a passage
+     * whose witness text is physically discontinuous (a transposition split
+     * it), given the spans in *content* order. Offsets stay absolute into the
+     * full text, so they remain valid across the gaps between spans.
+     *
+     * @param  list<array{start: int, end: int}>  $spans
+     * @return list<array{text: string, start: int, end: int}>
+     */
+    public static function tokenizeSpans(string $fullText, array $spans, Tokenization $strategy): array
+    {
+        return array_merge(...array_map(
+            fn (array $span) => self::tokenize($fullText, $span['start'], $span['end'], $strategy),
+            $spans,
+        ));
+    }
+
+    /**
      * Split on runs of whitespace, keeping every token's offset in the full
      * text. Whitespace itself is never a token — it only advances the offset.
      *

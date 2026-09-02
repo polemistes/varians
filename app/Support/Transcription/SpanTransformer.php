@@ -22,12 +22,30 @@ namespace App\Support\Transcription;
  * the end boundary has left-gravity (typing there extends the span) — this is what
  * makes "insert inside an existing range, it just becomes part of that range" work
  * for the common case of continuing to type right after what you were just editing.
+ *
+ * An op may carry a `cut_id`, pairing one pure deletion (the cut) with one pure
+ * insertion of the same text (its paste) later in the log. For every other span
+ * the pair is an ordinary delete + insert; a span WHOLLY inside the cut range is
+ * carried: it rides along and reappears at the paste, offsets shifted verbatim,
+ * unflagged — a cut-and-paste moves the words, and what is anchored to those
+ * words is not changed by them sitting somewhere else (the same semantics the
+ * old single-click relocation had). A cut whose paste never arrives in this log
+ * (the pair was split across saves) degrades to a plain deletion — the span
+ * collapses to a tombstone rather than being destroyed, see below.
+ *
+ * A span the ops destroy is not frozen but collapses to a zero-width span at
+ * the point of destruction, flagged, and keeps transforming through later ops —
+ * so the caller can keep the row as a tombstone at the right final offset
+ * rather than deleting it. `deleted` reports that the destruction happened;
+ * what to do about it stays the caller's decision.
+ *
+ * @phpstan-type WorkingSpan array{start: int, end: int, needsReview: bool, deleted: bool, carried: array{cut_id: string, rel_start: int, rel_end: int}|null}
  */
 class SpanTransformer
 {
     /**
      * @param  list<array{start: int, end: int, needsReview: bool}>  $spans
-     * @param  list<array{start: int, end: int, text: string}>  $ops
+     * @param  list<array{start: int, end: int, text: string, cut_id?: string|null}>  $ops
      * @return list<array{start: int, end: int, needsReview: bool, deleted: bool}>
      */
     public static function transform(array $spans, array $ops): array
@@ -37,47 +55,62 @@ class SpanTransformer
             'end' => $span['end'],
             'needsReview' => $span['needsReview'],
             'deleted' => false,
+            'carried' => null,
         ], $spans);
 
         foreach ($ops as $op) {
-            $results = array_map(
-                fn (array $span) => $span['deleted'] ? $span : self::applyOp($span, $op),
-                $results,
-            );
+            $cutId = $op['cut_id'] ?? null;
+            $isCut = $cutId !== null && $op['text'] === '' && $op['end'] > $op['start'];
+            $isPaste = $cutId !== null && $op['text'] !== '' && $op['start'] === $op['end'];
+
+            $results = array_map(function (array $span) use ($op, $cutId, $isCut, $isPaste) {
+                if ($span['carried'] !== null) {
+                    if ($isPaste && $span['carried']['cut_id'] === $cutId) {
+                        $span['start'] = $op['start'] + $span['carried']['rel_start'];
+                        $span['end'] = $op['start'] + $span['carried']['rel_end'];
+                        $span['carried'] = null;
+
+                        return $span;
+                    }
+
+                    // The span itself is in the clipboard; only its fallback
+                    // tombstone position rides through intermediate ops, so
+                    // positional effects apply but destruction flags don't.
+                    $flags = [$span['needsReview'], $span['deleted']];
+                    $span = self::applyOp($span, $op, $isPaste);
+                    [$span['needsReview'], $span['deleted']] = $flags;
+
+                    return $span;
+                }
+
+                if ($isCut && $span['start'] >= $op['start'] && $span['end'] <= $op['end']) {
+                    $span['carried'] = [
+                        'cut_id' => $cutId,
+                        'rel_start' => $span['start'] - $op['start'],
+                        'rel_end' => $span['end'] - $op['start'],
+                    ];
+                    // Where the span tombstones if the paste never comes:
+                    // the cut point, kept transforming like any other offset.
+                    $span['start'] = $op['start'];
+                    $span['end'] = $op['start'];
+
+                    return $span;
+                }
+
+                return self::applyOp($span, $op, $isPaste);
+            }, $results);
         }
 
-        return $results;
-    }
+        return array_map(function (array $span) {
+            if ($span['carried'] !== null) {
+                $span['deleted'] = true;
+                $span['needsReview'] = true;
+            }
 
-    /**
-     * The two operations that lift the text of [$start, $end) out and set it
-     * down at $target, and the offset it ends up at.
-     *
-     * Moving is a deletion and an insertion, but it cannot be done as a plain
-     * cut and paste: a deletion covering a cited span destroys it (see
-     * applyReplace), so the citation would be lost exactly when it is meant to
-     * travel. The caller relocates whatever was anchored inside the span
-     * explicitly and transforms everything else through these ops — see
-     * TranscriptionSegmentController::move.
-     *
-     * $target is given in the text as it stands now. Removing the span first
-     * shifts anything after it, so a destination beyond the span moves back by
-     * its length.
-     *
-     * @return array{ops: list<array{start: int, end: int, text: string}>, destination: int}
-     */
-    public static function relocation(string $text, int $start, int $end, int $target): array
-    {
-        $moved = mb_substr($text, $start, $end - $start);
-        $destination = $target > $end ? $target - ($end - $start) : $target;
+            unset($span['carried']);
 
-        return [
-            'ops' => [
-                ['start' => $start, 'end' => $end, 'text' => ''],
-                ['start' => $destination, 'end' => $destination, 'text' => $moved],
-            ],
-            'destination' => $destination,
-        ];
+            return $span;
+        }, $results);
     }
 
     /**
@@ -131,16 +164,16 @@ class SpanTransformer
     }
 
     /**
-     * @param  array{start: int, end: int, needsReview: bool, deleted: bool}  $span
+     * @param  WorkingSpan  $span
      * @param  array{start: int, end: int, text: string}  $op
-     * @return array{start: int, end: int, needsReview: bool, deleted: bool}
+     * @return WorkingSpan
      */
-    private static function applyOp(array $span, array $op): array
+    private static function applyOp(array $span, array $op, bool $isRelocationPaste = false): array
     {
         $insertedLen = mb_strlen($op['text']);
 
         if ($op['start'] === $op['end']) {
-            return self::applyInsertion($span, $op['start'], $insertedLen);
+            return self::applyInsertion($span, $op['start'], $insertedLen, $isRelocationPaste);
         }
 
         $delta = $insertedLen - ($op['end'] - $op['start']);
@@ -149,10 +182,16 @@ class SpanTransformer
     }
 
     /**
-     * @param  array{start: int, end: int, needsReview: bool, deleted: bool}  $span
-     * @return array{start: int, end: int, needsReview: bool, deleted: bool}
+     * End-gravity absorbs typing done right after a span into it — but never
+     * a relocation paste: the pasted words belong to the citation carried
+     * with them, not to whatever span happens to end exactly where they
+     * landed. Without this, pasting a cut line right after another cited
+     * line silently extended the neighbour over the whole arrival.
+     *
+     * @param  WorkingSpan  $span
+     * @return WorkingSpan
      */
-    private static function applyInsertion(array $span, int $p, int $insertedLen): array
+    private static function applyInsertion(array $span, int $p, int $insertedLen, bool $isRelocationPaste = false): array
     {
         if ($p <= $span['start']) {
             $span['start'] += $insertedLen;
@@ -161,7 +200,7 @@ class SpanTransformer
             return $span;
         }
 
-        if ($p <= $span['end']) {
+        if ($isRelocationPaste ? $p < $span['end'] : $p <= $span['end']) {
             $span['end'] += $insertedLen;
         }
 
@@ -169,8 +208,8 @@ class SpanTransformer
     }
 
     /**
-     * @param  array{start: int, end: int, needsReview: bool, deleted: bool}  $span
-     * @return array{start: int, end: int, needsReview: bool, deleted: bool}
+     * @param  WorkingSpan  $span
+     * @return WorkingSpan
      */
     private static function applyReplace(array $span, int $start, int $end, int $insertedLen, int $delta): array
     {
@@ -187,7 +226,13 @@ class SpanTransformer
 
         if ($start <= $span['start'] && $end >= $span['end']) {
             if ($insertedLen === 0) {
+                // Collapse to a zero-width tombstone at the point of
+                // destruction and keep transforming — the caller keeps the
+                // row (flagged) rather than deleting a span an editor made.
+                $span['start'] = $start;
+                $span['end'] = $start;
                 $span['deleted'] = true;
+                $span['needsReview'] = true;
 
                 return $span;
             }

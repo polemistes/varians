@@ -304,6 +304,10 @@ export type TranscriptionLayer = {
  * doesn't own any text of its own. start_offset/end_offset index into
  * Transcription.text. Always cites a canonical passage — a span with no
  * citation has no use to anyone, so one is never created without the other.
+ *
+ * Several spans in one layer may cite the same passage — its witness text is
+ * then physically discontinuous (a transposition split it) — and `part`
+ * orders them by content, independently of where each physically sits.
  */
 export type TranscriptionSegment = {
     id: number;
@@ -311,6 +315,7 @@ export type TranscriptionSegment = {
     canonical_passage_id: number;
     start_offset: number;
     end_offset: number;
+    part: number;
     needs_review: boolean;
     canonical_passage?: CanonicalPassage & { work?: Work };
 };

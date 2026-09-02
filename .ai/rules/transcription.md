@@ -36,15 +36,31 @@ What `applyReadings` does instead:
 
 - offsets always transform;
 - a partial clobber sets `needs_review`;
-- a destroyed span is **deleted** when nothing selects it (the manuscript no
-  longer has those words, so dropping the candidate is truthful) and **kept
-  zero-width and flagged** when an edition does select it, because
-  `edition_lemmas.selected_reading_id` is NOT NULL and cascades — deleting
-  would discard that edition's decision rather than merely emptying it;
+- a destroyed *reading* is **deleted** when nothing selects it (the
+  manuscript no longer has those words, and a reading is machine-re-derivable
+  by re-collation) and **kept zero-width and flagged** when an edition does
+  select it, because `edition_lemmas.selected_reading_id` is NOT NULL and
+  cascades — deleting would discard that edition's decision rather than
+  merely emptying it. A destroyed *segment* is different: always tombstoned
+  (zero-width + flagged, in `applySpans`), never deleted — citation
+  assignment is human work autosave must not destroy via a transient state,
+  and unlike a reading it cannot be re-derived. The tombstone renders as a
+  badge-only marker in `AlignableText` for the editor to re-anchor or remove;
+- a cut/paste op pair (shared `cut_id`) relocates instead of destroying:
+  spans wholly inside the cut travel to the paste, unflagged; a *partial*
+  cut of a span spawns a new part of the source passage at the paste site,
+  and a paste inside another span splits it into two parts of its own
+  passage (`RelocationSegmentEffects`) — see `.ai/rules/requests.md`;
 - afterwards `update()` flashes the one consequence the editor cannot see from
   that page: that her correction also changed an edition's own printed
   wording. Keyed off the reading's *text*, so an edit elsewhere that merely
   shifts offsets stays silent.
+
+Segments are disposable on destruction — with one addition: when a destroyed
+segment was one *part* of a passage cited by several spans in the layer (see
+`TranscriptionSegment.part`), `applySpans` flags the surviving sibling parts
+`needs_review`, since the passage's witness text just lost a piece and the
+layer's collation of it is now stale.
 
 `HandleInertiaRequests` shares a general `flash.message` for this. It is the
 app's only flash channel; keep it generic.

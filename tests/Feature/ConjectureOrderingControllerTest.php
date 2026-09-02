@@ -4,7 +4,6 @@ use App\Enums\ConjectureType;
 use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
-use App\Models\EditionPassageOrder;
 use App\Models\EditionTransposition;
 use App\Models\ReferenceScheme;
 use App\Models\TranscriptionLayer;
@@ -59,10 +58,12 @@ test('authoring a new reordering conjecture creates it, its entries, and selects
         ->and($conjecture->canonical_passage_id)->toBe($passages[0]->id) // first by citation order
         ->and($conjecture->orderingEntries->pluck('canonical_passage_id')->all())->toBe([$passages[2]->id, $passages[0]->id, $passages[1]->id]);
 
-    $order = EditionPassageOrder::sole();
-    expect($order->conjecture_id)->toBe($conjecture->id)
-        ->and($order->transcription_layer_id)->toBeNull()
-        ->and(EditionTransposition::count())->toBe(0);
+    // Applying rewrote the stored positions, and the application itself is
+    // recorded as attribution (EditionTransposition — a Reordering is a
+    // Conjecture like a Transposition is).
+    $adoption = EditionTransposition::sole();
+    expect($adoption->edition_id)->toBe($edition->id)
+        ->and($adoption->conjecture_id)->toBe($conjecture->id);
 
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page

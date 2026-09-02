@@ -20,7 +20,7 @@ function collatedReadings(TranscriptionLayer $transcription, string $text): arra
     $segment = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => mb_strlen($text)]);
 
-    PassageAligner::alignWitness($passage, $segment);
+    PassageAligner::alignWitness($passage, collect([$segment]));
 
     return Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')
         ->with('readings')->get()
@@ -153,8 +153,8 @@ test('editing a witness the edition does not print reports nothing', function ()
 
     $passage = CanonicalPassage::factory()->create();
     foreach ([$printed, $other] as $t) {
-        PassageAligner::alignWitness($passage, TranscriptionSegment::factory()->for($t)
-            ->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]));
+        PassageAligner::alignWitness($passage, collect([TranscriptionSegment::factory()->for($t)
+            ->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13])]));
     }
 
     $middle = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->get()[1];

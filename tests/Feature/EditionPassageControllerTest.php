@@ -4,7 +4,6 @@ use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\EditionLemma;
 use App\Models\EditionPassage;
-use App\Models\EditionPassageOrder;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\ReferenceScheme;
@@ -183,39 +182,6 @@ test('removing a passage frees it up for re-adding elsewhere and clears this edi
     ]);
     $response->assertRedirect();
     expect(EditionPassage::where('edition_id', $edition->id)->count())->toBe(1);
-});
-
-test('removing a passage deletes any EditionPassageOrder naming it, unlike an adopted transposition', function () {
-    $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition] = editionForPassages();
-    $line1 = citedPassage($work, 1);
-    $line2 = citedPassage($work, 2);
-    $transcription = TranscriptionLayer::factory()->create(['text' => 'first second']);
-    TranscriptionSegment::factory()->for($transcription)->for($line1, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
-    TranscriptionSegment::factory()->for($transcription)->for($line2, 'canonicalPassage')->create(['start_offset' => 6, 'end_offset' => 12]);
-
-    $this->post(route('edition-passages.store', $edition), [
-        'transcription_layer_id' => $transcription->id,
-        'start_offset' => 0,
-        'end_offset' => 12,
-    ]);
-    $editionPassage1 = EditionPassage::where('edition_id', $edition->id)->where('canonical_passage_id', $line1->id)->sole();
-
-    $order = EditionPassageOrder::factory()->create([
-        'edition_id' => $edition->id,
-        'range_start_canonical_passage_id' => $line1->id,
-        'range_end_canonical_passage_id' => $line2->id,
-        'transcription_layer_id' => $transcription->id,
-    ]);
-
-    $this->delete(route('edition-passages.destroy', $editionPassage1));
-
-    // Unlike a Conjecture/EditionTransposition (a reusable stockpile, kept
-    // even after the passage it names leaves the edition — see
-    // EditionTranspositionControllerTest), a witness-order choice is this
-    // edition's own bookkeeping and has nothing left to order once one of
-    // its two passages is gone.
-    expect(EditionPassageOrder::find($order->id))->toBeNull();
 });
 
 test('a bulk add rejects a range that ends before it starts', function () {

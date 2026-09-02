@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\Tokenization;
 use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
@@ -10,6 +11,7 @@ use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
+use App\Support\Edition\DiplomaticCounterpart;
 use App\Support\Edition\PassageAdder;
 
 /**
@@ -273,4 +275,45 @@ test('where the witnesses agree there is nothing to attribute', function () {
 
     expect(array_column(passagePayload($work, $edition)['runs'], 'orthographic_variation'))
         ->toBe([false, false, false]);
+});
+
+/**
+ * A witness whose text for the passage is discontinuous in BOTH layers, split
+ * the same way: "the quick" cited in place, "fox" transposed to the head.
+ *
+ * @return array{passage: CanonicalPassage, normalized: TranscriptionLayer, diplomatic: TranscriptionLayer}
+ */
+function splitLayers(): array
+{
+    $passage = CanonicalPassage::factory()->create();
+    $transcription = Transcription::factory()->create(['visibility' => 'published']);
+    $normalized = TranscriptionLayer::factory()->normalized()->for($transcription)->create(['text' => "fox\nthe quick"]);
+    $diplomatic = TranscriptionLayer::factory()->diplomatic()->for($transcription)->create(['text' => "FOX\nTHE QUICK"]);
+
+    foreach ([$normalized, $diplomatic] as $layer) {
+        TranscriptionSegment::factory()->for($layer)->for($passage, 'canonicalPassage')
+            ->create(['start_offset' => 4, 'end_offset' => 13, 'part' => 1]); // "the quick"
+        TranscriptionSegment::factory()->for($layer)->for($passage, 'canonicalPassage')
+            ->create(['start_offset' => 0, 'end_offset' => 3, 'part' => 2]); // "fox"
+    }
+
+    return ['passage' => $passage, 'normalized' => $normalized, 'diplomatic' => $diplomatic];
+}
+
+test('a discontinuous passage reads part by part in the manuscript view, never as one contiguous line', function () {
+    ['passage' => $passage, 'diplomatic' => $diplomatic] = splitLayers();
+
+    expect(DiplomaticCounterpart::forPassage($passage, $diplomatic))
+        ->toBe('THE QUICK … FOX');
+});
+
+test('the token-index mapping holds across parts, including a transposed one', function () {
+    ['passage' => $passage, 'normalized' => $normalized, 'diplomatic' => $diplomatic] = splitLayers();
+
+    // "fox" is the passage's LAST word by content but stands FIRST in the
+    // text — the counterpart must come from the same content position.
+    expect(DiplomaticCounterpart::forSpan($passage, $normalized, $diplomatic, 0, 3, Tokenization::Whitespace))
+        ->toBe('FOX')
+        ->and(DiplomaticCounterpart::forSpan($passage, $normalized, $diplomatic, 8, 13, Tokenization::Whitespace))
+        ->toBe('QUICK');
 });

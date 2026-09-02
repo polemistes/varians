@@ -8,17 +8,20 @@ import ReorderingAuthorPanel from '@/components/ReorderingAuthorPanel.vue';
 import WitnessTranscriptPanel from '@/components/WitnessTranscriptPanel.vue';
 import type { WitnessTranscript } from '@/components/WitnessTranscriptPanel.vue';
 import { isEditorOrAbove } from '@/lib/auth';
+import { editionOrderClipboard } from '@/lib/editionClipboard';
 import {
     destroy as destroyComment,
     store as storeComment,
     update as updateComment,
 } from '@/routes/edition-comments';
 import { destroy as destroyEditionLemma } from '@/routes/edition-lemmas';
+import { update as updateLineBreak } from '@/routes/edition-line-breaks';
 import {
-    store as storeEditionPassageOrder,
-    destroy as destroyEditionPassageOrder,
-} from '@/routes/edition-passage-orders';
+    apply as applyEditionOrder,
+    move as moveEditionOrder,
+} from '@/routes/edition-order';
 import { destroy as destroyEditionPassage } from '@/routes/edition-passages';
+import { update as updatePassageLineation } from '@/routes/edition-passages/lineation';
 import {
     store as storeTransposition,
     destroy as destroyTransposition,
@@ -90,6 +93,9 @@ type Run = {
     // Every way the witnesses differ here is a matter of accents, breathings
     // or pointing — see EditionController::orthographicVariation.
     orthographic_variation: boolean;
+    // This edition's own colometry: a break printed before this run — see
+    // EditionLineBreak.
+    break_before: 'line' | 'paragraph' | null;
 };
 
 type UnplacedConjecture = {
@@ -103,7 +109,7 @@ type UnplacedConjecture = {
 };
 
 type OrderCandidate = {
-    source: 'transcription' | 'conjecture';
+    source: 'transcription' | 'conjecture' | 'citation';
     transcription_layer_id: number | null;
     conjecture_id: number | null;
     proposed_by: string | null;
@@ -116,7 +122,6 @@ type OrderRange = {
     range_key: string;
     range_start_canonical_passage_id: number;
     range_end_canonical_passage_id: number;
-    edition_passage_order_id: number | null;
     candidates: OrderCandidate[];
 };
 
@@ -132,11 +137,24 @@ type EditionComment = {
     author: string;
 };
 
+// A witness whose text for a passage stands in more than one place — a
+// transposition split it below passage granularity. Derived server-side
+// from the citation spans; see EditionController::citationDiscontinuities.
+type DiscontinuousWitness = {
+    siglum: string;
+    parts: { part: number; after_label: string | null }[];
+};
+
 type WindowPassage = {
     id: number;
     edition_passage_id: number;
     label: string;
     order_range: OrderRange | null;
+    // This edition's own lineation for the passage boundary — verse renders
+    // with every flag set, prose with none; mixtures are free.
+    starts_new_line: boolean;
+    starts_new_paragraph: boolean;
+    discontinuous_witnesses: DiscontinuousWitness[];
     base: { transcription_layer_id: number; witness_siglum: string } | null;
     runs: Run[];
     unplacedConjectures: UnplacedConjecture[];
@@ -145,12 +163,17 @@ type WindowPassage = {
     base_diplomatic: string | null;
 };
 
+// An applied order proposal — attribution only, since the order itself
+// lives in the stored positions. Removing one leaves the order as it is
+// (one-way apply). The conjecture may be a Transposition (target fields
+// set) or a Reordering (they're null).
 type TranspositionAdoption = {
     id: number;
+    type: string;
     from_label: string;
     to_label: string | null;
-    target_label: string;
-    move_position: 'before' | 'after';
+    target_label: string | null;
+    move_position: 'before' | 'after' | null;
     proposed_by: string;
 };
 
@@ -446,6 +469,172 @@ function toggleLacunaMode() {
     if (openTarget.value?.kind === 'boundary') {
         closePopover();
     }
+}
+
+// ---- rearrange: cut & paste of passages ----
+// The edition editor's atoms are passages: words come from evidence, but
+// where a passage stands is direct manipulation. Click selects a passage,
+// shift-click extends to a range, Cut lifts it into the (module-scoped, so
+// it survives pagination) clipboard, and paste markers between passages
+// land it — a single position rewrite server-side, no ceremony. The order
+// report shows how the result relates to the witnesses either way.
+const rearrangeMode = ref(false);
+const rearrangeSelection = ref<{ startId: number; endId: number } | null>(null);
+
+function toggleRearrangeMode() {
+    rearrangeMode.value = !rearrangeMode.value;
+    rearrangeSelection.value = null;
+}
+
+function windowIndexOf(passageId: number): number {
+    return props.windowPassages.findIndex((p) => p.id === passageId);
+}
+
+function onRearrangeSelect(passage: WindowPassage, event: MouseEvent) {
+    if (!rearrangeSelection.value || !event.shiftKey) {
+        rearrangeSelection.value = { startId: passage.id, endId: passage.id };
+
+        return;
+    }
+
+    const a = windowIndexOf(rearrangeSelection.value.startId);
+    const b = windowIndexOf(passage.id);
+
+    if (a === -1 || b === -1) {
+        rearrangeSelection.value = { startId: passage.id, endId: passage.id };
+
+        return;
+    }
+
+    const [start, end] = a <= b ? [a, b] : [b, a];
+    rearrangeSelection.value = {
+        startId: props.windowPassages[start].id,
+        endId: props.windowPassages[end].id,
+    };
+}
+
+function isRearrangeSelected(passage: WindowPassage): boolean {
+    if (!rearrangeSelection.value) {
+        return false;
+    }
+
+    const index = windowIndexOf(passage.id);
+    const start = windowIndexOf(rearrangeSelection.value.startId);
+    const end = windowIndexOf(rearrangeSelection.value.endId);
+
+    return start !== -1 && index >= start && index <= end;
+}
+
+function cutRearrangeSelection() {
+    if (!rearrangeSelection.value) {
+        return;
+    }
+
+    const startLabel =
+        props.windowPassages[windowIndexOf(rearrangeSelection.value.startId)]
+            ?.label;
+    const endLabel =
+        props.windowPassages[windowIndexOf(rearrangeSelection.value.endId)]
+            ?.label;
+
+    editionOrderClipboard.value = {
+        editionId: props.edition.id,
+        startId: rearrangeSelection.value.startId,
+        endId: rearrangeSelection.value.endId,
+        label:
+            startLabel === endLabel
+                ? (startLabel ?? '')
+                : `${startLabel}–${endLabel}`,
+    };
+    rearrangeSelection.value = null;
+}
+
+const heldClipboard = computed(() =>
+    editionOrderClipboard.value?.editionId === props.edition.id
+        ? editionOrderClipboard.value
+        : null,
+);
+
+function pasteClipboard(targetPassageId: number, position: 'before' | 'after') {
+    const clipboard = heldClipboard.value;
+
+    if (!clipboard) {
+        return;
+    }
+
+    router.patch(
+        moveEditionOrder.url(props.edition.id),
+        {
+            range_start_canonical_passage_id: clipboard.startId,
+            range_end_canonical_passage_id: clipboard.endId,
+            target_canonical_passage_id: targetPassageId,
+            move_position: position,
+        },
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                editionOrderClipboard.value = null;
+            },
+            onError: (errors) => {
+                submitError.value =
+                    Object.values(errors)[0] ?? 'Could not move that range.';
+            },
+        },
+    );
+}
+
+// ---- lineation: where this edition's printed text breaks ----
+// Same shape as lacunaMode: markers between words/passages exist in the DOM
+// only while this is on. Clicking one cycles the break there through
+// none → line → paragraph → none. All of it is this edition's own display
+// data — no manuscript layout or collation is touched.
+const lineationMode = ref(false);
+
+function cyclePassageBoundary(passage: WindowPassage) {
+    const next = passage.starts_new_paragraph
+        ? { starts_new_line: false, starts_new_paragraph: false }
+        : passage.starts_new_line
+          ? { starts_new_line: true, starts_new_paragraph: true }
+          : { starts_new_line: true, starts_new_paragraph: false };
+
+    router.patch(updatePassageLineation.url(passage.edition_passage_id), next, {
+        preserveScroll: true,
+    });
+}
+
+function cycleRunBreak(passage: WindowPassage, run: Run) {
+    if (run.lemma_id === null) {
+        return;
+    }
+
+    const next =
+        run.break_before === 'paragraph'
+            ? null
+            : run.break_before === 'line'
+              ? 'paragraph'
+              : 'line';
+
+    router.patch(
+        updateLineBreak.url(props.edition.id),
+        { lemma_id: run.lemma_id, kind: next },
+        { preserveScroll: true },
+    );
+}
+
+function boundaryGlyph(passage: WindowPassage): string {
+    return passage.starts_new_paragraph
+        ? '¶'
+        : passage.starts_new_line
+          ? '↵'
+          : '·';
+}
+
+function breakGlyph(run: Run): string {
+    return run.break_before === 'paragraph'
+        ? '¶'
+        : run.break_before === 'line'
+          ? '↵'
+          : '·';
 }
 
 // ---- the right pane ----
@@ -1078,20 +1267,17 @@ function removeEditionPassage(editionPassageId: number) {
     });
 }
 
-// Choosing which source's own sequence to follow for a range is never a
-// transposition conjecture when the source is a manuscript — the
-// manuscript itself is the source, not a scholar's proposal, exactly like
-// picking a witness's reading for a word-level variant needs no
-// attribution either. Picking an already-catalogued reordering conjecture
-// goes through the exact same endpoint — it's still just a selection among
-// existing candidates, never a new authoring step (see
-// ReorderingAuthorPanel for that). Posts directly to
-// edition-passage-orders.store, never edition-transpositions.store.
+// Apply one of the report's candidate orders to its range: the stored
+// positions are rewritten to the source's own sequence. Applying a
+// catalogued conjecture also records the application as attribution; a
+// witness's or citation order needs none — "matches witness B" is
+// derivable and shown by the report itself. Never an authoring step (see
+// ReorderingAuthorPanel for that).
 function chooseOrder(range: OrderRange, candidate: OrderCandidate) {
     submitError.value = null;
 
     router.post(
-        storeEditionPassageOrder.url(props.edition),
+        applyEditionOrder.url(props.edition),
         {
             range_start_canonical_passage_id:
                 range.range_start_canonical_passage_id,
@@ -1107,24 +1293,10 @@ function chooseOrder(range: OrderRange, candidate: OrderCandidate) {
             },
             onError: (errors) => {
                 submitError.value =
-                    Object.values(errors)[0] ?? 'Could not follow that order.';
+                    Object.values(errors)[0] ?? 'Could not apply that order.';
             },
         },
     );
-}
-
-// Reverts to whatever order the edition's passages and any adopted
-// transpositions naturally produce — the range becomes eligible to be
-// flagged again on the next load.
-function removeEditionPassageOrder(editionPassageOrderId: number) {
-    router.delete(destroyEditionPassageOrder.url(editionPassageOrderId), {
-        preserveScroll: true,
-        onSuccess: () => {
-            if (openTarget.value?.kind === 'order_range') {
-                openTarget.value = null;
-            }
-        },
-    });
 }
 
 // Insertion points render between every pair of adjacent runs (and at
@@ -1498,22 +1670,22 @@ function runClasses(
     ];
 }
 
-// Three states, extending the same amber/emerald vocabulary runClasses()
-// already uses for word-level variants: amber for an open, unsettled
-// range; emerald once settled by a transcription (a manuscript's own
-// order); sky once settled by a conjecture (an editorial invention) — a
-// third color specifically for "this order is someone's proposal, not a
-// manuscript's own reading."
+// The order badge is a calm derived report, like the ⇄ discontinuity
+// marker: there is no "unsettled" state to escalate, because the stored
+// order IS the decision. Color says only what kind of source the current
+// order happens to match: emerald when a manuscript's own order matches,
+// sky when only a conjecture does, amber when the current order matches no
+// listed source at all (the editor's own arrangement).
 function orderRangeClasses(range: OrderRange): string[] {
-    if (range.edition_passage_order_id === null) {
+    const matching = range.candidates.find((c) => c.matches_current);
+
+    if (matching === undefined) {
         return [
             'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:hover:bg-amber-900',
         ];
     }
 
-    const settled = range.candidates.find((c) => c.matches_current);
-
-    if (settled?.source === 'conjecture') {
+    if (matching.source === 'conjecture') {
         return [
             'bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-950 dark:text-sky-400 dark:hover:bg-sky-900',
         ];
@@ -1522,6 +1694,24 @@ function orderRangeClasses(range: OrderRange): string[] {
     return [
         'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-400 dark:hover:bg-emerald-900',
     ];
+}
+
+// "B has this passage in 2 places (part 1 follows 41, part 2 follows 44)" —
+// the sub-passage transposition report the ⇄ marker carries as its tooltip.
+function discontinuityTitle(witnesses: DiscontinuousWitness[]): string {
+    return witnesses
+        .map((witness) => {
+            const parts = witness.parts
+                .map((part) =>
+                    part.after_label
+                        ? `part ${part.part} follows ${part.after_label}`
+                        : `part ${part.part} stands first`,
+                )
+                .join(', ');
+
+            return `${witness.siglum} has this passage in ${witness.parts.length} places (${parts})`;
+        })
+        .join('; ');
 }
 </script>
 
@@ -1658,8 +1848,11 @@ function orderRangeClasses(range: OrderRange): string[] {
                             }}<template v-if="transposition.to_label"
                                 >&ndash;{{ transposition.to_label }}</template
                             >
-                            moved {{ transposition.move_position }}
-                            {{ transposition.target_label }} &mdash;
+                            <template v-if="transposition.target_label">
+                                moved {{ transposition.move_position }}
+                                {{ transposition.target_label }}</template
+                            ><template v-else> resequenced</template>
+                            &mdash;
                             <strong>{{
                                 transposition.proposed_by
                             }}</strong></span
@@ -1667,6 +1860,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                         <button
                             type="button"
                             class="text-red-600 underline dark:text-red-400"
+                            title="Removes the attribution only — the passage order stays as it is"
                             @click="removeTransposition(transposition.id)"
                         >
                             Remove
@@ -1676,7 +1870,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                         v-if="!props.transpositions.length"
                         class="text-stone-500 dark:text-stone-400"
                     >
-                        No transpositions adopted yet.
+                        No proposals applied yet.
                     </li>
                 </ul>
                 <form
@@ -1800,9 +1994,64 @@ function orderRangeClasses(range: OrderRange): string[] {
                             : '+ Propose reordering'
                     }}
                 </button>
+                <button
+                    type="button"
+                    class="rounded border px-2 py-1"
+                    :class="
+                        lineationMode
+                            ? 'border-violet-300 bg-violet-100 text-violet-700 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-400'
+                            : 'border-stone-300 dark:border-stone-700'
+                    "
+                    @click="lineationMode = !lineationMode"
+                >
+                    {{ lineationMode ? 'Done arranging lines' : 'Lineation' }}
+                </button>
                 <span v-if="lacunaMode">
                     Click a marker between two words to insert a lacuna there.
                 </span>
+                <button
+                    type="button"
+                    class="rounded border px-2 py-1"
+                    :class="
+                        rearrangeMode
+                            ? 'border-emerald-300 bg-emerald-100 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-400'
+                            : 'border-stone-300 dark:border-stone-700'
+                    "
+                    @click="toggleRearrangeMode"
+                >
+                    {{ rearrangeMode ? 'Done rearranging' : 'Rearrange' }}
+                </button>
+                <span v-if="lineationMode">
+                    Click a marker to cycle it: · flows on, ↵ starts a new line,
+                    ¶ starts a new paragraph.
+                </span>
+                <template v-if="rearrangeMode">
+                    <span v-if="heldClipboard">
+                        Holding {{ heldClipboard.label }} — click a ⇪ marker to
+                        paste it there.
+                        <button
+                            type="button"
+                            class="underline"
+                            @click="editionOrderClipboard = null"
+                        >
+                            Cancel
+                        </button>
+                    </span>
+                    <span v-else-if="rearrangeSelection">
+                        <button
+                            type="button"
+                            class="rounded border border-emerald-300 px-2 py-0.5 text-emerald-700 dark:border-emerald-800 dark:text-emerald-400"
+                            @click="cutRearrangeSelection"
+                        >
+                            Cut
+                        </button>
+                        the selected passages — shift-click extends the range.
+                    </span>
+                    <span v-else>
+                        Click a passage number to select it; shift-click another
+                        to select the range between them.
+                    </span>
+                </template>
                 <span v-if="addingText">
                     Select text on the left to remove that passage — the panel
                     on the right adds new text.
@@ -1893,780 +2142,991 @@ function orderRangeClasses(range: OrderRange): string[] {
                             </template>
                         </p>
 
-                        <article
+                        <!-- Passages render INLINE and every printed break is
+                             an explicit element, so verse, flowing prose and
+                             mixtures all come from the same mechanism: the
+                             edition's own lineation flags — never from any
+                             manuscript's line breaks. -->
+                        <template
                             v-for="(
                                 passage, passageIndex
                             ) in props.windowPassages"
-                            :id="`passage-${passage.id}`"
                             :key="passage.id"
                         >
-                            <span
-                                class="mr-1 rounded px-1.5 py-0.5 align-middle font-sans text-xs tracking-wide select-none"
-                                :class="
-                                    hasPassageNote(passage)
-                                        ? 'bg-sky-300 text-sky-950 dark:bg-sky-800/60 dark:text-sky-100'
-                                        : 'bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400'
+                            <div
+                                v-if="
+                                    passage.starts_new_paragraph &&
+                                    passageIndex > 0
                                 "
-                                >{{ passage.label }}</span
-                            >
-
-                            <button
-                                v-if="passage.order_range"
-                                type="button"
-                                class="mr-1 rounded px-1.5 py-0.5 align-middle font-sans text-xs tracking-wide select-none"
-                                :class="orderRangeClasses(passage.order_range)"
-                                :title="
-                                    passage.order_range
-                                        .edition_passage_order_id !== null
-                                        ? 'This line\'s order is a chosen selection — click to review'
-                                        : 'Another source has this range in a different order'
+                                class="h-4"
+                                aria-hidden="true"
+                            ></div>
+                            <br
+                                v-else-if="
+                                    passage.starts_new_line && passageIndex > 0
                                 "
-                                @click="toggleOrderRange(passage.id)"
+                            />
+                            <article
+                                :id="`passage-${passage.id}`"
+                                class="inline"
                             >
-                                order{{
-                                    passage.order_range
-                                        .edition_passage_order_id !== null
-                                        ? ' ✓'
-                                        : '?'
-                                }}
-                            </button>
-
-                            <button
-                                v-if="canEdit && lacunaMode"
-                                type="button"
-                                class="mr-1 rounded bg-amber-100 px-1 align-middle font-sans text-xs leading-normal text-amber-700 select-none hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:hover:bg-amber-900"
-                                title="Insert a whole-line lacuna before this passage"
-                                @click="
-                                    toggleNewPassage(
-                                        passage.id,
-                                        previousEditionPassageId(passageIndex),
-                                    )
-                                "
-                            >
-                                + line
-                            </button>
-
-                            <template v-if="passage.base === null">
+                                <button
+                                    v-if="
+                                        canEdit &&
+                                        rearrangeMode &&
+                                        heldClipboard
+                                    "
+                                    type="button"
+                                    class="mr-1 rounded bg-emerald-100 px-1 align-middle font-sans text-xs leading-normal text-emerald-700 select-none hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:hover:bg-emerald-900"
+                                    :title="`Paste ${heldClipboard.label} before ${passage.label}`"
+                                    @click="
+                                        pasteClipboard(passage.id, 'before')
+                                    "
+                                >
+                                    ⇪
+                                </button>
+                                <button
+                                    v-if="canEdit && lineationMode"
+                                    type="button"
+                                    class="mr-1 rounded bg-violet-100 px-1 align-middle font-sans text-xs leading-normal text-violet-700 select-none hover:bg-violet-200 dark:bg-violet-950 dark:text-violet-400 dark:hover:bg-violet-900"
+                                    title="Cycle the break before this passage: flows on / new line / new paragraph"
+                                    @click="cyclePassageBoundary(passage)"
+                                >
+                                    {{ boundaryGlyph(passage) }}
+                                </button>
                                 <span
-                                    class="font-sans text-sm text-stone-400 italic dark:text-stone-600"
-                                    >No base transcription assigned to this
-                                    passage yet.</span
+                                    class="mr-1 rounded px-1.5 py-0.5 align-middle font-sans text-xs tracking-wide select-none"
+                                    :class="[
+                                        hasPassageNote(passage)
+                                            ? 'bg-sky-300 text-sky-950 dark:bg-sky-800/60 dark:text-sky-100'
+                                            : 'bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400',
+                                        rearrangeMode &&
+                                            'cursor-pointer ring-emerald-400 hover:ring-2',
+                                        isRearrangeSelected(passage) &&
+                                            'ring-2 ring-emerald-500',
+                                    ]"
+                                    @click="
+                                        rearrangeMode &&
+                                        onRearrangeSelect(passage, $event)
+                                    "
+                                    >{{ passage.label }}</span
                                 >
-                            </template>
-                            <template v-else-if="!passage.runs.length">
+
+                                <button
+                                    v-if="passage.order_range"
+                                    type="button"
+                                    class="mr-1 rounded px-1.5 py-0.5 align-middle font-sans text-xs tracking-wide select-none"
+                                    :class="
+                                        orderRangeClasses(passage.order_range)
+                                    "
+                                    title="Other sources order this range differently — click to compare and apply one"
+                                    @click="toggleOrderRange(passage.id)"
+                                >
+                                    order
+                                </button>
+
                                 <span
-                                    class="font-sans text-sm text-stone-400 italic dark:text-stone-600"
-                                    >Nothing transcribed for this passage
-                                    yet.</span
+                                    v-if="
+                                        passage.discontinuous_witnesses.length >
+                                        0
+                                    "
+                                    class="mr-1 rounded bg-violet-100 px-1.5 py-0.5 align-middle font-sans text-xs tracking-wide text-violet-700 select-none dark:bg-violet-950 dark:text-violet-400"
+                                    :title="
+                                        discontinuityTitle(
+                                            passage.discontinuous_witnesses,
+                                        )
+                                    "
                                 >
-                            </template>
-                            <template v-else>
-                                <template
-                                    v-for="(run, runIndex) in passage.runs"
-                                    :key="runIndex"
+                                    ⇄
+                                    {{
+                                        passage.discontinuous_witnesses
+                                            .map((witness) => witness.siglum)
+                                            .join(' ')
+                                    }}
+                                </span>
+
+                                <button
+                                    v-if="canEdit && lacunaMode"
+                                    type="button"
+                                    class="mr-1 rounded bg-amber-100 px-1 align-middle font-sans text-xs leading-normal text-amber-700 select-none hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:hover:bg-amber-900"
+                                    title="Insert a whole-line lacuna before this passage"
+                                    @click="
+                                        toggleNewPassage(
+                                            passage.id,
+                                            previousEditionPassageId(
+                                                passageIndex,
+                                            ),
+                                        )
+                                    "
                                 >
+                                    + line
+                                </button>
+
+                                <template v-if="passage.base === null">
+                                    <span
+                                        class="font-sans text-sm text-stone-400 italic dark:text-stone-600"
+                                        >No base transcription assigned to this
+                                        passage yet.</span
+                                    >
+                                </template>
+                                <template v-else-if="!passage.runs.length">
+                                    <span
+                                        class="font-sans text-sm text-stone-400 italic dark:text-stone-600"
+                                        >Nothing transcribed for this passage
+                                        yet.</span
+                                    >
+                                </template>
+                                <template v-else>
+                                    <template
+                                        v-for="(run, runIndex) in passage.runs"
+                                        :key="runIndex"
+                                    >
+                                        <div
+                                            v-if="
+                                                run.break_before === 'paragraph'
+                                            "
+                                            class="h-4"
+                                            aria-hidden="true"
+                                        ></div>
+                                        <br
+                                            v-else-if="
+                                                run.break_before === 'line'
+                                            "
+                                        />
+                                        <button
+                                            v-if="
+                                                canEdit &&
+                                                lineationMode &&
+                                                runIndex > 0
+                                            "
+                                            type="button"
+                                            class="mx-0.5 rounded bg-violet-100 px-1 align-middle font-sans text-xs leading-normal text-violet-700 select-none hover:bg-violet-200 dark:bg-violet-950 dark:text-violet-400 dark:hover:bg-violet-900"
+                                            title="Cycle the break before this word: flows on / new line / new paragraph"
+                                            @click="cycleRunBreak(passage, run)"
+                                        >
+                                            {{ breakGlyph(run) }}
+                                        </button>
+                                        <span
+                                            v-if="showsBoundaries(passage)"
+                                            class="mx-0.5 cursor-pointer rounded bg-amber-100 px-1 align-middle font-sans text-xs leading-normal text-amber-700 select-none hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:hover:bg-amber-900"
+                                            title="Insert a lacuna here"
+                                            @click="
+                                                toggleBoundary(
+                                                    passage.id,
+                                                    runIndex,
+                                                )
+                                            "
+                                            >+</span
+                                        >
+                                        <span
+                                            class="cursor-pointer"
+                                            :data-passage-id="passage.id"
+                                            :data-run-index="runIndex"
+                                            :class="
+                                                runClasses(
+                                                    passage,
+                                                    run,
+                                                    runIndex,
+                                                )
+                                            "
+                                            @mouseenter="
+                                                showReadings(
+                                                    $event,
+                                                    passage,
+                                                    runIndex,
+                                                )
+                                            "
+                                            @mouseleave="hideReadings"
+                                            @click="
+                                                toggleRun(passage.id, runIndex)
+                                            "
+                                            ><template
+                                                v-if="
+                                                    run.extent_characters !==
+                                                    null
+                                                "
+                                                >&lt;<span
+                                                    class="inline-block border-b border-dotted border-stone-400 align-middle dark:border-stone-600"
+                                                    :style="{
+                                                        width: `${run.extent_characters}ch`,
+                                                    }"
+                                                ></span
+                                                >&gt;</template
+                                            ><template v-else>{{
+                                                run.text ||
+                                                (run.gap ? '⟨gap⟩' : '⟨insert⟩')
+                                            }}</template></span
+                                        ><span
+                                            :class="
+                                                spacerClasses(passage, runIndex)
+                                            "
+                                            >{{ ' ' }}</span
+                                        >
+                                    </template>
                                     <span
                                         v-if="showsBoundaries(passage)"
                                         class="mx-0.5 cursor-pointer rounded bg-amber-100 px-1 align-middle font-sans text-xs leading-normal text-amber-700 select-none hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:hover:bg-amber-900"
                                         title="Insert a lacuna here"
                                         @click="
-                                            toggleBoundary(passage.id, runIndex)
+                                            toggleBoundary(
+                                                passage.id,
+                                                passage.runs.length,
+                                            )
                                         "
                                         >+</span
                                     >
-                                    <span
-                                        class="cursor-pointer"
-                                        :data-passage-id="passage.id"
-                                        :data-run-index="runIndex"
-                                        :class="
-                                            runClasses(passage, run, runIndex)
-                                        "
-                                        @mouseenter="
-                                            showReadings(
-                                                $event,
-                                                passage,
-                                                runIndex,
-                                            )
-                                        "
-                                        @mouseleave="hideReadings"
-                                        @click="toggleRun(passage.id, runIndex)"
-                                        ><template
-                                            v-if="
-                                                run.extent_characters !== null
-                                            "
-                                            >&lt;<span
-                                                class="inline-block border-b border-dotted border-stone-400 align-middle dark:border-stone-600"
-                                                :style="{
-                                                    width: `${run.extent_characters}ch`,
-                                                }"
-                                            ></span
-                                            >&gt;</template
-                                        ><template v-else>{{
-                                            run.text ||
-                                            (run.gap ? '⟨gap⟩' : '⟨insert⟩')
-                                        }}</template></span
-                                    ><span
-                                        :class="
-                                            spacerClasses(passage, runIndex)
-                                        "
-                                        >{{ ' ' }}</span
-                                    >
                                 </template>
-                                <span
-                                    v-if="showsBoundaries(passage)"
-                                    class="mx-0.5 cursor-pointer rounded bg-amber-100 px-1 align-middle font-sans text-xs leading-normal text-amber-700 select-none hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:hover:bg-amber-900"
-                                    title="Insert a lacuna here"
+
+                                <button
+                                    v-if="canEdit && lacunaMode"
+                                    type="button"
+                                    class="mr-1 rounded bg-amber-100 px-1 align-middle font-sans text-xs leading-normal text-amber-700 select-none hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:hover:bg-amber-900"
+                                    title="Insert a whole-line lacuna after this passage"
                                     @click="
-                                        toggleBoundary(
+                                        toggleNewPassage(
                                             passage.id,
-                                            passage.runs.length,
+                                            passage.edition_passage_id,
                                         )
                                     "
-                                    >+</span
                                 >
-                            </template>
+                                    + line
+                                </button>
 
-                            <button
-                                v-if="canEdit && lacunaMode"
-                                type="button"
-                                class="mr-1 rounded bg-amber-100 px-1 align-middle font-sans text-xs leading-normal text-amber-700 select-none hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:hover:bg-amber-900"
-                                title="Insert a whole-line lacuna after this passage"
-                                @click="
-                                    toggleNewPassage(
-                                        passage.id,
-                                        passage.edition_passage_id,
-                                    )
-                                "
-                            >
-                                + line
-                            </button>
-
-                            <!-- One popover per passage, rendered after the whole
+                                <!-- One popover per passage, rendered after the whole
                         line — never splits the running text mid-line. Sits
                         outside the base/runs branches above so it can still
                         render for kind=new_passage even when this passage
                         itself has no base or runs of its own yet. -->
-                            <span
-                                v-if="
-                                    openTarget &&
-                                    openTarget.passageId === passage.id
-                                "
-                                class="my-2 block w-full rounded border p-2 font-sans text-xs whitespace-normal"
-                                :class="
-                                    openTarget.kind === 'boundary'
-                                        ? 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950'
-                                        : 'border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950'
-                                "
-                            >
-                                <div class="mb-2 flex justify-end">
-                                    <button
-                                        type="button"
-                                        class="text-stone-500 underline hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
-                                        @click="closePopover"
-                                    >
-                                        Cancel
-                                    </button>
-                                </div>
-
-                                <!-- Insert lacuna -->
-                                <template v-if="openTarget.kind === 'boundary'">
-                                    <p
-                                        class="mb-1 text-stone-500 dark:text-stone-400"
-                                    >
-                                        A lacuna doesn't replace any text — it's
-                                        inserted here, between the surrounding
-                                        words.
-                                    </p>
-                                    <ul
-                                        v-if="
-                                            unplacedLacunasFor(passage).length
-                                        "
-                                        class="mb-2 flex flex-col gap-1"
-                                    >
-                                        <li
-                                            v-for="conjecture in unplacedLacunasFor(
-                                                passage,
-                                            )"
-                                            :key="conjecture.id"
-                                            class="rounded p-1 hover:bg-white dark:hover:bg-stone-900"
+                                <span
+                                    v-if="
+                                        openTarget &&
+                                        openTarget.passageId === passage.id
+                                    "
+                                    class="my-2 block w-full rounded border p-2 font-sans text-xs whitespace-normal"
+                                    :class="
+                                        openTarget.kind === 'boundary'
+                                            ? 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950'
+                                            : 'border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950'
+                                    "
+                                >
+                                    <div class="mb-2 flex justify-end">
+                                        <button
+                                            type="button"
+                                            class="text-stone-500 underline hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
+                                            @click="closePopover"
                                         >
+                                            Cancel
+                                        </button>
+                                    </div>
+
+                                    <!-- Insert lacuna -->
+                                    <template
+                                        v-if="openTarget.kind === 'boundary'"
+                                    >
+                                        <p
+                                            class="mb-1 text-stone-500 dark:text-stone-400"
+                                        >
+                                            A lacuna doesn't replace any text —
+                                            it's inserted here, between the
+                                            surrounding words.
+                                        </p>
+                                        <ul
+                                            v-if="
+                                                unplacedLacunasFor(passage)
+                                                    .length
+                                            "
+                                            class="mb-2 flex flex-col gap-1"
+                                        >
+                                            <li
+                                                v-for="conjecture in unplacedLacunasFor(
+                                                    passage,
+                                                )"
+                                                :key="conjecture.id"
+                                                class="rounded p-1 hover:bg-white dark:hover:bg-stone-900"
+                                            >
+                                                <button
+                                                    type="button"
+                                                    class="text-left"
+                                                    @click="
+                                                        pickUnplacedLacuna(
+                                                            passage,
+                                                            boundaryBefore(
+                                                                passage.runs,
+                                                                openTarget.index,
+                                                            ),
+                                                            conjecture.id,
+                                                        )
+                                                    "
+                                                >
+                                                    <strong>{{
+                                                        conjecture.label
+                                                    }}</strong>
+                                                </button>
+                                            </li>
+                                        </ul>
+                                        <div class="flex flex-col gap-1">
+                                            <input
+                                                v-model="lacunaDraft.extent"
+                                                type="text"
+                                                placeholder="Extent (e.g. one line — optional)"
+                                                class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                                            />
+                                            <input
+                                                v-model.number="
+                                                    lacunaDraft.extent_characters
+                                                "
+                                                type="number"
+                                                min="0"
+                                                placeholder="Estimated extent (characters)"
+                                                class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                                            />
+                                            <div class="flex flex-wrap gap-1">
+                                                <input
+                                                    v-model="
+                                                        lacunaDraft.proposed_by
+                                                    "
+                                                    type="text"
+                                                    placeholder="First proposed by"
+                                                    class="min-w-0 flex-1 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                                                />
+                                                <input
+                                                    v-model="
+                                                        lacunaDraft.bibliography
+                                                    "
+                                                    type="text"
+                                                    placeholder="Bibliography"
+                                                    class="min-w-0 flex-1 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                                                />
+                                            </div>
                                             <button
                                                 type="button"
-                                                class="text-left"
+                                                class="self-start rounded bg-stone-900 px-2 py-1 text-white dark:bg-stone-100 dark:text-stone-900"
                                                 @click="
-                                                    pickUnplacedLacuna(
+                                                    submitNewLacuna(
                                                         passage,
                                                         boundaryBefore(
                                                             passage.runs,
                                                             openTarget.index,
                                                         ),
-                                                        conjecture.id,
                                                     )
                                                 "
                                             >
-                                                <strong>{{
-                                                    conjecture.label
-                                                }}</strong>
+                                                Insert lacuna
                                             </button>
-                                        </li>
-                                    </ul>
-                                    <div class="flex flex-col gap-1">
-                                        <input
-                                            v-model="lacunaDraft.extent"
-                                            type="text"
-                                            placeholder="Extent (e.g. one line — optional)"
-                                            class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                                        />
-                                        <input
-                                            v-model.number="
-                                                lacunaDraft.extent_characters
-                                            "
-                                            type="number"
-                                            min="0"
-                                            placeholder="Estimated extent (characters)"
-                                            class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                                        />
-                                        <div class="flex flex-wrap gap-1">
-                                            <input
-                                                v-model="
-                                                    lacunaDraft.proposed_by
-                                                "
-                                                type="text"
-                                                placeholder="First proposed by"
-                                                class="min-w-0 flex-1 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                                            />
-                                            <input
-                                                v-model="
-                                                    lacunaDraft.bibliography
-                                                "
-                                                type="text"
-                                                placeholder="Bibliography"
-                                                class="min-w-0 flex-1 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                                            />
                                         </div>
-                                        <button
-                                            type="button"
-                                            class="self-start rounded bg-stone-900 px-2 py-1 text-white dark:bg-stone-100 dark:text-stone-900"
-                                            @click="
-                                                submitNewLacuna(
-                                                    passage,
-                                                    boundaryBefore(
-                                                        passage.runs,
-                                                        openTarget.index,
-                                                    ),
-                                                )
-                                            "
-                                        >
-                                            Insert lacuna
-                                        </button>
-                                    </div>
-                                </template>
+                                    </template>
 
-                                <!-- Select variant -->
-                                <template v-else-if="openTarget.kind === 'run'">
+                                    <!-- Select variant -->
                                     <template
-                                        v-for="run in [
-                                            passage.runs[openTarget.index],
-                                        ]"
-                                        :key="run.lemma_id ?? 'gap'"
+                                        v-else-if="openTarget.kind === 'run'"
                                     >
-                                        <p
-                                            v-if="run.gap"
-                                            class="mb-1 text-stone-500 dark:text-stone-400"
+                                        <template
+                                            v-for="run in [
+                                                passage.runs[openTarget.index],
+                                            ]"
+                                            :key="run.lemma_id ?? 'gap'"
                                         >
-                                            No witness covers this whole passage
-                                            under the current base &mdash; pick
-                                            a starting point:
-                                        </p>
-                                        <!-- Only a run collapsed by a chosen
+                                            <p
+                                                v-if="run.gap"
+                                                class="mb-1 text-stone-500 dark:text-stone-400"
+                                            >
+                                                No witness covers this whole
+                                                passage under the current base
+                                                &mdash; pick a starting point:
+                                            </p>
+                                            <!-- Only a run collapsed by a chosen
                                              reading can be reverted: reverting
                                              deletes that choice. A run
                                              collapsed because the base's own
                                              wording spans these columns has no
                                              choice behind it, and nothing to
                                              undo. -->
-                                        <p
-                                            v-if="
-                                                canEdit &&
-                                                run.range_end_lemma_id !==
-                                                    null &&
-                                                run.decided
-                                            "
-                                            class="mb-2"
-                                        >
-                                            <button
-                                                type="button"
-                                                class="text-red-600 underline dark:text-red-400"
-                                                @click="revertRange(run)"
-                                            >
-                                                Revert to per-word view
-                                            </button>
-                                        </p>
-                                        <ul class="mb-2 flex flex-col gap-1">
-                                            <li
-                                                v-for="candidate in run.candidates"
-                                                :key="candidate.key"
-                                                class="flex items-center justify-between gap-2 rounded p-1"
-                                                :class="
-                                                    candidate.selected
-                                                        ? 'bg-emerald-100 dark:bg-emerald-950/50'
-                                                        : 'hover:bg-white dark:hover:bg-stone-900'
+                                            <p
+                                                v-if="
+                                                    canEdit &&
+                                                    run.range_end_lemma_id !==
+                                                        null &&
+                                                    run.decided
                                                 "
+                                                class="mb-2"
                                             >
                                                 <button
                                                     type="button"
-                                                    class="flex-1 text-left"
-                                                    :disabled="!canEdit"
-                                                    @click="
-                                                        candidate.conjecture_id !==
-                                                        null
-                                                            ? pickConjecture(
-                                                                  passage,
-                                                                  run,
-                                                                  candidate.conjecture_id,
-                                                              )
-                                                            : pickWitness(
-                                                                  passage,
-                                                                  run,
-                                                                  candidate,
-                                                              )
-                                                    "
+                                                    class="text-red-600 underline dark:text-red-400"
+                                                    @click="revertRange(run)"
                                                 >
-                                                    <strong
-                                                        >{{
-                                                            candidate.label
-                                                        }}:</strong
-                                                    >
-                                                    {{
-                                                        candidateSummary(
-                                                            candidate,
-                                                        )
-                                                    }}
-                                                    <em
-                                                        v-if="
-                                                            candidate.diplomatic
-                                                        "
-                                                        class="text-stone-500 dark:text-stone-400"
-                                                        >({{
-                                                            candidate.diplomatic
-                                                        }})</em
-                                                    >
-                                                    <span
-                                                        v-if="
-                                                            candidate.needs_review
-                                                        "
-                                                        class="rounded bg-amber-100 px-1 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                                                        title="The transcription text this reading was collated from has since been edited — re-confirm it still says what the manuscript says."
-                                                        >needs review</span
-                                                    >
-                                                    <em
-                                                        v-if="
-                                                            candidate.bibliography
-                                                        "
-                                                        >({{
-                                                            candidate.bibliography
-                                                        }})</em
-                                                    >
-                                                    <em v-if="candidate.note"
-                                                        >&mdash;
-                                                        {{ candidate.note }}</em
-                                                    >
+                                                    Revert to per-word view
                                                 </button>
-                                                <span
-                                                    v-if="candidate.selected"
-                                                    class="text-emerald-700 dark:text-emerald-400"
-                                                    >selected</span
-                                                >
-                                            </li>
-                                        </ul>
-
-                                        <template v-if="canEdit && !run.gap">
+                                            </p>
                                             <ul
-                                                v-if="
-                                                    unplacedForRun(passage, run)
-                                                        .length
-                                                "
                                                 class="mb-2 flex flex-col gap-1"
                                             >
                                                 <li
-                                                    v-for="conjecture in unplacedForRun(
-                                                        passage,
-                                                        run,
-                                                    )"
-                                                    :key="conjecture.id"
-                                                    class="flex items-center justify-between gap-2 rounded p-1 hover:bg-white dark:hover:bg-stone-900"
+                                                    v-for="candidate in run.candidates"
+                                                    :key="candidate.key"
+                                                    class="flex items-center justify-between gap-2 rounded p-1"
+                                                    :class="
+                                                        candidate.selected
+                                                            ? 'bg-emerald-100 dark:bg-emerald-950/50'
+                                                            : 'hover:bg-white dark:hover:bg-stone-900'
+                                                    "
                                                 >
                                                     <button
                                                         type="button"
                                                         class="flex-1 text-left"
+                                                        :disabled="!canEdit"
                                                         @click="
-                                                            pickConjecture(
-                                                                passage,
-                                                                run,
-                                                                conjecture.id,
-                                                            )
+                                                            candidate.conjecture_id !==
+                                                            null
+                                                                ? pickConjecture(
+                                                                      passage,
+                                                                      run,
+                                                                      candidate.conjecture_id,
+                                                                  )
+                                                                : pickWitness(
+                                                                      passage,
+                                                                      run,
+                                                                      candidate,
+                                                                  )
                                                         "
                                                     >
                                                         <strong
                                                             >{{
-                                                                conjecture.label
+                                                                candidate.label
                                                             }}:</strong
                                                         >
-                                                        {{ conjecture.text }}
+                                                        {{
+                                                            candidateSummary(
+                                                                candidate,
+                                                            )
+                                                        }}
+                                                        <em
+                                                            v-if="
+                                                                candidate.diplomatic
+                                                            "
+                                                            class="text-stone-500 dark:text-stone-400"
+                                                            >({{
+                                                                candidate.diplomatic
+                                                            }})</em
+                                                        >
+                                                        <span
+                                                            v-if="
+                                                                candidate.needs_review
+                                                            "
+                                                            class="rounded bg-amber-100 px-1 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                                                            title="The transcription text this reading was collated from has since been edited — re-confirm it still says what the manuscript says."
+                                                            >needs review</span
+                                                        >
+                                                        <em
+                                                            v-if="
+                                                                candidate.bibliography
+                                                            "
+                                                            >({{
+                                                                candidate.bibliography
+                                                            }})</em
+                                                        >
+                                                        <em
+                                                            v-if="
+                                                                candidate.note
+                                                            "
+                                                            >&mdash;
+                                                            {{
+                                                                candidate.note
+                                                            }}</em
+                                                        >
                                                     </button>
+                                                    <span
+                                                        v-if="
+                                                            candidate.selected
+                                                        "
+                                                        class="text-emerald-700 dark:text-emerald-400"
+                                                        >selected</span
+                                                    >
                                                 </li>
                                             </ul>
-                                            <div
-                                                v-if="lacunaCandidateOf(run)"
-                                                class="flex flex-col gap-1"
+
+                                            <template
+                                                v-if="canEdit && !run.gap"
                                             >
-                                                <p
-                                                    class="text-stone-500 dark:text-stone-400"
-                                                >
-                                                    Propose a supplement for
-                                                    this lacuna:
-                                                </p>
-                                                <input
-                                                    v-model="
-                                                        conjectureDraft.text
-                                                    "
-                                                    type="text"
-                                                    placeholder="Proposed supplement"
-                                                    class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                                                />
-                                                <div
-                                                    class="flex flex-wrap gap-1"
-                                                >
-                                                    <input
-                                                        v-model="
-                                                            conjectureDraft.proposed_by
-                                                        "
-                                                        type="text"
-                                                        placeholder="First proposed by"
-                                                        class="min-w-0 flex-1 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                                                    />
-                                                    <input
-                                                        v-model="
-                                                            conjectureDraft.bibliography
-                                                        "
-                                                        type="text"
-                                                        placeholder="Bibliography"
-                                                        class="min-w-0 flex-1 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                                                    />
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    class="self-start rounded bg-stone-900 px-2 py-1 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
-                                                    :disabled="
-                                                        !conjectureDraft.text
-                                                    "
-                                                    @click="
-                                                        submitSupplementForRun(
+                                                <ul
+                                                    v-if="
+                                                        unplacedForRun(
                                                             passage,
                                                             run,
-                                                        )
+                                                        ).length
                                                     "
+                                                    class="mb-2 flex flex-col gap-1"
                                                 >
-                                                    Add supplement
-                                                </button>
-                                            </div>
+                                                    <li
+                                                        v-for="conjecture in unplacedForRun(
+                                                            passage,
+                                                            run,
+                                                        )"
+                                                        :key="conjecture.id"
+                                                        class="flex items-center justify-between gap-2 rounded p-1 hover:bg-white dark:hover:bg-stone-900"
+                                                    >
+                                                        <button
+                                                            type="button"
+                                                            class="flex-1 text-left"
+                                                            @click="
+                                                                pickConjecture(
+                                                                    passage,
+                                                                    run,
+                                                                    conjecture.id,
+                                                                )
+                                                            "
+                                                        >
+                                                            <strong
+                                                                >{{
+                                                                    conjecture.label
+                                                                }}:</strong
+                                                            >
+                                                            {{
+                                                                conjecture.text
+                                                            }}
+                                                        </button>
+                                                    </li>
+                                                </ul>
+                                                <div
+                                                    v-if="
+                                                        lacunaCandidateOf(run)
+                                                    "
+                                                    class="flex flex-col gap-1"
+                                                >
+                                                    <p
+                                                        class="text-stone-500 dark:text-stone-400"
+                                                    >
+                                                        Propose a supplement for
+                                                        this lacuna:
+                                                    </p>
+                                                    <input
+                                                        v-model="
+                                                            conjectureDraft.text
+                                                        "
+                                                        type="text"
+                                                        placeholder="Proposed supplement"
+                                                        class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                                                    />
+                                                    <div
+                                                        class="flex flex-wrap gap-1"
+                                                    >
+                                                        <input
+                                                            v-model="
+                                                                conjectureDraft.proposed_by
+                                                            "
+                                                            type="text"
+                                                            placeholder="First proposed by"
+                                                            class="min-w-0 flex-1 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                                                        />
+                                                        <input
+                                                            v-model="
+                                                                conjectureDraft.bibliography
+                                                            "
+                                                            type="text"
+                                                            placeholder="Bibliography"
+                                                            class="min-w-0 flex-1 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                                                        />
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        class="self-start rounded bg-stone-900 px-2 py-1 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
+                                                        :disabled="
+                                                            !conjectureDraft.text
+                                                        "
+                                                        @click="
+                                                            submitSupplementForRun(
+                                                                passage,
+                                                                run,
+                                                            )
+                                                        "
+                                                    >
+                                                        Add supplement
+                                                    </button>
+                                                </div>
+                                            </template>
                                         </template>
                                     </template>
-                                </template>
 
-                                <!-- Add conjecture -->
-                                <template
-                                    v-else-if="openTarget.kind === 'range'"
-                                >
-                                    <p
-                                        class="mb-2 text-stone-500 dark:text-stone-400"
+                                    <!-- Add conjecture -->
+                                    <template
+                                        v-else-if="openTarget.kind === 'range'"
                                     >
-                                        Replacing
-                                        <strong>{{
-                                            rangeSelectionText(
-                                                passage,
-                                                openTarget,
-                                            )
-                                        }}</strong>
-                                        with:
-                                    </p>
-                                    <div class="flex flex-col gap-1">
-                                        <input
-                                            v-model="conjectureDraft.text"
-                                            type="text"
-                                            placeholder="Proposed text"
-                                            class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                                        />
-                                        <div class="flex flex-wrap gap-1">
+                                        <p
+                                            class="mb-2 text-stone-500 dark:text-stone-400"
+                                        >
+                                            Replacing
+                                            <strong>{{
+                                                rangeSelectionText(
+                                                    passage,
+                                                    openTarget,
+                                                )
+                                            }}</strong>
+                                            with:
+                                        </p>
+                                        <div class="flex flex-col gap-1">
                                             <input
-                                                v-model="
-                                                    conjectureDraft.proposed_by
-                                                "
+                                                v-model="conjectureDraft.text"
                                                 type="text"
-                                                placeholder="First proposed by"
-                                                class="min-w-0 flex-1 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                                                placeholder="Proposed text"
+                                                class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
                                             />
-                                            <input
-                                                v-model="
-                                                    conjectureDraft.bibliography
+                                            <div class="flex flex-wrap gap-1">
+                                                <input
+                                                    v-model="
+                                                        conjectureDraft.proposed_by
+                                                    "
+                                                    type="text"
+                                                    placeholder="First proposed by"
+                                                    class="min-w-0 flex-1 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                                                />
+                                                <input
+                                                    v-model="
+                                                        conjectureDraft.bibliography
+                                                    "
+                                                    type="text"
+                                                    placeholder="Bibliography"
+                                                    class="min-w-0 flex-1 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                                                />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                class="self-start rounded bg-stone-900 px-2 py-1 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
+                                                :disabled="
+                                                    !conjectureDraft.text
                                                 "
-                                                type="text"
-                                                placeholder="Bibliography"
-                                                class="min-w-0 flex-1 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                                            />
+                                                @click="
+                                                    submitConjecture(
+                                                        passage,
+                                                        openTarget.startIndex,
+                                                        openTarget.endIndex,
+                                                    )
+                                                "
+                                            >
+                                                Add conjecture
+                                            </button>
                                         </div>
+                                    </template>
+
+                                    <!-- Remove from edition -->
+                                    <template
+                                        v-else-if="openTarget.kind === 'remove'"
+                                    >
+                                        <p
+                                            class="mb-2 text-stone-500 dark:text-stone-400"
+                                        >
+                                            Remove
+                                            <strong>{{ passage.label }}</strong>
+                                            from this edition? It becomes
+                                            available again in every
+                                            transcription citing it.
+                                        </p>
                                         <button
                                             type="button"
-                                            class="self-start rounded bg-stone-900 px-2 py-1 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
-                                            :disabled="!conjectureDraft.text"
+                                            class="self-start rounded bg-red-600 px-2 py-1 text-white dark:bg-red-500"
                                             @click="
-                                                submitConjecture(
-                                                    passage,
-                                                    openTarget.startIndex,
-                                                    openTarget.endIndex,
+                                                removeEditionPassage(
+                                                    passage.edition_passage_id,
                                                 )
                                             "
                                         >
-                                            Add conjecture
+                                            Remove from edition
                                         </button>
-                                    </div>
-                                </template>
+                                    </template>
 
-                                <!-- Remove from edition -->
-                                <template
-                                    v-else-if="openTarget.kind === 'remove'"
-                                >
-                                    <p
-                                        class="mb-2 text-stone-500 dark:text-stone-400"
-                                    >
-                                        Remove
-                                        <strong>{{ passage.label }}</strong>
-                                        from this edition? It becomes available
-                                        again in every transcription citing it.
-                                    </p>
-                                    <button
-                                        type="button"
-                                        class="self-start rounded bg-red-600 px-2 py-1 text-white dark:bg-red-500"
-                                        @click="
-                                            removeEditionPassage(
-                                                passage.edition_passage_id,
-                                            )
-                                        "
-                                    >
-                                        Remove from edition
-                                    </button>
-                                </template>
-
-                                <!-- Order range: exactly like choosing
+                                    <!-- Order range: exactly like choosing
                                     among witness readings for a word — the
                                     editor picks which source's own order to
                                     follow, whether that's a manuscript's
                                     own reading or a catalogued conjecture. -->
-                                <template
-                                    v-else-if="
-                                        openTarget.kind === 'order_range' &&
-                                        passage.order_range
-                                    "
-                                >
-                                    <p
-                                        class="mb-2 text-stone-500 dark:text-stone-400"
+                                    <template
+                                        v-else-if="
+                                            openTarget.kind === 'order_range' &&
+                                            passage.order_range
+                                        "
                                     >
-                                        Sources disagree how this range should
-                                        read.
-                                    </p>
-                                    <ul class="mb-2 flex flex-col gap-1">
-                                        <li
-                                            v-for="candidate in passage
-                                                .order_range.candidates"
-                                            :key="`${candidate.source}-${candidate.transcription_layer_id ?? candidate.conjecture_id}`"
-                                            class="rounded p-1"
-                                            :class="
-                                                candidate.matches_current
-                                                    ? 'bg-emerald-100 dark:bg-emerald-950/50'
-                                                    : 'hover:bg-white dark:hover:bg-stone-900'
-                                            "
+                                        <p
+                                            class="mb-2 text-stone-500 dark:text-stone-400"
                                         >
-                                            <div
-                                                class="mb-1 flex items-center justify-between gap-2"
+                                            Sources disagree how this range
+                                            should read.
+                                        </p>
+                                        <ul class="mb-2 flex flex-col gap-1">
+                                            <li
+                                                v-for="candidate in passage
+                                                    .order_range.candidates"
+                                                :key="`${candidate.source}-${candidate.transcription_layer_id ?? candidate.conjecture_id}`"
+                                                class="rounded p-1"
+                                                :class="
+                                                    candidate.matches_current
+                                                        ? 'bg-emerald-100 dark:bg-emerald-950/50'
+                                                        : 'hover:bg-white dark:hover:bg-stone-900'
+                                                "
                                             >
-                                                <span>
-                                                    <strong>{{
-                                                        candidate.witness_siglum ??
-                                                        candidate.proposed_by ??
-                                                        'Anonymous'
-                                                    }}</strong>
-                                                    <em
-                                                        v-if="
-                                                            candidate.source ===
-                                                            'conjecture'
-                                                        "
-                                                    >
-                                                        (conjecture)</em
-                                                    >
-                                                    <span
-                                                        v-if="
-                                                            candidate.matches_current
-                                                        "
-                                                    >
-                                                        — current</span
-                                                    >
-                                                </span>
-                                                <button
-                                                    v-if="
-                                                        !candidate.matches_current
-                                                    "
-                                                    type="button"
-                                                    class="text-stone-700 underline dark:text-stone-300"
-                                                    @click="
-                                                        chooseOrder(
-                                                            passage.order_range,
-                                                            candidate,
-                                                        )
-                                                    "
+                                                <div
+                                                    class="mb-1 flex items-center justify-between gap-2"
                                                 >
-                                                    Follow
-                                                </button>
-                                            </div>
-                                            <p
-                                                class="text-stone-500 dark:text-stone-400"
+                                                    <span>
+                                                        <strong>{{
+                                                            candidate.source ===
+                                                            'citation'
+                                                                ? 'Citation order'
+                                                                : (candidate.witness_siglum ??
+                                                                  candidate.proposed_by ??
+                                                                  'Anonymous')
+                                                        }}</strong>
+                                                        <em
+                                                            v-if="
+                                                                candidate.source ===
+                                                                'conjecture'
+                                                            "
+                                                        >
+                                                            (conjecture)</em
+                                                        >
+                                                        <span
+                                                            v-if="
+                                                                candidate.matches_current
+                                                            "
+                                                        >
+                                                            — current</span
+                                                        >
+                                                    </span>
+                                                    <button
+                                                        v-if="
+                                                            !candidate.matches_current
+                                                        "
+                                                        type="button"
+                                                        class="text-stone-700 underline dark:text-stone-300"
+                                                        @click="
+                                                            chooseOrder(
+                                                                passage.order_range,
+                                                                candidate,
+                                                            )
+                                                        "
+                                                    >
+                                                        Apply
+                                                    </button>
+                                                </div>
+                                                <p
+                                                    class="text-stone-500 dark:text-stone-400"
+                                                >
+                                                    {{
+                                                        candidate.sequence.join(
+                                                            ', ',
+                                                        )
+                                                    }}
+                                                </p>
+                                            </li>
+                                        </ul>
+                                        <div
+                                            class="flex flex-wrap items-center gap-3"
+                                        >
+                                            <button
+                                                type="button"
+                                                class="text-stone-700 underline dark:text-stone-300"
+                                                @click="
+                                                    showReorderingAuthor = true
+                                                "
                                             >
-                                                {{
-                                                    candidate.sequence.join(
-                                                        ', ',
-                                                    )
-                                                }}
-                                            </p>
-                                        </li>
-                                    </ul>
-                                    <div
-                                        class="flex flex-wrap items-center gap-3"
-                                    >
-                                        <button
-                                            type="button"
-                                            class="text-stone-700 underline dark:text-stone-300"
-                                            @click="showReorderingAuthor = true"
-                                        >
-                                            Propose a new reordering…
-                                        </button>
-                                        <button
-                                            v-if="
-                                                passage.order_range
-                                                    .edition_passage_order_id !==
-                                                null
-                                            "
-                                            type="button"
-                                            class="text-red-600 underline dark:text-red-400"
-                                            @click="
-                                                removeEditionPassageOrder(
-                                                    passage.order_range
-                                                        .edition_passage_order_id,
-                                                )
-                                            "
-                                        >
-                                            Remove this choice
-                                        </button>
-                                    </div>
-                                </template>
-
-                                <!-- Insert a whole-line lacuna -->
-                                <template
-                                    v-else-if="
-                                        openTarget.kind === 'new_passage'
-                                    "
-                                >
-                                    <p
-                                        class="mb-1 text-stone-500 dark:text-stone-400"
-                                    >
-                                        A whole-line lacuna has no manuscript
-                                        witness of its own — name the line it
-                                        should occupy (e.g. "80A") and it
-                                        becomes its own passage.
-                                    </p>
-                                    <div class="flex flex-col gap-1">
-                                        <input
-                                            v-model="lacunaDraft.label"
-                                            type="text"
-                                            placeholder="Line label (e.g. 80A)"
-                                            class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                                        />
-                                        <input
-                                            v-model="lacunaDraft.extent"
-                                            type="text"
-                                            placeholder="Extent (e.g. one line — optional)"
-                                            class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                                        />
-                                        <input
-                                            v-model.number="
-                                                lacunaDraft.extent_characters
-                                            "
-                                            type="number"
-                                            min="0"
-                                            placeholder="Estimated extent (characters)"
-                                            class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                                        />
-                                        <div class="flex flex-wrap gap-1">
-                                            <input
-                                                v-model="
-                                                    lacunaDraft.proposed_by
-                                                "
-                                                type="text"
-                                                placeholder="First proposed by"
-                                                class="min-w-0 flex-1 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                                            />
-                                            <input
-                                                v-model="
-                                                    lacunaDraft.bibliography
-                                                "
-                                                type="text"
-                                                placeholder="Bibliography"
-                                                class="min-w-0 flex-1 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                                            />
+                                                Propose a new reordering…
+                                            </button>
                                         </div>
-                                        <button
-                                            type="button"
-                                            class="self-start rounded bg-stone-900 px-2 py-1 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
-                                            :disabled="!lacunaDraft.label"
-                                            @click="submitWholeLineLacuna()"
+                                    </template>
+
+                                    <!-- Insert a whole-line lacuna -->
+                                    <template
+                                        v-else-if="
+                                            openTarget.kind === 'new_passage'
+                                        "
+                                    >
+                                        <p
+                                            class="mb-1 text-stone-500 dark:text-stone-400"
                                         >
-                                            Insert whole-line lacuna
-                                        </button>
-                                    </div>
-                                </template>
+                                            A whole-line lacuna has no
+                                            manuscript witness of its own — name
+                                            the line it should occupy (e.g.
+                                            "80A") and it becomes its own
+                                            passage.
+                                        </p>
+                                        <div class="flex flex-col gap-1">
+                                            <input
+                                                v-model="lacunaDraft.label"
+                                                type="text"
+                                                placeholder="Line label (e.g. 80A)"
+                                                class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                                            />
+                                            <input
+                                                v-model="lacunaDraft.extent"
+                                                type="text"
+                                                placeholder="Extent (e.g. one line — optional)"
+                                                class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                                            />
+                                            <input
+                                                v-model.number="
+                                                    lacunaDraft.extent_characters
+                                                "
+                                                type="number"
+                                                min="0"
+                                                placeholder="Estimated extent (characters)"
+                                                class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                                            />
+                                            <div class="flex flex-wrap gap-1">
+                                                <input
+                                                    v-model="
+                                                        lacunaDraft.proposed_by
+                                                    "
+                                                    type="text"
+                                                    placeholder="First proposed by"
+                                                    class="min-w-0 flex-1 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                                                />
+                                                <input
+                                                    v-model="
+                                                        lacunaDraft.bibliography
+                                                    "
+                                                    type="text"
+                                                    placeholder="Bibliography"
+                                                    class="min-w-0 flex-1 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                                                />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                class="self-start rounded bg-stone-900 px-2 py-1 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
+                                                :disabled="!lacunaDraft.label"
+                                                @click="submitWholeLineLacuna()"
+                                            >
+                                                Insert whole-line lacuna
+                                            </button>
+                                        </div>
+                                    </template>
 
-                                <span
-                                    v-if="submitError"
-                                    class="mt-1 block text-red-600 dark:text-red-400"
-                                    >{{ submitError }}</span
-                                >
+                                    <span
+                                        v-if="submitError"
+                                        class="mt-1 block text-red-600 dark:text-red-400"
+                                        >{{ submitError }}</span
+                                    >
 
-                                <!-- A note belongs with the other things one
+                                    <!-- A note belongs with the other things one
                                      can say about the selected words, not
                                      beside the line. Anchored by noteAnchor()
                                      to whatever this panel is open on — one
                                      column, a range, or the line as a whole. -->
-                                <template v-if="canEdit">
-                                    <button
-                                        v-if="notingPassageId !== passage.id"
-                                        type="button"
-                                        class="mt-2 block text-stone-500 underline dark:text-stone-400"
-                                        @click="openNoteComposer(passage)"
-                                    >
-                                        + Note
-                                    </button>
+                                    <template v-if="canEdit">
+                                        <button
+                                            v-if="
+                                                notingPassageId !== passage.id
+                                            "
+                                            type="button"
+                                            class="mt-2 block text-stone-500 underline dark:text-stone-400"
+                                            @click="openNoteComposer(passage)"
+                                        >
+                                            + Note
+                                        </button>
 
+                                        <div
+                                            v-else
+                                            class="mt-2 flex flex-col gap-1"
+                                        >
+                                            <textarea
+                                                v-model="noteDraft"
+                                                rows="2"
+                                                :placeholder="
+                                                    noteAnchor(passage)
+                                                        .lemma_id !== null
+                                                        ? 'Note on the selected words'
+                                                        : 'Note on this line'
+                                                "
+                                                class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                                            ></textarea>
+                                            <span
+                                                class="flex items-center gap-2"
+                                            >
+                                                <button
+                                                    type="button"
+                                                    class="rounded bg-stone-900 px-2 py-0.5 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
+                                                    :disabled="
+                                                        !noteDraft.trim()
+                                                    "
+                                                    @click="saveNote(passage)"
+                                                >
+                                                    Save note
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    class="text-stone-500 underline"
+                                                    @click="cancelNote"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </span>
+                                        </div>
+                                    </template>
+                                </span>
+
+                                <!-- The editor's own notes on this line: the
+                                 judgments the apparatus can't carry —
+                                 accentuation, word division, speaker
+                                 assignment, why a reading was printed. -->
+                                <div
+                                    v-if="
+                                        canEdit && passage.comments.length > 0
+                                    "
+                                    class="mt-2 border-l-2 border-stone-200 pl-3 font-sans text-sm dark:border-stone-800"
+                                >
+                                    <p
+                                        v-for="comment in passage.comments"
+                                        :key="comment.id"
+                                        class="mb-1 text-stone-600 dark:text-stone-400"
+                                    >
+                                        <em
+                                            v-if="
+                                                noteAnchorText(passage, comment)
+                                            "
+                                            class="text-stone-800 dark:text-stone-200"
+                                            >{{
+                                                noteAnchorText(
+                                                    passage,
+                                                    comment,
+                                                )
+                                            }}]
+                                        </em>
+                                        <template
+                                            v-if="editingNoteId !== comment.id"
+                                        >
+                                            {{ comment.note }}
+                                            <span class="text-stone-400"
+                                                >— {{ comment.author }}</span
+                                            >
+                                            <button
+                                                v-if="canEdit"
+                                                type="button"
+                                                class="ml-2 text-xs underline"
+                                                @click="
+                                                    startEditingNote(comment)
+                                                "
+                                            >
+                                                edit
+                                            </button>
+                                            <button
+                                                v-if="canEdit"
+                                                type="button"
+                                                class="ml-1 text-xs text-red-600 underline dark:text-red-400"
+                                                @click="removeNote(comment)"
+                                            >
+                                                delete
+                                            </button>
+                                        </template>
+                                    </p>
+
+                                    <!-- Rewording an existing note happens where
+                                     the note is; writing a new one happens in
+                                     the panel over the words it is about. -->
                                     <div
-                                        v-else
-                                        class="mt-2 flex flex-col gap-1"
+                                        v-if="canEdit && editingNoteId !== null"
+                                        class="mt-1 flex flex-col gap-1"
                                     >
                                         <textarea
                                             v-model="noteDraft"
                                             rows="2"
-                                            :placeholder="
-                                                noteAnchor(passage).lemma_id !==
-                                                null
-                                                    ? 'Note on the selected words'
-                                                    : 'Note on this line'
-                                            "
+                                            placeholder="Reword this note"
                                             class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
                                         ></textarea>
                                         <span class="flex items-center gap-2">
@@ -2687,86 +3147,30 @@ function orderRangeClasses(range: OrderRange): string[] {
                                             </button>
                                         </span>
                                     </div>
-                                </template>
-                            </span>
-
-                            <!-- The editor's own notes on this line: the
-                                 judgments the apparatus can't carry —
-                                 accentuation, word division, speaker
-                                 assignment, why a reading was printed. -->
-                            <div
-                                v-if="canEdit && passage.comments.length > 0"
-                                class="mt-2 border-l-2 border-stone-200 pl-3 font-sans text-sm dark:border-stone-800"
-                            >
-                                <p
-                                    v-for="comment in passage.comments"
-                                    :key="comment.id"
-                                    class="mb-1 text-stone-600 dark:text-stone-400"
-                                >
-                                    <em
-                                        v-if="noteAnchorText(passage, comment)"
-                                        class="text-stone-800 dark:text-stone-200"
-                                        >{{ noteAnchorText(passage, comment) }}]
-                                    </em>
-                                    <template
-                                        v-if="editingNoteId !== comment.id"
-                                    >
-                                        {{ comment.note }}
-                                        <span class="text-stone-400"
-                                            >— {{ comment.author }}</span
-                                        >
-                                        <button
-                                            v-if="canEdit"
-                                            type="button"
-                                            class="ml-2 text-xs underline"
-                                            @click="startEditingNote(comment)"
-                                        >
-                                            edit
-                                        </button>
-                                        <button
-                                            v-if="canEdit"
-                                            type="button"
-                                            class="ml-1 text-xs text-red-600 underline dark:text-red-400"
-                                            @click="removeNote(comment)"
-                                        >
-                                            delete
-                                        </button>
-                                    </template>
-                                </p>
-
-                                <!-- Rewording an existing note happens where
-                                     the note is; writing a new one happens in
-                                     the panel over the words it is about. -->
-                                <div
-                                    v-if="canEdit && editingNoteId !== null"
-                                    class="mt-1 flex flex-col gap-1"
-                                >
-                                    <textarea
-                                        v-model="noteDraft"
-                                        rows="2"
-                                        placeholder="Reword this note"
-                                        class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                                    ></textarea>
-                                    <span class="flex items-center gap-2">
-                                        <button
-                                            type="button"
-                                            class="rounded bg-stone-900 px-2 py-0.5 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
-                                            :disabled="!noteDraft.trim()"
-                                            @click="saveNote(passage)"
-                                        >
-                                            Save note
-                                        </button>
-                                        <button
-                                            type="button"
-                                            class="text-stone-500 underline"
-                                            @click="cancelNote"
-                                        >
-                                            Cancel
-                                        </button>
-                                    </span>
                                 </div>
-                            </div>
-                        </article>
+                            </article>
+                        </template>
+                        <button
+                            v-if="
+                                canEdit &&
+                                rearrangeMode &&
+                                heldClipboard &&
+                                props.windowPassages.length > 0
+                            "
+                            type="button"
+                            class="ml-1 rounded bg-emerald-100 px-1 align-middle font-sans text-xs leading-normal text-emerald-700 select-none hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:hover:bg-emerald-900"
+                            :title="`Paste ${heldClipboard.label} at the end`"
+                            @click="
+                                pasteClipboard(
+                                    props.windowPassages[
+                                        props.windowPassages.length - 1
+                                    ].id,
+                                    'after',
+                                )
+                            "
+                        >
+                            ⇪ end
+                        </button>
                     </div>
                 </div>
 

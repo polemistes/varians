@@ -41,6 +41,11 @@ class UpdateTranscriptionTextRequest extends FormRequest
             'ops.*.start' => ['required', 'integer', 'min:0'],
             'ops.*.end' => ['required', 'integer', 'min:0'],
             'ops.*.text' => ['present', 'nullable', 'string'],
+            // Pairs one deletion (the cut) with one later insertion of the
+            // same text (its paste) so spans inside the cut travel with it.
+            // The pairing claim itself is verified in
+            // TranscriptionTextController::normalizeOps, not here.
+            'ops.*.cut_id' => ['sometimes', 'nullable', 'string', 'max:64'],
             'text' => ['present', 'nullable', 'string', new ValidTranscriptionMarkup],
         ];
     }

@@ -101,6 +101,73 @@ are random, so leaving them makes the seed witness — and therefore the
 structure — a coin flip. `editionWithBase()` pins "A" for the base and "B" for
 the second witness for this reason.
 
+## A passage's witness text can be discontinuous — collation consumes all its parts
+A transposition can cut across the work's segmentation (half of line 40
+standing where line 42 belongs), so several `TranscriptionSegment` spans in
+one layer may cite the same passage. `part` orders them by **content** (which
+fragment reads first as text of the passage), independent of the physical
+order their offsets give — the two disagreeing *is* the transposition. Never
+"fix" one to match the other.
+
+Consequences, all real code paths:
+- The unit of alignment is the **layer**, not the span: `PassageAligner::collate`
+  groups a passage's segments by layer and `alignWitness` takes ALL of a
+  layer's parts, tokenizing them as one stream in part order. The
+  `alreadyAligned` idempotency skip stays per layer.
+- A diff merge must never fuse witness tokens from different parts into one
+  reading — its offsets would span the physical gap or run backwards.
+  `plan()` carries `$partStarts`; `mergeSubstitutions` cuts insert runs there
+  and `reorderingWindow` rejects windows crossing a boundary.
+- Citing a passage the layer already cites is the **late-part flow**
+  (`TranscriptionSegmentController::store`/`assignCitation`): refused with a
+  structured `acknowledge_realignment` validation error until acknowledged,
+  then `PassageAligner::realignLayer` redoes that layer's collation — unless
+  its readings are pinned (edition-selected, conjecture-carrying, or on a
+  column whose only readings are this layer's and which carries an anchored
+  EditionComment), in which case the readings are kept and every part is
+  flagged `needs_review`. Never delete pinned readings: selections cascade.
+- `realignLayer` also deletes columns left empty by removing the layer's
+  readings — left standing they become blank consensus text and corrupt the
+  re-alignment (this bit a single-witness passage in testing).
+- Whole-passage order detection (`orderRanges`) keeps `min(start_offset)` as a
+  passage's physical position, deliberately: a sub-passage transposition is
+  reported per passage by `EditionController::citationDiscontinuities` (the
+  ⇄ marker, derived at display time, never stored) and must not register as a
+  whole-passage reorder.
+- `DiplomaticCounterpart` maps by token index over the concatenated parts in
+  part order on both layers; `forPassage` joins part slices with " … " so a
+  discontinuous line never presents as contiguous.
+
+## Lineation is the edition's own display vocabulary
+Where an edition's printed text breaks is edition data, never derived from
+any manuscript: `EditionPassage.starts_new_line`/`starts_new_paragraph` for
+passage boundaries, `EditionLineBreak` (a break before one Lemma column) for
+colometry inside a passage — which lyric drama needs, since every edition
+divides the lyric parts differently. Verse rendering is all flags set, prose
+none; `Editions/Show.vue` renders passages INLINE with every break an
+explicit element, so both come from one mechanism.
+
+Seeding (`LineationSeeder`, called from `PassageAdder::add`/`addSegments`)
+copies the base transcription's newlines ONCE at add time — one `\n` in a
+gap → line, two → paragraph; gaps across a discontinuous citation's part
+boundary seed nothing (physical displacement, not whitespace). From then on
+the lineation is edition-owned; the invariant that manuscript newlines mean
+nothing to the work stands.
+
+`edition_line_breaks.lemma_id` **cascades**, deliberately NOT copying
+EditionComment's `nullOnDelete`: a break with no column means nothing, there
+are no words to preserve. The safety comes from the other side — breaks
+count as editorial content in BOTH `PassageAligner::hasEditorialContent` and
+the emptying-column check inside `realignLayer`, so no collation rebuild can
+fire the cascade; only explicit editor action removes a break. When adding
+any new lemma-anchored record, extend both checks or pick nullOnDelete —
+never cascade without pinning.
+
+`break_before` on a run is resolved inside the run walk
+(`EditionController::withBreaks`), not against the raw column list: runs skip
+columns a range selection or wider base reading covers, and a break on a
+swallowed column folds onto the covering run.
+
 ## Editorial notes are free text, and deliberately so
 `EditionComment` carries what the apparatus's own vocabulary cannot: that two
 manuscripts differ in accentuation, breathing or word division in a way worth
@@ -214,7 +281,7 @@ segments on its normalized layer.
 
 The `transcription_layers` table is the old `transcriptions` table renamed — a
 row there always was one layer, and every FK to it (segments, regions,
-`lemma_readings`, `edition_passages`, `edition_passage_orders`, the tag pivot)
+`lemma_readings`, `edition_passages`, the tag pivot)
 still means a layer, now spelled `transcription_layer_id`.
 
 `visibility` is on the **transcription**, not the layer. A transcription is

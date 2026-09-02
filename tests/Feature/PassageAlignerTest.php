@@ -4,6 +4,7 @@ use App\Models\CanonicalPassage;
 use App\Models\Lemma;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
+use App\Models\Witness;
 use App\Support\Edition\PassageAligner;
 
 test('aligning two witnesses with identical text creates one column per word, each carrying both readings', function () {
@@ -13,8 +14,8 @@ test('aligning two witnesses with identical text creates one column per word, ea
     $segmentA = TranscriptionSegment::factory()->for($a)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
     $segmentB = TranscriptionSegment::factory()->for($b)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
 
-    PassageAligner::alignWitness($passage, $segmentA);
-    PassageAligner::alignWitness($passage, $segmentB);
+    PassageAligner::alignWitness($passage, collect([$segmentA]));
+    PassageAligner::alignWitness($passage, collect([$segmentB]));
 
     $lemmas = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->with('readings')->get();
 
@@ -32,8 +33,8 @@ test('a single differing word becomes one column with two candidate readings, no
     $segmentA = TranscriptionSegment::factory()->for($a)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
     $segmentB = TranscriptionSegment::factory()->for($b)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 12]);
 
-    PassageAligner::alignWitness($passage, $segmentA);
-    PassageAligner::alignWitness($passage, $segmentB);
+    PassageAligner::alignWitness($passage, collect([$segmentA]));
+    PassageAligner::alignWitness($passage, collect([$segmentB]));
 
     $lemmas = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->with(['readings.transcriptionLayer'])->get();
 
@@ -58,8 +59,8 @@ test('a witness missing part of the passage simply has no reading there — not 
     $segmentA = TranscriptionSegment::factory()->for($a)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 19]);
     $segmentB = TranscriptionSegment::factory()->for($b)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 7]);
 
-    PassageAligner::alignWitness($passage, $segmentA);
-    PassageAligner::alignWitness($passage, $segmentB);
+    PassageAligner::alignWitness($passage, collect([$segmentA]));
+    PassageAligner::alignWitness($passage, collect([$segmentB]));
 
     $lemmas = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->with('readings')->get();
 
@@ -79,9 +80,9 @@ test('two witnesses diverging in different, unrelated places each land as their 
     $segmentB = TranscriptionSegment::factory()->for($b)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 19]);
     $segmentC = TranscriptionSegment::factory()->for($c)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 21]);
 
-    PassageAligner::alignWitness($passage, $segmentA);
-    PassageAligner::alignWitness($passage, $segmentB);
-    PassageAligner::alignWitness($passage, $segmentC);
+    PassageAligner::alignWitness($passage, collect([$segmentA]));
+    PassageAligner::alignWitness($passage, collect([$segmentB]));
+    PassageAligner::alignWitness($passage, collect([$segmentC]));
 
     $lemmas = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->with(['readings.transcriptionLayer'])->get();
 
@@ -100,13 +101,95 @@ test('two witnesses diverging in different, unrelated places each land as their 
         ->and($textsFor($lemmas[3]))->toBe(['fox', 'fox', 'hound']);
 });
 
+test('a passage cited by two spans aligns as one witness, in part order rather than physical order', function () {
+    $passage = CanonicalPassage::factory()->create();
+    $a = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
+    // B transposes "fox" to the head of its text; the citation splits the
+    // passage into two parts whose content order reverses their physical one.
+    $b = TranscriptionLayer::factory()->create(['text' => "fox extra\nthe quick"]);
+    $segmentA = TranscriptionSegment::factory()->for($a)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
+    $bFirst = TranscriptionSegment::factory()->for($b)->for($passage, 'canonicalPassage')->create(['start_offset' => 10, 'end_offset' => 19, 'part' => 1]); // "the quick"
+    $bLast = TranscriptionSegment::factory()->for($b)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 3, 'part' => 2]); // "fox"
+
+    PassageAligner::alignWitness($passage, collect([$segmentA]));
+    PassageAligner::alignWitness($passage, collect([$bLast, $bFirst])); // deliberately unsorted
+
+    $lemmas = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->with('readings.transcriptionLayer')->get();
+
+    // One witness, one token stream: the/quick/fox each carry both readings —
+    // no phantom columns from B's parts being treated as separate witnesses.
+    expect($lemmas)->toHaveCount(3);
+
+    $textsFor = fn (Lemma $lemma) => $lemma->readings
+        ->map(fn ($reading) => mb_substr($reading->transcriptionLayer->text, $reading->start_offset, $reading->end_offset - $reading->start_offset))
+        ->sort()->values()->all();
+
+    expect($textsFor($lemmas[0]))->toBe(['the', 'the'])
+        ->and($textsFor($lemmas[1]))->toBe(['quick', 'quick'])
+        ->and($textsFor($lemmas[2]))->toBe(['fox', 'fox']);
+
+    // B's "fox" reading points at the span at the head of its text.
+    $bFox = $lemmas[2]->readings->firstWhere('transcription_layer_id', $b->id);
+    expect($bFox->start_offset)->toBe(0)->and($bFox->end_offset)->toBe(3);
+});
+
+test('collate aligns a split-citing layer once, all parts together', function () {
+    $passage = CanonicalPassage::factory()->create();
+    $a = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'A']))->create(['text' => 'the quick fox']);
+    $b = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'B']))->create(['text' => "fox extra\nthe quick"]);
+    TranscriptionSegment::factory()->for($a)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
+    TranscriptionSegment::factory()->for($b)->for($passage, 'canonicalPassage')->create(['start_offset' => 10, 'end_offset' => 19, 'part' => 1]);
+    TranscriptionSegment::factory()->for($b)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 3, 'part' => 2]);
+
+    PassageAligner::collate($passage, TranscriptionSegment::where('canonical_passage_id', $passage->id)->get());
+
+    $lemmas = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->with('readings')->get();
+
+    expect($lemmas)->toHaveCount(3);
+
+    foreach ($lemmas as $lemma) {
+        expect($lemma->readings)->toHaveCount(2);
+    }
+});
+
+test('a substitution merge never fuses tokens from different parts into one reading', function () {
+    $passage = CanonicalPassage::factory()->create();
+    $a = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
+    // B's differing words straddle its part boundary: "swift" ends part 1,
+    // "hound" is all of part 2, physically earlier in the text. Merged into
+    // one reading, its offsets would run backwards across the gap.
+    $b = TranscriptionLayer::factory()->create(['text' => "hound\nthe swift"]);
+    $segmentA = TranscriptionSegment::factory()->for($a)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
+    $bFirst = TranscriptionSegment::factory()->for($b)->for($passage, 'canonicalPassage')->create(['start_offset' => 6, 'end_offset' => 15, 'part' => 1]); // "the swift"
+    $bLast = TranscriptionSegment::factory()->for($b)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5, 'part' => 2]); // "hound"
+
+    PassageAligner::alignWitness($passage, collect([$segmentA]));
+    PassageAligner::alignWitness($passage, collect([$bFirst, $bLast]));
+
+    $readings = Lemma::where('canonical_passage_id', $passage->id)
+        ->with('readings')->get()
+        ->flatMap(fn (Lemma $lemma) => $lemma->readings)
+        ->filter(fn ($reading) => $reading->transcription_layer_id === $b->id);
+
+    // Every reading describes a real, forward, single-part span.
+    foreach ($readings as $reading) {
+        expect($reading->end_offset)->toBeGreaterThan($reading->start_offset);
+    }
+
+    $texts = $readings
+        ->map(fn ($reading) => mb_substr($b->text, $reading->start_offset, $reading->end_offset - $reading->start_offset))
+        ->sort()->values()->all();
+
+    expect($texts)->toBe(['hound', 'swift', 'the']);
+});
+
 test('aligning the same transcription twice is a no-op', function () {
     $passage = CanonicalPassage::factory()->create();
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the fox']);
     $segment = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 7]);
 
-    PassageAligner::alignWitness($passage, $segment);
-    PassageAligner::alignWitness($passage, $segment);
+    PassageAligner::alignWitness($passage, collect([$segment]));
+    PassageAligner::alignWitness($passage, collect([$segment]));
 
     expect(Lemma::where('canonical_passage_id', $passage->id)->count())->toBe(2);
 });
@@ -120,8 +203,8 @@ test('a single base word replaced by a three-word witness variant merges into on
     $segmentA = TranscriptionSegment::factory()->for($a)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => mb_strlen($aText)]);
     $segmentB = TranscriptionSegment::factory()->for($b)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => mb_strlen($bText)]);
 
-    PassageAligner::alignWitness($passage, $segmentA);
-    PassageAligner::alignWitness($passage, $segmentB);
+    PassageAligner::alignWitness($passage, collect([$segmentA]));
+    PassageAligner::alignWitness($passage, collect([$segmentB]));
 
     $lemmas = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->with('readings.transcriptionLayer')->get();
 
@@ -145,8 +228,8 @@ test('a three-word base phrase collapsed to one witness word spans the range via
     $segmentA = TranscriptionSegment::factory()->for($a)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => mb_strlen($aText)]);
     $segmentB = TranscriptionSegment::factory()->for($b)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => mb_strlen($bText)]);
 
-    PassageAligner::alignWitness($passage, $segmentA);
-    PassageAligner::alignWitness($passage, $segmentB);
+    PassageAligner::alignWitness($passage, collect([$segmentA]));
+    PassageAligner::alignWitness($passage, collect([$segmentB]));
 
     $lemmas = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->with('readings.transcriptionLayer')->get();
 
@@ -168,8 +251,8 @@ test('a two-word base phrase replaced by a three-word witness variant merges int
     $segmentA = TranscriptionSegment::factory()->for($a)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => mb_strlen($aText)]);
     $segmentB = TranscriptionSegment::factory()->for($b)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => mb_strlen($bText)]);
 
-    PassageAligner::alignWitness($passage, $segmentA);
-    PassageAligner::alignWitness($passage, $segmentB);
+    PassageAligner::alignWitness($passage, collect([$segmentA]));
+    PassageAligner::alignWitness($passage, collect([$segmentB]));
 
     $lemmas = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->with('readings.transcriptionLayer')->get();
 
@@ -192,9 +275,9 @@ test('a swallowed interior lemma keeps its own independent readings from other w
     $segmentC = TranscriptionSegment::factory()->for($c)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => mb_strlen($cText)]);
     $segmentD = TranscriptionSegment::factory()->for($d)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => mb_strlen($dText)]);
 
-    PassageAligner::alignWitness($passage, $segmentA);
-    PassageAligner::alignWitness($passage, $segmentC);
-    PassageAligner::alignWitness($passage, $segmentD);
+    PassageAligner::alignWitness($passage, collect([$segmentA]));
+    PassageAligner::alignWitness($passage, collect([$segmentC]));
+    PassageAligner::alignWitness($passage, collect([$segmentD]));
 
     $lemmas = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->with('readings')->get();
     expect($lemmas)->toHaveCount(4);

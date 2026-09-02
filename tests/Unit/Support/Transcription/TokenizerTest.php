@@ -51,3 +51,21 @@ test('tokenizing counts characters, not bytes', function () {
 test('an empty span yields no tokens', function () {
     expect(Tokenizer::tokenize('the fox', 3, 3, Tokenization::Whitespace))->toBe([]);
 });
+
+test('tokenizing several spans concatenates their tokens in span order, offsets staying absolute', function () {
+    // The token stream of a passage whose witness text is discontinuous — a
+    // transposition split it. The spans arrive in *content* order, which here
+    // is deliberately not their physical order.
+    expect(Tokenizer::tokenizeSpans("the fox\nsleeps here", [
+        ['start' => 8, 'end' => 14],
+        ['start' => 0, 'end' => 7],
+    ], Tokenization::Whitespace))->toBe([
+        ['text' => 'sleeps', 'start' => 8, 'end' => 14],
+        ['text' => 'the', 'start' => 0, 'end' => 3],
+        ['text' => 'fox', 'start' => 4, 'end' => 7],
+    ]);
+});
+
+test('tokenizing no spans yields no tokens', function () {
+    expect(Tokenizer::tokenizeSpans('the fox', [], Tokenization::Whitespace))->toBe([]);
+});

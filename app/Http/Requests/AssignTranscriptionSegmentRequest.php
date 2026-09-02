@@ -29,6 +29,11 @@ class AssignTranscriptionSegmentRequest extends FormRequest
         return [
             'work_id' => ['required', Rule::exists('works', 'id')],
             'label' => ['required', 'string', 'max:100'],
+            // Only meaningful when the label names a passage this layer
+            // already cites — the span becomes another *part* of it. See
+            // TranscriptionSegmentController::assignCitation.
+            'after_part' => ['nullable', 'integer', 'min:0'],
+            'acknowledge_realignment' => ['nullable', 'boolean'],
         ];
     }
 }

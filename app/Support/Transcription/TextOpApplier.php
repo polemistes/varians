@@ -25,7 +25,7 @@ class TextOpApplier
     /**
      * @param  array{start: int, end: int, text: string}  $op
      */
-    private static function apply(string $text, array $op): string
+    public static function apply(string $text, array $op): string
     {
         $chars = mb_str_split($text);
         $before = implode('', array_slice($chars, 0, $op['start']));

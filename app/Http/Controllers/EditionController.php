@@ -12,8 +12,8 @@ use App\Models\Conjecture;
 use App\Models\Edition;
 use App\Models\EditionComment;
 use App\Models\EditionLemma;
+use App\Models\EditionLineBreak;
 use App\Models\EditionPassage;
-use App\Models\EditionPassageOrder;
 use App\Models\EditionTransposition;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
@@ -66,27 +66,12 @@ class EditionController extends Controller
             ->with(['canonicalPassage:id,label,sort_key,address', 'transcriptionLayer.transcription.witness:id,siglum'])
             ->get();
 
-        // Two independent, structurally different sources of reordering:
-        // scholarly transpositions relocate a range elsewhere (Conjecture,
-        // reusable, `proposed_by`-attributed — phase 1, unchanged), while
-        // EditionPassageOrder resequences a range *in place* (phase 2,
-        // sourced from either a transcription's own order or a catalogued
-        // Reordering conjecture, see EditionPassageOrder for why a
-        // witness-sourced choice is never itself a Conjecture). They don't
-        // interact, so they're applied in two clean phases rather than one
-        // merged chronological list.
-        $adoptedConjectures = EditionTransposition::where('edition_id', $edition->id)
-            ->with('conjecture')
-            ->get()
-            ->pluck('conjecture')
-            ->filter();
-
-        $passageOrders = EditionPassageOrder::where('edition_id', $edition->id)
-            ->with('conjecture.orderingEntries')
-            ->get();
-
-        $relocated = $this->applyRelocations($editionPassages, $this->buildRelocationMoves($adoptedConjectures));
-        $orderedPassages = $this->applyPassageOrders($relocated, $passageOrders);
+        // The stored positions ARE the printed order — nothing is reordered
+        // at render time. Rearranging happens by rewriting positions
+        // (PassageOrderRewriter): direct cut-and-paste, or applying a
+        // transposition/reordering proposal or a witness's order. Adopted
+        // proposals (EditionTransposition) are pure attribution records.
+        $orderedPassages = $editionPassages->values();
 
         $totalPages = max(1, (int) ceil($orderedPassages->count() / self::WINDOW));
         $page = max(1, min($totalPages, (int) $request->query('page', 1)));
@@ -113,7 +98,8 @@ class EditionController extends Controller
             ])
             ->get(['id', 'transcription_id', 'text', 'layer']);
 
-        $orderRanges = $this->orderRanges($window, $transcriptions, $passageOrders);
+        $orderRanges = $this->orderRanges($window, $transcriptions);
+        $discontinuities = $this->citationDiscontinuities($transcriptions);
 
         // The diplomatic counterpart of each normalized layer above, keyed by
         // the transcription both belong to, so a reader can see through the
@@ -146,7 +132,7 @@ class EditionController extends Controller
             'totalPages' => $totalPages,
             'passages' => $this->annotatePassageStatus($orderedPassages, $edition),
             'windowPassages' => $window->values()
-                ->map(fn (EditionPassage $editionPassage, int $index) => $this->passageDetail($editionPassage, $edition, $orderRanges[$index] ?? null, $diplomaticLayers, $work->tokenization))
+                ->map(fn (EditionPassage $editionPassage, int $index) => $this->passageDetail($editionPassage, $edition, $orderRanges[$index] ?? null, $diplomaticLayers, $work->tokenization, $discontinuities[$editionPassage->canonical_passage_id] ?? []))
                 ->values(),
             // The work's *entire* citation space, regardless of what's in
             // this edition yet — the bulk "base a range" picker searches a
@@ -155,6 +141,11 @@ class EditionController extends Controller
             // `passages` above, which the transposition picker uses and is
             // deliberately scoped to what's already been added).
             'workPassages' => $work->canonicalPassages()->orderBy('sort_key')->get(['id', 'address']),
+            // Applied order proposals — attribution records, since the order
+            // itself lives in the stored positions. A row's conjecture may be
+            // a Transposition (range moved before/after a target) or a
+            // Reordering (a resequenced range), so the target fields are
+            // nullable.
             'transpositions' => EditionTransposition::where('edition_id', $edition->id)
                 ->with([
                     'conjecture.canonicalPassage:id,label',
@@ -165,9 +156,10 @@ class EditionController extends Controller
                 ->get()
                 ->map(fn (EditionTransposition $adoption) => [
                     'id' => $adoption->id,
+                    'type' => $adoption->conjecture->type->value,
                     'from_label' => $adoption->conjecture->canonicalPassage->label,
                     'to_label' => $adoption->conjecture->transpositionRangeEnd->label ?? null,
-                    'target_label' => $adoption->conjecture->moveTarget->label,
+                    'target_label' => $adoption->conjecture->moveTarget?->label,
                     'move_position' => $adoption->conjecture->move_position,
                     'proposed_by' => $adoption->conjecture->proposed_by ?? $adoption->conjecture->user->name,
                 ])->values(),
@@ -242,6 +234,11 @@ class EditionController extends Controller
             return ['text' => '', 'segments' => [], 'covers_window' => false];
         }
 
+        // One contiguous slice over everything the window's passages cover.
+        // A passage cited in several places (a transposed part far from its
+        // siblings) widens this across the gap, showing intervening text —
+        // accepted: the pane stays one readable stretch, and the filter
+        // below keeps rendering correct either way.
         $start = (int) $covering->min('start_offset');
         $end = (int) $covering->max('end_offset');
 
@@ -286,266 +283,7 @@ class EditionController extends Controller
     }
 
     /**
-     * Phase 1: relocation — an edition's own passage order can float free
-     * of manuscript order, exactly like a single transcription's physical
-     * order can already diverge from citation numbering, by applying
-     * adopted scholarly transpositions that shift a range of passages to
-     * sit before/after another one. Applied sequentially in adoption order;
-     * a target itself moved away by an earlier move, or a passage removed
-     * from the edition since, is left unresolved rather than losing its
-     * range (a rare, self-inflicted conflict this doesn't try to untangle
-     * further) — a transposition is never deleted just because a passage
-     * it names is no longer in the edition, see
-     * EditionPassageController::destroy. Phase 2 (internal reordering, see
-     * applyPassageOrders()) runs afterward and doesn't interact with this:
-     * relocation moves a range elsewhere, reordering only resequences one
-     * in place.
-     *
-     * @param  SupportCollection<int, EditionPassage>  $passages
-     * @param  array<int, array{canonical_passage_id: int, transposition_range_end_canonical_passage_id: int|null, move_target_canonical_passage_id: int|null, move_position: string|null}>  $moves
-     * @return SupportCollection<int, EditionPassage>
-     */
-    private function applyRelocations(SupportCollection $passages, array $moves): SupportCollection
-    {
-        $ordered = $passages->values()->all();
-
-        foreach ($moves as $move) {
-            $ordered = $this->moveRange($ordered, $move);
-        }
-
-        return collect($ordered);
-    }
-
-    /**
-     * @param  SupportCollection<int, Conjecture>  $adoptedConjectures
-     * @return array<int, array{canonical_passage_id: int, transposition_range_end_canonical_passage_id: int|null, move_target_canonical_passage_id: int|null, move_position: string|null}>
-     */
-    private function buildRelocationMoves(SupportCollection $adoptedConjectures): array
-    {
-        return $adoptedConjectures
-            ->sortBy('created_at')
-            ->map(fn (Conjecture $conjecture) => [
-                'canonical_passage_id' => $conjecture->canonical_passage_id,
-                'transposition_range_end_canonical_passage_id' => $conjecture->transposition_range_end_canonical_passage_id,
-                'move_target_canonical_passage_id' => $conjecture->move_target_canonical_passage_id,
-                'move_position' => $conjecture->move_position,
-            ])
-            ->values()
-            ->all();
-    }
-
-    /**
-     * Phase 2: internal reordering — resequences a range's own passages in
-     * place, never moving the range itself (that's relocation, phase 1,
-     * see applyRelocations()). For each EditionPassageOrder, finds the
-     * range's current array slots (by EditionPassage.position — stable and
-     * unchanged by phase 1, which only ever reorders array slots, never
-     * position values, exactly like this phase), and reassigns those same
-     * slots to hold the passages in the chosen source's own sequence (a
-     * transcription's own segment order, or a conjecture's orderingEntries)
-     * — the block's own overall position span never moves, only what sits
-     * at each slot within it.
-     *
-     * @param  SupportCollection<int, EditionPassage>  $passages
-     * @param  SupportCollection<int, EditionPassageOrder>  $passageOrders
-     * @return SupportCollection<int, EditionPassage>
-     */
-    private function applyPassageOrders(SupportCollection $passages, SupportCollection $passageOrders): SupportCollection
-    {
-        $ordered = $passages->values()->all();
-
-        foreach ($passageOrders as $passageOrder) {
-            $ordered = $this->applyPassageOrder($ordered, $passageOrder);
-        }
-
-        return collect($ordered);
-    }
-
-    /**
-     * @param  array<int, EditionPassage>  $passages
-     * @return array<int, EditionPassage>
-     */
-    private function applyPassageOrder(array $passages, EditionPassageOrder $passageOrder): array
-    {
-        $startPosition = null;
-        $endPosition = null;
-
-        foreach ($passages as $passage) {
-            if ($passage->canonical_passage_id === $passageOrder->range_start_canonical_passage_id) {
-                $startPosition = (float) $passage->position;
-            }
-
-            if ($passage->canonical_passage_id === $passageOrder->range_end_canonical_passage_id) {
-                $endPosition = (float) $passage->position;
-            }
-        }
-
-        if ($startPosition === null || $endPosition === null) {
-            return $passages;
-        }
-
-        if ($endPosition < $startPosition) {
-            [$startPosition, $endPosition] = [$endPosition, $startPosition];
-        }
-
-        $spanIndexes = [];
-        $canonicalPassageIds = [];
-
-        foreach ($passages as $index => $passage) {
-            $position = (float) $passage->position;
-
-            if ($position >= $startPosition && $position <= $endPosition) {
-                $spanIndexes[] = $index;
-                $canonicalPassageIds[] = $passage->canonical_passage_id;
-            }
-        }
-
-        $newSequence = $this->resolveOrderSequence($passageOrder, $canonicalPassageIds);
-
-        if ($newSequence === null) {
-            return $passages;
-        }
-
-        $byCanonicalPassageId = [];
-
-        foreach ($spanIndexes as $index) {
-            $byCanonicalPassageId[$passages[$index]->canonical_passage_id] = $passages[$index];
-        }
-
-        foreach ($spanIndexes as $slot => $index) {
-            $passages[$index] = $byCanonicalPassageId[$newSequence[$slot]];
-        }
-
-        return $passages;
-    }
-
-    /**
-     * The chosen source's own sequence of canonical_passage_ids for
-     * exactly this range — a transcription's own segment order, or a
-     * conjecture's orderingEntries — or null if it doesn't resolve to
-     * *exactly* this range's own passage set any more (defensive; the
-     * request layer already validates this at creation time, but data can
-     * drift, e.g. a passage later removed from the edition).
-     *
-     * @param  array<int, int>  $canonicalPassageIds  the exact set this range currently covers, unordered
-     * @return array<int, int>|null
-     */
-    private function resolveOrderSequence(EditionPassageOrder $passageOrder, array $canonicalPassageIds): ?array
-    {
-        if ($passageOrder->conjecture_id !== null) {
-            $sequence = $passageOrder->conjecture?->orderingEntries->pluck('canonical_passage_id')->all();
-        } elseif ($passageOrder->transcription_layer_id !== null) {
-            $sequence = TranscriptionSegment::where('transcription_layer_id', $passageOrder->transcription_layer_id)
-                ->whereIn('canonical_passage_id', $canonicalPassageIds)
-                ->orderBy('start_offset')
-                ->pluck('canonical_passage_id')
-                ->unique()
-                ->values()
-                ->all();
-        } else {
-            return null;
-        }
-
-        if ($sequence === null) {
-            return null;
-        }
-
-        $sortedSequence = $sequence;
-        sort($sortedSequence);
-        $sortedExpected = $canonicalPassageIds;
-        sort($sortedExpected);
-
-        return $sortedSequence === $sortedExpected ? $sequence : null;
-    }
-
-    /**
-     * Finds the transposed range/target by EditionPassage.position — a
-     * stable value that never changes for an already-added passage (only a
-     * freshly-added one ever gets a new position), the same property
-     * citation sort_key used to have and still needs here: a subsequent
-     * move's own range is found by value, not by array position, so it
-     * still finds its passages correctly no matter how an earlier move in
-     * this same pass reshuffled the array.
-     *
-     * Takes a plain shape rather than a `Conjecture` directly — a move can
-     * come from a scholarly transposition or from an `EditionPassageOrder`
-     * witness choice equally, see applyTranspositions(). `move_target_*`/
-     * `move_position` are typed nullable only because `Conjecture`'s own
-     * columns are (every *other* conjecture type leaves them null) — a
-     * `Conjecture` reaching here is always type=transposition in practice
-     * (see buildMoves()), so this bails defensively rather than asserting.
-     *
-     * @param  array<int, EditionPassage>  $passages
-     * @param  array{canonical_passage_id: int, transposition_range_end_canonical_passage_id: int|null, move_target_canonical_passage_id: int|null, move_position: string|null}  $move
-     * @return array<int, EditionPassage>
-     */
-    private function moveRange(array $passages, array $move): array
-    {
-        $moveTargetId = $move['move_target_canonical_passage_id'];
-        $movePosition = $move['move_position'];
-
-        if ($moveTargetId === null || $movePosition === null) {
-            return $passages;
-        }
-
-        $fromPosition = null;
-        $toPosition = null;
-        $rangeEndId = $move['transposition_range_end_canonical_passage_id'] ?? $move['canonical_passage_id'];
-
-        foreach ($passages as $passage) {
-            if ($passage->canonical_passage_id === $move['canonical_passage_id']) {
-                $fromPosition = (float) $passage->position;
-            }
-
-            if ($passage->canonical_passage_id === $rangeEndId) {
-                $toPosition = (float) $passage->position;
-            }
-        }
-
-        if ($fromPosition === null || $toPosition === null) {
-            return $passages;
-        }
-
-        if ($toPosition < $fromPosition) {
-            [$fromPosition, $toPosition] = [$toPosition, $fromPosition];
-        }
-
-        $moved = [];
-        $remaining = [];
-
-        foreach ($passages as $passage) {
-            $position = (float) $passage->position;
-
-            if ($position >= $fromPosition && $position <= $toPosition) {
-                $moved[] = $passage;
-            } else {
-                $remaining[] = $passage;
-            }
-        }
-
-        $targetIndex = null;
-
-        foreach ($remaining as $index => $passage) {
-            if ($passage->canonical_passage_id === $moveTargetId) {
-                $targetIndex = $index;
-
-                break;
-            }
-        }
-
-        if ($targetIndex === null) {
-            return $passages;
-        }
-
-        $insertAt = $movePosition === 'before' ? $targetIndex : $targetIndex + 1;
-        array_splice($remaining, $insertAt, 0, $moved);
-
-        return $remaining;
-    }
-
-    /**
-     * Notices what no one asked it to: for the edition's *current* order
-     * (after all applied moves — relocation and internal reordering both),
+     * Notices what no one asked it to: for the edition's stored order,
      * which contiguous, self-contained blocks of passages some other
      * transcription's own physical order rearranges relative to it — see
      * PermutationBlocks for the decomposition itself, which is a strict
@@ -558,29 +296,27 @@ class EditionController extends Controller
      * can't extend past what it covers elsewhere, see witnessExtension()) —
      * it simply isn't listed as a candidate for that range.
      *
-     * A range already settled by an EditionPassageOrder choice keeps
-     * showing (with that row's id, so the frontend can offer to undo it)
-     * even once nothing disagrees with it any more — otherwise a settled
-     * choice would vanish the moment it stopped being disputed, with no way
-     * back to it. This operates purely on the *final* order, so a
-     * relocation (phase 1) that happens to resolve a disagreement already
-     * shows up here as "nothing to flag" with no separate suppression logic
-     * needed — unlike the old adjacent-pair version, a relocation that
-     * *doesn't* fully resolve a disagreement against some other witness is
-     * now correctly still flagged, rather than being blanket-suppressed
-     * just because a transposition touched the area.
+     * This is a calm, always-derived report, like the ⇄ discontinuity
+     * marker: it states that other sources order these passages differently
+     * and offers each ordering as an applyable candidate. There is no
+     * "settled" state to store or re-flag — the stored positions are the
+     * decision, and a range where nothing disagrees simply shows nothing.
      *
      * @param  SupportCollection<int, EditionPassage>  $window
      * @param  SupportCollection<int, TranscriptionLayer>  $transcriptions  Each with `segments` (and `segments.canonicalPassage`) and `witness` already eager-loaded — see show().
-     * @param  SupportCollection<int, EditionPassageOrder>  $passageOrders  Each with `conjecture.orderingEntries` already eager-loaded — see show().
-     * @return array<int, array{range_key: string, range_start_canonical_passage_id: int, range_end_canonical_passage_id: int, edition_passage_order_id: int|null, candidates: array<int, array<string, mixed>>}>
+     * @return array<int, array{range_key: string, range_start_canonical_passage_id: int, range_end_canonical_passage_id: int, candidates: array<int, array<string, mixed>>}>
      */
-    private function orderRanges(SupportCollection $window, SupportCollection $transcriptions, SupportCollection $passageOrders): array
+    private function orderRanges(SupportCollection $window, SupportCollection $transcriptions): array
     {
         $ordered = $window->values();
         $indexBlocks = [];
 
         foreach ($transcriptions as $transcription) {
+            // A passage's physical position is its *earliest* citation span.
+            // Deliberate for a passage cited in several places: a transposed
+            // part is a sub-passage matter, reported per passage via
+            // citationDiscontinuities(), and must not drag the whole passage
+            // into a whole-passage reorder range here.
             $offsetsByPassageId = $transcription->segments
                 ->groupBy('canonical_passage_id')
                 ->map(fn (SupportCollection $segments) => $segments->min('start_offset'));
@@ -618,70 +354,10 @@ class EditionController extends Controller
             }
         }
 
-        $positionByCanonicalPassageId = [];
-
-        foreach ($ordered as $editionPassage) {
-            $positionByCanonicalPassageId[$editionPassage->canonical_passage_id] = (float) $editionPassage->position;
-        }
-
-        // Each EditionPassageOrder's own *current* index-span, computed once
-        // here — reused both to seed detection (so a settled range with no
-        // more disagreement still shows) and to recognize it later. We locate
-        // the span via the range's stable *positions* (never mutated by
-        // resequencing — see applyPassageOrder()), then scan for every
-        // passage whose position falls inside, exactly like applyPassageOrder
-        // itself does. Looking up the two named boundary passages' *current
-        // array indices* is not enough once a range has more than two
-        // members: resequencing can put a passage that isn't either named
-        // boundary at the new lowest/highest index, leaving the span
-        // computed from just the two boundary ids too narrow.
-        $settledSpans = [];
-
-        foreach ($passageOrders as $passageOrder) {
-            $startPosition = $positionByCanonicalPassageId[$passageOrder->range_start_canonical_passage_id] ?? null;
-            $endPosition = $positionByCanonicalPassageId[$passageOrder->range_end_canonical_passage_id] ?? null;
-
-            if ($startPosition === null || $endPosition === null) {
-                continue;
-            }
-
-            if ($endPosition < $startPosition) {
-                [$startPosition, $endPosition] = [$endPosition, $startPosition];
-            }
-
-            $spanIndexes = [];
-
-            foreach ($ordered as $index => $editionPassage) {
-                $position = (float) $editionPassage->position;
-
-                if ($position >= $startPosition && $position <= $endPosition) {
-                    $spanIndexes[] = $index;
-                }
-            }
-
-            if ($spanIndexes === []) {
-                continue;
-            }
-
-            $span = [min($spanIndexes), max($spanIndexes)];
-            $settledSpans[] = ['order' => $passageOrder, 'span' => $span];
-            $indexBlocks[] = $span;
-        }
-
         $ranges = [];
 
         foreach ($this->mergeIndexBlocks($indexBlocks) as [$startIndex, $endIndex]) {
-            $settlingOrder = null;
-
-            foreach ($settledSpans as $entry) {
-                if ($entry['span'] === [$startIndex, $endIndex]) {
-                    $settlingOrder = $entry['order'];
-
-                    break;
-                }
-            }
-
-            $rangeInfo = $this->buildOrderRangeInfo($ordered, $startIndex, $endIndex, $transcriptions, $settlingOrder);
+            $rangeInfo = $this->buildOrderRangeInfo($ordered, $startIndex, $endIndex, $transcriptions);
 
             if ($rangeInfo === null) {
                 continue;
@@ -725,9 +401,9 @@ class EditionController extends Controller
     /**
      * @param  SupportCollection<int, EditionPassage>  $ordered
      * @param  SupportCollection<int, TranscriptionLayer>  $transcriptions
-     * @return array{range_key: string, range_start_canonical_passage_id: int, range_end_canonical_passage_id: int, edition_passage_order_id: int|null, candidates: array<int, array<string, mixed>>}|null
+     * @return array{range_key: string, range_start_canonical_passage_id: int, range_end_canonical_passage_id: int, candidates: array<int, array<string, mixed>>}|null
      */
-    private function buildOrderRangeInfo(SupportCollection $ordered, int $startIndex, int $endIndex, SupportCollection $transcriptions, ?EditionPassageOrder $settlingOrder): ?array
+    private function buildOrderRangeInfo(SupportCollection $ordered, int $startIndex, int $endIndex, SupportCollection $transcriptions): ?array
     {
         $rangePassages = $ordered->slice($startIndex, $endIndex - $startIndex + 1)->values();
         $canonicalPassageIds = $rangePassages->pluck('canonical_passage_id')->all();
@@ -737,6 +413,23 @@ class EditionController extends Controller
         $endPassageId = $ordered[$endIndex]->canonical_passage_id;
 
         $candidates = [];
+
+        // Citation order is always a candidate — the vulgate numbering an
+        // apparatus reports transpositions against.
+        $citationSequence = $rangePassages
+            ->sortBy(fn (EditionPassage $editionPassage) => $editionPassage->canonicalPassage->sort_key)
+            ->pluck('canonical_passage_id')
+            ->all();
+
+        $candidates[] = [
+            'source' => 'citation',
+            'transcription_layer_id' => null,
+            'conjecture_id' => null,
+            'proposed_by' => null,
+            'sequence' => collect($citationSequence)->map(fn (int $id) => $labelByPassageId->get($id)?->canonicalPassage->label)->all(),
+            'witness_siglum' => null,
+            'matches_current' => $citationSequence === $canonicalPassageIds,
+        ];
 
         foreach ($transcriptions as $transcription) {
             $citedIds = $transcription->segments->pluck('canonical_passage_id')->unique();
@@ -791,7 +484,7 @@ class EditionController extends Controller
 
         $hasAlternative = collect($candidates)->contains(fn (array $candidate) => ! $candidate['matches_current']);
 
-        if (! $hasAlternative && $settlingOrder === null) {
+        if (! $hasAlternative) {
             return null;
         }
 
@@ -799,7 +492,6 @@ class EditionController extends Controller
             'range_key' => "{$startPassageId}-{$endPassageId}",
             'range_start_canonical_passage_id' => $startPassageId,
             'range_end_canonical_passage_id' => $endPassageId,
-            'edition_passage_order_id' => $settlingOrder?->id,
             'candidates' => $candidates,
         ];
     }
@@ -866,11 +558,64 @@ class EditionController extends Controller
     }
 
     /**
-     * @param  array{range_key: string, range_start_canonical_passage_id: int, range_end_canonical_passage_id: int, edition_passage_order_id: int|null, candidates: array<int, array<string, mixed>>}|null  $orderRange
+     * Passages whose text a witness holds in more than one place, keyed by
+     * canonical passage id — the sub-passage counterpart of orderRanges'
+     * whole-passage divergence detection, and like it derived from citation
+     * spans at display time rather than stored.
+     *
+     * Each part carries the label of the nearest preceding span citing a
+     * *different* passage (skipping sibling parts, which merely sit next to
+     * each other), so the page can say "part 2 follows 42"; null means the
+     * part stands before anything else the layer cites.
+     *
+     * @param  SupportCollection<int, TranscriptionLayer>  $transcriptions
+     * @return array<int, array<int, array{siglum: string, parts: array<int, array{part: int, after_label: string|null}>}>>
+     */
+    private function citationDiscontinuities(SupportCollection $transcriptions): array
+    {
+        $result = [];
+
+        foreach ($transcriptions as $layer) {
+            $byOffset = $layer->segments->sortBy('start_offset')->values();
+
+            foreach ($layer->segments->groupBy('canonical_passage_id') as $passageId => $parts) {
+                if ($parts->count() < 2) {
+                    continue;
+                }
+
+                $result[$passageId][] = [
+                    'siglum' => $layer->transcription->witness->siglum,
+                    'parts' => TranscriptionSegment::sortByPartOrder($parts)
+                        ->map(function (TranscriptionSegment $segment) use ($byOffset, $passageId) {
+                            $preceding = $byOffset
+                                ->filter(fn (TranscriptionSegment $other) => $other->start_offset < $segment->start_offset
+                                    && $other->canonical_passage_id !== $passageId)
+                                ->last();
+
+                            return [
+                                'part' => $segment->part,
+                                'after_label' => $preceding?->canonicalPassage->label,
+                            ];
+                        })
+                        ->values()
+                        ->all(),
+                ];
+            }
+        }
+
+        return array_map(
+            fn (array $witnesses) => collect($witnesses)->sortBy('siglum')->values()->all(),
+            $result,
+        );
+    }
+
+    /**
+     * @param  array{range_key: string, range_start_canonical_passage_id: int, range_end_canonical_passage_id: int, candidates: array<int, array<string, mixed>>}|null  $orderRange
      * @param  SupportCollection<int, TranscriptionLayer>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
+     * @param  array<int, array{siglum: string, parts: array<int, array{part: int, after_label: string|null}>}>  $discontinuousWitnesses
      * @return array<string, mixed>
      */
-    private function passageDetail(EditionPassage $editionPassage, Edition $edition, ?array $orderRange, SupportCollection $diplomaticLayers, Tokenization $tokenization): array
+    private function passageDetail(EditionPassage $editionPassage, Edition $edition, ?array $orderRange, SupportCollection $diplomaticLayers, Tokenization $tokenization, array $discontinuousWitnesses = []): array
     {
         $passage = $editionPassage->canonicalPassage;
         $base = $editionPassage->transcriptionLayer;
@@ -880,6 +625,16 @@ class EditionController extends Controller
             'edition_passage_id' => $editionPassage->id,
             'label' => $passage->label,
             'order_range' => $orderRange,
+            // This edition's own lineation for the passage boundary — seeded
+            // once from the base transcription at add time, edition-owned
+            // ever after. Within-passage breaks ride on the runs instead.
+            'starts_new_line' => $editionPassage->starts_new_line,
+            'starts_new_paragraph' => $editionPassage->starts_new_paragraph,
+            // Witnesses whose text for this passage is physically
+            // discontinuous — a transposition split it across two or more
+            // places. Derived from the citation spans, never stored, so it
+            // can't drift out of sync with the transcription.
+            'discontinuous_witnesses' => $discontinuousWitnesses,
             'base' => $base !== null ? [
                 'transcription_layer_id' => $base->id,
                 'witness_siglum' => $base->transcription->witness->siglum,
@@ -999,6 +754,51 @@ class EditionController extends Controller
                 : false;
 
             $index = $coveredUntil !== false ? $coveredUntil + 1 : $index + 1;
+        }
+
+        return $this->withBreaks($runs, $lemmas, $edition, $passage);
+    }
+
+    /**
+     * Resolve this edition's within-passage line breaks (EditionLineBreak —
+     * its colometry) against the run walk, not the raw column list: runs
+     * skip columns a range selection or the base's wider reading covers, so
+     * a break anchored to a swallowed column has no run of its own and folds
+     * onto the run covering it (rendering before that run — the closest
+     * expressible position).
+     *
+     * @param  array<int, array<string, mixed>>  $runs
+     * @param  SupportCollection<int, Lemma>  $lemmas
+     * @return array<int, array<string, mixed>>
+     */
+    private function withBreaks(array $runs, SupportCollection $lemmas, Edition $edition, CanonicalPassage $passage): array
+    {
+        $breaks = EditionLineBreak::where('edition_id', $edition->id)
+            ->where('canonical_passage_id', $passage->id)
+            ->get()
+            ->keyBy('lemma_id');
+        $indexOf = $lemmas->pluck('id')->flip();
+
+        foreach ($runs as $i => $run) {
+            $startIndex = $indexOf[$run['lemma_id']] ?? null;
+            $endIndex = $run['range_end_lemma_id'] !== null
+                ? ($indexOf[$run['range_end_lemma_id']] ?? $startIndex)
+                : $startIndex;
+            $kind = null;
+
+            if ($startIndex !== null) {
+                for ($j = $startIndex; $j <= $endIndex; $j++) {
+                    $break = $breaks->get($lemmas[$j]->id);
+
+                    if ($break !== null) {
+                        $kind = $break->kind;
+
+                        break;
+                    }
+                }
+            }
+
+            $runs[$i]['break_before'] = $kind;
         }
 
         return $runs;
@@ -1375,8 +1175,9 @@ class EditionController extends Controller
      * A lacuna/supplement is still, at heart, a conjecture — credited the
      * same way as a substitution — but reads differently in the apparatus.
      * A transposition/reordering never reaches here (neither ever gets a
-     * LemmaReading — see EditionTransposition/EditionPassageOrder); both
-     * cases only exist for match exhaustiveness.
+     * LemmaReading — they are order proposals applied to stored positions,
+     * see EditionTransposition); both cases only exist for match
+     * exhaustiveness.
      */
     private function conjectureLabel(Conjecture $conjecture): string
     {

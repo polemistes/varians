@@ -9,6 +9,7 @@ use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionPageBreak;
 use App\Models\TranscriptionRegion;
 use App\Models\TranscriptionSegment;
+use App\Support\Transcription\RelocationSegmentEffects;
 use App\Support\Transcription\SpanTransformer;
 use App\Support\Transcription\TextOpApplier;
 use Illuminate\Database\Eloquent\Collection;
@@ -35,13 +36,17 @@ class TranscriptionTextController extends Controller
     public function update(UpdateTranscriptionTextRequest $request, TranscriptionLayer $transcription): RedirectResponse
     {
         $affectedEditions = DB::transaction(function () use ($request, $transcription): array {
-            $ops = $this->normalizeOps($request->validated('ops'));
+            $ops = $this->normalizeOps($request->validated('ops'), $transcription->text);
             $recomputedText = TextOpApplier::applyAll($transcription->text, $ops);
             $submittedText = $request->validated('text') ?? '';
 
             if ($recomputedText !== $submittedText) {
+                // Keyed 'ops', not 'text': the client tells a stale op log (a
+                // concurrent edit — unrecoverable, stop autosaving and offer a
+                // reload) apart from a 'text' validation failure (transiently
+                // invalid markup mid-typing — keep the ops and retry).
                 throw ValidationException::withMessages([
-                    'text' => 'This transcription changed since you started editing — reload and try again.',
+                    'ops' => 'This transcription changed since you started editing — reload and try again.',
                 ]);
             }
 
@@ -63,16 +68,54 @@ class TranscriptionTextController extends Controller
     }
 
     /**
-     * @param  list<array{start: mixed, end: mixed, text: mixed}>  $ops
-     * @return list<array{start: int, end: int, text: string}>
+     * Normalize the raw op payload — and verify every cut/paste claim before
+     * SpanTransformer honours it. A `cut_id` pairing one deletion with one
+     * later insertion of *exactly* the deleted text makes spans inside the
+     * cut travel with it (see SpanTransformer); the deleted text is
+     * recomputed here by replaying the log against the stored text, so a
+     * client cannot pair unrelated ops and teleport a citation onto words it
+     * never covered. A malformed claim keeps its op but loses the id,
+     * degrading to an ordinary edit (which tombstones rather than destroys).
+     * A cut whose paste hasn't arrived in this save keeps its id — the
+     * transformer degrades it to a deletion by itself.
+     *
+     * @param  list<array{start: mixed, end: mixed, text: mixed, cut_id?: mixed}>  $ops
+     * @return list<array{start: int, end: int, text: string, cut_id: string|null}>
      */
-    private function normalizeOps(array $ops): array
+    private function normalizeOps(array $ops, string $originalText): array
     {
-        return array_map(fn (array $op) => [
+        $normalized = array_map(fn (array $op) => [
             'start' => (int) $op['start'],
             'end' => (int) $op['end'],
             'text' => $op['text'] ?? '',
+            'cut_id' => isset($op['cut_id']) && is_string($op['cut_id']) ? $op['cut_id'] : null,
         ], $ops);
+
+        $running = $originalText;
+        $cutTexts = [];
+        $pasted = [];
+
+        foreach ($normalized as $index => $op) {
+            if ($op['cut_id'] !== null) {
+                $isCut = $op['text'] === '' && $op['end'] > $op['start'] && ! array_key_exists($op['cut_id'], $cutTexts);
+                $isPaste = $op['text'] !== '' && $op['start'] === $op['end']
+                    && array_key_exists($op['cut_id'], $cutTexts)
+                    && ! isset($pasted[$op['cut_id']])
+                    && $cutTexts[$op['cut_id']] === $op['text'];
+
+                if ($isCut) {
+                    $cutTexts[$op['cut_id']] = mb_substr($running, $op['start'], $op['end'] - $op['start']);
+                } elseif ($isPaste) {
+                    $pasted[$op['cut_id']] = true;
+                } else {
+                    $normalized[$index]['cut_id'] = null;
+                }
+            }
+
+            $running = TextOpApplier::apply($running, $normalized[$index]);
+        }
+
+        return $normalized;
     }
 
     /**
@@ -120,7 +163,7 @@ class TranscriptionTextController extends Controller
 
     /**
      * @param  Collection<int, TranscriptionSegment>|Collection<int, TranscriptionRegion>  $spans
-     * @param  list<array{start: int, end: int, text: string}>  $ops
+     * @param  list<array{start: int, end: int, text: string, cut_id?: string|null}>  $ops
      */
     private function applySpans(Collection $spans, array $ops, ?string $newText = null): void
     {
@@ -135,10 +178,53 @@ class TranscriptionTextController extends Controller
             $ops,
         );
 
+        // A relocation's citation consequences beyond offset moves: a cut
+        // FRAGMENT of a cited span becomes a new part of its own passage at
+        // the paste site, and a span the paste lands inside SPLITS around
+        // the arrival instead of absorbing it. Segments only — see
+        // RelocationSegmentEffects.
+        $effects = $spans->first() instanceof TranscriptionSegment
+            ? RelocationSegmentEffects::plan(
+                $spans->whereInstanceOf(TranscriptionSegment::class)->values(),
+                $ops,
+            )
+            : ['overrides' => [], 'unflag' => [], 'creates' => []];
+
+        $lostPartPassages = [];
+
         foreach ($spans as $index => $span) {
             $result = $transformed[$index];
 
+            if (isset($effects['overrides'][$index])) {
+                $override = $effects['overrides'][$index];
+                $span->update([
+                    'start_offset' => $override['start'],
+                    'end_offset' => $override['end'],
+                    'needs_review' => $override['needsReview'],
+                ]);
+
+                continue;
+            }
+
             if ($result['deleted']) {
+                // A destroyed citation span is kept as a zero-width, flagged
+                // tombstone rather than deleted — an editor's assignment work
+                // must never be destroyed by a text state that merely passed
+                // through (an autosave can fire mid-rearrangement). Removing
+                // it stays an explicit editor action. Regions are different:
+                // they're re-drawable geometry nothing else references.
+                if ($span instanceof TranscriptionSegment) {
+                    $lostPartPassages[$span->canonical_passage_id] = true;
+
+                    $span->update([
+                        'start_offset' => $result['start'],
+                        'end_offset' => $result['start'],
+                        'needs_review' => true,
+                    ]);
+
+                    continue;
+                }
+
                 $span->delete();
 
                 continue;
@@ -147,7 +233,9 @@ class TranscriptionTextController extends Controller
             $attributes = [
                 'start_offset' => $result['start'],
                 'end_offset' => $result['end'],
-                'needs_review' => $result['needsReview'],
+                'needs_review' => in_array($index, $effects['unflag'], true)
+                    ? false
+                    : $result['needsReview'],
             ];
 
             if ($newText !== null && $span instanceof TranscriptionRegion) {
@@ -155,6 +243,48 @@ class TranscriptionTextController extends Controller
             }
 
             $span->update($attributes);
+        }
+
+        // Rows the relocation calls into being: cut fragments carrying
+        // their source's citation, and the right halves of split targets —
+        // each placed in its passage's part order next to the span it came
+        // from (see TranscriptionSegment::$part).
+        foreach ($effects['creates'] as $create) {
+            /** @var TranscriptionSegment $anchor */
+            $anchor = $spans[$create['anchor_index']];
+            $anchor->refresh();
+
+            $siblings = TranscriptionSegment::where('transcription_layer_id', $anchor->transcription_layer_id)
+                ->where('canonical_passage_id', $create['canonical_passage_id']);
+
+            if ($create['placement'] === 'before') {
+                $newPart = $anchor->part;
+                $siblings->clone()->where('part', '>=', $newPart)->increment('part');
+            } else {
+                $newPart = $anchor->part + 1;
+                $siblings->clone()->where('part', '>', $anchor->part)->increment('part');
+            }
+
+            TranscriptionSegment::create([
+                'transcription_layer_id' => $anchor->transcription_layer_id,
+                'canonical_passage_id' => $create['canonical_passage_id'],
+                'start_offset' => $create['start'],
+                'end_offset' => $create['end'],
+                'part' => $newPart,
+            ]);
+        }
+
+        // A destroyed segment may have been one *part* of a passage cited by
+        // several spans; the survivors still stand, but the passage's witness
+        // text just lost a piece and its collation for this layer is stale —
+        // flag them so an editor re-confirms rather than trusting it silently.
+        foreach ($spans as $span) {
+            if ($span instanceof TranscriptionSegment
+                && $span->exists
+                && isset($lostPartPassages[$span->canonical_passage_id])
+                && ! $span->needs_review) {
+                $span->update(['needs_review' => true]);
+            }
         }
     }
 

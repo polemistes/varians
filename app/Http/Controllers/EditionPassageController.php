@@ -8,8 +8,8 @@ use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\EditionLemma;
 use App\Models\EditionPassage;
-use App\Models\EditionPassageOrder;
 use App\Models\TranscriptionSegment;
+use App\Support\Edition\LineationSeeder;
 use App\Support\Edition\PassageAdder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Collection as SupportCollection;
@@ -62,29 +62,19 @@ class EditionPassageController extends Controller
 
     /**
      * Removing a passage never touches Lemma/LemmaReading/Conjecture (all
-     * edition-independent shared collation) or EditionTransposition (a
-     * transposition is a Conjecture, part of a reusable stockpile any
-     * edition of the work can draw on — never entangled with any one
-     * edition's own passage lifecycle). This edition's own selections for
-     * the passage's lemmas are cleared, and so is any EditionPassageOrder
-     * naming it — unlike a Conjecture, a witness-order choice isn't
-     * reusable scholarly knowledge, it's this edition's own bookkeeping
-     * about a passage that no longer has a place to be ordered relative to
-     * anything. The passage becomes available again in every transcription
-     * citing it, for free.
+     * edition-independent shared collation) or EditionTransposition (an
+     * applied proposal's attribution record — the Conjecture is part of a
+     * reusable stockpile any edition of the work can draw on, never
+     * entangled with any one edition's own passage lifecycle). This
+     * edition's own selections for the passage's lemmas are cleared. The
+     * passage becomes available again in every transcription citing it,
+     * for free.
      */
     public function destroy(EditionPassage $editionPassage): RedirectResponse
     {
         DB::transaction(function () use ($editionPassage) {
             EditionLemma::where('edition_id', $editionPassage->edition_id)
                 ->whereHas('lemma', fn ($query) => $query->where('canonical_passage_id', $editionPassage->canonical_passage_id))
-                ->delete();
-
-            EditionPassageOrder::where('edition_id', $editionPassage->edition_id)
-                ->where(function ($query) use ($editionPassage) {
-                    $query->where('range_start_canonical_passage_id', $editionPassage->canonical_passage_id)
-                        ->orWhere('range_end_canonical_passage_id', $editionPassage->canonical_passage_id);
-                })
                 ->delete();
 
             $editionPassage->delete();
@@ -100,9 +90,17 @@ class EditionPassageController extends Controller
     {
         DB::transaction(function () use ($edition, $segments) {
             $position = (float) (EditionPassage::where('edition_id', $edition->id)->lockForUpdate()->max('position') ?? 0);
+            $previous = null;
 
             foreach ($segments as $segment) {
-                PassageAdder::add($edition, $segment, $position += 1.0);
+                PassageAdder::add(
+                    $edition,
+                    $segment,
+                    $position += 1.0,
+                    LineationSeeder::interPassageFlags($previous, $segment),
+                );
+
+                $previous = $segment;
             }
         });
     }
