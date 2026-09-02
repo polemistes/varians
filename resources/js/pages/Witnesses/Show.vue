@@ -62,6 +62,18 @@ const props = defineProps<{
     transcription: TranscriptionLayer | null;
     /** Where each page begins, in lines — shared by both layers. */
     pageBreaks: TranscriptionPageBreak[];
+    /**
+     * Whether this layer and its sibling still share the word skeleton
+     * normalization preserves — null when there is nothing to compare.
+     */
+    layerCorrespondence: {
+        sibling: string;
+        divergence: {
+            line: number;
+            a_words: number | null;
+            b_words: number | null;
+        } | null;
+    } | null;
     works: Work[];
     existingTags: string[];
 }>();
@@ -534,7 +546,12 @@ function flushText(force: boolean): Promise<boolean> {
             },
             {
                 preserveScroll: true,
-                only: ['transcription', 'pageBreaks', 'flash'],
+                only: [
+                    'transcription',
+                    'pageBreaks',
+                    'layerCorrespondence',
+                    'flash',
+                ],
                 onSuccess: () => {
                     editOps.value = editOps.value.slice(sending.length);
                     cutHeldSince = null;
@@ -1853,6 +1870,31 @@ function fixBoundaries() {
                             v-if="layer"
                             class="ml-auto flex items-center gap-1"
                         >
+                            <!-- The two layers must carry the same words in
+                                 the same lines (normalization changes only
+                                 characters within a word). Divergence is an
+                                 editing state to resolve, and this is where
+                                 it becomes visible. -->
+                            <span
+                                v-if="props.layerCorrespondence"
+                                class="mr-1"
+                                :class="
+                                    props.layerCorrespondence.divergence
+                                        ? 'text-amber-700 dark:text-amber-400'
+                                        : 'text-stone-400 dark:text-stone-600'
+                                "
+                                :title="
+                                    props.layerCorrespondence.divergence
+                                        ? `This layer has ${props.layerCorrespondence.divergence.a_words ?? 'no'} word(s) on line ${props.layerCorrespondence.divergence.line}, the ${props.layerCorrespondence.sibling} layer ${props.layerCorrespondence.divergence.b_words ?? 'none'} — both layers should carry the same words in the same lines.`
+                                        : 'Both layers carry the same words in the same lines.'
+                                "
+                            >
+                                {{
+                                    props.layerCorrespondence.divergence
+                                        ? `layers differ at line ${props.layerCorrespondence.divergence.line}`
+                                        : 'layers in step'
+                                }}
+                            </span>
                             <button
                                 v-for="option in ['diplomatic', 'normalized']"
                                 :key="option"

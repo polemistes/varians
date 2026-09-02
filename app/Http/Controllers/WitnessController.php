@@ -12,6 +12,7 @@ use App\Models\TranscriptionLayer;
 use App\Models\Witness;
 use App\Models\Work;
 use App\Support\DeletionImpact;
+use App\Support\Transcription\LayerCorrespondence;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -109,9 +110,41 @@ class WitnessController extends Controller
             // TranscriptionPageBreak.
             'pageBreaks' => $layer?->transcription->pageBreaks
                 ->sortBy('start_line')->values() ?? collect(),
+            // Whether this layer and its sibling still share the word
+            // skeleton normalization is supposed to preserve — see
+            // LayerCorrespondence. A closure so the autosave partial reload
+            // can recompute it per save without re-running the whole page.
+            'layerCorrespondence' => fn () => $this->layerCorrespondence($layer),
             'works' => Work::with('referenceScheme')->orderBy('title')->get(),
             'existingTags' => Tag::orderBy('name')->pluck('name'),
         ]);
+    }
+
+    /**
+     * The word-structure comparison against the sibling layer, or null when
+     * there is nothing to compare — no layer open, no sibling, or a sibling
+     * with no text yet (one-layer workflows are legitimate).
+     *
+     * @return array{sibling: string, divergence: array{line: int, a_words: int|null, b_words: int|null}|null}|null
+     */
+    private function layerCorrespondence(?TranscriptionLayer $layer): ?array
+    {
+        if ($layer === null || $layer->text === '') {
+            return null;
+        }
+
+        $sibling = $layer->transcription->layers()
+            ->whereKeyNot($layer->id)
+            ->first();
+
+        if ($sibling === null || $sibling->text === '') {
+            return null;
+        }
+
+        return [
+            'sibling' => $sibling->layer->value,
+            'divergence' => LayerCorrespondence::divergence($layer->text, $sibling->text),
+        ];
     }
 
     /**

@@ -9,6 +9,7 @@ use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionPageBreak;
 use App\Models\TranscriptionRegion;
 use App\Models\TranscriptionSegment;
+use App\Support\Transcription\LayerMirror;
 use App\Support\Transcription\RelocationSegmentEffects;
 use App\Support\Transcription\SpanTransformer;
 use App\Support\Transcription\TextOpApplier;
@@ -35,9 +36,10 @@ class TranscriptionTextController extends Controller
      */
     public function update(UpdateTranscriptionTextRequest $request, TranscriptionLayer $transcription): RedirectResponse
     {
-        $affectedEditions = DB::transaction(function () use ($request, $transcription): array {
-            $ops = $this->normalizeOps($request->validated('ops'), $transcription->text);
-            $recomputedText = TextOpApplier::applyAll($transcription->text, $ops);
+        [$affectedEditions, $mirroredTo] = DB::transaction(function () use ($request, $transcription): array {
+            $original = $transcription->text;
+            $ops = $this->normalizeOps($request->validated('ops'), $original);
+            $recomputedText = TextOpApplier::applyAll($original, $ops);
             $submittedText = $request->validated('text') ?? '';
 
             if ($recomputedText !== $submittedText) {
@@ -57,14 +59,68 @@ class TranscriptionTextController extends Controller
 
             $transcription->update(['text' => $recomputedText]);
 
-            return $affected;
+            $mirroredTo = $this->mirrorRelocations($transcription, $original, $ops, $affected);
+
+            return [$affected, $mirroredTo];
         });
 
+        $notices = [];
+
+        if ($mirroredTo !== null) {
+            $notices[] = 'Also moved the corresponding text in the '.$mirroredTo.' layer.';
+        }
+
         if ($affectedEditions !== []) {
-            session()->flash('message', $this->editionReport($affectedEditions));
+            $notices[] = $this->editionReport(array_values(array_unique($affectedEditions)));
+        }
+
+        if ($notices !== []) {
+            session()->flash('message', implode(' ', $notices));
         }
 
         return back();
+    }
+
+    /**
+     * Replay this save's relocations on the sibling layer, so moving text
+     * around in one layer moves the corresponding text in the other — the
+     * two layers share a word skeleton (see LayerCorrespondence), and a
+     * whole-word move means the same thing in either spelling.
+     *
+     * The mirrored ops run through the very same span pipeline, so the
+     * sibling's citation segments, image regions and collation readings
+     * travel exactly as this layer's did. Page breaks are deliberately NOT
+     * reapplied: they live on the transcription in line coordinates, shared
+     * by both layers, and this layer's pass already moved them — a second
+     * pass would move them twice.
+     *
+     * @param  list<array{start: int, end: int, text: string, cut_id: string|null}>  $ops
+     * @param  list<string>  $affected  edition titles, appended to in place
+     * @return string|null the mirrored layer's name, when a mirror applied
+     */
+    private function mirrorRelocations(TranscriptionLayer $transcription, string $originalText, array $ops, array &$affected): ?string
+    {
+        $sibling = $transcription->transcription->layers()
+            ->whereKeyNot($transcription->id)
+            ->first();
+
+        if ($sibling === null || $sibling->text === '') {
+            return null;
+        }
+
+        $mirror = LayerMirror::mirror($originalText, $ops, $sibling->text);
+
+        if ($mirror === null) {
+            return null;
+        }
+
+        $this->applySpans($sibling->segments, $mirror['ops']);
+        $this->applySpans($sibling->regions, $mirror['ops'], $mirror['text']);
+        $affected = [...$affected, ...$this->applyReadings($sibling, $mirror['ops'], $mirror['text'])];
+
+        $sibling->update(['text' => $mirror['text']]);
+
+        return $sibling->layer->value;
     }
 
     /**

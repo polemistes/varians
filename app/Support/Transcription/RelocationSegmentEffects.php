@@ -173,12 +173,12 @@ class RelocationSegmentEffects
     /**
      * The validated cut/paste pairs in the log, as [cutIndex, pasteIndex] —
      * normalizeOps has already verified each claim, so a shared id here is
-     * a genuine relocation.
+     * a genuine relocation. Public because LayerMirror walks the same pairs.
      *
      * @param  list<array{start: int, end: int, text: string, cut_id?: string|null}>  $ops
      * @return list<array{0: int, 1: int}>
      */
-    private static function pairs(array $ops): array
+    public static function pairs(array $ops): array
     {
         $cuts = [];
         $pairs = [];

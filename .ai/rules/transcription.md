@@ -152,3 +152,28 @@ time she starts a page. `transformPoints` keeps an insertion at the break
 rather than abolishing it, leaving the break where the deletion began, possibly
 alongside the next one. That is why nothing enforces distinct offsets — two
 breaks at the same place is an empty page.
+
+## The two layers share a word skeleton; only characters within words differ
+Normalization operates INSIDE words — orthography, accents, breathings,
+punctuation attached to a word. It never reorders, adds or removes words:
+splitting crasis is an emendation for the conjecture system, not
+normalization (user decision — no flag-tolerated divergence category
+exists). So when both layers have text they must carry the same words in
+the same lines; character offsets stay per-layer (γίγνομαι/γίνομαι differ
+in length). `LayerCorrespondence` measures this: `divergence()` (per-line
+word counts, first mismatch) feeds the witness page's in-step indicator via
+the `layerCorrespondence` prop (in the autosave partial-reload `only`
+list), and `pattern()` (words collapsed to `w`, whitespace verbatim) is the
+strict precondition for mirroring.
+
+**Relocations mirror across layers** (`LayerMirror`, called from
+`TranscriptionTextController::mirrorRelocations`): a cut/paste pair moving
+whole words is replayed on the sibling using its own spellings, through the
+same span pipeline, so its segments, regions and readings travel too. Only
+relocations mirror — typed insertions/deletions have no meaningful
+counterpart mid-keystroke and just show in the indicator. All or nothing:
+anything unmirrorable (mid-word cut, paste inside a word, patterns already
+apart) abandons the whole mirror rather than half-applying. Page breaks are
+deliberately NOT reapplied on the sibling — they live on the transcription
+in shared line coordinates and the editing layer's pass already moved them;
+a second pass would move them twice (test-pinned).
