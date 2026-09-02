@@ -23,9 +23,17 @@ if [ ! -f .env ]; then
 fi
 
 # Brought back up however this exits, so a failed migration cannot leave the
-# site dark.
-php artisan down --retry=15 || true
-trap 'php artisan up || true' EXIT
+# site dark. `went_down` keeps the trap honest: when `down` itself fails —
+# a first deploy with no vendor/ yet, say, where artisan cannot even boot —
+# the site was live all along, and `up` would only complain that there is
+# nothing to lift.
+went_down=0
+if php artisan down --retry=15; then
+    went_down=1
+else
+    echo "WARNING: could not enter maintenance mode — deploying live." >&2
+fi
+trap '[ "$went_down" -eq 0 ] || php artisan up || true' EXIT
 
 git fetch --prune origin production
 git reset --hard origin/production
