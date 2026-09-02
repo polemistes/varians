@@ -62,12 +62,19 @@ function selectTranscription(id: number) {
     showBulkForm.value = false;
 }
 
+// Same interaction as the transcription editor: selecting is just
+// selecting, and the "Add selection" button above the text acts on the
+// remembered selection when PRESSED — no menu pops up at the selection.
 const selection = ref<{ start: number; end: number; text: string } | null>(
     null,
 );
 
 function onSelect(sel: { start: number; end: number; text: string }) {
     selection.value = sel;
+}
+
+function onSelectionCleared() {
+    selection.value = null;
 }
 
 function addSelection() {
@@ -153,7 +160,8 @@ function submitBulk() {
             Add text
         </h3>
         <p class="mb-2 text-stone-500 dark:text-stone-400">
-            Select a cited span from a transcription to add it to the edition.
+            Select a cited span from a transcription, then press &ldquo;Add
+            selection&rdquo;.
         </p>
 
         <div
@@ -180,41 +188,27 @@ function submitBulk() {
         </p>
 
         <template v-if="activeTranscription">
-            <div
-                class="mb-2 rounded border border-stone-200 p-2 font-serif text-lg leading-loose dark:border-stone-800"
-            >
-                <AlignableText
-                    :text="activeTranscription.text"
-                    :segments="activeTranscription.segments"
-                    :unavailable-segment-ids="unavailableSegmentIds"
-                    :selection-start="selection?.start ?? null"
-                    :selection-end="selection?.end ?? null"
-                    @select="onSelect"
-                >
-                    <template #selection-menu>
-                        <span
-                            data-non-text
-                            class="my-1 block rounded border border-sky-200 bg-sky-50 p-2 dark:border-sky-900 dark:bg-sky-950"
-                        >
-                            <button
-                                type="button"
-                                class="rounded bg-stone-900 px-2 py-1 text-white dark:bg-stone-100 dark:text-stone-900"
-                                @click="addSelection"
-                            >
-                                Add to edition
-                            </button>
-                        </span>
-                    </template>
-                </AlignableText>
-            </div>
-
             <div class="mb-2 flex flex-wrap items-center gap-3">
+                <button
+                    type="button"
+                    class="rounded border border-stone-300 px-2 py-1 text-stone-600 disabled:opacity-40 dark:border-stone-700 dark:text-stone-400"
+                    :disabled="!selection"
+                    :title="
+                        selection
+                            ? undefined
+                            : 'Select text in the transcription below first'
+                    "
+                    @mousedown.prevent
+                    @click="addSelection"
+                >
+                    Add selection
+                </button>
                 <button
                     type="button"
                     class="text-stone-600 underline dark:text-stone-400"
                     @click="addWholeTranscription"
                 >
-                    Select all &rarr; Add
+                    Add the whole text
                 </button>
                 <button
                     type="button"
@@ -227,6 +221,20 @@ function submitBulk() {
                             : 'Base a range on this manuscript…'
                     }}
                 </button>
+            </div>
+
+            <div
+                class="mb-2 rounded border border-stone-200 p-2 font-serif text-lg leading-loose dark:border-stone-800"
+            >
+                <AlignableText
+                    :text="activeTranscription.text"
+                    :segments="activeTranscription.segments"
+                    :unavailable-segment-ids="unavailableSegmentIds"
+                    :selection-start="selection?.start ?? null"
+                    :selection-end="selection?.end ?? null"
+                    @select="onSelect"
+                    @selection-cleared="onSelectionCleared"
+                />
             </div>
 
             <form

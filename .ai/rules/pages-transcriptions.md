@@ -28,15 +28,15 @@ NOT the old `!props.editable` early-return. Badges are clickable while
 editing and need `@mousedown.prevent` so the click doesn't move the caret
 first; they keep `contenteditable="false"` + `data-non-text`.
 
-**The witness page's selection menu renders OUTSIDE the contenteditable
-element** (a sibling below the text pane), not through the
-`#selection-menu` slot: form controls inside an editable region misbehave in
-Firefox, and a native select popup even fires its closing mouseup on the
-text underneath it, which dismissed the menu mid-use when it rendered
-inline. The slot remains for read-only consumers (AddToEditionPanel), where
-`editable` is false and none of this applies. If a slot consumer ever runs
-editable, the slot wrapper carries `contenteditable="false"` — but prefer
-rendering outside.
+**All selection actions render OUTSIDE the text surface** — the
+`#selection-menu` slot is gone entirely (its last consumer,
+AddToEditionPanel, now uses the same pattern as the witness toolbar: a
+remembered selection plus an "Add selection" button above the pane). Menus
+inside the surface were repeatedly broken: form controls inside an editable
+region misbehave in Firefox, a native select popup fires its closing
+mouseup on the text underneath and dismissed the menu mid-use, and an empty
+block wrapper forced a stray line break after every selection. Do not
+reintroduce in-surface menus or the slot.
 
 **Autosave, not Save**: `editOps` accumulate and flush on an ~800ms idle
 debounce (`flushText`), single-flight, via the project's only Inertia partial

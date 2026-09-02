@@ -65,7 +65,6 @@ type Chunk = {
     segment: TranscriptionSegment | null;
     segmentStart: boolean;
     selected: boolean;
-    menuAfter: boolean;
     // Zero-width (tombstoned) citation spans sitting exactly at this chunk's
     // start — destroyed by a text edit, kept flagged for the editor to
     // resolve. They cover no characters, so they render as badge-only.
@@ -173,8 +172,6 @@ const chunks = computed<Chunk[]>(() => {
                 props.selectionEnd !== null &&
                 start >= props.selectionStart &&
                 end <= props.selectionEnd,
-            menuAfter:
-                props.selectionEnd !== null && end === props.selectionEnd,
             tombstonesBefore: tombstones.filter(
                 (tombstone) => tombstone.start_offset === start,
             ),
@@ -536,11 +533,12 @@ function applyAndRestoreCaret(op: TextEditOp, source: EditSource = 'typing') {
     void nextTick(() => restoreCaret(targetOffset));
 }
 
-// beforeinput (and composition events) bubble — a nested form control
-// rendered through the #selection-menu slot (e.g. the "assign" citation
-// label input) fires them too, and intercepting those would prevent every
-// keystroke typed there. Slot content is wrapped in [data-non-text], so
-// anything originating inside one belongs to a control, not to the text.
+// beforeinput (and composition events) bubble — the badges and tombstone
+// buttons nested in the surface fire them too, and intercepting those would
+// swallow interactions that belong to a control, not to the text. Every
+// non-text element carries [data-non-text], so the composed path tells the
+// two apart. (This once also guarded a #selection-menu slot; menus now
+// always render outside the text surface.)
 function originatesInControl(event: Event): boolean {
     return event
         .composedPath()
@@ -884,26 +882,6 @@ function restoreCaret(offset: number) {
                 @pointerleave="chunk.regionId && emit('hover-region', null)"
                 >{{ chunk.text }}</span
             >
-            <!-- Only when the parent actually provides menu content: the
-                 wrapper is block-level, so rendering it empty (selection
-                 made, no menu opened yet) forced a stray line break right
-                 after the selection.
-
-                 contenteditable="false" is required, exactly like on the
-                 badges: the surface is always editable now, and form
-                 controls inside EDITABLE content are broken in Firefox — a
-                 click on the work <select> was retargeted to the editable
-                 host, which read as "clicked into the text" and dismissed
-                 the very menu being used. An atomic non-editable island
-                 lets its controls behave like normal form controls. -->
-            <span
-                v-if="chunk.menuAfter && $slots['selection-menu']"
-                data-non-text
-                contenteditable="false"
-                class="block w-full"
-            >
-                <slot name="selection-menu" />
-            </span>
         </template>
         <button
             v-for="tombstone in trailingTombstones"
