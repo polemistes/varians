@@ -138,14 +138,6 @@ function removeWitness() {
     router.delete(destroyWitness.url(props.witness));
 }
 
-/** Repository and shelfmark as one line, empty parts simply absent. */
-const witnessLocation = computed(
-    () =>
-        [props.witness.repository, props.witness.shelfmark]
-            .filter(Boolean)
-            .join(', ') || null,
-);
-
 // ---- editing the witness ----
 const editingWitness = ref(false);
 const showDescription = ref(false);
@@ -1756,60 +1748,89 @@ function fixBoundaries() {
                             ({{ props.witness.date_text }})
                         </span>
                     </h1>
-                    <p
-                        v-if="witnessLocation"
-                        class="text-stone-600 dark:text-stone-400"
-                    >
-                        {{ witnessLocation }}
-                    </p>
-                    <p
-                        v-if="showDescription && props.witness.description"
-                        class="mt-2 max-w-prose text-stone-600 dark:text-stone-400"
-                    >
-                        {{ props.witness.description }}
-                    </p>
-
+                    <!-- Labelled rows, values aligned in one column; a row
+                         with nothing to say does not appear. -->
                     <div
-                        v-if="props.witnessOptions.length > 1"
-                        class="mt-2 text-xs"
+                        class="mt-1 grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-0.5"
                     >
-                        <select
-                            :value="props.witness.id"
-                            title="Change witness"
-                            class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                            @change="
-                                openWitness(
-                                    Number(
-                                        ($event.target as HTMLSelectElement)
-                                            .value,
-                                    ),
-                                )
-                            "
-                        >
-                            <option
-                                v-for="option in props.witnessOptions"
-                                :key="option.id"
-                                :value="option.id"
+                        <template v-if="props.witness.repository">
+                            <span
+                                class="text-xs text-stone-500 dark:text-stone-400"
+                                >Repository</span
                             >
-                                {{ option.siglum
-                                }}{{ option.label ? ` — ${option.label}` : '' }}
-                            </option>
-                        </select>
+                            <span class="text-stone-600 dark:text-stone-400">{{
+                                props.witness.repository
+                            }}</span>
+                        </template>
+                        <template v-if="props.witness.shelfmark">
+                            <span
+                                class="text-xs text-stone-500 dark:text-stone-400"
+                                >Shelfmark</span
+                            >
+                            <span class="text-stone-600 dark:text-stone-400">{{
+                                props.witness.shelfmark
+                            }}</span>
+                        </template>
+                        <template v-if="props.witness.description">
+                            <span
+                                class="text-xs text-stone-500 dark:text-stone-400"
+                                >Description</span
+                            >
+                            <span>
+                                <button
+                                    type="button"
+                                    class="text-xs text-stone-500 underline dark:text-stone-400"
+                                    @click="showDescription = !showDescription"
+                                >
+                                    {{ showDescription ? 'Hide' : 'Show' }}
+                                </button>
+                                <span
+                                    v-if="showDescription"
+                                    class="mt-0.5 block max-w-prose text-stone-600 dark:text-stone-400"
+                                >
+                                    {{ props.witness.description }}
+                                </span>
+                            </span>
+                        </template>
+                        <template v-if="props.witnessOptions.length > 1">
+                            <label
+                                for="change-witness"
+                                class="text-xs text-stone-500 dark:text-stone-400"
+                                >Change witness</label
+                            >
+                            <span>
+                                <select
+                                    id="change-witness"
+                                    :value="props.witness.id"
+                                    class="rounded border border-stone-300 bg-transparent px-2 py-1 text-xs dark:border-stone-700"
+                                    @change="
+                                        openWitness(
+                                            Number(
+                                                (
+                                                    $event.target as HTMLSelectElement
+                                                ).value,
+                                            ),
+                                        )
+                                    "
+                                >
+                                    <option
+                                        v-for="option in props.witnessOptions"
+                                        :key="option.id"
+                                        :value="option.id"
+                                    >
+                                        {{ option.siglum
+                                        }}{{
+                                            option.label
+                                                ? ` — ${option.label}`
+                                                : ''
+                                        }}
+                                    </option>
+                                </select>
+                            </span>
+                        </template>
                     </div>
 
                     <div class="mt-2 flex flex-wrap items-center gap-3 text-xs">
-                        <button
-                            v-if="props.witness.description"
-                            type="button"
-                            class="text-stone-500 underline dark:text-stone-400"
-                            @click="showDescription = !showDescription"
-                        >
-                            {{
-                                showDescription
-                                    ? 'Hide description'
-                                    : 'Show description'
-                            }}
-                        </button>
                         <template v-if="canEdit">
                             <button
                                 type="button"
