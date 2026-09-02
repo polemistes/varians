@@ -1869,9 +1869,12 @@ function fixBoundaries() {
 
                     <!-- Which page is being worked on. The leaf on the right
                          follows this, and so does the text below: a page is
-                         the stretch from its own break to the next. -->
+                         the stretch from its own break to the next. Not gated
+                         on a layer: while pages and photographs are still
+                         being added, before any transcription exists, this
+                         row is the only way to move between leaves. -->
                     <div
-                        v-if="layer && pages.length > 0"
+                        v-if="pages.length > 0"
                         class="mb-3 flex flex-wrap items-center gap-1 text-xs"
                     >
                         <span class="mr-1 text-stone-500 dark:text-stone-400">
