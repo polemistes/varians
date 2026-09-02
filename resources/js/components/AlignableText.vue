@@ -823,7 +823,7 @@ function restoreCaret(offset: number) {
             editable &&
             'block min-h-24 rounded border border-stone-300 p-2 dark:border-stone-700'
         "
-        :contenteditable="editable"
+        :contenteditable="editable ? 'true' : undefined"
         @mousedown="onContainerMousedown"
         @keydown="onContainerKeydown"
         @copy="onCopy"
