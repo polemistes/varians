@@ -72,6 +72,18 @@ const adjust = ref<{
 } | null>(null);
 const draftBox = ref<Box | null>(null);
 
+// Selection commits on RELEASE, not press: a press just remembers what was
+// under the pointer, and only a release that stayed within the slop counts
+// as a click. A drag that starts over an unselected box (or the background)
+// therefore pans the image — at high zoom boxes cover much of the leaf, and
+// select-on-press made panning nearly impossible without grabbing one.
+const pendingClick = ref<{
+    regionId: number | null;
+    x: number;
+    y: number;
+} | null>(null);
+const CLICK_SLOP_PX = 5;
+
 watch(
     () => props.editableRegionId,
     () => {
@@ -83,8 +95,16 @@ function clamp(value: number, min: number, max: number) {
     return Math.min(max, Math.max(min, value));
 }
 
-function zoom(delta: number) {
-    scale.value = Math.min(4, Math.max(1, scale.value + delta));
+// Multiplicative steps, deep enough to bring a single word up to a workable
+// size on a high-resolution leaf — additive ±0.2 capped at 4 left small
+// regions unmanipulable. ×1.2 matches the old +0.2 feel at the shallow end
+// (user-tuned: ×1.25 zoomed noticeably too fast).
+function zoom(direction: 1 | -1) {
+    scale.value = clamp(
+        direction > 0 ? scale.value * 1.2 : scale.value / 1.2,
+        1,
+        16,
+    );
 
     if (scale.value === 1) {
         offset.x = 0;
@@ -94,7 +114,7 @@ function zoom(delta: number) {
 
 function onWheel(event: WheelEvent) {
     event.preventDefault();
-    zoom(event.deltaY > 0 ? -0.2 : 0.2);
+    zoom(event.deltaY > 0 ? -1 : 1);
 }
 
 function pointerFraction(event: PointerEvent) {
@@ -116,11 +136,16 @@ function startInteraction(event: PointerEvent) {
         return;
     }
 
-    // A pointerdown that reaches here (rather than being stopped by a
-    // region's own handler) landed on the background — clicking away from
-    // the selected region is the natural way to deselect it.
-    if (props.editableRegionId !== null) {
-        emit('deselect');
+    // Unselected regions let the press bubble here, having remembered
+    // themselves as the click candidate; a press straight onto the
+    // background is a deselection candidate. Either way the gesture itself
+    // is a pan until release proves it was a click.
+    if (!pendingClick.value) {
+        pendingClick.value = {
+            regionId: null,
+            x: event.clientX,
+            y: event.clientY,
+        };
     }
 
     if (scale.value === 1) {
@@ -148,14 +173,19 @@ function onRegionPointerDown(region: TranscriptionRegion, event: PointerEvent) {
         return;
     }
 
-    event.stopPropagation();
-
     if (region.id !== props.editableRegionId) {
-        emit('select-region', region.id);
+        // Not a selection yet — remember the candidate and let the event
+        // bubble to the container so dragging pans; release decides.
+        pendingClick.value = {
+            regionId: region.id,
+            x: event.clientX,
+            y: event.clientY,
+        };
 
         return;
     }
 
+    event.stopPropagation();
     event.preventDefault();
     adjust.value = {
         mode: 'move',
@@ -288,7 +318,23 @@ function stopInteraction(event: PointerEvent) {
         window.getSelection()?.removeAllRanges();
     } else {
         dragging.value = false;
+
+        if (
+            pendingClick.value &&
+            Math.hypot(
+                event.clientX - pendingClick.value.x,
+                event.clientY - pendingClick.value.y,
+            ) <= CLICK_SLOP_PX
+        ) {
+            if (pendingClick.value.regionId !== null) {
+                emit('select-region', pendingClick.value.regionId);
+            } else if (props.editableRegionId !== null) {
+                emit('deselect');
+            }
+        }
     }
+
+    pendingClick.value = null;
 
     if (containerEl.value?.hasPointerCapture(event.pointerId)) {
         containerEl.value.releasePointerCapture(event.pointerId);
@@ -387,14 +433,21 @@ function drawBoxStyle() {
                         @pointerleave.stop="emit('hover-region', null)"
                     >
                         <template v-if="region.id === editableRegionId">
+                            <!-- Handles sit inside the zoomed transform, so
+                                 they counter-scale to stay 12px on screen —
+                                 unscaled, eight of them blanketed a small
+                                 word box at high zoom, leaving no body to
+                                 grab for moving. -->
                             <div
                                 v-for="handle in HANDLES"
                                 :key="handle.name"
-                                class="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2"
+                                class="absolute -translate-x-1/2 -translate-y-1/2"
                                 :style="{
                                     left: handle.left,
                                     top: handle.top,
                                     cursor: handle.cursor,
+                                    width: `${0.75 / scale}rem`,
+                                    height: `${0.75 / scale}rem`,
                                 }"
                                 @pointerdown="
                                     onHandlePointerDown(
@@ -436,14 +489,14 @@ function drawBoxStyle() {
                 <button
                     type="button"
                     class="rounded border border-stone-300 px-2 py-0.5 dark:border-stone-700"
-                    @click="zoom(-0.2)"
+                    @click="zoom(-1)"
                 >
                     −
                 </button>
                 <button
                     type="button"
                     class="rounded border border-stone-300 px-2 py-0.5 dark:border-stone-700"
-                    @click="zoom(0.2)"
+                    @click="zoom(1)"
                 >
                     +
                 </button>

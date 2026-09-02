@@ -33,7 +33,7 @@ class StoreTranscriptionRegionBatchRequest extends FormRequest
                 'required',
                 Rule::exists('manuscript_images', 'id')->where('manuscript_id', $manuscriptId),
             ],
-            'granularity' => ['required', Rule::in(['word', 'character'])],
+            'granularity' => ['required', Rule::in(['line', 'word', 'character'])],
             'start_offset' => ['required', 'integer', 'min:0'],
             'end_offset' => [
                 'required',

@@ -25,11 +25,13 @@ class TranscriptionRegionController extends Controller
     }
 
     /**
-     * Draw one guide box over a line/phrase and get one region per
-     * character or word, evenly divided along the box — a uniform-spacing
-     * approximation rather than real letter-detection, which this project
-     * deliberately avoids as too unreliable. Each generated region can be
-     * moved/resized individually afterward via `update()`.
+     * Draw one guide box over the selection's lines on the facsimile and get
+     * one region per character or word: the box divides vertically into one
+     * band per line of the selection, and each band divides horizontally by
+     * character count, so word widths follow letter counts and spaces keep
+     * their share. An approximation rather than real letter-detection, which
+     * this project deliberately avoids as too unreliable — each generated
+     * region can be moved/resized individually afterward via `update()`.
      */
     public function storeBatch(StoreTranscriptionRegionBatchRequest $request, TranscriptionLayer $transcription): RedirectResponse
     {
@@ -37,15 +39,19 @@ class TranscriptionRegionController extends Controller
         $end = $request->validated('end_offset');
         $text = mb_substr($transcription->text, $start, $end - $start);
 
-        if (! RegionSplitter::isSplittable($text)) {
+        // Markup only misleads a division WITHIN a line — a gap has no ink,
+        // so character-count widths misplace every unit after it. A whole
+        // line fills its band regardless, exactly like the manual single-box
+        // path, so gapped text can still be mapped line by line.
+        if ($request->validated('granularity') !== 'line' && ! RegionSplitter::isSplittable($text)) {
             throw ValidationException::withMessages([
                 'start_offset' => 'This selection contains transcription markup (a gap, restoration, or uncertain reading) — batch alignment only works on plain text. Align it manually instead, or select a smaller span.',
             ]);
         }
 
-        $units = RegionSplitter::split($text, $request->validated('granularity'));
+        $layout = RegionSplitter::layout($text, $request->validated('granularity'));
 
-        if ($units === []) {
+        if ($layout['units'] === []) {
             throw ValidationException::withMessages([
                 'start_offset' => 'Nothing to align in that selection.',
             ]);
@@ -57,22 +63,22 @@ class TranscriptionRegionController extends Controller
             'width' => (float) $request->validated('width'),
             'height' => (float) $request->validated('height'),
         ];
-        $cellWidth = $box['width'] / count($units);
+        $bandHeight = $box['height'] / $layout['lines'];
 
-        DB::transaction(function () use ($request, $transcription, $units, $box, $cellWidth, $start) {
+        DB::transaction(function () use ($request, $transcription, $layout, $box, $bandHeight, $start) {
             $position = $transcription->regions()->max('position') ?? 0;
 
-            foreach ($units as $index => $unit) {
+            foreach ($layout['units'] as $unit) {
                 $transcription->regions()->create([
                     'manuscript_image_id' => $request->validated('manuscript_image_id'),
                     'text' => $unit['text'],
                     'start_offset' => $start + $unit['start'],
                     'end_offset' => $start + $unit['end'],
                     'position' => ++$position,
-                    'x' => $box['x'] + $cellWidth * $index,
-                    'y' => $box['y'],
-                    'width' => $cellWidth,
-                    'height' => $box['height'],
+                    'x' => $box['x'] + $unit['x'] * $box['width'],
+                    'y' => $box['y'] + $unit['line'] * $bandHeight,
+                    'width' => $unit['width'] * $box['width'],
+                    'height' => $bandHeight,
                 ]);
             }
         });
