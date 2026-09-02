@@ -40,7 +40,7 @@ reintroduce in-surface menus or the slot.
 
 **Autosave, not Save**: `editOps` accumulate and flush on an ~800ms idle
 debounce (`flushText`), single-flight, via the project's only Inertia partial
-reload (`only: ['transcription', 'pageBreaks', 'flash']` — WitnessController::show
+reload (`only: ['transcription', 'pageBreaks', 'layerCorrespondence', 'flash']` — WitnessController::show
 is far too heavy to re-run per keystroke). Sent ops are dropped from the log;
 later ops' offsets are already in current-text coordinates. THE CENTRAL
 INVARIANT the modes used to enforce by construction: **nothing that posts a
