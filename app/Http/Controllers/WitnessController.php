@@ -123,9 +123,11 @@ class WitnessController extends Controller
     /**
      * The word-structure comparison against the sibling layer, or null when
      * there is nothing to compare — no layer open, no sibling, or a sibling
-     * with no text yet (one-layer workflows are legitimate).
+     * with no text yet (one-layer workflows are legitimate). Carries the
+     * sibling's text too, for the side-by-side layer view that is the
+     * recovery path when the structures diverge.
      *
-     * @return array{sibling: string, divergence: array{line: int, a_words: int|null, b_words: int|null}|null}|null
+     * @return array{sibling: string, text: string, divergence: array{line: int, a_words: int|null, b_words: int|null}|null}|null
      */
     private function layerCorrespondence(?TranscriptionLayer $layer): ?array
     {
@@ -143,6 +145,7 @@ class WitnessController extends Controller
 
         return [
             'sibling' => $sibling->layer->value,
+            'text' => $sibling->text,
             'divergence' => LayerCorrespondence::divergence($layer->text, $sibling->text),
         ];
     }

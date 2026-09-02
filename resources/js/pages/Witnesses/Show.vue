@@ -68,6 +68,7 @@ const props = defineProps<{
      */
     layerCorrespondence: {
         sibling: string;
+        text: string;
         divergence: {
             line: number;
             a_words: number | null;
@@ -1377,6 +1378,58 @@ function clearSelection() {
     realignmentWarning.value = null;
 }
 
+// ---- the right pane: manuscript leaf, or the sibling layer beside this one ----
+// The side-by-side layer view is the recovery path when the word-structure
+// indicator says the layers have drifted: the same page of the OTHER layer,
+// read-only, with the diverging line marked — fix whichever side is wrong
+// without switching layers back and forth from memory.
+const rightView = ref<'image' | 'layer'>('image');
+
+/**
+ * The sibling layer's slice of the selected page, as lines. Page breaks are
+ * line numbers shared by both layers, so the same case analysis as
+ * pageStart/pageEnd applies, resolved against the sibling's own text.
+ */
+const siblingPage = computed<{ lines: string[]; firstLine: number } | null>(
+    () => {
+        if (!props.layerCorrespondence) {
+            return null;
+        }
+
+        const text = props.layerCorrespondence.text;
+        let start = 0;
+        let end = text.length;
+        let firstLine = 0;
+
+        if (selectedPageId.value === null) {
+            const first = breaks.value[0];
+            end = first ? offsetOfLine(text, first.start_line) : text.length;
+        } else if (selectedBreak.value !== null) {
+            firstLine = selectedBreak.value.start_line;
+            start = offsetOfLine(text, firstLine);
+            const next = breaks.value.find(
+                (item) => item.start_line > firstLine,
+            );
+            end = next ? offsetOfLine(text, next.start_line) : text.length;
+        }
+
+        return { lines: text.slice(start, end).split('\n'), firstLine };
+    },
+);
+
+/** The diverging line's index within the sibling page's lines, if visible. */
+const siblingDivergentLine = computed(() => {
+    const divergence = props.layerCorrespondence?.divergence;
+
+    if (!divergence || !siblingPage.value) {
+        return null;
+    }
+
+    const index = divergence.line - 1 - siblingPage.value.firstLine;
+
+    return index >= 0 && index < siblingPage.value.lines.length ? index : null;
+});
+
 // ---- align to image ----
 function armDrawing(granularity: SplitGranularity) {
     if (!activeSelection.value) {
@@ -1384,6 +1437,8 @@ function armDrawing(granularity: SplitGranularity) {
     }
 
     splitGranularity.value = granularity;
+    // Drawing happens on the leaf, so bring it back if the layer view is up.
+    rightView.value = 'image';
     drawingActive.value = true;
 }
 
@@ -2483,154 +2538,208 @@ function fixBoundaries() {
                 </div>
 
                 <div>
-                    <p
-                        v-if="editableRegionId"
-                        class="mb-2 flex items-center justify-between text-xs text-sky-700 dark:text-sky-400"
-                    >
-                        <span
-                            >Drag the box's body to move it, or a handle to
-                            resize.</span
-                        >
-                        <span class="flex items-center gap-2">
-                            <button
-                                type="button"
-                                class="text-red-600 underline dark:text-red-400"
-                                @click="removeRegion(editableRegionId!)"
-                            >
-                                Delete
-                            </button>
-                            <button
-                                type="button"
-                                class="underline"
-                                @click="editableRegionId = null"
-                            >
-                                Done
-                            </button>
-                        </span>
-                    </p>
-                    <ManuscriptImageViewer
-                        :image="selectedImage"
-                        :regions="regionsForSelectedImage"
-                        :features="featuresForSelectedImage"
-                        :highlighted-region-id="hoveredRegionId"
-                        :editable-region-id="editableRegionId"
-                        :drawing-enabled="drawingActive"
-                        @region-drawn="onRegionDrawn"
-                        @region-moved="onRegionMoved"
-                        @select-region="selectRegionForEditing"
-                        @deselect="editableRegionId = null"
-                        @hover-region="(id) => (hoveredRegionId = id)"
-                    >
-                        <!-- Plenty of pages are transcribed from a facsimile
-                             or the manuscript itself, so having no photograph
-                             is ordinary rather than an omission. -->
-                        <template #empty>
-                            <span v-if="selectedPage">
-                                No photograph of {{ selectedPage.label }} yet.
-                            </span>
-                            <span v-else-if="pages.length === 0">
-                                No pages recorded for this manuscript yet.
-                            </span>
-                            <span v-else>Choose a page.</span>
-                        </template>
-                    </ManuscriptImageViewer>
+                    <!-- What stands beside the text: the manuscript leaf, or
+                         (when both layers have text) the other layer's same
+                         page — the recovery view when the word-structure
+                         indicator says the layers have drifted. -->
                     <div
-                        v-if="imagesForSelectedPage.length > 1"
-                        class="mt-3 flex flex-wrap gap-2"
+                        v-if="layerCorrespondence"
+                        class="mb-2 flex flex-wrap items-center gap-1 text-xs"
                     >
-                        <!-- Photographs of *this* page only. Which leaf is
-                             shown follows the page chosen on the left, so
-                             offering another page's here would break the pair.
-                             A page can have more than one shot of it. -->
                         <button
-                            v-for="image in imagesForSelectedPage"
-                            :key="image.id"
                             type="button"
-                            class="rounded border px-2 py-1 text-xs"
+                            class="rounded border px-2 py-1"
                             :class="
-                                image.id === selectedImageId
-                                    ? 'border-stone-500 bg-stone-100 dark:bg-stone-800'
-                                    : 'border-stone-200 dark:border-stone-800'
+                                rightView === 'image'
+                                    ? 'border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300'
+                                    : 'border-stone-300 dark:border-stone-700'
                             "
-                            @click="selectedImageId = image.id"
+                            @click="rightView = 'image'"
                         >
-                            fol. {{ image.manuscript_page?.label }}
+                            Manuscript
+                        </button>
+                        <button
+                            type="button"
+                            class="rounded border px-2 py-1"
+                            :class="
+                                rightView === 'layer'
+                                    ? 'border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300'
+                                    : 'border-stone-300 dark:border-stone-700'
+                            "
+                            @click="rightView = 'layer'"
+                        >
+                            {{ layerCorrespondence.sibling }} layer
                         </button>
                     </div>
 
-                    <!-- Pages can be recorded with no photograph at all: a
+                    <div
+                        v-if="rightView === 'layer' && siblingPage"
+                        class="max-h-[36rem] overflow-y-auto rounded-lg border border-stone-300 p-3 font-serif text-lg leading-loose dark:border-stone-700"
+                    >
+                        <div
+                            v-for="(line, index) in siblingPage.lines"
+                            :key="index"
+                            class="min-h-[1.75em] whitespace-pre-wrap"
+                            :class="
+                                index === siblingDivergentLine &&
+                                'rounded bg-amber-100 dark:bg-amber-950'
+                            "
+                        >
+                            {{ line }}
+                        </div>
+                    </div>
+
+                    <template v-else>
+                        <p
+                            v-if="editableRegionId"
+                            class="mb-2 flex items-center justify-between text-xs text-sky-700 dark:text-sky-400"
+                        >
+                            <span
+                                >Drag the box's body to move it, or a handle to
+                                resize.</span
+                            >
+                            <span class="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    class="text-red-600 underline dark:text-red-400"
+                                    @click="removeRegion(editableRegionId!)"
+                                >
+                                    Delete
+                                </button>
+                                <button
+                                    type="button"
+                                    class="underline"
+                                    @click="editableRegionId = null"
+                                >
+                                    Done
+                                </button>
+                            </span>
+                        </p>
+                        <ManuscriptImageViewer
+                            :image="selectedImage"
+                            :regions="regionsForSelectedImage"
+                            :features="featuresForSelectedImage"
+                            :highlighted-region-id="hoveredRegionId"
+                            :editable-region-id="editableRegionId"
+                            :drawing-enabled="drawingActive"
+                            @region-drawn="onRegionDrawn"
+                            @region-moved="onRegionMoved"
+                            @select-region="selectRegionForEditing"
+                            @deselect="editableRegionId = null"
+                            @hover-region="(id) => (hoveredRegionId = id)"
+                        >
+                            <!-- Plenty of pages are transcribed from a facsimile
+                             or the manuscript itself, so having no photograph
+                             is ordinary rather than an omission. -->
+                            <template #empty>
+                                <span v-if="selectedPage">
+                                    No photograph of
+                                    {{ selectedPage.label }} yet.
+                                </span>
+                                <span v-else-if="pages.length === 0">
+                                    No pages recorded for this manuscript yet.
+                                </span>
+                                <span v-else>Choose a page.</span>
+                            </template>
+                        </ManuscriptImageViewer>
+                        <div
+                            v-if="imagesForSelectedPage.length > 1"
+                            class="mt-3 flex flex-wrap gap-2"
+                        >
+                            <!-- Photographs of *this* page only. Which leaf is
+                             shown follows the page chosen on the left, so
+                             offering another page's here would break the pair.
+                             A page can have more than one shot of it. -->
+                            <button
+                                v-for="image in imagesForSelectedPage"
+                                :key="image.id"
+                                type="button"
+                                class="rounded border px-2 py-1 text-xs"
+                                :class="
+                                    image.id === selectedImageId
+                                        ? 'border-stone-500 bg-stone-100 dark:bg-stone-800'
+                                        : 'border-stone-200 dark:border-stone-800'
+                                "
+                                @click="selectedImageId = image.id"
+                            >
+                                fol. {{ image.manuscript_page?.label }}
+                            </button>
+                        </div>
+
+                        <!-- Pages can be recorded with no photograph at all: a
                          manuscript is often transcribed from a facsimile, and
                          its text still has to be divided onto its leaves.
                          Uploading a photograph names a page too, and records
                          it if it is new. -->
-                    <form
-                        v-if="manuscript && canEdit"
-                        class="mt-3 flex flex-wrap items-center gap-2 border-t border-stone-200 pt-3 dark:border-stone-800"
-                        @submit.prevent="addPage"
-                    >
-                        <input
-                            v-model="newPageLabel"
-                            type="text"
-                            placeholder="page (e.g. 13r)"
-                            class="w-28 rounded border border-stone-300 bg-transparent px-2 py-1 text-xs dark:border-stone-700"
-                        />
-                        <button
-                            type="submit"
-                            class="rounded border border-stone-300 px-2 py-1 text-xs disabled:opacity-50 dark:border-stone-700"
-                            :disabled="!newPageLabel.trim()"
+                        <form
+                            v-if="manuscript && canEdit"
+                            class="mt-3 flex flex-wrap items-center gap-2 border-t border-stone-200 pt-3 dark:border-stone-800"
+                            @submit.prevent="addPage"
                         >
-                            Add page
-                        </button>
-                        <span
-                            class="text-xs text-stone-500 dark:text-stone-400"
-                        >
-                            no image needed
-                        </span>
-                        <button
-                            v-if="selectedPage"
-                            type="button"
-                            class="ml-auto text-xs text-red-600 underline dark:text-red-400"
-                            @click="deleteSelectedPage"
-                        >
-                            Delete {{ selectedPage.label }}
-                        </button>
-                    </form>
+                            <input
+                                v-model="newPageLabel"
+                                type="text"
+                                placeholder="page (e.g. 13r)"
+                                class="w-28 rounded border border-stone-300 bg-transparent px-2 py-1 text-xs dark:border-stone-700"
+                            />
+                            <button
+                                type="submit"
+                                class="rounded border border-stone-300 px-2 py-1 text-xs disabled:opacity-50 dark:border-stone-700"
+                                :disabled="!newPageLabel.trim()"
+                            >
+                                Add page
+                            </button>
+                            <span
+                                class="text-xs text-stone-500 dark:text-stone-400"
+                            >
+                                no image needed
+                            </span>
+                            <button
+                                v-if="selectedPage"
+                                type="button"
+                                class="ml-auto text-xs text-red-600 underline dark:text-red-400"
+                                @click="deleteSelectedPage"
+                            >
+                                Delete {{ selectedPage.label }}
+                            </button>
+                        </form>
 
-                    <form
-                        v-if="manuscript && canEdit"
-                        class="mt-3 flex flex-wrap items-center gap-2"
-                        @submit.prevent="uploadImage"
-                    >
-                        <input
-                            v-model="imageUploadForm.folio_label"
-                            type="text"
-                            placeholder="folio (e.g. 12r)"
-                            class="w-28 rounded border border-stone-300 bg-transparent px-2 py-1 text-xs dark:border-stone-700"
-                        />
-                        <input
-                            type="file"
-                            accept="image/*"
-                            class="text-xs"
-                            @change="onImageFileChange"
-                        />
-                        <button
-                            type="submit"
-                            class="rounded border border-stone-300 px-2 py-1 text-xs disabled:opacity-50 dark:border-stone-700"
-                            :disabled="
-                                imageUploadForm.processing ||
-                                !imageUploadForm.folio_label ||
-                                !imageUploadForm.image
-                            "
+                        <form
+                            v-if="manuscript && canEdit"
+                            class="mt-3 flex flex-wrap items-center gap-2"
+                            @submit.prevent="uploadImage"
                         >
-                            Upload page
-                        </button>
-                        <span
-                            v-if="imageUploadForm.errors.image"
-                            class="text-xs text-red-600 dark:text-red-400"
-                        >
-                            {{ imageUploadForm.errors.image }}
-                        </span>
-                    </form>
+                            <input
+                                v-model="imageUploadForm.folio_label"
+                                type="text"
+                                placeholder="folio (e.g. 12r)"
+                                class="w-28 rounded border border-stone-300 bg-transparent px-2 py-1 text-xs dark:border-stone-700"
+                            />
+                            <input
+                                type="file"
+                                accept="image/*"
+                                class="text-xs"
+                                @change="onImageFileChange"
+                            />
+                            <button
+                                type="submit"
+                                class="rounded border border-stone-300 px-2 py-1 text-xs disabled:opacity-50 dark:border-stone-700"
+                                :disabled="
+                                    imageUploadForm.processing ||
+                                    !imageUploadForm.folio_label ||
+                                    !imageUploadForm.image
+                                "
+                            >
+                                Upload page
+                            </button>
+                            <span
+                                v-if="imageUploadForm.errors.image"
+                                class="text-xs text-red-600 dark:text-red-400"
+                            >
+                                {{ imageUploadForm.errors.image }}
+                            </span>
+                        </form>
+                    </template>
                 </div>
             </div>
         </div>

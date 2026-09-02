@@ -109,6 +109,8 @@ test('the witness page reports whether the layers are in step', function () {
         'layer' => 'normalized',
     ]))->assertInertia(
         fn ($page) => $page->where('layerCorrespondence.sibling', 'diplomatic')
+            // The sibling's text rides along, for the side-by-side view.
+            ->where('layerCorrespondence.text', "γιγνεται παντα\nκατ εριν")
             ->where('layerCorrespondence.divergence', null)
     );
 

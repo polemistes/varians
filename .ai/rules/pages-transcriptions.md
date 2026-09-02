@@ -125,3 +125,13 @@ first break for any unplaced page, so the moment one page was placed the pane
 went empty for every other page, and no second page could ever be placed. The
 first page worked, which is why building the UI before a test for placing the
 *second* one hid it.
+
+## The right pane is a toggle: manuscript leaf, or the sibling layer
+When both layers have text, `rightView` switches the witness page's right
+column between the image viewer and a read-only, page-scoped rendering of
+the OTHER layer (`layerCorrespondence.text` — the same prop that feeds the
+in-step indicator), with the diverging line marked amber. It is the
+recovery path when the layers drift: fix whichever side is wrong while
+seeing both. Page scoping reuses the shared line-number breaks resolved
+against the sibling's own text. Arming region drawing forces `rightView`
+back to `'image'` — the drawing target is the leaf.
