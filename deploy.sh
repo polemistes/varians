@@ -8,6 +8,11 @@
 # with the compiled frontend committed to it — the server has no Node, and
 # `public/build` is not in `main`.
 #
+# The origin remote must use SSH (git@github.com:...), authenticated by a
+# read-only deploy key added under the repo's Settings → Deploy keys — the
+# repo is private, so an HTTPS remote prompts for a password no script can
+# answer.
+#
 # Never add `git clean` here. The SQLite database, the uploaded manuscript
 # images under storage/app/public, and `.env` are all untracked; a hard reset
 # leaves them alone, but a clean would delete every one of them.
