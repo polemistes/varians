@@ -121,11 +121,12 @@ stretch of the manuscript and both layers transcribe that same stretch, so
 where it begins is a fact about the transcription; held per layer, the two were
 free to drift apart with nothing to say which was right.
 
-The coordinate is the line because it is the only one the layers share. Do not
-be tempted by tokens: they usually correspond, but crasis resolution, illegible
-or lost stretches, elision, and re-dividing words a scribe ran together all
-break the correspondence, and those are normalizing operations an editor wants.
-`DiplomaticCounterpart` already refuses to map when token counts differ, and a
+The coordinate is the line because it is the safest one the layers share.
+Word correspondence is now the documented invariant (see the word-skeleton
+section below — crasis resolution is an emendation, not normalization, per
+user decision), but a layer mid-edit can be transiently out of step, and a
+line number stays valid through every such state.
+`DiplomaticCounterpart` refuses to map when token counts differ, and a
 test pins that (ΚΑΓΩ ΕΙΠΟΝ → καὶ ἐγώ εἶπον). Lines survive all of it, because a
 line of the transcription is a line of the manuscript in either layer, and a
 page begins at a line start since a manuscript line does not span two pages.
