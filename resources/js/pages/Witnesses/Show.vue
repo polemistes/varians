@@ -78,6 +78,8 @@ const props = defineProps<{
         } | null;
     } | null;
     works: Work[];
+    /** Every visible witness, for the change-witness picker in the box. */
+    witnessOptions: Pick<Witness, 'id' | 'siglum' | 'label'>[];
 }>();
 
 // A witness may have no transcription at all, so everything below reads the
@@ -176,6 +178,12 @@ function cancelWitnessEdit() {
     witnessForm.reset();
     witnessForm.clearErrors();
     editingWitness.value = false;
+}
+
+function openWitness(id: number) {
+    if (id !== props.witness.id) {
+        router.get(showWitnessRoute.url(id));
+    }
 }
 
 function removeTranscription() {
@@ -1761,6 +1769,34 @@ function fixBoundaries() {
                         {{ props.witness.description }}
                     </p>
 
+                    <div
+                        v-if="props.witnessOptions.length > 1"
+                        class="mt-2 text-xs"
+                    >
+                        <select
+                            :value="props.witness.id"
+                            title="Change witness"
+                            class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                            @change="
+                                openWitness(
+                                    Number(
+                                        ($event.target as HTMLSelectElement)
+                                            .value,
+                                    ),
+                                )
+                            "
+                        >
+                            <option
+                                v-for="option in props.witnessOptions"
+                                :key="option.id"
+                                :value="option.id"
+                            >
+                                {{ option.siglum
+                                }}{{ option.label ? ` — ${option.label}` : '' }}
+                            </option>
+                        </select>
+                    </div>
+
                     <div class="mt-2 flex flex-wrap items-center gap-3 text-xs">
                         <button
                             v-if="props.witness.description"
@@ -1778,16 +1814,16 @@ function fixBoundaries() {
                             <button
                                 type="button"
                                 class="text-stone-500 underline dark:text-stone-400"
-                                @click="editingWitness = true"
+                                @click="addTranscription"
                             >
-                                Edit witness
+                                + Add transcription
                             </button>
                             <button
                                 type="button"
                                 class="text-stone-500 underline dark:text-stone-400"
-                                @click="addTranscription"
+                                @click="editingWitness = true"
                             >
-                                + Add transcription
+                                Edit witness
                             </button>
                             <button
                                 type="button"

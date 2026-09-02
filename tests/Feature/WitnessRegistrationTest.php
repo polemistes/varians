@@ -53,6 +53,18 @@ test('an editor can edit a witness after the fact', function () {
         ->and($witness->fresh()->siglum)->toBe('R');
 });
 
+test('the witness page lists every visible witness for the change-witness picker', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $r = Witness::factory()->create(['siglum' => 'R']);
+    Witness::factory()->create(['siglum' => 'A']);
+
+    $this->get(route('witnesses.show', $r))->assertInertia(
+        fn ($page) => $page->has('witnessOptions', 2)
+            ->where('witnessOptions.0.siglum', 'A')
+            ->where('witnessOptions.1.siglum', 'R')
+    );
+});
+
 test('a guest cannot edit a witness', function () {
     $this->actingAs(User::factory()->create());
 

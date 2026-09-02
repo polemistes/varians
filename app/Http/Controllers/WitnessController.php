@@ -116,6 +116,10 @@ class WitnessController extends Controller
             // can recompute it per save without re-running the whole page.
             'layerCorrespondence' => fn () => $this->layerCorrespondence($layer),
             'works' => Work::with('referenceScheme')->orderBy('title')->get(),
+            // For the change-witness picker in the Witness box — moving
+            // between witnesses without a detour through the front page.
+            'witnessOptions' => Witness::query()->visibleTo($request->user())
+                ->orderBy('siglum')->get(['id', 'siglum', 'label']),
         ]);
     }
 
