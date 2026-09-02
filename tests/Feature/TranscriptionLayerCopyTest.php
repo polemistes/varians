@@ -86,6 +86,52 @@ test('a copy into another transcription lands in the corresponding layer', funct
         ->and($elsewhere->fresh()->normalized)->toBeNull();
 });
 
+test('a flagged segment stays flagged in the copy, and a tombstone stays behind', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $layer = layerToCopy();
+    $passage = CanonicalPassage::factory()->for(Work::factory())->create();
+    TranscriptionSegment::factory()->for($layer)->for($passage, 'canonicalPassage')
+        ->create(['start_offset' => 9, 'end_offset' => 12, 'needs_review' => true]);
+    TranscriptionSegment::factory()->for($layer)->for($passage, 'canonicalPassage')
+        ->create(['start_offset' => 13, 'end_offset' => 13, 'part' => 2, 'needs_review' => true]);
+
+    $this->post(route('transcriptions.copy.store', $layer), [
+        'transcription_id' => $layer->transcription_id,
+    ])->assertRedirect();
+
+    $segments = $layer->transcription->fresh()->normalized->segments;
+
+    // The review flag is a judgement about the text, and the text came along
+    // verbatim; the tombstone marks work to do in the source layer, which a
+    // copy of the text has nothing for.
+    expect($segments)->toHaveCount(2)
+        ->and($segments->firstWhere('start_offset', 9)->needs_review)->toBeTrue()
+        ->and($segments->firstWhere('start_offset', 0)->needs_review)->toBeFalse();
+});
+
+test('tombstones left by clearing the destination layer are swept, not doubled', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $layer = layerToCopy();
+
+    // Emptying a layer in the editor collapses its citations to zero-width
+    // tombstones rather than deleting them; the copy flow then demands an
+    // empty layer, so this is exactly the state a copy lands on.
+    $emptied = $layer->transcription->normalized;
+    $passage = CanonicalPassage::factory()->for(Work::factory())->create();
+    TranscriptionSegment::factory()->for($emptied)->for($passage, 'canonicalPassage')
+        ->create(['start_offset' => 0, 'end_offset' => 0, 'needs_review' => true]);
+
+    $this->post(route('transcriptions.copy.store', $layer), [
+        'transcription_id' => $layer->transcription_id,
+    ])->assertRedirect();
+
+    $segments = $emptied->fresh()->segments;
+
+    expect($segments)->toHaveCount(1)
+        ->and($segments->first()->end_offset)->toBe(8)
+        ->and($segments->first()->needs_review)->toBeFalse();
+});
+
 test('copying leaves the source untouched', function () {
     $this->actingAs(User::factory()->editor()->create());
     $layer = layerToCopy();

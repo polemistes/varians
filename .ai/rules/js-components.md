@@ -17,3 +17,5 @@ Tags do not carry the diplomatic/normalized distinction — that is `Transcripti
 Do not reintroduce per-segment `text`/`position` columns — deliberately removed in favor of this model.
 
 The old transcription `type` column was removed too, but has since returned in a narrower, structural form as `layer` (diplomatic/normalized). That reversal is intentional — see `.ai/rules/edition.md` for why — so do not undo it.
+
+**Copying a layer** (`TranscriptionLayerCopyController`, reached from the witness workbench's "Copy layer…" button — flush-then-navigate, since it posts the saved text): citation segments travel with `part` and `needs_review` (the flag is a judgement about text that came along verbatim); zero-width tombstones stay behind (they mark work to do in the source layer, which a copy of the text has nothing for); image regions travel only within the same transcription. A non-empty destination layer is refused, not confirmed — and since clearing a layer in the editor tombstones its citations rather than deleting them, the copy sweeps the destination's leftover spans before filling it (they'd otherwise double every badge — real bug).

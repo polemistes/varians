@@ -66,11 +66,28 @@ class TranscriptionLayerCopyController extends Controller
                 'text' => $transcription->text,
             ])->save();
 
+            // The destination's text was empty (validation refuses anything
+            // else), so any spans still on it are tombstones left by clearing
+            // it in the editor — emptying a layer collapses its citations
+            // rather than deleting them. The copy replaces that citation work
+            // wholesale; keeping the tombstones would double every badge.
+            $destination->segments()->delete();
+            $destination->regions()->delete();
+
             foreach ($transcription->segments as $segment) {
+                // A tombstone (zero-width span whose text an edit destroyed)
+                // marks work to do in the SOURCE layer; a copy of the text
+                // has nothing for it to mark, so it stays behind.
+                if ($segment->start_offset === $segment->end_offset) {
+                    continue;
+                }
+
                 $destination->segments()->create([
                     'canonical_passage_id' => $segment->canonical_passage_id,
                     'start_offset' => $segment->start_offset,
                     'end_offset' => $segment->end_offset,
+                    'part' => $segment->part,
+                    'needs_review' => $segment->needs_review,
                 ]);
             }
 
