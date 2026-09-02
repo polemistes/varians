@@ -2186,14 +2186,15 @@ function fixBoundaries() {
                                 Drag a box on the image to place
                                 <template v-if="splitGranularity === 'span'"
                                     >this text.</template
-                                ><template v-else-if="splitGranularity === 'line'"
-                                    >it — one region per line of the
-                                    selection, stacked down the box.</template
+                                ><template
+                                    v-else-if="splitGranularity === 'line'"
+                                    >it — one region per line of the selection,
+                                    stacked down the box.</template
                                 ><template v-else
-                                    >it — one region per
-                                    {{ splitGranularity }}, sized by letter
-                                    count; each line of the selection takes its
-                                    own row of the box.</template
+                                    >it — one region per {{ splitGranularity }},
+                                    sized by letter count; each line of the
+                                    selection takes its own row of the
+                                    box.</template
                                 >
                                 <button
                                     type="button"
