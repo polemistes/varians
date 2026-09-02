@@ -4,7 +4,6 @@ namespace App\Models;
 
 use App\Enums\Role;
 use App\Enums\Visibility;
-use App\Enums\WitnessType;
 use Database\Factories\WitnessFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -13,7 +12,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
 /**
@@ -22,14 +20,23 @@ use Illuminate\Support\Carbon;
  * contain several works, and its relation to any given work is derived
  * (see relatedWorks()), not a stored fact of the witness itself.
  *
+ * There is deliberately no witness "type": every witness carries the whole
+ * physical apparatus — repository, shelfmark, date, pages, photographs —
+ * with every field optional, so a collection of readings from the Suda
+ * simply leaves the shelfmark empty. The old type column existed only to
+ * decide which witnesses got a separate `Manuscript` row; both are gone.
+ *
  * @property int $id
- * @property WitnessType $type
  * @property string $siglum
  * @property string|null $label
+ * @property string|null $repository
+ * @property string|null $shelfmark
+ * @property string|null $date_text
+ * @property string|null $description
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['type', 'siglum', 'label'])]
+#[Fillable(['siglum', 'label', 'repository', 'shelfmark', 'date_text', 'description'])]
 class Witness extends Model
 {
     /** @use HasFactory<WitnessFactory> */
@@ -51,11 +58,19 @@ class Witness extends Model
     }
 
     /**
-     * @return HasOne<Manuscript, $this>
+     * @return HasMany<ManuscriptPage, $this>
      */
-    public function manuscript(): HasOne
+    public function pages(): HasMany
     {
-        return $this->hasOne(Manuscript::class);
+        return $this->hasMany(ManuscriptPage::class);
+    }
+
+    /**
+     * @return HasMany<ManuscriptImage, $this>
+     */
+    public function images(): HasMany
+    {
+        return $this->hasMany(ManuscriptImage::class);
     }
 
     /**
@@ -94,15 +109,5 @@ class Witness extends Model
             'transcriptions',
             fn (Builder $q) => $q->where('visibility', Visibility::Published),
         );
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    protected function casts(): array
-    {
-        return [
-            'type' => WitnessType::class,
-        ];
     }
 }

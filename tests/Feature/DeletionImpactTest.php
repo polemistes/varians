@@ -7,7 +7,6 @@ use App\Models\EditionLemma;
 use App\Models\EditionPassage;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
-use App\Models\Manuscript;
 use App\Models\ManuscriptImage;
 use App\Models\ManuscriptImageFeature;
 use App\Models\TranscriptionLayer;
@@ -41,8 +40,8 @@ test('forWork counts passages, editions, lemmas, conjectures, and citation segme
 
 test('forWitness counts every cascaded category, without double-counting a region matched by both its transcription and its image', function () {
     $witness = Witness::factory()->create();
-    $manuscript = Manuscript::factory()->for($witness)->create();
-    $images = ManuscriptImage::factory()->for($manuscript)->count(2)->create();
+
+    $images = ManuscriptImage::factory()->for($witness)->count(2)->create();
     $transcription = TranscriptionLayer::factory()->for($witness)->create();
 
     TranscriptionSegment::factory()->for($transcription)->create();
@@ -70,8 +69,8 @@ test('forWitness counts every cascaded category, without double-counting a regio
     ]);
 });
 
-test('forWitness on a witness with no manuscript reports zero images and regions', function () {
-    $witness = Witness::factory()->create(['type' => 'printed_edition']);
+test('forWitness on a bare witness reports zero everything', function () {
+    $witness = Witness::factory()->create();
 
     expect(DeletionImpact::forWitness($witness))->toBe([
         'transcriptions' => 0,

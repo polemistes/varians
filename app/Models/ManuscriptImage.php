@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Storage;
 
 /**
  * @property int $id
- * @property int $manuscript_id
+ * @property int $witness_id
  * @property int $manuscript_page_id
  * @property string $path
  * @property string $position
@@ -27,7 +27,7 @@ use Illuminate\Support\Facades\Storage;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['manuscript_id', 'manuscript_page_id', 'path', 'position'])]
+#[Fillable(['witness_id', 'manuscript_page_id', 'path', 'position'])]
 #[Appends(['url'])]
 class ManuscriptImage extends Model
 {
@@ -46,11 +46,11 @@ class ManuscriptImage extends Model
     }
 
     /**
-     * @return BelongsTo<Manuscript, $this>
+     * @return BelongsTo<Witness, $this>
      */
-    public function manuscript(): BelongsTo
+    public function witness(): BelongsTo
     {
-        return $this->belongsTo(Manuscript::class);
+        return $this->belongsTo(Witness::class);
     }
 
     /**

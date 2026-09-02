@@ -2,7 +2,6 @@
 
 namespace Database\Factories;
 
-use App\Enums\WitnessType;
 use App\Models\Witness;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -19,7 +18,6 @@ class WitnessFactory extends Factory
     public function definition(): array
     {
         return [
-            'type' => WitnessType::Manuscript,
             'siglum' => strtoupper(fake()->unique()->lexify('?')),
             'label' => fake()->sentence(4),
         ];

@@ -1,35 +1,35 @@
 <?php
 
-use App\Models\Manuscript;
 use App\Models\ManuscriptPage;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionPageBreak;
 use App\Models\User;
+use App\Models\Witness;
 
 test('an editor can add a page to a manuscript that has no images', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $manuscript = Manuscript::factory()->create();
+    $witness = Witness::factory()->create();
 
-    $this->post(route('manuscript-pages.store', $manuscript), ['label' => 'f. 3v'])
+    $this->post(route('manuscript-pages.store', $witness), ['label' => 'f. 3v'])
         ->assertRedirect();
 
-    expect($manuscript->pages()->sole()->label)->toBe('f. 3v');
+    expect($witness->pages()->sole()->label)->toBe('f. 3v');
 });
 
 test('pages are appended after the ones already there', function () {
     $this->actingAs(User::factory()->editor()->create());
-    $manuscript = Manuscript::factory()->create();
-    $manuscript->pages()->create(['label' => '1r', 'position' => 4]);
+    $witness = Witness::factory()->create();
+    $witness->pages()->create(['label' => '1r', 'position' => 4]);
 
-    $this->post(route('manuscript-pages.store', $manuscript), ['label' => '1v']);
+    $this->post(route('manuscript-pages.store', $witness), ['label' => '1v']);
 
-    expect((float) $manuscript->pages()->where('label', '1v')->sole()->position)->toBe(5.0);
+    expect((float) $witness->pages()->where('label', '1v')->sole()->position)->toBe(5.0);
 });
 
 test('a page needs a label', function () {
     $this->actingAs(User::factory()->editor()->create());
 
-    $this->post(route('manuscript-pages.store', Manuscript::factory()->create()), [])
+    $this->post(route('manuscript-pages.store', Witness::factory()->create()), [])
         ->assertInvalid(['label']);
 });
 
@@ -57,7 +57,7 @@ test('a guest cannot delete a page', function () {
 test('a guest cannot add a page', function () {
     $this->actingAs(User::factory()->create());
 
-    $this->post(route('manuscript-pages.store', Manuscript::factory()->create()), ['label' => '1r'])
+    $this->post(route('manuscript-pages.store', Witness::factory()->create()), ['label' => '1r'])
         ->assertForbidden();
 });
 

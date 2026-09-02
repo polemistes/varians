@@ -54,7 +54,7 @@ class DeletionImpact
     public static function forWitness(Witness $witness): array
     {
         $transcriptionIds = $witness->transcriptionLayers()->pluck('transcription_layers.id');
-        $imageIds = $witness->manuscript?->images()->pluck('id') ?? collect();
+        $imageIds = $witness->images()->pluck('id');
 
         return [
             'transcriptions' => $transcriptionIds->count(),
@@ -65,7 +65,7 @@ class DeletionImpact
                     ->orWhereIn('manuscript_image_id', $imageIds))
                 ->count(),
             'images' => $imageIds->count(),
-            'pages' => $witness->manuscript?->pages()->count() ?? 0,
+            'pages' => $witness->pages()->count(),
             'editionSelections' => EditionLemma::query()
                 ->whereHas('selectedReading', fn ($query) => $query->whereIn('transcription_layer_id', $transcriptionIds))
                 ->count(),

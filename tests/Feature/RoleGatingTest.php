@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Manuscript;
 use App\Models\ManuscriptImage;
 use App\Models\ManuscriptImageFeature;
 use App\Models\TranscriptionLayer;
@@ -11,15 +10,15 @@ use Illuminate\Http\UploadedFile;
 
 test('a guest cannot upload a manuscript image', function () {
     $this->actingAs(User::factory()->create());
-    $manuscript = Manuscript::factory()->create();
+    $witness = Witness::factory()->create();
 
-    $response = $this->post(route('manuscript-images.store', $manuscript), [
+    $response = $this->post(route('manuscript-images.store', $witness), [
         'folio_label' => '1r',
         'image' => UploadedFile::fake()->create('folio.jpg', 500, 'image/jpeg'),
     ]);
 
     $response->assertForbidden();
-    expect($manuscript->images()->count())->toBe(0);
+    expect($witness->images()->count())->toBe(0);
 });
 
 test('a guest cannot mark a manuscript image feature', function () {

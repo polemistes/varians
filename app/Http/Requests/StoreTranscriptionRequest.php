@@ -24,8 +24,6 @@ class StoreTranscriptionRequest extends FormRequest
     {
         return [
             'name' => ['sometimes', 'string', 'max:255'],
-            'tags' => ['sometimes', 'array'],
-            'tags.*' => ['string', 'max:50'],
         ];
     }
 }

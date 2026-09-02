@@ -54,30 +54,26 @@ export type Work = {
     deletion_impact?: DeletionImpact;
 };
 
-export type WitnessType =
-    'manuscript' | 'apparatus_reconstruction' | 'printed_edition';
-
+/**
+ * A physical or textual source. There is no witness "type": every witness
+ * carries the whole physical apparatus (repository, shelfmark, date, pages,
+ * photographs), each field optional — a collection of readings from the
+ * Suda simply leaves the shelfmark empty.
+ */
 export type Witness = {
     id: number;
-    type: WitnessType;
     siglum: string;
     label: string | null;
-    manuscript?: Manuscript | null;
-    works?: Work[];
-    transcriptions?: Transcription[];
-    transcription_layers?: TranscriptionLayer[];
-    deletion_impact?: DeletionImpact;
-};
-
-export type Manuscript = {
-    id: number;
-    witness_id: number;
     repository: string | null;
     shelfmark: string | null;
     date_text: string | null;
-    notes: string | null;
+    description: string | null;
+    works?: Work[];
+    transcriptions?: Transcription[];
+    transcription_layers?: TranscriptionLayer[];
     images?: ManuscriptImage[];
     pages?: ManuscriptPage[];
+    deletion_impact?: DeletionImpact;
 };
 
 /**
@@ -88,7 +84,7 @@ export type Manuscript = {
  */
 export type ManuscriptPage = {
     id: number;
-    manuscript_id: number;
+    witness_id: number;
     label: string;
     position: number;
     images?: ManuscriptImage[];
@@ -115,7 +111,7 @@ export type TranscriptionPageBreak = {
 
 export type ManuscriptImage = {
     id: number;
-    manuscript_id: number;
+    witness_id: number;
     manuscript_page_id: number;
     manuscript_page?: ManuscriptPage;
     url: string;
@@ -249,11 +245,6 @@ export type EditionPassage = {
 
 export type Visibility = 'published' | 'draft';
 
-export type Tag = {
-    id: number;
-    name: string;
-};
-
 /**
  * Which of a transcription's two layers this is. A transcription holds one
  * transcription per layer: `diplomatic` records what the manuscript
@@ -295,7 +286,6 @@ export type TranscriptionLayer = {
     user?: { id: number; name: string };
     segments?: TranscriptionSegment[];
     regions?: TranscriptionRegion[];
-    tags?: Tag[];
     deletion_impact?: DeletionImpact;
 };
 

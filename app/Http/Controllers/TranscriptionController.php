@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Enums\Layer;
 use App\Http\Requests\StoreTranscriptionRequest;
 use App\Http\Requests\UpdateTranscriptionRequest;
-use App\Models\Tag;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\Witness;
@@ -15,8 +14,8 @@ class TranscriptionController extends Controller
 {
     /**
      * Start a blank transcription of a witness. Text and segmentation both
-     * come later — this only records who it belongs to and, optionally, how
-     * it's tagged.
+     * come later — this only records who it belongs to and what it is
+     * called.
      *
      * Both layers are created at once and stay empty: a transcription always
      * consists of the two, and which one the editor starts in is a matter of
@@ -31,8 +30,6 @@ class TranscriptionController extends Controller
         ]);
 
         $normalized = $this->createLayers($transcription, $request->user()->id);
-
-        $this->syncTags($normalized, $request->validated('tags', []));
 
         return redirect()->route('transcriptions.show', $normalized);
     }
@@ -74,18 +71,14 @@ class TranscriptionController extends Controller
     }
 
     /**
-     * Save the layer's tags and/or its transcription's visibility. A
-     * transcription is public or it is not, and if it is, both of its layers
-     * are — so publishing from either layer publishes the transcription. Text
-     * is edited in-place through transcriptions.text.update instead — see
+     * Save the transcription's visibility. A transcription is public or it
+     * is not, and if it is, both of its layers are — so publishing from
+     * either layer publishes the transcription. Text is edited in-place
+     * through transcriptions.text.update instead — see
      * TranscriptionTextController.
      */
     public function update(UpdateTranscriptionRequest $request, TranscriptionLayer $transcription): RedirectResponse
     {
-        if ($request->has('tags')) {
-            $this->syncTags($transcription, $request->validated('tags', []));
-        }
-
         if ($request->has('visibility')) {
             $transcription->transcription->update(['visibility' => $request->validated('visibility')]);
         }
@@ -94,8 +87,8 @@ class TranscriptionController extends Controller
     }
 
     /**
-     * Deleting a transcription cascades its segments, regions, tag
-     * associations, and — if any of its words feed a published edition —
+     * Deleting a transcription cascades its segments, regions, and — if
+     * any of its words feed a published edition —
      * the edition's own LemmaReading selections and base-text choices for
      * that range. See App\Support\DeletionImpact for the preview shown
      * before this is confirmed.
@@ -106,13 +99,5 @@ class TranscriptionController extends Controller
         $transcription->delete();
 
         return redirect()->route('witnesses.show', $witness);
-    }
-
-    /**
-     * @param  list<string>  $tagNames
-     */
-    private function syncTags(TranscriptionLayer $transcription, array $tagNames): void
-    {
-        $transcription->tags()->sync(Tag::resolveIds($tagNames));
     }
 }

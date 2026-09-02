@@ -4,12 +4,12 @@ import AppHeader from '@/components/AppHeader.vue';
 import { store } from '@/routes/witnesses';
 
 const form = useForm({
-    type: 'manuscript',
     siglum: '',
     label: '',
     repository: '',
     shelfmark: '',
     date_text: '',
+    description: '',
 });
 
 function submit() {
@@ -36,25 +36,6 @@ function submit() {
 
             <form class="flex flex-col gap-4" @submit.prevent="submit">
                 <label class="flex flex-col gap-1 text-sm">
-                    Type
-                    <select
-                        v-model="form.type"
-                        class="w-64 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                    >
-                        <option value="manuscript">Manuscript</option>
-                        <option value="printed_edition">Printed edition</option>
-                        <option value="apparatus_reconstruction">
-                            Apparatus reconstruction
-                        </option>
-                    </select>
-                    <span
-                        v-if="form.errors.type"
-                        class="text-xs text-red-600 dark:text-red-400"
-                        >{{ form.errors.type }}</span
-                    >
-                </label>
-
-                <label class="flex flex-col gap-1 text-sm">
                     Siglum
                     <input
                         v-model="form.siglum"
@@ -79,41 +60,42 @@ function submit() {
                     />
                 </label>
 
-                <fieldset
-                    v-if="form.type === 'manuscript'"
-                    class="rounded-lg border border-stone-200 p-3 dark:border-stone-800"
-                >
-                    <legend class="px-1 text-sm font-medium">
-                        Manuscript details
-                    </legend>
-                    <div class="flex flex-col gap-3">
-                        <label class="flex flex-col gap-1 text-sm">
-                            Repository
-                            <input
-                                v-model="form.repository"
-                                type="text"
-                                class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                            />
-                        </label>
-                        <label class="flex flex-col gap-1 text-sm">
-                            Shelfmark
-                            <input
-                                v-model="form.shelfmark"
-                                type="text"
-                                class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                            />
-                        </label>
-                        <label class="flex flex-col gap-1 text-sm">
-                            Date
-                            <input
-                                v-model="form.date_text"
-                                type="text"
-                                placeholder="e.g. s. X"
-                                class="w-40 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                            />
-                        </label>
-                    </div>
-                </fieldset>
+                <!-- Every physical detail is optional: a collection of
+                     readings from the Suda has no shelfmark, and there is no
+                     witness "type" to pick — the empty fields say it all. -->
+                <label class="flex flex-col gap-1 text-sm">
+                    Date
+                    <input
+                        v-model="form.date_text"
+                        type="text"
+                        placeholder="e.g. s. X"
+                        class="w-40 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                    />
+                </label>
+                <label class="flex flex-col gap-1 text-sm">
+                    Repository
+                    <input
+                        v-model="form.repository"
+                        type="text"
+                        class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                    />
+                </label>
+                <label class="flex flex-col gap-1 text-sm">
+                    Shelfmark
+                    <input
+                        v-model="form.shelfmark"
+                        type="text"
+                        class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                    />
+                </label>
+                <label class="flex flex-col gap-1 text-sm">
+                    Description
+                    <textarea
+                        v-model="form.description"
+                        rows="3"
+                        class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                    ></textarea>
+                </label>
 
                 <button
                     type="submit"

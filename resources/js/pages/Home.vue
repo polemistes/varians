@@ -34,7 +34,7 @@ type WorkRow = Pick<Work, 'id' | 'title' | 'slug' | 'author'> & {
     transcription_segments_count: number;
 };
 
-type WitnessRow = Pick<Witness, 'id' | 'siglum' | 'label' | 'type'> & {
+type WitnessRow = Pick<Witness, 'id' | 'siglum' | 'label' | 'date_text'> & {
     transcriptions_count: number;
 };
 
@@ -181,7 +181,9 @@ function removeWitness(witness: WitnessRow) {
                                 <span
                                     class="block text-xs text-stone-500 dark:text-stone-400"
                                 >
-                                    {{ witness.label ?? witness.type }}
+                                    {{
+                                        witness.label ?? witness.date_text ?? ''
+                                    }}
                                 </span>
                             </Link>
                             <button

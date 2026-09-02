@@ -4,39 +4,32 @@ use App\Models\EditionLemma;
 use App\Models\EditionPassage;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
-use App\Models\Manuscript;
 use App\Models\ManuscriptImage;
 use App\Models\ManuscriptImageFeature;
-use App\Models\Tag;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
-use Illuminate\Support\Facades\DB;
 
-test('deleting a witness cascades its manuscript, images, transcriptions, and their spans, and redirects home', function () {
+test('deleting a witness cascades its pages, images, transcriptions, and their spans, and redirects home', function () {
     $this->actingAs(User::factory()->editor()->create());
     $witness = Witness::factory()->create();
-    $manuscript = Manuscript::factory()->for($witness)->create();
-    $image = ManuscriptImage::factory()->for($manuscript)->create();
+    $image = ManuscriptImage::factory()->for($witness)->create();
     $feature = ManuscriptImageFeature::factory()->for($image, 'manuscriptImage')->create();
     $transcription = TranscriptionLayer::factory()->for($witness)->create();
     $segment = TranscriptionSegment::factory()->for($transcription)->create();
     $region = TranscriptionRegion::factory()->for($transcription)->for($image, 'manuscriptImage')->create();
-    $transcription->tags()->attach(Tag::factory()->create());
 
     $response = $this->delete(route('witnesses.destroy', $witness));
 
     $response->assertRedirect(route('home'));
     expect(Witness::find($witness->id))->toBeNull()
-        ->and(Manuscript::find($manuscript->id))->toBeNull()
         ->and(ManuscriptImage::find($image->id))->toBeNull()
         ->and(ManuscriptImageFeature::find($feature->id))->toBeNull()
         ->and(TranscriptionLayer::find($transcription->id))->toBeNull()
         ->and(TranscriptionSegment::find($segment->id))->toBeNull()
-        ->and(TranscriptionRegion::find($region->id))->toBeNull()
-        ->and(DB::table('tag_transcription_layer')->where('transcription_layer_id', $transcription->id)->count())->toBe(0);
+        ->and(TranscriptionRegion::find($region->id))->toBeNull();
 });
 
 test('deleting a witness whose transcription feeds a published edition removes that edition\'s selection and edition-passage membership', function () {

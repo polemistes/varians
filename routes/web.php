@@ -164,6 +164,7 @@ Route::middleware('role:editor')->group(function () {
         ->name('conjectures.destroy');
 
     Route::post('/witnesses', [WitnessController::class, 'store'])->name('witnesses.store');
+    Route::patch('/witnesses/{witness}', [WitnessController::class, 'update'])->name('witnesses.update');
     Route::delete('/witnesses/{witness}', [WitnessController::class, 'destroy'])->name('witnesses.destroy');
     Route::post('/witnesses/{witness}/transcriptions', [TranscriptionController::class, 'store'])
         ->name('witnesses.transcriptions.store');
@@ -194,7 +195,7 @@ Route::middleware('role:editor')->group(function () {
     Route::post('/transcriptions/{transcription}/copy', [TranscriptionLayerCopyController::class, 'store'])
         ->name('transcriptions.copy.store');
 
-    Route::post('/manuscripts/{manuscript}/pages', [ManuscriptPageController::class, 'store'])
+    Route::post('/witnesses/{witness}/pages', [ManuscriptPageController::class, 'store'])
         ->name('manuscript-pages.store');
     Route::delete('/manuscript-pages/{page}', [ManuscriptPageController::class, 'destroy'])
         ->name('manuscript-pages.destroy');
@@ -204,7 +205,7 @@ Route::middleware('role:editor')->group(function () {
     Route::delete('/transcription-page-breaks/{pageBreak}', [TranscriptionPageBreakController::class, 'destroy'])
         ->name('transcription-page-breaks.destroy');
 
-    Route::post('/manuscripts/{manuscript}/images', [ManuscriptImageController::class, 'store'])
+    Route::post('/witnesses/{witness}/images', [ManuscriptImageController::class, 'store'])
         ->name('manuscript-images.store');
     Route::delete('/manuscript-images/{image}', [ManuscriptImageController::class, 'destroy'])
         ->name('manuscript-images.destroy');

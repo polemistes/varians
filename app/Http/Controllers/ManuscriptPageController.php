@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreManuscriptPageRequest;
-use App\Models\Manuscript;
 use App\Models\ManuscriptPage;
+use App\Models\Witness;
 use Illuminate\Http\RedirectResponse;
 
 class ManuscriptPageController extends Controller
@@ -14,11 +14,11 @@ class ManuscriptPageController extends Controller
      * transcribing begins — and before any image exists — so that an imported
      * text can be divided onto them.
      */
-    public function store(StoreManuscriptPageRequest $request, Manuscript $manuscript): RedirectResponse
+    public function store(StoreManuscriptPageRequest $request, Witness $witness): RedirectResponse
     {
-        $manuscript->pages()->create([
+        $witness->pages()->create([
             'label' => $request->validated('label'),
-            'position' => ($manuscript->pages()->max('position') ?? 0) + 1,
+            'position' => ($witness->pages()->max('position') ?? 0) + 1,
         ]);
 
         return back();

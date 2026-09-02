@@ -1,14 +1,16 @@
 ---
 paths:
-  - 'app/Models/{Transcription,TranscriptionSegment,TranscriptionRegion,Tag}.php,app/Http/Controllers/Transcription*.php,resources/js/pages/Transcriptions/**,resources/js/components/AlignableText.vue'
+  - 'app/Models/{Transcription,TranscriptionSegment,TranscriptionRegion,Witness}.php,app/Http/Controllers/Transcription*.php,app/Http/Controllers/WitnessController.php,resources/js/pages/Transcriptions/**,resources/js/pages/Witnesses/**,resources/js/components/AlignableText.vue'
 ---
 
 # Js Components
 
 ## Transcription text is continuous; segments/regions are span annotations, not input units
-A `Transcription` owns one continuous `text` field (the whole diplomatic-order document, in the physical order the scholar typed it while reading the manuscript) plus free-form `tags` (many-to-many, scholar-defined vocabulary, purely descriptive). Segmentation is NOT part of input.
+A `Transcription` owns one continuous `text` field (the whole diplomatic-order document, in the physical order the scholar typed it while reading the manuscript). Segmentation is NOT part of input.
 
-Tags do not carry the diplomatic/normalized distinction — that is `Transcription.layer`, a real structural column, because it decides what enters the apparatus. See `.ai/rules/edition.md`.
+The tags system (Tag model, `tag_transcription_layer` pivot, the whole tag UI) was REMOVED, deliberately (user decision): a transcription's *name* says what it is. The diplomatic/normalized distinction is `Transcription.layer`, a real structural column, because it decides what enters the apparatus. See `.ai/rules/edition.md`. Do not reintroduce tags.
+
+**A witness IS its physical carrier.** The witness `type` and the separate `Manuscript` model are both gone (user decision): every witness carries repository, shelfmark, date_text and description directly, all optional — a collection of readings from the Suda simply leaves the shelfmark empty — and pages/photographs hang off the witness. The old `Manuscript.notes` content became `Witness.description`. On the witness page, everything witness-scoped (identity, date, location, Show description, Edit/Delete witness, Add transcription) lives in ONE `fieldset` whose `legend` says "Witness" — the same device will mark the edition editor, so the user always knows which editor she is in.
 
 `TranscriptionSegment` (citation spans) and `TranscriptionRegion` (image-alignment spans) both own no text of their own — they're `{start_offset, end_offset}` annotations directly over `Transcription.text`, created by selecting a range in the rendered view (see `AlignableText.vue`'s `select`/`badge-click` events, orchestrated in `Transcriptions/Editor.vue`). They're independent dimensions of the same text — a citation span and an image region needn't share boundaries. Physical reading order is simply a span's offset in the string; no manual `position` field exists anymore for either.
 

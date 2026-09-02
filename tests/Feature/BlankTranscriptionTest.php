@@ -2,7 +2,6 @@
 
 use App\Enums\Layer;
 use App\Models\Transcription;
-use App\Models\TranscriptionLayer;
 use App\Models\User;
 use App\Models\Witness;
 
@@ -26,16 +25,4 @@ test('a blank transcription can be started for a witness, without importing any 
         ->and($normalized->text)->toBe('')
         ->and($normalized->segments)->toBeEmpty()
         ->and($transcription->diplomatic->text)->toBe('');
-});
-
-test('a blank transcription can be started with initial tags', function () {
-    $this->actingAs(User::factory()->editor()->create());
-    $witness = Witness::factory()->create();
-
-    $this->post(route('witnesses.transcriptions.store', $witness), [
-        'tags' => ['diplomatic'],
-    ]);
-
-    $normalized = TranscriptionLayer::where('layer', Layer::Normalized)->sole();
-    expect($normalized->tags()->pluck('name')->all())->toBe(['diplomatic']);
 });

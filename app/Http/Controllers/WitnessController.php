@@ -3,10 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Enums\Layer;
-use App\Enums\WitnessType;
 use App\Http\Requests\StoreWitnessRequest;
+use App\Http\Requests\UpdateWitnessRequest;
 use App\Models\ManuscriptImage;
-use App\Models\Tag;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\Witness;
@@ -31,13 +30,21 @@ class WitnessController extends Controller
      */
     public function store(StoreWitnessRequest $request): RedirectResponse
     {
-        $witness = Witness::create($request->safe()->only(['type', 'siglum', 'label']));
-
-        if ($witness->type === WitnessType::Manuscript) {
-            $witness->manuscript()->create($request->safe()->only(['repository', 'shelfmark', 'date_text']));
-        }
+        $witness = Witness::create($request->validated());
 
         return redirect()->route('witnesses.show', $witness);
+    }
+
+    /**
+     * Every witness field is editable after the fact — a shelfmark gets
+     * corrected, a date refined, a description written once the witness has
+     * been studied.
+     */
+    public function update(UpdateWitnessRequest $request, Witness $witness): RedirectResponse
+    {
+        $witness->update($request->validated());
+
+        return back();
     }
 
     /**
@@ -57,8 +64,6 @@ class WitnessController extends Controller
     {
         $this->authorize('view', $witness);
 
-        $witness->load('manuscript');
-
         $transcriptions = $witness->transcriptions()->visibleTo($request->user())
             ->orderBy('position')->orderBy('id')
             ->get(['id', 'witness_id', 'name', 'position', 'visibility']);
@@ -77,28 +82,23 @@ class WitnessController extends Controller
                 'segments' => fn ($query) => $query->orderBy('start_offset'),
                 'segments.canonicalPassage.work',
                 'regions' => fn ($query) => $query->orderBy('position'),
-                'tags',
             ]);
 
             $layer->setAttribute('deletion_impact', DeletionImpact::forTranscription($layer));
         }
 
-        if ($witness->manuscript) {
-            $pages = $witness->manuscript->pages()->orderBy('position')->get();
-            $images = $witness->manuscript->images()->visibleTo($request->user())
-                ->with(['features', 'manuscriptPage'])->orderBy('position')->get();
-            $images->each(fn (ManuscriptImage $image) => $image->setAttribute('deletion_impact', DeletionImpact::forManuscriptImage($image)));
+        $pages = $witness->pages()->orderBy('position')->get();
+        $images = $witness->images()->visibleTo($request->user())
+            ->with(['features', 'manuscriptPage'])->orderBy('position')->get();
+        $images->each(fn (ManuscriptImage $image) => $image->setAttribute('deletion_impact', DeletionImpact::forManuscriptImage($image)));
 
-            $pages->each(fn ($page) => $page->setRelation(
-                'images',
-                $images->where('manuscript_page_id', $page->id)->values(),
-            ));
+        $pages->each(fn ($page) => $page->setRelation(
+            'images',
+            $images->where('manuscript_page_id', $page->id)->values(),
+        ));
 
-            $witness->manuscript->setRelation('pages', $pages);
-            $witness->manuscript->setRelation('images', $images);
-        }
-
-        $witness->setRelation('works', $witness->relatedWorks()->get(['works.id', 'works.title', 'works.slug']));
+        $witness->setRelation('pages', $pages);
+        $witness->setRelation('images', $images);
         $witness->setAttribute('deletion_impact', DeletionImpact::forWitness($witness));
 
         return Inertia::render('Witnesses/Show', [
@@ -116,7 +116,6 @@ class WitnessController extends Controller
             // can recompute it per save without re-running the whole page.
             'layerCorrespondence' => fn () => $this->layerCorrespondence($layer),
             'works' => Work::with('referenceScheme')->orderBy('title')->get(),
-            'existingTags' => Tag::orderBy('name')->pluck('name'),
         ]);
     }
 
@@ -175,9 +174,9 @@ class WitnessController extends Controller
     }
 
     /**
-     * Deleting a witness cascades its manuscript (and every image, feature,
-     * and image-region on it) and every one of its transcriptions (and
-     * their segments, regions, tags, and — if any feed a published edition —
+     * Deleting a witness cascades its pages (and every image, feature,
+     * and image-region on them) and every one of its transcriptions (and
+     * their segments, regions, and — if any feed a published edition —
      * the edition's own LemmaReading selections and base-text choices). See
      * App\Support\DeletionImpact for the preview shown before this is
      * confirmed.

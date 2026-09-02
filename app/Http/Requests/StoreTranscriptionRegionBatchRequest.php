@@ -26,12 +26,12 @@ class StoreTranscriptionRegionBatchRequest extends FormRequest
     {
         /** @var TranscriptionLayer $transcription */
         $transcription = $this->route('transcription');
-        $manuscriptId = $transcription->witness->manuscript?->id;
+        $witnessId = $transcription->witness->id;
 
         return [
             'manuscript_image_id' => [
                 'required',
-                Rule::exists('manuscript_images', 'id')->where('manuscript_id', $manuscriptId),
+                Rule::exists('manuscript_images', 'id')->where('witness_id', $witnessId),
             ],
             'granularity' => ['required', Rule::in(['line', 'word', 'character'])],
             'start_offset' => ['required', 'integer', 'min:0'],

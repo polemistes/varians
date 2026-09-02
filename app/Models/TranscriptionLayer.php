@@ -12,7 +12,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 use Illuminate\Support\Carbon;
@@ -156,14 +155,6 @@ class TranscriptionLayer extends Model
     public function lemmaReadings(): HasMany
     {
         return $this->hasMany(LemmaReading::class);
-    }
-
-    /**
-     * @return BelongsToMany<Tag, $this>
-     */
-    public function tags(): BelongsToMany
-    {
-        return $this->belongsToMany(Tag::class);
     }
 
     /**

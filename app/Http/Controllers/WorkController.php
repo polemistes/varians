@@ -55,11 +55,11 @@ class WorkController extends Controller
             'editions' => fn ($query) => $query->visibleTo($request->user())->orderBy('title'),
         ]);
 
-        $work->setRelation('witnesses', $work->relatedWitnesses()->with('manuscript')->orderBy('siglum')->get());
+        $work->setRelation('witnesses', $work->relatedWitnesses()->orderBy('siglum')->get());
 
         $transcriptions = TranscriptionLayer::forWork($work)
             ->visibleTo($request->user())
-            ->with(['witness', 'user', 'tags', 'transcription'])
+            ->with(['witness', 'user', 'transcription'])
             ->get();
 
         $allWitnesses = Witness::visibleTo($request->user())->orderBy('siglum')->get(['id', 'siglum', 'label', 'type']);

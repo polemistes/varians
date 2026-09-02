@@ -20,24 +20,24 @@ use Illuminate\Support\Carbon;
  * later, or never.
  *
  * @property int $id
- * @property int $manuscript_id
+ * @property int $witness_id
  * @property string $label
  * @property float $position
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['manuscript_id', 'label', 'position'])]
+#[Fillable(['witness_id', 'label', 'position'])]
 class ManuscriptPage extends Model
 {
     /** @use HasFactory<ManuscriptPageFactory> */
     use HasFactory;
 
     /**
-     * @return BelongsTo<Manuscript, $this>
+     * @return BelongsTo<Witness, $this>
      */
-    public function manuscript(): BelongsTo
+    public function witness(): BelongsTo
     {
-        return $this->belongsTo(Manuscript::class);
+        return $this->belongsTo(Witness::class);
     }
 
     /**

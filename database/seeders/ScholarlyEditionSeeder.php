@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use App\Enums\ConjectureType;
 use App\Enums\Layer;
 use App\Enums\Visibility;
-use App\Enums\WitnessType;
 use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
@@ -13,11 +12,9 @@ use App\Models\EditionComment;
 use App\Models\EditionLemma;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
-use App\Models\Manuscript;
 use App\Models\ManuscriptImage;
 use App\Models\ManuscriptPage;
 use App\Models\ReferenceScheme;
-use App\Models\Tag;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
@@ -91,31 +88,26 @@ class ScholarlyEditionSeeder extends Seeder
         }
 
         $witness = Witness::create([
-            'type' => WitnessType::Manuscript,
             'siglum' => 'A',
             'label' => 'Venetus A',
-        ]);
-
-        $manuscript = Manuscript::create([
-            'witness_id' => $witness->id,
             'repository' => 'Biblioteca Nazionale Marciana',
             'shelfmark' => 'Marc. gr. Z. 454',
             'date_text' => 's. X',
-            'notes' => 'The principal manuscript of the Iliad, containing extensive scholia.',
+            'description' => 'The principal manuscript of the Iliad, containing extensive scholia.',
         ]);
 
         $pages = [];
 
         foreach (['12r', '12v'] as $index => $folio) {
-            $pages[$folio] = $manuscript->pages()->create([
+            $pages[$folio] = $witness->pages()->create([
                 'label' => $folio,
                 'position' => $index + 1,
             ]);
 
             ManuscriptImage::create([
-                'manuscript_id' => $manuscript->id,
+                'witness_id' => $witness->id,
                 'manuscript_page_id' => $pages[$folio]->id,
-                'path' => $this->placeholderImage($manuscript->shelfmark, $folio),
+                'path' => $this->placeholderImage($witness->shelfmark, $folio),
                 'position' => $index + 1,
             ]);
         }
@@ -123,7 +115,7 @@ class ScholarlyEditionSeeder extends Seeder
         // A third page nobody has photographed, so that the two-pane view has
         // the ordinary case to show: a page whose text is transcribed from
         // something other than an image.
-        $pages['13r'] = $manuscript->pages()->create(['label' => '13r', 'position' => 3]);
+        $pages['13r'] = $witness->pages()->create(['label' => '13r', 'position' => 3]);
 
         // Both layers of the same witness — the case that motivated
         // Layer. Only the normalized one is collated; without
@@ -148,8 +140,8 @@ class ScholarlyEditionSeeder extends Seeder
         ];
 
         $transcriptionA = $this->startTranscription($witness);
-        $this->createTranscription($transcriptionA, $scholar, $this->entriesFor($lines, $passages), ['diplomatic'], Layer::Diplomatic);
-        $baseA = $this->createTranscription($transcriptionA, $scholar, $this->entriesFor($normalized, $passages), ['normalized', 'punctuated'], Layer::Normalized);
+        $this->createTranscription($transcriptionA, $scholar, $this->entriesFor($lines, $passages), Layer::Diplomatic);
+        $baseA = $this->createTranscription($transcriptionA, $scholar, $this->entriesFor($normalized, $passages), Layer::Normalized);
 
         // Divide both layers onto the pages: five lines to 12r, three to 12v,
         // the last two to the unphotographed 13r. Each layer is divided on its
@@ -172,7 +164,6 @@ class ScholarlyEditionSeeder extends Seeder
     private function seedIliadWitnesses(User $scholar, array $passages, array $normalized): void
     {
         $b = Witness::create([
-            'type' => WitnessType::Manuscript,
             'siglum' => 'B',
             'label' => 'Venetus B',
         ]);
@@ -194,11 +185,10 @@ class ScholarlyEditionSeeder extends Seeder
         $bDiplomatic = array_map(fn (string $line) => GreekText::stripDiacritics($line), $bNormalized);
 
         $transcriptionB = $this->startTranscription($b);
-        $this->createTranscription($transcriptionB, $scholar, $this->entriesFor($bDiplomatic, $passages), ['diplomatic'], Layer::Diplomatic);
-        $this->createTranscription($transcriptionB, $scholar, $this->entriesFor($bNormalized, $passages), ['normalized'], Layer::Normalized);
+        $this->createTranscription($transcriptionB, $scholar, $this->entriesFor($bDiplomatic, $passages), Layer::Diplomatic);
+        $this->createTranscription($transcriptionB, $scholar, $this->entriesFor($bNormalized, $passages), Layer::Normalized);
 
         $c = Witness::create([
-            'type' => WitnessType::Manuscript,
             'siglum' => 'C',
             'label' => 'Codex Laurentianus',
         ]);
@@ -209,7 +199,7 @@ class ScholarlyEditionSeeder extends Seeder
         unset($cNormalized[3], $cNormalized[6]);
         $cNormalized[10] = 'νοῦσον ἀνὰ στρατὸν ὄρσε κακά, ὀλέκοντο δὲ λαοί,';
 
-        $this->createTranscription($this->startTranscription($c), $scholar, $this->entriesFor($cNormalized, $passages), ['normalized'], Layer::Normalized);
+        $this->createTranscription($this->startTranscription($c), $scholar, $this->entriesFor($cNormalized, $passages), Layer::Normalized);
     }
 
     /**
@@ -386,26 +376,21 @@ class ScholarlyEditionSeeder extends Seeder
         ];
 
         $witness = Witness::create([
-            'type' => WitnessType::Manuscript,
             'siglum' => 'B',
             'label' => 'Codex Clarkianus',
-        ]);
-
-        $manuscript = Manuscript::create([
-            'witness_id' => $witness->id,
             'repository' => 'Bodleian Library',
             'shelfmark' => 'MS. E. D. Clarke 39',
             'date_text' => 'AD 895',
-            'notes' => 'Copied for Arethas of Patras; the primary witness for much of the Platonic corpus.',
+            'description' => 'Copied for Arethas of Patras; the primary witness for much of the Platonic corpus.',
         ]);
 
         ManuscriptImage::create([
-            'manuscript_id' => $manuscript->id,
-            'manuscript_page_id' => $manuscript->pages()->create([
+            'witness_id' => $witness->id,
+            'manuscript_page_id' => $witness->pages()->create([
                 'label' => '1r',
                 'position' => 1,
             ])->id,
-            'path' => $this->placeholderImage($manuscript->shelfmark, '1r'),
+            'path' => $this->placeholderImage($witness->shelfmark, '1r'),
             'position' => 1,
         ]);
 
@@ -432,7 +417,7 @@ class ScholarlyEditionSeeder extends Seeder
 
         // Normalized: this is the Apology edition's own base, and only the
         // collatable layer may be one.
-        $this->createTranscription($this->startTranscription($witness), $scholar, $entries, ['normalized'], Layer::Normalized);
+        $this->createTranscription($this->startTranscription($witness), $scholar, $entries, Layer::Normalized);
     }
 
     /**
@@ -474,9 +459,8 @@ class ScholarlyEditionSeeder extends Seeder
      * one continuous document, annotated with spans afterward.
      *
      * @param  list<array{text: string, passage: CanonicalPassage, paragraphBreakBefore?: bool}>  $entries
-     * @param  list<string>  $tagNames
      */
-    private function createTranscription(Transcription $parent, User $scholar, array $entries, array $tagNames, Layer $layer): TranscriptionLayer
+    private function createTranscription(Transcription $parent, User $scholar, array $entries, Layer $layer): TranscriptionLayer
     {
         $text = '';
         $spans = [];
@@ -505,10 +489,6 @@ class ScholarlyEditionSeeder extends Seeder
                 'end_offset' => $span['end'],
             ]);
         }
-
-        $transcription->tags()->attach(
-            collect($tagNames)->map(fn (string $name) => Tag::firstOrCreate(['name' => $name])->id),
-        );
 
         return $transcription;
     }

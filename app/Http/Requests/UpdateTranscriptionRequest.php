@@ -28,8 +28,6 @@ class UpdateTranscriptionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'tags' => ['sometimes', 'array'],
-            'tags.*' => ['string', 'max:50'],
             'visibility' => ['sometimes', new Enum(Visibility::class)],
         ];
     }

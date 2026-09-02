@@ -71,16 +71,10 @@ function removeWork() {
 }
 
 function manuscriptSummary(witness: Witness): string | null {
-    const manuscript = witness.manuscript;
-
-    if (!manuscript) {
-        return null;
-    }
-
-    const location = [manuscript.repository, manuscript.shelfmark]
+    const location = [witness.repository, witness.shelfmark]
         .filter(Boolean)
         .join(', ');
-    const date = manuscript.date_text ? `(${manuscript.date_text})` : '';
+    const date = witness.date_text ? `(${witness.date_text})` : '';
 
     return [location, date].filter(Boolean).join(' ') || null;
 }
@@ -254,8 +248,9 @@ function manuscriptSummary(witness: Witness): string | null {
                                 {{ witness.label }}</span
                             >
                             <span
+                                v-if="witness.date_text"
                                 class="text-xs text-stone-500 dark:text-stone-400"
-                                >{{ witness.type }}</span
+                                >({{ witness.date_text }})</span
                             >
                         </Link>
                         <div

@@ -2,8 +2,8 @@
 
 namespace Database\Factories;
 
-use App\Models\Manuscript;
 use App\Models\ManuscriptPage;
+use App\Models\Witness;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -19,7 +19,7 @@ class ManuscriptPageFactory extends Factory
     public function definition(): array
     {
         return [
-            'manuscript_id' => Manuscript::factory(),
+            'witness_id' => Witness::factory(),
             'label' => fake()->numberBetween(1, 200).fake()->randomElement(['r', 'v']),
             'position' => fake()->randomFloat(2, 1, 500),
         ];

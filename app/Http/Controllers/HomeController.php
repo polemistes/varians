@@ -38,7 +38,7 @@ class HomeController extends Controller
             'witnesses' => Witness::visibleTo($request->user())
                 ->withCount('transcriptions')
                 ->orderBy('siglum')
-                ->get(['id', 'siglum', 'label', 'type']),
+                ->get(['id', 'siglum', 'label', 'date_text']),
         ]);
     }
 }

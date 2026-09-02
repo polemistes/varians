@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import AlignableText from '@/components/AlignableText.vue';
 import AppHeader from '@/components/AppHeader.vue';
@@ -39,10 +39,12 @@ import {
 } from '@/routes/transcriptions';
 import { create as createLayerCopy } from '@/routes/transcriptions/copy';
 import { update as updateTranscriptionText } from '@/routes/transcriptions/text';
-import { show as showWitnessRoute } from '@/routes/witnesses';
+import {
+    show as showWitnessRoute,
+    update as updateWitness,
+} from '@/routes/witnesses';
 import { destroy as destroyWitness } from '@/routes/witnesses';
 import { store as storeTranscriptionRoute } from '@/routes/witnesses/transcriptions';
-import { show as showWork } from '@/routes/works';
 import type { Auth } from '@/types/auth';
 import type {
     Transcription,
@@ -76,7 +78,6 @@ const props = defineProps<{
         } | null;
     } | null;
     works: Work[];
-    existingTags: string[];
 }>();
 
 // A witness may have no transcription at all, so everything below reads the
@@ -135,20 +136,47 @@ function removeWitness() {
     router.delete(destroyWitness.url(props.witness));
 }
 
-const manuscriptSummary = computed(() => {
-    const manuscript = props.witness.manuscript;
+/** Repository and shelfmark as one line, empty parts simply absent. */
+const witnessLocation = computed(
+    () =>
+        [props.witness.repository, props.witness.shelfmark]
+            .filter(Boolean)
+            .join(', ') || null,
+);
 
-    if (!manuscript) {
-        return null;
-    }
-
-    const location = [manuscript.repository, manuscript.shelfmark]
-        .filter(Boolean)
-        .join(', ');
-    const date = manuscript.date_text ? `(${manuscript.date_text})` : '';
-
-    return [location, date].filter(Boolean).join(' ') || null;
+// ---- editing the witness ----
+const editingWitness = ref(false);
+const showDescription = ref(false);
+const witnessForm = useForm({
+    siglum: props.witness.siglum,
+    label: props.witness.label ?? '',
+    date_text: props.witness.date_text ?? '',
+    repository: props.witness.repository ?? '',
+    shelfmark: props.witness.shelfmark ?? '',
+    description: props.witness.description ?? '',
 });
+
+function saveWitness() {
+    witnessForm
+        .transform((data) => ({
+            siglum: data.siglum,
+            label: data.label || null,
+            date_text: data.date_text || null,
+            repository: data.repository || null,
+            shelfmark: data.shelfmark || null,
+            description: data.description || null,
+        }))
+        .patch(updateWitness.url(props.witness.id), {
+            preserveScroll: true,
+            onSuccess: () => (editingWitness.value = false),
+        });
+}
+
+function cancelWitnessEdit() {
+    witnessForm.reset();
+    witnessForm.clearErrors();
+    editingWitness.value = false;
+}
 
 function removeTranscription() {
     const parts = describeDeletionImpact(layer.value?.deletion_impact, [
@@ -181,41 +209,6 @@ function removeTranscription() {
     if (layer.value) {
         router.delete(destroyTranscription.url(layer.value));
     }
-}
-
-// ---- tags ----
-const tagsForm = useForm({
-    tags: (props.transcription?.tags ?? []).map((tag) => tag.name),
-});
-const newTagInput = ref('');
-
-function addTag(name?: string) {
-    const value = (name ?? newTagInput.value).trim();
-
-    if (!value || tagsForm.tags.includes(value)) {
-        return;
-    }
-
-    tagsForm.tags.push(value);
-    newTagInput.value = '';
-}
-
-function removeTag(name: string) {
-    tagsForm.tags = tagsForm.tags.filter((tag) => tag !== name);
-}
-
-function saveTags() {
-    if (!layer.value) {
-        return;
-    }
-
-    tagsForm.patch(updateTranscription.url(layer.value), {
-        preserveScroll: true,
-    });
-}
-
-function cancelTags() {
-    tagsForm.reset();
 }
 
 // A plain ref (not a separate useForm) so this always PATCHes the *current*
@@ -645,8 +638,7 @@ watch(
 );
 
 // ---- manuscript images ----
-const manuscript = computed(() => props.witness.manuscript ?? null);
-const images = computed(() => manuscript.value?.images ?? []);
+const images = computed(() => props.witness.images ?? []);
 
 // Which leaf is on the right follows from which page is on the left — see the
 // page block below, where a watcher keeps this pointing at a photograph of the
@@ -697,11 +689,7 @@ function onImageFileChange(event: Event) {
 }
 
 function uploadImage() {
-    if (!manuscript.value) {
-        return;
-    }
-
-    imageUploadForm.post(storeImage.url(manuscript.value.id), {
+    imageUploadForm.post(storeImage.url(props.witness.id), {
         preserveScroll: true,
         onSuccess: () => imageUploadForm.reset(),
     });
@@ -748,7 +736,7 @@ const activeRegions = computed(() => editedRegions.value);
 // this component works in whole-text offsets, so the slice is converted at
 // exactly two places inbound (a selection, an edit) and at the props handed to
 // AlignableText outbound. `toFull` and `toPage` are the only conversions.
-const pages = computed(() => manuscript.value?.pages ?? []);
+const pages = computed(() => props.witness.pages ?? []);
 
 /** The character offset at which a line begins in the given text. */
 function offsetOfLine(text: string, line: number): number {
@@ -1078,12 +1066,12 @@ function startPageHere() {
 const newPageLabel = ref('');
 
 function addPage() {
-    if (!manuscript.value || !newPageLabel.value.trim()) {
+    if (!newPageLabel.value.trim()) {
         return;
     }
 
     router.post(
-        storeManuscriptPage.url(manuscript.value.id),
+        storeManuscriptPage.url(props.witness.id),
         { label: newPageLabel.value.trim() },
         { preserveScroll: true, onSuccess: () => (newPageLabel.value = '') },
     );
@@ -1735,114 +1723,161 @@ function fixBoundaries() {
         <div class="mx-auto max-w-7xl">
             <AppHeader />
 
-            <div class="mt-2 mb-1 flex items-baseline gap-3">
-                <h1 class="font-serif text-2xl font-medium">
-                    {{ props.witness.siglum }}
-                    <template v-if="props.witness.label">
-                        &mdash; {{ props.witness.label }}
-                    </template>
-                </h1>
-                <span class="text-xs text-stone-500 dark:text-stone-400">{{
-                    props.witness.type
-                }}</span>
-            </div>
-
-            <div
-                class="mb-6 flex flex-wrap items-center justify-between gap-4 text-sm"
+            <!-- Everything that pertains to the WITNESS lives in this one
+                 box, and the word in its border says which editor page this
+                 is — the edition page carries the same device. -->
+            <fieldset
+                class="mt-2 mb-6 inline-block min-w-80 rounded-lg border border-stone-300 px-4 pb-3 text-sm dark:border-stone-700"
             >
-                <p class="text-stone-600 dark:text-stone-400">
-                    <span v-if="manuscriptSummary">{{
-                        manuscriptSummary
-                    }}</span>
-                    <span
-                        v-for="work in props.witness.works ?? []"
-                        :key="work.id"
-                        class="ml-2"
-                    >
-                        <Link
-                            :href="showWork.url(work)"
-                            class="underline underline-offset-2"
-                            >{{ work.title }}</Link
+                <legend
+                    class="px-2 text-xs font-medium tracking-widest text-stone-500 uppercase dark:text-stone-400"
+                >
+                    Witness
+                </legend>
+
+                <template v-if="!editingWitness">
+                    <h1 class="font-serif text-2xl font-medium">
+                        {{ props.witness.siglum }}
+                        <template v-if="props.witness.label">
+                            &mdash; {{ props.witness.label }}
+                        </template>
+                        <span
+                            v-if="props.witness.date_text"
+                            class="text-base font-normal text-stone-500 dark:text-stone-400"
                         >
-                    </span>
-                </p>
-                <button
-                    v-if="canEdit"
-                    type="button"
-                    class="text-xs text-red-600 underline dark:text-red-400"
-                    @click="removeWitness"
-                >
-                    Delete witness
-                </button>
-            </div>
-
-            <div v-if="canEdit" class="mb-4">
-                <button
-                    type="button"
-                    class="text-xs text-red-600 underline dark:text-red-400"
-                    @click="removeTranscription"
-                >
-                    Delete transcription
-                </button>
-            </div>
-
-            <div v-if="canEdit" class="mb-6 flex flex-wrap items-center gap-2">
-                <span
-                    v-for="tag in tagsForm.tags"
-                    :key="tag"
-                    class="flex items-center gap-1 rounded-full bg-stone-200 px-2.5 py-0.5 text-xs text-stone-700 dark:bg-stone-800 dark:text-stone-300"
-                >
-                    {{ tag }}
-                    <button
-                        type="button"
-                        class="text-stone-500 hover:text-red-600 dark:text-stone-400"
-                        @click="removeTag(tag)"
+                            ({{ props.witness.date_text }})
+                        </span>
+                    </h1>
+                    <p
+                        v-if="witnessLocation"
+                        class="text-stone-600 dark:text-stone-400"
                     >
-                        ×
-                    </button>
-                </span>
-                <input
-                    v-model="newTagInput"
-                    type="text"
-                    list="existing-tags"
-                    placeholder="+ tag"
-                    class="w-28 rounded border border-dashed border-stone-300 bg-transparent px-2 py-0.5 text-xs dark:border-stone-700"
-                    @keydown.enter.prevent="addTag()"
-                />
-                <datalist id="existing-tags">
-                    <option
-                        v-for="tag in existingTags"
-                        :key="tag"
-                        :value="tag"
-                    />
-                </datalist>
-                <button
-                    v-if="tagsForm.isDirty"
-                    type="button"
-                    class="rounded bg-stone-900 px-2 py-0.5 text-xs text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
-                    :disabled="tagsForm.processing"
-                    @click="saveTags"
+                        {{ witnessLocation }}
+                    </p>
+                    <p
+                        v-if="showDescription && props.witness.description"
+                        class="mt-2 max-w-prose text-stone-600 dark:text-stone-400"
+                    >
+                        {{ props.witness.description }}
+                    </p>
+
+                    <div class="mt-2 flex flex-wrap items-center gap-3 text-xs">
+                        <button
+                            v-if="props.witness.description"
+                            type="button"
+                            class="text-stone-500 underline dark:text-stone-400"
+                            @click="showDescription = !showDescription"
+                        >
+                            {{
+                                showDescription
+                                    ? 'Hide description'
+                                    : 'Show description'
+                            }}
+                        </button>
+                        <template v-if="canEdit">
+                            <button
+                                type="button"
+                                class="text-stone-500 underline dark:text-stone-400"
+                                @click="editingWitness = true"
+                            >
+                                Edit witness
+                            </button>
+                            <button
+                                type="button"
+                                class="text-stone-500 underline dark:text-stone-400"
+                                @click="addTranscription"
+                            >
+                                + Add transcription
+                            </button>
+                            <button
+                                type="button"
+                                class="text-red-600 underline dark:text-red-400"
+                                @click="removeWitness"
+                            >
+                                Delete witness
+                            </button>
+                        </template>
+                    </div>
+                </template>
+
+                <form
+                    v-else
+                    class="flex max-w-md flex-col gap-2 text-xs"
+                    @submit.prevent="saveWitness"
                 >
-                    Save
-                </button>
-                <button
-                    v-if="tagsForm.isDirty"
-                    type="button"
-                    class="text-xs text-stone-500 underline dark:text-stone-400"
-                    @click="cancelTags"
-                >
-                    Cancel
-                </button>
-            </div>
-            <div v-else class="mb-6 flex flex-wrap items-center gap-2">
-                <span
-                    v-for="tag in tagsForm.tags"
-                    :key="tag"
-                    class="rounded-full bg-stone-200 px-2.5 py-0.5 text-xs text-stone-700 dark:bg-stone-800 dark:text-stone-300"
-                >
-                    {{ tag }}
-                </span>
-            </div>
+                    <label class="flex flex-col gap-0.5">
+                        Siglum
+                        <input
+                            v-model="witnessForm.siglum"
+                            type="text"
+                            class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                        />
+                    </label>
+                    <label class="flex flex-col gap-0.5">
+                        Name
+                        <input
+                            v-model="witnessForm.label"
+                            type="text"
+                            class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                        />
+                    </label>
+                    <label class="flex flex-col gap-0.5">
+                        Date
+                        <input
+                            v-model="witnessForm.date_text"
+                            type="text"
+                            placeholder="e.g. s. X"
+                            class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                        />
+                    </label>
+                    <label class="flex flex-col gap-0.5">
+                        Repository
+                        <input
+                            v-model="witnessForm.repository"
+                            type="text"
+                            class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                        />
+                    </label>
+                    <label class="flex flex-col gap-0.5">
+                        Shelfmark
+                        <input
+                            v-model="witnessForm.shelfmark"
+                            type="text"
+                            class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                        />
+                    </label>
+                    <label class="flex flex-col gap-0.5">
+                        Description
+                        <textarea
+                            v-model="witnessForm.description"
+                            rows="3"
+                            class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                        ></textarea>
+                    </label>
+                    <span
+                        v-if="witnessForm.errors.siglum"
+                        class="text-red-600 dark:text-red-400"
+                    >
+                        {{ witnessForm.errors.siglum }}
+                    </span>
+                    <div class="flex items-center gap-2">
+                        <button
+                            type="submit"
+                            class="rounded bg-stone-900 px-3 py-1 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
+                            :disabled="witnessForm.processing"
+                        >
+                            Save
+                        </button>
+                        <button
+                            type="button"
+                            class="text-stone-500 underline dark:text-stone-400"
+                            @click="cancelWitnessEdit"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+            </fieldset>
 
             <div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
                 <div>
@@ -1882,14 +1917,6 @@ function fixBoundaries() {
                         </span>
 
                         <button
-                            v-if="canEdit"
-                            type="button"
-                            class="rounded border border-stone-300 px-2 py-1 dark:border-stone-700"
-                            @click="addTranscription"
-                        >
-                            + Add transcription
-                        </button>
-                        <button
                             v-if="canEdit && layer"
                             type="button"
                             class="rounded border border-stone-300 px-2 py-1 dark:border-stone-700"
@@ -1920,6 +1947,15 @@ function fixBoundaries() {
                             class="text-stone-500 dark:text-stone-400"
                             >{{ layer.transcription?.visibility }}</span
                         >
+
+                        <button
+                            v-if="canEdit && layer"
+                            type="button"
+                            class="text-red-600 underline dark:text-red-400"
+                            @click="removeTranscription"
+                        >
+                            Delete transcription
+                        </button>
 
                         <span
                             v-if="layer"
@@ -2672,7 +2708,7 @@ function fixBoundaries() {
                          Uploading a photograph names a page too, and records
                          it if it is new. -->
                         <form
-                            v-if="manuscript && canEdit"
+                            v-if="canEdit"
                             class="mt-3 flex flex-wrap items-center gap-2 border-t border-stone-200 pt-3 dark:border-stone-800"
                             @submit.prevent="addPage"
                         >
@@ -2705,7 +2741,7 @@ function fixBoundaries() {
                         </form>
 
                         <form
-                            v-if="manuscript && canEdit"
+                            v-if="canEdit"
                             class="mt-3 flex flex-wrap items-center gap-2"
                             @submit.prevent="uploadImage"
                         >

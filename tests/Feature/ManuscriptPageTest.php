@@ -1,12 +1,12 @@
 <?php
 
-use App\Models\Manuscript;
 use App\Models\ManuscriptImage;
 use App\Models\ManuscriptPage;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionPageBreak;
 use App\Models\User;
+use App\Models\Witness;
 use Illuminate\Database\QueryException;
 
 /**
@@ -14,22 +14,22 @@ use Illuminate\Database\QueryException;
  * breakpoints — one offset per page, the page running to the next break.
  */
 test('a page can be recorded before anyone has photographed it', function () {
-    $manuscript = Manuscript::factory()->create();
+    $witness = Witness::factory()->create();
 
-    $page = $manuscript->pages()->create(['label' => 'f. 12r', 'position' => 1]);
+    $page = $witness->pages()->create(['label' => 'f. 12r', 'position' => 1]);
 
     // The case the old model could not express at all, since a page *was* an
     // image and `path` is NOT NULL. A transcription made from a printed
     // facsimile or the manuscript itself still has pages to divide text onto.
     expect($page->images)->toBeEmpty()
-        ->and($manuscript->pages()->count())->toBe(1);
+        ->and($witness->pages()->count())->toBe(1);
 });
 
 test('an image is a photograph of a page, and takes its label from it', function () {
-    $manuscript = Manuscript::factory()->create();
-    $page = ManuscriptPage::factory()->for($manuscript)->create(['label' => '12v']);
+    $witness = Witness::factory()->create();
+    $page = ManuscriptPage::factory()->for($witness)->create(['label' => '12v']);
 
-    $image = ManuscriptImage::factory()->for($manuscript)->for($page, 'manuscriptPage')->create();
+    $image = ManuscriptImage::factory()->for($witness)->for($page, 'manuscriptPage')->create();
 
     expect($image->manuscriptPage->label)->toBe('12v')
         ->and($page->images()->count())->toBe(1);
@@ -37,7 +37,7 @@ test('an image is a photograph of a page, and takes its label from it', function
 
 test('deleting a page takes its images and its breaks with it', function () {
     $page = ManuscriptPage::factory()->create();
-    ManuscriptImage::factory()->for($page->manuscript)->for($page, 'manuscriptPage')->create();
+    ManuscriptImage::factory()->for($page->witness)->for($page, 'manuscriptPage')->create();
     TranscriptionPageBreak::factory()->for($page, 'manuscriptPage')->create();
 
     $page->delete();

@@ -1,8 +1,6 @@
 <?php
 
-use App\Enums\WitnessType;
 use App\Models\CanonicalPassage;
-use App\Models\Manuscript;
 use App\Models\ManuscriptImage;
 use App\Models\ManuscriptPage;
 use App\Models\ReferenceScheme;
@@ -22,24 +20,23 @@ test('a work belongs to a reference scheme and has canonical passages', function
         ->and($work->canonicalPassages->first()->is($passage))->toBeTrue();
 });
 
-test('a manuscript witness has ordered images', function () {
-    $witness = Witness::factory()->create(['type' => WitnessType::Manuscript]);
-    $manuscript = Manuscript::factory()->for($witness)->create();
-    ManuscriptImage::factory()->for($manuscript)
-        ->for(ManuscriptPage::factory()->for($manuscript)->create(['label' => '2r']), 'manuscriptPage')
+test('a witness has ordered images', function () {
+    $witness = Witness::factory()->create();
+    ManuscriptImage::factory()->for($witness)
+        ->for(ManuscriptPage::factory()->for($witness)->create(['label' => '2r']), 'manuscriptPage')
         ->create(['position' => 2]);
-    ManuscriptImage::factory()->for($manuscript)
-        ->for(ManuscriptPage::factory()->for($manuscript)->create(['label' => '1v']), 'manuscriptPage')
+    ManuscriptImage::factory()->for($witness)
+        ->for(ManuscriptPage::factory()->for($witness)->create(['label' => '1v']), 'manuscriptPage')
         ->create(['position' => 1]);
 
-    expect($manuscript->images()->orderBy('position')->with('manuscriptPage')->get()
+    expect($witness->images()->orderBy('position')->with('manuscriptPage')->get()
         ->map(fn ($image) => $image->manuscriptPage->label)->all())
         ->toBe(['1v', '2r']);
 });
 
 test('transcription segment order can diverge from canonical passage order', function () {
     $work = Work::factory()->create();
-    $witness = Witness::factory()->create(['type' => WitnessType::Manuscript]);
+    $witness = Witness::factory()->create();
 
     $line976 = CanonicalPassage::factory()->for($work)->create(['address' => ['line' => 976], 'sort_key' => '00000976', 'label' => '976']);
     $line1000 = CanonicalPassage::factory()->for($work)->create(['address' => ['line' => 1000], 'sort_key' => '00001000', 'label' => '1000']);

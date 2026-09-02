@@ -4,25 +4,20 @@ use App\Models\EditionLemma;
 use App\Models\EditionPassage;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
-use App\Models\Manuscript;
 use App\Models\ManuscriptImage;
-use App\Models\Tag;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
-use Illuminate\Support\Facades\DB;
 
-test('deleting a transcription cascades its segments, regions, and tags, redirects to its witness, and leaves the witness untouched', function () {
+test('deleting a transcription cascades its segments and regions, redirects to its witness, and leaves the witness untouched', function () {
     $this->actingAs(User::factory()->editor()->create());
     $witness = Witness::factory()->create();
-    $manuscript = Manuscript::factory()->for($witness)->create();
-    $image = ManuscriptImage::factory()->for($manuscript)->create();
+    $image = ManuscriptImage::factory()->for($witness)->create();
     $transcription = TranscriptionLayer::factory()->for($witness)->create();
     $segment = TranscriptionSegment::factory()->for($transcription)->create();
     $region = TranscriptionRegion::factory()->for($transcription)->for($image, 'manuscriptImage')->create();
-    $transcription->tags()->attach(Tag::factory()->create());
 
     $response = $this->delete(route('transcriptions.destroy', $transcription));
 
@@ -30,7 +25,6 @@ test('deleting a transcription cascades its segments, regions, and tags, redirec
     expect(TranscriptionLayer::find($transcription->id))->toBeNull()
         ->and(TranscriptionSegment::find($segment->id))->toBeNull()
         ->and(TranscriptionRegion::find($region->id))->toBeNull()
-        ->and(DB::table('tag_transcription_layer')->where('transcription_layer_id', $transcription->id)->count())->toBe(0)
         ->and(Witness::find($witness->id))->not->toBeNull()
         ->and(ManuscriptImage::find($image->id))->not->toBeNull();
 });

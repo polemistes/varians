@@ -1,7 +1,5 @@
 <?php
 
-use App\Enums\WitnessType;
-use App\Models\Manuscript;
 use App\Models\ManuscriptImage;
 use App\Models\TranscriptionLayer;
 use App\Models\User;
@@ -9,9 +7,8 @@ use App\Models\Witness;
 
 function makeTranscriptionWithImageAndText(string $text): array
 {
-    $witness = Witness::factory()->create(['type' => WitnessType::Manuscript]);
-    $manuscript = Manuscript::factory()->for($witness)->create();
-    $image = ManuscriptImage::factory()->for($manuscript)->create();
+    $witness = Witness::factory()->create();
+    $image = ManuscriptImage::factory()->for($witness)->create();
     $transcription = TranscriptionLayer::factory()->for($witness)->create(['text' => $text]);
 
     return [$transcription, $image];
