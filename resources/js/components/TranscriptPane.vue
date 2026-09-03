@@ -1510,26 +1510,11 @@ defineExpose({
             >
         </div>
 
-        <!-- Row 3: the tools — strip-from-selection on the left, undo/redo
-             hard right, the save state between. -->
+        <!-- Row 3: strip-from-selection. -->
         <div
             v-if="canEdit && layer"
             class="mb-2 flex flex-wrap items-center gap-2 text-xs"
         >
-            <label
-                class="flex items-center gap-1 text-stone-500 dark:text-stone-400"
-                title="What making a selection does, beyond selecting"
-            >
-                Action on select:
-                <select
-                    v-model="actionOnSelect"
-                    class="rounded border border-stone-300 bg-transparent px-1 py-0.5 dark:border-stone-700"
-                >
-                    <option value="none">None</option>
-                    <option value="align">Map to facsimile</option>
-                    <option value="assign">Assign to segment in work</option>
-                </select>
-            </label>
             <span class="text-stone-500 dark:text-stone-400"
                 >Strip from selection:</span
             >
@@ -1554,7 +1539,27 @@ defineExpose({
             >
                 {{ kind }}
             </button>
+        </div>
 
+        <!-- Row 4: what selecting does, the save state, undo/redo. -->
+        <div
+            v-if="canEdit && layer"
+            class="mb-2 flex flex-wrap items-center gap-2 text-xs"
+        >
+            <label
+                class="flex items-center gap-1 text-stone-500 dark:text-stone-400"
+                title="What making a selection does, beyond selecting"
+            >
+                Action on select:
+                <select
+                    v-model="actionOnSelect"
+                    class="rounded border border-stone-300 bg-transparent px-1 py-0.5 dark:border-stone-700"
+                >
+                    <option value="none">None</option>
+                    <option value="align">Map to facsimile</option>
+                    <option value="assign">Assign to segment in work</option>
+                </select>
+            </label>
             <span
                 class="ml-auto inline-block h-2.5 w-2.5 rounded-full"
                 :class="
@@ -1679,31 +1684,16 @@ defineExpose({
                     left: `${selectionAnchor.left}px`,
                 }"
             >
-                <span class="flex flex-wrap items-center gap-2">
-                    <button
-                        type="button"
-                        class="rounded border border-stone-300 px-2 py-1 text-stone-600 dark:border-stone-700 dark:text-stone-400"
-                        :class="
-                            activeMenu === 'assign' &&
-                            'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
-                        "
-                        @mousedown.prevent
-                        @click="openSelectionMenu('assign')"
-                    >
-                        Assign selection
-                    </button>
-                    <button
-                        type="button"
-                        class="rounded border border-stone-300 px-2 py-1 text-stone-600 dark:border-stone-700 dark:text-stone-400"
-                        :class="
-                            activeMenu === 'align' &&
-                            'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
-                        "
-                        @mousedown.prevent
-                        @click="openSelectionMenu('align')"
-                    >
-                        Map to facsimile
-                    </button>
+                <!-- Only the dialogue the Action-on-select dropdown (or a
+                     badge click) asked for — no mode switching in here. -->
+                <span class="flex items-center justify-between gap-2">
+                    <span class="text-stone-500 dark:text-stone-400">
+                        {{
+                            activeMenu === 'align'
+                                ? 'Map to facsimile'
+                                : 'Assign to segment in work'
+                        }}
+                    </span>
                     <button
                         type="button"
                         class="text-stone-500 underline"
