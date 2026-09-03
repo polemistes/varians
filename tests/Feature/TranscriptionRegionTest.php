@@ -119,3 +119,36 @@ test('a region can be removed', function () {
     $response->assertRedirect();
     expect(TranscriptionRegion::find($region->id))->toBeNull();
 });
+
+test('text already mapped to the facsimile cannot be mapped again', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    [$transcription, $image] = makeTranscriptionWithImage();
+
+    $box = ['x' => 0.1, 'y' => 0.2, 'width' => 0.1, 'height' => 0.05];
+    $this->post(route('transcription-regions.store', $transcription), [
+        'manuscript_image_id' => $image->id,
+        'text' => 'λόγος',
+        'start_offset' => 0,
+        'end_offset' => 5,
+        ...$box,
+    ])->assertRedirect();
+
+    // Overlapping the existing mapping — single and batch alike.
+    $this->post(route('transcription-regions.store', $transcription), [
+        'manuscript_image_id' => $image->id,
+        'text' => 'ος κα',
+        'start_offset' => 3,
+        'end_offset' => 8,
+        ...$box,
+    ])->assertInvalid(['start_offset']);
+
+    $this->post(route('transcription-regions.store-batch', $transcription), [
+        'manuscript_image_id' => $image->id,
+        'granularity' => 'word',
+        'start_offset' => 3,
+        'end_offset' => 8,
+        ...$box,
+    ])->assertInvalid(['start_offset']);
+
+    expect($transcription->regions()->count())->toBe(1);
+});

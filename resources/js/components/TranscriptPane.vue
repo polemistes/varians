@@ -985,6 +985,19 @@ const selectionIsSplittable = computed(
     () =>
         !!activeSelection.value && !/[[\]{}_]/.test(activeSelection.value.text),
 );
+
+// Text maps to the facsimile once — a selection overlapping an existing
+// mapping cannot be mapped again; remapping is remove-then-redraw. The
+// server refuses too; this just says so before a box is drawn in vain.
+const selectionAlreadyMapped = computed(
+    () =>
+        !!activeSelection.value &&
+        activeRegions.value.some(
+            (region) =>
+                region.start_offset < activeSelection.value!.end &&
+                region.end_offset > activeSelection.value!.start,
+        ),
+);
 type SplitGranularity = 'span' | 'line' | 'word' | 'character';
 const splitGranularity = ref<SplitGranularity>('span');
 
@@ -1722,7 +1735,14 @@ defineExpose({
                 </span>
 
                 <template v-if="activeMenu === 'align'">
-                    <span v-if="drawingArmed">
+                    <span
+                        v-if="selectionAlreadyMapped"
+                        class="text-amber-700 dark:text-amber-400"
+                    >
+                        Part of this selection is already mapped to the
+                        facsimile — remove the existing mapping first.
+                    </span>
+                    <span v-else-if="drawingArmed">
                         Drag a box on the facsimile opposite to place
                         <template v-if="splitGranularity === 'span'"
                             >this text.</template

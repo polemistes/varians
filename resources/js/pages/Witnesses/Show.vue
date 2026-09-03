@@ -1,3 +1,14 @@
+<script lang="ts">
+// Which tab each pane shows, per witness — module scope, so it survives
+// the page component being recreated by a full post-reload (a ref alone
+// reset to server truth then, flipping a facsimile tab back to transcript
+// after every save; real bug, twice).
+const paneTabMemory = new Map<
+    number,
+    { left: 'transcript' | 'facsimile'; right: 'transcript' | 'facsimile' }
+>();
+</script>
+
 <script setup lang="ts">
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
@@ -145,9 +156,18 @@ function addTranscript() {
 type Side = 'left' | 'right';
 type PaneTab = 'transcript' | 'facsimile';
 
-const display = ref<Record<Side, PaneTab>>({
-    left: props.leftPane.view === 'layer' ? 'transcript' : 'facsimile',
-    right: props.rightPane.view === 'layer' ? 'transcript' : 'facsimile',
+// Which tab each pane shows is CLIENT state (a facsimile tab needs no
+// server data) — see paneTabMemory above for why it lives at module scope.
+const display = ref<Record<Side, PaneTab>>(
+    paneTabMemory.get(props.witness.id) ?? {
+        left: props.leftPane.view === 'layer' ? 'transcript' : 'facsimile',
+        right: props.rightPane.view === 'layer' ? 'transcript' : 'facsimile',
+    },
+);
+
+watch(display, (value) => paneTabMemory.set(props.witness.id, { ...value }), {
+    deep: true,
+    immediate: true,
 });
 
 // A navigation replaces the payloads — resync what a pane shows, but ONLY

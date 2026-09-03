@@ -16,12 +16,37 @@ class TranscriptionRegionController extends Controller
 {
     public function store(StoreTranscriptionRegionRequest $request, TranscriptionLayer $transcription): RedirectResponse
     {
+        $this->guardUnmapped(
+            $transcription,
+            (int) $request->validated('start_offset'),
+            (int) $request->validated('end_offset'),
+        );
+
         $transcription->regions()->create([
             ...$request->validated(),
             'position' => ($transcription->regions()->max('position') ?? 0) + 1,
         ]);
 
         return back();
+    }
+
+    /**
+     * Text maps to the facsimile once: a second box over the same words
+     * would silently duplicate the alignment. Remapping is an explicit
+     * remove-then-redraw.
+     */
+    private function guardUnmapped(TranscriptionLayer $transcription, int $start, int $end): void
+    {
+        $overlaps = $transcription->regions()
+            ->where('start_offset', '<', $end)
+            ->where('end_offset', '>', $start)
+            ->exists();
+
+        if ($overlaps) {
+            throw ValidationException::withMessages([
+                'start_offset' => 'Part of this selection is already mapped to the facsimile — remove the existing mapping first.',
+            ]);
+        }
     }
 
     /**
@@ -48,6 +73,8 @@ class TranscriptionRegionController extends Controller
                 'start_offset' => 'This selection contains transcription markup (a gap, restoration, or uncertain reading) — batch alignment only works on plain text. Align it manually instead, or select a smaller span.',
             ]);
         }
+
+        $this->guardUnmapped($transcription, (int) $start, (int) $end);
 
         $layout = RegionSplitter::layout($text, $request->validated('granularity'));
 

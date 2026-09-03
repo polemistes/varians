@@ -107,12 +107,13 @@ test('batch splitting by word creates one region per word', function () {
 
 test('batch splitting appends after any existing regions rather than colliding on position', function () {
     $this->actingAs(User::factory()->editor()->create());
-    [$transcription, $image] = makeTranscriptionWithImageAndText('ab');
+    [$transcription, $image] = makeTranscriptionWithImageAndText('ab cd');
+    // An existing mapping on OTHER text — same text would now be refused.
     $transcription->regions()->create([
         'manuscript_image_id' => $image->id,
-        'text' => 'existing',
-        'start_offset' => 0,
-        'end_offset' => 2,
+        'text' => 'cd',
+        'start_offset' => 3,
+        'end_offset' => 5,
         'position' => 5,
         'x' => 0, 'y' => 0, 'width' => 0.1, 'height' => 0.1,
     ]);
