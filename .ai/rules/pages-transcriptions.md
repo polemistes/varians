@@ -181,9 +181,14 @@ the pane stashes `{layerId, start, end, text}` at module scope
 stash, into a DIFFERENT layer, emits `import-spans`; the page flushes both
 panes (offsets must be into saved text on both sides), then posts
 `transcriptions.span-copies.store`, which re-verifies the characters match
-at both ends before copying the wholly-contained citation segments (as
-further parts where the target already cites the passage) and facsimile
-mappings (skipped where the target already maps overlapping text). Cut
-stays relocation within a layer; cross-layer cut does not carry (the
-source spans are tombstoned by the deletion before the import could read
-them).
+at both ends before importing. Citations travel ALWAYS — cross-layer,
+cross-transcript, cross-witness — and a segment the copy cuts through
+contributes its contained part (still genuine text of its passage, as a
+further part where the target already cites it, unflagged). Facsimile
+mappings are facts about one parchment: whole-span-only, same witness
+only, skipped where the target already maps overlapping text. Cut stays
+relocation within a layer; cross-layer cut does not carry (the source
+spans are tombstoned by the deletion before the import could read them).
+NOTE: for the two layers of ONE transcript this whole mechanism is interim
+— the agreed destination is spans stored once per transcript in word
+coordinates, projected per layer (see the plan in the repo history).

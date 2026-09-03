@@ -11,17 +11,21 @@ use Illuminate\Validation\ValidationException;
 class TranscriptionSpanCopyController extends Controller
 {
     /**
-     * Bring the citation assignments and facsimile mappings along when text
-     * is copied from one layer and pasted into another: the client pairs a
-     * copy with its paste (same characters, different layer) and posts the
-     * source range and the landing offset here, AFTER the pasted text has
-     * been saved.
+     * Bring the spans along when text is copied from one layer and pasted
+     * into another: the client pairs a copy with its paste (same
+     * characters, different layer) and posts the source range and the
+     * landing offset here, AFTER the pasted text has been saved.
      *
-     * Only spans wholly inside the copied range travel. A copied segment
-     * joins its passage's citation in the target as a further part (the
-     * target may legitimately cite it already); a copied mapping is skipped
-     * where the target already maps overlapping text — mapped text maps
-     * once. The source is untouched: this is a copy.
+     * What travels depends on what stays true where the text goes.
+     * Citations travel always — which passage of a work a stretch of text
+     * is holds wherever it stands, so even a segment the copy cuts through
+     * contributes its contained part. Facsimile mappings are facts about
+     * ONE parchment: they travel within the witness (whole spans only —
+     * half a box is not a meaningful geometry) and never to another
+     * witness. A copied segment joins its passage's citation in the target
+     * as a further part; a copied mapping is skipped where the target
+     * already maps overlapping text. The source is untouched: this is a
+     * copy.
      */
     public function store(StoreTranscriptionSpanCopyRequest $request, TranscriptionLayer $transcription): RedirectResponse
     {
@@ -33,11 +37,7 @@ class TranscriptionSpanCopyController extends Controller
             ->whereKey($request->validated('source_layer_id'))
             ->firstOrFail();
 
-        if ($source->transcription->witness_id !== $transcription->transcription->witness_id) {
-            throw ValidationException::withMessages([
-                'source_layer_id' => 'Assignments only travel between layers of the same witness — use “Copy layer…” for another witness.',
-            ]);
-        }
+        $sameWitness = $source->transcription->witness_id === $transcription->transcription->witness_id;
 
         $start = (int) $request->validated('source_start');
         $end = (int) $request->validated('source_end');
@@ -52,19 +52,21 @@ class TranscriptionSpanCopyController extends Controller
             ]);
         }
 
-        [$citations, $mappings] = DB::transaction(function () use ($source, $transcription, $start, $end, $at) {
+        [$citations, $mappings] = DB::transaction(function () use ($source, $transcription, $start, $end, $at, $sameWitness) {
             $shift = $at - $start;
             $citations = 0;
             $mappings = 0;
             $nextPart = [];
 
-            $inside = $source->segments
-                ->filter(fn ($segment) => $segment->start_offset >= $start
-                    && $segment->end_offset <= $end
+            // Overlap is enough: a segment the copy cuts through contributes
+            // its contained part — still genuine text of its passage.
+            $touched = $source->segments
+                ->filter(fn ($segment) => $segment->start_offset < $end
+                    && $segment->end_offset > $start
                     && $segment->end_offset > $segment->start_offset)
                 ->sortBy([['canonical_passage_id', 'asc'], ['part', 'asc']]);
 
-            foreach ($inside as $segment) {
+            foreach ($touched as $segment) {
                 // A further part of the passage's citation in the target, in
                 // the copied content order — the target may already cite it.
                 $passageId = $segment->canonical_passage_id;
@@ -73,12 +75,17 @@ class TranscriptionSpanCopyController extends Controller
 
                 $transcription->segments()->create([
                     'canonical_passage_id' => $passageId,
-                    'start_offset' => $segment->start_offset + $shift,
-                    'end_offset' => $segment->end_offset + $shift,
+                    'start_offset' => max($segment->start_offset, $start) + $shift,
+                    'end_offset' => min($segment->end_offset, $end) + $shift,
                     'part' => $nextPart[$passageId]++,
                     'needs_review' => $segment->needs_review,
                 ]);
                 $citations++;
+            }
+
+            if (! $sameWitness) {
+                // Mappings stay with their own parchment.
+                return [$citations, 0];
             }
 
             $position = (int) ($transcription->regions()->max('position') ?? 0);
@@ -130,7 +137,13 @@ class TranscriptionSpanCopyController extends Controller
                 $parts[] = $mappings.' facsimile mapping'.($mappings === 1 ? '' : 's');
             }
 
-            session()->flash('message', 'Brought '.implode(' and ', $parts).' along with the pasted text.');
+            $notice = 'Brought '.implode(' and ', $parts).' along with the pasted text.';
+
+            if (! $sameWitness) {
+                $notice .= ' Facsimile mappings stay with their own witness.';
+            }
+
+            session()->flash('message', $notice);
         }
 
         return back();

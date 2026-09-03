@@ -111,9 +111,17 @@ test('a copy whose text no longer matches at either end imports nothing', functi
     ])->assertInvalid(['target_offset']);
 });
 
-test('spans do not travel between layers of different witnesses', function () {
+test('citations travel to another witness; facsimile mappings stay with their parchment', function () {
     $this->actingAs(User::factory()->editor()->create());
-    [, $source] = spanCopyFixture();
+    [$witness, $source] = spanCopyFixture();
+
+    $passage = CanonicalPassage::factory()->for(Work::factory())->create();
+    TranscriptionSegment::factory()->for($source)->for($passage, 'canonicalPassage')
+        ->create(['start_offset' => 0, 'end_offset' => 5]);
+    $image = ManuscriptImage::factory()->for($witness)->create();
+    TranscriptionRegion::factory()->for($source)->for($image, 'manuscriptImage')
+        ->create(['start_offset' => 6, 'end_offset' => 11, 'text' => 'ΑΕΙΔΕ']);
+
     $foreign = TranscriptionLayer::factory()->create(['text' => 'ΜΗΝΙΝ ΑΕΙΔΕ ΘΕΑ']);
 
     $this->post(route('transcriptions.span-copies.store', $foreign), [
@@ -121,7 +129,37 @@ test('spans do not travel between layers of different witnesses', function () {
         'source_start' => 0,
         'source_end' => 15,
         'target_offset' => 0,
-    ])->assertInvalid(['source_layer_id']);
+    ])->assertRedirect()
+        ->assertSessionHas('message', 'Brought 1 citation along with the pasted text. Facsimile mappings stay with their own witness.');
+
+    // Which passage a stretch of text is stays true wherever it goes; where
+    // it sits on a manuscript page does not.
+    expect($foreign->segments()->sole()->canonical_passage_id)->toBe($passage->id)
+        ->and($foreign->regions()->count())->toBe(0);
+});
+
+test('a copy that cuts through a segment still carries the contained part of its citation', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    [, $source, $target] = spanCopyFixture();
+
+    $passage = CanonicalPassage::factory()->for(Work::factory())->create();
+    // Cited span [0,11); the copy takes only [6,15) — the overlap [6,11)
+    // is still genuine text of the passage.
+    TranscriptionSegment::factory()->for($source)->for($passage, 'canonicalPassage')
+        ->create(['start_offset' => 0, 'end_offset' => 11]);
+
+    $this->post(route('transcriptions.span-copies.store', $target), [
+        'source_layer_id' => $source->id,
+        'source_start' => 6,
+        'source_end' => 15,
+        'target_offset' => 16,
+    ])->assertRedirect();
+
+    $segment = $target->segments()->sole();
+
+    expect([$segment->start_offset, $segment->end_offset])->toBe([16, 21])
+        ->and($segment->canonical_passage_id)->toBe($passage->id)
+        ->and($segment->needs_review)->toBeFalse();
 });
 
 test('a guest cannot import spans', function () {
