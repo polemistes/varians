@@ -408,7 +408,7 @@ function drawBoxStyle() {
                 <img
                     ref="imgEl"
                     :src="image.url"
-                    :alt="`Folio ${image.manuscript_page?.label ?? ''}`"
+                    :alt="`Page ${image.manuscript_page?.label ?? ''}`"
                     class="block h-[32rem] max-w-none select-none"
                     draggable="false"
                 />
@@ -484,7 +484,7 @@ function drawBoxStyle() {
             v-if="image"
             class="flex items-center justify-between text-sm text-stone-600 dark:text-stone-400"
         >
-            <span>fol. {{ image.manuscript_page?.label }}</span>
+            <span>{{ image.manuscript_page?.label }}</span>
             <div class="flex items-center gap-2">
                 <button
                     type="button"
