@@ -17,7 +17,6 @@ import type {
 const props = defineProps<{
     witness: Witness;
     selectedPage: ManuscriptPage | null;
-    imagesForPage: ManuscriptImage[];
     selectedImage: ManuscriptImage | null;
     /** Regions of the transcript layer open opposite, for the overlay. */
     regions: TranscriptionRegion[];
@@ -29,7 +28,6 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    (e: 'pick-image', id: number): void;
     (
         e: 'region-drawn',
         box: { x: number; y: number; width: number; height: number },
@@ -129,11 +127,15 @@ function deleteImage() {
             <button
                 type="button"
                 class="rounded border border-stone-300 px-2 py-1 disabled:opacity-40 dark:border-stone-700"
-                :disabled="!props.selectedPage || uploading"
+                :disabled="
+                    !props.selectedPage || !!props.selectedImage || uploading
+                "
                 :title="
-                    props.selectedPage
-                        ? undefined
-                        : 'Add a page first — the photograph lands on the current page'
+                    !props.selectedPage
+                        ? 'Add a page first — the photograph lands on the current page'
+                        : props.selectedImage
+                          ? 'This page already has a photograph — delete it first to replace it'
+                          : undefined
                 "
                 @click="addImage"
             >
@@ -208,28 +210,5 @@ function deleteImage() {
                 <span v-else>Choose a page.</span>
             </template>
         </ManuscriptImageViewer>
-
-        <!-- Photographs of *this* page only. Which leaf shows follows the
-             page in the Pages box, so offering another page's here would
-             break the pair. A page can have more than one shot of it. -->
-        <div
-            v-if="props.imagesForPage.length > 1"
-            class="mt-2 flex flex-wrap gap-2"
-        >
-            <button
-                v-for="image in props.imagesForPage"
-                :key="image.id"
-                type="button"
-                class="rounded border px-2 py-1 text-xs"
-                :class="
-                    image.id === props.selectedImage?.id
-                        ? 'border-stone-500 bg-stone-100 dark:bg-stone-800'
-                        : 'border-stone-200 dark:border-stone-800'
-                "
-                @click="emit('pick-image', image.id)"
-            >
-                fol. {{ image.manuscript_page?.label }}
-            </button>
-        </div>
     </div>
 </template>

@@ -61,3 +61,22 @@ test('a non-image file is rejected', function () {
 
     $response->assertInvalid(['image']);
 });
+
+test('a page holds one photograph — a second upload to it is refused', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    Storage::fake('public');
+
+    $witness = Witness::factory()->create();
+    $witness->images()->create([
+        'manuscript_page_id' => $witness->pages()->create(['label' => '1r', 'position' => 1])->id,
+        'path' => 'manuscript-images/existing.jpg',
+        'position' => 1,
+    ]);
+
+    $this->post(route('manuscript-images.store', $witness), [
+        'folio_label' => '1r',
+        'image' => UploadedFile::fake()->create('folio.jpg', 500, 'image/jpeg'),
+    ])->assertInvalid(['image']);
+
+    expect($witness->images()->count())->toBe(1);
+});

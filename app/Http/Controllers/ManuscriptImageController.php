@@ -6,6 +6,7 @@ use App\Http\Requests\StoreManuscriptImageRequest;
 use App\Models\ManuscriptImage;
 use App\Models\Witness;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Validation\ValidationException;
 
 class ManuscriptImageController extends Controller
 {
@@ -18,6 +19,14 @@ class ManuscriptImageController extends Controller
             ['label' => $request->validated('folio_label')],
             ['position' => ($witness->pages()->max('position') ?? 0) + 1],
         );
+
+        // One photograph per page: replacing is an explicit delete-then-add,
+        // never a silent overwrite of the mappings drawn on the old shot.
+        if ($page->images()->exists()) {
+            throw ValidationException::withMessages([
+                'image' => 'Page '.$page->label.' already has a photograph — delete it first to replace it.',
+            ]);
+        }
 
         $witness->images()->create([
             'manuscript_page_id' => $page->id,

@@ -150,14 +150,31 @@ const display = ref<Record<Side, PaneTab>>({
     right: props.rightPane.view === 'layer' ? 'transcript' : 'facsimile',
 });
 
-// A navigation replaces the payloads — resync what each pane shows.
+// A navigation replaces the payloads — resync what a pane shows, but ONLY
+// when its server-side view actually changed: every successful post reloads
+// the props, and resyncing on identity rather than value flipped a
+// client-side facsimile tab back to transcript after each save (real bug —
+// mapping text to the facsimile snapped the pane away from it).
 watch(
-    () => [props.leftPane.view, props.rightPane.view],
-    ([left, right]) => {
-        display.value = {
-            left: left === 'layer' ? 'transcript' : 'facsimile',
-            right: right === 'layer' ? 'transcript' : 'facsimile',
-        };
+    () => props.leftPane.view,
+    (view, old) => {
+        if (view !== old) {
+            display.value = {
+                ...display.value,
+                left: view === 'layer' ? 'transcript' : 'facsimile',
+            };
+        }
+    },
+);
+watch(
+    () => props.rightPane.view,
+    (view, old) => {
+        if (view !== old) {
+            display.value = {
+                ...display.value,
+                right: view === 'layer' ? 'transcript' : 'facsimile',
+            };
+        }
     },
 );
 
@@ -871,7 +888,6 @@ const sides: Side[] = ['left', 'right'];
                             v-else
                             :witness="props.witness"
                             :selected-page="selectedPage"
-                            :images-for-page="imagesForSelectedPage"
                             :selected-image="selectedImage"
                             :regions="regionsOpposite(side)"
                             :hovered-region-id="hoveredRegionId"
@@ -879,7 +895,6 @@ const sides: Side[] = ['left', 'right'];
                             :drawing-enabled="drawingEnabledFor(side)"
                             :can-edit="canEdit"
                             :pages-count="pages.length"
-                            @pick-image="(id) => (selectedImageId = id)"
                             @region-drawn="onRegionDrawn"
                             @select-region="selectRegionForEditing"
                             @deselect="editableRegionId = null"
