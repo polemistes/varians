@@ -369,7 +369,7 @@ function addPage() {
 // untouched, it simply stops being divided there.
 function deletePage(item: ManuscriptPage) {
     const confirmed = window.confirm(
-        `Delete page ${item.label}? Its photographs are deleted, and the text standing on it joins the previous page (in every transcript). No text is removed, and citations to work passages are untouched.`,
+        `Delete page ${item.label}? Its photograph and the mappings of text onto it are deleted, and the text standing on it joins the previous page (in every transcript). Citations to work passages are untouched.`,
     );
 
     if (!confirmed) {
