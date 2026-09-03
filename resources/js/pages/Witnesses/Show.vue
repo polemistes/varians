@@ -892,7 +892,7 @@ const sides: Side[] = ['left', 'right'];
                          division both panes follow. -->
                     <fieldset
                         v-if="index === 0"
-                        class="rounded-lg border border-stone-300 px-3 pb-3 text-xs dark:border-stone-700"
+                        class="flex h-full flex-col rounded-lg border border-stone-300 px-3 pb-3 text-xs dark:border-stone-700"
                     >
                         <legend
                             class="px-1 text-xs font-medium tracking-widest text-stone-500 uppercase dark:text-stone-400"
@@ -983,7 +983,7 @@ const sides: Side[] = ['left', 'right'];
                         </p>
 
                         <div
-                            class="mb-2 max-h-80 overflow-y-auto rounded border border-stone-200 dark:border-stone-800"
+                            class="min-h-40 flex-1 overflow-y-auto rounded border border-stone-200 dark:border-stone-800"
                         >
                             <button
                                 v-if="hasUnplacedOpening"
@@ -1009,6 +1009,27 @@ const sides: Side[] = ['left', 'right'];
                                         : ''
                                 "
                             >
+                                <span
+                                    v-if="canEdit"
+                                    class="flex flex-col pl-0.5 leading-none"
+                                >
+                                    <button
+                                        type="button"
+                                        class="px-0.5 text-[8px] opacity-40 hover:opacity-100"
+                                        :title="`Move ${item.label} up`"
+                                        @click="movePage(item, 'up')"
+                                    >
+                                        &#9650;
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="px-0.5 text-[8px] opacity-40 hover:opacity-100"
+                                        :title="`Move ${item.label} down`"
+                                        @click="movePage(item, 'down')"
+                                    >
+                                        &#9660;
+                                    </button>
+                                </span>
                                 <button
                                     type="button"
                                     class="min-w-0 flex-1 px-2 py-1 text-left"
@@ -1026,24 +1047,6 @@ const sides: Side[] = ['left', 'right'];
                                 >
                                     {{ item.label }}
                                 </button>
-                                <template v-if="canEdit">
-                                    <button
-                                        type="button"
-                                        class="px-0.5 opacity-40 hover:opacity-100"
-                                        :title="`Move ${item.label} up`"
-                                        @click="movePage(item, 'up')"
-                                    >
-                                        &#9650;
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="px-0.5 opacity-40 hover:opacity-100"
-                                        :title="`Move ${item.label} down`"
-                                        @click="movePage(item, 'down')"
-                                    >
-                                        &#9660;
-                                    </button>
-                                </template>
                                 <span
                                     v-if="pageHasImage(item)"
                                     title="Has a facsimile image"

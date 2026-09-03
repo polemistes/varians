@@ -764,30 +764,34 @@ const activeSelection = ref<ActiveSelection | null>(null);
 type SelectionMenu = 'align' | 'assign';
 const activeMenu = ref<SelectionMenu | null>(null);
 
-// Opt-in: open the marking dialogue the moment a selection is made, for
-// the mark-line-after-line workflow where pressing the button every time
-// is the friction. Off by default — selecting is otherwise just selecting.
-const AUTO_DIALOGUE_KEY = 'varians:marking-dialogue-on-select';
+// What making a selection does, beyond selecting: nothing (quiet for
+// ordinary text editing), or open one of the marking dialogues directly —
+// the mark-line-after-line workflows where pressing a button every time is
+// the friction. Persisted per browser.
+type SelectAction = 'none' | 'align' | 'assign';
+const ACTION_ON_SELECT_KEY = 'varians:action-on-select';
 
-function storedAutoDialogue(): boolean {
+function storedActionOnSelect(): SelectAction {
     try {
-        return localStorage.getItem(AUTO_DIALOGUE_KEY) === '1';
+        const raw = localStorage.getItem(ACTION_ON_SELECT_KEY);
+
+        return raw === 'align' || raw === 'assign' ? raw : 'none';
     } catch {
-        return false;
+        return 'none';
     }
 }
 
-const dialogueOnSelect = ref(storedAutoDialogue());
+const actionOnSelect = ref<SelectAction>(storedActionOnSelect());
 
 // Whether the floating dialogue is up at all. A plain selection only raises
-// it when the option above is on — during ordinary text editing, selections
-// happen constantly and a box popping up under each one is noise. A badge
-// click is an explicit press and always opens it.
+// it when an action is chosen above — during ordinary text editing,
+// selections happen constantly and a box popping up under each one is
+// noise. A badge click is an explicit press and always opens it.
 const overlayVisible = ref(false);
 
-watch(dialogueOnSelect, (value) => {
+watch(actionOnSelect, (value) => {
     try {
-        localStorage.setItem(AUTO_DIALOGUE_KEY, value ? '1' : '0');
+        localStorage.setItem(ACTION_ON_SELECT_KEY, value);
     } catch {
         // Storage unavailable — the in-session choice still works.
     }
@@ -828,11 +832,16 @@ function updateSelectionAnchor() {
     const last = rects[rects.length - 1];
     const wrapRect = wrap.getBoundingClientRect();
 
+    // The wrapper scrolls (long pages), so the absolute overlay lives in
+    // content coordinates: add what has scrolled away.
     selectionAnchor.value = {
-        top: last.bottom - wrapRect.top,
+        top: last.bottom - wrapRect.top + wrap.scrollTop,
         left: Math.max(
             0,
-            Math.min(last.left - wrapRect.left, wrapRect.width - 320),
+            Math.min(
+                last.left - wrapRect.left + wrap.scrollLeft,
+                wrapRect.width - 320,
+            ),
         ),
     };
 }
@@ -1060,10 +1069,10 @@ function onTextSelect(selection: ActiveSelection) {
     // A fresh selection invalidates whatever menu was open for the old one.
     activeMenu.value = null;
     updateSelectionAnchor();
-    overlayVisible.value = dialogueOnSelect.value;
+    overlayVisible.value = actionOnSelect.value !== 'none';
 
-    if (dialogueOnSelect.value) {
-        openSelectionMenu('assign');
+    if (actionOnSelect.value !== 'none') {
+        openSelectionMenu(actionOnSelect.value);
     }
 }
 
@@ -1509,10 +1518,17 @@ defineExpose({
         >
             <label
                 class="flex items-center gap-1 text-stone-500 dark:text-stone-400"
-                title="Open the marking dialogue the moment a selection is made — off, selecting is just selecting"
+                title="What making a selection does, beyond selecting"
             >
-                <input v-model="dialogueOnSelect" type="checkbox" />
-                Marking dialogue on select
+                Action on select:
+                <select
+                    v-model="actionOnSelect"
+                    class="rounded border border-stone-300 bg-transparent px-1 py-0.5 dark:border-stone-700"
+                >
+                    <option value="none">None</option>
+                    <option value="align">Map to facsimile</option>
+                    <option value="assign">Assign to segment in work</option>
+                </select>
             </label>
             <span class="text-stone-500 dark:text-stone-400"
                 >Strip from selection:</span
@@ -1629,7 +1645,10 @@ defineExpose({
              selection's last line. The overlay is a SIBLING of the editable
              surface, absolutely positioned — nothing is ever inserted into
              the text flow, so no line ever breaks for it. -->
-        <div ref="textWrapEl" class="relative font-serif text-lg leading-loose">
+        <div
+            ref="textWrapEl"
+            class="relative max-h-[45rem] overflow-y-auto font-serif text-lg leading-loose"
+        >
             <AlignableText
                 ref="textEl"
                 :text="pageText"
