@@ -763,6 +763,29 @@ type ActiveSelection = { start: number; end: number; text: string };
 const activeSelection = ref<ActiveSelection | null>(null);
 type SelectionMenu = 'align' | 'assign';
 const activeMenu = ref<SelectionMenu | null>(null);
+
+// Opt-in: open the marking dialogue the moment a selection is made, for
+// the mark-line-after-line workflow where pressing the button every time
+// is the friction. Off by default — selecting is otherwise just selecting.
+const AUTO_DIALOGUE_KEY = 'varians:marking-dialogue-on-select';
+
+function storedAutoDialogue(): boolean {
+    try {
+        return localStorage.getItem(AUTO_DIALOGUE_KEY) === '1';
+    } catch {
+        return false;
+    }
+}
+
+const dialogueOnSelect = ref(storedAutoDialogue());
+
+watch(dialogueOnSelect, (value) => {
+    try {
+        localStorage.setItem(AUTO_DIALOGUE_KEY, value ? '1' : '0');
+    } catch {
+        // Storage unavailable — the in-session choice still works.
+    }
+});
 const regionError = ref<string | null>(null);
 const assignError = ref<string | null>(null);
 const drawingArmed = ref(false);
@@ -1031,6 +1054,10 @@ function onTextSelect(selection: ActiveSelection) {
     // A fresh selection invalidates whatever menu was open for the old one.
     activeMenu.value = null;
     updateSelectionAnchor();
+
+    if (dialogueOnSelect.value) {
+        openSelectionMenu('assign');
+    }
 }
 
 // Fired only for a genuine click into the text (the component filters out
@@ -1505,6 +1532,13 @@ defineExpose({
                           : 'All changes saved'
                 }}
             </span>
+            <label
+                class="flex items-center gap-1 text-stone-500 dark:text-stone-400"
+                title="Open the marking dialogue the moment a selection is made"
+            >
+                <input v-model="dialogueOnSelect" type="checkbox" />
+                Marking dialogue on select
+            </label>
             <button
                 type="button"
                 class="rounded border border-stone-300 px-2 py-1 text-stone-600 disabled:opacity-40 dark:border-stone-700 dark:text-stone-400"

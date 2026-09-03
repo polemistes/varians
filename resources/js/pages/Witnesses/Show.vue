@@ -23,7 +23,12 @@ import {
 import { destroy as destroyWitness } from '@/routes/witnesses';
 import { store as storeTranscriptRoute } from '@/routes/witnesses/transcriptions';
 import type { Auth } from '@/types/auth';
-import type { Transcription, Witness, Work } from '@/types/models';
+import type {
+    ManuscriptPage,
+    Transcription,
+    Witness,
+    Work,
+} from '@/types/models';
 
 const props = defineProps<{
     witness: Witness;
@@ -361,13 +366,7 @@ function addPage() {
 // Deleting cascades server-side: the page's photographs (with their
 // alignments) and every layer's break at it go too — the text itself is
 // untouched, it simply stops being divided there.
-function deleteSelectedPage() {
-    const item = selectedPage.value;
-
-    if (!item) {
-        return;
-    }
-
+function deletePage(item: ManuscriptPage) {
     const confirmed = window.confirm(
         `Delete page ${item.label}? Its photographs and every transcript's division at it are deleted too. The text itself is kept.`,
     );
@@ -379,6 +378,10 @@ function deleteSelectedPage() {
     router.delete(destroyManuscriptPage.url(item.id), {
         preserveScroll: true,
     });
+}
+
+function pageHasImage(item: ManuscriptPage): boolean {
+    return images.value.some((image) => image.manuscript_page_id === item.id);
 }
 
 // Placement acts on whichever pane holds a selection (the floating actions
@@ -922,6 +925,28 @@ const sides: Side[] = ['left', 'right'];
                             </button>
                         </div>
 
+                        <!-- Add sits ABOVE the list, so it never moves down as pages
+                             accumulate. -->
+                        <form
+                            v-if="canEdit"
+                            class="mb-2 flex items-center gap-1"
+                            @submit.prevent="addPage"
+                        >
+                            <input
+                                v-model="newPageLabel"
+                                type="text"
+                                placeholder="e.g. 13r"
+                                class="w-full min-w-0 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                            />
+                            <button
+                                type="submit"
+                                class="rounded border border-stone-300 px-2 py-1 whitespace-nowrap disabled:opacity-50 dark:border-stone-700"
+                                :disabled="!newPageLabel.trim()"
+                            >
+                                Add
+                            </button>
+                        </form>
+
                         <div
                             class="mb-2 max-h-80 overflow-y-auto rounded border border-stone-200 dark:border-stone-800"
                         >
@@ -939,28 +964,49 @@ const sides: Side[] = ['left', 'right'];
                             >
                                 before {{ firstPlacedPageLabel }}
                             </button>
-                            <button
+                            <div
                                 v-for="item in pages"
                                 :key="item.id"
-                                type="button"
-                                class="block w-full px-2 py-1 text-left"
-                                :class="[
+                                class="flex items-center"
+                                :class="
                                     selectedPageId === item.id
                                         ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300'
-                                        : '',
-                                    placedPageIds.includes(item.id)
-                                        ? ''
-                                        : 'text-stone-400 dark:text-stone-600',
-                                ]"
-                                :title="
-                                    placedPageIds.includes(item.id)
-                                        ? undefined
-                                        : 'No text placed on this page yet'
+                                        : ''
                                 "
-                                @click="selectPage(item.id)"
                             >
-                                {{ item.label }}
-                            </button>
+                                <button
+                                    type="button"
+                                    class="min-w-0 flex-1 px-2 py-1 text-left"
+                                    :class="
+                                        placedPageIds.includes(item.id)
+                                            ? ''
+                                            : 'text-stone-400 dark:text-stone-600'
+                                    "
+                                    :title="
+                                        placedPageIds.includes(item.id)
+                                            ? undefined
+                                            : 'No text placed on this page yet'
+                                    "
+                                    @click="selectPage(item.id)"
+                                >
+                                    {{ item.label }}
+                                </button>
+                                <span
+                                    v-if="pageHasImage(item)"
+                                    title="Has a facsimile image"
+                                    class="px-0.5"
+                                    >📜</span
+                                >
+                                <button
+                                    v-if="canEdit"
+                                    type="button"
+                                    class="px-1.5 py-1 opacity-50 hover:opacity-100"
+                                    :title="`Delete page ${item.label}`"
+                                    @click="deletePage(item)"
+                                >
+                                    🗑
+                                </button>
+                            </div>
                             <p
                                 v-if="pages.length === 0"
                                 class="px-2 py-2 text-stone-400 dark:text-stone-600"
@@ -993,35 +1039,6 @@ const sides: Side[] = ['left', 'right'];
                             press &ldquo;Start {{ selectedPage.label }} at
                             selection&rdquo;.
                         </p>
-
-                        <template v-if="canEdit">
-                            <form
-                                class="mb-1 flex items-center gap-1"
-                                @submit.prevent="addPage"
-                            >
-                                <input
-                                    v-model="newPageLabel"
-                                    type="text"
-                                    placeholder="e.g. 13r"
-                                    class="w-full min-w-0 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                                />
-                                <button
-                                    type="submit"
-                                    class="rounded border border-stone-300 px-2 py-1 whitespace-nowrap disabled:opacity-50 dark:border-stone-700"
-                                    :disabled="!newPageLabel.trim()"
-                                >
-                                    Add
-                                </button>
-                            </form>
-                            <button
-                                v-if="selectedPage"
-                                type="button"
-                                class="text-red-600 underline dark:text-red-400"
-                                @click="deleteSelectedPage"
-                            >
-                                Delete {{ selectedPage.label }}
-                            </button>
-                        </template>
                     </fieldset>
                 </template>
             </div>
