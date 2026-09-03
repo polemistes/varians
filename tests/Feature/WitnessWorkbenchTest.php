@@ -7,9 +7,9 @@ use App\Models\User;
 use App\Models\Witness;
 
 /**
- * The witness page is the workbench: the transcription on the left, the
- * manuscript on the right. Which transcription and which layer are in the URL,
- * because the server has to load that layer's segments, regions and breaks.
+ * The witness page is the workbench: two symmetric panes, each holding a
+ * transcript layer or the facsimile. Which layers are open is in the URL,
+ * because the server has to load each layer's segments, regions and breaks.
  */
 
 /**
@@ -31,8 +31,9 @@ test('a witness with one transcription opens straight into it', function () {
     $props = workbench($witness);
 
     // Nothing to choose, so nothing is asked: the pane is already open.
-    expect($props['transcription']['id'])->toBe($layer->id)
-        ->and($props['transcriptions'])->toHaveCount(1);
+    expect($props['leftPane']['layer']['id'])->toBe($layer->id)
+        ->and($props['rightPane']['view'])->toBe('facsimile')
+        ->and($props['transcripts'])->toHaveCount(1);
 });
 
 test('a witness with no transcription still renders, with nothing open', function () {
@@ -40,8 +41,8 @@ test('a witness with no transcription still renders, with nothing open', functio
 
     $props = workbench(Witness::factory()->create());
 
-    expect($props['transcription'])->toBeNull()
-        ->and($props['transcriptions'])->toHaveCount(0);
+    expect($props['leftPane']['layer'])->toBeNull()
+        ->and($props['transcripts'])->toHaveCount(0);
 });
 
 test('the transcription asked for is the one opened', function () {
@@ -53,8 +54,8 @@ test('the transcription asked for is the one opened', function () {
 
     $props = workbench($witness, ['transcription' => $second->id]);
 
-    expect($props['transcription']['text'])->toBe('second')
-        ->and($props['transcriptions'])->toHaveCount(2);
+    expect($props['leftPane']['layer']['text'])->toBe('second')
+        ->and($props['transcripts'])->toHaveCount(2);
 });
 
 test('the layer asked for is the one opened', function () {
@@ -64,8 +65,8 @@ test('the layer asked for is the one opened', function () {
     TranscriptionLayer::factory()->for($transcription)->diplomatic()->create(['text' => 'ΑΛΦΑ']);
     TranscriptionLayer::factory()->for($transcription)->normalized()->create(['text' => 'ἄλφα']);
 
-    expect(workbench($witness, ['layer' => 'normalized'])['transcription']['text'])->toBe('ἄλφα')
-        ->and(workbench($witness, ['layer' => 'diplomatic'])['transcription']['text'])->toBe('ΑΛΦΑ');
+    expect(workbench($witness, ['layer' => 'normalized'])['leftPane']['layer']['text'])->toBe('ἄλφα')
+        ->and(workbench($witness, ['layer' => 'diplomatic'])['leftPane']['layer']['text'])->toBe('ΑΛΦΑ');
 });
 
 test('the layer with text is opened by default, whichever it is', function () {
@@ -78,7 +79,7 @@ test('the layer with text is opened by default, whichever it is', function () {
     TranscriptionLayer::factory()->for($transcription)->diplomatic()->create(['text' => '']);
     TranscriptionLayer::factory()->for($transcription)->normalized()->create(['text' => 'imported']);
 
-    expect(workbench($witness)['transcription']['layer'])->toBe('normalized');
+    expect(workbench($witness)['leftPane']['layer']['layer'])->toBe('normalized');
 });
 
 test('the transcription\'s page division comes with the open layer', function () {
@@ -91,10 +92,10 @@ test('the transcription\'s page division comes with the open layer', function ()
         'start_line' => 1,
     ]);
 
-    // The left pane slices the text by these, so without them it could not
-    // show one page at a time. They come as their own prop because the
-    // division belongs to the transcription, not to either layer.
-    expect(workbench($witness)['pageBreaks'])->toHaveCount(1);
+    // A pane slices its text by these, so without them it could not show
+    // one page at a time. They ride in the pane payload because the
+    // division belongs to the transcript, not to either layer.
+    expect(workbench($witness)['leftPane']['pageBreaks'])->toHaveCount(1);
 });
 
 test('a draft transcription is not offered to a reader', function () {
@@ -104,10 +105,10 @@ test('a draft transcription is not offered to a reader', function () {
     TranscriptionLayer::factory()->for($draft)->diplomatic()->create();
 
     $this->actingAs(User::factory()->create());
-    expect(workbench($witness)['transcriptions'])->toHaveCount(1);
+    expect(workbench($witness)['transcripts'])->toHaveCount(1);
 
     $this->actingAs(User::factory()->editor()->create());
-    expect(workbench($witness)['transcriptions'])->toHaveCount(2);
+    expect(workbench($witness)['transcripts'])->toHaveCount(2);
 });
 
 test('the old per-transcription URL lands on the witness, at that layer', function () {
@@ -120,4 +121,29 @@ test('the old per-transcription URL lands on the witness, at that layer', functi
             'transcription' => $layer->transcription_id,
             'layer' => 'diplomatic',
         ]));
+});
+
+test('any layer can open in either pane, but not the same layer twice', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $witness = Witness::factory()->create();
+    $transcription = Transcription::factory()->for($witness)->create();
+    $diplomatic = TranscriptionLayer::factory()->for($transcription)->diplomatic()->create(['text' => 'ΑΛΦΑ']);
+    $normalized = TranscriptionLayer::factory()->for($transcription)->normalized()->create(['text' => 'ἄλφα']);
+
+    $props = workbench($witness, [
+        'left' => "layer-{$diplomatic->id}",
+        'right' => "layer-{$normalized->id}",
+    ]);
+
+    expect($props['leftPane']['layer']['id'])->toBe($diplomatic->id)
+        ->and($props['rightPane']['layer']['id'])->toBe($normalized->id);
+
+    // Two live editors on one text would fight each other's autosaves — a
+    // clash turns the right pane into the facsimile.
+    $clashed = workbench($witness, [
+        'left' => "layer-{$diplomatic->id}",
+        'right' => "layer-{$diplomatic->id}",
+    ]);
+
+    expect($clashed['rightPane']['view'])->toBe('facsimile');
 });

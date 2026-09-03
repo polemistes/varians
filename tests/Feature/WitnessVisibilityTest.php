@@ -55,5 +55,5 @@ test('a draft transcription stays hidden from a guest on an otherwise-visible wi
     $response = $this->get(route('witnesses.show', $witness));
 
     $response->assertOk();
-    $response->assertInertia(fn (AssertInertia $page) => $page->has('transcriptions', 1));
+    $response->assertInertia(fn (AssertInertia $page) => $page->has('transcripts', 1));
 });

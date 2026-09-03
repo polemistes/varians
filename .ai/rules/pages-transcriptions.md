@@ -135,3 +135,41 @@ recovery path when the layers drift: fix whichever side is wrong while
 seeing both. Page scoping reuses the shared line-number breaks resolved
 against the sibling's own text. Arming region drawing forces `rightView`
 back to `'image'` — the drawing target is the leaf.
+
+## The workbench is two symmetric panes with the Pages box between
+`Witnesses/Show.vue` is now a thin shell: the Witness box, two panes, and
+the shared Pages fieldset between them. The ENTIRE transcript editor —
+op log, autosave, undo history, selection, floating actions, import, copy,
+visibility, strip-from-selection — lives in
+`components/TranscriptPane.vue`, instantiated once per pane, each instance
+owning its own autosave loop and history. The facsimile side is
+`components/FacsimilePane.vue`. Left and right are places to put things:
+any layer of any transcript opens in either pane via
+`?left=layer-12&right=facsimile` (legacy `?transcription=&layer=` maps to
+the left pane). The same layer must never open twice — two live editors on
+one text would fight each other's autosaves; the server turns a clash into
+the facsimile (test-pinned). Showing the facsimile is CLIENT-side tab
+state (its data is already on the page); opening a layer is a visit.
+
+**The selection actions FLOAT under the selection's last line** — an
+absolutely positioned sibling of the editable surface inside a relative
+wrapper, anchored from the live selection's client rects
+(`updateSelectionAnchor`), recomputed after each edit. Nothing is ever
+inserted into the text flow, so no line ever breaks for it (the old
+in-flow menu bug class). The assign/align menus open inside that same
+overlay. Strip buttons act on the SELECTION only (`stripFromSelection`),
+and undo/redo sit right-aligned on the strip row.
+
+**Cross-pane drawing**: a transcript pane arms (`arm-drawing` after
+flushing), the page flips the OTHER pane to its facsimile tab, the
+facsimile emits the drawn box, and the page routes it back to the arming
+pane's exposed `completeRegion` — the editor owns the selection, the
+granularity, the flush and the error display, always. Page placement
+("Start X at selection") lives in the Pages box and calls the selecting
+pane's exposed `placePage`.
+
+Autosave partial reloads now request `only: ['leftPane', 'rightPane',
+'flash']` — both panes, because a mirrored relocation changes the sibling
+layer, which may be open opposite. User-visible language says
+"transcript"; the internal rename from "transcription" is a separate,
+purely mechanical pass still to come.

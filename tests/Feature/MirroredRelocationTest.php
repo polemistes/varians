@@ -108,10 +108,10 @@ test('the witness page reports whether the layers are in step', function () {
         'transcription' => $normalized->transcription_id,
         'layer' => 'normalized',
     ]))->assertInertia(
-        fn ($page) => $page->where('layerCorrespondence.sibling', 'diplomatic')
+        fn ($page) => $page->where('leftPane.correspondence.sibling', 'diplomatic')
             // The sibling's text rides along, for the side-by-side view.
-            ->where('layerCorrespondence.text', "γιγνεται παντα\nκατ εριν")
-            ->where('layerCorrespondence.divergence', null)
+            ->where('leftPane.correspondence.text', "γιγνεται παντα\nκατ εριν")
+            ->where('leftPane.correspondence.divergence', null)
     );
 
     $diplomatic->update(['text' => "γιγνεται παντα εξτρα\nκατ εριν"]);
@@ -121,8 +121,8 @@ test('the witness page reports whether the layers are in step', function () {
         'transcription' => $normalized->transcription_id,
         'layer' => 'normalized',
     ]))->assertInertia(
-        fn ($page) => $page->where('layerCorrespondence.divergence.line', 1)
-            ->where('layerCorrespondence.divergence.a_words', 2)
-            ->where('layerCorrespondence.divergence.b_words', 3)
+        fn ($page) => $page->where('leftPane.correspondence.divergence.line', 1)
+            ->where('leftPane.correspondence.divergence.a_words', 2)
+            ->where('leftPane.correspondence.divergence.b_words', 3)
     );
 });

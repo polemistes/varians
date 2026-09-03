@@ -12,6 +12,7 @@ use App\Models\Witness;
 use App\Models\Work;
 use App\Support\DeletionImpact;
 use App\Support\Transcription\LayerCorrespondence;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -48,44 +49,27 @@ class WitnessController extends Controller
     }
 
     /**
-     * The witness workbench: the transcription on the left, the manuscript on
-     * the right, both scoped to whichever page is being worked on.
+     * The witness workbench: two symmetric panes, each showing either a
+     * transcript layer (a full editor) or the facsimile, with the shared
+     * page division between them. Any layer of any transcript can open in
+     * either pane — diplomatic beside its facsimile, diplomatic beside
+     * normalized, whatever the work at hand wants.
      *
-     * This absorbed the separate transcription editor. Keeping them apart
-     * meant a scholar transcribing a manuscript moved between two pages to do
-     * one job, and neither of them could show the text beside the leaf it was
-     * copied from.
-     *
-     * Which transcription and which layer are in the URL rather than in
-     * client state: the layer's segments, regions and page breaks all have to
-     * be loaded for it, so choosing is a visit.
+     * Which layers are open is in the URL (`?left=layer-12&right=facsimile`)
+     * rather than in client state: a layer's segments, regions and page
+     * breaks all have to be loaded for it, so choosing one is a visit — and
+     * a bookmark reproduces the whole arrangement.
      */
     public function show(Request $request, Witness $witness): Response
     {
         $this->authorize('view', $witness);
 
-        $transcriptions = $witness->transcriptions()->visibleTo($request->user())
+        $transcripts = $witness->transcriptions()->visibleTo($request->user())
             ->orderBy('position')->orderBy('id')
+            ->with(['layers' => fn ($query) => $query->select('id', 'transcription_id', 'layer')->orderBy('layer')])
             ->get(['id', 'witness_id', 'name', 'position', 'visibility']);
 
-        // The one asked for, else the only one there is — a witness with a
-        // single transcription opens straight into it.
-        $selected = $transcriptions->firstWhere('id', (int) $request->query('transcription'))
-            ?? $transcriptions->first();
-
-        $layer = $selected === null ? null : $this->selectedLayer($selected, $request->query('layer'));
-
-        if ($layer !== null) {
-            $layer->load([
-                'transcription',
-                'transcription.pageBreaks' => fn ($query) => $query->orderBy('start_line'),
-                'segments' => fn ($query) => $query->orderBy('start_offset'),
-                'segments.canonicalPassage.work',
-                'regions' => fn ($query) => $query->orderBy('position'),
-            ]);
-
-            $layer->setAttribute('deletion_impact', DeletionImpact::forTranscription($layer));
-        }
+        [$left, $right] = $this->paneSelections($request, $transcripts);
 
         $pages = $witness->pages()->orderBy('position')->get();
         $images = $witness->images()->visibleTo($request->user())
@@ -103,24 +87,100 @@ class WitnessController extends Controller
 
         return Inertia::render('Witnesses/Show', [
             'witness' => $witness,
-            'transcriptions' => $transcriptions,
-            'transcription' => $layer,
-            // The page division belongs to the transcription and is given in
-            // lines, so it is the same however either layer is measured — see
-            // TranscriptionPageBreak.
-            'pageBreaks' => $layer?->transcription->pageBreaks
-                ->sortBy('start_line')->values() ?? collect(),
-            // Whether this layer and its sibling still share the word
-            // skeleton normalization is supposed to preserve — see
-            // LayerCorrespondence. A closure so the autosave partial reload
-            // can recompute it per save without re-running the whole page.
-            'layerCorrespondence' => fn () => $this->layerCorrespondence($layer),
+            'transcripts' => $transcripts,
+            // Closures so an editor's autosave can reload just the two pane
+            // payloads — the rest of this page is far too heavy per keystroke.
+            'leftPane' => fn () => $this->panePayload($left),
+            'rightPane' => fn () => $this->panePayload($right),
             'works' => Work::with('referenceScheme')->orderBy('title')->get(),
             // For the change-witness picker in the Witness box — moving
             // between witnesses without a detour through the front page.
             'witnessOptions' => Witness::query()->visibleTo($request->user())
                 ->orderBy('siglum')->get(['id', 'siglum', 'label']),
         ]);
+    }
+
+    /**
+     * What each pane shows: `facsimile`, or a layer id. From `left`/`right`
+     * query params (`facsimile` | `layer-{id}`), with the legacy
+     * `?transcription=&layer=` form mapped onto the left pane so old links
+     * still land. Defaults: the witness's working layer on the left, the
+     * facsimile on the right. The same layer cannot open twice — two live
+     * editors on one text would fight each other's autosaves — so a clash
+     * turns the right pane into the facsimile.
+     *
+     * @param  Collection<int, Transcription>  $transcripts
+     * @return array{0: int|null, 1: int|null} layer ids; null = facsimile
+     */
+    private function paneSelections(Request $request, $transcripts): array
+    {
+        $validIds = $transcripts->flatMap(fn (Transcription $transcript) => $transcript->layers->pluck('id'))->all();
+
+        $parse = function (?string $value) use ($validIds): ?int {
+            if ($value !== null && preg_match('/^layer-(\d+)$/', $value, $matches) === 1) {
+                $id = (int) $matches[1];
+
+                return in_array($id, $validIds, true) ? $id : null;
+            }
+
+            return null;
+        };
+
+        $left = $parse($request->query('left'));
+
+        if ($left === null && $request->query('left') !== 'facsimile') {
+            // Legacy links name a transcription (and maybe a layer); newer
+            // defaults pick the layer with text, where the work is.
+            $selected = $transcripts->firstWhere('id', (int) $request->query('transcription'))
+                ?? $transcripts->first();
+            $left = $selected === null
+                ? null
+                : $this->selectedLayer($selected, $request->query('layer'))?->id;
+        }
+
+        $right = $parse($request->query('right'));
+
+        if ($right !== null && $right === $left) {
+            $right = null;
+        }
+
+        return [$left, $right];
+    }
+
+    /**
+     * One pane's payload: the facsimile view (all its data is already on the
+     * page), or a fully loaded layer with its transcript's page breaks and
+     * its correspondence to the sibling layer.
+     *
+     * @return array<string, mixed>
+     */
+    private function panePayload(?int $layerId): array
+    {
+        if ($layerId === null) {
+            return ['view' => 'facsimile', 'layer' => null, 'pageBreaks' => [], 'correspondence' => null];
+        }
+
+        $layer = TranscriptionLayer::query()
+            ->with([
+                'transcription',
+                'segments' => fn ($query) => $query->orderBy('start_offset'),
+                'segments.canonicalPassage.work',
+                'regions' => fn ($query) => $query->orderBy('position'),
+            ])
+            ->findOrFail($layerId);
+
+        $layer->setAttribute('deletion_impact', DeletionImpact::forTranscription($layer));
+
+        return [
+            'view' => 'layer',
+            'layer' => $layer,
+            // The page division belongs to the transcript and is given in
+            // lines, so it is the same however either layer is measured —
+            // see TranscriptionPageBreak.
+            'pageBreaks' => $layer->transcription->pageBreaks()
+                ->orderBy('start_line')->get()->values(),
+            'correspondence' => $this->layerCorrespondence($layer),
+        ];
     }
 
     /**

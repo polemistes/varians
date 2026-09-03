@@ -343,6 +343,24 @@ defineExpose({
     // Lets the parent restore the caret after applying ops of its own
     // making (undo/redo), which never pass through applyAndRestoreCaret.
     restoreCaretAt: (offset: number) => restoreCaret(offset),
+    // Sets the live selection to a range — the parent uses this after a
+    // badge click, so the floating selection actions have a real selection
+    // rectangle to anchor under.
+    selectRangeAt: (start: number, end: number) => {
+        const from = pointAt(start);
+        const to = pointAt(end);
+        const selection = window.getSelection();
+
+        if (!from || !to || !selection) {
+            return;
+        }
+
+        const range = document.createRange();
+        range.setStart(from.node, from.offset);
+        range.setEnd(to.node, to.offset);
+        selection.removeAllRanges();
+        selection.addRange(range);
+    },
 });
 
 function offsetAt(node: Node, offset: number): number {
