@@ -14,6 +14,7 @@ import {
 import {
     destroy as destroyManuscriptPage,
     store as storeManuscriptPage,
+    update as updateManuscriptPage,
 } from '@/routes/manuscript-pages';
 import { destroy as destroyRegion } from '@/routes/transcription-regions';
 import {
@@ -382,6 +383,15 @@ function deletePage(item: ManuscriptPage) {
 
 function pageHasImage(item: ManuscriptPage): boolean {
     return images.value.some((image) => image.manuscript_page_id === item.id);
+}
+
+/** Swap the page with its neighbour in the witness's page order. */
+function movePage(item: ManuscriptPage, direction: 'up' | 'down') {
+    router.patch(
+        updateManuscriptPage.url(item.id),
+        { direction },
+        { preserveScroll: true },
+    );
 }
 
 // Placement acts on whichever pane holds a selection (the floating actions
@@ -947,6 +957,31 @@ const sides: Side[] = ['left', 'right'];
                             </button>
                         </form>
 
+                        <button
+                            v-if="
+                                canEdit &&
+                                selectedPage &&
+                                placementSide !== null
+                            "
+                            type="button"
+                            class="mb-2 w-full rounded border border-amber-300 px-2 py-1 text-amber-700 dark:border-amber-800 dark:text-amber-400"
+                            @click="placeSelectedPage"
+                        >
+                            {{ selectedPageIsPlaced ? 'Move' : 'Start' }}
+                            {{ selectedPage.label }} at selection
+                        </button>
+                        <p
+                            v-else-if="
+                                canEdit && selectedPage && !selectedPageIsPlaced
+                            "
+                            class="mb-2 text-amber-700 dark:text-amber-400"
+                        >
+                            {{ selectedPage.label }} has no text placed on it
+                            yet. Select its first words in a transcript, then
+                            press &ldquo;Start {{ selectedPage.label }} at
+                            selection&rdquo;.
+                        </p>
+
                         <div
                             class="mb-2 max-h-80 overflow-y-auto rounded border border-stone-200 dark:border-stone-800"
                         >
@@ -991,6 +1026,24 @@ const sides: Side[] = ['left', 'right'];
                                 >
                                     {{ item.label }}
                                 </button>
+                                <template v-if="canEdit">
+                                    <button
+                                        type="button"
+                                        class="px-0.5 opacity-40 hover:opacity-100"
+                                        :title="`Move ${item.label} up`"
+                                        @click="movePage(item, 'up')"
+                                    >
+                                        &#9650;
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="px-0.5 opacity-40 hover:opacity-100"
+                                        :title="`Move ${item.label} down`"
+                                        @click="movePage(item, 'down')"
+                                    >
+                                        &#9660;
+                                    </button>
+                                </template>
                                 <span
                                     v-if="pageHasImage(item)"
                                     title="Has a facsimile image"
@@ -1014,31 +1067,6 @@ const sides: Side[] = ['left', 'right'];
                                 No pages yet.
                             </p>
                         </div>
-
-                        <button
-                            v-if="
-                                canEdit &&
-                                selectedPage &&
-                                placementSide !== null
-                            "
-                            type="button"
-                            class="mb-2 w-full rounded border border-amber-300 px-2 py-1 text-amber-700 dark:border-amber-800 dark:text-amber-400"
-                            @click="placeSelectedPage"
-                        >
-                            {{ selectedPageIsPlaced ? 'Move' : 'Start' }}
-                            {{ selectedPage.label }} at selection
-                        </button>
-                        <p
-                            v-else-if="
-                                canEdit && selectedPage && !selectedPageIsPlaced
-                            "
-                            class="mb-2 text-amber-700 dark:text-amber-400"
-                        >
-                            {{ selectedPage.label }} has no text placed on it
-                            yet. Select its first words in a transcript, then
-                            press &ldquo;Start {{ selectedPage.label }} at
-                            selection&rdquo;.
-                        </p>
                     </fieldset>
                 </template>
             </div>

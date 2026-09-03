@@ -197,6 +197,8 @@ Route::middleware('role:editor')->group(function () {
 
     Route::post('/witnesses/{witness}/pages', [ManuscriptPageController::class, 'store'])
         ->name('manuscript-pages.store');
+    Route::patch('/manuscript-pages/{page}', [ManuscriptPageController::class, 'update'])
+        ->name('manuscript-pages.update');
     Route::delete('/manuscript-pages/{page}', [ManuscriptPageController::class, 'destroy'])
         ->name('manuscript-pages.destroy');
 

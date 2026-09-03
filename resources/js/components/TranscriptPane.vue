@@ -779,6 +779,12 @@ function storedAutoDialogue(): boolean {
 
 const dialogueOnSelect = ref(storedAutoDialogue());
 
+// Whether the floating dialogue is up at all. A plain selection only raises
+// it when the option above is on — during ordinary text editing, selections
+// happen constantly and a box popping up under each one is noise. A badge
+// click is an explicit press and always opens it.
+const overlayVisible = ref(false);
+
 watch(dialogueOnSelect, (value) => {
     try {
         localStorage.setItem(AUTO_DIALOGUE_KEY, value ? '1' : '0');
@@ -1054,6 +1060,7 @@ function onTextSelect(selection: ActiveSelection) {
     // A fresh selection invalidates whatever menu was open for the old one.
     activeMenu.value = null;
     updateSelectionAnchor();
+    overlayVisible.value = dialogueOnSelect.value;
 
     if (dialogueOnSelect.value) {
         openSelectionMenu('assign');
@@ -1088,6 +1095,7 @@ function onBadgeClick(segment: TranscriptionSegment) {
     textEl.value?.selectRangeAt(segment.start_offset, segment.end_offset);
     updateSelectionAnchor();
     prefillAssignForm(start, end);
+    overlayVisible.value = true;
     activeMenu.value = 'assign';
 }
 
@@ -1095,6 +1103,7 @@ function clearSelection() {
     activeSelection.value = null;
     activeMenu.value = null;
     selectionAnchor.value = null;
+    overlayVisible.value = false;
 
     if (drawingArmed.value) {
         drawingArmed.value = false;
@@ -1498,6 +1507,13 @@ defineExpose({
             v-if="canEdit && layer"
             class="mb-2 flex flex-wrap items-center gap-2 text-xs"
         >
+            <label
+                class="flex items-center gap-1 text-stone-500 dark:text-stone-400"
+                title="Open the marking dialogue the moment a selection is made — off, selecting is just selecting"
+            >
+                <input v-model="dialogueOnSelect" type="checkbox" />
+                Marking dialogue on select
+            </label>
             <span class="text-stone-500 dark:text-stone-400"
                 >Strip from selection:</span
             >
@@ -1523,22 +1539,19 @@ defineExpose({
                 {{ kind }}
             </button>
 
-            <span class="ml-auto text-stone-400 dark:text-stone-500">
-                {{
+            <span
+                class="ml-auto inline-block h-2.5 w-2.5 rounded-full"
+                :class="
+                    !savingText && !unsavedOps ? 'bg-green-600' : 'bg-red-600'
+                "
+                :title="
                     savingText
                         ? 'Saving…'
                         : unsavedOps
                           ? 'Unsaved changes'
                           : 'All changes saved'
-                }}
-            </span>
-            <label
-                class="flex items-center gap-1 text-stone-500 dark:text-stone-400"
-                title="Open the marking dialogue the moment a selection is made"
-            >
-                <input v-model="dialogueOnSelect" type="checkbox" />
-                Marking dialogue on select
-            </label>
+                "
+            ></span>
             <button
                 type="button"
                 class="rounded border border-stone-300 px-2 py-1 text-stone-600 disabled:opacity-40 dark:border-stone-700 dark:text-stone-400"
@@ -1635,7 +1648,12 @@ defineExpose({
             />
 
             <div
-                v-if="canEdit && activeSelection && selectionAnchor"
+                v-if="
+                    canEdit &&
+                    overlayVisible &&
+                    activeSelection &&
+                    selectionAnchor
+                "
                 class="absolute z-10 flex max-w-80 flex-col gap-2 rounded border border-sky-200 bg-sky-50 p-2 font-sans text-xs shadow-sm dark:border-sky-900 dark:bg-sky-950"
                 :style="{
                     top: `${selectionAnchor.top + 4}px`,

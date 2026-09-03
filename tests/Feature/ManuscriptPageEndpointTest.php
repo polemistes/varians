@@ -47,6 +47,33 @@ test('an editor can delete a page, taking its images and breaks but not the text
         ->and($layer->fresh()->text)->toBe("page one\npage two");
 });
 
+test('a page can be moved up and down by swapping with its neighbour', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $witness = Witness::factory()->create();
+    $first = $witness->pages()->create(['label' => '1r', 'position' => 1]);
+    $second = $witness->pages()->create(['label' => '1v', 'position' => 2]);
+
+    $this->patch(route('manuscript-pages.update', $second), ['direction' => 'up'])
+        ->assertRedirect();
+
+    expect((float) $first->fresh()->position)->toBe(2.0)
+        ->and((float) $second->fresh()->position)->toBe(1.0);
+
+    // At the top, up is a no-op rather than an error.
+    $this->patch(route('manuscript-pages.update', $second), ['direction' => 'up'])
+        ->assertRedirect();
+
+    expect((float) $second->fresh()->position)->toBe(1.0);
+});
+
+test('a guest cannot reorder pages', function () {
+    $this->actingAs(User::factory()->create());
+
+    $this->patch(route('manuscript-pages.update', ManuscriptPage::factory()->create()), [
+        'direction' => 'up',
+    ])->assertForbidden();
+});
+
 test('a guest cannot delete a page', function () {
     $this->actingAs(User::factory()->create());
 
