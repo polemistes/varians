@@ -26,6 +26,7 @@ use App\Http\Controllers\TranscriptionLayerCopyController;
 use App\Http\Controllers\TranscriptionPageBreakController;
 use App\Http\Controllers\TranscriptionRegionController;
 use App\Http\Controllers\TranscriptionSegmentController;
+use App\Http\Controllers\TranscriptionSpanCopyController;
 use App\Http\Controllers\TranscriptionTextController;
 use App\Http\Controllers\WitnessController;
 use App\Http\Controllers\WorkController;
@@ -190,6 +191,8 @@ Route::middleware('role:editor')->group(function () {
     Route::delete('/transcription-segments/{segment}', [TranscriptionSegmentController::class, 'destroy'])
         ->name('transcription-segments.destroy');
 
+    Route::post('/transcriptions/{transcription}/span-copies', [TranscriptionSpanCopyController::class, 'store'])
+        ->name('transcriptions.span-copies.store');
     Route::get('/transcriptions/{transcription}/copy', [TranscriptionLayerCopyController::class, 'create'])
         ->name('transcriptions.copy.create');
     Route::post('/transcriptions/{transcription}/copy', [TranscriptionLayerCopyController::class, 'store'])

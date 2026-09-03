@@ -28,6 +28,7 @@ import {
     update as updateManuscriptPage,
 } from '@/routes/manuscript-pages';
 import { destroy as destroyRegion } from '@/routes/transcription-regions';
+import { store as storeSpanCopy } from '@/routes/transcriptions/span-copies';
 import {
     show as showWitnessRoute,
     update as updateWitness,
@@ -601,6 +602,36 @@ function onRegionDrawn(box: {
     paneEl(drawingSource.value)?.completeRegion(box, selectedImageId.value);
 }
 
+/**
+ * A paste into one pane matched a copy from the other layer: once both
+ * panes' pending edits are saved (the posted offsets must be into saved
+ * text on BOTH sides), ask the server to bring the copied range's
+ * citations and facsimile mappings along.
+ */
+function onImportSpans(request: {
+    targetLayerId: number;
+    sourceLayerId: number;
+    sourceStart: number;
+    sourceEnd: number;
+    targetOffset: number;
+}) {
+    void flushBoth().then(() => {
+        router.post(
+            storeSpanCopy.url(request.targetLayerId),
+            {
+                source_layer_id: request.sourceLayerId,
+                source_start: request.sourceStart,
+                source_end: request.sourceEnd,
+                target_offset: request.targetOffset,
+            },
+            {
+                preserveScroll: true,
+                only: ['leftPane', 'rightPane', 'flash'],
+            },
+        );
+    });
+}
+
 function drawingEnabledFor(side: Side): boolean {
     return (
         drawingSource.value !== null &&
@@ -884,6 +915,7 @@ const sides: Side[] = ['left', 'right'];
                                 @arm-drawing="onArmDrawing(side)"
                                 @cancel-drawing="onCancelDrawing(side)"
                                 @hover-region="(id) => (hoveredRegionId = id)"
+                                @import-spans="onImportSpans"
                             />
                             <p
                                 v-else

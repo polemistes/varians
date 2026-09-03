@@ -11,6 +11,10 @@ import {
 import { EditHistory } from '@/lib/editHistory';
 import { stripOps } from '@/lib/greekText';
 import type { StripKind } from '@/lib/greekText';
+import {
+    matchTranscriptCopy,
+    rememberTranscriptCopy,
+} from '@/lib/transcriptClipboard';
 import { applyOps, transformSpans } from '@/lib/transcriptionEdit';
 import type { EditSource, TextEditOp } from '@/lib/transcriptionEdit';
 import { store as storePageBreak } from '@/routes/transcription-page-breaks';
@@ -76,6 +80,21 @@ const emit = defineEmits<{
     (e: 'arm-drawing'): void;
     (e: 'cancel-drawing'): void;
     (e: 'hover-region', id: number | null): void;
+    /**
+     * A paste that matches a copy from a SIBLING layer — the page flushes
+     * both panes, then posts the span import so the copied text's citations
+     * and mappings follow it (see TranscriptionSpanCopyController).
+     */
+    (
+        e: 'import-spans',
+        request: {
+            targetLayerId: number;
+            sourceLayerId: number;
+            sourceStart: number;
+            sourceEnd: number;
+            targetOffset: number;
+        },
+    ): void;
 }>();
 
 const layer = computed(() => props.pane.layer);
@@ -212,6 +231,20 @@ function applyEdit(op: TextEditOp, source: PaneEditSource) {
         if (match) {
             op = { ...op, cut_id: match[0] };
             outstandingCuts.delete(match[0]);
+        } else if (layer.value) {
+            // Not a relocation — but possibly a COPY from the sibling
+            // layer, whose citations and mappings should follow the text.
+            const copied = matchTranscriptCopy(op.text);
+
+            if (copied && copied.layerId !== layer.value.id) {
+                emit('import-spans', {
+                    targetLayerId: layer.value.id,
+                    sourceLayerId: copied.layerId,
+                    sourceStart: copied.start,
+                    sourceEnd: copied.end,
+                    targetOffset: op.start,
+                });
+            }
         }
     }
 
@@ -222,6 +255,19 @@ function applyEdit(op: TextEditOp, source: PaneEditSource) {
     deleteConfirmed.value = false;
     textSaveError.value = null;
     scheduleAutosave();
+}
+
+function onCopied(copy: { start: number; end: number; text: string }) {
+    if (!layer.value) {
+        return;
+    }
+
+    rememberTranscriptCopy({
+        layerId: layer.value.id,
+        start: toFull(copy.start),
+        end: toFull(copy.end),
+        text: copy.text,
+    });
 }
 
 function onEdit(op: TextEditOp, source: PaneEditSource = 'typing') {
@@ -1681,6 +1727,7 @@ defineExpose({
                 @selection-cleared="onSelectionCleared"
                 @hover-region="(id) => emit('hover-region', id)"
                 @badge-click="onBadgeClick"
+                @copied="onCopied"
                 @edit="onEdit"
                 @undo="performUndo"
                 @redo="performRedo"

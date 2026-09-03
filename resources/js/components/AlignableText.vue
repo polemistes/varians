@@ -54,6 +54,8 @@ const emit = defineEmits<{
     // The user collapsed the selection (clicked in the text) — whatever
     // selection the parent remembered no longer reflects what's on screen.
     (e: 'selection-cleared'): void;
+    /** A copy took these characters — offsets in this component's text. */
+    (e: 'copied', copy: { start: number; end: number; text: string }): void;
 }>();
 
 const containerEl = ref<HTMLElement | null>(null);
@@ -628,10 +630,10 @@ function onCopy(event: ClipboardEvent) {
     }
 
     event.preventDefault();
-    event.clipboardData.setData(
-        'text/plain',
-        props.text.slice(offsets.start, offsets.end),
-    );
+    const text = props.text.slice(offsets.start, offsets.end);
+    event.clipboardData.setData('text/plain', text);
+    // So a paste into a SIBLING layer can bring the spans along.
+    emit('copied', { start: offsets.start, end: offsets.end, text });
 }
 
 function onCut(event: ClipboardEvent) {

@@ -173,3 +173,17 @@ Autosave partial reloads now request `only: ['leftPane', 'rightPane',
 layer, which may be open opposite. User-visible language says
 "transcript"; the internal rename from "transcription" is a separate,
 purely mechanical pass still to come.
+
+## A cross-layer clipboard COPY carries its spans
+`onCopy` in AlignableText emits `copied` alongside owning the clipboard;
+the pane stashes `{layerId, start, end, text}` at module scope
+(`lib/transcriptClipboard.ts`). A paste whose text exactly matches the
+stash, into a DIFFERENT layer, emits `import-spans`; the page flushes both
+panes (offsets must be into saved text on both sides), then posts
+`transcriptions.span-copies.store`, which re-verifies the characters match
+at both ends before copying the wholly-contained citation segments (as
+further parts where the target already cites the passage) and facsimile
+mappings (skipped where the target already maps overlapping text). Cut
+stays relocation within a layer; cross-layer cut does not carry (the
+source spans are tombstoned by the deletion before the import could read
+them).
