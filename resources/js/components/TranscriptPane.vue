@@ -1180,7 +1180,9 @@ function completeRegion(
             'Could not save that alignment. Try drawing the box again.';
     };
     const done = () => {
-        drawingArmed.value = false;
+        // clearSelection also disarms drawing AND tells the page so — the
+        // page must hear it, or the facsimile stays stuck in crosshair
+        // mode; clearing the flag here first silenced that (real bug).
         clearSelection();
     };
 
