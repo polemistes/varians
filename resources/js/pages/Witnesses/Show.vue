@@ -232,69 +232,24 @@ function flushBoth(): Promise<boolean> {
     ]).then((results) => results.every(Boolean));
 }
 
-/** The URL parameter describing what a side currently holds. */
-function paneParam(side: Side): string {
-    const payload = payloadFor(side);
-
-    return payload.layer ? `layer-${payload.layer.id}` : 'facsimile';
-}
-
-function navigatePane(side: Side, layerId: number) {
+/** Open a different transcript — both panes follow, sides fixed. */
+function navigateTranscript(transcriptId: number) {
     void flushBoth().then(() => {
         router.get(
             showWitnessRoute.url(props.witness),
-            {
-                left: side === 'left' ? `layer-${layerId}` : paneParam('left'),
-                right:
-                    side === 'right' ? `layer-${layerId}` : paneParam('right'),
-            },
+            { transcript: transcriptId },
             { preserveScroll: true },
         );
     });
 }
 
-/** A layer this side could open that the other side doesn't hold. */
-function defaultLayerFor(side: Side): number | null {
-    const takenId = payloadFor(otherSide(side)).layer?.id ?? null;
-
-    for (const transcript of props.transcripts) {
-        for (const option of transcript.layers ?? []) {
-            if (option.id !== takenId) {
-                return option.id;
-            }
-        }
-    }
-
-    return null;
-}
-
 function setTab(side: Side, tab: PaneTab) {
-    if (tab === 'facsimile') {
-        display.value = { ...display.value, [side]: 'facsimile' };
-
-        return;
-    }
-
-    if (payloadFor(side).layer) {
-        display.value = { ...display.value, [side]: 'transcript' };
-
-        return;
-    }
-
-    const layerId = defaultLayerFor(side);
-
-    if (layerId !== null) {
-        navigatePane(side, layerId);
-
-        return;
-    }
-
-    // No transcript to open — show the empty state with its pointer.
-    display.value = { ...display.value, [side]: 'transcript' };
+    display.value = { ...display.value, [side]: tab };
 }
 
-function otherLayerIdFor(side: Side): number | null {
-    return payloadFor(otherSide(side)).layer?.id ?? null;
+/** What the transcript tab is called: the side says which layer it holds. */
+function transcriptTabLabel(side: Side): string {
+    return side === 'left' ? 'Diplomatic transcript' : 'Normalized transcript';
 }
 
 // ---- shared page state: the Pages box between the panes ----
@@ -893,7 +848,7 @@ const sides: Side[] = ['left', 'right'];
                                 ] as const"
                                 :key="tab"
                                 type="button"
-                                class="rounded border px-3 py-1 capitalize"
+                                class="rounded border px-3 py-1"
                                 :class="
                                     display[side] === tab
                                         ? 'border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300'
@@ -901,7 +856,11 @@ const sides: Side[] = ['left', 'right'];
                                 "
                                 @click="setTab(side, tab)"
                             >
-                                {{ tab }}
+                                {{
+                                    tab === 'transcript'
+                                        ? transcriptTabLabel(side)
+                                        : 'Facsimile'
+                                }}
                             </button>
                         </div>
 
@@ -913,9 +872,8 @@ const sides: Side[] = ['left', 'right'];
                                 :transcripts="props.transcripts"
                                 :works="props.works"
                                 :selected-page-id="selectedPageId"
-                                :other-layer-id="otherLayerIdFor(side)"
                                 :hovered-region-id="hoveredRegionId"
-                                @navigate="(id) => navigatePane(side, id)"
+                                @navigate="navigateTranscript"
                                 @selection-changed="
                                     (has) => onSelectionChanged(side, has)
                                 "
@@ -937,8 +895,13 @@ const sides: Side[] = ['left', 'right'];
                                     </template>
                                 </template>
                                 <template v-else>
-                                    Every layer is already open in the other
-                                    pane.
+                                    This transcript has no
+                                    {{
+                                        side === 'left'
+                                            ? 'diplomatic'
+                                            : 'normalized'
+                                    }}
+                                    layer.
                                 </template>
                             </p>
                         </template>

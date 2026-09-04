@@ -7,9 +7,10 @@ use App\Models\User;
 use App\Models\Witness;
 
 /**
- * The witness page is the workbench: two symmetric panes, each holding a
- * transcript layer or the facsimile. Which layers are open is in the URL,
- * because the server has to load each layer's segments, regions and breaks.
+ * The witness page is the workbench: the diplomatic layer always on the
+ * left, the normalized always on the right (each pane can also show the
+ * facsimile, client-side). Which TRANSCRIPT is open is in the URL, because
+ * the server has to load each layer's segments, regions and breaks.
  */
 
 /**
@@ -58,28 +59,30 @@ test('the transcription asked for is the one opened', function () {
         ->and($props['transcripts'])->toHaveCount(2);
 });
 
-test('the layer asked for is the one opened', function () {
+test('the layers take their fixed sides: diplomatic left, normalized right', function () {
     $this->actingAs(User::factory()->editor()->create());
     $witness = Witness::factory()->create();
     $transcription = Transcription::factory()->for($witness)->create();
-    TranscriptionLayer::factory()->for($transcription)->diplomatic()->create(['text' => 'ΑΛΦΑ']);
-    TranscriptionLayer::factory()->for($transcription)->normalized()->create(['text' => 'ἄλφα']);
-
-    expect(workbench($witness, ['layer' => 'normalized'])['leftPane']['layer']['text'])->toBe('ἄλφα')
-        ->and(workbench($witness, ['layer' => 'diplomatic'])['leftPane']['layer']['text'])->toBe('ΑΛΦΑ');
-});
-
-test('the layer with text is opened by default, whichever it is', function () {
-    // Transcribing from the manuscript begins in the diplomatic layer and
-    // importing begins in the normalized one, so opening whichever has
-    // something in it lands the editor where the work is.
-    $this->actingAs(User::factory()->editor()->create());
-    $witness = Witness::factory()->create();
-    $transcription = Transcription::factory()->for($witness)->create();
+    // Empty diplomatic, filled normalized — the sides do not depend on
+    // where the text happens to be.
     TranscriptionLayer::factory()->for($transcription)->diplomatic()->create(['text' => '']);
     TranscriptionLayer::factory()->for($transcription)->normalized()->create(['text' => 'imported']);
 
-    expect(workbench($witness)['leftPane']['layer']['layer'])->toBe('normalized');
+    $props = workbench($witness);
+
+    expect($props['leftPane']['layer']['layer'])->toBe('diplomatic')
+        ->and($props['rightPane']['layer']['layer'])->toBe('normalized')
+        ->and($props['rightPane']['layer']['text'])->toBe('imported');
+});
+
+test('the transcript query parameter selects the transcript', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $witness = Witness::factory()->create();
+    TranscriptionLayer::factory()->for($witness)->diplomatic()->create(['text' => 'first']);
+    $second = Transcription::factory()->for($witness)->create(['name' => 'Scholia', 'position' => 2]);
+    TranscriptionLayer::factory()->for($second)->diplomatic()->create(['text' => 'second']);
+
+    expect(workbench($witness, ['transcript' => $second->id])['leftPane']['layer']['text'])->toBe('second');
 });
 
 test('the transcription\'s page division comes with the open layer', function () {
@@ -123,27 +126,18 @@ test('the old per-transcription URL lands on the witness, at that layer', functi
         ]));
 });
 
-test('any layer can open in either pane, but not the same layer twice', function () {
+test('a legacy pane URL still lands on the layer\'s transcript, sides fixed', function () {
     $this->actingAs(User::factory()->editor()->create());
     $witness = Witness::factory()->create();
-    $transcription = Transcription::factory()->for($witness)->create();
-    $diplomatic = TranscriptionLayer::factory()->for($transcription)->diplomatic()->create(['text' => 'ΑΛΦΑ']);
-    $normalized = TranscriptionLayer::factory()->for($transcription)->normalized()->create(['text' => 'ἄλφα']);
+    TranscriptionLayer::factory()->for($witness)->diplomatic()->create(['text' => 'first']);
+    $second = Transcription::factory()->for($witness)->create(['name' => 'Scholia', 'position' => 2]);
+    $diplomatic = TranscriptionLayer::factory()->for($second)->diplomatic()->create(['text' => 'ΑΛΦΑ']);
+    $normalized = TranscriptionLayer::factory()->for($second)->normalized()->create(['text' => 'ἄλφα']);
 
-    $props = workbench($witness, [
-        'left' => "layer-{$diplomatic->id}",
-        'right' => "layer-{$normalized->id}",
-    ]);
+    // An old bookmark named a layer per pane; the layer's transcript is the
+    // one meant, and the sides are no longer a choice.
+    $props = workbench($witness, ['left' => "layer-{$normalized->id}"]);
 
     expect($props['leftPane']['layer']['id'])->toBe($diplomatic->id)
         ->and($props['rightPane']['layer']['id'])->toBe($normalized->id);
-
-    // Two live editors on one text would fight each other's autosaves — a
-    // clash turns the right pane into the facsimile.
-    $clashed = workbench($witness, [
-        'left' => "layer-{$diplomatic->id}",
-        'right' => "layer-{$diplomatic->id}",
-    ]);
-
-    expect($clashed['rightPane']['view'])->toBe('facsimile');
 });

@@ -49,16 +49,15 @@ class WitnessController extends Controller
     }
 
     /**
-     * The witness workbench: two symmetric panes, each showing either a
-     * transcript layer (a full editor) or the facsimile, with the shared
-     * page division between them. Any layer of any transcript can open in
-     * either pane — diplomatic beside its facsimile, diplomatic beside
-     * normalized, whatever the work at hand wants.
+     * The witness workbench: the diplomatic layer always on the left, the
+     * normalized always on the right, with the shared page division between
+     * them. Each pane can also show the facsimile via its tabs (that switch
+     * is client-side — the facsimile's data is already on the page).
      *
-     * Which layers are open is in the URL (`?left=layer-12&right=facsimile`)
-     * rather than in client state: a layer's segments, regions and page
-     * breaks all have to be loaded for it, so choosing one is a visit — and
-     * a bookmark reproduces the whole arrangement.
+     * Which TRANSCRIPT is open is in the URL (`?transcript=12`) rather than
+     * in client state: a layer's segments, regions and page breaks all have
+     * to be loaded for it, so choosing one is a visit — and a bookmark
+     * reproduces the whole arrangement.
      */
     public function show(Request $request, Witness $witness): Response
     {
@@ -69,7 +68,10 @@ class WitnessController extends Controller
             ->with(['layers' => fn ($query) => $query->select('id', 'transcription_id', 'layer')->orderBy('layer')])
             ->get(['id', 'witness_id', 'name', 'position', 'visibility']);
 
-        [$left, $right] = $this->paneSelections($request, $transcripts);
+        $transcript = $this->selectedTranscript($request, $transcripts);
+        $layerId = fn (Layer $layer): ?int => $transcript?->layers
+            ->firstWhere('layer', $layer)?->id;
+        [$left, $right] = [$layerId(Layer::Diplomatic), $layerId(Layer::Normalized)];
 
         $pages = $witness->pages()->orderBy('position')->get();
         $images = $witness->images()->visibleTo($request->user())
@@ -101,50 +103,41 @@ class WitnessController extends Controller
     }
 
     /**
-     * What each pane shows: `facsimile`, or a layer id. From `left`/`right`
-     * query params (`facsimile` | `layer-{id}`), with the legacy
-     * `?transcription=&layer=` form mapped onto the left pane so old links
-     * still land. Defaults: the witness's working layer on the left, the
-     * facsimile on the right. The same layer cannot open twice — two live
-     * editors on one text would fight each other's autosaves — so a clash
-     * turns the right pane into the facsimile.
+     * The transcript both panes show: `?transcript=12`, with the legacy
+     * forms mapped so old links and bookmarks still land — `?transcription=`
+     * named a transcription directly, and `?left=layer-N`/`?right=layer-N`
+     * named a layer whose transcript is the one meant. Defaults to the
+     * witness's first transcript. Which SIDE each layer takes is not a
+     * choice: diplomatic is always left, normalized always right.
      *
      * @param  Collection<int, Transcription>  $transcripts
-     * @return array{0: int|null, 1: int|null} layer ids; null = facsimile
      */
-    private function paneSelections(Request $request, $transcripts): array
+    private function selectedTranscript(Request $request, $transcripts): ?Transcription
     {
-        $validIds = $transcripts->flatMap(fn (Transcription $transcript) => $transcript->layers->pluck('id'))->all();
+        $byId = fn (int $id): ?Transcription => $transcripts->firstWhere('id', $id);
 
-        $parse = function (?string $value) use ($validIds): ?int {
-            if ($value !== null && preg_match('/^layer-(\d+)$/', $value, $matches) === 1) {
-                $id = (int) $matches[1];
+        foreach (['transcript', 'transcription'] as $param) {
+            $named = $byId((int) $request->query($param));
 
-                return in_array($id, $validIds, true) ? $id : null;
+            if ($named !== null) {
+                return $named;
             }
-
-            return null;
-        };
-
-        $left = $parse($request->query('left'));
-
-        if ($left === null && $request->query('left') !== 'facsimile') {
-            // Legacy links name a transcription (and maybe a layer); newer
-            // defaults pick the layer with text, where the work is.
-            $selected = $transcripts->firstWhere('id', (int) $request->query('transcription'))
-                ?? $transcripts->first();
-            $left = $selected === null
-                ? null
-                : $this->selectedLayer($selected, $request->query('layer'))?->id;
         }
 
-        $right = $parse($request->query('right'));
+        foreach (['left', 'right'] as $param) {
+            $value = (string) $request->query($param);
 
-        if ($right !== null && $right === $left) {
-            $right = null;
+            if (preg_match('/^layer-(\d+)$/', $value, $matches) === 1) {
+                $owner = $transcripts->first(fn (Transcription $transcript) => $transcript->layers
+                    ->contains('id', (int) $matches[1]));
+
+                if ($owner !== null) {
+                    return $owner;
+                }
+            }
         }
 
-        return [$left, $right];
+        return $transcripts->first();
     }
 
     /**
@@ -211,30 +204,6 @@ class WitnessController extends Controller
             'text' => $sibling->text,
             'divergence' => LayerCorrespondence::divergence($layer->text, $sibling->text),
         ];
-    }
-
-    /**
-     * The layer to open. The one named, else whichever already has text —
-     * transcribing from the manuscript begins in the diplomatic layer and
-     * importing a text begins in the normalized one, so opening the one that
-     * has something in it lands the editor where the work is. Falls back to
-     * diplomatic, which is where a blank transcription starts.
-     */
-    private function selectedLayer(Transcription $transcription, ?string $requested): ?TranscriptionLayer
-    {
-        $layers = $transcription->layers()->get();
-
-        if ($requested !== null) {
-            $named = $layers->firstWhere('layer.value', $requested);
-
-            if ($named !== null) {
-                return $named;
-            }
-        }
-
-        return $layers->first(fn (TranscriptionLayer $layer) => $layer->text !== '')
-            ?? $layers->firstWhere('layer.value', Layer::Diplomatic->value)
-            ?? $layers->first();
     }
 
     /**

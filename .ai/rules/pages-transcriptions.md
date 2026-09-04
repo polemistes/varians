@@ -169,13 +169,18 @@ op log, autosave, undo history, selection, floating actions, import, copy,
 visibility, strip-from-selection — lives in
 `components/TranscriptPane.vue`, instantiated once per pane, each instance
 owning its own autosave loop and history. The facsimile side is
-`components/FacsimilePane.vue`. Left and right are places to put things:
-any layer of any transcript opens in either pane via
-`?left=layer-12&right=facsimile` (legacy `?transcription=&layer=` maps to
-the left pane). The same layer must never open twice — two live editors on
-one text would fight each other's autosaves; the server turns a clash into
-the facsimile (test-pinned). Showing the facsimile is CLIENT-side tab
-state (its data is already on the page); opening a layer is a visit.
+`components/FacsimilePane.vue`. The SIDES ARE FIXED (user decision,
+revising the earlier any-layer-anywhere model): diplomatic is always the
+left pane, normalized always the right, tabs labeled "Diplomatic
+transcript"/"Normalized transcript" plus "Facsimile" on each side. The URL
+carries the TRANSCRIPT (`?transcript=12`; legacy `?transcription=`,
+`?layer=` and `?left=layer-N`/`?right=layer-N` map to the layer's
+transcript, test-pinned) and each pane's labeled "Choose transcript"
+select switches transcripts — never layers — for both panes at once. The
+same-layer-twice clash cannot arise any more, and the "every layer is
+already open" dead-end message it produced is gone with it. Showing the
+facsimile is CLIENT-side tab state (its data is already on the page);
+choosing a transcript is a visit.
 
 **The selection actions FLOAT under the selection's last line** — an
 absolutely positioned sibling of the editable surface inside a relative

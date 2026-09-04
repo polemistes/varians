@@ -65,15 +65,13 @@ const props = defineProps<{
     transcripts: Transcription[];
     works: Work[];
     selectedPageId: number | null;
-    /** The layer open in the other pane, disabled in this pane's picker. */
-    otherLayerId: number | null;
     /** Ids for the region-hover coupling with a facsimile pane. */
     hoveredRegionId: number | null;
 }>();
 
 const emit = defineEmits<{
-    /** Open a different layer in this pane — the page navigates. */
-    (e: 'navigate', layerId: number): void;
+    /** Open a different transcript — the page navigates, both panes follow. */
+    (e: 'navigate', transcriptId: number): void;
     /** A selection now exists (or not) — enables the Pages box placement. */
     (e: 'selection-changed', has: boolean): void;
     /** Drawing armed: the page brings the facsimile up in the other pane. */
@@ -844,21 +842,23 @@ const pageSegments = computed(() =>
 );
 const pageRegions = computed(() => withinPage(activeRegions.value));
 
-// ---- pane header: which layer, of which transcript ----
-const currentValue = computed(() => `layer-${layer.value?.id ?? ''}`);
+// ---- pane header: which transcript (the LAYER is fixed by the side —
+// diplomatic left, normalized right; this only switches transcripts) ----
+const currentTranscriptId = computed(
+    () => layer.value?.transcription_id ?? null,
+);
 
-function onPickLayer(event: Event) {
-    const value = (event.target as HTMLSelectElement).value;
-    const match = value.match(/^layer-(\d+)$/);
+function onPickTranscript(event: Event) {
+    const picked = Number((event.target as HTMLSelectElement).value);
 
-    if (!match || Number(match[1]) === layer.value?.id) {
+    if (!picked || picked === currentTranscriptId.value) {
         return;
     }
 
     // Autosave leaves nothing to discard — flush whatever is pending, then
     // navigate. Only a stale-text conflict blocks, and that needs the reload
     // the visit performs anyway.
-    void flushText(true).then(() => emit('navigate', Number(match[1])));
+    void flushText(true).then(() => emit('navigate', picked));
 }
 
 // A plain ref (not a separate useForm) so this always PATCHes the *current*
@@ -1702,28 +1702,28 @@ defineExpose({
 
 <template>
     <div>
-        <!-- Row 1: which transcript and layer, its visibility, its removal. -->
+        <!-- Row 1: which transcript, its visibility, its removal. The
+             layer is fixed by the side (diplomatic left, normalized right),
+             so this chooses between the witness's transcripts only. -->
         <div class="mb-2 flex flex-wrap items-center gap-2 text-xs">
-            <select
-                :value="currentValue"
-                class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
-                @change="onPickLayer"
-            >
-                <optgroup
-                    v-for="transcript in props.transcripts"
-                    :key="transcript.id"
-                    :label="transcript.name"
+            <label class="flex items-center gap-1">
+                <span class="text-stone-500 dark:text-stone-400"
+                    >Choose transcript</span
+                >
+                <select
+                    :value="currentTranscriptId ?? ''"
+                    class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                    @change="onPickTranscript"
                 >
                     <option
-                        v-for="option in transcript.layers ?? []"
-                        :key="option.id"
-                        :value="`layer-${option.id}`"
-                        :disabled="option.id === props.otherLayerId"
+                        v-for="transcript in props.transcripts"
+                        :key="transcript.id"
+                        :value="transcript.id"
                     >
-                        {{ option.layer }}
+                        {{ transcript.name }}
                     </option>
-                </optgroup>
-            </select>
+                </select>
+            </label>
 
             <select
                 v-if="canEdit && layer"
