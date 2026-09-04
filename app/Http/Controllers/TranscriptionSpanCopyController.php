@@ -50,7 +50,8 @@ class TranscriptionSpanCopyController extends Controller
         // not a validation error: the paste itself succeeded, and the one
         // consequence the editor cannot see is that nothing came along.
         if (mb_substr($source->text, $start, $length) !== mb_substr($transcription->text, $at, $length)) {
-            session()->flash('message', 'The copied text no longer matches its source — no citations or mappings were brought along.');
+            session()->flash('message', 'The copied text no longer matches its source — no assignments or image mappings were brought along.');
+            session()->flash('message_layer_id', $transcription->id);
 
             return back();
         }
@@ -70,16 +71,35 @@ class TranscriptionSpanCopyController extends Controller
                 ->sortBy([['canonical_passage_id', 'asc'], ['part', 'asc']]);
 
             foreach ($touched as $segment) {
-                // A further part of the passage's citation in the target, in
-                // the copied content order — the target may already cite it.
+                // A further part of the passage's assignment in the target,
+                // in the copied content order — the target may already
+                // assign it elsewhere.
                 $passageId = $segment->canonical_passage_id;
+                $landStart = max($segment->start_offset, $start) + $shift;
+                $landEnd = min($segment->end_offset, $end) + $shift;
+
+                // Assigned once: where the landing words already carry this
+                // very assignment — e.g. the sibling-healing pass restored
+                // it the moment the pasted text saved — a second part would
+                // only duplicate it (real bug: every pasted assignment
+                // showed as 1/2).
+                $alreadyAssigned = $transcription->segments()
+                    ->where('canonical_passage_id', $passageId)
+                    ->where('start_offset', '<', $landEnd)
+                    ->where('end_offset', '>', $landStart)
+                    ->exists();
+
+                if ($alreadyAssigned) {
+                    continue;
+                }
+
                 $nextPart[$passageId] ??= ((int) $transcription->segments()
                     ->where('canonical_passage_id', $passageId)->max('part')) + 1;
 
                 $transcription->segments()->create([
                     'canonical_passage_id' => $passageId,
-                    'start_offset' => max($segment->start_offset, $start) + $shift,
-                    'end_offset' => min($segment->end_offset, $end) + $shift,
+                    'start_offset' => $landStart,
+                    'end_offset' => $landEnd,
                     'part' => $nextPart[$passageId]++,
                     'needs_review' => $segment->needs_review,
                     'group_id' => (string) Str::uuid(),
@@ -141,20 +161,21 @@ class TranscriptionSpanCopyController extends Controller
             $parts = [];
 
             if ($citations > 0) {
-                $parts[] = $citations.' citation'.($citations === 1 ? '' : 's');
+                $parts[] = $citations.' assignment'.($citations === 1 ? '' : 's');
             }
 
             if ($mappings > 0) {
-                $parts[] = $mappings.' facsimile mapping'.($mappings === 1 ? '' : 's');
+                $parts[] = $mappings.' image mapping'.($mappings === 1 ? '' : 's');
             }
 
             $notice = 'Brought '.implode(' and ', $parts).' along with the pasted text.';
 
             if (! $sameWitness) {
-                $notice .= ' Facsimile mappings stay with their own witness.';
+                $notice .= ' Image mappings stay with their own witness.';
             }
 
             session()->flash('message', $notice);
+            session()->flash('message_layer_id', $transcription->id);
         }
 
         return back();

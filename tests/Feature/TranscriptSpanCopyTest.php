@@ -46,7 +46,10 @@ test('a pasted copy brings its citations and mappings, shifted to where it lande
         'source_end' => 15,
         'target_offset' => 10,
     ])->assertRedirect()
-        ->assertSessionHas('message', 'Brought 1 citation and 1 facsimile mapping along with the pasted text.');
+        ->assertSessionHas('message', 'Brought 1 assignment and 1 image mapping along with the pasted text.')
+        // Scoped to the pasted-into layer: the witness page shows the
+        // notice only over that pane, not over its neighbour.
+        ->assertSessionHas('message_layer_id', $target->id);
 
     $segment = $target->segments()->sole();
     $region = $target->regions()->sole();
@@ -75,6 +78,31 @@ test('a copied citation joins a passage the target already cites, as a further p
     ])->assertRedirect();
 
     expect($target->segments()->where('start_offset', 10)->sole()->part)->toBe(2);
+});
+
+test('a copied assignment is skipped where the landing words already carry it', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    [, $source, $target] = spanCopyFixture();
+
+    $passage = CanonicalPassage::factory()->for(Work::factory())->create();
+    TranscriptionSegment::factory()->for($source)->for($passage, 'canonicalPassage')
+        ->create(['start_offset' => 0, 'end_offset' => 5]);
+    // The landing words are already assigned to the SAME passage — e.g.
+    // the sibling-healing pass restored the assignment the moment the
+    // pasted text saved. A second part would only duplicate it (real bug:
+    // every pasted assignment showed as 1/2).
+    TranscriptionSegment::factory()->for($target)->for($passage, 'canonicalPassage')
+        ->create(['start_offset' => 10, 'end_offset' => 15, 'part' => 1]);
+
+    $this->post(route('transcriptions.span-copies.store', $target), [
+        'source_layer_id' => $source->id,
+        'source_start' => 0,
+        'source_end' => 15,
+        'target_offset' => 10,
+    ])->assertRedirect()
+        ->assertSessionMissing('message');
+
+    expect($target->segments()->count())->toBe(1);
 });
 
 test('a copied mapping is skipped where the target already maps overlapping text', function () {
@@ -112,7 +140,7 @@ test('a copy whose text no longer matches at either end imports nothing, and say
         'target_offset' => 0, // "προοίμιον…" stands here, not the copied text
     ])->assertRedirect()
         ->assertValid()
-        ->assertSessionHas('message', 'The copied text no longer matches its source — no citations or mappings were brought along.');
+        ->assertSessionHas('message', 'The copied text no longer matches its source — no assignments or image mappings were brought along.');
 
     expect($target->segments()->count())->toBe(0);
 });
@@ -170,7 +198,7 @@ test('citations travel to another witness; facsimile mappings stay with their pa
         'source_end' => 15,
         'target_offset' => 0,
     ])->assertRedirect()
-        ->assertSessionHas('message', 'Brought 1 citation along with the pasted text. Facsimile mappings stay with their own witness.');
+        ->assertSessionHas('message', 'Brought 1 assignment along with the pasted text. Image mappings stay with their own witness.');
 
     // Which passage a stretch of text is stays true wherever it goes; where
     // it sits on a manuscript page does not.

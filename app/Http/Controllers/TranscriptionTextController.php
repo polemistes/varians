@@ -94,6 +94,11 @@ class TranscriptionTextController extends Controller
 
         if ($notices !== []) {
             session()->flash('message', implode(' ', $notices));
+            // The notice belongs to the pane whose save produced it — the
+            // sibling pane showing it too read as a report about ITS OWN
+            // layer (real confusion: a paste's import notice appeared over
+            // both panes).
+            session()->flash('message_layer_id', $transcription->id);
         }
 
         return back();

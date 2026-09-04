@@ -51,6 +51,10 @@ class HandleInertiaRequests extends Middleware
             // TranscriptionTextController.
             'flash' => [
                 'message' => fn () => $request->session()->get('message'),
+                // Which transcription layer the message concerns, when it
+                // concerns one — the witness page shows a scoped message
+                // only over that layer's pane, never over its neighbour.
+                'layer' => fn () => $request->session()->get('message_layer_id'),
             ],
         ];
     }

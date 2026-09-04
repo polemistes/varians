@@ -105,7 +105,7 @@ const layerRegions = computed(() => layer.value?.regions ?? []);
 const page = usePage<{
     auth: Auth;
     csrf?: string;
-    flash?: { message?: string | null };
+    flash?: { message?: string | null; layer?: number | null };
 }>();
 const canEdit = computed(() => isEditorOrAbove(page.props.auth.user));
 
@@ -263,7 +263,22 @@ const staleTextError = ref<string | null>(null);
 // Set by the server when a saved edit also changed an edition's own printed
 // wording — the one consequence an editor cannot see from this page. Not an
 // error and nothing to confirm; see TranscriptionTextController::applyReadings.
-const textSaveNotice = computed(() => page.props.flash?.message ?? null);
+// A message scoped to one layer (flash.layer) shows only over that layer's
+// pane — both panes render the shared flash, and an import notice repeated
+// over the sibling pane read as a report about the sibling's own layer.
+const textSaveNotice = computed(() => {
+    const flash = page.props.flash;
+
+    if (!flash?.message) {
+        return null;
+    }
+
+    if (flash.layer != null && flash.layer !== layer.value?.id) {
+        return null;
+    }
+
+    return flash.message;
+});
 
 // ---- undo/redo: a stack of inverse ops (see lib/editHistory.ts). An undo
 // is itself an ordinary edit op, so it previews and autosaves like typing.

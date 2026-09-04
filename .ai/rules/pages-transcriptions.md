@@ -207,7 +207,17 @@ the pane stashes `{layerId, start, end, text}` at module scope
 stash, into a DIFFERENT layer, emits `import-spans`; the page flushes both
 panes (offsets must be into saved text on both sides), then posts
 `transcriptions.span-copies.store`, which re-verifies the characters match
-at both ends before importing.
+at both ends before importing. Assigned ONCE also on import: a copied
+segment is skipped when the landing words already carry a live assignment
+to the same passage — the sibling-healing pass restores assignments the
+moment a pasted text saves, and the import arriving after it duplicated
+every one as a second part (real bug: badges all read 1/2). User-visible
+wording is "assignment(s)" and "image mapping(s)", never "citation(s)"
+(user decision). Layer-scoped flash notices carry `message_layer_id`
+(shared as `flash.layer`); a pane shows `flash.message` only when the id
+is absent or its own — both panes render the shared flash, and an import
+notice repeated over the sibling pane read as a report about the
+sibling's own layer.
 
 **The `import-spans` emit MUST come after the paste op joins `editOps`**
 (end of `applyEdit`, not inside the paste-matching branch): the handler's
