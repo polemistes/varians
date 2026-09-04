@@ -197,7 +197,23 @@ the pane stashes `{layerId, start, end, text}` at module scope
 stash, into a DIFFERENT layer, emits `import-spans`; the page flushes both
 panes (offsets must be into saved text on both sides), then posts
 `transcriptions.span-copies.store`, which re-verifies the characters match
-at both ends before importing. Citations travel ALWAYS — cross-layer,
+at both ends before importing.
+
+**The `import-spans` emit MUST come after the paste op joins `editOps`**
+(end of `applyEdit`, not inside the paste-matching branch): the handler's
+first act is `flushBoth()`, which runs synchronously during the emit — an
+emit before the push finds an empty op log, "flushes" instantly, and the
+import posts against text the server hasn't seen, so its match guard
+refuses everything (real bug: citations never followed a cross-witness
+copy; the tell in the network log is span-copies BEFORE the text PATCH).
+`flushBoth` resolves whether both panes saved clean and `onImportSpans`
+bails when they didn't. A genuine mismatch at the server is a flash
+NOTICE, not a validation error — the paste itself succeeded, and the one
+consequence the editor can't see is that nothing came along; the silent
+error-bag version hid exactly this bug. The import also assigns each
+created row a fresh `group_id` and runs `SiblingSync::heal` on the target,
+so an in-step target transcript receives the citation in BOTH its layers
+(test-pinned). Citations travel ALWAYS — cross-layer,
 cross-transcript, cross-witness — and a segment the copy cuts through
 contributes its contained part (still genuine text of its passage, as a
 further part where the target already cites it, unflagged). Facsimile

@@ -285,6 +285,13 @@ type PaneEditSource = EditSource | 'atomic';
 
 function applyEdit(op: TextEditOp, source: PaneEditSource) {
     const textBefore = editedText.value;
+    let spanImport: {
+        targetLayerId: number;
+        sourceLayerId: number;
+        sourceStart: number;
+        sourceEnd: number;
+        targetOffset: number;
+    } | null = null;
 
     // A whole-gesture edit — the sibling layer mirrors these verbatim when
     // they fall on word boundaries. Keystrokes never carry the flag: the
@@ -310,18 +317,18 @@ function applyEdit(op: TextEditOp, source: PaneEditSource) {
             op = { ...op, cut_id: match[0] };
             outstandingCuts.delete(match[0]);
         } else if (layer.value) {
-            // Not a relocation — but possibly a COPY from the sibling
-            // layer, whose citations and mappings should follow the text.
+            // Not a relocation — but possibly a COPY from another layer,
+            // whose citations and mappings should follow the text.
             const copied = matchTranscriptCopy(op.text);
 
             if (copied && copied.layerId !== layer.value.id) {
-                emit('import-spans', {
+                spanImport = {
                     targetLayerId: layer.value.id,
                     sourceLayerId: copied.layerId,
                     sourceStart: copied.start,
                     sourceEnd: copied.end,
                     targetOffset: op.start,
-                });
+                };
             }
         }
     }
@@ -333,6 +340,15 @@ function applyEdit(op: TextEditOp, source: PaneEditSource) {
     deleteConfirmed.value = false;
     textSaveError.value = null;
     scheduleAutosave();
+
+    // Emitted only AFTER the paste op has joined the log: the handler's
+    // first act is to flush this pane, and a flush that runs before the
+    // push finds nothing to send — the span import then posts against
+    // text the server hasn't seen and its match guard refuses everything
+    // (real bug: citations never followed a cross-witness copy).
+    if (spanImport) {
+        emit('import-spans', spanImport);
+    }
 }
 
 function onCopied(copy: { start: number; end: number; text: string }) {

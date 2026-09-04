@@ -224,11 +224,12 @@ function paneEl(side: Side) {
     return side === 'left' ? leftPaneEl.value : rightPaneEl.value;
 }
 
-function flushBoth(): Promise<unknown> {
+/** Resolves true only when BOTH panes' op logs saved clean. */
+function flushBoth(): Promise<boolean> {
     return Promise.all([
         leftPaneEl.value?.flushAll() ?? Promise.resolve(true),
         rightPaneEl.value?.flushAll() ?? Promise.resolve(true),
-    ]);
+    ]).then((results) => results.every(Boolean));
 }
 
 /** The URL parameter describing what a side currently holds. */
@@ -615,7 +616,13 @@ function onImportSpans(request: {
     sourceEnd: number;
     targetOffset: number;
 }) {
-    void flushBoth().then(() => {
+    void flushBoth().then((flushed) => {
+        // Unsaved ops mean the server hasn't seen the pasted text yet —
+        // its match guard would refuse the import against stale offsets.
+        if (!flushed) {
+            return;
+        }
+
         router.post(
             storeSpanCopy.url(request.targetLayerId),
             {

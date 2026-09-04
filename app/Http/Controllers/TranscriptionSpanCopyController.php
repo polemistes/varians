@@ -4,9 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreTranscriptionSpanCopyRequest;
 use App\Models\TranscriptionLayer;
+use App\Support\Transcription\SiblingSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Str;
 
 class TranscriptionSpanCopyController extends Controller
 {
@@ -45,11 +46,13 @@ class TranscriptionSpanCopyController extends Controller
         $length = $end - $start;
 
         // The pasted characters must still stand at both ends, or the spans
-        // would land on other words than the ones they describe.
+        // would land on other words than the ones they describe. A notice,
+        // not a validation error: the paste itself succeeded, and the one
+        // consequence the editor cannot see is that nothing came along.
         if (mb_substr($source->text, $start, $length) !== mb_substr($transcription->text, $at, $length)) {
-            throw ValidationException::withMessages([
-                'target_offset' => 'The copied text no longer matches — nothing was brought along.',
-            ]);
+            session()->flash('message', 'The copied text no longer matches its source — no citations or mappings were brought along.');
+
+            return back();
         }
 
         [$citations, $mappings] = DB::transaction(function () use ($source, $transcription, $start, $end, $at, $sameWitness) {
@@ -79,6 +82,7 @@ class TranscriptionSpanCopyController extends Controller
                     'end_offset' => min($segment->end_offset, $end) + $shift,
                     'part' => $nextPart[$passageId]++,
                     'needs_review' => $segment->needs_review,
+                    'group_id' => (string) Str::uuid(),
                 ]);
                 $citations++;
             }
@@ -119,6 +123,7 @@ class TranscriptionSpanCopyController extends Controller
                     'y' => $region->y,
                     'width' => $region->width,
                     'height' => $region->height,
+                    'group_id' => (string) Str::uuid(),
                 ]);
                 $mappings++;
             }
@@ -127,6 +132,12 @@ class TranscriptionSpanCopyController extends Controller
         });
 
         if ($citations > 0 || $mappings > 0) {
+            // Assignments are done once per TRANSCRIPT too: when the
+            // target's layers are in step, the imported spans get their
+            // counterparts in the sibling layer right away, exactly as a
+            // text save would.
+            SiblingSync::heal($transcription->refresh());
+
             $parts = [];
 
             if ($citations > 0) {
