@@ -18,6 +18,12 @@ export type TextEditOp = {
     end: number;
     text: string;
     cut_id?: string | null;
+    /**
+     * A whole-gesture edit (paste, import, undo/redo, strip, a
+     * selection-wide deletion) rather than a keystroke — the sibling layer
+     * mirrors atomic word-boundary edits verbatim; see LayerMirror.
+     */
+    atomic?: boolean;
 };
 
 /**

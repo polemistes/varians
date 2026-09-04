@@ -67,7 +67,9 @@ class TranscriptionTextController extends Controller
         $notices = [];
 
         if ($mirroredTo !== null) {
-            $notices[] = 'Also moved the corresponding text in the '.$mirroredTo.' layer.';
+            $notices[] = $mirroredTo['relocated']
+                ? 'Also moved the corresponding text in the '.$mirroredTo['layer'].' layer.'
+                : 'Also applied the edit to the '.$mirroredTo['layer'].' layer.';
         }
 
         if ($affectedEditions !== []) {
@@ -96,9 +98,9 @@ class TranscriptionTextController extends Controller
      *
      * @param  list<array{start: int, end: int, text: string, cut_id: string|null}>  $ops
      * @param  list<string>  $affected  edition titles, appended to in place
-     * @return string|null the mirrored layer's name, when a mirror applied
+     * @return array{layer: string, relocated: bool}|null describes the mirror applied, if any
      */
-    private function mirrorRelocations(TranscriptionLayer $transcription, string $originalText, array $ops, array &$affected): ?string
+    private function mirrorRelocations(TranscriptionLayer $transcription, string $originalText, array $ops, array &$affected): ?array
     {
         $sibling = $transcription->transcription->layers()
             ->whereKeyNot($transcription->id)
@@ -120,7 +122,7 @@ class TranscriptionTextController extends Controller
 
         $sibling->update(['text' => $mirror['text']]);
 
-        return $sibling->layer->value;
+        return ['layer' => $sibling->layer->value, 'relocated' => $mirror['relocated']];
     }
 
     /**
@@ -135,8 +137,8 @@ class TranscriptionTextController extends Controller
      * A cut whose paste hasn't arrived in this save keeps its id — the
      * transformer degrades it to a deletion by itself.
      *
-     * @param  list<array{start: mixed, end: mixed, text: mixed, cut_id?: mixed}>  $ops
-     * @return list<array{start: int, end: int, text: string, cut_id: string|null}>
+     * @param  list<array{start: mixed, end: mixed, text: mixed, cut_id?: mixed, atomic?: mixed}>  $ops
+     * @return list<array{start: int, end: int, text: string, cut_id: string|null, atomic: bool}>
      */
     private function normalizeOps(array $ops, string $originalText): array
     {
@@ -145,6 +147,11 @@ class TranscriptionTextController extends Controller
             'end' => (int) $op['end'],
             'text' => $op['text'] ?? '',
             'cut_id' => isset($op['cut_id']) && is_string($op['cut_id']) ? $op['cut_id'] : null,
+            // Marked by the client for paste/import/undo/strip and
+            // selection-wide deletions — the whole-word edits the sibling
+            // layer mirrors verbatim. Typing is never atomic: the first
+            // keystroke of a spelling change must stay in its own layer.
+            'atomic' => (bool) ($op['atomic'] ?? false),
         ], $ops);
 
         $running = $originalText;

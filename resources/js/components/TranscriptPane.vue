@@ -216,6 +216,14 @@ type PaneEditSource = EditSource | 'atomic';
 function applyEdit(op: TextEditOp, source: PaneEditSource) {
     const textBefore = editedText.value;
 
+    // A whole-gesture edit — the sibling layer mirrors these verbatim when
+    // they fall on word boundaries. Keystrokes never carry the flag: the
+    // first character of a spelling change must stay in its own layer. A
+    // multi-character deletion is a selected range, which is a gesture.
+    if (source !== 'typing' || op.end - op.start > 1) {
+        op = { ...op, atomic: true };
+    }
+
     if (source === 'cut') {
         const cutId = `c${Date.now().toString(36)}-${(cutCounter++).toString(36)}`;
         op = { ...op, cut_id: cutId };
@@ -292,6 +300,8 @@ function stripFromSelection(kind: StripKind) {
     }
 
     const { start, end } = activeSelection.value;
+    // Deliberately NOT atomic: stripping marks is a spelling-class edit —
+    // the whole point is that it happens in THIS layer only.
     const ops = stripOps(editedText.value.slice(start, end), kind).map(
         (op) => ({ ...op, start: op.start + start, end: op.end + start }),
     );
@@ -327,6 +337,9 @@ function applyHistoryOps(ops: TextEditOp[] | null) {
         return;
     }
 
+    // Undo/redo steps are whole gestures — atomic, like the edits they
+    // reverse (relocation halves keep their pairing regardless).
+    ops = ops.map((op) => ({ ...op, atomic: true }));
     editOps.value = [...editOps.value, ...ops];
     historyVersion.value++;
     transformRememberedSelection(ops);

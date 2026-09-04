@@ -167,14 +167,17 @@ the `layerCorrespondence` prop (in the autosave partial-reload `only`
 list), and `pattern()` (words collapsed to `w`, whitespace verbatim) is the
 strict precondition for mirroring.
 
-**Relocations mirror across layers** (`LayerMirror`, called from
+**Word-respecting edits mirror across layers** (`LayerMirror`, called from
 `TranscriptionTextController::mirrorRelocations`): a cut/paste pair moving
-whole words is replayed on the sibling using its own spellings, through the
-same span pipeline, so its segments, regions and readings travel too. Only
-relocations mirror — typed insertions/deletions have no meaningful
-counterpart mid-keystroke and just show in the indicator. All or nothing:
-anything unmirrorable (mid-word cut, paste inside a word, patterns already
-apart) abandons the whole mirror rather than half-applying. Page breaks are
+whole words is replayed on the sibling using its own spellings; an ATOMIC
+plain op (client-flagged `atomic` — paste, import, undo/redo, and
+selection-wide deletions; NEVER keystrokes, and deliberately never strip,
+which is a spelling-class edit) whose endpoints sit on word boundaries is
+replayed VERBATIM — same words in both layers, spellings adjusted later
+(user decision). A keystroke must stay in its layer because the first
+character of a spelling change is indistinguishable from one. Relocation
+pairs stay all-or-nothing (an unmappable half aborts the whole mirror);
+an unmirrorable plain op is merely skipped. Page breaks are
 deliberately NOT reapplied on the sibling — they live on the transcription
 in shared line coordinates and the editing layer's pass already moved them;
 a second pass would move them twice (test-pinned).

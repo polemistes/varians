@@ -71,3 +71,54 @@ test('typing inside a word between the pair halves does not break the mirror', f
     expect($mirror)->not->toBeNull()
         ->and($mirror['text'])->toBe('beta gammaalfa ');
 });
+
+test('an atomic whole-word insertion mirrors verbatim', function () {
+    $a = 'γιγνεται παντα';
+    $b = 'γίνεται πάντα';
+
+    // Paste "ῥει " at the head — a whole-gesture edit on a word boundary.
+    $mirror = LayerMirror::mirror($a, [
+        ['start' => 0, 'end' => 0, 'text' => 'ῥει ', 'cut_id' => null, 'atomic' => true],
+    ], $b);
+
+    expect($mirror)->not->toBeNull()
+        ->and($mirror['text'])->toBe('ῥει γίνεται πάντα')
+        ->and($mirror['relocated'])->toBeFalse();
+});
+
+test('an atomic deletion of a selected word removes its counterpart', function () {
+    $a = 'γιγνεται παντα ρει';
+    $b = 'γίνεται πάντα ῥεῖ';
+
+    // Delete "παντα " — endpoints on word boundaries.
+    $mirror = LayerMirror::mirror($a, [
+        ['start' => 9, 'end' => 15, 'text' => '', 'cut_id' => null, 'atomic' => true],
+    ], $b);
+
+    expect($mirror)->not->toBeNull()
+        ->and($mirror['text'])->toBe('γίνεται ῥεῖ');
+});
+
+test('a keystroke never mirrors, even on a word boundary', function () {
+    $a = 'γιγνεται παντα';
+    $b = 'γίνεται πάντα';
+
+    // Typing is where a spelling change begins — it stays in its layer.
+    expect(LayerMirror::mirror($a, [
+        ['start' => 0, 'end' => 0, 'text' => 'x', 'cut_id' => null],
+    ], $b))->toBeNull();
+});
+
+test('an atomic edit inside a word is a spelling edit and is skipped, not aborted', function () {
+    $a = 'γιγνεται παντα';
+    $b = 'γίνεται πάντα';
+
+    // One op inside a word (skipped), one on boundaries (mirrored).
+    $mirror = LayerMirror::mirror($a, [
+        ['start' => 2, 'end' => 3, 'text' => 'χ', 'cut_id' => null, 'atomic' => true],
+        ['start' => 14, 'end' => 14, 'text' => ' ρει', 'cut_id' => null, 'atomic' => true],
+    ], $b);
+
+    expect($mirror)->not->toBeNull()
+        ->and($mirror['text'])->toBe('γίνεται πάντα ρει');
+});

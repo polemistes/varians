@@ -126,3 +126,34 @@ test('the witness page reports whether the layers are in step', function () {
             ->where('leftPane.correspondence.divergence.b_words', 3)
     );
 });
+
+test('an atomic whole-word insertion appears verbatim in the sibling layer', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    [$normalized, $diplomatic] = twoLayerTranscription();
+
+    // Paste " ῥει" at the very end — a whole-gesture edit.
+    $this->patch(route('transcriptions.text.update', $normalized), [
+        'ops' => [
+            ['start' => 23, 'end' => 23, 'text' => ' ῥει', 'atomic' => true],
+        ],
+        'text' => "γίνεται πάντα\nκατ᾽ ἔριν ῥει",
+    ])->assertRedirect()
+        ->assertSessionHas('message', 'Also applied the edit to the diplomatic layer.');
+
+    expect($diplomatic->fresh()->text)->toBe("γιγνεται παντα\nκατ εριν ῥει");
+});
+
+test('typing stays in its own layer — the first keystroke of a spelling change must', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    [$normalized, $diplomatic] = twoLayerTranscription();
+
+    $this->patch(route('transcriptions.text.update', $normalized), [
+        'ops' => [
+            ['start' => 0, 'end' => 1, 'text' => ''],
+        ],
+        'text' => "ίνεται πάντα\nκατ᾽ ἔριν",
+    ])->assertRedirect()
+        ->assertSessionMissing('message');
+
+    expect($diplomatic->fresh()->text)->toBe("γιγνεται παντα\nκατ εριν");
+});

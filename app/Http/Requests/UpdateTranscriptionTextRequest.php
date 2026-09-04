@@ -46,6 +46,7 @@ class UpdateTranscriptionTextRequest extends FormRequest
             // The pairing claim itself is verified in
             // TranscriptionTextController::normalizeOps, not here.
             'ops.*.cut_id' => ['sometimes', 'nullable', 'string', 'max:64'],
+            'ops.*.atomic' => ['sometimes', 'boolean'],
             'text' => ['present', 'nullable', 'string', new ValidTranscriptionMarkup],
         ];
     }

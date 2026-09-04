@@ -3,41 +3,43 @@
 namespace App\Support\Transcription;
 
 /**
- * Derives the sibling layer's op list for a relocation, so that moving text
- * around in one layer moves the corresponding text in the other.
+ * Derives the sibling layer's op list for an edit, so that what happens to
+ * the WORDS of one layer happens to the words of the other.
  *
- * The two layers share a word skeleton (see LayerCorrespondence); a cut/paste
- * pair that moves whole words along that skeleton means the same thing in
- * either spelling, so the move is replayed on the sibling using ITS OWN
- * words. Only relocations mirror: typed insertions and deletions have no
- * meaningful counterpart mid-keystroke, and simply leave the layers out of
- * step for the correspondence indicator to show.
+ * The two layers share a word skeleton (see LayerCorrespondence): the same
+ * words in the same lines, only spellings differing. Two kinds of edit
+ * respect that skeleton and therefore mirror:
  *
- * All or nothing: the whole derivation is simulated first, and anything
- * unmirrorable — a cut through the middle of a word, a paste inside one,
- * layers whose word patterns already disagree — abandons the mirror
- * entirely (returns null) rather than half-applying it. The layers then
- * drift visibly instead of corrupting silently.
+ * - a cut/paste pair moving whole words is replayed on the sibling using
+ *   ITS OWN spellings (a relocation means the same thing in either layer);
+ * - an ATOMIC insertion, deletion or replacement whose endpoints sit on
+ *   word boundaries is replayed VERBATIM — pasting or importing words puts
+ *   the same words in both layers (spellings adjusted later), deleting a
+ *   selected word removes its counterpart. Atomic means the client marked
+ *   it so (paste, import, undo/redo, strip, a selection-wide deletion);
+ *   character-by-character typing never mirrors, because the first
+ *   keystroke of a spelling change is indistinguishable from it, and
+ *   mirroring it would destroy the sibling's own reading.
+ *
+ * A relocation pair that cannot mirror (a cut through the middle of a word,
+ * skeletons already apart) abandons the WHOLE mirror (null) rather than
+ * moving text in one layer only. An unmirrorable plain op is merely
+ * skipped: a spelling edit inside a word is exactly the divergence the
+ * layers exist for, and everything else shows in the in-step indicator.
  */
 class LayerMirror
 {
     /**
      * @param  string  $aText  the edited layer's text BEFORE the ops
-     * @param  list<array{start: int, end: int, text: string, cut_id: string|null}>  $ops  normalized and pair-verified (see TranscriptionTextController::normalizeOps)
+     * @param  list<array{start: int, end: int, text: string, cut_id: string|null, atomic?: bool}>  $ops  normalized and pair-verified (see TranscriptionTextController::normalizeOps)
      * @param  string  $bText  the sibling layer's current text
-     * @return array{ops: list<array{start: int, end: int, text: string, cut_id: string|null}>, text: string}|null
+     * @return array{ops: list<array{start: int, end: int, text: string, cut_id: string|null}>, text: string, relocated: bool}|null
      */
     public static function mirror(string $aText, array $ops, string $bText): ?array
     {
-        $pairs = RelocationSegmentEffects::pairs($ops);
-
-        if ($pairs === []) {
-            return null;
-        }
-
         $roles = [];
 
-        foreach ($pairs as [$cutIndex, $pasteIndex]) {
+        foreach (RelocationSegmentEffects::pairs($ops) as [$cutIndex, $pasteIndex]) {
             $roles[$cutIndex] = 'cut';
             $roles[$pasteIndex] = 'paste';
         }
@@ -46,14 +48,16 @@ class LayerMirror
         $b = $bText;
         $bOps = [];
         $stash = [];
+        $relocated = false;
 
         foreach ($ops as $index => $op) {
             $role = $roles[$index] ?? null;
+            // The skeletons must agree at the moment an op applies — an
+            // unmirrored edit earlier in the log may have parted them.
+            $inStep = LayerCorrespondence::pattern($a) === LayerCorrespondence::pattern($b);
 
             if ($role !== null) {
-                // The skeletons must agree at the moment the half applies —
-                // an unmirrored edit earlier in the log may have broken that.
-                if (LayerCorrespondence::pattern($a) !== LayerCorrespondence::pattern($b)) {
+                if (! $inStep) {
                     return null;
                 }
 
@@ -73,12 +77,28 @@ class LayerMirror
 
                 $bOps[] = $bOp;
                 $b = TextOpApplier::apply($b, $bOp);
+                $relocated = true;
+            } elseif (($op['atomic'] ?? false) && $inStep) {
+                $start = self::mapOffset($a, $b, $op['start']);
+                $end = $op['end'] === $op['start']
+                    ? $start
+                    : self::mapOffset($a, $b, $op['end']);
+
+                if ($start !== null && $end !== null) {
+                    $bOp = ['start' => $start, 'end' => $end, 'text' => $op['text'], 'cut_id' => null];
+                    $bOps[] = $bOp;
+                    $b = TextOpApplier::apply($b, $bOp);
+                }
             }
 
             $a = TextOpApplier::apply($a, $op);
         }
 
-        return ['ops' => $bOps, 'text' => $b];
+        if ($bOps === []) {
+            return null;
+        }
+
+        return ['ops' => $bOps, 'text' => $b, 'relocated' => $relocated];
     }
 
     /**
