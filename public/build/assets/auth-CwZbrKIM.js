@@ -1,0 +1,1 @@
+function e(e){return e?.role===`editor`||e?.role===`administrator`}export{e as t};
