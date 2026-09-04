@@ -12,6 +12,7 @@ use App\Models\TranscriptionSegment;
 use App\Support\Transcription\LayerCorrespondence;
 use App\Support\Transcription\LayerMirror;
 use App\Support\Transcription\RelocationSegmentEffects;
+use App\Support\Transcription\SiblingSync;
 use App\Support\Transcription\SpanTransformer;
 use App\Support\Transcription\TextOpApplier;
 use Illuminate\Database\Eloquent\Collection;
@@ -62,7 +63,12 @@ class TranscriptionTextController extends Controller
 
             $transcription->update(['text' => $recomputedText]);
 
-            $mirroredTo = $this->mirrorRelocations($transcription, $original, $ops, $affected);
+            $mirroredTo = $this->mirrorRelocations($transcription, $original, $ops, $affected, $confirmedWipe);
+
+            // Whenever this save leaves the layers in step, one-sided spans
+            // get their counterparts — a span assigned while the layers
+            // were apart heals here (see SiblingSync::heal).
+            SiblingSync::heal($transcription->refresh());
 
             return [$affected, $mirroredTo];
         });
@@ -105,7 +111,7 @@ class TranscriptionTextController extends Controller
      * @param  list<string>  $affected  edition titles, appended to in place
      * @return array{layer: string, relocated: bool, mirrored: bool}|null describes the mirror applied — or expected and refused
      */
-    private function mirrorRelocations(TranscriptionLayer $transcription, string $originalText, array $ops, array &$affected): ?array
+    private function mirrorRelocations(TranscriptionLayer $transcription, string $originalText, array $ops, array &$affected, bool $confirmedWipe = false): ?array
     {
         $sibling = $transcription->transcription->layers()
             ->whereKeyNot($transcription->id)
@@ -135,7 +141,9 @@ class TranscriptionTextController extends Controller
             return null;
         }
 
-        $this->applySpans($sibling->segments, $mirror['ops']);
+        // A confirmed wipe removes the spans on BOTH sides — the checkbox
+        // speaks for the transcript, and a mirrored wipe is the same wipe.
+        $this->applySpans($sibling->segments, $mirror['ops'], null, $confirmedWipe);
         $this->applySpans($sibling->regions, $mirror['ops'], $mirror['text']);
         $affected = [...$affected, ...$this->applyReadings($sibling, $mirror['ops'], $mirror['text'])];
 

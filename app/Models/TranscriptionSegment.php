@@ -40,7 +40,7 @@ use Illuminate\Support\Collection;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['transcription_layer_id', 'canonical_passage_id', 'start_offset', 'end_offset', 'part', 'needs_review'])]
+#[Fillable(['transcription_layer_id', 'canonical_passage_id', 'start_offset', 'end_offset', 'part', 'needs_review', 'group_id'])]
 class TranscriptionSegment extends Model
 {
     /** @use HasFactory<TranscriptionSegmentFactory> */

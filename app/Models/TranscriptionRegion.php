@@ -30,7 +30,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['transcription_layer_id', 'manuscript_image_id', 'text', 'start_offset', 'end_offset', 'position', 'x', 'y', 'width', 'height', 'needs_review'])]
+#[Fillable(['transcription_layer_id', 'manuscript_image_id', 'text', 'start_offset', 'end_offset', 'position', 'x', 'y', 'width', 'height', 'needs_review', 'group_id'])]
 class TranscriptionRegion extends Model
 {
     /** @use HasFactory<TranscriptionRegionFactory> */

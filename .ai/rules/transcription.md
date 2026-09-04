@@ -194,14 +194,22 @@ layer) and the join the edition-facsimile highlight will use — a reading's
 char range in the normalized layer and a mapping drawn on the diplomatic
 layer meet in word indices.
 
-## Assignments and mappings are DONE ONCE — SiblingSync (interim)
-`App\Support\Transcription\SiblingSync` projects a span made in one layer
-onto the IN-STEP sibling: `TranscriptionSegmentController` (store, assign,
-update, destroy) and `TranscriptionRegionController` (store, storeBatch,
-update, destroy) all create/mutate/remove the counterpart row, projected
-through WordSpans (word ranges for citations, sub-word anchors for
-mappings). An out-of-step sibling is never written — the words cannot be
-named, so the indicator shows the drift instead. INTERIM: the agreed
-destination stores spans once per transcript in word coordinates; this
-dual-row sync is what its migration will merge (rows are word-identical by
-construction).
+## Assignments and mappings are DONE ONCE — counterpart rows linked by group_id
+A span is ONE identity seen from two layers: counterpart rows share a
+`group_id` (segments and regions both). `SiblingSync` creates the pair on
+assignment/mapping (projected through WordSpans: word ranges for
+citations, sub-word anchors for mappings), every mutation reaches the
+other half by the LINK (`counterpartSegment`/`counterpartRegion` — never
+by range-matching, which broke the moment the layers drifted), and
+`SiblingSync::heal()` runs after every text save: when the layers are in
+step, one-sided spans get their counterpart (an existing unlinked twin is
+linked; otherwise it is created by projection) — so a span assigned while
+the layers were apart self-repairs on the catch-up edit.
+
+Rows deliberately stay per-layer with per-layer character offsets, each
+transforming with its OWN layer's edits. The once-planned single
+word-coordinate store was found UNSOUND and abandoned: while the layers
+are out of step, a catch-up edit cannot be told from a leading one, so a
+shared coordinate would double-move spans on resync. Do not revive it.
+The word-coordinate machinery (WordSpans) remains the projection engine
+for creation, healing, and the edition-facsimile join.

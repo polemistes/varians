@@ -16,6 +16,7 @@ use App\Support\Transcription\SiblingSync;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class TranscriptionSegmentController extends Controller
@@ -39,11 +40,14 @@ class TranscriptionSegmentController extends Controller
         DB::transaction(function () use ($request, $transcription, $passage) {
             $aligned = $this->guardLatePart($request, $transcription, $passage);
 
+            $group = (string) Str::uuid();
+
             $transcription->segments()->create([
                 'canonical_passage_id' => $passage->id,
                 'start_offset' => $request->validated('start_offset'),
                 'end_offset' => $request->validated('end_offset'),
                 'part' => $this->placePart($request, $transcription, $passage),
+                'group_id' => $group,
             ]);
 
             if ($aligned) {
@@ -56,6 +60,7 @@ class TranscriptionSegmentController extends Controller
                 $passage,
                 (int) $request->validated('start_offset'),
                 (int) $request->validated('end_offset'),
+                $group,
             );
         });
 
@@ -69,7 +74,7 @@ class TranscriptionSegmentController extends Controller
      * are kept and its parts flagged rather than silently re-collated —
      * the acknowledgment flow belongs to the layer the editor is acting in.
      */
-    private function syncSiblingAssignment(FormRequest $request, TranscriptionLayer $layer, CanonicalPassage $passage, int $start, int $end): void
+    private function syncSiblingAssignment(FormRequest $request, TranscriptionLayer $layer, CanonicalPassage $passage, int $start, int $end, string $group): void
     {
         $sibling = SiblingSync::inStepSibling($layer);
 
@@ -101,6 +106,7 @@ class TranscriptionSegmentController extends Controller
             'start_offset' => $siblingStart,
             'end_offset' => $siblingEnd,
             'part' => $this->placePart($request, $sibling, $passage),
+            'group_id' => $group,
         ]);
 
         if ($aligned) {
@@ -109,25 +115,12 @@ class TranscriptionSegmentController extends Controller
     }
 
     /**
-     * The sibling's row for the same words and passage, if the layers are
-     * in step — the counterpart every mutation keeps in step.
+     * The other layer's half of this span — one identity, linked by the
+     * shared group, immune to the layers drifting apart.
      */
     private function siblingCounterpart(TranscriptionSegment $segment): ?TranscriptionSegment
     {
-        $layer = $segment->transcriptionLayer;
-        $sibling = SiblingSync::inStepSibling($layer);
-
-        if ($sibling === null) {
-            return null;
-        }
-
-        [$start, $end] = SiblingSync::projectRange($layer, $sibling, (int) $segment->start_offset, (int) $segment->end_offset);
-
-        return $sibling->segments()
-            ->where('canonical_passage_id', $segment->canonical_passage_id)
-            ->where('start_offset', $start)
-            ->where('end_offset', $end)
-            ->first();
+        return SiblingSync::counterpartSegment($segment);
     }
 
     /**
@@ -142,7 +135,8 @@ class TranscriptionSegmentController extends Controller
 
             $segment->update([...$request->validated(), 'needs_review' => false]);
 
-            if ($counterpart !== null) {
+            if ($counterpart !== null
+                && SiblingSync::inStepSibling($segment->transcriptionLayer) !== null) {
                 $layer = $segment->transcriptionLayer;
                 [$start, $end] = SiblingSync::projectRange(
                     $layer,

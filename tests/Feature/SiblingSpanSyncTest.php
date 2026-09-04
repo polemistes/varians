@@ -123,3 +123,55 @@ test('deleting a mapping deletes its counterpart; moving one moves both boxes', 
 
     expect(TranscriptionRegion::count())->toBe(0);
 });
+
+test('the counterpart link survives the layers drifting apart', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    [$diplomatic, $normalized] = inStepLayers();
+    $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
+
+    $this->post(route('transcription-segments.store', $diplomatic), [
+        'work_id' => $work->id,
+        'label' => '1.2',
+        'start_offset' => 9,
+        'end_offset' => 14,
+    ]);
+
+    // The layers drift: word-range matching would now miss the counterpart,
+    // but the pair is ONE identity, linked by group.
+    $normalized->update(['text' => 'γίνεται πάντα ῥεῖ ὥσπερ ποταμός']);
+
+    $this->delete(route('transcription-segments.destroy', $diplomatic->segments()->sole()))
+        ->assertRedirect();
+
+    expect(TranscriptionSegment::count())->toBe(0);
+});
+
+test('a span assigned while the layers were apart heals when they come back in step', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    [$diplomatic, $normalized] = inStepLayers();
+    $normalized->update(['text' => 'γίνεται πάντα']); // out of step: a word short
+    $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
+
+    // Assigned one-sided — the sibling cannot receive it yet.
+    $this->post(route('transcription-segments.store', $diplomatic), [
+        'work_id' => $work->id,
+        'label' => '1.2',
+        'start_offset' => 9,
+        'end_offset' => 14,
+    ]);
+
+    expect($normalized->segments()->count())->toBe(0);
+
+    // The catch-up edit that restores the word skeleton (a save through the
+    // text pipeline runs the healing pass).
+    $this->patch(route('transcriptions.text.update', $normalized), [
+        'ops' => [['start' => 13, 'end' => 13, 'text' => ' ῥεῖ']],
+        'text' => 'γίνεται πάντα ῥεῖ',
+    ])->assertRedirect();
+
+    $healed = $normalized->segments()->sole();
+
+    expect(mb_substr($normalized->fresh()->text, $healed->start_offset, $healed->end_offset - $healed->start_offset))
+        ->toBe('πάντα')
+        ->and($healed->group_id)->toBe($diplomatic->segments()->sole()->group_id);
+});

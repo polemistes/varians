@@ -11,6 +11,7 @@ use App\Support\Transcription\RegionSplitter;
 use App\Support\Transcription\SiblingSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class TranscriptionRegionController extends Controller
@@ -27,6 +28,7 @@ class TranscriptionRegionController extends Controller
             $region = $transcription->regions()->create([
                 ...$request->validated(),
                 'position' => ($transcription->regions()->max('position') ?? 0) + 1,
+                'group_id' => (string) Str::uuid(),
             ]);
 
             $this->syncSiblingMapping($region);
@@ -75,29 +77,17 @@ class TranscriptionRegionController extends Controller
             'y' => $region->y,
             'width' => $region->width,
             'height' => $region->height,
+            'group_id' => $region->group_id,
         ]);
     }
 
     /**
-     * The sibling's mapping of the same words on the same image, if the
-     * layers are in step.
+     * The other layer's half of this mapping — one identity, linked by the
+     * shared group, immune to the layers drifting apart.
      */
     private function siblingCounterpart(TranscriptionRegion $region): ?TranscriptionRegion
     {
-        $layer = $region->transcriptionLayer;
-        $sibling = SiblingSync::inStepSibling($layer);
-
-        if ($sibling === null) {
-            return null;
-        }
-
-        [$start, $end] = SiblingSync::projectAnchors($layer, $sibling, (int) $region->start_offset, (int) $region->end_offset);
-
-        return $sibling->regions()
-            ->where('manuscript_image_id', $region->manuscript_image_id)
-            ->where('start_offset', $start)
-            ->where('end_offset', $end)
-            ->first();
+        return SiblingSync::counterpartRegion($region);
     }
 
     /**
@@ -176,6 +166,7 @@ class TranscriptionRegionController extends Controller
                     'y' => $box['y'] + $unit['line'] * $bandHeight,
                     'width' => $unit['width'] * $box['width'],
                     'height' => $bandHeight,
+                    'group_id' => (string) Str::uuid(),
                 ]);
 
                 $this->syncSiblingMapping($region);
