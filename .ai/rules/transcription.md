@@ -181,3 +181,15 @@ an unmirrorable plain op is merely skipped. Page breaks are
 deliberately NOT reapplied on the sibling — they live on the transcription
 in shared line coordinates and the editing layer's pass already moved them;
 a second pass would move them twice (test-pinned).
+
+## WordSpans is the projection layer for transcript-level coordinates
+`App\Support\Transcription\WordSpans` (mirrored in
+`resources/js/lib/wordSpans.ts`; `WordSpansTest` is the contract) converts
+character offsets ⇄ word coordinates: word RANGES snap outward to whole
+words (citations are word-granular, user decision); sub-word ANCHORS
+`{word, char}` serve facsimile mappings, read against each layer's own
+spelling and clamped to its length. This is the coordinate system segments
+and regions migrate to (spans stored ONCE per transcript, projected per
+layer) and the join the edition-facsimile highlight will use — a reading's
+char range in the normalized layer and a mapping drawn on the diplomatic
+layer meet in word indices.
