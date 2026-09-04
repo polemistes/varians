@@ -52,7 +52,9 @@ class TranscriptionTextController extends Controller
                 ]);
             }
 
-            $this->applySpans($transcription->segments, $ops);
+            $confirmedWipe = $request->boolean('confirm_wipe');
+
+            $this->applySpans($transcription->segments, $ops, null, $confirmedWipe);
             $this->applySpans($transcription->regions, $ops, $recomputedText);
             $this->applyPageBreaks($transcription, $ops, $recomputedText);
             $affected = $this->applyReadings($transcription, $ops, $recomputedText);
@@ -228,7 +230,7 @@ class TranscriptionTextController extends Controller
      * @param  Collection<int, TranscriptionSegment>|Collection<int, TranscriptionRegion>  $spans
      * @param  list<array{start: int, end: int, text: string, cut_id?: string|null}>  $ops
      */
-    private function applySpans(Collection $spans, array $ops, ?string $newText = null): void
+    private function applySpans(Collection $spans, array $ops, ?string $newText = null, bool $confirmedWipe = false): void
     {
         $spans = $spans->values();
 
@@ -274,9 +276,12 @@ class TranscriptionTextController extends Controller
                 // tombstone rather than deleted — an editor's assignment work
                 // must never be destroyed by a text state that merely passed
                 // through (an autosave can fire mid-rearrangement). Removing
-                // it stays an explicit editor action. Regions are different:
-                // they're re-drawable geometry nothing else references.
-                if ($span instanceof TranscriptionSegment) {
+                // it stays an explicit editor action — which a CONFIRMED
+                // wipe is: the checkbox says "this will remove every
+                // citation", and checking it makes that true. Regions are
+                // different either way: re-drawable geometry nothing else
+                // references.
+                if ($span instanceof TranscriptionSegment && ! $confirmedWipe) {
                     $lostPartPassages[$span->canonical_passage_id] = true;
 
                     $span->update([

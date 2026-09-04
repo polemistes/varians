@@ -183,6 +183,14 @@ const needsDeleteConfirmation = computed(
 );
 const deleteConfirmed = ref(false);
 
+// Checking the box IS the go signal — without this, the blocked save just
+// sat there and the checkbox visibly did nothing (real bug).
+watch(deleteConfirmed, (confirmed) => {
+    if (confirmed) {
+        void flushText(false);
+    }
+});
+
 const savingText = ref(false);
 const textSaveError = ref<string | null>(null);
 // The one save failure that cannot be retried: another editor changed the
@@ -461,6 +469,10 @@ function flushText(force: boolean): Promise<boolean> {
             {
                 ops: sending,
                 text: applyOps(layerText.value, sending),
+                // An acknowledged wipe really removes the citations, as the
+                // checkbox promises; unconfirmed destruction tombstones.
+                confirm_wipe:
+                    deleteConfirmed.value && needsDeleteConfirmation.value,
             },
             {
                 preserveScroll: true,
@@ -1642,9 +1654,11 @@ defineExpose({
                 :title="
                     savingText
                         ? 'Saving…'
-                        : unsavedOps
-                          ? 'Unsaved changes'
-                          : 'All changes saved'
+                        : needsDeleteConfirmation && !deleteConfirmed
+                          ? 'Not saved — confirm the removal below to save'
+                          : unsavedOps
+                            ? 'Unsaved changes'
+                            : 'All changes saved'
                 "
             ></span>
             <button

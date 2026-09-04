@@ -89,6 +89,22 @@ test('deleting a segment\'s entire text tombstones it — zero-width and flagged
         ->and($segment->needs_review)->toBeTrue();
 });
 
+test('a CONFIRMED wipe really removes the citations, as the checkbox promises', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
+    TranscriptionSegment::factory()->for($transcription)->create([
+        'start_offset' => 4, 'end_offset' => 7,
+    ]);
+
+    $this->patch(route('transcriptions.text.update', $transcription), [
+        'ops' => [['start' => 0, 'end' => 11, 'text' => '']],
+        'text' => '',
+        'confirm_wipe' => true,
+    ])->assertRedirect();
+
+    expect($transcription->segments()->count())->toBe(0);
+});
+
 test('replacing a segment\'s entire text keeps the row, resized and flagged', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);

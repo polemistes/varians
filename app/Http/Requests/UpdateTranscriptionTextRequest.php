@@ -47,6 +47,10 @@ class UpdateTranscriptionTextRequest extends FormRequest
             // TranscriptionTextController::normalizeOps, not here.
             'ops.*.cut_id' => ['sometimes', 'nullable', 'string', 'max:64'],
             'ops.*.atomic' => ['sometimes', 'boolean'],
+            // The editor checked "this will remove every citation … — save
+            // anyway": destroyed segments are then truly deleted instead of
+            // tombstoned, honouring what the checkbox says.
+            'confirm_wipe' => ['sometimes', 'boolean'],
             'text' => ['present', 'nullable', 'string', new ValidTranscriptionMarkup],
         ];
     }
