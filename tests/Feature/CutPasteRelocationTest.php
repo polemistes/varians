@@ -7,6 +7,7 @@ use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
+use App\Models\Work;
 use App\Support\Edition\PassageAligner;
 
 /**
@@ -320,4 +321,38 @@ test('cutting a whole line carries exactly the selection — its newline travels
     expect($beta->start_offset)->toBe(0)
         ->and($beta->end_offset)->toBe(4)
         ->and($beta->needs_review)->toBeFalse();
+});
+
+test('undoing a partial relocation merges the fragment back into its remainder', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
+    $passage = CanonicalPassage::factory()->for(Work::factory())->create();
+    TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+        ->create(['start_offset' => 0, 'end_offset' => 15]); // "the quick brown"
+
+    // Cut " brown" out of the cited span and paste it at the end — the
+    // fragment becomes part 2 (the forward move).
+    $this->patch(route('transcriptions.text.update', $transcription), [
+        'ops' => [
+            ['start' => 9, 'end' => 15, 'text' => '', 'cut_id' => 'f1'],
+            ['start' => 13, 'end' => 13, 'text' => ' brown', 'cut_id' => 'f1'],
+        ],
+        'text' => 'the quick fox brown',
+    ])->assertRedirect();
+
+    expect($transcription->segments()->count())->toBe(2);
+
+    // The reverse move (what undo replays, with a fresh pair id): the
+    // fragment rejoins its remainder — and so must the rows.
+    $this->patch(route('transcriptions.text.update', $transcription), [
+        'ops' => [
+            ['start' => 13, 'end' => 19, 'text' => '', 'cut_id' => 'f2'],
+            ['start' => 9, 'end' => 9, 'text' => ' brown', 'cut_id' => 'f2'],
+        ],
+        'text' => 'the quick brown fox',
+    ])->assertRedirect();
+
+    $merged = $transcription->segments()->sole();
+
+    expect([$merged->start_offset, $merged->end_offset])->toBe([0, 15]);
 });

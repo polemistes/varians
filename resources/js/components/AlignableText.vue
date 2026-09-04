@@ -285,7 +285,9 @@ function badgeText(segment: TranscriptionSegment): string {
     const label = segment.canonical_passage?.label ?? '';
     const total = partTotalFor(segment);
 
-    return total > 1 ? `${label} · ${segment.part}/${total}` : label;
+    return total > 1
+        ? `${label} · ${segment.part_ordinal ?? segment.part}/${total}`
+        : label;
 }
 
 // A region mapping has no persistent highlight of its own — it only lights

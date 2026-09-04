@@ -374,6 +374,10 @@ class TranscriptionTextController extends Controller
             ]);
         }
 
+        if ($spans->first() instanceof TranscriptionSegment) {
+            $this->mergeRejoinedParts($spans->first()->transcriptionLayer);
+        }
+
         // A destroyed segment may have been one *part* of a passage cited by
         // several spans; the survivors still stand, but the passage's witness
         // text just lost a piece and its collation for this layer is stale —
@@ -384,6 +388,45 @@ class TranscriptionTextController extends Controller
                 && isset($lostPartPassages[$span->canonical_passage_id])
                 && ! $span->needs_review) {
                 $span->update(['needs_review' => true]);
+            }
+        }
+    }
+
+    /**
+     * Collapse same-passage LIVE spans that now stand identical or exactly
+     * adjacent into one row. A relocation that cut a fragment out of a span
+     * created a separate part for it; UNDOING that relocation carries the
+     * fragment back — the text rejoins, and so must the rows, or every
+     * move-and-undo leaves duplicate citations behind (real incident: one
+     * line 4, three rows, a badge saying 2/3).
+     */
+    private function mergeRejoinedParts(TranscriptionLayer $transcription): void
+    {
+        $byPassage = $transcription->segments()
+            ->whereColumn('end_offset', '>', 'start_offset')
+            ->orderBy('start_offset')
+            ->get()
+            ->groupBy('canonical_passage_id');
+
+        foreach ($byPassage as $rows) {
+            /** @var TranscriptionSegment|null $kept */
+            $kept = null;
+
+            foreach ($rows as $row) {
+                if ($kept !== null
+                    && $row->start_offset <= $kept->end_offset
+                    && $row->end_offset >= $kept->start_offset) {
+                    $kept->update([
+                        'start_offset' => min((int) $kept->start_offset, (int) $row->start_offset),
+                        'end_offset' => max((int) $kept->end_offset, (int) $row->end_offset),
+                        'needs_review' => $kept->needs_review || $row->needs_review,
+                    ]);
+                    $row->delete();
+
+                    continue;
+                }
+
+                $kept = $row;
             }
         }
     }

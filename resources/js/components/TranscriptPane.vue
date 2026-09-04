@@ -805,7 +805,12 @@ function withinPage<T extends { start_offset: number; end_offset: number }>(
         }));
 }
 
-const pageSegments = computed(() => withinPage(activeSegments.value));
+const pageSegments = computed(() =>
+    withinPage(activeSegments.value).map((segment) => ({
+        ...segment,
+        part_ordinal: partOrdinals.value[segment.id],
+    })),
+);
 const pageRegions = computed(() => withinPage(activeRegions.value));
 
 // ---- pane header: which layer, of which transcript ----
@@ -1476,13 +1481,42 @@ function placePage(pageId: number) {
 const layerPartTotals = computed<Record<number, number>>(() => {
     const totals: Record<number, number> = {};
 
-    // The PREVIEWED set, so a fresh fragment's badge counts itself.
+    // The PREVIEWED set, live spans only — a tombstone is not a place the
+    // passage's text stands, and counting it said "2/3" over one span.
     for (const segment of editedSegments.value) {
-        totals[segment.canonical_passage_id] =
-            (totals[segment.canonical_passage_id] ?? 0) + 1;
+        if (segment.end_offset > segment.start_offset) {
+            totals[segment.canonical_passage_id] =
+                (totals[segment.canonical_passage_id] ?? 0) + 1;
+        }
     }
 
     return totals;
+});
+
+// Display ordinals among each passage's live parts, in content order —
+// the raw `part` keys can carry gaps after merges and removals, and a
+// lone surviving "part 2" should read as what it is: the only part.
+const partOrdinals = computed<Record<number, number>>(() => {
+    const byPassage = new Map<number, TranscriptionSegment[]>();
+
+    for (const segment of editedSegments.value) {
+        if (segment.end_offset > segment.start_offset) {
+            const list = byPassage.get(segment.canonical_passage_id) ?? [];
+            list.push(segment);
+            byPassage.set(segment.canonical_passage_id, list);
+        }
+    }
+
+    const ordinals: Record<number, number> = {};
+
+    for (const list of byPassage.values()) {
+        list.sort((a, b) => a.part - b.part || a.start_offset - b.start_offset);
+        list.forEach((segment, index) => {
+            ordinals[segment.id] = index + 1;
+        });
+    }
+
+    return ordinals;
 });
 
 // The spans this layer already has for the passage the form currently names

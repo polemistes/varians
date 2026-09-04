@@ -308,6 +308,8 @@ export type TranscriptionSegment = {
     part: number;
     needs_review: boolean;
     canonical_passage?: CanonicalPassage & { work?: Work };
+    /** Display ordinal among the passage's LIVE parts (client-derived). */
+    part_ordinal?: number;
 };
 
 /**

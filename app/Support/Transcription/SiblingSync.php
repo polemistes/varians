@@ -112,13 +112,31 @@ class SiblingSync
         $toSegments = $to->segments()->get();
 
         foreach ($from->segments()->get() as $segment) {
-            if ($segment->group_id !== null
-                && TranscriptionSegment::query()->where('group_id', $segment->group_id)->whereKeyNot($segment->id)->exists()) {
+            // Tombstones stay one-sided: there is nothing to project.
+            if ($segment->end_offset <= $segment->start_offset) {
                 continue;
             }
 
-            // Tombstones stay one-sided: there is nothing to project.
-            if ($segment->end_offset <= $segment->start_offset) {
+            $counterpart = $segment->group_id === null
+                ? null
+                : TranscriptionSegment::query()->where('group_id', $segment->group_id)->whereKeyNot($segment->id)->first();
+
+            if ($counterpart !== null) {
+                // A live span whose other half was tombstoned by an edit
+                // that never mirrored: in step again, the projection names
+                // its words — revive it.
+                if ($counterpart->end_offset <= $counterpart->start_offset) {
+                    [$start, $end] = self::projectRange($from, $to, (int) $segment->start_offset, (int) $segment->end_offset);
+
+                    if ($end > $start) {
+                        $counterpart->update([
+                            'start_offset' => $start,
+                            'end_offset' => $end,
+                            'needs_review' => $segment->needs_review,
+                        ]);
+                    }
+                }
+
                 continue;
             }
 
@@ -140,6 +158,17 @@ class SiblingSync
             if ($twin !== null) {
                 $twin->update(['group_id' => $segment->group_id]);
 
+                continue;
+            }
+
+            // Never manufacture a duplicate: an overlapping live citation
+            // of the same passage already covers (some of) these words.
+            $overlapping = $toSegments->contains(fn (TranscriptionSegment $candidate) => $candidate->canonical_passage_id === $segment->canonical_passage_id
+                && $candidate->end_offset > $candidate->start_offset
+                && $candidate->start_offset < $end
+                && $candidate->end_offset > $start);
+
+            if ($overlapping) {
                 continue;
             }
 
