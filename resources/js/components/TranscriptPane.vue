@@ -766,8 +766,39 @@ function openCopyPage() {
 
 // Importing is an insertion, not a separate kind of operation: the file's
 // text goes in at the caret and becomes a pending edit like anything typed.
-const importing = ref(false);
+// The button opens the file dialog directly; with no caret to insert at
+// (and text to be ambiguous about), it explains instead of opening.
 const importError = ref<string | null>(null);
+const importFileEl = ref<HTMLInputElement | null>(null);
+
+/** Whole-text offset the import lands at: caret, selection, or nowhere. */
+function importTargetOffset(): number | null {
+    const caret = textEl.value?.caretOffset();
+
+    if (caret !== null && caret !== undefined) {
+        return toFull(caret); // the caret is page-relative
+    }
+
+    if (activeSelection.value) {
+        return activeSelection.value.start; // already whole-text
+    }
+
+    // An empty page has only one place the text can go.
+    return pageText.value === '' ? toFull(0) : null;
+}
+
+function openImportDialog() {
+    importError.value = null;
+
+    if (importTargetOffset() === null) {
+        importError.value =
+            'Click where the text should go first, then press Import file.';
+
+        return;
+    }
+
+    importFileEl.value?.click();
+}
 const textEl = ref<{
     caretOffset: () => number | null;
     restoreCaretAt: (offset: number) => void;
@@ -775,7 +806,10 @@ const textEl = ref<{
 } | null>(null);
 
 function importFile(event: Event) {
-    const file = (event.target as HTMLInputElement).files?.[0];
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    // Same file chosen twice must still fire change.
+    input.value = '';
 
     if (!file || !layer.value) {
         return;
@@ -802,21 +836,18 @@ function importFile(event: Event) {
         // put the text on the *next* one: an insertion at a page boundary
         // belongs to the page that begins there, which is right but not what
         // anyone would expect from a file they had just chosen.
-        const at = textEl.value?.caretOffset() ?? activeSelection.value?.start;
+        const at = importTargetOffset();
 
-        if (at === null || at === undefined) {
+        if (at === null) {
             importError.value =
-                pageText.value === ''
-                    ? 'Click in the empty text area first, then choose the file again.'
-                    : 'Click where the text should go first, then choose the file again.';
+                'Click where the text should go first, then press Import file.';
 
             return;
         }
 
-        onEdit({ start: at, end: at, text }, 'atomic');
+        applyEdit({ start: at, end: at, text }, 'atomic');
 
         importError.value = null;
-        importing.value = false;
     };
 
     reader.onerror = () => {
@@ -1539,10 +1570,18 @@ defineExpose({
                 v-if="canEdit"
                 type="button"
                 class="rounded border border-stone-300 px-2 py-1 dark:border-stone-700"
-                @click="importing = !importing"
+                title="Insert a plain-text file at the cursor — it appears as an unsaved edit, like anything typed"
+                @click="openImportDialog"
             >
-                {{ importing ? 'Cancel import' : 'Import file' }}
+                Import file
             </button>
+            <input
+                ref="importFileEl"
+                type="file"
+                accept=".txt,text/plain"
+                class="hidden"
+                @change="importFile"
+            />
             <button
                 v-if="canEdit"
                 type="button"
@@ -1574,20 +1613,6 @@ defineExpose({
                         ? `layers differ at line ${props.pane.correspondence.divergence.line}`
                         : 'layers in step'
                 }}
-            </span>
-        </div>
-
-        <div
-            v-if="canEdit && importing && layer"
-            class="mb-2 flex flex-wrap items-center gap-2 rounded border border-stone-200 p-2 text-xs dark:border-stone-800"
-        >
-            <span class="text-stone-500 dark:text-stone-400">
-                Insert a plain-text file at the cursor, into the
-                {{ layer.layer }} layer:
-            </span>
-            <input type="file" accept=".txt,text/plain" @change="importFile" />
-            <span class="text-stone-500 dark:text-stone-400">
-                It appears as an unsaved edit, like anything typed.
             </span>
             <span
                 v-if="importError"
