@@ -64,6 +64,31 @@ test('the same two ops WITHOUT a cut_id tombstone the citation instead of moving
         ->and($segment->needs_review)->toBeTrue();
 });
 
+test('mismatched cut ids re-pair by their text — the undo of a lone cut restores, not tombstones', function () {
+    // Both halves claim relocation but under different ids (the shape a
+    // buggy client's undo-of-a-cut produced): the characters match an
+    // outstanding cut exactly, so the intent is unambiguous. Here the
+    // "paste" is the undo putting the text straight back.
+    $this->actingAs(User::factory()->editor()->create());
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
+    $segment = TranscriptionSegment::factory()->for($transcription)->create([
+        'start_offset' => 4, 'end_offset' => 10, // "quick "
+    ]);
+
+    $response = $this->patch(route('transcriptions.text.update', $transcription), [
+        'ops' => [
+            ['start' => 4, 'end' => 10, 'text' => '', 'cut_id' => 'c1'],
+            ['start' => 4, 'end' => 4, 'text' => 'quick ', 'cut_id' => 'h9'],
+        ],
+        'text' => 'the quick brown fox',
+    ]);
+
+    $response->assertRedirect();
+    $segment->refresh();
+    expect([$segment->start_offset, $segment->end_offset])->toBe([4, 10])
+        ->and($segment->needs_review)->toBeFalse();
+});
+
 test('a backward cut and paste moves the citation too', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);

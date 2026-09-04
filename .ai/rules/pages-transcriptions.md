@@ -81,7 +81,17 @@ dead). Cut/paste pairs are re-minted fresh `cut_id`s on every pass through
 history, and because a pair's two halves live in SEPARATE history entries,
 the re-mint is stateful (`openReMints`): the delete half opens a fresh id,
 the matching insert half consumes it — independent minting left the halves
-unpaired and the server tombstoned the citation an undo was restoring. The
+unpaired and the server tombstoned the citation an undo was restoring.
+An insert half with NO open re-mint keeps its ORIGINAL id: that is the
+undo of a LONE cut, whose other half is the original cut op still sitting
+unsaved in the log under that very id (the unpaired-cut hold keeps it
+there) — a fresh mint here paired with nothing, and undoing an accidental
+Ctrl+X collapsed every citation the cut covered (second real bug in this
+family). Server-side, `normalizeOps` additionally re-pairs by CONTENT: an
+insert claiming relocation under an id no cut in the request recorded
+adopts the first outstanding cut whose removed text matches exactly
+(`adoptOutstandingCut`, test-pinned) — both halves declared relocation
+intent, so old mis-paired logs land safely instead of tombstoning. The
 autosave hold likewise keys on any unpaired delete-half in the op log (not
 just clipboard cuts), so an undo's pair is never split across requests.
 

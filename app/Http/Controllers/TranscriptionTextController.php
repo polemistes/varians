@@ -218,7 +218,11 @@ class TranscriptionTextController extends Controller
                 } elseif ($isPaste) {
                     $pasted[$op['cut_id']] = true;
                 } else {
-                    $normalized[$index]['cut_id'] = null;
+                    $normalized[$index]['cut_id'] = $this->adoptOutstandingCut($op, $cutTexts, $pasted);
+
+                    if ($normalized[$index]['cut_id'] !== null) {
+                        $pasted[$normalized[$index]['cut_id']] = true;
+                    }
                 }
             }
 
@@ -226,6 +230,34 @@ class TranscriptionTextController extends Controller
         }
 
         return $normalized;
+    }
+
+    /**
+     * An insert that CLAIMS relocation under an id no cut in this request
+     * recorded is, in practice, the undo of a lone cut whose id was minted
+     * apart from its half (a client bug now fixed — but logs it saved still
+     * arrive). Both halves declared relocation intent, so when an
+     * outstanding cut removed exactly these characters the intent is
+     * unambiguous: re-pair them by content rather than tombstone the very
+     * citations the undo was restoring.
+     *
+     * @param  array{start: int, end: int, text: string}  $op
+     * @param  array<string, string>  $cutTexts
+     * @param  array<string, true>  $pasted
+     */
+    private function adoptOutstandingCut(array $op, array $cutTexts, array $pasted): ?string
+    {
+        if ($op['text'] === '' || $op['start'] !== $op['end']) {
+            return null;
+        }
+
+        foreach ($cutTexts as $cutId => $cutText) {
+            if (! isset($pasted[$cutId]) && $cutText === $op['text']) {
+                return $cutId;
+            }
+        }
+
+        return null;
     }
 
     /**

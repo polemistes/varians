@@ -87,7 +87,17 @@ export class EditHistory {
                 return { ...op, cut_id: open };
             }
 
-            return { ...op, cut_id: mintCutId() };
+            // No delete half in this traversal: this is the undo of a LONE
+            // cut, and its other half is the original cut op itself, still
+            // sitting unsaved in the log under this very id (the unpaired-cut
+            // hold keeps it there). Keep the id, so the pair completes and
+            // the flush relocates the citations home instead of tombstoning
+            // them (real bug: a fresh id here paired with nothing, and the
+            // undo of an accidental cut collapsed every citation the cut had
+            // covered). If the cut somehow saved already, a lone insert
+            // claiming its id degrades to a plain edit server-side — exactly
+            // what a fresh id would have done.
+            return op;
         });
     }
 
