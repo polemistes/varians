@@ -159,8 +159,8 @@ test('a letter-level suffix difference still splits by the matching prefix', fun
     // (γιγνεται/γίνεται), so its fold cannot match — but the pasted line's
     // last word before the junction is accent-only, and one matching half
     // pins the point.
-    $a = "κατ ερινγιγνεται παντα";
-    $b = "κατ᾽ ἔρινγίνεται πάντα";
+    $a = 'κατ ερινγιγνεται παντα';
+    $b = 'κατ᾽ ἔρινγίνεται πάντα';
 
     // Enter between εριν and γιγνεται (offset 8 = inside the glue).
     $mirror = LayerMirror::mirror($a, [
