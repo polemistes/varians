@@ -80,6 +80,21 @@ class LayerMirror
                 $relocated = true;
             } elseif (($op['atomic'] ?? false) && $inStep) {
                 $start = self::mapOffset($a, $b, $op['start']);
+
+                // A LINE BREAK pressed inside a word still mirrors: pasting
+                // a line flush against another glues two words into one, and
+                // the Enter that separates them again lands mid-word, where
+                // no plain offset maps. The sibling glued the same two words
+                // in its own spellings, so the split point is wherever its
+                // word's orthography-folded suffix matches ours.
+                if (
+                    $start === null
+                    && $op['start'] === $op['end']
+                    && self::isLineBreakInsertion($op['text'])
+                ) {
+                    $start = self::wordSplitOffset($a, $b, $op['start']);
+                }
+
                 $end = $op['end'] === $op['start']
                     ? $start
                     : self::mapOffset($a, $b, $op['end']);
@@ -99,6 +114,83 @@ class LayerMirror
         }
 
         return ['ops' => $bOps, 'text' => $b, 'relocated' => $relocated];
+    }
+
+    private static function isLineBreakInsertion(string $text): bool
+    {
+        return $text !== ''
+            && str_contains($text, "\n")
+            && preg_match('/^\s*$/u', $text) === 1;
+    }
+
+    /**
+     * Where a mid-word line break in `$a` falls within the SAME word in
+     * `$b`: the unique split of `$b`'s word whose orthography-folded suffix
+     * (or, failing that, prefix) equals the fold of `$a`'s. Folding makes
+     * the comparison spelling-blind (χαιρʼ and χαῖρʼ both fold to χαιρ), so
+     * the junction of two glued words is found even when the OTHER half is
+     * spelled apart at the letter level (γιγνεται/γίνεται) — either half
+     * pinning the point uniquely is enough, since the junction is one
+     * point. Null when neither half matches uniquely — a wrong guess would
+     * break the sibling's word at the wrong letters, which is worse than
+     * skipping.
+     */
+    private static function wordSplitOffset(string $a, string $b, int $offset): ?int
+    {
+        $aWords = LayerCorrespondence::words($a);
+        $bWords = LayerCorrespondence::words($b);
+
+        if (count($aWords) !== count($bWords)) {
+            return null;
+        }
+
+        foreach ($aWords as $index => $word) {
+            if ($word['start'] >= $offset) {
+                return null;
+            }
+
+            if ($word['end'] <= $offset) {
+                continue;
+            }
+
+            $aWord = mb_substr($a, $word['start'], $word['end'] - $word['start']);
+            $bWord = mb_substr($b, $bWords[$index]['start'], $bWords[$index]['end'] - $bWords[$index]['start']);
+            $split = self::uniqueSplit($bWord, GreekText::foldOrthography(mb_substr($a, $offset, $word['end'] - $offset)), false)
+                ?? self::uniqueSplit($bWord, GreekText::foldOrthography(mb_substr($aWord, 0, $offset - $word['start'])), true);
+
+            return $split === null ? null : $bWords[$index]['start'] + $split;
+        }
+
+        return null;
+    }
+
+    /**
+     * The split of `$word` whose folded suffix (or prefix) is `$fold`.
+     * Several splits can match, but only when nothing except fold-empty
+     * material (punctuation) stands between them — folding is
+     * concatenative, so fold-equal halves at two positions force the
+     * stretch between to fold away. The RIGHTMOST match wins: punctuation
+     * binds to the line it ends (Γενετυλλίδος, | νῦν — the comma stays
+     * with the preceding line, as it does in the sibling's own lineation).
+     */
+    private static function uniqueSplit(string $word, string $fold, bool $prefix): ?int
+    {
+        if ($fold === '') {
+            return null;
+        }
+
+        $length = mb_strlen($word);
+        $splits = [];
+
+        for ($at = 1; $at < $length; $at++) {
+            $half = $prefix ? mb_substr($word, 0, $at) : mb_substr($word, $at);
+
+            if (GreekText::foldOrthography($half) === $fold) {
+                $splits[] = $at;
+            }
+        }
+
+        return $splits === [] ? null : max($splits);
     }
 
     /**

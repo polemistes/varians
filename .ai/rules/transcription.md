@@ -181,7 +181,17 @@ change), which normalizeOps marks atomic server-side even for a single
 keystroke: Enter is never the start of a spelling change, and the line
 structure is the SHARED part of the skeleton (page breaks live in it).
 Relocation pairs stay all-or-nothing (an unmappable half aborts the whole
-mirror); an unmirrorable plain op is merely skipped. Page breaks are
+mirror); an unmirrorable plain op is merely skipped. A line-break
+insertion INSIDE a word still mirrors (`LayerMirror::wordSplitOffset`):
+pasting a line flush against another glues two words into one in BOTH
+layers, and the Enter separating them lands mid-word where no plain
+offset maps (real bug — the sibling stayed glued and the layers parted).
+The sibling's split point is wherever its word's orthography-folded
+suffix (or, failing that, prefix — either half pinning the one junction
+suffices, since γιγνεται/γίνεται-type letter differences break one side's
+fold) matches ours; fold-equal candidates can only differ by fold-empty
+material (folding is concatenative), and the RIGHTMOST wins because
+punctuation binds to the line it ends (Γενετυλλίδος, | νῦν). Page breaks are
 deliberately NOT reapplied on the sibling — they live on the transcription
 in shared line coordinates and the editing layer's pass already moved them;
 a second pass would move them twice (test-pinned).

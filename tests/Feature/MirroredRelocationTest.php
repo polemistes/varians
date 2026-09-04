@@ -238,6 +238,38 @@ test('the catch-up save that restores step is not nagged about', function () {
         ->assertSessionMissing('message');
 });
 
+test('the Enter separating a pasted line from its neighbour mirrors, glued word and all', function () {
+    // The user's gesture: cut a line, paste it FLUSH at the start of
+    // another (last pasted word and first target word glue into one), then
+    // press Enter at the junction to put the break back. The Enter lands
+    // inside the glued word — where no plain offset maps — and used to be
+    // silently skipped, parting the layers.
+    $this->actingAs(User::factory()->editor()->create());
+    [$normalized, $diplomatic] = twoLayerTranscription();
+
+    // Cut line 2 ("κατ᾽ ἔριν") and paste it flush before line 1.
+    $this->patch(route('transcriptions.text.update', $normalized), [
+        'ops' => [
+            ['start' => 14, 'end' => 23, 'text' => '', 'cut_id' => 'ln1'],
+            ['start' => 0, 'end' => 0, 'text' => 'κατ᾽ ἔριν', 'cut_id' => 'ln1'],
+        ],
+        'text' => "κατ᾽ ἔρινγίνεται πάντα\n",
+    ])->assertRedirect();
+
+    expect($diplomatic->fresh()->text)->toBe("κατ ερινγιγνεται παντα\n");
+
+    // Enter at the junction, inside the glued word ἔρινγίνεται.
+    $this->patch(route('transcriptions.text.update', $normalized->fresh()), [
+        'ops' => [
+            ['start' => 9, 'end' => 9, 'text' => "\n"],
+        ],
+        'text' => "κατ᾽ ἔριν\nγίνεται πάντα\n",
+    ])->assertRedirect()
+        ->assertSessionHas('message', 'Also applied the edit to the diplomatic layer.');
+
+    expect($diplomatic->fresh()->text)->toBe("κατ εριν\nγιγνεται παντα\n");
+});
+
 test('a line break mirrors even as a single keystroke', function () {
     $this->actingAs(User::factory()->editor()->create());
     [$normalized, $diplomatic] = twoLayerTranscription();

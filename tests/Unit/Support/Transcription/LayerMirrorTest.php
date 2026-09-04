@@ -109,6 +109,68 @@ test('a keystroke never mirrors, even on a word boundary', function () {
     ], $b))->toBeNull();
 });
 
+test('a line break inside a glued word splits the sibling word at the folded junction', function () {
+    // A line pasted flush against another glues two words into one — in
+    // BOTH layers. The Enter that separates them lands mid-word, where no
+    // plain offset maps; the split point in the sibling is wherever its
+    // word's orthography-folded suffix matches ours — even though the
+    // prefixes are spelled apart (γιγνεται/γίνεται differ in LENGTH, so a
+    // plain character count would split the sibling at the wrong letters).
+    $a = "παντα ρει γιγνεταιχαιρʼ\nκατ εριν";
+    $b = "πάντα ῥεῖ γίνεταιχαῖρʼ\nκατ᾽ ἔριν";
+
+    // Enter between γιγνεται and χαιρʼ (offset 18 = inside the glue).
+    $mirror = LayerMirror::mirror($a, [
+        ['start' => 18, 'end' => 18, 'text' => "\n", 'cut_id' => null, 'atomic' => true],
+    ], $b);
+
+    expect($mirror)->not->toBeNull()
+        ->and($mirror['text'])->toBe("πάντα ῥεῖ γίνεται\nχαῖρʼ\nκατ᾽ ἔριν");
+});
+
+test('sibling punctuation at the junction stays with the line it ends', function () {
+    // The normalized line ends with a comma the diplomatic lacks, so two
+    // splits of the glued word fold alike — before and after the comma.
+    // Punctuation binds to the preceding line, so the rightmost wins:
+    // Γενετυλλίδος, | νῦν, exactly the sibling's own lineation.
+    $a = 'ρει Γενετυλλιδοςνυν δʼ';
+    $b = 'ῥεῖ Γενετυλλίδος,νῦν δʼ';
+
+    // Enter between Γενετυλλιδος and νυν (offset 16).
+    $mirror = LayerMirror::mirror($a, [
+        ['start' => 16, 'end' => 16, 'text' => "\n", 'cut_id' => null, 'atomic' => true],
+    ], $b);
+
+    expect($mirror)->not->toBeNull()
+        ->and($mirror['text'])->toBe("ῥεῖ Γενετυλλίδος,\nνῦν δʼ");
+});
+
+test('a mid-word line break where neither half matches the sibling is skipped', function () {
+    $a = 'αβγ ρει';
+    $b = 'ωδε ῥεῖ';
+
+    expect(LayerMirror::mirror($a, [
+        ['start' => 1, 'end' => 1, 'text' => "\n", 'cut_id' => null, 'atomic' => true],
+    ], $b))->toBeNull();
+});
+
+test('a letter-level suffix difference still splits by the matching prefix', function () {
+    // The word after the junction is spelled apart at the letter level
+    // (γιγνεται/γίνεται), so its fold cannot match — but the pasted line's
+    // last word before the junction is accent-only, and one matching half
+    // pins the point.
+    $a = "κατ ερινγιγνεται παντα";
+    $b = "κατ᾽ ἔρινγίνεται πάντα";
+
+    // Enter between εριν and γιγνεται (offset 8 = inside the glue).
+    $mirror = LayerMirror::mirror($a, [
+        ['start' => 8, 'end' => 8, 'text' => "\n", 'cut_id' => null, 'atomic' => true],
+    ], $b);
+
+    expect($mirror)->not->toBeNull()
+        ->and($mirror['text'])->toBe("κατ᾽ ἔριν\nγίνεται πάντα");
+});
+
 test('an atomic edit inside a word is a spelling edit and is skipped, not aborted', function () {
     $a = 'γιγνεται παντα';
     $b = 'γίνεται πάντα';
