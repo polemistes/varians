@@ -92,7 +92,8 @@ test('an unmirrorable relocation leaves the other layer alone and the divergence
         ],
         'text' => mb_substr($afterCut, 0, $pasteAt).$cutText.mb_substr($afterCut, $pasteAt),
     ])->assertRedirect()
-        ->assertSessionMissing('message');
+        // The refused mirror leaves the layers out of step — and says so.
+        ->assertSessionHas('message', 'The diplomatic layer was left untouched — the layers are out of step (see the indicator by the layer buttons).');
 
     expect($diplomatic->fresh()->text)->toBe("γιγνεται παντα\nκατ εριν");
 });
@@ -220,4 +221,19 @@ test('mirroring can be switched off — the sibling is left entirely alone', fun
 
     expect($normalized->fresh()->text)->toBe('γίνεται πάντα')
         ->and($diplomatic->fresh()->text)->toBe('γιγνεται παντα');
+});
+
+test('the catch-up save that restores step is not nagged about', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    [$normalized, $diplomatic] = twoLayerTranscription();
+    $diplomatic->update(['text' => "γιγνεται παντα\nκατ εριν ρει"]); // one word ahead
+
+    // Pasting the missing word ENDS in step — nothing to say.
+    $this->patch(route('transcriptions.text.update', $normalized), [
+        'ops' => [
+            ['start' => 23, 'end' => 23, 'text' => ' ῥεῖ', 'atomic' => true],
+        ],
+        'text' => "γίνεται πάντα\nκατ᾽ ἔριν ῥεῖ",
+    ])->assertRedirect()
+        ->assertSessionMissing('message');
 });

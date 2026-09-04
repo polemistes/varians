@@ -38,6 +38,9 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'name' => config('app.name'),
+            // For the editor's last-ditch pagehide save (sendBeacon cannot
+            // set headers, so the token travels as a form field).
+            'csrf' => fn () => csrf_token(),
             'auth' => [
                 'user' => $request->user(),
             ],

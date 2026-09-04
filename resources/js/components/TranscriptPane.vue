@@ -102,7 +102,11 @@ const layerText = computed(() => layer.value?.text ?? '');
 const layerSegments = computed(() => layer.value?.segments ?? []);
 const layerRegions = computed(() => layer.value?.regions ?? []);
 
-const page = usePage<{ auth: Auth; flash?: { message?: string | null } }>();
+const page = usePage<{
+    auth: Auth;
+    csrf?: string;
+    flash?: { message?: string | null };
+}>();
 const canEdit = computed(() => isEditorOrAbove(page.props.auth.user));
 
 // ---- edit text: an ordered log of exact edit operations, applied locally
@@ -604,14 +608,77 @@ function reloadAfterConflict() {
     router.reload();
 }
 
+// Leaving the page — including the hard reload Inertia performs when the
+// asset version changed under a long-lived tab — must not lose pending
+// ops. A beacon carries them out synchronously (an unpaired cut degrades
+// to a tombstone server-side, which is the safe direction), so there is
+// no need to nag with a leave-page dialog; the old beforeunload warning
+// remains only where sendBeacon does not exist.
+function beaconFlush() {
+    if (
+        !layer.value ||
+        editOps.value.length === 0 ||
+        staleTextError.value !== null
+    ) {
+        return;
+    }
+
+    const form = new FormData();
+    form.append('_method', 'PATCH');
+    form.append('_token', page.props.csrf ?? '');
+    form.append('text', applyOps(layerText.value, editOps.value));
+    form.append('mirror', mirrorOps.value ? '1' : '0');
+
+    editOps.value.forEach((op, index) => {
+        form.append(`ops[${index}][start]`, String(op.start));
+        form.append(`ops[${index}][end]`, String(op.end));
+        form.append(`ops[${index}][text]`, op.text);
+
+        if (op.cut_id != null) {
+            form.append(`ops[${index}][cut_id]`, op.cut_id);
+        }
+
+        if (op.atomic) {
+            form.append(`ops[${index}][atomic]`, '1');
+        }
+    });
+
+    navigator.sendBeacon(updateTranscriptionText.url(layer.value), form);
+    // The page is going away; if it comes back from the back-forward
+    // cache, onPageShow reloads fresh props rather than replaying these.
+    editOps.value = [];
+    history.clear();
+    historyVersion.value++;
+    outstandingCuts.clear();
+    cutHeldSince = null;
+}
+
+function onPageHide() {
+    beaconFlush();
+}
+
+function onPageShow(event: PageTransitionEvent) {
+    if (event.persisted) {
+        router.reload();
+    }
+}
+
 function onBeforeUnload(event: BeforeUnloadEvent) {
-    if (unsavedOps.value) {
+    if (!('sendBeacon' in navigator) && unsavedOps.value) {
         event.preventDefault();
     }
 }
 
-onMounted(() => window.addEventListener('beforeunload', onBeforeUnload));
-onUnmounted(() => window.removeEventListener('beforeunload', onBeforeUnload));
+onMounted(() => {
+    window.addEventListener('beforeunload', onBeforeUnload);
+    window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('pageshow', onPageShow);
+});
+onUnmounted(() => {
+    window.removeEventListener('beforeunload', onBeforeUnload);
+    window.removeEventListener('pagehide', onPageHide);
+    window.removeEventListener('pageshow', onPageShow);
+});
 
 // A different layer is a different text — the op log, history and cut stash
 // all belong to the one that was open.

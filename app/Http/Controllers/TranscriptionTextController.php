@@ -134,12 +134,14 @@ class TranscriptionTextController extends Controller
 
         if ($mirror === null) {
             // Say so when a mirror was EXPECTED — a relocation or a
-            // whole-gesture edit — but the layers were already out of step:
-            // silence here cost a puzzled retry once (real incident).
+            // whole-gesture edit — but the layers are out of step. Judged
+            // AFTER the save: the catch-up edit that itself restores step
+            // has nothing to be nagged about (real incident — the notice
+            // fired on the very save that fixed the divergence, then sat).
             $expected = RelocationSegmentEffects::pairs($ops) !== []
                 || array_any($ops, fn (array $op) => $op['atomic'] ?? false);
 
-            if ($expected && LayerCorrespondence::divergence($originalText, $sibling->text) !== null) {
+            if ($expected && LayerCorrespondence::divergence($transcription->text, $sibling->text) !== null) {
                 return ['layer' => $sibling->layer->value, 'relocated' => false, 'mirrored' => false];
             }
 
