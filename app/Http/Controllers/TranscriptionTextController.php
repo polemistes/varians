@@ -9,6 +9,7 @@ use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionPageBreak;
 use App\Models\TranscriptionRegion;
 use App\Models\TranscriptionSegment;
+use App\Support\Transcription\LayerCorrespondence;
 use App\Support\Transcription\LayerMirror;
 use App\Support\Transcription\RelocationSegmentEffects;
 use App\Support\Transcription\SpanTransformer;
@@ -69,9 +70,11 @@ class TranscriptionTextController extends Controller
         $notices = [];
 
         if ($mirroredTo !== null) {
-            $notices[] = $mirroredTo['relocated']
-                ? 'Also moved the corresponding text in the '.$mirroredTo['layer'].' layer.'
-                : 'Also applied the edit to the '.$mirroredTo['layer'].' layer.';
+            $notices[] = match (true) {
+                ! $mirroredTo['mirrored'] => 'The '.$mirroredTo['layer'].' layer was left untouched — the layers are out of step (see the indicator by the layer buttons).',
+                $mirroredTo['relocated'] => 'Also moved the corresponding text in the '.$mirroredTo['layer'].' layer.',
+                default => 'Also applied the edit to the '.$mirroredTo['layer'].' layer.',
+            };
         }
 
         if ($affectedEditions !== []) {
@@ -98,9 +101,9 @@ class TranscriptionTextController extends Controller
      * by both layers, and this layer's pass already moved them — a second
      * pass would move them twice.
      *
-     * @param  list<array{start: int, end: int, text: string, cut_id: string|null}>  $ops
+     * @param  list<array{start: int, end: int, text: string, cut_id: string|null, atomic?: bool}>  $ops
      * @param  list<string>  $affected  edition titles, appended to in place
-     * @return array{layer: string, relocated: bool}|null describes the mirror applied, if any
+     * @return array{layer: string, relocated: bool, mirrored: bool}|null describes the mirror applied — or expected and refused
      */
     private function mirrorRelocations(TranscriptionLayer $transcription, string $originalText, array $ops, array &$affected): ?array
     {
@@ -119,6 +122,16 @@ class TranscriptionTextController extends Controller
         $mirror = LayerMirror::mirror($originalText, $ops, $sibling->text);
 
         if ($mirror === null) {
+            // Say so when a mirror was EXPECTED — a relocation or a
+            // whole-gesture edit — but the layers were already out of step:
+            // silence here cost a puzzled retry once (real incident).
+            $expected = RelocationSegmentEffects::pairs($ops) !== []
+                || array_any($ops, fn (array $op) => $op['atomic'] ?? false);
+
+            if ($expected && LayerCorrespondence::divergence($originalText, $sibling->text) !== null) {
+                return ['layer' => $sibling->layer->value, 'relocated' => false, 'mirrored' => false];
+            }
+
             return null;
         }
 
@@ -128,7 +141,7 @@ class TranscriptionTextController extends Controller
 
         $sibling->update(['text' => $mirror['text']]);
 
-        return ['layer' => $sibling->layer->value, 'relocated' => $mirror['relocated']];
+        return ['layer' => $sibling->layer->value, 'relocated' => $mirror['relocated'], 'mirrored' => true];
     }
 
     /**

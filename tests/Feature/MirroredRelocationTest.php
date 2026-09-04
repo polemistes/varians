@@ -175,3 +175,19 @@ test('importing into one empty layer fills the empty sibling too', function () {
 
     expect($normalized->fresh()->text)->toBe("ΜΗΝΙΝ ΑΕΙΔΕ\nΘΕΑ");
 });
+
+test('a refused mirror says so instead of staying silent', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    [$normalized, $diplomatic] = twoLayerTranscription();
+    $diplomatic->update(['text' => 'γιγνεται']); // out of step
+
+    $this->patch(route('transcriptions.text.update', $normalized), [
+        'ops' => [
+            ['start' => 23, 'end' => 23, 'text' => ' ῥει', 'atomic' => true],
+        ],
+        'text' => "γίνεται πάντα\nκατ᾽ ἔριν ῥει",
+    ])->assertRedirect()
+        ->assertSessionHas('message', 'The diplomatic layer was left untouched — the layers are out of step (see the indicator by the layer buttons).');
+
+    expect($diplomatic->fresh()->text)->toBe('γιγνεται');
+});

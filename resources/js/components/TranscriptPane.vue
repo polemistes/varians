@@ -11,6 +11,7 @@ import {
 import { EditHistory } from '@/lib/editHistory';
 import { stripOps } from '@/lib/greekText';
 import type { StripKind } from '@/lib/greekText';
+import { planRelocationEffects } from '@/lib/relocationEffects';
 import {
     matchTranscriptCopy,
     rememberTranscriptCopy,
@@ -153,9 +154,67 @@ function transformedSpans<
     });
 }
 
-const editedSegments = computed<TranscriptionSegment[]>(() =>
-    transformedSpans(layerSegments.value),
-);
+// Segments get the full relocation semantics in the PREVIEW too: a cut
+// fragment shows its new part badge and a split target shows both halves
+// the moment the paste lands, instead of after the autosave round-trip
+// (client mirror of RelocationSegmentEffects — the server stays the
+// authority at save time). Synthetic rows carry negative ids.
+const editedSegments = computed<TranscriptionSegment[]>(() => {
+    const effects = planRelocationEffects(layerSegments.value, editOps.value);
+    const transformed = transformSpans(
+        layerSegments.value.map((span) => ({
+            start: span.start_offset,
+            end: span.end_offset,
+            needsReview: span.needs_review,
+        })),
+        editOps.value,
+    );
+
+    const result: TranscriptionSegment[] = layerSegments.value.map(
+        (span, index) => {
+            const override = effects.overrides.get(index);
+
+            if (override) {
+                return {
+                    ...span,
+                    start_offset: override.start,
+                    end_offset: override.end,
+                    needs_review: override.needsReview,
+                };
+            }
+
+            const state = transformed[index];
+
+            return {
+                ...span,
+                start_offset: state.start,
+                end_offset: state.deleted ? state.start : state.end,
+                needs_review: state.deleted
+                    ? true
+                    : effects.unflag.has(index)
+                      ? false
+                      : state.needsReview,
+            };
+        },
+    );
+
+    let syntheticId = -1;
+
+    for (const create of effects.creates) {
+        const anchor = layerSegments.value[create.anchorIndex];
+
+        result.push({
+            ...anchor,
+            id: syntheticId--,
+            start_offset: create.start,
+            end_offset: create.end,
+            needs_review: false,
+            part: create.placement === 'before' ? anchor.part : anchor.part + 1,
+        });
+    }
+
+    return result;
+});
 
 const editedRegions = computed<TranscriptionRegion[]>(() =>
     transformedSpans(layerRegions.value).map((region) => ({
@@ -1355,7 +1414,8 @@ function placePage(pageId: number) {
 const layerPartTotals = computed<Record<number, number>>(() => {
     const totals: Record<number, number> = {};
 
-    for (const segment of layerSegments.value) {
+    // The PREVIEWED set, so a fresh fragment's badge counts itself.
+    for (const segment of editedSegments.value) {
         totals[segment.canonical_passage_id] =
             (totals[segment.canonical_passage_id] ?? 0) + 1;
     }
