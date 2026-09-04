@@ -721,8 +721,8 @@ function saveVisibility() {
 
 function removeTranscript() {
     const parts = describeDeletionImpact(layer.value?.deletion_impact, [
-        { key: 'segments', label: (n) => pluralize(n, 'citation') },
-        { key: 'regions', label: (n) => pluralize(n, 'image alignment') },
+        { key: 'segments', label: (n) => pluralize(n, 'assignment') },
+        { key: 'regions', label: (n) => pluralize(n, 'image mapping') },
         {
             key: 'editionSelections',
             label: (n) =>
@@ -1696,10 +1696,10 @@ defineExpose({
                     This will remove
                     <template
                         v-if="wouldDeleteAllSegments && wouldDeleteAllRegions"
-                        >every citation and image alignment</template
+                        >every assignment and image mapping</template
                     ><template v-else-if="wouldDeleteAllSegments"
-                        >every citation</template
-                    ><template v-else>every image alignment</template>
+                        >every assignment</template
+                    ><template v-else>every image mapping</template>
                     on this transcript — save anyway
                 </label>
             </span>

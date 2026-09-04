@@ -64,8 +64,8 @@ function removeWitness() {
             key: 'transcriptions',
             label: (n) => pluralize(n, 'transcript'),
         },
-        { key: 'segments', label: (n) => pluralize(n, 'citation') },
-        { key: 'regions', label: (n) => pluralize(n, 'image alignment') },
+        { key: 'segments', label: (n) => pluralize(n, 'assignment') },
+        { key: 'regions', label: (n) => pluralize(n, 'image mapping') },
         { key: 'images', label: (n) => pluralize(n, 'facsimile image') },
         { key: 'pages', label: (n) => pluralize(n, 'page') },
         {
