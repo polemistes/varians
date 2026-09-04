@@ -22,7 +22,6 @@ use App\Http\Controllers\ManuscriptImageFeatureController;
 use App\Http\Controllers\ManuscriptPageController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TranscriptionController;
-use App\Http\Controllers\TranscriptionLayerCopyController;
 use App\Http\Controllers\TranscriptionPageBreakController;
 use App\Http\Controllers\TranscriptionRegionController;
 use App\Http\Controllers\TranscriptionSegmentController;
@@ -193,11 +192,6 @@ Route::middleware('role:editor')->group(function () {
 
     Route::post('/transcriptions/{transcription}/span-copies', [TranscriptionSpanCopyController::class, 'store'])
         ->name('transcriptions.span-copies.store');
-    Route::get('/transcriptions/{transcription}/copy', [TranscriptionLayerCopyController::class, 'create'])
-        ->name('transcriptions.copy.create');
-    Route::post('/transcriptions/{transcription}/copy', [TranscriptionLayerCopyController::class, 'store'])
-        ->name('transcriptions.copy.store');
-
     Route::post('/witnesses/{witness}/pages', [ManuscriptPageController::class, 'store'])
         ->name('manuscript-pages.store');
     Route::patch('/manuscript-pages/{page}', [ManuscriptPageController::class, 'update'])

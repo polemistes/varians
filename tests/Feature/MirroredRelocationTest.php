@@ -191,3 +191,33 @@ test('a refused mirror says so instead of staying silent', function () {
 
     expect($diplomatic->fresh()->text)->toBe('γιγνεται');
 });
+
+test('mirroring can be switched off — the sibling is left entirely alone', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $transcription = Transcription::factory()->create();
+    $diplomatic = TranscriptionLayer::factory()->diplomatic()->for($transcription)->create(['text' => '']);
+    $normalized = TranscriptionLayer::factory()->normalized()->for($transcription)->create(['text' => '']);
+
+    // The bootstrapping flow: each layer gets its own text from elsewhere.
+    $this->patch(route('transcriptions.text.update', $normalized), [
+        'ops' => [
+            ['start' => 0, 'end' => 0, 'text' => 'γίνεται πάντα', 'atomic' => true],
+        ],
+        'text' => 'γίνεται πάντα',
+        'mirror' => false,
+    ])->assertRedirect()
+        ->assertSessionMissing('message');
+
+    expect($diplomatic->fresh()->text)->toBe('');
+
+    $this->patch(route('transcriptions.text.update', $diplomatic), [
+        'ops' => [
+            ['start' => 0, 'end' => 0, 'text' => 'γιγνεται παντα', 'atomic' => true],
+        ],
+        'text' => 'γιγνεται παντα',
+        'mirror' => false,
+    ])->assertRedirect();
+
+    expect($normalized->fresh()->text)->toBe('γίνεται πάντα')
+        ->and($diplomatic->fresh()->text)->toBe('γιγνεται παντα');
+});

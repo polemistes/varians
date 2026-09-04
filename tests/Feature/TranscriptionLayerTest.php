@@ -95,41 +95,6 @@ test('a bulk range add rejects a diplomatic transcription', function () {
     ])->assertInvalid(['transcription_layer_id']);
 });
 
-test('a normalized layer can be started from the diplomatic one', function () {
-    $this->actingAs(User::factory()->editor()->create());
-    $witness = Witness::factory()->create();
-    $transcription = Transcription::factory()->for($witness)->create();
-    $diplomatic = TranscriptionLayer::factory()->diplomatic()->for($transcription)
-        ->create(['text' => 'τοσουτοι μεν ουν']);
-
-    $this->post(route('transcriptions.copy.store', $diplomatic), [
-        'transcription_id' => $transcription->id,
-    ])->assertRedirect();
-
-    $copy = TranscriptionLayer::where('copied_from_id', $diplomatic->id)->sole();
-
-    expect($copy->transcription->witness_id)->toBe($witness->id)
-        ->and($copy->layer)->toBe(Layer::Normalized)
-        ->and($copy->text)->toBe('τοσουτοι μεν ουν');
-});
-
-test('the layer a copy fills follows from its destination, and is never the source itself', function () {
-    // The destination is the only choice an editor makes: within a
-    // transcription there is just the other layer to fill, so a copy can
-    // never land back on the layer it came from.
-    $this->actingAs(User::factory()->editor()->create());
-    $transcription = Transcription::factory()->create();
-    $diplomatic = TranscriptionLayer::factory()->diplomatic()->for($transcription)
-        ->create(['text' => 'the quick fox']);
-
-    $this->post(route('transcriptions.copy.store', $diplomatic), [
-        'transcription_id' => $transcription->id,
-    ])->assertRedirect();
-
-    expect($transcription->fresh()->normalized->text)->toBe('the quick fox')
-        ->and($diplomatic->fresh()->copied_from_id)->toBeNull();
-});
-
 test('the add-text panel only offers collatable transcriptions', function () {
     $this->actingAs(User::factory()->editor()->create());
     $work = Work::factory()->create();

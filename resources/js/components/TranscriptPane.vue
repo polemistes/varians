@@ -33,7 +33,6 @@ import {
     destroy as destroyTranscription,
     update as updateTranscription,
 } from '@/routes/transcriptions';
-import { create as createLayerCopy } from '@/routes/transcriptions/copy';
 import { update as updateTranscriptionText } from '@/routes/transcriptions/text';
 import type { Auth } from '@/types/auth';
 import type {
@@ -532,6 +531,7 @@ function flushText(force: boolean): Promise<boolean> {
                 // checkbox promises; unconfirmed destruction tombstones.
                 confirm_wipe:
                     deleteConfirmed.value && needsDeleteConfirmation.value,
+                mirror: mirrorOps.value,
             },
             {
                 preserveScroll: true,
@@ -811,17 +811,12 @@ function removeTranscript() {
     }
 }
 
-// The copy page posts this layer's saved text, so what is on screen must be
-// what the server has: flush-then-navigate.
-function openCopyPage() {
-    if (!layer.value) {
-        return;
-    }
-
-    void flushText(true).then(() => {
-        router.get(createLayerCopy.url(layer.value!.id));
-    });
-}
+// Whether this pane's saves mirror word-level edits into the sibling
+// layer. On by default — transcription work wants both layers moving
+// together; off is the bootstrapping mode, filling each layer from its
+// own source. Deliberately NOT persisted: a forgotten sticky off-switch
+// would read as mirroring being broken.
+const mirrorOps = ref(true);
 
 // Importing is an insertion, not a separate kind of operation: the file's
 // text goes in at the caret and becomes a pending edit like anything typed.
@@ -1642,14 +1637,14 @@ defineExpose({
                 class="hidden"
                 @change="importFile"
             />
-            <button
+            <label
                 v-if="canEdit"
-                type="button"
-                class="rounded border border-stone-300 px-2 py-1 dark:border-stone-700"
-                @click="openCopyPage"
+                class="flex items-center gap-1 text-stone-500 dark:text-stone-400"
+                title="On, word-level edits (paste, import, moves, selection deletions) happen in both layers; off, this layer's edits leave the sibling entirely alone — for filling each layer from a different source"
             >
-                Copy layer&hellip;
-            </button>
+                <input v-model="mirrorOps" type="checkbox" />
+                Mirror layer operations
+            </label>
 
             <!-- The two layers must carry the same words in the same lines
                  (normalization changes only characters within a word).

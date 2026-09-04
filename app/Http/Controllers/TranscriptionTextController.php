@@ -63,7 +63,12 @@ class TranscriptionTextController extends Controller
 
             $transcription->update(['text' => $recomputedText]);
 
-            $mirroredTo = $this->mirrorRelocations($transcription, $original, $ops, $affected, $confirmedWipe);
+            // The editor can switch mirroring off (bootstrapping each
+            // layer from a different source); the sibling is then left
+            // entirely alone, refusal notice included.
+            $mirroredTo = $request->boolean('mirror', true)
+                ? $this->mirrorRelocations($transcription, $original, $ops, $affected, $confirmedWipe)
+                : null;
 
             // Whenever this save leaves the layers in step, one-sided spans
             // get their counterparts — a span assigned while the layers

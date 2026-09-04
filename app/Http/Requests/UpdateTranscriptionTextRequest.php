@@ -51,6 +51,10 @@ class UpdateTranscriptionTextRequest extends FormRequest
             // anyway": destroyed segments are then truly deleted instead of
             // tombstoned, honouring what the checkbox says.
             'confirm_wipe' => ['sometimes', 'boolean'],
+            // The "Mirror layer operations" checkbox: off, this save leaves
+            // the sibling layer entirely alone — the bootstrapping flow,
+            // where each layer receives its own text from elsewhere.
+            'mirror' => ['sometimes', 'boolean'],
             'text' => ['present', 'nullable', 'string', new ValidTranscriptionMarkup],
         ];
     }
