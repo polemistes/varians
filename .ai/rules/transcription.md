@@ -175,9 +175,13 @@ selection-wide deletions; NEVER keystrokes, and deliberately never strip,
 which is a spelling-class edit) whose endpoints sit on word boundaries is
 replayed VERBATIM — same words in both layers, spellings adjusted later
 (user decision). A keystroke must stay in its layer because the first
-character of a spelling change is indistinguishable from one. Relocation
-pairs stay all-or-nothing (an unmappable half aborts the whole mirror);
-an unmirrorable plain op is merely skipped. Page breaks are
+character of a spelling change is indistinguishable from one — EXCEPT a
+line-break edit (whitespace-only, a newline on either side of the
+change), which normalizeOps marks atomic server-side even for a single
+keystroke: Enter is never the start of a spelling change, and the line
+structure is the SHARED part of the skeleton (page breaks live in it).
+Relocation pairs stay all-or-nothing (an unmappable half aborts the whole
+mirror); an unmirrorable plain op is merely skipped. Page breaks are
 deliberately NOT reapplied on the sibling — they live on the transcription
 in shared line coordinates and the editing layer's pass already moved them;
 a second pass would move them twice (test-pinned).

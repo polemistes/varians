@@ -237,3 +237,30 @@ test('the catch-up save that restores step is not nagged about', function () {
     ])->assertRedirect()
         ->assertSessionMissing('message');
 });
+
+test('a line break mirrors even as a single keystroke', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    [$normalized, $diplomatic] = twoLayerTranscription();
+
+    // Enter pressed between two words — no atomic flag from the client:
+    // the line structure is the SHARED part of the skeleton.
+    $this->patch(route('transcriptions.text.update', $normalized), [
+        'ops' => [
+            ['start' => 7, 'end' => 8, 'text' => "\n"],
+        ],
+        'text' => "γίνεται\nπάντα\nκατ᾽ ἔριν",
+    ])->assertRedirect()
+        ->assertSessionHas('message', 'Also applied the edit to the diplomatic layer.');
+
+    expect($diplomatic->fresh()->text)->toBe("γιγνεται\nπαντα\nκατ εριν");
+
+    // And deleting it joins the lines in both layers again.
+    $this->patch(route('transcriptions.text.update', $normalized), [
+        'ops' => [
+            ['start' => 7, 'end' => 8, 'text' => ' '],
+        ],
+        'text' => "γίνεται πάντα\nκατ᾽ ἔριν",
+    ])->assertRedirect();
+
+    expect($diplomatic->fresh()->text)->toBe("γιγνεται παντα\nκατ εριν");
+});

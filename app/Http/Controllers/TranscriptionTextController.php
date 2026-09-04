@@ -193,6 +193,19 @@ class TranscriptionTextController extends Controller
         $pasted = [];
 
         foreach ($normalized as $index => $op) {
+            // A line-break edit mirrors even as a single keystroke: Enter is
+            // never the first character of a spelling change, and the line
+            // structure is the SHARED part of the skeleton (page breaks live
+            // in it). Whitespace-only, with a newline on either side of the
+            // change.
+            if (! $normalized[$index]['atomic']) {
+                $removed = mb_substr($running, $op['start'], $op['end'] - $op['start']);
+
+                $normalized[$index]['atomic'] = preg_match('/^\s*$/u', $op['text']) === 1
+                    && preg_match('/^\s*$/u', $removed) === 1
+                    && (str_contains($op['text'], "\n") || str_contains($removed, "\n"));
+            }
+
             if ($op['cut_id'] !== null) {
                 $isCut = $op['text'] === '' && $op['end'] > $op['start'] && ! array_key_exists($op['cut_id'], $cutTexts);
                 $isPaste = $op['text'] !== '' && $op['start'] === $op['end']
