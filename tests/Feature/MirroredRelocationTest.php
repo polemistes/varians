@@ -157,3 +157,21 @@ test('typing stays in its own layer — the first keystroke of a spelling change
 
     expect($diplomatic->fresh()->text)->toBe("γιγνεται παντα\nκατ εριν");
 });
+
+test('importing into one empty layer fills the empty sibling too', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $transcription = Transcription::factory()->create();
+    $diplomatic = TranscriptionLayer::factory()->diplomatic()->for($transcription)->create(['text' => '']);
+    $normalized = TranscriptionLayer::factory()->normalized()->for($transcription)->create(['text' => '']);
+
+    // Two empty texts are trivially in step — the import bootstraps both.
+    $this->patch(route('transcriptions.text.update', $diplomatic), [
+        'ops' => [
+            ['start' => 0, 'end' => 0, 'text' => "ΜΗΝΙΝ ΑΕΙΔΕ\nΘΕΑ", 'atomic' => true],
+        ],
+        'text' => "ΜΗΝΙΝ ΑΕΙΔΕ\nΘΕΑ",
+    ])->assertRedirect()
+        ->assertSessionHas('message', 'Also applied the edit to the normalized layer.');
+
+    expect($normalized->fresh()->text)->toBe("ΜΗΝΙΝ ΑΕΙΔΕ\nΘΕΑ");
+});

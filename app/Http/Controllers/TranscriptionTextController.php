@@ -108,7 +108,11 @@ class TranscriptionTextController extends Controller
             ->whereKeyNot($transcription->id)
             ->first();
 
-        if ($sibling === null || $sibling->text === '') {
+        // An EMPTY sibling is not excluded: importing or pasting into one
+        // layer of a fresh pair is exactly how the other gets its words
+        // (two empty texts are trivially in step). LayerMirror's own
+        // in-step check governs every other case.
+        if ($sibling === null) {
             return null;
         }
 
