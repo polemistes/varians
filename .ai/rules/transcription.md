@@ -193,3 +193,15 @@ and regions migrate to (spans stored ONCE per transcript, projected per
 layer) and the join the edition-facsimile highlight will use — a reading's
 char range in the normalized layer and a mapping drawn on the diplomatic
 layer meet in word indices.
+
+## Assignments and mappings are DONE ONCE — SiblingSync (interim)
+`App\Support\Transcription\SiblingSync` projects a span made in one layer
+onto the IN-STEP sibling: `TranscriptionSegmentController` (store, assign,
+update, destroy) and `TranscriptionRegionController` (store, storeBatch,
+update, destroy) all create/mutate/remove the counterpart row, projected
+through WordSpans (word ranges for citations, sub-word anchors for
+mappings). An out-of-step sibling is never written — the words cannot be
+named, so the indicator shows the drift instead. INTERIM: the agreed
+destination stores spans once per transcript in word coordinates; this
+dual-row sync is what its migration will merge (rows are word-identical by
+construction).

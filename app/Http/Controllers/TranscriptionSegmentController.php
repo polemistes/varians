@@ -12,6 +12,7 @@ use App\Models\TranscriptionSegment;
 use App\Models\Work;
 use App\Support\Edition\CanonicalPassageResolver;
 use App\Support\Edition\PassageAligner;
+use App\Support\Transcription\SiblingSync;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -48,9 +49,85 @@ class TranscriptionSegmentController extends Controller
             if ($aligned) {
                 $this->recollateLayer($transcription, $passage);
             }
+
+            $this->syncSiblingAssignment(
+                $request,
+                $transcription,
+                $passage,
+                (int) $request->validated('start_offset'),
+                (int) $request->validated('end_offset'),
+            );
         });
 
         return back();
+    }
+
+    /**
+     * An assignment is DONE ONCE: the in-step sibling layer receives the
+     * same citation on the same words, projected into its own spelling.
+     * When the sibling's collation already covers the passage, its readings
+     * are kept and its parts flagged rather than silently re-collated —
+     * the acknowledgment flow belongs to the layer the editor is acting in.
+     */
+    private function syncSiblingAssignment(FormRequest $request, TranscriptionLayer $layer, CanonicalPassage $passage, int $start, int $end): void
+    {
+        $sibling = SiblingSync::inStepSibling($layer);
+
+        if ($sibling === null) {
+            return;
+        }
+
+        [$siblingStart, $siblingEnd] = SiblingSync::projectRange($layer, $sibling, $start, $end);
+
+        if ($siblingEnd <= $siblingStart) {
+            return;
+        }
+
+        // Already cited there on exactly these words — nothing to add.
+        $exists = $sibling->segments()
+            ->where('canonical_passage_id', $passage->id)
+            ->where('start_offset', $siblingStart)
+            ->where('end_offset', $siblingEnd)
+            ->exists();
+
+        if ($exists) {
+            return;
+        }
+
+        $aligned = PassageAligner::layerReadings($passage, $sibling)->isNotEmpty();
+
+        $sibling->segments()->create([
+            'canonical_passage_id' => $passage->id,
+            'start_offset' => $siblingStart,
+            'end_offset' => $siblingEnd,
+            'part' => $this->placePart($request, $sibling, $passage),
+        ]);
+
+        if ($aligned) {
+            $this->recollateLayer($sibling, $passage);
+        }
+    }
+
+    /**
+     * The sibling's row for the same words and passage, if the layers are
+     * in step — the counterpart every mutation keeps in step.
+     */
+    private function siblingCounterpart(TranscriptionSegment $segment): ?TranscriptionSegment
+    {
+        $layer = $segment->transcriptionLayer;
+        $sibling = SiblingSync::inStepSibling($layer);
+
+        if ($sibling === null) {
+            return null;
+        }
+
+        [$start, $end] = SiblingSync::projectRange($layer, $sibling, (int) $segment->start_offset, (int) $segment->end_offset);
+
+        return $sibling->segments()
+            ->where('canonical_passage_id', $segment->canonical_passage_id)
+            ->where('start_offset', $start)
+            ->where('end_offset', $end)
+            ->first();
     }
 
     /**
@@ -60,7 +137,29 @@ class TranscriptionSegmentController extends Controller
      */
     public function update(UpdateTranscriptionSegmentRequest $request, TranscriptionSegment $segment): RedirectResponse
     {
-        $segment->update([...$request->validated(), 'needs_review' => false]);
+        DB::transaction(function () use ($request, $segment) {
+            $counterpart = $this->siblingCounterpart($segment);
+
+            $segment->update([...$request->validated(), 'needs_review' => false]);
+
+            if ($counterpart !== null) {
+                $layer = $segment->transcriptionLayer;
+                [$start, $end] = SiblingSync::projectRange(
+                    $layer,
+                    $counterpart->transcriptionLayer,
+                    (int) $segment->start_offset,
+                    (int) $segment->end_offset,
+                );
+
+                if ($end > $start) {
+                    $counterpart->update([
+                        'start_offset' => $start,
+                        'end_offset' => $end,
+                        'needs_review' => false,
+                    ]);
+                }
+            }
+        });
 
         return back();
     }
@@ -84,6 +183,7 @@ class TranscriptionSegmentController extends Controller
         DB::transaction(function () use ($request, $segment, $passage) {
             $layer = $segment->transcriptionLayer;
             $aligned = $this->guardLatePart($request, $layer, $passage);
+            $counterpart = $this->siblingCounterpart($segment);
 
             $segment->update([
                 'canonical_passage_id' => $passage->id,
@@ -93,6 +193,20 @@ class TranscriptionSegmentController extends Controller
             if ($aligned) {
                 $this->recollateLayer($layer, $passage);
             }
+
+            if ($counterpart !== null) {
+                $sibling = $counterpart->transcriptionLayer;
+                $siblingAligned = PassageAligner::layerReadings($passage, $sibling)->isNotEmpty();
+
+                $counterpart->update([
+                    'canonical_passage_id' => $passage->id,
+                    'part' => $this->placePart($request, $sibling, $passage),
+                ]);
+
+                if ($siblingAligned) {
+                    $this->recollateLayer($sibling, $passage);
+                }
+            }
         });
 
         return back();
@@ -100,7 +214,10 @@ class TranscriptionSegmentController extends Controller
 
     public function destroy(TranscriptionSegment $segment): RedirectResponse
     {
-        $segment->delete();
+        DB::transaction(function () use ($segment) {
+            $this->siblingCounterpart($segment)?->delete();
+            $segment->delete();
+        });
 
         return back();
     }

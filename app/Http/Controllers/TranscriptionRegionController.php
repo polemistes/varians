@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateTranscriptionRegionRequest;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
 use App\Support\Transcription\RegionSplitter;
+use App\Support\Transcription\SiblingSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -22,12 +23,81 @@ class TranscriptionRegionController extends Controller
             (int) $request->validated('end_offset'),
         );
 
-        $transcription->regions()->create([
-            ...$request->validated(),
-            'position' => ($transcription->regions()->max('position') ?? 0) + 1,
-        ]);
+        DB::transaction(function () use ($request, $transcription) {
+            $region = $transcription->regions()->create([
+                ...$request->validated(),
+                'position' => ($transcription->regions()->max('position') ?? 0) + 1,
+            ]);
+
+            $this->syncSiblingMapping($region);
+        });
 
         return back();
+    }
+
+    /**
+     * A mapping is DONE ONCE: the in-step sibling layer receives the same
+     * box over the same words, its offsets projected through sub-word
+     * anchors into its own spelling — skipped where the sibling already
+     * maps overlapping text (mapped text maps once).
+     */
+    private function syncSiblingMapping(TranscriptionRegion $region): void
+    {
+        $layer = $region->transcriptionLayer;
+        $sibling = SiblingSync::inStepSibling($layer);
+
+        if ($sibling === null) {
+            return;
+        }
+
+        [$start, $end] = SiblingSync::projectAnchors($layer, $sibling, (int) $region->start_offset, (int) $region->end_offset);
+
+        if ($end <= $start) {
+            return;
+        }
+
+        $overlaps = $sibling->regions()
+            ->where('start_offset', '<', $end)
+            ->where('end_offset', '>', $start)
+            ->exists();
+
+        if ($overlaps) {
+            return;
+        }
+
+        $sibling->regions()->create([
+            'manuscript_image_id' => $region->manuscript_image_id,
+            'text' => mb_substr($sibling->text, $start, $end - $start),
+            'start_offset' => $start,
+            'end_offset' => $end,
+            'position' => ($sibling->regions()->max('position') ?? 0) + 1,
+            'x' => $region->x,
+            'y' => $region->y,
+            'width' => $region->width,
+            'height' => $region->height,
+        ]);
+    }
+
+    /**
+     * The sibling's mapping of the same words on the same image, if the
+     * layers are in step.
+     */
+    private function siblingCounterpart(TranscriptionRegion $region): ?TranscriptionRegion
+    {
+        $layer = $region->transcriptionLayer;
+        $sibling = SiblingSync::inStepSibling($layer);
+
+        if ($sibling === null) {
+            return null;
+        }
+
+        [$start, $end] = SiblingSync::projectAnchors($layer, $sibling, (int) $region->start_offset, (int) $region->end_offset);
+
+        return $sibling->regions()
+            ->where('manuscript_image_id', $region->manuscript_image_id)
+            ->where('start_offset', $start)
+            ->where('end_offset', $end)
+            ->first();
     }
 
     /**
@@ -96,7 +166,7 @@ class TranscriptionRegionController extends Controller
             $position = $transcription->regions()->max('position') ?? 0;
 
             foreach ($layout['units'] as $unit) {
-                $transcription->regions()->create([
+                $region = $transcription->regions()->create([
                     'manuscript_image_id' => $request->validated('manuscript_image_id'),
                     'text' => $unit['text'],
                     'start_offset' => $start + $unit['start'],
@@ -107,6 +177,8 @@ class TranscriptionRegionController extends Controller
                     'width' => $unit['width'] * $box['width'],
                     'height' => $bandHeight,
                 ]);
+
+                $this->syncSiblingMapping($region);
             }
         });
 
@@ -119,14 +191,29 @@ class TranscriptionRegionController extends Controller
      */
     public function update(UpdateTranscriptionRegionRequest $request, TranscriptionRegion $region): RedirectResponse
     {
-        $region->update([...$request->validated(), 'needs_review' => false]);
+        DB::transaction(function () use ($request, $region) {
+            $counterpart = $this->siblingCounterpart($region);
+
+            $region->update([...$request->validated(), 'needs_review' => false]);
+
+            $counterpart?->update([
+                'x' => $region->x,
+                'y' => $region->y,
+                'width' => $region->width,
+                'height' => $region->height,
+                'needs_review' => false,
+            ]);
+        });
 
         return back();
     }
 
     public function destroy(TranscriptionRegion $region): RedirectResponse
     {
-        $region->delete();
+        DB::transaction(function () use ($region) {
+            $this->siblingCounterpart($region)?->delete();
+            $region->delete();
+        });
 
         return back();
     }
