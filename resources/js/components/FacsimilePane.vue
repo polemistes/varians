@@ -124,30 +124,32 @@ function deleteImage() {
             v-if="props.canEdit"
             class="mb-2 flex flex-wrap items-center gap-2 text-xs"
         >
+            <!-- ONE button: a page either lacks a photograph (offer Add)
+                 or has one (offer Delete) — a greyed-out half of the pair
+                 was never pressable. -->
             <button
                 type="button"
                 class="rounded border border-stone-300 px-2 py-1 disabled:opacity-40 dark:border-stone-700"
-                :disabled="
-                    !props.selectedPage || !!props.selectedImage || uploading
+                :class="
+                    props.selectedImage
+                        ? 'text-red-600 dark:text-red-400'
+                        : undefined
                 "
+                :disabled="!props.selectedPage || uploading"
                 :title="
                     !props.selectedPage
                         ? 'Add a page first — the photograph lands on the current page'
-                        : props.selectedImage
-                          ? 'This page already has a photograph — delete it first to replace it'
-                          : undefined
+                        : undefined
                 "
-                @click="addImage"
+                @click="props.selectedImage ? deleteImage() : addImage()"
             >
-                {{ uploading ? 'Uploading…' : 'Add image' }}
-            </button>
-            <button
-                type="button"
-                class="rounded border border-stone-300 px-2 py-1 text-red-600 disabled:opacity-40 dark:border-stone-700 dark:text-red-400"
-                :disabled="!props.selectedImage"
-                @click="deleteImage"
-            >
-                Delete image
+                {{
+                    uploading
+                        ? 'Uploading…'
+                        : props.selectedImage
+                          ? 'Delete image'
+                          : 'Add image'
+                }}
             </button>
             <input
                 ref="fileInputEl"
