@@ -21,7 +21,23 @@ is `preventDefault()`-ed and translated into an exact `{start, end, text}` op
 `source` (`'typing' | 'cut' | 'paste'`); chunks are freshly re-rendered
 spans with no stable identity, so the component restores the caret via
 `pointAt()` through `nextTick()`. IME composition runs unmanaged and resyncs
-once at `compositionend`. Because `editable` is now always true, the guard
+once at `compositionend`.
+
+**The caret must survive EVERY re-render, not just edit-driven ones**
+(`onBeforeUpdate`/`onUpdated` in AlignableText): any patch can replace the
+text node under the caret, and Firefox dumps a caret whose node vanished to
+the start of the surface. The visible case was Enter — the newline saved,
+the autosave partial reload's patch regrouped the line nodes, and the caret
+jumped to an earlier line one autosave after every line break (real bug).
+The pre-patch live caret offset is captured in `onBeforeUpdate` and put
+back in `onUpdated` if the patch displaced it; an edit's own
+`applyAndRestoreCaret` nextTick restore runs after `onUpdated` and wins, so
+the two don't fight. Capture is gated on the surface being focused (a
+background pane's re-render must not steal the caret — restoring focuses)
+and on a COLLAPSED selection (clobbered range selections belong to the
+remembered-selection machinery). Do NOT move this into a save callback:
+Inertia's `onSuccess` fires after the DOM patch, when the caret is already
+clobbered and its offset unrecoverable (tried; failed). Because `editable` is now always true, the guard
 that keeps `beforeinput`/composition events from nested controls is
 `originatesInControl()` (a `composedPath()` check for `[data-non-text]`) —
 NOT the old `!props.editable` early-return. Badges are clickable while

@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import {
+    computed,
+    nextTick,
+    onBeforeUpdate,
+    onMounted,
+    onUnmounted,
+    onUpdated,
+    ref,
+} from 'vue';
 import type { EditSource, TextEditOp } from '@/lib/transcriptionEdit';
 import { parseTranscriptionMarkup } from '@/lib/transcriptionMarkup';
 import type { MarkupToken } from '@/lib/transcriptionMarkup';
@@ -834,6 +842,65 @@ function restoreCaret(offset: number) {
     range.collapse(true);
     selection.removeAllRanges();
     selection.addRange(range);
+}
+
+// Chunks are freshly re-rendered spans with no stable per-character DOM
+// identity, so ANY re-render can replace the text node holding the caret —
+// and Firefox dumps a caret whose node vanished to the start of the surface
+// (the writer saw every Enter jump to an earlier line one autosave later:
+// the partial reload's patch regrouped the lines' nodes). The character
+// offset is still right after a patch — a prop-driven one doesn't change
+// the text the writer sees, and an edit-driven one is followed by
+// applyAndRestoreCaret's own nextTick restore, which runs after onUpdated
+// and wins. So: capture the live caret just before every patch, and put it
+// back if the patch displaced it.
+let caretBeforePatch: number | null = null;
+
+onBeforeUpdate(() => {
+    caretBeforePatch = liveCaretOffset();
+});
+
+onUpdated(() => {
+    if (caretBeforePatch === null) {
+        return;
+    }
+
+    const offset = caretBeforePatch;
+    caretBeforePatch = null;
+
+    if (liveCaretOffset() !== offset) {
+        restoreCaret(offset);
+    }
+});
+
+/**
+ * The collapsed caret's character offset — only while the writer is focused
+ * here (restoring focuses the surface, and a background pane's re-render
+ * must never steal the caret) and only for a caret, not a range selection
+ * (clobbered live selections have their own remembered-selection machinery).
+ */
+function liveCaretOffset(): number | null {
+    if (
+        !containerEl.value ||
+        (document.activeElement !== containerEl.value &&
+            !containerEl.value.contains(document.activeElement))
+    ) {
+        return null;
+    }
+
+    const selection = window.getSelection();
+    const node = selection?.focusNode;
+
+    if (
+        !selection ||
+        !selection.isCollapsed ||
+        !node ||
+        !containerEl.value.contains(node)
+    ) {
+        return null;
+    }
+
+    return offsetAt(node, selection.focusOffset);
 }
 </script>
 
