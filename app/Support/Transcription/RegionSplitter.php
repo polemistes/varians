@@ -3,12 +3,17 @@
 namespace App\Support\Transcription;
 
 /**
- * Splits a span of transcription text into "units" — non-whitespace
- * characters or words — each with its own character offsets, for batch
- * image-alignment: draw one guide box over the selected text's lines and get
- * one region per unit, laid out by character count, without guessing at real
- * letter widths (which would need OCR-like detection this project is
- * deliberately avoiding).
+ * Splits a span of transcription text into "units" — whole lines or words —
+ * each with its own character offsets, for batch image-alignment: draw one
+ * guide box over the selected text's lines and get one region per unit,
+ * laid out by character count, without guessing at real letter widths
+ * (which would need OCR-like detection this project is deliberately
+ * avoiding).
+ *
+ * There is deliberately no per-CHARACTER granularity (user decision): a box
+ * around a single letter says nothing an edition's reader ever consults,
+ * and it multiplied the mappings an editor had to fine-tune by hand. Do not
+ * reintroduce it.
  *
  * `layout()` adds the geometry: each newline-separated line of the selection
  * becomes one horizontal band of the guide box, and within a band every unit
@@ -86,28 +91,9 @@ class RegionSplitter
     public static function split(string $text, string $granularity): array
     {
         return match ($granularity) {
-            'character' => self::splitByCharacter($text),
             'line' => self::splitByLine($text),
             default => self::splitByWord($text),
         };
-    }
-
-    /**
-     * @return list<array{start: int, end: int, text: string}>
-     */
-    private static function splitByCharacter(string $text): array
-    {
-        $units = [];
-
-        foreach (mb_str_split($text) as $index => $char) {
-            if (preg_match('/^\s$/u', $char) === 1) {
-                continue;
-            }
-
-            $units[] = ['start' => $index, 'end' => $index + 1, 'text' => $char];
-        }
-
-        return $units;
     }
 
     /**

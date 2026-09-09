@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\ReferenceScheme;
+use App\Models\User;
 use App\Models\Work;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
@@ -22,6 +23,7 @@ class WorkFactory extends Factory
         $title = fake()->unique()->sentence(3);
 
         return [
+            'user_id' => User::factory(),
             'reference_scheme_id' => ReferenceScheme::factory(),
             'title' => $title,
             'author' => fake()->name(),

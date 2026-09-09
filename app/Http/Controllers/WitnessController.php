@@ -22,6 +22,8 @@ class WitnessController extends Controller
 {
     public function create(): Response
     {
+        $this->authorize('create', Witness::class);
+
         return Inertia::render('Witnesses/Create');
     }
 
@@ -31,7 +33,7 @@ class WitnessController extends Controller
      */
     public function store(StoreWitnessRequest $request): RedirectResponse
     {
-        $witness = Witness::create($request->validated());
+        $witness = Witness::create([...$request->validated(), 'user_id' => $request->user()->id]);
 
         return redirect()->route('witnesses.show', $witness);
     }
@@ -89,12 +91,22 @@ class WitnessController extends Controller
 
         return Inertia::render('Witnesses/Show', [
             'witness' => $witness,
+            'can' => [
+                'edit' => $request->user()?->can('update', $witness) ?? false,
+                'delete' => $request->user()?->can('delete', $witness) ?? false,
+                'publish' => $request->user()?->can('publish', $witness) ?? false,
+                'copy' => $request->user()?->can('copy', $witness) ?? false,
+            ],
             'transcripts' => $transcripts,
             // Closures so an editor's autosave can reload just the two pane
             // payloads — the rest of this page is far too heavy per keystroke.
             'leftPane' => fn () => $this->panePayload($left),
             'rightPane' => fn () => $this->panePayload($right),
-            'works' => Work::with('referenceScheme')->orderBy('title')->get(),
+            // Only works the member may cite into: citing creates passages
+            // and re-collates, so it is editing the work.
+            'works' => $request->user() === null
+                ? collect()
+                : Work::with('referenceScheme')->editableOrAllFor($request->user())->orderBy('title')->get(),
             // For the change-witness picker in the Witness box — moving
             // between witnesses without a detour through the front page.
             'witnessOptions' => Witness::query()->visibleTo($request->user())
@@ -216,6 +228,8 @@ class WitnessController extends Controller
      */
     public function destroy(Witness $witness): RedirectResponse
     {
+        $this->authorize('delete', $witness);
+
         $witness->delete();
 
         return redirect()->route('home');

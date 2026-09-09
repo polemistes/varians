@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\ManuscriptPage;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -9,11 +10,15 @@ use Illuminate\Validation\Rule;
 class UpdateManuscriptPageRequest extends FormRequest
 {
     /**
-     * Determine if the user is authorized to make this request.
+     * The policy decides — see App\Policies. Checked before validation, so
+     * an unauthorized request learns nothing from the rules.
      */
     public function authorize(): bool
     {
-        return true;
+        /** @var ManuscriptPage $page */
+        $page = $this->route('page');
+
+        return $this->user()->can('update', $page->witness);
     }
 
     /**

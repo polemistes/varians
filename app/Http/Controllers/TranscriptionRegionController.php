@@ -112,7 +112,7 @@ class TranscriptionRegionController extends Controller
 
     /**
      * Draw one guide box over the selection's lines on the facsimile and get
-     * one region per character or word: the box divides vertically into one
+     * one region per word: the box divides vertically into one
      * band per line of the selection, and each band divides horizontally by
      * character count, so word widths follow letter counts and spaces keep
      * their share. An approximation rather than real letter-detection, which
@@ -202,6 +202,8 @@ class TranscriptionRegionController extends Controller
 
     public function destroy(TranscriptionRegion $region): RedirectResponse
     {
+        $this->authorize('update', $region->transcriptionLayer);
+
         DB::transaction(function () use ($region) {
             $this->siblingCounterpart($region)?->delete();
             $region->delete();

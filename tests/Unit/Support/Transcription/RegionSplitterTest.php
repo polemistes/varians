@@ -2,15 +2,6 @@
 
 use App\Support\Transcription\RegionSplitter;
 
-test('splitting by character skips whitespace and offsets each unit correctly', function () {
-    expect(RegionSplitter::split('ab cd', 'character'))->toBe([
-        ['start' => 0, 'end' => 1, 'text' => 'a'],
-        ['start' => 1, 'end' => 2, 'text' => 'b'],
-        ['start' => 3, 'end' => 4, 'text' => 'c'],
-        ['start' => 4, 'end' => 5, 'text' => 'd'],
-    ]);
-});
-
 test('splitting by word groups runs of non-whitespace characters', function () {
     expect(RegionSplitter::split('ab  cd ef', 'word'))->toBe([
         ['start' => 0, 'end' => 2, 'text' => 'ab'],
@@ -26,17 +17,16 @@ test('splitting by word includes a trailing word with no closing space', functio
     ]);
 });
 
-test('splitting handles multibyte text by character, not by byte', function () {
-    expect(RegionSplitter::split('λόγος καλός', 'character'))->toHaveCount(10)
-        ->and(RegionSplitter::split('λόγος καλός', 'word'))->toBe([
-            ['start' => 0, 'end' => 5, 'text' => 'λόγος'],
-            ['start' => 6, 'end' => 11, 'text' => 'καλός'],
-        ]);
+test('splitting measures multibyte text in characters, not bytes', function () {
+    expect(RegionSplitter::split('λόγος καλός', 'word'))->toBe([
+        ['start' => 0, 'end' => 5, 'text' => 'λόγος'],
+        ['start' => 6, 'end' => 11, 'text' => 'καλός'],
+    ]);
 });
 
 test('a span with no non-whitespace characters splits to nothing', function () {
-    expect(RegionSplitter::split('   ', 'character'))->toBe([])
-        ->and(RegionSplitter::split('   ', 'word'))->toBe([]);
+    expect(RegionSplitter::split('   ', 'word'))->toBe([])
+        ->and(RegionSplitter::split('   ', 'line'))->toBe([]);
 });
 
 test('layout gives each word the horizontal share its characters have of the line', function () {

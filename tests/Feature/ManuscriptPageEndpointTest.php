@@ -91,7 +91,7 @@ test('a guest cannot add a page', function () {
 test('an editor places a page in a layer by saying where it begins', function () {
     $this->actingAs(User::factory()->editor()->create());
     $layer = TranscriptionLayer::factory()->create(['text' => "page one\npage two"]);
-    $page = ManuscriptPage::factory()->create();
+    $page = ManuscriptPage::factory()->create(['witness_id' => $layer->transcription->witness_id]);
 
     // Given as an offset in the layer on screen, recorded as the line it falls
     // on — the coordinate both layers share.
@@ -106,7 +106,7 @@ test('an editor places a page in a layer by saying where it begins', function ()
 test('placing a page again moves it rather than adding a second break', function () {
     $this->actingAs(User::factory()->editor()->create());
     $layer = TranscriptionLayer::factory()->create(['text' => "one\ntwo\nthree"]);
-    $page = ManuscriptPage::factory()->create();
+    $page = ManuscriptPage::factory()->create(['witness_id' => $layer->transcription->witness_id]);
 
     foreach ([8, 4] as $offset) {
         $this->post(route('transcription-page-breaks.store', $layer), [
@@ -124,7 +124,7 @@ test('a break can sit at the very end, for a page not yet transcribed', function
     $layer = TranscriptionLayer::factory()->create(['text' => "page one\n"]);
 
     $this->post(route('transcription-page-breaks.store', $layer), [
-        'manuscript_page_id' => ManuscriptPage::factory()->create()->id,
+        'manuscript_page_id' => ManuscriptPage::factory()->create(['witness_id' => $layer->transcription->witness_id])->id,
         'start_offset' => 9,
     ])->assertRedirect();
 

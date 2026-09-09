@@ -24,8 +24,9 @@ use Illuminate\Support\Carbon;
  *
  * The list is shared by everything that cites: a conjecture (whatever
  * edition it is read in) and a passage of an edition both point at the same
- * item through BibliographyReference. Editing is collaborative like the
- * rest of the app; `user_id` records who entered the item.
+ * item through BibliographyReference. Every member adds to the list;
+ * `user_id` records who did, and decides — with who cites the item — who
+ * may change it, see BibliographyItemPolicy.
  *
  * `label` is the short author–year form the apparatus prints ("Wilamowitz
  * 1927", "Dover and Henderson 1987b"), derived on save by CitationLabel and

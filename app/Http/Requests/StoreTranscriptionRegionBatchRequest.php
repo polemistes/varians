@@ -10,11 +10,15 @@ use Illuminate\Validation\Rule;
 class StoreTranscriptionRegionBatchRequest extends FormRequest
 {
     /**
-     * Determine if the user is authorized to make this request.
+     * The policy decides — see App\Policies. Checked before validation, so
+     * an unauthorized request learns nothing from the rules.
      */
     public function authorize(): bool
     {
-        return true;
+        /** @var TranscriptionLayer $transcription */
+        $transcription = $this->route('transcription');
+
+        return $this->user()->can('update', $transcription);
     }
 
     /**
@@ -33,7 +37,7 @@ class StoreTranscriptionRegionBatchRequest extends FormRequest
                 'required',
                 Rule::exists('manuscript_images', 'id')->where('witness_id', $witnessId),
             ],
-            'granularity' => ['required', Rule::in(['line', 'word', 'character'])],
+            'granularity' => ['required', Rule::in(['line', 'word'])],
             'start_offset' => ['required', 'integer', 'min:0'],
             'end_offset' => [
                 'required',

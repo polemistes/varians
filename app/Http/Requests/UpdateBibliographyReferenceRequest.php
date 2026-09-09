@@ -2,17 +2,22 @@
 
 namespace App\Http\Requests;
 
+use App\Models\BibliographyReference;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateBibliographyReferenceRequest extends FormRequest
 {
     /**
-     * Determine if the user is authorized to make this request.
+     * The policy decides — see App\Policies. Checked before validation, so
+     * an unauthorized request learns nothing from the rules.
      */
     public function authorize(): bool
     {
-        return true;
+        /** @var BibliographyReference $reference */
+        $reference = $this->route('reference');
+
+        return $this->user()->can('update', $reference->conjecture_id !== null ? $reference->conjecture : $reference->edition);
     }
 
     /**

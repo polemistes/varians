@@ -20,7 +20,7 @@ class RegisterController extends Controller
 
     /**
      * Role is otherwise never set here — it comes from the `users` table's
-     * default ('guest'), since `role` isn't mass-assignable. The one
+     * default ('member'), since `role` isn't mass-assignable. The one
      * exception: the very first account ever registered becomes an
      * Administrator, so a fresh install always has someone able to promote
      * others — otherwise nobody could ever reach the admin panel.

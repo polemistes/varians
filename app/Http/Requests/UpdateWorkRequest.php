@@ -2,14 +2,22 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Work;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateWorkRequest extends FormRequest
 {
+    /**
+     * The policy decides — see App\Policies. Checked before validation, so
+     * an unauthorized request learns nothing from the rules.
+     */
     public function authorize(): bool
     {
-        return true;
+        /** @var Work $work */
+        $work = $this->route('work');
+
+        return $this->user()->can('update', $work);
     }
 
     /**

@@ -143,13 +143,41 @@ test('the search box finds items by key, label, author or title', function () {
         ->assertInertia(fn (AssertInertia $page) => $page->has('items', 1)->where('items.0.label', 'Page 1962'));
 });
 
-test('a guest cannot change the bibliography', function () {
-    $this->actingAs(User::factory()->create());
-    $item = BibliographyItem::factory()->create();
+test('any member adds to the bibliography, but may only change what nobody else relies on', function () {
+    $member = User::factory()->create();
+    $this->actingAs($member);
 
-    $this->post(route('bibliography.store'), ['entry_type' => 'book', 'fields' => ['title' => 'X']])->assertForbidden();
-    $this->patch(route('bibliography.update', $item), ['entry_type' => 'book', 'fields' => ['title' => 'X']])->assertForbidden();
-    $this->delete(route('bibliography.destroy', $item))->assertForbidden();
+    $this->post(route('bibliography.store'), ['entry_type' => 'book', 'fields' => ['title' => 'Mine']])->assertRedirect();
+    $mine = BibliographyItem::where('label', 'like', '%Mine%')->orWhere('citation_key', 'like', 'mine%')->sole();
+    expect($mine->user_id)->toBe($member->id);
+
+    // Her own, uncited: hers to change and remove.
+    $this->patch(route('bibliography.update', $mine), ['entry_type' => 'book', 'fields' => ['title' => 'Mine, revised']])->assertRedirect();
+    expect($mine->fresh()->fields['title'])->toBe('Mine, revised');
+
+    // Someone else's, uncited: not hers.
+    $theirs = BibliographyItem::factory()->create();
+    $this->patch(route('bibliography.update', $theirs), ['entry_type' => 'book', 'fields' => ['title' => 'X']])->assertForbidden();
+    $this->delete(route('bibliography.destroy', $theirs))->assertForbidden();
+
+    // Cited only by her own edition: hers, whoever added it.
+    $ownEdition = Edition::factory()->for($member)->create();
+    BibliographyReference::factory()->create(['bibliography_item_id' => $theirs->id, 'edition_id' => $ownEdition->id, 'canonical_passage_id' => CanonicalPassage::factory()->for($ownEdition->work)->create()->id, 'conjecture_id' => null]);
+    $this->patch(route('bibliography.update', $theirs), ['entry_type' => 'book', 'fields' => ['title' => 'Now cited by me']])->assertRedirect();
+
+    // Also cited by another's edition: no longer only hers.
+    $other = Edition::factory()->create();
+    BibliographyReference::factory()->create(['bibliography_item_id' => $theirs->id, 'edition_id' => $other->id, 'canonical_passage_id' => CanonicalPassage::factory()->for($other->work)->create()->id, 'conjecture_id' => null]);
+    $this->patch(route('bibliography.update', $theirs), ['entry_type' => 'book', 'fields' => ['title' => 'X']])->assertForbidden();
+
+    // An editor may change any item.
+    $this->actingAs(User::factory()->editor()->create())
+        ->patch(route('bibliography.update', $theirs), ['entry_type' => 'book', 'fields' => ['title' => 'Edited by an editor']])
+        ->assertRedirect();
+    expect($theirs->fresh()->fields['title'])->toBe('Edited by an editor');
+
+    $this->delete(route('bibliography.destroy', $mine))->assertRedirect();
+    expect(BibliographyItem::find($mine->id))->toBeNull();
 });
 
 test('the page offers the names, presses, journals, places and series already recorded', function () {

@@ -36,9 +36,9 @@ class TranscriptionTextController extends Controller
      * The server never trusts the client's own offsets or resulting text
      * directly: it independently replays `ops` against its own stored text
      * and rejects the request if that doesn't match what the client
-     * submitted (most likely a concurrent edit by another editor, since
-     * transcription editing here is fully collaborative with no per-author
-     * lock).
+     * submitted (most likely a concurrent edit by another editor — an
+     * owner and her invited editors share a transcription with no
+     * per-author lock).
      */
     public function update(UpdateTranscriptionTextRequest $request, TranscriptionLayer $transcription): RedirectResponse
     {

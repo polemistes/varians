@@ -1,12 +1,37 @@
 <script setup lang="ts">
-import { Head, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import { update } from '@/actions/App/Http/Controllers/ProfileController';
 import AppHeader from '@/components/AppHeader.vue';
+import { show as showEdition } from '@/routes/editions';
+import {
+    accept as acceptOffer,
+    decline as declineOffer,
+} from '@/routes/ownership-transfers';
 import type { Auth } from '@/types/auth';
+
+type Offer = {
+    id: number;
+    edition: { id: number; title: string };
+    work: { title: string; slug: string };
+    from: { id: number; name: string };
+};
+
+const props = defineProps<{
+    /** Editions other members have offered to hand over, unanswered. */
+    offers: Offer[];
+}>();
 
 const page = usePage<{ auth: Auth }>();
 const user = computed(() => page.props.auth.user);
+
+function answerOffer(offer: Offer, accept: boolean) {
+    router.post(
+        (accept ? acceptOffer : declineOffer).url(offer.id),
+        {},
+        { preserveScroll: true },
+    );
+}
 
 const form = useForm({
     name: user.value?.name ?? '',
@@ -61,6 +86,50 @@ function submit() {
             >
                 Role: {{ user.role }}
             </p>
+
+            <!-- An edition is nobody's until she agrees to take it. -->
+            <section
+                v-if="props.offers.length > 0"
+                class="mb-6 rounded-lg border border-sky-300 bg-sky-50 p-3 text-sm dark:border-sky-800 dark:bg-sky-950/50"
+            >
+                <h2 class="mb-2 font-medium">Editions offered to you</h2>
+                <ul class="flex flex-col gap-2">
+                    <li
+                        v-for="offer in props.offers"
+                        :key="offer.id"
+                        class="flex flex-wrap items-baseline gap-x-3 gap-y-1"
+                    >
+                        <span>
+                            {{ offer.from.name }} offers you
+                            <Link
+                                :href="
+                                    showEdition.url({
+                                        work: offer.work.slug,
+                                        edition: offer.edition.id,
+                                    })
+                                "
+                                class="underline"
+                                >{{ offer.edition.title }}</Link
+                            >
+                            ({{ offer.work.title }})
+                        </span>
+                        <button
+                            type="button"
+                            class="underline"
+                            @click="answerOffer(offer, true)"
+                        >
+                            Accept
+                        </button>
+                        <button
+                            type="button"
+                            class="text-stone-500 underline dark:text-stone-400"
+                            @click="answerOffer(offer, false)"
+                        >
+                            Decline
+                        </button>
+                    </li>
+                </ul>
+            </section>
 
             <form class="flex flex-col gap-4" @submit.prevent="submit">
                 <label class="flex flex-col gap-1 text-sm">

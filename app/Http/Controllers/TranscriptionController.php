@@ -3,12 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Enums\Layer;
+use App\Enums\Visibility;
 use App\Http\Requests\StoreTranscriptionRequest;
 use App\Http\Requests\UpdateTranscriptionRequest;
+use App\Models\Edition;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\Witness;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class TranscriptionController extends Controller
 {
@@ -80,10 +85,40 @@ class TranscriptionController extends Controller
     public function update(UpdateTranscriptionRequest $request, TranscriptionLayer $transcription): RedirectResponse
     {
         if ($request->has('visibility')) {
-            $transcription->transcription->update(['visibility' => $request->validated('visibility')]);
+            /** @var Witness $witness */
+            $witness = $transcription->witness;
+            $this->authorize('publish', $witness);
+
+            $visibility = Visibility::from($request->validated('visibility'));
+
+            if ($visibility === Visibility::Draft) {
+                $this->guardNotCitedByPublishedEdition($transcription->transcription);
+            }
+
+            $transcription->transcription->update(['visibility' => $visibility]);
         }
 
         return back();
+    }
+
+    /**
+     * A published edition's apparatus must stay followable: while one
+     * cites this transcription, it cannot be taken back to a draft — the
+     * edition has to be unpublished first, which retracts it along with the
+     * rest (EditionPublisher).
+     */
+    private function guardNotCitedByPublishedEdition(Transcription $transcription): void
+    {
+        $edition = Edition::query()
+            ->where('visibility', Visibility::Published)
+            ->whereHas('work.canonicalPassages.transcriptionSegments.transcriptionLayer', fn (Builder $layers) => $layers->where('transcription_id', $transcription->id))
+            ->first();
+
+        if ($edition !== null) {
+            throw ValidationException::withMessages([
+                'visibility' => 'The published edition “'.$edition->title.'” cites this transcription — unpublish the edition first.',
+            ]);
+        }
     }
 
     /**
@@ -98,9 +133,24 @@ class TranscriptionController extends Controller
      * behind (real incident — a migration had to backfill the missing
      * sides); a transcript is the pair, and there is no half to keep.
      */
-    public function destroy(TranscriptionLayer $transcription): RedirectResponse
+    public function destroy(Request $request, TranscriptionLayer $transcription): RedirectResponse
     {
+        $this->authorize('update', $transcription);
+
+        /** @var Witness $witness */
         $witness = $transcription->witness;
+
+        // Deleting a transcript cascades the passages and chosen readings
+        // of every edition standing on it — including editions that are
+        // not this member's to gut. Hers, she may destroy.
+        $layerIds = $transcription->transcription->layers()->pluck('id')->all();
+
+        if ($witness->isPrintedByAnothersEdition($request->user(), $layerIds)) {
+            throw ValidationException::withMessages([
+                'transcript' => 'Another member\'s edition prints text from this transcript — it cannot be deleted while that stands.',
+            ]);
+        }
+
         $transcription->transcription->delete();
 
         return redirect()->route('witnesses.show', $witness);

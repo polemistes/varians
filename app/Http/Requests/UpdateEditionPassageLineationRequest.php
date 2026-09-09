@@ -2,17 +2,22 @@
 
 namespace App\Http\Requests;
 
+use App\Models\EditionPassage;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateEditionPassageLineationRequest extends FormRequest
 {
     /**
-     * Determine if the user is authorized to make this request.
+     * The policy decides — see App\Policies. Checked before validation, so
+     * an unauthorized request learns nothing from the rules.
      */
     public function authorize(): bool
     {
-        return true;
+        /** @var EditionPassage $editionPassage */
+        $editionPassage = $this->route('editionPassage');
+
+        return $this->user()->can('update', $editionPassage->edition);
     }
 
     /**

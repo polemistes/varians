@@ -312,3 +312,25 @@ test('several passages are removed at once', function () {
 
     expect(EditionPassage::where('edition_id', $edition->id)->count())->toBe(0);
 });
+
+test('a passage of another work never enters an edition, whichever way it is offered', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    ['work' => $work, 'edition' => $edition] = editionForPassages();
+    $line1 = citedPassage($work, 1);
+    $foreign = CanonicalPassage::factory()->for(Work::factory())->create();
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'first second']);
+    TranscriptionSegment::factory()->for($transcription)->for($line1, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
+    TranscriptionSegment::factory()->for($transcription)->for($foreign, 'canonicalPassage')->create(['start_offset' => 6, 'end_offset' => 12]);
+
+    $this->post(route('edition-passages.store', $edition), [
+        'transcription_layer_id' => $transcription->id,
+        'start_offset' => 0,
+        'end_offset' => 12,
+    ])->assertRedirect();
+    $this->post(route('edition-passages.store', $edition), [
+        'transcription_layer_id' => $transcription->id,
+        'canonical_passage_ids' => [$foreign->id],
+    ])->assertRedirect();
+
+    expect(EditionPassage::where('edition_id', $edition->id)->pluck('canonical_passage_id')->all())->toBe([$line1->id]);
+});

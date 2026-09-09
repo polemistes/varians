@@ -11,10 +11,11 @@ use App\Models\Witness;
 use App\Models\Work;
 
 test('deleting a work cascades its passages, editions, lemmas, conjectures, and citation segments on any witness, and redirects home', function () {
-    $this->actingAs(User::factory()->editor()->create());
-    $work = Work::factory()->create();
+    $owner = User::factory()->create();
+    $this->actingAs($owner);
+    $work = Work::factory()->for($owner)->create();
     $passage = CanonicalPassage::factory()->for($work)->create();
-    $edition = Edition::factory()->for($work)->create();
+    $edition = Edition::factory()->for($work)->for($owner)->create();
     $lemma = Lemma::factory()->for($passage, 'canonicalPassage')->create();
     $conjecture = Conjecture::factory()->for($passage, 'canonicalPassage')->create();
 
@@ -37,12 +38,31 @@ test('deleting a work cascades its passages, editions, lemmas, conjectures, and 
         ->and(Witness::find($witness->id))->not->toBeNull();
 });
 
-test('a guest cannot delete a work', function () {
-    $this->actingAs(User::factory()->create());
+test('neither another member nor an editor can delete a work — only its owner or an administrator', function () {
     $work = Work::factory()->create();
 
-    $response = $this->delete(route('works.destroy', $work));
-
-    $response->assertForbidden();
+    $this->actingAs(User::factory()->create())
+        ->delete(route('works.destroy', $work))
+        ->assertForbidden();
+    $this->actingAs(User::factory()->editor()->create())
+        ->delete(route('works.destroy', $work))
+        ->assertForbidden();
     expect(Work::find($work->id))->not->toBeNull();
+
+    $this->actingAs(User::factory()->administrator()->create())
+        ->delete(route('works.destroy', $work))
+        ->assertRedirect(route('home'));
+    expect(Work::find($work->id))->toBeNull();
+});
+
+test('an owner cannot delete a work while an edition of it belongs to someone else; an administrator can', function () {
+    $owner = User::factory()->create();
+    $work = Work::factory()->for($owner)->create();
+    Edition::factory()->for($work)->create();
+
+    $this->actingAs($owner)->delete(route('works.destroy', $work))->assertForbidden();
+    expect(Work::find($work->id))->not->toBeNull();
+
+    $this->actingAs(User::factory()->administrator()->create())->delete(route('works.destroy', $work))->assertRedirect();
+    expect(Work::find($work->id))->toBeNull();
 });

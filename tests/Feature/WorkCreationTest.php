@@ -73,17 +73,20 @@ test('a work slug must be unique', function () {
     $response->assertInvalid(['slug']);
 });
 
-test('a guest cannot create a work', function () {
-    $this->actingAs(User::factory()->create());
+test('any member can create a work, and owns it', function () {
+    $member = User::factory()->create();
+    $this->actingAs($member);
+    $scheme = ReferenceScheme::factory()->create();
 
     $response = $this->post(route('works.store'), [
         'title' => 'Antigone',
         'language' => 'grc',
         'slug' => 'antigone',
+        'reference_scheme_id' => $scheme->id,
     ]);
 
-    $response->assertForbidden();
-    expect(Work::count())->toBe(0);
+    $response->assertRedirect();
+    expect(Work::where('slug', 'antigone')->sole()->user_id)->toBe($member->id);
 });
 
 test('an anonymous visitor is redirected to log in when trying to create a work', function () {

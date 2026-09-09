@@ -304,3 +304,18 @@ test('a guest cannot import spans', function () {
         'target_offset' => 10,
     ])->assertForbidden();
 });
+
+test('spans are imported only from a transcription one may read', function () {
+    $member = User::factory()->create();
+    $this->actingAs($member);
+    $target = TranscriptionLayer::factory()->normalized()
+        ->for(Transcription::factory()->for(Witness::factory()->for($member)))
+        ->create(['text' => 'ΜΗΝΙΝ ΑΕΙΔΕ ΘΕΑ']);
+    $draft = TranscriptionLayer::factory()->create(['text' => 'ΜΗΝΙΝ ΑΕΙΔΕ ΘΕΑ']);
+    $payload = ['source_layer_id' => $draft->id, 'source_start' => 0, 'source_end' => 15, 'target_offset' => 0];
+
+    $this->post(route('transcriptions.span-copies.store', $target), $payload)->assertForbidden();
+
+    $draft->transcription->update(['visibility' => 'published']);
+    $this->post(route('transcriptions.span-copies.store', $target), $payload)->assertRedirect();
+});

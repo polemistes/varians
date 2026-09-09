@@ -9,6 +9,7 @@ use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Support\Bibliography\ReferenceAttacher;
 use App\Support\Edition\ConjectureShape;
+use App\Support\Edition\EditionPublisher;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 
@@ -34,6 +35,7 @@ class ConjectureController extends Controller
             $conjecture = Conjecture::create([
                 'canonical_passage_id' => $passageId,
                 'user_id' => $request->user()->id,
+                'visibility' => EditionPublisher::visibilityForConjectureOn($passageId),
                 'type' => $type,
                 'text' => $request->validated('text'),
                 'extent' => $request->validated('extent'),
@@ -115,6 +117,8 @@ class ConjectureController extends Controller
      */
     public function destroy(Conjecture $conjecture): RedirectResponse
     {
+        $this->authorize('delete', $conjecture);
+
         $conjecture->delete();
 
         return back();

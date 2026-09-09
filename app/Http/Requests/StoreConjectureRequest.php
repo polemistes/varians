@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Enums\ConjectureType;
 use App\Models\CanonicalPassage;
+use App\Models\Conjecture;
 use App\Support\Bibliography\ReferenceRules;
 use App\Support\Edition\ConjectureShape;
 use App\Support\Edition\ConjectureValidationRules;
@@ -14,11 +15,15 @@ use Illuminate\Foundation\Http\FormRequest;
 class StoreConjectureRequest extends FormRequest
 {
     /**
-     * Determine if the user is authorized to make this request.
+     * The policy decides — see App\Policies. Checked before validation, so
+     * an unauthorized request learns nothing from the rules.
      */
     public function authorize(): bool
     {
-        return true;
+        /** @var CanonicalPassage $canonicalPassage */
+        $canonicalPassage = $this->route('canonicalPassage');
+
+        return $this->user()->can('create', [Conjecture::class, $canonicalPassage]);
     }
 
     /**

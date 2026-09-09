@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\ConjectureType;
 use App\Enums\Layer;
 use App\Enums\Tokenization;
+use App\Enums\Visibility;
 use App\Http\Requests\StoreEditionRequest;
 use App\Http\Requests\UpdateEditionRequest;
 use App\Models\BibliographyItem;
@@ -30,6 +31,7 @@ use App\Support\Bibliography\ReferenceFormatter;
 use App\Support\Bibliography\Suggestions;
 use App\Support\Edition\ConjectureCatalogue;
 use App\Support\Edition\DiplomaticCounterpart;
+use App\Support\Edition\EditionPublisher;
 use App\Support\Edition\PermutationBlocks;
 use App\Support\Edition\TranspositionProjection;
 use App\Support\Transcription\GreekText;
@@ -57,6 +59,8 @@ class EditionController extends Controller
 
     public function create(Work $work): Response
     {
+        $this->authorize('create', [Edition::class, $work]);
+
         return Inertia::render('Editions/Create', ['work' => $work]);
     }
 
@@ -152,6 +156,8 @@ class EditionController extends Controller
         return Inertia::render('Editions/Show', [
             'work' => $work->only(['id', 'title', 'slug']),
             'edition' => $edition,
+            'can' => $this->abilities($request, $edition),
+            'access' => $this->access($request, $edition),
             'page' => $page,
             'totalPages' => $totalPages,
             'passages' => $this->annotatePassageStatus($orderedPassages->unique('canonical_passage_id')->values(), $edition),
@@ -181,7 +187,7 @@ class EditionController extends Controller
             // The work's conjectures as the Work page lists them, so a
             // conjecture named in a notice can be edited in place (editors)
             // or opened for its bibliography (readers).
-            'workConjectures' => ConjectureCatalogue::forWork($work),
+            'workConjectures' => ConjectureCatalogue::forWork($work, $request->user()),
             // Which conjectures this edition follows — the page marks those
             // candidates as followed in the order panel.
             'transpositions' => EditionTransposition::where('edition_id', $edition->id)
@@ -451,15 +457,82 @@ class EditionController extends Controller
         ];
     }
 
+    /**
+     * Title and description are editing; visibility is publishing, which
+     * only the owner does — and which carries the work's witnesses and
+     * conjectures along, see EditionPublisher.
+     */
+    /**
+     * Who holds the edition and who may edit it — the owner for everyone,
+     * the invited editors and the open offer for whoever may manage them.
+     *
+     * @return array{owner: array<string, mixed>|null, editors: array<int, array<string, mixed>>, offer: array<string, mixed>|null}
+     */
+    private function access(Request $request, Edition $edition): array
+    {
+        $user = $request->user();
+        $manages = ($user?->can('manageEditors', $edition) ?? false) || ($user?->can('transfer', $edition) ?? false);
+        $offer = $manages ? $edition->ownershipTransfers()->open()->with('toUser:id,name,email')->first() : null;
+
+        return [
+            'owner' => $edition->user()->first(['id', 'name'])?->only(['id', 'name']),
+            'editors' => $manages
+                ? $edition->editors()->orderBy('name')->get(['users.id', 'users.name', 'users.email'])
+                    ->map(fn (User $editor) => $editor->only(['id', 'name', 'email']))->all()
+                : [],
+            'offer' => $offer === null ? null : [
+                'id' => $offer->id,
+                'to' => $offer->toUser->only(['id', 'name', 'email']),
+            ],
+        ];
+    }
+
+    /**
+     * What the viewer may do to this edition, for the page to show or hide
+     * its controls by — the policies decide, the client only reflects them.
+     *
+     * @return array{edit: bool, delete: bool, publish: bool, manage: bool, transfer: bool, copy: bool}
+     */
+    private function abilities(Request $request, Edition $edition): array
+    {
+        $user = $request->user();
+
+        return [
+            'edit' => $user?->can('update', $edition) ?? false,
+            'delete' => $user?->can('delete', $edition) ?? false,
+            'publish' => $user?->can('publish', $edition) ?? false,
+            'manage' => $user?->can('manageEditors', $edition) ?? false,
+            'transfer' => $user?->can('transfer', $edition) ?? false,
+            'copy' => $user?->can('copy', $edition) ?? false,
+        ];
+    }
+
     public function update(UpdateEditionRequest $request, Edition $edition): RedirectResponse
     {
-        $edition->update($request->validated());
+        $validated = $request->validated();
+
+        if (array_key_exists('visibility', $validated)) {
+            $this->authorize('publish', $edition);
+
+            $visibility = Visibility::from($validated['visibility']);
+            unset($validated['visibility']);
+
+            if ($visibility !== $edition->visibility) {
+                $visibility === Visibility::Published
+                    ? EditionPublisher::publish($edition)
+                    : EditionPublisher::unpublish($edition);
+            }
+        }
+
+        $edition->update($validated);
 
         return back();
     }
 
     public function destroy(Edition $edition): RedirectResponse
     {
+        $this->authorize('delete', $edition);
+
         $work = $edition->work;
         $edition->delete();
 

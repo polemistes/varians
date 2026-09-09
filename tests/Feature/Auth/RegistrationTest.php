@@ -3,7 +3,7 @@
 use App\Enums\Role;
 use App\Models\User;
 
-test('anyone can register, and new accounts start as a guest', function () {
+test('anyone can register, and new accounts start as a member', function () {
     // An existing user means this registrant is not the first ever — see
     // the dedicated "first user becomes administrator" test below for that case.
     User::factory()->administrator()->create();
@@ -20,7 +20,7 @@ test('anyone can register, and new accounts start as a guest', function () {
 
     $user = User::where('email', 'new-scholar@example.com')->sole();
     expect($user->name)->toBe('New Scholar')
-        ->and($user->role)->toBe(Role::Guest);
+        ->and($user->role)->toBe(Role::Member);
 });
 
 test('role cannot be set through the registration form', function () {
@@ -34,7 +34,7 @@ test('role cannot be set through the registration form', function () {
         'role' => 'administrator',
     ]);
 
-    expect(User::where('email', 'aspiring@example.com')->sole()->role)->toBe(Role::Guest);
+    expect(User::where('email', 'aspiring@example.com')->sole()->role)->toBe(Role::Member);
 });
 
 test('the first user ever registered becomes an administrator', function () {
@@ -49,7 +49,7 @@ test('the first user ever registered becomes an administrator', function () {
     expect(User::sole()->role)->toBe(Role::Administrator);
 });
 
-test('the second user ever registered stays a guest, even without anyone promoting them', function () {
+test('the second user ever registered stays a member, even without anyone promoting them', function () {
     $this->post(route('register'), [
         'name' => 'First Scholar',
         'email' => 'first@example.com',
@@ -66,7 +66,7 @@ test('the second user ever registered stays a guest, even without anyone promoti
     ]);
 
     expect(User::where('email', 'first@example.com')->sole()->role)->toBe(Role::Administrator)
-        ->and(User::where('email', 'second@example.com')->sole()->role)->toBe(Role::Guest);
+        ->and(User::where('email', 'second@example.com')->sole()->role)->toBe(Role::Member);
 });
 
 test('registration requires a unique email', function () {

@@ -10,6 +10,7 @@ import type { Auth } from '@/types/auth';
 
 const page = usePage<{ auth: Auth }>();
 const auth = computed(() => page.props.auth);
+const pendingOffers = computed(() => auth.value.pendingOffers ?? 0);
 </script>
 
 <template>
@@ -37,7 +38,9 @@ const auth = computed(() => page.props.auth);
                     Admin
                 </Link>
                 <Link :href="editProfile.url()" class="hover:underline">
-                    Profile
+                    Profile<template v-if="pendingOffers > 0">
+                        ({{ pendingOffers }})</template
+                    >
                 </Link>
                 <Link
                     :href="storeLogout.url()"

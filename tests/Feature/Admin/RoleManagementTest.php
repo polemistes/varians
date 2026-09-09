@@ -26,15 +26,15 @@ test('an administrator can promote a user directly to administrator', function (
     expect($guest->fresh()->role)->toBe(Role::Administrator);
 });
 
-test('an administrator can demote a user back to guest', function () {
+test('an administrator can demote a user back to member', function () {
     $this->actingAs(User::factory()->administrator()->create());
     $editor = User::factory()->editor()->create();
 
     $this->patch(route('admin.users.role.update', $editor), [
-        'role' => 'guest',
+        'role' => 'member',
     ]);
 
-    expect($editor->fresh()->role)->toBe(Role::Guest);
+    expect($editor->fresh()->role)->toBe(Role::Member);
 });
 
 test('an editor cannot promote anyone — role management is administrator-only', function () {
@@ -46,7 +46,7 @@ test('an editor cannot promote anyone — role management is administrator-only'
     ]);
 
     $response->assertForbidden();
-    expect($guest->fresh()->role)->toBe(Role::Guest);
+    expect($guest->fresh()->role)->toBe(Role::Member);
 });
 
 test('a guest cannot promote anyone', function () {
@@ -73,4 +73,19 @@ test('the users index lists every user with their role', function () {
     $response = $this->get(route('admin.users.index'));
 
     $response->assertOk();
+});
+
+test('the only administrator cannot be demoted — appoint another first', function () {
+    $admin = User::factory()->administrator()->create();
+    $this->actingAs($admin);
+
+    $this->patch(route('admin.users.role.update', $admin), ['role' => 'member'])
+        ->assertSessionHasErrors('role');
+    expect($admin->fresh()->role)->toBe(Role::Administrator);
+
+    $second = User::factory()->create();
+    $this->patch(route('admin.users.role.update', $second), ['role' => 'administrator']);
+    $this->patch(route('admin.users.role.update', $admin), ['role' => 'member'])
+        ->assertSessionHasNoErrors();
+    expect($admin->fresh()->role)->toBe(Role::Member);
 });

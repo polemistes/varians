@@ -1,4 +1,4 @@
-export type Role = 'guest' | 'editor' | 'administrator';
+export type Role = 'member' | 'editor' | 'administrator';
 
 export type GreekFont = 'eb-garamond' | 'cardo';
 
@@ -17,4 +17,6 @@ export type User = {
 
 export type Auth = {
     user: User | null;
+    /** Editions offered to her and not yet answered — see the profile page. */
+    pendingOffers?: number;
 };

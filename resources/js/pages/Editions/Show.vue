@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue';
 import AppHeader from '@/components/AppHeader.vue';
 import ConjectureForm from '@/components/ConjectureForm.vue';
@@ -17,7 +17,6 @@ import {
     sameReading,
     witnessReadings,
 } from '@/lib/apparatus';
-import { isEditorOrAbove } from '@/lib/auth';
 import type { BiblatexRegistry, Suggestions } from '@/lib/biblatex';
 import { confirmDeletion } from '@/lib/deletionImpact';
 import { analyzeSequence } from '@/lib/orderReport';
@@ -28,20 +27,26 @@ import {
     store as storeComment,
     update as updateComment,
 } from '@/routes/edition-comments';
+import {
+    destroy as destroyEditor,
+    store as storeEditor,
+} from '@/routes/edition-editors';
 import { destroy as destroyEditionLemma } from '@/routes/edition-lemmas';
 import { update as updateLineBreak } from '@/routes/edition-line-breaks';
 import { apply as applyEditionOrder } from '@/routes/edition-order';
+import { store as storeTransfer } from '@/routes/edition-ownership-transfers';
 import { destroy as destroyEditionPassage } from '@/routes/edition-passages';
 import { update as updatePassageLineation } from '@/routes/edition-passages/lineation';
 import { store as storeVariant } from '@/routes/edition-variants';
+import { copy as copyEditionRoute } from '@/routes/editions';
 import {
     destroy as destroyEdition,
     show as showEdition,
     update as updateEdition,
 } from '@/routes/editions';
 import { exportMethod as exportEditionBibliography } from '@/routes/editions/bibliography';
+import { destroy as destroyTransfer } from '@/routes/ownership-transfers';
 import { show as showWitness } from '@/routes/witnesses';
-import type { Auth } from '@/types/auth';
 import type { WorkConjecture, WorkPassage } from '@/types/conjectures';
 import type {
     BibliographyEntry,
@@ -57,12 +62,16 @@ import type {
     TranspositionAdoption,
     UnplacedConjecture,
     WindowPassage,
+    EditionAbilities,
+    EditionAccess,
 } from '@/types/edition';
 import type { Edition, ReferenceLevel, Visibility, Work } from '@/types/models';
 
 const props = defineProps<{
     work: Pick<Work, 'id' | 'title' | 'slug'>;
     edition: Edition;
+    can: EditionAbilities;
+    access: EditionAccess;
     page: number;
     totalPages: number;
     passages: PassageListItem[];
@@ -101,8 +110,8 @@ const alreadyAddedPassageIds = computed(() =>
     props.passages.map((passage) => passage.id),
 );
 
-const inertiaPage = usePage<{ auth: Auth }>();
-const mayEdit = computed(() => isEditorOrAbove(inertiaPage.props.auth.user));
+// What the server's policies allow this viewer — the page only reflects it.
+const mayEdit = computed(() => props.can.edit);
 
 // An editor can stand where a reader stands. Everything that edits is gated
 // on `canEdit`, so switching this off gives the reader's own view — no
@@ -178,6 +187,47 @@ function saveVisibility(visibility: Visibility) {
         { visibility },
         { preserveScroll: true },
     );
+}
+
+// ---- access: who owns the edition, who else may edit it, handing it on ----
+const editorForm = useForm({ email: '' });
+
+function grantEditor() {
+    editorForm.post(storeEditor.url(props.edition), {
+        preserveScroll: true,
+        onSuccess: () => editorForm.reset(),
+    });
+}
+
+function revokeEditor(userId: number) {
+    router.delete(destroyEditor.url({ edition: props.edition, user: userId }), {
+        preserveScroll: true,
+    });
+}
+
+const transferForm = useForm({ email: '' });
+
+function offerOwnership() {
+    transferForm.post(storeTransfer.url(props.edition), {
+        preserveScroll: true,
+        onSuccess: () => transferForm.reset(),
+    });
+}
+
+function withdrawOffer(transferId: number) {
+    router.delete(destroyTransfer.url(transferId), { preserveScroll: true });
+}
+
+function copyEdition() {
+    if (
+        !window.confirm(
+            'Make your own copy of this edition? You get a copy of the work, of every witness citing it, and of every conjecture recorded against it — all yours to edit, none of it shared with the original.',
+        )
+    ) {
+        return;
+    }
+
+    router.post(copyEditionRoute.url(props.edition));
 }
 
 function removeEdition() {
@@ -2779,7 +2829,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                     </h1>
                     <div class="flex items-center gap-2 text-xs">
                         <select
-                            v-if="canEdit"
+                            v-if="canEdit && props.can.publish"
                             :value="props.edition.visibility"
                             class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
                             @change="
@@ -2859,6 +2909,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                             }}
                         </button>
                         <button
+                            v-if="props.can.delete"
                             type="button"
                             class="text-red-600 underline dark:text-red-400"
                             @click="removeEdition"
@@ -2866,6 +2917,15 @@ function orderRangeClasses(range: OrderRange): string[] {
                             Delete edition
                         </button>
                     </template>
+                    <button
+                        v-if="props.can.copy"
+                        type="button"
+                        class="underline"
+                        title="Your own copy — of the edition, and of the work, witnesses and conjectures it stands on"
+                        @click="copyEdition"
+                    >
+                        Copy this edition
+                    </button>
                     <button
                         v-if="mayEdit"
                         type="button"
@@ -2881,6 +2941,119 @@ function orderRangeClasses(range: OrderRange): string[] {
                             readerView ? 'Back to editing' : 'Read as a reader'
                         }}
                     </button>
+                </div>
+
+                <!-- Who holds the edition. The owner alone publishes,
+                     deletes, invites editors and hands it on; a reader
+                     sees only the name. -->
+                <div
+                    class="mt-2 grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-0.5 text-xs"
+                >
+                    <span class="text-stone-500 dark:text-stone-400"
+                        >Owner</span
+                    >
+                    <span>{{ props.access.owner?.name ?? '—' }}</span>
+                    <template v-if="props.can.manage || props.can.transfer">
+                        <span class="text-stone-500 dark:text-stone-400"
+                            >Editors</span
+                        >
+                        <span
+                            class="flex flex-wrap items-baseline gap-x-3 gap-y-1"
+                        >
+                            <span
+                                v-if="props.access.editors.length === 0"
+                                class="text-stone-500 dark:text-stone-400"
+                                >nobody else yet</span
+                            >
+                            <span
+                                v-for="editor in props.access.editors"
+                                :key="editor.id"
+                                :title="editor.email"
+                            >
+                                {{ editor.name }}
+                                <button
+                                    v-if="props.can.manage"
+                                    type="button"
+                                    class="ml-1 text-red-600 underline dark:text-red-400"
+                                    @click="revokeEditor(editor.id)"
+                                >
+                                    remove
+                                </button>
+                            </span>
+                            <form
+                                v-if="props.can.manage"
+                                class="flex items-baseline gap-1"
+                                @submit.prevent="grantEditor"
+                            >
+                                <input
+                                    v-model="editorForm.email"
+                                    type="email"
+                                    placeholder="member's email"
+                                    class="w-48 rounded border border-stone-300 bg-transparent px-1 py-0.5 dark:border-stone-700"
+                                />
+                                <button
+                                    type="submit"
+                                    class="underline"
+                                    :disabled="editorForm.processing"
+                                >
+                                    Invite to edit
+                                </button>
+                                <span
+                                    v-if="editorForm.errors.email"
+                                    class="text-red-600 dark:text-red-400"
+                                    >{{ editorForm.errors.email }}</span
+                                >
+                            </form>
+                        </span>
+                        <span class="text-stone-500 dark:text-stone-400"
+                            >Hand on</span
+                        >
+                        <span
+                            class="flex flex-wrap items-baseline gap-x-3 gap-y-1"
+                        >
+                            <template v-if="props.access.offer">
+                                <span :title="props.access.offer.to.email"
+                                    >offered to
+                                    {{ props.access.offer.to.name }}, awaiting
+                                    an answer</span
+                                >
+                                <button
+                                    v-if="props.can.transfer"
+                                    type="button"
+                                    class="text-red-600 underline dark:text-red-400"
+                                    @click="
+                                        withdrawOffer(props.access.offer.id)
+                                    "
+                                >
+                                    withdraw
+                                </button>
+                            </template>
+                            <form
+                                v-else-if="props.can.transfer"
+                                class="flex items-baseline gap-1"
+                                @submit.prevent="offerOwnership"
+                            >
+                                <input
+                                    v-model="transferForm.email"
+                                    type="email"
+                                    placeholder="member's email"
+                                    class="w-48 rounded border border-stone-300 bg-transparent px-1 py-0.5 dark:border-stone-700"
+                                />
+                                <button
+                                    type="submit"
+                                    class="underline"
+                                    :disabled="transferForm.processing"
+                                >
+                                    Offer ownership
+                                </button>
+                                <span
+                                    v-if="transferForm.errors.email"
+                                    class="text-red-600 dark:text-red-400"
+                                    >{{ transferForm.errors.email }}</span
+                                >
+                            </form>
+                        </span>
+                    </template>
                 </div>
 
                 <form

@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import AppHeader from '@/components/AppHeader.vue';
-import { isEditorOrAbove } from '@/lib/auth';
 import { confirmDeletion, pluralize } from '@/lib/deletionImpact';
 import {
     create as createEdition,
@@ -19,7 +18,6 @@ import {
     destroy as destroyWork,
     show as showWork,
 } from '@/routes/works';
-import type { Auth } from '@/types/auth';
 import type { Witness, Work } from '@/types/models';
 
 type EditionRow = {
@@ -27,29 +25,39 @@ type EditionRow = {
     title: string;
     visibility: string;
     work?: Pick<Work, 'id' | 'title' | 'slug'>;
+    can_delete: boolean;
 };
 
 type WorkRow = Pick<Work, 'id' | 'title' | 'slug' | 'author'> & {
     editions_count: number;
     transcription_segments_count: number;
+    can_edit: boolean;
+    can_delete: boolean;
 };
 
 type WitnessRow = Pick<Witness, 'id' | 'siglum' | 'label' | 'date_text'> & {
     transcriptions_count: number;
+    can_delete: boolean;
 };
 
 const props = defineProps<{
+    can: { create: boolean };
     editions: EditionRow[];
     works: WorkRow[];
     witnesses: WitnessRow[];
 }>();
 
-const page = usePage<{ auth: Auth }>();
-const canEdit = computed(() => isEditorOrAbove(page.props.auth.user));
+// Every member may start a work, a witness or an edition of her own.
+const canEdit = computed(() => props.can.create);
 
 // An edition belongs to a work, so starting one means naming the work first.
 // Revealed on demand rather than sitting there as a permanent select.
 const choosingWork = ref(false);
+// An edition is made on a work one may edit — one's own, or one whose
+// editions one has been invited to.
+const editableWorks = computed(() =>
+    props.works.filter((work) => work.can_edit),
+);
 
 function startEdition(slug: string) {
     if (slug) {
@@ -136,7 +144,7 @@ function removeWitness(witness: WitnessRow) {
                                 >
                             </Link>
                             <button
-                                v-if="canEdit"
+                                v-if="work.can_delete"
                                 type="button"
                                 class="text-xs text-red-600 underline dark:text-red-400"
                                 @click="removeWork(work)"
@@ -187,7 +195,7 @@ function removeWitness(witness: WitnessRow) {
                                 </span>
                             </Link>
                             <button
-                                v-if="canEdit"
+                                v-if="witness.can_delete"
                                 type="button"
                                 class="text-xs text-red-600 underline dark:text-red-400"
                                 @click="removeWitness(witness)"
@@ -219,7 +227,7 @@ function removeWitness(witness: WitnessRow) {
                     </div>
 
                     <p
-                        v-if="choosingWork && props.works.length === 0"
+                        v-if="choosingWork && editableWorks.length === 0"
                         class="mb-3 text-xs text-stone-500 dark:text-stone-400"
                     >
                         An edition is of a work, so add a work first.
@@ -235,7 +243,7 @@ function removeWitness(witness: WitnessRow) {
                     >
                         <option value="">Of which work&hellip;</option>
                         <option
-                            v-for="work in props.works"
+                            v-for="work in editableWorks"
                             :key="work.id"
                             :value="work.slug"
                         >
@@ -276,7 +284,7 @@ function removeWitness(witness: WitnessRow) {
                                 </span>
                             </Link>
                             <button
-                                v-if="canEdit"
+                                v-if="edition.can_delete"
                                 type="button"
                                 class="text-xs text-red-600 underline dark:text-red-400"
                                 @click="removeEdition(edition)"

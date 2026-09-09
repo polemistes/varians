@@ -17,6 +17,8 @@ class EditionLemmaController extends Controller
      */
     public function destroy(Edition $edition, Lemma $lemma): RedirectResponse
     {
+        $this->authorize('update', $edition);
+
         EditionLemma::where('edition_id', $edition->id)->where('lemma_id', $lemma->id)->delete();
 
         return back();

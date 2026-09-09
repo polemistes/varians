@@ -6,6 +6,8 @@ use App\Http\Requests\StoreBibliographyReferenceRequest;
 use App\Http\Requests\UpdateBibliographyReferenceRequest;
 use App\Models\BibliographyItem;
 use App\Models\BibliographyReference;
+use App\Models\Conjecture;
+use App\Models\Edition;
 use App\Support\Bibliography\ReferenceFormatter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -46,6 +48,10 @@ class BibliographyReferenceController extends Controller
             ? ['conjecture_id' => (int) $request->validated('conjecture_id'), 'edition_id' => null, 'canonical_passage_id' => null]
             : ['conjecture_id' => null, 'edition_id' => (int) $request->validated('edition_id'), 'canonical_passage_id' => (int) $request->validated('canonical_passage_id')];
 
+        $this->authorize('update', $target['conjecture_id'] !== null
+            ? Conjecture::findOrFail($target['conjecture_id'])
+            : Edition::findOrFail($target['edition_id']));
+
         $position = (int) BibliographyReference::query()
             ->where($target)
             ->max('position');
@@ -70,6 +76,8 @@ class BibliographyReferenceController extends Controller
 
     public function destroy(BibliographyReference $reference): RedirectResponse
     {
+        $this->authorize('update', $reference->conjecture_id !== null ? $reference->conjecture : $reference->edition);
+
         $reference->delete();
 
         return back();

@@ -53,6 +53,7 @@ class ScholarlyEditionSeeder extends Seeder
         ]);
 
         $work = Work::create([
+            'user_id' => $scholar->id,
             'reference_scheme_id' => $scheme->id,
             'title' => 'Iliad',
             'author' => 'Homer',
@@ -88,6 +89,7 @@ class ScholarlyEditionSeeder extends Seeder
         }
 
         $witness = Witness::create([
+            'user_id' => $scholar->id,
             'siglum' => 'A',
             'label' => 'Venetus A',
             'repository' => 'Biblioteca Nazionale Marciana',
@@ -164,6 +166,7 @@ class ScholarlyEditionSeeder extends Seeder
     private function seedIliadWitnesses(User $scholar, array $passages, array $normalized): void
     {
         $b = Witness::create([
+            'user_id' => $scholar->id,
             'siglum' => 'B',
             'label' => 'Venetus B',
         ]);
@@ -189,6 +192,7 @@ class ScholarlyEditionSeeder extends Seeder
         $this->createTranscription($transcriptionB, $scholar, $this->entriesFor($bNormalized, $passages), Layer::Normalized);
 
         $c = Witness::create([
+            'user_id' => $scholar->id,
             'siglum' => 'C',
             'label' => 'Codex Laurentianus',
         ]);
@@ -239,8 +243,9 @@ class ScholarlyEditionSeeder extends Seeder
             'type' => ConjectureType::Substitution,
             'text' => 'δαῖτα,',
             'proposed_by' => 'Zenodotus',
-            'bibliography' => 'Athenaeus, Deipnosophistae 1.12e',
-            'note' => 'Reported as the reading of Zenodotus; no surviving manuscript has it.',
+            // The free-text bibliography column is gone; where the reading
+            // is reported travels in the note until an item cites it.
+            'note' => 'Reported as the reading of Zenodotus (Athenaeus, Deipnosophistae 1.12e); no surviving manuscript has it.',
         ]);
 
         $this->adopt($edition, $this->columnFor($passages[5], $baseA, 'πᾶσι,'), $daita);
@@ -355,6 +360,7 @@ class ScholarlyEditionSeeder extends Seeder
         ]);
 
         $work = Work::create([
+            'user_id' => $scholar->id,
             'reference_scheme_id' => $scheme->id,
             'title' => 'Apology',
             'author' => 'Plato',
@@ -376,6 +382,7 @@ class ScholarlyEditionSeeder extends Seeder
         ];
 
         $witness = Witness::create([
+            'user_id' => $scholar->id,
             'siglum' => 'B',
             'label' => 'Codex Clarkianus',
             'repository' => 'Bodleian Library',

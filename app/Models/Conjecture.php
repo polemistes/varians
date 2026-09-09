@@ -3,8 +3,12 @@
 namespace App\Models;
 
 use App\Enums\ConjectureType;
+use App\Enums\Role;
+use App\Enums\Visibility;
 use Database\Factories\ConjectureFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -25,12 +29,17 @@ use Illuminate\Support\Carbon;
  *
  * Most conjectures aren't the current editor's own idea — they're recording
  * one a scholar proposed long ago (`proposed_by`, e.g. "Bentley"), which is
- * deliberately separate from `user_id`: that stays attribution for who
- * entered this record into Varians, not who thought of it.
+ * deliberately separate from `user_id`: that is the OWNER — who entered
+ * this record into Varians and may edit it — not who thought of it. Anyone
+ * who may edit the work it belongs to may edit it as well (see
+ * ConjecturePolicy). A conjecture is a draft until an edition of its work
+ * is published, which publishes every conjecture of the work with it.
  *
  * @property int $id
  * @property int $canonical_passage_id
  * @property int $user_id
+ * @property int|null $copied_from_id
+ * @property Visibility $visibility
  * @property ConjectureType $type
  * @property string|null $text
  * @property string|null $extent
@@ -47,6 +56,8 @@ use Illuminate\Support\Carbon;
 #[Fillable([
     'canonical_passage_id',
     'user_id',
+    'copied_from_id',
+    'visibility',
     'type',
     'text',
     'extent',
@@ -65,7 +76,19 @@ class Conjecture extends Model
 
     protected $attributes = [
         'type' => ConjectureType::Substitution,
+        'visibility' => Visibility::Draft,
     ];
+
+    /**
+     * The conjecture this one was copied from, when it is a copy — see
+     * App\Support\Copying\EditionCopier.
+     *
+     * @return BelongsTo<Conjecture, $this>
+     */
+    public function copiedFrom(): BelongsTo
+    {
+        return $this->belongsTo(Conjecture::class, 'copied_from_id');
+    }
 
     /**
      * The literature this conjecture cites, in the order given — see
@@ -162,12 +185,53 @@ class Conjecture extends Model
     }
 
     /**
+     * Whether this member may edit the conjecture: its owner, or anyone who
+     * may edit the work it is recorded against. Site-wide roles are the
+     * policies' business, not this one's.
+     */
+    public function isEditableBy(User $user): bool
+    {
+        return $this->user_id === $user->id
+            || $this->canonicalPassage->work->isEditableBy($user);
+    }
+
+    public function isPublished(): bool
+    {
+        return $this->visibility === Visibility::Published;
+    }
+
+    /**
+     * Scope a query to conjectures visible to the given viewer: editors and
+     * administrators see everything; a member also sees those on works she
+     * may edit; everyone sees the published ones.
+     *
+     * @param  Builder<Conjecture>  $query
+     */
+    #[Scope]
+    protected function visibleTo(Builder $query, ?User $viewer): void
+    {
+        if ($viewer !== null && $viewer->hasRole(Role::Editor)) {
+            return;
+        }
+
+        $query->where(function (Builder $query) use ($viewer) {
+            $query->where('conjectures.visibility', Visibility::Published);
+
+            if ($viewer !== null) {
+                $query->orWhere('conjectures.user_id', $viewer->id)
+                    ->orWhereHas('canonicalPassage', fn (Builder $passages) => $passages->whereIn('work_id', Work::query()->editableBy($viewer)->select('works.id')));
+            }
+        });
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
     {
         return [
             'type' => ConjectureType::class,
+            'visibility' => Visibility::class,
         ];
     }
 }

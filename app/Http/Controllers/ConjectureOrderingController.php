@@ -10,6 +10,7 @@ use App\Models\ConjectureOrderingEntry;
 use App\Models\Edition;
 use App\Support\Bibliography\ReferenceAttacher;
 use App\Support\Edition\ArrangementAdopter;
+use App\Support\Edition\EditionPublisher;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 
@@ -45,6 +46,7 @@ class ConjectureOrderingController extends Controller
             $conjecture = Conjecture::create([
                 'canonical_passage_id' => $anchorId,
                 'user_id' => $request->user()->id,
+                'visibility' => EditionPublisher::visibilityForConjectureOn($anchorId),
                 'type' => ConjectureType::Reordering,
                 'proposed_by' => $request->validated('proposed_by'),
                 'note' => $request->validated('note'),

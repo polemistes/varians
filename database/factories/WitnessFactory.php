@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\User;
 use App\Models\Witness;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -18,6 +19,7 @@ class WitnessFactory extends Factory
     public function definition(): array
     {
         return [
+            'user_id' => User::factory(),
             'siglum' => strtoupper(fake()->unique()->lexify('?')),
             'label' => fake()->sentence(4),
         ];

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\TranscriptionSegment;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -9,11 +10,15 @@ use Illuminate\Validation\Rule;
 class AssignTranscriptionSegmentRequest extends FormRequest
 {
     /**
-     * Determine if the user is authorized to make this request.
+     * The policy decides — see App\Policies. Checked before validation, so
+     * an unauthorized request learns nothing from the rules.
      */
     public function authorize(): bool
     {
-        return true;
+        /** @var TranscriptionSegment $segment */
+        $segment = $this->route('segment');
+
+        return $this->user()->can('update', $segment->transcriptionLayer);
     }
 
     /**

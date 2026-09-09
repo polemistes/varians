@@ -2,7 +2,6 @@
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import AlignableText from '@/components/AlignableText.vue';
-import { isEditorOrAbove } from '@/lib/auth';
 import { cpLength, cpSlice } from '@/lib/codePoints';
 import {
     confirmDeletion,
@@ -113,10 +112,14 @@ const layerRegions = computed(() => layer.value?.regions ?? []);
 
 const page = usePage<{
     auth: Auth;
+    can?: { edit: boolean; publish?: boolean };
     csrf?: string;
     flash?: { message?: string | null; layer?: number | null };
 }>();
-const canEdit = computed(() => isEditorOrAbove(page.props.auth.user));
+// The witness page's own abilities, decided by the server's policies.
+const canEdit = computed(() => page.props.can?.edit === true);
+// Publishing a transcript by hand is the witness owner's call.
+const canPublish = computed(() => page.props.can?.publish === true);
 
 // ---- edit text: an ordered log of exact edit operations, applied locally
 // (via transcriptionEdit.ts, mirroring App\Support\Transcription\
@@ -1594,7 +1597,7 @@ const selectionAlreadyMapped = computed(
                 region.end_offset > activeSelection.value!.start,
         ),
 );
-type SplitGranularity = 'span' | 'line' | 'word' | 'character';
+type SplitGranularity = 'span' | 'line' | 'word';
 const splitGranularity = ref<SplitGranularity>('span');
 
 // All selection lookups read the *edited* state — the surface is always
@@ -2089,7 +2092,7 @@ defineExpose({
             </label>
 
             <select
-                v-if="canEdit && layer"
+                v-if="canPublish && layer"
                 v-model="visibility"
                 class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
                 @change="saveVisibility"
@@ -2431,19 +2434,6 @@ defineExpose({
                         @click="armDrawing('word')"
                     >
                         split by word
-                    </button>
-                    <button
-                        type="button"
-                        class="self-start text-stone-700 underline disabled:opacity-40 dark:text-stone-300"
-                        :disabled="!selectionIsSplittable"
-                        :title="
-                            selectionIsSplittable
-                                ? undefined
-                                : 'Contains transcript markup — split a plain-text selection instead'
-                        "
-                        @click="armDrawing('character')"
-                    >
-                        split by character
                     </button>
                 </span>
                 <span v-if="regionError" class="text-red-600 dark:text-red-400">

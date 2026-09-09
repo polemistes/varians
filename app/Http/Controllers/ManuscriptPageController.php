@@ -63,6 +63,8 @@ class ManuscriptPageController extends Controller
      */
     public function destroy(ManuscriptPage $page): RedirectResponse
     {
+        $this->authorize('update', $page->witness);
+
         $page->delete();
 
         return back();

@@ -37,6 +37,8 @@ class TranscriptionSegmentController extends Controller
      */
     public function store(StoreTranscriptionSegmentRequest $request, TranscriptionLayer $transcription): RedirectResponse
     {
+        $this->authorize('update', Work::findOrFail((int) $request->validated('work_id')));
+
         $passage = $this->resolveCitation((int) $request->validated('work_id'), $request->validated('label'));
         WorkOwnership::guard($transcription->transcription, $passage->work);
 
@@ -155,6 +157,8 @@ class TranscriptionSegmentController extends Controller
      */
     public function assignCitation(AssignTranscriptionSegmentRequest $request, TranscriptionSegment $segment): RedirectResponse
     {
+        $this->authorize('update', Work::findOrFail((int) $request->validated('work_id')));
+
         $passage = $this->resolveCitation((int) $request->validated('work_id'), $request->validated('label'));
 
         if ($segment->canonical_passage_id === $passage->id) {
@@ -199,6 +203,8 @@ class TranscriptionSegmentController extends Controller
 
     public function destroy(TranscriptionSegment $segment): RedirectResponse
     {
+        $this->authorize('update', $segment->transcriptionLayer);
+
         DB::transaction(function () use ($segment) {
             $this->siblingCounterpart($segment)?->delete();
             $segment->delete();

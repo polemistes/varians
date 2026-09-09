@@ -44,6 +44,9 @@ class HandleInertiaRequests extends Middleware
             'csrf' => fn () => csrf_token(),
             'auth' => [
                 'user' => $request->user(),
+                // Editions offered to her and not yet answered — a nudge
+                // in the header toward the profile page, where she answers.
+                'pendingOffers' => fn () => $request->user()?->ownershipOffers()->open()->count() ?? 0,
             ],
             // A general one-shot channel for telling the editor what an
             // action did beyond what she asked for — not an error, and not

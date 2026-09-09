@@ -41,7 +41,7 @@ passage keeps its literature), with biblatex's `prenote`/`postnote`
 ("cf.", "pp. 45–47") and a `position`. The item FK RESTRICTS: an item
 anything cites cannot be deleted (`BibliographyItemController::destroy`
 lists what cites it). The list is readable by everyone (page and .bib);
-editors write, collaboratively (user decision, both).
+every member adds to it, and a member may change or remove only an item nobody else relies on — one she added that nothing cites, or one cited solely by her own editions and conjectures; site-wide editors may change any item (`BibliographyItemPolicy`, user decision). An import with `replace` skips the keys she may not change.
 
 ## Spellings converge by suggestion, never by refusal
 `Suggestions::all()` collects what the list already records — every

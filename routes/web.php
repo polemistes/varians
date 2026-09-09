@@ -11,9 +11,12 @@ use App\Http\Controllers\ConjectureOrderingController;
 use App\Http\Controllers\EditionAdoptionController;
 use App\Http\Controllers\EditionCommentController;
 use App\Http\Controllers\EditionController;
+use App\Http\Controllers\EditionCopyController;
+use App\Http\Controllers\EditionEditorController;
 use App\Http\Controllers\EditionLemmaController;
 use App\Http\Controllers\EditionLineationController;
 use App\Http\Controllers\EditionOrderController;
+use App\Http\Controllers\EditionOwnershipTransferController;
 use App\Http\Controllers\EditionPassageController;
 use App\Http\Controllers\EditionVariantController;
 use App\Http\Controllers\HomeController;
@@ -29,31 +32,34 @@ use App\Http\Controllers\TranscriptionSpanCopyController;
 use App\Http\Controllers\TranscriptionSpanRestoreController;
 use App\Http\Controllers\TranscriptionTextController;
 use App\Http\Controllers\WitnessController;
+use App\Http\Controllers\WitnessCopyController;
 use App\Http\Controllers\WorkController;
 use Illuminate\Support\Facades\Route;
 
 // Open reads — everyone, including anonymous visitors, subject to the
 // published/draft visibility rules enforced inside each controller.
 //
-// The two "create" GET routes below are editor-only, but must stay registered
-// here — before their sibling {work:slug}/{witness} show routes — since
-// Laravel matches routes in registration order and "create" would otherwise
-// be swallowed by the wildcard show route (tried as a slug/id and 404ing).
+// The "create" GET routes below need a signed-in member, but must stay
+// registered here — before their sibling {work:slug}/{witness} show routes —
+// since Laravel matches routes in registration order and "create" would
+// otherwise be swallowed by the wildcard show route (tried as a slug/id and
+// 404ing).
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/works/create', [WorkController::class, 'create'])->name('works.create')
-    ->middleware('role:editor');
+    ->middleware('auth');
 Route::get('/works/{work:slug}', [WorkController::class, 'show'])->name('works.show');
 Route::get('/works/{work:slug}/editions/create', [EditionController::class, 'create'])->name('editions.create')
-    ->middleware('role:editor');
+    ->middleware('auth');
 Route::get('/works/{work:slug}/editions/{edition}', [EditionController::class, 'show'])->name('editions.show');
 Route::get('/witnesses/create', [WitnessController::class, 'create'])->name('witnesses.create')
-    ->middleware('role:editor');
+    ->middleware('auth');
 Route::get('/witnesses/{witness}', [WitnessController::class, 'show'])->name('witnesses.show');
 Route::get('/transcriptions/{transcription}', [TranscriptionController::class, 'show'])
     ->name('transcriptions.show');
 
 // The common bibliography is reference data: readable by everyone, as a
-// page and as a .bib file; only editors change it (below).
+// page and as a .bib file; members add to it and, within limits, change it
+// (below — see BibliographyItemPolicy).
 Route::get('/bibliography', [BibliographyItemController::class, 'index'])->name('bibliography.index');
 Route::get('/bibliography/export', [BibliographyItemController::class, 'export'])->name('bibliography.export');
 Route::get('/editions/{edition}/bibliography.bib', [BibliographyItemController::class, 'exportEdition'])->name('editions.bibliography.export');
@@ -73,9 +79,12 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
 });
 
-// Editor and administrator — creating and mutating content. Fully
-// collaborative: any editor can act on anything, not just their own.
-Route::middleware('role:editor')->group(function () {
+// Any signed-in member — creating and mutating content. WHAT she may touch
+// is not decided here but by the policies (App\Policies): her own works,
+// witnesses, editions and conjectures, those she has been invited to edit,
+// and, for a site-wide editor, everyone's. Every action below authorizes
+// against its resource.
+Route::middleware('auth')->group(function () {
     Route::post('/bibliography', [BibliographyItemController::class, 'store'])->name('bibliography.store');
     Route::post('/bibliography/import', [BibliographyItemController::class, 'import'])->name('bibliography.import');
     Route::patch('/bibliography/{item}', [BibliographyItemController::class, 'update'])->name('bibliography.update');
@@ -94,6 +103,27 @@ Route::middleware('role:editor')->group(function () {
     Route::post('/works/{work:slug}/editions', [EditionController::class, 'store'])->name('editions.store');
     Route::patch('/editions/{edition}', [EditionController::class, 'update'])->name('editions.update');
     Route::delete('/editions/{edition}', [EditionController::class, 'destroy'])->name('editions.destroy');
+
+    // A copy of one's own — of a public edition with everything it stands
+    // on (EditionCopier), or of a public witness (WitnessCopier).
+    Route::post('/editions/{edition}/copies', [EditionCopyController::class, 'store'])->name('editions.copy');
+    Route::post('/witnesses/{witness}/copies', [WitnessCopyController::class, 'store'])->name('witnesses.copy');
+
+    // Who else may edit an edition, and handing it on. The owner grants,
+    // revokes and offers; the member offered accepts or declines, and only
+    // she can — see EditionOwnershipTransferController.
+    Route::post('/editions/{edition}/editors', [EditionEditorController::class, 'store'])
+        ->name('edition-editors.store');
+    Route::delete('/editions/{edition}/editors/{user}', [EditionEditorController::class, 'destroy'])
+        ->name('edition-editors.destroy');
+    Route::post('/editions/{edition}/ownership-transfers', [EditionOwnershipTransferController::class, 'store'])
+        ->name('edition-ownership-transfers.store');
+    Route::delete('/ownership-transfers/{transfer}', [EditionOwnershipTransferController::class, 'destroy'])
+        ->name('ownership-transfers.destroy');
+    Route::post('/ownership-transfers/{transfer}/accept', [EditionOwnershipTransferController::class, 'accept'])
+        ->name('ownership-transfers.accept');
+    Route::post('/ownership-transfers/{transfer}/decline', [EditionOwnershipTransferController::class, 'decline'])
+        ->name('ownership-transfers.decline');
 
     // An edition's own scope, order, and per-passage source transcription —
     // see EditionPassage. The single add resolves already-cited segments

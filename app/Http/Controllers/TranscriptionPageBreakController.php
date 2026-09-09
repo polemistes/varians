@@ -36,6 +36,8 @@ class TranscriptionPageBreakController extends Controller
      */
     public function destroy(TranscriptionPageBreak $pageBreak): RedirectResponse
     {
+        $this->authorize('update', $pageBreak->transcription->witness);
+
         $pageBreak->delete();
 
         return back();

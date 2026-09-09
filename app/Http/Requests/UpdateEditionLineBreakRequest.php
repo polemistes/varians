@@ -13,11 +13,15 @@ use Illuminate\Validation\Rule;
 class UpdateEditionLineBreakRequest extends FormRequest
 {
     /**
-     * Determine if the user is authorized to make this request.
+     * The policy decides — see App\Policies. Checked before validation, so
+     * an unauthorized request learns nothing from the rules.
      */
     public function authorize(): bool
     {
-        return true;
+        /** @var Edition $edition */
+        $edition = $this->route('edition');
+
+        return $this->user()->can('update', $edition);
     }
 
     /**

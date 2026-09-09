@@ -18,6 +18,8 @@ class ManuscriptImageFeatureController extends Controller
 
     public function destroy(ManuscriptImageFeature $feature): RedirectResponse
     {
+        $this->authorize('update', $feature->manuscriptImage->witness);
+
         $feature->delete();
 
         return back();

@@ -7,6 +7,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Support/TranscriptionMarkup/**,resources/js/lib/transcriptionMarkup.ts,resources/js/components/AlignableText.vue | .ai/rules/components.md |
 | app/Support/Bibliography/**,app/Models/{BibliographyItem,BibliographyReference}.php,app/Http/Controllers/BibliographyItemController.php,app/Http/Requests/*Bibliography*Request.php,app/Http/Controllers/BibliographyReferenceController.php,resources/js/lib/biblatex.ts,resources/js/components/BibliographyItemForm.vue,resources/js/components/ReferencePicker.vue,resources/js/pages/Bibliography/** | .ai/rules/bibliography.md |
 | app/Http/Controllers/EditionController.php | .ai/rules/controllers.md |
+| app/Policies/**,app/Enums/Role.php,app/Models/User.php,app/Support/Copying/**,app/Support/Edition/EditionPublisher.php,app/Http/Controllers/EditionEditorController.php,app/Http/Controllers/EditionOwnershipTransferController.php,app/Http/Controllers/EditionCopyController.php,app/Http/Controllers/WitnessCopyController.php,app/Http/Requests/**,routes/web.php,resources/js/lib/auth.ts | .ai/rules/access.md |
 | app/Support/Edition/**,app/Models/Transcription.php,app/Enums/TranscriptionLayer.php,app/Http/Controllers/Edition*.php | .ai/rules/edition.md |
 | app/Http/Controllers/TranscriptionTextController.php,app/Models/LemmaReading.php,app/Support/Transcription/** | .ai/rules/transcription.md |
 | tests/Feature/** | .ai/rules/feature.md |

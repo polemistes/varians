@@ -12,8 +12,8 @@ use Illuminate\Http\RedirectResponse;
  * An editor's own notes on her edition — see App\Models\EditionComment for
  * what they carry and why they are free text.
  *
- * Collaborative like everything else here: any editor may write, reword or
- * remove a note, and `user_id` records who wrote it rather than who owns it.
+ * Whoever may edit the edition may write, reword or remove a note;
+ * `user_id` records who wrote it rather than who owns it.
  */
 class EditionCommentController extends Controller
 {
@@ -44,6 +44,8 @@ class EditionCommentController extends Controller
 
     public function destroy(EditionComment $comment): RedirectResponse
     {
+        $this->authorize('update', $comment->edition);
+
         $comment->delete();
 
         return back();

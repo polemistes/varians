@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreWorkRequest;
 use App\Http\Requests\UpdateWorkRequest;
+use App\Models\Edition;
 use App\Models\ReferenceScheme;
 use App\Models\TranscriptionLayer;
 use App\Models\Work;
@@ -20,6 +21,8 @@ class WorkController extends Controller
 {
     public function create(): Response
     {
+        $this->authorize('create', Work::class);
+
         return Inertia::render('Works/Create', [
             'referenceSchemes' => ReferenceScheme::orderBy('name')->get(['id', 'name', 'levels']),
         ]);
@@ -37,6 +40,7 @@ class WorkController extends Controller
         }
 
         $work = Work::create([
+            'user_id' => $request->user()->id,
             'reference_scheme_id' => $schemeId,
             'title' => $request->validated('title'),
             'author' => $request->validated('author'),
@@ -68,10 +72,15 @@ class WorkController extends Controller
 
         return Inertia::render('Works/Show', [
             'work' => $work,
+            'can' => [
+                'edit' => $request->user()?->can('update', $work) ?? false,
+                'delete' => $request->user()?->can('delete', $work) ?? false,
+                'createEdition' => $request->user()?->can('create', [Edition::class, $work]) ?? false,
+            ],
             'transcriptions' => $transcriptions,
             // The work's whole stockpile of conjectures, of every kind, for
             // the list where they are recorded, edited and removed.
-            'conjectures' => ConjectureCatalogue::forWork($work),
+            'conjectures' => ConjectureCatalogue::forWork($work, $request->user()),
             'referenceLevels' => $work->referenceScheme->levels,
             'bibliographyForm' => [
                 'registry' => Biblatex::registry(),
@@ -103,6 +112,8 @@ class WorkController extends Controller
 
     public function destroy(Work $work): RedirectResponse
     {
+        $this->authorize('delete', $work);
+
         $work->delete();
 
         return redirect()->route('home');

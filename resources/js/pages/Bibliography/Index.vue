@@ -3,7 +3,6 @@ import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import AppHeader from '@/components/AppHeader.vue';
 import BibliographyItemForm from '@/components/BibliographyItemForm.vue';
-import { isEditorOrAbove } from '@/lib/auth';
 import type { BiblatexRegistry, Suggestions } from '@/lib/biblatex';
 import { confirmDeletion } from '@/lib/deletionImpact';
 import {
@@ -25,11 +24,14 @@ type Item = {
     reference: ReferenceRun[];
     references_count: number;
     biblatex: string;
+    can_edit: boolean;
+    can_delete: boolean;
 };
 
 const props = defineProps<{
     items: Item[];
     search: string;
+    can: { create: boolean };
     registry: BiblatexRegistry;
     suggestions: Suggestions;
 }>();
@@ -39,7 +41,9 @@ const page = usePage<{
     errors?: Record<string, string>;
     flash?: { message?: string | null };
 }>();
-const canEdit = computed(() => isEditorOrAbove(page.props.auth.user));
+// Every member adds to the list; what she may change is decided per item
+// by the server (BibliographyItemPolicy).
+const canEdit = computed(() => props.can.create);
 
 // Search is a visit, so a bookmark reproduces it.
 const search = ref(props.search);
@@ -275,7 +279,7 @@ const notice = computed(() => page.props.flash?.message ?? null);
                                 }}</span
                             >
                             <button
-                                v-if="canEdit"
+                                v-if="item.can_edit"
                                 type="button"
                                 class="underline"
                                 @click="startEditing(item)"
@@ -283,7 +287,10 @@ const notice = computed(() => page.props.flash?.message ?? null);
                                 {{ editingId === item.id ? 'Close' : 'Edit' }}
                             </button>
                             <button
-                                v-if="canEdit && item.references_count === 0"
+                                v-if="
+                                    item.can_delete &&
+                                    item.references_count === 0
+                                "
                                 type="button"
                                 class="text-red-600 underline dark:text-red-400"
                                 @click="removeItem(item)"

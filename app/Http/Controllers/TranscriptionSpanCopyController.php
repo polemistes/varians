@@ -40,6 +40,10 @@ class TranscriptionSpanCopyController extends Controller
             ->whereKey($request->validated('source_layer_id'))
             ->firstOrFail();
 
+        // Text travels out of the source: one may only copy what one may
+        // read, or a draft transcription could be read out by id.
+        $this->authorize('view', $source);
+
         $sameWitness = $source->transcription->witness_id === $transcription->transcription->witness_id;
 
         // Citations travel with the text — but within one witness a work

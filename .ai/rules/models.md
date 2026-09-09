@@ -31,7 +31,7 @@ Consequences:
 `Edition`, by contrast, genuinely does belong directly to a `Work` (`Work::editions(): HasMany`) — it's an editorial artifact the editor explicitly creates, not something inferable from citation data, so it doesn't follow the derived-relationship pattern above.
 
 ## User.role is deliberately not fillable — use forceFill or direct assignment
-`role` is excluded from User's #[Fillable] on purpose, to prevent privilege escalation via mass assignment (e.g. a registration form payload). This means `User::create(['role' => ...])` or `$user->update(['role' => ...])` silently drops the field. Registration doesn't need to set it explicitly — the `role` column defaults to 'guest' in the migration. The one legitimate place role changes (Admin\UsersController::updateRole, gated by role:administrator middleware) must use `$user->forceFill(['role' => $newRole])->save()` to intentionally bypass the guard. Factories are unaffected — Eloquent factories bypass fillable/guarded entirely via Model::unguarded(), so `'role' => Role::Guest` in UserFactory::definition() works normally.
+`role` is excluded from User's #[Fillable] on purpose, to prevent privilege escalation via mass assignment (e.g. a registration form payload). This means `User::create(['role' => ...])` or `$user->update(['role' => ...])` silently drops the field. Registration doesn't need to set it explicitly — the `role` column defaults to 'member' in the migration. The one legitimate place role changes (Admin\UsersController::updateRole, gated by role:administrator middleware) must use `$user->forceFill(['role' => $newRole])->save()` to intentionally bypass the guard. Factories are unaffected — Eloquent factories bypass fillable/guarded entirely via Model::unguarded(), so `'role' => Role::Member` in UserFactory::definition() works normally.
 
 ## Conjectures of every kind are recorded and edited on the Work page
 `conjectures.store` (per passage) records ANY kind as a catalogue entry —
@@ -49,7 +49,7 @@ delete confirmation (user decision: the Work page is where the stockpile
 is managed — add, edit, delete — while editions place and follow).
 
 ## Conjecture has two distinct "who" fields — don't collapse them
-`Conjecture.user_id` is attribution for who entered the record into Varians (the modern editor doing data entry) — it follows this app's usual collaborative-attribution pattern (like Transcription.user_id).
+`Conjecture.user_id` is the OWNER — who entered the record into Varians (the modern editor doing data entry) and may edit it, along with anyone who may edit the work (see `.ai/rules/access.md`).
 
 `Conjecture.proposed_by` (nullable string) is something entirely different: the historical scholar who first proposed the conjecture, often centuries ago (e.g. "Bentley"). Most conjectures recorded in this app are NOT the current editor's own idea — they're recording one already published, so `proposed_by` is the field that actually matters for apparatus display, not `user_id`.
 

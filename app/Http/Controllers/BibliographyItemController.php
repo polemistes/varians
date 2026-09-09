@@ -26,8 +26,8 @@ use Inertia\Response as InertiaResponse;
 /**
  * The common bibliography: one list every conjecture and every edition
  * draws its literature from, held in biblatex's own terms so it exports
- * as a .bib file. Readable by everyone; editors write, collaboratively
- * like everything else here.
+ * as a .bib file. Readable by everyone; every member adds to it, and
+ * changes only what nobody else relies on — see BibliographyItemPolicy.
  */
 class BibliographyItemController extends Controller
 {
@@ -50,11 +50,16 @@ class BibliographyItemController extends Controller
                 'reference' => ReferenceFormatter::runs($item),
                 'references_count' => $item->references_count,
                 'biblatex' => BiblatexWriter::entry($item),
+                // A member may only change what nobody else relies on — see
+                // BibliographyItemPolicy.
+                'can_edit' => $request->user()?->can('update', $item) ?? false,
+                'can_delete' => $request->user()?->can('delete', $item) ?? false,
             ])
             ->values();
 
         return Inertia::render('Bibliography/Index', [
             'items' => $items,
+            'can' => ['create' => $request->user() !== null],
             'search' => $search,
             'registry' => Biblatex::registry(),
             // Names, presses, journals, places and series already in the
@@ -132,6 +137,8 @@ class BibliographyItemController extends Controller
      */
     public function destroy(BibliographyItem $item): RedirectResponse
     {
+        $this->authorize('delete', $item);
+
         $citedBy = $this->citedBy($item);
 
         if ($citedBy !== []) {
@@ -196,7 +203,7 @@ class BibliographyItemController extends Controller
         foreach ($result['entries'] as $entry) {
             $existing = BibliographyItem::where('citation_key', $entry['citation_key'])->first();
 
-            if ($existing !== null && ! $replace) {
+            if ($existing !== null && (! $replace || ! $request->user()->can('update', $existing))) {
                 $skipped[] = $entry['citation_key'];
 
                 continue;

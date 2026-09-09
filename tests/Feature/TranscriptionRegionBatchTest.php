@@ -14,42 +14,6 @@ function makeTranscriptionWithImageAndText(string $text): array
     return [$transcription, $image];
 }
 
-test('batch splitting by character spaces regions by character position, leaving the gap its width', function () {
-    $this->actingAs(User::factory()->editor()->create());
-    [$transcription, $image] = makeTranscriptionWithImageAndText('ab cd');
-
-    $response = $this->post(route('transcription-regions.store-batch', $transcription), [
-        'manuscript_image_id' => $image->id,
-        'granularity' => 'character',
-        'start_offset' => 0,
-        'end_offset' => 5,
-        'x' => 0.2,
-        'y' => 0.3,
-        'width' => 0.4,
-        'height' => 0.05,
-    ]);
-
-    $response->assertRedirect();
-
-    $regions = $transcription->regions()->orderBy('position')->get();
-    expect($regions)->toHaveCount(4)
-        ->and($regions->pluck('text')->all())->toBe(['a', 'b', 'c', 'd'])
-        ->and($regions->pluck('start_offset')->all())->toBe([0, 1, 3, 4])
-        ->and($regions->pluck('end_offset')->all())->toBe([1, 2, 4, 5]);
-
-    // Five characters across the box: each letter one fifth wide, sitting at
-    // its own character position — the space between the words keeps its
-    // fifth rather than the letters packing tight over it.
-    $cellWidth = 0.4 / 5;
-    foreach ([0, 1, 3, 4] as $index => $charPosition) {
-        $region = $regions[$index];
-        expect((float) $region->x)->toEqualWithDelta(0.2 + $cellWidth * $charPosition, 0.0001)
-            ->and((float) $region->width)->toEqualWithDelta($cellWidth, 0.0001)
-            ->and((float) $region->y)->toEqualWithDelta(0.3, 0.0001)
-            ->and((float) $region->height)->toEqualWithDelta(0.05, 0.0001);
-    }
-});
-
 test('a multi-line selection spreads its lines down the guide box, word widths following letter counts', function () {
     $this->actingAs(User::factory()->editor()->create());
     [$transcription, $image] = makeTranscriptionWithImageAndText("λόγος καλός\nἦν");
@@ -107,22 +71,22 @@ test('batch splitting by word creates one region per word', function () {
 
 test('batch splitting appends after any existing regions rather than colliding on position', function () {
     $this->actingAs(User::factory()->editor()->create());
-    [$transcription, $image] = makeTranscriptionWithImageAndText('ab cd');
+    [$transcription, $image] = makeTranscriptionWithImageAndText('ab cd ef');
     // An existing mapping on OTHER text — same text would now be refused.
     $transcription->regions()->create([
         'manuscript_image_id' => $image->id,
-        'text' => 'cd',
-        'start_offset' => 3,
-        'end_offset' => 5,
+        'text' => 'ef',
+        'start_offset' => 6,
+        'end_offset' => 8,
         'position' => 5,
         'x' => 0, 'y' => 0, 'width' => 0.1, 'height' => 0.1,
     ]);
 
     $this->post(route('transcription-regions.store-batch', $transcription), [
         'manuscript_image_id' => $image->id,
-        'granularity' => 'character',
+        'granularity' => 'word',
         'start_offset' => 0,
-        'end_offset' => 2,
+        'end_offset' => 5,
         'x' => 0, 'y' => 0, 'width' => 0.2, 'height' => 0.05,
     ]);
 
@@ -188,4 +152,21 @@ test('a whitespace-only selection has nothing to split', function () {
     ]);
 
     $response->assertInvalid(['start_offset']);
+});
+
+test('per-character mapping is not offered — the granularity is refused', function () {
+    // Removed at the user's request: a box around a single letter is of no
+    // use to anyone reading an edition. See .ai/rules/transcriptions.md.
+    $this->actingAs(User::factory()->editor()->create());
+    [$transcription, $image] = makeTranscriptionWithImageAndText('ab cd');
+
+    $this->post(route('transcription-regions.store-batch', $transcription), [
+        'manuscript_image_id' => $image->id,
+        'granularity' => 'character',
+        'start_offset' => 0,
+        'end_offset' => 5,
+        'x' => 0.2, 'y' => 0.3, 'width' => 0.4, 'height' => 0.05,
+    ])->assertSessionHasErrors('granularity');
+
+    expect($transcription->regions()->count())->toBe(0);
 });

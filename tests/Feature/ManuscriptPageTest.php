@@ -132,3 +132,18 @@ test('a page break survives its whole page being deleted', function () {
     expect($break->fresh())->not->toBeNull()
         ->and($break->fresh()->start_line)->toBe(1);
 });
+
+test('a page break names a page of this witness, never another manuscript\'s', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $transcription = Transcription::factory()->create();
+    $layer = TranscriptionLayer::factory()->for($transcription)->create(['text' => "one\ntwo"]);
+    $foreignPage = ManuscriptPage::factory()->create();
+    $ownPage = ManuscriptPage::factory()->create(['witness_id' => $transcription->witness_id]);
+
+    $this->post(route('transcription-page-breaks.store', $layer), ['manuscript_page_id' => $foreignPage->id, 'start_offset' => 0])
+        ->assertSessionHasErrors('manuscript_page_id');
+    $this->post(route('transcription-page-breaks.store', $layer), ['manuscript_page_id' => $ownPage->id, 'start_offset' => 0])
+        ->assertSessionHasNoErrors();
+
+    expect($transcription->pageBreaks()->count())->toBe(1);
+});

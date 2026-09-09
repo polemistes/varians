@@ -5,6 +5,7 @@ namespace App\Support\Edition;
 use App\Models\Conjecture;
 use App\Models\EditionLemma;
 use App\Models\EditionTransposition;
+use App\Models\User;
 use App\Models\Work;
 use App\Support\DeletionImpact;
 
@@ -24,10 +25,11 @@ class ConjectureCatalogue
      *
      * @return list<array<string, mixed>>
      */
-    public static function forWork(Work $work): array
+    public static function forWork(Work $work, ?User $viewer = null): array
     {
         $conjectures = Conjecture::query()
             ->whereHas('canonicalPassage', fn ($query) => $query->where('work_id', $work->id))
+            ->visibleTo($viewer)
             ->with([
                 'canonicalPassage:id,label,sort_key',
                 'transpositionRangeEnd:id,label',

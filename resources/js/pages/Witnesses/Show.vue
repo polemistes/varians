@@ -10,13 +10,12 @@ const paneTabMemory = new Map<
 </script>
 
 <script setup lang="ts">
-import { Head, router, useForm, usePage } from '@inertiajs/vue3';
+import { Head, router, useForm } from '@inertiajs/vue3';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import AppHeader from '@/components/AppHeader.vue';
 import FacsimilePane from '@/components/FacsimilePane.vue';
 import TranscriptPane from '@/components/TranscriptPane.vue';
 import type { PanePayload } from '@/components/TranscriptPane.vue';
-import { isEditorOrAbove } from '@/lib/auth';
 import {
     confirmDeletion,
     describeDeletionImpact,
@@ -32,10 +31,10 @@ import { store as storeSpanCopy } from '@/routes/transcriptions/span-copies';
 import {
     show as showWitnessRoute,
     update as updateWitness,
+    copy as copyWitnessRoute,
 } from '@/routes/witnesses';
 import { destroy as destroyWitness } from '@/routes/witnesses';
 import { store as storeTranscriptRoute } from '@/routes/witnesses/transcriptions';
-import type { Auth } from '@/types/auth';
 import type {
     ManuscriptPage,
     Transcription,
@@ -45,6 +44,7 @@ import type {
 
 const props = defineProps<{
     witness: Witness;
+    can: { edit: boolean; delete: boolean; publish: boolean; copy: boolean };
     /** Every transcript of this witness, layers included, for the pickers. */
     transcripts: Transcription[];
     leftPane: PanePayload;
@@ -54,10 +54,22 @@ const props = defineProps<{
     witnessOptions: Pick<Witness, 'id' | 'siglum' | 'label'>[];
 }>();
 
-const page = usePage<{ auth: Auth; flash?: { message?: string | null } }>();
-const canEdit = computed(() => isEditorOrAbove(page.props.auth.user));
+// What the server's policies allow this viewer — the page only reflects it.
+const canEdit = computed(() => props.can.edit);
 
 // ---- the witness box ----
+function copyWitness() {
+    if (
+        !window.confirm(
+            'Make your own copy of this witness? You get its pages, photographs and transcriptions to edit as you like; its citations stay with the original.',
+        )
+    ) {
+        return;
+    }
+
+    router.post(copyWitnessRoute.url(props.witness.id));
+}
+
 function removeWitness() {
     const parts = describeDeletionImpact(props.witness.deletion_impact, [
         {
@@ -763,6 +775,7 @@ const sides: Side[] = ['left', 'right'];
                                 Edit witness
                             </button>
                             <button
+                                v-if="props.can.delete"
                                 type="button"
                                 class="text-red-600 underline dark:text-red-400"
                                 @click="removeWitness"
@@ -770,6 +783,15 @@ const sides: Side[] = ['left', 'right'];
                                 Delete witness
                             </button>
                         </template>
+                        <button
+                            v-if="props.can.copy"
+                            type="button"
+                            class="text-stone-500 underline dark:text-stone-400"
+                            title="Your own copy — pages, photographs and transcriptions, without the citations"
+                            @click="copyWitness"
+                        >
+                            Copy witness
+                        </button>
                     </div>
                 </template>
 

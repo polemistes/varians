@@ -71,8 +71,9 @@ class ManuscriptImage extends Model
 
     /**
      * Scope a query to images visible to the given viewer: editors and
-     * administrators see everything; everyone else only sees images with at
-     * least one region mapped to a published transcription.
+     * administrators see everything; a member also sees those of witnesses
+     * she may edit; everyone else only sees images with at least one region
+     * mapped to a published transcription.
      *
      * @param  Builder<ManuscriptImage>  $query
      */
@@ -83,10 +84,16 @@ class ManuscriptImage extends Model
             return;
         }
 
-        $query->whereHas(
-            'regions.transcriptionLayer.transcription',
-            fn (Builder $q) => $q->where('visibility', Visibility::Published),
-        );
+        $query->where(function (Builder $query) use ($viewer) {
+            $query->whereHas(
+                'regions.transcriptionLayer.transcription',
+                fn (Builder $q) => $q->where('visibility', Visibility::Published),
+            );
+
+            if ($viewer !== null) {
+                $query->orWhereIn('manuscript_images.witness_id', Witness::query()->editableBy($viewer)->select('witnesses.id'));
+            }
+        });
     }
 
     /**

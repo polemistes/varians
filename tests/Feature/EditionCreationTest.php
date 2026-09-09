@@ -57,12 +57,31 @@ test('a guest cannot create an edition', function () {
     expect(Edition::count())->toBe(0);
 });
 
-test('an editor can delete an edition', function () {
-    $this->actingAs(User::factory()->editor()->create());
-    $edition = Edition::factory()->create();
+test('the owner can delete an edition', function () {
+    $owner = User::factory()->create();
+    $this->actingAs($owner);
+    $edition = Edition::factory()->for($owner)->create();
 
     $response = $this->delete(route('editions.destroy', $edition));
 
     $response->assertRedirect();
+    expect(Edition::find($edition->id))->toBeNull();
+});
+
+test('an editor may edit any edition but not delete it; an administrator may do both', function () {
+    $edition = Edition::factory()->create();
+
+    $this->actingAs(User::factory()->editor()->create())
+        ->patch(route('editions.update', $edition), ['title' => 'Retitled'])
+        ->assertRedirect();
+    expect($edition->fresh()->title)->toBe('Retitled');
+
+    $this->actingAs(User::factory()->editor()->create())
+        ->delete(route('editions.destroy', $edition))
+        ->assertForbidden();
+
+    $this->actingAs(User::factory()->administrator()->create())
+        ->delete(route('editions.destroy', $edition))
+        ->assertRedirect();
     expect(Edition::find($edition->id))->toBeNull();
 });

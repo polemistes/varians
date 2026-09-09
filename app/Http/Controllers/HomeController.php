@@ -24,21 +24,34 @@ class HomeController extends Controller
      */
     public function index(Request $request): Response
     {
+        $user = $request->user();
+
+        // Deleting is the owner's alone, and an edition is made on a work
+        // one may edit — each row says so, so the page offers only what
+        // the policies would allow.
         return Inertia::render('Home', [
-            'editions' => Edition::visibleTo($request->user())
+            // Every member may start a work, a witness, an edition of her own.
+            'can' => ['create' => $user !== null],
+            'editions' => Edition::visibleTo($user)
                 ->with('work:id,title,slug')
                 ->orderBy('title')
-                ->get(['id', 'work_id', 'title', 'visibility']),
+                ->get(['id', 'work_id', 'user_id', 'title', 'visibility'])
+                ->each(fn (Edition $edition) => $edition->setAttribute('can_delete', $user?->can('delete', $edition) ?? false)),
 
-            'works' => Work::visibleTo($request->user())
+            'works' => Work::visibleTo($user)
                 ->withCount(['editions', 'transcriptionSegments'])
                 ->orderBy('title')
-                ->get(['id', 'title', 'slug', 'author']),
+                ->get(['id', 'user_id', 'title', 'slug', 'author'])
+                ->each(function (Work $work) use ($user): void {
+                    $work->setAttribute('can_edit', $user?->can('update', $work) ?? false);
+                    $work->setAttribute('can_delete', $user?->can('delete', $work) ?? false);
+                }),
 
-            'witnesses' => Witness::visibleTo($request->user())
+            'witnesses' => Witness::visibleTo($user)
                 ->withCount('transcriptions')
                 ->orderBy('siglum')
-                ->get(['id', 'siglum', 'label', 'date_text']),
+                ->get(['id', 'user_id', 'siglum', 'label', 'date_text'])
+                ->each(fn (Witness $witness) => $witness->setAttribute('can_delete', $user?->can('delete', $witness) ?? false)),
         ]);
     }
 }

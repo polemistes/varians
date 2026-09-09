@@ -90,10 +90,15 @@ class Transcription extends Model
         return $this->hasOne(TranscriptionLayer::class)->where('layer', Layer::Normalized);
     }
 
+    public function isPublished(): bool
+    {
+        return $this->visibility === Visibility::Published;
+    }
+
     /**
      * Scope a query to transcriptions visible to the given viewer: published
-     * ones, plus everything if the viewer is an editor or administrator —
-     * editing here is fully collaborative, so there's no per-author split.
+     * ones, plus those of witnesses she may edit, plus everything if the
+     * viewer is an editor or administrator.
      *
      * @param  Builder<Transcription>  $query
      */
@@ -104,7 +109,13 @@ class Transcription extends Model
             return;
         }
 
-        $query->where('visibility', Visibility::Published);
+        $query->where(function (Builder $query) use ($viewer) {
+            $query->where('transcriptions.visibility', Visibility::Published);
+
+            if ($viewer !== null) {
+                $query->orWhereIn('transcriptions.witness_id', Witness::query()->editableBy($viewer)->select('witnesses.id'));
+            }
+        });
     }
 
     /**

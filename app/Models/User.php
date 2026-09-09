@@ -9,6 +9,8 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -40,6 +42,54 @@ class User extends Authenticatable
     protected $attributes = [
         'greek_font' => 'eb-garamond',
     ];
+
+    /**
+     * @return HasMany<Work, $this>
+     */
+    public function works(): HasMany
+    {
+        return $this->hasMany(Work::class);
+    }
+
+    /**
+     * @return HasMany<Witness, $this>
+     */
+    public function witnesses(): HasMany
+    {
+        return $this->hasMany(Witness::class);
+    }
+
+    /**
+     * The editions this member owns.
+     *
+     * @return HasMany<Edition, $this>
+     */
+    public function editions(): HasMany
+    {
+        return $this->hasMany(Edition::class);
+    }
+
+    /**
+     * The editions other members have invited this one to edit.
+     *
+     * @return BelongsToMany<Edition, $this>
+     */
+    public function editableEditions(): BelongsToMany
+    {
+        return $this->belongsToMany(Edition::class, 'edition_editors')
+            ->withPivot('granted_by_id')
+            ->withTimestamps();
+    }
+
+    /**
+     * Offers of editions made to this member — open and settled.
+     *
+     * @return HasMany<EditionOwnershipTransfer, $this>
+     */
+    public function ownershipOffers(): HasMany
+    {
+        return $this->hasMany(EditionOwnershipTransfer::class, 'to_user_id');
+    }
 
     /**
      * Whether this user's role satisfies at least the given minimum level.

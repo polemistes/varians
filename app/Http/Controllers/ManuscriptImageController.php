@@ -44,6 +44,8 @@ class ManuscriptImageController extends Controller
      */
     public function destroy(ManuscriptImage $image): RedirectResponse
     {
+        $this->authorize('update', $image->witness);
+
         $image->delete();
 
         return back();

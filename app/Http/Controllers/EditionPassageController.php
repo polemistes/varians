@@ -27,7 +27,11 @@ class EditionPassageController extends Controller
      */
     public function store(StoreEditionPassageRequest $request, Edition $edition): RedirectResponse
     {
-        $query = TranscriptionSegment::where('transcription_layer_id', $request->validated('transcription_layer_id'));
+        // Only this work's passages, whatever the layer also cites — a
+        // codex transcription may carry several works, and a passage of
+        // another work has no place in this edition.
+        $query = TranscriptionSegment::where('transcription_layer_id', $request->validated('transcription_layer_id'))
+            ->whereRelation('canonicalPassage', 'work_id', $edition->work_id);
 
         if ($request->validated('canonical_passage_ids') !== null) {
             $query->whereIn('canonical_passage_id', $request->validated('canonical_passage_ids'));

@@ -17,7 +17,15 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Support\Carbon;
 
 /**
+ * A work is the hub every privilege runs through: a witness or a conjecture
+ * is editable by whoever may edit a work it is connected to, and a work is
+ * editable by its owner and by the owner or invited editors of any of its
+ * editions — that is how a grant on an edition reaches "the witnesses and
+ * conjectures pertaining to it" (see WorkPolicy).
+ *
  * @property int $id
+ * @property int|null $user_id
+ * @property int|null $copied_from_id
  * @property int $reference_scheme_id
  * @property string $title
  * @property string|null $author
@@ -27,7 +35,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['reference_scheme_id', 'title', 'author', 'language', 'tokenization', 'slug'])]
+#[Fillable(['user_id', 'copied_from_id', 'reference_scheme_id', 'title', 'author', 'language', 'tokenization', 'slug'])]
 class Work extends Model
 {
     /** @use HasFactory<WorkFactory> */
@@ -39,6 +47,27 @@ class Work extends Model
     protected $attributes = [
         'tokenization' => Tokenization::Whitespace,
     ];
+
+    /**
+     * The owner — the member who registered the work, or was handed it.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * The work this one was copied from, when it is a copy — see
+     * App\Support\Copying\EditionCopier.
+     *
+     * @return BelongsTo<Work, $this>
+     */
+    public function copiedFrom(): BelongsTo
+    {
+        return $this->belongsTo(Work::class, 'copied_from_id');
+    }
 
     /**
      * @return BelongsTo<ReferenceScheme, $this>
@@ -82,6 +111,16 @@ class Work extends Model
     }
 
     /**
+     * Every conjecture recorded against one of this work's passages.
+     *
+     * @return HasManyThrough<Conjecture, CanonicalPassage, $this>
+     */
+    public function conjectures(): HasManyThrough
+    {
+        return $this->hasManyThrough(Conjecture::class, CanonicalPassage::class);
+    }
+
+    /**
      * Witnesses connected to this work — derived, not stored: a witness is
      * related to a work only once one of its transcriptions has a segment
      * citing one of the work's canonical passages.
@@ -97,9 +136,64 @@ class Work extends Model
     }
 
     /**
+     * Whether this member may edit the work and everything connected to it:
+     * its owner, and the owner or an invited editor of any of its editions.
+     * Site-wide roles are the policies' business, not this one's.
+     */
+    public function isEditableBy(User $user): bool
+    {
+        return $this->user_id === $user->id
+            || $this->editions()->editableBy($user)->exists();
+    }
+
+    /**
+     * Whether readers at large may see the work: an edition of it is
+     * published, or a published transcription cites one of its passages.
+     */
+    public function isPublished(): bool
+    {
+        return $this->editions()->where('visibility', Visibility::Published)->exists()
+            || $this->canonicalPassages()
+                ->whereHas('transcriptionSegments.transcriptionLayer.transcription', fn (Builder $query) => $query->where('visibility', Visibility::Published))
+                ->exists();
+    }
+
+    /**
+     * Scope a query to works the given member may edit — the SQL form of
+     * isEditableBy(), for lists.
+     *
+     * @param  Builder<Work>  $query
+     */
+    #[Scope]
+    protected function editableBy(Builder $query, User $user): void
+    {
+        $query->where(function (Builder $query) use ($user) {
+            $query->where('works.user_id', $user->id)
+                ->orWhereIn('works.id', Edition::query()->editableBy($user)->select('editions.work_id'));
+        });
+    }
+
+    /**
+     * Scope a query to works the given member may cite into or otherwise
+     * edit: everything for a site-wide editor, else editableBy().
+     *
+     * @param  Builder<Work>  $query
+     */
+    #[Scope]
+    protected function editableOrAllFor(Builder $query, User $user): void
+    {
+        if ($user->hasRole(Role::Editor)) {
+            return;
+        }
+
+        $query->editableBy($user);
+    }
+
+    /**
      * Scope a query to works visible to the given viewer: editors and
-     * administrators see everything; everyone else only sees works with at
-     * least one published transcription citing one of their passages.
+     * administrators see everything; a member also sees what she may edit;
+     * everyone sees a work with a published edition or with at least one
+     * published transcription citing one of its passages.
      *
      * @param  Builder<Work>  $query
      */
@@ -110,10 +204,17 @@ class Work extends Model
             return;
         }
 
-        $query->whereHas(
-            'canonicalPassages.transcriptionSegments.transcriptionLayer.transcription',
-            fn (Builder $q) => $q->where('visibility', Visibility::Published),
-        );
+        $query->where(function (Builder $query) use ($viewer) {
+            $query->whereHas('editions', fn (Builder $editions) => $editions->where('visibility', Visibility::Published))
+                ->orWhereHas(
+                    'canonicalPassages.transcriptionSegments.transcriptionLayer.transcription',
+                    fn (Builder $q) => $q->where('visibility', Visibility::Published),
+                );
+
+            if ($viewer !== null) {
+                $query->orWhereIn('works.id', Work::query()->editableBy($viewer)->select('works.id'));
+            }
+        });
     }
 
     /**

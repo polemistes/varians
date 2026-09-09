@@ -132,11 +132,16 @@ test('the picker finds items by what is typed', function () {
         ->assertJsonPath('0.label', 'Dover 1972');
 });
 
-test('a guest can neither cite nor search', function () {
-    $this->actingAs(User::factory()->create());
+test('a member cites only what she may edit, and any member may search', function () {
+    $member = User::factory()->create();
+    $this->actingAs($member);
     $item = BibliographyItem::factory()->create();
 
     $this->post(route('bibliography-references.store'), ['bibliography_item_id' => $item->id, 'conjecture_id' => Conjecture::factory()->create()->id])
         ->assertForbidden();
-    $this->getJson(route('bibliography.search', ['q' => 'x']))->assertForbidden();
+    $this->post(route('bibliography-references.store'), ['bibliography_item_id' => $item->id, 'conjecture_id' => Conjecture::factory()->for($member)->create()->id])
+        ->assertRedirect();
+    expect(BibliographyReference::where('bibliography_item_id', $item->id)->count())->toBe(1);
+
+    $this->getJson(route('bibliography.search', ['q' => 'x']))->assertOk();
 });

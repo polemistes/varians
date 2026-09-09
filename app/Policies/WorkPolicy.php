@@ -3,26 +3,53 @@
 namespace App\Policies;
 
 use App\Enums\Role;
-use App\Enums\Visibility;
 use App\Models\User;
 use App\Models\Work;
 
+/**
+ * A work is the hub: editing it — and, through it, every witness and
+ * conjecture connected to it — is open to its owner, to the owner or an
+ * invited editor of any of its editions, and to site-wide editors.
+ * Administrators pass every check before it is asked (see
+ * AppServiceProvider).
+ */
 class WorkPolicy
 {
     /**
-     * An editor or administrator can view any work. Otherwise a work is only
-     * visible once at least one published transcription cites one of its
-     * canonical passages — an unpublished work-in-progress shouldn't appear
-     * to guests before there's anything to actually read.
+     * Everyone can view a published work; a draft only those who may edit it.
      */
     public function view(?User $user, Work $work): bool
     {
-        if ($user !== null && $user->hasRole(Role::Editor)) {
+        if ($user !== null && $this->update($user, $work)) {
             return true;
         }
 
-        return $work->canonicalPassages()
-            ->whereHas('transcriptionSegments.transcriptionLayer.transcription', fn ($query) => $query->where('visibility', Visibility::Published))
-            ->exists();
+        return $work->isPublished();
+    }
+
+    /**
+     * Every member registers works of her own.
+     */
+    public function create(User $user): bool
+    {
+        return true;
+    }
+
+    public function update(User $user, Work $work): bool
+    {
+        return $user->hasRole(Role::Editor) || $work->isEditableBy($user);
+    }
+
+    /**
+     * Only the owner: deleting takes every edition, conjecture and citation
+     * of the work with it. A site-wide editor edits, never destroys — and
+     * neither does the owner while an edition of the work belongs to
+     * someone else (handed on, or made by an invitee), since that would
+     * destroy what is no longer hers. An administrator may still.
+     */
+    public function delete(User $user, Work $work): bool
+    {
+        return $work->user_id === $user->id
+            && ! $work->editions()->where('user_id', '!=', $user->id)->exists();
     }
 }

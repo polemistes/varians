@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\BibliographyItem;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -9,11 +10,12 @@ use Illuminate\Foundation\Http\FormRequest;
 class ImportBibliographyRequest extends FormRequest
 {
     /**
-     * Determine if the user is authorized to make this request.
+     * The policy decides — see App\Policies. Checked before validation, so
+     * an unauthorized request learns nothing from the rules.
      */
     public function authorize(): bool
     {
-        return true;
+        return $this->user()->can('create', BibliographyItem::class);
     }
 
     /**

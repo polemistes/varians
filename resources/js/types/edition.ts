@@ -213,3 +213,31 @@ export type TranscriptionOption = {
     witness: { id: number; siglum: string; label: string | null };
     segments: { id: number; canonical_passage_id: number }[];
 };
+
+/**
+ * What the server's policies allow the viewer on an edition — see
+ * EditionController::abilities(). The page shows and hides by these; it
+ * never decides them.
+ */
+export type EditionAbilities = {
+    edit: boolean;
+    delete: boolean;
+    publish: boolean;
+    manage: boolean;
+    transfer: boolean;
+    copy: boolean;
+};
+
+/**
+ * Who holds an edition and who else may edit it — see
+ * EditionController::access(). Editors and the open offer are only sent to
+ * whoever may manage them.
+ */
+export type EditionAccess = {
+    owner: { id: number; name: string } | null;
+    editors: { id: number; name: string; email: string }[];
+    offer: {
+        id: number;
+        to: { id: number; name: string; email: string };
+    } | null;
+};

@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Enums\Layer;
-use App\Enums\Role;
 use App\Enums\Visibility;
 use Database\Factories\TranscriptionLayerFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -172,20 +171,15 @@ class TranscriptionLayer extends Model
     }
 
     /**
-     * Scope a query to transcriptions visible to the given viewer: published
-     * ones, plus everything if the viewer is an editor or administrator —
-     * editing here is fully collaborative, so there's no per-author split.
+     * Scope a query to layers visible to the given viewer — those of the
+     * transcriptions she may see, see Transcription::visibleTo().
      *
      * @param  Builder<TranscriptionLayer>  $query
      */
     #[Scope]
     protected function visibleTo(Builder $query, ?User $viewer): void
     {
-        if ($viewer !== null && $viewer->hasRole(Role::Editor)) {
-            return;
-        }
-
-        $query->whereHas('transcription', fn (Builder $parent) => $parent->where('visibility', Visibility::Published));
+        $query->whereIn('transcription_layers.transcription_id', Transcription::query()->visibleTo($viewer)->select('transcriptions.id'));
     }
 
     /**

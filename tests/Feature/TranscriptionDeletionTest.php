@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Edition;
 use App\Models\EditionLemma;
 use App\Models\EditionPassage;
 use App\Models\Lemma;
@@ -49,17 +50,35 @@ test('a copy of a deleted layer survives, with its provenance link cleared', fun
 });
 
 test('deleting a transcription that feeds a published edition removes that edition\'s selection and edition-passage membership', function () {
-    $this->actingAs(User::factory()->editor()->create());
-    $transcription = TranscriptionLayer::factory()->create();
+    $owner = User::factory()->create();
+    $this->actingAs($owner);
+    $transcription = TranscriptionLayer::factory()->for(Witness::factory()->for($owner))->create();
 
+    // Her own edition: hers to gut along with the transcript.
+    $edition = Edition::factory()->for($owner)->create();
     $lemma = Lemma::factory()->create();
     $reading = LemmaReading::factory()->for($lemma)->for($transcription)->create();
-    $editionLemma = EditionLemma::factory()->create(['lemma_id' => $lemma->id, 'selected_reading_id' => $reading->id]);
-    $editionPassage = EditionPassage::factory()->create(['transcription_layer_id' => $transcription->id]);
+    $editionLemma = EditionLemma::factory()->create(['edition_id' => $edition->id, 'lemma_id' => $lemma->id, 'selected_reading_id' => $reading->id]);
+    $editionPassage = EditionPassage::factory()->create(['edition_id' => $edition->id, 'transcription_layer_id' => $transcription->id]);
 
     $this->delete(route('transcriptions.destroy', $transcription));
 
     expect(LemmaReading::find($reading->id))->toBeNull()
         ->and(EditionLemma::find($editionLemma->id))->toBeNull()
         ->and(EditionPassage::find($editionPassage->id))->toBeNull();
+});
+
+test('a transcript another member\'s edition prints from cannot be deleted, and says why', function () {
+    $owner = User::factory()->create();
+    $layer = TranscriptionLayer::factory()->for(Witness::factory()->for($owner))->create();
+    EditionPassage::factory()->create([
+        'edition_id' => Edition::factory()->create()->id,
+        'transcription_layer_id' => $layer->id,
+    ]);
+
+    $this->actingAs($owner)
+        ->delete(route('transcriptions.destroy', $layer))
+        ->assertSessionHasErrors('transcript');
+
+    expect(TranscriptionLayer::find($layer->id))->not->toBeNull();
 });

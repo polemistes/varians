@@ -2,24 +2,31 @@
 
 namespace App\Policies;
 
-use App\Enums\Role;
-use App\Enums\Visibility;
 use App\Models\TranscriptionLayer;
 use App\Models\User;
+use App\Models\Witness;
 
+/**
+ * A transcription is part of its witness: whoever may see or edit the
+ * witness may see or edit its transcriptions, and a transcription is
+ * public once published.
+ */
 class TranscriptionLayerPolicy
 {
-    /**
-     * Anyone can view a published transcription; a draft is only visible to
-     * an editor or administrator — any editor, not just the one who wrote
-     * it, since editing here is fully collaborative.
-     */
     public function view(?User $user, TranscriptionLayer $transcription): bool
     {
-        if ($transcription->transcription->visibility === Visibility::Published) {
+        if ($transcription->transcription->isPublished()) {
             return true;
         }
 
-        return $user !== null && $user->hasRole(Role::Editor);
+        return $user !== null && $this->update($user, $transcription);
+    }
+
+    public function update(User $user, TranscriptionLayer $transcription): bool
+    {
+        /** @var Witness $witness */
+        $witness = $transcription->witness;
+
+        return $user->can('update', $witness);
     }
 }

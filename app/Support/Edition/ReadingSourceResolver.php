@@ -48,6 +48,7 @@ class ReadingSourceResolver
         $conjecture = Conjecture::create([
             'canonical_passage_id' => $canonicalPassageId,
             'user_id' => $userId,
+            'visibility' => EditionPublisher::visibilityForConjectureOn($canonicalPassageId),
             'type' => $data['conjecture_type'] ?? ConjectureType::Substitution->value,
             'text' => $data['conjecture_text'] ?? null,
             'extent' => $data['conjecture_extent'] ?? null,

@@ -3,15 +3,33 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\UpdateProfileRequest;
+use App\Models\EditionOwnershipTransfer;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class ProfileController extends Controller
 {
-    public function edit(): Response
+    /**
+     * Her own details, and the editions other members have offered her —
+     * this is where an offer is accepted or declined.
+     */
+    public function edit(Request $request): Response
     {
-        return Inertia::render('Profile/Edit');
+        return Inertia::render('Profile/Edit', [
+            'offers' => $request->user()->ownershipOffers()->open()
+                ->with(['edition:id,work_id,title', 'edition.work:id,title,slug', 'fromUser:id,name'])
+                ->orderBy('created_at')
+                ->get()
+                ->map(fn (EditionOwnershipTransfer $offer) => [
+                    'id' => $offer->id,
+                    'edition' => ['id' => $offer->edition->id, 'title' => $offer->edition->title],
+                    'work' => ['title' => $offer->edition->work->title, 'slug' => $offer->edition->work->slug],
+                    'from' => $offer->fromUser->only(['id', 'name']),
+                ])
+                ->values(),
+        ]);
     }
 
     /**

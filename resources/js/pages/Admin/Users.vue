@@ -64,7 +64,7 @@ function changeRole(user: AdminUser, role: Role) {
                                     )
                                 "
                             >
-                                <option value="guest">Guest</option>
+                                <option value="member">Member</option>
                                 <option value="editor">Editor</option>
                                 <option value="administrator">
                                     Administrator

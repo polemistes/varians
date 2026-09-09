@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import AppHeader from '@/components/AppHeader.vue';
 import ConjectureForm from '@/components/ConjectureForm.vue';
-import { isEditorOrAbove } from '@/lib/auth';
 import type { BiblatexRegistry, Suggestions } from '@/lib/biblatex';
 import {
     confirmDeletion,
@@ -20,7 +19,6 @@ import {
     show as showWitness,
 } from '@/routes/witnesses';
 import { destroy as destroyWork, update as updateWork } from '@/routes/works';
-import type { Auth } from '@/types/auth';
 import type { WorkConjecture, WorkPassage } from '@/types/conjectures';
 import type {
     ReferenceLevel,
@@ -31,6 +29,7 @@ import type {
 
 const props = defineProps<{
     work: Work;
+    can: { edit: boolean; delete: boolean; createEdition: boolean };
     transcriptions: TranscriptionLayer[];
     conjectures: WorkConjecture[];
     referenceLevels: ReferenceLevel[];
@@ -143,8 +142,8 @@ function removeConjecture(conjecture: WorkConjecture) {
     });
 }
 
-const page = usePage<{ auth: Auth }>();
-const canEdit = computed(() => isEditorOrAbove(page.props.auth.user));
+// What the server's policies allow this viewer — the page only reflects it.
+const canEdit = computed(() => props.can.edit);
 
 const editingDetails = ref(false);
 const detailsForm = useForm({
@@ -277,7 +276,7 @@ function manuscriptSummary(witness: Witness): string | null {
                     {{ props.work.canonical_passages?.length ?? 0 }} passages
                 </p>
                 <button
-                    v-if="canEdit"
+                    v-if="props.can.delete"
                     type="button"
                     class="text-xs text-red-600 underline dark:text-red-400"
                     @click="removeWork"
@@ -290,7 +289,7 @@ function manuscriptSummary(witness: Witness): string | null {
                 <div class="mb-3 flex items-center justify-between">
                     <h2 class="font-serif text-lg">Editions</h2>
                     <Link
-                        v-if="canEdit"
+                        v-if="props.can.createEdition"
                         :href="createEdition.url(props.work)"
                         class="text-xs text-stone-600 underline dark:text-stone-400"
                     >
