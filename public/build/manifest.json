@@ -1,0 +1,386 @@
+{
+  "_AppHeader-3F7w9rHQ.js": {
+    "file": "assets/AppHeader-3F7w9rHQ.js",
+    "name": "AppHeader",
+    "imports": [
+      "resources/js/app.ts"
+    ]
+  },
+  "_BibliographyItemForm-DPnnk1O4.js": {
+    "file": "assets/BibliographyItemForm-DPnnk1O4.js",
+    "name": "BibliographyItemForm",
+    "imports": [
+      "resources/js/app.ts",
+      "_AppHeader-3F7w9rHQ.js"
+    ]
+  },
+  "_ConjectureForm-Dt4lITws.js": {
+    "file": "assets/ConjectureForm-Dt4lITws.js",
+    "name": "ConjectureForm",
+    "imports": [
+      "resources/js/app.ts",
+      "_AppHeader-3F7w9rHQ.js",
+      "_BibliographyItemForm-DPnnk1O4.js"
+    ]
+  },
+  "_ManuscriptImageViewer-DS4d8LOH.js": {
+    "file": "assets/ManuscriptImageViewer-DS4d8LOH.js",
+    "name": "ManuscriptImageViewer",
+    "imports": [
+      "resources/js/app.ts"
+    ]
+  },
+  "_deletionImpact-3PgQtNvD.js": {
+    "file": "assets/deletionImpact-3PgQtNvD.js",
+    "name": "deletionImpact"
+  },
+  "_editions-Bn0Axuks.js": {
+    "file": "assets/editions-Bn0Axuks.js",
+    "name": "editions",
+    "imports": [
+      "_AppHeader-3F7w9rHQ.js"
+    ]
+  },
+  "_fonts-C9MNnjVw.css": {
+    "file": "assets/fonts-C9MNnjVw.css",
+    "src": "_fonts-C9MNnjVw.css"
+  },
+  "_instrument-sans-400-normal-D1W7dsQl.woff": {
+    "file": "assets/instrument-sans-400-normal-D1W7dsQl.woff",
+    "src": "_instrument-sans-400-normal-D1W7dsQl.woff"
+  },
+  "_instrument-sans-400-normal-DRC__1Mx.woff2": {
+    "file": "assets/instrument-sans-400-normal-DRC__1Mx.woff2",
+    "src": "_instrument-sans-400-normal-DRC__1Mx.woff2"
+  },
+  "_instrument-sans-500-normal-Dk9ku72i.woff2": {
+    "file": "assets/instrument-sans-500-normal-Dk9ku72i.woff2",
+    "src": "_instrument-sans-500-normal-Dk9ku72i.woff2"
+  },
+  "_instrument-sans-500-normal-Z6ESRlEs.woff": {
+    "file": "assets/instrument-sans-500-normal-Z6ESRlEs.woff",
+    "src": "_instrument-sans-500-normal-Z6ESRlEs.woff"
+  },
+  "_instrument-sans-600-normal-B7fBEWYG.woff2": {
+    "file": "assets/instrument-sans-600-normal-B7fBEWYG.woff2",
+    "src": "_instrument-sans-600-normal-B7fBEWYG.woff2"
+  },
+  "_instrument-sans-600-normal-B9e8oLYv.woff": {
+    "file": "assets/instrument-sans-600-normal-B9e8oLYv.woff",
+    "src": "_instrument-sans-600-normal-B9e8oLYv.woff"
+  },
+  "_ownership-transfers-BI5pMqZd.js": {
+    "file": "assets/ownership-transfers-BI5pMqZd.js",
+    "name": "ownership-transfers",
+    "imports": [
+      "_AppHeader-3F7w9rHQ.js"
+    ]
+  },
+  "_witnesses-Ba3Lq_IO.js": {
+    "file": "assets/witnesses-Ba3Lq_IO.js",
+    "name": "witnesses",
+    "imports": [
+      "_AppHeader-3F7w9rHQ.js"
+    ]
+  },
+  "_works-ihDTcwID.js": {
+    "file": "assets/works-ihDTcwID.js",
+    "name": "works",
+    "imports": [
+      "_AppHeader-3F7w9rHQ.js"
+    ]
+  },
+  "resources/css/app.css": {
+    "file": "assets/app-C0ocZFkJ.css",
+    "name": "app",
+    "names": [
+      "app.css"
+    ],
+    "src": "resources/css/app.css",
+    "isEntry": true,
+    "assets": [
+      "assets/eb-garamond-italic-400-greek-ext-CHZOQEtG.woff2",
+      "assets/eb-garamond-italic-400-greek-Dqr5KC66.woff2",
+      "assets/eb-garamond-italic-400-latin-ext-V7s3nWfX.woff2",
+      "assets/eb-garamond-italic-400-latin-DSEbMgZu.woff2",
+      "assets/eb-garamond-normal-400-greek-ext-CW-BywWH.woff2",
+      "assets/eb-garamond-normal-400-greek-DCPER7xl.woff2",
+      "assets/eb-garamond-normal-400-latin-ext-B6IpcvL2.woff2",
+      "assets/eb-garamond-normal-400-latin-CRpggXlh.woff2",
+      "assets/cardo-normal-400-latin-CFoX0N4J.woff2",
+      "assets/cardo-normal-400-latin-ext-Bz9_wDRX.woff2",
+      "assets/cardo-normal-400-greek-FVaAFONy.woff2",
+      "assets/cardo-normal-400-greek-ext-BmflC58X.woff2",
+      "assets/cardo-normal-700-latin-C0AJnwFQ.woff2",
+      "assets/cardo-normal-700-latin-ext-DQzda8Tv.woff2",
+      "assets/cardo-normal-700-greek-zkkIUgsJ.woff2",
+      "assets/cardo-normal-700-greek-ext-CHTlP3tq.woff2",
+      "assets/cardo-italic-400-latin-DS-zTz6l.woff2",
+      "assets/cardo-italic-400-latin-ext-CPQFJdow.woff2",
+      "assets/cardo-italic-400-greek-CVrcLkMl.woff2",
+      "assets/cardo-italic-400-greek-ext-BaygHXC1.woff2"
+    ]
+  },
+  "resources/fonts/cardo/cardo-italic-400-greek-ext.woff2": {
+    "file": "assets/cardo-italic-400-greek-ext-BaygHXC1.woff2",
+    "src": "resources/fonts/cardo/cardo-italic-400-greek-ext.woff2"
+  },
+  "resources/fonts/cardo/cardo-italic-400-greek.woff2": {
+    "file": "assets/cardo-italic-400-greek-CVrcLkMl.woff2",
+    "src": "resources/fonts/cardo/cardo-italic-400-greek.woff2"
+  },
+  "resources/fonts/cardo/cardo-italic-400-latin-ext.woff2": {
+    "file": "assets/cardo-italic-400-latin-ext-CPQFJdow.woff2",
+    "src": "resources/fonts/cardo/cardo-italic-400-latin-ext.woff2"
+  },
+  "resources/fonts/cardo/cardo-italic-400-latin.woff2": {
+    "file": "assets/cardo-italic-400-latin-DS-zTz6l.woff2",
+    "src": "resources/fonts/cardo/cardo-italic-400-latin.woff2"
+  },
+  "resources/fonts/cardo/cardo-normal-400-greek-ext.woff2": {
+    "file": "assets/cardo-normal-400-greek-ext-BmflC58X.woff2",
+    "src": "resources/fonts/cardo/cardo-normal-400-greek-ext.woff2"
+  },
+  "resources/fonts/cardo/cardo-normal-400-greek.woff2": {
+    "file": "assets/cardo-normal-400-greek-FVaAFONy.woff2",
+    "src": "resources/fonts/cardo/cardo-normal-400-greek.woff2"
+  },
+  "resources/fonts/cardo/cardo-normal-400-latin-ext.woff2": {
+    "file": "assets/cardo-normal-400-latin-ext-Bz9_wDRX.woff2",
+    "src": "resources/fonts/cardo/cardo-normal-400-latin-ext.woff2"
+  },
+  "resources/fonts/cardo/cardo-normal-400-latin.woff2": {
+    "file": "assets/cardo-normal-400-latin-CFoX0N4J.woff2",
+    "src": "resources/fonts/cardo/cardo-normal-400-latin.woff2"
+  },
+  "resources/fonts/cardo/cardo-normal-700-greek-ext.woff2": {
+    "file": "assets/cardo-normal-700-greek-ext-CHTlP3tq.woff2",
+    "src": "resources/fonts/cardo/cardo-normal-700-greek-ext.woff2"
+  },
+  "resources/fonts/cardo/cardo-normal-700-greek.woff2": {
+    "file": "assets/cardo-normal-700-greek-zkkIUgsJ.woff2",
+    "src": "resources/fonts/cardo/cardo-normal-700-greek.woff2"
+  },
+  "resources/fonts/cardo/cardo-normal-700-latin-ext.woff2": {
+    "file": "assets/cardo-normal-700-latin-ext-DQzda8Tv.woff2",
+    "src": "resources/fonts/cardo/cardo-normal-700-latin-ext.woff2"
+  },
+  "resources/fonts/cardo/cardo-normal-700-latin.woff2": {
+    "file": "assets/cardo-normal-700-latin-C0AJnwFQ.woff2",
+    "src": "resources/fonts/cardo/cardo-normal-700-latin.woff2"
+  },
+  "resources/fonts/eb-garamond/eb-garamond-italic-400-greek-ext.woff2": {
+    "file": "assets/eb-garamond-italic-400-greek-ext-CHZOQEtG.woff2",
+    "src": "resources/fonts/eb-garamond/eb-garamond-italic-400-greek-ext.woff2"
+  },
+  "resources/fonts/eb-garamond/eb-garamond-italic-400-greek.woff2": {
+    "file": "assets/eb-garamond-italic-400-greek-Dqr5KC66.woff2",
+    "src": "resources/fonts/eb-garamond/eb-garamond-italic-400-greek.woff2"
+  },
+  "resources/fonts/eb-garamond/eb-garamond-italic-400-latin-ext.woff2": {
+    "file": "assets/eb-garamond-italic-400-latin-ext-V7s3nWfX.woff2",
+    "src": "resources/fonts/eb-garamond/eb-garamond-italic-400-latin-ext.woff2"
+  },
+  "resources/fonts/eb-garamond/eb-garamond-italic-400-latin.woff2": {
+    "file": "assets/eb-garamond-italic-400-latin-DSEbMgZu.woff2",
+    "src": "resources/fonts/eb-garamond/eb-garamond-italic-400-latin.woff2"
+  },
+  "resources/fonts/eb-garamond/eb-garamond-normal-400-greek-ext.woff2": {
+    "file": "assets/eb-garamond-normal-400-greek-ext-CW-BywWH.woff2",
+    "src": "resources/fonts/eb-garamond/eb-garamond-normal-400-greek-ext.woff2"
+  },
+  "resources/fonts/eb-garamond/eb-garamond-normal-400-greek.woff2": {
+    "file": "assets/eb-garamond-normal-400-greek-DCPER7xl.woff2",
+    "src": "resources/fonts/eb-garamond/eb-garamond-normal-400-greek.woff2"
+  },
+  "resources/fonts/eb-garamond/eb-garamond-normal-400-latin-ext.woff2": {
+    "file": "assets/eb-garamond-normal-400-latin-ext-B6IpcvL2.woff2",
+    "src": "resources/fonts/eb-garamond/eb-garamond-normal-400-latin-ext.woff2"
+  },
+  "resources/fonts/eb-garamond/eb-garamond-normal-400-latin.woff2": {
+    "file": "assets/eb-garamond-normal-400-latin-CRpggXlh.woff2",
+    "src": "resources/fonts/eb-garamond/eb-garamond-normal-400-latin.woff2"
+  },
+  "resources/fonts/eb-garamond/eb-garamond-normal-700-greek-ext.woff2": {
+    "file": "assets/eb-garamond-normal-400-greek-ext-CW-BywWH.woff2",
+    "src": "resources/fonts/eb-garamond/eb-garamond-normal-400-greek-ext.woff2"
+  },
+  "resources/fonts/eb-garamond/eb-garamond-normal-700-greek.woff2": {
+    "file": "assets/eb-garamond-normal-400-greek-DCPER7xl.woff2",
+    "src": "resources/fonts/eb-garamond/eb-garamond-normal-400-greek.woff2"
+  },
+  "resources/fonts/eb-garamond/eb-garamond-normal-700-latin-ext.woff2": {
+    "file": "assets/eb-garamond-normal-400-latin-ext-B6IpcvL2.woff2",
+    "src": "resources/fonts/eb-garamond/eb-garamond-normal-400-latin-ext.woff2"
+  },
+  "resources/fonts/eb-garamond/eb-garamond-normal-700-latin.woff2": {
+    "file": "assets/eb-garamond-normal-400-latin-CRpggXlh.woff2",
+    "src": "resources/fonts/eb-garamond/eb-garamond-normal-400-latin.woff2"
+  },
+  "resources/js/app.ts": {
+    "file": "assets/app-Kc6qgtHd.js",
+    "name": "app",
+    "src": "resources/js/app.ts",
+    "isEntry": true,
+    "dynamicImports": [
+      "resources/js/pages/Admin/Users.vue",
+      "resources/js/pages/Auth/Login.vue",
+      "resources/js/pages/Auth/Register.vue",
+      "resources/js/pages/Bibliography/Index.vue",
+      "resources/js/pages/Editions/Create.vue",
+      "resources/js/pages/Editions/Show.vue",
+      "resources/js/pages/Home.vue",
+      "resources/js/pages/Profile/Edit.vue",
+      "resources/js/pages/Witnesses/Create.vue",
+      "resources/js/pages/Witnesses/Show.vue",
+      "resources/js/pages/Works/Create.vue",
+      "resources/js/pages/Works/Show.vue"
+    ]
+  },
+  "resources/js/pages/Admin/Users.vue": {
+    "file": "assets/Users-BCvgLM04.js",
+    "name": "Users",
+    "src": "resources/js/pages/Admin/Users.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.ts",
+      "_AppHeader-3F7w9rHQ.js"
+    ]
+  },
+  "resources/js/pages/Auth/Login.vue": {
+    "file": "assets/Login-Dy8elYPR.js",
+    "name": "Login",
+    "src": "resources/js/pages/Auth/Login.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.ts",
+      "_AppHeader-3F7w9rHQ.js"
+    ]
+  },
+  "resources/js/pages/Auth/Register.vue": {
+    "file": "assets/Register-CSGDlDDJ.js",
+    "name": "Register",
+    "src": "resources/js/pages/Auth/Register.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.ts",
+      "_AppHeader-3F7w9rHQ.js"
+    ]
+  },
+  "resources/js/pages/Bibliography/Index.vue": {
+    "file": "assets/Index-DhGLJjye.js",
+    "name": "Index",
+    "src": "resources/js/pages/Bibliography/Index.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.ts",
+      "_AppHeader-3F7w9rHQ.js",
+      "_BibliographyItemForm-DPnnk1O4.js",
+      "_deletionImpact-3PgQtNvD.js"
+    ]
+  },
+  "resources/js/pages/Editions/Create.vue": {
+    "file": "assets/Create-D8FIvkz8.js",
+    "name": "Create",
+    "src": "resources/js/pages/Editions/Create.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.ts",
+      "_AppHeader-3F7w9rHQ.js",
+      "_editions-Bn0Axuks.js",
+      "_works-ihDTcwID.js"
+    ]
+  },
+  "resources/js/pages/Editions/Show.vue": {
+    "file": "assets/Show-BEv8hZ34.js",
+    "name": "Show",
+    "src": "resources/js/pages/Editions/Show.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.ts",
+      "_AppHeader-3F7w9rHQ.js",
+      "_deletionImpact-3PgQtNvD.js",
+      "_editions-Bn0Axuks.js",
+      "_ConjectureForm-Dt4lITws.js",
+      "_ManuscriptImageViewer-DS4d8LOH.js",
+      "_ownership-transfers-BI5pMqZd.js",
+      "_witnesses-Ba3Lq_IO.js"
+    ]
+  },
+  "resources/js/pages/Home.vue": {
+    "file": "assets/Home-Dehx1Y5W.js",
+    "name": "Home",
+    "src": "resources/js/pages/Home.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.ts",
+      "_AppHeader-3F7w9rHQ.js",
+      "_deletionImpact-3PgQtNvD.js",
+      "_editions-Bn0Axuks.js",
+      "_works-ihDTcwID.js",
+      "_witnesses-Ba3Lq_IO.js"
+    ]
+  },
+  "resources/js/pages/Profile/Edit.vue": {
+    "file": "assets/Edit-NGkmPLVk.js",
+    "name": "Edit",
+    "src": "resources/js/pages/Profile/Edit.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.ts",
+      "_AppHeader-3F7w9rHQ.js",
+      "_editions-Bn0Axuks.js",
+      "_ownership-transfers-BI5pMqZd.js"
+    ]
+  },
+  "resources/js/pages/Witnesses/Create.vue": {
+    "file": "assets/Create-DxUQXIU_.js",
+    "name": "Create",
+    "src": "resources/js/pages/Witnesses/Create.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.ts",
+      "_AppHeader-3F7w9rHQ.js",
+      "_witnesses-Ba3Lq_IO.js"
+    ]
+  },
+  "resources/js/pages/Witnesses/Show.vue": {
+    "file": "assets/Show-2dOZs3Gs.js",
+    "name": "Show",
+    "src": "resources/js/pages/Witnesses/Show.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.ts",
+      "_AppHeader-3F7w9rHQ.js",
+      "_deletionImpact-3PgQtNvD.js",
+      "_ManuscriptImageViewer-DS4d8LOH.js",
+      "_witnesses-Ba3Lq_IO.js"
+    ]
+  },
+  "resources/js/pages/Works/Create.vue": {
+    "file": "assets/Create-CKwY6TuS.js",
+    "name": "Create",
+    "src": "resources/js/pages/Works/Create.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.ts",
+      "_AppHeader-3F7w9rHQ.js",
+      "_works-ihDTcwID.js"
+    ]
+  },
+  "resources/js/pages/Works/Show.vue": {
+    "file": "assets/Show-BvzvlQz2.js",
+    "name": "Show",
+    "src": "resources/js/pages/Works/Show.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.ts",
+      "_AppHeader-3F7w9rHQ.js",
+      "_deletionImpact-3PgQtNvD.js",
+      "_editions-Bn0Axuks.js",
+      "_works-ihDTcwID.js",
+      "_ConjectureForm-Dt4lITws.js",
+      "_witnesses-Ba3Lq_IO.js"
+    ]
+  }
+}
