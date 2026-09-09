@@ -31,7 +31,7 @@ class LayerMirror
 {
     /**
      * @param  string  $aText  the edited layer's text BEFORE the ops
-     * @param  list<array{start: int, end: int, text: string, cut_id: string|null, atomic?: bool}>  $ops  normalized and pair-verified (see TranscriptionTextController::normalizeOps)
+     * @param  list<array{start: int, end: int, text: string, cut_id: string|null, atomic?: bool, mirror_text?: string|null}>  $ops  normalized and pair-verified (see TranscriptionTextController::normalizeOps)
      * @param  string  $bText  the sibling layer's current text
      * @return array{ops: list<array{start: int, end: int, text: string, cut_id: string|null}>, text: string, relocated: bool}|null
      */
@@ -69,7 +69,22 @@ class LayerMirror
                 }
 
                 if ($role === 'cut') {
-                    $stash[$op['cut_id']] = mb_substr($b, $start, $end - $start);
+                    $taken = mb_substr($b, $start, $end - $start);
+
+                    // The words must CORRESPOND, not merely count the same:
+                    // the in-step pattern check is structural (word shapes
+                    // and whitespace), so layers whose lines drifted to hold
+                    // DIFFERENT words in the same shape still pass it — and
+                    // an index-mapped cut then moves the wrong words (real
+                    // incident: a mirrored paste landed mid-line, splitting
+                    // a citation, because the sibling's words no longer
+                    // matched). Orthography-folded equality is the layers'
+                    // own definition of "the same word".
+                    if (! self::foldMatches(mb_substr($a, $op['start'], $op['end'] - $op['start']), $taken)) {
+                        return null;
+                    }
+
+                    $stash[$op['cut_id']] = $taken;
                     $bOp = ['start' => $start, 'end' => $end, 'text' => '', 'cut_id' => $op['cut_id']];
                 } else {
                     $bOp = ['start' => $start, 'end' => $start, 'text' => $stash[$op['cut_id']], 'cut_id' => $op['cut_id']];
@@ -99,8 +114,26 @@ class LayerMirror
                     ? $start
                     : self::mapOffset($a, $b, $op['end']);
 
-                if ($start !== null && $end !== null) {
-                    $bOp = ['start' => $start, 'end' => $end, 'text' => $op['text'], 'cut_id' => null];
+                // A deletion or replacement must remove the sibling's
+                // COUNTERPART words — skip the op when the mapped range
+                // holds different words (see the relocation check above).
+                if (
+                    $start !== null
+                    && $end !== null
+                    && ($op['end'] === $op['start']
+                        || self::foldMatches(
+                            mb_substr($a, $op['start'], $op['end'] - $op['start']),
+                            mb_substr($b, $start, $end - $start),
+                        ))
+                ) {
+                    // An undo carries the sibling's OWN former words as
+                    // `mirror_text` (the client snapshots them when the
+                    // edit is made), so undoing a mirrored deletion puts
+                    // back γίνεται in the normalized layer, not the
+                    // diplomatic ΓΙΓΝΕΤΑΙ the edit removed there. Absent, a
+                    // verbatim replay is the rule (user decision: same words
+                    // in both layers, spellings adjusted later).
+                    $bOp = ['start' => $start, 'end' => $end, 'text' => $op['mirror_text'] ?? $op['text'], 'cut_id' => null];
                     $bOps[] = $bOp;
                     $b = TextOpApplier::apply($b, $bOp);
                 }
@@ -114,6 +147,62 @@ class LayerMirror
         }
 
         return ['ops' => $bOps, 'text' => $b, 'relocated' => $relocated];
+    }
+
+    /**
+     * Whether two stretches carry the same words under the layers' own
+     * definition of sameness. Word by word: orthography-folded equality, or
+     * — since counterpart spellings can genuinely differ in letters
+     * (γιγνεται/γίνεται, alpha/alfa; the same case wordSplitOffset handles)
+     * — a shared folded prefix or suffix of at least two characters.
+     * Entirely different words share neither, which is exactly what a
+     * drifted sibling holds; and a whole moved range only corresponds when
+     * EVERY word does, so coincidental affix matches don't accumulate into
+     * a false whole.
+     */
+    private static function foldMatches(string $aText, string $bText): bool
+    {
+        $wordsOf = fn (string $text): array => preg_split('/\s+/u', trim($text), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        $aWords = $wordsOf($aText);
+        $bWords = $wordsOf($bText);
+
+        if (count($aWords) !== count($bWords)) {
+            return false;
+        }
+
+        foreach ($aWords as $index => $aWord) {
+            $aFold = GreekText::foldOrthography($aWord);
+            $bFold = GreekText::foldOrthography($bWords[$index]);
+
+            if ($aFold === $bFold) {
+                continue;
+            }
+
+            $shared = 0;
+
+            while ($shared < mb_strlen($aFold) && $shared < mb_strlen($bFold)
+                && mb_substr($aFold, $shared, 1) === mb_substr($bFold, $shared, 1)) {
+                $shared++;
+            }
+
+            if ($shared >= 2) {
+                continue;
+            }
+
+            $shared = 0;
+
+            while ($shared < mb_strlen($aFold) && $shared < mb_strlen($bFold)
+                && mb_substr($aFold, -1 - $shared, 1) === mb_substr($bFold, -1 - $shared, 1)) {
+                $shared++;
+            }
+
+            if ($shared < 2) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static function isLineBreakInsertion(string $text): bool

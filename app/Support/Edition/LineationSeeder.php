@@ -34,6 +34,15 @@ class LineationSeeder
      * segment (or one from a different layer, or physically out of order)
      * gives the conservative default — a fresh line.
      *
+     * The newlines are counted in the whole whitespace neighbourhood of the
+     * boundary — trailing whitespace inside the previous span, the gap
+     * between the spans, and leading whitespace inside this one — not only
+     * the bare gap. A span marked by drag-selecting a full line routinely
+     * swallows its own trailing "\n" (the selection runs to the start of
+     * the next line), which left the gap empty and silently seeded prose
+     * out of verse. Where the newline sits relative to the span boundary is
+     * an accident of selection; that it sits between the two texts is not.
+     *
      * @return array{starts_new_line: bool, starts_new_paragraph: bool}
      */
     public static function interPassageFlags(?TranscriptionSegment $previous, TranscriptionSegment $segment): array
@@ -46,12 +55,17 @@ class LineationSeeder
             return ['starts_new_line' => true, 'starts_new_paragraph' => false];
         }
 
-        $gap = mb_substr(
-            $segment->transcriptionLayer->text,
-            $previous->end_offset,
-            $segment->start_offset - $previous->end_offset,
-        );
-        $newlines = mb_substr_count($gap, "\n");
+        $text = $segment->transcriptionLayer->text;
+        $previousText = mb_substr($text, $previous->start_offset, $previous->end_offset - $previous->start_offset);
+        $segmentText = mb_substr($text, $segment->start_offset, $segment->end_offset - $segment->start_offset);
+
+        preg_match('/\s+$/u', $previousText, $trailing);
+        preg_match('/^\s+/u', $segmentText, $leading);
+
+        $boundary = ($trailing[0] ?? '')
+            .mb_substr($text, $previous->end_offset, $segment->start_offset - $previous->end_offset)
+            .($leading[0] ?? '');
+        $newlines = mb_substr_count($boundary, "\n");
 
         return [
             'starts_new_line' => $newlines >= 1,
@@ -122,6 +136,7 @@ class LineationSeeder
 
         return LemmaReading::whereIn('lemma_id', $positions->keys())
             ->where('transcription_layer_id', $layer->id)
+            ->where('omitted', false)
             ->whereNotNull('start_offset')
             ->get()
             ->sortBy(fn (LemmaReading $reading) => (float) $positions[$reading->lemma_id])

@@ -132,11 +132,141 @@ Consequences, all real code paths:
 - Whole-passage order detection (`orderRanges`) keeps `min(start_offset)` as a
   passage's physical position, deliberately: a sub-passage transposition is
   reported per passage by `EditionController::citationDiscontinuities` (the
-  ⇄ marker, derived at display time, never stored) and must not register as a
-  whole-passage reorder.
+  violet line number, derived at display time, never stored) and must not
+  register as a whole-passage reorder.
+- The split-citation report speaks apparatus, not mechanics
+  (`EditionController::transpositionStatements`, user decision): "R2 has this
+  passage in 2 places" is not how an edition reports a sub-line transposition.
+  A fragment is DISPLACED when its physical predecessor segment differs from
+  its content predecessor (previous part in part order); two displaced
+  fragments of different passages whose physical and content predecessors
+  cross-match have CHANGED PLACES and are reported as one statement on both
+  passages — 'R2: 4 2/2 "πάρεστιν ἐνταυθοῖ γυνή·" has exchanged places with
+  5 2/2 "κωμῆτις ἥδʼ ἐξέρχεται."'. Fragments are cited by part number
+  (`label part/total`) PLUS their full verbatim text in quotes — never
+  abbreviated `first … last` (user decision: a digital apparatus never
+  abbreviates a lemma; an abbreviating `citedSpan` version existed briefly
+  and was removed). A lone displaced fragment is located against its
+  physical neighbour ('B: 1.1 2/2 "fox" stands after 1.2'). Presentation (user decision):
+  no ⇄ badge and no explanatory notice — the passage's citation-label chip
+  itself turns violet when a witness splits the passage, its hover title is
+  the statements, and clicking it opens the panel showing only the
+  statements. The mechanical per-part sentence survives only as the client's
+  fallback when a multi-part passage has nothing displaced
+  (`discontinuityLines` in `Editions/Show.vue`).
 - `DiplomaticCounterpart` maps by token index over the concatenated parts in
   part order on both layers; `forPassage` joins part slices with " … " so a
   discontinuous line never presents as contiguous.
+
+## The order report flags only disagreement with the PRINTED order, one block one marker
+`EditionController::orderRanges` compares every source — each witness's
+physical order AND each catalogued (attributed) Transposition/Reordering
+conjecture — against the edition's PRINTED order (user decision, refining
+an intermediate citation-anchored design): the editor wants to be made
+aware exactly where what she prints disagrees with a witness or with a
+catalogued proposal, and of nothing else. CITATION ORDER IS NEVER A
+SOURCE: that the printed order (or a manuscript's) departs from citation
+order is no news — the citation labels on the lines already say so — so
+no site and no notice exists for it (the `citationOrderStatus` "restore
+citation order" notice was removed for this reason). The server still
+ships citation order as a candidate, but the client's panel no longer
+offers it (user decision — no "Citation order: …" row); the
+`buildOrderRangeInfo` guard drops a block whose only differing candidate
+is citation order
+(possible when the citation-span expansion cost the disagreeing witness
+its candidacy under the fragmentary rule).
+
+Consequences, all deliberate:
+- A block's extent is the citation span (min..max sort_key) of the
+  disagreeing stretch, so its members may be scattered in the printed
+  text. Every member's window entry carries the same block info. There is
+  NO separate ⇅ badge (user decision): the line-number chip itself carries
+  the report — `isOrderMoved` colours exactly the lines some non-citation
+  candidate MOVES (`analyzeSequence().movedLabels`), the slid lines stay
+  plain, and clicking a coloured number opens the panel. Nothing else marks
+  the block: the sky ring that highlighted every member 3–8 while the panel
+  was open read as a citation-range leftover and was removed (user
+  decision) — the statement in the panel already names the lines involved.
+  `anchor` is still sent but unused client-side.
+- `matches_current` compares against the members' *relative printed
+  order*; chip color (`orderRangeClasses`): emerald = a witness/citation
+  matches, sky = only a conjecture matches, stone = the editor's own
+  arrangement (never amber — a legitimate state is not an alarm).
+- The presentation is what keeps a printed-order baseline from reading as
+  the per-line alarm wall an early design produced: each candidate is ONE
+  statement of a MINIMAL MOVE against the printed order
+  (`analyzeSequence`: "R2: 8 comes after 2", "12–19 come after 4" —
+  shortest lifted run first, neighbour-anchored; a head-of-block move
+  anchors on the line printed just before the block via
+  `labelBeforeRange`, and "comes before X" appears only when the block
+  opens the edition) — never a comma-separated sequence to mentally diff.
+  The slope graphs were removed (user decision, "at least for now"); the
+  chip's hover title is the joined statements (`orderStatements`, citation
+  order excluded — it is a candidate, never a source). The panel shows ONLY
+  disagreement (`panelCandidates`, user decision): no "Sources order …
+  differently" header, no citation-order row, no "X: matches the printed
+  order" rows — agreement is no news (a planned feature will show which
+  manuscripts accord with the printed text). The one matching row kept is a
+  not-yet-followed conjecture, for editors only, so "Record as followed"
+  has somewhere to live. The panel opens for READERS too — reading the
+  report is not editing (`toggleOrderRange` is ungated; Follow and the
+  proposal form stay behind `canEdit`).
+- Apply-side: `EditionOrderController::rangePassageIds` derives membership
+  by sort_key span (not a printed-position slice), and
+  `PassageOrderRewriter::applySequence` permutes members among the
+  position slots they occupy, wherever those are — non-members between
+  them stay put. `StoreConjectureOrderingRequest` likewise requires
+  citation-contiguity, not printed-contiguity.
+
+Rearranging IS registering a conjecture (user decision, replacing the
+marker-based rearrange mode and the server's derived "what did this move
+mean"): "Register transposition conjecture" on the edition page turns the
+text into a draft of the order — select text and Ctrl+X lifts its whole
+text out — whole lines, or WORDS within one line, which divides it
+(`onTextCut` → `heldPieces`) — the caret and Ctrl+V sets it down, dividing
+the line it lands in (`onTextPaste` → `draftPieces`, merged back by
+`mergedPieces` when parts abut again); copy is refused; nothing is saved
+meanwhile. The text is rendered as PIECES (`shownPieces`: passage, run
+range, part n/m; run spans carry `data-piece-index`, the caret helpers
+index pieces), which outside registering are just the passages. Register
+submits every difference between the stored order and the draft as ONE
+Reordering over the smallest citation-contiguous stretch covering the
+change (`registerPieces`) — `pieces` with `part` and `text` on
+`conjecture-orderings.store`, the same shape as a witness's split
+citation, which is how the apparatus reports it (the server builds a
+transcript stand-in per such conjecture, `EditionController::
+conjectureArrangements`, and the split-citation report reads it like a
+witness, named "Bergk (conjecture)" with `conjecture_id`). Adopting such an
+arrangement PRINTS the line in pieces: `ArrangementAdopter` gives the
+edition one `EditionPassage` row per part (`part`, `part_text`; part 1
+keeps the row, base and lineation, later parts flow on), rejoins lines a
+proposal reads whole, resequences the pieces in place
+(`PassageOrderRewriter::applyPieceSequence`) and records the adoption. It
+serves every adoption path — the order panel (`edition-order.apply` with a
+conjecture), `conjecture-orderings.store` with `follow`, and the line
+notice's Adopt button on a divided-line report (`edition-adoptions.store`).
+Rows find their runs at render time by matching `part_text` against the
+printed text (`EditionController::partRange`); a mismatch leaves the
+division stale — part 1 prints the whole line, the page says so. The order
+report, `annotatePassageStatus` and the rewriter's whole-passage moves
+treat a divided line as standing at its first part. The editor never
+names a kind of transposition — the cut says it (user decision; the
+short-lived `word_transposition` conjecture kind was removed for that
+reason). There is no silent move
+any more: `edition-order.move`, `TranspositionMarks` (working marks, their
+pruning and auto-attribution) and `TranspositionValidator` are gone, and
+every Transposition/Reordering record — attributed or not — is a source
+and candidate for the order report. Removing a record stays a deliberate
+act (one-way apply). Tests set up an order with
+`PassageOrderRewriter::moveRange` directly.
+
+A Reordering proposal is authored inside a block's own panel with members
+preloaded (`conjecture-orderings.store`, applies and attributes in one
+step); a conjecture candidate the printed order already matches offers
+"Record as followed" via the ordinary apply endpoint. The standalone
+Transpositions form, the post-paste attribution prompt, and
+`ReorderingAuthorPanel` were all removed — do not reintroduce an authoring
+surface detached from the act it records.
 
 ## Lineation is the edition's own display vocabulary
 Where an edition's printed text breaks is edition data, never derived from
@@ -146,6 +276,21 @@ colometry inside a passage — which lyric drama needs, since every edition
 divides the lyric parts differently. Verse rendering is all flags set, prose
 none; `Editions/Show.vue` renders passages INLINE with every break an
 explicit element, so both come from one mechanism.
+
+Editing them works like an editor, not a mode (user decision, replacing the
+marker-cycling "Lineation" mode, which was cumbersome): for editors the text
+box is a `contenteditable` host whose every word-changing input is refused
+(`blockTextEdit` on beforeinput/paste/cut/drop/dragstart), and only Enter,
+Backspace and Delete mean anything — they act on the gap at the caret's word
+boundary (`caretPosition` → `gapBeforeRun`/`gapAfterRun`), raising or
+lowering it through none → line → paragraph via the two existing endpoints,
+then `placeCaret` restores the caret after the re-render. Chips, markers and
+open notices inside the box are `contenteditable="false"` islands: events
+from inside them are ignored by the text handlers (`inEditableIsland`), so
+forms in a notice keep working. Readers get the plain text with focusable
+words (`onRunKey`); editors navigate with the caret instead. Keep the
+data attributes the caret logic reads (`data-passage-id`/`data-run-index` on
+runs, `data-spacer-*` on the spaces between them).
 
 Seeding (`LineationSeeder`, called from `PassageAdder::add`/`addSegments`)
 copies the base transcription's newlines ONCE at add time — one `\n` in a
@@ -192,6 +337,19 @@ rebuild (see `hasEditorialContent`), since the editor chose that column.
 
 Only the wording is editable. Moving a note to another passage or column is
 not an edit but a different note.
+
+Presentation (user decision): a line's notes are READER-FACING and live in
+the notice the line number opens — never rendered between the lines (the
+old `canEdit`-gated inline block hid them from readers entirely and is
+gone). The shared notes section renders inside the popover for the
+`notes`, `discontinuity` and `order_range` kinds, so one press shows
+everything the line has to say; a passage with notes and no other report
+gets the `notes` kind (sky chip). Edit/delete/reword stay behind `canEdit`;
+writing a NEW note happens via the "+ Note" composer at the bottom of every
+popover — anchored to the open run/range, or whole-line from a
+number-opened notice. For editors every number is such an entry point
+(user decision): pressing a plain line's number opens the notes notice so
+a whole-line note needs no variant site to exist.
 
 ## Reading through to the manuscripts
 `DiplomaticCounterpart` gives what a witness physically has where its
@@ -247,28 +405,18 @@ first, then other witnesses by siglum, then conjectures oldest first. Left
 unsorted, candidates come out in the order the witnesses were aligned, which is
 incidental rather than evidence.
 
-## The edition page is two panes; a mode is not a permission
-`Editions/Show.vue` always renders the edition on the left and one chosen view
-on the right (`rightPane`: add/remove text, the manuscripts, and images once
-witness image handling exists). The manuscripts used to be interlinear —
-diplomatic text printed under each word and under each line, behind a "Show the
-manuscripts" toggle. That read as clutter inside the text rather than as a
-manuscript, and it is gone; `run.diplomatic` survives only in the hover tooltip
-and the apparatus popover.
-
-Which pane *renders* is `activeRightPane`, which folds `canEdit` into the
-stored choice, exactly as the lacuna markers test `canEdit && lacunaMode`. Keep
-that shape. When the add-text panel was gated on its own mode alone, an editor
-who opened it and then switched to reader view kept an editing panel open on a
-page that had just hidden the toolbar which would have closed it — the mode
-recorded an intention, and nothing re-checked permission at render.
-
-`EditionController::windowSlice` trims each transcript to the stretch its cited
-segments occupy within the displayed passages and rebases the segment offsets
-onto that slice. Rebasing is not cosmetic: `AlignableText` discards any segment
-whose `end_offset` runs past the text it was given, so an unrebased segment
-silently disappears rather than rendering in the wrong place. Only segments
-lying wholly inside the slice are sent, for the same reason.
+## The edition page is two panes, and there is no mode
+`Editions/Show.vue` always renders the edition on the left and the Witnesses
+pane on the right (`WitnessesPanel.vue`, the former add pane and manuscripts
+pane merged — user decision; the pane choice row is gone). The manuscripts
+used to be interlinear — diplomatic text printed under each word — which
+read as clutter and is gone; `run.diplomatic` survives only in the hover
+tooltip and the apparatus popover. Editing affordances still fold `canEdit`
+into every render test (as the lacuna markers do with
+`canEdit && lacunaMode`): a choice records an intention, and permission is
+re-checked at render. The pane shows each transcript WHOLE
+(`EditionController::witnessTranscripts`/`wholeTranscript`; the old window
+slice is gone) — see "Adding and removing text" below.
 
 ## A witness has transcriptions; a transcription has two layers
 `Transcription` is the named thing an editor creates on a witness, and it
@@ -315,3 +463,150 @@ overridden to mean "a layer of a transcription of this witness". Two such calls
 make two *separate* transcriptions, so a test that needs both layers of one
 must create the parent and pass it to both. `->published()` on a layer factory
 publishes its transcription, which is what publishing a layer now means.
+
+## The order report and the lacuna anchor are derived over the WHOLE edition
+`EditionController::orderRanges` runs over `$orderedPassages`, keyed by
+printed index and read back through the page offset — a witness moving a
+line across the fifty-passage page boundary used to produce no marker at
+all (test-pinned: "a disagreement straddling the page boundary"). Each
+window passage also carries `previous_edition_passage_id` from the whole
+order, so the whole-line-lacuna marker on page 2's first line anchors
+before it, not at the edition's start.
+
+`windowContext()` loads comments, unplaced conjectures, columns with
+readings, selections and line breaks ONCE per window and hands them to
+`passageDetail`/`materializedRuns`/`withBreaks` grouped; do not reintroduce
+per-passage queries there.
+
+Presentation notes (user decision, all three): "Delete edition" confirms
+like every other delete; the line-number chip is a real `<button>` and runs
+are focusable (`tabindex`/`role="button"`, Enter/Space open, focus shows
+the apparatus) so the reports are reachable without a mouse; the hover
+apparatus is clamped to the viewport and flips above the word near the
+bottom. The pure helpers live in `lib/orderReport.ts` (`analyzeSequence`)
+and `lib/apparatus.ts` (readings, provenance, discontinuity statements),
+with the payload types in `types/edition.ts`; `Editions/Show.vue` keeps the
+state and the template. A "Go to line" form jumps to a label on any page.
+`WitnessesPanel` keys its witness pulldown by `witness_id`, never by siglum —
+sigla are conventional per work and two witnesses called B already exist.
+
+## A line's order notice speaks only about that line; proposals may be recorded unfollowed
+`panelCandidates`/`orderStatements` in `Editions/Show.vue` list a
+disagreeing source only where its minimal move (`analyzeSequence().movedLabels`)
+includes the pressed line: in a block 3–8 where R2 moves 3 and R moves 8,
+line 3 says "R2: 3 comes after 8" and line 8 says "R: 8 comes after 7",
+never both on each (user decision). A matching not-yet-followed conjecture
+still shows on every member, since it moves nothing and "Record as
+followed" needs a home. `conjecture-orderings.store` takes `follow`
+(default true): "Record only" catalogues the Reordering as a candidate
+without applying or adopting it — a published proposal the editor rejects
+still belongs in the apparatus.
+
+## The line notice: provenance on top, then Variants, References, Notes
+Every line number opens ONE notice (`kind: 'line'`), for readers and
+editors alike (user decision). Its top says what the line rests on
+(`provenanceLines`): "Based on R. Also present in R2." (witnesses from
+the `transcriptions` prop's segments), or "Proposed by Bergk" for a line
+no witness has (the selected conjecture); then, only when the block's
+printed order follows something other than the base text, "Ordering based
+on R2" / "Ordering based on Bergk's proposal" / "Ordering by this
+edition". Then headings, each only when there is something: VARIANTS
+(order statements scoped to the line, Follow and the proposal draft for
+editors, split-citation statements), REFERENCES (the passage's own
+citations, picker for editors), NOTES (comments and the composer).
+Citations of a CONJECTURE are never printed in the notice or the
+candidate list or the hover apparatus: a conjecture's name is a button
+that opens, in place, the edit form (`ConjectureForm`, fed by the
+`workConjectures`/`workPassages` props from `ConjectureCatalogue`) for
+editors and its literature for readers. The old kinds `order_range`,
+`discontinuity` and `notes` are gone; do not bring back per-kind notices.
+
+## Adding and removing text (user decision, 2026-09-09)
+The Witnesses pane (`WitnessesPanel.vue`) shows a witness WHOLE, in either
+layer, with every citation; segments the edition has print grey
+(`AlignableText` `unavailableSegmentIds`, no strikethrough). "Add selection"
+posts the cited passages fully inside the selection by id
+(`edition-passages.store` with `canonical_passage_ids`, the layer being the
+diplomatic entry's normalized sibling). A segment lands where its
+manuscript has it — after the last edition passage preceding it in its
+own witness's physical order, else by citation order
+(`PassageAdder::insertionPosition`, then
+`PassageOrderRewriter::renumberEdition`) — so adding never creates an
+arrangement that needs a transposition conjecture; the editor registers
+one from the edition text if she wants another order. Removing: a
+selection in the edition text reaching into several segments opens the
+remove box for all of them; within one segment the conjecture box opens
+and offers "Remove segment from edition" too (`edition-passages.destroy`
+takes `canonical_passage_ids`). There is no add/remove mode and no pane
+choice any more; adding is locked while a transposition is registered.
+
+## The witnesses pane's pages and image view (user decision, 2026-09-09)
+`EditionController::pagesOf` sends, per transcript entry, the page breaks
+resolved to that layer's own offsets (`TranscriptionLayer::offsetOfLine`)
+and the witness's pages with their visible photograph
+(`ManuscriptImage::visibleTo`). `AlignableText` draws a page-break line
+with the page's label before the chunk starting at each break
+(`pageBreaks` prop; markers carry `data-page-id`). In `WitnessesPanel` the
+text scrolls inside the pane (`max-h-[70vh]`), and the last marker that
+has scrolled past the top edge is the page the Facsimile tab opens on
+(`trackPageAtTop`); the image view has its own page selector and arrows,
+and the layer buttons return to the text with that page's first line at
+the top (`showText`; there is no separate "Text" link — user decision). A
+page without a photograph says so; the viewer is the shared
+`ManuscriptImageViewer`. Each entry also carries the layer's image
+`regions` (with `group_id`): the coupling is WORD-LEVEL, as in the
+transcript editor (user decision). A box is one mapping in both layers
+(counterpart rows share a group, see SiblingSync); the edition's columns
+carry normalized offsets — a run's `base_start/base_end` and each
+candidate's own witness offsets (`witnessSpansOf` in `Editions/Show.vue`)
+— so a box is matched through its normalized row and lit in both rows
+(`regionGroups`/`highlightedRegionIds` in `WitnessesPanel`), and the box
+under the pointer lights the runs whose spans overlap it
+(`hover-image-region` → `onImageRegionHover` → `imageLitRunKeys`, amber in
+`runClasses`). A box mapped on the diplomatic layer alone (drawn while the
+layers were out of step, not healed) falls back to the whole line via its
+citation. Resolution is the column: a sub-word box lights the word.
+
+## Omissions are readings; a deletion is a conjecture by nothing (user decision, 2026-09-09)
+
+- `PassageAligner::recordOmissions` runs at the end of `collate()` and
+  `realignLayer()`: for every witness aligned into a passage, one
+  zero-width `lemma_readings.omitted = true` reading per maximal run of
+  columns it lacks, anchored at the witness's own offset where its words
+  resume (end of its last word before the run, else start of its first
+  after) and spanning the run via `range_end_lemma_id`. Columns no witness
+  attests (lacuna / conjecture-only) break a run — an omission adopted
+  across them would swallow the lacuna. Upsert by anchor column; a stale
+  omission an edition selects is left standing (the editor's decision).
+  `php artisan collation:record-omissions` backfills.
+- Anything that reads a witness's "real" readings must skip omitted ones:
+  `representativeText` (consensus), `realignLayer`'s empty-column check,
+  `EditionController::baseReadingOf`/`witnessExtension`,
+  `EditionVariantController::baseReadingAt`, `LineationSeeder`. The text
+  editor's `applyReadings` shifts an omission like a point and never
+  tombstones it. A tombstone (zero-width + `needs_review`) is a different
+  thing and the two must stay distinguishable — hence the column, not a
+  heuristic on width.
+- Candidates and runs carry `omitted`: a witness omission or a Deletion
+  conjecture has `text ''` and `omitted true`; the client says "omitted" /
+  "deleted" in words (`candidateText`), groups omitting witnesses as one
+  apparatus line, and counts an omission as a real disagreement in
+  `hasVariation`. A run prints the discreet marker `‸` wherever nothing is
+  printed on purpose (`run.omitted`: the base lacks the words, or an
+  omission/deletion was adopted); `⟨insert⟩` stays for a column that has
+  nothing yet. The base's omission of several columns is one gap run
+  (`materializedRuns` jumps its range like the base's wider reading).
+- `ConjectureType::Deletion`: `text` always null; placed exactly like a
+  substitution (`placement=range`, catalogued unless `adopt`,
+  `isNewSubstitution` covers both); the span popover's "Delete these
+  words" checkbox disables the text box and sends `conjecture_type:
+  deletion`. Picking a witness omission posts its zero-width offsets —
+  `end_offset` is `gte`, and `validateTranscriptionSpan` only accepts an
+  empty span when an omitted reading sits at exactly that offset.
+- Labels are full words, never abbreviations (user decision — space is not
+  scarce in a digital edition): "Bergk (conjecture)", "Wolf (lacuna)",
+  "Bentley (supplement)", "Bergk (deletion)", "Ordering by Bergk
+  (conjecture)"; Work page `TYPE_LABELS` likewise. Never "Not in X" for
+  whole segments a witness lacks — the witness lists already say which
+  segments each witness has, and works with many fragmentary witnesses
+  would drown in it.

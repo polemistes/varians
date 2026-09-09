@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\BibliographyItem;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -55,6 +56,14 @@ class HandleInertiaRequests extends Middleware
                 // concerns one — the witness page shows a scoped message
                 // only over that layer's pane, never over its neighbour.
                 'layer' => fn () => $request->session()->get('message_layer_id'),
+                // The item a references picker just created through the
+                // inline form, so it can attach it — see
+                // BibliographyItemController::store.
+                'created_bibliography_item' => function () use ($request) {
+                    $id = $request->session()->get('created_bibliography_item_id');
+
+                    return $id !== null ? BibliographyItem::find($id)?->only(['id', 'label']) : null;
+                },
             ],
         ];
     }

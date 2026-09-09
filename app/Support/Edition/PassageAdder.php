@@ -73,6 +73,66 @@ class PassageAdder
     }
 
     /**
+     * Where a newly added segment lands in the printed order: after the
+     * last passage already in the edition that precedes it in its own
+     * witness's physical order — so a line added late still stands where
+     * the manuscript has it, and adding never creates an arrangement that
+     * needs a transposition conjecture (user decision, replacing "append
+     * at the end"). A witness sharing no passage with the edition yet goes
+     * by citation order. The position returned is fractional; the caller
+     * renumbers the edition once its batch is in
+     * (PassageOrderRewriter::renumberEdition).
+     */
+    public static function insertionPosition(Edition $edition, TranscriptionSegment $segment): float
+    {
+        $rows = EditionPassage::where('edition_id', $edition->id)
+            ->with('canonicalPassage:id,sort_key')
+            ->orderBy('position')
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return 1.0;
+        }
+
+        $lastPositionOf = fn (int $passageId): float => (float) $rows
+            ->where('canonical_passage_id', $passageId)
+            ->max(fn (EditionPassage $row) => (float) $row->position);
+        $firstPositionOf = fn (int $passageId): float => (float) $rows
+            ->where('canonical_passage_id', $passageId)
+            ->min(fn (EditionPassage $row) => (float) $row->position);
+
+        $offsets = TranscriptionSegment::where('transcription_layer_id', $segment->transcription_layer_id)
+            ->whereIn('canonical_passage_id', $rows->pluck('canonical_passage_id')->unique())
+            ->get()
+            ->groupBy('canonical_passage_id')
+            ->map(fn ($group) => (int) $group->min('start_offset'));
+
+        $preceding = $offsets->filter(fn (int $offset) => $offset < $segment->start_offset);
+
+        if ($preceding->isNotEmpty()) {
+            return $lastPositionOf((int) $preceding->sortDesc()->keys()->first()) + 0.5;
+        }
+
+        $following = $offsets->filter(fn (int $offset) => $offset > $segment->start_offset);
+
+        if ($following->isNotEmpty()) {
+            return $firstPositionOf((int) $following->sort()->keys()->first()) - 0.5;
+        }
+
+        $sortKey = $segment->canonicalPassage->sort_key;
+        $before = $rows
+            ->filter(fn (EditionPassage $row) => $row->canonicalPassage->sort_key < $sortKey)
+            ->sortByDesc(fn (EditionPassage $row) => $row->canonicalPassage->sort_key)
+            ->first();
+
+        if ($before !== null) {
+            return $lastPositionOf((int) $before->canonical_passage_id) + 0.5;
+        }
+
+        return (float) $rows->first()->position - 0.5;
+    }
+
+    /**
      * Hand every witness currently citing this passage to the collator — not
      * just the one being added, and not only on first touch, so a witness
      * whose segment was cited *after* this passage was first materialized

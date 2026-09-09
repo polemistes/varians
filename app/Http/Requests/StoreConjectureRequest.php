@@ -4,11 +4,12 @@ namespace App\Http\Requests;
 
 use App\Enums\ConjectureType;
 use App\Models\CanonicalPassage;
-use App\Models\Conjecture;
+use App\Support\Bibliography\ReferenceRules;
+use App\Support\Edition\ConjectureShape;
 use App\Support\Edition\ConjectureValidationRules;
 use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Validator;
 
 class StoreConjectureRequest extends FormRequest
 {
@@ -21,24 +22,26 @@ class StoreConjectureRequest extends FormRequest
     }
 
     /**
-     * Get the validation rules that apply to the request.
-     *
-     * `type` defaults to a plain substitution — see App\Enums\ConjectureType.
-     * A substitution or supplement needs `text`; a supplement needs to name
-     * the lacuna it fills. Never a transposition or a reordering — both are
-     * ordering proposals authored with their own dedicated endpoint
-     * (`edition-transpositions.store` / `conjecture-orderings.store`), never
-     * here — see `withValidator`.
+     * Record a conjecture of any kind against a passage of the work — the
+     * Work page's own list records every type as a catalogue entry, applied
+     * to no edition (an edition follows an ordering proposal through
+     * `edition-order.apply`, or records and follows a new one through
+     * `conjecture-orderings.store`). `type` defaults to a plain substitution; what each
+     * type must carry is ConjectureShape's matrix.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
+        /** @var CanonicalPassage $canonicalPassage */
+        $canonicalPassage = $this->route('canonicalPassage');
+
         return [
             ...ConjectureValidationRules::structuralRules(''),
+            ...ConjectureShape::orderingRules($canonicalPassage->work),
             'proposed_by' => ['nullable', 'string', 'max:255'],
-            'bibliography' => ['nullable', 'string'],
             'note' => ['nullable', 'string'],
+            ...ReferenceRules::rules('references'),
         ];
     }
 
@@ -47,37 +50,12 @@ class StoreConjectureRequest extends FormRequest
         $validator->after(function (Validator $validator) {
             /** @var CanonicalPassage $canonicalPassage */
             $canonicalPassage = $this->route('canonicalPassage');
-            $type = $this->input('type') ?? ConjectureType::Substitution->value;
 
-            if (in_array($type, [ConjectureType::Substitution->value, ConjectureType::Supplement->value], true) && ! $this->filled('text')) {
-                $validator->errors()->add('text', 'This needs proposed text.');
-            }
-
-            if ($type === ConjectureType::Lacuna->value && $this->filled('text')) {
-                $validator->errors()->add('text', 'A lacuna never carries its own text — propose a supplement instead.');
-            }
-
-            if ($type === ConjectureType::Supplement->value) {
-                $lacunaId = $this->input('supplements_conjecture_id');
-
-                if (! is_numeric($lacunaId)) {
-                    $validator->errors()->add('supplements_conjecture_id', 'A supplement needs to name which lacuna it fills.');
-                } else {
-                    $lacuna = Conjecture::find((int) $lacunaId);
-
-                    if ($lacuna !== null && $lacuna->canonical_passage_id !== $canonicalPassage->id) {
-                        $validator->errors()->add('supplements_conjecture_id', 'That lacuna belongs to a different passage.');
-                    }
-                }
-            }
-
-            if ($type === ConjectureType::Transposition->value) {
-                $validator->errors()->add('type', 'A transposition isn\'t recorded this way — see edition-transpositions.store.');
-            }
-
-            if ($type === ConjectureType::Reordering->value) {
-                $validator->errors()->add('type', 'A reordering isn\'t recorded this way — see conjecture-orderings.store.');
-            }
+            ConjectureShape::check($validator, [
+                ...$this->all(),
+                'type' => $this->input('type') ?? ConjectureType::Substitution->value,
+                'canonical_passage_id' => $canonicalPassage->id,
+            ], $canonicalPassage->work);
         });
     }
 }

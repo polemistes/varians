@@ -13,7 +13,29 @@ const form = useForm({
     email: user.value?.email ?? '',
     password: '',
     password_confirmation: '',
+    greek_font: user.value?.greek_font ?? 'eb-garamond',
 });
+
+// Each option's sample renders in its own face so the choice can be made
+// by eye — both faces are @font-face'd app-wide, and the browser only
+// downloads a face when something renders in it. size-adjust on EB
+// Garamond applies here too, so the samples compare at true size.
+const fontChoices = [
+    {
+        value: 'eb-garamond',
+        label: 'EB Garamond',
+        note: 'the Garamond revival — cursive, calligraphic Greek in the grec-du-roi tradition',
+        family: "'EB Garamond', serif",
+    },
+    {
+        value: 'cardo',
+        label: 'Cardo',
+        note: 'an upright bookface made for classical scholarship',
+        family: "'Cardo', serif",
+    },
+] as const;
+
+const fontSample = 'μῆνιν ἄειδε θεὰ Πηληϊάδεω Ἀχιλῆος οὐλομένην';
 
 function submit() {
     form.patch(update.url(), {
@@ -68,6 +90,54 @@ function submit() {
                         >{{ form.errors.email }}</span
                     >
                 </label>
+
+                <fieldset
+                    class="rounded-lg border border-stone-200 p-3 dark:border-stone-800"
+                >
+                    <legend class="px-1 text-sm font-medium">Greek font</legend>
+                    <p class="mb-3 text-xs text-stone-500 dark:text-stone-400">
+                        The face used for edition text and transcripts —
+                        everywhere Greek is shown.
+                    </p>
+                    <div class="flex flex-col gap-2">
+                        <label
+                            v-for="choice in fontChoices"
+                            :key="choice.value"
+                            class="flex cursor-pointer items-baseline gap-3 rounded border p-2"
+                            :class="
+                                form.greek_font === choice.value
+                                    ? 'border-sky-300 bg-sky-50 dark:border-sky-800 dark:bg-sky-950/50'
+                                    : 'border-stone-200 dark:border-stone-800'
+                            "
+                        >
+                            <input
+                                v-model="form.greek_font"
+                                type="radio"
+                                :value="choice.value"
+                                class="translate-y-0.5"
+                            />
+                            <span class="flex flex-col gap-0.5">
+                                <span class="text-sm font-medium"
+                                    >{{ choice.label }}
+                                    <span
+                                        class="font-normal text-stone-500 dark:text-stone-400"
+                                        >— {{ choice.note }}</span
+                                    ></span
+                                >
+                                <span
+                                    class="text-xl leading-snug"
+                                    :style="{ fontFamily: choice.family }"
+                                    >{{ fontSample }}</span
+                                >
+                            </span>
+                        </label>
+                        <span
+                            v-if="form.errors.greek_font"
+                            class="text-xs text-red-600 dark:text-red-400"
+                            >{{ form.errors.greek_font }}</span
+                        >
+                    </div>
+                </fieldset>
 
                 <fieldset
                     class="rounded-lg border border-stone-200 p-3 dark:border-stone-800"

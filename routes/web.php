@@ -4,19 +4,19 @@ use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\BibliographyItemController;
+use App\Http\Controllers\BibliographyReferenceController;
 use App\Http\Controllers\ConjectureController;
 use App\Http\Controllers\ConjectureOrderingController;
+use App\Http\Controllers\EditionAdoptionController;
 use App\Http\Controllers\EditionCommentController;
 use App\Http\Controllers\EditionController;
 use App\Http\Controllers\EditionLemmaController;
 use App\Http\Controllers\EditionLineationController;
 use App\Http\Controllers\EditionOrderController;
 use App\Http\Controllers\EditionPassageController;
-use App\Http\Controllers\EditionTranspositionController;
 use App\Http\Controllers\EditionVariantController;
 use App\Http\Controllers\HomeController;
-use App\Http\Controllers\LemmaController;
-use App\Http\Controllers\LemmaReadingController;
 use App\Http\Controllers\ManuscriptImageController;
 use App\Http\Controllers\ManuscriptImageFeatureController;
 use App\Http\Controllers\ManuscriptPageController;
@@ -26,6 +26,7 @@ use App\Http\Controllers\TranscriptionPageBreakController;
 use App\Http\Controllers\TranscriptionRegionController;
 use App\Http\Controllers\TranscriptionSegmentController;
 use App\Http\Controllers\TranscriptionSpanCopyController;
+use App\Http\Controllers\TranscriptionSpanRestoreController;
 use App\Http\Controllers\TranscriptionTextController;
 use App\Http\Controllers\WitnessController;
 use App\Http\Controllers\WorkController;
@@ -51,6 +52,12 @@ Route::get('/witnesses/{witness}', [WitnessController::class, 'show'])->name('wi
 Route::get('/transcriptions/{transcription}', [TranscriptionController::class, 'show'])
     ->name('transcriptions.show');
 
+// The common bibliography is reference data: readable by everyone, as a
+// page and as a .bib file; only editors change it (below).
+Route::get('/bibliography', [BibliographyItemController::class, 'index'])->name('bibliography.index');
+Route::get('/bibliography/export', [BibliographyItemController::class, 'export'])->name('bibliography.export');
+Route::get('/editions/{edition}/bibliography.bib', [BibliographyItemController::class, 'exportEdition'])->name('editions.bibliography.export');
+
 // Guest-only auth entry points.
 Route::middleware('guest')->group(function () {
     Route::get('/register', [RegisterController::class, 'create'])->name('register');
@@ -69,6 +76,17 @@ Route::middleware('auth')->group(function () {
 // Editor and administrator — creating and mutating content. Fully
 // collaborative: any editor can act on anything, not just their own.
 Route::middleware('role:editor')->group(function () {
+    Route::post('/bibliography', [BibliographyItemController::class, 'store'])->name('bibliography.store');
+    Route::post('/bibliography/import', [BibliographyItemController::class, 'import'])->name('bibliography.import');
+    Route::patch('/bibliography/{item}', [BibliographyItemController::class, 'update'])->name('bibliography.update');
+    Route::delete('/bibliography/{item}', [BibliographyItemController::class, 'destroy'])->name('bibliography.destroy');
+    // The picker's typeahead, and citations of things that already exist
+    // (a new conjecture carries its citations in its own request).
+    Route::get('/bibliography/search', [BibliographyReferenceController::class, 'search'])->name('bibliography.search');
+    Route::post('/bibliography-references', [BibliographyReferenceController::class, 'store'])->name('bibliography-references.store');
+    Route::patch('/bibliography-references/{reference}', [BibliographyReferenceController::class, 'update'])->name('bibliography-references.update');
+    Route::delete('/bibliography-references/{reference}', [BibliographyReferenceController::class, 'destroy'])->name('bibliography-references.destroy');
+
     Route::post('/works', [WorkController::class, 'store'])->name('works.store');
     Route::patch('/works/{work:slug}', [WorkController::class, 'update'])->name('works.update');
     Route::delete('/works/{work:slug}', [WorkController::class, 'destroy'])->name('works.destroy');
@@ -86,7 +104,7 @@ Route::middleware('role:editor')->group(function () {
         ->name('edition-passages.store');
     Route::post('/editions/{edition}/passages/bulk', [EditionPassageController::class, 'storeBulk'])
         ->name('edition-passages.store-bulk');
-    Route::delete('/edition-passages/{editionPassage}', [EditionPassageController::class, 'destroy'])
+    Route::delete('/editions/{edition}/passages', [EditionPassageController::class, 'destroy'])
         ->name('edition-passages.destroy');
 
     // The single "seamlessly add this to the edition" action — materializes
@@ -104,45 +122,28 @@ Route::middleware('role:editor')->group(function () {
     Route::patch('/edition-passages/{editionPassage}/lineation', [EditionLineationController::class, 'updatePassage'])
         ->name('edition-passages.lineation.update');
 
-    // An edition-ordering proposal, not a word-level one — see
-    // EditionTransposition. Recording one here both creates the underlying
-    // Conjecture(type: transposition) and adopts it for this edition.
-    Route::post('/editions/{edition}/transpositions', [EditionTranspositionController::class, 'store'])
-        ->name('edition-transpositions.store');
-    Route::delete('/edition-transpositions/{transposition}', [EditionTranspositionController::class, 'destroy'])
-        ->name('edition-transpositions.destroy');
-
-    // Direct manipulation of the edition's stored passage order: a
-    // cut-and-paste range move, and applying an order-report candidate (a
-    // witness's sequence, a catalogued conjecture, or citation order) to a
-    // flagged range. See EditionOrderController.
-    Route::patch('/editions/{edition}/order', [EditionOrderController::class, 'move'])
-        ->name('edition-order.move');
+    // Applying an order-report candidate (a witness's sequence, a
+    // catalogued conjecture, or citation order) to a flagged range. See
+    // EditionOrderController. The editor's own rearrangement is a
+    // conjecture, registered through conjecture-orderings.store.
     Route::post('/editions/{edition}/order/apply', [EditionOrderController::class, 'applyCandidate'])
         ->name('edition-order.apply');
 
     // Authors a brand-new ConjectureType::Reordering from a freely-arranged
-    // sequence and immediately selects it for this edition in one step —
-    // mirrors edition-transpositions.store's "record and adopt together".
+    // sequence — the edition page's "Register transposition conjecture"
+    // (cut & paste in the text) and the order panel's proposal form — and
+    // follows it for this edition in the same step unless told not to.
     Route::post('/editions/{edition}/conjecture-orderings', [ConjectureOrderingController::class, 'store'])
         ->name('conjecture-orderings.store');
 
-    // A lemma is shared collation (which candidate readings exist for a
-    // word/phrase slot), not owned by any one edition — see Lemma. Lemmas
-    // and their readings are grown by alignment (see PassageAligner) and
-    // materialized via edition-variants.store, not hand-built — these
-    // remaining routes are for correcting an existing structure.
-    Route::patch('/lemmas/{lemma}', [LemmaController::class, 'update'])
-        ->name('lemmas.update');
-    Route::delete('/lemmas/{lemma}', [LemmaController::class, 'destroy'])
-        ->name('lemmas.destroy');
+    // Adopts a catalogued Reordering/Transposition for this edition from
+    // wherever it is reported — including one that divides a line, which
+    // the edition then prints in pieces (ArrangementAdopter).
+    Route::post('/editions/{edition}/adoptions', [EditionAdoptionController::class, 'store'])
+        ->name('edition-adoptions.store');
 
-    Route::delete('/lemma-readings/{reading}', [LemmaReadingController::class, 'destroy'])
-        ->name('lemma-readings.destroy');
-
-    // Which of a lemma's candidate readings a given edition prints.
-    Route::patch('/editions/{edition}/lemmas/{lemma}/selection', [EditionLemmaController::class, 'select'])
-        ->name('edition-lemmas.select');
+    // Which reading an edition prints for a lemma is chosen through
+    // edition-variants.store; this only withdraws such a choice.
     Route::delete('/editions/{edition}/lemmas/{lemma}/selection', [EditionLemmaController::class, 'destroy'])
         ->name('edition-lemmas.destroy');
 
@@ -183,6 +184,11 @@ Route::middleware('role:editor')->group(function () {
 
     Route::post('/transcriptions/{transcription}/segments', [TranscriptionSegmentController::class, 'store'])
         ->name('transcription-segments.store');
+    // Undoing a destructive text edit restores the citations AND image
+    // mappings it destroyed along with the text — the client's edit
+    // history snapshots the rows.
+    Route::post('/transcriptions/{transcription}/span-restores', [TranscriptionSpanRestoreController::class, 'store'])
+        ->name('transcription-spans.restore');
     Route::patch('/transcription-segments/{segment}', [TranscriptionSegmentController::class, 'update'])
         ->name('transcription-segments.update');
     Route::patch('/transcription-segments/{segment}/assignment', [TranscriptionSegmentController::class, 'assignCitation'])
@@ -222,6 +228,8 @@ Route::middleware('role:editor')->group(function () {
         ->name('transcription-regions.update');
     Route::delete('/transcription-regions/{region}', [TranscriptionRegionController::class, 'destroy'])
         ->name('transcription-regions.destroy');
+    Route::delete('/transcriptions/{transcription}/regions', [TranscriptionRegionController::class, 'destroySpan'])
+        ->name('transcription-regions.destroy-span');
 });
 
 // Administrator only — the one capability editors don't have: managing roles.

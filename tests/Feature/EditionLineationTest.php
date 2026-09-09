@@ -70,6 +70,37 @@ test('adding passages seeds the boundary flags from the base transcription\'s sp
     ]);
 });
 
+test('a span that swallows its own newline still seeds the boundary flags', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    // Drag-selecting a full line routinely runs the span to the start of
+    // the next line, so the "\n" sits INSIDE the cited span and the gap
+    // between spans is empty — real R2 data looked exactly like this, and
+    // the seeder read verse as prose. The newline's side of the span
+    // boundary is an accident of selection; the flags must not depend on it.
+    ['work' => $work, 'edition' => $edition, 'layer' => $layer] = lineationSetup("one two\nthree\n\nfour");
+    citePassage($work, $layer, '4.1', 0, 8);   // "one two\n" — newline swallowed
+    citePassage($work, $layer, '4.2', 8, 15);  // "three\n\n" — both newlines swallowed
+    citePassage($work, $layer, '4.3', 15, 19); // "four"
+
+    $this->post(route('edition-passages.store', $edition), [
+        'transcription_layer_id' => $layer->id,
+        'start_offset' => 0,
+        'end_offset' => 19,
+    ])->assertRedirect();
+
+    $flags = EditionPassage::where('edition_id', $edition->id)
+        ->orderBy('position')
+        ->get()
+        ->map(fn (EditionPassage $p) => [$p->starts_new_line, $p->starts_new_paragraph])
+        ->all();
+
+    expect($flags)->toBe([
+        [true, false],  // first passage: fresh line by default
+        [true, false],  // "three" after the swallowed newline
+        [true, true],   // "four" after the swallowed blank line
+    ]);
+});
+
 test('newlines inside a passage seed colometry breaks before the right columns', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition, 'layer' => $layer] = lineationSetup("one two\nthree four");

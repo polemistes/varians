@@ -46,7 +46,7 @@ first; they keep `contenteditable="false"` + `data-non-text`.
 
 **All selection actions render OUTSIDE the text surface** — the
 `#selection-menu` slot is gone entirely (its last consumer,
-AddToEditionPanel, now uses the same pattern as the witness toolbar: a
+WitnessesPanel (formerly AddToEditionPanel), now uses the same pattern as the witness toolbar: a
 remembered selection plus an "Add selection" button above the pane). Menus
 inside the surface were repeatedly broken: form controls inside an editable
 region misbehave in Firefox, a native select popup fires its closing
@@ -249,3 +249,60 @@ spans are tombstoned by the deletion before the import could read them).
 NOTE: for the two layers of ONE transcript this whole mechanism is interim
 — the agreed destination is spans stored once per transcript in word
 coordinates, projected per layer (see the plan in the repo history).
+
+## Offsets are code points on the client too — never `.length`/`.slice`
+Every stored offset counts Unicode code points (`mb_*`), and JavaScript's
+`.length`/`.slice` count UTF-16 units; the two part at any astral character
+(𝔓, acrophonic numerals) and every later edit lands one off. `AlignableText`
+(`offsetAt`, `pointAt`, chunking, copy/cut), `TranscriptPane` (page slicing,
+`offsetOfLine`) and `WitnessesPanel` go through `lib/codePoints.ts`
+(`cpLength`/`cpSlice`); `pointAt` converts back to a UTF-16 offset for the
+DOM Range and clamps a negative offset to 0 (a stale page-relative caret
+threw IndexSizeError). Keep it that way when adding anything that measures
+text.
+
+## The "before the first page" entry survives autosave reloads
+`Witnesses/Show.vue` remembers that the editor CHOSE the opening stretch
+(`openingChosen`); the page-resync watcher keeps a null selection then,
+instead of reading null as "page gone" and bouncing to the first placed
+page on every pane reload (real bug — editing the opening was kicked to
+page 1 after each save, mid-typing).
+
+## Leaving with unsavable edits asks
+`onPickTranscript` navigates only when the flush saved clean (or the
+conflict reload is needed anyway); otherwise `confirmLeavingUnsaved` asks
+before discarding ops the server refused (invalid markup mid-typing).
+
+## A selected facsimile box takes the keyboard; mapped text can be unmapped from the notice
+`Witnesses/Show.vue::selectRegionForEditing` blurs whatever text field has
+focus when a box becomes selected: at zoom the image viewer keeps the
+pointer for panning, so the click that selected a box never moved focus,
+and Delete kept deleting transcript text with a box selected (real bug —
+the same reason a box sometimes "could not be deleted" by key). The
+document-level Delete/Backspace handler still yields to any focused text
+field, so typing is never intercepted. In the "Map to facsimile" menu, a
+selection over already-mapped text shows "Remove mapping of selection"
+(`TranscriptPane::removeMappingsOfSelection` →
+`transcription-regions.destroy-span`, which deletes every box the span
+overlaps together with its counterpart in the other layer); the selection
+stays, so the map buttons follow at once (user decision).
+
+## The selection's actions float over the text, fixed to the viewport
+`TranscriptPane`'s selection overlay is a sibling of the scrolling text
+wrapper, `position: fixed`, placed under the selection's last line or —
+when the viewport has no room below (`OVERLAY_ROOM`) — above its first
+line (`overlayStyle`, from `selectionAnchor` in content coordinates and
+`wrapViewport`, re-measured on the wrapper's scroll and on window
+scroll/resize). Inside the wrapper it was clipped by the wrapper's own
+overflow until the editor scrolled (real bug). Nothing is inserted into
+the text flow.
+
+## A composition replaces only the text it began on
+Dead keys (accented Greek) and IMEs compose in the DOM while the model
+text stays put, so an offset measured against the DOM mid-composition
+counts the provisional characters. `AlignableText` therefore takes the
+replaced range from the selection at `compositionstart` and widens it
+only by EXISTING text a later step reaches into (target range length
+minus `composedLength`, the provisional text so far) — never by the
+composition's own characters. Using the raw target-range end ate the
+character after the caret on every diacritic (real bug).

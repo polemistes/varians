@@ -12,6 +12,15 @@
  * anything atomic (a paste, a cut, a strip-marks batch) is its own step, so
  * Ctrl-Z undoes it whole instead of one character at a time.
  *
+ * An inverse inherits its op's `atomic` flag, so the sibling layer sees an
+ * undo exactly as it saw the edit: the undo of an unmirrored keystroke run
+ * stays in its layer, the undo of a mirrored paste removes the paste from
+ * both. Stamping every undo atomic (the old rule) mirrored the inverse of
+ * edits that had never mirrored — a two-letter deletion at a word's head,
+ * undone, glued those letters onto the sibling's word (real bug). The
+ * inverse of a mirrored removal also carries `mirror_text`, the sibling's
+ * own former words, so the sibling gets its spelling back rather than ours.
+ *
  * Cut/paste pairs stay pairs when travelling through history: the inverse of
  * a relocation is a relocation back (delete the pasted text, re-insert it at
  * the cut point), so the inverses keep a shared cut_id and the citations
@@ -22,7 +31,78 @@
 
 import type { TextEditOp } from '@/lib/transcriptionEdit';
 
-type HistoryEntry = { undoOps: TextEditOp[]; redoOps: TextEditOp[] };
+/**
+ * The spans a destructive edit deleted — citation segments and
+ * image-mapping regions alike — snapshotted at record time in the
+ * coordinates of the text the edit was applied to, which is exactly the
+ * state an undo of that edit restores, so the offsets land verbatim.
+ * Deleting text deletes what was anchored to it; undoing the deletion
+ * posts these rows back and restores everything.
+ */
+export type RestorableSegment = {
+    canonical_passage_id: number;
+    start_offset: number;
+    end_offset: number;
+    part: number;
+};
+
+export type RestorableRegion = {
+    manuscript_image_id: number;
+    start_offset: number;
+    end_offset: number;
+    position: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+};
+
+export type RestorableSpans = {
+    segments: RestorableSegment[];
+    regions: RestorableRegion[];
+};
+
+/**
+ * Where every LIVE span stood before a step — by row id, in the
+ * coordinates of the text before the step's first op. An undo returns the
+ * text to exactly that state, but not every span follows on its own: a
+ * span whose head was deleted has right-gravity at its start, so the undo's
+ * re-insertion pushes it past the restored words instead of covering them
+ * again. Rows that differ from this after the undo are posted back as
+ * adjustments (see TranscriptionSpanRestoreController).
+ */
+export type SpanSnapshot = {
+    id: number;
+    start_offset: number;
+    end_offset: number;
+    needs_review: boolean;
+};
+
+export type SpanSnapshots = {
+    segments: SpanSnapshot[];
+    regions: SpanSnapshot[];
+};
+
+export function emptyRestorableSpans(): RestorableSpans {
+    return { segments: [], regions: [] };
+}
+
+export function emptySpanSnapshots(): SpanSnapshots {
+    return { segments: [], regions: [] };
+}
+
+type HistoryEntry = {
+    undoOps: TextEditOp[];
+    redoOps: TextEditOp[];
+    restore: RestorableSpans;
+    snapshot: SpanSnapshots;
+};
+
+export type HistoryStep = {
+    ops: TextEditOp[];
+    restore: RestorableSpans;
+    snapshot: SpanSnapshots;
+};
 
 const TYPING_BURST_MS = 750;
 
@@ -32,8 +112,26 @@ function mintCutId(): string {
     return `h${Date.now().toString(36)}-${(mintCounter++).toString(36)}`;
 }
 
-/** The exact inverse of one op, given the text the op was applied to. */
-export function invertOp(textBefore: string, op: TextEditOp): TextEditOp {
+/**
+ * How the inverse of an op should meet the sibling layer: `atomic` says
+ * whether it may mirror at all (only where the op itself could — see
+ * TranscriptPane's inverseMirroring), `mirrorText` is what the sibling
+ * should get back where the inverse re-inserts words the op removed.
+ */
+export type InverseMirroring = {
+    atomic: boolean;
+    mirrorText: string | null;
+};
+
+/**
+ * The exact inverse of one op, given the text the op was applied to. With
+ * no mirroring decision the inverse simply inherits its op's atomic flag.
+ */
+export function invertOp(
+    textBefore: string,
+    op: TextEditOp,
+    mirroring: InverseMirroring | null = null,
+): TextEditOp {
     const removed = [...textBefore].slice(op.start, op.end).join('');
 
     return {
@@ -41,6 +139,8 @@ export function invertOp(textBefore: string, op: TextEditOp): TextEditOp {
         end: op.start + [...op.text].length,
         text: removed,
         cut_id: op.cut_id ?? null,
+        atomic: mirroring?.atomic ?? op.atomic ?? false,
+        mirror_text: mirroring?.mirrorText ?? null,
     };
 }
 
@@ -104,16 +204,21 @@ export class EditHistory {
     /**
      * Record one applied op. `textBefore` is the text the op was applied to.
      * 'typing' ops coalesce into the current burst; 'atomic' ops close the
-     * burst and stand alone.
+     * burst and stand alone. `snapshot` is where every live span stood
+     * before the op — kept for the step's FIRST op only, since that is the
+     * state undoing the whole step returns to.
      */
     record(
         op: TextEditOp,
         textBefore: string,
         kind: 'typing' | 'atomic' = 'typing',
+        destroyed: RestorableSpans = emptyRestorableSpans(),
+        snapshot: SpanSnapshots = emptySpanSnapshots(),
+        mirroring: InverseMirroring | null = null,
     ): void {
         this.redoStack = [];
 
-        const inverse = invertOp(textBefore, op);
+        const inverse = invertOp(textBefore, op, mirroring);
         const now = Date.now();
         const coalesce =
             kind === 'typing' &&
@@ -122,13 +227,20 @@ export class EditHistory {
 
         if (!coalesce) {
             this.closeGroup();
-            this.openGroup = { undoOps: [], redoOps: [] };
+            this.openGroup = {
+                undoOps: [],
+                redoOps: [],
+                restore: emptyRestorableSpans(),
+                snapshot,
+            };
         }
 
         // Undo ops run newest-first, each inverted against the text state
         // its original saw — prepending keeps that order.
         this.openGroup!.undoOps.unshift(inverse);
         this.openGroup!.redoOps.push(op);
+        this.openGroup!.restore.segments.push(...destroyed.segments);
+        this.openGroup!.restore.regions.push(...destroyed.regions);
         this.openGroupLastAt = now;
 
         if (kind === 'atomic') {
@@ -146,11 +258,17 @@ export class EditHistory {
         ops: TextEditOp[],
         textBefore: string,
         apply: (text: string, op: TextEditOp) => string,
+        snapshot: SpanSnapshots = emptySpanSnapshots(),
     ): void {
         this.redoStack = [];
         this.closeGroup();
 
-        const entry: HistoryEntry = { undoOps: [], redoOps: [] };
+        const entry: HistoryEntry = {
+            undoOps: [],
+            redoOps: [],
+            restore: emptyRestorableSpans(),
+            snapshot,
+        };
         let text = textBefore;
 
         for (const op of ops) {
@@ -164,8 +282,12 @@ export class EditHistory {
         }
     }
 
-    /** The ops that revert the most recent step, or null if there is none. */
-    undo(): TextEditOp[] | null {
+    /**
+     * The ops that revert the most recent step (plus the citation rows the
+     * step destroyed and where every span stood before it, for the caller
+     * to restore once the text save lands), or null if there is none.
+     */
+    undo(): HistoryStep | null {
         this.closeGroup();
         const entry = this.undoStack.pop();
 
@@ -175,11 +297,15 @@ export class EditHistory {
 
         this.redoStack.push(entry);
 
-        return this.reIdentified(entry.undoOps);
+        return {
+            ops: this.reIdentified(entry.undoOps),
+            restore: entry.restore,
+            snapshot: entry.snapshot,
+        };
     }
 
     /** The ops that re-apply the most recently undone step, or null. */
-    redo(): TextEditOp[] | null {
+    redo(): HistoryStep | null {
         this.closeGroup();
         const entry = this.redoStack.pop();
 
@@ -189,7 +315,14 @@ export class EditHistory {
 
         this.undoStack.push(entry);
 
-        return this.reIdentified(entry.redoOps);
+        // Redo re-applies the destructive edit; the transform deletes the
+        // restored rows again server-side, and `restore`/`snapshot` stay on
+        // the entry for the next undo.
+        return {
+            ops: this.reIdentified(entry.redoOps),
+            restore: emptyRestorableSpans(),
+            snapshot: emptySpanSnapshots(),
+        };
     }
 
     get canUndo(): boolean {

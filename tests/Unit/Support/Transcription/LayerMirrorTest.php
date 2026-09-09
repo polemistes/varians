@@ -184,3 +184,27 @@ test('an atomic edit inside a word is a spelling edit and is skipped, not aborte
     expect($mirror)->not->toBeNull()
         ->and($mirror['text'])->toBe('γίνεται πάντα ρει');
 });
+
+test('a move is refused when the sibling holds different words in the same shape', function () {
+    // The in-step pattern check is structural — layers whose lines drifted
+    // to carry DIFFERENT words in the same shape still pass it, and an
+    // index-mapped cut then moves the wrong words (real incident: a
+    // mirrored paste landed mid-line, splitting a citation). The
+    // correspondence guard refuses instead: honest refusal over silent
+    // mislanding.
+    $a = "alpha beta\ngamma delta";
+    $b = "onéé twóó\nthréé fóur";
+
+    $ops = relocationOps($a, 5, 10, 0); // move " beta" to the front
+
+    expect(LayerMirror::mirror($a, $ops, $b))->toBeNull();
+});
+
+test('an atomic deletion of non-corresponding sibling words is skipped', function () {
+    $a = "alpha beta\ngamma delta";
+    $b = "onéé twóó\nthréé fóur";
+
+    $ops = [['start' => 0, 'end' => 6, 'text' => '', 'cut_id' => null, 'atomic' => true]];
+
+    expect(LayerMirror::mirror($a, $ops, $b))->toBeNull();
+});

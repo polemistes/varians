@@ -4,6 +4,7 @@ namespace App\Support\Edition;
 
 use App\Enums\ConjectureType;
 use App\Models\Conjecture;
+use App\Support\Bibliography\ReferenceAttacher;
 use LogicException;
 
 /**
@@ -30,20 +31,34 @@ class ReadingSourceResolver
                 'conjecture_id' => $data['conjecture_id'],
             ],
             'new_conjecture' => [
-                'conjecture_id' => Conjecture::create([
-                    'canonical_passage_id' => $canonicalPassageId,
-                    'user_id' => $userId,
-                    'type' => $data['conjecture_type'] ?? ConjectureType::Substitution->value,
-                    'text' => $data['conjecture_text'] ?? null,
-                    'extent' => $data['conjecture_extent'] ?? null,
-                    'extent_characters' => $data['conjecture_extent_characters'] ?? null,
-                    'supplements_conjecture_id' => $data['conjecture_supplements_conjecture_id'] ?? null,
-                    'proposed_by' => $data['conjecture_proposed_by'] ?? null,
-                    'bibliography' => $data['conjecture_bibliography'] ?? null,
-                    'note' => $data['conjecture_note'] ?? null,
-                ])->id,
+                'conjecture_id' => self::createConjecture($data, $canonicalPassageId, $userId)->id,
             ],
             default => throw new LogicException('Unreachable: source is validated against a fixed list of values.'),
         };
+    }
+
+    /**
+     * A conjecture is recorded with its literature in the same request —
+     * `conjecture_references` — so it never exists uncited.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private static function createConjecture(array $data, int $canonicalPassageId, int $userId): Conjecture
+    {
+        $conjecture = Conjecture::create([
+            'canonical_passage_id' => $canonicalPassageId,
+            'user_id' => $userId,
+            'type' => $data['conjecture_type'] ?? ConjectureType::Substitution->value,
+            'text' => $data['conjecture_text'] ?? null,
+            'extent' => $data['conjecture_extent'] ?? null,
+            'extent_characters' => $data['conjecture_extent_characters'] ?? null,
+            'supplements_conjecture_id' => $data['conjecture_supplements_conjecture_id'] ?? null,
+            'proposed_by' => $data['conjecture_proposed_by'] ?? null,
+            'note' => $data['conjecture_note'] ?? null,
+        ]);
+
+        ReferenceAttacher::toConjecture($conjecture, $data['conjecture_references'] ?? null);
+
+        return $conjecture;
     }
 }

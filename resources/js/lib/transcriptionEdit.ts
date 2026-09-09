@@ -24,6 +24,14 @@ export type TextEditOp = {
      * mirrors atomic word-boundary edits verbatim; see LayerMirror.
      */
     atomic?: boolean;
+    /**
+     * What the sibling layer should receive where this op's `text` would
+     * otherwise be replayed verbatim: an undo carries the sibling's own
+     * former words (snapshotted when the edit was made), so undoing a
+     * mirrored deletion restores γίνεται there, not the diplomatic
+     * ΓΙΓΝΕΤΑΙ this layer removed. See LayerMirror.
+     */
+    mirror_text?: string | null;
 };
 
 /**

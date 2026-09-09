@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\GreekFont;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -28,6 +29,7 @@ class UpdateProfileRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($this->user()->id)],
             'password' => ['nullable', 'confirmed', Password::defaults()],
+            'greek_font' => ['sometimes', Rule::enum(GreekFont::class)],
         ];
     }
 }

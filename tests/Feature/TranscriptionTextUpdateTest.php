@@ -1,17 +1,21 @@
 <?php
 
 use App\Models\CanonicalPassage;
+use App\Models\Edition;
+use App\Models\EditionLemma;
+use App\Models\LemmaReading;
 use App\Models\ManuscriptImage;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
+use App\Support\Edition\PassageAligner;
 
 test('an insertion persists and shifts a trailing span', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
     $segment = TranscriptionSegment::factory()->for($transcription)->create([
-        'start_offset' => 7, 'end_offset' => 11, // " sat"
+        'start_offset' => 8, 'end_offset' => 11, // "sat"
     ]);
 
     $response = $this->patch(route('transcriptions.text.update', $transcription), [
@@ -22,12 +26,12 @@ test('an insertion persists and shifts a trailing span', function () {
     $response->assertRedirect();
     expect($transcription->fresh()->text)->toBe('the big cat sat');
     $segment->refresh();
-    expect($segment->start_offset)->toBe(11)
+    expect($segment->start_offset)->toBe(12)
         ->and($segment->end_offset)->toBe(15)
         ->and($segment->needs_review)->toBeFalse();
 });
 
-test('deleting everything down to an empty transcription persists', function () {
+test('deleting everything down to an empty transcription persists once confirmed', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
     $segment = TranscriptionSegment::factory()->for($transcription)->create([
@@ -40,12 +44,10 @@ test('deleting everything down to an empty transcription persists', function () 
     ]);
 
     $response->assertRedirect();
-    expect($transcription->fresh()->text)->toBe('');
-
-    $segment->refresh();
-    expect($segment->start_offset)->toBe(0)
-        ->and($segment->end_offset)->toBe(0)
-        ->and($segment->needs_review)->toBeTrue();
+    expect($transcription->fresh()->text)->toBe('')
+        // The citation went with its words — deleting text deletes
+        // citations; undo restores both.
+        ->and(TranscriptionSegment::find($segment->id))->toBeNull();
 });
 
 test('typing inside an existing segment extends it without flagging', function () {
@@ -67,10 +69,11 @@ test('typing inside an existing segment extends it without flagging', function (
         ->and($segment->needs_review)->toBeFalse();
 });
 
-test('deleting a segment\'s entire text tombstones it — zero-width and flagged, never destroyed', function () {
-    // An autosave can fire mid-rearrangement, so a text state that merely
-    // passes through must not destroy citation work; removing a span stays
-    // an explicit editor action.
+test('deleting a segment\'s entire text deletes it — a citation without text is nothing', function () {
+    // User decision, reversing the earlier tombstone policy: deleting text
+    // deletes citations. Undo protects the editor instead — the client's
+    // history snapshots what an op destroyed and restores it via
+    // transcription-segments.restore when the deletion is undone.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
     $segment = TranscriptionSegment::factory()->for($transcription)->create([
@@ -83,13 +86,10 @@ test('deleting a segment\'s entire text tombstones it — zero-width and flagged
     ]);
 
     $response->assertRedirect();
-    $segment->refresh();
-    expect($segment->start_offset)->toBe(4)
-        ->and($segment->end_offset)->toBe(4)
-        ->and($segment->needs_review)->toBeTrue();
+    expect(TranscriptionSegment::find($segment->id))->toBeNull();
 });
 
-test('a CONFIRMED wipe really removes the citations, as the checkbox promises', function () {
+test('blanking a cited transcript removes its citations — undo is what brings them back', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
     TranscriptionSegment::factory()->for($transcription)->create([
@@ -99,7 +99,6 @@ test('a CONFIRMED wipe really removes the citations, as the checkbox promises', 
     $this->patch(route('transcriptions.text.update', $transcription), [
         'ops' => [['start' => 0, 'end' => 11, 'text' => '']],
         'text' => '',
-        'confirm_wipe' => true,
     ])->assertRedirect();
 
     expect($transcription->segments()->count())->toBe(0);
@@ -212,7 +211,11 @@ test('a guest cannot edit a transcription\'s text', function () {
     expect($transcription->fresh()->text)->toBe('the cat sat');
 });
 
-test('destroying one part of a split citation flags the surviving parts for review', function () {
+test('destroying one part of an uncollated split citation flags nothing — there is nothing stale', function () {
+    // The old rule blind-flagged the survivors; narrowed (user decision):
+    // a layer never collated on the passage has no stale collation, so the
+    // surviving part passes silently (real incident: a rearranged,
+    // never-collated line arrived flagged in both layers).
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "fox\nthe quick"]);
     $passage = CanonicalPassage::factory()->create();
@@ -227,13 +230,65 @@ test('destroying one part of a split citation flags the surviving parts for revi
     ]);
 
     $response->assertRedirect();
-    $destroyed->refresh();
-    expect($destroyed->start_offset)->toBe(0)
-        ->and($destroyed->end_offset)->toBe(0)
-        ->and($destroyed->needs_review)->toBeTrue()
-        // The passage's witness text just lost a piece — its collation for
-        // this layer is stale, so the surviving part must not pass silently.
-        ->and($survivor->fresh()->needs_review)->toBeTrue();
+    expect(TranscriptionSegment::find($destroyed->id))->toBeNull()
+        ->and($survivor->fresh()->needs_review)->toBeFalse();
+});
+
+test('destroying one part of a COLLATED split citation re-derives the collation', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $transcription = TranscriptionLayer::factory()->normalized()->create(['text' => "fox\nthe quick"]);
+    $passage = CanonicalPassage::factory()->create();
+    $partTwo = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+        ->create(['start_offset' => 0, 'end_offset' => 3, 'part' => 2]); // "fox"
+    $survivor = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+        ->create(['start_offset' => 4, 'end_offset' => 13, 'part' => 1]); // "the quick"
+    PassageAligner::collate($passage, $transcription->segments()->get());
+    expect(LemmaReading::where('transcription_layer_id', $transcription->id)->count())->toBe(3);
+
+    $this->patch(route('transcriptions.text.update', $transcription), [
+        'ops' => [['start' => 0, 'end' => 4, 'text' => '']], // deletes "fox\n"
+        'text' => 'the quick',
+    ])->assertRedirect();
+
+    // Collation re-derived against what remains: "the", "quick" — no flag,
+    // no stale "fox" reading.
+    $words = LemmaReading::where('transcription_layer_id', $transcription->id)->get()
+        ->map(fn (LemmaReading $reading) => mb_substr(
+            $transcription->fresh()->text,
+            $reading->start_offset,
+            $reading->end_offset - $reading->start_offset,
+        ))->sort()->values()->all();
+
+    expect($words)->toBe(['quick', 'the'])
+        ->and($survivor->fresh()->needs_review)->toBeFalse();
+});
+
+test('destroying a part while a pinned reading holds the passage flags the surviving parts', function () {
+    // Re-derivation is refused where an edition's selection pins the
+    // collation — the late-part rule — so the survivors carry the flag.
+    $this->actingAs(User::factory()->editor()->create());
+    $transcription = TranscriptionLayer::factory()->normalized()->create(['text' => "fox\nthe quick"]);
+    $passage = CanonicalPassage::factory()->create();
+    TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+        ->create(['start_offset' => 0, 'end_offset' => 3, 'part' => 2]);
+    $survivor = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+        ->create(['start_offset' => 4, 'end_offset' => 13, 'part' => 1]);
+    PassageAligner::collate($passage, $transcription->segments()->get());
+
+    $pinned = LemmaReading::where('transcription_layer_id', $transcription->id)
+        ->orderBy('start_offset')->skip(1)->first(); // "the"
+    EditionLemma::create([
+        'edition_id' => Edition::factory()->create()->id,
+        'lemma_id' => $pinned->lemma_id,
+        'selected_reading_id' => $pinned->id,
+    ]);
+
+    $this->patch(route('transcriptions.text.update', $transcription), [
+        'ops' => [['start' => 0, 'end' => 4, 'text' => '']],
+        'text' => 'the quick',
+    ])->assertRedirect();
+
+    expect($survivor->fresh()->needs_review)->toBeTrue();
 });
 
 test('destroying a segment with no sibling parts flags nothing else', function () {
@@ -250,8 +305,6 @@ test('destroying a segment with no sibling parts flags nothing else', function (
     ]);
 
     $response->assertRedirect();
-    $destroyed->refresh();
-    expect($destroyed->end_offset)->toBe($destroyed->start_offset)
-        ->and($destroyed->needs_review)->toBeTrue()
+    expect(TranscriptionSegment::find($destroyed->id))->toBeNull()
         ->and($unrelated->fresh()->needs_review)->toBeFalse();
 });

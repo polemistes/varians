@@ -37,7 +37,8 @@ class PassageOrderRewriter
         string $movePosition,
     ): bool {
         $ordered = self::lockedPassages($edition);
-        $byCanonicalId = $ordered->keyBy('canonical_passage_id');
+        // A passage printed in pieces is located by its first part.
+        $byCanonicalId = $ordered->where('part', 1)->keyBy('canonical_passage_id');
 
         $start = $byCanonicalId->get($rangeStartCanonicalPassageId);
         $end = $byCanonicalId->get($rangeEndCanonicalPassageId ?? $rangeStartCanonicalPassageId);
@@ -92,9 +93,13 @@ class PassageOrderRewriter
 
     /**
      * Resequence a set of passages in place: they keep the position slots
-     * the set currently occupies, filled in the given order. The sequence
-     * must name exactly the passages occupying a contiguous run of the
-     * edition's current order — anything else returns false untouched.
+     * the set currently occupies, filled in the given order — the k-th
+     * occupied slot (in position order) receives the sequence's k-th
+     * passage. The slots need NOT be contiguous: an order-report block is
+     * contiguous in citation order, and the editor's own arrangement may
+     * have scattered its members among other passages, which stay exactly
+     * where they are. A sequence naming a passage not in the edition
+     * returns false untouched.
      *
      * @param  list<int>  $orderedCanonicalPassageIds
      */
@@ -106,6 +111,11 @@ class PassageOrderRewriter
         $byCanonicalId = [];
 
         foreach ($ordered as $index => $passage) {
+            // A passage printed in pieces is located by its first part.
+            if (isset($indexOf[$passage->canonical_passage_id])) {
+                continue;
+            }
+
             $indexOf[$passage->canonical_passage_id] = $index;
             $byCanonicalId[$passage->canonical_passage_id] = $passage;
         }
@@ -120,7 +130,7 @@ class PassageOrderRewriter
             $indexes[] = $indexOf[$id];
         }
 
-        if ($indexes === [] || max($indexes) - min($indexes) !== count($indexes) - 1) {
+        if ($indexes === []) {
             return false;
         }
 
@@ -136,6 +146,67 @@ class PassageOrderRewriter
         self::renumber($all);
 
         return true;
+    }
+
+    /**
+     * Resequence PIECES in place — rows named by (canonical passage, part),
+     * see EditionPassage::$part — with the same slot-filling as
+     * applySequence. This is how an arrangement that divides lines is
+     * printed (ArrangementAdopter). A piece the edition lacks returns
+     * false untouched.
+     *
+     * @param  list<array{canonical_passage_id: int, part: int}>  $pieces
+     */
+    public static function applyPieceSequence(Edition $edition, array $pieces): bool
+    {
+        $ordered = self::lockedPassages($edition)->values();
+
+        $indexOf = [];
+        $rows = [];
+
+        foreach ($ordered as $index => $row) {
+            $key = $row->canonical_passage_id.':'.$row->part;
+            $indexOf[$key] = $index;
+            $rows[$key] = $row;
+        }
+
+        $indexes = [];
+
+        foreach ($pieces as $piece) {
+            $key = $piece['canonical_passage_id'].':'.$piece['part'];
+
+            if (! isset($indexOf[$key])) {
+                return false;
+            }
+
+            $indexes[] = $indexOf[$key];
+        }
+
+        if ($indexes === []) {
+            return false;
+        }
+
+        $slots = $indexes;
+        sort($slots);
+
+        $all = $ordered->all();
+
+        foreach ($slots as $slot => $index) {
+            $all[$index] = $rows[$pieces[$slot]['canonical_passage_id'].':'.$pieces[$slot]['part']];
+        }
+
+        self::renumber($all);
+
+        return true;
+    }
+
+    /**
+     * Renumber the whole edition 1..n after rows were inserted at
+     * fractional positions (see PassageAdder::insertionPosition).
+     */
+    public static function renumberEdition(Edition $edition): void
+    {
+        self::renumber(self::lockedPassages($edition)->values()->all());
     }
 
     /**

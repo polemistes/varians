@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\DestroyEditionPassagesRequest;
 use App\Http\Requests\StoreEditionPassageRequest;
 use App\Http\Requests\StoreEditionPassagesBulkRequest;
 use App\Models\CanonicalPassage;
@@ -11,6 +12,7 @@ use App\Models\EditionPassage;
 use App\Models\TranscriptionSegment;
 use App\Support\Edition\LineationSeeder;
 use App\Support\Edition\PassageAdder;
+use App\Support\Edition\PassageOrderRewriter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\DB;
@@ -18,28 +20,32 @@ use Illuminate\Support\Facades\DB;
 class EditionPassageController extends Controller
 {
     /**
-     * Add every already-cited segment fully inside a raw drag-selected span
-     * to the edition, in the transcription's own physical order.
+     * Add the transcription's segments for the named passages — or, given a
+     * raw drag-selected span, every already-cited segment fully inside it —
+     * to the edition, each landing where the manuscript has it (see
+     * PassageAdder::insertionPosition).
      */
     public function store(StoreEditionPassageRequest $request, Edition $edition): RedirectResponse
     {
-        $segments = TranscriptionSegment::where('transcription_layer_id', $request->validated('transcription_layer_id'))
-            ->where('start_offset', '>=', $request->validated('start_offset'))
-            ->where('end_offset', '<=', $request->validated('end_offset'))
-            ->orderBy('start_offset')
-            ->get();
+        $query = TranscriptionSegment::where('transcription_layer_id', $request->validated('transcription_layer_id'));
 
-        $this->addSegments($edition, $segments);
+        if ($request->validated('canonical_passage_ids') !== null) {
+            $query->whereIn('canonical_passage_id', $request->validated('canonical_passage_ids'));
+        } else {
+            $query->where('start_offset', '>=', $request->validated('start_offset'))
+                ->where('end_offset', '<=', $request->validated('end_offset'));
+        }
+
+        $this->addSegments($edition, $query->orderBy('start_offset')->get());
 
         return back();
     }
 
     /**
-     * "Base a range on this manuscript" — every already-cited segment for
-     * the transcription within a citation range, added in the
-     * transcription's own physical order, not citation order. This is the
-     * whole point of the redesign: a scribal displacement lands where the
-     * manuscript actually has it.
+     * "Add lines…" — every already-cited segment for the transcription
+     * within a citation range, added in the transcription's own physical
+     * order, not citation order — and each lands where the manuscript has
+     * it among the passages already in the edition.
      */
     public function storeBulk(StoreEditionPassagesBulkRequest $request, Edition $edition): RedirectResponse
     {
@@ -70,14 +76,19 @@ class EditionPassageController extends Controller
      * passage becomes available again in every transcription citing it,
      * for free.
      */
-    public function destroy(EditionPassage $editionPassage): RedirectResponse
+    public function destroy(DestroyEditionPassagesRequest $request, Edition $edition): RedirectResponse
     {
-        DB::transaction(function () use ($editionPassage) {
-            EditionLemma::where('edition_id', $editionPassage->edition_id)
-                ->whereHas('lemma', fn ($query) => $query->where('canonical_passage_id', $editionPassage->canonical_passage_id))
+        $passageIds = array_map('intval', $request->validated('canonical_passage_ids'));
+
+        DB::transaction(function () use ($edition, $passageIds) {
+            EditionLemma::where('edition_id', $edition->id)
+                ->whereHas('lemma', fn ($query) => $query->whereIn('canonical_passage_id', $passageIds))
                 ->delete();
 
-            $editionPassage->delete();
+            // A line printed in pieces leaves whole.
+            EditionPassage::where('edition_id', $edition->id)
+                ->whereIn('canonical_passage_id', $passageIds)
+                ->delete();
         });
 
         return back();
@@ -89,19 +100,20 @@ class EditionPassageController extends Controller
     private function addSegments(Edition $edition, SupportCollection $segments): void
     {
         DB::transaction(function () use ($edition, $segments) {
-            $position = (float) (EditionPassage::where('edition_id', $edition->id)->lockForUpdate()->max('position') ?? 0);
             $previous = null;
 
             foreach ($segments as $segment) {
                 PassageAdder::add(
                     $edition,
                     $segment,
-                    $position += 1.0,
+                    PassageAdder::insertionPosition($edition, $segment),
                     LineationSeeder::interPassageFlags($previous, $segment),
                 );
 
                 $previous = $segment;
             }
+
+            PassageOrderRewriter::renumberEdition($edition);
         });
     }
 }

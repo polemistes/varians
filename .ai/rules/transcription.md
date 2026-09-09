@@ -35,17 +35,39 @@ witness nobody printed raised a modal about nothing.
 What `applyReadings` does instead:
 
 - offsets always transform;
-- a partial clobber sets `needs_review`;
-- a destroyed *reading* is **deleted** when nothing selects it (the
-  manuscript no longer has those words, and a reading is machine-re-derivable
-  by re-collation) and **kept zero-width and flagged** when an edition does
-  select it, because `edition_lemmas.selected_reading_id` is NOT NULL and
-  cascades — deleting would discard that edition's decision rather than
-  merely emptying it. A destroyed *segment* is different: always tombstoned
-  (zero-width + flagged, in `applySpans`), never deleted — citation
-  assignment is human work autosave must not destroy via a transient state,
-  and unlike a reading it cannot be re-derived. The tombstone renders as a
-  badge-only marker in `AlignableText` for the editor to re-anchor or remove;
+- `needs_review` on a READING has exactly one meaning (user decision,
+  narrowing an earlier broad flag): an edition's SELECTED choice whose
+  manuscript backing changed — confirm or re-choose. An UNSELECTED reading
+  the edit destroyed or left with guessed boundaries is never flagged: it
+  is deleted and its passage re-derived (`realignDamaged`, calling
+  `PassageAligner::realignLayer` AFTER the new text is saved, since
+  collation reads it; refused where pinned readings hold the passage, in
+  which case the deleted candidate simply returns at the next
+  materialization). A reading flagged before the edit is not re-judged. A
+  destroyed SELECTED reading is kept zero-width and flagged, because
+  `edition_lemmas.selected_reading_id` is NOT NULL and cascades — deleting
+  would discard that edition's decision rather than merely emptying it.
+  The flag has a full lifecycle now: re-picking the flagged candidate in
+  the variant panel confirms it and CLEARS the flag
+  (`EditionVariantController::store`), picking another candidate
+  re-chooses and DROPS a zero-width flagged row nothing selects any more.
+  Segment/region flags keep their own rule: set on partial clobber,
+  cleared by manual re-selection/redraw. A destroyed *segment* is **deleted** too (user
+  decision, REVERSING the earlier tombstone policy: a citation without text
+  is nothing, and the zero-width flagged markers read as clutter and never
+  actually restored anything). What protects the editor instead: cut/paste
+  pairs carry spans whole, and UNDO restores the rows with the text — the client's `EditHistory` snapshots the segments
+  AND image-mapping regions a destructive op deleted (pre-op coordinates,
+  exactly what the undo restores) and posts them to
+  `transcription-spans.restore` after the undone text saves; rows whose
+  words already carry the same assignment or an overlapping mapping (a
+  lone cut's undo completed the relocation first) are skipped, a region
+  whose image belongs to another witness is never restored, the region
+  excerpt is recomputed server-side, and `SiblingSync::heal` gives
+  restored spans their counterparts. Nothing asks for confirmation any
+  more — the former wipe checkbox and its server gate
+  (`guardAgainstUnconfirmedWipe`, `confirm_wipe`) were removed (user
+  decision: undo covers blanking too). Do not reintroduce tombstones;
 - a cut/paste op pair (shared `cut_id`) relocates instead of destroying:
   spans wholly inside the cut travel to the paste, unflagged; a *partial*
   cut of a span spawns a new part of the source passage at the paste site,
@@ -58,9 +80,14 @@ What `applyReadings` does instead:
 
 Segments are disposable on destruction — with one addition: when a destroyed
 segment was one *part* of a passage cited by several spans in the layer (see
-`TranscriptionSegment.part`), `applySpans` flags the surviving sibling parts
-`needs_review`, since the passage's witness text just lost a piece and the
-layer's collation of it is now stale.
+`TranscriptionSegment.part`), the passage's collation for the layer may be
+stale, and `recollateLostParts` resolves it AFTER the new text saves, by the
+same narrowing as damaged readings: re-derive (`realignLayer`) where a
+collation exists, flag the surviving parts only where re-derivation is
+refused (pinned readings — the late-part rule), and do NOTHING where the
+layer was never collated on the passage. Blind-flagging the survivors was
+the old rule and read as noise (real incident: a rearranged, never-collated
+line arrived flagged in both layers).
 
 `HandleInertiaRequests` shares a general `flash.message` for this. It is the
 app's only flash channel; keep it generic.
@@ -181,7 +208,18 @@ change), which normalizeOps marks atomic server-side even for a single
 keystroke: Enter is never the start of a spelling change, and the line
 structure is the SHARED part of the skeleton (page breaks live in it).
 Relocation pairs stay all-or-nothing (an unmappable half aborts the whole
-mirror); an unmirrorable plain op is merely skipped. A line-break
+mirror); an unmirrorable plain op is merely skipped. The in-step check is
+STRUCTURAL (word shapes + whitespace verbatim), so layers whose lines
+drifted to hold DIFFERENT words in the same shape still pass it — and an
+index-mapped relocation then moves the wrong words (real incident: a
+mirrored paste landed mid-line, splitting a citation). `foldMatches`
+therefore verifies the words CORRESPOND before a cut or an atomic
+deletion/replacement mirrors: per word, folded equality or a shared folded
+prefix/suffix of ≥2 chars (letter-variant counterparts like
+γιγνεται/γίνεται and alpha/alfa must pass). Mismatch refuses the mirror —
+honest refusal over silent mislanding — and the refusal notice names the
+first structurally-diverging line, or says the words no longer correspond
+when the structure still matches. A line-break
 insertion INSIDE a word still mirrors (`LayerMirror::wordSplitOffset`):
 pasting a line flush against another glues two words into one in BOTH
 layers, and the Enter separating them lands mid-word where no plain
@@ -227,3 +265,66 @@ are out of step, a catch-up edit cannot be told from a leading one, so a
 shared coordinate would double-move spans on resync. Do not revive it.
 The word-coordinate machinery (WordSpans) remains the projection engine
 for creation, healing, and the edition-facsimile join.
+
+## Undo reverses each op AS IT WAS — atomic inherited, sibling spelling carried
+An inverse op inherits its original's `atomic` flag (`invertOp` in
+`lib/editHistory.ts`); `applyHistoryStep` no longer stamps every undo
+atomic. Stamping did mirror the inverse of edits that never mirrored — a
+two-letter deletion at a word's head, undone, glued ΜΗ onto the sibling's
+μῆνιν (real bug, reproduced in the browser). Two further rules follow:
+
+- A typing op is atomic only when it DELETES a range (`text === ''`,
+  range > 1). Typing OVER a selection is how a word is retyped, and marking
+  it atomic mirrored its first letter and wiped the sibling's word (real
+  bug: ἄειδε typed over → ΑΕΙΔΕ became α).
+- Where an atomic op removes words, the client snapshots the sibling's own
+  words for that stretch (`siblingTextRemovedBy`, mapped through
+  `wordSpans.mapOffset` on the `correspondence.text` prop, only while the
+  layers are in step and no unsaved atomic/cut op could have changed the
+  sibling) and the inverse carries them as `ops.*.mirror_text`.
+  `LayerMirror` inserts `mirror_text ?? text` on the sibling, so undoing a
+  mirrored deletion restores γίνεται there, not our ΓΙΓΝΕΤΑΙ. Absent, the
+  verbatim replay stands.
+
+Undo also restores span BOUNDS, not only deleted rows: `SpanTransformer`
+gives a span's start right-gravity, so the undo of a deletion at a span's
+head pushes the span past the restored words (real bug: "the fox" cited,
+delete "fo", undo, citation covered "x"). The history snapshots every live
+span before a step (`SpanSnapshots`, by row id); after the undo saves, rows
+whose saved bounds differ are posted as `adjust_segments`/`adjust_regions`
+to `transcription-spans.restore`, which updates them and lets the in-step
+counterpart follow (`SiblingSync::followSegment`/`followRegion`).
+
+## One transcript per witness per work (user decision, 2026-09-09)
+Once a witness's text of a work is cited in one of its transcripts, every
+citation of that work in that witness belongs to the same transcript
+(`App\Support\Transcription\WorkOwnership::guard`, called when a span is
+marked, re-cited, or copied across transcripts of the same witness). A
+witness may still hold several transcripts for different works, or one
+for all its works; a work carried in two separate places fits one
+transcript, page breaks saying where each stretch sits. Existing data is
+never changed silently: `php artisan witnesses:check-work-ownership` lists
+what breaks the rule (`WorkOwnership::violations`) and the editor moves
+the citations. The edition page's witness pulldown relies on this (one
+witness, one transcript of the work), while still rendering several
+stacked if older data has them.
+
+## Citation spans are held to their words after every save (user decision)
+`CitationIntegrity::snap` runs after every save that can move a span —
+text update (both layers), undo restore, span copy, marking/re-citing a
+span — and sets or clears `transcription_segments.boundary_review`: a
+span that begins or ends INSIDE a word (unless another citation meets it
+exactly there — two lines pasted flush together — or the neighbour is
+inside another citation) or overlaps another is flagged; when its bounds
+are right again the flag clears by itself. Offsets are never touched.
+Whitespace at a span's edges is NOT drift: a drag over a line takes its
+line break along, and the relocation tests cite "quick " deliberately.
+The badge shows the flag like `needs_review` (red, dashed) with its own
+explanation; `needs_review` stays the editor's own confirmation flag.
+A text save that leaves a span drifted logs the ops (`Log::warning`,
+"Citation spans drifted off their words") so the cause can be found —
+one witness's spans slid a character, then a word, from a sequence of
+edits that was never recorded; the transform, mirror and undo paths all
+check out in isolation. `php artisan transcriptions:check-citations`
+lists drift across all layers; `--snap` re-evaluates the flags. The
+report and the snap share `CitationIntegrity::assess`.

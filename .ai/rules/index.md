@@ -5,6 +5,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | Applies to | Rule file |
 | --- | --- |
 | app/Support/TranscriptionMarkup/**,resources/js/lib/transcriptionMarkup.ts,resources/js/components/AlignableText.vue | .ai/rules/components.md |
+| app/Support/Bibliography/**,app/Models/{BibliographyItem,BibliographyReference}.php,app/Http/Controllers/BibliographyItemController.php,app/Http/Requests/*Bibliography*Request.php,app/Http/Controllers/BibliographyReferenceController.php,resources/js/lib/biblatex.ts,resources/js/components/BibliographyItemForm.vue,resources/js/components/ReferencePicker.vue,resources/js/pages/Bibliography/** | .ai/rules/bibliography.md |
 | app/Http/Controllers/EditionController.php | .ai/rules/controllers.md |
 | app/Support/Edition/**,app/Models/Transcription.php,app/Enums/TranscriptionLayer.php,app/Http/Controllers/Edition*.php | .ai/rules/edition.md |
 | app/Http/Controllers/TranscriptionTextController.php,app/Models/LemmaReading.php,app/Support/Transcription/** | .ai/rules/transcription.md |
@@ -16,3 +17,4 @@ Before planning or editing, find the row whose globs match the file's path and r
 | resources/js/components/AlignableText.vue | .ai/rules/resources-js-components.md |
 | routes/web.php | .ai/rules/routes.md |
 | app/Support/Transcription/RegionSplitter.php,app/Http/Controllers/TranscriptionRegionController.php,resources/js/components/ManuscriptImageViewer.vue,resources/js/pages/Transcriptions/Editor.vue | .ai/rules/transcriptions.md |
+| resources/js/pages/Editions/Show.vue,resources/js/components/WitnessesPanel.vue | .ai/rules/pages-editions.md |

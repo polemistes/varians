@@ -87,6 +87,63 @@ class SiblingSync
     }
 
     /**
+     * Carry a segment's bounds and flag over to its counterpart, projected
+     * into the sibling's own spelling — the one identity seen from the other
+     * side. Nothing happens while the layers are out of step: a projection
+     * would name the wrong words, and heal() catches up once they agree.
+     */
+    public static function followSegment(TranscriptionSegment $segment): void
+    {
+        $counterpart = self::counterpartSegment($segment);
+        $layer = $segment->transcriptionLayer;
+
+        if ($counterpart === null || self::inStepSibling($layer) === null) {
+            return;
+        }
+
+        [$start, $end] = self::projectRange(
+            $layer,
+            $counterpart->transcriptionLayer,
+            (int) $segment->start_offset,
+            (int) $segment->end_offset,
+        );
+
+        if ($end > $start) {
+            $counterpart->update([
+                'start_offset' => $start,
+                'end_offset' => $end,
+                'needs_review' => $segment->needs_review,
+            ]);
+        }
+    }
+
+    /**
+     * The same for a facsimile mapping, through sub-word anchors; the box
+     * itself is shared geometry and travels as it is.
+     */
+    public static function followRegion(TranscriptionRegion $region): void
+    {
+        $counterpart = self::counterpartRegion($region);
+        $layer = $region->transcriptionLayer;
+
+        if ($counterpart === null || self::inStepSibling($layer) === null) {
+            return;
+        }
+
+        $sibling = $counterpart->transcriptionLayer;
+        [$start, $end] = self::projectAnchors($layer, $sibling, (int) $region->start_offset, (int) $region->end_offset);
+
+        if ($end > $start) {
+            $counterpart->update([
+                'start_offset' => $start,
+                'end_offset' => $end,
+                'text' => mb_substr($sibling->text, $start, $end - $start),
+                'needs_review' => $region->needs_review,
+            ]);
+        }
+    }
+
+    /**
      * Give every one-sided span its counterpart, now that the layers are in
      * step: an existing unlinked row over the same words is LINKED (two
      * halves that never met), anything else is CREATED by projection. Runs

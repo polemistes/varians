@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\GreekFont;
 use App\Enums\Role;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -23,12 +24,22 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable(['name', 'email', 'password', 'greek_font'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
+
+    /**
+     * Mirrors the column default, so an unsaved (or not-yet-refreshed)
+     * instance reads the same font choice a stored one would.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'greek_font' => 'eb-garamond',
+    ];
 
     /**
      * Whether this user's role satisfies at least the given minimum level.
@@ -52,6 +63,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'role' => Role::class,
+            'greek_font' => GreekFont::class,
         ];
     }
 }

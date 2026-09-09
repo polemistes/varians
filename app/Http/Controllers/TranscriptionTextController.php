@@ -3,12 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\UpdateTranscriptionTextRequest;
+use App\Models\CanonicalPassage;
 use App\Models\EditionLemma;
 use App\Models\LemmaReading;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionPageBreak;
 use App\Models\TranscriptionRegion;
 use App\Models\TranscriptionSegment;
+use App\Support\Edition\PassageAligner;
+use App\Support\Transcription\CitationIntegrity;
 use App\Support\Transcription\LayerCorrespondence;
 use App\Support\Transcription\LayerMirror;
 use App\Support\Transcription\RelocationSegmentEffects;
@@ -19,6 +22,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class TranscriptionTextController extends Controller
@@ -54,26 +58,44 @@ class TranscriptionTextController extends Controller
                 ]);
             }
 
-            $confirmedWipe = $request->boolean('confirm_wipe');
-
-            $this->applySpans($transcription->segments, $ops, null, $confirmedWipe);
+            $lostParts = $this->applySpans($transcription->segments, $ops);
             $this->applySpans($transcription->regions, $ops, $recomputedText);
             $this->applyPageBreaks($transcription, $ops, $recomputedText);
-            $affected = $this->applyReadings($transcription, $ops, $recomputedText);
+            $readingOutcome = $this->applyReadings($transcription, $ops, $recomputedText);
+            $affected = $readingOutcome['editions'];
 
             $transcription->update(['text' => $recomputedText]);
+            $this->realignDamaged($transcription, $readingOutcome['realign']);
+            $this->recollateLostParts($transcription, $lostParts);
 
             // The editor can switch mirroring off (bootstrapping each
             // layer from a different source); the sibling is then left
             // entirely alone, refusal notice included.
             $mirroredTo = $request->boolean('mirror', true)
-                ? $this->mirrorRelocations($transcription, $original, $ops, $affected, $confirmedWipe)
+                ? $this->mirrorRelocations($transcription, $original, $ops, $affected)
                 : null;
 
             // Whenever this save leaves the layers in step, one-sided spans
             // get their counterparts — a span assigned while the layers
             // were apart heals here (see SiblingSync::heal).
             SiblingSync::heal($transcription->refresh());
+
+            // Whatever this save did to the spans, none may have left its
+            // words: a drifted citation is trimmed of whitespace and, if it
+            // still begins or ends inside a word, flagged for review — and
+            // the ops that did it are logged, so the cause can be found.
+            foreach ($transcription->transcription->layers as $layer) {
+                $drift = CitationIntegrity::snap($layer);
+
+                if ($drift !== []) {
+                    Log::warning('Citation spans drifted off their words after a text save', [
+                        'layer' => $layer->id,
+                        'edited_layer' => $transcription->id,
+                        'ops' => $ops,
+                        'issues' => $drift,
+                    ]);
+                }
+            }
 
             return [$affected, $mirroredTo];
         });
@@ -82,7 +104,8 @@ class TranscriptionTextController extends Controller
 
         if ($mirroredTo !== null) {
             $notices[] = match (true) {
-                ! $mirroredTo['mirrored'] => 'The '.$mirroredTo['layer'].' layer was left untouched — the layers are out of step (see the indicator by the layer buttons).',
+                ! $mirroredTo['mirrored'] && $mirroredTo['diverges_at'] !== null => 'The '.$mirroredTo['layer'].' layer was left untouched — the layers are out of step at line '.$mirroredTo['diverges_at'].' (see the indicator by the layer buttons).',
+                ! $mirroredTo['mirrored'] => 'The '.$mirroredTo['layer'].' layer was left untouched — its words around the edit no longer correspond to this layer\'s, so the move could not be mirrored safely.',
                 $mirroredTo['relocated'] => 'Also moved the corresponding text in the '.$mirroredTo['layer'].' layer.',
                 default => 'Also applied the edit to the '.$mirroredTo['layer'].' layer.',
             };
@@ -117,11 +140,11 @@ class TranscriptionTextController extends Controller
      * by both layers, and this layer's pass already moved them — a second
      * pass would move them twice.
      *
-     * @param  list<array{start: int, end: int, text: string, cut_id: string|null, atomic?: bool}>  $ops
+     * @param  list<array{start: int, end: int, text: string, cut_id: string|null, atomic?: bool, mirror_text?: string|null}>  $ops
      * @param  list<string>  $affected  edition titles, appended to in place
-     * @return array{layer: string, relocated: bool, mirrored: bool}|null describes the mirror applied — or expected and refused
+     * @return array{layer: string, relocated: bool, mirrored: bool, diverges_at: int|null}|null describes the mirror applied — or expected and refused
      */
-    private function mirrorRelocations(TranscriptionLayer $transcription, string $originalText, array $ops, array &$affected, bool $confirmedWipe = false): ?array
+    private function mirrorRelocations(TranscriptionLayer $transcription, string $originalText, array $ops, array &$affected): ?array
     {
         $sibling = $transcription->transcription->layers()
             ->whereKeyNot($transcription->id)
@@ -139,29 +162,54 @@ class TranscriptionTextController extends Controller
 
         if ($mirror === null) {
             // Say so when a mirror was EXPECTED — a relocation or a
-            // whole-gesture edit — but the layers are out of step. Judged
-            // AFTER the save: the catch-up edit that itself restores step
-            // has nothing to be nagged about (real incident — the notice
-            // fired on the very save that fixed the divergence, then sat).
-            $expected = RelocationSegmentEffects::pairs($ops) !== []
+            // whole-gesture edit — but could not run. Judged AFTER the
+            // save: the catch-up edit that itself restores step has nothing
+            // to be nagged about (real incident — the notice fired on the
+            // very save that fixed the divergence, then sat). Two distinct
+            // refusals: the layers are structurally out of step (report
+            // the first diverging line), or — structure intact — the words
+            // themselves no longer correspond, which LayerMirror's
+            // correspondence guard refuses rather than moving the wrong
+            // words (real incident: a mirrored paste landed mid-line).
+            $hasPairs = RelocationSegmentEffects::pairs($ops) !== [];
+            $expected = $hasPairs
                 || array_any($ops, fn (array $op) => $op['atomic'] ?? false);
 
-            if ($expected && LayerCorrespondence::divergence($transcription->text, $sibling->text) !== null) {
-                return ['layer' => $sibling->layer->value, 'relocated' => false, 'mirrored' => false];
+            if ($expected) {
+                $divergence = LayerCorrespondence::divergence($transcription->text, $sibling->text);
+
+                if ($divergence !== null) {
+                    return [
+                        'layer' => $sibling->layer->value,
+                        'relocated' => false,
+                        'mirrored' => false,
+                        'diverges_at' => $divergence['line'],
+                    ];
+                }
+
+                if ($hasPairs) {
+                    return [
+                        'layer' => $sibling->layer->value,
+                        'relocated' => false,
+                        'mirrored' => false,
+                        'diverges_at' => null,
+                    ];
+                }
             }
 
             return null;
         }
 
-        // A confirmed wipe removes the spans on BOTH sides — the checkbox
-        // speaks for the transcript, and a mirrored wipe is the same wipe.
-        $this->applySpans($sibling->segments, $mirror['ops'], null, $confirmedWipe);
+        $siblingLostParts = $this->applySpans($sibling->segments, $mirror['ops']);
         $this->applySpans($sibling->regions, $mirror['ops'], $mirror['text']);
-        $affected = [...$affected, ...$this->applyReadings($sibling, $mirror['ops'], $mirror['text'])];
+        $siblingOutcome = $this->applyReadings($sibling, $mirror['ops'], $mirror['text']);
+        $affected = [...$affected, ...$siblingOutcome['editions']];
 
         $sibling->update(['text' => $mirror['text']]);
+        $this->realignDamaged($sibling, $siblingOutcome['realign']);
+        $this->recollateLostParts($sibling, $siblingLostParts);
 
-        return ['layer' => $sibling->layer->value, 'relocated' => $mirror['relocated'], 'mirrored' => true];
+        return ['layer' => $sibling->layer->value, 'relocated' => $mirror['relocated'], 'mirrored' => true, 'diverges_at' => null];
     }
 
     /**
@@ -176,8 +224,8 @@ class TranscriptionTextController extends Controller
      * A cut whose paste hasn't arrived in this save keeps its id — the
      * transformer degrades it to a deletion by itself.
      *
-     * @param  list<array{start: mixed, end: mixed, text: mixed, cut_id?: mixed, atomic?: mixed}>  $ops
-     * @return list<array{start: int, end: int, text: string, cut_id: string|null, atomic: bool}>
+     * @param  list<array{start: mixed, end: mixed, text: mixed, cut_id?: mixed, atomic?: mixed, mirror_text?: mixed}>  $ops
+     * @return list<array{start: int, end: int, text: string, cut_id: string|null, atomic: bool, mirror_text: string|null}>
      */
     private function normalizeOps(array $ops, string $originalText): array
     {
@@ -191,6 +239,10 @@ class TranscriptionTextController extends Controller
             // layer mirrors verbatim. Typing is never atomic: the first
             // keystroke of a spelling change must stay in its own layer.
             'atomic' => (bool) ($op['atomic'] ?? false),
+            // What the sibling should receive where this op's text would
+            // otherwise be replayed verbatim — an undo restoring the
+            // sibling's own former spelling. See LayerMirror.
+            'mirror_text' => isset($op['mirror_text']) && is_string($op['mirror_text']) ? $op['mirror_text'] : null,
         ], $ops);
 
         $running = $originalText;
@@ -311,8 +363,9 @@ class TranscriptionTextController extends Controller
     /**
      * @param  Collection<int, TranscriptionSegment>|Collection<int, TranscriptionRegion>  $spans
      * @param  list<array{start: int, end: int, text: string, cut_id?: string|null}>  $ops
+     * @return list<int> canonical passage ids that lost a cited part (segments only)
      */
-    private function applySpans(Collection $spans, array $ops, ?string $newText = null, bool $confirmedWipe = false): void
+    private function applySpans(Collection $spans, array $ops, ?string $newText = null): array
     {
         $spans = $spans->values();
 
@@ -354,25 +407,21 @@ class TranscriptionTextController extends Controller
             }
 
             if ($result['deleted']) {
-                // A destroyed citation span is kept as a zero-width, flagged
-                // tombstone rather than deleted — an editor's assignment work
-                // must never be destroyed by a text state that merely passed
-                // through (an autosave can fire mid-rearrangement). Removing
-                // it stays an explicit editor action — which a CONFIRMED
-                // wipe is: the checkbox says "this will remove every
-                // citation", and checking it makes that true. Regions are
-                // different either way: re-drawable geometry nothing else
-                // references.
-                if ($span instanceof TranscriptionSegment && ! $confirmedWipe) {
+                // The manuscript no longer carries these words, so the
+                // citation goes with them: a citation without text is
+                // nothing (user decision, reversing the earlier tombstone
+                // policy — a zero-width flagged marker preserved the
+                // assignment but never restored it, and read as clutter).
+                // What protects the editor instead: cut/paste pairs carry
+                // spans whole, and undoing a destructive edit restores the
+                // rows along
+                // with the text — the client's history snapshots what an op
+                // destroyed and re-creates it (transcription-segments
+                // restore endpoint). A destroyed PART still flags its
+                // surviving sibling parts below, since the passage's
+                // witness text just lost a piece.
+                if ($span instanceof TranscriptionSegment) {
                     $lostPartPassages[$span->canonical_passage_id] = true;
-
-                    $span->update([
-                        'start_offset' => $result['start'],
-                        'end_offset' => $result['start'],
-                        'needs_review' => true,
-                    ]);
-
-                    continue;
                 }
 
                 $span->delete();
@@ -428,18 +477,15 @@ class TranscriptionTextController extends Controller
             $this->mergeRejoinedParts($spans->first()->transcriptionLayer);
         }
 
-        // A destroyed segment may have been one *part* of a passage cited by
-        // several spans; the survivors still stand, but the passage's witness
-        // text just lost a piece and its collation for this layer is stale —
-        // flag them so an editor re-confirms rather than trusting it silently.
-        foreach ($spans as $span) {
-            if ($span instanceof TranscriptionSegment
-                && $span->exists
-                && isset($lostPartPassages[$span->canonical_passage_id])
-                && ! $span->needs_review) {
-                $span->update(['needs_review' => true]);
-            }
-        }
+        // A destroyed segment may have been one *part* of a passage cited
+        // by several spans — the passage's witness text lost a piece, so
+        // its collation for this layer may be stale. That is the CALLER's
+        // to resolve once the new text is saved (see recollateLostParts):
+        // re-derive where a collation exists, flag only where re-derivation
+        // is refused, do nothing where the layer was never collated —
+        // blind-flagging the survivors here was noise (real incident: a
+        // rearranged, never-collated line arrived flagged in both layers).
+        return array_keys($lostPartPassages);
     }
 
     /**
@@ -493,16 +539,21 @@ class TranscriptionTextController extends Controller
      * case an editor cannot see coming — that her correction also changed an
      * edition's own printed words.
      *
-     * A destroyed span (`deleted` from SpanTransformer — an op removed the
-     * text outright) is handled by whether anything selected it. If nothing
-     * did, the reading goes: the manuscript genuinely no longer has those
-     * words, so dropping the candidate is the truthful outcome. If an edition
-     * did select it, the row is kept as a zero-width span and flagged, since
-     * edition_lemmas.selected_reading_id is NOT NULL and cascades — deleting
-     * would discard that edition's decision rather than merely emptying it.
+     * What the edit damaged is handled by whether anything selected it
+     * (user decision, narrowing needs_review to selected readings only). An
+     * UNSELECTED reading the edit destroyed or left with guessed boundaries
+     * is deleted and its passage queued for re-collation — a reading is
+     * machine-re-derivable, so a human flag would only be noise (the caller
+     * runs the realign after the new text is saved, since collation reads
+     * it). A SELECTED reading is the one thing the machine must not touch:
+     * destroyed, it is kept as a zero-width flagged span, since
+     * edition_lemmas.selected_reading_id is NOT NULL and cascades —
+     * deleting would discard that edition's decision rather than merely
+     * emptying it; damaged, it is flagged for the editor to confirm or
+     * re-choose (re-picking it in the variant panel clears the flag).
      *
      * @param  list<array{start: int, end: int, text: string}>  $ops
-     * @return list<string> titles of editions whose printed wording changed
+     * @return array{editions: list<string>, realign: list<int>} edition titles whose printed wording changed, and canonical passage ids whose collation of this layer needs re-deriving
      */
     private function applyReadings(TranscriptionLayer $transcription, array $ops, string $newText): array
     {
@@ -513,7 +564,7 @@ class TranscriptionTextController extends Controller
             ->values();
 
         if ($readings->isEmpty()) {
-            return [];
+            return ['editions' => [], 'realign' => []];
         }
 
         $transformed = SpanTransformer::transform(
@@ -527,10 +578,21 @@ class TranscriptionTextController extends Controller
 
         $selectingEditions = $this->selectingEditions($readings);
         $affected = [];
+        $realign = [];
 
         foreach ($readings as $index => $reading) {
             $result = $transformed[$index];
             $selectedBy = $selectingEditions[$reading->id] ?? [];
+
+            // An omission reading is a point, not a span of text: it moves
+            // with the text around it and is never destroyed by an edit —
+            // the collation that follows re-derives it if the omission
+            // itself no longer holds.
+            if ($reading->omitted) {
+                $reading->update(['start_offset' => $result['start'], 'end_offset' => $result['start']]);
+
+                continue;
+            }
 
             $before = mb_substr(
                 $transcription->text,
@@ -538,7 +600,14 @@ class TranscriptionTextController extends Controller
                 (int) $reading->end_offset - (int) $reading->start_offset,
             );
 
-            if ($result['deleted'] && $selectedBy === []) {
+            // Damaged BY THIS EDIT: destroyed, or newly left with guessed
+            // boundaries. A reading flagged before this edit is not
+            // re-judged here.
+            $newlyDamaged = $result['deleted']
+                || ($result['needsReview'] && ! $reading->needs_review);
+
+            if ($newlyDamaged && $selectedBy === []) {
+                $realign[] = (int) $reading->lemma->canonical_passage_id;
                 $reading->delete();
 
                 continue;
@@ -563,7 +632,59 @@ class TranscriptionTextController extends Controller
             }
         }
 
-        return array_values(array_unique($affected));
+        return [
+            'editions' => array_values(array_unique($affected)),
+            'realign' => array_values(array_unique($realign)),
+        ];
+    }
+
+    /**
+     * Re-derive the collation an edit damaged, once the text it reads from
+     * is saved: the deleted unselected readings come back re-collated — or
+     * stay genuinely gone, where the manuscript no longer has the words.
+     * realignLayer refuses where pinned readings hold the passage; those
+     * are the selected/conjecture rows this pass never deletes anyway.
+     *
+     * @param  list<int>  $passageIds
+     */
+    private function realignDamaged(TranscriptionLayer $transcription, array $passageIds): void
+    {
+        foreach (array_unique($passageIds) as $passageId) {
+            $passage = CanonicalPassage::find($passageId);
+
+            if ($passage !== null) {
+                PassageAligner::realignLayer($passage, $transcription);
+            }
+        }
+    }
+
+    /**
+     * A passage that lost one of its cited parts has stale collation for
+     * this layer — where a collation exists at all. Same narrowing as
+     * damaged readings: re-derive rather than flag; where re-derivation is
+     * refused (pinned readings hold the passage) flag the surviving parts,
+     * exactly like the late-part flow
+     * (TranscriptionSegmentController::recollateLayer); and where the
+     * layer was never collated on the passage there is nothing stale, so
+     * nothing happens.
+     *
+     * @param  list<int>  $passageIds
+     */
+    private function recollateLostParts(TranscriptionLayer $transcription, array $passageIds): void
+    {
+        foreach (array_unique($passageIds) as $passageId) {
+            $passage = CanonicalPassage::find($passageId);
+
+            if ($passage === null || PassageAligner::layerReadings($passage, $transcription)->isEmpty()) {
+                continue;
+            }
+
+            if (! PassageAligner::realignLayer($passage, $transcription)) {
+                $transcription->segments()
+                    ->where('canonical_passage_id', $passage->id)
+                    ->update(['needs_review' => true]);
+            }
+        }
     }
 
     /**

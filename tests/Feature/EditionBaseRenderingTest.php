@@ -140,8 +140,14 @@ test('a column the base omits is reported as a gap, and stays a variant site', f
         ->viewData('page')['props']['windowPassages'][0]['runs'];
 
     // The site survives so the editor can still adopt A's reading there.
+    // B's own candidate is its omission of the word (LemmaReading::$omitted),
+    // listed first as the base's; the run says nothing is printed on purpose.
     expect($runs[1]['gap'])->toBeTrue()
+        ->and($runs[1]['omitted'])->toBeTrue()
         ->and($runs[1]['text'])->toBe('')
-        ->and($runs[1]['candidates'])->toHaveCount(1)
+        ->and($runs[1]['candidates'])->toHaveCount(2)
+        ->and($runs[1]['candidates'][0]['label'])->toBe('B')
+        ->and($runs[1]['candidates'][0]['omitted'])->toBeTrue()
+        ->and($runs[1]['candidates'][1]['text'])->toBe('swift')
         ->and($runs[0]['gap'])->toBeFalse();
 });

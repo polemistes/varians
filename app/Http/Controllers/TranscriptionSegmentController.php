@@ -12,7 +12,9 @@ use App\Models\TranscriptionSegment;
 use App\Models\Work;
 use App\Support\Edition\CanonicalPassageResolver;
 use App\Support\Edition\PassageAligner;
+use App\Support\Transcription\CitationIntegrity;
 use App\Support\Transcription\SiblingSync;
+use App\Support\Transcription\WorkOwnership;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -36,6 +38,7 @@ class TranscriptionSegmentController extends Controller
     public function store(StoreTranscriptionSegmentRequest $request, TranscriptionLayer $transcription): RedirectResponse
     {
         $passage = $this->resolveCitation((int) $request->validated('work_id'), $request->validated('label'));
+        WorkOwnership::guard($transcription->transcription, $passage->work);
 
         DB::transaction(function () use ($request, $transcription, $passage) {
             $aligned = $this->guardLatePart($request, $transcription, $passage);
@@ -63,6 +66,8 @@ class TranscriptionSegmentController extends Controller
                 $group,
             );
         });
+
+        $this->snapCitations($transcription);
 
         return back();
     }
@@ -131,29 +136,11 @@ class TranscriptionSegmentController extends Controller
     public function update(UpdateTranscriptionSegmentRequest $request, TranscriptionSegment $segment): RedirectResponse
     {
         DB::transaction(function () use ($request, $segment) {
-            $counterpart = $this->siblingCounterpart($segment);
-
             $segment->update([...$request->validated(), 'needs_review' => false]);
-
-            if ($counterpart !== null
-                && SiblingSync::inStepSibling($segment->transcriptionLayer) !== null) {
-                $layer = $segment->transcriptionLayer;
-                [$start, $end] = SiblingSync::projectRange(
-                    $layer,
-                    $counterpart->transcriptionLayer,
-                    (int) $segment->start_offset,
-                    (int) $segment->end_offset,
-                );
-
-                if ($end > $start) {
-                    $counterpart->update([
-                        'start_offset' => $start,
-                        'end_offset' => $end,
-                        'needs_review' => false,
-                    ]);
-                }
-            }
+            SiblingSync::followSegment($segment);
         });
+
+        $this->snapCitations($segment->transcriptionLayer);
 
         return back();
     }
@@ -171,8 +158,12 @@ class TranscriptionSegmentController extends Controller
         $passage = $this->resolveCitation((int) $request->validated('work_id'), $request->validated('label'));
 
         if ($segment->canonical_passage_id === $passage->id) {
+            $this->snapCitations($segment->transcriptionLayer);
+
             return back();
         }
+
+        WorkOwnership::guard($segment->transcriptionLayer->transcription, $passage->work);
 
         DB::transaction(function () use ($request, $segment, $passage) {
             $layer = $segment->transcriptionLayer;
@@ -301,6 +292,18 @@ class TranscriptionSegmentController extends Controller
             $layer->segments()
                 ->where('canonical_passage_id', $passage->id)
                 ->update(['needs_review' => true]);
+        }
+    }
+
+    /**
+     * After any citation change, both layers' spans are held to their
+     * words (CitationIntegrity::snap) — the sibling receives projected
+     * bounds, and a projection of a drifted span drifts further.
+     */
+    private function snapCitations(TranscriptionLayer $layer): void
+    {
+        foreach ($layer->transcription->layers as $sibling) {
+            CitationIntegrity::snap($sibling);
         }
     }
 }

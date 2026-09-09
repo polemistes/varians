@@ -7,6 +7,8 @@ use App\Enums\Layer;
 use App\Enums\Tokenization;
 use App\Http\Requests\StoreEditionRequest;
 use App\Http\Requests\UpdateEditionRequest;
+use App\Models\BibliographyItem;
+use App\Models\BibliographyReference;
 use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
@@ -17,12 +19,21 @@ use App\Models\EditionPassage;
 use App\Models\EditionTransposition;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
+use App\Models\ManuscriptImage;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
+use App\Models\User;
 use App\Models\Work;
+use App\Support\Bibliography\Biblatex;
+use App\Support\Bibliography\EditionBibliography;
+use App\Support\Bibliography\ReferenceFormatter;
+use App\Support\Bibliography\Suggestions;
+use App\Support\Edition\ConjectureCatalogue;
 use App\Support\Edition\DiplomaticCounterpart;
 use App\Support\Edition\PermutationBlocks;
+use App\Support\Edition\TranspositionProjection;
 use App\Support\Transcription\GreekText;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection as SupportCollection;
@@ -30,6 +41,10 @@ use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
+/**
+ * @phpstan-type WindowContext array{comments: SupportCollection<array-key, SupportCollection<int, EditionComment>>, unplaced: SupportCollection<array-key, SupportCollection<int, Conjecture>>, lemmas: SupportCollection<array-key, SupportCollection<int, Lemma>>, selections: EloquentCollection<array-key, EditionLemma>, breaks: EloquentCollection<array-key, EditionLineBreak>, passage_references: SupportCollection<array-key, SupportCollection<int, BibliographyReference>>, parts: SupportCollection<array-key, SupportCollection<int, EditionPassage>>}
+ * @phpstan-type Citation array{id: int, item_id: int, label: string, citation: string, prenote: string|null, postnote: string|null}
+ */
 class EditionController extends Controller
 {
     /**
@@ -75,7 +90,8 @@ class EditionController extends Controller
 
         $totalPages = max(1, (int) ceil($orderedPassages->count() / self::WINDOW));
         $page = max(1, min($totalPages, (int) $request->query('page', 1)));
-        $window = $orderedPassages->slice(($page - 1) * self::WINDOW, self::WINDOW)->values();
+        $offset = ($page - 1) * self::WINDOW;
+        $window = $orderedPassages->slice($offset, self::WINDOW)->values();
 
         // Loaded once and shared by the "Add text" panel prop below and by
         // orderRanges() — every transcription's own segments already carry
@@ -92,14 +108,22 @@ class EditionController extends Controller
         // the very same physical order its diplomatic parent does.
         $transcriptions = TranscriptionLayer::forWork($work)->visibleTo($request->user())->collatable()
             ->with([
-                'transcription.witness:id,siglum',
+                'transcription.witness:id,siglum,label',
                 'segments' => fn ($query) => $query->whereHas('canonicalPassage', fn ($q) => $q->where('work_id', $work->id)),
                 'segments.canonicalPassage:id,work_id,address,sort_key,label',
             ])
             ->get(['id', 'transcription_id', 'text', 'layer']);
 
-        $orderRanges = $this->orderRanges($window, $transcriptions);
-        $discontinuities = $this->citationDiscontinuities($transcriptions);
+        // Over the WHOLE edition, not the page: a witness that moves a line
+        // across the page boundary is a disagreement the editor must still
+        // be shown. Keyed by canonical passage id.
+        $orderRanges = $this->orderRanges($orderedPassages, $transcriptions);
+        $discontinuities = $this->citationDiscontinuities(
+            $transcriptions,
+            $this->conjectureArrangements(array_values(array_map('intval', $window->pluck('canonical_passage_id')->all()))),
+            $orderedPassages,
+        );
+        $context = $this->windowContext($window, $edition);
 
         // The diplomatic counterpart of each normalized layer above, keyed by
         // the transcription both belong to, so a reader can see through the
@@ -130,140 +154,300 @@ class EditionController extends Controller
             'edition' => $edition,
             'page' => $page,
             'totalPages' => $totalPages,
-            'passages' => $this->annotatePassageStatus($orderedPassages, $edition),
+            'passages' => $this->annotatePassageStatus($orderedPassages->unique('canonical_passage_id')->values(), $edition),
             'windowPassages' => $window->values()
-                ->map(fn (EditionPassage $editionPassage, int $index) => $this->passageDetail($editionPassage, $edition, $orderRanges[$index] ?? null, $diplomaticLayers, $work->tokenization, $discontinuities[$editionPassage->canonical_passage_id] ?? []))
+                ->map(fn (EditionPassage $editionPassage, int $index) => $this->passageDetail(
+                    $editionPassage,
+                    $edition,
+                    $orderRanges[$editionPassage->canonical_passage_id] ?? null,
+                    $diplomaticLayers,
+                    $work->tokenization,
+                    $discontinuities[$editionPassage->canonical_passage_id] ?? [],
+                    $context,
+                    // The printed predecessor, which for the first passage
+                    // of page 2+ sits on the previous page — the whole-line
+                    // lacuna marker anchors there, not at the edition's start.
+                    $offset + $index > 0 ? $orderedPassages->get($offset + $index - 1)?->id : null,
+                ))
                 ->values(),
             // The work's *entire* citation space, regardless of what's in
             // this edition yet — the bulk "base a range" picker searches a
             // citation range for segments to add, so it must be able to
             // name a range that isn't in the edition at all yet (unlike
-            // `passages` above, which the transposition picker uses and is
-            // deliberately scoped to what's already been added).
-            'workPassages' => $work->canonicalPassages()->orderBy('sort_key')->get(['id', 'address']),
-            // Applied order proposals — attribution records, since the order
-            // itself lives in the stored positions. A row's conjecture may be
-            // a Transposition (range moved before/after a target) or a
-            // Reordering (a resequenced range), so the target fields are
-            // nullable.
+            // `passages` above, which is deliberately scoped to what's
+            // already been added). Sort keys let the page widen a
+            // registered rearrangement to citation contiguity.
+            'workPassages' => $work->canonicalPassages()->orderBy('sort_key')->get(['id', 'address', 'label', 'sort_key']),
+            // The work's conjectures as the Work page lists them, so a
+            // conjecture named in a notice can be edited in place (editors)
+            // or opened for its bibliography (readers).
+            'workConjectures' => ConjectureCatalogue::forWork($work),
+            // Which conjectures this edition follows — the page marks those
+            // candidates as followed in the order panel.
             'transpositions' => EditionTransposition::where('edition_id', $edition->id)
-                ->with([
-                    'conjecture.canonicalPassage:id,label',
-                    'conjecture.transpositionRangeEnd:id,label',
-                    'conjecture.moveTarget:id,label',
-                    'conjecture.user:id,name',
-                ])
-                ->get()
+                ->get(['id', 'conjecture_id'])
                 ->map(fn (EditionTransposition $adoption) => [
                     'id' => $adoption->id,
-                    'type' => $adoption->conjecture->type->value,
-                    'from_label' => $adoption->conjecture->canonicalPassage->label,
-                    'to_label' => $adoption->conjecture->transpositionRangeEnd->label ?? null,
-                    'target_label' => $adoption->conjecture->moveTarget?->label,
-                    'move_position' => $adoption->conjecture->move_position,
-                    'proposed_by' => $adoption->conjecture->proposed_by ?? $adoption->conjecture->user->name,
+                    'conjecture_id' => $adoption->conjecture_id,
                 ])->values(),
             // Each transcription's own text/segments, for the "Add text"
-            // panel's tabbed selection view — scoped to segments citing
-            // *this* work, since a transcription can carry citations into
-            // more than one work.
-            'transcriptions' => $transcriptions,
-            // Every layer of every witness, trimmed to the passages on
-            // screen, for the right-hand witness pane. Both layers, unlike
-            // `transcriptions` above: that one feeds collation and the add
-            // panel, which only a normalized transcript may source, whereas
-            // reading a manuscript is exactly when the diplomatic layer is
-            // wanted.
-            'witnessTranscripts' => $this->witnessTranscripts(
-                $transcriptions,
-                $diplomaticLayers,
-                $window->pluck('canonical_passage_id')->all(),
-            ),
+            // panel's selection view — scoped to segments citing *this*
+            // work, since a transcription can carry citations into more
+            // than one work. Shaped explicitly so the panel can name each
+            // transcript (witness siglum/label + the transcription's own
+            // name) instead of falling back to a bare layer id.
+            'transcriptions' => $transcriptions->map(fn (TranscriptionLayer $layer) => [
+                'id' => $layer->id,
+                'name' => $layer->transcription->name,
+                'segments' => $layer->segments->map(fn (TranscriptionSegment $segment) => [
+                    'id' => $segment->id,
+                    'canonical_passage_id' => $segment->canonical_passage_id,
+                ])->values(),
+                'witness' => [
+                    'id' => $layer->transcription->witness->id,
+                    'siglum' => $layer->transcription->witness->siglum,
+                    'label' => $layer->transcription->witness->label,
+                ],
+            ])->values(),
+            // Every layer of every witness, whole, for the witnesses pane —
+            // where a manuscript is read and its segments are picked for
+            // the edition. Both layers, unlike `transcriptions` above.
+            'witnessTranscripts' => $this->witnessTranscripts($transcriptions, $diplomaticLayers, $request->user()),
             'referenceLevels' => $work->referenceScheme->levels,
+            // Every visible witness citing the work, not only those this
+            // edition draws on — what is available, and what was left aside.
+            'witnesses' => $this->witnessesCiting($transcriptions, $editionPassages),
+            // Every item this edition cites — from its passages and from
+            // the conjectures placed on them — for the bibliography at the
+            // foot of the page, and what the references picker needs to
+            // create an item without leaving the page.
+            'bibliography' => $this->bibliography($edition),
+            'bibliographyForm' => [
+                'registry' => Biblatex::registry(),
+                'suggestions' => Suggestions::all(),
+            ],
         ]);
     }
 
     /**
-     * Each visible transcript of the work, in both layers, cut down to the
-     * stretch covering the passages currently displayed.
+     * The witnesses behind the visible normalized layers citing the work,
+     * by siglum, each marked whether a passage of this edition is based on
+     * one of its transcripts.
      *
-     * Ordered by siglum then layer, matching how the apparatus orders
-     * witnesses, so the pane's buttons don't move between page loads.
+     * @param  SupportCollection<int, TranscriptionLayer>  $transcriptions
+     * @param  SupportCollection<int, EditionPassage>  $editionPassages
+     * @return list<array{id: int, siglum: string, label: string|null, in_edition: bool}>
+     */
+    private function witnessesCiting(SupportCollection $transcriptions, SupportCollection $editionPassages): array
+    {
+        $baseWitnessIds = $editionPassages
+            ->map(fn (EditionPassage $editionPassage) => $editionPassage->transcriptionLayer?->transcription->witness_id)
+            ->filter()
+            ->unique()
+            ->all();
+
+        $witnesses = [];
+
+        foreach ($transcriptions as $layer) {
+            $witness = $layer->transcription->witness;
+            $witnesses[$witness->id] = [
+                'id' => $witness->id,
+                'siglum' => $witness->siglum,
+                'label' => $witness->label,
+                'in_edition' => in_array($witness->id, $baseWitnessIds, true),
+            ];
+        }
+
+        usort($witnesses, fn (array $a, array $b) => strnatcasecmp($a['siglum'], $b['siglum']));
+
+        return $witnesses;
+    }
+
+    /**
+     * The citations of one thing, as the apparatus prints them.
+     *
+     * @param  iterable<int, BibliographyReference>  $references
+     * @return list<Citation>
+     */
+    private function citations(iterable $references): array
+    {
+        $citations = [];
+
+        foreach ($references as $reference) {
+            $citations[] = [
+                'id' => $reference->id,
+                'item_id' => $reference->bibliography_item_id,
+                'label' => $reference->item->label,
+                'citation' => $reference->citation(),
+                'prenote' => $reference->prenote,
+                'postnote' => $reference->postnote,
+            ];
+        }
+
+        return $citations;
+    }
+
+    /**
+     * The edition's bibliography: every item cited by one of its passages,
+     * or by a conjecture placed (as a reading) on one of its passages —
+     * the literature its apparatus draws on — in label order, formatted.
+     *
+     * @return list<array{id: int, label: string, reference: list<array{text: string, italic: bool}>}>
+     */
+    private function bibliography(Edition $edition): array
+    {
+        $entries = [];
+
+        foreach (BibliographyItem::whereIn('id', EditionBibliography::itemIds($edition))->orderBy('label')->get() as $item) {
+            $entries[] = [
+                'id' => $item->id,
+                'label' => $item->label,
+                'reference' => ReferenceFormatter::runs($item),
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * Every visible transcript of the work, in both layers, WHOLE — the
+     * witnesses pane is where segments are picked for adding, so it shows
+     * the manuscript's full text with every citation, greying out what the
+     * edition already has (user decision, replacing the window slice). A
+     * diplomatic entry names its normalized sibling, the only layer an add
+     * may source.
      *
      * @param  SupportCollection<int, TranscriptionLayer>  $normalized
-     * @param  SupportCollection<int, TranscriptionLayer>  $diplomatic  Keyed by witness id.
-     * @param  array<int, int>  $windowPassageIds
-     * @return array<int, array{id: int, witness_id: int, siglum: string, layer: string, text: string, segments: array<int, array<string, mixed>>, covers_window: bool}>
+     * @param  SupportCollection<int, TranscriptionLayer>  $diplomatic
+     * @return array<int, array<string, mixed>>
      */
-    private function witnessTranscripts(SupportCollection $normalized, SupportCollection $diplomatic, array $windowPassageIds): array
+    private function witnessTranscripts(SupportCollection $normalized, SupportCollection $diplomatic, ?User $viewer): array
     {
-        return $normalized->values()
-            ->merge($diplomatic->values())
+        $normalizedIdByTranscription = $normalized->keyBy('transcription_id')->map(fn (TranscriptionLayer $layer) => $layer->id);
+        $layers = $normalized->values()->merge($diplomatic->values());
+
+        // Pages and page breaks belong to the transcription and the witness;
+        // photographs are filtered like everything else the viewer may see.
+        foreach ($layers as $layer) {
+            $layer->transcription->loadMissing(['pageBreaks.manuscriptPage', 'witness.pages']);
+        }
+
+        $imagesByPage = ManuscriptImage::visibleTo($viewer)
+            ->whereIn('witness_id', $layers->map(fn (TranscriptionLayer $layer) => $layer->transcription->witness_id)->unique())
+            ->orderBy('position')
+            ->get()
+            ->groupBy('manuscript_page_id');
+
+        return $layers
             ->map(fn (TranscriptionLayer $transcription) => [
                 'id' => $transcription->id,
+                'transcription_id' => $transcription->transcription_id,
+                'normalized_layer_id' => $normalizedIdByTranscription->get($transcription->transcription_id),
+                'name' => $transcription->transcription->name,
                 'witness_id' => $transcription->transcription->witness_id,
                 'siglum' => $transcription->transcription->witness->siglum,
                 'layer' => $transcription->layer->value,
-                ...$this->windowSlice($transcription, $windowPassageIds),
+                'first_sort_key' => (string) ($transcription->segments->min(fn (TranscriptionSegment $segment) => $segment->canonicalPassage?->sort_key) ?? ''),
+                ...$this->wholeTranscript($transcription),
+                ...$this->pagesOf($transcription, $imagesByPage),
+                // The layer's image alignments, so the image view can light
+                // up a region for the edition line under the pointer and
+                // the line for the region under it (user decision).
+                'regions' => $transcription->regions()
+                    ->orderBy('position')
+                    ->get(['id', 'transcription_layer_id', 'manuscript_image_id', 'group_id', 'text', 'start_offset', 'end_offset', 'position', 'x', 'y', 'width', 'height', 'needs_review']),
             ])
-            ->sortBy(fn (array $entry) => [$entry['siglum'], $entry['layer']])
+            ->sortBy(fn (array $entry) => [$entry['siglum'], $entry['first_sort_key'], $entry['layer']])
             ->values()
             ->all();
     }
 
     /**
-     * The span of a transcript's text that its cited segments occupy within
-     * the displayed passages, with segment offsets rebased onto that slice.
+     * Where the manuscript's pages begin in this layer's text, and the
+     * witness's pages with their photograph — the page-break lines the
+     * witnesses pane draws in the text, and its image view (user decision).
+     * A page break is held as a line (see TranscriptionPageBreak) and
+     * resolved to this layer's own offset here.
      *
-     * Sending the whole manuscript would make the payload grow with the
-     * transcript rather than with the window, and the pane only ever shows
-     * what stands beside the edition on screen. The slice runs from the first
-     * covering segment to the last, so any text between two cited passages
-     * comes along — that is the witness's own continuous text, which is what
-     * the pane is for, not a per-passage extract.
-     *
-     * @param  array<int, int>  $windowPassageIds
-     * @return array{text: string, segments: array<int, array<string, mixed>>, covers_window: bool}
+     * @param  SupportCollection<int, EloquentCollection<int, ManuscriptImage>>  $imagesByPage
+     * @return array{page_breaks: list<array{manuscript_page_id: int, start_line: int, start_offset: int, label: string}>, pages: list<array{id: int, label: string, position: float, image: array{id: int, witness_id: int, manuscript_page_id: int, url: string, position: string}|null}>}
      */
-    private function windowSlice(TranscriptionLayer $transcription, array $windowPassageIds): array
+    private function pagesOf(TranscriptionLayer $transcription, SupportCollection $imagesByPage): array
     {
-        $covering = $transcription->segments
-            ->filter(fn (TranscriptionSegment $segment) => in_array($segment->canonical_passage_id, $windowPassageIds, true));
+        $breaks = [];
 
-        if ($covering->isEmpty()) {
-            return ['text' => '', 'segments' => [], 'covers_window' => false];
+        foreach ($transcription->transcription->pageBreaks->sortBy('start_line') as $break) {
+            $breaks[] = [
+                'manuscript_page_id' => (int) $break->manuscript_page_id,
+                'start_line' => (int) $break->start_line,
+                'start_offset' => $transcription->offsetOfLine((int) $break->start_line),
+                'label' => (string) ($break->manuscriptPage->label ?? ''),
+            ];
         }
 
-        // One contiguous slice over everything the window's passages cover.
-        // A passage cited in several places (a transposed part far from its
-        // siblings) widens this across the gap, showing intervening text —
-        // accepted: the pane stays one readable stretch, and the filter
-        // below keeps rendering correct either way.
-        $start = (int) $covering->min('start_offset');
-        $end = (int) $covering->max('end_offset');
+        $pages = [];
 
-        // Only segments lying wholly inside the slice: AlignableText discards
-        // any whose end runs past the text it was given, so a half-included
-        // segment would silently vanish rather than render clipped.
-        $segments = $transcription->segments
-            ->filter(fn (TranscriptionSegment $segment) => $segment->start_offset >= $start && $segment->end_offset <= $end)
-            ->map(fn (TranscriptionSegment $segment) => [
-                'id' => $segment->id,
-                'canonical_passage_id' => $segment->canonical_passage_id,
-                'start_offset' => $segment->start_offset - $start,
-                'end_offset' => $segment->end_offset - $start,
-                'canonical_passage' => [
-                    'id' => $segment->canonical_passage_id,
-                    'label' => $segment->canonicalPassage?->label,
+        foreach ($transcription->transcription->witness->pages->sortBy('position') as $page) {
+            /** @var ManuscriptImage|null $image */
+            $image = $imagesByPage->get($page->id)?->first();
+            $pages[] = [
+                'id' => (int) $page->id,
+                'label' => (string) $page->label,
+                'position' => (float) $page->position,
+                'image' => $image === null ? null : [
+                    'id' => (int) $image->id,
+                    'witness_id' => (int) $image->witness_id,
+                    'manuscript_page_id' => (int) $image->manuscript_page_id,
+                    'url' => $image->url,
+                    'position' => (string) $image->position,
                 ],
-            ])
-            ->values()
-            ->all();
+            ];
+        }
+
+        return ['page_breaks' => $breaks, 'pages' => $pages];
+    }
+
+    /**
+     * A transcript's full text and citations for the witnesses pane.
+     *
+     * @return array<string, mixed>
+     */
+    private function wholeTranscript(TranscriptionLayer $transcription): array
+    {
+        // Which part of its passage each span is, as a dense ordinal — raw
+        // `part` values can carry gaps after merges and removals, and
+        // AlignableText prints "label · ordinal/total" on a discontinuous
+        // citation's badges.
+        $partOrdinals = [];
+
+        foreach ($transcription->segments->groupBy('canonical_passage_id') as $group) {
+            foreach ($group->sortBy('part')->values() as $index => $segment) {
+                $partOrdinals[$segment->id] = $index + 1;
+            }
+        }
 
         return [
-            'text' => mb_substr($transcription->text, $start, $end - $start),
-            'segments' => $segments,
-            'covers_window' => true,
+            'text' => $transcription->text,
+            'segments' => $transcription->segments
+                ->sortBy('start_offset')
+                ->map(fn (TranscriptionSegment $segment) => [
+                    'id' => $segment->id,
+                    'canonical_passage_id' => $segment->canonical_passage_id,
+                    'start_offset' => $segment->start_offset,
+                    'end_offset' => $segment->end_offset,
+                    'part' => $segment->part,
+                    'part_ordinal' => $partOrdinals[$segment->id],
+                    'canonical_passage' => [
+                        'id' => $segment->canonical_passage_id,
+                        'label' => $segment->canonicalPassage?->label,
+                    ],
+                ])
+                ->values()
+                ->all(),
+            'part_totals' => $transcription->segments
+                ->groupBy('canonical_passage_id')
+                ->map(fn (SupportCollection $group) => $group->count())
+                ->all(),
         ];
     }
 
@@ -283,32 +467,105 @@ class EditionController extends Controller
     }
 
     /**
-     * Notices what no one asked it to: for the edition's stored order,
-     * which contiguous, self-contained blocks of passages some other
-     * transcription's own physical order rearranges relative to it — see
+     * Notices what no one asked it to: where a source — a witness's own
+     * physical order, or a catalogued Transposition/Reordering conjecture —
+     * orders passages DIFFERENTLY FROM THE PRINTED ORDER. See
      * PermutationBlocks for the decomposition itself, which is a strict
      * generalization of a plain adjacent swap (the smallest possible
-     * non-identity block is size 2). Blocks from different transcriptions
-     * are merged wherever they overlap, since only one candidate list makes
-     * sense for one span of the edition's text. A transcription that
-     * doesn't cite every passage in the final merged range can't offer a
-     * whole-range candidate (mirrors how a fragmentary witness already
-     * can't extend past what it covers elsewhere, see witnessExtension()) —
-     * it simply isn't listed as a candidate for that range.
+     * non-identity block is size 2). Blocks from different sources are
+     * merged wherever they overlap, since only one candidate list makes
+     * sense for one span of the text. A transcription that doesn't cite
+     * every passage in the final merged block can't offer a whole-block
+     * candidate (mirrors how a fragmentary witness already can't extend
+     * past what it covers elsewhere, see witnessExtension()) — it simply
+     * isn't listed as a candidate for that block.
+     *
+     * The printed order is the reference, and CITATION ORDER IS NOT A
+     * SOURCE (user decision): that the printed order, or a manuscript's,
+     * departs from citation order is no news — the citation labels on the
+     * lines already say so. What the editor needs surfacing is only where
+     * what she PRINTS disagrees with a witness or with a catalogued
+     * proposal. Citation order remains available inside a block as an
+     * applyable candidate, it just never creates one. (An earlier design
+     * diffed sources against citation order and flagged the editor's own
+     * departure separately; both notices were noise by this measure.)
+     *
+     * A block's extent is the citation span of the disagreeing stretch
+     * (min..max sort_key of its members), so its members may be scattered
+     * in the printed order. Each member's window index carries the same
+     * block info; `anchor` is true only on the first member in printed
+     * order, which is where the client renders the one marker.
      *
      * This is a calm, always-derived report, like the ⇄ discontinuity
-     * marker: it states that other sources order these passages differently
-     * and offers each ordering as an applyable candidate. There is no
-     * "settled" state to store or re-flag — the stored positions are the
-     * decision, and a range where nothing disagrees simply shows nothing.
+     * marker: it states that sources order these passages differently from
+     * the printed text and offers each ordering as an applyable candidate.
+     * There is no "settled" state to store or re-flag — the stored
+     * positions are the decision, and a block where nothing disagrees with
+     * them simply shows nothing.
      *
-     * @param  SupportCollection<int, EditionPassage>  $window
+     * @param  SupportCollection<int, EditionPassage>  $printed  the whole edition, in printed order
      * @param  SupportCollection<int, TranscriptionLayer>  $transcriptions  Each with `segments` (and `segments.canonicalPassage`) and `witness` already eager-loaded — see show().
-     * @return array<int, array{range_key: string, range_start_canonical_passage_id: int, range_end_canonical_passage_id: int, candidates: array<int, array<string, mixed>>}>
+     * @return array<int, array<string, mixed>> keyed by canonical passage id
      */
-    private function orderRanges(SupportCollection $window, SupportCollection $transcriptions): array
+    private function orderRanges(SupportCollection $printed, SupportCollection $transcriptions): array
     {
-        $ordered = $window->values();
+        // A line printed in pieces stands where its first part stands.
+        $ordered = $printed->unique('canonical_passage_id')->values();
+
+        if ($ordered->count() < 2) {
+            return [];
+        }
+
+        $byCitation = $ordered
+            ->sortBy(fn (EditionPassage $editionPassage) => $editionPassage->canonicalPassage->sort_key)
+            ->values();
+
+        $citationIndexOf = [];
+
+        foreach ($byCitation as $index => $editionPassage) {
+            $citationIndexOf[$editionPassage->canonical_passage_id] = $index;
+        }
+
+        $printedIndexOf = [];
+
+        foreach ($ordered as $index => $editionPassage) {
+            $printedIndexOf[$editionPassage->canonical_passage_id] = $index;
+        }
+
+        // One source's disagreement with the printed order, as citation-
+        // index blocks: the source's subset is laid out in printed order,
+        // permuted into the source's own order, and each non-identity
+        // block's members map to their citation span.
+        $blocksAgainstPrinted = function (array $subsetIds, array $sourceRankOf) use ($printedIndexOf, $citationIndexOf): array {
+            $inPrintedOrder = collect($subsetIds)
+                ->sortBy(fn (int $id) => $printedIndexOf[$id])
+                ->values()
+                ->all();
+
+            $perm = [];
+
+            foreach ($inPrintedOrder as $local => $id) {
+                $perm[$local] = $sourceRankOf[$id];
+            }
+
+            $blocks = [];
+
+            foreach (PermutationBlocks::nonIdentityBlocks($perm) as [$localStart, $localEnd]) {
+                $memberCitationIndexes = array_map(
+                    fn (int $id) => $citationIndexOf[$id],
+                    array_slice($inPrintedOrder, $localStart, $localEnd - $localStart + 1),
+                );
+
+                if ($memberCitationIndexes === []) {
+                    continue;
+                }
+
+                $blocks[] = [min($memberCitationIndexes), max($memberCitationIndexes)];
+            }
+
+            return $blocks;
+        };
+
         $indexBlocks = [];
 
         foreach ($transcriptions as $transcription) {
@@ -316,59 +573,156 @@ class EditionController extends Controller
             // Deliberate for a passage cited in several places: a transposed
             // part is a sub-passage matter, reported per passage via
             // citationDiscontinuities(), and must not drag the whole passage
-            // into a whole-passage reorder range here.
+            // into a whole-passage reorder block here.
             $offsetsByPassageId = $transcription->segments
                 ->groupBy('canonical_passage_id')
                 ->map(fn (SupportCollection $segments) => $segments->min('start_offset'));
 
-            $citedIndexes = [];
+            $citedIds = [];
 
-            foreach ($ordered as $index => $editionPassage) {
+            foreach ($ordered as $editionPassage) {
                 if ($offsetsByPassageId->has($editionPassage->canonical_passage_id)) {
-                    $citedIndexes[] = $index;
+                    $citedIds[] = $editionPassage->canonical_passage_id;
                 }
             }
 
-            if (count($citedIndexes) < 2) {
+            if (count($citedIds) < 2) {
                 continue;
             }
 
-            $sortedByOffset = collect($citedIndexes)
-                ->sortBy(fn (int $index) => $offsetsByPassageId->get($ordered[$index]->canonical_passage_id))
-                ->values();
-
             $rankOf = [];
 
-            foreach ($sortedByOffset as $rank => $editionIndex) {
-                $rankOf[$editionIndex] = $rank;
+            foreach (collect($citedIds)->sortBy(fn (int $id) => $offsetsByPassageId->get($id))->values() as $rank => $id) {
+                $rankOf[$id] = $rank;
             }
 
-            $perm = [];
+            array_push($indexBlocks, ...$blocksAgainstPrinted($citedIds, $rankOf));
+        }
 
-            foreach ($citedIndexes as $local => $editionIndex) {
-                $perm[$local] = $rankOf[$editionIndex];
-            }
+        // Catalogued proposals are sources too: one creates a site the
+        // moment the printed order stops (or never started) following it —
+        // otherwise a proposal nobody has applied would be undiscoverable.
+        // Both kinds come normalized to {ids, sequence} here: a
+        // Reordering's stored entries, a Transposition's statement
+        // projected onto its citation span.
+        $conjectureSources = $this->conjectureOrderSources($byCitation, $citationIndexOf);
 
-            foreach (PermutationBlocks::nonIdentityBlocks($perm) as [$localStart, $localEnd]) {
-                $indexBlocks[] = [$citedIndexes[$localStart], $citedIndexes[$localEnd]];
-            }
+        foreach ($conjectureSources as $source) {
+            array_push($indexBlocks, ...$blocksAgainstPrinted($source['ids'], array_flip($source['sequence'])));
         }
 
         $ranges = [];
 
         foreach ($this->mergeIndexBlocks($indexBlocks) as [$startIndex, $endIndex]) {
-            $rangeInfo = $this->buildOrderRangeInfo($ordered, $startIndex, $endIndex, $transcriptions);
+            $members = $byCitation->slice($startIndex, $endIndex - $startIndex + 1)->values();
+            $rangeInfo = $this->buildOrderRangeInfo($ordered, $members, $transcriptions, $conjectureSources);
 
             if ($rangeInfo === null) {
                 continue;
             }
 
-            for ($i = $startIndex; $i <= $endIndex; $i++) {
-                $ranges[$i] = $rangeInfo;
+            $memberIds = $members->pluck('canonical_passage_id')->flip();
+            $anchored = false;
+
+            foreach ($ordered as $editionPassage) {
+                if ($memberIds->has($editionPassage->canonical_passage_id)) {
+                    $ranges[$editionPassage->canonical_passage_id] = $rangeInfo + ['anchor' => ! $anchored];
+                    $anchored = true;
+                }
             }
         }
 
         return $ranges;
+    }
+
+    /**
+     * Every catalogued ordering proposal resolvable inside this window,
+     * normalized to one shape so detection and candidate listing treat both
+     * kinds alike:
+     *
+     * - a Reordering carries its sequence as stored entries;
+     * - a Transposition is a statement, projected onto the citation span
+     *   its anchors bracket (see TranspositionProjection). Every record
+     *   counts: since the edition page registers the editor's own
+     *   rearrangement as a conjecture deliberately, there are no silent
+     *   working marks left to keep out.
+     *
+     * A proposal reaching passages outside the window is skipped, like a
+     * fragmentary witness.
+     *
+     * @param  SupportCollection<int, EditionPassage>  $byCitation
+     * @param  array<int, int>  $citationIndexOf
+     * @return list<array{conjecture: Conjecture, ids: list<int>, sequence: list<int>}> ids in citation order; sequence the proposed order of the same set
+     */
+    private function conjectureOrderSources(SupportCollection $byCitation, array $citationIndexOf): array
+    {
+        $windowIds = $byCitation->pluck('canonical_passage_id')->all();
+        $sources = [];
+
+        $reorderings = Conjecture::where('type', ConjectureType::Reordering)
+            ->whereHas('orderingEntries', fn ($query) => $query->whereIn('canonical_passage_id', $windowIds))
+            ->with(['orderingEntries', 'user:id,name'])
+            ->get();
+
+        foreach ($reorderings as $conjecture) {
+            // A divided passage stands where its first part stands, the
+            // way a witness's split citation does in the order report.
+            $entryIds = $conjecture->orderingEntries->pluck('canonical_passage_id')->unique()->values();
+
+            if ($entryIds->count() < 2 || $entryIds->contains(fn (int $id) => ! array_key_exists($id, $citationIndexOf))) {
+                continue;
+            }
+
+            $sources[] = [
+                'conjecture' => $conjecture,
+                'ids' => array_values($entryIds->sortBy(fn (int $id) => $citationIndexOf[$id])->all()),
+                'sequence' => array_values($conjecture->orderingEntries->sortBy('sequence')->pluck('canonical_passage_id')->unique()->all()),
+            ];
+        }
+
+        $transpositions = Conjecture::where('type', ConjectureType::Transposition)
+            ->where(fn ($query) => $query
+                ->whereIn('canonical_passage_id', $windowIds)
+                ->orWhereIn('move_target_canonical_passage_id', $windowIds))
+            ->with('user:id,name')
+            ->get();
+
+        foreach ($transpositions as $conjecture) {
+            $anchors = [
+                $conjecture->canonical_passage_id,
+                $conjecture->transposition_range_end_canonical_passage_id ?? $conjecture->canonical_passage_id,
+                $conjecture->move_target_canonical_passage_id,
+            ];
+
+            $anchorIndexes = [];
+
+            foreach ($anchors as $anchor) {
+                if ($anchor === null || ! array_key_exists($anchor, $citationIndexOf)) {
+                    continue 2;
+                }
+
+                $anchorIndexes[] = $citationIndexOf[$anchor];
+            }
+
+            $memberIds = array_values($byCitation
+                ->slice(min($anchorIndexes), max($anchorIndexes) - min($anchorIndexes) + 1)
+                ->pluck('canonical_passage_id')
+                ->all());
+
+            $sequence = TranspositionProjection::sequence($conjecture, $memberIds);
+
+            if ($sequence === null || $sequence === $memberIds) {
+                continue;
+            }
+
+            $sources[] = [
+                'conjecture' => $conjecture,
+                'ids' => $memberIds,
+                'sequence' => $sequence,
+            ];
+        }
+
+        return $sources;
     }
 
     /**
@@ -399,28 +753,36 @@ class EditionController extends Controller
     }
 
     /**
-     * @param  SupportCollection<int, EditionPassage>  $ordered
+     * One block's report. `$members` are the block's passages in citation
+     * order; `matches_current` compares each candidate against the members'
+     * relative order as printed (they may be scattered among non-members in
+     * the printed text — see orderRanges()). The block's endpoints are its
+     * citation-order first and last member, which is also how the apply
+     * endpoint re-derives membership (EditionOrderController).
+     *
+     * @param  SupportCollection<int, EditionPassage>  $ordered  the window, in printed order
+     * @param  SupportCollection<int, EditionPassage>  $members  the block, in citation order
      * @param  SupportCollection<int, TranscriptionLayer>  $transcriptions
-     * @return array{range_key: string, range_start_canonical_passage_id: int, range_end_canonical_passage_id: int, candidates: array<int, array<string, mixed>>}|null
+     * @param  list<array{conjecture: Conjecture, ids: list<int>, sequence: list<int>}>  $conjectureSources
+     * @return array<string, mixed>|null
      */
-    private function buildOrderRangeInfo(SupportCollection $ordered, int $startIndex, int $endIndex, SupportCollection $transcriptions): ?array
+    private function buildOrderRangeInfo(SupportCollection $ordered, SupportCollection $members, SupportCollection $transcriptions, array $conjectureSources): ?array
     {
-        $rangePassages = $ordered->slice($startIndex, $endIndex - $startIndex + 1)->values();
-        $canonicalPassageIds = $rangePassages->pluck('canonical_passage_id')->all();
-        $labelByPassageId = $rangePassages->keyBy('canonical_passage_id');
+        $memberIdSet = $members->pluck('canonical_passage_id')->flip();
+        $labelByPassageId = $members->keyBy('canonical_passage_id');
 
-        $startPassageId = $ordered[$startIndex]->canonical_passage_id;
-        $endPassageId = $ordered[$endIndex]->canonical_passage_id;
+        $currentMembers = $ordered->filter(
+            fn (EditionPassage $editionPassage) => $memberIdSet->has($editionPassage->canonical_passage_id),
+        )->values();
+        $currentIds = $currentMembers->pluck('canonical_passage_id')->all();
+
+        $citationSequence = $members->pluck('canonical_passage_id')->all();
+        $memberCount = count($citationSequence);
 
         $candidates = [];
 
         // Citation order is always a candidate — the vulgate numbering an
         // apparatus reports transpositions against.
-        $citationSequence = $rangePassages
-            ->sortBy(fn (EditionPassage $editionPassage) => $editionPassage->canonicalPassage->sort_key)
-            ->pluck('canonical_passage_id')
-            ->all();
-
         $candidates[] = [
             'source' => 'citation',
             'transcription_layer_id' => null,
@@ -428,18 +790,18 @@ class EditionController extends Controller
             'proposed_by' => null,
             'sequence' => collect($citationSequence)->map(fn (int $id) => $labelByPassageId->get($id)?->canonicalPassage->label)->all(),
             'witness_siglum' => null,
-            'matches_current' => $citationSequence === $canonicalPassageIds,
+            'matches_current' => $citationSequence === $currentIds,
         ];
 
         foreach ($transcriptions as $transcription) {
             $citedIds = $transcription->segments->pluck('canonical_passage_id')->unique();
 
-            if ($citedIds->intersect($canonicalPassageIds)->count() !== count($canonicalPassageIds)) {
-                continue; // fragmentary — doesn't cite every passage in the range
+            if ($citedIds->intersect($citationSequence)->count() !== $memberCount) {
+                continue; // fragmentary — doesn't cite every passage in the block
             }
 
             $sequence = $transcription->segments
-                ->whereIn('canonical_passage_id', $canonicalPassageIds)
+                ->whereIn('canonical_passage_id', $citationSequence)
                 ->groupBy('canonical_passage_id')
                 ->map(fn (SupportCollection $segments) => $segments->min('start_offset'))
                 ->sortBy(fn (int $offset) => $offset)
@@ -453,45 +815,56 @@ class EditionController extends Controller
                 'proposed_by' => null,
                 'sequence' => collect($sequence)->map(fn (int $id) => $labelByPassageId->get($id)?->canonicalPassage->label)->all(),
                 'witness_siglum' => $transcription->transcription->witness->siglum,
-                'matches_current' => $sequence === $canonicalPassageIds,
+                'matches_current' => $sequence === $currentIds,
             ];
         }
 
-        $reorderingConjectures = Conjecture::where('type', ConjectureType::Reordering)
-            ->whereHas('orderingEntries', fn ($query) => $query->whereIn('canonical_passage_id', $canonicalPassageIds))
-            ->with(['orderingEntries', 'user:id,name'])
-            ->get()
-            ->filter(function (Conjecture $conjecture) use ($canonicalPassageIds) {
-                $proposedIds = $conjecture->orderingEntries->pluck('canonical_passage_id')->sort()->values()->all();
-                $expectedIds = collect($canonicalPassageIds)->sort()->values()->all();
+        foreach ($conjectureSources as $source) {
+            if ($source['ids'] !== $citationSequence) {
+                continue; // proposes an order for a different set than this block
+            }
 
-                return $proposedIds === $expectedIds;
-            });
-
-        foreach ($reorderingConjectures as $conjecture) {
-            $sequenceIds = $conjecture->orderingEntries->pluck('canonical_passage_id')->all();
+            $conjecture = $source['conjecture'];
 
             $candidates[] = [
                 'source' => 'conjecture',
                 'transcription_layer_id' => null,
                 'conjecture_id' => $conjecture->id,
                 'proposed_by' => $conjecture->proposed_by ?? $conjecture->user->name,
-                'sequence' => collect($sequenceIds)->map(fn (int $id) => $labelByPassageId->get($id)?->canonicalPassage->label)->all(),
+                'sequence' => collect($source['sequence'])->map(fn (int $id) => $labelByPassageId->get($id)?->canonicalPassage->label)->all(),
                 'witness_siglum' => null,
-                'matches_current' => $sequenceIds === $canonicalPassageIds,
+                'matches_current' => $source['sequence'] === $currentIds,
             ];
         }
 
-        $hasAlternative = collect($candidates)->contains(fn (array $candidate) => ! $candidate['matches_current']);
+        // A block exists only where a WITNESS or a catalogued conjecture
+        // disagrees with the printed order — the citation candidate alone
+        // never keeps one alive (that the printed order departs from
+        // citation order is no news; the line numbers say so). This bites
+        // when the citation-span expansion swallowed the only disagreeing
+        // witness's candidacy (fragmentary rule): the block then has
+        // nothing to say and is dropped.
+        $hasAlternative = collect($candidates)->contains(
+            fn (array $candidate) => $candidate['source'] !== 'citation' && ! $candidate['matches_current'],
+        );
 
         if (! $hasAlternative) {
             return null;
         }
 
+        $startPassage = $members->first()->canonicalPassage;
+        $endPassage = $members->last()->canonicalPassage;
+
         return [
-            'range_key' => "{$startPassageId}-{$endPassageId}",
-            'range_start_canonical_passage_id' => $startPassageId,
-            'range_end_canonical_passage_id' => $endPassageId,
+            'range_key' => "{$startPassage->id}-{$endPassage->id}",
+            'range_start_canonical_passage_id' => $startPassage->id,
+            'range_end_canonical_passage_id' => $endPassage->id,
+            // "6–7", for the one marker the block renders.
+            'range_label' => $memberCount > 1 ? "{$startPassage->label}–{$endPassage->label}" : $startPassage->label,
+            // Printed order of the members — the left column of the client's
+            // slope graphs, and the reference `matches_current` is against.
+            'member_canonical_passage_ids' => $currentIds,
+            'current_sequence' => $currentMembers->map(fn (EditionPassage $editionPassage) => $editionPassage->canonicalPassage->label)->all(),
             'candidates' => $candidates,
         ];
     }
@@ -569,37 +942,32 @@ class EditionController extends Controller
      * part stands before anything else the layer cites.
      *
      * @param  SupportCollection<int, TranscriptionLayer>  $transcriptions
-     * @return array<int, array<int, array{siglum: string, parts: array<int, array{part: int, after_label: string|null}>}>>
+     *                                                                      Each entry also says whether the edition's own printed arrangement of
+     *                                                                      the source's pieces is the same (`matches_current`) — the source the
+     *                                                                      line's ordering follows, rather than a variant of it.
+     * @param  SupportCollection<int, array{name: string, text: string, segments: SupportCollection<int, TranscriptionSegment>, conjecture_id: int}>  $arrangements
+     * @param  SupportCollection<int, EditionPassage>  $printed  the whole edition's rows, in printed order
+     * @return array<int, array<int, array{siglum: string, conjecture_id: int|null, matches_current: bool, parts: array<int, array{part: int, after_label: string|null}>, statements: list<string>}>>
      */
-    private function citationDiscontinuities(SupportCollection $transcriptions): array
+    private function citationDiscontinuities(SupportCollection $transcriptions, SupportCollection $arrangements, SupportCollection $printed): array
     {
         $result = [];
+        $printedKeys = array_values($printed
+            ->map(fn (EditionPassage $row) => [(int) $row->canonical_passage_id, (int) $row->part])
+            ->all());
 
         foreach ($transcriptions as $layer) {
-            $byOffset = $layer->segments->sortBy('start_offset')->values();
+            foreach ($this->discontinuitiesOf($layer->transcription->witness->siglum, $layer->text, $layer->segments->toBase(), null, $printedKeys) as $passageId => $entries) {
+                $result[$passageId] = [...($result[$passageId] ?? []), ...$entries];
+            }
+        }
 
-            foreach ($layer->segments->groupBy('canonical_passage_id') as $passageId => $parts) {
-                if ($parts->count() < 2) {
-                    continue;
-                }
-
-                $result[$passageId][] = [
-                    'siglum' => $layer->transcription->witness->siglum,
-                    'parts' => TranscriptionSegment::sortByPartOrder($parts)
-                        ->map(function (TranscriptionSegment $segment) use ($byOffset, $passageId) {
-                            $preceding = $byOffset
-                                ->filter(fn (TranscriptionSegment $other) => $other->start_offset < $segment->start_offset
-                                    && $other->canonical_passage_id !== $passageId)
-                                ->last();
-
-                            return [
-                                'part' => $segment->part,
-                                'after_label' => $preceding?->canonicalPassage->label,
-                            ];
-                        })
-                        ->values()
-                        ->all(),
-                ];
+        // A conjecture that divides a line is the same kind of source as a
+        // witness that cites a line in two places, and is reported by the
+        // same code (user decision).
+        foreach ($arrangements as $arrangement) {
+            foreach ($this->discontinuitiesOf($arrangement['name'], $arrangement['text'], $arrangement['segments'], $arrangement['conjecture_id'], $printedKeys) as $passageId => $entries) {
+                $result[$passageId] = [...($result[$passageId] ?? []), ...$entries];
             }
         }
 
@@ -610,20 +978,394 @@ class EditionController extends Controller
     }
 
     /**
-     * @param  array{range_key: string, range_start_canonical_passage_id: int, range_end_canonical_passage_id: int, candidates: array<int, array<string, mixed>>}|null  $orderRange
-     * @param  SupportCollection<int, TranscriptionLayer>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
-     * @param  array<int, array{siglum: string, parts: array<int, array{part: int, after_label: string|null}>}>  $discontinuousWitnesses
+     * One source's split citations, keyed by canonical passage id.
+     *
+     * @param  SupportCollection<int, TranscriptionSegment>  $segments
+     * @param  list<array{0: int, 1: int}>  $printedKeys  the edition's printed rows as (passage, part)
+     * @return array<int, list<array{siglum: string, conjecture_id: int|null, matches_current: bool, parts: array<int, array{part: int, after_label: string|null}>, statements: list<string>}>>
+     */
+    private function discontinuitiesOf(string $siglum, string $text, SupportCollection $segments, ?int $conjectureId, array $printedKeys): array
+    {
+        $result = [];
+        $byOffset = $segments->sortBy('start_offset')->values();
+        $statements = $this->transpositionStatements($siglum, $text, $segments);
+
+        // The source's arrangement of the passages it cites, as (passage,
+        // part) in physical order, against the edition's printed rows of
+        // the same passages: equal means the edition prints this
+        // arrangement — it follows the source rather than varying from it.
+        $sourceKeys = array_values($byOffset
+            ->map(fn (TranscriptionSegment $segment) => [(int) $segment->canonical_passage_id, (int) $segment->part])
+            ->all());
+        $cited = array_flip(array_map(fn (array $key) => $key[0], $sourceKeys));
+        $printedIds = array_flip(array_map(fn (array $key) => $key[0], $printedKeys));
+        $matchesCurrent = array_values(array_filter($printedKeys, fn (array $key) => isset($cited[$key[0]])))
+            === array_values(array_filter($sourceKeys, fn (array $key) => isset($printedIds[$key[0]])));
+
+        foreach ($segments->groupBy('canonical_passage_id') as $passageId => $parts) {
+            if ($parts->count() < 2) {
+                continue;
+            }
+
+            $result[(int) $passageId][] = [
+                'siglum' => $siglum,
+                'conjecture_id' => $conjectureId,
+                'matches_current' => $matchesCurrent,
+                'parts' => TranscriptionSegment::sortByPartOrder($parts)
+                    ->map(function (TranscriptionSegment $segment) use ($byOffset, $passageId) {
+                        $preceding = $byOffset
+                            ->filter(fn (TranscriptionSegment $other) => $other->start_offset < $segment->start_offset
+                                && $other->canonical_passage_id !== $passageId)
+                            ->last();
+
+                        return [
+                            'part' => $segment->part,
+                            'after_label' => $preceding?->canonicalPassage->label,
+                        ];
+                    })
+                    ->values()
+                    ->all(),
+                'statements' => $statements[$passageId] ?? [],
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Reordering conjectures that divide a passage shown in the window,
+     * each shaped like a transcript — the pieces laid end to end as text,
+     * cited by unsaved TranscriptionSegment stand-ins — so the split
+     * citation report reads them like a witness.
+     *
+     * @param  list<int>  $windowPassageIds
+     * @return SupportCollection<int, array{name: string, text: string, segments: SupportCollection<int, TranscriptionSegment>, conjecture_id: int}>
+     */
+    private function conjectureArrangements(array $windowPassageIds): SupportCollection
+    {
+        $conjectures = Conjecture::where('type', ConjectureType::Reordering)
+            ->whereHas('orderingEntries', fn ($query) => $query->where('part', '>', 1))
+            ->whereHas('orderingEntries', fn ($query) => $query->whereIn('canonical_passage_id', $windowPassageIds))
+            ->with(['orderingEntries.canonicalPassage:id,label,sort_key', 'user:id,name'])
+            ->get();
+
+        return $conjectures->toBase()->map(function (Conjecture $conjecture) {
+            $text = '';
+            /** @var SupportCollection<int, TranscriptionSegment> $segments */
+            $segments = new SupportCollection;
+            $standInId = -1;
+
+            foreach ($conjecture->orderingEntries->sortBy('sequence') as $entry) {
+                $text .= $text === '' ? '' : "\n";
+                $start = mb_strlen($text);
+                $text .= trim((string) $entry->text);
+
+                $segment = new TranscriptionSegment([
+                    'canonical_passage_id' => $entry->canonical_passage_id,
+                    'part' => $entry->part,
+                    'start_offset' => $start,
+                    'end_offset' => mb_strlen($text),
+                ]);
+                $segment->id = $standInId--;
+                $segment->setRelation('canonicalPassage', $entry->canonicalPassage);
+                $segments->push($segment);
+            }
+
+            return [
+                'name' => ($conjecture->proposed_by ?? $conjecture->user->name).' (conjecture)',
+                'text' => $text,
+                'segments' => $segments,
+                'conjecture_id' => $conjecture->id,
+            ];
+        });
+    }
+
+    /**
+     * Apparatus-style statements of what a layer's displaced fragments did,
+     * keyed by canonical passage id — the scholarly reading of the ⇄ data.
+     *
+     * A fragment is DISPLACED when it does not physically sit right after the
+     * part it follows in content order. Two displaced fragments of different
+     * passages whose physical and content predecessors cross-match have
+     * changed places, and are reported as the single exchange an apparatus
+     * would print ("R2: 4 2/2 \"πάρεστιν ἐνταυθοῖ γυνή·\" has exchanged
+     * places with 5 2/2 \"κωμῆτις ἥδʼ ἐξέρχεται.\"") rather than as two
+     * passages each standing in two places. A displaced fragment with no
+     * exchange partner is located against its physical neighbour ("B: 1.1
+     * 2/2 \"fox\" stands after 1.2"). Fragments are cited by part number
+     * plus their full verbatim text — a digital apparatus never abbreviates
+     * a lemma.
+     *
+     * @param  SupportCollection<int, TranscriptionSegment>  $segments
+     * @return array<int, list<string>>
+     */
+    private function transpositionStatements(string $siglum, string $text, SupportCollection $segments): array
+    {
+        $byOffset = $segments->sortBy('start_offset')->values();
+
+        /** @var array<int, TranscriptionSegment|null> $physicalPred */
+        $physicalPred = [];
+        /** @var array<int, TranscriptionSegment|null> $physicalNext */
+        $physicalNext = [];
+        foreach ($byOffset as $index => $segment) {
+            $physicalPred[$segment->id] = $byOffset[$index - 1] ?? null;
+            $physicalNext[$segment->id] = $byOffset[$index + 1] ?? null;
+        }
+
+        /** @var array<int, TranscriptionSegment|null> $contentPred */
+        $contentPred = [];
+        /** @var array<int, int> $partTotals */
+        $partTotals = [];
+        foreach ($segments->groupBy('canonical_passage_id') as $passageId => $parts) {
+            $partTotals[$passageId] = $parts->count();
+            $ordered = TranscriptionSegment::sortByPartOrder($parts)->values();
+            foreach ($ordered as $index => $segment) {
+                $contentPred[$segment->id] = $ordered[$index - 1] ?? null;
+            }
+        }
+
+        // '4 2/2 "πάρεστιν ἐνταυθοῖ γυνή·"' — the fragment named by its
+        // passage label and part number (the numbering the citation labels
+        // already teach the reader) plus its verbatim text, whole: a digital
+        // apparatus never abbreviates a lemma.
+        $partRef = fn (TranscriptionSegment $segment): string => sprintf(
+            '%s %d/%d "%s"',
+            $segment->canonicalPassage->label,
+            $segment->part,
+            $partTotals[$segment->canonical_passage_id],
+            preg_replace(
+                '/\s+/u',
+                ' ',
+                trim(mb_substr($text, $segment->start_offset, $segment->end_offset - $segment->start_offset)),
+            ),
+        );
+
+        $displaced = $byOffset
+            ->filter(fn (TranscriptionSegment $segment) => ($contentPred[$segment->id] ?? null) !== null
+                && $physicalPred[$segment->id]?->id !== $contentPred[$segment->id]->id)
+            ->values();
+
+        $statements = [];
+        $paired = [];
+
+        foreach ($displaced as $index => $fragment) {
+            if (isset($paired[$fragment->id])) {
+                continue;
+            }
+
+            foreach ($displaced->slice($index + 1) as $partner) {
+                if (isset($paired[$partner->id]) || $partner->canonical_passage_id === $fragment->canonical_passage_id) {
+                    continue;
+                }
+
+                $exchanged = $physicalPred[$fragment->id]?->id === $contentPred[$partner->id]?->id
+                    && $physicalPred[$partner->id]?->id === $contentPred[$fragment->id]?->id;
+
+                if (! $exchanged) {
+                    continue;
+                }
+
+                $paired[$fragment->id] = $paired[$partner->id] = true;
+
+                [$first, $second] = $fragment->canonicalPassage->sort_key <= $partner->canonicalPassage->sort_key
+                    ? [$fragment, $partner]
+                    : [$partner, $fragment];
+
+                $statement = sprintf(
+                    '%s: %s has exchanged places with %s',
+                    $siglum,
+                    $partRef($first),
+                    $partRef($second),
+                );
+                $statements[$first->canonical_passage_id][] = $statement;
+                $statements[$second->canonical_passage_id][] = $statement;
+                break;
+            }
+        }
+
+        foreach ($displaced as $fragment) {
+            if (isset($paired[$fragment->id])) {
+                continue;
+            }
+
+            $pred = $physicalPred[$fragment->id];
+            $reference = $pred !== null
+                ? 'after '.$pred->canonicalPassage->label
+                : ($physicalNext[$fragment->id] !== null ? 'before '.$physicalNext[$fragment->id]->canonicalPassage->label : null);
+
+            if ($reference === null) {
+                continue;
+            }
+
+            $statements[$fragment->canonical_passage_id][] = sprintf(
+                '%s: %s stands %s',
+                $siglum,
+                $partRef($fragment),
+                $reference,
+            );
+        }
+
+        return $statements;
+    }
+
+    /**
+     * Everything passageDetail() and materializedRuns() read per passage,
+     * loaded ONCE for the whole window and grouped — a page of fifty lines
+     * used to cost five queries a line (comments, unplaced conjectures,
+     * columns with readings, selections, breaks), and the edition page's
+     * response time grew with it.
+     *
+     * @param  SupportCollection<int, EditionPassage>  $window
+     * @return WindowContext
+     */
+    private function windowContext(SupportCollection $window, Edition $edition): array
+    {
+        $passageIds = $window->pluck('canonical_passage_id')->all();
+
+        $lemmas = Lemma::whereIn('canonical_passage_id', $passageIds)
+            ->orderBy('position')
+            ->with([
+                'readings.transcriptionLayer:id,transcription_id,text',
+                'readings.transcriptionLayer.transcription.witness:id,siglum',
+                'readings.conjecture.user:id,name',
+                'readings.conjecture.references.item',
+            ])
+            ->get();
+
+        return [
+            'passage_references' => BibliographyReference::where('edition_id', $edition->id)
+                ->whereIn('canonical_passage_id', $passageIds)
+                ->with('item')
+                ->orderBy('position')
+                ->get()
+                ->toBase()
+                ->groupBy('canonical_passage_id'),
+            'comments' => EditionComment::where('edition_id', $edition->id)
+                ->whereIn('canonical_passage_id', $passageIds)
+                ->with('user:id,name')
+                ->orderBy('id')
+                ->get()
+                ->toBase()
+                ->groupBy('canonical_passage_id'),
+            'unplaced' => Conjecture::whereIn('canonical_passage_id', $passageIds)
+                ->whereIn('type', [ConjectureType::Substitution, ConjectureType::Deletion, ConjectureType::Lacuna, ConjectureType::Supplement])
+                ->whereDoesntHave('lemmaReadings')
+                ->with(['user:id,name', 'references.item'])
+                ->orderBy('id')
+                ->get()
+                ->toBase()
+                ->groupBy('canonical_passage_id'),
+            'lemmas' => $lemmas->toBase()->groupBy('canonical_passage_id'),
+            'selections' => EditionLemma::where('edition_id', $edition->id)
+                ->whereIn('lemma_id', $lemmas->pluck('id'))
+                ->with('selectedReading')
+                ->get()
+                ->keyBy('lemma_id'),
+            'breaks' => EditionLineBreak::where('edition_id', $edition->id)
+                ->whereIn('canonical_passage_id', $passageIds)
+                ->get()
+                ->keyBy('lemma_id'),
+            // The rows of every line printed in pieces, all parts — the
+            // ones on this page need their siblings to find their words.
+            'parts' => EditionPassage::where('edition_id', $edition->id)
+                ->whereIn('canonical_passage_id', $passageIds)
+                ->orderBy('part')
+                ->get(['id', 'canonical_passage_id', 'part', 'part_text'])
+                ->toBase()
+                ->groupBy('canonical_passage_id')
+                ->filter(fn (SupportCollection $rows) => $rows->count() > 1),
+        ];
+    }
+
+    /**
+     * Which of the passage's runs this row prints. A whole passage prints
+     * them all; a passage printed in pieces (see EditionPassage::$part)
+     * has its parts' words matched, in the passage's own order, against
+     * the runs' printed text. Words that no longer match — the printed
+     * text changed since the arrangement was adopted — leave the division
+     * stale: part 1 then prints the whole passage and the other parts
+     * nothing, and the page says so.
+     *
+     * @param  SupportCollection<int, EditionPassage>|null  $parts
+     * @param  list<array<string, mixed>>  $runs
+     * @return array{parts: int, start: int, end: int, stale: bool}
+     */
+    private function partRange(EditionPassage $editionPassage, array $runs, ?SupportCollection $parts): array
+    {
+        $whole = ['parts' => 1, 'start' => 0, 'end' => count($runs) - 1, 'stale' => false];
+
+        if ($parts === null || $parts->count() < 2) {
+            return $whole;
+        }
+
+        $normalize = fn (string $text): string => trim((string) preg_replace('/\s+/u', ' ', $text));
+        $ranges = [];
+        $cursor = 0;
+        $stale = false;
+
+        foreach ($parts as $row) {
+            $wanted = $normalize((string) $row->part_text);
+            $found = null;
+
+            for ($end = $cursor; $end < count($runs); $end++) {
+                $text = $normalize(implode(' ', array_map(fn (array $run) => (string) $run['text'], array_slice($runs, $cursor, $end - $cursor + 1))));
+
+                if ($text === $wanted) {
+                    $found = $end;
+
+                    break;
+                }
+
+                if (mb_strlen($text) > mb_strlen($wanted)) {
+                    break;
+                }
+            }
+
+            if ($found === null) {
+                $stale = true;
+
+                break;
+            }
+
+            $ranges[$row->part] = ['start' => $cursor, 'end' => $found];
+            $cursor = $found + 1;
+        }
+
+        if ($stale || $cursor !== count($runs)) {
+            return $editionPassage->part === 1
+                ? $whole + ['parts' => $parts->count(), 'stale' => true]
+                : ['parts' => $parts->count(), 'start' => 0, 'end' => -1, 'stale' => true];
+        }
+
+        return ['parts' => $parts->count(), 'stale' => false] + ($ranges[$editionPassage->part] ?? ['start' => 0, 'end' => -1]);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $orderRange
+     * @param  SupportCollection<int, TranscriptionLayer>  $diplomaticLayers  each transcription's diplomatic layer, keyed by transcription id
+     * @param  array<int, array{siglum: string, conjecture_id: int|null, matches_current: bool, parts: array<int, array{part: int, after_label: string|null}>, statements: list<string>}>  $discontinuousWitnesses
+     * @param  WindowContext  $context
      * @return array<string, mixed>
      */
-    private function passageDetail(EditionPassage $editionPassage, Edition $edition, ?array $orderRange, SupportCollection $diplomaticLayers, Tokenization $tokenization, array $discontinuousWitnesses = []): array
+    private function passageDetail(EditionPassage $editionPassage, Edition $edition, ?array $orderRange, SupportCollection $diplomaticLayers, Tokenization $tokenization, array $discontinuousWitnesses, array $context, ?int $previousEditionPassageId): array
     {
         $passage = $editionPassage->canonicalPassage;
         $base = $editionPassage->transcriptionLayer;
+        $runs = $this->materializedRuns($passage, $base, $diplomaticLayers, $tokenization, $context);
+        $division = $this->partRange($editionPassage, array_values($runs), $context['parts']->get($passage->id));
 
         return [
             'id' => $passage->id,
             'edition_passage_id' => $editionPassage->id,
+            'previous_edition_passage_id' => $previousEditionPassageId,
             'label' => $passage->label,
+            // Which piece of the passage this row prints — a whole passage
+            // is part 1 of 1 over all its runs; see EditionPassage::$part.
+            'part' => $editionPassage->part,
+            'parts' => $division['parts'],
+            'run_start' => $division['start'],
+            'run_end' => $division['end'],
+            'division_stale' => $division['stale'],
             'order_range' => $orderRange,
             // This edition's own lineation for the passage boundary — seeded
             // once from the base transcription at add time, edition-owned
@@ -639,18 +1381,14 @@ class EditionController extends Controller
                 'transcription_layer_id' => $base->id,
                 'witness_siglum' => $base->transcription->witness->siglum,
             ] : null,
-            'runs' => $this->materializedRuns($passage, $base, $edition, $diplomaticLayers, $tokenization),
+            'runs' => $runs,
             // The chosen witness's own line as the manuscript has it.
             'base_diplomatic' => $base !== null
                 ? DiplomaticCounterpart::forPassage($passage, $diplomaticLayers->get($base->transcription_id))
                 : null,
             // This edition's own notes here — see EditionComment. An
             // unanchored one (lemma_id null) is about the whole passage.
-            'comments' => EditionComment::where('edition_id', $edition->id)
-                ->where('canonical_passage_id', $passage->id)
-                ->with('user:id,name')
-                ->orderBy('id')
-                ->get()
+            'comments' => ($context['comments'][$passage->id] ?? collect())
                 ->map(fn (EditionComment $comment) => [
                     'id' => $comment->id,
                     'lemma_id' => $comment->lemma_id,
@@ -658,11 +1396,7 @@ class EditionController extends Controller
                     'note' => $comment->note,
                     'author' => $comment->user->name,
                 ])->values(),
-            'unplacedConjectures' => Conjecture::where('canonical_passage_id', $passage->id)
-                ->whereIn('type', [ConjectureType::Substitution, ConjectureType::Lacuna, ConjectureType::Supplement])
-                ->whereDoesntHave('lemmaReadings')
-                ->with('user:id,name')
-                ->get()
+            'unplacedConjectures' => ($context['unplaced'][$passage->id] ?? collect())
                 ->map(fn (Conjecture $conjecture) => [
                     'id' => $conjecture->id,
                     'type' => $conjecture->type->value,
@@ -670,8 +1404,11 @@ class EditionController extends Controller
                     'label' => $this->conjectureLabel($conjecture),
                     'text' => $this->conjectureDisplayText($conjecture),
                     'note' => $conjecture->note,
-                    'bibliography' => $conjecture->bibliography,
+                    'references' => $this->citations($conjecture->references),
                 ])->values(),
+            // The literature this edition cites on the passage as a whole
+            // — see BibliographyReference.
+            'references' => $this->citations($context['passage_references'][$passage->id] ?? collect()),
         ];
     }
 
@@ -686,26 +1423,14 @@ class EditionController extends Controller
      * EditionVariantController::storeWholeLineLacuna) — every reading
      * lookup below tolerates that via baseReadingOf().
      *
-     * @param  SupportCollection<int, TranscriptionLayer>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
+     * @param  SupportCollection<int, TranscriptionLayer>  $diplomaticLayers  each transcription's diplomatic layer, keyed by transcription id
+     * @param  WindowContext  $context
      * @return array<int, array<string, mixed>>
      */
-    private function materializedRuns(CanonicalPassage $passage, ?TranscriptionLayer $base, Edition $edition, SupportCollection $diplomaticLayers, Tokenization $tokenization): array
+    private function materializedRuns(CanonicalPassage $passage, ?TranscriptionLayer $base, SupportCollection $diplomaticLayers, Tokenization $tokenization, array $context): array
     {
-        $lemmas = Lemma::where('canonical_passage_id', $passage->id)
-            ->orderBy('position')
-            ->with([
-                'readings.transcriptionLayer:id,transcription_id,text',
-                'readings.transcriptionLayer.transcription.witness:id,siglum',
-                'readings.conjecture.user:id,name',
-            ])
-            ->get()
-            ->values();
-
-        $selections = EditionLemma::where('edition_id', $edition->id)
-            ->whereIn('lemma_id', $lemmas->pluck('id'))
-            ->with('selectedReading')
-            ->get()
-            ->keyBy('lemma_id');
+        $lemmas = ($context['lemmas'][$passage->id] ?? collect())->values();
+        $selections = $context['selections'];
 
         $byId = $lemmas->keyBy('id');
 
@@ -740,10 +1465,13 @@ class EditionController extends Controller
             // independently would splice other witnesses' words into this
             // edition's printed text — producing a line no manuscript
             // attests. Jump past them exactly as the selection branch above
-            // does.
+            // does. The base's *omission* of a run of columns (see
+            // LemmaReading::$omitted) is jumped the same way, so what it
+            // lacks prints as one gap rather than one per column.
             $baseReading = $this->baseReadingOf($lemma, $base);
-            $baseRangeEnd = $baseReading?->range_end_lemma_id !== null
-                ? $byId->get($baseReading->range_end_lemma_id)
+            $baseSpan = $baseReading ?? $this->baseOmissionOf($lemma, $base);
+            $baseRangeEnd = $baseSpan?->range_end_lemma_id !== null
+                ? $byId->get($baseSpan->range_end_lemma_id)
                 : null;
 
             $runs[] = $this->materializedSingleRun($lemma, $selection, $base, $lastBaseEnd, $byId, $passage, $diplomaticLayers, $tokenization, $baseRangeEnd);
@@ -756,7 +1484,7 @@ class EditionController extends Controller
             $index = $coveredUntil !== false ? $coveredUntil + 1 : $index + 1;
         }
 
-        return $this->withBreaks($runs, $lemmas, $edition, $passage);
+        return $this->withBreaks($runs, $lemmas, $context['breaks']);
     }
 
     /**
@@ -769,14 +1497,11 @@ class EditionController extends Controller
      *
      * @param  array<int, array<string, mixed>>  $runs
      * @param  SupportCollection<int, Lemma>  $lemmas
+     * @param  EloquentCollection<array-key, EditionLineBreak>  $breaks  this edition's breaks on the window, keyed by lemma id
      * @return array<int, array<string, mixed>>
      */
-    private function withBreaks(array $runs, SupportCollection $lemmas, Edition $edition, CanonicalPassage $passage): array
+    private function withBreaks(array $runs, SupportCollection $lemmas, EloquentCollection $breaks): array
     {
-        $breaks = EditionLineBreak::where('edition_id', $edition->id)
-            ->where('canonical_passage_id', $passage->id)
-            ->get()
-            ->keyBy('lemma_id');
         $indexOf = $lemmas->pluck('id')->flip();
 
         foreach ($runs as $i => $run) {
@@ -808,7 +1533,9 @@ class EditionController extends Controller
      * The base transcription's own reading on a lemma, if any — null
      * whenever `$base` itself is null (a whole-line lacuna has no base
      * transcription at all), never a bare `null === null` false match
-     * against a conjecture reading's own null transcription_layer_id.
+     * against a conjecture reading's own null transcription_layer_id. Never
+     * the base's omission reading either — that says the base has no word
+     * here, which is what a null answer means.
      */
     private function baseReadingOf(Lemma $lemma, ?TranscriptionLayer $base): ?LemmaReading
     {
@@ -816,13 +1543,31 @@ class EditionController extends Controller
             return null;
         }
 
-        return $lemma->readings->first(fn (LemmaReading $reading) => $reading->transcription_layer_id === $base->id);
+        return $lemma->readings->first(
+            fn (LemmaReading $reading) => $reading->transcription_layer_id === $base->id && ! $reading->omitted
+        );
+    }
+
+    /**
+     * The base's own omission reading anchored at a lemma, if it lacks the
+     * column — see LemmaReading::$omitted. What it spans is printed as one
+     * gap, not one per column.
+     */
+    private function baseOmissionOf(Lemma $lemma, ?TranscriptionLayer $base): ?LemmaReading
+    {
+        if ($base === null) {
+            return null;
+        }
+
+        return $lemma->readings->first(
+            fn (LemmaReading $reading) => $reading->transcription_layer_id === $base->id && $reading->omitted
+        );
     }
 
     /**
      * @param  SupportCollection<int, Lemma>  $byId
      * @param  Lemma|null  $baseRangeEnd  last column the base's own reading here covers, when it spans more than this one
-     * @param  SupportCollection<int, TranscriptionLayer>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
+     * @param  SupportCollection<int, TranscriptionLayer>  $diplomaticLayers  each transcription's diplomatic layer, keyed by transcription id
      * @return array<string, mixed>
      */
     private function materializedSingleRun(Lemma $lemma, ?EditionLemma $selection, ?TranscriptionLayer $base, ?int $lastBaseEnd, SupportCollection $byId, CanonicalPassage $passage, SupportCollection $diplomaticLayers, Tokenization $tokenization, ?Lemma $baseRangeEnd = null): array
@@ -841,6 +1586,10 @@ class EditionController extends Controller
         // candidate, having no base to speak for it.
         $selectedCandidate = $candidates->first(fn (array $candidate) => $candidate['selected']);
         $isGap = $selectedCandidate === null && $baseReading === null && $base !== null;
+        // Nothing printed here on purpose — the base lacks the words, or an
+        // omission/deletion was adopted — as opposed to nothing printed
+        // because nothing exists yet (a conjecture-only column).
+        $omitted = $isGap || ($selectedCandidate['omitted'] ?? false);
 
         $text = $selectedCandidate['text']
             ?? match (true) {
@@ -868,6 +1617,7 @@ class EditionController extends Controller
             'text' => $text,
             'decided' => $selectedReadingId !== null,
             'gap' => $isGap,
+            'omitted' => $omitted,
             'candidates' => $candidates->all(),
             'extent_characters' => $selectedCandidate['extent_characters'] ?? null,
             'diplomatic' => $diplomatic,
@@ -886,7 +1636,7 @@ class EditionController extends Controller
      * candidate to switch to as an identically-shaped one.
      *
      * @param  SupportCollection<int, Lemma>  $byId
-     * @param  SupportCollection<int, TranscriptionLayer>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
+     * @param  SupportCollection<int, TranscriptionLayer>  $diplomaticLayers  each transcription's diplomatic layer, keyed by transcription id
      * @return array<string, mixed>
      */
     private function materializedRangeRun(Lemma $startLemma, Lemma $endLemma, EditionLemma $selection, ?TranscriptionLayer $base, SupportCollection $byId, CanonicalPassage $passage, SupportCollection $diplomaticLayers, Tokenization $tokenization): array
@@ -909,6 +1659,7 @@ class EditionController extends Controller
             'text' => $selectedCandidate['text'] ?? '',
             'decided' => true,
             'gap' => false,
+            'omitted' => $selectedCandidate['omitted'] ?? false,
             'candidates' => $candidates->all(),
             'extent_characters' => null,
             'diplomatic' => $diplomatic,
@@ -927,7 +1678,7 @@ class EditionController extends Controller
      * witness first touched the passage.
      *
      * @param  SupportCollection<int, Lemma>  $byId
-     * @param  SupportCollection<int, TranscriptionLayer>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
+     * @param  SupportCollection<int, TranscriptionLayer>  $diplomaticLayers  each transcription's diplomatic layer, keyed by transcription id
      * @return SupportCollection<int, array<string, mixed>>
      */
     private function materializedCandidates(Lemma $lemma, ?int $selectedReadingId, ?TranscriptionLayer $base, SupportCollection $byId, CanonicalPassage $passage, SupportCollection $diplomaticLayers, Tokenization $tokenization): SupportCollection
@@ -1023,8 +1774,13 @@ class EditionController extends Controller
      * such disambiguation: the run it's already offered on *is* its whole
      * scope.
      *
+     * `omitted` marks a candidate that prints nothing if picked: a witness's
+     * omission of these columns (LemmaReading::$omitted) or a deletion
+     * conjecture. Its `text` is empty — the client says "omitted" or
+     * "deleted" in words.
+     *
      * @param  SupportCollection<int, Lemma>  $byId
-     * @param  SupportCollection<int, TranscriptionLayer>  $diplomaticLayers  each witness's diplomatic layer, keyed by witness id
+     * @param  SupportCollection<int, TranscriptionLayer>  $diplomaticLayers  each transcription's diplomatic layer, keyed by transcription id
      * @return array<string, mixed>
      */
     private function materializedCandidate(LemmaReading $reading, ?int $selectedReadingId, Lemma $anchor, ?TranscriptionLayer $base, SupportCollection $byId, ?Lemma $referenceEnd, CanonicalPassage $passage, SupportCollection $diplomaticLayers, Tokenization $tokenization): array
@@ -1036,11 +1792,37 @@ class EditionController extends Controller
             ? mb_substr($baseReading->transcriptionLayer->text, $baseReading->start_offset, $baseReading->end_offset - $baseReading->start_offset)
             : null;
 
+        if ($reading->omitted) {
+            return [
+                'key' => 'reading:'.$reading->id,
+                'label' => $reading->transcriptionLayer->transcription->witness->siglum,
+                'text' => '',
+                'omitted' => true,
+                'selected' => $reading->id === $selectedReadingId,
+                'reading_id' => $reading->id,
+                'transcription_layer_id' => $reading->transcription_layer_id,
+                'start_offset' => $reading->start_offset,
+                'end_offset' => $reading->end_offset,
+                'conjecture_id' => null,
+                'conjecture_type' => null,
+                'supplements_conjecture_id' => null,
+                'references' => [],
+                'note' => null,
+                'range_end_lemma_id' => $reading->range_end_lemma_id,
+                'replaced_text' => $replacedText,
+                'extent_characters' => null,
+                'needs_review' => false,
+                'orthographic_only' => false,
+                'diplomatic' => null,
+            ];
+        }
+
         if ($reading->transcription_layer_id !== null) {
             return [
                 'key' => 'reading:'.$reading->id,
                 'label' => $reading->transcriptionLayer->transcription->witness->siglum,
                 'text' => $extension['text'] ?? mb_substr($reading->transcriptionLayer->text, $reading->start_offset, $reading->end_offset - $reading->start_offset),
+                'omitted' => false,
                 'selected' => $reading->id === $selectedReadingId,
                 'reading_id' => $reading->id,
                 'transcription_layer_id' => $reading->transcription_layer_id,
@@ -1049,7 +1831,7 @@ class EditionController extends Controller
                 'conjecture_id' => null,
                 'conjecture_type' => null,
                 'supplements_conjecture_id' => null,
-                'bibliography' => null,
+                'references' => [],
                 'note' => null,
                 'range_end_lemma_id' => $extension['range_end_lemma_id'] ?? $reading->range_end_lemma_id,
                 'replaced_text' => $replacedText,
@@ -1080,6 +1862,7 @@ class EditionController extends Controller
             'key' => 'reading:'.$reading->id,
             'label' => $this->conjectureLabel($reading->conjecture),
             'text' => $this->conjectureDisplayText($reading->conjecture),
+            'omitted' => $reading->conjecture->type === ConjectureType::Deletion,
             'selected' => $reading->id === $selectedReadingId,
             'reading_id' => $reading->id,
             'transcription_layer_id' => null,
@@ -1088,7 +1871,7 @@ class EditionController extends Controller
             'conjecture_id' => $reading->conjecture_id,
             'conjecture_type' => $reading->conjecture->type->value,
             'supplements_conjecture_id' => $reading->conjecture->supplements_conjecture_id,
-            'bibliography' => $reading->conjecture->bibliography,
+            'references' => $this->citations($reading->conjecture->references),
             'note' => $reading->conjecture->note,
             'range_end_lemma_id' => $reading->range_end_lemma_id,
             'replaced_text' => $replacedText,
@@ -1145,12 +1928,13 @@ class EditionController extends Controller
      */
     private function witnessExtension(LemmaReading $reading, Lemma $anchor, ?Lemma $referenceEnd): ?array
     {
-        if ($reading->transcription_layer_id === null || $reading->range_end_lemma_id !== null || $referenceEnd === null) {
+        if ($reading->transcription_layer_id === null || $reading->omitted || $reading->range_end_lemma_id !== null || $referenceEnd === null) {
             return null;
         }
 
         $alreadyExtended = $anchor->readings->contains(
             fn (LemmaReading $sibling) => $sibling->transcription_layer_id === $reading->transcription_layer_id
+                && ! $sibling->omitted
                 && $sibling->range_end_lemma_id === $referenceEnd->id
         );
 
@@ -1158,7 +1942,9 @@ class EditionController extends Controller
             return null;
         }
 
-        $endReading = $referenceEnd->readings->first(fn (LemmaReading $r) => $r->transcription_layer_id === $reading->transcription_layer_id);
+        $endReading = $referenceEnd->readings->first(
+            fn (LemmaReading $r) => $r->transcription_layer_id === $reading->transcription_layer_id && ! $r->omitted
+        );
 
         if ($endReading === null) {
             return null;
@@ -1172,36 +1958,43 @@ class EditionController extends Controller
     }
 
     /**
-     * A lacuna/supplement is still, at heart, a conjecture — credited the
-     * same way as a substitution — but reads differently in the apparatus.
-     * A transposition/reordering never reaches here (neither ever gets a
-     * LemmaReading — they are order proposals applied to stored positions,
-     * see EditionTransposition); both cases only exist for match
-     * exhaustiveness.
+     * The proposer with the kind of proposal spelled out in full — "Bergk
+     * (conjecture)", "Wolf (lacuna)" — the way an apparatus credits a
+     * reading to its author. Words, never abbreviations: space is not
+     * scarce in a digital edition (user decision). A transposition/
+     * reordering never reaches here (neither ever gets a LemmaReading —
+     * they are order proposals applied to stored positions, see
+     * EditionTransposition); both cases only exist for match exhaustiveness.
      */
     private function conjectureLabel(Conjecture $conjecture): string
     {
         $proposer = $conjecture->proposed_by ?? $conjecture->user->name;
 
         return match ($conjecture->type) {
-            ConjectureType::Lacuna => 'lacuna — '.$proposer,
-            ConjectureType::Supplement => 'suppl. — '.$proposer,
-            ConjectureType::Substitution => 'conj. '.$proposer,
-            ConjectureType::Transposition => 'transp. — '.$proposer,
-            ConjectureType::Reordering => 'reorder. — '.$proposer,
+            ConjectureType::Lacuna => $proposer.' (lacuna)',
+            ConjectureType::Supplement => $proposer.' (supplement)',
+            ConjectureType::Substitution => $proposer.' (conjecture)',
+            ConjectureType::Deletion => $proposer.' (deletion)',
+            ConjectureType::Transposition => $proposer.' (transposition)',
+            ConjectureType::Reordering => $proposer.' (reordering)',
         };
     }
 
     /**
      * A lacuna's `text` is nullable — a bare lacuna (nothing proposed to
      * fill it) still needs *something* to display in the continuous text.
-     * A substitution/supplement always has text; a transposition never
-     * reaches here.
+     * A substitution/supplement always has text; a deletion prints nothing
+     * (the client marks the place — see the run's `omitted`); a
+     * transposition never reaches here.
      */
     private function conjectureDisplayText(Conjecture $conjecture): string
     {
         if ($conjecture->text !== null) {
             return $conjecture->text;
+        }
+
+        if ($conjecture->type === ConjectureType::Deletion) {
+            return '';
         }
 
         return $conjecture->extent !== null ? "[lacuna: {$conjecture->extent}]" : '[lacuna]';

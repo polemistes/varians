@@ -3,9 +3,293 @@
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
+/* EB Garamond (SIL OFL, Octavio Pardo / Georg Duffner) — the open Garamond
+   revival, with full polytonic Greek. Same self-hosted, script-split
+   arrangement as Cardo below; only --font-serif decides which face is in
+   use, and the browser never downloads the unused one. */
+@font-face {
+    font-family: 'EB Garamond';
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    size-adjust: 112%;
+    src: url('../fonts/eb-garamond/eb-garamond-italic-400-greek-ext.woff2')
+        format('woff2');
+    unicode-range: U+1F00-1FFF;
+}
+@font-face {
+    font-family: 'EB Garamond';
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    size-adjust: 112%;
+    src: url('../fonts/eb-garamond/eb-garamond-italic-400-greek.woff2')
+        format('woff2');
+    unicode-range:
+        U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+@font-face {
+    font-family: 'EB Garamond';
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    size-adjust: 112%;
+    src: url('../fonts/eb-garamond/eb-garamond-italic-400-latin-ext.woff2')
+        format('woff2');
+    unicode-range:
+        U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+        U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+        U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+    font-family: 'EB Garamond';
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    size-adjust: 112%;
+    src: url('../fonts/eb-garamond/eb-garamond-italic-400-latin.woff2')
+        format('woff2');
+    unicode-range:
+        U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+        U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+        U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'EB Garamond';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    size-adjust: 112%;
+    src: url('../fonts/eb-garamond/eb-garamond-normal-400-greek-ext.woff2')
+        format('woff2');
+    unicode-range: U+1F00-1FFF;
+}
+@font-face {
+    font-family: 'EB Garamond';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    size-adjust: 112%;
+    src: url('../fonts/eb-garamond/eb-garamond-normal-400-greek.woff2')
+        format('woff2');
+    unicode-range:
+        U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+@font-face {
+    font-family: 'EB Garamond';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    size-adjust: 112%;
+    src: url('../fonts/eb-garamond/eb-garamond-normal-400-latin-ext.woff2')
+        format('woff2');
+    unicode-range:
+        U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+        U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+        U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+    font-family: 'EB Garamond';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    size-adjust: 112%;
+    src: url('../fonts/eb-garamond/eb-garamond-normal-400-latin.woff2')
+        format('woff2');
+    unicode-range:
+        U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+        U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+        U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'EB Garamond';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    size-adjust: 112%;
+    src: url('../fonts/eb-garamond/eb-garamond-normal-700-greek-ext.woff2')
+        format('woff2');
+    unicode-range: U+1F00-1FFF;
+}
+@font-face {
+    font-family: 'EB Garamond';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    size-adjust: 112%;
+    src: url('../fonts/eb-garamond/eb-garamond-normal-700-greek.woff2')
+        format('woff2');
+    unicode-range:
+        U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+@font-face {
+    font-family: 'EB Garamond';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    size-adjust: 112%;
+    src: url('../fonts/eb-garamond/eb-garamond-normal-700-latin-ext.woff2')
+        format('woff2');
+    unicode-range:
+        U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+        U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+        U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+    font-family: 'EB Garamond';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    size-adjust: 112%;
+    src: url('../fonts/eb-garamond/eb-garamond-normal-700-latin.woff2')
+        format('woff2');
+    unicode-range:
+        U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+        U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+        U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Cardo (SIL OFL, David J. Perry) — a Bembo-descended face made for
+   classical scholarship, with full polytonic Greek. Self-hosted, split by
+   script so a page only fetches what it renders; the greek-ext subset
+   (U+1F00–1FFF) is the polytonic range every transcription needs. */
+@font-face {
+    font-family: 'Cardo';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('../fonts/cardo/cardo-normal-400-latin.woff2') format('woff2');
+    unicode-range:
+        U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+        U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+        U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'Cardo';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('../fonts/cardo/cardo-normal-400-latin-ext.woff2') format('woff2');
+    unicode-range:
+        U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+        U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+        U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+    font-family: 'Cardo';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('../fonts/cardo/cardo-normal-400-greek.woff2') format('woff2');
+    unicode-range:
+        U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+@font-face {
+    font-family: 'Cardo';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('../fonts/cardo/cardo-normal-400-greek-ext.woff2') format('woff2');
+    unicode-range: U+1F00-1FFF;
+}
+@font-face {
+    font-family: 'Cardo';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('../fonts/cardo/cardo-normal-700-latin.woff2') format('woff2');
+    unicode-range:
+        U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+        U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+        U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'Cardo';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('../fonts/cardo/cardo-normal-700-latin-ext.woff2') format('woff2');
+    unicode-range:
+        U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+        U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+        U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+    font-family: 'Cardo';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('../fonts/cardo/cardo-normal-700-greek.woff2') format('woff2');
+    unicode-range:
+        U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+@font-face {
+    font-family: 'Cardo';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('../fonts/cardo/cardo-normal-700-greek-ext.woff2') format('woff2');
+    unicode-range: U+1F00-1FFF;
+}
+@font-face {
+    font-family: 'Cardo';
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    src: url('../fonts/cardo/cardo-italic-400-latin.woff2') format('woff2');
+    unicode-range:
+        U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+        U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+        U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'Cardo';
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    src: url('../fonts/cardo/cardo-italic-400-latin-ext.woff2') format('woff2');
+    unicode-range:
+        U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+        U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+        U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+    font-family: 'Cardo';
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    src: url('../fonts/cardo/cardo-italic-400-greek.woff2') format('woff2');
+    unicode-range:
+        U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+@font-face {
+    font-family: 'Cardo';
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    src: url('../fonts/cardo/cardo-italic-400-greek-ext.woff2') format('woff2');
+    unicode-range: U+1F00-1FFF;
+}
+
 @theme inline {
     --font-sans:
         Instrument Sans, ui-sans-serif, system-ui, sans-serif,
         'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
         'Noto Color Emoji';
+}
+
+/* Every font-serif surface is a text-bearing one — the edition text, the
+   transcript panes, the serif headings — so the chosen face applies across
+   them. NOT in the inline theme block: the utility must resolve through
+   the variable so the per-user override below can win by cascade. */
+@theme {
+    --font-serif: 'EB Garamond', 'Times New Roman', Georgia, ui-serif, serif;
+}
+
+/* The user's font choice, stamped on <html> as data-greek-font (server-side
+   in app.blade.php for the first paint, kept current by app.ts). EB
+   Garamond is the default above; only the face actually in use is ever
+   downloaded. */
+html[data-greek-font='cardo'] {
+    --font-serif: 'Cardo', 'Times New Roman', Georgia, ui-serif, serif;
 }

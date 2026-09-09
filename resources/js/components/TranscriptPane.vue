@@ -3,12 +3,20 @@ import { router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import AlignableText from '@/components/AlignableText.vue';
 import { isEditorOrAbove } from '@/lib/auth';
+import { cpLength, cpSlice } from '@/lib/codePoints';
 import {
     confirmDeletion,
     describeDeletionImpact,
     pluralize,
 } from '@/lib/deletionImpact';
 import { EditHistory } from '@/lib/editHistory';
+import type {
+    HistoryStep,
+    InverseMirroring,
+    RestorableSpans,
+    SpanSnapshot,
+    SpanSnapshots,
+} from '@/lib/editHistory';
 import { stripOps } from '@/lib/greekText';
 import type { StripKind } from '@/lib/greekText';
 import { planRelocationEffects } from '@/lib/relocationEffects';
@@ -18,8 +26,10 @@ import {
 } from '@/lib/transcriptClipboard';
 import { applyOps, transformSpans } from '@/lib/transcriptionEdit';
 import type { EditSource, TextEditOp } from '@/lib/transcriptionEdit';
+import { mapOffset, pattern, words } from '@/lib/wordSpans';
 import { store as storePageBreak } from '@/routes/transcription-page-breaks';
 import {
+    destroySpan as destroyRegionSpan,
     store as storeRegion,
     storeBatch as storeRegionBatch,
 } from '@/routes/transcription-regions';
@@ -29,6 +39,7 @@ import {
     store as storeSegment,
     update as updateSegment,
 } from '@/routes/transcription-segments';
+import { restore as restoreSpans } from '@/routes/transcription-spans';
 import {
     destroy as destroyTranscription,
     update as updateTranscription,
@@ -134,13 +145,12 @@ function transformedSpans<
         editOps.value,
     );
 
-    // Destroyed segments stay in the preview as zero-width, flagged
-    // tombstones — exactly what the server keeps, so what the editor sees is
-    // what saves. Destroyed regions drop, mirroring the server's deletion.
+    // Destroyed spans drop from the preview — the server deletes them
+    // (deleting text deletes citations; undo restores both).
     return spans.flatMap((span, index) => {
         const result = transformed[index];
 
-        if (result.deleted && !('canonical_passage_id' in span)) {
+        if (result.deleted) {
             return [];
         }
 
@@ -171,7 +181,7 @@ const editedSegments = computed<TranscriptionSegment[]>(() => {
         editOps.value,
     );
 
-    const result: TranscriptionSegment[] = layerSegments.value.map(
+    const mapped: (TranscriptionSegment | null)[] = layerSegments.value.map(
         (span, index) => {
             const override = effects.overrides.get(index);
 
@@ -186,17 +196,23 @@ const editedSegments = computed<TranscriptionSegment[]>(() => {
 
             const state = transformed[index];
 
+            if (state.deleted) {
+                return null;
+            }
+
             return {
                 ...span,
                 start_offset: state.start,
-                end_offset: state.deleted ? state.start : state.end,
-                needs_review: state.deleted
-                    ? true
-                    : effects.unflag.has(index)
-                      ? false
-                      : state.needsReview,
+                end_offset: state.end,
+                needs_review: effects.unflag.has(index)
+                    ? false
+                    : state.needsReview,
             };
         },
+    );
+
+    const result: TranscriptionSegment[] = mapped.filter(
+        (span): span is TranscriptionSegment => span !== null,
     );
 
     let syntheticId = -1;
@@ -220,37 +236,13 @@ const editedSegments = computed<TranscriptionSegment[]>(() => {
 const editedRegions = computed<TranscriptionRegion[]>(() =>
     transformedSpans(layerRegions.value).map((region) => ({
         ...region,
-        text: editedText.value.slice(region.start_offset, region.end_offset),
+        text: cpSlice(editedText.value, region.start_offset, region.end_offset),
     })),
 );
 
-// A tombstone is not a live citation, so "this would wipe everything" means
-// no segment would keep any text at all.
-const wouldDeleteAllSegments = computed(
-    () =>
-        layerSegments.value.some(
-            (segment) => segment.end_offset > segment.start_offset,
-        ) &&
-        editedSegments.value.every(
-            (segment) => segment.end_offset === segment.start_offset,
-        ),
-);
-const wouldDeleteAllRegions = computed(
-    () => layerRegions.value.length > 0 && editedRegions.value.length === 0,
-);
-const needsDeleteConfirmation = computed(
-    () => wouldDeleteAllSegments.value || wouldDeleteAllRegions.value,
-);
-const deleteConfirmed = ref(false);
-
-// Checking the box IS the go signal — without this, the blocked save just
-// sat there and the checkbox visibly did nothing (real bug).
-watch(deleteConfirmed, (confirmed) => {
-    if (confirmed) {
-        void flushText(false);
-    }
-});
-
+// Blanking a transcript saves like any other edit (user decision: the
+// former wipe checkbox and server gate are gone) — undo restores the
+// citations and image mappings along with the text.
 const savingText = ref(false);
 const textSaveError = ref<string | null>(null);
 // The one save failure that cannot be retried: another editor changed the
@@ -290,11 +282,173 @@ const historyVersion = ref(0); // canUndo/canRedo are not reactive on their own
 let cutCounter = 0;
 const outstandingCuts = new Map<string, string>(); // cut_id -> cut text
 
-function codePointSlice(text: string, start: number, end: number): string {
-    return [...text].slice(start, end).join('');
+type PaneEditSource = EditSource | 'atomic';
+
+/**
+ * Where every live span stands right now, by row id, in the coordinates of
+ * the current (edited) text — the state an undo of the next op returns to.
+ * Synthetic preview rows (negative ids) have no server row to adjust.
+ */
+function spanSnapshots(): SpanSnapshots {
+    const snapshot = (
+        rows: {
+            id: number;
+            start_offset: number;
+            end_offset: number;
+            needs_review: boolean;
+        }[],
+    ): SpanSnapshot[] =>
+        rows
+            .filter((row) => row.id > 0 && row.end_offset > row.start_offset)
+            .map((row) => ({
+                id: row.id,
+                start_offset: row.start_offset,
+                end_offset: row.end_offset,
+                needs_review: row.needs_review,
+            }));
+
+    return {
+        segments: snapshot(editedSegments.value),
+        regions: snapshot(editedRegions.value),
+    };
 }
 
-type PaneEditSource = EditSource | 'atomic';
+/** Whether an offset stands at a word boundary or in the whitespace between words. */
+function onWordBoundary(text: string, offset: number): boolean {
+    return !words(text).some(
+        (word) => word.start < offset && offset < word.end,
+    );
+}
+
+/** A whitespace-only edit with a newline on either side — the one keystroke that mirrors. */
+function isLineBreakEdit(op: TextEditOp, textBefore: string): boolean {
+    const removed = cpSlice(textBefore, op.start, op.end);
+
+    return (
+        /^\s*$/u.test(op.text) &&
+        /^\s*$/u.test(removed) &&
+        (op.text.includes('\n') || removed.includes('\n'))
+    );
+}
+
+/**
+ * How this op's undo should meet the sibling layer (see EditHistory).
+ *
+ * The inverse may mirror only where the op itself could: an atomic op
+ * with an endpoint INSIDE a word never mirrors (LayerMirror finds no
+ * counterpart offset there), but its inverse — re-inserting the deleted
+ * letters at the word's head, say — has endpoints on the boundary and
+ * would mirror verbatim, gluing ΜΗ onto the sibling's μῆνιν (real bug).
+ * Word boundaries are structural, so the op's own text decides; a
+ * whitespace-only line-break edit mirrors even mid-word, as on the server.
+ *
+ * `mirrorText` is the sibling's own words for the stretch an atomic op
+ * removes, so the undo can give them back rather than ours. Null whenever
+ * the mapping cannot be trusted: no sibling text, the layers structurally
+ * apart, or an unsaved atomic op already in the log (the sibling text on
+ * hand predates its mirror) — the verbatim replay then stands.
+ */
+function inverseMirroring(
+    op: TextEditOp,
+    textBefore: string,
+): InverseMirroring {
+    const atomic =
+        !!op.atomic &&
+        ((onWordBoundary(textBefore, op.start) &&
+            onWordBoundary(textBefore, op.end)) ||
+            isLineBreakEdit(op, textBefore));
+
+    const sibling = props.pane.correspondence?.text;
+
+    if (
+        !atomic ||
+        sibling === undefined ||
+        op.end <= op.start ||
+        editOps.value.some(
+            (pending) => pending.atomic || pending.cut_id != null,
+        ) ||
+        pattern(textBefore) !== pattern(sibling)
+    ) {
+        return { atomic, mirrorText: null };
+    }
+
+    const start = mapOffset(textBefore, sibling, op.start);
+    const end = mapOffset(textBefore, sibling, op.end);
+
+    if (start === null || end === null || end <= start) {
+        return { atomic, mirrorText: null };
+    }
+
+    return { atomic, mirrorText: cpSlice(sibling, start, end) };
+}
+
+/**
+ * The spans this op would destroy — citation segments AND image-mapping
+ * regions — snapshotted in the pre-op text's coordinates: exactly the
+ * state undoing the op restores, so the history can post them back
+ * verbatim (deleting text deletes what was anchored to it; undo restores
+ * everything). A lone cut counts as destroying — if it never pairs with a
+ * paste, the rows are gone, and if it does pair while unsaved, the undo's
+ * relocation brings them home first and the restore is skipped as already
+ * present.
+ */
+function destroyedByOp<
+    T extends {
+        start_offset: number;
+        end_offset: number;
+        needs_review: boolean;
+    },
+>(rows: T[], op: TextEditOp): { row: T; start: number; end: number }[] {
+    const before = transformSpans(
+        rows.map((span) => ({
+            start: span.start_offset,
+            end: span.end_offset,
+            needsReview: span.needs_review,
+        })),
+        editOps.value,
+    );
+    const after = transformSpans(
+        before.map((span) => ({
+            start: span.start,
+            end: span.end,
+            needsReview: span.needsReview,
+        })),
+        [op],
+    );
+
+    return rows.flatMap((row, index) =>
+        !before[index].deleted && after[index].deleted
+            ? [{ row, start: before[index].start, end: before[index].end }]
+            : [],
+    );
+}
+
+function spansDestroyedBy(op: TextEditOp): RestorableSpans {
+    return {
+        segments: destroyedByOp(layerSegments.value, op).map(
+            ({ row, start, end }) => ({
+                canonical_passage_id: row.canonical_passage_id,
+                start_offset: start,
+                end_offset: end,
+                part: row.part,
+            }),
+        ),
+        // Decimal columns serialize as strings — the restore payload is
+        // numeric.
+        regions: destroyedByOp(layerRegions.value, op).map(
+            ({ row, start, end }) => ({
+                manuscript_image_id: row.manuscript_image_id,
+                start_offset: start,
+                end_offset: end,
+                position: Number(row.position),
+                x: Number(row.x),
+                y: Number(row.y),
+                width: Number(row.width),
+                height: Number(row.height),
+            }),
+        ),
+    };
+}
 
 function applyEdit(op: TextEditOp, source: PaneEditSource) {
     const textBefore = editedText.value;
@@ -309,18 +463,17 @@ function applyEdit(op: TextEditOp, source: PaneEditSource) {
     // A whole-gesture edit — the sibling layer mirrors these verbatim when
     // they fall on word boundaries. Keystrokes never carry the flag: the
     // first character of a spelling change must stay in its own layer. A
-    // multi-character deletion is a selected range, which is a gesture.
-    if (source !== 'typing' || op.end - op.start > 1) {
+    // multi-character DELETION is a selected range, which is a gesture;
+    // typing OVER a selected range is not — it is how a word is retyped,
+    // and mirroring its first letter wiped the sibling's word (real bug).
+    if (source !== 'typing' || (op.text === '' && op.end - op.start > 1)) {
         op = { ...op, atomic: true };
     }
 
     if (source === 'cut') {
         const cutId = `c${Date.now().toString(36)}-${(cutCounter++).toString(36)}`;
         op = { ...op, cut_id: cutId };
-        outstandingCuts.set(
-            cutId,
-            codePointSlice(textBefore, op.start, op.end),
-        );
+        outstandingCuts.set(cutId, cpSlice(textBefore, op.start, op.end));
     } else if (source === 'paste') {
         const match = [...outstandingCuts.entries()].find(
             ([, text]) => text === op.text,
@@ -346,11 +499,26 @@ function applyEdit(op: TextEditOp, source: PaneEditSource) {
         }
     }
 
+    // Computed before the op joins the log, in pre-op coordinates. A
+    // destroying edit closes the typing burst and stands alone, so its
+    // undo restores exactly the state the snapshot describes.
+    const destroyed = spansDestroyedBy(op);
+    const destroys =
+        destroyed.segments.length > 0 || destroyed.regions.length > 0;
+    const snapshot = spanSnapshots();
+    const mirroring = inverseMirroring(op, textBefore);
+
     editOps.value = [...editOps.value, op];
-    history.record(op, textBefore, source === 'typing' ? 'typing' : 'atomic');
+    history.record(
+        op,
+        textBefore,
+        source === 'typing' && !destroys ? 'typing' : 'atomic',
+        destroyed,
+        snapshot,
+        mirroring,
+    );
     historyVersion.value++;
     transformRememberedSelection([op]);
-    deleteConfirmed.value = false;
     textSaveError.value = null;
     scheduleAutosave();
 
@@ -401,7 +569,7 @@ function stripFromSelection(kind: StripKind) {
     const { start, end } = activeSelection.value;
     // Deliberately NOT atomic: stripping marks is a spelling-class edit —
     // the whole point is that it happens in THIS layer only.
-    const ops = stripOps(editedText.value.slice(start, end), kind).map(
+    const ops = stripOps(cpSlice(editedText.value, start, end), kind).map(
         (op) => ({ ...op, start: op.start + start, end: op.end + start }),
     );
 
@@ -409,42 +577,91 @@ function stripFromSelection(kind: StripKind) {
         return;
     }
 
-    history.recordGroup(ops, editedText.value, (text, op) =>
-        applyOps(text, [op]),
+    history.recordGroup(
+        ops,
+        editedText.value,
+        (text, op) => applyOps(text, [op]),
+        spanSnapshots(),
     );
     historyVersion.value++;
     editOps.value = [...editOps.value, ...ops];
     transformRememberedSelection(ops);
-    deleteConfirmed.value = false;
     textSaveError.value = null;
     scheduleAutosave();
 }
 
 function performUndo() {
-    applyHistoryOps(history.undo());
+    applyHistoryStep(history.undo());
 }
 
 function performRedo() {
-    applyHistoryOps(history.redo());
+    applyHistoryStep(history.redo());
 }
 
 const canUndo = computed(() => historyVersion.value >= 0 && history.canUndo);
 const canRedo = computed(() => historyVersion.value >= 0 && history.canRedo);
 
-function applyHistoryOps(ops: TextEditOp[] | null) {
-    if (!ops || ops.length === 0) {
+function applyHistoryStep(step: HistoryStep | null) {
+    if (!step || step.ops.length === 0) {
         return;
     }
 
-    // Undo/redo steps are whole gestures — atomic, like the edits they
-    // reverse (relocation halves keep their pairing regardless).
-    ops = ops.map((op) => ({ ...op, atomic: true }));
+    // Each op reverses its original as it was — as atomic as the edit,
+    // never more, so the sibling layer sees the undo exactly as it saw the
+    // edit (see EditHistory). Relocation halves keep their pairing.
+    const ops = step.ops;
     editOps.value = [...editOps.value, ...ops];
     historyVersion.value++;
     transformRememberedSelection(ops);
-    deleteConfirmed.value = false;
     textSaveError.value = null;
-    scheduleAutosave();
+
+    // Undoing a destructive edit restores the citations and image
+    // mappings it deleted, and puts back the bounds of every span the
+    // transform could not carry home on its own (a span whose head was
+    // deleted is pushed past the restored words — see SpanSnapshots) —
+    // once the restored text has actually saved, since the rows' offsets
+    // refer to it. Rows the undo's own relocation already brought home
+    // are skipped server-side as already present.
+    if (
+        step.restore.segments.length > 0 ||
+        step.restore.regions.length > 0 ||
+        step.snapshot.segments.length > 0 ||
+        step.snapshot.regions.length > 0
+    ) {
+        void flushText(true).then((saved) => {
+            if (!saved || !layer.value) {
+                return;
+            }
+
+            const adjustments = {
+                adjust_segments: spansToAdjust(
+                    step.snapshot.segments,
+                    layerSegments.value,
+                ),
+                adjust_regions: spansToAdjust(
+                    step.snapshot.regions,
+                    layerRegions.value,
+                ),
+            };
+
+            if (
+                step.restore.segments.length === 0 &&
+                step.restore.regions.length === 0 &&
+                adjustments.adjust_segments.length === 0 &&
+                adjustments.adjust_regions.length === 0
+            ) {
+                return;
+            }
+
+            router.post(
+                restoreSpans.url(layer.value),
+                { ...step.restore, ...adjustments },
+                { preserveScroll: true },
+            );
+        });
+    } else {
+        scheduleAutosave();
+    }
 
     const last = ops[ops.length - 1];
     void nextTick(() =>
@@ -454,11 +671,37 @@ function applyHistoryOps(ops: TextEditOp[] | null) {
     );
 }
 
+/**
+ * The snapshot rows that survived the undone step (still saved under
+ * their id) but came out of the undo standing somewhere else than they
+ * stood before it — what the restore endpoint is asked to put back.
+ */
+function spansToAdjust(
+    snapshot: SpanSnapshot[],
+    saved: {
+        id: number;
+        start_offset: number;
+        end_offset: number;
+        needs_review: boolean;
+    }[],
+): SpanSnapshot[] {
+    return snapshot.filter((row) => {
+        const current = saved.find((candidate) => candidate.id === row.id);
+
+        return (
+            current !== undefined &&
+            (current.start_offset !== row.start_offset ||
+                current.end_offset !== row.end_offset ||
+                current.needs_review !== row.needs_review)
+        );
+    });
+}
+
 // ---- autosave: debounced, single-flight. Only the ops up to the first
 // still-unpaired cut are sent — a cut and its paste must reach the server in
-// the same request to relocate rather than tombstone — and a forced flush
+// the same request to relocate rather than delete — and a forced flush
 // (before any action that posts offsets, or on leaving) sends everything,
-// degrading an unpaired cut to a safe tombstone.
+// degrading an unpaired cut to a deletion (undo can still restore it).
 const AUTOSAVE_IDLE_MS = 800;
 const CUT_HOLD_MS = 20000;
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -506,7 +749,7 @@ function flushableOpCount(force: boolean): number {
     }
 
     // An outstanding cut older than the hold window stops waiting for its
-    // paste — tombstoning is the safe degradation, losing nothing.
+    // paste — it degrades to a plain deletion, which undo can restore.
     if (cutHeldSince !== null && Date.now() - cutHeldSince > CUT_HOLD_MS) {
         return editOps.value.length;
     }
@@ -535,12 +778,6 @@ function flushText(force: boolean): Promise<boolean> {
         });
     }
 
-    if (needsDeleteConfirmation.value && !deleteConfirmed.value && !force) {
-        // Don't autosave a state that wipes every citation/alignment until
-        // the editor has confirmed it (or undone it).
-        return Promise.resolve(true);
-    }
-
     const count = flushableOpCount(force);
 
     if (count === 0) {
@@ -560,10 +797,6 @@ function flushText(force: boolean): Promise<boolean> {
             {
                 ops: sending,
                 text: applyOps(layerText.value, sending),
-                // An acknowledged wipe really removes the citations, as the
-                // checkbox promises; unconfirmed destruction tombstones.
-                confirm_wipe:
-                    deleteConfirmed.value && needsDeleteConfirmation.value,
                 mirror: mirrorOps.value,
             },
             {
@@ -622,6 +855,17 @@ function flushText(force: boolean): Promise<boolean> {
     });
 }
 
+/** Whether to leave despite edits the server would not take. */
+function confirmLeavingUnsaved(): boolean {
+    if (editOps.value.length === 0) {
+        return true;
+    }
+
+    return window.confirm(
+        `Some changes could not be saved${textSaveError.value ? ` (${textSaveError.value})` : ''}. Leave anyway and discard them?`,
+    );
+}
+
 /**
  * After a stale-text conflict the whole op log is against a base another
  * editor has since changed — discard it and fetch the current state.
@@ -669,6 +913,10 @@ function beaconFlush() {
 
         if (op.atomic) {
             form.append(`ops[${index}][atomic]`, '1');
+        }
+
+        if (op.mirror_text != null) {
+            form.append(`ops[${index}][mirror_text]`, op.mirror_text);
         }
     });
 
@@ -719,7 +967,6 @@ watch(
         historyVersion.value++;
         outstandingCuts.clear();
         cutHeldSince = null;
-        deleteConfirmed.value = false;
         textSaveError.value = null;
         staleTextError.value = null;
         clearSelection();
@@ -741,24 +988,25 @@ const activeRegions = computed(() => editedRegions.value);
 // places inbound (a selection, an edit) and at the props handed to
 // AlignableText outbound. `toFull` and `toPage` are the only conversions.
 
-/** The character offset at which a line begins in the given text. */
+/** The code point offset at which a line begins in the given text. */
 function offsetOfLine(text: string, line: number): number {
     if (line <= 0) {
         return 0;
     }
 
     const lines = text.split('\n');
+    const length = cpLength(text);
     let offset = 0;
 
     for (let index = 0; index < line; index++) {
         if (lines[index] === undefined) {
-            return text.length;
+            return length;
         }
 
-        offset += lines[index].length + 1;
+        offset += cpLength(lines[index]) + 1;
     }
 
-    return Math.min(offset, text.length);
+    return Math.min(offset, length);
 }
 
 // The division is held in lines on the transcript, because that is the one
@@ -785,9 +1033,11 @@ const selectedBreak = computed(
 const pageStart = computed(() => selectedBreak.value?.start_offset ?? 0);
 
 const pageEnd = computed(() => {
+    const length = cpLength(activeText.value);
+
     // The stretch before the first page begins, which belongs to no page yet.
     if (props.selectedPageId === null) {
-        return breaks.value[0]?.start_offset ?? activeText.value.length;
+        return breaks.value[0]?.start_offset ?? length;
     }
 
     // A page not yet placed shows the whole text, because placing it *is*
@@ -795,14 +1045,14 @@ const pageEnd = computed(() => {
     // yet. Running to the first break instead left the pane empty as soon as
     // one page had been placed, so the second could never be.
     if (selectedBreak.value === null) {
-        return activeText.value.length;
+        return length;
     }
 
     const next = breaks.value.find(
         (item) => item.start_offset > selectedBreak.value!.start_offset,
     );
 
-    return next?.start_offset ?? activeText.value.length;
+    return next?.start_offset ?? length;
 });
 
 function toFull(offset: number): number {
@@ -815,7 +1065,7 @@ function toPage(offset: number): number {
 
 /** The text, segments and regions of the page alone, in page coordinates. */
 const pageText = computed(() =>
-    activeText.value.slice(pageStart.value, pageEnd.value),
+    cpSlice(activeText.value, pageStart.value, pageEnd.value),
 );
 
 function withinPage<T extends { start_offset: number; end_offset: number }>(
@@ -856,9 +1106,14 @@ function onPickTranscript(event: Event) {
     }
 
     // Autosave leaves nothing to discard — flush whatever is pending, then
-    // navigate. Only a stale-text conflict blocks, and that needs the reload
-    // the visit performs anyway.
-    void flushText(true).then(() => emit('navigate', picked));
+    // navigate. A stale-text conflict needs the reload the visit performs
+    // anyway; anything else still unsaved (markup the server refuses) is
+    // lost by leaving, so the editor is asked rather than told afterwards.
+    void flushText(true).then((ok) => {
+        if (ok || staleTextError.value !== null || confirmLeavingUnsaved()) {
+            emit('navigate', picked);
+        }
+    });
 }
 
 // A plain ref (not a separate useForm) so this always PATCHes the *current*
@@ -1067,7 +1322,46 @@ watch(activeSelection, (selection) =>
 // selection, measured from the live selection's rectangles relative to the
 // text wrapper. Recomputed after edits so it follows the text.
 const textWrapEl = ref<HTMLElement | null>(null);
-const selectionAnchor = ref<{ top: number; left: number } | null>(null);
+// The selection's place in the text's own (scrolled) coordinates: the
+// bottom of its last line, the top of its first, and its left edge.
+const selectionAnchor = ref<{
+    top: number;
+    lineTop: number;
+    left: number;
+} | null>(null);
+
+// Where the scrolling wrapper stands on screen, re-measured on every
+// scroll and resize: the overlay is FIXED to the viewport (a box inside
+// the scrolling wrapper was clipped at its bottom edge until the editor
+// scrolled — real bug), so it has to follow the text as that moves.
+const wrapViewport = ref<{
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+    scrollTop: number;
+    scrollLeft: number;
+    viewportHeight: number;
+} | null>(null);
+
+function measureWrap() {
+    const wrap = textWrapEl.value;
+
+    if (!wrap) {
+        return;
+    }
+
+    const rect = wrap.getBoundingClientRect();
+    wrapViewport.value = {
+        top: rect.top,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height,
+        scrollTop: wrap.scrollTop,
+        scrollLeft: wrap.scrollLeft,
+        viewportHeight: window.innerHeight,
+    };
+}
 
 function updateSelectionAnchor() {
     const selection = window.getSelection();
@@ -1088,22 +1382,65 @@ function updateSelectionAnchor() {
         return;
     }
 
+    const first = rects[0];
     const last = rects[rects.length - 1];
     const wrapRect = wrap.getBoundingClientRect();
 
-    // The wrapper scrolls (long pages), so the absolute overlay lives in
-    // content coordinates: add what has scrolled away.
     selectionAnchor.value = {
         top: last.bottom - wrapRect.top + wrap.scrollTop,
-        left: Math.max(
-            0,
-            Math.min(
-                last.left - wrapRect.left + wrap.scrollLeft,
-                wrapRect.width - 320,
-            ),
-        ),
+        lineTop: first.top - wrapRect.top + wrap.scrollTop,
+        left: last.left - wrapRect.left + wrap.scrollLeft,
     };
+    measureWrap();
 }
+
+const OVERLAY_WIDTH = 320;
+const OVERLAY_ROOM = 280;
+
+/**
+ * The overlay's fixed position: under the selection's last line, or —
+ * where the viewport has no room below — above its first line, always
+ * on top of the text rather than inside its scroll.
+ */
+const overlayStyle = computed<{ top?: string; bottom?: string; left?: string }>(
+    () => {
+        const anchor = selectionAnchor.value;
+        const wrap = wrapViewport.value;
+
+        if (!anchor || !wrap) {
+            return {};
+        }
+
+        const left = Math.max(
+            wrap.left,
+            Math.min(
+                wrap.left + anchor.left - wrap.scrollLeft,
+                wrap.left + wrap.width - OVERLAY_WIDTH,
+            ),
+        );
+        const below = wrap.top + anchor.top - wrap.scrollTop + 4;
+
+        if (wrap.viewportHeight - below < OVERLAY_ROOM) {
+            const above = wrap.top + anchor.lineTop - wrap.scrollTop - 4;
+
+            return {
+                bottom: `${wrap.viewportHeight - above}px`,
+                left: `${left}px`,
+            };
+        }
+
+        return { top: `${below}px`, left: `${left}px` };
+    },
+);
+
+onMounted(() => {
+    window.addEventListener('scroll', measureWrap, true);
+    window.addEventListener('resize', measureWrap);
+});
+onUnmounted(() => {
+    window.removeEventListener('scroll', measureWrap, true);
+    window.removeEventListener('resize', measureWrap);
+});
 
 const assignForm = useForm({ work_id: '' as number | '', label: '' });
 
@@ -1206,7 +1543,7 @@ function transformRememberedSelection(ops: TextEditOp[]) {
     activeSelection.value = {
         start: result.start,
         end: result.end,
-        text: codePointSlice(editedText.value, result.start, result.end),
+        text: cpSlice(editedText.value, result.start, result.end),
     };
     void nextTick(updateSelectionAnchor);
 }
@@ -1372,7 +1709,7 @@ function onBadgeClick(segment: TranscriptionSegment) {
     const start = toFull(segment.start_offset);
     const end = toFull(segment.end_offset);
 
-    rememberSelection(start, end, activeText.value.slice(start, end));
+    rememberSelection(start, end, cpSlice(activeText.value, start, end));
     textEl.value?.selectRangeAt(segment.start_offset, segment.end_offset);
     updateSelectionAnchor();
     prefillAssignForm(start, end);
@@ -1418,6 +1755,32 @@ function armDrawing(granularity: SplitGranularity) {
 function cancelDrawing() {
     drawingArmed.value = false;
     emit('cancel-drawing');
+}
+
+/**
+ * Remove every mapping the selection overlaps, so it can be mapped afresh
+ * — the selection stays, and the map buttons take the notice's place.
+ */
+function removeMappingsOfSelection() {
+    const selection = activeSelection.value;
+
+    if (!selection || !layer.value) {
+        return;
+    }
+
+    regionError.value = null;
+    router.delete(destroyRegionSpan.url(layer.value), {
+        data: {
+            start_offset: toFull(selection.start),
+            end_offset: toFull(selection.end),
+        },
+        preserveScroll: true,
+        only: ['leftPane', 'rightPane', 'flash'],
+        onError: (errors) => {
+            regionError.value =
+                Object.values(errors)[0] ?? 'Could not remove that mapping.';
+        },
+    });
 }
 
 /** The page calls this with the box drawn on the facsimile opposite. */
@@ -1866,11 +2229,9 @@ defineExpose({
                 :title="
                     savingText
                         ? 'Saving…'
-                        : needsDeleteConfirmation && !deleteConfirmed
-                          ? 'Not saved — confirm the removal below to save'
-                          : unsavedOps
-                            ? 'Unsaved changes'
-                            : 'All changes saved'
+                        : unsavedOps
+                          ? 'Unsaved changes'
+                          : 'All changes saved'
                 "
             ></span>
             <button
@@ -1899,22 +2260,6 @@ defineExpose({
             v-if="canEdit && layer"
             class="mb-2 flex flex-col gap-1 text-xs empty:hidden"
         >
-            <span
-                v-if="needsDeleteConfirmation"
-                class="flex items-center gap-2 text-red-600 dark:text-red-400"
-            >
-                <label class="flex items-center gap-1">
-                    <input v-model="deleteConfirmed" type="checkbox" />
-                    This will remove
-                    <template
-                        v-if="wouldDeleteAllSegments && wouldDeleteAllRegions"
-                        >every assignment and image mapping</template
-                    ><template v-else-if="wouldDeleteAllSegments"
-                        >every assignment</template
-                    ><template v-else>every image mapping</template>
-                    on this transcript — save anyway
-                </label>
-            </span>
             <span v-if="textSaveError" class="text-red-600 dark:text-red-400">{{
                 textSaveError
             }}</span>
@@ -1946,13 +2291,13 @@ defineExpose({
             Click a citation badge for details.
         </p>
 
-        <!-- The text, with the floating selection actions anchored under the
-             selection's last line. The overlay is a SIBLING of the editable
-             surface, absolutely positioned — nothing is ever inserted into
-             the text flow, so no line ever breaks for it. -->
+        <!-- The text. The floating selection actions (below) are a SIBLING
+             of the scrolling wrapper, fixed to the viewport — nothing is
+             ever inserted into the text flow, and nothing clips them. -->
         <div
             ref="textWrapEl"
             class="relative max-h-[45rem] overflow-y-auto font-serif text-lg leading-loose"
+            @scroll="measureWrap"
         >
             <AlignableText
                 ref="textEl"
@@ -1971,249 +2316,247 @@ defineExpose({
                 @undo="performUndo"
                 @redo="performRedo"
             />
+        </div>
 
-            <div
-                v-if="
-                    canEdit &&
-                    overlayVisible &&
-                    activeSelection &&
-                    selectionAnchor
-                "
-                class="absolute z-10 flex max-w-80 flex-col gap-2 rounded border border-sky-200 bg-sky-50 p-2 font-sans text-xs shadow-sm dark:border-sky-900 dark:bg-sky-950"
-                :style="{
-                    top: `${selectionAnchor.top + 4}px`,
-                    left: `${selectionAnchor.left}px`,
-                }"
-            >
-                <!-- Only the dialogue the Action-on-select dropdown (or a
+        <!-- The selection's actions float over the text, fixed to the
+             viewport: never clipped by the wrapper's own scroll. -->
+        <div
+            v-if="
+                canEdit && overlayVisible && activeSelection && selectionAnchor
+            "
+            class="fixed z-20 flex w-80 max-w-[calc(100vw-1rem)] flex-col gap-2 rounded border border-sky-200 bg-sky-50 p-2 font-sans text-xs shadow-md dark:border-sky-900 dark:bg-sky-950"
+            :style="overlayStyle"
+        >
+            <!-- Only the dialogue the Action-on-select dropdown (or a
                      badge click) asked for — no mode switching in here. -->
-                <span class="flex items-center justify-between gap-2">
-                    <span class="text-stone-500 dark:text-stone-400">
-                        {{
-                            activeMenu === 'align'
-                                ? 'Map to facsimile'
-                                : 'Assign to segment in work'
-                        }}
-                    </span>
-                    <button
-                        type="button"
-                        class="text-stone-500 underline"
-                        @mousedown.prevent
-                        @click="clearSelection"
-                    >
-                        Clear
-                    </button>
+            <span class="flex items-center justify-between gap-2">
+                <span class="text-stone-500 dark:text-stone-400">
+                    {{
+                        activeMenu === 'align'
+                            ? 'Map to facsimile'
+                            : 'Assign to segment in work'
+                    }}
                 </span>
-
-                <span
-                    v-if="overlappingReviewSegment"
-                    class="rounded border border-dashed border-red-400 p-2"
+                <button
+                    type="button"
+                    class="text-stone-500 underline"
+                    @mousedown.prevent
+                    @click="clearSelection"
                 >
-                    <span class="mb-1 block text-red-600 dark:text-red-400">
-                        This overlaps a span flagged for review (its text
-                        changed underneath it).
-                    </span>
+                    Clear
+                </button>
+            </span>
+
+            <span
+                v-if="overlappingReviewSegment"
+                class="rounded border border-dashed border-red-400 p-2"
+            >
+                <span class="mb-1 block text-red-600 dark:text-red-400">
+                    This overlaps a span flagged for review (its text changed
+                    underneath it).
+                </span>
+                <button
+                    type="button"
+                    class="rounded bg-red-600 px-2 py-0.5 text-white"
+                    @click="fixBoundaries"
+                >
+                    Update that span to this selection
+                </button>
+            </span>
+
+            <template v-if="activeMenu === 'align'">
+                <span
+                    v-if="selectionAlreadyMapped"
+                    class="flex flex-wrap items-center gap-2 text-amber-700 dark:text-amber-400"
+                >
+                    Part of this selection is already mapped to the facsimile.
                     <button
                         type="button"
-                        class="rounded bg-red-600 px-2 py-0.5 text-white"
-                        @click="fixBoundaries"
+                        class="rounded border border-amber-400 px-2 py-0.5"
+                        title="Remove every box the selection overlaps, then map it afresh"
+                        @mousedown.prevent
+                        @click="removeMappingsOfSelection"
                     >
-                        Update that span to this selection
+                        Remove mapping of selection
                     </button>
                 </span>
-
-                <template v-if="activeMenu === 'align'">
-                    <span
-                        v-if="selectionAlreadyMapped"
-                        class="text-amber-700 dark:text-amber-400"
+                <span v-else-if="drawingArmed">
+                    Drag a box on the facsimile opposite to place
+                    <template v-if="splitGranularity === 'span'"
+                        >this text.</template
+                    ><template v-else-if="splitGranularity === 'line'"
+                        >it — one region per line of the selection, stacked down
+                        the box.</template
+                    ><template v-else
+                        >it — one region per {{ splitGranularity }}, sized by
+                        letter count; each line of the selection takes its own
+                        row of the box.</template
                     >
-                        Part of this selection is already mapped to the
-                        facsimile — remove the existing mapping first.
-                    </span>
-                    <span v-else-if="drawingArmed">
-                        Drag a box on the facsimile opposite to place
-                        <template v-if="splitGranularity === 'span'"
-                            >this text.</template
-                        ><template v-else-if="splitGranularity === 'line'"
-                            >it — one region per line of the selection, stacked
-                            down the box.</template
-                        ><template v-else
-                            >it — one region per {{ splitGranularity }}, sized
-                            by letter count; each line of the selection takes
-                            its own row of the box.</template
-                        >
-                        <button
-                            type="button"
-                            class="ml-1 underline"
-                            @click="cancelDrawing"
-                        >
-                            Cancel
-                        </button>
-                    </span>
-                    <span v-else class="flex flex-wrap items-center gap-2">
-                        <button
-                            type="button"
-                            class="self-start text-stone-700 underline dark:text-stone-300"
-                            @click="armDrawing('span')"
-                        >
-                            as one box
-                        </button>
-                        <!-- No markup gate: a whole line fills its band, so a
+                    <button
+                        type="button"
+                        class="ml-1 underline"
+                        @click="cancelDrawing"
+                    >
+                        Cancel
+                    </button>
+                </span>
+                <span v-else class="flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        class="self-start text-stone-700 underline dark:text-stone-300"
+                        @click="armDrawing('span')"
+                    >
+                        as one box
+                    </button>
+                    <!-- No markup gate: a whole line fills its band, so a
                              gap can't misplace anything — line-mapping stays
                              available exactly where gapped text makes
                              word-splitting unavailable. -->
-                        <button
-                            type="button"
-                            class="self-start text-stone-700 underline dark:text-stone-300"
-                            @click="armDrawing('line')"
-                        >
-                            split by line
-                        </button>
-                        <button
-                            type="button"
-                            class="self-start text-stone-700 underline disabled:opacity-40 dark:text-stone-300"
-                            :disabled="!selectionIsSplittable"
-                            :title="
-                                selectionIsSplittable
-                                    ? undefined
-                                    : 'Contains transcript markup — split a plain-text selection instead'
-                            "
-                            @click="armDrawing('word')"
-                        >
-                            split by word
-                        </button>
-                        <button
-                            type="button"
-                            class="self-start text-stone-700 underline disabled:opacity-40 dark:text-stone-300"
-                            :disabled="!selectionIsSplittable"
-                            :title="
-                                selectionIsSplittable
-                                    ? undefined
-                                    : 'Contains transcript markup — split a plain-text selection instead'
-                            "
-                            @click="armDrawing('character')"
-                        >
-                            split by character
-                        </button>
-                    </span>
-                    <span
-                        v-if="regionError"
-                        class="text-red-600 dark:text-red-400"
+                    <button
+                        type="button"
+                        class="self-start text-stone-700 underline dark:text-stone-300"
+                        @click="armDrawing('line')"
                     >
-                        {{ regionError }}
-                    </span>
-                </template>
+                        split by line
+                    </button>
+                    <button
+                        type="button"
+                        class="self-start text-stone-700 underline disabled:opacity-40 dark:text-stone-300"
+                        :disabled="!selectionIsSplittable"
+                        :title="
+                            selectionIsSplittable
+                                ? undefined
+                                : 'Contains transcript markup — split a plain-text selection instead'
+                        "
+                        @click="armDrawing('word')"
+                    >
+                        split by word
+                    </button>
+                    <button
+                        type="button"
+                        class="self-start text-stone-700 underline disabled:opacity-40 dark:text-stone-300"
+                        :disabled="!selectionIsSplittable"
+                        :title="
+                            selectionIsSplittable
+                                ? undefined
+                                : 'Contains transcript markup — split a plain-text selection instead'
+                        "
+                        @click="armDrawing('character')"
+                    >
+                        split by character
+                    </button>
+                </span>
+                <span v-if="regionError" class="text-red-600 dark:text-red-400">
+                    {{ regionError }}
+                </span>
+            </template>
 
-                <template v-else-if="activeMenu === 'assign'">
-                    <span
-                        v-if="matchingSegment?.needs_review"
-                        class="text-red-600 dark:text-red-400"
-                    >
-                        Flagged for review — the text here changed since this
-                        was mapped.
+            <template v-else-if="activeMenu === 'assign'">
+                <span
+                    v-if="matchingSegment?.needs_review"
+                    class="text-red-600 dark:text-red-400"
+                >
+                    Flagged for review — the text here changed since this was
+                    mapped.
+                </span>
+                <span
+                    v-if="existingParts.length > 0 && !realignmentWarning"
+                    class="flex flex-wrap items-center gap-2 text-sky-700 dark:text-sky-400"
+                >
+                    <span>
+                        This layer already cites
+                        {{ assignForm.label }} — this span becomes another part
+                        of it, reading
                     </span>
-                    <span
-                        v-if="existingParts.length > 0 && !realignmentWarning"
-                        class="flex flex-wrap items-center gap-2 text-sky-700 dark:text-sky-400"
+                    <select
+                        v-model="partPlacement"
+                        class="rounded border border-stone-300 bg-transparent px-1 py-0.5 dark:border-stone-700"
                     >
-                        <span>
-                            This layer already cites
-                            {{ assignForm.label }} — this span becomes another
-                            part of it, reading
-                        </span>
-                        <select
-                            v-model="partPlacement"
-                            class="rounded border border-stone-300 bg-transparent px-1 py-0.5 dark:border-stone-700"
+                        <option :value="null">last</option>
+                        <option :value="0">first</option>
+                        <option
+                            v-for="sibling in existingParts.slice(0, -1)"
+                            :key="sibling.id"
+                            :value="sibling.part"
                         >
-                            <option :value="null">last</option>
-                            <option :value="0">first</option>
-                            <option
-                                v-for="sibling in existingParts.slice(0, -1)"
-                                :key="sibling.id"
-                                :value="sibling.part"
-                            >
-                                after part
-                                {{ sibling.part }}
-                            </option>
-                        </select>
+                            after part
+                            {{ sibling.part }}
+                        </option>
+                    </select>
+                </span>
+                <span
+                    v-if="realignmentWarning"
+                    class="flex flex-wrap items-center gap-2"
+                >
+                    <span class="text-amber-700 dark:text-amber-400">
+                        {{ realignmentWarning }}
                     </span>
-                    <span
-                        v-if="realignmentWarning"
-                        class="flex flex-wrap items-center gap-2"
+                    <button
+                        type="button"
+                        class="rounded bg-stone-900 px-2 py-0.5 text-white dark:bg-stone-100 dark:text-stone-900"
+                        @click="assignSelection(true)"
                     >
-                        <span class="text-amber-700 dark:text-amber-400">
-                            {{ realignmentWarning }}
-                        </span>
-                        <button
-                            type="button"
-                            class="rounded bg-stone-900 px-2 py-0.5 text-white dark:bg-stone-100 dark:text-stone-900"
-                            @click="assignSelection(true)"
-                        >
-                            Save anyway
-                        </button>
-                        <button
-                            type="button"
-                            class="underline"
-                            @click="realignmentWarning = null"
-                        >
-                            Cancel
-                        </button>
-                    </span>
-                    <span
-                        v-if="!realignmentWarning"
-                        class="flex flex-wrap items-center gap-2"
+                        Save anyway
+                    </button>
+                    <button
+                        type="button"
+                        class="underline"
+                        @click="realignmentWarning = null"
                     >
-                        <select
-                            v-model="assignForm.work_id"
-                            class="rounded border border-stone-300 bg-transparent px-1 py-0.5 dark:border-stone-700"
+                        Cancel
+                    </button>
+                </span>
+                <span
+                    v-if="!realignmentWarning"
+                    class="flex flex-wrap items-center gap-2"
+                >
+                    <select
+                        v-model="assignForm.work_id"
+                        class="rounded border border-stone-300 bg-transparent px-1 py-0.5 dark:border-stone-700"
+                    >
+                        <option value="" disabled>Work&hellip;</option>
+                        <option
+                            v-for="work in props.works"
+                            :key="work.id"
+                            :value="work.id"
                         >
-                            <option value="" disabled>Work&hellip;</option>
-                            <option
-                                v-for="work in props.works"
-                                :key="work.id"
-                                :value="work.id"
-                            >
-                                {{ work.title }}
-                            </option>
-                        </select>
-                        <input
-                            v-model="assignForm.label"
-                            type="text"
-                            placeholder="e.g. 45 or 45A"
-                            class="w-24 rounded border border-stone-300 bg-transparent px-1 py-0.5 dark:border-stone-700"
-                        />
-                        <button
-                            type="button"
-                            class="rounded bg-stone-900 px-2 py-0.5 text-white dark:bg-stone-100 dark:text-stone-900"
-                            @click="assignSelection()"
-                        >
-                            {{
-                                matchingSegment
-                                    ? 'Update citation'
-                                    : existingParts.length > 0
-                                      ? 'Add as part'
-                                      : 'Mark & assign'
-                            }}
-                        </button>
-                        <!-- Moving a passage is plain cut & paste: the
+                            {{ work.title }}
+                        </option>
+                    </select>
+                    <input
+                        v-model="assignForm.label"
+                        type="text"
+                        placeholder="e.g. 45 or 45A"
+                        class="w-24 rounded border border-stone-300 bg-transparent px-1 py-0.5 dark:border-stone-700"
+                    />
+                    <button
+                        type="button"
+                        class="rounded bg-stone-900 px-2 py-0.5 text-white dark:bg-stone-100 dark:text-stone-900"
+                        @click="assignSelection()"
+                    >
+                        {{
+                            matchingSegment
+                                ? 'Update citation'
+                                : existingParts.length > 0
+                                  ? 'Add as part'
+                                  : 'Mark & assign'
+                        }}
+                    </button>
+                    <!-- Moving a passage is plain cut & paste: the
                              citation travels with the words. -->
-                        <button
-                            v-if="matchingSegment"
-                            type="button"
-                            class="text-red-600 underline dark:text-red-400"
-                            @click="removeSegment(matchingSegment.id)"
-                        >
-                            Remove span
-                        </button>
-                    </span>
-                    <span
-                        v-if="assignError"
-                        class="text-red-600 dark:text-red-400"
+                    <button
+                        v-if="matchingSegment"
+                        type="button"
+                        class="text-red-600 underline dark:text-red-400"
+                        @click="removeSegment(matchingSegment.id)"
                     >
-                        {{ assignError }}
-                    </span>
-                </template>
-            </div>
+                        Remove span
+                    </button>
+                </span>
+                <span v-if="assignError" class="text-red-600 dark:text-red-400">
+                    {{ assignError }}
+                </span>
+            </template>
         </div>
     </div>
 </template>

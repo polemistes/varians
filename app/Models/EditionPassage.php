@@ -25,17 +25,27 @@ use Illuminate\Support\Carbon;
  * manuscript layout) and freely rearranged afterwards. Breaks *inside* a
  * passage are EditionLineBreak rows.
  *
+ * A passage the edition prints in PIECES — because it adopted a
+ * transposition that moves part of the line elsewhere — has one row per
+ * part: `part` numbers the pieces in the passage's own order, `part_text`
+ * holds the piece's words (matched against the passage's runs when the
+ * page renders, see EditionController::partRange), and each row has its
+ * own position and lineation. A whole passage is a single part-1 row with
+ * no text. See App\Support\Edition\ArrangementAdopter.
+ *
  * @property int $id
  * @property int $edition_id
  * @property int $canonical_passage_id
+ * @property int $part
  * @property int|null $transcription_layer_id
  * @property string $position
+ * @property string|null $part_text
  * @property bool $starts_new_line
  * @property bool $starts_new_paragraph
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['edition_id', 'canonical_passage_id', 'transcription_layer_id', 'position', 'starts_new_line', 'starts_new_paragraph'])]
+#[Fillable(['edition_id', 'canonical_passage_id', 'part', 'transcription_layer_id', 'position', 'part_text', 'starts_new_line', 'starts_new_paragraph'])]
 class EditionPassage extends Model
 {
     /** @use HasFactory<EditionPassageFactory> */
@@ -71,6 +81,7 @@ class EditionPassage extends Model
     protected function casts(): array
     {
         return [
+            'part' => 'integer',
             'position' => 'decimal:10',
             'starts_new_line' => 'boolean',
             'starts_new_paragraph' => 'boolean',

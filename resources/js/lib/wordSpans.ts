@@ -129,3 +129,47 @@ export function fromAnchor(text: string, word: number, char: number): number {
 
     return target.start + Math.min(char, target.end - target.start);
 }
+
+/**
+ * The text with every word collapsed to one mark and the whitespace kept
+ * verbatim — the client mirror of LayerCorrespondence::pattern. Equal
+ * patterns mean the same words in the same places, the precondition under
+ * which an offset at a word boundary in one layer names a definite offset
+ * in the other.
+ */
+export function pattern(text: string): string {
+    return text.replace(/\S+/gu, 'w');
+}
+
+/**
+ * The offset in `b` naming the same structural place `offset` does in `a`
+ * — the client mirror of LayerMirror::mapOffset, defined only where the
+ * texts' patterns agree and the offset stands at a word boundary or in the
+ * whitespace between words. Inside a word there is no counterpart, since
+ * the spellings differ; null then.
+ */
+export function mapOffset(a: string, b: string, offset: number): number | null {
+    const aWords = words(a);
+    const bWords = words(b);
+
+    if (aWords.length !== bWords.length) {
+        return null;
+    }
+
+    for (const [index, word] of aWords.entries()) {
+        if (word.end > offset) {
+            if (offset > word.start) {
+                return null;
+            }
+
+            const delta = offset - (index > 0 ? aWords[index - 1].end : 0);
+
+            return (index > 0 ? bWords[index - 1].end : 0) + delta;
+        }
+    }
+
+    const lastA = aWords.length === 0 ? 0 : aWords[aWords.length - 1].end;
+    const lastB = bWords.length === 0 ? 0 : bWords[bWords.length - 1].end;
+
+    return lastB + (offset - lastA);
+}

@@ -24,7 +24,7 @@ class StoreEditionPassagesBulkRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * "Base a range on this manuscript" — the bulk add. Both endpoints are
+     * "Add lines…" — the bulk add. Both endpoints are
      * picked from the work's own passage list (a hierarchical dropdown, not
      * free text), so they're always real, existing passages of this
      * edition's work. Unlike the old EditionBase range, no overlap check:

@@ -1,5 +1,8 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}"  @class(['dark' => ($appearance ?? 'system') == 'dark'])>
+{{-- data-greek-font picks which serif face resources/css/app.css uses —
+     set server-side so the chosen font applies from the first paint; the
+     client keeps it in sync after profile changes (see app.ts). --}}
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-greek-font="{{ auth()->user()?->greek_font->value ?? 'eb-garamond' }}" @class(['dark' => ($appearance ?? 'system') == 'dark'])>
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">

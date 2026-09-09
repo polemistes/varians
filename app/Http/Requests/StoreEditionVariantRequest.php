@@ -6,7 +6,9 @@ use App\Enums\ConjectureType;
 use App\Enums\Layer;
 use App\Models\Conjecture;
 use App\Models\Edition;
+use App\Models\LemmaReading;
 use App\Models\TranscriptionSegment;
+use App\Support\Bibliography\ReferenceRules;
 use App\Support\Edition\ConjectureValidationRules;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -102,15 +104,20 @@ class StoreEditionVariantRequest extends FormRequest
             // by the same rule — see App\Enums\Layer.
             'transcription_layer_id' => ['required_if:source,transcription', Rule::exists('transcription_layers', 'id')->where('layer', Layer::Normalized->value)],
             'start_offset' => ['required_if:source,transcription', 'integer', 'min:0'],
-            'end_offset' => ['required_if:source,transcription', 'integer', 'gt:start_offset'],
+            // Zero width only for a witness's omission reading — see
+            // validateTranscriptionSpan.
+            'end_offset' => ['required_if:source,transcription', 'integer', 'gte:start_offset'],
             'conjecture_id' => [
                 'required_if:source,existing_conjecture',
                 Rule::exists('conjectures', 'id')->where('canonical_passage_id', $this->input('canonical_passage_id')),
             ],
             ...ConjectureValidationRules::structuralRules('conjecture_'),
             'conjecture_proposed_by' => ['nullable', 'string', 'max:255'],
-            'conjecture_bibliography' => ['nullable', 'string'],
+            ...ReferenceRules::rules('conjecture_references'),
             'conjecture_note' => ['nullable', 'string'],
+            // A brand new substitution is only catalogued unless asked to be
+            // adopted as well — "Register" vs "Register and adopt".
+            'adopt' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -136,7 +143,7 @@ class StoreEditionVariantRequest extends FormRequest
             if ($this->wantsLacuna()) {
                 $validator->errors()->add('source', 'A lacuna is a point insertion, not a word-level column — see placement=insert.');
             } elseif ($this->wantsNewSubstitution()) {
-                $validator->errors()->add('placement', 'A brand new substitution is always placed as a range — a single word is just a range of one — see placement=range.');
+                $validator->errors()->add('placement', 'A brand new substitution or deletion is always placed as a range — a single word is just a range of one — see placement=range.');
             }
 
             return;
@@ -206,9 +213,11 @@ class StoreEditionVariantRequest extends FormRequest
     }
 
     /**
-     * A brand new substitution — single word or many — is always placed as
-     * a range now (see placement=range); a range of one lemma is exactly
-     * the single-word case, so there's no separate mechanism left for it.
+     * A brand new substitution or deletion — single word or many — is
+     * always placed as a range now (see placement=range); a range of one
+     * lemma is exactly the single-word case, so there's no separate
+     * mechanism left for it. A deletion is a substitution by nothing: it
+     * claims the same ground and is catalogued and adopted the same way.
      * Distinct from wantsLacuna()/wantsSupplement(), which still belong
      * under placement=insert/existing respectively.
      */
@@ -220,7 +229,7 @@ class StoreEditionVariantRequest extends FormRequest
 
         $type = $this->input('conjecture_type') ?? ConjectureType::Substitution->value;
 
-        return $type === ConjectureType::Substitution->value;
+        return in_array($type, [ConjectureType::Substitution->value, ConjectureType::Deletion->value], true);
     }
 
     private function wantsSupplement(): bool
@@ -262,6 +271,21 @@ class StoreEditionVariantRequest extends FormRequest
         if (! $covered) {
             $validator->errors()->add('start_offset', 'That span isn\'t inside this witness\'s citation of this passage.');
         }
+
+        // An empty span is no reading — unless it is the witness's own
+        // omission of these words (LemmaReading::$omitted), which is picked
+        // by the same coordinates as any other candidate.
+        if ((int) $startOffset === (int) $endOffset) {
+            $isOmission = LemmaReading::where('transcription_layer_id', (int) $transcriptionId)
+                ->where('start_offset', (int) $startOffset)
+                ->where('omitted', true)
+                ->whereHas('lemma', fn ($query) => $query->where('canonical_passage_id', $this->input('canonical_passage_id')))
+                ->exists();
+
+            if (! $isOmission) {
+                $validator->errors()->add('end_offset', 'An empty span is not a reading.');
+            }
+        }
     }
 
     private function validateNewConjecture(Validator $validator): void
@@ -280,6 +304,10 @@ class StoreEditionVariantRequest extends FormRequest
             $validator->errors()->add('conjecture_text', 'A lacuna never carries its own text — propose a supplement instead.');
         }
 
+        if ($type === ConjectureType::Deletion->value && $this->filled('conjecture_text')) {
+            $validator->errors()->add('conjecture_text', 'A deletion removes words — it carries no text of its own.');
+        }
+
         if ($type === ConjectureType::Supplement->value) {
             $lacunaId = $this->input('conjecture_supplements_conjecture_id');
 
@@ -289,7 +317,7 @@ class StoreEditionVariantRequest extends FormRequest
         }
 
         if (in_array($type, [ConjectureType::Transposition->value, ConjectureType::Reordering->value], true)) {
-            $validator->errors()->add('conjecture_type', 'A transposition or reordering isn\'t placed this way — see edition-transpositions.store / conjecture-orderings.store.');
+            $validator->errors()->add('conjecture_type', 'A transposition or reordering isn\'t placed this way — record it on the work page or from the order panel.');
         }
     }
 
@@ -309,7 +337,7 @@ class StoreEditionVariantRequest extends FormRequest
         $conjecture = is_numeric($conjectureId) ? Conjecture::find((int) $conjectureId) : null;
 
         if (in_array($conjecture?->type, [ConjectureType::Transposition, ConjectureType::Reordering], true)) {
-            $validator->errors()->add('conjecture_id', 'A transposition or reordering isn\'t placed this way — see edition-transpositions.store / conjecture-orderings.store.');
+            $validator->errors()->add('conjecture_id', 'A transposition or reordering isn\'t placed this way — follow it from the order panel.');
         }
     }
 }

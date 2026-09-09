@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\DestroyTranscriptionRegionSpanRequest;
 use App\Http\Requests\StoreTranscriptionRegionBatchRequest;
 use App\Http\Requests\StoreTranscriptionRegionRequest;
 use App\Http\Requests\UpdateTranscriptionRegionRequest;
@@ -204,6 +205,32 @@ class TranscriptionRegionController extends Controller
         DB::transaction(function () use ($region) {
             $this->siblingCounterpart($region)?->delete();
             $region->delete();
+        });
+
+        return back();
+    }
+
+    /**
+     * Remove every mapping overlapping a span of the layer's text — the
+     * remove-then-redraw half of remapping, in one press from the notice a
+     * selection over mapped text shows (user decision). Counterparts go
+     * with their rows, as in destroy().
+     */
+    public function destroySpan(DestroyTranscriptionRegionSpanRequest $request, TranscriptionLayer $transcription): RedirectResponse
+    {
+        $start = (int) $request->validated('start_offset');
+        $end = (int) $request->validated('end_offset');
+
+        DB::transaction(function () use ($transcription, $start, $end) {
+            $regions = $transcription->regions()
+                ->where('start_offset', '<', $end)
+                ->where('end_offset', '>', $start)
+                ->get();
+
+            foreach ($regions as $region) {
+                $this->siblingCounterpart($region)?->delete();
+                $region->delete();
+            }
         });
 
         return back();

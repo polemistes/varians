@@ -21,8 +21,8 @@ class EditionLineationController extends Controller
 {
     /**
      * Set, change, or clear the break before one column — one idempotent
-     * endpoint, since the editor cycles a gap through line → paragraph →
-     * none. A null kind clears.
+     * endpoint, since Enter, Backspace and Delete in the edition text raise
+     * or lower a gap through none → line → paragraph. A null kind clears.
      */
     public function updateBreak(UpdateEditionLineBreakRequest $request, Edition $edition): RedirectResponse
     {

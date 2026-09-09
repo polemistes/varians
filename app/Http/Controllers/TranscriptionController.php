@@ -87,16 +87,21 @@ class TranscriptionController extends Controller
     }
 
     /**
-     * Deleting a transcription cascades its segments, regions, and — if
-     * any of its words feed a published edition —
-     * the edition's own LemmaReading selections and base-text choices for
-     * that range. See App\Support\DeletionImpact for the preview shown
-     * before this is confirmed.
+     * Deleting a transcript deletes the TRANSCRIPT — both of its layers,
+     * from whichever pane the button was pressed in — and cascades their
+     * segments, regions, and, if any of their words feed a published
+     * edition, the edition's own LemmaReading selections and base-text
+     * choices for that range. See App\Support\DeletionImpact for the
+     * preview shown before this is confirmed.
+     *
+     * Deleting only the layer the route named left one-layer transcripts
+     * behind (real incident — a migration had to backfill the missing
+     * sides); a transcript is the pair, and there is no half to keep.
      */
     public function destroy(TranscriptionLayer $transcription): RedirectResponse
     {
         $witness = $transcription->witness;
-        $transcription->delete();
+        $transcription->transcription->delete();
 
         return redirect()->route('witnesses.show', $witness);
     }

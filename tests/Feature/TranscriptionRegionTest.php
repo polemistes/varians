@@ -152,3 +152,42 @@ test('text already mapped to the facsimile cannot be mapped again', function () 
 
     expect($transcription->regions()->count())->toBe(1);
 });
+
+test('every mapping a span overlaps can be removed at once, counterparts included, the rest untouched', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    [$transcription, $image] = makeTranscriptionWithImage();
+    $sibling = TranscriptionLayer::factory()->diplomatic()->for($transcription->transcription)->create(['text' => 'λόγος καλός ἐστιν']);
+
+    $draw = fn (TranscriptionLayer $layer, int $start, int $end, string $group) => TranscriptionRegion::factory()->create([
+        'transcription_layer_id' => $layer->id,
+        'manuscript_image_id' => $image->id,
+        'start_offset' => $start,
+        'end_offset' => $end,
+        'group_id' => $group,
+    ]);
+    $draw($transcription, 0, 5, 'a');
+    $draw($sibling, 0, 5, 'a');
+    $draw($transcription, 6, 11, 'b');
+    $draw($sibling, 6, 11, 'b');
+    $kept = $draw($transcription, 12, 17, 'c');
+
+    // A selection over the first two words removes both boxes — in both
+    // layers — and leaves the third alone.
+    $this->delete(route('transcription-regions.destroy-span', $transcription), [
+        'start_offset' => 2,
+        'end_offset' => 8,
+    ])->assertRedirect();
+
+    expect(TranscriptionRegion::whereIn('group_id', ['a', 'b'])->count())->toBe(0)
+        ->and(TranscriptionRegion::find($kept->id))->not->toBeNull();
+});
+
+test('a guest cannot remove the mappings of a span', function () {
+    $this->actingAs(User::factory()->create());
+    [$transcription] = makeTranscriptionWithImage();
+
+    $this->delete(route('transcription-regions.destroy-span', $transcription), [
+        'start_offset' => 0,
+        'end_offset' => 5,
+    ])->assertForbidden();
+});

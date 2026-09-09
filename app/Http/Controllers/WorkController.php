@@ -6,9 +6,11 @@ use App\Http\Requests\StoreWorkRequest;
 use App\Http\Requests\UpdateWorkRequest;
 use App\Models\ReferenceScheme;
 use App\Models\TranscriptionLayer;
-use App\Models\Witness;
 use App\Models\Work;
+use App\Support\Bibliography\Biblatex;
+use App\Support\Bibliography\Suggestions;
 use App\Support\DeletionImpact;
+use App\Support\Edition\ConjectureCatalogue;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -62,14 +64,19 @@ class WorkController extends Controller
             ->with(['witness', 'user', 'transcription'])
             ->get();
 
-        $allWitnesses = Witness::visibleTo($request->user())->orderBy('siglum')->get(['id', 'siglum', 'label', 'type']);
-
         $work->setAttribute('deletion_impact', DeletionImpact::forWork($work));
 
         return Inertia::render('Works/Show', [
             'work' => $work,
             'transcriptions' => $transcriptions,
-            'allWitnesses' => $allWitnesses,
+            // The work's whole stockpile of conjectures, of every kind, for
+            // the list where they are recorded, edited and removed.
+            'conjectures' => ConjectureCatalogue::forWork($work),
+            'referenceLevels' => $work->referenceScheme->levels,
+            'bibliographyForm' => [
+                'registry' => Biblatex::registry(),
+                'suggestions' => Suggestions::all(),
+            ],
         ]);
     }
 

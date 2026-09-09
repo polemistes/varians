@@ -37,10 +37,11 @@ use Illuminate\Support\Collection;
  * @property int $end_offset
  * @property int $part
  * @property bool $needs_review
+ * @property bool $boundary_review
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['transcription_layer_id', 'canonical_passage_id', 'start_offset', 'end_offset', 'part', 'needs_review', 'group_id'])]
+#[Fillable(['transcription_layer_id', 'canonical_passage_id', 'start_offset', 'end_offset', 'part', 'needs_review', 'boundary_review', 'group_id'])]
 class TranscriptionSegment extends Model
 {
     /** @use HasFactory<TranscriptionSegmentFactory> */
@@ -99,6 +100,7 @@ class TranscriptionSegment extends Model
             'end_offset' => 'integer',
             'part' => 'integer',
             'needs_review' => 'boolean',
+            'boundary_review' => 'boolean',
         ];
     }
 }

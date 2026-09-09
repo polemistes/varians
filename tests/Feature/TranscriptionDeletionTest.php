@@ -5,24 +5,31 @@ use App\Models\EditionPassage;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\ManuscriptImage;
+use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 
-test('deleting a transcription cascades its segments and regions, redirects to its witness, and leaves the witness untouched', function () {
+test('deleting a transcript removes BOTH its layers with their segments and regions, redirects to its witness, and leaves the witness untouched', function () {
     $this->actingAs(User::factory()->editor()->create());
     $witness = Witness::factory()->create();
     $image = ManuscriptImage::factory()->for($witness)->create();
-    $transcription = TranscriptionLayer::factory()->for($witness)->create();
+    $parent = Transcription::factory()->for($witness)->create();
+    $transcription = TranscriptionLayer::factory()->diplomatic()->for($parent)->create();
+    $sibling = TranscriptionLayer::factory()->normalized()->for($parent)->create();
     $segment = TranscriptionSegment::factory()->for($transcription)->create();
     $region = TranscriptionRegion::factory()->for($transcription)->for($image, 'manuscriptImage')->create();
 
     $response = $this->delete(route('transcriptions.destroy', $transcription));
 
+    // Deleting only the pressed pane's layer left one-layer transcripts
+    // behind (real incident); a transcript is the pair.
     $response->assertRedirect(route('witnesses.show', $witness));
-    expect(TranscriptionLayer::find($transcription->id))->toBeNull()
+    expect(Transcription::find($parent->id))->toBeNull()
+        ->and(TranscriptionLayer::find($transcription->id))->toBeNull()
+        ->and(TranscriptionLayer::find($sibling->id))->toBeNull()
         ->and(TranscriptionSegment::find($segment->id))->toBeNull()
         ->and(TranscriptionRegion::find($region->id))->toBeNull()
         ->and(Witness::find($witness->id))->not->toBeNull()

@@ -166,7 +166,7 @@ test('removing a passage frees it up for re-adding elsewhere and clears this edi
     $reading = LemmaReading::where('lemma_id', $lemma->id)->sole();
     EditionLemma::create(['edition_id' => $edition->id, 'lemma_id' => $lemma->id, 'selected_reading_id' => $reading->id]);
 
-    $response = $this->delete(route('edition-passages.destroy', $editionPassage));
+    $response = $this->delete(route('edition-passages.destroy', $edition), ['canonical_passage_ids' => [$line1->id]]);
     $response->assertRedirect();
 
     expect(EditionPassage::find($editionPassage->id))->toBeNull()
@@ -239,6 +239,76 @@ test('a guest cannot add or remove edition passages', function () {
 
     expect(EditionPassage::count())->toBe(0);
 
-    $editionPassage = EditionPassage::factory()->create();
-    $this->delete(route('edition-passages.destroy', $editionPassage))->assertForbidden();
+    $this->delete(route('edition-passages.destroy', $edition), ['canonical_passage_ids' => [$line1->id]])->assertForbidden();
+});
+
+test('a segment added late lands where its manuscript has it, not at the end', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    ['work' => $work, 'edition' => $edition] = editionForPassages();
+    $line1 = citedPassage($work, 1);
+    $line2 = citedPassage($work, 2);
+    $line3 = citedPassage($work, 3);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'first second third']);
+    TranscriptionSegment::factory()->for($transcription)->for($line1, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
+    TranscriptionSegment::factory()->for($transcription)->for($line2, 'canonicalPassage')->create(['start_offset' => 6, 'end_offset' => 12]);
+    TranscriptionSegment::factory()->for($transcription)->for($line3, 'canonicalPassage')->create(['start_offset' => 13, 'end_offset' => 18]);
+
+    // Lines 1 and 3 first, by passage id — then line 2, which the
+    // manuscript has between them.
+    $this->post(route('edition-passages.store', $edition), [
+        'transcription_layer_id' => $transcription->id,
+        'canonical_passage_ids' => [$line1->id, $line3->id],
+    ])->assertRedirect();
+    $this->post(route('edition-passages.store', $edition), [
+        'transcription_layer_id' => $transcription->id,
+        'canonical_passage_ids' => [$line2->id],
+    ])->assertRedirect();
+
+    $stored = EditionPassage::where('edition_id', $edition->id)->orderBy('position')->pluck('canonical_passage_id')->all();
+    expect($stored)->toBe([$line1->id, $line2->id, $line3->id]);
+});
+
+test('a segment from a witness sharing no passage with the edition goes by citation order', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    ['work' => $work, 'edition' => $edition] = editionForPassages();
+    $line1 = citedPassage($work, 1);
+    $line2 = citedPassage($work, 2);
+    $line3 = citedPassage($work, 3);
+    $a = TranscriptionLayer::factory()->create(['text' => 'third first']);
+    TranscriptionSegment::factory()->for($a)->for($line3, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
+    TranscriptionSegment::factory()->for($a)->for($line1, 'canonicalPassage')->create(['start_offset' => 6, 'end_offset' => 11]);
+    $b = TranscriptionLayer::factory()->create(['text' => 'second']);
+    TranscriptionSegment::factory()->for($b)->for($line2, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 6]);
+
+    // A prints 3 before 1, as the manuscript has it; B's line 2 knows
+    // nothing of A's order, so it follows the citation numbering: after 1.
+    $this->post(route('edition-passages.store', $edition), [
+        'transcription_layer_id' => $a->id,
+        'canonical_passage_ids' => [$line1->id, $line3->id],
+    ])->assertRedirect();
+    $this->post(route('edition-passages.store', $edition), [
+        'transcription_layer_id' => $b->id,
+        'canonical_passage_ids' => [$line2->id],
+    ])->assertRedirect();
+
+    $stored = EditionPassage::where('edition_id', $edition->id)->orderBy('position')->pluck('canonical_passage_id')->all();
+    expect($stored)->toBe([$line3->id, $line1->id, $line2->id]);
+});
+
+test('several passages are removed at once', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    ['work' => $work, 'edition' => $edition] = editionForPassages();
+    $line1 = citedPassage($work, 1);
+    $line2 = citedPassage($work, 2);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'first second']);
+    TranscriptionSegment::factory()->for($transcription)->for($line1, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
+    TranscriptionSegment::factory()->for($transcription)->for($line2, 'canonicalPassage')->create(['start_offset' => 6, 'end_offset' => 12]);
+    $this->post(route('edition-passages.store', $edition), [
+        'transcription_layer_id' => $transcription->id,
+        'canonical_passage_ids' => [$line1->id, $line2->id],
+    ]);
+
+    $this->delete(route('edition-passages.destroy', $edition), ['canonical_passage_ids' => [$line1->id, $line2->id]])->assertRedirect();
+
+    expect(EditionPassage::where('edition_id', $edition->id)->count())->toBe(0);
 });

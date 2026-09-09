@@ -109,6 +109,67 @@ test('picking a detected witness variant selects it', function () {
         ->where('windowPassages.0.runs.1.text', 'slow'));
 });
 
+test('picking a flagged candidate is the confirmation that clears its needs-review flag', function () {
+    // The flag's one meaning is "an edition's choice lost its manuscript
+    // backing — confirm or re-choose". Re-picking the candidate IS the
+    // confirmation, the same way re-selecting a citation span clears its
+    // own flag.
+    $this->actingAs(User::factory()->editor()->create());
+    ['edition' => $edition, 'passage' => $passage, 'other' => $other] = editionWithBase('the quick fox', 'the slow fox');
+
+    $flagged = LemmaReading::where('transcription_layer_id', $other->id)
+        ->where('start_offset', 4)->where('end_offset', 8)->sole();
+    $flagged->update(['needs_review' => true]);
+
+    $this->post(route('edition-variants.store', $edition), [
+        'canonical_passage_id' => $passage->id,
+        'base_start_offset' => 4,
+        'base_end_offset' => 9,
+        'source' => 'transcription',
+        'transcription_layer_id' => $other->id,
+        'start_offset' => 4,
+        'end_offset' => 8,
+    ])->assertRedirect();
+
+    expect($flagged->fresh()->needs_review)->toBeFalse();
+});
+
+test('re-choosing away from a destroyed selected reading drops the empty flagged row', function () {
+    // A destroyed reading survives only because an edition selects it
+    // (zero-width, flagged). Choosing another candidate removes its reason
+    // to exist — once nothing selects it, it goes.
+    $this->actingAs(User::factory()->editor()->create());
+    ['edition' => $edition, 'passage' => $passage, 'other' => $other] = editionWithBase('the quick fox', 'the slow fox');
+
+    $lemma = LemmaReading::where('transcription_layer_id', $other->id)
+        ->where('start_offset', 4)->where('end_offset', 8)->sole()->lemma;
+    $baseLayer = LemmaReading::where('lemma_id', $lemma->id)
+        ->where('transcription_layer_id', '!=', $other->id)->sole();
+
+    // The base's reading was destroyed by a text edit while selected:
+    // kept as a zero-width flagged span, still this edition's choice.
+    $baseLayer->update(['start_offset' => 4, 'end_offset' => 4, 'needs_review' => true]);
+    EditionLemma::create([
+        'edition_id' => $edition->id,
+        'lemma_id' => $lemma->id,
+        'selected_reading_id' => $baseLayer->id,
+    ]);
+
+    // The editor re-chooses: B's reading replaces the emptied one.
+    $this->post(route('edition-variants.store', $edition), [
+        'canonical_passage_id' => $passage->id,
+        'base_start_offset' => 4,
+        'base_end_offset' => 9,
+        'source' => 'transcription',
+        'transcription_layer_id' => $other->id,
+        'start_offset' => 4,
+        'end_offset' => 8,
+    ])->assertRedirect();
+
+    expect(LemmaReading::whereKey($baseLayer->id)->exists())->toBeFalse()
+        ->and(EditionLemma::where('edition_id', $edition->id)->sole()->selectedReading->transcription_layer_id)->toBe($other->id);
+});
+
 test('recording a fresh conjecture on a plain span catalogues it as a candidate without adopting it', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['edition' => $edition, 'passage' => $passage] = editionWithBase('the quick fox');
@@ -133,6 +194,28 @@ test('recording a fresh conjecture on a plain span catalogues it as a candidate 
     $reading = $lemma->readings->firstWhere('conjecture_id', $conjecture->id);
     expect($reading->range_end_lemma_id)->toBeNull() // a single-word range is exactly the single-column case
         ->and(EditionLemma::where('edition_id', $edition->id)->exists())->toBeFalse();
+});
+
+test('recording a fresh conjecture with adopt selects it for the edition in the same step', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    ['edition' => $edition, 'passage' => $passage] = editionWithBase('the quick fox');
+
+    // "Register and adopt" — the one request both catalogues and prints.
+    $this->post(route('edition-variants.store', $edition), [
+        'canonical_passage_id' => $passage->id,
+        'placement' => 'range',
+        'range_start_base_offset' => 4,
+        'range_end_base_offset' => 9,
+        'source' => 'new_conjecture',
+        'conjecture_text' => 'swift',
+        'conjecture_proposed_by' => 'Bentley',
+        'adopt' => true,
+    ])->assertRedirect();
+
+    $conjecture = Conjecture::sole();
+    $reading = LemmaReading::where('conjecture_id', $conjecture->id)->sole();
+
+    expect(EditionLemma::where('edition_id', $edition->id)->sole()->selected_reading_id)->toBe($reading->id);
 });
 
 test('a catalogued, still-unplaced conjecture can be placed at a specific column', function () {
@@ -246,7 +329,7 @@ test('a bare lacuna is inserted between two words without replacing either of th
     $show->assertInertia(fn (AssertInertia $page) => $page
         ->where('windowPassages.0.runs.0.text', 'the')
         ->where('windowPassages.0.runs.1.text', '[lacuna: one word]')
-        ->where('windowPassages.0.runs.1.candidates.0.label', 'lacuna — Wolf')
+        ->where('windowPassages.0.runs.1.candidates.0.label', 'Wolf (lacuna)')
         ->where('windowPassages.0.runs.2.text', 'quick')
         ->where('windowPassages.0.runs.3.text', 'fox'));
 });
@@ -284,7 +367,7 @@ test('a supplement proposed for an existing lacuna column can be selected in its
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page
         ->where('windowPassages.0.runs.1.text', 'indeed')
-        ->where('windowPassages.0.runs.1.candidates.1.label', 'suppl. — Bentley')
+        ->where('windowPassages.0.runs.1.candidates.1.label', 'Bentley (supplement)')
         ->has('windowPassages.0.runs.1.candidates', 2));
 });
 
@@ -1039,4 +1122,140 @@ test('a transposition cannot be placed through the word-level variant endpoint',
 
     $response->assertInvalid(['conjecture_type']);
     expect(Conjecture::count())->toBe(0);
+});
+
+test('a deletion conjecture is registered over the selected words without changing the printed text', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    ['work' => $work, 'edition' => $edition, 'passage' => $passage] = editionWithBase('the quick brown fox');
+
+    $this->post(route('edition-variants.store', $edition), [
+        'canonical_passage_id' => $passage->id,
+        'placement' => 'range',
+        'range_start_base_offset' => 4,
+        'range_end_base_offset' => 15,
+        'source' => 'new_conjecture',
+        'conjecture_type' => 'deletion',
+        'conjecture_proposed_by' => 'Bergk',
+    ])->assertRedirect();
+
+    $conjecture = Conjecture::sole();
+    $reading = LemmaReading::where('conjecture_id', $conjecture->id)->sole();
+    $lemmas = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->get();
+
+    expect($conjecture->type)->toBe(ConjectureType::Deletion)
+        ->and($conjecture->text)->toBeNull()
+        ->and($reading->lemma_id)->toBe($lemmas[1]->id)
+        ->and($reading->range_end_lemma_id)->toBe($lemmas[2]->id)
+        ->and(EditionLemma::where('edition_id', $edition->id)->count())->toBe(0);
+
+    $this->get(route('editions.show', [$work, $edition]))
+        ->assertInertia(fn (AssertInertia $page) => $page
+            ->where('windowPassages.0.runs.1.text', 'quick')
+            ->where('windowPassages.0.runs.1.omitted', false)
+            ->where('windowPassages.0.runs.1.candidates.1.label', 'Bergk (deletion)')
+            ->where('windowPassages.0.runs.1.candidates.1.text', '')
+            ->where('windowPassages.0.runs.1.candidates.1.omitted', true)
+            ->where('windowPassages.0.runs.1.candidates.1.replaced_text', 'quick brown'));
+});
+
+test('adopting a deletion prints nothing where the words stood and marks the place', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    ['work' => $work, 'edition' => $edition, 'passage' => $passage] = editionWithBase('the quick brown fox');
+
+    $this->post(route('edition-variants.store', $edition), [
+        'canonical_passage_id' => $passage->id,
+        'placement' => 'range',
+        'range_start_base_offset' => 4,
+        'range_end_base_offset' => 15,
+        'source' => 'new_conjecture',
+        'conjecture_type' => 'deletion',
+        'conjecture_proposed_by' => 'Bergk',
+        'adopt' => true,
+    ])->assertRedirect();
+
+    $this->get(route('editions.show', [$work, $edition]))
+        ->assertInertia(fn (AssertInertia $page) => $page
+            ->has('windowPassages.0.runs', 3)
+            ->where('windowPassages.0.runs.0.text', 'the')
+            ->where('windowPassages.0.runs.1.text', '')
+            ->where('windowPassages.0.runs.1.omitted', true)
+            ->where('windowPassages.0.runs.1.decided', true)
+            ->where('windowPassages.0.runs.2.text', 'fox'));
+});
+
+test('a deletion never carries text of its own', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    ['edition' => $edition, 'passage' => $passage] = editionWithBase('the quick brown fox');
+
+    $this->from('/')->post(route('edition-variants.store', $edition), [
+        'canonical_passage_id' => $passage->id,
+        'placement' => 'range',
+        'range_start_base_offset' => 4,
+        'range_end_base_offset' => 15,
+        'source' => 'new_conjecture',
+        'conjecture_type' => 'deletion',
+        'conjecture_text' => 'swift',
+    ])->assertSessionHasErrors('conjecture_text');
+
+    expect(Conjecture::count())->toBe(0);
+});
+
+test('a witness that lacks words the base has is offered as an omission the edition can adopt', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    ['work' => $work, 'edition' => $edition, 'passage' => $passage, 'other' => $other] = editionWithBase('the quick brown fox', 'the fox');
+
+    $lemmas = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->get();
+    $omission = LemmaReading::where('transcription_layer_id', $other->id)->where('omitted', true)->sole();
+
+    // Base A prints its words; B's omission is a candidate at "quick",
+    // spanning "brown" — the apparatus can say "quick brown A, omitted B".
+    $this->get(route('editions.show', [$work, $edition]))
+        ->assertInertia(fn (AssertInertia $page) => $page
+            ->where('windowPassages.0.runs.1.text', 'quick')
+            ->where('windowPassages.0.runs.1.candidates.1.label', 'B')
+            ->where('windowPassages.0.runs.1.candidates.1.omitted', true)
+            ->where('windowPassages.0.runs.1.candidates.1.text', '')
+            ->where('windowPassages.0.runs.1.candidates.1.range_end_lemma_id', $lemmas[2]->id)
+            ->where('windowPassages.0.runs.1.candidates.1.replaced_text', 'quick brown'));
+
+    $this->post(route('edition-variants.store', $edition), [
+        'canonical_passage_id' => $passage->id,
+        'placement' => 'existing',
+        'lemma_id' => $lemmas[1]->id,
+        'source' => 'transcription',
+        'transcription_layer_id' => $other->id,
+        'start_offset' => $omission->start_offset,
+        'end_offset' => $omission->end_offset,
+    ])->assertRedirect();
+
+    $this->get(route('editions.show', [$work, $edition]))
+        ->assertInertia(fn (AssertInertia $page) => $page
+            ->has('windowPassages.0.runs', 3)
+            ->where('windowPassages.0.runs.1.text', '')
+            ->where('windowPassages.0.runs.1.omitted', true)
+            ->where('windowPassages.0.runs.1.range_end_lemma_id', $lemmas[2]->id)
+            ->where('windowPassages.0.runs.2.text', 'fox'));
+});
+
+test('a base that lacks words another witness has prints one gap for the whole run, not one per column', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    // B is the base here; A has two words B lacks.
+    ['work' => $work, 'edition' => $edition, 'passage' => $passage] = editionWithBase('the fox', 'the quick brown fox');
+
+    $lemmas = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->get();
+
+    $this->get(route('editions.show', [$work, $edition]))
+        ->assertInertia(fn (AssertInertia $page) => $page
+            ->has('windowPassages.0.runs', 3)
+            ->where('windowPassages.0.runs.0.text', 'the')
+            ->where('windowPassages.0.runs.1.text', '')
+            ->where('windowPassages.0.runs.1.gap', true)
+            ->where('windowPassages.0.runs.1.omitted', true)
+            ->where('windowPassages.0.runs.1.decided', false)
+            ->where('windowPassages.0.runs.1.candidates.0.label', 'A')
+            ->where('windowPassages.0.runs.1.candidates.0.omitted', true)
+            ->where('windowPassages.0.runs.1.candidates.1.label', 'B')
+            ->where('windowPassages.0.runs.1.candidates.1.text', 'quick brown')
+            ->where('windowPassages.0.runs.1.candidates.1.range_end_lemma_id', $lemmas[2]->id)
+            ->where('windowPassages.0.runs.2.text', 'fox'));
 });

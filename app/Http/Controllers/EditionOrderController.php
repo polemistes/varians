@@ -2,56 +2,31 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ConjectureType;
 use App\Http\Requests\ApplyEditionOrderCandidateRequest;
-use App\Http\Requests\MoveEditionPassagesRequest;
 use App\Models\CanonicalPassage;
+use App\Models\Conjecture;
 use App\Models\ConjectureOrderingEntry;
 use App\Models\Edition;
 use App\Models\EditionPassage;
-use App\Models\EditionTransposition;
 use App\Models\TranscriptionSegment;
+use App\Support\Edition\ArrangementAdopter;
 use App\Support\Edition\PassageOrderRewriter;
+use App\Support\Edition\TranspositionProjection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Direct manipulation of an edition's stored passage order. Since the
- * materialized-order redesign the positions ARE the printed order, and
- * these two actions are how they change: a cut-and-paste of a contiguous
- * range, and applying another source's order (a witness's own sequence, a
- * catalogued Reordering conjecture, or plain citation order) to a range the
- * order report flagged.
+ * Applying another source's order to an edition's stored passage order.
+ * Since the materialized-order redesign the positions ARE the printed
+ * order; they change here, by following a candidate the order report
+ * offers (a witness's own sequence, a catalogued conjecture, or plain
+ * citation order), or through ConjectureOrderingController, where the
+ * editor's own rearrangement is registered as a conjecture and followed.
  */
 class EditionOrderController extends Controller
 {
-    /**
-     * Cut a contiguous range of passages and paste it before/after another
-     * passage. The editor's own act — no conjecture, no attribution; the
-     * derived order report always shows how the result relates to the
-     * witnesses and to citation order.
-     */
-    public function move(MoveEditionPassagesRequest $request, Edition $edition): RedirectResponse
-    {
-        $moved = DB::transaction(fn () => PassageOrderRewriter::moveRange(
-            $edition,
-            (int) $request->validated('range_start_canonical_passage_id'),
-            $request->validated('range_end_canonical_passage_id') !== null
-                ? (int) $request->validated('range_end_canonical_passage_id')
-                : null,
-            (int) $request->validated('target_canonical_passage_id'),
-            $request->validated('move_position'),
-        ));
-
-        if (! $moved) {
-            throw ValidationException::withMessages([
-                'target_canonical_passage_id' => 'That move could not be resolved against the edition\'s current order.',
-            ]);
-        }
-
-        return back();
-    }
-
     /**
      * Apply one of the order report's candidates to its range: the named
      * source's own sequence replaces the range's current order. Applying a
@@ -75,42 +50,57 @@ class EditionOrderController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($request, $edition, $sequence) {
-            PassageOrderRewriter::applySequence($edition, $sequence);
+        // A conjecture is adopted whole — pieces, divided lines and the
+        // attribution record — by the adopter; a witness's or citation
+        // order is a plain resequencing that needs no record.
+        if ($request->validated('conjecture_id') !== null) {
+            ArrangementAdopter::adopt($edition, Conjecture::findOrFail((int) $request->validated('conjecture_id')));
 
-            if ($request->validated('conjecture_id') !== null) {
-                EditionTransposition::firstOrCreate([
-                    'edition_id' => $edition->id,
-                    'conjecture_id' => (int) $request->validated('conjecture_id'),
-                ]);
-            }
+            return back();
+        }
+
+        DB::transaction(function () use ($edition, $sequence) {
+            PassageOrderRewriter::applySequence($edition, $sequence);
         });
 
         return back();
     }
 
     /**
-     * The canonical passage ids currently occupying the range, in stored
-     * order — located by position exactly like the report located them.
+     * The block's member passages in stored (printed) order — membership
+     * derived exactly like the report derives it: every passage of this
+     * edition whose citation sort_key falls between the two endpoints,
+     * inclusive. The block is contiguous in CITATION order (its endpoints
+     * are citation-order first and last, see EditionController::orderRanges),
+     * but its members may be scattered in the printed order, so locating a
+     * printed slice between the endpoints would grab the wrong passages.
      *
      * @return list<int>
      */
     private function rangePassageIds(Edition $edition, int $startId, int $endId): array
     {
-        $ids = EditionPassage::where('edition_id', $edition->id)
+        $passages = EditionPassage::where('edition_id', $edition->id)
+            ->with('canonicalPassage:id,sort_key')
             ->orderBy('position')
-            ->pluck('canonical_passage_id')
-            ->map(fn ($id) => (int) $id)
-            ->values();
+            ->get();
 
-        $startIndex = $ids->search($startId);
-        $endIndex = $ids->search($endId);
+        $start = $passages->firstWhere('canonical_passage_id', $startId);
+        $end = $passages->firstWhere('canonical_passage_id', $endId);
 
-        if (! is_int($startIndex) || ! is_int($endIndex) || $endIndex < $startIndex) {
+        if ($start === null || $end === null) {
             return [];
         }
 
-        return array_values($ids->slice($startIndex, $endIndex - $startIndex + 1)->all());
+        $from = min($start->canonicalPassage->sort_key, $end->canonicalPassage->sort_key);
+        $to = max($start->canonicalPassage->sort_key, $end->canonicalPassage->sort_key);
+
+        return array_values($passages
+            ->filter(fn (EditionPassage $passage) => $passage->canonicalPassage->sort_key >= $from
+                && $passage->canonicalPassage->sort_key <= $to)
+            ->pluck('canonical_passage_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->all());
     }
 
     /**
@@ -124,12 +114,29 @@ class EditionOrderController extends Controller
         }
 
         if ($request->validated('conjecture_id') !== null) {
-            $sequence = ConjectureOrderingEntry::where('conjecture_id', $request->validated('conjecture_id'))
-                ->orderBy('sequence')
-                ->pluck('canonical_passage_id')
-                ->map(fn ($id) => (int) $id)
-                ->values()
-                ->all();
+            $conjecture = Conjecture::findOrFail((int) $request->validated('conjecture_id'));
+
+            if ($conjecture->type === ConjectureType::Transposition) {
+                // A transposition is a statement, not stored entries —
+                // project it onto the block's citation order to get the
+                // sequence it proposes (see TranspositionProjection).
+                $citationOrdered = array_values(CanonicalPassage::whereIn('id', $rangeIds)
+                    ->orderBy('sort_key')
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+                    ->all());
+
+                $sequence = TranspositionProjection::sequence($conjecture, $citationOrdered) ?? [];
+            } else {
+                // A divided line stands where its first part stands.
+                $sequence = ConjectureOrderingEntry::where('conjecture_id', $conjecture->id)
+                    ->orderBy('sequence')
+                    ->pluck('canonical_passage_id')
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->values()
+                    ->all();
+            }
         } elseif ($request->validated('transcription_layer_id') !== null) {
             $sequence = TranscriptionSegment::where('transcription_layer_id', $request->validated('transcription_layer_id'))
                 ->whereIn('canonical_passage_id', $rangeIds)

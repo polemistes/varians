@@ -79,6 +79,160 @@ class PassageAligner
         foreach ($orderedLayers as $layerSegments) {
             self::alignWitness($passage, $layerSegments);
         }
+
+        self::recordOmissions($passage);
+    }
+
+    /**
+     * Record, for every witness aligned into a passage, where it *lacks*
+     * columns the other witnesses attest — one zero-width `omitted` reading
+     * per maximal run of such columns (see LemmaReading::$omitted), spanning
+     * the run through `range_end_lemma_id` the way any wider reading does.
+     *
+     * Absence is thereby made a candidate: an edition can adopt B's omission
+     * of two words and print nothing there, and the apparatus can name the
+     * witnesses that omit a word beside those that have it. Columns no
+     * witness attests at all (a lacuna's, or another conjecture-only column)
+     * are nobody's omission and break a run rather than joining it — an
+     * omission adopted across them would swallow the lacuna.
+     *
+     * The reading sits at the point in the witness's text where the missing
+     * words would stand: the end of its last word before the run by column
+     * order, or the start of its first word after it. That is where a
+     * reader's click on the printed marker resolves to (see
+     * EditionVariantController::resolveLemma) and what the facsimile
+     * coupling is anchored on.
+     *
+     * Upserts by anchor column so an edition's selection of an omission
+     * survives re-collation: an existing reading whose run still starts at
+     * the same column is updated in place; one no longer wanted is deleted
+     * unless an edition selects it — that decision is the editor's, not
+     * the collator's, and stands until she changes it.
+     */
+    public static function recordOmissions(CanonicalPassage $passage): void
+    {
+        $lemmas = Lemma::where('canonical_passage_id', $passage->id)
+            ->orderBy('position')
+            ->with('readings')
+            ->get()
+            ->values();
+
+        if ($lemmas->isEmpty()) {
+            return;
+        }
+
+        $indexOf = $lemmas->pluck('id')->flip();
+        $attested = [];
+        /** @var array<int, list<array{start: int, end: int, start_offset: int, end_offset: int}>> $spansByLayer */
+        $spansByLayer = [];
+
+        foreach ($lemmas as $index => $lemma) {
+            foreach ($lemma->readings as $reading) {
+                if ($reading->transcription_layer_id === null || $reading->omitted) {
+                    continue;
+                }
+
+                $endIndex = $reading->range_end_lemma_id !== null
+                    ? (int) ($indexOf[$reading->range_end_lemma_id] ?? $index)
+                    : $index;
+
+                for ($i = $index; $i <= $endIndex; $i++) {
+                    $attested[$i] = true;
+                }
+
+                $spansByLayer[$reading->transcription_layer_id][] = [
+                    'start' => $index,
+                    'end' => $endIndex,
+                    'start_offset' => (int) $reading->start_offset,
+                    'end_offset' => (int) $reading->end_offset,
+                ];
+            }
+        }
+
+        $count = $lemmas->count();
+
+        foreach ($spansByLayer as $layerId => $spans) {
+            usort($spans, fn (array $a, array $b) => $a['start'] <=> $b['start']);
+            $covered = [];
+
+            foreach ($spans as $span) {
+                for ($i = $span['start']; $i <= $span['end']; $i++) {
+                    $covered[$i] = true;
+                }
+            }
+
+            /** @var array<int, array{range_end_lemma_id: int|null, offset: int}> $desired */
+            $desired = [];
+            $i = 0;
+
+            while ($i < $count) {
+                if (! isset($attested[$i]) || isset($covered[$i])) {
+                    $i++;
+
+                    continue;
+                }
+
+                $runStart = $i;
+
+                while ($i < $count && isset($attested[$i]) && ! isset($covered[$i])) {
+                    $i++;
+                }
+
+                $runEnd = $i - 1;
+                $before = null;
+                $after = null;
+
+                foreach ($spans as $span) {
+                    if ($span['end'] < $runStart) {
+                        $before = $span;
+                    } elseif ($span['start'] > $runEnd && $after === null) {
+                        $after = $span;
+                    }
+                }
+
+                $desired[$lemmas[$runStart]->id] = [
+                    'range_end_lemma_id' => $runEnd > $runStart ? $lemmas[$runEnd]->id : null,
+                    'offset' => $before['end_offset'] ?? $after['start_offset'] ?? 0,
+                ];
+            }
+
+            $existing = LemmaReading::whereIn('lemma_id', $lemmas->pluck('id'))
+                ->where('transcription_layer_id', $layerId)
+                ->where('omitted', true)
+                ->get();
+            $selectedIds = EditionLemma::whereIn('selected_reading_id', $existing->pluck('id'))
+                ->pluck('selected_reading_id');
+
+            foreach ($existing as $reading) {
+                $want = $desired[$reading->lemma_id] ?? null;
+
+                if ($want === null) {
+                    if (! $selectedIds->contains($reading->id)) {
+                        $reading->delete();
+                    }
+
+                    continue;
+                }
+
+                $reading->update([
+                    'range_end_lemma_id' => $want['range_end_lemma_id'],
+                    'start_offset' => $want['offset'],
+                    'end_offset' => $want['offset'],
+                ]);
+                unset($desired[$reading->lemma_id]);
+            }
+
+            foreach ($desired as $lemmaId => $want) {
+                LemmaReading::create([
+                    'lemma_id' => $lemmaId,
+                    'transcription_layer_id' => $layerId,
+                    'start_offset' => $want['offset'],
+                    'end_offset' => $want['offset'],
+                    'range_end_lemma_id' => $want['range_end_lemma_id'],
+                    'omitted' => true,
+                ]);
+            }
+        }
     }
 
     /**
@@ -248,10 +402,15 @@ class PassageAligner
         // "Another" reading includes conjecture-sourced ones, whose
         // transcription_layer_id is NULL — a bare `!=` would let SQL's null
         // comparison hide them and delete a column carrying a conjecture.
+        // Another witness's omission reading is not "another reading" here:
+        // it records the absence of a word, and a column standing on nothing
+        // but absences is empty.
         $emptyingLemmaIds = Lemma::where('canonical_passage_id', $passage->id)
-            ->whereDoesntHave('readings', fn ($query) => $query->where(
-                fn ($other) => $other->whereNull('transcription_layer_id')->orWhere('transcription_layer_id', '!=', $layer->id)
-            ))
+            ->whereDoesntHave('readings', fn ($query) => $query
+                ->where('omitted', false)
+                ->where(
+                    fn ($other) => $other->whereNull('transcription_layer_id')->orWhere('transcription_layer_id', '!=', $layer->id)
+                ))
             ->pluck('id');
 
         // An anchored note or a colometry break on a column this realignment
@@ -271,6 +430,7 @@ class PassageAligner
                 ->where('transcription_layer_id', $layer->id)
                 ->get(),
         );
+        self::recordOmissions($passage);
 
         return true;
     }
@@ -340,6 +500,11 @@ class PassageAligner
         // order. Sorting by transcription_layer_id matches the order readings are
         // created in today, but stops relying on that being true.
         $readings = $lemma->readings->sortBy('transcription_layer_id')->values();
+
+        // An omission reading says the witness has *no* word here — never the
+        // consensus, whose blank would make every later witness's word an
+        // insertion.
+        $readings = $readings->reject(fn (LemmaReading $reading) => $reading->omitted);
 
         $reading = $readings->first(fn (LemmaReading $reading) => $reading->transcription_layer_id !== null && $reading->range_end_lemma_id === null)
             ?? $readings->first(fn (LemmaReading $reading) => $reading->transcription_layer_id !== null);

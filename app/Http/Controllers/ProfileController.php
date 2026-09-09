@@ -20,7 +20,7 @@ class ProfileController extends Controller
      */
     public function update(UpdateProfileRequest $request): RedirectResponse
     {
-        $request->user()->update($request->safe()->only(['name', 'email']));
+        $request->user()->update($request->safe()->only(['name', 'email', 'greek_font']));
 
         if ($request->filled('password')) {
             $request->user()->update(['password' => $request->validated('password')]);

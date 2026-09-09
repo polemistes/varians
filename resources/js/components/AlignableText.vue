@@ -8,6 +8,7 @@ import {
     onUpdated,
     ref,
 } from 'vue';
+import { cpLength, cpSlice } from '@/lib/codePoints';
 import type { EditSource, TextEditOp } from '@/lib/transcriptionEdit';
 import { parseTranscriptionMarkup } from '@/lib/transcriptionMarkup';
 import type { MarkupToken } from '@/lib/transcriptionMarkup';
@@ -33,6 +34,10 @@ const props = withDefaults(
         // part sits outside the text handed to this component (another page,
         // another window). Absent, it's derived from `segments`.
         partTotals?: Record<number, number> | null;
+        // Where the manuscript's pages begin in this text, drawn as a
+        // ruled line with the page's label before the chunk that starts
+        // there (the witnesses pane; see TranscriptionPageBreak).
+        pageBreaks?: { offset: number; label: string; pageId: number }[];
     }>(),
     {
         regions: () => [],
@@ -44,6 +49,7 @@ const props = withDefaults(
         editable: false,
         unavailableSegmentIds: () => [],
         partTotals: null,
+        pageBreaks: () => [],
     },
 );
 
@@ -53,7 +59,7 @@ const emit = defineEmits<{
         selection: { start: number; end: number; text: string },
     ): void;
     (e: 'hover-region', id: number | null): void;
-    (e: 'badge-click', segment: TranscriptionSegment): void;
+    (e: 'badge-click', segment: TranscriptionSegment, event: MouseEvent): void;
     // `source` distinguishes a clipboard cut/paste (which the parent may pair
     // into a citation-preserving relocation) from ordinary typing.
     (e: 'edit', op: TextEditOp, source: EditSource): void;
@@ -75,10 +81,7 @@ type Chunk = {
     segment: TranscriptionSegment | null;
     segmentStart: boolean;
     selected: boolean;
-    // Zero-width (tombstoned) citation spans sitting exactly at this chunk's
-    // start — destroyed by a text edit, kept flagged for the editor to
-    // resolve. They cover no characters, so they render as badge-only.
-    tombstonesBefore: TranscriptionSegment[];
+    pageBreak: { offset: number; label: string; pageId: number } | null;
 };
 
 // Region boundaries (image-alignment), citation-span boundaries, and
@@ -87,20 +90,21 @@ type Chunk = {
 // of cut points. Rendering never changes the underlying characters — only
 // wraps them in extra styling spans — so the character offsets region/segment
 // selection relies on stay valid no matter what markup exists.
+// Offsets count code points, like every stored span (see lib/codePoints):
+// the text's UTF-16 length and slices must not meet them directly.
 const chunks = computed<Chunk[]>(() => {
+    const textLength = cpLength(props.text);
     const regions = [...props.regions]
         .filter(
             (region) =>
-                region.start_offset >= 0 &&
-                region.end_offset <= props.text.length,
+                region.start_offset >= 0 && region.end_offset <= textLength,
         )
         .sort((a, b) => a.start_offset - b.start_offset);
 
     const segments = [...props.segments]
         .filter(
             (segment) =>
-                segment.start_offset >= 0 &&
-                segment.end_offset <= props.text.length,
+                segment.start_offset >= 0 && segment.end_offset <= textLength,
         )
         .sort((a, b) => a.start_offset - b.start_offset);
 
@@ -108,7 +112,7 @@ const chunks = computed<Chunk[]>(() => {
         (token) => token.type !== 'text',
     ) as Exclude<MarkupToken, { type: 'text' }>[];
 
-    const points = new Set<number>([0, props.text.length]);
+    const points = new Set<number>([0, textLength]);
 
     for (const region of regions) {
         points.add(region.start_offset);
@@ -120,19 +124,15 @@ const chunks = computed<Chunk[]>(() => {
         points.add(segment.end_offset);
     }
 
-    // A tombstone's offset must be a chunk boundary so its badge has an
-    // exact place in the text flow to render at.
-    const tombstones = segments.filter(
-        (segment) => segment.start_offset === segment.end_offset,
-    );
-
-    for (const tombstone of tombstones) {
-        points.add(tombstone.start_offset);
-    }
-
     for (const span of markupSpans) {
         points.add(span.start);
         points.add(span.end);
+    }
+
+    for (const pageBreak of props.pageBreaks) {
+        if (pageBreak.offset >= 0 && pageBreak.offset < textLength) {
+            points.add(pageBreak.offset);
+        }
     }
 
     // The active selection (if any) is also a cut point, on both ends — this
@@ -172,34 +172,23 @@ const chunks = computed<Chunk[]>(() => {
         );
 
         result.push({
-            text: props.text.slice(start, end),
+            text: cpSlice(props.text, start, end),
             regionId: region ? region.id : null,
             markup: markup ?? null,
             segment: segment ?? null,
             segmentStart: segment ? segment.start_offset === start : false,
+            pageBreak:
+                props.pageBreaks.find((item) => item.offset === start) ?? null,
             selected:
                 props.selectionStart !== null &&
                 props.selectionEnd !== null &&
                 start >= props.selectionStart &&
                 end <= props.selectionEnd,
-            tombstonesBefore: tombstones.filter(
-                (tombstone) => tombstone.start_offset === start,
-            ),
         });
     }
 
     return result;
 });
-
-// Tombstones at the very end of the text have no following chunk to attach
-// to, so they render after the last one.
-const trailingTombstones = computed<TranscriptionSegment[]>(() =>
-    props.segments.filter(
-        (segment) =>
-            segment.start_offset === segment.end_offset &&
-            segment.start_offset >= props.text.length,
-    ),
-);
 
 function markupClasses(markup: Chunk['markup']) {
     if (!markup) {
@@ -246,12 +235,12 @@ function markupTitle(markup: Chunk['markup']): string | undefined {
 }
 
 function badgeClasses(segment: TranscriptionSegment) {
-    if (segment.needs_review) {
+    if (segment.needs_review || segment.boundary_review) {
         return 'border border-dashed border-red-500 text-red-600 dark:text-red-400';
     }
 
     if (props.unavailableSegmentIds.includes(segment.id)) {
-        return 'bg-stone-100 text-stone-400 line-through dark:bg-stone-900 dark:text-stone-600';
+        return 'bg-stone-100 text-stone-400 dark:bg-stone-900 dark:text-stone-600';
     }
 
     return 'bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400';
@@ -260,6 +249,10 @@ function badgeClasses(segment: TranscriptionSegment) {
 function badgeTitle(segment: TranscriptionSegment): string {
     if (segment.needs_review) {
         return 'The underlying text changed here — please recheck this mapping';
+    }
+
+    if (segment.boundary_review) {
+        return 'This citation begins or ends inside a word, or overlaps another — its bounds have slipped. Select the words again to re-cite them.';
     }
 
     if (props.unavailableSegmentIds.includes(segment.id)) {
@@ -380,19 +373,19 @@ function offsetAt(node: Node, offset: number): number {
     range.setStart(containerEl.value!, 0);
     range.setEnd(node, offset);
 
-    let length = range.toString().length;
+    let length = cpLength(range.toString());
 
     for (const el of range
         .cloneContents()
         .querySelectorAll('[data-non-text]')) {
-        length -= el.textContent?.length ?? 0;
+        length -= cpLength(el.textContent ?? '');
     }
 
     return length;
 }
 
-function onBadgeClick(segment: TranscriptionSegment) {
-    emit('badge-click', segment);
+function onBadgeClick(segment: TranscriptionSegment, event: MouseEvent) {
+    emit('badge-click', segment, event);
 }
 
 /**
@@ -476,7 +469,7 @@ function onMouseUp() {
         return;
     }
 
-    emit('select', { start, end, text: props.text.slice(start, end) });
+    emit('select', { start, end, text: cpSlice(props.text, start, end) });
 
     // While editable, the selection stays live — it is normal editor
     // selection (type over it, cut it) that the parent merely remembers for
@@ -511,8 +504,18 @@ onUnmounted(() => {
 // text change, only re-renders from `chunks` like it always has. The caret
 // is then explicitly restored, since freshly-rendered chunks have no stable
 // per-character DOM identity for the browser to have kept it anchored to.
+// A composition (an IME, or the dead keys that make accented Greek) runs
+// unmanaged in the DOM: the browser inserts and replaces its own
+// provisional text there while the model text stays as it was. So an
+// offset measured against the DOM during composition counts those
+// provisional characters, and using it as the END of the replaced range
+// ate the character after the caret every time a diacritic was typed
+// (real bug). The range the composition replaces in MODEL coordinates is
+// what the selection covered when it began, widened only by EXISTING text
+// a later step reaches into — never by the composition's own characters.
 let compositionStart: number | null = null;
 let compositionEnd: number | null = null;
+let composedLength = 0;
 
 function opFromBeforeInput(event: InputEvent): TextEditOp | null {
     const range = event.getTargetRanges()[0];
@@ -563,7 +566,7 @@ function applyAndRestoreCaret(op: TextEditOp, source: EditSource = 'typing') {
     void nextTick(() => restoreCaret(targetOffset));
 }
 
-// beforeinput (and composition events) bubble — the badges and tombstone
+// beforeinput (and composition events) bubble — the badges
 // buttons nested in the surface fire them too, and intercepting those would
 // swallow interactions that belong to a control, not to the text. Every
 // non-text element carries [data-non-text], so the composed path tells the
@@ -640,7 +643,7 @@ function onCopy(event: ClipboardEvent) {
     }
 
     event.preventDefault();
-    const text = props.text.slice(offsets.start, offsets.end);
+    const text = cpSlice(props.text, offsets.start, offsets.end);
     event.clipboardData.setData('text/plain', text);
     // So a paste into a SIBLING layer can bring the spans along.
     emit('copied', { start: offsets.start, end: offsets.end, text });
@@ -660,7 +663,7 @@ function onCut(event: ClipboardEvent) {
     event.preventDefault();
     event.clipboardData.setData(
         'text/plain',
-        props.text.slice(offsets.start, offsets.end),
+        cpSlice(props.text, offsets.start, offsets.end),
     );
     applyAndRestoreCaret(
         { start: offsets.start, end: offsets.end, text: '' },
@@ -727,17 +730,27 @@ function onBeforeInput(event: InputEvent) {
     }
 
     if (event.isComposing) {
-        // Let native IME composition run unmanaged — fighting it mid-
-        // composition breaks the candidate window. Just track the widest
-        // range touched so compositionend can widen a re-conversion that
-        // reaches back further than where composition started.
+        // Let native composition run unmanaged — fighting it mid-
+        // composition breaks the candidate window. Track only the EXISTING
+        // text a step replaces: the target range spans the provisional
+        // text so far (composedLength) plus whatever real text it reaches
+        // into, and only the latter widens the model range.
         const range = event.getTargetRanges()[0];
 
         if (range && compositionStart !== null) {
             const start = offsetAt(range.startContainer, range.startOffset);
             const end = offsetAt(range.endContainer, range.endOffset);
+            const existing = Math.max(0, end - start - composedLength);
+
             compositionStart = Math.min(compositionStart, start);
-            compositionEnd = Math.max(compositionEnd ?? end, end);
+            compositionEnd = Math.max(
+                compositionEnd ?? compositionStart,
+                Math.min(start, compositionStart) + existing,
+            );
+        }
+
+        if (event.inputType === 'insertCompositionText') {
+            composedLength = [...(event.data ?? '')].length;
         }
 
         return;
@@ -763,9 +776,15 @@ function onCompositionStart(event: CompositionEvent) {
         return;
     }
 
-    const offset = offsetAt(selection.anchorNode, selection.anchorOffset);
-    compositionStart = offset;
-    compositionEnd = offset;
+    // The selection when composition begins is the existing text the
+    // composition replaces — usually nothing but the caret.
+    const anchor = offsetAt(selection.anchorNode, selection.anchorOffset);
+    const focus = selection.focusNode
+        ? offsetAt(selection.focusNode, selection.focusOffset)
+        : anchor;
+    compositionStart = Math.min(anchor, focus);
+    compositionEnd = Math.max(anchor, focus);
+    composedLength = 0;
 }
 
 function onCompositionEnd(event: CompositionEvent) {
@@ -778,20 +797,25 @@ function onCompositionEnd(event: CompositionEvent) {
     }
 
     const start = compositionStart;
-    const end = compositionEnd ?? start;
+    const end = Math.max(start, compositionEnd ?? start);
     compositionStart = null;
     compositionEnd = null;
+    composedLength = 0;
 
     applyAndRestoreCaret({ start, end, text: event.data ?? '' });
 }
 
-// The inverse of offsetAt: given a plain-text character offset, find the
-// live DOM text node (and offset within it) it currently falls at, skipping
-// the same [data-non-text] content offsetAt already excludes.
+// The inverse of offsetAt: given a plain-text code point offset, find the
+// live DOM text node (and UTF-16 offset within it — what Range wants) it
+// currently falls at, skipping the same [data-non-text] content offsetAt
+// already excludes. A negative offset (a stale page-relative caret) clamps
+// to the start rather than throwing an IndexSizeError from setStart.
 function pointAt(offset: number): { node: Text; offset: number } | null {
     if (!containerEl.value) {
         return null;
     }
+
+    offset = Math.max(0, offset);
 
     const walker = document.createTreeWalker(
         containerEl.value,
@@ -810,11 +834,16 @@ function pointAt(offset: number): { node: Text; offset: number } | null {
     let lastNode: Text | null = null;
 
     while (node) {
-        if (remaining <= node.length) {
-            return { node, offset: remaining };
+        const codePoints = [...node.data];
+
+        if (remaining <= codePoints.length) {
+            return {
+                node,
+                offset: codePoints.slice(0, remaining).join('').length,
+            };
         }
 
-        remaining -= node.length;
+        remaining -= codePoints.length;
         lastNode = node;
         node = walker.nextNode() as Text | null;
     }
@@ -930,20 +959,19 @@ function liveCaretOffset(): number | null {
             Click to start typing…
         </span>
         <template v-for="(chunk, index) in chunks" :key="index">
-            <button
-                v-for="tombstone in chunk.tombstonesBefore"
-                :key="`tombstone-${tombstone.id}`"
-                type="button"
+            <span
+                v-if="chunk.pageBreak"
                 data-non-text
                 contenteditable="false"
-                class="mr-1 rounded px-1.5 py-0.5 align-middle font-sans text-xs tracking-wide hover:opacity-80"
-                :class="badgeClasses(tombstone)"
-                :title="'This citation\'s text was deleted — reselect its span or remove it'"
-                @mousedown.prevent
-                @click="onBadgeClick(tombstone)"
-            >
-                {{ badgeText(tombstone) }}
-            </button>
+                class="my-1 flex items-center gap-2 font-sans text-xs text-stone-500 select-none dark:text-stone-400"
+                :data-page-id="chunk.pageBreak.pageId"
+                :data-page-offset="chunk.pageBreak.offset"
+                ><span class="h-px flex-1 bg-stone-300 dark:bg-stone-700"></span
+                >{{ chunk.pageBreak.label
+                }}<span
+                    class="h-px flex-1 bg-stone-300 dark:bg-stone-700"
+                ></span
+            ></span>
             <button
                 v-if="chunk.segmentStart && chunk.segment"
                 type="button"
@@ -953,7 +981,7 @@ function liveCaretOffset(): number | null {
                 :class="badgeClasses(chunk.segment)"
                 :title="badgeTitle(chunk.segment)"
                 @mousedown.prevent
-                @click="onBadgeClick(chunk.segment)"
+                @click="onBadgeClick(chunk.segment, $event)"
             >
                 {{ badgeText(chunk.segment) }}
             </button>
@@ -962,6 +990,9 @@ function liveCaretOffset(): number | null {
                 :class="[
                     ...markupClasses(chunk.markup),
                     !chunk.segment && 'bg-stone-200 dark:bg-stone-700/60',
+                    chunk.segment &&
+                        unavailableSegmentIds.includes(chunk.segment.id) &&
+                        'text-stone-400 dark:text-stone-600',
                     ...regionClasses(chunk.regionId),
                     chunk.selected && 'bg-sky-200/70 dark:bg-sky-800/60',
                 ]"
@@ -972,19 +1003,5 @@ function liveCaretOffset(): number | null {
                 >{{ chunk.text }}</span
             >
         </template>
-        <button
-            v-for="tombstone in trailingTombstones"
-            :key="`trailing-tombstone-${tombstone.id}`"
-            type="button"
-            data-non-text
-            contenteditable="false"
-            class="mr-1 rounded px-1.5 py-0.5 align-middle font-sans text-xs tracking-wide hover:opacity-80"
-            :class="badgeClasses(tombstone)"
-            :title="'This citation\'s text was deleted — reselect its span or remove it'"
-            @mousedown.prevent
-            @click="onBadgeClick(tombstone)"
-        >
-            {{ badgeText(tombstone) }}
-        </button>
     </span>
 </template>

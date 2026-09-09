@@ -22,7 +22,7 @@ class UpdateEditionLineBreakRequest extends FormRequest
 
     /**
      * A break stands before one collation column; `kind` null clears it —
-     * the editor cycles line → paragraph → none on one endpoint.
+     * the edition text's Enter/Backspace/Delete all land on this one endpoint.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */

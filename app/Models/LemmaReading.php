@@ -24,6 +24,16 @@ use Illuminate\Support\Carbon;
  * every other witness/edition; only rendering collapses the span when this
  * particular reading is the one selected.
  *
+ * `omitted` marks a witness's *absence* at the columns it spans: a
+ * zero-width reading (start_offset = end_offset, at the point in the
+ * witness's text where the missing words would stand) that
+ * PassageAligner::recordOmissions writes for every maximal run of columns a
+ * witness lacks. It makes the omission a candidate like any other — an
+ * edition can adopt it and print nothing there — and lets the apparatus
+ * say "omitted in B" without recomputing the collation. Never a tombstone:
+ * a zero-width reading with `needs_review` is a selected reading a text
+ * edit destroyed (see TranscriptionTextController::applyReadings).
+ *
  * @property int $id
  * @property int $lemma_id
  * @property int|null $transcription_layer_id
@@ -32,10 +42,11 @@ use Illuminate\Support\Carbon;
  * @property int|null $conjecture_id
  * @property int|null $range_end_lemma_id
  * @property bool $needs_review
+ * @property bool $omitted
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['lemma_id', 'transcription_layer_id', 'start_offset', 'end_offset', 'conjecture_id', 'range_end_lemma_id', 'needs_review'])]
+#[Fillable(['lemma_id', 'transcription_layer_id', 'start_offset', 'end_offset', 'conjecture_id', 'range_end_lemma_id', 'needs_review', 'omitted'])]
 class LemmaReading extends Model
 {
     /** @use HasFactory<LemmaReadingFactory> */
@@ -82,6 +93,7 @@ class LemmaReading extends Model
             'start_offset' => 'integer',
             'end_offset' => 'integer',
             'needs_review' => 'boolean',
+            'omitted' => 'boolean',
         ];
     }
 }

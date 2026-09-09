@@ -2,12 +2,15 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import AppHeader from '@/components/AppHeader.vue';
+import ConjectureForm from '@/components/ConjectureForm.vue';
 import { isEditorOrAbove } from '@/lib/auth';
+import type { BiblatexRegistry, Suggestions } from '@/lib/biblatex';
 import {
     confirmDeletion,
     describeDeletionImpact,
     pluralize,
 } from '@/lib/deletionImpact';
+import { destroy as destroyConjecture } from '@/routes/conjectures';
 import {
     create as createEdition,
     show as showEdition,
@@ -18,13 +21,127 @@ import {
 } from '@/routes/witnesses';
 import { destroy as destroyWork, update as updateWork } from '@/routes/works';
 import type { Auth } from '@/types/auth';
-import type { TranscriptionLayer, Witness, Work } from '@/types/models';
+import type { WorkConjecture, WorkPassage } from '@/types/conjectures';
+import type {
+    ReferenceLevel,
+    TranscriptionLayer,
+    Witness,
+    Work,
+} from '@/types/models';
 
 const props = defineProps<{
     work: Work;
     transcriptions: TranscriptionLayer[];
-    allWitnesses: Witness[];
+    conjectures: WorkConjecture[];
+    referenceLevels: ReferenceLevel[];
+    bibliographyForm: { registry: BiblatexRegistry; suggestions: Suggestions };
 }>();
+
+// ---- the work's conjectures: recorded, edited and removed here, whatever
+// their kind; an edition places or follows them from its own page. ----
+const passagesForForm = computed<WorkPassage[]>(() =>
+    (props.work.canonical_passages ?? []).map((passage) => ({
+        id: passage.id,
+        address: passage.address,
+        label: passage.label,
+        sort_key: passage.sort_key,
+    })),
+);
+
+const lacunas = computed(() =>
+    props.conjectures
+        .filter((conjecture) => conjecture.type === 'lacuna')
+        .map((conjecture) => ({
+            id: conjecture.id,
+            canonical_passage_id: conjecture.canonical_passage_id,
+            label: `${conjecture.passage_label} — ${conjecture.proposed_by ?? conjecture.entered_by}${conjecture.extent ? ` (${conjecture.extent})` : ''}`,
+        })),
+);
+
+const addingConjecture = ref(false);
+const editingConjectureId = ref<number | null>(null);
+
+// Full words, never abbreviations — space is not scarce in a digital
+// edition (user decision).
+const TYPE_LABELS: Record<WorkConjecture['type'], string> = {
+    substitution: 'conjecture',
+    deletion: 'deletion',
+    lacuna: 'lacuna',
+    supplement: 'supplement',
+    transposition: 'transposition',
+    reordering: 'reordering',
+};
+
+/** What the conjecture proposes, in one line. */
+function statement(conjecture: WorkConjecture): string {
+    switch (conjecture.type) {
+        case 'substitution':
+            return conjecture.text ?? '';
+        case 'deletion':
+            return 'the words are deleted';
+        case 'supplement':
+            return `${conjecture.text ?? ''} — fills the lacuna ${conjecture.supplements_label ?? ''}`;
+        case 'lacuna':
+            return conjecture.extent
+                ? `lacuna: ${conjecture.extent}`
+                : 'lacuna';
+        case 'transposition':
+            return `${conjecture.passage_label}${conjecture.range_end_label ? `–${conjecture.range_end_label}` : ''} moves ${conjecture.move_position} ${conjecture.target_label}`;
+        case 'reordering':
+            return conjecture.ordering.map((entry) => entry.label).join(' ');
+    }
+}
+
+function usage(conjecture: WorkConjecture): string[] {
+    const parts: string[] = [];
+
+    if (conjecture.selected_by.length > 0) {
+        parts.push(`in the text of ${conjecture.selected_by.join(', ')}`);
+    } else if (conjecture.placed) {
+        parts.push('placed in the apparatus');
+    }
+
+    if (conjecture.adopted_by.length > 0) {
+        parts.push(`adopted by ${conjecture.adopted_by.join(', ')}`);
+    }
+
+    return parts;
+}
+
+function removeConjecture(conjecture: WorkConjecture) {
+    const parts = describeDeletionImpact(conjecture.deletion_impact, [
+        {
+            key: 'readings',
+            label: (n) => pluralize(n, 'placement in the apparatus'),
+        },
+        {
+            key: 'editionSelections',
+            label: (n) => pluralize(n, 'edition selection that prints it'),
+        },
+        {
+            key: 'adoptions',
+            label: (n) => pluralize(n, 'edition following it'),
+        },
+        {
+            key: 'supplements',
+            label: (n) => pluralize(n, 'supplement that fills it'),
+        },
+        { key: 'citations', label: (n) => pluralize(n, 'citation') },
+    ]);
+
+    if (
+        !confirmDeletion(
+            `the ${TYPE_LABELS[conjecture.type]} ${conjecture.proposed_by ?? conjecture.entered_by} on ${conjecture.passage_label}`,
+            parts,
+        )
+    ) {
+        return;
+    }
+
+    router.delete(destroyConjecture.url(conjecture.id), {
+        preserveScroll: true,
+    });
+}
 
 const page = usePage<{ auth: Auth }>();
 const canEdit = computed(() => isEditorOrAbove(page.props.auth.user));
@@ -265,6 +382,156 @@ function manuscriptSummary(witness: Witness): string | null {
                         class="text-sm text-stone-500 dark:text-stone-400"
                     >
                         No witness has any text assigned to this work yet.
+                    </li>
+                </ul>
+            </section>
+
+            <!-- Every conjecture recorded against this work, of whatever
+                 kind: the stockpile any edition of the work draws on. -->
+            <section class="mb-10">
+                <div class="mb-3 flex items-center justify-between">
+                    <h2 class="font-serif text-lg">Conjectures</h2>
+                    <button
+                        v-if="canEdit"
+                        type="button"
+                        class="text-xs text-stone-600 underline dark:text-stone-400"
+                        @click="
+                            addingConjecture = !addingConjecture;
+                            editingConjectureId = null;
+                        "
+                    >
+                        {{ addingConjecture ? 'Cancel' : '+ New conjecture' }}
+                    </button>
+                </div>
+                <p
+                    v-if="canEdit"
+                    class="mb-3 text-xs text-stone-500 dark:text-stone-400"
+                >
+                    Recorded here as proposals; an edition places a reading or
+                    follows an order from its own page.
+                </p>
+
+                <ConjectureForm
+                    v-if="addingConjecture"
+                    class="mb-3"
+                    :passages="passagesForForm"
+                    :levels="props.referenceLevels"
+                    :lacunas="lacunas"
+                    :registry="props.bibliographyForm.registry"
+                    :suggestions="props.bibliographyForm.suggestions"
+                    @saved="addingConjecture = false"
+                    @cancel="addingConjecture = false"
+                />
+
+                <ul class="flex flex-col gap-3">
+                    <li
+                        v-for="conjecture in props.conjectures"
+                        :key="conjecture.id"
+                        class="rounded-lg border border-stone-200 p-4 text-sm dark:border-stone-800"
+                    >
+                        <div class="flex items-baseline justify-between gap-4">
+                            <span>
+                                <span
+                                    class="mr-2 rounded bg-stone-200 px-1.5 py-0.5 font-sans text-xs text-stone-600 dark:bg-stone-800 dark:text-stone-400"
+                                    >{{ conjecture.passage_label }}</span
+                                >
+                                <span
+                                    class="text-xs text-stone-500 dark:text-stone-400"
+                                    >{{ TYPE_LABELS[conjecture.type] }}
+                                    {{
+                                        conjecture.proposed_by ??
+                                        conjecture.entered_by
+                                    }}</span
+                                >
+                                <span
+                                    class="ml-2"
+                                    :class="
+                                        conjecture.type === 'substitution' ||
+                                        conjecture.type === 'supplement'
+                                            ? 'font-serif'
+                                            : ''
+                                    "
+                                    >{{ statement(conjecture) }}</span
+                                >
+                            </span>
+                            <span
+                                v-if="canEdit"
+                                class="flex shrink-0 gap-2 text-xs"
+                            >
+                                <button
+                                    type="button"
+                                    class="underline"
+                                    @click="
+                                        editingConjectureId =
+                                            editingConjectureId ===
+                                            conjecture.id
+                                                ? null
+                                                : conjecture.id;
+                                        addingConjecture = false;
+                                    "
+                                >
+                                    {{
+                                        editingConjectureId === conjecture.id
+                                            ? 'Close'
+                                            : 'Edit'
+                                    }}
+                                </button>
+                                <button
+                                    type="button"
+                                    class="text-red-600 underline dark:text-red-400"
+                                    @click="removeConjecture(conjecture)"
+                                >
+                                    Delete
+                                </button>
+                            </span>
+                        </div>
+                        <p
+                            v-if="
+                                conjecture.references.length > 0 ||
+                                conjecture.note ||
+                                usage(conjecture).length > 0
+                            "
+                            class="mt-1 text-xs text-stone-500 dark:text-stone-400"
+                        >
+                            <template v-if="conjecture.references.length > 0"
+                                >({{
+                                    conjecture.references
+                                        .map((reference) => reference.citation)
+                                        .join('; ')
+                                }})
+                            </template>
+                            <em v-if="conjecture.note"
+                                >{{ conjecture.note }}
+                            </em>
+                            <span v-if="usage(conjecture).length > 0"
+                                ><template
+                                    v-if="
+                                        conjecture.references.length > 0 ||
+                                        conjecture.note
+                                    "
+                                    >&middot; </template
+                                >{{ usage(conjecture).join('; ') }}</span
+                            >
+                        </p>
+
+                        <ConjectureForm
+                            v-if="editingConjectureId === conjecture.id"
+                            class="mt-3"
+                            :passages="passagesForForm"
+                            :levels="props.referenceLevels"
+                            :lacunas="lacunas"
+                            :conjecture="conjecture"
+                            :registry="props.bibliographyForm.registry"
+                            :suggestions="props.bibliographyForm.suggestions"
+                            @saved="editingConjectureId = null"
+                            @cancel="editingConjectureId = null"
+                        />
+                    </li>
+                    <li
+                        v-if="props.conjectures.length === 0"
+                        class="text-sm text-stone-500 dark:text-stone-400"
+                    >
+                        No conjectures recorded for this work yet.
                     </li>
                 </ul>
             </section>

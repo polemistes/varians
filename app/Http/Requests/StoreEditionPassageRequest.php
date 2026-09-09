@@ -22,11 +22,13 @@ class StoreEditionPassageRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * A raw drag-selected span of a transcription's text — every already-
-     * cited segment fully inside it gets added, in the transcription's own
-     * physical order (see EditionPassageController::store). A selection
-     * covering only already-added or uncited text isn't an error, just a
-     * no-op, so there's no "at least one citable segment" rule here.
+     * Either the passages to add by id (`canonical_passage_ids` — the
+     * witnesses pane names the segments a selection touched, whichever
+     * layer it was made in) or a raw span of the layer's text, every
+     * already-cited segment fully inside it (see
+     * EditionPassageController::store). A selection covering only
+     * already-added or uncited text isn't an error, just a no-op, so
+     * there's no "at least one citable segment" rule here.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
@@ -36,8 +38,10 @@ class StoreEditionPassageRequest extends FormRequest
             // Only the normalized layer collates and only it may be a base —
             // see App\Enums\Layer.
             'transcription_layer_id' => ['required', Rule::exists('transcription_layers', 'id')->where('layer', Layer::Normalized->value)],
-            'start_offset' => ['required', 'integer', 'min:0'],
-            'end_offset' => ['required', 'integer', 'gt:start_offset'],
+            'canonical_passage_ids' => ['nullable', 'array'],
+            'canonical_passage_ids.*' => ['integer', Rule::exists('canonical_passages', 'id')],
+            'start_offset' => ['required_without:canonical_passage_ids', 'integer', 'min:0'],
+            'end_offset' => ['required_without:canonical_passage_ids', 'integer', 'gt:start_offset'],
         ];
     }
 

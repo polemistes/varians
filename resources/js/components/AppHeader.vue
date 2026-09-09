@@ -4,6 +4,7 @@ import { computed } from 'vue';
 import { store as storeLogout } from '@/actions/App/Http/Controllers/Auth/LogoutController';
 import { home, login, register } from '@/routes';
 import { index as adminUsers } from '@/routes/admin/users';
+import { index as bibliographyIndex } from '@/routes/bibliography';
 import { edit as editProfile } from '@/routes/profile';
 import type { Auth } from '@/types/auth';
 
@@ -23,6 +24,9 @@ const auth = computed(() => page.props.auth);
         </Link>
 
         <nav class="flex items-center gap-4">
+            <Link :href="bibliographyIndex.url()" class="hover:underline">
+                Bibliography
+            </Link>
             <template v-if="auth.user">
                 <span>{{ auth.user.name }} &middot; {{ auth.user.role }}</span>
                 <Link

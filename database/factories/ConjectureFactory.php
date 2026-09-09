@@ -26,7 +26,6 @@ class ConjectureFactory extends Factory
             'type' => ConjectureType::Substitution,
             'text' => fake()->words(3, true),
             'proposed_by' => fake()->optional()->lastName(),
-            'bibliography' => fake()->optional()->sentence(),
             'note' => fake()->optional()->sentence(),
         ];
     }

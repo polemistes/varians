@@ -21,3 +21,21 @@ Do not reintroduce per-segment `text`/`position` columns — deliberately remove
 The old transcription `type` column was removed too, but has since returned in a narrower, structural form as `layer` (diplomatic/normalized). That reversal is intentional — see `.ai/rules/edition.md` for why — so do not undo it.
 
 **The layer-copy flow is RETIRED** (controller, page, routes deleted; user decision): starting one layer from the other is the mirror's job (import/paste fills both), cross-witness copying is the clipboard paste-carry (citations travel, mappings stay home). In its place each transcript pane has a "Mirror layer operations" checkbox (default ON, deliberately not persisted): off, saves send `mirror: false` and the sibling is left entirely alone — the bootstrapping mode, filling each layer from a different source (e.g. copying both layers of an old witness to a new one, one at a time).
+
+## A carrying paste's arrival is never left inside a bystander's span
+`TranscriptionSpanCopyController` clips target segments around each traveled
+citation it creates: the text save that precedes a span-copy lands the paste
+as a PLAIN insertion, and `SpanTransformer`'s end-gravity (right for typing)
+extends a span whose end sits exactly at the paste point over the whole
+arrival — found in live data as a line-7 span swallowing a pasted line 6,
+overlapping the traveled span. The rule mirrors the relocation twin
+(`RelocationSegmentEffects`): a span covering an arrival on both sides
+splits into two parts of its own passage; one overlapping from a single
+side is clipped back to the boundary; all unflagged. A span of the SAME
+passage as the arrival is deliberately untouched — that is the healing
+case (`alreadyAssigned`), where absorbing is correct. A span wholly inside
+the arrival cannot come from absorbing an insertion and is left for a
+human. Do not "fix" absorption by making atomic insertions exclusive at
+span ends in `SpanTransformer` — that would break undo re-extending a span
+whose tail was deleted, and pasting genuine continuation words at a line's
+end SHOULD absorb; the clip belongs where the citations travel.

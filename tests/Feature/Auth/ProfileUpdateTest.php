@@ -1,7 +1,41 @@
 <?php
 
+use App\Enums\GreekFont;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+
+test('a user can choose their Greek font, defaulting to EB Garamond', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    expect($user->greek_font)->toBe(GreekFont::EbGaramond);
+
+    $this->patch(route('profile.update'), [
+        'name' => $user->name,
+        'email' => $user->email,
+        'greek_font' => 'cardo',
+    ])->assertRedirect();
+
+    expect($user->fresh()->greek_font)->toBe(GreekFont::Cardo);
+});
+
+test('an unknown font is refused and omitting the field keeps the current choice', function () {
+    $user = User::factory()->create(['greek_font' => GreekFont::Cardo]);
+    $this->actingAs($user);
+
+    $this->patch(route('profile.update'), [
+        'name' => $user->name,
+        'email' => $user->email,
+        'greek_font' => 'comic-sans',
+    ])->assertInvalid(['greek_font']);
+
+    $this->patch(route('profile.update'), [
+        'name' => $user->name,
+        'email' => $user->email,
+    ])->assertRedirect();
+
+    expect($user->fresh()->greek_font)->toBe(GreekFont::Cardo);
+});
 
 test('a user can update their own name and email', function () {
     $user = User::factory()->create(['name' => 'Old Name', 'email' => 'old@example.com']);

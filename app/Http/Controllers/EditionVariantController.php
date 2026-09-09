@@ -37,9 +37,9 @@ class EditionVariantController extends Controller
      * word being just a range of one, or a witness's own wider reading an
      * editor is comparing/adopting for the first time even though
      * PassageAligner never had a divergence to merge it from automatically)
-     * — and, except when authoring a brand new substitution (see
-     * isNewSubstitution — that only catalogues it, adopting is a separate
-     * later pick), selects it for this edition. `placement: new_passage`
+     * — and selects it for this edition, except when authoring a brand new
+     * substitution or deletion without `adopt` (see isNewSubstitution — "Register" only
+     * catalogues it; "Register and adopt" selects it in the same step). `placement: new_passage`
      * (a whole-line lacuna with no manuscript witness) is different enough —
      * it creates the EditionPassage itself, rather than requiring one to
      * already exist — that it's handled entirely separately, see
@@ -119,12 +119,21 @@ class EditionVariantController extends Controller
                 default => throw new LogicException('Unreachable: source is validated against a fixed list of values.'),
             };
 
+            // Picking a candidate is a live human confirmation of it — the
+            // same rule as re-selecting a citation span. Whatever doubt a
+            // text edit cast on this reading (needs_review) is answered by
+            // the editor choosing it, and re-picking the already-selected
+            // candidate is exactly how a flagged selection is confirmed.
+            if ($reading->needs_review) {
+                $reading->update(['needs_review' => false]);
+            }
+
             // Authoring a brand new substitution only catalogues it as a
-            // candidate — it doesn't adopt it. Adopting is a separate,
-            // explicit act (picking it from the column's candidate list,
-            // same as picking anything else already sitting there), so
-            // nothing here should touch this edition's existing decisions.
-            if ($this->isNewSubstitution($request)) {
+            // candidate unless the editor asked to adopt it too ("Register"
+            // vs "Register and adopt", user decision). Without `adopt`,
+            // nothing here touches this edition's existing decisions;
+            // adopting later is picking it from the column's candidate list.
+            if ($this->isNewSubstitution($request) && ! $request->boolean('adopt')) {
                 return;
             }
 
@@ -143,6 +152,21 @@ class EditionVariantController extends Controller
                 ['edition_id' => $edition->id, 'lemma_id' => $lemma->id],
                 ['selected_reading_id' => $reading->id],
             );
+
+            // A reading kept only because an edition selected it — destroyed
+            // by a text edit, held as a zero-width flagged span — loses its
+            // reason to exist the moment the selection moves elsewhere:
+            // dropped once nothing selects it. This completes the flag's
+            // lifecycle: confirming (above) or re-choosing (here) both
+            // resolve it.
+            LemmaReading::where('lemma_id', $lemma->id)
+                ->whereKeyNot($reading->id)
+                ->whereNotNull('start_offset')
+                ->whereColumn('start_offset', 'end_offset')
+                ->where('omitted', false)
+                ->where('needs_review', true)
+                ->whereNotIn('id', EditionLemma::select('selected_reading_id'))
+                ->delete();
         });
 
         return back();
@@ -438,6 +462,9 @@ class EditionVariantController extends Controller
     {
         return $offsets(
             LemmaReading::where('transcription_layer_id', $base->id)
+                // An omission reading sits at exactly the boundary of a
+                // neighbouring word — never the word an editor selected.
+                ->where('omitted', false)
                 ->whereHas('lemma', fn ($query) => $query->where('canonical_passage_id', $passage->id))
         )->first();
     }
@@ -508,9 +535,10 @@ class EditionVariantController extends Controller
     /**
      * A lacuna or supplement still adopts itself on creation — a lacuna has
      * nothing else to compete with at its own brand new column, and a
-     * supplement explicitly names the one lacuna it fills. A substitution is
-     * different: it's proposed into a column that may already hold a
-     * perfectly good reading, so authoring one is never itself a decision.
+     * supplement explicitly names the one lacuna it fills. A substitution
+     * or deletion is different: it's proposed over columns that already
+     * hold a perfectly good reading, so authoring one is never itself a
+     * decision.
      */
     private function isNewSubstitution(StoreEditionVariantRequest $request): bool
     {
@@ -520,6 +548,6 @@ class EditionVariantController extends Controller
 
         $type = $request->validated('conjecture_type') ?? ConjectureType::Substitution->value;
 
-        return $type === ConjectureType::Substitution->value;
+        return in_array($type, [ConjectureType::Substitution->value, ConjectureType::Deletion->value], true);
     }
 }

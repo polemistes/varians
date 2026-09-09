@@ -295,8 +295,16 @@ const firstPlacedPageLabel = computed(() => {
         : null;
 });
 
+// Whether the editor deliberately chose the "before the first page" entry
+// (null): the resync watcher below must then keep it, rather than reading
+// null as "the page is gone" and bouncing to the first placed page on
+// every autosave reload (real bug — editing the opening stretch was kicked
+// to page 1 after each save, mid-typing).
+const openingChosen = ref(false);
+
 function selectPage(id: number | null) {
     selectedPageId.value = id;
+    openingChosen.value = id === null;
     leftPaneEl.value?.clearSelection();
     rightPaneEl.value?.clearSelection();
 }
@@ -328,13 +336,16 @@ function stepPage(direction: 1 | -1) {
 watch(
     [pages, anyTranscriptPayload],
     () => {
-        const stillThere = pages.value.some(
-            (item) => item.id === selectedPageId.value,
-        );
+        const stillThere =
+            selectedPageId.value === null
+                ? openingChosen.value && hasUnplacedOpening.value
+                : pages.value.some((item) => item.id === selectedPageId.value);
 
         if (stillThere) {
             return;
         }
+
+        openingChosen.value = false;
 
         selectedPageId.value =
             anyTranscriptPayload.value?.pageBreaks[0]?.manuscript_page_id ??
@@ -476,6 +487,18 @@ function selectRegionForEditing(id: number) {
     }
 
     editableRegionId.value = editableRegionId.value === id ? null : id;
+
+    // The click that selected a box never moved focus when the image was
+    // zoomed (the viewer keeps the pointer for panning), so Delete went on
+    // deleting transcript text while a box sat selected (real bug). A
+    // selected box takes the keyboard: focus leaves any text field.
+    if (editableRegionId.value !== null) {
+        const active = document.activeElement;
+
+        if (active instanceof HTMLElement && active !== document.body) {
+            active.blur();
+        }
+    }
 }
 
 function removeRegion(regionId: number) {

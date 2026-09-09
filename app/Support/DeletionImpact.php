@@ -7,6 +7,7 @@ use App\Models\Conjecture;
 use App\Models\Edition;
 use App\Models\EditionLemma;
 use App\Models\EditionPassage;
+use App\Models\EditionTransposition;
 use App\Models\Lemma;
 use App\Models\ManuscriptImage;
 use App\Models\TranscriptionLayer;
@@ -74,17 +75,46 @@ class DeletionImpact
     }
 
     /**
+     * What deleting a transcript takes with it — counted over BOTH of its
+     * layers, since that is what the delete removes (see
+     * TranscriptionController::destroy).
+     *
      * @return array{segments: int, regions: int, editionSelections: int, editionPassages: int}
      */
     public static function forTranscription(TranscriptionLayer $transcription): array
     {
+        $layerIds = TranscriptionLayer::query()
+            ->where('transcription_id', $transcription->transcription_id)
+            ->pluck('id');
+
         return [
-            'segments' => TranscriptionSegment::query()->where('transcription_layer_id', $transcription->id)->count(),
-            'regions' => TranscriptionRegion::query()->where('transcription_layer_id', $transcription->id)->count(),
+            'segments' => TranscriptionSegment::query()->whereIn('transcription_layer_id', $layerIds)->count(),
+            'regions' => TranscriptionRegion::query()->whereIn('transcription_layer_id', $layerIds)->count(),
             'editionSelections' => EditionLemma::query()
-                ->whereHas('selectedReading', fn ($query) => $query->where('transcription_layer_id', $transcription->id))
+                ->whereHas('selectedReading', fn ($query) => $query->whereIn('transcription_layer_id', $layerIds))
                 ->count(),
-            'editionPassages' => EditionPassage::query()->where('transcription_layer_id', $transcription->id)->count(),
+            'editionPassages' => EditionPassage::query()->whereIn('transcription_layer_id', $layerIds)->count(),
+        ];
+    }
+
+    /**
+     * What deleting a conjecture takes with it: its placements as readings
+     * (and every edition's selection of them), the editions that adopted it
+     * as an ordering, the supplements that fill it (a lacuna's cascade),
+     * and its citations.
+     *
+     * @return array{readings: int, editionSelections: int, adoptions: int, supplements: int, citations: int}
+     */
+    public static function forConjecture(Conjecture $conjecture): array
+    {
+        $readingIds = $conjecture->lemmaReadings()->pluck('id');
+
+        return [
+            'readings' => $readingIds->count(),
+            'editionSelections' => EditionLemma::query()->whereIn('selected_reading_id', $readingIds)->count(),
+            'adoptions' => EditionTransposition::query()->where('conjecture_id', $conjecture->id)->count(),
+            'supplements' => $conjecture->suppliedBy()->count(),
+            'citations' => $conjecture->references()->count(),
         ];
     }
 

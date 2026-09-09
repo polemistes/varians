@@ -10,19 +10,28 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * One passage's rank within a ConjectureType::Reordering's proposed
+ * One piece's rank within a ConjectureType::Reordering's proposed
  * sequence — the authoritative set-and-order for that conjecture;
  * `Conjecture.canonical_passage_id` itself is only the set's first passage
  * by citation order, kept as the usual anchor.
  *
+ * A piece is normally a whole passage (`part` 1, `text` null). An
+ * arrangement registered from the edition text by cutting PART of a line
+ * and pasting it elsewhere divides that passage into pieces, numbered in
+ * the passage's own content order, each carrying its words — the same
+ * shape as a witness's split citation (TranscriptionSegment::part), and
+ * reported by the same code (EditionController::citationDiscontinuities).
+ *
  * @property int $id
  * @property int $conjecture_id
  * @property int $canonical_passage_id
+ * @property int $part
  * @property int $sequence
+ * @property string|null $text
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['conjecture_id', 'canonical_passage_id', 'sequence'])]
+#[Fillable(['conjecture_id', 'canonical_passage_id', 'part', 'sequence', 'text'])]
 class ConjectureOrderingEntry extends Model
 {
     /** @use HasFactory<ConjectureOrderingEntryFactory> */
@@ -50,6 +59,7 @@ class ConjectureOrderingEntry extends Model
     protected function casts(): array
     {
         return [
+            'part' => 'integer',
             'sequence' => 'integer',
         ];
     }

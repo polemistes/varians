@@ -21,7 +21,7 @@ use Illuminate\Support\Carbon;
  * Not every conjecture is a plain substitution — see ConjectureType. A
  * transposition/lacuna/supplement is still, at heart, an editorial proposal
  * that needs the same credit as a substitution — it uses the same
- * `proposed_by`/`bibliography` fields, never a separate mechanism.
+ * `proposed_by` field and its citations (BibliographyReference), never a separate mechanism.
  *
  * Most conjectures aren't the current editor's own idea — they're recording
  * one a scholar proposed long ago (`proposed_by`, e.g. "Bentley"), which is
@@ -40,7 +40,6 @@ use Illuminate\Support\Carbon;
  * @property int|null $move_target_canonical_passage_id
  * @property string|null $move_position
  * @property string|null $proposed_by
- * @property string|null $bibliography
  * @property string|null $note
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -57,7 +56,6 @@ use Illuminate\Support\Carbon;
     'move_target_canonical_passage_id',
     'move_position',
     'proposed_by',
-    'bibliography',
     'note',
 ])]
 class Conjecture extends Model
@@ -68,6 +66,17 @@ class Conjecture extends Model
     protected $attributes = [
         'type' => ConjectureType::Substitution,
     ];
+
+    /**
+     * The literature this conjecture cites, in the order given — see
+     * BibliographyReference. Edition-independent, like the conjecture.
+     *
+     * @return HasMany<BibliographyReference, $this>
+     */
+    public function references(): HasMany
+    {
+        return $this->hasMany(BibliographyReference::class)->orderBy('position');
+    }
 
     /**
      * @return BelongsTo<CanonicalPassage, $this>

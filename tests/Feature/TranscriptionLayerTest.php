@@ -112,3 +112,26 @@ test('the add-text panel only offers collatable transcriptions', function () {
             ->where('transcriptions', fn ($transcriptions) => collect($transcriptions)->pluck('id')->all() === [$normalized->id])
         );
 });
+
+test('the add-text panel names each transcript by its witness and its own name', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $work = Work::factory()->create();
+    $passage = CanonicalPassage::factory()->for($work)->create();
+    $edition = Edition::factory()->for($work)->create();
+
+    $witness = Witness::factory()->create(['siglum' => 'R', 'label' => 'Ravennas 429']);
+    $transcription = Transcription::factory()->for($witness)->create([
+        'name' => 'Main text',
+        'visibility' => 'published',
+    ]);
+    $normalized = TranscriptionLayer::factory()->normalized()->for($transcription)->create(['text' => 'the quick fox']);
+    citeLayer($normalized, $passage, 'the quick fox');
+
+    $this->get(route('editions.show', [$work, $edition]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('transcriptions.0.name', 'Main text')
+            ->where('transcriptions.0.witness.siglum', 'R')
+            ->where('transcriptions.0.witness.label', 'Ravennas 429')
+        );
+});

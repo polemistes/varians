@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\CanonicalPassage;
+use App\Models\Conjecture;
+use App\Models\EditionComment;
 use App\Models\Lemma;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionSegment;
@@ -288,4 +290,71 @@ test('a swallowed interior lemma keeps its own independent readings from other w
 
     // "swift" now carries three readings on the same lemma: A's own word, D's duplicate, and C's range.
     expect($lemmas[1]->readings)->toHaveCount(3);
+});
+
+test('collating records one omission reading per run of columns a witness lacks, anchored where its words resume', function () {
+    $passage = CanonicalPassage::factory()->create();
+    $a = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'A']))->create(['text' => 'the quick brown fox']);
+    $b = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'B']))->create(['text' => 'the fox']);
+    TranscriptionSegment::factory()->for($a)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 19]);
+    TranscriptionSegment::factory()->for($b)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 7]);
+
+    PassageAligner::collate($passage, TranscriptionSegment::where('canonical_passage_id', $passage->id)->get());
+
+    $lemmas = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->get();
+    $omissions = PassageAligner::layerReadings($passage, $b)->where('omitted', true)->values();
+
+    // One reading for "quick brown" as a whole, not one per column; B's
+    // text resumes at offset 3 (after "the"), and that is where it sits.
+    expect($omissions)->toHaveCount(1)
+        ->and($omissions[0]->lemma_id)->toBe($lemmas[1]->id)
+        ->and($omissions[0]->range_end_lemma_id)->toBe($lemmas[2]->id)
+        ->and($omissions[0]->start_offset)->toBe(3)
+        ->and($omissions[0]->end_offset)->toBe(3)
+        ->and(PassageAligner::layerReadings($passage, $a)->where('omitted', true))->toHaveCount(0);
+});
+
+test('re-collating keeps an existing omission reading rather than replacing it', function () {
+    $passage = CanonicalPassage::factory()->create();
+    $a = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'A']))->create(['text' => 'the quick brown fox']);
+    $b = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'B']))->create(['text' => 'the fox']);
+    TranscriptionSegment::factory()->for($a)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 19]);
+    TranscriptionSegment::factory()->for($b)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 7]);
+
+    PassageAligner::collate($passage, TranscriptionSegment::where('canonical_passage_id', $passage->id)->get());
+    $before = PassageAligner::layerReadings($passage, $b)->where('omitted', true)->sole();
+
+    // Something editorial pins the columns, so the second collation
+    // appends instead of rebuilding — the case an upsert has to survive.
+    EditionComment::factory()->create(['lemma_id' => $before->lemma_id]);
+    PassageAligner::recordOmissions($passage);
+
+    $after = PassageAligner::layerReadings($passage, $b)->where('omitted', true)->sole();
+
+    expect($after->id)->toBe($before->id)
+        ->and($after->range_end_lemma_id)->toBe($before->range_end_lemma_id);
+});
+
+test('a column no witness attests breaks an omission run instead of being swallowed by it', function () {
+    $passage = CanonicalPassage::factory()->create();
+    $a = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'A']))->create(['text' => 'the quick brown fox']);
+    $b = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'B']))->create(['text' => 'the fox']);
+    TranscriptionSegment::factory()->for($a)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 19]);
+    TranscriptionSegment::factory()->for($b)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 7]);
+
+    PassageAligner::collate($passage, TranscriptionSegment::where('canonical_passage_id', $passage->id)->get());
+
+    $lemmas = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->get();
+
+    // A lacuna column between "quick" and "brown" — nobody's word.
+    $lacuna = Lemma::create(['canonical_passage_id' => $passage->id, 'position' => ((float) $lemmas[1]->position + (float) $lemmas[2]->position) / 2]);
+    $lacuna->readings()->create(['conjecture_id' => Conjecture::factory()->create(['type' => 'lacuna', 'text' => null])->id]);
+
+    PassageAligner::recordOmissions($passage);
+
+    $omissions = PassageAligner::layerReadings($passage, $b)->where('omitted', true)->sortBy('lemma_id')->values();
+
+    expect($omissions)->toHaveCount(2)
+        ->and($omissions->pluck('lemma_id')->all())->toBe([$lemmas[1]->id, $lemmas[2]->id])
+        ->and($omissions->pluck('range_end_lemma_id')->all())->toBe([null, null]);
 });

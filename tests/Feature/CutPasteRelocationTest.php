@@ -41,9 +41,10 @@ test('cut and paste of a cited span moves the citation with the words', function
         ->and(mb_substr($transcription->fresh()->text, $segment->start_offset, 6))->toBe('quick ');
 });
 
-test('the same two ops WITHOUT a cut_id tombstone the citation instead of moving it', function () {
+test('the same two ops WITHOUT a cut_id delete the citation instead of moving it', function () {
     // The inverse of the old MoveAssignedPassageTest raison-d'être case: a
-    // plain delete + unrelated insert is not a relocation claim.
+    // plain delete + unrelated insert is not a relocation claim, and the
+    // deleted words take their citation with them.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
     $segment = TranscriptionSegment::factory()->for($transcription)->create([
@@ -59,12 +60,10 @@ test('the same two ops WITHOUT a cut_id tombstone the citation instead of moving
     ]);
 
     $response->assertRedirect();
-    $segment->refresh();
-    expect($segment->end_offset)->toBe($segment->start_offset)
-        ->and($segment->needs_review)->toBeTrue();
+    expect(TranscriptionSegment::find($segment->id))->toBeNull();
 });
 
-test('mismatched cut ids re-pair by their text — the undo of a lone cut restores, not tombstones', function () {
+test('mismatched cut ids re-pair by their text — the undo of a lone cut restores, not deletes', function () {
     // Both halves claim relocation but under different ids (the shape a
     // buggy client's undo-of-a-cut produced): the characters match an
     // outstanding cut exactly, so the intent is unambiguous. Here the
@@ -179,9 +178,10 @@ test('a citation outside the moved stretch shifts rather than travelling', funct
         ->and($fox->needs_review)->toBeFalse();
 });
 
-test('a cut saved without its paste tombstones the citation — recoverable, not destroyed', function () {
-    // Autosave can split a cut and its paste across two requests; the first
-    // half must degrade safely.
+test('a cut saved without its paste deletes the citation — the text left, undo restores it', function () {
+    // Autosave can split a cut and its paste across two requests; the
+    // client holds the cut back within a window, and past it the cut
+    // degrades to a plain deletion — restorable by undo like any other.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
     $segment = TranscriptionSegment::factory()->for($transcription)->create([
@@ -193,10 +193,7 @@ test('a cut saved without its paste tombstones the citation — recoverable, not
         'text' => 'the brown fox',
     ])->assertRedirect();
 
-    $segment->refresh();
-    expect($segment->start_offset)->toBe(4)
-        ->and($segment->end_offset)->toBe(4)
-        ->and($segment->needs_review)->toBeTrue();
+    expect(TranscriptionSegment::find($segment->id))->toBeNull();
 });
 
 test('a paste whose text does not match its cut is not honoured as a relocation', function () {
@@ -216,9 +213,9 @@ test('a paste whose text does not match its cut is not honoured as a relocation'
         'text' => 'the brown foxDIFFERENT ',
     ])->assertRedirect();
 
-    $segment->refresh();
-    expect($segment->end_offset)->toBe($segment->start_offset)
-        ->and($segment->needs_review)->toBeTrue();
+    // The claim degrades to a plain deletion — the citation goes with the
+    // words it covered, never onto words it did not.
+    expect(TranscriptionSegment::find($segment->id))->toBeNull();
 });
 
 test('pasting a cut line right after another cited line does not absorb into it', function () {

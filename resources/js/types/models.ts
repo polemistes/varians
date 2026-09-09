@@ -186,7 +186,12 @@ export type EditionLemma = {
 };
 
 export type ConjectureType =
-    'substitution' | 'lacuna' | 'supplement' | 'transposition';
+    | 'substitution'
+    | 'deletion'
+    | 'lacuna'
+    | 'supplement'
+    | 'transposition'
+    | 'reordering';
 
 /**
  * A recorded conjecture for a passage — usually not the current editor's own
@@ -208,7 +213,7 @@ export type ConjectureType =
  *   `move_position` ('before'/'after') `move_target_canonical_passage_id`.
  *   `text` is never set.
  *
- * All four still need the same credit — `proposed_by`/`bibliography`.
+ * All four still need the same credit — `proposed_by`, and citations.
  */
 export type Conjecture = {
     id: number;
@@ -222,7 +227,6 @@ export type Conjecture = {
     move_target_canonical_passage_id: number | null;
     move_position: 'before' | 'after' | null;
     proposed_by: string | null;
-    bibliography: string | null;
     note: string | null;
 };
 
@@ -307,6 +311,9 @@ export type TranscriptionSegment = {
     end_offset: number;
     part: number;
     needs_review: boolean;
+    // Derived after every save: the span begins or ends inside a word
+    // (no neighbouring citation) or overlaps one — see CitationIntegrity.
+    boundary_review?: boolean;
     canonical_passage?: CanonicalPassage & { work?: Work };
     /** Display ordinal among the passage's LIVE parts (client-derived). */
     part_ordinal?: number;
@@ -320,6 +327,9 @@ export type TranscriptionRegion = {
     id: number;
     transcription_layer_id: number;
     manuscript_image_id: number;
+    // A mapping is one box in both layers — counterpart rows share a
+    // group (see SiblingSync); absent on rows made before the pairing.
+    group_id?: string | null;
     text: string;
     start_offset: number;
     end_offset: number;

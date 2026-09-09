@@ -125,8 +125,9 @@ test('an omission is not mistaken for a transposition', function () {
 
     $result = collationOf(['A' => 'the swift red fox', 'B' => 'the red fox']);
 
-    // "swift" is attested by A alone — absence is the gap, as before.
-    expect($result['columns'][1])->toBe(['A:swift'])
+    // "swift" is attested by A alone — B's reading there is its omission
+    // (see LemmaReading::$omitted), an empty text, not a moved word.
+    expect($result['columns'][1])->toBe(['A:swift', 'B:'])
         ->and($result['printed']['B'])->toBe('the red fox');
 });
 
@@ -135,7 +136,8 @@ test('an addition is not mistaken for a transposition', function () {
 
     $result = collationOf(['A' => 'the red fox', 'B' => 'the swift red fox']);
 
-    expect($result['columns'][1])->toBe(['B:swift'])
+    // A's reading at the column is its omission of the word (empty text).
+    expect($result['columns'][1])->toBe(['A:', 'B:swift'])
         ->and($result['printed']['A'])->toBe('the red fox');
 });
 

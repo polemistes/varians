@@ -116,15 +116,28 @@ const resolvedPassageId = computed<number | null>(() => {
 
 watch(resolvedPassageId, (value) => emit('update:modelValue', value));
 
-// The parent resets the model back to null after a successful submit —
-// mirror that here so the dropdowns clear along with the rest of the form.
+/** The dropdown values that name a passage: its address, level by level. */
+function selectionsFor(passageId: number): (string | number | null)[] {
+    const passage = props.passages.find(
+        (candidate) => candidate.id === passageId,
+    );
+
+    return props.levels.map((level) => passage?.address[level.key] ?? null);
+}
+
+// A model set from outside — a conjecture opened for editing, say —
+// shows as the dropdowns' choice; the parent resetting it to null after a
+// submit clears them along with the rest of the form.
 watch(
     () => props.modelValue,
     (value) => {
         if (value === null) {
             selections.value = props.levels.map(() => null);
+        } else if (value !== resolvedPassageId.value) {
+            selections.value = selectionsFor(value);
         }
     },
+    { immediate: true },
 );
 </script>
 

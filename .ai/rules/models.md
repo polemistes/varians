@@ -33,6 +33,21 @@ Consequences:
 ## User.role is deliberately not fillable — use forceFill or direct assignment
 `role` is excluded from User's #[Fillable] on purpose, to prevent privilege escalation via mass assignment (e.g. a registration form payload). This means `User::create(['role' => ...])` or `$user->update(['role' => ...])` silently drops the field. Registration doesn't need to set it explicitly — the `role` column defaults to 'guest' in the migration. The one legitimate place role changes (Admin\UsersController::updateRole, gated by role:administrator middleware) must use `$user->forceFill(['role' => $newRole])->save()` to intentionally bypass the guard. Factories are unaffected — Eloquent factories bypass fillable/guarded entirely via Model::unguarded(), so `'role' => Role::Guest` in UserFactory::definition() works normally.
 
+## Conjectures of every kind are recorded and edited on the Work page
+`conjectures.store` (per passage) records ANY kind as a catalogue entry —
+including transposition and reordering, applied to no edition (an edition
+follows one through `edition-order.apply`, or records-and-follows a new
+reordering through `conjecture-orderings.store`). `conjectures.update` edits every field;
+`ConjectureShape` is the one matrix of what each kind must carry, checked
+against the MERGED record on update, and a kind cannot change while the
+conjecture is placed, adopted or filled by a supplement. Fields a kind
+does not use are cleared on save; a reordering hangs from the first
+passage of its stretch by citation order (`reorderingAnchor`), and its
+sequence is replaced whole. `WorkController::conjectures()` ships the
+list with where each is in use; `DeletionImpact::forConjecture` backs the
+delete confirmation (user decision: the Work page is where the stockpile
+is managed — add, edit, delete — while editions place and follow).
+
 ## Conjecture has two distinct "who" fields — don't collapse them
 `Conjecture.user_id` is attribution for who entered the record into Varians (the modern editor doing data entry) — it follows this app's usual collaborative-attribution pattern (like Transcription.user_id).
 
@@ -40,7 +55,7 @@ Consequences:
 
 Display/apparatus code should show `proposed_by`, falling back to `user.name` only when `proposed_by` is null (see `EditionController::readingDetail()`/`passageDetail()` for the pattern). Never substitute one field for the other or drop `proposed_by` as "redundant" with `user_id` — they answer different questions.
 
-`Conjecture.bibliography` (nullable text) is a free-text citation for where the conjecture was published — no structured bibliography/reference system exists, just a plain field the editor fills in.
+Where a conjecture was published is structured: `Conjecture::references()` (BibliographyReference rows citing BibliographyItem, see `.ai/rules/bibliography.md`). The old free-text `bibliography` column is DROPPED (user decision, nothing worth converting) — do not bring a free-text field back beside the citations.
 
 ## Lemma/LemmaReading are shared collation; EditionLemma is a thin per-edition selection — don't merge them back
 This was a real bug caught in review: an earlier version of this feature made `EditionLemma` own the lemma/reading data directly, scoped to one `Edition`. That's wrong — an apparatus must report what part of the (often differing) manuscript readings a conjecture replaces *even when no edition ever selects it*, and different editions of the same work need to share the same word-level collation rather than each re-splitting a line from scratch.
@@ -52,18 +67,31 @@ A conjecture attached to a `Lemma` via a `LemmaReading` is positioned and report
 ## Lemma columns are grown by alignment, never hand-built — and never anchor to a base transcription
 There is no more `lemmas.store`/`lemmas.split`/`lemma-readings.store` — a `Lemma` is a passage-level, transcription-independent alignment column, and the only way new ones come into existence is `App\Support\Edition\PassageAligner::alignWitness()`, which progressively diffs a witness's tokens against a passage's existing columns (word-level LCS) and grows them as needed. This is deliberate: a `Lemma`'s identity is "a slot in this passage," never "an offset range in transcription X" — only `LemmaReading.start_offset/end_offset` are transcription-specific, and only because rendering/highlighting needs them, not because they locate the column.
 
-`EditionBase` (`{edition_id, transcription_id, from_canonical_passage_id, to_canonical_passage_id}`) records which transcription's own wording is the *display* default for a range — nothing more. Never let it become a structural anchor (e.g. never require a `LemmaReading` to exist for "the base" for a `Lemma` to be valid) — reassigning a range's base transcription must never orphan anything recorded against the old one, only change what's shown by default. `App\Support\Edition\BaseResolver::covering()` is the one place "which base covers this passage" is answered; reuse it rather than re-deriving.
+The base is per-passage now: `EditionPassage.transcription_layer_id` records which transcription's own wording is that passage's *display* default — nothing more. The range-level `EditionBase` model and `BaseResolver` are GONE (do not go looking for them; only a comment in StoreEditionPassagesBulkRequest still names the old range for contrast). Every add path sets the added passage's base to the source transcript equally — the "Add lines…" bulk add differs only in addressing a citation range instead of a physical selection, and in skipping passages already added, which is how a multi-witness patchwork is built. The old rule's principle stands unchanged: the base is never a structural anchor (never require a `LemmaReading` to exist for "the base" for a `Lemma` to be valid), and changing a passage's base must never orphan anything recorded against the old one, only change what's shown by default.
 
-`EditionVariantController::store` is the one place a `Lemma`/`LemmaReading` gets created going forward — it materializes a passage (aligns every witness citing it) on first touch, then places whatever was picked (a witness reading, a catalogued Conjecture, or a brand new one) at the exact column, and upserts the `EditionLemma` selection in the same request. `LemmaController`/`LemmaReadingController` only keep `update`/`destroy` now, for correcting an already-materialized structure, not for building one.
+`EditionVariantController::store` is the one place a `Lemma`/`LemmaReading` gets created going forward — it materializes a passage (aligns every witness citing it) on first touch, then places whatever was picked (a witness reading, a catalogued Conjecture, or a brand new one) at the exact column, and upserts the `EditionLemma` selection in the same request. There are no lemma or lemma-reading routes at all any more (the old correction routes were never called from the client and were removed); `EditionLemmaController` keeps only `destroy`, which withdraws an edition's choice.
 
 ## A lacuna is a pure insertion; its restoration is a separate Supplement; a transposition never touches Lemma/LemmaReading at all
 `ConjectureType` has four cases, and only two of them (Substitution, Supplement) ever carry `text`:
 
 - **Lacuna**: `text` is always null (rejected at validation if given) — a lacuna never competes with an existing word, it's inserted as a brand-new zero-width `Lemma` column *between* two existing ones (see `EditionVariantController::resolveInsertedLemma`, reached via `placement=insert` on `StoreEditionVariantRequest`, never `placement=existing`). `extent` is an optional free-text description of how much is believed missing.
 - **Supplement**: a proposed restoration for one specific Lacuna (`supplements_conjecture_id`, a self-referencing FK). Several supplements, credited to different proposers, can compete for the very same lacuna — that's the whole reason Supplement is its own type rather than letting Lacuna carry a single `text`. A supplement is placed exactly like a substitution, as another candidate `LemmaReading` on the lacuna's own `Lemma` (`EditionVariantController::guardSupplementMatchesLemma` rejects one that targets a lacuna not actually on the clicked column).
-- **Transposition**: `text` is always null and it **never gets a `LemmaReading`** — it's an edition-ordering proposal, not a word-level one. `canonical_passage_id` (through `transposition_range_end_canonical_passage_id`, inclusive, for a multi-passage range) is proposed to move `move_position` ('before'/'after') `move_target_canonical_passage_id`. Recording one always goes through `EditionTranspositionController::store`, never `EditionVariantController` (which explicitly rejects `conjecture_type=transposition`).
+- **Transposition**: `text` is always null and it **never gets a `LemmaReading`** — it's an edition-ordering proposal, not a word-level one. `canonical_passage_id` (through `transposition_range_end_canonical_passage_id`, inclusive, for a multi-passage range) is proposed to move `move_position` ('before'/'after') `move_target_canonical_passage_id`. Recording one goes through `ConjectureController::store` (the Work page's list), the order panel (`ConjectureOrderingController`) or an unattested cut-and-paste (`EditionOrderController::move`), never `EditionVariantController` (which explicitly rejects `conjecture_type=transposition`). `EditionTranspositionController` is gone: the edition page's transposition list was removed once conjectures became editable from the Work page.
+- **Reordering**: `text` null; its `ConjectureOrderingEntry` rows are the proposed sequence of PIECES — normally whole passages (`part` 1, `text` null), but the edition page's cut-and-paste registering may divide a passage into parts with their words, the same shape as a witness's split citation and reported by the same code. Adopting such an arrangement prints the line in pieces — one `EditionPassage` row per part (`part`, `part_text`), see `ArrangementAdopter` and `.ai/rules/edition.md`. `ConjectureShape::orderedPassageIds` gives the passages once each (first part's place); rewriting the sequence from the Work page form flattens the parts.
 
 **Order is materialized** (redesign, replacing the old render-time two-phase reordering): `EditionPassage.position` IS the printed order, mutable, and every change goes through `PassageOrderRewriter` (locked transaction, wholesale renumber 1..n). `EditionTransposition` (`{edition_id, conjecture_id}`) is a pure *attribution* record — "this edition applied this proposal" — serving both Transposition and Reordering conjectures; it no longer affects rendering, and removing one leaves the order as it is (**one-way apply**, a deliberate user decision: an automatic revert would be unreliable once the editor rearranged anything on top). Direct cut-and-paste (`EditionOrderController::move`) and applying an order-report candidate (`::applyCandidate` — a witness's sequence, a catalogued conjecture with attribution, or citation order) are the other two writers. An edition's own passage order can float free of citation `sort_key` order, the same way a single transcription's physical order already can (see the "Citation identity vs. reading order" note above); each passage keeps its own citation label wherever it lands. The `edition_passage_orders` table and its "settled range" mechanism are gone: the order report (`EditionController::orderRanges`) is a calm, always-derived comparison (like the ⇄ marker — "detected by comparison at display time, not a stored flag", the same principle as ever), so the historical flip-flop incident cannot recur because nothing prompts action.
+
+
+## LemmaReading.omitted is a witness's absence, not a tombstone
+
+A zero-width reading with `omitted = true` says the witness has *no* word at
+the columns it spans (written by `PassageAligner::recordOmissions`); a
+zero-width reading with `needs_review = true` is a selected reading a text
+edit destroyed. Never infer either from width alone. Every query for a
+witness's real wording must add `->where('omitted', false)`. A
+`ConjectureType::Deletion` is the conjectural counterpart: `text` null,
+placed as a range reading like a substitution, printing nothing when
+adopted. See `.ai/rules/edition.md`, "Omissions are readings".
 
 ## A scheme's level values are free-text, even when typed "integer"
 An "integer"-typed level (e.g. line number) still accepts and stores an alphanumeric value like "4a" or "80A" — editors must be free to name any segment whatever they like; only the scheme's *structure* (how many levels, separators) is enforced, never a level's value format.

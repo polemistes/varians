@@ -12,6 +12,9 @@ const props = withDefaults(
         regions?: TranscriptionRegion[];
         features?: ManuscriptImageFeature[];
         highlightedRegionId?: number | null;
+        // Several at once — the edition line under the pointer may be
+        // aligned to more than one box.
+        highlightedRegionIds?: number[];
         editableRegionId?: number | null;
         drawingEnabled?: boolean;
     }>(),
@@ -19,6 +22,7 @@ const props = withDefaults(
         regions: () => [],
         features: () => [],
         highlightedRegionId: null,
+        highlightedRegionIds: () => [],
         editableRegionId: null,
         drawingEnabled: false,
     },
@@ -423,7 +427,10 @@ function drawBoxStyle() {
                                 : [
                                       'border-transparent',
                                       !drawingEnabled && 'cursor-pointer',
-                                      region.id === highlightedRegionId &&
+                                      (region.id === highlightedRegionId ||
+                                          highlightedRegionIds.includes(
+                                              region.id,
+                                          )) &&
                                           'border-amber-400 bg-amber-300/50',
                                   ]
                         "

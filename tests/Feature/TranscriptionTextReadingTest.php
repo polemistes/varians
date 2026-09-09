@@ -38,21 +38,31 @@ function readingText(LemmaReading $reading): string
     return mb_substr($text, $reading->start_offset, $reading->end_offset - $reading->start_offset);
 }
 
-test('editing a word transforms the reading collated from it', function () {
+test('editing a word re-derives the reading collated from it', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
     $readings = collatedReadings($transcription, 'the quick fox');
+    $passageId = $readings['quick']->lemma->canonical_passage_id;
 
     // Replace "quick" (4-9) with "slow" — the exact case that used to leave
-    // the apparatus reading "the" / "slow " / "ox".
+    // the apparatus reading "the" / "slow " / "ox". Nothing selects these
+    // readings, so the damaged one is re-derived by re-collation.
     $this->patch(route('transcriptions.text.update', $transcription), [
         'ops' => [['start' => 4, 'end' => 9, 'text' => 'slow']],
         'text' => 'the slow fox',
     ])->assertRedirect();
 
-    expect(readingText($readings['the']))->toBe('the')
-        ->and(readingText($readings['quick']))->toBe('slow')
-        ->and(readingText($readings['fox']))->toBe('fox');
+    $words = LemmaReading::whereIn(
+        'lemma_id',
+        Lemma::where('canonical_passage_id', $passageId)->pluck('id'),
+    )->where('transcription_layer_id', $transcription->id)->get()
+        ->map(fn (LemmaReading $reading) => mb_substr(
+            $transcription->fresh()->text,
+            $reading->start_offset,
+            $reading->end_offset - $reading->start_offset,
+        ))->sort()->values()->all();
+
+    expect($words)->toBe(['fox', 'slow', 'the']);
 });
 
 test('an insertion before a reading shifts it rather than corrupting it', function () {
@@ -69,10 +79,14 @@ test('an insertion before a reading shifts it rather than corrupting it', functi
         ->and($readings['fox']->fresh()->needs_review)->toBeFalse();
 });
 
-test('an edit partially clobbering a reading flags it without prompting', function () {
+test('an edit partially clobbering unselected readings re-derives them instead of flagging', function () {
+    // User decision, narrowing needs_review to selected readings: a
+    // reading nothing selects is machine-re-derivable, so damage is
+    // answered by deletion + re-collation, never by flagging a human.
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
+    $transcription = TranscriptionLayer::factory()->normalized()->create(['text' => 'the quick fox']);
     $readings = collatedReadings($transcription, 'the quick fox');
+    $passageId = $readings['quick']->lemma->canonical_passage_id;
 
     // Replace "ick f" — straddles the "quick" and "fox" readings.
     $this->patch(route('transcriptions.text.update', $transcription), [
@@ -80,25 +94,79 @@ test('an edit partially clobbering a reading flags it without prompting', functi
         'text' => 'the quXox',
     ])->assertRedirect();
 
-    expect($readings['quick']->fresh()->needs_review)->toBeTrue()
-        ->and($readings['fox']->fresh()->needs_review)->toBeTrue();
+    // The damaged rows are gone; the passage was re-collated against the
+    // new text, so the apparatus reads real words again, unflagged.
+    expect(LemmaReading::whereKey($readings['quick']->id)->exists())->toBeFalse()
+        ->and(LemmaReading::whereKey($readings['fox']->id)->exists())->toBeFalse();
+
+    $rederived = LemmaReading::whereIn(
+        'lemma_id',
+        Lemma::where('canonical_passage_id', $passageId)->pluck('id'),
+    )->where('transcription_layer_id', $transcription->id)->get();
+
+    $words = $rederived->map(fn (LemmaReading $reading) => mb_substr(
+        $transcription->fresh()->text,
+        $reading->start_offset,
+        $reading->end_offset - $reading->start_offset,
+    ))->sort()->values()->all();
+
+    expect($words)->toBe(['quXox', 'the'])
+        ->and($rederived->every(fn (LemmaReading $reading) => ! $reading->needs_review))->toBeTrue();
 });
 
-test('a destroyed reading nothing selected is removed, with no prompt', function () {
+test('an edit partially clobbering a SELECTED reading flags it for the editor', function () {
+    // The one irreplaceable case: an edition's choice whose manuscript
+    // backing changed — the machine must not re-derive over a decision.
+    $this->actingAs(User::factory()->editor()->create());
+    $transcription = TranscriptionLayer::factory()->normalized()->create(['text' => 'the quick fox']);
+    $readings = collatedReadings($transcription, 'the quick fox');
+
+    EditionLemma::create([
+        'edition_id' => Edition::factory()->create()->id,
+        'lemma_id' => $readings['quick']->lemma_id,
+        'selected_reading_id' => $readings['quick']->id,
+    ]);
+
+    // Straddle "quick"'s right boundary — the transform can only guess.
+    $this->patch(route('transcriptions.text.update', $transcription), [
+        'ops' => [['start' => 6, 'end' => 11, 'text' => 'X']],
+        'text' => 'the quXox',
+    ])->assertRedirect();
+
+    // The selected reading is kept and flagged; the unselected 'fox' was
+    // damaged too and deleted, but re-derivation is refused while a pinned
+    // (selected) reading holds the passage — the flag on the selection is
+    // now the passage's one open question.
+    expect($readings['quick']->fresh()->needs_review)->toBeTrue()
+        ->and(LemmaReading::whereKey($readings['fox']->id)->exists())->toBeFalse();
+});
+
+test('a destroyed reading nothing selected is removed and the rest re-derived, with no prompt', function () {
     // The case that motivated dropping the prompt: no edition prints this
     // witness here, so there is nothing to decide and nothing to report.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
     $readings = collatedReadings($transcription, 'the quick fox');
+    $passageId = $readings['quick']->lemma->canonical_passage_id;
 
     $this->patch(route('transcriptions.text.update', $transcription), [
         'ops' => [['start' => 3, 'end' => 9, 'text' => '']],
         'text' => 'the fox',
     ])->assertRedirect()->assertSessionHasNoErrors();
 
+    $words = LemmaReading::whereIn(
+        'lemma_id',
+        Lemma::where('canonical_passage_id', $passageId)->pluck('id'),
+    )->where('transcription_layer_id', $transcription->id)->get()
+        ->map(fn (LemmaReading $reading) => mb_substr(
+            $transcription->fresh()->text,
+            $reading->start_offset,
+            $reading->end_offset - $reading->start_offset,
+        ))->sort()->values()->all();
+
     expect($transcription->fresh()->text)->toBe('the fox')
         ->and(LemmaReading::whereKey($readings['quick']->id)->exists())->toBeFalse()
-        ->and(readingText($readings['fox']))->toBe('fox')
+        ->and($words)->toBe(['fox', 'the'])
         ->and(session('message'))->toBeNull();
 });
 

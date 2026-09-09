@@ -93,7 +93,7 @@ test('an unmirrorable relocation leaves the other layer alone and the divergence
         'text' => mb_substr($afterCut, 0, $pasteAt).$cutText.mb_substr($afterCut, $pasteAt),
     ])->assertRedirect()
         // The refused mirror leaves the layers out of step — and says so.
-        ->assertSessionHas('message', 'The diplomatic layer was left untouched — the layers are out of step (see the indicator by the layer buttons).');
+        ->assertSessionHas('message', 'The diplomatic layer was left untouched — the layers are out of step at line 1 (see the indicator by the layer buttons).');
 
     expect($diplomatic->fresh()->text)->toBe("γιγνεται παντα\nκατ εριν");
 });
@@ -188,7 +188,7 @@ test('a refused mirror says so instead of staying silent', function () {
         ],
         'text' => "γίνεται πάντα\nκατ᾽ ἔριν ῥει",
     ])->assertRedirect()
-        ->assertSessionHas('message', 'The diplomatic layer was left untouched — the layers are out of step (see the indicator by the layer buttons).');
+        ->assertSessionHas('message', 'The diplomatic layer was left untouched — the layers are out of step at line 1 (see the indicator by the layer buttons).');
 
     expect($diplomatic->fresh()->text)->toBe('γιγνεται');
 });
