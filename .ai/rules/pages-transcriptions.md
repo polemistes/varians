@@ -353,6 +353,24 @@ be able to reach both, so the near side is left alone there. Verified in the
 browser both ways — one press moves one character between separated
 citations, and the flush pair still stops on both sides.
 
+## What the surface reports about an edit must REACH the transformer
+`AlignableText` reads the marker side from the DOM and hands the pane an op
+carrying it. `TranscriptPane.onEdit` then re-measures the offsets from page
+to whole-text coordinates — and must do that by SPREADING the op, never by
+rebuilding it from `{start, end, text}`. Rebuilt, it silently dropped `side`
+and `imported`: every side the surface had just read was thrown away one
+function before the transformer, so text typed at a marker's near side went
+to the citation the marker announces, and pasted text was held to citing
+what it landed among.
+
+This is why that defect was unfindable from either end. The surface computed
+the side correctly (probing the live DOM confirmed it), the transformer
+honoured the side correctly (`TranscriptionTextUpdateTest` covers the near
+side, the far side, paste and deletion — all passing), and the field died in
+between. A feature test that posts its own ops cannot see this; only the
+browser can. When an op grows a field, check every place an op is BUILT from
+another one.
+
 ## A marker's near side belongs to WHAT LIES BEFORE IT
 The caret on a marker's near side is standing at the end of the citation
 above, so that is what takes what is typed: the citation ending against the

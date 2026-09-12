@@ -555,11 +555,16 @@ function onCopied(copy: { start: number; end: number; text: string }) {
 
 function onEdit(op: TextEditOp, source: PaneEditSource = 'typing') {
     // Typed inside the page, recorded against the whole text — that is what
-    // the server replays and what every other offset is measured in.
-    applyEdit(
-        { start: toFull(op.start), end: toFull(op.end), text: op.text },
-        source,
-    );
+    // the server replays and what every other offset is measured in. Only
+    // the OFFSETS are page-relative: everything else the surface reports
+    // must be carried over verbatim, which is why this SPREADS the op
+    // rather than rebuilding it. Rebuilding it silently dropped `side` and
+    // `imported` — the marker side the surface had just read from the DOM
+    // never reached the transformer, so text typed at a marker's near side
+    // went to the citation the marker announces (reported repeatedly, and
+    // unfindable from the surface, which was computing the side correctly),
+    // and pasted text was held to citing what it landed among.
+    applyEdit({ ...op, start: toFull(op.start), end: toFull(op.end) }, source);
 }
 
 /**
@@ -1290,7 +1295,9 @@ function importFile(event: Event) {
             return;
         }
 
-        applyEdit({ start: at, end: at, text }, 'atomic');
+        // Arrived rather than typed, so it comes in uncited (see
+        // SpanTransformer::claimant) — the same rule as a paste.
+        applyEdit({ start: at, end: at, text, imported: true }, 'atomic');
 
         importError.value = null;
     };
