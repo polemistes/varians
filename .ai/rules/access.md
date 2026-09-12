@@ -107,6 +107,21 @@ public. Witness visibility stays derived from its transcriptions;
 `Conjecture.visibility` was added for this. `ConjectureCatalogue::forWork`
 takes the viewer so readers see only published conjectures.
 
+## A copy keeps the original's name — the lists say who and when
+Copying gives the copy the original's title or siglum, so a list of
+editions, works or witnesses shows several identical rows. Every such list
+carries `user` (the owner) and `created_at`, and shows them:
+`resources/js/lib/provenance.ts` formats the pair, the DATE visible and the
+exact TIME in the `title` tooltip (user decision — two copies made minutes
+apart are rare, a clock on every row is noise). The transcript picker on
+the witness page puts the date IN the option text as well, since a
+`<select>` cannot carry a tooltip; the line beside it names the layers'
+author, not the owner, because every transcript of a witness shares one
+owner and naming her there would say nothing.
+
+Any new list that can show a copy must ship both columns and use the same
+helper — otherwise the copies are indistinguishable again.
+
 ## A conjecture is born with the work's standing
 A conjecture recorded against a work that ALREADY has a published edition
 is created published (`EditionPublisher::visibilityForConjectureOn`, used

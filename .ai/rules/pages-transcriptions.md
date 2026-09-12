@@ -306,3 +306,53 @@ only by EXISTING text a later step reaches into (target range length
 minus `composedLength`, the provisional text so far) — never by the
 composition's own characters. Using the raw target-range end ate the
 character after the caret on every diacritic (real bug).
+
+## A marker is a chip between two GRAY SLOTS, and the slots speak
+A citation's marker is a host element (`[data-non-text]`, so `offsetAt`
+discounts its label) holding three parts, each tagged `data-slot`: a slot,
+the label chip, a slot. The slots are how an editor says that what she is
+about to type is NOBODY'S.
+
+She has to be able to say it, because the caret cannot: both sides of a
+marker measure to the SAME text offset, so an offset alone can never tell
+"in front of this citation's first word", which belongs to the citation,
+from "in the gap beside it", which belongs to no one. Clicking a slot arms
+`unassignedAt` at the marker's offset, highlights the slot and puts the
+caret there; the next plain insertion at that offset carries
+`assign: 'unassigned'` on its op, and `SpanTransformer` then lets no
+citation claim it. The saying is spent on one edit and withdrawn by any
+press away from a marker, so it can never quietly outlive the click.
+
+Only a plain insertion can be spoken for: a paste, a deletion or a
+replacement keeps to the ordinary rules whatever is armed.
+
+Clicking the CHIP opens the citation, as it always did. The host prevents
+its own mousedown default, because a marker is not a place in the text and
+pressing it must never carry the caret into the words behind it.
+
+The chip was briefly a `::before` pseudo-element, to keep every element out
+of the text flow. That removed the caret hazards but left nowhere to put the
+slots — a pseudo-element cannot be flanked, and clicks on it had to be
+resolved by measuring x-positions. Real elements are back deliberately, and
+the hazards they cause are handled by `acrossMarker` below instead. Do not
+collapse the marker back into a pseudo-element without somewhere else for
+the slots to live.
+
+## Backspace and Delete reach across a citation's marker
+A marker is a real element in the editable flow and carries no text, so the
+browser aims a Backspace with the caret just after it at the MARKER, not at
+the character before it. `offsetAt` discounts every `[data-non-text]`
+element, so that target measures as an EMPTY range and the keystroke used to
+delete nothing at all — which is what made running a cited line onto the
+line before so hard, since the newline between them could not be reached
+from the side the caret naturally sits on (user report).
+
+`acrossMarker` in `AlignableText.vue` therefore carries out an empty
+deletion in MODEL coordinates, one character in the direction asked for, and
+returns null at either end of the text. `beforeinput` has already called
+`preventDefault()` by then, so a null op leaves the marker in the DOM rather
+than letting the browser remove it.
+
+Two citations left meeting flush by such a join are FINE and not flagged:
+`CitationIntegrity` allows a boundary inside a word where another citation
+meets it exactly, which is what two lines run together looks like.

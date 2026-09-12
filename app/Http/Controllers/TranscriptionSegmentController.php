@@ -12,6 +12,7 @@ use App\Models\TranscriptionSegment;
 use App\Models\Work;
 use App\Support\Edition\CanonicalPassageResolver;
 use App\Support\Edition\PassageAligner;
+use App\Support\Transcription\CitationBounds;
 use App\Support\Transcription\CitationIntegrity;
 use App\Support\Transcription\SiblingSync;
 use App\Support\Transcription\WorkOwnership;
@@ -47,10 +48,18 @@ class TranscriptionSegmentController extends Controller
 
             $group = (string) Str::uuid();
 
+            // Cited on whole words, whatever the selection took in at its
+            // edges — see CitationBounds.
+            [$start, $end] = CitationBounds::wholeWords(
+                $transcription->text,
+                (int) $request->validated('start_offset'),
+                (int) $request->validated('end_offset'),
+            );
+
             $transcription->segments()->create([
                 'canonical_passage_id' => $passage->id,
-                'start_offset' => $request->validated('start_offset'),
-                'end_offset' => $request->validated('end_offset'),
+                'start_offset' => $start,
+                'end_offset' => $end,
                 'part' => $this->placePart($request, $transcription, $passage),
                 'group_id' => $group,
             ]);
@@ -138,7 +147,15 @@ class TranscriptionSegmentController extends Controller
     public function update(UpdateTranscriptionSegmentRequest $request, TranscriptionSegment $segment): RedirectResponse
     {
         DB::transaction(function () use ($request, $segment) {
-            $segment->update([...$request->validated(), 'needs_review' => false]);
+            // An editor's own bounds are snapped out to whole words: half
+            // a word is no citation, and the aligner reads words.
+            [$start, $end] = CitationBounds::wholeWords(
+                $segment->transcriptionLayer->text,
+                (int) $request->validated('start_offset'),
+                (int) $request->validated('end_offset'),
+            );
+
+            $segment->update(['start_offset' => $start, 'end_offset' => $end, 'needs_review' => false]);
             SiblingSync::followSegment($segment);
         });
 

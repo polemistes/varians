@@ -7,6 +7,7 @@ use App\Rules\ValidTranscriptionMarkup;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateTranscriptionTextRequest extends FormRequest
 {
@@ -52,6 +53,10 @@ class UpdateTranscriptionTextRequest extends FormRequest
             // TranscriptionTextController::normalizeOps, not here.
             'ops.*.cut_id' => ['sometimes', 'nullable', 'string', 'max:64'],
             'ops.*.atomic' => ['sometimes', 'boolean'],
+            // The editor typed in a marker's gray slot, saying in so many
+            // words that this is nobody's text. Only "unassigned" is worth
+            // stating: everything else is decided by where the caret stood.
+            'ops.*.assign' => ['sometimes', 'nullable', Rule::in(['unassigned'])],
             // The sibling's own former words for a mirrored undo — see
             // LayerMirror; verbatim replay when absent.
             'ops.*.mirror_text' => ['sometimes', 'nullable', 'string'],

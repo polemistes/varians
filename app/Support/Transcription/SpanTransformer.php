@@ -16,12 +16,32 @@ namespace App\Support\Transcription;
  * lets several disjoint edits in a single save each transform correctly, unlike
  * SpanRebaser's single-contiguous-region assumption.
  *
- * A pure insertion (start === end) uses boundary "gravity" to resolve the
- * otherwise-ambiguous case of typing exactly at a span's edge: the start boundary
- * has right-gravity (typing there pushes the span forward rather than joining it),
- * the end boundary has left-gravity (typing there extends the span) — this is what
- * makes "insert inside an existing range, it just becomes part of that range" work
- * for the common case of continuing to type right after what you were just editing.
+ * A pure insertion (start === end) joins the span it TOUCHES (user decision).
+ * The caret touches a span when nothing stands between it and that span's text:
+ * at the span's first character, at its last, or anywhere within. Since a
+ * citation never owns the whitespace at its edges (see CitationBounds), what
+ * lies between two of them is a visible gap of unassigned whitespace, and a
+ * caret placed in that gap touches neither — so what is typed there joins
+ * nothing, and the span after it is pushed along as ever.
+ *
+ * This is what makes typing in front of a cited line's first word write INTO
+ * that line, which is what an editor means by it. Where two spans meet with no
+ * whitespace between them both are touched at once, and the one that BEGINS
+ * there takes the text: typing in front of a word belongs to that word's
+ * citation, not to whatever ended against it.
+ *
+ * Whitespace typed at an edge joins the span like anything else and is then
+ * trimmed straight back out of it — which is how pressing space or Enter widens
+ * the gap rather than growing the citation.
+ *
+ * A relocation paste is exempt throughout: those words belong to the citation
+ * carried with them, never to a neighbour they happen to land against.
+ *
+ * `$takesTextAtStart` turns this on, and ONLY CITATIONS get it. A facsimile
+ * region is anchored to ink on parchment and a LemmaReading is a quotation
+ * standing in an apparatus; neither grows because someone typed in front of
+ * it, so both keep the plain rule — text arriving at their start pushes them
+ * along.
  *
  * An op may carry a `cut_id`, pairing one pure deletion (the cut) with one pure
  * insertion of the same text (its paste) later in the log. For every other span
@@ -45,10 +65,10 @@ class SpanTransformer
 {
     /**
      * @param  list<array{start: int, end: int, needsReview: bool}>  $spans
-     * @param  list<array{start: int, end: int, text: string, cut_id?: string|null}>  $ops
+     * @param  list<array{start: int, end: int, text: string, cut_id?: string|null, assign?: string|null}>  $ops
      * @return list<array{start: int, end: int, needsReview: bool, deleted: bool}>
      */
-    public static function transform(array $spans, array $ops): array
+    public static function transform(array $spans, array $ops, bool $takesTextAtStart = false): array
     {
         $results = array_map(fn (array $span) => [
             'start' => $span['start'],
@@ -62,8 +82,22 @@ class SpanTransformer
             $cutId = $op['cut_id'] ?? null;
             $isCut = $cutId !== null && $op['text'] === '' && $op['end'] > $op['start'];
             $isPaste = $cutId !== null && $op['text'] !== '' && $op['start'] === $op['end'];
+            // Which citation, if any, takes what is typed here.
+            // The editor may say outright that what she typed is nobody's,
+            // by typing in a marker's gray slot — the one place where the
+            // caret's offset cannot say it for her, since both sides of a
+            // marker measure the same. Nothing else overrides the claim.
+            $claim = $takesTextAtStart
+                && $op['start'] === $op['end']
+                && ! $isPaste
+                && ($op['assign'] ?? null) !== 'unassigned'
+                ? self::claimant($results, $op['start'])
+                : null;
+            $index = -1;
 
-            $results = array_map(function (array $span) use ($op, $cutId, $isCut, $isPaste) {
+            $results = array_map(function (array $span) use ($op, $cutId, $isCut, $isPaste, $takesTextAtStart, $claim, &$index) {
+                $index++;
+                $beginsHere = $takesTextAtStart && $index === $claim;
                 if ($span['carried'] !== null) {
                     if ($isPaste && $span['carried']['cut_id'] === $cutId) {
                         $span['start'] = $op['start'] + $span['carried']['rel_start'];
@@ -77,7 +111,7 @@ class SpanTransformer
                     // tombstone position rides through intermediate ops, so
                     // positional effects apply but destruction flags don't.
                     $flags = [$span['needsReview'], $span['deleted']];
-                    $span = self::applyOp($span, $op, $isPaste);
+                    $span = self::applyOp($span, $op, $isPaste, $beginsHere, $takesTextAtStart);
                     [$span['needsReview'], $span['deleted']] = $flags;
 
                     return $span;
@@ -97,7 +131,7 @@ class SpanTransformer
                     return $span;
                 }
 
-                return self::applyOp($span, $op, $isPaste);
+                return self::applyOp($span, $op, $isPaste, $beginsHere, $takesTextAtStart);
             }, $results);
         }
 
@@ -168,12 +202,12 @@ class SpanTransformer
      * @param  array{start: int, end: int, text: string}  $op
      * @return WorkingSpan
      */
-    private static function applyOp(array $span, array $op, bool $isRelocationPaste = false): array
+    private static function applyOp(array $span, array $op, bool $isRelocationPaste = false, bool $claims = false, bool $citations = false): array
     {
         $insertedLen = mb_strlen($op['text']);
 
         if ($op['start'] === $op['end']) {
-            return self::applyInsertion($span, $op['start'], $insertedLen, $isRelocationPaste);
+            return self::applyInsertion($span, $op['start'], $insertedLen, $isRelocationPaste, $claims, $citations);
         }
 
         $delta = $insertedLen - ($op['end'] - $op['start']);
@@ -191,8 +225,26 @@ class SpanTransformer
      * @param  WorkingSpan  $span
      * @return WorkingSpan
      */
-    private static function applyInsertion(array $span, int $p, int $insertedLen, bool $isRelocationPaste = false): array
+    private static function applyInsertion(array $span, int $p, int $insertedLen, bool $isRelocationPaste = false, bool $claims = false, bool $citations = false): array
     {
+        // For citations the claim decides everything: the one citation that
+        // takes the text grows to cover it, and every other is only pushed
+        // along (see claimant()).
+        if ($citations && ! $isRelocationPaste) {
+            if ($claims) {
+                $span['end'] += $insertedLen;
+
+                return $span;
+            }
+
+            if ($p <= $span['start']) {
+                $span['start'] += $insertedLen;
+                $span['end'] += $insertedLen;
+            }
+
+            return $span;
+        }
+
         if ($p <= $span['start']) {
             $span['start'] += $insertedLen;
             $span['end'] += $insertedLen;
@@ -205,6 +257,50 @@ class SpanTransformer
         }
 
         return $span;
+    }
+
+    /**
+     * Which citation takes what is typed at this point, by index, or null
+     * when none does.
+     *
+     * TOUCHING means touching: nothing at all between the caret and the
+     * citation's characters. Standing against its words claims for it —
+     * inside, at its first character, or at its last — and WHATEVER is typed
+     * there is the citation's, a space as much as a letter (user report: a
+     * space typed against the last word was being left outside the line, and
+     * then the word after it as well). Nothing is trimmed back out
+     * afterwards, so the space stays where the editor put it and what
+     * follows carries on the line.
+     *
+     * A caret with whitespace between it and every citation claims for none
+     * of them. That whitespace is the gap, and the gap is nobody's.
+     *
+     * Order where several are touched at once: inside, then at the first
+     * character, then at the last. So where two citations meet flush the one
+     * BEGINNING there takes it, and typing in front of a word belongs to
+     * that word's citation.
+     *
+     * @param  list<WorkingSpan>  $spans
+     */
+    private static function claimant(array $spans, int $p): ?int
+    {
+        $atEnd = null;
+
+        foreach ($spans as $index => $span) {
+            if ($span['carried'] !== null || $span['end'] <= $span['start']) {
+                continue;
+            }
+
+            if ($p >= $span['start'] && $p < $span['end']) {
+                return $index;
+            }
+
+            if ($p === $span['end']) {
+                $atEnd = $index;
+            }
+        }
+
+        return $atEnd;
     }
 
     /**

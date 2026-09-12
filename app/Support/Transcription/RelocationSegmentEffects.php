@@ -58,8 +58,8 @@ class RelocationSegmentEffects
             // real transform sees at those moments.
             $atCut = $cutIndex === 0
                 ? $original
-                : SpanTransformer::transform($original, array_slice($ops, 0, $cutIndex));
-            $atPaste = SpanTransformer::transform($original, array_slice($ops, 0, $pasteIndex));
+                : SpanTransformer::transform($original, array_slice($ops, 0, $cutIndex), true);
+            $atPaste = SpanTransformer::transform($original, array_slice($ops, 0, $pasteIndex), true);
             $opsAfterPasteInclusive = array_slice($ops, $pasteIndex);
             $opsAfterPaste = array_slice($ops, $pasteIndex + 1);
 

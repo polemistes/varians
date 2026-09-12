@@ -18,6 +18,7 @@ import type {
 } from '@/lib/editHistory';
 import { stripOps } from '@/lib/greekText';
 import type { StripKind } from '@/lib/greekText';
+import { provenance, recordedAt, recordedOn } from '@/lib/provenance';
 import { planRelocationEffects } from '@/lib/relocationEffects';
 import {
     matchTranscriptCopy,
@@ -182,6 +183,9 @@ const editedSegments = computed<TranscriptionSegment[]>(() => {
             needsReview: span.needs_review,
         })),
         editOps.value,
+        // Citations claim what is typed against them; regions and readings
+        // do not.
+        true,
     );
 
     const mapped: (TranscriptionSegment | null)[] = layerSegments.value.map(
@@ -1101,6 +1105,31 @@ const currentTranscriptId = computed(
     () => layer.value?.transcription_id ?? null,
 );
 
+const currentTranscript = computed(
+    () =>
+        props.transcripts.find(
+            (transcript) => transcript.id === currentTranscriptId.value,
+        ) ?? null,
+);
+
+// Who wrote this transcript's layers, for the line under the picker. The
+// witness has ONE owner, so naming her on every transcript would say
+// nothing; what differs between two transcripts of a copied witness is
+// when each was made and whose hand wrote it.
+const currentTranscriptAuthor = computed(
+    () =>
+        currentTranscript.value?.layers?.find((l) => l.user)?.user?.name ??
+        null,
+);
+
+// Two transcripts of a copied witness are both "Transcription": the date
+// goes in the option itself, since a <select> cannot carry a tooltip.
+function transcriptOptionLabel(transcript: Transcription): string {
+    const on = recordedOn(transcript.created_at);
+
+    return on ? `${transcript.name} · ${on}` : transcript.name;
+}
+
 function onPickTranscript(event: Event) {
     const picked = Number((event.target as HTMLSelectElement).value);
 
@@ -1617,7 +1646,11 @@ const matchingSegment = computed<TranscriptionSegment | null>(() => {
     );
 });
 
-const overlappingReviewSegment = computed<TranscriptionSegment | null>(() => {
+// The citation a selection overlaps, whatever its state. Moving a
+// citation's bounds used to be offered ONLY for one flagged for review,
+// which left a healthy one with no way to be resized at all — so a marker
+// could not be pulled back to the line before it (user report).
+const overlappingSegment = computed<TranscriptionSegment | null>(() => {
     if (!activeSelection.value || matchingSegment.value) {
         return null;
     }
@@ -1625,7 +1658,6 @@ const overlappingReviewSegment = computed<TranscriptionSegment | null>(() => {
     return (
         activeSegments.value.find(
             (segment) =>
-                segment.needs_review &&
                 segment.start_offset < activeSelection.value!.end &&
                 segment.end_offset > activeSelection.value!.start,
         ) ?? null
@@ -2036,18 +2068,18 @@ function removeSegment(segmentId: number) {
 }
 
 function fixBoundaries() {
-    if (!activeSelection.value || !overlappingReviewSegment.value) {
+    if (!activeSelection.value || !overlappingSegment.value) {
         return;
     }
 
     // Offsets are posted against the saved text — flush pending edits first.
     void flushText(true).then((ok) => {
-        if (!ok || !activeSelection.value || !overlappingReviewSegment.value) {
+        if (!ok || !activeSelection.value || !overlappingSegment.value) {
             return;
         }
 
         router.patch(
-            updateSegment.url(overlappingReviewSegment.value.id),
+            updateSegment.url(overlappingSegment.value.id),
             {
                 start_offset: activeSelection.value.start,
                 end_offset: activeSelection.value.end,
@@ -2086,10 +2118,22 @@ defineExpose({
                         :key="transcript.id"
                         :value="transcript.id"
                     >
-                        {{ transcript.name }}
+                        {{ transcriptOptionLabel(transcript) }}
                     </option>
                 </select>
             </label>
+
+            <span
+                v-if="currentTranscript"
+                class="text-stone-400 dark:text-stone-500"
+                :title="recordedAt(currentTranscript.created_at)"
+                >{{
+                    provenance(
+                        currentTranscriptAuthor,
+                        currentTranscript.created_at,
+                    )
+                }}</span
+            >
 
             <select
                 v-if="canPublish && layer"
@@ -2351,19 +2395,40 @@ defineExpose({
             </span>
 
             <span
-                v-if="overlappingReviewSegment"
-                class="rounded border border-dashed border-red-400 p-2"
+                v-if="overlappingSegment"
+                class="rounded border p-2"
+                :class="
+                    overlappingSegment.needs_review ||
+                    overlappingSegment.boundary_review
+                        ? 'border-dashed border-red-400'
+                        : 'border-stone-300 dark:border-stone-700'
+                "
             >
-                <span class="mb-1 block text-red-600 dark:text-red-400">
-                    This overlaps a span flagged for review (its text changed
-                    underneath it).
+                <span
+                    v-if="
+                        overlappingSegment.needs_review ||
+                        overlappingSegment.boundary_review
+                    "
+                    class="mb-1 block text-red-600 dark:text-red-400"
+                >
+                    This overlaps a span flagged for review.
                 </span>
                 <button
                     type="button"
-                    class="rounded bg-red-600 px-2 py-0.5 text-white"
+                    class="rounded px-2 py-0.5 text-white"
+                    :class="
+                        overlappingSegment.needs_review ||
+                        overlappingSegment.boundary_review
+                            ? 'bg-red-600'
+                            : 'bg-stone-600 dark:bg-stone-500'
+                    "
                     @click="fixBoundaries"
                 >
-                    Update that span to this selection
+                    Make this the extent of
+                    {{
+                        overlappingSegment.canonical_passage?.label ??
+                        'that span'
+                    }}
                 </button>
             </span>
 

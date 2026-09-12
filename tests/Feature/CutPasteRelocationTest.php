@@ -35,6 +35,8 @@ test('cut and paste of a cited span moves the citation with the words', function
     expect($transcription->fresh()->text)->toBe('the brown foxquick ');
 
     $segment->refresh();
+    // The citation travels with its words, exactly as it was cited — the
+    // trailing space it was made with included.
     expect($segment->start_offset)->toBe(13)
         ->and($segment->end_offset)->toBe(19)
         ->and($segment->needs_review)->toBeFalse()

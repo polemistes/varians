@@ -12,7 +12,6 @@ use App\Models\TranscriptionRegion;
 use App\Models\TranscriptionSegment;
 use App\Support\Edition\PassageAligner;
 use App\Support\Transcription\CitationIntegrity;
-use App\Support\Transcription\LayerCorrespondence;
 use App\Support\Transcription\LayerMirror;
 use App\Support\Transcription\RelocationSegmentEffects;
 use App\Support\Transcription\SiblingSync;
@@ -42,7 +41,7 @@ class TranscriptionTextController extends Controller
      */
     public function update(UpdateTranscriptionTextRequest $request, TranscriptionLayer $transcription): RedirectResponse
     {
-        [$affectedEditions, $mirroredTo] = DB::transaction(function () use ($request, $transcription): array {
+        $affectedEditions = DB::transaction(function () use ($request, $transcription): array {
             $original = $transcription->text;
             $ops = $this->normalizeOps($request->validated('ops'), $original);
             $recomputedText = TextOpApplier::applyAll($original, $ops);
@@ -58,7 +57,7 @@ class TranscriptionTextController extends Controller
                 ]);
             }
 
-            $lostParts = $this->applySpans($transcription->segments, $ops);
+            $lostParts = $this->applySpans($transcription->segments, $ops, $recomputedText);
             $this->applySpans($transcription->regions, $ops, $recomputedText);
             $this->applyPageBreaks($transcription, $ops, $recomputedText);
             $readingOutcome = $this->applyReadings($transcription, $ops, $recomputedText);
@@ -71,9 +70,9 @@ class TranscriptionTextController extends Controller
             // The editor can switch mirroring off (bootstrapping each
             // layer from a different source); the sibling is then left
             // entirely alone, refusal notice included.
-            $mirroredTo = $request->boolean('mirror', true)
-                ? $this->mirrorRelocations($transcription, $original, $ops, $affected)
-                : null;
+            if ($request->boolean('mirror', true)) {
+                $this->mirrorRelocations($transcription, $original, $ops, $affected);
+            }
 
             // Whenever this save leaves the layers in step, one-sided spans
             // get their counterparts — a span assigned while the layers
@@ -84,7 +83,7 @@ class TranscriptionTextController extends Controller
             // words: a drifted citation is trimmed of whitespace and, if it
             // still begins or ends inside a word, flagged for review — and
             // the ops that did it are logged, so the cause can be found.
-            foreach ($transcription->transcription->layers as $layer) {
+            foreach ($transcription->transcription->layers()->get() as $layer) {
                 $drift = CitationIntegrity::snap($layer);
 
                 if ($drift !== []) {
@@ -97,19 +96,15 @@ class TranscriptionTextController extends Controller
                 }
             }
 
-            return [$affected, $mirroredTo];
+            return $affected;
         });
 
+        // Nothing is said about what the mirror did or declined to do (user
+        // decision): both panes are on screen, so the editor watches it
+        // happen, and a line of prose after every save was noise. Where the
+        // layers are out of step the indicator by the layer buttons still
+        // says so, standing until it is true no longer.
         $notices = [];
-
-        if ($mirroredTo !== null) {
-            $notices[] = match (true) {
-                ! $mirroredTo['mirrored'] && $mirroredTo['diverges_at'] !== null => 'The '.$mirroredTo['layer'].' layer was left untouched — the layers are out of step at line '.$mirroredTo['diverges_at'].' (see the indicator by the layer buttons).',
-                ! $mirroredTo['mirrored'] => 'The '.$mirroredTo['layer'].' layer was left untouched — its words around the edit no longer correspond to this layer\'s, so the move could not be mirrored safely.',
-                $mirroredTo['relocated'] => 'Also moved the corresponding text in the '.$mirroredTo['layer'].' layer.',
-                default => 'Also applied the edit to the '.$mirroredTo['layer'].' layer.',
-            };
-        }
 
         if ($affectedEditions !== []) {
             $notices[] = $this->editionReport(array_values(array_unique($affectedEditions)));
@@ -142,9 +137,8 @@ class TranscriptionTextController extends Controller
      *
      * @param  list<array{start: int, end: int, text: string, cut_id: string|null, atomic?: bool, mirror_text?: string|null}>  $ops
      * @param  list<string>  $affected  edition titles, appended to in place
-     * @return array{layer: string, relocated: bool, mirrored: bool, diverges_at: int|null}|null describes the mirror applied — or expected and refused
      */
-    private function mirrorRelocations(TranscriptionLayer $transcription, string $originalText, array $ops, array &$affected): ?array
+    private function mirrorRelocations(TranscriptionLayer $transcription, string $originalText, array $ops, array &$affected): void
     {
         $sibling = $transcription->transcription->layers()
             ->whereKeyNot($transcription->id)
@@ -155,52 +149,24 @@ class TranscriptionTextController extends Controller
         // (two empty texts are trivially in step). LayerMirror's own
         // in-step check governs every other case.
         if ($sibling === null) {
-            return null;
+            return;
         }
 
-        $mirror = LayerMirror::mirror($originalText, $ops, $sibling->text);
+        // Read before the mirrored ops are applied: what the sibling's own
+        // spans are transformed against, and what says where its words are.
+        $siblingBefore = $sibling->text;
 
+        $mirror = LayerMirror::mirror($originalText, $ops, $siblingBefore);
+
+        // A mirror LayerMirror declines — the layers out of step, or their
+        // words no longer corresponding around the edit — leaves the sibling
+        // alone and says nothing. The editor can see both panes, and the
+        // out-of-step indicator by the layer buttons is the standing signal.
         if ($mirror === null) {
-            // Say so when a mirror was EXPECTED — a relocation or a
-            // whole-gesture edit — but could not run. Judged AFTER the
-            // save: the catch-up edit that itself restores step has nothing
-            // to be nagged about (real incident — the notice fired on the
-            // very save that fixed the divergence, then sat). Two distinct
-            // refusals: the layers are structurally out of step (report
-            // the first diverging line), or — structure intact — the words
-            // themselves no longer correspond, which LayerMirror's
-            // correspondence guard refuses rather than moving the wrong
-            // words (real incident: a mirrored paste landed mid-line).
-            $hasPairs = RelocationSegmentEffects::pairs($ops) !== [];
-            $expected = $hasPairs
-                || array_any($ops, fn (array $op) => $op['atomic'] ?? false);
-
-            if ($expected) {
-                $divergence = LayerCorrespondence::divergence($transcription->text, $sibling->text);
-
-                if ($divergence !== null) {
-                    return [
-                        'layer' => $sibling->layer->value,
-                        'relocated' => false,
-                        'mirrored' => false,
-                        'diverges_at' => $divergence['line'],
-                    ];
-                }
-
-                if ($hasPairs) {
-                    return [
-                        'layer' => $sibling->layer->value,
-                        'relocated' => false,
-                        'mirrored' => false,
-                        'diverges_at' => null,
-                    ];
-                }
-            }
-
-            return null;
+            return;
         }
 
-        $siblingLostParts = $this->applySpans($sibling->segments, $mirror['ops']);
+        $siblingLostParts = $this->applySpans($sibling->segments, $mirror['ops'], $mirror['text']);
         $this->applySpans($sibling->regions, $mirror['ops'], $mirror['text']);
         $siblingOutcome = $this->applyReadings($sibling, $mirror['ops'], $mirror['text']);
         $affected = [...$affected, ...$siblingOutcome['editions']];
@@ -208,8 +174,6 @@ class TranscriptionTextController extends Controller
         $sibling->update(['text' => $mirror['text']]);
         $this->realignDamaged($sibling, $siblingOutcome['realign']);
         $this->recollateLostParts($sibling, $siblingLostParts);
-
-        return ['layer' => $sibling->layer->value, 'relocated' => $mirror['relocated'], 'mirrored' => true, 'diverges_at' => null];
     }
 
     /**
@@ -224,8 +188,8 @@ class TranscriptionTextController extends Controller
      * A cut whose paste hasn't arrived in this save keeps its id — the
      * transformer degrades it to a deletion by itself.
      *
-     * @param  list<array{start: mixed, end: mixed, text: mixed, cut_id?: mixed, atomic?: mixed, mirror_text?: mixed}>  $ops
-     * @return list<array{start: int, end: int, text: string, cut_id: string|null, atomic: bool, mirror_text: string|null}>
+     * @param  list<array{start: mixed, end: mixed, text: mixed, cut_id?: mixed, atomic?: mixed, mirror_text?: mixed, assign?: mixed}>  $ops
+     * @return list<array{start: int, end: int, text: string, cut_id: string|null, atomic: bool, mirror_text: string|null, assign: string|null}>
      */
     private function normalizeOps(array $ops, string $originalText): array
     {
@@ -243,6 +207,10 @@ class TranscriptionTextController extends Controller
             // otherwise be replayed verbatim — an undo restoring the
             // sibling's own former spelling. See LayerMirror.
             'mirror_text' => isset($op['mirror_text']) && is_string($op['mirror_text']) ? $op['mirror_text'] : null,
+            // Typed in a marker's gray slot: no citation claims it, however
+            // the caret's offset would otherwise read. See
+            // SpanTransformer::claimant.
+            'assign' => ($op['assign'] ?? null) === 'unassigned' ? 'unassigned' : null,
         ], $ops);
 
         $running = $originalText;
@@ -376,6 +344,9 @@ class TranscriptionTextController extends Controller
                 'needsReview' => (bool) $span->needs_review,
             ])->all()),
             $ops,
+            // Only citations claim what is typed against them; a region or a
+            // reading is pushed along instead.
+            $spans->first() instanceof TranscriptionSegment,
         );
 
         // A relocation's citation consequences beyond offset moves: a cut
@@ -473,8 +444,8 @@ class TranscriptionTextController extends Controller
             ]);
         }
 
-        if ($spans->first() instanceof TranscriptionSegment) {
-            $this->mergeRejoinedParts($spans->first()->transcriptionLayer);
+        if ($spans->first() instanceof TranscriptionSegment && $newText !== null) {
+            $this->mergeRejoinedParts($spans->first()->transcriptionLayer, $newText);
         }
 
         // A destroyed segment may have been one *part* of a passage cited
@@ -489,14 +460,19 @@ class TranscriptionTextController extends Controller
     }
 
     /**
-     * Collapse same-passage LIVE spans that now stand identical or exactly
-     * adjacent into one row. A relocation that cut a fragment out of a span
-     * created a separate part for it; UNDOING that relocation carries the
-     * fragment back — the text rejoins, and so must the rows, or every
-     * move-and-undo leaves duplicate citations behind (real incident: one
-     * line 4, three rows, a badge saying 2/3).
+     * Collapse same-passage LIVE spans that now stand identical, adjacent,
+     * or separated by NOTHING BUT WHITESPACE into one row. A relocation that
+     * cut a fragment out of a span created a separate part for it; UNDOING
+     * that relocation carries the fragment back — the text rejoins, and so
+     * must the rows, or every move-and-undo leaves duplicate citations
+     * behind (real incident: one line 4, three rows, a badge saying 2/3).
+     *
+     * Whitespace between them is no division: a citation owns none at its
+     * edges (CitationBounds), so two parts that read continuously stand a
+     * space apart rather than flush. Parts genuinely in two places have real
+     * words between them, so this cannot fuse a transposition back together.
      */
-    private function mergeRejoinedParts(TranscriptionLayer $transcription): void
+    private function mergeRejoinedParts(TranscriptionLayer $transcription, string $text): void
     {
         $byPassage = $transcription->segments()
             ->whereColumn('end_offset', '>', 'start_offset')
@@ -509,8 +485,15 @@ class TranscriptionTextController extends Controller
             $kept = null;
 
             foreach ($rows as $row) {
+                $between = $kept === null ? '' : mb_substr(
+                    $text,
+                    (int) $kept->end_offset,
+                    max(0, (int) $row->start_offset - (int) $kept->end_offset),
+                );
+
                 if ($kept !== null
-                    && $row->start_offset <= $kept->end_offset
+                    && $row->start_offset <= $kept->end_offset + mb_strlen($between)
+                    && trim($between) === ''
                     && $row->end_offset >= $kept->start_offset) {
                     $kept->update([
                         'start_offset' => min((int) $kept->start_offset, (int) $row->start_offset),

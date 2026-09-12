@@ -25,7 +25,23 @@ test('a span entirely before a distant edit is unaffected', function () {
     ]);
 });
 
-test('a span entirely after a prepended insertion is shifted, not absorbed', function () {
+test('a citation takes text typed against its first word', function () {
+    // The caret touches the citation's first character, so what is typed
+    // there is written INTO the citation — which is what an editor means by
+    // typing at the start of a cited line.
+    $result = SpanTransformer::transform([span(0, 3)], [
+        ['start' => 0, 'end' => 0, 'text' => 'XYZ'],
+    ], true);
+
+    expect($result)->toBe([
+        ['start' => 0, 'end' => 6, 'needsReview' => false, 'deleted' => false],
+    ]);
+});
+
+test('a region or reading is pushed along instead — only citations take text at their start', function () {
+    // A facsimile region is anchored to ink on parchment and a reading is a
+    // quotation in an apparatus; neither grows because someone typed in
+    // front of it.
     $result = SpanTransformer::transform([span(0, 3)], [
         ['start' => 0, 'end' => 0, 'text' => 'XYZ'],
     ]);
@@ -65,13 +81,16 @@ test('an interior replacement is absorbed into the span, not flagged', function 
     ]);
 });
 
-test('a zero-width insertion exactly at a span\'s start shifts the span forward', function () {
+test('whitespace typed at a citation\'s start joins it here, and is trimmed out afterwards', function () {
+    // The transform makes no exception for whitespace; CitationBounds drops
+    // it from the citation's edge after the save, which is how pressing
+    // space or Enter widens the gap instead of growing the citation.
     $result = SpanTransformer::transform([span(4, 7)], [
-        ['start' => 4, 'end' => 4, 'text' => 'XYZ'],
-    ]);
+        ['start' => 4, 'end' => 4, 'text' => ' '],
+    ], true);
 
     expect($result)->toBe([
-        ['start' => 7, 'end' => 10, 'needsReview' => false, 'deleted' => false],
+        ['start' => 4, 'end' => 8, 'needsReview' => false, 'deleted' => false],
     ]);
 });
 
@@ -85,14 +104,45 @@ test('a zero-width insertion exactly at a span\'s end is absorbed', function () 
     ]);
 });
 
-test('two spans sharing a boundary point resolve differently for the same insertion', function () {
+test('where two spans meet, the one BEGINNING at the caret takes the typed text', function () {
+    // User report: typing at the first character of a cited line put the
+    // words at the back of the line before it. Both gravity rules fire at a
+    // shared boundary; the span being typed INTO wins.
     $result = SpanTransformer::transform([span(4, 7), span(7, 10)], [
+        ['start' => 7, 'end' => 7, 'text' => 'XYZ'],
+    ], true);
+
+    expect($result)->toBe([
+        ['start' => 4, 'end' => 7, 'needsReview' => false, 'deleted' => false],
+        ['start' => 7, 'end' => 13, 'needsReview' => false, 'deleted' => false],
+    ]);
+});
+
+test('a span whose neighbour merely ends at the caret still absorbs when nothing begins there', function () {
+    // The gap case is untouched: with a separator between them, typing at
+    // the previous span's end continues that span as it always did.
+    $result = SpanTransformer::transform([span(4, 7), span(8, 11)], [
         ['start' => 7, 'end' => 7, 'text' => 'XYZ'],
     ]);
 
     expect($result)->toBe([
         ['start' => 4, 'end' => 10, 'needsReview' => false, 'deleted' => false],
-        ['start' => 10, 'end' => 13, 'needsReview' => false, 'deleted' => false],
+        ['start' => 11, 'end' => 14, 'needsReview' => false, 'deleted' => false],
+    ]);
+});
+
+test('a relocation paste landing where two spans meet still joins neither', function () {
+    // 'onetwo' with spans on "one" [0,3) and "two" [3,6): cut "one" and
+    // paste it back at the boundary of the two remaining spans.
+    $result = SpanTransformer::transform([span(0, 3), span(3, 6), span(6, 9)], [
+        ['start' => 0, 'end' => 3, 'text' => '', 'cut_id' => 'c1'],
+        ['start' => 3, 'end' => 3, 'text' => 'one', 'cut_id' => 'c1'],
+    ]);
+
+    expect($result)->toBe([
+        ['start' => 3, 'end' => 6, 'needsReview' => false, 'deleted' => false],
+        ['start' => 0, 'end' => 3, 'needsReview' => false, 'deleted' => false],
+        ['start' => 6, 'end' => 9, 'needsReview' => false, 'deleted' => false],
     ]);
 });
 
@@ -256,15 +306,16 @@ test('a cut whose paste never arrives degrades to a deletion: the span tombstone
 test('several disjoint ops in one save each transform their own span correctly', function () {
     // 'the cat sat' (11 chars): spanA {0,3} "the", spanB {8,11} "sat".
     // op1 prepends "X" at the very start (shifts both spans by +1).
-    // op2 appends "Y" immediately after spanB's new end (absorbed, per end-gravity),
-    // expressed in the coordinate space AFTER op1 has already been applied.
+    // op2 appends "Y" immediately after spanB's new end, expressed in the
+    // coordinate space AFTER op1 has already been applied. Both join the word
+    // they touch: "Xthe" is spanA's, "satY" is spanB's.
     $result = SpanTransformer::transform([span(0, 3), span(8, 11)], [
         ['start' => 0, 'end' => 0, 'text' => 'X'],
         ['start' => 12, 'end' => 12, 'text' => 'Y'],
-    ]);
+    ], 'the cat sat');
 
     expect($result)->toBe([
-        ['start' => 1, 'end' => 4, 'needsReview' => false, 'deleted' => false],
+        ['start' => 0, 'end' => 4, 'needsReview' => false, 'deleted' => false],
         ['start' => 9, 'end' => 13, 'needsReview' => false, 'deleted' => false],
     ]);
 });

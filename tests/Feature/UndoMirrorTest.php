@@ -102,11 +102,14 @@ test('undoing a deletion at the head of a cited span puts the span back over the
         'text' => "ΜΗΝΙΝ ΑΕΙΔΕ ΘΕΑ\nΟΥΛΟΜΕΝΗΝ",
     ])->assertRedirect();
 
-    // The span's start has right-gravity, so the transform alone leaves
-    // the restored letters uncited...
-    expect([$segment->fresh()->start_offset, $segment->fresh()->end_offset])->toBe([2, 15]);
+    // The restored letters land flush against the span's first word, so the
+    // transform alone now takes them back into the citation — a word is
+    // never split between spans, and "ΜΗΝΙΝ" is one word (see
+    // SpanTransformer). This used to leave them uncited at {2,15}.
+    expect([$segment->fresh()->start_offset, $segment->fresh()->end_offset])->toBe([0, 15]);
 
-    // ...and the history's snapshot puts it back, counterpart included.
+    // The history's snapshot still posts the bounds it remembers, which must
+    // agree rather than move anything, and carry the counterpart with it.
     $this->post(route('transcription-spans.restore', $diplomatic), [
         'adjust_segments' => [[
             'id' => $segment->id,

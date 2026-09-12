@@ -234,7 +234,18 @@ function markupTitle(markup: Chunk['markup']): string | undefined {
         : `Lost — ${extent}`;
 }
 
-function badgeClasses(segment: TranscriptionSegment) {
+// The marker is a host element carrying the label chip between two GRAY
+// SLOTS. The slots are where unassigned text is written: both sides of a
+// marker measure to the same text offset, so the caret alone cannot say
+// whether what is typed there belongs to the citation or to nobody, and the
+// editor says it by choosing where to click (user decision).
+function badgeClasses(chunk: Chunk) {
+    const segment = chunk.segment;
+
+    if (!chunkLabel(chunk) || !segment) {
+        return [];
+    }
+
     if (segment.needs_review || segment.boundary_review) {
         return 'border border-dashed border-red-500 text-red-600 dark:text-red-400';
     }
@@ -243,7 +254,65 @@ function badgeClasses(segment: TranscriptionSegment) {
         return 'bg-stone-100 text-stone-400 dark:bg-stone-900 dark:text-stone-600';
     }
 
-    return 'bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400';
+    return 'bg-stone-300 text-stone-600 dark:bg-stone-800 dark:text-stone-400';
+}
+
+/**
+ * Where the editor has said the next thing she types is nobody's — the text
+ * offset of the marker whose slot she clicked. Cleared as soon as the caret
+ * goes anywhere else, so it can never quietly outlive the click.
+ */
+const unassignedAt = ref<number | null>(null);
+
+function slotClasses(offset: number) {
+    return unassignedAt.value === offset
+        ? 'bg-sky-400/70 dark:bg-sky-500/60'
+        : '';
+}
+
+/**
+ * A press on the marker: the chip opens the citation, either slot arms the
+ * next thing typed as unassigned and puts the caret at the marker's offset.
+ * Never lets the press carry the caret off on its own — the marker is not a
+ * place in the text.
+ */
+function onMarkerMousedown(segment: TranscriptionSegment, event: MouseEvent) {
+    const part =
+        event.target instanceof HTMLElement
+            ? event.target.dataset.slot
+            : undefined;
+
+    if (part === 'before' || part === 'after') {
+        unassignedAt.value = segment.start_offset;
+        void nextTick(() => restoreCaret(segment.start_offset));
+
+        return;
+    }
+
+    unassignedAt.value = null;
+    onBadgeClick(segment, event);
+}
+
+/** The label a chunk draws, if it opens a citation that has one. */
+function chunkLabel(chunk: Chunk): string | undefined {
+    if (!chunk.segmentStart || !chunk.segment) {
+        return undefined;
+    }
+
+    return badgeText(chunk.segment) || undefined;
+}
+
+/**
+ * The tooltip a chunk carries: what its markup means, or — on the chunk that
+ * opens a citation, which is where the label is drawn — what the label says.
+ */
+function chunkTitle(chunk: Chunk): string | undefined {
+    return (
+        markupTitle(chunk.markup) ||
+        (chunk.segmentStart && chunk.segment
+            ? badgeTitle(chunk.segment)
+            : undefined)
+    );
 }
 
 function badgeTitle(segment: TranscriptionSegment): string {
@@ -311,38 +380,6 @@ function regionClasses(regionId: Chunk['regionId']) {
     return [];
 }
 
-// Citation badges and the contextual selection menu both render real DOM
-// text/form content that isn't part of `props.text`, so a naive
-// range.toString().length would overcount. Both are marked [data-non-text]
-// (as one unit each, so a menu's own buttons aren't double-subtracted) and
-// excluded here.
-/**
- * Where the caret last was in this text.
- *
- * Remembered rather than read on demand, because whatever needs it is
- * typically a control the writer has just clicked — a file picker, say — and
- * clicking it moves focus out of the text, taking the live selection with it.
- * A collapsed selection is ignored by the `select` handler above, since it is
- * not a span to align or cite, but an insertion needs exactly that.
- */
-const lastCaret = ref<number | null>(null);
-
-function rememberCaret(): void {
-    const selection = window.getSelection();
-
-    if (!selection || selection.rangeCount === 0 || !containerEl.value) {
-        return;
-    }
-
-    const node = selection.focusNode;
-
-    if (node === null || !containerEl.value.contains(node)) {
-        return;
-    }
-
-    lastCaret.value = offsetAt(node, selection.focusOffset);
-}
-
 defineExpose({
     caretOffset: () => lastCaret.value,
     // Lets the parent restore the caret after applying ops of its own
@@ -384,6 +421,24 @@ function offsetAt(node: Node, offset: number): number {
     return length;
 }
 
+const lastCaret = ref<number | null>(null);
+
+function rememberCaret(): void {
+    const selection = window.getSelection();
+
+    if (!selection || selection.rangeCount === 0 || !containerEl.value) {
+        return;
+    }
+
+    const node = selection.focusNode;
+
+    if (node === null || !containerEl.value.contains(node)) {
+        return;
+    }
+
+    lastCaret.value = offsetAt(node, selection.focusOffset);
+}
+
 function onBadgeClick(segment: TranscriptionSegment, event: MouseEvent) {
     emit('badge-click', segment, event);
 }
@@ -408,10 +463,16 @@ function onContainerMousedown(event: MouseEvent) {
     }
 
     const target = event.target;
+    const onMarker =
+        target instanceof Element && target.closest('[data-non-text]') !== null;
 
-    interactionBeganOnText = !(
-        target instanceof Element && target.closest('[data-non-text]') !== null
-    );
+    // Any press away from a marker withdraws what a slot armed: the caret has
+    // gone somewhere that speaks for itself.
+    if (!onMarker) {
+        unassignedAt.value = null;
+    }
+
+    interactionBeganOnText = !onMarker;
 }
 
 function onMouseUp() {
@@ -543,26 +604,91 @@ function opFromBeforeInput(event: InputEvent): TextEditOp | null {
         case 'insertParagraph':
             return { start, end, text: '\n' };
         case 'deleteContentBackward':
-        case 'deleteContentForward':
         case 'deleteWordBackward':
-        case 'deleteWordForward':
-        case 'deleteByCut':
-        case 'deleteByDrag':
         case 'deleteSoftLineBackward':
-        case 'deleteSoftLineForward':
         case 'deleteHardLineBackward':
+            return acrossMarker(start, end, -1);
+        case 'deleteContentForward':
+        case 'deleteWordForward':
+        case 'deleteSoftLineForward':
         case 'deleteHardLineForward':
         case 'deleteEntireSoftLine':
+            return acrossMarker(start, end, 1);
+        case 'deleteByCut':
+        case 'deleteByDrag':
             return { start, end, text: '' };
         default:
             return null;
     }
 }
 
+/**
+ * A deletion the browser could not express as text.
+ *
+ * A citation's marker is a real element in the flow and holds no text, so
+ * Backspace with the caret just after it targets the MARKER rather than the
+ * character before it, and `offsetAt` — which discounts every non-text
+ * element — measures that target as empty. The keystroke then deleted
+ * nothing at all, which is what made it so hard to run a cited line onto
+ * the line before: the newline standing between them could not be reached
+ * from the side the caret naturally sits on (user report).
+ *
+ * Such a deletion is carried out in MODEL coordinates instead, one character
+ * from THE CARET in the direction asked for. The caret, not the empty target
+ * range: both sides of a marker measure to the SAME offset, so the range
+ * cannot say which side the keystroke came from. Reading it from the range
+ * made Delete at the end of a line remove the first letter of the next line
+ * instead of the break between them (also reported).
+ */
+function acrossMarker(
+    start: number,
+    end: number,
+    direction: -1 | 1,
+): TextEditOp | null {
+    if (start !== end) {
+        return { start, end, text: '' };
+    }
+
+    const caret = caretOffset() ?? start;
+
+    if (direction === -1) {
+        return caret > 0 ? { start: caret - 1, end: caret, text: '' } : null;
+    }
+
+    return caret < cpLength(props.text)
+        ? { start: caret, end: caret + 1, text: '' }
+        : null;
+}
+
+/** Where the caret stands in the text, or null when it is not a plain caret. */
+function caretOffset(): number | null {
+    const selection = window.getSelection();
+
+    if (
+        !selection?.isCollapsed ||
+        !selection.anchorNode ||
+        !containerEl.value?.contains(selection.anchorNode)
+    ) {
+        return null;
+    }
+
+    return offsetAt(selection.anchorNode, selection.anchorOffset);
+}
+
 function applyAndRestoreCaret(op: TextEditOp, source: EditSource = 'typing') {
     const targetOffset = op.start + [...op.text].length;
 
-    emit('edit', op, source);
+    // A slot was clicked and this is what was typed into it: say outright
+    // that it is nobody's, since the offset alone cannot — both sides of a
+    // marker measure the same. The saying is spent on one edit.
+    const armed =
+        unassignedAt.value !== null &&
+        unassignedAt.value === op.start &&
+        op.start === op.end;
+
+    unassignedAt.value = null;
+
+    emit('edit', armed ? { ...op, assign: 'unassigned' } : op, source);
     void nextTick(() => restoreCaret(targetOffset));
 }
 
@@ -972,21 +1098,34 @@ function liveCaretOffset(): number | null {
                     class="h-px flex-1 bg-stone-300 dark:bg-stone-700"
                 ></span
             ></span>
-            <button
-                v-if="chunk.segmentStart && chunk.segment"
-                type="button"
+            <span
+                v-if="chunkLabel(chunk) && chunk.segment"
                 data-non-text
                 contenteditable="false"
-                class="mr-1 rounded px-1.5 py-0.5 align-middle font-sans text-xs tracking-wide hover:opacity-80"
-                :class="badgeClasses(chunk.segment)"
+                class="mr-1 inline-flex items-center rounded bg-stone-200 align-middle select-none dark:bg-stone-700/60"
+                :data-label="chunkLabel(chunk)"
+                :data-segment-id="chunk.segment.id"
+                :data-marker-offset="chunk.segment.start_offset"
                 :title="badgeTitle(chunk.segment)"
-                @mousedown.prevent
-                @click="onBadgeClick(chunk.segment, $event)"
-            >
-                {{ badgeText(chunk.segment) }}
-            </button>
+                @mousedown.prevent="onMarkerMousedown(chunk.segment, $event)"
+                ><span
+                    class="w-2 cursor-text self-stretch rounded-l"
+                    :class="slotClasses(chunk.segment.start_offset)"
+                    data-slot="before"
+                ></span
+                ><span
+                    class="cursor-pointer rounded px-1.5 py-0.5 font-sans text-xs tracking-wide"
+                    :class="badgeClasses(chunk)"
+                    data-slot="chip"
+                    >{{ chunkLabel(chunk) }}</span
+                ><span
+                    class="w-2 cursor-text self-stretch rounded-r"
+                    :class="slotClasses(chunk.segment.start_offset)"
+                    data-slot="after"
+                ></span
+            ></span>
             <span
-                :title="markupTitle(chunk.markup)"
+                :title="chunkTitle(chunk)"
                 :class="[
                     ...markupClasses(chunk.markup),
                     !chunk.segment && 'bg-stone-200 dark:bg-stone-700/60',

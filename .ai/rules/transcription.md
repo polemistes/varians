@@ -217,9 +217,13 @@ therefore verifies the words CORRESPOND before a cut or an atomic
 deletion/replacement mirrors: per word, folded equality or a shared folded
 prefix/suffix of ≥2 chars (letter-variant counterparts like
 γιγνεται/γίνεται and alpha/alfa must pass). Mismatch refuses the mirror —
-honest refusal over silent mislanding — and the refusal notice names the
-first structurally-diverging line, or says the words no longer correspond
-when the structure still matches. A line-break
+honest refusal over silent mislanding — and the sibling is simply left
+alone. NOTHING IS REPORTED about the mirror, either way (user decision):
+both panes are on screen, the editor watches it happen, and a line of
+prose after every save was noise. The out-of-step indicator by the layer
+buttons is the standing signal, and `LayerCorrespondence::divergence`
+still backs it on the witness page — but do not reintroduce a per-save
+notice saying what was or was not mirrored. A line-break
 insertion INSIDE a word still mirrors (`LayerMirror::wordSplitOffset`):
 pasting a line flush against another glues two words into one in BOTH
 layers, and the Enter separating them lands mid-word where no plain

@@ -81,8 +81,12 @@ export function planRelocationEffects(
         const atCut =
             cutIndex === 0
                 ? original.map((span) => ({ ...span, deleted: false }))
-                : transformSpans(original, ops.slice(0, cutIndex));
-        const atPaste = transformSpans(original, ops.slice(0, pasteIndex));
+                : transformSpans(original, ops.slice(0, cutIndex), true);
+        const atPaste = transformSpans(
+            original,
+            ops.slice(0, pasteIndex),
+            true,
+        );
         const opsAfterPasteInclusive = ops.slice(pasteIndex);
         const opsAfterPaste = ops.slice(pasteIndex + 1);
 

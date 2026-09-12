@@ -25,6 +25,12 @@ export type TextEditOp = {
      */
     atomic?: boolean;
     /**
+     * "unassigned" when the editor typed in a marker's GRAY SLOT, saying in
+     * so many words that this text is nobody's. The one thing the caret's
+     * offset cannot say for her: both sides of a marker measure the same.
+     */
+    assign?: 'unassigned' | null;
+    /**
      * What the sibling layer should receive where this op's `text` would
      * otherwise be replayed verbatim: an undo carries the sibling's own
      * former words (snapshotted when the edit was made), so undoing a
@@ -64,6 +70,7 @@ function applyOp(text: string, op: TextEditOp): string {
 export function transformSpans(
     spans: Span[],
     ops: TextEditOp[],
+    takesTextAtStart = false,
 ): TransformedSpan[] {
     let results: WorkingSpan[] = spans.map((span) => ({
         ...span,
@@ -75,8 +82,18 @@ export function transformSpans(
         const cutId = op.cut_id ?? null;
         const isCut = cutId !== null && op.text === '' && op.end > op.start;
         const isPaste = cutId !== null && op.text !== '' && op.start === op.end;
+        // Which citation, if any, takes what is typed here.
+        const claim =
+            takesTextAtStart &&
+            op.start === op.end &&
+            !isPaste &&
+            op.assign !== 'unassigned'
+                ? claimant(results, op.start)
+                : null;
 
-        results = results.map((span) => {
+        results = results.map((span, index) => {
+            const claims = takesTextAtStart && index === claim;
+
             if (span.carried !== null) {
                 if (isPaste && span.carried.cutId === cutId) {
                     return {
@@ -91,7 +108,7 @@ export function transformSpans(
                 // tombstone position rides through intermediate ops, so
                 // positional effects apply but destruction flags don't.
                 return {
-                    ...applySpanOp(span, op, isPaste),
+                    ...applySpanOp(span, op, isPaste, claims, takesTextAtStart),
                     needsReview: span.needsReview,
                     deleted: span.deleted,
                 };
@@ -110,7 +127,7 @@ export function transformSpans(
                 };
             }
 
-            return applySpanOp(span, op, isPaste);
+            return applySpanOp(span, op, isPaste, claims, takesTextAtStart);
         });
     }
 
@@ -119,15 +136,53 @@ export function transformSpans(
     );
 }
 
+/**
+ * Which citation takes what is typed at this point, by index, or null when
+ * none does. TOUCHING means touching: nothing between the caret and the
+ * citation's characters. Standing against its words claims for it, and
+ * whatever is typed there is the citation's, a space as much as a letter. A
+ * caret with whitespace between it and every citation claims for none of
+ * them — that whitespace is the gap, and the gap is nobody's. Mirrors
+ * App\Support\Transcription\SpanTransformer::claimant.
+ */
+function claimant(spans: WorkingSpan[], p: number): number | null {
+    let atEnd: number | null = null;
+
+    for (const [index, span] of spans.entries()) {
+        if (span.carried !== null || span.end <= span.start) {
+            continue;
+        }
+
+        if (p >= span.start && p < span.end) {
+            return index;
+        }
+
+        if (p === span.end) {
+            atEnd = index;
+        }
+    }
+
+    return atEnd;
+}
+
 function applySpanOp(
     span: WorkingSpan,
     op: TextEditOp,
     isRelocationPaste = false,
+    claims = false,
+    citations = false,
 ): WorkingSpan {
     const insertedLen = [...op.text].length;
 
     if (op.start === op.end) {
-        return applyInsertion(span, op.start, insertedLen, isRelocationPaste);
+        return applyInsertion(
+            span,
+            op.start,
+            insertedLen,
+            isRelocationPaste,
+            claims,
+            citations,
+        );
     }
 
     const delta = insertedLen - (op.end - op.start);
@@ -135,20 +190,39 @@ function applySpanOp(
     return applyReplace(span, op.start, op.end, insertedLen, delta);
 }
 
-// Boundary "gravity": a pure insertion exactly at a span's start pushes the
-// span forward (right-gravity — typing there doesn't join it), while one
-// exactly at a span's end extends it (left-gravity — typing there continues
-// it). This is what makes "insert inside a range, it becomes part of that
-// range" work for the common case of continuing to type right after
-// something you were just editing. A relocation paste is the exception: the
-// pasted words belong to the citation carried with them, never to a span
-// that merely ends where they landed.
+// A pure insertion joins the span it TOUCHES: at its first character, at its
+// last, or anywhere within. A citation never owns the whitespace at its
+// edges, so what lies between two of them is a visible gap, and a caret in
+// that gap touches neither. Where two spans meet, the one that BEGINS at the
+// caret takes the text. Mirrors App\Support\Transcription\SpanTransformer —
+// keep the two in step. A relocation paste is exempt: those words belong to
+// the citation carried with them.
 function applyInsertion(
     span: WorkingSpan,
     p: number,
     insertedLen: number,
     isRelocationPaste = false,
+    claims = false,
+    citations = false,
 ): WorkingSpan {
+    // For citations the claim decides everything: the one that takes the text
+    // grows to cover it, and every other is only pushed along.
+    if (citations && !isRelocationPaste) {
+        if (claims) {
+            return { ...span, end: span.end + insertedLen };
+        }
+
+        if (p <= span.start) {
+            return {
+                ...span,
+                start: span.start + insertedLen,
+                end: span.end + insertedLen,
+            };
+        }
+
+        return span;
+    }
+
     if (p <= span.start) {
         return {
             ...span,

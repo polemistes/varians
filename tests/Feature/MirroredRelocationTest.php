@@ -43,8 +43,7 @@ test('relocating whole words in one layer moves the same words in the other, cit
             ['start' => 15, 'end' => 15, 'text' => 'γίνεται ', 'cut_id' => 'mv1'],
         ],
         'text' => "πάντα\nκατ᾽ ἔρινγίνεται ",
-    ])->assertRedirect()
-        ->assertSessionHas('message', 'Also moved the corresponding text in the diplomatic layer.');
+    ])->assertRedirect();
 
     // The diplomatic layer moved its own spelling of the same words…
     expect($diplomatic->fresh()->text)->toBe("παντα\nκατ ερινγιγνεται ");
@@ -91,9 +90,7 @@ test('an unmirrorable relocation leaves the other layer alone and the divergence
             ['start' => $pasteAt, 'end' => $pasteAt, 'text' => $cutText, 'cut_id' => 'mv1'],
         ],
         'text' => mb_substr($afterCut, 0, $pasteAt).$cutText.mb_substr($afterCut, $pasteAt),
-    ])->assertRedirect()
-        // The refused mirror leaves the layers out of step — and says so.
-        ->assertSessionHas('message', 'The diplomatic layer was left untouched — the layers are out of step at line 1 (see the indicator by the layer buttons).');
+    ])->assertRedirect();
 
     expect($diplomatic->fresh()->text)->toBe("γιγνεται παντα\nκατ εριν");
 });
@@ -138,8 +135,7 @@ test('an atomic whole-word insertion appears verbatim in the sibling layer', fun
             ['start' => 23, 'end' => 23, 'text' => ' ῥει', 'atomic' => true],
         ],
         'text' => "γίνεται πάντα\nκατ᾽ ἔριν ῥει",
-    ])->assertRedirect()
-        ->assertSessionHas('message', 'Also applied the edit to the diplomatic layer.');
+    ])->assertRedirect();
 
     expect($diplomatic->fresh()->text)->toBe("γιγνεται παντα\nκατ εριν ῥει");
 });
@@ -171,13 +167,15 @@ test('importing into one empty layer fills the empty sibling too', function () {
             ['start' => 0, 'end' => 0, 'text' => "ΜΗΝΙΝ ΑΕΙΔΕ\nΘΕΑ", 'atomic' => true],
         ],
         'text' => "ΜΗΝΙΝ ΑΕΙΔΕ\nΘΕΑ",
-    ])->assertRedirect()
-        ->assertSessionHas('message', 'Also applied the edit to the normalized layer.');
+    ])->assertRedirect();
 
     expect($normalized->fresh()->text)->toBe("ΜΗΝΙΝ ΑΕΙΔΕ\nΘΕΑ");
 });
 
-test('a refused mirror says so instead of staying silent', function () {
+test('a refused mirror leaves the sibling alone, and says nothing about it', function () {
+    // Nothing is reported either way (user decision): both panes are on
+    // screen, and the out-of-step indicator by the layer buttons is the
+    // standing signal. See TranscriptionTextController::update.
     $this->actingAs(User::factory()->editor()->create());
     [$normalized, $diplomatic] = twoLayerTranscription();
     $diplomatic->update(['text' => 'γιγνεται']); // out of step
@@ -188,7 +186,7 @@ test('a refused mirror says so instead of staying silent', function () {
         ],
         'text' => "γίνεται πάντα\nκατ᾽ ἔριν ῥει",
     ])->assertRedirect()
-        ->assertSessionHas('message', 'The diplomatic layer was left untouched — the layers are out of step at line 1 (see the indicator by the layer buttons).');
+        ->assertSessionMissing('message');
 
     expect($diplomatic->fresh()->text)->toBe('γιγνεται');
 });
@@ -223,12 +221,12 @@ test('mirroring can be switched off — the sibling is left entirely alone', fun
         ->and($diplomatic->fresh()->text)->toBe('γιγνεται παντα');
 });
 
-test('the catch-up save that restores step is not nagged about', function () {
+test('the catch-up save that restores step mirrors cleanly', function () {
     $this->actingAs(User::factory()->editor()->create());
     [$normalized, $diplomatic] = twoLayerTranscription();
     $diplomatic->update(['text' => "γιγνεται παντα\nκατ εριν ρει"]); // one word ahead
 
-    // Pasting the missing word ENDS in step — nothing to say.
+    // Pasting the missing word ENDS in step, so the mirror runs.
     $this->patch(route('transcriptions.text.update', $normalized), [
         'ops' => [
             ['start' => 23, 'end' => 23, 'text' => ' ῥεῖ', 'atomic' => true],
@@ -264,8 +262,7 @@ test('the Enter separating a pasted line from its neighbour mirrors, glued word 
             ['start' => 9, 'end' => 9, 'text' => "\n"],
         ],
         'text' => "κατ᾽ ἔριν\nγίνεται πάντα\n",
-    ])->assertRedirect()
-        ->assertSessionHas('message', 'Also applied the edit to the diplomatic layer.');
+    ])->assertRedirect();
 
     expect($diplomatic->fresh()->text)->toBe("κατ εριν\nγιγνεται παντα\n");
 });
@@ -281,8 +278,7 @@ test('a line break mirrors even as a single keystroke', function () {
             ['start' => 7, 'end' => 8, 'text' => "\n"],
         ],
         'text' => "γίνεται\nπάντα\nκατ᾽ ἔριν",
-    ])->assertRedirect()
-        ->assertSessionHas('message', 'Also applied the edit to the diplomatic layer.');
+    ])->assertRedirect();
 
     expect($diplomatic->fresh()->text)->toBe("γιγνεται\nπαντα\nκατ εριν");
 

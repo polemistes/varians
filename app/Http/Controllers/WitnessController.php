@@ -65,10 +65,13 @@ class WitnessController extends Controller
     {
         $this->authorize('view', $witness);
 
+        // `created_at` and each layer's author travel with the transcript:
+        // a copied witness carries transcripts of the same name, and when
+        // it was made is what tells them apart (user report).
         $transcripts = $witness->transcriptions()->visibleTo($request->user())
             ->orderBy('position')->orderBy('id')
-            ->with(['layers' => fn ($query) => $query->select('id', 'transcription_id', 'layer')->orderBy('layer')])
-            ->get(['id', 'witness_id', 'name', 'position', 'visibility']);
+            ->with(['layers' => fn ($query) => $query->select('id', 'transcription_id', 'layer', 'user_id')->orderBy('layer'), 'layers.user:id,name'])
+            ->get(['id', 'witness_id', 'name', 'position', 'visibility', 'created_at']);
 
         $transcript = $this->selectedTranscript($request, $transcripts);
         $layerId = fn (Layer $layer): ?int => $transcript?->layers

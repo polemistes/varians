@@ -103,3 +103,33 @@ test('a guest cannot modify a span', function () {
     $response->assertForbidden();
     expect($segment->fresh()->start_offset)->toBe(0);
 });
+
+test('a citation moved to begin at the end of the line before it stays there through later edits', function () {
+    // User report: the marker could not be pulled back to the previous
+    // line. Moving bounds is now an ordinary action on any citation, not
+    // one reserved for a span flagged for review.
+    $this->actingAs(User::factory()->editor()->create());
+    $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);
+    $segment = TranscriptionSegment::factory()->for($transcription)->create([
+        'start_offset' => 12, 'end_offset' => 25,
+    ]);
+
+    // Take in "ἄειδε", the last word of the line before.
+    $this->patch(route('transcription-segments.update', $segment), [
+        'start_offset' => 6,
+        'end_offset' => 25,
+    ])->assertRedirect();
+
+    expect(mb_substr("μῆνιν ἄειδε\nθεὰ Πηληϊάδεω", $segment->fresh()->start_offset, 5))->toBe('ἄειδε');
+
+    // An edit elsewhere in the layer must not pull it back.
+    $this->patch(route('transcriptions.text.update', $transcription), [
+        'ops' => [['start' => 0, 'end' => 0, 'text' => 'ὦ ']],
+        'text' => "ὦ μῆνιν ἄειδε\nθεὰ Πηληϊάδεω",
+    ])->assertRedirect();
+
+    $segment->refresh();
+
+    expect(mb_substr("ὦ μῆνιν ἄειδε\nθεὰ Πηληϊάδεω", $segment->start_offset, $segment->end_offset - $segment->start_offset))
+        ->toBe("ἄειδε\nθεὰ Πηληϊάδεω");
+});
