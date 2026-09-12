@@ -268,11 +268,27 @@ function isMarker(node: Node | null): boolean {
 }
 
 /**
- * The nearest node before this one in the surface, climbing out of wrappers
- * and stepping over Vue's fragment COMMENTS. Those comments sit between a
- * marker and the text before it, and a walk that stopped at one never found
- * the marker at all (real bug, caught in the browser — the caret's side came
- * back null on the near side of every marker).
+ * Whether a node stands in the flow without holding any text — Vue's
+ * fragment COMMENTS (one sits between every marker and the text before it)
+ * and the EMPTY TEXT NODES the browser leaves in an editable surface of its
+ * own accord (Chrome parks one beside a chip and at the end of the surface;
+ * they appear and disappear as the DOM is patched). Neither is text, so
+ * neither may stand between the caret and a marker: a walk that stopped at
+ * one reported no marker at all, and what was typed went to the wrong
+ * citation until the next re-render happened to clear the node away. That
+ * is the whole shape of "sometimes it works, sometimes it does not" —
+ * twice, once for each kind (both found in the browser).
+ */
+function holdsNoText(node: Node): boolean {
+    return (
+        node instanceof Comment ||
+        (!isMarker(node) && (node.textContent ?? '') === '')
+    );
+}
+
+/**
+ * The nearest node before this one in the surface that holds text, climbing
+ * out of wrappers.
  */
 function flowPrevious(node: Node): Node | null {
     let at: Node | null = node;
@@ -280,7 +296,7 @@ function flowPrevious(node: Node): Node | null {
     while (at && at !== containerEl.value) {
         let sibling = at.previousSibling;
 
-        while (sibling instanceof Comment) {
+        while (sibling && holdsNoText(sibling)) {
             sibling = sibling.previousSibling;
         }
 
@@ -294,14 +310,14 @@ function flowPrevious(node: Node): Node | null {
     return null;
 }
 
-/** The same the other way, over the same comments. */
+/** The same the other way. */
 function flowNext(node: Node): Node | null {
     let at: Node | null = node;
 
     while (at && at !== containerEl.value) {
         let sibling = at.nextSibling;
 
-        while (sibling instanceof Comment) {
+        while (sibling && holdsNoText(sibling)) {
             sibling = sibling.nextSibling;
         }
 
@@ -343,8 +359,24 @@ function markerSide(): 'before' | 'after' | null {
         previous = offset > 0 ? node : flowPrevious(node);
         next = offset < node.data.length ? node : flowNext(node);
     } else {
-        previous = node.childNodes[offset - 1] ?? flowPrevious(node);
-        next = node.childNodes[offset] ?? flowNext(node);
+        // An element-node caret position — how the browser expresses one
+        // beside a contenteditable=false chip — indexes CHILD NODES, and
+        // the neighbour at that index is as likely to be a comment or an
+        // empty text node as the marker itself, so step over those here as
+        // well rather than reading the child index raw.
+        const before = node.childNodes[offset - 1] ?? null;
+        const after = node.childNodes[offset] ?? null;
+
+        previous = before
+            ? holdsNoText(before)
+                ? flowPrevious(before)
+                : before
+            : flowPrevious(node);
+        next = after
+            ? holdsNoText(after)
+                ? flowNext(after)
+                : after
+            : flowNext(node);
     }
 
     if (isMarker(previous)) {
@@ -500,6 +532,55 @@ function rememberCaret(): void {
     lastCaret.value = offsetAt(node, selection.focusOffset);
 }
 
+/**
+ * A caret the browser has put INSIDE a marker is not in the text at all: no
+ * caret rectangle is drawn for such a position, so nothing shows the writer
+ * where she stands, and the side of the marker — which decides what her
+ * typing joins — cannot be read either. Home lands there, the chip being
+ * the first thing on a line that a citation opens (measured in the
+ * browser); so does anything else that aims at the very start of such a
+ * line.
+ *
+ * It is stepped out to the marker's FAR side, where the citation's own
+ * words begin: that is what the start of the line means, and it is where
+ * the line's first character would go anyway.
+ */
+function settleCaret(): void {
+    const container = containerEl.value;
+
+    if (!props.editable || !container) {
+        return;
+    }
+
+    if (
+        document.activeElement !== container &&
+        !container.contains(document.activeElement)
+    ) {
+        return;
+    }
+
+    const selection = window.getSelection();
+    const node = selection?.anchorNode;
+
+    if (!selection?.isCollapsed || !node || !container.contains(node)) {
+        return;
+    }
+
+    const element = node instanceof Element ? node : node.parentElement;
+    const marker = element?.closest('[data-marker-offset]');
+
+    if (!marker) {
+        return;
+    }
+
+    restoreCaret(offsetAt(marker, 0), 'after');
+}
+
+function onSelectionChange(): void {
+    rememberCaret();
+    settleCaret();
+}
+
 function onBadgeClick(segment: TranscriptionSegment, event: MouseEvent) {
     emit('badge-click', segment, event);
 }
@@ -604,11 +685,11 @@ function onMouseUp() {
 // belong to this component, so listening globally is exactly as precise.
 onMounted(() => {
     document.addEventListener('mouseup', onMouseUp);
-    document.addEventListener('selectionchange', rememberCaret);
+    document.addEventListener('selectionchange', onSelectionChange);
 });
 onUnmounted(() => {
     document.removeEventListener('mouseup', onMouseUp);
-    document.removeEventListener('selectionchange', rememberCaret);
+    document.removeEventListener('selectionchange', onSelectionChange);
 });
 
 // ---- edit-text mode: a controlled contenteditable surface ----
@@ -1065,7 +1146,13 @@ function pointAt(
         NodeFilter.SHOW_TEXT,
         {
             acceptNode(node) {
-                return node.parentElement?.closest('[data-non-text]')
+                // Empty text nodes are skipped along with the non-text
+                // elements: the browser leaves them beside a chip and at the
+                // end of the surface of its own accord, and a caret put in
+                // one is a caret standing next to a marker with no way to
+                // say which side it is on.
+                return node.parentElement?.closest('[data-non-text]') ||
+                    node.textContent === ''
                     ? NodeFilter.FILTER_REJECT
                     : NodeFilter.FILTER_ACCEPT;
             },

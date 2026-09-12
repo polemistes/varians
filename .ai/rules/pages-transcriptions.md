@@ -322,10 +322,39 @@ into the citation the marker announces or to leave it to what stands before.
 `pointAt`/`restoreCaret` take the same side, so the caret is put back on the
 edge it was typed on rather than jumping across.
 
-`markerSide` walks the DOM outwards from the caret and MUST step over Vue's
-fragment comment nodes: one sits between every marker and the text before
-it, and a walk that stopped there reported no marker at all on the near side
-(real bug, found in the browser and invisible to the type checker).
+`markerSide` walks the DOM outwards from the caret and MUST step over
+EVERYTHING IN THE FLOW THAT HOLDS NO TEXT (`holdsNoText`), in both
+directions and in both branches — the element-node branch indexes child
+nodes and is as likely to land on one of these as on the marker:
+
+- Vue's fragment comment nodes. One sits between every marker and the text
+  before it, so a walk that stopped there reported no marker at all on the
+  near side.
+- The EMPTY TEXT NODES the browser puts in an editable surface of its own
+  accord. Chrome parks one beside a chip and one at the end of the surface,
+  and they come and go as the DOM is patched — so the near side of a marker
+  read correctly until an undo left a stray node there, and then silently
+  stopped. That is the shape of a defect that "persists in many places but
+  seems gone in others, with no systematic occasion" (user report).
+
+`pointAt` skips the empty nodes too: a caret put inside one stands next to a
+marker with no way to say which side it is on.
+
+Both were real, both were found only in the browser, and neither is visible
+to the type checker or the suite.
+
+## A caret is never left inside a marker
+`settleCaret`, on every selectionchange, steps a collapsed caret that the
+browser has put INSIDE a marker out to the marker's far side, where the
+citation's own words begin. Such a position is not in the text at all: no
+caret rectangle is drawn for it, so nothing shows the writer where she
+stands, and no side can be read from it either.
+
+HOME lands there whenever a citation opens the line — the chip is the first
+thing on it — which is a key an editor presses constantly (measured in the
+browser: the anchor came back as the marker element itself, offset 0, with
+an empty rect). The far side is both where the line's first character would
+go and the only one of the two positions that is visible.
 
 Two designs were tried and rejected. A `::before` pseudo-element kept every
 element out of the flow but left nowhere to hang anything and no way to
