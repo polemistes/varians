@@ -84,7 +84,7 @@ class SpanTransformer
             $isPaste = $cutId !== null && $op['text'] !== '' && $op['start'] === $op['end'];
             // Which citation, if any, takes what is typed here.
             $claim = $takesTextAtStart && $op['start'] === $op['end'] && ! $isPaste
-                ? self::claimant($results, $op['start'], $op['side'] ?? null)
+                ? self::claimant($results, $op['start'], $op['side'] ?? null, $op['text'])
                 : null;
             $index = -1;
 
@@ -281,11 +281,20 @@ class SpanTransformer
      * therefore does NOT write into the citation it announces; whatever ends
      * against the marker takes it, or nobody does.
      *
+     * A citation never BEGINS with whitespace, so it does not claim a space
+     * or a line break typed at its first character: that whitespace belongs
+     * above it, and the citation — its marker with it — moves down onto the
+     * words. Pressing Enter at the start of a cited line used to leave the
+     * marker stranded on the line above (user report). Whitespace typed at
+     * the citation's END is a different matter and IS claimed: it holds the
+     * line open for the next word.
+     *
      * @param  list<WorkingSpan>  $spans
      */
-    private static function claimant(array $spans, int $p, ?string $side = null): ?int
+    private static function claimant(array $spans, int $p, ?string $side = null, string $inserted = ''): ?int
     {
         $atEnd = null;
+        $opensWithSpace = $inserted !== '' && preg_match('/^\s/u', $inserted) === 1;
 
         foreach ($spans as $index => $span) {
             if ($span['carried'] !== null || $span['end'] <= $span['start']) {
@@ -296,7 +305,7 @@ class SpanTransformer
                 return $index;
             }
 
-            if ($p === $span['start'] && $side !== 'before') {
+            if ($p === $span['start'] && $side !== 'before' && ! $opensWithSpace) {
                 return $index;
             }
 

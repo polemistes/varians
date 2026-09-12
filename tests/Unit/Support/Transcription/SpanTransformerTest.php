@@ -81,16 +81,16 @@ test('an interior replacement is absorbed into the span, not flagged', function 
     ]);
 });
 
-test('whitespace typed at a citation\'s start joins it here, and is trimmed out afterwards', function () {
-    // The transform makes no exception for whitespace; CitationBounds drops
-    // it from the citation's edge after the save, which is how pressing
-    // space or Enter widens the gap instead of growing the citation.
+test('whitespace typed at a citation\'s start is left above it, and the citation moves on', function () {
+    // A citation never begins with whitespace, so a space or a line break
+    // typed at its first character pushes it along rather than opening it.
+    // This is what carries a marker down with its line on Enter.
     $result = SpanTransformer::transform([span(4, 7)], [
         ['start' => 4, 'end' => 4, 'text' => ' '],
     ], true);
 
     expect($result)->toBe([
-        ['start' => 4, 'end' => 8, 'needsReview' => false, 'deleted' => false],
+        ['start' => 5, 'end' => 8, 'needsReview' => false, 'deleted' => false],
     ]);
 });
 

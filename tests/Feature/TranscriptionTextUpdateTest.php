@@ -393,8 +393,8 @@ test('typing at the start of a cited line joins that line, and leaves no citatio
 });
 
 test('a separator typed at the start of a cited line stays outside it', function () {
-    // A space typed against the citation's first word is the citation's,
-    // like anything else typed there — nothing is trimmed back out.
+    // A citation never BEGINS with whitespace: the space belongs above it,
+    // and the citation moves along onto its own first word.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);
     $second = TranscriptionSegment::factory()->for($transcription)->create([
@@ -406,7 +406,7 @@ test('a separator typed at the start of a cited line stays outside it', function
         'text' => "μῆνιν ἄειδε\n θεὰ Πηληϊάδεω",
     ])->assertRedirect();
 
-    expect([$second->fresh()->start_offset, $second->fresh()->end_offset])->toBe([12, 26]);
+    expect([$second->fresh()->start_offset, $second->fresh()->end_offset])->toBe([13, 26]);
 });
 
 test('typing in front of a cited line writes into that line', function () {
@@ -663,4 +663,48 @@ test('the caret side says nothing about a paste or a deletion', function () {
     ])->assertRedirect();
 
     expect([$segment->fresh()->start_offset, $segment->fresh()->end_offset])->toBe([4, 8]);
+});
+
+test('a line break at the start of a cited line takes the line and its marker down together', function () {
+    // User report: the marker stayed on the line above. A citation never
+    // BEGINS with whitespace, so the break belongs above it and the citation
+    // moves down onto its words, marker and all.
+    $this->actingAs(User::factory()->editor()->create());
+    $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);
+    $first = TranscriptionSegment::factory()->for($transcription)->create([
+        'start_offset' => 0, 'end_offset' => 11,
+    ]);
+    $second = TranscriptionSegment::factory()->for($transcription)->create([
+        'start_offset' => 12, 'end_offset' => 25,
+    ]);
+
+    $this->patch(route('transcriptions.text.update', $transcription), [
+        'ops' => [['start' => 12, 'end' => 12, 'text' => "\n", 'side' => 'after']],
+        'text' => "μῆνιν ἄειδε\n\nθεὰ Πηληϊάδεω",
+    ])->assertRedirect();
+
+    $text = "μῆνιν ἄειδε\n\nθεὰ Πηληϊάδεω";
+    $first->refresh();
+    $second->refresh();
+
+    // The citation begins on its first WORD, so the marker renders there.
+    expect([$second->start_offset, $second->end_offset])->toBe([13, 26])
+        ->and(mb_substr($text, $second->start_offset, 3))->toBe('θεὰ')
+        ->and([$first->start_offset, $first->end_offset])->toBe([0, 11]);
+});
+
+test('a letter at the start of a cited line still writes into it', function () {
+    // The same caret, the same side — only whitespace is held out.
+    $this->actingAs(User::factory()->editor()->create());
+    $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);
+    $second = TranscriptionSegment::factory()->for($transcription)->create([
+        'start_offset' => 12, 'end_offset' => 25,
+    ]);
+
+    $this->patch(route('transcriptions.text.update', $transcription), [
+        'ops' => [['start' => 12, 'end' => 12, 'text' => 'Χ', 'side' => 'after']],
+        'text' => "μῆνιν ἄειδε\nΧθεὰ Πηληϊάδεω",
+    ])->assertRedirect();
+
+    expect([$second->fresh()->start_offset, $second->fresh()->end_offset])->toBe([12, 26]);
 });

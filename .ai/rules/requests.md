@@ -38,6 +38,13 @@ that did (to keep a line going after a typed space) is gone; removing the
 trimming made it unnecessary, since the space itself now belongs to the
 citation and what follows touches it directly.
 
+A citation never BEGINS with whitespace. A space or a line break typed at
+its first character is left above it and the citation moves along onto its
+own first word, carrying its marker with it — pressing Enter at the start of
+a cited line used to strand the marker on the line above (user report).
+Whitespace typed at a citation's END is the opposite case and IS claimed: it
+holds the line open so the next word carries on.
+
 `$takesTextAtStart` turns all of this on and ONLY CITATIONS get it. A
 facsimile region is anchored to ink on parchment and a `LemmaReading` is a
 quotation standing in an apparatus; neither grows because someone typed

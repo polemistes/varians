@@ -87,7 +87,7 @@ export function transformSpans(
         // Which citation, if any, takes what is typed here.
         const claim =
             takesTextAtStart && op.start === op.end && !isPaste
-                ? claimant(results, op.start, op.side ?? null)
+                ? claimant(results, op.start, op.side ?? null, op.text)
                 : null;
 
         results = results.map((span, index) => {
@@ -152,8 +152,13 @@ function claimant(
     spans: WorkingSpan[],
     p: number,
     side: 'before' | 'after' | null = null,
+    inserted = '',
 ): number | null {
     let atEnd: number | null = null;
+    // A citation never begins with whitespace: a break typed at its first
+    // character belongs above it, and the citation moves down with its
+    // marker. Whitespace at its END is claimed, holding the line open.
+    const opensWithSpace = inserted !== '' && /^\s/u.test(inserted);
 
     for (const [index, span] of spans.entries()) {
         if (span.carried !== null || span.end <= span.start) {
@@ -164,7 +169,7 @@ function claimant(
             return index;
         }
 
-        if (p === span.start && side !== 'before') {
+        if (p === span.start && side !== 'before' && !opensWithSpace) {
             return index;
         }
 
