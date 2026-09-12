@@ -307,36 +307,31 @@ minus `composedLength`, the provisional text so far) — never by the
 composition's own characters. Using the raw target-range end ate the
 character after the caret on every diacritic (real bug).
 
-## A marker is a chip between two GRAY SLOTS, and the slots speak
-A citation's marker is a host element (`[data-non-text]`, so `offsetAt`
-discounts its label) holding three parts, each tagged `data-slot`: a slot,
-the label chip, a slot. The slots are how an editor says that what she is
-about to type is NOBODY'S.
+## A marker is not part of the text; the caret's SIDE of it is
+A citation's marker stands at its first character and is there to tell a
+READER which citation follows. The editor should never have to notice it.
+The caret may rest on either side of it, what is typed belongs to whatever
+lies on that side, and NOTHING — no text, no caret — ever crosses it.
 
-She has to be able to say it, because the caret cannot: both sides of a
-marker measure to the SAME text offset, so an offset alone can never tell
-"in front of this citation's first word", which belongs to the citation,
-from "in the gap beside it", which belongs to no one. Clicking a slot arms
-`unassignedAt` at the marker's offset, highlights the slot and puts the
-caret there; the next plain insertion at that offset carries
-`assign: 'unassigned'` on its op, and `SpanTransformer` then lets no
-citation claim it. The saying is spent on one edit and withdrawn by any
-press away from a marker, so it can never quietly outlive the click.
+Both sides of a marker measure to the SAME text offset, because the marker
+holds no text of its own. That single fact is behind every defect this
+editor had at a marker. An offset cannot say which side the caret was on, so
+the side is read from the DOM (`markerSide`) and travels with the edit as
+`side` on the op; `SpanTransformer::claimant` then knows whether to write
+into the citation the marker announces or to leave it to what stands before.
+`pointAt`/`restoreCaret` take the same side, so the caret is put back on the
+edge it was typed on rather than jumping across.
 
-Only a plain insertion can be spoken for: a paste, a deletion or a
-replacement keeps to the ordinary rules whatever is armed.
+`markerSide` walks the DOM outwards from the caret and MUST step over Vue's
+fragment comment nodes: one sits between every marker and the text before
+it, and a walk that stopped there reported no marker at all on the near side
+(real bug, found in the browser and invisible to the type checker).
 
-Clicking the CHIP opens the citation, as it always did. The host prevents
-its own mousedown default, because a marker is not a place in the text and
-pressing it must never carry the caret into the words behind it.
-
-The chip was briefly a `::before` pseudo-element, to keep every element out
-of the text flow. That removed the caret hazards but left nowhere to put the
-slots — a pseudo-element cannot be flanked, and clicks on it had to be
-resolved by measuring x-positions. Real elements are back deliberately, and
-the hazards they cause are handled by `acrossMarker` below instead. Do not
-collapse the marker back into a pseudo-element without somewhere else for
-the slots to live.
+Two designs were tried and rejected. A `::before` pseudo-element kept every
+element out of the flow but left nowhere to hang anything and no way to
+click precisely. GRAY SLOTS either side of the chip asked the editor to say
+"this is nobody's" by clicking — gone (user decision): the marker should not
+be noticed at all, and the caret already knows which side it is on.
 
 ## Backspace and Delete reach across a citation's marker
 A marker is a real element in the editable flow and carries no text, so the

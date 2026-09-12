@@ -65,7 +65,7 @@ class SpanTransformer
 {
     /**
      * @param  list<array{start: int, end: int, needsReview: bool}>  $spans
-     * @param  list<array{start: int, end: int, text: string, cut_id?: string|null, assign?: string|null}>  $ops
+     * @param  list<array{start: int, end: int, text: string, cut_id?: string|null, side?: string|null}>  $ops
      * @return list<array{start: int, end: int, needsReview: bool, deleted: bool}>
      */
     public static function transform(array $spans, array $ops, bool $takesTextAtStart = false): array
@@ -83,15 +83,8 @@ class SpanTransformer
             $isCut = $cutId !== null && $op['text'] === '' && $op['end'] > $op['start'];
             $isPaste = $cutId !== null && $op['text'] !== '' && $op['start'] === $op['end'];
             // Which citation, if any, takes what is typed here.
-            // The editor may say outright that what she typed is nobody's,
-            // by typing in a marker's gray slot — the one place where the
-            // caret's offset cannot say it for her, since both sides of a
-            // marker measure the same. Nothing else overrides the claim.
-            $claim = $takesTextAtStart
-                && $op['start'] === $op['end']
-                && ! $isPaste
-                && ($op['assign'] ?? null) !== 'unassigned'
-                ? self::claimant($results, $op['start'])
+            $claim = $takesTextAtStart && $op['start'] === $op['end'] && ! $isPaste
+                ? self::claimant($results, $op['start'], $op['side'] ?? null)
                 : null;
             $index = -1;
 
@@ -280,9 +273,17 @@ class SpanTransformer
      * BEGINNING there takes it, and typing in front of a word belongs to
      * that word's citation.
      *
+     * `$side` settles the one case the offset cannot. A citation's marker
+     * stands at its first character, and BOTH SIDES OF THE MARKER MEASURE TO
+     * THE SAME OFFSET — so which side the caret stood on is the difference
+     * between writing into that citation and writing in front of its marker,
+     * and only the editor's caret knows it. Typing on the marker's near side
+     * therefore does NOT write into the citation it announces; whatever ends
+     * against the marker takes it, or nobody does.
+     *
      * @param  list<WorkingSpan>  $spans
      */
-    private static function claimant(array $spans, int $p): ?int
+    private static function claimant(array $spans, int $p, ?string $side = null): ?int
     {
         $atEnd = null;
 
@@ -291,7 +292,11 @@ class SpanTransformer
                 continue;
             }
 
-            if ($p >= $span['start'] && $p < $span['end']) {
+            if ($p > $span['start'] && $p < $span['end']) {
+                return $index;
+            }
+
+            if ($p === $span['start'] && $side !== 'before') {
                 return $index;
             }
 

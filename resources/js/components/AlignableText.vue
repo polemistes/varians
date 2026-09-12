@@ -234,11 +234,15 @@ function markupTitle(markup: Chunk['markup']): string | undefined {
         : `Lost — ${extent}`;
 }
 
-// The marker is a host element carrying the label chip between two GRAY
-// SLOTS. The slots are where unassigned text is written: both sides of a
-// marker measure to the same text offset, so the caret alone cannot say
-// whether what is typed there belongs to the citation or to nobody, and the
-// editor says it by choosing where to click (user decision).
+// A citation's marker stands at its first character and is NOT part of the
+// text: it is there to tell a reader which citation follows. The caret can
+// rest on either side of it, and BOTH SIDES MEASURE TO THE SAME OFFSET — so
+// which side it stood on is read from the DOM and travels with the edit
+// (`side` on the op). Nothing typed, and no caret, ever crosses a marker.
+//
+// An earlier design asked the editor to say this by clicking a gray slot on
+// one side of the marker. It is gone (user decision): the marker should not
+// be noticed at all, and the caret already knows which side it is on.
 function badgeClasses(chunk: Chunk) {
     const segment = chunk.segment;
 
@@ -254,43 +258,100 @@ function badgeClasses(chunk: Chunk) {
         return 'bg-stone-100 text-stone-400 dark:bg-stone-900 dark:text-stone-600';
     }
 
-    return 'bg-stone-300 text-stone-600 dark:bg-stone-800 dark:text-stone-400';
+    return 'bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400';
+}
+
+function isMarker(node: Node | null): boolean {
+    return (
+        node instanceof HTMLElement && node.hasAttribute('data-marker-offset')
+    );
 }
 
 /**
- * Where the editor has said the next thing she types is nobody's — the text
- * offset of the marker whose slot she clicked. Cleared as soon as the caret
- * goes anywhere else, so it can never quietly outlive the click.
+ * The nearest node before this one in the surface, climbing out of wrappers
+ * and stepping over Vue's fragment COMMENTS. Those comments sit between a
+ * marker and the text before it, and a walk that stopped at one never found
+ * the marker at all (real bug, caught in the browser — the caret's side came
+ * back null on the near side of every marker).
  */
-const unassignedAt = ref<number | null>(null);
+function flowPrevious(node: Node): Node | null {
+    let at: Node | null = node;
 
-function slotClasses(offset: number) {
-    return unassignedAt.value === offset
-        ? 'bg-sky-400/70 dark:bg-sky-500/60'
-        : '';
-}
+    while (at && at !== containerEl.value) {
+        let sibling = at.previousSibling;
 
-/**
- * A press on the marker: the chip opens the citation, either slot arms the
- * next thing typed as unassigned and puts the caret at the marker's offset.
- * Never lets the press carry the caret off on its own — the marker is not a
- * place in the text.
- */
-function onMarkerMousedown(segment: TranscriptionSegment, event: MouseEvent) {
-    const part =
-        event.target instanceof HTMLElement
-            ? event.target.dataset.slot
-            : undefined;
+        while (sibling instanceof Comment) {
+            sibling = sibling.previousSibling;
+        }
 
-    if (part === 'before' || part === 'after') {
-        unassignedAt.value = segment.start_offset;
-        void nextTick(() => restoreCaret(segment.start_offset));
+        if (sibling) {
+            return sibling;
+        }
 
-        return;
+        at = at.parentNode;
     }
 
-    unassignedAt.value = null;
-    onBadgeClick(segment, event);
+    return null;
+}
+
+/** The same the other way, over the same comments. */
+function flowNext(node: Node): Node | null {
+    let at: Node | null = node;
+
+    while (at && at !== containerEl.value) {
+        let sibling = at.nextSibling;
+
+        while (sibling instanceof Comment) {
+            sibling = sibling.nextSibling;
+        }
+
+        if (sibling) {
+            return sibling;
+        }
+
+        at = at.parentNode;
+    }
+
+    return null;
+}
+
+/**
+ * Which side of a citation's marker the caret stands on, or null when it is
+ * not against one. A marker holds no text, so the offsets on either side of
+ * it are EQUAL and only the document order tells them apart — this is the
+ * one thing an offset can never say, and everything that went wrong at a
+ * marker went wrong for want of it.
+ */
+function markerSide(): 'before' | 'after' | null {
+    const selection = window.getSelection();
+    const container = containerEl.value;
+
+    if (
+        !selection?.isCollapsed ||
+        !selection.anchorNode ||
+        !container?.contains(selection.anchorNode)
+    ) {
+        return null;
+    }
+
+    const node = selection.anchorNode;
+    const offset = selection.anchorOffset;
+    let previous: Node | null;
+    let next: Node | null;
+
+    if (node instanceof Text) {
+        previous = offset > 0 ? node : flowPrevious(node);
+        next = offset < node.data.length ? node : flowNext(node);
+    } else {
+        previous = node.childNodes[offset - 1] ?? flowPrevious(node);
+        next = node.childNodes[offset] ?? flowNext(node);
+    }
+
+    if (isMarker(previous)) {
+        return 'after';
+    }
+
+    return isMarker(next) ? 'before' : null;
 }
 
 /** The label a chunk draws, if it opens a citation that has one. */
@@ -465,12 +526,6 @@ function onContainerMousedown(event: MouseEvent) {
     const target = event.target;
     const onMarker =
         target instanceof Element && target.closest('[data-non-text]') !== null;
-
-    // Any press away from a marker withdraws what a slot armed: the caret has
-    // gone somewhere that speaks for itself.
-    if (!onMarker) {
-        unassignedAt.value = null;
-    }
 
     interactionBeganOnText = !onMarker;
 }
@@ -675,21 +730,16 @@ function caretOffset(): number | null {
     return offsetAt(selection.anchorNode, selection.anchorOffset);
 }
 
-function applyAndRestoreCaret(op: TextEditOp, source: EditSource = 'typing') {
+function applyAndRestoreCaret(
+    op: TextEditOp,
+    source: EditSource = 'typing',
+    side: 'before' | 'after' | null = null,
+) {
     const targetOffset = op.start + [...op.text].length;
 
-    // A slot was clicked and this is what was typed into it: say outright
-    // that it is nobody's, since the offset alone cannot — both sides of a
-    // marker measure the same. The saying is spent on one edit.
-    const armed =
-        unassignedAt.value !== null &&
-        unassignedAt.value === op.start &&
-        op.start === op.end;
-
-    unassignedAt.value = null;
-
-    emit('edit', armed ? { ...op, assign: 'unassigned' } : op, source);
-    void nextTick(() => restoreCaret(targetOffset));
+    emit('edit', side === null ? op : { ...op, side }, source);
+    // Back to the side it was typed on: a caret never crosses a marker.
+    void nextTick(() => restoreCaret(targetOffset, side));
 }
 
 // beforeinput (and composition events) bubble — the badges
@@ -882,12 +932,19 @@ function onBeforeInput(event: InputEvent) {
         return;
     }
 
+    // Read while the caret still stands where the editor put it.
+    const side = markerSide();
+
     event.preventDefault();
 
     const op = opFromBeforeInput(event);
 
     if (op) {
-        applyAndRestoreCaret(op, editSourceOf(event.inputType));
+        applyAndRestoreCaret(
+            op,
+            editSourceOf(event.inputType),
+            op.start === op.end ? side : null,
+        );
     }
 }
 
@@ -936,7 +993,10 @@ function onCompositionEnd(event: CompositionEvent) {
 // currently falls at, skipping the same [data-non-text] content offsetAt
 // already excludes. A negative offset (a stale page-relative caret) clamps
 // to the start rather than throwing an IndexSizeError from setStart.
-function pointAt(offset: number): { node: Text; offset: number } | null {
+function pointAt(
+    offset: number,
+    side: 'before' | 'after' | null = null,
+): { node: Text; offset: number } | null {
     if (!containerEl.value) {
         return null;
     }
@@ -962,7 +1022,14 @@ function pointAt(offset: number): { node: Text; offset: number } | null {
     while (node) {
         const codePoints = [...node.data];
 
-        if (remaining <= codePoints.length) {
+        // An offset at the very end of one text node is the same offset as
+        // the start of the next, and a marker may stand between them. Coming
+        // from the marker's far side, walk on to the later node so the caret
+        // is put back where it was rather than across the marker.
+        if (
+            remaining < codePoints.length ||
+            (remaining === codePoints.length && side !== 'after')
+        ) {
             return {
                 node,
                 offset: codePoints.slice(0, remaining).join('').length,
@@ -977,8 +1044,8 @@ function pointAt(offset: number): { node: Text; offset: number } | null {
     return lastNode ? { node: lastNode, offset: lastNode.length } : null;
 }
 
-function restoreCaret(offset: number) {
-    const point = pointAt(offset);
+function restoreCaret(offset: number, side: 'before' | 'after' | null = null) {
+    const point = pointAt(offset, side);
 
     if (!point || !containerEl.value) {
         return;
@@ -1102,28 +1169,14 @@ function liveCaretOffset(): number | null {
                 v-if="chunkLabel(chunk) && chunk.segment"
                 data-non-text
                 contenteditable="false"
-                class="mr-1 inline-flex items-center rounded bg-stone-200 align-middle select-none dark:bg-stone-700/60"
-                :data-label="chunkLabel(chunk)"
+                class="mx-1 cursor-pointer rounded px-1.5 py-0.5 align-middle font-sans text-xs tracking-wide select-none"
+                :class="badgeClasses(chunk)"
                 :data-segment-id="chunk.segment.id"
                 :data-marker-offset="chunk.segment.start_offset"
                 :title="badgeTitle(chunk.segment)"
-                @mousedown.prevent="onMarkerMousedown(chunk.segment, $event)"
-                ><span
-                    class="w-2 cursor-text self-stretch rounded-l"
-                    :class="slotClasses(chunk.segment.start_offset)"
-                    data-slot="before"
-                ></span
-                ><span
-                    class="cursor-pointer rounded px-1.5 py-0.5 font-sans text-xs tracking-wide"
-                    :class="badgeClasses(chunk)"
-                    data-slot="chip"
-                    >{{ chunkLabel(chunk) }}</span
-                ><span
-                    class="w-2 cursor-text self-stretch rounded-r"
-                    :class="slotClasses(chunk.segment.start_offset)"
-                    data-slot="after"
-                ></span
-            ></span>
+                @mousedown.prevent="onBadgeClick(chunk.segment, $event)"
+                >{{ chunkLabel(chunk) }}</span
+            >
             <span
                 :title="chunkTitle(chunk)"
                 :class="[

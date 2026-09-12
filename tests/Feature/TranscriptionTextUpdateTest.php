@@ -613,31 +613,44 @@ test('a word written between two citations, a buffer from each, belongs to neith
         ->toBe('θεὰ Πηληϊάδεω');
 });
 
-test('text typed in a marker\'s gray slot belongs to nobody, whatever the offset would say', function () {
-    // Both sides of a marker measure to the same offset, so the caret alone
-    // cannot say whether what is typed there is the citation's. The slot is
-    // where the editor says it, and the saying travels with the edit.
+test('typing on the near side of a marker does not write into the citation it announces', function () {
+    // A marker holds no text, so both sides of it measure to the SAME
+    // offset. Which side the caret stood on is the only thing that can tell
+    // "in front of this line's marker" from "into this line", and it travels
+    // with the edit. Nothing typed ever crosses a marker.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);
     $second = TranscriptionSegment::factory()->for($transcription)->create([
         'start_offset' => 12, 'end_offset' => 25,
     ]);
 
-    // The same offset as "typing in front of the first word", which claims.
     $this->patch(route('transcriptions.text.update', $transcription), [
-        'ops' => [['start' => 12, 'end' => 12, 'text' => 'Χ', 'assign' => 'unassigned']],
+        'ops' => [['start' => 12, 'end' => 12, 'text' => 'Χ', 'side' => 'before']],
         'text' => "μῆνιν ἄειδε\nΧθεὰ Πηληϊάδεω",
     ])->assertRedirect();
 
-    $second->refresh();
-
-    expect([$second->start_offset, $second->end_offset])->toBe([13, 26])
-        ->and(mb_substr("μῆνιν ἄειδε\nΧθεὰ Πηληϊάδεω", $second->start_offset, 3))->toBe('θεὰ');
+    expect([$second->fresh()->start_offset, $second->fresh()->end_offset])->toBe([13, 26]);
 });
 
-test('a marker slot says nothing about a paste or a deletion', function () {
+test('typing on the far side of a marker writes into the citation it announces', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);
+    $second = TranscriptionSegment::factory()->for($transcription)->create([
+        'start_offset' => 12, 'end_offset' => 25,
+    ]);
+
+    // The same offset and the same keystroke — only the side differs.
+    $this->patch(route('transcriptions.text.update', $transcription), [
+        'ops' => [['start' => 12, 'end' => 12, 'text' => 'Χ', 'side' => 'after']],
+        'text' => "μῆνιν ἄειδε\nΧθεὰ Πηληϊάδεω",
+    ])->assertRedirect();
+
+    expect([$second->fresh()->start_offset, $second->fresh()->end_offset])->toBe([12, 26]);
+});
+
+test('the caret side says nothing about a paste or a deletion', function () {
     // Only a plain insertion can be spoken for; anything else keeps to the
-    // ordinary rules, so a stale saying cannot alter a cut or a paste.
+    // ordinary rules.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
     $segment = TranscriptionSegment::factory()->for($transcription)->create([
@@ -645,7 +658,7 @@ test('a marker slot says nothing about a paste or a deletion', function () {
     ]);
 
     $this->patch(route('transcriptions.text.update', $transcription), [
-        'ops' => [['start' => 4, 'end' => 9, 'text' => 'slow', 'assign' => 'unassigned']],
+        'ops' => [['start' => 4, 'end' => 9, 'text' => 'slow', 'side' => 'before']],
         'text' => 'the slow brown fox',
     ])->assertRedirect();
 

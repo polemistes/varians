@@ -25,11 +25,13 @@ export type TextEditOp = {
      */
     atomic?: boolean;
     /**
-     * "unassigned" when the editor typed in a marker's GRAY SLOT, saying in
-     * so many words that this text is nobody's. The one thing the caret's
-     * offset cannot say for her: both sides of a marker measure the same.
+     * Which side of a citation's marker the caret stood on. A marker holds
+     * no text, so the offsets either side of it are EQUAL; this is the one
+     * thing the offset cannot say, and it decides whether what was typed
+     * belongs to the citation the marker announces or to what stands before
+     * it. Nothing typed, and no caret, ever crosses a marker.
      */
-    assign?: 'unassigned' | null;
+    side?: 'before' | 'after' | null;
     /**
      * What the sibling layer should receive where this op's `text` would
      * otherwise be replayed verbatim: an undo carries the sibling's own
@@ -84,11 +86,8 @@ export function transformSpans(
         const isPaste = cutId !== null && op.text !== '' && op.start === op.end;
         // Which citation, if any, takes what is typed here.
         const claim =
-            takesTextAtStart &&
-            op.start === op.end &&
-            !isPaste &&
-            op.assign !== 'unassigned'
-                ? claimant(results, op.start)
+            takesTextAtStart && op.start === op.end && !isPaste
+                ? claimant(results, op.start, op.side ?? null)
                 : null;
 
         results = results.map((span, index) => {
@@ -142,10 +141,18 @@ export function transformSpans(
  * citation's characters. Standing against its words claims for it, and
  * whatever is typed there is the citation's, a space as much as a letter. A
  * caret with whitespace between it and every citation claims for none of
- * them — that whitespace is the gap, and the gap is nobody's. Mirrors
+ * them — that whitespace is the gap, and the gap is nobody's.
+ *
+ * `side` settles the one case an offset cannot: both sides of a citation's
+ * marker measure to the SAME offset, so typing on the marker's near side
+ * must not write into the citation it announces. Mirrors
  * App\Support\Transcription\SpanTransformer::claimant.
  */
-function claimant(spans: WorkingSpan[], p: number): number | null {
+function claimant(
+    spans: WorkingSpan[],
+    p: number,
+    side: 'before' | 'after' | null = null,
+): number | null {
     let atEnd: number | null = null;
 
     for (const [index, span] of spans.entries()) {
@@ -153,7 +160,11 @@ function claimant(spans: WorkingSpan[], p: number): number | null {
             continue;
         }
 
-        if (p >= span.start && p < span.end) {
+        if (p > span.start && p < span.end) {
+            return index;
+        }
+
+        if (p === span.start && side !== 'before') {
             return index;
         }
 

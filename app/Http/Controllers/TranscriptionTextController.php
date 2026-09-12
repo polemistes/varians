@@ -188,8 +188,8 @@ class TranscriptionTextController extends Controller
      * A cut whose paste hasn't arrived in this save keeps its id — the
      * transformer degrades it to a deletion by itself.
      *
-     * @param  list<array{start: mixed, end: mixed, text: mixed, cut_id?: mixed, atomic?: mixed, mirror_text?: mixed, assign?: mixed}>  $ops
-     * @return list<array{start: int, end: int, text: string, cut_id: string|null, atomic: bool, mirror_text: string|null, assign: string|null}>
+     * @param  list<array{start: mixed, end: mixed, text: mixed, cut_id?: mixed, atomic?: mixed, mirror_text?: mixed, side?: mixed}>  $ops
+     * @return list<array{start: int, end: int, text: string, cut_id: string|null, atomic: bool, mirror_text: string|null, side: string|null}>
      */
     private function normalizeOps(array $ops, string $originalText): array
     {
@@ -207,10 +207,10 @@ class TranscriptionTextController extends Controller
             // otherwise be replayed verbatim — an undo restoring the
             // sibling's own former spelling. See LayerMirror.
             'mirror_text' => isset($op['mirror_text']) && is_string($op['mirror_text']) ? $op['mirror_text'] : null,
-            // Typed in a marker's gray slot: no citation claims it, however
-            // the caret's offset would otherwise read. See
-            // SpanTransformer::claimant.
-            'assign' => ($op['assign'] ?? null) === 'unassigned' ? 'unassigned' : null,
+            // Which side of a marker the caret stood on, where it stood at
+            // one. The offset is the same on both sides; this is what tells
+            // them apart. See SpanTransformer::claimant.
+            'side' => in_array($op['side'] ?? null, ['before', 'after'], true) ? $op['side'] : null,
         ], $ops);
 
         $running = $originalText;
