@@ -169,7 +169,11 @@ function claimant(
             return index;
         }
 
-        if (p === span.start && side !== 'before' && !opensWithSpace) {
+        if (
+            p === span.start &&
+            !opensWithSpace &&
+            (side !== 'before' || !spanEndsAt(spans, p))
+        ) {
             return index;
         }
 
@@ -179,6 +183,19 @@ function claimant(
     }
 
     return atEnd;
+}
+
+/**
+ * Whether a live span ends exactly here — whether the near side of a marker
+ * at this offset belongs to anybody at all. Where nothing ends there the
+ * near side is nobody's, and withholding the claim for it left words typed
+ * at a marker unassigned between two citations (user report).
+ */
+function spanEndsAt(spans: WorkingSpan[], p: number): boolean {
+    return spans.some(
+        (span) =>
+            span.carried === null && span.end > span.start && span.end === p,
+    );
 }
 
 function applySpanOp(

@@ -613,23 +613,51 @@ test('a word written between two citations, a buffer from each, belongs to neith
         ->toBe('θεὰ Πηληϊάδεω');
 });
 
-test('typing on the near side of a marker does not write into the citation it announces', function () {
-    // A marker holds no text, so both sides of it measure to the SAME
-    // offset. Which side the caret stood on is the only thing that can tell
-    // "in front of this line's marker" from "into this line", and it travels
-    // with the edit. Nothing typed ever crosses a marker.
+test('the near side of a marker belongs to the citation that ENDS there', function () {
+    // Two citations meeting flush: the near side is the first one's, so what
+    // is typed there is written into IT rather than into the line the marker
+    // announces. This is the case the caret's side exists for.
     $this->actingAs(User::factory()->editor()->create());
-    $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'μῆνινἄειδε']);
+    $first = TranscriptionSegment::factory()->for($transcription)->create([
+        'start_offset' => 0, 'end_offset' => 5,
+    ]);
     $second = TranscriptionSegment::factory()->for($transcription)->create([
-        'start_offset' => 12, 'end_offset' => 25,
+        'start_offset' => 5, 'end_offset' => 10,
     ]);
 
     $this->patch(route('transcriptions.text.update', $transcription), [
-        'ops' => [['start' => 12, 'end' => 12, 'text' => 'Χ', 'side' => 'before']],
-        'text' => "μῆνιν ἄειδε\nΧθεὰ Πηληϊάδεω",
+        'ops' => [['start' => 5, 'end' => 5, 'text' => 'Χ', 'side' => 'before']],
+        'text' => 'μῆνινΧἄειδε',
     ])->assertRedirect();
 
-    expect([$second->fresh()->start_offset, $second->fresh()->end_offset])->toBe([13, 26]);
+    expect([$first->fresh()->start_offset, $first->fresh()->end_offset])->toBe([0, 6])
+        ->and([$second->fresh()->start_offset, $second->fresh()->end_offset])->toBe([6, 11]);
+});
+
+test('the near side of a marker where NOTHING ends belongs to the citation it announces', function () {
+    // User report: words typed at a marker were coming out unassigned
+    // between two citations. The near side is only somebody else's where a
+    // citation actually ends there; otherwise it is nobody's, and nobody's
+    // is not an answer.
+    $this->actingAs(User::factory()->editor()->create());
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'μῆνιν ἄειδε']);
+    $first = TranscriptionSegment::factory()->for($transcription)->create([
+        'start_offset' => 0, 'end_offset' => 5,
+    ]);
+    $second = TranscriptionSegment::factory()->for($transcription)->create([
+        'start_offset' => 6, 'end_offset' => 11,
+    ]);
+
+    $this->patch(route('transcriptions.text.update', $transcription), [
+        'ops' => [['start' => 6, 'end' => 6, 'text' => 'Χ', 'side' => 'before']],
+        'text' => 'μῆνιν Χἄειδε',
+    ])->assertRedirect();
+
+    // Nothing is left stranded: only the separating space is uncited.
+    expect([$first->fresh()->start_offset, $first->fresh()->end_offset])->toBe([0, 5])
+        ->and([$second->fresh()->start_offset, $second->fresh()->end_offset])->toBe([6, 12])
+        ->and(mb_substr('μῆνιν Χἄειδε', 6, 6))->toBe('Χἄειδε');
 });
 
 test('typing on the far side of a marker writes into the citation it announces', function () {

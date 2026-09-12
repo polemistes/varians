@@ -281,6 +281,11 @@ class SpanTransformer
      * therefore does NOT write into the citation it announces; whatever ends
      * against the marker takes it, or nobody does.
      *
+     * The near side of a marker is only somebody else's where a citation
+     * actually ENDS there. Withholding the claim regardless left words typed
+     * at a citation's marker belonging to nobody, which is how unassigned
+     * text appeared between two citations (user report).
+     *
      * A citation never BEGINS with whitespace, so it does not claim a space
      * or a line break typed at its first character: that whitespace belongs
      * above it, and the citation — its marker with it — moves down onto the
@@ -305,7 +310,8 @@ class SpanTransformer
                 return $index;
             }
 
-            if ($p === $span['start'] && $side !== 'before' && ! $opensWithSpace) {
+            if ($p === $span['start'] && ! $opensWithSpace
+                && ($side !== 'before' || ! self::spanEndsAt($spans, $p))) {
                 return $index;
             }
 
@@ -315,6 +321,23 @@ class SpanTransformer
         }
 
         return $atEnd;
+    }
+
+    /**
+     * Whether a live span ends exactly here — whether, in other words, the
+     * near side of a marker at this offset belongs to anybody.
+     *
+     * @param  list<WorkingSpan>  $spans
+     */
+    private static function spanEndsAt(array $spans, int $p): bool
+    {
+        foreach ($spans as $span) {
+            if ($span['carried'] === null && $span['end'] > $span['start'] && $span['end'] === $p) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
