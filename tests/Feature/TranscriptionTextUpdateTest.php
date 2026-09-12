@@ -638,11 +638,12 @@ test('the near side of a marker belongs to the citation that ENDS there', functi
         ->and([$second->fresh()->start_offset, $second->fresh()->end_offset])->toBe([6, 11]);
 });
 
-test('the near side of a marker where NOTHING ends belongs to the citation it announces', function () {
-    // User report: words typed at a marker were coming out unassigned
-    // between two citations. The near side is only somebody else's where a
-    // citation actually ends there; otherwise it is nobody's, and nobody's
-    // is not an answer.
+test('the near side of a marker belongs to what lies BEFORE it, across whitespace and all', function () {
+    // User report: arrowing the caret back past a marker and typing put the
+    // words at the start of the following line instead of the end of the one
+    // the caret stood in. The near side belongs to what lies before it — the
+    // citation ending against it, or the one carrying on from further back.
+    // Nothing is left stranded either way.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'μῆνιν ἄειδε']);
     $first = TranscriptionSegment::factory()->for($transcription)->create([
@@ -657,10 +658,10 @@ test('the near side of a marker where NOTHING ends belongs to the citation it an
         'text' => 'μῆνιν Χἄειδε',
     ])->assertRedirect();
 
-    // Nothing is left stranded: only the separating space is uncited.
-    expect([$first->fresh()->start_offset, $first->fresh()->end_offset])->toBe([0, 5])
-        ->and([$second->fresh()->start_offset, $second->fresh()->end_offset])->toBe([6, 12])
-        ->and(mb_substr('μῆνιν Χἄειδε', 6, 6))->toBe('Χἄειδε');
+    // The line the caret stood in carries on over the space and takes it.
+    expect(mb_substr('μῆνιν Χἄειδε', $first->fresh()->start_offset, $first->fresh()->end_offset - $first->fresh()->start_offset))
+        ->toBe('μῆνιν Χ')
+        ->and(mb_substr('μῆνιν Χἄειδε', $second->fresh()->start_offset, 5))->toBe('ἄειδε');
 });
 
 test('typing on the far side of a marker writes into the citation it announces', function () {

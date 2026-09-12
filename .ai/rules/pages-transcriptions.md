@@ -333,21 +333,23 @@ click precisely. GRAY SLOTS either side of the chip asked the editor to say
 "this is nobody's" by clicking — gone (user decision): the marker should not
 be noticed at all, and the caret already knows which side it is on.
 
-## The near side of a marker is only somebody else's where a citation ENDS
-A marker's near side belongs to whatever ends against it. Where NOTHING ends
-there it is nobody's — and nobody's is not an answer: words typed at a
-marker came out unassigned between two citations (user report). So the claim
-falls to the citation the marker announces unless a citation genuinely ends
-at that offset, which is the flush-meeting case the caret's side exists for.
+## A marker's near side belongs to WHAT LIES BEFORE IT
+The caret on a marker's near side is standing at the end of the citation
+above, so that is what takes what is typed: the citation ending against the
+marker, or — with nothing but whitespace between — the one carrying on from
+further back, reaching over the gap. NEVER the citation the marker
+announces. Arrowing the caret back past a marker and typing otherwise put
+the words at the start of the following line instead of the end of the line
+the caret stood in (user report).
 
-`restoreCaret` also keeps the caret OFF such a side (`emptyNearSide`), so it
-does not sit where nothing can take what is typed. The caret only lands
-there when two citations meet and the position is real.
+That also leaves nothing stranded, which is what an earlier version of this
+rule was reaching for by handing the near side to the FOLLOWING citation.
+Both avoid uncited text; only this one matches where the caret is.
 
-This was easy to hit and hard to see: the caret is restored to the upstream
-of two equivalent positions, which is before the marker, whenever the
-preceding character is not a newline — so any pair of citations separated by
-a SPACE put the caret on the near side after every edit.
+The case is easy to reach and was hard to see: the caret is restored to the
+upstream of two equivalent positions, which is before the marker, whenever
+the preceding character is not a newline — so any pair of citations
+separated by a SPACE puts the caret on the near side after every edit.
 
 ## A caret just past a line break belongs on the NEW line
 One offset is two DOM positions wherever a text node ends: the end of that

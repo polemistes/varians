@@ -1061,10 +1061,7 @@ function restoreCaret(offset: number, side: 'before' | 'after' | null = null) {
     // durable, and a DOM-derived answer was lost on the very next patch.
     const afterBreak =
         offset > 0 && cpSlice(props.text, offset - 1, offset) === '\n';
-    const point = pointAt(
-        offset,
-        side ?? (afterBreak || emptyNearSide(offset) ? 'after' : null),
-    );
+    const point = pointAt(offset, side ?? (afterBreak ? 'after' : null));
 
     if (!point || !containerEl.value) {
         return;
@@ -1121,24 +1118,6 @@ onUpdated(() => {
         restoreCaret(offset, side);
     }
 });
-
-/**
- * Whether the near side of a marker at this offset belongs to nobody — a
- * citation begins here and none ends here. The caret must not rest there:
- * it would report the near side, nothing would claim what was typed, and
- * the words would come out unassigned between two citations (user report).
- * Where two citations MEET the near side is real, and is left alone.
- */
-function emptyNearSide(offset: number): boolean {
-    const live = (props.segments ?? []).filter(
-        (segment) => segment.end_offset > segment.start_offset,
-    );
-
-    return (
-        live.some((segment) => segment.start_offset === offset) &&
-        !live.some((segment) => segment.end_offset === offset)
-    );
-}
 
 /**
  * Where the caret is, and which side of a MARKER it stands on if it stands

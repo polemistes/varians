@@ -289,10 +289,12 @@ class SpanTransformer
      * therefore does NOT write into the citation it announces; whatever ends
      * against the marker takes it, or nobody does.
      *
-     * The near side of a marker is only somebody else's where a citation
-     * actually ENDS there. Withholding the claim regardless left words typed
-     * at a citation's marker belonging to nobody, which is how unassigned
-     * text appeared between two citations (user report).
+     * The near side of a marker belongs to WHAT LIES BEFORE IT — the
+     * citation ending against it, or the one carrying on from further back
+     * across nothing but whitespace. Never to the citation the marker
+     * announces: arrowing the caret back past a marker and typing put the
+     * words at the start of the following line instead of the end of the
+     * one the caret stood in (user report).
      *
      * A citation never BEGINS with whitespace, so it does not claim a space
      * or a line break typed at its first character: that whitespace belongs
@@ -318,8 +320,7 @@ class SpanTransformer
                 return $index;
             }
 
-            if ($p === $span['start'] && ! $opensWithSpace
-                && ($side !== 'before' || ! self::spanEndsAt($spans, $p))) {
+            if ($p === $span['start'] && ! $opensWithSpace && $side !== 'before') {
                 return $index;
             }
 
@@ -398,23 +399,6 @@ class SpanTransformer
     {
         foreach ($spans as $span) {
             if ($span['carried'] === null && $span['end'] > $span['start'] && $span['start'] === $p) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Whether a live span ends exactly here — whether, in other words, the
-     * near side of a marker at this offset belongs to anybody.
-     *
-     * @param  list<WorkingSpan>  $spans
-     */
-    private static function spanEndsAt(array $spans, int $p): bool
-    {
-        foreach ($spans as $span) {
-            if ($span['carried'] === null && $span['end'] > $span['start'] && $span['end'] === $p) {
                 return true;
             }
         }
