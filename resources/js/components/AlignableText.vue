@@ -861,6 +861,8 @@ function onContainerKeydown(event: KeyboardEvent) {
         return;
     }
 
+    stepOverMarker(event);
+
     const modifier = event.ctrlKey || event.metaKey;
 
     if (!modifier || event.altKey) {
@@ -885,6 +887,56 @@ function onContainerKeydown(event: KeyboardEvent) {
         event.preventDefault();
         emit('redo');
     }
+}
+
+/**
+ * An arrow key must always move the caret in the TEXT. A marker holds no
+ * text but stands between characters, so the browser stops on each side of
+ * it — and crossing from one side to the other moved the caret on screen
+ * while leaving it at the same offset. One press appeared to do nothing, and
+ * two were needed to move over a single character (user report: "having to
+ * press the arrow key twice for the caret to move once is not normal").
+ *
+ * So a marker's near side is no place to stop, and the caret is stepped over
+ * it in whichever direction it arrived. The one exception is where a
+ * citation genuinely ENDS at that offset: two citations meeting flush have a
+ * real position on each side, and an editor must be able to reach both.
+ *
+ * Read after the browser has moved the caret, since the move happens in the
+ * default action this listener runs ahead of.
+ */
+function stepOverMarker(event: KeyboardEvent) {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+        return;
+    }
+
+    if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) {
+        return;
+    }
+
+    const right = event.key === 'ArrowRight';
+
+    window.setTimeout(() => {
+        const offset = liveCaretOffset();
+
+        if (offset === null || markerSide() !== 'before') {
+            return;
+        }
+
+        const ends = (props.segments ?? []).some(
+            (segment) =>
+                segment.end_offset === offset &&
+                segment.end_offset > segment.start_offset,
+        );
+
+        if (ends) {
+            return;
+        }
+
+        // Leftward, on past the marker to the character before it; rightward,
+        // over to its far side, where the citation's own words begin.
+        restoreCaret(right ? offset : offset - 1, right ? 'after' : null);
+    }, 0);
 }
 
 function onBeforeInput(event: InputEvent) {

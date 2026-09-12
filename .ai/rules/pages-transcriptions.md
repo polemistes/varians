@@ -333,6 +333,26 @@ click precisely. GRAY SLOTS either side of the chip asked the editor to say
 "this is nobody's" by clicking — gone (user decision): the marker should not
 be noticed at all, and the caret already knows which side it is on.
 
+## An arrow key always moves the caret in the TEXT
+A marker holds no text but stands between characters, so the browser stops
+on EACH SIDE of it. Crossing from one side to the other moves the caret on
+screen while leaving it at the same text offset: one press appeared to do
+nothing, and two were needed to pass a single character (user report — "the
+primary goal is to make the interface work as an ordinary editor window").
+
+`stepOverMarker`, called from the keydown handler for a bare ArrowLeft or
+ArrowRight, therefore steps the caret over a marker's NEAR side in whichever
+direction it arrived: leftward on to the character before, rightward across
+to the far side where the citation's own words begin. It reads the caret
+AFTER the browser has moved it (a zero timeout), since the move happens in
+the default action the listener runs ahead of.
+
+The exception is where a citation genuinely ENDS at that offset: two
+citations meeting flush have a real position on each side and an editor must
+be able to reach both, so the near side is left alone there. Verified in the
+browser both ways — one press moves one character between separated
+citations, and the flush pair still stops on both sides.
+
 ## A marker's near side belongs to WHAT LIES BEFORE IT
 The caret on a marker's near side is standing at the end of the citation
 above, so that is what takes what is typed: the citation ending against the
