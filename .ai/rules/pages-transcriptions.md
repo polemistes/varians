@@ -333,6 +333,27 @@ click precisely. GRAY SLOTS either side of the chip asked the editor to say
 "this is nobody's" by clicking — gone (user decision): the marker should not
 be noticed at all, and the caret already knows which side it is on.
 
+## A caret just past a line break belongs on the NEW line
+One offset is two DOM positions wherever a text node ends: the end of that
+node and the start of the next. The browser draws the FORMER at the end of
+the OLD line, so after Enter the caret stayed behind while the text moved
+down — and Delete, pressed at what looked like the end of the line, then
+took the first character of the next line instead of the break. Both were
+reported as separate bugs; they are one.
+
+`restoreCaret` therefore asks `pointAt` for the LATER of the two positions
+whenever the character before the offset is a newline, and it reads that
+FROM THE TEXT (`props.text`), not from the DOM. Chunks merge and split
+between renders, so which node the caret happens to occupy says nothing
+durable: a DOM-derived answer was lost on the very next patch, which is why
+an earlier attempt at this failed while looking correct. What IS carried
+across a patch is the MARKER side (`liveCaretPlace`), since no text can say
+which side of a marker the caret was on.
+
+This was only ever visible in a browser. Neither the type checker nor the
+suite can see a caret drawn on the wrong line — verify it by pressing the
+keys.
+
 ## Backspace and Delete reach across a citation's marker
 A marker is a real element in the editable flow and carries no text, so the
 browser aims a Backspace with the caret just after it at the MARKER, not at

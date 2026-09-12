@@ -739,6 +739,7 @@ function applyAndRestoreCaret(
 
     emit('edit', side === null ? op : { ...op, side }, source);
     // Back to the side it was typed on: a caret never crosses a marker.
+    // restoreCaret settles the line-break case by itself.
     void nextTick(() => restoreCaret(targetOffset, side));
 }
 
@@ -1045,7 +1046,18 @@ function pointAt(
 }
 
 function restoreCaret(offset: number, side: 'before' | 'after' | null = null) {
-    const point = pointAt(offset, side);
+    // A caret just past a LINE BREAK belongs on the new line. The position at
+    // the end of a text node and the one at the start of the next are the
+    // same offset, and the browser draws the former at the end of the OLD
+    // line — so Enter left the caret behind, and Delete then took the first
+    // character of the next line rather than the break (both reported).
+    //
+    // Read from the TEXT, not the DOM: chunks merge and split between
+    // renders, so which node the caret happens to sit in says nothing
+    // durable, and a DOM-derived answer was lost on the very next patch.
+    const afterBreak =
+        offset > 0 && cpSlice(props.text, offset - 1, offset) === '\n';
+    const point = pointAt(offset, side ?? (afterBreak ? 'after' : null));
 
     if (!point || !containerEl.value) {
         return;
@@ -1076,10 +1088,13 @@ function restoreCaret(offset: number, side: 'before' | 'after' | null = null) {
 // applyAndRestoreCaret's own nextTick restore, which runs after onUpdated
 // and wins. So: capture the live caret just before every patch, and put it
 // back if the patch displaced it.
-let caretBeforePatch: number | null = null;
+let caretBeforePatch: {
+    offset: number;
+    side: 'before' | 'after' | null;
+} | null = null;
 
 onBeforeUpdate(() => {
-    caretBeforePatch = liveCaretOffset();
+    caretBeforePatch = liveCaretPlace();
 });
 
 onUpdated(() => {
@@ -1087,13 +1102,33 @@ onUpdated(() => {
         return;
     }
 
-    const offset = caretBeforePatch;
+    const { offset, side } = caretBeforePatch;
     caretBeforePatch = null;
 
     if (liveCaretOffset() !== offset) {
-        restoreCaret(offset);
+        // WITH its side. One offset can be two places — after a line break
+        // or across a marker — and putting it back without saying which
+        // undid the landing an edit had just chosen: the caret slid back up
+        // to the end of the old line on the next re-render (real bug, and
+        // why Enter appeared to leave the caret behind).
+        restoreCaret(offset, side);
     }
 });
+
+/**
+ * Where the caret is, and which side of a MARKER it stands on if it stands
+ * at one. Only the marker side is worth carrying across a patch: the
+ * line-break case restoreCaret derives from the text, which survives the
+ * chunks being regrouped.
+ */
+function liveCaretPlace(): {
+    offset: number;
+    side: 'before' | 'after' | null;
+} | null {
+    const offset = liveCaretOffset();
+
+    return offset === null ? null : { offset, side: markerSide() };
+}
 
 /**
  * The collapsed caret's character offset — only while the writer is focused
