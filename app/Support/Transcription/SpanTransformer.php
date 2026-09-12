@@ -65,10 +65,10 @@ class SpanTransformer
 {
     /**
      * @param  list<array{start: int, end: int, needsReview: bool}>  $spans
-     * @param  list<array{start: int, end: int, text: string, cut_id?: string|null, side?: string|null}>  $ops
+     * @param  list<array{start: int, end: int, text: string, cut_id?: string|null, side?: string|null, imported?: bool}>  $ops
      * @return list<array{start: int, end: int, needsReview: bool, deleted: bool}>
      */
-    public static function transform(array $spans, array $ops, bool $takesTextAtStart = false): array
+    public static function transform(array $spans, array $ops, bool $takesTextAtStart = false, ?string $text = null): array
     {
         $results = array_map(fn (array $span) => [
             'start' => $span['start'],
@@ -84,7 +84,7 @@ class SpanTransformer
             $isPaste = $cutId !== null && $op['text'] !== '' && $op['start'] === $op['end'];
             // Which citation, if any, takes what is typed here.
             $claim = $takesTextAtStart && $op['start'] === $op['end'] && ! $isPaste
-                ? self::claimant($results, $op['start'], $op['side'] ?? null, $op['text'])
+                ? self::claimant($results, $op['start'], $op['side'] ?? null, $op['text'], $text, (bool) ($op['imported'] ?? false))
                 : null;
             $index = -1;
 
@@ -126,6 +126,10 @@ class SpanTransformer
 
                 return self::applyOp($span, $op, $isPaste, $beginsHere, $takesTextAtStart);
             }, $results);
+
+            if ($text !== null) {
+                $text = mb_substr($text, 0, $op['start']).$op['text'].mb_substr($text, $op['end']);
+            }
         }
 
         return array_map(function (array $span) {
@@ -225,7 +229,11 @@ class SpanTransformer
         // along (see claimant()).
         if ($citations && ! $isRelocationPaste) {
             if ($claims) {
-                $span['end'] += $insertedLen;
+                // A citation carrying on across a gap has to reach over the
+                // whitespace to cover what was typed beyond it.
+                $span['end'] = $p > $span['end']
+                    ? $p + $insertedLen
+                    : $span['end'] + $insertedLen;
 
                 return $span;
             }
@@ -296,7 +304,7 @@ class SpanTransformer
      *
      * @param  list<WorkingSpan>  $spans
      */
-    private static function claimant(array $spans, int $p, ?string $side = null, string $inserted = ''): ?int
+    private static function claimant(array $spans, int $p, ?string $side = null, string $inserted = '', ?string $text = null, bool $imported = false): ?int
     {
         $atEnd = null;
         $opensWithSpace = $inserted !== '' && preg_match('/^\s/u', $inserted) === 1;
@@ -320,7 +328,81 @@ class SpanTransformer
             }
         }
 
-        return $atEnd;
+        if ($atEnd !== null) {
+            return $atEnd;
+        }
+
+        // Whitespace typed at a citation's first character is the gap above
+        // it, and must not be handed to the citation BEFORE either — or
+        // pressing Enter at the start of a cited line would stretch the line
+        // above instead of pushing this one down.
+        if ($opensWithSpace && self::spanStartsAt($spans, $p)) {
+            return null;
+        }
+
+        // Nothing touches the caret. Between two citations, with nothing but
+        // whitespace either way, TYPING still must not leave words uncited
+        // in the midst of cited text (user decision) — the citation before
+        // takes them, carrying on where it left off. A deliberate stretch of
+        // uncited text is a thing an editor asks for outright, not something
+        // typing produces by accident. Imported text is the exception: it
+        // arrives uncited and stays so.
+        return $imported || $text === null ? null : self::enclosing($spans, $p, $text);
+    }
+
+    /**
+     * The citation that CARRIES ON at this point: the one ending before it
+     * with only whitespace between, provided another begins after it on the
+     * same terms. Where one side has no citation at all the caret is not in
+     * the midst of cited text, and what is typed there belongs to nobody.
+     *
+     * @param  list<WorkingSpan>  $spans
+     */
+    private static function enclosing(array $spans, int $p, string $text): ?int
+    {
+        $before = null;
+        $after = false;
+
+        foreach ($spans as $index => $span) {
+            if ($span['carried'] !== null || $span['end'] <= $span['start']) {
+                continue;
+            }
+
+            if ($span['end'] <= $p && self::onlySeparators($text, $span['end'], $p)
+                && ($before === null || $span['end'] > $spans[$before]['end'])) {
+                $before = $index;
+            }
+
+            if ($span['start'] >= $p && self::onlySeparators($text, $p, $span['start'])) {
+                $after = true;
+            }
+        }
+
+        return $after ? $before : null;
+    }
+
+    /** Whether everything between two offsets is separator, or nothing at all. */
+    private static function onlySeparators(string $text, int $from, int $to): bool
+    {
+        $between = mb_substr($text, $from, $to - $from);
+
+        return $between === '' || preg_match('/^\s+$/u', $between) === 1;
+    }
+
+    /**
+     * Whether a live span begins exactly here.
+     *
+     * @param  list<WorkingSpan>  $spans
+     */
+    private static function spanStartsAt(array $spans, int $p): bool
+    {
+        foreach ($spans as $span) {
+            if ($span['carried'] === null && $span['end'] > $span['start'] && $span['start'] === $p) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

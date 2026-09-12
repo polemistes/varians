@@ -481,9 +481,11 @@ test('whitespace typed against a citation stays in it — nothing is trimmed bac
         ->and(mb_substr('the quick  brown fox', 4, 6))->toBe('quick ');
 });
 
-test('typing in the gray gap between two citations belongs to neither', function () {
-    // The gap is where unassigned text lives. With room to stand in it, the
-    // caret touches no citation and what is typed there joins nothing.
+test('typing between two citations is taken up by the one before it', function () {
+    // User decision: typing can no longer leave words uncited in the midst
+    // of cited text. Standing on a blank line between two cited lines, the
+    // line before carries on over the break and takes what is written.
+    // Uncited text is something an editor asks for outright.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\n\nθεὰ Πηληϊάδεω"]);
     $first = TranscriptionSegment::factory()->for($transcription)->create([
@@ -493,15 +495,16 @@ test('typing in the gray gap between two citations belongs to neither', function
         'start_offset' => 13, 'end_offset' => 26,
     ]);
 
-    // Between the two line breaks: whitespace on both sides of the caret.
     $this->patch(route('transcriptions.text.update', $transcription), [
         'ops' => [['start' => 12, 'end' => 12, 'text' => 'σῆμα']],
         'text' => "μῆνιν ἄειδε\nσῆμα\nθεὰ Πηληϊάδεω",
     ])->assertRedirect();
 
-    expect([$first->fresh()->start_offset, $first->fresh()->end_offset])->toBe([0, 11])
-        ->and([$second->fresh()->start_offset, $second->fresh()->end_offset])->toBe([17, 30])
-        ->and(mb_substr("μῆνιν ἄειδε\nσῆμα\nθεὰ Πηληϊάδεω", 17, 3))->toBe('θεὰ');
+    $text = "μῆνιν ἄειδε\nσῆμα\nθεὰ Πηληϊάδεω";
+
+    expect(mb_substr($text, $first->fresh()->start_offset, $first->fresh()->end_offset - $first->fresh()->start_offset))
+        ->toBe("μῆνιν ἄειδε\nσῆμα")
+        ->and(mb_substr($text, $second->fresh()->start_offset, 3))->toBe('θεὰ');
 });
 
 test('deleting the line break before a citation runs it onto the line before, both citations intact', function () {
@@ -585,10 +588,10 @@ test('a word written with whitespace between it and a citation belongs to nobody
         ->toBe('θεὰ Πηληϊάδεω');
 });
 
-test('a word written between two citations, a buffer from each, belongs to neither', function () {
-    // Both neighbours a buffer away is the gap itself, and the gap is
-    // nobody's — which is what keeps one citation from swallowing the
-    // words meant to stand between them.
+test('text that ARRIVES between two citations stays uncited', function () {
+    // The exception to the rule above (user decision): a paste, a drop or an
+    // import comes in uncited and stays so. Only typing is held to citing
+    // what it lands among.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\n\nθεὰ Πηληϊάδεω"]);
     $first = TranscriptionSegment::factory()->for($transcription)->create([
@@ -599,7 +602,7 @@ test('a word written between two citations, a buffer from each, belongs to neith
     ]);
 
     $this->patch(route('transcriptions.text.update', $transcription), [
-        'ops' => [['start' => 12, 'end' => 12, 'text' => 'σῆμα']],
+        'ops' => [['start' => 12, 'end' => 12, 'text' => 'σῆμα', 'imported' => true]],
         'text' => "μῆνιν ἄειδε\nσῆμα\nθεὰ Πηληϊάδεω",
     ])->assertRedirect();
 

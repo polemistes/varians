@@ -184,8 +184,9 @@ const editedSegments = computed<TranscriptionSegment[]>(() => {
         })),
         editOps.value,
         // Citations claim what is typed against them; regions and readings
-        // do not.
+        // do not. The saved text is what the pending ops apply to.
         true,
+        layerText.value,
     );
 
     const mapped: (TranscriptionSegment | null)[] = layerSegments.value.map(

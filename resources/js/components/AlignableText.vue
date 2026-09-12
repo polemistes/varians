@@ -941,9 +941,13 @@ function onBeforeInput(event: InputEvent) {
     const op = opFromBeforeInput(event);
 
     if (op) {
+        const source = editSourceOf(event.inputType);
+
         applyAndRestoreCaret(
-            op,
-            editSourceOf(event.inputType),
+            // Arriving text stays uncited; typing is held to citing what it
+            // lands among. See SpanTransformer::claimant.
+            source === 'paste' ? { ...op, imported: true } : op,
+            source,
             op.start === op.end ? side : null,
         );
     }

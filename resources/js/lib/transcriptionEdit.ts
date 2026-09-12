@@ -33,6 +33,12 @@ export type TextEditOp = {
      */
     side?: 'before' | 'after' | null;
     /**
+     * Text that ARRIVED rather than being typed — a paste, a drop, an
+     * import. It comes in uncited and stays so; only typing is held to
+     * citing what it lands among.
+     */
+    imported?: boolean;
+    /**
      * What the sibling layer should receive where this op's `text` would
      * otherwise be replayed verbatim: an undo carries the sibling's own
      * former words (snapshotted when the edit was made), so undoing a
@@ -73,7 +79,9 @@ export function transformSpans(
     spans: Span[],
     ops: TextEditOp[],
     takesTextAtStart = false,
+    text: string | null = null,
 ): TransformedSpan[] {
+    let current = text;
     let results: WorkingSpan[] = spans.map((span) => ({
         ...span,
         deleted: false,
@@ -87,7 +95,14 @@ export function transformSpans(
         // Which citation, if any, takes what is typed here.
         const claim =
             takesTextAtStart && op.start === op.end && !isPaste
-                ? claimant(results, op.start, op.side ?? null, op.text)
+                ? claimant(
+                      results,
+                      op.start,
+                      op.side ?? null,
+                      op.text,
+                      current,
+                      op.imported === true,
+                  )
                 : null;
 
         results = results.map((span, index) => {
@@ -128,6 +143,14 @@ export function transformSpans(
 
             return applySpanOp(span, op, isPaste, claims, takesTextAtStart);
         });
+
+        if (current !== null) {
+            const chars = [...current];
+            current =
+                chars.slice(0, op.start).join('') +
+                op.text +
+                chars.slice(op.end).join('');
+        }
     }
 
     return results.map(({ carried, ...span }) =>
@@ -153,6 +176,8 @@ function claimant(
     p: number,
     side: 'before' | 'after' | null = null,
     inserted = '',
+    text: string | null = null,
+    imported = false,
 ): number | null {
     let atEnd: number | null = null;
     // A citation never begins with whitespace: a break typed at its first
@@ -182,7 +207,73 @@ function claimant(
         }
     }
 
-    return atEnd;
+    if (atEnd !== null) {
+        return atEnd;
+    }
+
+    // Whitespace typed at a citation's first character is the gap above it,
+    // and must not be handed to the citation BEFORE either — or Enter at the
+    // start of a cited line would stretch the line above instead of pushing
+    // this one down.
+    if (opensWithSpace && spanStartsAt(spans, p)) {
+        return null;
+    }
+
+    // Nothing touches the caret. Between two citations, TYPING still must
+    // not leave words uncited in the midst of cited text: the citation
+    // before carries on. Imported text is the exception — it arrives
+    // uncited and stays so.
+    return imported || text === null ? null : enclosing(spans, p, text);
+}
+
+/**
+ * The citation that CARRIES ON at this point: the one ending before it with
+ * only whitespace between, provided another begins after it on the same
+ * terms. Where one side has no citation the caret is not in the midst of
+ * cited text, and what is typed belongs to nobody.
+ */
+function enclosing(
+    spans: WorkingSpan[],
+    p: number,
+    text: string,
+): number | null {
+    let before: number | null = null;
+    let after = false;
+
+    for (const [index, span] of spans.entries()) {
+        if (span.carried !== null || span.end <= span.start) {
+            continue;
+        }
+
+        if (
+            span.end <= p &&
+            onlySeparators(text, span.end, p) &&
+            (before === null || span.end > spans[before].end)
+        ) {
+            before = index;
+        }
+
+        if (span.start >= p && onlySeparators(text, p, span.start)) {
+            after = true;
+        }
+    }
+
+    return after ? before : null;
+}
+
+/** Whether everything between two offsets is separator, or nothing at all. */
+function onlySeparators(text: string, from: number, to: number): boolean {
+    const between = [...text].slice(from, to).join('');
+
+    return between === '' || /^\s+$/u.test(between);
+}
+
+/** Whether a live span begins exactly here. */
+function spanStartsAt(spans: WorkingSpan[], p: number): boolean {
+    return spans.some(
+        (span) =>
+            span.carried === null && span.end > span.start && span.start === p,
+    );
 }
 
 /**
@@ -242,7 +333,12 @@ function applyInsertion(
     // grows to cover it, and every other is only pushed along.
     if (citations && !isRelocationPaste) {
         if (claims) {
-            return { ...span, end: span.end + insertedLen };
+            // A citation carrying on across a gap reaches over the
+            // whitespace to cover what was typed beyond it.
+            return {
+                ...span,
+                end: p > span.end ? p + insertedLen : span.end + insertedLen,
+            };
         }
 
         if (p <= span.start) {

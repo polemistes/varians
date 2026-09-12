@@ -38,6 +38,20 @@ that did (to keep a line going after a typed space) is gone; removing the
 trimming made it unnecessary, since the space itself now belongs to the
 citation and what follows touches it directly.
 
+TYPING CANNOT LEAVE WORDS UNCITED IN THE MIDST OF CITED TEXT (user
+decision). Where the caret touches nothing but a citation ends before it and
+another begins after it, with only whitespace either way, the citation
+BEFORE carries on and reaches over the gap to take what was typed
+(`enclosing`). A deliberate stretch of uncited text is something an editor
+asks for outright — a function of its own, still to be built — never
+something typing produces by accident. Where one side has no citation at all
+the caret is not in the midst of cited text, so typing after the last
+citation is uncited as before, which is how new text gets transcribed.
+
+Text that ARRIVES is the exception and stays uncited: an op carrying
+`imported` (the client sets it for a paste, a drop or an import) never
+claims across a gap. Only typing is held to citing what it lands among.
+
 A citation never BEGINS with whitespace. A space or a line break typed at
 its first character is left above it and the citation moves along onto its
 own first word, carrying its marker with it — pressing Enter at the start of

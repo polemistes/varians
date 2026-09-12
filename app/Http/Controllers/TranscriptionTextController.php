@@ -57,8 +57,8 @@ class TranscriptionTextController extends Controller
                 ]);
             }
 
-            $lostParts = $this->applySpans($transcription->segments, $ops, $recomputedText);
-            $this->applySpans($transcription->regions, $ops, $recomputedText);
+            $lostParts = $this->applySpans($transcription->segments, $ops, $recomputedText, $original);
+            $this->applySpans($transcription->regions, $ops, $recomputedText, $original);
             $this->applyPageBreaks($transcription, $ops, $recomputedText);
             $readingOutcome = $this->applyReadings($transcription, $ops, $recomputedText);
             $affected = $readingOutcome['editions'];
@@ -166,8 +166,8 @@ class TranscriptionTextController extends Controller
             return;
         }
 
-        $siblingLostParts = $this->applySpans($sibling->segments, $mirror['ops'], $mirror['text']);
-        $this->applySpans($sibling->regions, $mirror['ops'], $mirror['text']);
+        $siblingLostParts = $this->applySpans($sibling->segments, $mirror['ops'], $mirror['text'], $siblingBefore);
+        $this->applySpans($sibling->regions, $mirror['ops'], $mirror['text'], $siblingBefore);
         $siblingOutcome = $this->applyReadings($sibling, $mirror['ops'], $mirror['text']);
         $affected = [...$affected, ...$siblingOutcome['editions']];
 
@@ -188,8 +188,8 @@ class TranscriptionTextController extends Controller
      * A cut whose paste hasn't arrived in this save keeps its id — the
      * transformer degrades it to a deletion by itself.
      *
-     * @param  list<array{start: mixed, end: mixed, text: mixed, cut_id?: mixed, atomic?: mixed, mirror_text?: mixed, side?: mixed}>  $ops
-     * @return list<array{start: int, end: int, text: string, cut_id: string|null, atomic: bool, mirror_text: string|null, side: string|null}>
+     * @param  list<array{start: mixed, end: mixed, text: mixed, cut_id?: mixed, atomic?: mixed, mirror_text?: mixed, side?: mixed, imported?: mixed}>  $ops
+     * @return list<array{start: int, end: int, text: string, cut_id: string|null, atomic: bool, mirror_text: string|null, side: string|null, imported: bool}>
      */
     private function normalizeOps(array $ops, string $originalText): array
     {
@@ -211,6 +211,9 @@ class TranscriptionTextController extends Controller
             // one. The offset is the same on both sides; this is what tells
             // them apart. See SpanTransformer::claimant.
             'side' => in_array($op['side'] ?? null, ['before', 'after'], true) ? $op['side'] : null,
+            // Arrived rather than typed: it stays uncited where typing
+            // would have been made to cite. See SpanTransformer::claimant.
+            'imported' => (bool) ($op['imported'] ?? false),
         ], $ops);
 
         $running = $originalText;
@@ -333,7 +336,7 @@ class TranscriptionTextController extends Controller
      * @param  list<array{start: int, end: int, text: string, cut_id?: string|null}>  $ops
      * @return list<int> canonical passage ids that lost a cited part (segments only)
      */
-    private function applySpans(Collection $spans, array $ops, ?string $newText = null): array
+    private function applySpans(Collection $spans, array $ops, ?string $newText = null, ?string $textBefore = null): array
     {
         $spans = $spans->values();
 
@@ -347,6 +350,7 @@ class TranscriptionTextController extends Controller
             // Only citations claim what is typed against them; a region or a
             // reading is pushed along instead.
             $spans->first() instanceof TranscriptionSegment,
+            $textBefore,
         );
 
         // A relocation's citation consequences beyond offset moves: a cut

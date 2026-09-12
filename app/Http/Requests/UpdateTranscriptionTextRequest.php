@@ -57,6 +57,10 @@ class UpdateTranscriptionTextRequest extends FormRequest
             // sides measure to the same offset, so this is the one thing
             // the offset cannot say — see SpanTransformer::claimant.
             'ops.*.side' => ['sometimes', 'nullable', Rule::in(['before', 'after'])],
+            // Text that ARRIVED rather than being typed — a paste, a drop,
+            // an import. It comes in uncited and stays so; only typing is
+            // held to citing what it lands among.
+            'ops.*.imported' => ['sometimes', 'boolean'],
             // The sibling's own former words for a mirrored undo — see
             // LayerMirror; verbatim replay when absent.
             'ops.*.mirror_text' => ['sometimes', 'nullable', 'string'],
