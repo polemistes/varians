@@ -81,3 +81,35 @@ test('the counts a deletion warning needs come with the lists', function () {
         ->where('works.0.transcription_segments_count', 2)
     );
 });
+
+test('every front-page row names its owner and when it was made, so copies are told apart', function () {
+    // A copy keeps the original's title and siglum, so without the owner
+    // and the date the lists show two identical rows (user report).
+    $owner = User::factory()->create(['name' => 'Anna Lyt']);
+    $work = Work::factory()->for($owner)->create(['title' => 'Lysistrata']);
+    $edition = Edition::factory()->for($work)->for($owner)->create(['title' => 'Editio maior', 'visibility' => 'published']);
+    $witness = Witness::factory()->for($owner)->create(['siglum' => 'A']);
+    $layer = TranscriptionLayer::factory()->for($witness)->create(['text' => 'the quick fox']);
+    $passage = CanonicalPassage::factory()->for($work)->create();
+    TranscriptionSegment::factory()->for($layer)->for($passage, 'canonicalPassage')
+        ->create(['start_offset' => 0, 'end_offset' => 13]);
+    $layer->transcription->update(['visibility' => 'published']);
+
+    $copier = User::factory()->create(['name' => 'Bent Sen']);
+    $this->actingAs($copier)->post(route('editions.copy', $edition))->assertRedirect();
+
+    $this->get(route('home'))->assertInertia(function (AssertInertia $page) {
+        // Two editions of the same title, told apart by owner.
+        $editions = collect($page->toArray()['props']['editions'])->where('title', 'Editio maior');
+        expect($editions)->toHaveCount(2)
+            ->and($editions->pluck('user.name')->sort()->values()->all())->toBe(['Anna Lyt', 'Bent Sen'])
+            ->and($editions->every(fn ($row) => filled($row['created_at'])))->toBeTrue();
+
+        $witnesses = collect($page->toArray()['props']['witnesses'])->where('siglum', 'A');
+        expect($witnesses->pluck('user.name')->sort()->values()->all())->toBe(['Anna Lyt', 'Bent Sen'])
+            ->and($witnesses->every(fn ($row) => filled($row['created_at'])))->toBeTrue();
+
+        $works = collect($page->toArray()['props']['works']);
+        expect($works->every(fn ($row) => filled($row['created_at']) && filled($row['user']['name'])))->toBeTrue();
+    });
+});

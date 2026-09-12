@@ -269,6 +269,9 @@ export type Transcription = {
     name: string;
     position: number;
     visibility: Visibility;
+    // When this transcript was made. A copied witness carries transcripts
+    // of the same name, so the date is what tells them apart.
+    created_at?: string | null;
     witness?: Witness;
     layers?: TranscriptionLayer[];
 };

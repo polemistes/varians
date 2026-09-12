@@ -29,28 +29,34 @@ class HomeController extends Controller
         // Deleting is the owner's alone, and an edition is made on a work
         // one may edit — each row says so, so the page offers only what
         // the policies would allow.
+        //
+        // Every row also carries its owner and when it was made: a copy
+        // keeps the original's title or siglum, so without those two the
+        // lists show several identical entries (user report).
         return Inertia::render('Home', [
             // Every member may start a work, a witness, an edition of her own.
             'can' => ['create' => $user !== null],
             'editions' => Edition::visibleTo($user)
-                ->with('work:id,title,slug')
+                ->with(['work:id,title,slug', 'user:id,name'])
                 ->orderBy('title')
-                ->get(['id', 'work_id', 'user_id', 'title', 'visibility'])
+                ->get(['id', 'work_id', 'user_id', 'title', 'visibility', 'created_at'])
                 ->each(fn (Edition $edition) => $edition->setAttribute('can_delete', $user?->can('delete', $edition) ?? false)),
 
             'works' => Work::visibleTo($user)
+                ->with('user:id,name')
                 ->withCount(['editions', 'transcriptionSegments'])
                 ->orderBy('title')
-                ->get(['id', 'user_id', 'title', 'slug', 'author'])
+                ->get(['id', 'user_id', 'title', 'slug', 'author', 'created_at'])
                 ->each(function (Work $work) use ($user): void {
                     $work->setAttribute('can_edit', $user?->can('update', $work) ?? false);
                     $work->setAttribute('can_delete', $user?->can('delete', $work) ?? false);
                 }),
 
             'witnesses' => Witness::visibleTo($user)
+                ->with('user:id,name')
                 ->withCount('transcriptions')
                 ->orderBy('siglum')
-                ->get(['id', 'user_id', 'siglum', 'label', 'date_text'])
+                ->get(['id', 'user_id', 'siglum', 'label', 'date_text', 'created_at'])
                 ->each(fn (Witness $witness) => $witness->setAttribute('can_delete', $user?->can('delete', $witness) ?? false)),
         ]);
     }

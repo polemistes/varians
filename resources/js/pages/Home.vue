@@ -3,6 +3,7 @@ import { Head, Link, router } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import AppHeader from '@/components/AppHeader.vue';
 import { confirmDeletion, pluralize } from '@/lib/deletionImpact';
+import { provenance, recordedAt } from '@/lib/provenance';
 import {
     create as createEdition,
     destroy as destroyEdition,
@@ -20,7 +21,15 @@ import {
 } from '@/routes/works';
 import type { Witness, Work } from '@/types/models';
 
-type EditionRow = {
+// `user` is the owner and `created_at` when the record was made — together
+// they are what tells a copy from the thing it was copied from, since the
+// name is the same. The owner can be null: the account was deleted.
+type Owned = {
+    user?: { id: number; name: string } | null;
+    created_at: string | null;
+};
+
+type EditionRow = Owned & {
     id: number;
     title: string;
     visibility: string;
@@ -28,17 +37,19 @@ type EditionRow = {
     can_delete: boolean;
 };
 
-type WorkRow = Pick<Work, 'id' | 'title' | 'slug' | 'author'> & {
-    editions_count: number;
-    transcription_segments_count: number;
-    can_edit: boolean;
-    can_delete: boolean;
-};
+type WorkRow = Pick<Work, 'id' | 'title' | 'slug' | 'author'> &
+    Owned & {
+        editions_count: number;
+        transcription_segments_count: number;
+        can_edit: boolean;
+        can_delete: boolean;
+    };
 
-type WitnessRow = Pick<Witness, 'id' | 'siglum' | 'label' | 'date_text'> & {
-    transcriptions_count: number;
-    can_delete: boolean;
-};
+type WitnessRow = Pick<Witness, 'id' | 'siglum' | 'label' | 'date_text'> &
+    Owned & {
+        transcriptions_count: number;
+        can_delete: boolean;
+    };
 
 const props = defineProps<{
     can: { create: boolean };
@@ -142,6 +153,16 @@ function removeWitness(witness: WitnessRow) {
                                     class="block text-xs text-stone-500 dark:text-stone-400"
                                     >{{ work.author }}</span
                                 >
+                                <span
+                                    class="block text-xs text-stone-400 dark:text-stone-500"
+                                    :title="recordedAt(work.created_at)"
+                                    >{{
+                                        provenance(
+                                            work.user?.name,
+                                            work.created_at,
+                                        )
+                                    }}</span
+                                >
                             </Link>
                             <button
                                 v-if="work.can_delete"
@@ -193,6 +214,16 @@ function removeWitness(witness: WitnessRow) {
                                         witness.label ?? witness.date_text ?? ''
                                     }}
                                 </span>
+                                <span
+                                    class="block text-xs text-stone-400 dark:text-stone-500"
+                                    :title="recordedAt(witness.created_at)"
+                                    >{{
+                                        provenance(
+                                            witness.user?.name,
+                                            witness.created_at,
+                                        )
+                                    }}</span
+                                >
                             </Link>
                             <button
                                 v-if="witness.can_delete"
@@ -282,6 +313,16 @@ function removeWitness(witness: WitnessRow) {
                                         &middot; {{ edition.visibility }}
                                     </template>
                                 </span>
+                                <span
+                                    class="block text-xs text-stone-400 dark:text-stone-500"
+                                    :title="recordedAt(edition.created_at)"
+                                    >{{
+                                        provenance(
+                                            edition.user?.name,
+                                            edition.created_at,
+                                        )
+                                    }}</span
+                                >
                             </Link>
                             <button
                                 v-if="edition.can_delete"
