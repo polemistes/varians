@@ -35,8 +35,8 @@ use WeakMap;
  */
 class DiplomaticCounterpart
 {
-    /** @var WeakMap<TranscriptionLayer, array<int, list<array{text: string, start: int, end: int}>|null>>|null */
-    private static ?WeakMap $tokenCache = null;
+    /** @var WeakMap<TranscriptionLayer, array<int, mixed>> */
+    private static WeakMap $tokenCache;
 
     /**
      * The diplomatic wording for the tokens a normalized span covers, or null
@@ -129,11 +129,17 @@ class DiplomaticCounterpart
         // another request or test with a different text under the same id
         // (real incident: the edition page spent two thirds of its time
         // re-tokenizing the same lines).
-        self::$tokenCache ??= new WeakMap;
+        if (! isset(self::$tokenCache)) {
+            self::$tokenCache = new WeakMap;
+        }
+
         $cached = self::$tokenCache[$transcription] ?? [];
 
         if (array_key_exists($segment->id, $cached)) {
-            return $cached[$segment->id];
+            /** @var list<array{text: string, start: int, end: int}>|null $tokens */
+            $tokens = $cached[$segment->id];
+
+            return $tokens;
         }
 
         $assignments = self::assignments($segment, $transcription);
