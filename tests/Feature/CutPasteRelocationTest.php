@@ -16,7 +16,7 @@ use App\Support\Edition\PassageAligner;
  * words. This replaces the old one-click "Move this passage" — the editor
  * now simply cuts and pastes in the always-editable transcript.
  */
-test('cut and paste of a cited span moves the citation with the words', function () {
+test('cut and paste of an assigned span moves the assignment with the words', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
     $segment = TranscriptionSegment::factory()->for($transcription)->create([
@@ -35,7 +35,7 @@ test('cut and paste of a cited span moves the citation with the words', function
     expect($transcription->fresh()->text)->toBe('the brown foxquick ');
 
     $segment->refresh();
-    // The citation travels with its words, exactly as it was cited — the
+    // The assignment travels with its words, exactly as it was assigned — the
     // trailing space it was made with included.
     expect($segment->start_offset)->toBe(13)
         ->and($segment->end_offset)->toBe(19)
@@ -43,10 +43,10 @@ test('cut and paste of a cited span moves the citation with the words', function
         ->and(mb_substr($transcription->fresh()->text, $segment->start_offset, 6))->toBe('quick ');
 });
 
-test('the same two ops WITHOUT a cut_id delete the citation instead of moving it', function () {
+test('the same two ops WITHOUT a cut_id delete the assignment instead of moving it', function () {
     // The inverse of the old MoveAssignedPassageTest raison-d'être case: a
     // plain delete + unrelated insert is not a relocation claim, and the
-    // deleted words take their citation with them.
+    // deleted words take their assignment with them.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
     $segment = TranscriptionSegment::factory()->for($transcription)->create([
@@ -90,7 +90,7 @@ test('mismatched cut ids re-pair by their text — the undo of a lone cut restor
         ->and($segment->needs_review)->toBeFalse();
 });
 
-test('a backward cut and paste moves the citation too', function () {
+test('a backward cut and paste moves the assignment too', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
     $segment = TranscriptionSegment::factory()->for($transcription)->create([
@@ -159,7 +159,7 @@ test('a collated reading inside the moved words travels with them', function () 
         ->and(mb_substr($transcription->fresh()->text, $quick->start_offset, 5))->toBe('quick');
 });
 
-test('a citation outside the moved stretch shifts rather than travelling', function () {
+test('an assignment outside the moved stretch shifts rather than travelling', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
     $fox = TranscriptionSegment::factory()->for($transcription)->create([
@@ -180,7 +180,7 @@ test('a citation outside the moved stretch shifts rather than travelling', funct
         ->and($fox->needs_review)->toBeFalse();
 });
 
-test('a cut saved without its paste deletes the citation — the text left, undo restores it', function () {
+test('a cut saved without its paste deletes the assignment — the text left, undo restores it', function () {
     // Autosave can split a cut and its paste across two requests; the
     // client holds the cut back within a window, and past it the cut
     // degrades to a plain deletion — restorable by undo like any other.
@@ -200,7 +200,7 @@ test('a cut saved without its paste deletes the citation — the text left, undo
 
 test('a paste whose text does not match its cut is not honoured as a relocation', function () {
     // The server recomputes what the cut removed; a client cannot pair
-    // unrelated ops and teleport a citation onto words it never covered.
+    // unrelated ops and teleport an assignment onto words it never covered.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
     $segment = TranscriptionSegment::factory()->for($transcription)->create([
@@ -215,14 +215,14 @@ test('a paste whose text does not match its cut is not honoured as a relocation'
         'text' => 'the brown foxDIFFERENT ',
     ])->assertRedirect();
 
-    // The claim degrades to a plain deletion — the citation goes with the
+    // The claim degrades to a plain deletion — the assignment goes with the
     // words it covered, never onto words it did not.
     expect(TranscriptionSegment::find($segment->id))->toBeNull();
 });
 
-test('pasting a cut line right after another cited line does not absorb into it', function () {
+test('pasting a cut line right after another assigned line does not absorb into it', function () {
     // The real scenario that surfaced this: relocate line one to after line
-    // two, with the paste landing exactly at line two's citation end.
+    // two, with the paste landing exactly at line two's assignment end.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "alpha\nbeta"]);
     $alpha = TranscriptionSegment::factory()->for($transcription)->create([
@@ -250,8 +250,8 @@ test('pasting a cut line right after another cited line does not absorb into it'
         ->and($alpha->needs_review)->toBeFalse();
 });
 
-test('a cut fragment of a cited span keeps its own citation as a new part, and splits the span it lands inside', function () {
-    // "the quick brown fox" cites α, "line two" cites β. Cut " brown fox"
+test('a cut fragment of an assigned span keeps its own assignment as a new part, and splits the span it lands inside', function () {
+    // "the quick brown fox" assigns α, "line two" assigns β. Cut " brown fox"
     // (the tail of α) and paste it into the middle of β, after "line".
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "the quick brown fox\nline two"]);
@@ -286,7 +286,7 @@ test('a cut fragment of a cited span keeps its own citation as a new part, and s
         ->and(mb_substr($text, $fragment->start_offset, 10))->toBe(' brown fox')
         ->and($fragment->needs_review)->toBeFalse();
 
-    // β keeps citing both sides of the arrival: split into two parts.
+    // β keeps assigning both sides of the arrival: split into two parts.
     $betaParts = TranscriptionSegment::where('transcription_layer_id', $transcription->id)
         ->where('canonical_passage_id', $beta->id)->inPartOrder()->get();
     expect($betaParts)->toHaveCount(2)
@@ -354,7 +354,7 @@ test('undoing a partial relocation merges the fragment back into its remainder',
     TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 15]); // "the quick brown"
 
-    // Cut " brown" out of the cited span and paste it at the end — the
+    // Cut " brown" out of the assigned span and paste it at the end — the
     // fragment becomes part 2 (the forward move).
     $this->patch(route('transcriptions.text.update', $transcription), [
         'ops' => [

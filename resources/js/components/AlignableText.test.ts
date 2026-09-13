@@ -6,8 +6,8 @@ import type { TextEditOp } from '@/lib/transcriptionEdit';
 import type { TranscriptionSegment } from '@/types/models';
 
 /**
- * The editable surface, checked where only a DOM can answer: which side of a
- * citation's MARKER the caret stands on. A marker holds no text, so both
+ * The editable surface, checked where only a DOM can answer: which side of an
+ * assignment's MARKER the caret stands on. A marker holds no text, so both
  * sides of it measure to the same offset and only the document order tells
  * them apart — everything that ever went wrong at a marker went wrong for
  * want of that. See .ai/rules/pages-transcriptions.md.
@@ -34,7 +34,7 @@ const segment = (
     },
 });
 
-/** "alpha gamma" — two citations with a space, so a marker stands at 6. */
+/** "alpha gamma" — two assignments with a space, so a marker stands at 6. */
 const surface = (
     text = 'alpha gamma',
     segments = [segment(1, 0, 5, '1'), segment(2, 6, 11, '2')],
@@ -144,7 +144,7 @@ const editFrom = (wrapper: VueWrapper): TextEditOp => {
 describe('the side of a marker an edit was made on', () => {
     it('is BEFORE when the caret stands against the text that precedes it', () => {
         const wrapper = surface();
-        // The space between the citations: its end is the marker's near side.
+        // The space between the assignments: its end is the marker's near side.
         typeAt(wrapper, nodeHolding(wrapper, ' '), 1);
 
         expect(editFrom(wrapper)).toMatchObject({
@@ -156,7 +156,7 @@ describe('the side of a marker an edit was made on', () => {
         wrapper.unmount();
     });
 
-    it('is AFTER when it stands against the citation’s own first word', () => {
+    it('is AFTER when it stands against the assignment’s own first word', () => {
         const wrapper = surface();
         typeAt(wrapper, nodeHolding(wrapper, 'gamma'), 0);
 
@@ -173,7 +173,7 @@ describe('the side of a marker an edit was made on', () => {
         // The browser parks these in an editable surface of its own accord
         // (beside a chip, at the end of the surface) and they come and go as
         // the DOM is patched. A walk that stopped at one reported no marker
-        // at all, so the near side silently began writing into the citation
+        // at all, so the near side silently began writing into the assignment
         // the marker announces — the real defect, and the reason it seemed
         // to come and go with no systematic occasion.
         const wrapper = surface();
@@ -196,7 +196,7 @@ describe('the side of a marker an edit was made on', () => {
 });
 
 describe('how an edit arrived', () => {
-    it('marks a paste as imported, so it comes in uncited', () => {
+    it('marks a paste as imported, so it comes in unassigned', () => {
         const wrapper = surface();
         typeAt(
             wrapper,

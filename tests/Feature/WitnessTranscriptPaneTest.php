@@ -16,18 +16,18 @@ use App\Support\Edition\PassageAdder;
 
 /**
  * The `witnessTranscripts` prop behind the edition page's witnesses pane:
- * every visible layer of every witness, whole, with every citation.
+ * every visible layer of every witness, whole, with every assignment.
  */
 
 /**
- * A work whose two canonical passages are cited by one witness, with the
+ * A work whose two canonical passages are assigned by one witness, with the
  * edition printing only the first. The transcript deliberately carries text
- * on both sides of the cited stretches, so a slice that failed to trim would
+ * on both sides of the assigned stretches, so a slice that failed to trim would
  * be obvious.
  *
  * @return array{work: Work, edition: Edition, witness: Witness, transcription: TranscriptionLayer, parent: Transcription}
  */
-function citedTranscript(string $layer = 'normalized'): array
+function assignedTranscript(string $layer = 'normalized'): array
 {
     $work = Work::factory()->create();
     $edition = Edition::factory()->for($work)->create();
@@ -65,10 +65,10 @@ function witnessTranscripts(Work $work, Edition $edition): array
         ->viewData('page')['props']['witnessTranscripts'];
 }
 
-test('a transcript is sent whole, with every citation', function () {
+test('a transcript is sent whole, with every assignment', function () {
     $this->actingAs(User::factory()->editor()->create());
 
-    ['work' => $work, 'edition' => $edition] = citedTranscript();
+    ['work' => $work, 'edition' => $edition] = assignedTranscript();
 
     $pane = witnessTranscripts($work, $edition);
 
@@ -84,7 +84,7 @@ test('a transcript is sent whole, with every citation', function () {
 test('a diplomatic entry names its normalized sibling, the layer an add draws on', function () {
     $this->actingAs(User::factory()->editor()->create());
 
-    ['work' => $work, 'edition' => $edition, 'parent' => $parent, 'transcription' => $normalized] = citedTranscript();
+    ['work' => $work, 'edition' => $edition, 'parent' => $parent, 'transcription' => $normalized] = assignedTranscript();
 
     $passage = CanonicalPassage::where('work_id', $work->id)->orderBy('sort_key')->first();
     $diplomatic = TranscriptionLayer::factory()->diplomatic()->for($parent)->published()
@@ -98,10 +98,10 @@ test('a diplomatic entry names its normalized sibling, the layer an add draws on
         ->and($entry['segments'][0]['canonical_passage']['label'])->toBe('1');
 });
 
-test('a discontinuous citation ships its part ordinals and whole-layer totals', function () {
+test('a discontinuous assignment ships its part ordinals and whole-layer totals', function () {
     $this->actingAs(User::factory()->editor()->create());
 
-    ['work' => $work, 'edition' => $edition, 'transcription' => $transcription] = citedTranscript();
+    ['work' => $work, 'edition' => $edition, 'transcription' => $transcription] = assignedTranscript();
 
     // Passage 1 stands in a second place too — a transposition split it.
     // The badge must say "1 · 1/2" / "1 · 2/2", so the payload carries a
@@ -125,7 +125,7 @@ test('a discontinuous citation ships its part ordinals and whole-layer totals', 
 test('both layers of a witness are offered', function () {
     $this->actingAs(User::factory()->editor()->create());
 
-    ['work' => $work, 'edition' => $edition, 'parent' => $parent] = citedTranscript();
+    ['work' => $work, 'edition' => $edition, 'parent' => $parent] = assignedTranscript();
 
     $passage = CanonicalPassage::where('work_id', $work->id)->orderBy('sort_key')->first();
     $diplomatic = TranscriptionLayer::factory()->diplomatic()->for($parent)->published()
@@ -142,7 +142,7 @@ test('both layers of a witness are offered', function () {
 });
 
 test('a draft transcription stays out of the pane for a reader', function () {
-    ['work' => $work, 'edition' => $edition] = citedTranscript();
+    ['work' => $work, 'edition' => $edition] = assignedTranscript();
 
     // Visibility belongs to the transcription, not to a layer, so a witness
     // still being worked on is hidden whole rather than layer by layer.
@@ -163,10 +163,10 @@ test('a draft transcription stays out of the pane for a reader', function () {
     expect(array_column(witnessTranscripts($work, $edition), 'siglum'))->toBe(['A', 'Z']);
 });
 
-test('the edition box lists every visible witness citing the work, marking those the edition draws on', function () {
-    ['work' => $work, 'edition' => $edition] = citedTranscript();
+test('the edition box lists every visible witness assigning text to the work, marking those the edition draws on', function () {
+    ['work' => $work, 'edition' => $edition] = assignedTranscript();
 
-    // A second witness cites the work but the edition has taken nothing
+    // A second witness assigns text to the work but the edition has taken nothing
     // from it yet — it must still appear, so an editor sees what is left.
     $passage = CanonicalPassage::where('work_id', $work->id)->orderBy('sort_key')->first();
     $unused = Witness::factory()->create(['siglum' => 'B', 'label' => 'Spare copy']);
@@ -197,7 +197,7 @@ test('the edition box lists every visible witness citing the work, marking those
 test('a transcript ships its page breaks as offsets in its own text, and the witness\'s pages', function () {
     $this->actingAs(User::factory()->editor()->create());
 
-    ['work' => $work, 'edition' => $edition, 'witness' => $witness, 'parent' => $parent, 'transcription' => $layer] = citedTranscript();
+    ['work' => $work, 'edition' => $edition, 'witness' => $witness, 'parent' => $parent, 'transcription' => $layer] = assignedTranscript();
     $layer->update(['text' => "XX alpha\nbeta YY"]);
 
     $recto = ManuscriptPage::create(['witness_id' => $witness->id, 'label' => 'f. 1r', 'position' => 1]);
@@ -216,7 +216,7 @@ test('a transcript ships its page breaks as offsets in its own text, and the wit
 test('a transcript ships its image alignments, so the image view can light up lines and regions', function () {
     $this->actingAs(User::factory()->editor()->create());
 
-    ['work' => $work, 'edition' => $edition, 'witness' => $witness, 'transcription' => $layer] = citedTranscript();
+    ['work' => $work, 'edition' => $edition, 'witness' => $witness, 'transcription' => $layer] = assignedTranscript();
     $page = ManuscriptPage::create(['witness_id' => $witness->id, 'label' => 'f. 1r', 'position' => 1]);
     $image = ManuscriptImage::factory()->create(['witness_id' => $witness->id, 'manuscript_page_id' => $page->id]);
     TranscriptionRegion::factory()->create([

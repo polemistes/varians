@@ -93,7 +93,7 @@ const lacunasOnPassage = computed(() =>
 
 // ---- reordering: a contiguous stretch, then arranged ----
 // The stretch is chosen by its two ends; the list between them, in
-// citation order, is what the editor rearranges.
+// numbering order, is what the editor rearranges.
 const stretch = ref<{ from: number | null; to: number | null }>({
     from: props.conjecture?.ordering.length
         ? [...props.conjecture.ordering]

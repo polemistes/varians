@@ -11,7 +11,7 @@ use App\Models\TranscriptionPageBreak;
 use App\Models\TranscriptionRegion;
 use App\Models\TranscriptionSegment;
 use App\Support\Edition\PassageAligner;
-use App\Support\Transcription\CitationIntegrity;
+use App\Support\Transcription\AssignmentIntegrity;
 use App\Support\Transcription\LayerMirror;
 use App\Support\Transcription\RelocationSegmentEffects;
 use App\Support\Transcription\SiblingSync;
@@ -28,7 +28,7 @@ class TranscriptionTextController extends Controller
 {
     /**
      * Apply an ordered log of exact edit operations to a transcription's text,
-     * transforming every citation span, image-alignment region, collation
+     * transforming every assignment span, image-alignment region, collation
      * reading and page break's offsets deterministically in the same pass —
      * see SpanTransformer for how.
      *
@@ -80,14 +80,14 @@ class TranscriptionTextController extends Controller
             SiblingSync::heal($transcription->refresh());
 
             // Whatever this save did to the spans, none may have left its
-            // words: a drifted citation is trimmed of whitespace and, if it
+            // words: a drifted assignment is trimmed of whitespace and, if it
             // still begins or ends inside a word, flagged for review — and
             // the ops that did it are logged, so the cause can be found.
             foreach ($transcription->transcription->layers()->get() as $layer) {
-                $drift = CitationIntegrity::snap($layer);
+                $drift = AssignmentIntegrity::snap($layer);
 
                 if ($drift !== []) {
-                    Log::warning('Citation spans drifted off their words after a text save', [
+                    Log::warning('Assignment spans drifted off their words after a text save', [
                         'layer' => $layer->id,
                         'edited_layer' => $transcription->id,
                         'ops' => $ops,
@@ -129,7 +129,7 @@ class TranscriptionTextController extends Controller
      * whole-word move means the same thing in either spelling.
      *
      * The mirrored ops run through the very same span pipeline, so the
-     * sibling's citation segments, image regions and collation readings
+     * sibling's assignment segments, image regions and collation readings
      * travel exactly as this layer's did. Page breaks are deliberately NOT
      * reapplied: they live on the transcription in line coordinates, shared
      * by both layers, and this layer's pass already moved them — a second
@@ -182,7 +182,7 @@ class TranscriptionTextController extends Controller
      * later insertion of *exactly* the deleted text makes spans inside the
      * cut travel with it (see SpanTransformer); the deleted text is
      * recomputed here by replaying the log against the stored text, so a
-     * client cannot pair unrelated ops and teleport a citation onto words it
+     * client cannot pair unrelated ops and teleport an assignment onto words it
      * never covered. A malformed claim keeps its op but loses the id,
      * degrading to an ordinary edit (which tombstones rather than destroys).
      * A cut whose paste hasn't arrived in this save keeps its id — the
@@ -211,8 +211,8 @@ class TranscriptionTextController extends Controller
             // one. The offset is the same on both sides; this is what tells
             // them apart. See SpanTransformer::claimant.
             'side' => in_array($op['side'] ?? null, ['before', 'after'], true) ? $op['side'] : null,
-            // Arrived rather than typed: it stays uncited where typing
-            // would have been made to cite. See SpanTransformer::claimant.
+            // Arrived rather than typed: it stays unassigned where typing
+            // would have been made to assign. See SpanTransformer::claimant.
             'imported' => (bool) ($op['imported'] ?? false),
         ], $ops);
 
@@ -267,7 +267,7 @@ class TranscriptionTextController extends Controller
      * arrive). Both halves declared relocation intent, so when an
      * outstanding cut removed exactly these characters the intent is
      * unambiguous: re-pair them by content rather than tombstone the very
-     * citations the undo was restoring.
+     * assignments the undo was restoring.
      *
      * @param  array{start: int, end: int, text: string}  $op
      * @param  array<string, string>  $cutTexts
@@ -334,7 +334,7 @@ class TranscriptionTextController extends Controller
     /**
      * @param  Collection<int, TranscriptionSegment>|Collection<int, TranscriptionRegion>  $spans
      * @param  list<array{start: int, end: int, text: string, cut_id?: string|null}>  $ops
-     * @return list<int> canonical passage ids that lost a cited part (segments only)
+     * @return list<int> canonical passage ids that lost an assigned part (segments only)
      */
     private function applySpans(Collection $spans, array $ops, ?string $newText = null, ?string $textBefore = null): array
     {
@@ -347,14 +347,14 @@ class TranscriptionTextController extends Controller
                 'needsReview' => (bool) $span->needs_review,
             ])->all()),
             $ops,
-            // Only citations claim what is typed against them; a region or a
+            // Only assignments claim what is typed against them; a region or a
             // reading is pushed along instead.
             $spans->first() instanceof TranscriptionSegment,
             $textBefore,
         );
 
-        // A relocation's citation consequences beyond offset moves: a cut
-        // FRAGMENT of a cited span becomes a new part of its own passage at
+        // A relocation's assignment consequences beyond offset moves: a cut
+        // FRAGMENT of an assigned span becomes a new part of its own passage at
         // the paste site, and a span the paste lands inside SPLITS around
         // the arrival instead of absorbing it. Segments only — see
         // RelocationSegmentEffects.
@@ -383,7 +383,7 @@ class TranscriptionTextController extends Controller
 
             if ($result['deleted']) {
                 // The manuscript no longer carries these words, so the
-                // citation goes with them: a citation without text is
+                // assignment goes with them: an assignment without text is
                 // nothing (user decision, reversing the earlier tombstone
                 // policy — a zero-width flagged marker preserved the
                 // assignment but never restored it, and read as clutter).
@@ -420,7 +420,7 @@ class TranscriptionTextController extends Controller
         }
 
         // Rows the relocation calls into being: cut fragments carrying
-        // their source's citation, and the right halves of split targets —
+        // their source's assignment, and the right halves of split targets —
         // each placed in its passage's part order next to the span it came
         // from (see TranscriptionSegment::$part).
         foreach ($effects['creates'] as $create) {
@@ -452,7 +452,7 @@ class TranscriptionTextController extends Controller
             $this->mergeRejoinedParts($spans->first()->transcriptionLayer, $newText);
         }
 
-        // A destroyed segment may have been one *part* of a passage cited
+        // A destroyed segment may have been one *part* of a passage assigned
         // by several spans — the passage's witness text lost a piece, so
         // its collation for this layer may be stale. That is the CALLER's
         // to resolve once the new text is saved (see recollateLostParts):
@@ -468,11 +468,11 @@ class TranscriptionTextController extends Controller
      * or separated by NOTHING BUT WHITESPACE into one row. A relocation that
      * cut a fragment out of a span created a separate part for it; UNDOING
      * that relocation carries the fragment back — the text rejoins, and so
-     * must the rows, or every move-and-undo leaves duplicate citations
+     * must the rows, or every move-and-undo leaves duplicate assignments
      * behind (real incident: one line 4, three rows, a badge saying 2/3).
      *
-     * Whitespace between them is no division: a citation owns none at its
-     * edges (CitationBounds), so two parts that read continuously stand a
+     * Whitespace between them is no division: an assignment owns none at its
+     * edges (AssignmentBounds), so two parts that read continuously stand a
      * space apart rather than flush. Parts genuinely in two places have real
      * words between them, so this cannot fuse a transposition back together.
      */
@@ -646,7 +646,7 @@ class TranscriptionTextController extends Controller
     }
 
     /**
-     * A passage that lost one of its cited parts has stale collation for
+     * A passage that lost one of its assigned parts has stale collation for
      * this layer — where a collation exists at all. Same narrowing as
      * damaged readings: re-derive rather than flag; where re-derivation is
      * refused (pinned readings hold the passage) flag the surviving parts,

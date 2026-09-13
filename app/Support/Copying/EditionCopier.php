@@ -24,8 +24,8 @@ use Illuminate\Support\Facades\DB;
 /**
  * Gives a member a public edition of her own: not the edition alone but
  * the whole of what it stands on — a copy of the work with its passages,
- * of every witness citing the work (their transcriptions, restricted to
- * what cites it), of the collation built on them, and of every conjecture
+ * of every witness assigning text to the work (their transcriptions, restricted to
+ * what assigns text to it), of the collation built on them, and of every conjecture
  * recorded against the work — so that editing the copy can never touch
  * the original. Lemma columns are shared by every edition of a WORK
  * (see Lemma), which is why a copy has to be a work of its own.
@@ -52,8 +52,8 @@ class EditionCopier
     }
 
     /**
-     * Every witness citing the work, with only the transcriptions that
-     * cite it — a codex's other texts belong to other works.
+     * Every witness assigning text to the work, with only the transcriptions that
+     * assign it — a codex's other texts belong to other works.
      *
      * @param  array<int, int>  $passages
      * @return array<int, int> old layer id → new
@@ -153,7 +153,7 @@ class EditionCopier
     /**
      * The columns and their candidate readings. A reading is skipped when
      * what it reads from was not copied — a layer of a transcription that
-     * does not cite this work cannot have one, so that is a safety net,
+     * does not assign this work cannot have one, so that is a safety net,
      * not an expected path.
      *
      * @param  array<int, int>  $passages

@@ -11,19 +11,19 @@ use App\Models\Witness;
 use App\Models\Work;
 
 /**
- * Deleting text deletes citations and image mappings; undoing the deletion
+ * Deleting text deletes assignments and image mappings; undoing the deletion
  * restores them all. The client's edit history snapshots the rows a
  * destructive op destroyed and posts them back here once the restored text
  * has saved.
  */
-test('undoing a destructive edit restores the citations it deleted', function () {
+test('undoing a destructive edit restores the assignments it deleted', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
     $passage = CanonicalPassage::factory()->for(Work::factory())->create();
     $segment = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 4, 'end_offset' => 7, 'part' => 1]);
 
-    // The destructive edit deletes the citation with its words...
+    // The destructive edit deletes the assignment with its words...
     $this->patch(route('transcriptions.text.update', $transcription), [
         'ops' => [['start' => 4, 'end' => 7, 'text' => '']],
         'text' => 'the  sat',
@@ -54,7 +54,7 @@ test('undoing a destructive edit restores the citations it deleted', function ()
 
 test('a restore is skipped where the landing words already carry the assignment', function () {
     // The undo of an unsaved lone cut completes the relocation pair and the
-    // citation rides home before the restore posts — recreating it would
+    // assignment rides home before the restore posts — recreating it would
     // duplicate the assignment.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
@@ -112,7 +112,7 @@ test('a restored span heals its counterpart in an in-step sibling layer', functi
         ->and($sibling->segments()->sole()->canonical_passage_id)->toBe($passage->id);
 });
 
-test('a guest cannot restore citation spans', function () {
+test('a guest cannot restore assignment spans', function () {
     $this->actingAs(User::factory()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
     $passage = CanonicalPassage::factory()->for(Work::factory())->create();

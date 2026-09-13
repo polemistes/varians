@@ -104,9 +104,9 @@ test('a guest cannot modify a span', function () {
     expect($segment->fresh()->start_offset)->toBe(0);
 });
 
-test('a citation moved to begin at the end of the line before it stays there through later edits', function () {
+test('an assignment moved to begin at the end of the line before it stays there through later edits', function () {
     // User report: the marker could not be pulled back to the previous
-    // line. Moving bounds is now an ordinary action on any citation, not
+    // line. Moving bounds is now an ordinary action on any assignment, not
     // one reserved for a span flagged for review.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);

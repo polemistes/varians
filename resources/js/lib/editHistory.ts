@@ -23,7 +23,7 @@
  *
  * Cut/paste pairs stay pairs when travelling through history: the inverse of
  * a relocation is a relocation back (delete the pasted text, re-insert it at
- * the cut point), so the inverses keep a shared cut_id and the citations
+ * the cut point), so the inverses keep a shared cut_id and the assignments
  * ride home. Every pass through undo/redo re-mints the ids — the server
  * validates a pair within one request, and a repeated id in one save would
  * be refused as already claimed.
@@ -32,7 +32,7 @@
 import type { TextEditOp } from '@/lib/transcriptionEdit';
 
 /**
- * The spans a destructive edit deleted — citation segments and
+ * The spans a destructive edit deleted — assignment segments and
  * image-mapping regions alike — snapshotted at record time in the
  * coordinates of the text the edit was applied to, which is exactly the
  * state an undo of that edit restores, so the offsets land verbatim.
@@ -154,7 +154,7 @@ export class EditHistory {
      * A cut and its paste are separate history entries, so the two halves of
      * a pair traverse undo/redo in separate `reIdentified` calls — minting
      * them independently left the halves with different ids, and the server
-     * then saw an unpaired cut and tombstoned the citation the undo was
+     * then saw an unpaired cut and tombstoned the assignment the undo was
      * restoring (real bug). Instead the DELETE half of a pair opens a fresh
      * id here, keyed by the original, and the matching INSERT half consumes
      * it — both traversal directions present the delete half first (undo
@@ -191,9 +191,9 @@ export class EditHistory {
             // cut, and its other half is the original cut op itself, still
             // sitting unsaved in the log under this very id (the unpaired-cut
             // hold keeps it there). Keep the id, so the pair completes and
-            // the flush relocates the citations home instead of tombstoning
+            // the flush relocates the assignments home instead of tombstoning
             // them (real bug: a fresh id here paired with nothing, and the
-            // undo of an accidental cut collapsed every citation the cut had
+            // undo of an accidental cut collapsed every assignment the cut had
             // covered). If the cut somehow saved already, a lone insert
             // claiming its id degrades to a plain edit server-side — exactly
             // what a fresh id would have done.
@@ -283,7 +283,7 @@ export class EditHistory {
     }
 
     /**
-     * The ops that revert the most recent step (plus the citation rows the
+     * The ops that revert the most recent step (plus the assignment rows the
      * step destroyed and where every span stood before it, for the caller
      * to restore once the text save lands), or null if there is none.
      */

@@ -53,7 +53,7 @@ What `applyReadings` does instead:
   re-chooses and DROPS a zero-width flagged row nothing selects any more.
   Segment/region flags keep their own rule: set on partial clobber,
   cleared by manual re-selection/redraw. A destroyed *segment* is **deleted** too (user
-  decision, REVERSING the earlier tombstone policy: a citation without text
+  decision, REVERSING the earlier tombstone policy: an assignment without text
   is nothing, and the zero-width flagged markers read as clutter and never
   actually restored anything). What protects the editor instead: cut/paste
   pairs carry spans whole, and UNDO restores the rows with the text — the client's `EditHistory` snapshots the segments
@@ -79,7 +79,7 @@ What `applyReadings` does instead:
   shifts offsets stays silent.
 
 Segments are disposable on destruction — with one addition: when a destroyed
-segment was one *part* of a passage cited by several spans in the layer (see
+segment was one *part* of a passage assigned by several spans in the layer (see
 `TranscriptionSegment.part`), the passage's collation for the layer may be
 stale, and `recollateLostParts` resolves it AFTER the new text saves, by the
 same narrowing as damaged readings: re-derive (`realignLayer`) where a
@@ -111,11 +111,11 @@ cannot catch them.
 
 `stripOps()` returns the change as ordinary edit operations, in descending
 order so each one's offsets are still valid when applied. Never replace the
-text wholesale: every citation span, image region and collated reading is
+text wholesale: every assignment span, image region and collated reading is
 recorded as offsets into it, and one op covering the document reads as
 "everything was replaced", flagging or destroying all of them. Character-level
 ops fall strictly inside any span covering them, which merely shifts that
-span's end — verified: stripping accents left a citation span covering the
+span's end — verified: stripping accents left an assignment span covering the
 same words, unflagged.
 
 `GreekText::foldOrthography` (diacritics + punctuation + case) is what
@@ -212,7 +212,7 @@ mirror); an unmirrorable plain op is merely skipped. The in-step check is
 STRUCTURAL (word shapes + whitespace verbatim), so layers whose lines
 drifted to hold DIFFERENT words in the same shape still pass it — and an
 index-mapped relocation then moves the wrong words (real incident: a
-mirrored paste landed mid-line, splitting a citation). `foldMatches`
+mirrored paste landed mid-line, splitting an assignment). `foldMatches`
 therefore verifies the words CORRESPOND before a cut or an atomic
 deletion/replacement mirrors: per word, folded equality or a shared folded
 prefix/suffix of ≥2 chars (letter-variant counterparts like
@@ -242,7 +242,7 @@ a second pass would move them twice (test-pinned).
 `App\Support\Transcription\WordSpans` (mirrored in
 `resources/js/lib/wordSpans.ts`; `WordSpansTest` is the contract) converts
 character offsets ⇄ word coordinates: word RANGES snap outward to whole
-words (citations are word-granular, user decision); sub-word ANCHORS
+words (assignments are word-granular, user decision); sub-word ANCHORS
 `{word, char}` serve facsimile mappings, read against each layer's own
 spelling and clamped to its length. This is the coordinate system segments
 and regions migrate to (spans stored ONCE per transcript, projected per
@@ -254,7 +254,7 @@ layer meet in word indices.
 A span is ONE identity seen from two layers: counterpart rows share a
 `group_id` (segments and regions both). `SiblingSync` creates the pair on
 assignment/mapping (projected through WordSpans: word ranges for
-citations, sub-word anchors for mappings), every mutation reaches the
+assignments, sub-word anchors for mappings), every mutation reaches the
 other half by the LINK (`counterpartSegment`/`counterpartRegion` — never
 by range-matching, which broke the moment the layers drifted), and
 `SiblingSync::heal()` runs after every text save: when the layers are in
@@ -292,43 +292,43 @@ two-letter deletion at a word's head, undone, glued ΜΗ onto the sibling's
 
 Undo also restores span BOUNDS, not only deleted rows: `SpanTransformer`
 gives a span's start right-gravity, so the undo of a deletion at a span's
-head pushes the span past the restored words (real bug: "the fox" cited,
-delete "fo", undo, citation covered "x"). The history snapshots every live
+head pushes the span past the restored words (real bug: "the fox" assigned,
+delete "fo", undo, assignment covered "x"). The history snapshots every live
 span before a step (`SpanSnapshots`, by row id); after the undo saves, rows
 whose saved bounds differ are posted as `adjust_segments`/`adjust_regions`
 to `transcription-spans.restore`, which updates them and lets the in-step
 counterpart follow (`SiblingSync::followSegment`/`followRegion`).
 
 ## One transcript per witness per work (user decision, 2026-09-09)
-Once a witness's text of a work is cited in one of its transcripts, every
-citation of that work in that witness belongs to the same transcript
+Once a witness's text of a work is assigned in one of its transcripts, every
+assignment of that work in that witness belongs to the same transcript
 (`App\Support\Transcription\WorkOwnership::guard`, called when a span is
-marked, re-cited, or copied across transcripts of the same witness). A
+marked, assign afreshd, or copied across transcripts of the same witness). A
 witness may still hold several transcripts for different works, or one
 for all its works; a work carried in two separate places fits one
 transcript, page breaks saying where each stretch sits. Existing data is
 never changed silently: `php artisan witnesses:check-work-ownership` lists
 what breaks the rule (`WorkOwnership::violations`) and the editor moves
-the citations. The edition page's witness pulldown relies on this (one
+the assignments. The edition page's witness pulldown relies on this (one
 witness, one transcript of the work), while still rendering several
 stacked if older data has them.
 
-## Citation spans are held to their words after every save (user decision)
-`CitationIntegrity::snap` runs after every save that can move a span —
-text update (both layers), undo restore, span copy, marking/re-citing a
+## Assignment spans are held to their words after every save (user decision)
+`AssignmentIntegrity::snap` runs after every save that can move a span —
+text update (both layers), undo restore, span copy, marking/re-assigning a
 span — and sets or clears `transcription_segments.boundary_review`: a
-span that begins or ends INSIDE a word (unless another citation meets it
+span that begins or ends INSIDE a word (unless another assignment meets it
 exactly there — two lines pasted flush together — or the neighbour is
-inside another citation) or overlaps another is flagged; when its bounds
+inside another assignment) or overlaps another is flagged; when its bounds
 are right again the flag clears by itself. Offsets are never touched.
 Whitespace at a span's edges is NOT drift: a drag over a line takes its
-line break along, and the relocation tests cite "quick " deliberately.
+line break along, and the relocation tests assign "quick " deliberately.
 The badge shows the flag like `needs_review` (red, dashed) with its own
 explanation; `needs_review` stays the editor's own confirmation flag.
 A text save that leaves a span drifted logs the ops (`Log::warning`,
-"Citation spans drifted off their words") so the cause can be found —
+"Assignment spans drifted off their words") so the cause can be found —
 one witness's spans slid a character, then a word, from a sequence of
 edits that was never recorded; the transform, mirror and undo paths all
-check out in isolation. `php artisan transcriptions:check-citations`
+check out in isolation. `php artisan transcriptions:check-assignments`
 lists drift across all layers; `--snap` re-evaluates the flags. The
-report and the snap share `CitationIntegrity::assess`.
+report and the snap share `AssignmentIntegrity::assess`.

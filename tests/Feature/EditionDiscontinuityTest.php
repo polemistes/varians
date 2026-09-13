@@ -11,7 +11,7 @@ use App\Models\Work;
 use App\Support\Edition\PassageAdder;
 
 /**
- * Two passages, two witnesses. A cites both contiguously; B's text for 1.1 is
+ * Two passages, two witnesses. A assigns both contiguously; B's text for 1.1 is
  * split — "the quick" in place, "fox" transposed to after 1.2.
  *
  * @return array{work: Work, edition: Edition}
@@ -68,7 +68,7 @@ test('a witness holding a passage in two places is reported on that passage, wit
                     ['part' => 2, 'after_label' => '1.2'],
                 ],
                 // A lone displaced fragment is located against its physical
-                // neighbour, cited by part number.
+                // neighbour, assigned by part number.
                 'statements' => ['B: 1.1 2/2 "fox" stands after 1.2'],
             ],
         ])
@@ -87,7 +87,7 @@ test('a sub-passage transposition does not register as a whole-passage order div
     expect(array_column($passages, 'order_range'))->toBe([null, null]);
 });
 
-test('the apparatus of a split-cited passage carries the witness\'s full text', function () {
+test('the apparatus of a split-assigned passage carries the witness\'s full text', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition] = editionWithSplitWitness();
 
@@ -106,7 +106,7 @@ test('the apparatus of a split-cited passage carries the witness\'s full text', 
 /**
  * The R2 scenario: witness C has the tails of two lines exchanged — 1.1's
  * text ends with words standing where 1.2's tail belongs and vice versa.
- * An apparatus reports this as ONE exchange with the fragments cited, not
+ * An apparatus reports this as ONE exchange with the fragments assigned, not
  * as two passages each standing in two places.
  *
  * @return array{work: Work, edition: Edition}

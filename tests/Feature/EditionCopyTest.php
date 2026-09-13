@@ -32,12 +32,12 @@ use Illuminate\Support\Facades\Storage;
 /**
  * A published edition standing on everything an edition can stand on: two
  * passages; a witness with a page, a photograph, a feature on it, a
- * two-layer transcription citing both passages (with counterpart spans, an
- * image mapping and a page break) and a second transcription citing
- * nothing; a lacuna with a supplement and a reordering, cited from the
+ * two-layer transcription assigning both passages (with counterpart spans, an
+ * image mapping and a page break) and a second transcription assigning
+ * nothing; a lacuna with a supplement and a reordering, assigned from the
  * bibliography; a lemma with a witness reading and a conjectural one; and
  * the edition's passages, selection, line break, note, adoption and
- * passage citation.
+ * passage assignment.
  *
  * @return array<string, mixed>
  */
@@ -65,8 +65,8 @@ function publishedEditionGraph(): array
     TranscriptionRegion::factory()->create(['transcription_layer_id' => $diplomatic->id, 'manuscript_image_id' => $image->id, 'text' => 'the', 'start_offset' => 0, 'end_offset' => 3, 'position' => 1, 'x' => 0.1, 'y' => 0.1, 'width' => 0.2, 'height' => 0.1, 'group_id' => 'region-1']);
     TranscriptionPageBreak::factory()->create(['transcription_id' => $transcription->id, 'manuscript_page_id' => $page->id, 'start_line' => 1]);
 
-    $uncited = Transcription::factory()->for($witness)->create();
-    TranscriptionLayer::factory()->for($uncited)->create(['text' => 'something else', 'user_id' => $owner->id]);
+    $unassigned = Transcription::factory()->for($witness)->create();
+    TranscriptionLayer::factory()->for($unassigned)->create(['text' => 'something else', 'user_id' => $owner->id]);
 
     $lacuna = Conjecture::factory()->for($owner)->for($p1, 'canonicalPassage')->create(['type' => ConjectureType::Lacuna, 'text' => null, 'visibility' => Visibility::Published]);
     $supplement = Conjecture::factory()->for($owner)->for($p1, 'canonicalPassage')->create(['type' => ConjectureType::Supplement, 'text' => 'slow', 'supplements_conjecture_id' => $lacuna->id, 'visibility' => Visibility::Published]);
@@ -90,7 +90,7 @@ function publishedEditionGraph(): array
     BibliographyReference::factory()->create(['bibliography_item_id' => $item->id, 'conjecture_id' => null, 'edition_id' => $edition->id, 'canonical_passage_id' => $p2->id]);
     $transcription->update(['visibility' => Visibility::Published]);
 
-    return compact('owner', 'work', 'edition', 'witness', 'transcription', 'uncited', 'normalized', 'lacuna', 'supplement', 'reordering', 'lemma', 'conjecturalReading', 'item', 'image');
+    return compact('owner', 'work', 'edition', 'witness', 'transcription', 'unassigned', 'normalized', 'lacuna', 'supplement', 'reordering', 'lemma', 'conjecturalReading', 'item', 'image');
 }
 
 test('copying an edition redirects to the COPY, not to the original work under the copy\'s edition id', function () {
@@ -131,7 +131,7 @@ test('copying a public edition gives the member a work, witnesses, conjectures a
         ->and($work->reference_scheme_id)->toBe($graph['work']->reference_scheme_id)
         ->and($work->canonicalPassages()->count())->toBe(2);
 
-    // The witness, with only the transcription that cites the work.
+    // The witness, with only the transcription that assigns text to the work.
     $witness = Witness::where('copied_from_id', $graph['witness']->id)->sole();
     expect($witness->user_id)->toBe($member->id)
         ->and($witness->siglum)->toBe('A')
@@ -238,7 +238,7 @@ test('a draft edition can be copied only by those who may edit it; a published o
     $this->post(route('editions.copy', $graph['edition']))->assertRedirect(route('login'));
 });
 
-test('copying a public witness gives the member its pages, photographs, transcriptions and citations', function () {
+test('copying a public witness gives the member its pages, photographs, transcriptions and assignments', function () {
     $graph = publishedEditionGraph();
     $member = User::factory()->create();
 
@@ -320,7 +320,7 @@ test('a copy carries only what the copier may see — no draft transcription, no
     $work = $graph['work'];
     $p1 = $work->canonicalPassages()->where('label', '1')->sole();
 
-    // A second transcription citing the work, kept as a draft after the
+    // A second transcription assigning text to the work, kept as a draft after the
     // edition was published, with a reading in the collation.
     $draft = Transcription::factory()->for($graph['witness'])->create(['visibility' => Visibility::Draft]);
     $draftLayer = TranscriptionLayer::factory()->for($draft)->create(['layer' => Layer::Normalized, 'text' => 'the quick fox', 'user_id' => $owner->id]);
@@ -354,7 +354,7 @@ test('a witness whose transcriptions the copier may not read is left out, not co
     $work = $graph['work'];
     $p1 = $work->canonicalPassages()->where('label', '1')->sole();
 
-    // A second witness citing the work, whose only transcription is a draft.
+    // A second witness assigning text to the work, whose only transcription is a draft.
     $hidden = Witness::factory()->for($graph['owner'])->create(['siglum' => 'Z']);
     $draft = Transcription::factory()->for($hidden)->create(['visibility' => Visibility::Draft]);
     $draftLayer = TranscriptionLayer::factory()->for($draft)->create(['layer' => Layer::Normalized, 'text' => 'the quick fox', 'user_id' => $graph['owner']->id]);

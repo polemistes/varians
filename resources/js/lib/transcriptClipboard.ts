@@ -1,6 +1,6 @@
 /**
  * What the last in-app transcript copy took, so a paste into ANOTHER layer
- * can bring the citation assignments and facsimile mappings along (see
+ * can bring the assignment assignments and facsimile mappings along (see
  * TranscriptionSpanCopyController). Module scope on purpose: the copy and
  * the paste happen in different pane components, and possibly across a
  * navigation between them.

@@ -34,7 +34,7 @@ import {
     storeBatch as storeRegionBatch,
 } from '@/routes/transcription-regions';
 import {
-    assign as assignCitationRoute,
+    assign as reassignRoute,
     destroy as destroySegment,
     store as storeSegment,
     update as updateSegment,
@@ -91,7 +91,7 @@ const emit = defineEmits<{
     (e: 'hover-region', id: number | null): void;
     /**
      * A paste that matches a copy from a SIBLING layer — the page flushes
-     * both panes, then posts the span import so the copied text's citations
+     * both panes, then posts the span import so the copied text's assignments
      * and mappings follow it (see TranscriptionSpanCopyController).
      */
     (
@@ -150,7 +150,7 @@ function transformedSpans<
     );
 
     // Destroyed spans drop from the preview — the server deletes them
-    // (deleting text deletes citations; undo restores both).
+    // (deleting text deletes assignments; undo restores both).
     return spans.flatMap((span, index) => {
         const result = transformed[index];
 
@@ -183,7 +183,7 @@ const editedSegments = computed<TranscriptionSegment[]>(() => {
             needsReview: span.needs_review,
         })),
         editOps.value,
-        // Citations claim what is typed against them; regions and readings
+        // Assignments claim what is typed against them; regions and readings
         // do not. The saved text is what the pending ops apply to.
         true,
         layerText.value,
@@ -250,7 +250,7 @@ const editedRegions = computed<TranscriptionRegion[]>(() =>
 
 // Blanking a transcript saves like any other edit (user decision: the
 // former wipe checkbox and server gate are gone) — undo restores the
-// citations and image mappings along with the text.
+// assignments and image mappings along with the text.
 const savingText = ref(false);
 const textSaveError = ref<string | null>(null);
 // The one save failure that cannot be retried: another editor changed the
@@ -288,8 +288,8 @@ const history = new EditHistory();
 const historyVersion = ref(0); // canUndo/canRedo are not reactive on their own
 
 // ---- cut/paste pairing: a cut op remembers exactly what it removed; the
-// first paste of that exact text gets the same cut_id, making the pair a
-// citation-preserving relocation (see SpanTransformer). Everything else is
+// first paste of that exact text gets the same cut_id, making the pair an
+// assignment-preserving relocation (see SpanTransformer). Everything else is
 // an ordinary edit.
 let cutCounter = 0;
 const outstandingCuts = new Map<string, string>(); // cut_id -> cut text
@@ -395,7 +395,7 @@ function inverseMirroring(
 }
 
 /**
- * The spans this op would destroy — citation segments AND image-mapping
+ * The spans this op would destroy — assignment segments AND image-mapping
  * regions — snapshotted in the pre-op text's coordinates: exactly the
  * state undoing the op restores, so the history can post them back
  * verbatim (deleting text deletes what was anchored to it; undo restores
@@ -496,7 +496,7 @@ function applyEdit(op: TextEditOp, source: PaneEditSource) {
             outstandingCuts.delete(match[0]);
         } else if (layer.value) {
             // Not a relocation — but possibly a COPY from another layer,
-            // whose citations and mappings should follow the text.
+            // whose assignments and mappings should follow the text.
             const copied = matchTranscriptCopy(op.text);
 
             if (copied && copied.layerId !== layer.value.id) {
@@ -538,7 +538,7 @@ function applyEdit(op: TextEditOp, source: PaneEditSource) {
     // first act is to flush this pane, and a flush that runs before the
     // push finds nothing to send — the span import then posts against
     // text the server hasn't seen and its match guard refuses everything
-    // (real bug: citations never followed a cross-witness copy).
+    // (real bug: assignments never followed a cross-witness copy).
     if (spanImport) {
         emit('import-spans', spanImport);
     }
@@ -565,7 +565,7 @@ function onEdit(op: TextEditOp, source: PaneEditSource = 'typing') {
     // out a new op here instead silently dropped `side` and `imported`, so
     // the marker side the surface had just read from the DOM never reached
     // the transformer, and text typed at a marker's near side went to the
-    // citation the marker announces (reported repeatedly, and unfindable
+    // assignment the marker announces (reported repeatedly, and unfindable
     // from the surface, which was computing the side correctly).
     applyEdit(shiftOp(op, pageStart.value), source);
 }
@@ -573,7 +573,7 @@ function onEdit(op: TextEditOp, source: PaneEditSource = 'typing') {
 /**
  * Strip a class of marks from the SELECTED text — one undo step, however
  * many ops it takes. Goes through the same pending-ops mechanism as typing,
- * rather than replacing the text outright: every citation span, image region
+ * rather than replacing the text outright: every assignment span, image region
  * and collated reading is recorded as offsets into this text, and a
  * wholesale replacement would read as "all of it changed".
  */
@@ -631,7 +631,7 @@ function applyHistoryStep(step: HistoryStep | null) {
     transformRememberedSelection(ops);
     textSaveError.value = null;
 
-    // Undoing a destructive edit restores the citations and image
+    // Undoing a destructive edit restores the assignments and image
     // mappings it deleted, and puts back the bounds of every span the
     // transform could not carry home on its own (a span whose head was
     // deleted is pushed past the restored words — see SpanSnapshots) —
@@ -1298,7 +1298,7 @@ function importFile(event: Event) {
             return;
         }
 
-        // Arrived rather than typed, so it comes in uncited (see
+        // Arrived rather than typed, so it comes in unassigned (see
         // SpanTransformer::claimant) — the same rule as a paste.
         applyEdit({ start: at, end: at, text, imported: true }, 'atomic');
 
@@ -1489,16 +1489,16 @@ const assignForm = useForm({ work_id: '' as number | '', label: '' });
 
 // Remembered across selections so a scholar marking up a run of consecutive
 // lines doesn't have to re-pick the work and retype the next line number
-// each time. Persisted per layer in localStorage: citing a manuscript is
+// each time. Persisted per layer in localStorage: assigning text to a manuscript is
 // multi-session work, and losing the running line number to a reload reads
 // as the feature being broken.
-function lastCitationKey(): string {
-    return `varians:last-citation:${layer.value?.id ?? 'none'}`;
+function lastAssignmentKey(): string {
+    return `varians:last-assignment:${layer.value?.id ?? 'none'}`;
 }
 
-function storedLastCitation(): { workId: number | ''; label: string } {
+function storedLastAssignment(): { workId: number | ''; label: string } {
     try {
-        const raw = localStorage.getItem(lastCitationKey());
+        const raw = localStorage.getItem(lastAssignmentKey());
 
         if (raw !== null) {
             const parsed = JSON.parse(raw) as {
@@ -1518,13 +1518,13 @@ function storedLastCitation(): { workId: number | ''; label: string } {
     return { workId: '', label: '' };
 }
 
-const lastWorkId = ref<number | ''>(storedLastCitation().workId);
-const lastLabel = ref(storedLastCitation().label);
+const lastWorkId = ref<number | ''>(storedLastAssignment().workId);
+const lastLabel = ref(storedLastAssignment().label);
 
 watch([lastWorkId, lastLabel], ([workId, label]) => {
     try {
         localStorage.setItem(
-            lastCitationKey(),
+            lastAssignmentKey(),
             JSON.stringify({ workId, label }),
         );
     } catch {
@@ -1535,7 +1535,7 @@ watch([lastWorkId, lastLabel], ([workId, label]) => {
 watch(
     () => layer.value?.id,
     () => {
-        const stored = storedLastCitation();
+        const stored = storedLastAssignment();
         lastWorkId.value = stored.workId;
         lastLabel.value = stored.label;
     },
@@ -1657,8 +1657,8 @@ const matchingSegment = computed<TranscriptionSegment | null>(() => {
     );
 });
 
-// The citation a selection overlaps, whatever its state. Moving a
-// citation's bounds used to be offered ONLY for one flagged for review,
+// The assignment a selection overlaps, whatever its state. Moving an
+// assignment's bounds used to be offered ONLY for one flagged for review,
 // which left a healthy one with no way to be resized at all — so a marker
 // could not be pulled back to the line before it (user report).
 const overlappingSegment = computed<TranscriptionSegment | null>(() => {
@@ -1914,9 +1914,9 @@ function placePage(pageId: number) {
     });
 }
 
-// ---- citation assignment ----
-// How many spans cite each passage across the whole layer, so badges can
-// mark the parts of a split-cited passage even when a sibling part sits on
+// ---- assignment assignment ----
+// How many spans assign each passage across the whole layer, so badges can
+// mark the parts of a split-assigned passage even when a sibling part sits on
 // another page.
 const layerPartTotals = computed<Record<number, number>>(() => {
     const totals: Record<number, number> = {};
@@ -1960,7 +1960,7 @@ const partOrdinals = computed<Record<number, number>>(() => {
 });
 
 // The spans this layer already has for the passage the form currently names
-// (excluding the one being re-cited, if any), in content order. Non-empty
+// (excluding the one being assign afreshd, if any), in content order. Non-empty
 // means saving adds another *part* of that passage rather than a new one —
 // the witness's text for it is discontinuous, a transposition split it.
 const existingParts = computed<TranscriptionSegment[]>(() => {
@@ -1988,8 +1988,8 @@ const partPlacement = ref<number | null>(null);
 // choice instead of a bare error.
 const realignmentWarning = ref<string | null>(null);
 
-// A span is always marked and cited in the same action — a span with no
-// citation would have no use to anyone, so there's no "assign later" step.
+// A span is always marked and assigned in the same action — a span with no
+// assignment would have no use to anyone, so there's no "assign later" step.
 // Pending text is flushed first: the offsets posted must be into the saved
 // text.
 function assignSelection(acknowledgeRealignment = false) {
@@ -2029,12 +2029,12 @@ function postAssignment(acknowledgeRealignment: boolean) {
         }
 
         assignError.value =
-            Object.values(errors)[0] ?? 'Could not assign that citation.';
+            Object.values(errors)[0] ?? 'Could not save that assignment.';
     };
 
     if (matchingSegment.value) {
         router.patch(
-            assignCitationRoute.url(matchingSegment.value.id),
+            reassignRoute.url(matchingSegment.value.id),
             { work_id: workId, label, ...partFields },
             {
                 preserveScroll: true,
@@ -2346,7 +2346,7 @@ defineExpose({
             v-if="layer && !canEdit"
             class="mb-2 text-xs text-stone-500 dark:text-stone-400"
         >
-            Click a citation badge for details.
+            Click an assignment marker for details.
         </p>
 
         <!-- The text. The floating selection actions (below) are a SIBLING
@@ -2530,7 +2530,7 @@ defineExpose({
                     class="flex flex-wrap items-center gap-2 text-sky-700 dark:text-sky-400"
                 >
                     <span>
-                        This layer already cites
+                        This layer already assigns text to
                         {{ assignForm.label }} — this span becomes another part
                         of it, reading
                     </span>
@@ -2602,14 +2602,14 @@ defineExpose({
                     >
                         {{
                             matchingSegment
-                                ? 'Update citation'
+                                ? 'Update assignment'
                                 : existingParts.length > 0
                                   ? 'Add as part'
                                   : 'Mark & assign'
                         }}
                     </button>
                     <!-- Moving a passage is plain cut & paste: the
-                             citation travels with the words. -->
+                             assignment travels with the words. -->
                     <button
                         v-if="matchingSegment"
                         type="button"

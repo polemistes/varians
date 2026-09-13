@@ -20,7 +20,7 @@ use App\Models\TranscriptionSegment;
  *
  * Two granularities, mirroring how lineation is stored:
  * - between passages: `EditionPassage.starts_new_line`/`starts_new_paragraph`,
- *   read off the whitespace between consecutive cited spans;
+ *   read off the whitespace between consecutive assigned spans;
  * - inside a passage: `EditionLineBreak` rows before collation columns,
  *   read off the whitespace between the layer's consecutive readings —
  *   colometry, which lyric drama needs from the start.
@@ -76,7 +76,7 @@ class LineationSeeder
     /**
      * Colometry inside the passage: a newline in the layer's text between
      * two consecutive readings becomes a break before the later reading's
-     * column. Gaps that jump between the parts of a discontinuous citation
+     * column. Gaps that jump between the parts of a discontinuous assignment
      * are physical displacement, not whitespace, and seed nothing.
      */
     public static function seedWithinPassage(EditionPassage $editionPassage, TranscriptionLayer $layer): void

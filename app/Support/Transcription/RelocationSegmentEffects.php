@@ -6,20 +6,20 @@ use App\Models\TranscriptionSegment;
 use Illuminate\Support\Collection;
 
 /**
- * The citation consequences of a cut/paste relocation that SpanTransformer
+ * The assignment consequences of a cut/paste relocation that SpanTransformer
  * cannot express, because they create or reshape rows rather than merely
  * moving offsets:
  *
- * - Cutting PART of a cited span and pasting it elsewhere is a sub-segment
+ * - Cutting PART of an assigned span and pasting it elsewhere is a sub-segment
  *   transposition: the fragment still reads as text of its original
  *   passage, so it becomes another *part* of that passage (see
  *   TranscriptionSegment::$part) — a new span at the paste site carrying
- *   the source's citation. The source keeps its citation on what remains,
+ *   the source's assignment. The source keeps its assignment on what remains,
  *   unflagged: nothing about the trim needs review once the fragment is
- *   properly re-cited.
+ *   properly assign afreshd.
  *
- * - Pasting INTO the middle of another cited span must not absorb the
- *   arrival into that citation: the target splits into two parts of its own
+ * - Pasting INTO the middle of another assigned span must not absorb the
+ *   arrival into that assignment: the target splits into two parts of its own
  *   passage, one on each side of the inserted text.
  *
  * This runs server-side only. The live preview shows the plain transform
@@ -105,7 +105,7 @@ class RelocationSegmentEffects
                     ];
 
                     // The trim is clean once the fragment carries the
-                    // citation on — don't leave the source flagged for a
+                    // assignment on — don't leave the source flagged for a
                     // review nothing needs.
                     if (! $original[$index]['needsReview']) {
                         $unflag[] = $index;
@@ -114,7 +114,7 @@ class RelocationSegmentEffects
             }
 
             // Split any segment the paste lands strictly inside: its passage
-            // keeps citing both sides, never absorbing the arrival.
+            // keeps assigning both sides, never absorbing the arrival.
             foreach ($segments as $index => $segment) {
                 $stateAtPaste = $atPaste[$index];
 

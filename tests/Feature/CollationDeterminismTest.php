@@ -31,8 +31,8 @@ function columnsOf(CanonicalPassage $passage): array
         ->values()->all();
 }
 
-/** Cite a passage from a new witness with the given siglum. */
-function citeAs(CanonicalPassage $passage, string $siglum, string $text): TranscriptionSegment
+/** Assign a passage from a new witness with the given siglum. */
+function assignAs(CanonicalPassage $passage, string $siglum, string $text): TranscriptionSegment
 {
     $transcription = TranscriptionLayer::factory()
         ->for(Witness::factory()->create(['siglum' => $siglum]))
@@ -43,7 +43,7 @@ function citeAs(CanonicalPassage $passage, string $siglum, string $text): Transc
 }
 
 /**
- * Collate a passage by citing every witness up front, then adding them to an
+ * Collate a passage by assigning every witness up front, then adding them to an
  * edition in `$addOrder`. Only the add order varies between runs.
  *
  * @param  array<string, string>  $texts  siglum => text
@@ -58,7 +58,7 @@ function columnsAddedInOrder(array $texts, array $addOrder): array
     $segments = [];
 
     foreach ($texts as $siglum => $text) {
-        $segments[$siglum] = citeAs($passage, $siglum, $text);
+        $segments[$siglum] = assignAs($passage, $siglum, $text);
     }
 
     $position = 1.0;
@@ -95,9 +95,9 @@ test('collation does not depend on the order the transcriptions were created', f
         ->toBe(columnsAddedInOrder($forward, ['A', 'B', 'C']));
 });
 
-test('a witness cited only after the passage was collated still yields the same columns', function () {
+test('a witness assigned only after the passage was collated still yields the same columns', function () {
     // What ordering alone cannot fix. A sorts first and so ought to seed the
-    // columns, but it is cited after B and C have already collated between
+    // columns, but it is assigned after B and C have already collated between
     // themselves; appended, it would never get to.
     $texts = ['A' => 'the fox sleeps', 'B' => 'the swift creature sleeps', 'C' => 'the creature sleeps'];
     $allPresent = columnsAddedInOrder($texts, ['A', 'B', 'C']);
@@ -106,11 +106,11 @@ test('a witness cited only after the passage was collated still yields the same 
     $passage = CanonicalPassage::factory()->for($work)->create();
     $edition = Edition::factory()->for($work)->create();
 
-    $b = citeAs($passage, 'B', $texts['B']);
-    citeAs($passage, 'C', $texts['C']);
+    $b = assignAs($passage, 'B', $texts['B']);
+    assignAs($passage, 'C', $texts['C']);
     PassageAdder::add($edition, $b, 1.0);
 
-    PassageAdder::add($edition, citeAs($passage, 'A', $texts['A']), 2.0);
+    PassageAdder::add($edition, assignAs($passage, 'A', $texts['A']), 2.0);
 
     expect(columnsOf($passage))->toBe($allPresent);
 });
@@ -120,7 +120,7 @@ test('a placed conjecture stops the rebuild and survives a later witness', funct
     $passage = CanonicalPassage::factory()->for($work)->create();
     $edition = Edition::factory()->for($work)->create();
 
-    PassageAdder::add($edition, citeAs($passage, 'B', 'the quick fox'), 1.0);
+    PassageAdder::add($edition, assignAs($passage, 'B', 'the quick fox'), 1.0);
 
     $middle = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->get()[1];
     $reading = $middle->readings()->create([
@@ -129,7 +129,7 @@ test('a placed conjecture stops the rebuild and survives a later witness', funct
 
     // "A" sorts before "B", so without the guard this would rebuild and take
     // the conjecture's column with it.
-    PassageAdder::add($edition, citeAs($passage, 'A', 'the slow fox'), 2.0);
+    PassageAdder::add($edition, assignAs($passage, 'A', 'the slow fox'), 2.0);
 
     expect(LemmaReading::whereKey($reading->id)->exists())->toBeTrue()
         ->and($reading->fresh()->lemma_id)->toBe($middle->id)
@@ -141,7 +141,7 @@ test("an edition's selection stops the rebuild and survives a later witness", fu
     $passage = CanonicalPassage::factory()->for($work)->create();
     $edition = Edition::factory()->for($work)->create();
 
-    PassageAdder::add($edition, citeAs($passage, 'B', 'the quick fox'), 1.0);
+    PassageAdder::add($edition, assignAs($passage, 'B', 'the quick fox'), 1.0);
 
     $middle = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->with('readings')->get()[1];
     $selection = EditionLemma::create([
@@ -150,7 +150,7 @@ test("an edition's selection stops the rebuild and survives a later witness", fu
         'selected_reading_id' => $middle->readings->first()->id,
     ]);
 
-    $later = citeAs($passage, 'A', 'the slow fox');
+    $later = assignAs($passage, 'A', 'the slow fox');
     PassageAdder::add($edition, $later, 2.0);
 
     expect(EditionLemma::whereKey($selection->id)->exists())->toBeTrue()

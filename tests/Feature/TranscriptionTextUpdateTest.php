@@ -10,7 +10,7 @@ use App\Models\TranscriptionRegion;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Support\Edition\PassageAligner;
-use App\Support\Transcription\CitationIntegrity;
+use App\Support\Transcription\AssignmentIntegrity;
 
 test('an insertion persists and shifts a trailing span', function () {
     $this->actingAs(User::factory()->editor()->create());
@@ -46,8 +46,8 @@ test('deleting everything down to an empty transcription persists once confirmed
 
     $response->assertRedirect();
     expect($transcription->fresh()->text)->toBe('')
-        // The citation went with its words — deleting text deletes
-        // citations; undo restores both.
+        // The assignment went with its words — deleting text deletes
+        // assignments; undo restores both.
         ->and(TranscriptionSegment::find($segment->id))->toBeNull();
 });
 
@@ -70,9 +70,9 @@ test('typing inside an existing segment extends it without flagging', function (
         ->and($segment->needs_review)->toBeFalse();
 });
 
-test('deleting a segment\'s entire text deletes it — a citation without text is nothing', function () {
+test('deleting a segment\'s entire text deletes it — an assignment without text is nothing', function () {
     // User decision, reversing the earlier tombstone policy: deleting text
-    // deletes citations. Undo protects the editor instead — the client's
+    // deletes assignments. Undo protects the editor instead — the client's
     // history snapshots what an op destroyed and restores it via
     // transcription-segments.restore when the deletion is undone.
     $this->actingAs(User::factory()->editor()->create());
@@ -90,7 +90,7 @@ test('deleting a segment\'s entire text deletes it — a citation without text i
     expect(TranscriptionSegment::find($segment->id))->toBeNull();
 });
 
-test('blanking a cited transcript removes its citations — undo is what brings them back', function () {
+test('blanking an assigned transcript removes its assignments — undo is what brings them back', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
     TranscriptionSegment::factory()->for($transcription)->create([
@@ -194,7 +194,7 @@ test('several disjoint ops in one save each transform their own span correctly',
     $segmentA->refresh();
     $segmentB->refresh();
     // "Xthe" and "satY" are each one word, and each belongs wholly to the
-    // citation of the word it grew from.
+    // assignment of the word it grew from.
     expect($segmentA->start_offset)->toBe(0)
         ->and($segmentA->end_offset)->toBe(4)
         ->and($segmentB->start_offset)->toBe(9)
@@ -214,7 +214,7 @@ test('a guest cannot edit a transcription\'s text', function () {
     expect($transcription->fresh()->text)->toBe('the cat sat');
 });
 
-test('destroying one part of an uncollated split citation flags nothing — there is nothing stale', function () {
+test('destroying one part of an uncollated split assignment flags nothing — there is nothing stale', function () {
     // The old rule blind-flagged the survivors; narrowed (user decision):
     // a layer never collated on the passage has no stale collation, so the
     // surviving part passes silently (real incident: a rearranged,
@@ -237,7 +237,7 @@ test('destroying one part of an uncollated split citation flags nothing — ther
         ->and($survivor->fresh()->needs_review)->toBeFalse();
 });
 
-test('destroying one part of a COLLATED split citation re-derives the collation', function () {
+test('destroying one part of a COLLATED split assignment re-derives the collation', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->normalized()->create(['text' => "fox\nthe quick"]);
     $passage = CanonicalPassage::factory()->create();
@@ -312,8 +312,8 @@ test('destroying a segment with no sibling parts flags nothing else', function (
         ->and($unrelated->fresh()->needs_review)->toBeFalse();
 });
 
-test('typing at the first character of a cited line writes into that line, not the back of the one before', function () {
-    // User report. Two citations meeting at offset 6 — 'μῆνιν' then
+test('typing at the first character of an assigned line writes into that line, not the back of the one before', function () {
+    // User report. Two assignments meeting at offset 6 — 'μῆνιν' then
     // 'ἄειδε' with no separator between them — and the caret placed at the
     // start of the second. The words typed there belong to the line being
     // written in.
@@ -340,7 +340,7 @@ test('typing at the first character of a cited line writes into that line, not t
         ->and($second->needs_review)->toBeFalse();
 });
 
-test('typing after a citation with a separator before the next still continues that citation', function () {
+test('typing after an assignment with a separator before the next still continues that assignment', function () {
     // The ordinary case is untouched: nothing begins at the caret, so
     // end-gravity carries on absorbing what is typed right after a span.
     $this->actingAs(User::factory()->editor()->create());
@@ -361,11 +361,11 @@ test('typing after a citation with a separator before the next still continues t
         ->and([$second->fresh()->start_offset, $second->fresh()->end_offset])->toBe([9, 14]);
 });
 
-test('typing at the start of a cited line joins that line, and leaves no citation inside a word', function () {
+test('typing at the start of an assigned line joins that line, and leaves no assignment inside a word', function () {
     // The reported case, in the layout 154 of the pairs in real data have:
-    // two cited lines with a newline between them, caret at the first
+    // two assigned lines with a newline between them, caret at the first
     // letter of the second. The letter used to fall outside both, leaving
-    // the second citation beginning inside a word and flagged for review.
+    // the second assignment beginning inside a word and flagged for review.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);
     $first = TranscriptionSegment::factory()->for($transcription)->create([
@@ -386,15 +386,15 @@ test('typing at the start of a cited line joins that line, and leaves no citatio
     // The letter is inside the line it was typed into...
     expect([$second->start_offset, $second->end_offset])->toBe([12, 26])
         ->and([$first->start_offset, $first->end_offset])->toBe([0, 11])
-        // ...so neither citation begins or ends inside a word.
+        // ...so neither assignment begins or ends inside a word.
         ->and($second->boundary_review)->toBeFalse()
         ->and($first->boundary_review)->toBeFalse()
-        ->and(CitationIntegrity::issues($transcription->fresh()))->toBe([]);
+        ->and(AssignmentIntegrity::issues($transcription->fresh()))->toBe([]);
 });
 
-test('a separator typed at the start of a cited line stays outside it', function () {
-    // A citation never BEGINS with whitespace: the space belongs above it,
-    // and the citation moves along onto its own first word.
+test('a separator typed at the start of an assigned line stays outside it', function () {
+    // An assignment never BEGINS with whitespace: the space belongs above it,
+    // and the assignment moves along onto its own first word.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);
     $second = TranscriptionSegment::factory()->for($transcription)->create([
@@ -409,9 +409,9 @@ test('a separator typed at the start of a cited line stays outside it', function
     expect([$second->fresh()->start_offset, $second->fresh()->end_offset])->toBe([13, 26]);
 });
 
-test('typing in front of a cited line writes into that line', function () {
-    // The rule an editor can see: the caret touches the citation's first
-    // word, so what is typed there belongs to that citation.
+test('typing in front of an assigned line writes into that line', function () {
+    // The rule an editor can see: the caret touches the assignment's first
+    // word, so what is typed there belongs to that assignment.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);
     $first = TranscriptionSegment::factory()->for($transcription)->create([
@@ -431,9 +431,9 @@ test('typing in front of a cited line writes into that line', function () {
         ->and($second->fresh()->boundary_review)->toBeFalse();
 });
 
-test('a whole word typed in front of a cited line belongs to it too, keystroke by keystroke', function () {
+test('a whole word typed in front of an assigned line belongs to it too, keystroke by keystroke', function () {
     // What follows from the same rule, and what the editor asked for: the
-    // citation grows with the words written into it, rather than giving
+    // assignment grows with the words written into it, rather than giving
     // them back the moment a space appears.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'μῆνιν ἄειδε θεὰ Πηληϊάδεω']);
@@ -460,9 +460,9 @@ test('a whole word typed in front of a cited line belongs to it too, keystroke b
         ->toBe('νῦν θεὰ Πηληϊάδεω');
 });
 
-test('whitespace typed against a citation stays in it — nothing is trimmed back out', function () {
+test('whitespace typed against an assignment stays in it — nothing is trimmed back out', function () {
     // User decision, reversing an earlier one: a space typed with the caret
-    // against the citation's words is the citation's. Pulling it back out
+    // against the assignment's words is the assignment's. Pulling it back out
     // read as the line having ended, and left the next word outside too.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
@@ -481,11 +481,11 @@ test('whitespace typed against a citation stays in it — nothing is trimmed bac
         ->and(mb_substr('the quick  brown fox', 4, 6))->toBe('quick ');
 });
 
-test('typing between two citations is taken up by the one before it', function () {
-    // User decision: typing can no longer leave words uncited in the midst
-    // of cited text. Standing on a blank line between two cited lines, the
+test('typing between two assignments is taken up by the one before it', function () {
+    // User decision: typing can no longer leave words unassigned in the midst
+    // of assigned text. Standing on a blank line between two assigned lines, the
     // line before carries on over the break and takes what is written.
-    // Uncited text is something an editor asks for outright.
+    // Unassigned text is something an editor asks for outright.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\n\nθεὰ Πηληϊάδεω"]);
     $first = TranscriptionSegment::factory()->for($transcription)->create([
@@ -507,9 +507,9 @@ test('typing between two citations is taken up by the one before it', function (
         ->and(mb_substr($text, $second->fresh()->start_offset, 3))->toBe('θεὰ');
 });
 
-test('deleting the line break before a citation runs it onto the line before, both citations intact', function () {
-    // What Backspace just after a marker now does. The citations keep their
-    // own words and meet flush, which CitationIntegrity allows: two lines
+test('deleting the line break before an assignment runs it onto the line before, both assignments intact', function () {
+    // What Backspace just after a marker now does. The assignments keep their
+    // own words and meet flush, which AssignmentIntegrity allows: two lines
     // run together is a real thing for a transcript to record.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);
@@ -537,9 +537,9 @@ test('deleting the line break before a citation runs it onto the line before, bo
         ->and($second->needs_review)->toBeFalse();
 });
 
-test('a space then a word at the end of a citation continues that citation', function () {
-    // User report: the space rightly falls outside the citation, but the
-    // word written after it was starting an unassigned stretch. A citation
+test('a space then a word at the end of an assignment continues that assignment', function () {
+    // User report: the space rightly falls outside the assignment, but the
+    // word written after it was starting an unassigned stretch. An assignment
     // keeps one space of buffer, and writing past it carries on the line.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'μῆνιν ἄειδε']);
@@ -552,8 +552,8 @@ test('a space then a word at the end of a citation continues that citation', fun
         'text' => 'μῆνιν ἄειδε ',
     ])->assertRedirect();
 
-    // The space was typed against the citation's last word, so it is the
-    // citation's — it is not pulled back out.
+    // The space was typed against the assignment's last word, so it is the
+    // assignment's — it is not pulled back out.
     expect([$segment->fresh()->start_offset, $segment->fresh()->end_offset])->toBe([0, 12]);
 
     $this->patch(route('transcriptions.text.update', $transcription), [
@@ -567,10 +567,10 @@ test('a space then a word at the end of a citation continues that citation', fun
         ->toBe('μῆνιν ἄειδε θεὰ');
 });
 
-test('a word written with whitespace between it and a citation belongs to nobody', function () {
+test('a word written with whitespace between it and an assignment belongs to nobody', function () {
     // Touching means touching. A caret with a space between it and every
-    // citation is standing in the gap, and the gap is nobody's — which is
-    // what keeps a citation from reaching out and taking it.
+    // assignment is standing in the gap, and the gap is nobody's — which is
+    // what keeps an assignment from reaching out and taking it.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => ' θεὰ Πηληϊάδεω']);
     $segment = TranscriptionSegment::factory()->for($transcription)->create([
@@ -588,9 +588,9 @@ test('a word written with whitespace between it and a citation belongs to nobody
         ->toBe('θεὰ Πηληϊάδεω');
 });
 
-test('text that ARRIVES between two citations stays uncited', function () {
+test('text that ARRIVES between two assignments stays unassigned', function () {
     // The exception to the rule above (user decision): a paste, a drop or an
-    // import comes in uncited and stays so. Only typing is held to citing
+    // import comes in unassigned and stays so. Only typing is held to assigning
     // what it lands among.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\n\nθεὰ Πηληϊάδεω"]);
@@ -616,8 +616,8 @@ test('text that ARRIVES between two citations stays uncited', function () {
         ->toBe('θεὰ Πηληϊάδεω');
 });
 
-test('the near side of a marker belongs to the citation that ENDS there', function () {
-    // Two citations meeting flush: the near side is the first one's, so what
+test('the near side of a marker belongs to the assignment that ENDS there', function () {
+    // Two assignments meeting flush: the near side is the first one's, so what
     // is typed there is written into IT rather than into the line the marker
     // announces. This is the case the caret's side exists for.
     $this->actingAs(User::factory()->editor()->create());
@@ -642,7 +642,7 @@ test('the near side of a marker belongs to what lies BEFORE it, across whitespac
     // User report: arrowing the caret back past a marker and typing put the
     // words at the start of the following line instead of the end of the one
     // the caret stood in. The near side belongs to what lies before it — the
-    // citation ending against it, or the one carrying on from further back.
+    // assignment ending against it, or the one carrying on from further back.
     // Nothing is left stranded either way.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'μῆνιν ἄειδε']);
@@ -664,7 +664,7 @@ test('the near side of a marker belongs to what lies BEFORE it, across whitespac
         ->and(mb_substr('μῆνιν Χἄειδε', $second->fresh()->start_offset, 5))->toBe('ἄειδε');
 });
 
-test('typing on the far side of a marker writes into the citation it announces', function () {
+test('typing on the far side of a marker writes into the assignment it announces', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);
     $second = TranscriptionSegment::factory()->for($transcription)->create([
@@ -697,9 +697,9 @@ test('the caret side says nothing about a paste or a deletion', function () {
     expect([$segment->fresh()->start_offset, $segment->fresh()->end_offset])->toBe([4, 8]);
 });
 
-test('a line break at the start of a cited line takes the line and its marker down together', function () {
-    // User report: the marker stayed on the line above. A citation never
-    // BEGINS with whitespace, so the break belongs above it and the citation
+test('a line break at the start of an assigned line takes the line and its marker down together', function () {
+    // User report: the marker stayed on the line above. An assignment never
+    // BEGINS with whitespace, so the break belongs above it and the assignment
     // moves down onto its words, marker and all.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);
@@ -719,13 +719,13 @@ test('a line break at the start of a cited line takes the line and its marker do
     $first->refresh();
     $second->refresh();
 
-    // The citation begins on its first WORD, so the marker renders there.
+    // The assignment begins on its first WORD, so the marker renders there.
     expect([$second->start_offset, $second->end_offset])->toBe([13, 26])
         ->and(mb_substr($text, $second->start_offset, 3))->toBe('θεὰ')
         ->and([$first->start_offset, $first->end_offset])->toBe([0, 11]);
 });
 
-test('a letter at the start of a cited line still writes into it', function () {
+test('a letter at the start of an assigned line still writes into it', function () {
     // The same caret, the same side — only whitespace is held out.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);

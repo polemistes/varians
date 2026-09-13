@@ -61,7 +61,7 @@ type PassageOption = {
  * either layer, whole — where a witness is read beside the edition and
  * where its segments are picked for the edition (user decision, merging
  * the former "Add text" and "The manuscripts" panes). Selecting text and
- * pressing "Add selection" adds every cited segment inside the selection;
+ * pressing "Add selection" adds every assigned segment inside the selection;
  * each lands where the manuscript has it (PassageAdder::insertionPosition).
  * Segments the edition already has print grey.
  */
@@ -155,7 +155,7 @@ const shownLayer = computed(() =>
 
 /**
  * The transcripts to show: every transcript of the witness in the shown
- * layer, in the order of their first cited passage — a witness may hold
+ * layer, in the order of their first assigned passage — a witness may hold
  * texts of the work in more than one transcript.
  */
 const shownTranscripts = computed(() =>
@@ -272,7 +272,7 @@ function showText(layer?: string) {
 // group); the edition's columns carry normalized offsets, so a box is
 // matched through its normalized row and lit in both rows. A box mapped
 // on the diplomatic layer alone (drawn while the layers were out of step
-// and not healed since) falls back to the line its citation covers. ----
+// and not healed since) falls back to the line its assignment covers. ----
 type ImageRegion = { region: TranscriptionRegion; layer: WitnessTranscript };
 
 const imageRegions = computed<ImageRegion[]>(() => {
@@ -439,7 +439,7 @@ watch(activeWitnessId, () => {
     selectedPageId.value = null;
 });
 
-/** The cited, not yet added passages fully inside the selection. */
+/** The assigned, not yet added passages fully inside the selection. */
 const selectedPassageIds = computed(() => {
     const sel = selection.value;
     const transcript = props.transcripts.find(
@@ -503,7 +503,7 @@ function addSelection() {
     );
 }
 
-// ---- "Add lines…" — the bulk add: a citation range from this witness ----
+// ---- "Add lines…" — the bulk add: an assignment range from this witness ----
 const showBulkForm = ref(false);
 const bulkForm = useForm({
     from_canonical_passage_id: null as number | null,
@@ -614,7 +614,7 @@ function submitBulk() {
                             ? 'Finish registering the transposition first'
                             : canAdd
                               ? 'Add the selected segments to the edition, each where the manuscript has it'
-                              : 'Select cited text in the transcript below first'
+                              : 'Select assigned text in the transcript below first'
                     "
                     @mousedown.prevent
                     @click="addSelection"
@@ -643,9 +643,9 @@ function submitBulk() {
             @submit.prevent="submitBulk"
         >
             <p class="w-full text-stone-500 dark:text-stone-400">
-                Adds everything this witness has for a citation range, each line
-                where the manuscript has it. Lines already in the edition are
-                left as they are.
+                Adds everything this witness has for a range of passages, each
+                line where the manuscript has it. Lines already in the edition
+                are left as they are.
             </p>
             <span class="text-stone-500 dark:text-stone-400">from</span>
             <HierarchicalPassagePicker

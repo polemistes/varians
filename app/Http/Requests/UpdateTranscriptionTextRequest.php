@@ -53,13 +53,13 @@ class UpdateTranscriptionTextRequest extends FormRequest
             // TranscriptionTextController::normalizeOps, not here.
             'ops.*.cut_id' => ['sometimes', 'nullable', 'string', 'max:64'],
             'ops.*.atomic' => ['sometimes', 'boolean'],
-            // Which side of a citation's marker the caret stood on. Both
+            // Which side of an assignment's marker the caret stood on. Both
             // sides measure to the same offset, so this is the one thing
             // the offset cannot say — see SpanTransformer::claimant.
             'ops.*.side' => ['sometimes', 'nullable', Rule::in(['before', 'after'])],
             // Text that ARRIVED rather than being typed — a paste, a drop,
-            // an import. It comes in uncited and stays so; only typing is
-            // held to citing what it lands among.
+            // an import. It comes in unassigned and stays so; only typing is
+            // held to assigning what it lands among.
             'ops.*.imported' => ['sometimes', 'boolean'],
             // The sibling's own former words for a mirrored undo — see
             // LayerMirror; verbatim replay when absent.

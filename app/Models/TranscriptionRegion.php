@@ -12,7 +12,7 @@ use Illuminate\Support\Carbon;
 /**
  * A bounding box (normalized 0-1 fractions of the image) linking a span of a
  * transcription's continuous text — a word, or as narrow as a single letter —
- * to where it appears on a manuscript image. Independent of citation spans;
+ * to where it appears on a manuscript image. Independent of assignment spans;
  * the two annotate the same text for unrelated purposes.
  *
  * @property int $id

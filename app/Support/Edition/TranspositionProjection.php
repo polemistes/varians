@@ -17,22 +17,22 @@ use App\Models\Conjecture;
 class TranspositionProjection
 {
     /**
-     * The statement projected onto an affected set: the set's citation
+     * The statement projected onto an affected set: the set's assignment
      * order with the range lifted out and reinserted on the stated side of
      * the target. Null when an anchor is missing from the set, the range is
      * inverted, or the target sits inside the range — the statement does
      * not resolve against this set.
      *
-     * @param  list<int>  $citationOrderedIds  the affected set, in citation order, containing the statement's anchors
+     * @param  list<int>  $numberingOrderedIds  the affected set, in numbering order, containing the statement's anchors
      * @return list<int>|null
      */
-    public static function sequence(Conjecture $conjecture, array $citationOrderedIds): ?array
+    public static function sequence(Conjecture $conjecture, array $numberingOrderedIds): ?array
     {
         if ($conjecture->type !== ConjectureType::Transposition || $conjecture->move_position === null) {
             return null;
         }
 
-        $indexOf = array_flip($citationOrderedIds);
+        $indexOf = array_flip($numberingOrderedIds);
 
         $startIndex = $indexOf[$conjecture->canonical_passage_id] ?? null;
         $endIndex = $indexOf[$conjecture->transposition_range_end_canonical_passage_id ?? $conjecture->canonical_passage_id] ?? null;
@@ -46,8 +46,8 @@ class TranspositionProjection
             return null;
         }
 
-        $range = array_slice($citationOrderedIds, $startIndex, $endIndex - $startIndex + 1);
-        $rest = array_values(array_diff($citationOrderedIds, $range));
+        $range = array_slice($numberingOrderedIds, $startIndex, $endIndex - $startIndex + 1);
+        $rest = array_values(array_diff($numberingOrderedIds, $range));
         $restTargetIndex = array_search($conjecture->move_target_canonical_passage_id, $rest, true);
 
         if (! is_int($restTargetIndex)) {

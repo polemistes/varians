@@ -25,7 +25,7 @@ class ApplyEditionOrderCandidateRequest extends FormRequest
      * Apply one order-report candidate to its range. Exactly one source:
      * a witness's own sequence (`transcription_layer_id`), a catalogued
      * Reordering/Transposition conjecture (`conjecture_id`), or — with
-     * neither — plain citation order. Whether the source actually orders
+     * neither — plain numbering order. Whether the source actually orders
      * exactly this range is re-derived server-side, never trusted from the
      * client (see EditionOrderController::candidateSequence).
      *

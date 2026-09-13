@@ -1,6 +1,6 @@
 /**
  * What the tradition has at one word, in the reader's terms — the pure
- * helpers behind the edition page's hover apparatus and the split-citation
+ * helpers behind the edition page's hover apparatus and the split-assignment
  * notices. Kept out of the page component so they can be read (and
  * reasoned about) on their own.
  */

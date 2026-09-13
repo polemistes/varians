@@ -21,7 +21,7 @@ function editionForPassages(): array
     return compact('work', 'edition');
 }
 
-function citedPassage(Work $work, int $line): CanonicalPassage
+function assignedPassage(Work $work, int $line): CanonicalPassage
 {
     $formatted = $work->referenceScheme->format(['book' => 1, 'line' => $line]);
 
@@ -32,11 +32,11 @@ function citedPassage(Work $work, int $line): CanonicalPassage
     ]);
 }
 
-test('a selected span adds every already-cited segment inside it, in physical order', function () {
+test('a selected span adds every already-assigned segment inside it, in physical order', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition] = editionForPassages();
-    $line1 = citedPassage($work, 1);
-    $line2 = citedPassage($work, 2);
+    $line1 = assignedPassage($work, 1);
+    $line2 = assignedPassage($work, 2);
     $transcription = TranscriptionLayer::factory()->create(['text' => 'first second']);
     TranscriptionSegment::factory()->for($transcription)->for($line1, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
     TranscriptionSegment::factory()->for($transcription)->for($line2, 'canonicalPassage')->create(['start_offset' => 6, 'end_offset' => 12]);
@@ -58,11 +58,11 @@ test('a selected span adds every already-cited segment inside it, in physical or
         ->and(Lemma::where('canonical_passage_id', $line2->id)->count())->toBe(1);
 });
 
-test('a span covering only already-added or uncited text is a silent no-op, not a validation error', function () {
+test('a span covering only already-added or unassigned text is a silent no-op, not a validation error', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition] = editionForPassages();
-    $line1 = citedPassage($work, 1);
-    $transcription = TranscriptionLayer::factory()->create(['text' => 'first uncited']);
+    $line1 = assignedPassage($work, 1);
+    $transcription = TranscriptionLayer::factory()->create(['text' => 'first unassigned']);
     $segment = TranscriptionSegment::factory()->for($transcription)->for($line1, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
 
     $this->post(route('edition-passages.store', $edition), [
@@ -81,7 +81,7 @@ test('a span covering only already-added or uncited text is a silent no-op, not 
     $response->assertRedirect();
     expect(EditionPassage::where('edition_id', $edition->id)->count())->toBe(1);
 
-    // Selecting the uncited remainder of the text.
+    // Selecting the unassigned remainder of the text.
     $response = $this->post(route('edition-passages.store', $edition), [
         'transcription_layer_id' => $transcription->id,
         'start_offset' => 6,
@@ -93,12 +93,12 @@ test('a span covering only already-added or uncited text is a silent no-op, not 
     expect($segment)->not->toBeNull();
 });
 
-test('bulk add orders by the manuscript\'s own physical offset, not citation order', function () {
+test('bulk add orders by the manuscript\'s own physical offset, not numbering order', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition] = editionForPassages();
-    $line1 = citedPassage($work, 1);
-    $line2 = citedPassage($work, 2);
-    $line3 = citedPassage($work, 3);
+    $line1 = assignedPassage($work, 1);
+    $line2 = assignedPassage($work, 2);
+    $line3 = assignedPassage($work, 3);
 
     // A scribal displacement: physically, in this manuscript, line 3 comes
     // first, then line 1, then line 2 — "third first second".
@@ -115,7 +115,7 @@ test('bulk add orders by the manuscript\'s own physical offset, not citation ord
 
     $response->assertRedirect();
 
-    // The manuscript's own reading order — 3, 1, 2 — not citation order 1, 2, 3.
+    // The manuscript's own reading order — 3, 1, 2 — not numbering order 1, 2, 3.
     $added = EditionPassage::where('edition_id', $edition->id)->orderBy('position')->get();
     expect($added->pluck('canonical_passage_id')->all())->toBe([$line3->id, $line1->id, $line2->id]);
 });
@@ -123,7 +123,7 @@ test('bulk add orders by the manuscript\'s own physical offset, not citation ord
 test('bulk add skips a passage already claimed by another transcription, but still aligns this transcription\'s own reading as a candidate', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition] = editionForPassages();
-    $line1 = citedPassage($work, 1);
+    $line1 = assignedPassage($work, 1);
 
     $a = TranscriptionLayer::factory()->create(['text' => 'first']);
     $segmentA = TranscriptionSegment::factory()->for($a)->for($line1, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
@@ -151,7 +151,7 @@ test('bulk add skips a passage already claimed by another transcription, but sti
 test('removing a passage frees it up for re-adding elsewhere and clears this edition\'s own selections for it', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition] = editionForPassages();
-    $line1 = citedPassage($work, 1);
+    $line1 = assignedPassage($work, 1);
     $transcription = TranscriptionLayer::factory()->create(['text' => 'first']);
     $segment = TranscriptionSegment::factory()->for($transcription)->for($line1, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
 
@@ -187,8 +187,8 @@ test('removing a passage frees it up for re-adding elsewhere and clears this edi
 test('a bulk add rejects a range that ends before it starts', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition] = editionForPassages();
-    $line1 = citedPassage($work, 1);
-    $line2 = citedPassage($work, 2);
+    $line1 = assignedPassage($work, 1);
+    $line2 = assignedPassage($work, 2);
     $transcription = TranscriptionLayer::factory()->create(['text' => 'first second']);
     TranscriptionSegment::factory()->for($transcription)->for($line1, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
     TranscriptionSegment::factory()->for($transcription)->for($line2, 'canonicalPassage')->create(['start_offset' => 6, 'end_offset' => 12]);
@@ -203,10 +203,10 @@ test('a bulk add rejects a range that ends before it starts', function () {
     expect(EditionPassage::count())->toBe(0);
 });
 
-test('a bulk add rejects a transcription with no citations in this work', function () {
+test('a bulk add rejects a transcription with no assignments in this work', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition] = editionForPassages();
-    $line1 = citedPassage($work, 1);
+    $line1 = assignedPassage($work, 1);
     $unrelated = TranscriptionLayer::factory()->create();
 
     $response = $this->post(route('edition-passages.store-bulk', $edition), [
@@ -221,7 +221,7 @@ test('a bulk add rejects a transcription with no citations in this work', functi
 test('a guest cannot add or remove edition passages', function () {
     $this->actingAs(User::factory()->create());
     ['work' => $work, 'edition' => $edition] = editionForPassages();
-    $line1 = citedPassage($work, 1);
+    $line1 = assignedPassage($work, 1);
     $transcription = TranscriptionLayer::factory()->create(['text' => 'first']);
     TranscriptionSegment::factory()->for($transcription)->for($line1, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
 
@@ -245,9 +245,9 @@ test('a guest cannot add or remove edition passages', function () {
 test('a segment added late lands where its manuscript has it, not at the end', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition] = editionForPassages();
-    $line1 = citedPassage($work, 1);
-    $line2 = citedPassage($work, 2);
-    $line3 = citedPassage($work, 3);
+    $line1 = assignedPassage($work, 1);
+    $line2 = assignedPassage($work, 2);
+    $line3 = assignedPassage($work, 3);
     $transcription = TranscriptionLayer::factory()->create(['text' => 'first second third']);
     TranscriptionSegment::factory()->for($transcription)->for($line1, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
     TranscriptionSegment::factory()->for($transcription)->for($line2, 'canonicalPassage')->create(['start_offset' => 6, 'end_offset' => 12]);
@@ -268,12 +268,12 @@ test('a segment added late lands where its manuscript has it, not at the end', f
     expect($stored)->toBe([$line1->id, $line2->id, $line3->id]);
 });
 
-test('a segment from a witness sharing no passage with the edition goes by citation order', function () {
+test('a segment from a witness sharing no passage with the edition goes by numbering order', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition] = editionForPassages();
-    $line1 = citedPassage($work, 1);
-    $line2 = citedPassage($work, 2);
-    $line3 = citedPassage($work, 3);
+    $line1 = assignedPassage($work, 1);
+    $line2 = assignedPassage($work, 2);
+    $line3 = assignedPassage($work, 3);
     $a = TranscriptionLayer::factory()->create(['text' => 'third first']);
     TranscriptionSegment::factory()->for($a)->for($line3, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
     TranscriptionSegment::factory()->for($a)->for($line1, 'canonicalPassage')->create(['start_offset' => 6, 'end_offset' => 11]);
@@ -281,7 +281,7 @@ test('a segment from a witness sharing no passage with the edition goes by citat
     TranscriptionSegment::factory()->for($b)->for($line2, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 6]);
 
     // A prints 3 before 1, as the manuscript has it; B's line 2 knows
-    // nothing of A's order, so it follows the citation numbering: after 1.
+    // nothing of A's order, so it follows the passage numbering: after 1.
     $this->post(route('edition-passages.store', $edition), [
         'transcription_layer_id' => $a->id,
         'canonical_passage_ids' => [$line1->id, $line3->id],
@@ -298,8 +298,8 @@ test('a segment from a witness sharing no passage with the edition goes by citat
 test('several passages are removed at once', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition] = editionForPassages();
-    $line1 = citedPassage($work, 1);
-    $line2 = citedPassage($work, 2);
+    $line1 = assignedPassage($work, 1);
+    $line2 = assignedPassage($work, 2);
     $transcription = TranscriptionLayer::factory()->create(['text' => 'first second']);
     TranscriptionSegment::factory()->for($transcription)->for($line1, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
     TranscriptionSegment::factory()->for($transcription)->for($line2, 'canonicalPassage')->create(['start_offset' => 6, 'end_offset' => 12]);
@@ -316,7 +316,7 @@ test('several passages are removed at once', function () {
 test('a passage of another work never enters an edition, whichever way it is offered', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition] = editionForPassages();
-    $line1 = citedPassage($work, 1);
+    $line1 = assignedPassage($work, 1);
     $foreign = CanonicalPassage::factory()->for(Work::factory())->create();
     $transcription = TranscriptionLayer::factory()->create(['text' => 'first second']);
     TranscriptionSegment::factory()->for($transcription)->for($line1, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);

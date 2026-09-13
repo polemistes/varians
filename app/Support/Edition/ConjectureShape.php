@@ -24,7 +24,7 @@ use Illuminate\Validation\Rule;
  *   `transposition_range_end_canonical_passage_id`) moves: before or after
  *   `move_target_canonical_passage_id`, outside the range;
  * - a reordering carries `canonical_passage_ids`, at least two, forming one
- *   contiguous stretch of the work's citation order, in the order proposed.
+ *   contiguous stretch of the work's numbering order, in the order proposed.
  *
  * All passages named must belong to the conjecture's work.
  */
@@ -163,12 +163,12 @@ class ConjectureShape
             ->count();
 
         if ($spanCount !== count($ids)) {
-            $validator->errors()->add('canonical_passage_ids', 'These passages must form one contiguous range of the citation order, with nothing left out.');
+            $validator->errors()->add('canonical_passage_ids', 'These passages must form one contiguous range of the numbering order, with nothing left out.');
         }
     }
 
     /**
-     * The first passage of a reordering by citation order — the passage
+     * The first passage of a reordering by numbering order — the passage
      * the record hangs from.
      *
      * @param  list<int|string>  $ids
@@ -225,7 +225,7 @@ class ConjectureShape
     /**
      * A reordering's passages in proposed order, each once — a passage
      * divided into parts (see ConjectureOrderingEntry) counts where its
-     * first part stands, the way a witness's split citation does.
+     * first part stands, the way a witness's split assignment does.
      *
      * @return list<int>
      */

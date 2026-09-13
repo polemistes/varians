@@ -18,26 +18,26 @@ namespace App\Support\Transcription;
  *
  * A pure insertion (start === end) joins the span it TOUCHES (user decision).
  * The caret touches a span when nothing stands between it and that span's text:
- * at the span's first character, at its last, or anywhere within. Since a
- * citation never owns the whitespace at its edges (see CitationBounds), what
+ * at the span's first character, at its last, or anywhere within. Since an
+ * assignment never owns the whitespace at its edges (see AssignmentBounds), what
  * lies between two of them is a visible gap of unassigned whitespace, and a
  * caret placed in that gap touches neither — so what is typed there joins
  * nothing, and the span after it is pushed along as ever.
  *
- * This is what makes typing in front of a cited line's first word write INTO
+ * This is what makes typing in front of an assigned line's first word write INTO
  * that line, which is what an editor means by it. Where two spans meet with no
  * whitespace between them both are touched at once, and the one that BEGINS
  * there takes the text: typing in front of a word belongs to that word's
- * citation, not to whatever ended against it.
+ * assignment, not to whatever ended against it.
  *
  * Whitespace typed at an edge joins the span like anything else and is then
  * trimmed straight back out of it — which is how pressing space or Enter widens
- * the gap rather than growing the citation.
+ * the gap rather than growing the assignment.
  *
- * A relocation paste is exempt throughout: those words belong to the citation
+ * A relocation paste is exempt throughout: those words belong to the assignment
  * carried with them, never to a neighbour they happen to land against.
  *
- * `$takesTextAtStart` turns this on, and ONLY CITATIONS get it. A facsimile
+ * `$takesTextAtStart` turns this on, and ONLY ASSIGNMENTS get it. A facsimile
  * region is anchored to ink on parchment and a LemmaReading is a quotation
  * standing in an apparatus; neither grows because someone typed in front of
  * it, so both keep the plain rule — text arriving at their start pushes them
@@ -82,7 +82,7 @@ class SpanTransformer
             $cutId = $op['cut_id'] ?? null;
             $isCut = $cutId !== null && $op['text'] === '' && $op['end'] > $op['start'];
             $isPaste = $cutId !== null && $op['text'] !== '' && $op['start'] === $op['end'];
-            // Which citation, if any, takes what is typed here.
+            // Which assignment, if any, takes what is typed here.
             $claim = $takesTextAtStart && $op['start'] === $op['end'] && ! $isPaste
                 ? self::claimant($results, $op['start'], $op['side'] ?? null, $op['text'], $text, (bool) ($op['imported'] ?? false))
                 : null;
@@ -199,12 +199,12 @@ class SpanTransformer
      * @param  array{start: int, end: int, text: string}  $op
      * @return WorkingSpan
      */
-    private static function applyOp(array $span, array $op, bool $isRelocationPaste = false, bool $claims = false, bool $citations = false): array
+    private static function applyOp(array $span, array $op, bool $isRelocationPaste = false, bool $claims = false, bool $assignments = false): array
     {
         $insertedLen = mb_strlen($op['text']);
 
         if ($op['start'] === $op['end']) {
-            return self::applyInsertion($span, $op['start'], $insertedLen, $isRelocationPaste, $claims, $citations);
+            return self::applyInsertion($span, $op['start'], $insertedLen, $isRelocationPaste, $claims, $assignments);
         }
 
         $delta = $insertedLen - ($op['end'] - $op['start']);
@@ -214,22 +214,22 @@ class SpanTransformer
 
     /**
      * End-gravity absorbs typing done right after a span into it — but never
-     * a relocation paste: the pasted words belong to the citation carried
+     * a relocation paste: the pasted words belong to the assignment carried
      * with them, not to whatever span happens to end exactly where they
-     * landed. Without this, pasting a cut line right after another cited
+     * landed. Without this, pasting a cut line right after another assigned
      * line silently extended the neighbour over the whole arrival.
      *
      * @param  WorkingSpan  $span
      * @return WorkingSpan
      */
-    private static function applyInsertion(array $span, int $p, int $insertedLen, bool $isRelocationPaste = false, bool $claims = false, bool $citations = false): array
+    private static function applyInsertion(array $span, int $p, int $insertedLen, bool $isRelocationPaste = false, bool $claims = false, bool $assignments = false): array
     {
-        // For citations the claim decides everything: the one citation that
+        // For assignments the claim decides everything: the one assignment that
         // takes the text grows to cover it, and every other is only pushed
         // along (see claimant()).
-        if ($citations && ! $isRelocationPaste) {
+        if ($assignments && ! $isRelocationPaste) {
             if ($claims) {
-                // A citation carrying on across a gap has to reach over the
+                // An assignment carrying on across a gap has to reach over the
                 // whitespace to cover what was typed beyond it.
                 $span['end'] = $p > $span['end']
                     ? $p + $insertedLen
@@ -261,47 +261,47 @@ class SpanTransformer
     }
 
     /**
-     * Which citation takes what is typed at this point, by index, or null
+     * Which assignment takes what is typed at this point, by index, or null
      * when none does.
      *
      * TOUCHING means touching: nothing at all between the caret and the
-     * citation's characters. Standing against its words claims for it —
+     * assignment's characters. Standing against its words claims for it —
      * inside, at its first character, or at its last — and WHATEVER is typed
-     * there is the citation's, a space as much as a letter (user report: a
+     * there is the assignment's, a space as much as a letter (user report: a
      * space typed against the last word was being left outside the line, and
      * then the word after it as well). Nothing is trimmed back out
      * afterwards, so the space stays where the editor put it and what
      * follows carries on the line.
      *
-     * A caret with whitespace between it and every citation claims for none
+     * A caret with whitespace between it and every assignment claims for none
      * of them. That whitespace is the gap, and the gap is nobody's.
      *
      * Order where several are touched at once: inside, then at the first
-     * character, then at the last. So where two citations meet flush the one
+     * character, then at the last. So where two assignments meet flush the one
      * BEGINNING there takes it, and typing in front of a word belongs to
-     * that word's citation.
+     * that word's assignment.
      *
-     * `$side` settles the one case the offset cannot. A citation's marker
+     * `$side` settles the one case the offset cannot. An assignment's marker
      * stands at its first character, and BOTH SIDES OF THE MARKER MEASURE TO
      * THE SAME OFFSET — so which side the caret stood on is the difference
-     * between writing into that citation and writing in front of its marker,
+     * between writing into that assignment and writing in front of its marker,
      * and only the editor's caret knows it. Typing on the marker's near side
-     * therefore does NOT write into the citation it announces; whatever ends
+     * therefore does NOT write into the assignment it announces; whatever ends
      * against the marker takes it, or nobody does.
      *
      * The near side of a marker belongs to WHAT LIES BEFORE IT — the
-     * citation ending against it, or the one carrying on from further back
-     * across nothing but whitespace. Never to the citation the marker
+     * assignment ending against it, or the one carrying on from further back
+     * across nothing but whitespace. Never to the assignment the marker
      * announces: arrowing the caret back past a marker and typing put the
      * words at the start of the following line instead of the end of the
      * one the caret stood in (user report).
      *
-     * A citation never BEGINS with whitespace, so it does not claim a space
+     * An assignment never BEGINS with whitespace, so it does not claim a space
      * or a line break typed at its first character: that whitespace belongs
-     * above it, and the citation — its marker with it — moves down onto the
-     * words. Pressing Enter at the start of a cited line used to leave the
+     * above it, and the assignment — its marker with it — moves down onto the
+     * words. Pressing Enter at the start of an assigned line used to leave the
      * marker stranded on the line above (user report). Whitespace typed at
-     * the citation's END is a different matter and IS claimed: it holds the
+     * the assignment's END is a different matter and IS claimed: it holds the
      * line open for the next word.
      *
      * @param  list<WorkingSpan>  $spans
@@ -333,29 +333,29 @@ class SpanTransformer
             return $atEnd;
         }
 
-        // Whitespace typed at a citation's first character is the gap above
-        // it, and must not be handed to the citation BEFORE either — or
-        // pressing Enter at the start of a cited line would stretch the line
+        // Whitespace typed at an assignment's first character is the gap above
+        // it, and must not be handed to the assignment BEFORE either — or
+        // pressing Enter at the start of an assigned line would stretch the line
         // above instead of pushing this one down.
         if ($opensWithSpace && self::spanStartsAt($spans, $p)) {
             return null;
         }
 
-        // Nothing touches the caret. Between two citations, with nothing but
-        // whitespace either way, TYPING still must not leave words uncited
-        // in the midst of cited text (user decision) — the citation before
+        // Nothing touches the caret. Between two assignments, with nothing but
+        // whitespace either way, TYPING still must not leave words unassigned
+        // in the midst of assigned text (user decision) — the assignment before
         // takes them, carrying on where it left off. A deliberate stretch of
-        // uncited text is a thing an editor asks for outright, not something
+        // unassigned text is a thing an editor asks for outright, not something
         // typing produces by accident. Imported text is the exception: it
-        // arrives uncited and stays so.
+        // arrives unassigned and stays so.
         return $imported || $text === null ? null : self::enclosing($spans, $p, $text);
     }
 
     /**
-     * The citation that CARRIES ON at this point: the one ending before it
+     * The assignment that CARRIES ON at this point: the one ending before it
      * with only whitespace between, provided another begins after it on the
-     * same terms. Where one side has no citation at all the caret is not in
-     * the midst of cited text, and what is typed there belongs to nobody.
+     * same terms. Where one side has no assignment at all the caret is not in
+     * the midst of assigned text, and what is typed there belongs to nobody.
      *
      * @param  list<WorkingSpan>  $spans
      */

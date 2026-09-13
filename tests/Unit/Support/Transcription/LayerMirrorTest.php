@@ -189,7 +189,7 @@ test('a move is refused when the sibling holds different words in the same shape
     // The in-step pattern check is structural — layers whose lines drifted
     // to carry DIFFERENT words in the same shape still pass it, and an
     // index-mapped cut then moves the wrong words (real incident: a
-    // mirrored paste landed mid-line, splitting a citation). The
+    // mirrored paste landed mid-line, splitting an assignment). The
     // correspondence guard refuses instead: honest refusal over silent
     // mislanding.
     $a = "alpha beta\ngamma delta";

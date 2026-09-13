@@ -120,7 +120,7 @@ class EditionVariantController extends Controller
             };
 
             // Picking a candidate is a live human confirmation of it — the
-            // same rule as re-selecting a citation span. Whatever doubt a
+            // same rule as re-selecting an assignment span. Whatever doubt a
             // text edit cast on this reading (needs_review) is answered by
             // the editor choosing it, and re-picking the already-selected
             // candidate is exactly how a flagged selection is confirmed.

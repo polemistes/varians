@@ -24,7 +24,7 @@ use Inertia\Testing\AssertableInertia as AssertInertia;
  * column and the base's own text already renders by default) — so every
  * test below can skip straight to the word-level decision it's actually
  * testing. `$witnessB`'s segment, when given, is created *before* the add
- * so PassageAdder's own "align every citing segment" sweep picks it up too,
+ * so PassageAdder's own "align every assigning segment" sweep picks it up too,
  * exactly as it would for a real bulk add encountering more than one
  * witness at once.
  */
@@ -112,7 +112,7 @@ test('picking a detected witness variant selects it', function () {
 test('picking a flagged candidate is the confirmation that clears its needs-review flag', function () {
     // The flag's one meaning is "an edition's choice lost its manuscript
     // backing — confirm or re-choose". Re-picking the candidate IS the
-    // confirmation, the same way re-selecting a citation span clears its
+    // confirmation, the same way re-selecting an assignment span clears its
     // own flag.
     $this->actingAs(User::factory()->editor()->create());
     ['edition' => $edition, 'passage' => $passage, 'other' => $other] = editionWithBase('the quick fox', 'the slow fox');
@@ -831,7 +831,7 @@ test('each manuscript\'s own reading extends to its own full competing span, eve
 
 test('a fragmentary witness that does not reach as far as a competing range is left unextended', function () {
     $this->actingAs(User::factory()->editor()->create());
-    // B only cites "swift" itself — it has no reading at all for "red"/"fox",
+    // B only assigns "swift" itself — it has no reading at all for "red"/"fox",
     // so there is nothing honest to extend its candidate to.
     $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
     $edition = Edition::factory()->for($work)->create();
@@ -1081,7 +1081,7 @@ test('a whole-line lacuna at an ordinary canonical number, never attested by any
     $this->actingAs(User::factory()->editor()->create());
     // Some lacunas were already part of the canonical numbering before any
     // transcription existed (the loss was noticed, and given a normal line
-    // number, long before this edition) — "3.34" here, never cited by any
+    // number, long before this edition) — "3.34" here, never assigned by any
     // witness at all, as opposed to an inserted "80A"-style label for a
     // lacuna discovered later.
     $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();

@@ -11,7 +11,7 @@ namespace App\Support\Transcription;
  * projects onto each layer's own character offsets exactly.
  *
  * Word ranges are [start, end) in word indices and snap OUTWARD from
- * characters: citations are word-granular (user decision). Anchors address
+ * characters: assignments are word-granular (user decision). Anchors address
  * sub-word points for facsimile mappings: {word, char-within-word}, read
  * against each layer's own spelling and clamped to its length — exact
  * where spellings agree, proportionally approximate where they differ,

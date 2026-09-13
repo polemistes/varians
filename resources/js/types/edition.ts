@@ -106,7 +106,7 @@ export type UnplacedConjecture = {
 };
 
 export type OrderCandidate = {
-    source: 'transcription' | 'conjecture' | 'citation';
+    source: 'transcription' | 'conjecture' | 'numbering';
     transcription_layer_id: number | null;
     conjecture_id: number | null;
     proposed_by: string | null;
@@ -115,9 +115,9 @@ export type OrderCandidate = {
     matches_current: boolean;
 };
 
-// One self-contained block of the citation order that some source — a
+// One self-contained block of the numbering order that some source — a
 // witness's physical order or a catalogued reordering — rearranges. Members
-// are contiguous in citation order but may sit scattered in the printed
+// are contiguous in numbering order but may sit scattered in the printed
 // text; every member passage carries the same block. `anchor` marks the
 // first member in printed order (unused since the badge moved onto the
 // moved lines' own numbers, but still sent).
@@ -146,7 +146,7 @@ export type EditionComment = {
 
 // A witness whose text for a passage stands in more than one place — a
 // transposition split it below passage granularity. Derived server-side
-// from the citation spans; see EditionController::citationDiscontinuities.
+// from the assignment spans; see EditionController::assignmentDiscontinuities.
 export type DiscontinuousWitness = {
     // A witness's siglum — or, for a conjecture that divides a line into
     // pieces (see ConjectureOrderingEntry), its proposer with "(conjecture)":
@@ -206,7 +206,7 @@ export type TranspositionAdoption = {
     conjecture_id: number;
 };
 
-/** A normalized transcript citing the work — which witness, which passages. */
+/** A normalized transcript assigning text to the work — which witness, which passages. */
 export type TranscriptionOption = {
     id: number;
     name: string;

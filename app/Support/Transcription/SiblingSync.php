@@ -38,7 +38,7 @@ class SiblingSync
     }
 
     /**
-     * The sibling's character range for the same WORDS — for citation
+     * The sibling's character range for the same WORDS — for assignment
      * segments, which are word-granular.
      *
      * @return array{0: int, 1: int}
@@ -218,7 +218,7 @@ class SiblingSync
                 continue;
             }
 
-            // Never manufacture a duplicate: an overlapping live citation
+            // Never manufacture a duplicate: an overlapping live assignment
             // of the same passage already covers (some of) these words.
             $overlapping = $toSegments->contains(fn (TranscriptionSegment $candidate) => $candidate->canonical_passage_id === $segment->canonical_passage_id
                 && $candidate->end_offset > $candidate->start_offset

@@ -29,7 +29,7 @@ test('a transcription is published by hand by its witness\'s owner — not by an
     expect($transcription->transcription->fresh()->visibility)->toBe(Visibility::Draft);
 });
 
-test('a transcription a published edition cites cannot be taken back to a draft', function () {
+test('a transcription a published edition assigns cannot be taken back to a draft', function () {
     $owner = User::factory()->create();
     $witness = Witness::factory()->for($owner)->create();
     $layer = TranscriptionLayer::factory()->for(Transcription::factory()->for($witness))->create(['text' => 'the quick fox']);

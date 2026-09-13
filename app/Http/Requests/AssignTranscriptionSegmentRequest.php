@@ -24,8 +24,8 @@ class AssignTranscriptionSegmentRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * Re-cites an already-cited segment to a different passage — there's no
-     * way to clear a segment's citation without removing the segment itself.
+     * Re-assigns text to an already-assigned segment to a different passage — there's no
+     * way to clear a segment's assignment without removing the segment itself.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
@@ -35,8 +35,8 @@ class AssignTranscriptionSegmentRequest extends FormRequest
             'work_id' => ['required', Rule::exists('works', 'id')],
             'label' => ['required', 'string', 'max:100'],
             // Only meaningful when the label names a passage this layer
-            // already cites — the span becomes another *part* of it. See
-            // TranscriptionSegmentController::assignCitation.
+            // already assigns — the span becomes another *part* of it. See
+            // TranscriptionSegmentController::reassign.
             'after_part' => ['nullable', 'integer', 'min:0'],
             'acknowledge_realignment' => ['nullable', 'boolean'],
         ];

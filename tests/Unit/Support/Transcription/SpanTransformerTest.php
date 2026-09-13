@@ -25,10 +25,10 @@ test('a span entirely before a distant edit is unaffected', function () {
     ]);
 });
 
-test('a citation takes text typed against its first word', function () {
-    // The caret touches the citation's first character, so what is typed
-    // there is written INTO the citation — which is what an editor means by
-    // typing at the start of a cited line.
+test('an assignment takes text typed against its first word', function () {
+    // The caret touches the assignment's first character, so what is typed
+    // there is written INTO the assignment — which is what an editor means by
+    // typing at the start of an assigned line.
     $result = SpanTransformer::transform([span(0, 3)], [
         ['start' => 0, 'end' => 0, 'text' => 'XYZ'],
     ], true);
@@ -38,7 +38,7 @@ test('a citation takes text typed against its first word', function () {
     ]);
 });
 
-test('a region or reading is pushed along instead — only citations take text at their start', function () {
+test('a region or reading is pushed along instead — only assignments take text at their start', function () {
     // A facsimile region is anchored to ink on parchment and a reading is a
     // quotation in an apparatus; neither grows because someone typed in
     // front of it.
@@ -81,8 +81,8 @@ test('an interior replacement is absorbed into the span, not flagged', function 
     ]);
 });
 
-test('whitespace typed at a citation\'s start is left above it, and the citation moves on', function () {
-    // A citation never begins with whitespace, so a space or a line break
+test('whitespace typed at an assignment\'s start is left above it, and the assignment moves on', function () {
+    // An assignment never begins with whitespace, so a space or a line break
     // typed at its first character pushes it along rather than opening it.
     // This is what carries a marker down with its line on Enter.
     $result = SpanTransformer::transform([span(4, 7)], [
@@ -105,7 +105,7 @@ test('a zero-width insertion exactly at a span\'s end is absorbed', function () 
 });
 
 test('where two spans meet, the one BEGINNING at the caret takes the typed text', function () {
-    // User report: typing at the first character of a cited line put the
+    // User report: typing at the first character of an assigned line put the
     // words at the back of the line before it. Both gravity rules fire at a
     // shared boundary; the span being typed INTO wins.
     $result = SpanTransformer::transform([span(4, 7), span(7, 10)], [
@@ -278,7 +278,7 @@ test('ops between a cut and its paste move the carried span\'s eventual tombston
 
 test('a relocation paste landing exactly at another span\'s end does not extend it', function () {
     // End-gravity absorbs *typing* done right after a span — but pasted
-    // relocated words belong to the citation carried with them, not to the
+    // relocated words belong to the assignment carried with them, not to the
     // neighbour that happens to end where they arrive.
     // 'one\ntwo' with spans on "one" [0,3) and "two" [4,7): cut "one\n"
     // [0,4) and paste it after "two" (post-cut offset 3).

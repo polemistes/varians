@@ -12,14 +12,14 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Publishing an edition publishes the work's evidence with it: every
- * transcription citing one of the work's passages (and so every witness
+ * transcription assigning text to one of the work's passages (and so every witness
  * they belong to), and every conjecture recorded against the work. A
  * reader of the edition must be able to follow its apparatus back to what
- * it reports; an apparatus citing manuscripts she may not open is no
+ * it reports; an apparatus assigning manuscripts she may not open is no
  * apparatus.
  *
  * Unpublishing takes them back — unless another published edition of the
- * work, or of another work a transcription also cites, still needs them.
+ * work, or of another work a transcription also assigns, still needs them.
  * Nothing is lost for anyone who copied the edition while it was public:
  * a copy is a whole of its own, witnesses and conjectures included.
  */
@@ -49,7 +49,7 @@ class EditionPublisher
         DB::transaction(function () use ($edition) {
             $edition->update(['visibility' => Visibility::Published]);
 
-            self::transcriptionsCiting($edition->work)->update(['visibility' => Visibility::Published->value]);
+            self::transcriptionsAssigning($edition->work)->update(['visibility' => Visibility::Published->value]);
             $edition->work->conjectures()->update(['conjectures.visibility' => Visibility::Published->value]);
         });
     }
@@ -68,8 +68,8 @@ class EditionPublisher
             $work->conjectures()->update(['conjectures.visibility' => Visibility::Draft->value]);
 
             // A transcription of a codex holding several works stays public
-            // while a published edition of any of the others still cites it.
-            self::transcriptionsCiting($work)
+            // while a published edition of any of the others still assigns text to it.
+            self::transcriptionsAssigning($work)
                 ->whereDoesntHave('layers.segments.canonicalPassage.work', fn (Builder $works) => $works
                     ->whereKeyNot($work->id)
                     ->whereHas('editions', fn (Builder $editions) => $editions->where('visibility', Visibility::Published)))
@@ -80,7 +80,7 @@ class EditionPublisher
     /**
      * @return Builder<Transcription>
      */
-    private static function transcriptionsCiting(Work $work): Builder
+    private static function transcriptionsAssigning(Work $work): Builder
     {
         return Transcription::query()->whereHas(
             'layers.segments.canonicalPassage',

@@ -6,7 +6,7 @@ paths:
 # Components
 
 ## Transcription markup: Leiden-inspired inline syntax, deliberately narrow
-`TranscriptionSegment.text` may contain inline markup for exactly three things — nothing else. Do not extend it for variants, apparatus, abbreviation expansion, or structural/citation numbering; those stay out of the text by design (citations come from the existing ReferenceScheme/CanonicalPassage mapping).
+`TranscriptionSegment.text` may contain inline markup for exactly three things — nothing else. Do not extend it for variants, apparatus, abbreviation expansion, or structural/passage numbering; those stay out of the text by design (assignments come from the existing ReferenceScheme/CanonicalPassage mapping).
 
 Grammar (`App\Support\TranscriptionMarkup\MarkupParser`, mirrored in `resources/js/lib/transcriptionMarkup.ts`):
 - `[abc]` — text lost, editor restores as "abc" → TEI `<supplied reason="lost">abc</supplied>`

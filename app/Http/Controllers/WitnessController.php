@@ -29,7 +29,7 @@ class WitnessController extends Controller
 
     /**
      * Register a witness on its own — a witness only becomes connected to a
-     * work once one of its transcriptions has a segment citing it.
+     * work once one of its transcriptions has a segment assigning text to it.
      */
     public function store(StoreWitnessRequest $request): RedirectResponse
     {
@@ -105,7 +105,7 @@ class WitnessController extends Controller
             // payloads — the rest of this page is far too heavy per keystroke.
             'leftPane' => fn () => $this->panePayload($left),
             'rightPane' => fn () => $this->panePayload($right),
-            // Only works the member may cite into: citing creates passages
+            // Only works the member may assign text to: assigning creates passages
             // and re-collates, so it is editing the work.
             'works' => $request->user() === null
                 ? collect()

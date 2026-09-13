@@ -24,7 +24,7 @@ class UpdateEditionCommentRequest extends FormRequest
      * Only the wording is editable. Moving a note to a different passage or
      * column is not an edit but a different note — delete it and write one
      * where it belongs, rather than silently reanchoring an argument someone
-     * may have cited.
+     * may have assigned.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */

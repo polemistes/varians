@@ -6,7 +6,7 @@ namespace App\Support\TranscriptionMarkup;
  * Parses the Leiden-inspired inline transcription markup used in
  * TranscriptionSegment::$text. Deliberately narrow in scope — it covers only
  * the three things a diplomatic transcript needs to record about the state of
- * the text itself, not variants, apparatus, or citation structure:
+ * the text itself, not variants, apparatus, or assignment structure:
  *
  *   [abc]  text lost, restored by the editor as "abc"
  *   [3]    text lost, ~3 characters, not restored

@@ -92,7 +92,7 @@ class TranscriptionController extends Controller
             $visibility = Visibility::from($request->validated('visibility'));
 
             if ($visibility === Visibility::Draft) {
-                $this->guardNotCitedByPublishedEdition($transcription->transcription);
+                $this->guardNotAssignedByPublishedEdition($transcription->transcription);
             }
 
             $transcription->transcription->update(['visibility' => $visibility]);
@@ -103,11 +103,11 @@ class TranscriptionController extends Controller
 
     /**
      * A published edition's apparatus must stay followable: while one
-     * cites this transcription, it cannot be taken back to a draft — the
+     * assigns text to this transcription, it cannot be taken back to a draft — the
      * edition has to be unpublished first, which retracts it along with the
      * rest (EditionPublisher).
      */
-    private function guardNotCitedByPublishedEdition(Transcription $transcription): void
+    private function guardNotAssignedByPublishedEdition(Transcription $transcription): void
     {
         $edition = Edition::query()
             ->where('visibility', Visibility::Published)
@@ -116,7 +116,7 @@ class TranscriptionController extends Controller
 
         if ($edition !== null) {
             throw ValidationException::withMessages([
-                'visibility' => 'The published edition “'.$edition->title.'” cites this transcription — unpublish the edition first.',
+                'visibility' => 'The published edition “'.$edition->title.'” assigns text to this transcription — unpublish the edition first.',
             ]);
         }
     }

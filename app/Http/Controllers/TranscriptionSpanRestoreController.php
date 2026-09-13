@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\RestoreTranscriptionSpansRequest;
 use App\Models\ManuscriptImage;
 use App\Models\TranscriptionLayer;
-use App\Support\Transcription\CitationIntegrity;
+use App\Support\Transcription\AssignmentIntegrity;
 use App\Support\Transcription\SiblingSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -19,8 +19,8 @@ class TranscriptionSpanRestoreController extends Controller
      * undone. Two kinds of row come here from the client's edit history:
      *
      * - `segments`/`regions`: rows the edit DELETED outright (deleting text
-     *   deletes citations and image mappings), re-created verbatim. A
-     *   citation whose landing words already carry the same assignment is
+     *   deletes assignments and image mappings), re-created verbatim. An
+     *   assignment whose landing words already carry the same assignment is
      *   skipped (the redo/undo dance must not duplicate); a mapping is
      *   skipped where the target already maps overlapping text (mapped
      *   once, like span-copy) or where its image belongs to another witness.
@@ -29,8 +29,8 @@ class TranscriptionSpanRestoreController extends Controller
      *   came out of the undo with the wrong bounds. Undoing a deletion at
      *   the head of a span re-inserts the words, and the span's start has
      *   right-gravity, so the transform pushes the span past them instead
-     *   of covering them again (real bug: "the fox" cited, delete "fo",
-     *   undo, and the citation covered only "x"). The history snapshots
+     *   of covering them again (real bug: "the fox" assigned, delete "fo",
+     *   undo, and the assignment covered only "x"). The history snapshots
      *   every live span before the edit and posts the ones that differ
      *   afterwards; the counterpart in an in-step sibling follows.
      *
@@ -128,10 +128,10 @@ class TranscriptionSpanRestoreController extends Controller
             SiblingSync::heal($transcription->refresh());
 
             foreach ($transcription->transcription->layers as $layer) {
-                $drift = CitationIntegrity::snap($layer);
+                $drift = AssignmentIntegrity::snap($layer);
 
                 if ($drift !== []) {
-                    Log::warning('Citation spans drifted off their words after an undo restore', [
+                    Log::warning('Assignment spans drifted off their words after an undo restore', [
                         'layer' => $layer->id,
                         'adjust_segments' => $request->validated('adjust_segments') ?? [],
                         'issues' => $drift,

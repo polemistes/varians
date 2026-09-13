@@ -30,9 +30,9 @@ class StoreEditionPassageRequest extends FormRequest
      * Either the passages to add by id (`canonical_passage_ids` — the
      * witnesses pane names the segments a selection touched, whichever
      * layer it was made in) or a raw span of the layer's text, every
-     * already-cited segment fully inside it (see
+     * already-assigned segment fully inside it (see
      * EditionPassageController::store). A selection covering only
-     * already-added or uncited text isn't an error, just a no-op, so
+     * already-added or unassigned text isn't an error, just a no-op, so
      * there's no "at least one citable segment" rule here.
      *
      * @return array<string, ValidationRule|array<mixed>|string>

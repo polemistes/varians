@@ -279,7 +279,7 @@ test('where the witnesses agree there is nothing to attribute', function () {
 
 /**
  * A witness whose text for the passage is discontinuous in BOTH layers, split
- * the same way: "the quick" cited in place, "fox" transposed to the head.
+ * the same way: "the quick" assigned in place, "fox" transposed to the head.
  *
  * @return array{passage: CanonicalPassage, normalized: TranscriptionLayer, diplomatic: TranscriptionLayer}
  */

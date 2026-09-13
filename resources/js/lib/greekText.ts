@@ -70,7 +70,7 @@ export type TextEdit = { start: number; end: number; text: string };
  * The edit operations that turn `text` into its stripped form, as the
  * smallest set of character-range replacements.
  *
- * Emitted rather than replacing the text wholesale because every citation
+ * Emitted rather than replacing the text wholesale because every assignment
  * span, image region and collated reading is recorded as offsets into this
  * text: a single op covering the whole document would read as "everything was
  * replaced" and flag or destroy all of them. Removing a mark from inside a

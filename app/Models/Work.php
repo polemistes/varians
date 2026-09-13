@@ -101,7 +101,7 @@ class Work extends Model
     /**
      * Unlike Witness/TranscriptionLayer, an Edition is a real, direct relation —
      * an editorial artifact the editor explicitly creates for a work, not
-     * something inferable from citation data.
+     * something inferable from assignment data.
      *
      * @return HasMany<Edition, $this>
      */
@@ -123,7 +123,7 @@ class Work extends Model
     /**
      * Witnesses connected to this work — derived, not stored: a witness is
      * related to a work only once one of its transcriptions has a segment
-     * citing one of the work's canonical passages.
+     * assigning text to one of the work's canonical passages.
      *
      * @return Builder<Witness>
      */
@@ -148,7 +148,7 @@ class Work extends Model
 
     /**
      * Whether readers at large may see the work: an edition of it is
-     * published, or a published transcription cites one of its passages.
+     * published, or a published transcription assigns text to one of its passages.
      */
     public function isPublished(): bool
     {
@@ -174,7 +174,7 @@ class Work extends Model
     }
 
     /**
-     * Scope a query to works the given member may cite into or otherwise
+     * Scope a query to works the given member may assign text to or otherwise
      * edit: everything for a site-wide editor, else editableBy().
      *
      * @param  Builder<Work>  $query
@@ -193,7 +193,7 @@ class Work extends Model
      * Scope a query to works visible to the given viewer: editors and
      * administrators see everything; a member also sees what she may edit;
      * everyone sees a work with a published edition or with at least one
-     * published transcription citing one of its passages.
+     * published transcription assigning text to one of its passages.
      *
      * @param  Builder<Work>  $query
      */

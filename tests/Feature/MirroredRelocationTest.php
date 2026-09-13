@@ -12,7 +12,7 @@ use App\Models\Work;
  * Moving text around in one layer moves the corresponding text in the other:
  * the layers share a word skeleton (same words, same lines — normalization
  * only changes characters within a word), so a whole-word relocation is
- * replayed on the sibling with its own spellings, citations and all.
+ * replayed on the sibling with its own spellings, assignments and all.
  */
 function twoLayerTranscription(): array
 {
@@ -25,12 +25,12 @@ function twoLayerTranscription(): array
     return [$normalized, $diplomatic];
 }
 
-test('relocating whole words in one layer moves the same words in the other, citations included', function () {
+test('relocating whole words in one layer moves the same words in the other, assignments included', function () {
     $this->actingAs(User::factory()->editor()->create());
     [$normalized, $diplomatic] = twoLayerTranscription();
 
     $passage = CanonicalPassage::factory()->for(Work::factory())->create();
-    // "γίνεται" cited in the normalized layer, "γιγνεται" in the diplomatic.
+    // "γίνεται" assigned in the normalized layer, "γιγνεται" in the diplomatic.
     TranscriptionSegment::factory()->for($normalized)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 7]);
     $diplomaticSegment = TranscriptionSegment::factory()->for($diplomatic)->for($passage, 'canonicalPassage')
@@ -48,7 +48,7 @@ test('relocating whole words in one layer moves the same words in the other, cit
     // The diplomatic layer moved its own spelling of the same words…
     expect($diplomatic->fresh()->text)->toBe("παντα\nκατ ερινγιγνεται ");
 
-    // …and its citation travelled with the move, unflagged.
+    // …and its assignment travelled with the move, unflagged.
     $moved = $diplomaticSegment->fresh();
     expect(mb_substr($diplomatic->fresh()->text, $moved->start_offset, $moved->end_offset - $moved->start_offset))
         ->toBe('γιγνεται')

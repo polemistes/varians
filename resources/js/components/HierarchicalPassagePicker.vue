@@ -24,7 +24,7 @@ const emit = defineEmits<{
 }>();
 
 // A passage is always fully qualified (every level present) — there's no
-// separate "book-only" citation — so the picker's hierarchy is derived by
+// separate "book-only" assignment — so the picker's hierarchy is derived by
 // grouping the flat passage list, not fetched from anywhere new.
 const tree = computed<TreeNode[]>(() => {
     const root: TreeNode[] = [];

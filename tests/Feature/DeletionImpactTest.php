@@ -16,7 +16,7 @@ use App\Models\Witness;
 use App\Models\Work;
 use App\Support\DeletionImpact;
 
-test('forWork counts passages, editions, lemmas, conjectures, and citation segments across any witness', function () {
+test('forWork counts passages, editions, lemmas, conjectures, and assignment segments across any witness', function () {
     $work = Work::factory()->create();
     $passage = CanonicalPassage::factory()->for($work)->create();
     Edition::factory()->for($work)->create();

@@ -22,7 +22,7 @@ use Illuminate\Validation\ValidationException;
  * Since the materialized-order redesign the positions ARE the printed
  * order; they change here, by following a candidate the order report
  * offers (a witness's own sequence, a catalogued conjecture, or plain
- * citation order), or through ConjectureOrderingController, where the
+ * numbering order), or through ConjectureOrderingController, where the
  * editor's own rearrangement is registered as a conjecture and followed.
  */
 class EditionOrderController extends Controller
@@ -31,7 +31,7 @@ class EditionOrderController extends Controller
      * Apply one of the order report's candidates to its range: the named
      * source's own sequence replaces the range's current order. Applying a
      * catalogued conjecture also records the application as attribution
-     * (EditionTransposition); a witness's or citation order needs none —
+     * (EditionTransposition); a witness's or numbering order needs none —
      * "matches witness B" is derivable and shown by the report itself.
      */
     public function applyCandidate(ApplyEditionOrderCandidateRequest $request, Edition $edition): RedirectResponse
@@ -51,7 +51,7 @@ class EditionOrderController extends Controller
         }
 
         // A conjecture is adopted whole — pieces, divided lines and the
-        // attribution record — by the adopter; a witness's or citation
+        // attribution record — by the adopter; a witness's or assignment
         // order is a plain resequencing that needs no record.
         if ($request->validated('conjecture_id') !== null) {
             ArrangementAdopter::adopt($edition, Conjecture::findOrFail((int) $request->validated('conjecture_id')));
@@ -69,9 +69,9 @@ class EditionOrderController extends Controller
     /**
      * The block's member passages in stored (printed) order — membership
      * derived exactly like the report derives it: every passage of this
-     * edition whose citation sort_key falls between the two endpoints,
-     * inclusive. The block is contiguous in CITATION order (its endpoints
-     * are citation-order first and last, see EditionController::orderRanges),
+     * edition whose assignment sort_key falls between the two endpoints,
+     * inclusive. The block is contiguous in NUMBERING order (its endpoints
+     * are assignment-order first and last, see EditionController::orderRanges),
      * but its members may be scattered in the printed order, so locating a
      * printed slice between the endpoints would grab the wrong passages.
      *
@@ -118,15 +118,15 @@ class EditionOrderController extends Controller
 
             if ($conjecture->type === ConjectureType::Transposition) {
                 // A transposition is a statement, not stored entries —
-                // project it onto the block's citation order to get the
+                // project it onto the block's numbering order to get the
                 // sequence it proposes (see TranspositionProjection).
-                $citationOrdered = array_values(CanonicalPassage::whereIn('id', $rangeIds)
+                $numberingOrdered = array_values(CanonicalPassage::whereIn('id', $rangeIds)
                     ->orderBy('sort_key')
                     ->pluck('id')
                     ->map(fn ($id) => (int) $id)
                     ->all());
 
-                $sequence = TranspositionProjection::sequence($conjecture, $citationOrdered) ?? [];
+                $sequence = TranspositionProjection::sequence($conjecture, $numberingOrdered) ?? [];
             } else {
                 // A divided line stands where its first part stands.
                 $sequence = ConjectureOrderingEntry::where('conjecture_id', $conjecture->id)
@@ -147,7 +147,7 @@ class EditionOrderController extends Controller
                 ->values()
                 ->all();
         } else {
-            // Citation order — the vulgate numbering.
+            // Numbering order — the vulgate numbering.
             $sequence = CanonicalPassage::whereIn('id', $rangeIds)
                 ->orderBy('sort_key')
                 ->pluck('id')

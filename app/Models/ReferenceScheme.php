@@ -72,7 +72,7 @@ class ReferenceScheme extends Model
     /**
      * Pad the leading digit run of an "integer" level's value so it sorts
      * numerically, leaving any alphabetic suffix (e.g. the "a"/"A" in "4a")
-     * appended literally — editors are free to cite a segment like "4a"
+     * appended literally — editors are free to assign a segment like "4a"
      * even though the level is typed "integer".
      */
     private static function padIntegerLevel(string $value): string
@@ -83,7 +83,7 @@ class ReferenceScheme extends Model
     }
 
     /**
-     * Parse a citation label back into an address, given this scheme's levels.
+     * Parse an passage label back into an address, given this scheme's levels.
      * Inverse of format() — only reliable for labels this scheme would itself produce.
      *
      * @return array<string, int|string>|null null if the label doesn't match the scheme

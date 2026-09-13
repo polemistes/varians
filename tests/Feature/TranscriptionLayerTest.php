@@ -13,22 +13,22 @@ use App\Models\Witness;
 use App\Models\Work;
 use App\Support\Edition\PassageAdder;
 
-/** Cite a passage from a transcription at the given span. */
-function citeLayer(TranscriptionLayer $transcription, CanonicalPassage $passage, string $text): TranscriptionSegment
+/** Assign a passage from a transcription at the given span. */
+function assignLayer(TranscriptionLayer $transcription, CanonicalPassage $passage, string $text): TranscriptionSegment
 {
     return TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => mb_strlen($text)]);
 }
 
-test('a diplomatic transcription citing the passage is not collated', function () {
+test('a diplomatic transcription assigning text to the passage is not collated', function () {
     $work = Work::factory()->create();
     $passage = CanonicalPassage::factory()->for($work)->create();
     $edition = Edition::factory()->for($work)->create();
 
     $normalized = TranscriptionLayer::factory()->normalized()->create(['text' => 'the quick fox']);
     $diplomatic = TranscriptionLayer::factory()->diplomatic()->create(['text' => 'THE QVICK FOX']);
-    $segment = citeLayer($normalized, $passage, 'the quick fox');
-    citeLayer($diplomatic, $passage, 'THE QVICK FOX');
+    $segment = assignLayer($normalized, $passage, 'the quick fox');
+    assignLayer($diplomatic, $passage, 'THE QVICK FOX');
 
     PassageAdder::add($edition, $segment, 1.0);
 
@@ -37,7 +37,7 @@ test('a diplomatic transcription citing the passage is not collated', function (
 });
 
 test('both layers of one witness collate as one witness, not two', function () {
-    // The bug this feature exists to prevent: a fork copies citation spans
+    // The bug this feature exists to prevent: a fork copies assignment spans
     // verbatim, so without the layer filter a manuscript would appear in its
     // own apparatus disagreeing with itself over its own orthography.
     $work = Work::factory()->create();
@@ -49,8 +49,8 @@ test('both layers of one witness collate as one witness, not two', function () {
     $normalized = TranscriptionLayer::factory()->normalized()->for($witness)
         ->create(['text' => 'τοσοῦτοι μὲν οὖν', 'copied_from_id' => $diplomatic->id]);
 
-    citeLayer($diplomatic, $passage, 'τοσουτοι μεν ουν');
-    $segment = citeLayer($normalized, $passage, 'τοσοῦτοι μὲν οὖν');
+    assignLayer($diplomatic, $passage, 'τοσουτοι μεν ουν');
+    $segment = assignLayer($normalized, $passage, 'τοσοῦτοι μὲν οὖν');
 
     PassageAdder::add($edition, $segment, 1.0);
 
@@ -70,7 +70,7 @@ test('an edition base must be a normalized transcription', function () {
     $edition = Edition::factory()->for($work)->create();
 
     $diplomatic = TranscriptionLayer::factory()->diplomatic()->create(['text' => 'the quick fox']);
-    citeLayer($diplomatic, $passage, 'the quick fox');
+    assignLayer($diplomatic, $passage, 'the quick fox');
 
     $this->post(route('edition-passages.store', $edition), [
         'transcription_layer_id' => $diplomatic->id,
@@ -86,7 +86,7 @@ test('a bulk range add rejects a diplomatic transcription', function () {
     $edition = Edition::factory()->for($work)->create();
 
     $diplomatic = TranscriptionLayer::factory()->diplomatic()->create(['text' => 'the quick fox']);
-    citeLayer($diplomatic, $passage, 'the quick fox');
+    assignLayer($diplomatic, $passage, 'the quick fox');
 
     $this->post(route('edition-passages.store-bulk', $edition), [
         'transcription_layer_id' => $diplomatic->id,
@@ -103,8 +103,8 @@ test('the add-text panel only offers collatable transcriptions', function () {
 
     $normalized = TranscriptionLayer::factory()->normalized()->create(['text' => 'the quick fox']);
     $diplomatic = TranscriptionLayer::factory()->diplomatic()->create(['text' => 'THE QVICK FOX']);
-    citeLayer($normalized, $passage, 'the quick fox');
-    citeLayer($diplomatic, $passage, 'THE QVICK FOX');
+    assignLayer($normalized, $passage, 'the quick fox');
+    assignLayer($diplomatic, $passage, 'THE QVICK FOX');
 
     $this->get(route('editions.show', [$work, $edition]))
         ->assertOk()
@@ -125,7 +125,7 @@ test('the add-text panel names each transcript by its witness and its own name',
         'visibility' => 'published',
     ]);
     $normalized = TranscriptionLayer::factory()->normalized()->for($transcription)->create(['text' => 'the quick fox']);
-    citeLayer($normalized, $passage, 'the quick fox');
+    assignLayer($normalized, $passage, 'the quick fox');
 
     $this->get(route('editions.show', [$work, $edition]))
         ->assertOk()

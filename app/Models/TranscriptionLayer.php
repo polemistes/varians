@@ -18,7 +18,7 @@ use Illuminate\Support\Carbon;
 /**
  * One layer — diplomatic or normalized — of a witness's transcription. It
  * owns the continuous `text` and everything that carries character offsets
- * into it: citation segments, image-alignment regions and collation readings.
+ * into it: assignment segments, image-alignment regions and collation readings.
  *
  * Visibility is not here: a transcription is public or it is not, and if it
  * is, both of its layers are. Which layer an editor writes first is how she

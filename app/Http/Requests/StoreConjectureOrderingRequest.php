@@ -29,9 +29,9 @@ class StoreConjectureOrderingRequest extends FormRequest
      * `canonical_passage_ids` be read in exactly the given order — every id
      * must already be an EditionPassage of this edition, with no
      * duplicates, and together they must form one contiguous range of the
-     * CITATION order, nothing left out (see withValidator). A reordering
+     * NUMBERING order, nothing left out (see withValidator). A reordering
      * proposal is a statement about a stretch of the work ("lines 6–7"),
-     * so citation order defines its extent — not whatever printed order
+     * so numbering order defines its extent — not whatever printed order
      * the editor happens to have arranged at the moment, which may have
      * scattered the stretch. The conjecture itself is edition-independent,
      * exactly like every other Conjecture.
@@ -96,7 +96,7 @@ class StoreConjectureOrderingRequest extends FormRequest
                 ->count();
 
             if ($spanCount !== count($ids)) {
-                $validator->errors()->add($this->has('pieces') ? 'pieces' : 'canonical_passage_ids', 'These passages must form one contiguous range of the citation order, with nothing left out.');
+                $validator->errors()->add($this->has('pieces') ? 'pieces' : 'canonical_passage_ids', 'These passages must form one contiguous range of the numbering order, with nothing left out.');
             }
         });
     }

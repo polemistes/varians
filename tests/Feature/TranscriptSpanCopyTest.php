@@ -12,7 +12,7 @@ use App\Models\Work;
 
 /**
  * Copying text from one layer and pasting it into another brings the
- * citation assignments and facsimile mappings along — the client pairs the
+ * assignment assignments and facsimile mappings along — the client pairs the
  * copy with its paste and posts the source range and landing offset here
  * after the pasted text has been saved.
  */
@@ -28,7 +28,7 @@ function spanCopyFixture(): array
     return [$witness, $source, $target];
 }
 
-test('a pasted copy brings its citations and mappings, shifted to where it landed', function () {
+test('a pasted copy brings its assignments and mappings, shifted to where it landed', function () {
     $this->actingAs(User::factory()->editor()->create());
     [$witness, $source, $target] = spanCopyFixture();
 
@@ -60,7 +60,7 @@ test('a pasted copy brings its citations and mappings, shifted to where it lande
         ->and($region->manuscript_image_id)->toBe($image->id);
 });
 
-test('a copied citation joins a passage the target already cites, as a further part', function () {
+test('a copied assignment joins a passage the target already assigns, as a further part', function () {
     $this->actingAs(User::factory()->editor()->create());
     [, $source, $target] = spanCopyFixture();
 
@@ -80,7 +80,7 @@ test('a copied citation joins a passage the target already cites, as a further p
     expect($target->segments()->where('start_offset', 10)->sole()->part)->toBe(2);
 });
 
-test('a target span that absorbed the pasted text is clipped back around the traveled citation', function () {
+test('a target span that absorbed the pasted text is clipped back around the traveled assignment', function () {
     $this->actingAs(User::factory()->editor()->create());
     [, $source, $target] = spanCopyFixture();
 
@@ -91,7 +91,7 @@ test('a target span that absorbed the pasted text is clipped back around the tra
 
     // The text save that landed the paste extended this span over the whole
     // arrival — end-gravity absorbs typing at a span's end, and the paste
-    // point sat exactly there. The pasted words belong to the citation that
+    // point sat exactly there. The pasted words belong to the assignment that
     // traveled with them, so the absorber is clipped back (real bug: it
     // stayed covering the arrival, overlapping the traveled span).
     $absorber = TranscriptionSegment::factory()->for($target)->for($theirs, 'canonicalPassage')
@@ -111,7 +111,7 @@ test('a target span that absorbed the pasted text is clipped back around the tra
         ->and($absorber->fresh()->needs_review)->toBeFalse();
 });
 
-test('a paste landing inside another cited span splits it into two parts around the arrival', function () {
+test('a paste landing inside another assigned span splits it into two parts around the arrival', function () {
     $this->actingAs(User::factory()->editor()->create());
     [, $source, $target] = spanCopyFixture();
 
@@ -195,7 +195,7 @@ test('a copy whose text no longer matches at either end imports nothing, and say
     [, $source, $target] = spanCopyFixture();
 
     // A notice rather than a validation error: the paste itself succeeded,
-    // and silence here left the editor believing the citations came along.
+    // and silence here left the editor believing the assignments came along.
     $this->post(route('transcriptions.span-copies.store', $target), [
         'source_layer_id' => $source->id,
         'source_start' => 0,
@@ -208,7 +208,7 @@ test('a copy whose text no longer matches at either end imports nothing, and say
     expect($target->segments()->count())->toBe(0);
 });
 
-test('an imported citation reaches both layers of an in-step target transcript', function () {
+test('an imported assignment reaches both layers of an in-step target transcript', function () {
     $this->actingAs(User::factory()->editor()->create());
     [, $source] = spanCopyFixture();
 
@@ -242,7 +242,7 @@ test('an imported citation reaches both layers of an in-step target transcript',
         ->and([$counterpart->start_offset, $counterpart->end_offset])->toBe([0, 5]);
 });
 
-test('citations travel to another witness; facsimile mappings stay with their parchment', function () {
+test('assignments travel to another witness; facsimile mappings stay with their parchment', function () {
     $this->actingAs(User::factory()->editor()->create());
     [$witness, $source] = spanCopyFixture();
 
@@ -269,12 +269,12 @@ test('citations travel to another witness; facsimile mappings stay with their pa
         ->and($foreign->regions()->count())->toBe(0);
 });
 
-test('a copy that cuts through a segment still carries the contained part of its citation', function () {
+test('a copy that cuts through a segment still carries the contained part of its assignment', function () {
     $this->actingAs(User::factory()->editor()->create());
     [, $source, $target] = spanCopyFixture();
 
     $passage = CanonicalPassage::factory()->for(Work::factory())->create();
-    // Cited span [0,11); the copy takes only [6,15) — the overlap [6,11)
+    // Assigned span [0,11); the copy takes only [6,15) — the overlap [6,11)
     // is still genuine text of the passage.
     TranscriptionSegment::factory()->for($source)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 11]);

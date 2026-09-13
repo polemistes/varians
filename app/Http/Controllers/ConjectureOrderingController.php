@@ -25,7 +25,7 @@ class ConjectureOrderingController extends Controller
      * both). The edition page's "Register transposition conjecture" arrives
      * here too: the editor cut and pasted in the text, and every difference
      * from the stored order is the sequence submitted — as `pieces`, since
-     * she may have divided a line, exactly as a witness's citation of a
+     * she may have divided a line, exactly as a witness's assignment of a
      * line can stand in two places; adopting such an arrangement prints
      * the line in pieces (ArrangementAdopter). The editor's own
      * arrangement is always a conjecture, never a silent move (user

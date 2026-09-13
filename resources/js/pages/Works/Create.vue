@@ -130,9 +130,9 @@ function submit() {
                         Reference scheme
                     </legend>
                     <p class="mb-3 text-xs text-stone-500 dark:text-stone-400">
-                        Defines how passages of this work are cited — e.g. book
-                        and line for epic, or Stephanus page and section for
-                        Plato.
+                        Defines how passages of this work are numbered — e.g.
+                        book and line for epic, or Stephanus page and section
+                        for Plato.
                     </p>
 
                     <div class="mb-3 flex gap-4 text-sm">
@@ -197,8 +197,8 @@ function submit() {
                         </label>
 
                         <p class="text-xs text-stone-500 dark:text-stone-400">
-                            List citation levels in order, outermost first (e.g.
-                            Book, then Line).
+                            List numbering levels in order, outermost first
+                            (e.g. Book, then Line).
                         </p>
 
                         <div

@@ -12,8 +12,8 @@ use App\Models\TranscriptionSegment;
 use App\Models\Work;
 use App\Support\Edition\CanonicalPassageResolver;
 use App\Support\Edition\PassageAligner;
-use App\Support\Transcription\CitationBounds;
-use App\Support\Transcription\CitationIntegrity;
+use App\Support\Transcription\AssignmentBounds;
+use App\Support\Transcription\AssignmentIntegrity;
 use App\Support\Transcription\SiblingSync;
 use App\Support\Transcription\WorkOwnership;
 use Illuminate\Foundation\Http\FormRequest;
@@ -25,10 +25,10 @@ use Illuminate\Validation\ValidationException;
 class TranscriptionSegmentController extends Controller
 {
     /**
-     * Mark a span and cite it in one step — a span with no citation has no
+     * Mark a span and assign it in one step — a span with no assignment has no
      * use to anyone, so the two never happen separately.
      *
-     * Citing a passage this layer already cites is not an error but another
+     * Assigning a passage this layer already assigns is not an error but another
      * *part* of it — the witness's text for the passage is discontinuous, a
      * transposition having split it. `after_part` places the new span in the
      * passage's content order (0 = first; absent = last). When the layer was
@@ -40,7 +40,7 @@ class TranscriptionSegmentController extends Controller
     {
         $this->authorize('update', Work::findOrFail((int) $request->validated('work_id')));
 
-        $passage = $this->resolveCitation((int) $request->validated('work_id'), $request->validated('label'));
+        $passage = $this->resolveAssignment((int) $request->validated('work_id'), $request->validated('label'));
         WorkOwnership::guard($transcription->transcription, $passage->work);
 
         DB::transaction(function () use ($request, $transcription, $passage) {
@@ -48,9 +48,9 @@ class TranscriptionSegmentController extends Controller
 
             $group = (string) Str::uuid();
 
-            // Cited on whole words, whatever the selection took in at its
-            // edges — see CitationBounds.
-            [$start, $end] = CitationBounds::wholeWords(
+            // Assigned on whole words, whatever the selection took in at its
+            // edges — see AssignmentBounds.
+            [$start, $end] = AssignmentBounds::wholeWords(
                 $transcription->text,
                 (int) $request->validated('start_offset'),
                 (int) $request->validated('end_offset'),
@@ -78,14 +78,14 @@ class TranscriptionSegmentController extends Controller
             );
         });
 
-        $this->snapCitations($transcription);
+        $this->snapAssignments($transcription);
 
         return back();
     }
 
     /**
      * An assignment is DONE ONCE: the in-step sibling layer receives the
-     * same citation on the same words, projected into its own spelling.
+     * same assignment on the same words, projected into its own spelling.
      * When the sibling's collation already covers the passage, its readings
      * are kept and its parts flagged rather than silently re-collated —
      * the acknowledgment flow belongs to the layer the editor is acting in.
@@ -104,7 +104,7 @@ class TranscriptionSegmentController extends Controller
             return;
         }
 
-        // Already cited there on exactly these words — nothing to add.
+        // Already assigned there on exactly these words — nothing to add.
         $exists = $sibling->segments()
             ->where('canonical_passage_id', $passage->id)
             ->where('start_offset', $siblingStart)
@@ -148,8 +148,8 @@ class TranscriptionSegmentController extends Controller
     {
         DB::transaction(function () use ($request, $segment) {
             // An editor's own bounds are snapped out to whole words: half
-            // a word is no citation, and the aligner reads words.
-            [$start, $end] = CitationBounds::wholeWords(
+            // a word is no assignment, and the aligner reads words.
+            [$start, $end] = AssignmentBounds::wholeWords(
                 $segment->transcriptionLayer->text,
                 (int) $request->validated('start_offset'),
                 (int) $request->validated('end_offset'),
@@ -159,27 +159,27 @@ class TranscriptionSegmentController extends Controller
             SiblingSync::followSegment($segment);
         });
 
-        $this->snapCitations($segment->transcriptionLayer);
+        $this->snapAssignments($segment->transcriptionLayer);
 
         return back();
     }
 
     /**
-     * Re-cite this segment to a different passage within a work. There's no
-     * way to clear a segment's citation — remove the span instead if it's no
+     * Re-assign this segment to a different passage within a work. There's no
+     * way to clear a segment's assignment — remove the span instead if it's no
      * longer wanted.
      *
-     * Re-citing to a passage the layer already cites makes this span another
+     * Re-assigning to a passage the layer already assigns makes this span another
      * part of it, through the same late-part guard as `store` — see there.
      */
-    public function assignCitation(AssignTranscriptionSegmentRequest $request, TranscriptionSegment $segment): RedirectResponse
+    public function reassign(AssignTranscriptionSegmentRequest $request, TranscriptionSegment $segment): RedirectResponse
     {
         $this->authorize('update', Work::findOrFail((int) $request->validated('work_id')));
 
-        $passage = $this->resolveCitation((int) $request->validated('work_id'), $request->validated('label'));
+        $passage = $this->resolveAssignment((int) $request->validated('work_id'), $request->validated('label'));
 
         if ($segment->canonical_passage_id === $passage->id) {
-            $this->snapCitations($segment->transcriptionLayer);
+            $this->snapAssignments($segment->transcriptionLayer);
 
             return back();
         }
@@ -233,15 +233,15 @@ class TranscriptionSegmentController extends Controller
     /**
      * Resolve a work + label into a canonical passage, creating it if it
      * doesn't exist yet. The transcription's witness becomes related to the
-     * work through this citation — that relationship is derived, not stored.
+     * work through this assignment — that relationship is derived, not stored.
      */
-    private function resolveCitation(int $workId, string $label): CanonicalPassage
+    private function resolveAssignment(int $workId, string $label): CanonicalPassage
     {
         return CanonicalPassageResolver::resolve(Work::findOrFail($workId), $label);
     }
 
     /**
-     * Whether this citation lands on a passage the layer was already collated
+     * Whether this assignment lands on a passage the layer was already collated
      * into — in which case its existing readings no longer cover its text,
      * and saving must re-collate (or flag, where re-collation is blocked).
      *
@@ -282,11 +282,11 @@ class TranscriptionSegmentController extends Controller
             : 'the edition'.($titles->count() === 1 ? '' : 's').' '.$titles->map(fn (string $title) => '“'.$title.'”')->join(', ', ' and ');
 
         return 'This witness\'s collated readings for “'.$passage->label.'” are pinned by '.$editions
-            .', so they can\'t be redone automatically — saving keeps them as they are and flags the citation for review.';
+            .', so they can\'t be redone automatically — saving keeps them as they are and flags the assignment for review.';
     }
 
     /**
-     * The content-order slot for a span joining a passage's citation:
+     * The content-order slot for a span joining a passage's assignment:
      * `after_part` inserts it there (0 = first), shifting later parts down;
      * absent, it reads last.
      */
@@ -305,7 +305,7 @@ class TranscriptionSegmentController extends Controller
     }
 
     /**
-     * Redo a layer's collation on a passage whose citation just changed —
+     * Redo a layer's collation on a passage whose assignment just changed —
      * or, where its readings are pinned and must not be deleted, keep them
      * and flag every part for review so the stale alignment is visible.
      */
@@ -319,14 +319,14 @@ class TranscriptionSegmentController extends Controller
     }
 
     /**
-     * After any citation change, both layers' spans are held to their
-     * words (CitationIntegrity::snap) — the sibling receives projected
+     * After any assignment change, both layers' spans are held to their
+     * words (AssignmentIntegrity::snap) — the sibling receives projected
      * bounds, and a projection of a drifted span drifts further.
      */
-    private function snapCitations(TranscriptionLayer $layer): void
+    private function snapAssignments(TranscriptionLayer $layer): void
     {
         foreach ($layer->transcription->layers as $sibling) {
-            CitationIntegrity::snap($sibling);
+            AssignmentIntegrity::snap($sibling);
         }
     }
 }

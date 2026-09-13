@@ -81,12 +81,12 @@ dead). Cut/paste pairs are re-minted fresh `cut_id`s on every pass through
 history, and because a pair's two halves live in SEPARATE history entries,
 the re-mint is stateful (`openReMints`): the delete half opens a fresh id,
 the matching insert half consumes it — independent minting left the halves
-unpaired and the server tombstoned the citation an undo was restoring.
+unpaired and the server tombstoned the assignment an undo was restoring.
 An insert half with NO open re-mint keeps its ORIGINAL id: that is the
 undo of a LONE cut, whose other half is the original cut op still sitting
 unsaved in the log under that very id (the unpaired-cut hold keeps it
 there) — a fresh mint here paired with nothing, and undoing an accidental
-Ctrl+X collapsed every citation the cut covered (second real bug in this
+Ctrl+X collapsed every assignment the cut covered (second real bug in this
 family). Server-side, `normalizeOps` additionally re-pairs by CONTENT: an
 insert claiming relocation under an id no cut in the request recorded
 adopts the first outstanding cut whose removed text matches exactly
@@ -217,7 +217,7 @@ segment is skipped when the landing words already carry a live assignment
 to the same passage — the sibling-healing pass restores assignments the
 moment a pasted text saves, and the import arriving after it duplicated
 every one as a second part (real bug: badges all read 1/2). User-visible
-wording is "assignment(s)" and "image mapping(s)", never "citation(s)"
+wording is "assignment(s)" and "image mapping(s)", never "assignment(s)"
 (user decision). Layer-scoped flash notices carry `message_layer_id`
 (shared as `flash.layer`); a pane shows `flash.message` only when the id
 is absent or its own — both panes render the shared flash, and an import
@@ -229,7 +229,7 @@ sibling's own layer.
 first act is `flushBoth()`, which runs synchronously during the emit — an
 emit before the push finds an empty op log, "flushes" instantly, and the
 import posts against text the server hasn't seen, so its match guard
-refuses everything (real bug: citations never followed a cross-witness
+refuses everything (real bug: assignments never followed a cross-witness
 copy; the tell in the network log is span-copies BEFORE the text PATCH).
 `flushBoth` resolves whether both panes saved clean and `onImportSpans`
 bails when they didn't. A genuine mismatch at the server is a flash
@@ -237,11 +237,11 @@ NOTICE, not a validation error — the paste itself succeeded, and the one
 consequence the editor can't see is that nothing came along; the silent
 error-bag version hid exactly this bug. The import also assigns each
 created row a fresh `group_id` and runs `SiblingSync::heal` on the target,
-so an in-step target transcript receives the citation in BOTH its layers
-(test-pinned). Citations travel ALWAYS — cross-layer,
+so an in-step target transcript receives the assignment in BOTH its layers
+(test-pinned). Assignments travel ALWAYS — cross-layer,
 cross-transcript, cross-witness — and a segment the copy cuts through
 contributes its contained part (still genuine text of its passage, as a
-further part where the target already cites it, unflagged). Facsimile
+further part where the target already assigns text to it, unflagged). Facsimile
 mappings are facts about one parchment: whole-span-only, same witness
 only, skipped where the target already maps overlapping text. Cut stays
 relocation within a layer; cross-layer cut does not carry (the source
@@ -308,8 +308,8 @@ composition's own characters. Using the raw target-range end ate the
 character after the caret on every diacritic (real bug).
 
 ## A marker is not part of the text; the caret's SIDE of it is
-A citation's marker stands at its first character and is there to tell a
-READER which citation follows. The editor should never have to notice it.
+An assignment's marker stands at its first character and is there to tell a
+READER which assignment follows. The editor should never have to notice it.
 The caret may rest on either side of it, what is typed belongs to whatever
 lies on that side, and NOTHING — no text, no caret — ever crosses it.
 
@@ -318,7 +318,7 @@ holds no text of its own. That single fact is behind every defect this
 editor had at a marker. An offset cannot say which side the caret was on, so
 the side is read from the DOM (`markerSide`) and travels with the edit as
 `side` on the op; `SpanTransformer::claimant` then knows whether to write
-into the citation the marker announces or to leave it to what stands before.
+into the assignment the marker announces or to leave it to what stands before.
 `pointAt`/`restoreCaret` take the same side, so the caret is put back on the
 edge it was typed on rather than jumping across.
 
@@ -346,11 +346,11 @@ to the type checker or the suite.
 ## A caret is never left inside a marker
 `settleCaret`, on every selectionchange, steps a collapsed caret that the
 browser has put INSIDE a marker out to the marker's far side, where the
-citation's own words begin. Such a position is not in the text at all: no
+assignment's own words begin. Such a position is not in the text at all: no
 caret rectangle is drawn for it, so nothing shows the writer where she
 stands, and no side can be read from it either.
 
-HOME lands there whenever a citation opens the line — the chip is the first
+HOME lands there whenever an assignment opens the line — the chip is the first
 thing on it — which is a key an editor presses constantly (measured in the
 browser: the anchor came back as the marker element itself, offset 0, with
 an empty rect). The far side is both where the line's first character would
@@ -372,15 +372,15 @@ primary goal is to make the interface work as an ordinary editor window").
 `stepOverMarker`, called from the keydown handler for a bare ArrowLeft or
 ArrowRight, therefore steps the caret over a marker's NEAR side in whichever
 direction it arrived: leftward on to the character before, rightward across
-to the far side where the citation's own words begin. It reads the caret
+to the far side where the assignment's own words begin. It reads the caret
 AFTER the browser has moved it (a zero timeout), since the move happens in
 the default action the listener runs ahead of.
 
-The exception is where a citation genuinely ENDS at that offset: two
-citations meeting flush have a real position on each side and an editor must
+The exception is where an assignment genuinely ENDS at that offset: two
+assignments meeting flush have a real position on each side and an editor must
 be able to reach both, so the near side is left alone there. Verified in the
 browser both ways — one press moves one character between separated
-citations, and the flush pair still stops on both sides.
+assignments, and the flush pair still stops on both sides.
 
 ## What the surface reports about an edit must REACH the transformer
 `AlignableText` reads the marker side from the DOM and hands the pane an op
@@ -389,7 +389,7 @@ to whole-text coordinates — and must do that by SPREADING the op, never by
 rebuilding it from `{start, end, text}`. Rebuilt, it silently dropped `side`
 and `imported`: every side the surface had just read was thrown away one
 function before the transformer, so text typed at a marker's near side went
-to the citation the marker announces, and pasted text was held to citing
+to the assignment the marker announces, and pasted text was held to assigning
 what it landed among.
 
 This is why that defect was unfindable from either end. The surface computed
@@ -401,21 +401,21 @@ browser can. When an op grows a field, check every place an op is BUILT from
 another one.
 
 ## A marker's near side belongs to WHAT LIES BEFORE IT
-The caret on a marker's near side is standing at the end of the citation
-above, so that is what takes what is typed: the citation ending against the
+The caret on a marker's near side is standing at the end of the assignment
+above, so that is what takes what is typed: the assignment ending against the
 marker, or — with nothing but whitespace between — the one carrying on from
-further back, reaching over the gap. NEVER the citation the marker
+further back, reaching over the gap. NEVER the assignment the marker
 announces. Arrowing the caret back past a marker and typing otherwise put
 the words at the start of the following line instead of the end of the line
 the caret stood in (user report).
 
 That also leaves nothing stranded, which is what an earlier version of this
-rule was reaching for by handing the near side to the FOLLOWING citation.
-Both avoid uncited text; only this one matches where the caret is.
+rule was reaching for by handing the near side to the FOLLOWING assignment.
+Both avoid unassigned text; only this one matches where the caret is.
 
 The case is easy to reach and was hard to see: the caret is restored to the
 upstream of two equivalent positions, which is before the marker, whenever
-the preceding character is not a newline — so any pair of citations
+the preceding character is not a newline — so any pair of assignments
 separated by a SPACE puts the caret on the near side after every edit.
 
 ## A caret just past a line break belongs on the NEW line
@@ -439,12 +439,12 @@ This was only ever visible in a browser. Neither the type checker nor the
 suite can see a caret drawn on the wrong line — verify it by pressing the
 keys.
 
-## Backspace and Delete reach across a citation's marker
+## Backspace and Delete reach across an assignment's marker
 A marker is a real element in the editable flow and carries no text, so the
 browser aims a Backspace with the caret just after it at the MARKER, not at
 the character before it. `offsetAt` discounts every `[data-non-text]`
 element, so that target measures as an EMPTY range and the keystroke used to
-delete nothing at all — which is what made running a cited line onto the
+delete nothing at all — which is what made running an assigned line onto the
 line before so hard, since the newline between them could not be reached
 from the side the caret naturally sits on (user report).
 
@@ -454,6 +454,6 @@ returns null at either end of the text. `beforeinput` has already called
 `preventDefault()` by then, so a null op leaves the marker in the DOM rather
 than letting the browser remove it.
 
-Two citations left meeting flush by such a join are FINE and not flagged:
-`CitationIntegrity` allows a boundary inside a word where another citation
+Two assignments left meeting flush by such a join are FINE and not flagged:
+`AssignmentIntegrity` allows a boundary inside a word where another assignment
 meets it exactly, which is what two lines run together looks like.

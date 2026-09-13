@@ -21,7 +21,7 @@ class ConjectureCatalogue
     /**
      * Every conjecture recorded against a passage of the work, with what
      * the list needs to show and edit it: its passages by label, its
-     * sequence (a reordering), its citations, and where it is in use.
+     * sequence (a reordering), its bibliography citations, and where it is in use.
      *
      * @return list<array<string, mixed>>
      */

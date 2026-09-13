@@ -45,7 +45,7 @@ class EditionPolicy
 
     /**
      * The owner, her invited editors, and site-wide editors. Covers the
-     * edition's text, selections, lineation, order, notes and citations.
+     * edition's text, selections, lineation, order, notes and assignments.
      */
     public function update(User $user, Edition $edition): bool
     {

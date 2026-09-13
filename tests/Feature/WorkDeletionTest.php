@@ -10,7 +10,7 @@ use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
 
-test('deleting a work cascades its passages, editions, lemmas, conjectures, and citation segments on any witness, and redirects home', function () {
+test('deleting a work cascades its passages, editions, lemmas, conjectures, and assignment segments on any witness, and redirects home', function () {
     $owner = User::factory()->create();
     $this->actingAs($owner);
     $work = Work::factory()->for($owner)->create();
@@ -19,7 +19,7 @@ test('deleting a work cascades its passages, editions, lemmas, conjectures, and 
     $lemma = Lemma::factory()->for($passage, 'canonicalPassage')->create();
     $conjecture = Conjecture::factory()->for($passage, 'canonicalPassage')->create();
 
-    // A witness with no other connection to this work, cited only via a
+    // A witness with no other connection to this work, assigned only via a
     // segment — the least obvious part of the cascade.
     $witness = Witness::factory()->create();
     $transcription = TranscriptionLayer::factory()->for($witness)->create();

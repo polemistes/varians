@@ -29,14 +29,14 @@ ownership; `Administrator` may do everything — granted once, in
 The WORK is the hub (`Work::isEditableBy`): a work is editable by its
 owner and by the owner or invited editors of any of its editions; a
 witness by its owner or whoever may edit a work one of its transcriptions
-cites (`Witness::relatedWorks`); a conjecture by its owner or whoever may
+assigns (`Witness::relatedWorks`); a conjecture by its owner or whoever may
 edit its passage's work. That is how "editing privileges of an edition
 come with its witnesses and conjectures" is realised — nothing is granted
-per witness. Citing a segment INTO a work therefore requires `update` on
-that work (`TranscriptionSegmentController::store/assignCitation`) — it
+per witness. Assigning a segment INTO a work therefore requires `update` on
+that work (`TranscriptionSegmentController::store/reassign`) — it
 creates passages and re-collates, and it would otherwise let a stranger
 attach her witness to someone's edition. The witness page offers only
-works the member may cite into (`Work::editableOrAllFor`).
+works the member may assign text to (`Work::editableOrAllFor`).
 
 Owner-only, never an invited or site-wide editor: `delete` (works,
 witnesses, editions), `publish` (an edition — and, `WitnessPolicy::
@@ -56,7 +56,7 @@ another's published edition, since the cascades reach every edition.
   The same question, asked of one transcript's layers, refuses
   `TranscriptionController::destroy` with a message rather than a 403,
   since the pane has no per-transcript ability to hide the button by.
-- A transcription a PUBLISHED edition cites cannot be taken back to a
+- A transcription a PUBLISHED edition assigns cannot be taken back to a
   draft — unpublish the edition, which retracts it
   (`TranscriptionController::update`).
 - The only administrator cannot be demoted (`Admin\UsersController`).
@@ -70,7 +70,7 @@ maps by owner: a page break names a page of the layer's own witness
 (`StoreTranscriptionPageBreakRequest`), a span copy's source must be
 viewable (`TranscriptionSpanCopyController` authorizes `view`), and
 `EditionPassageController::store` adds only passages of the edition's own
-work whatever else the layer cites.
+work whatever else the layer assigns.
 
 Every mutating route is `auth` and authorizes against its resource — in
 the FormRequest's `authorize()` where one exists (so an unauthorized
@@ -99,10 +99,10 @@ are answered on the profile page; the header shows the pending count
 
 ## Publishing cascades to the work's evidence, and back
 `EditionPublisher`: publishing an edition publishes every transcription
-citing its work and every conjecture on the work (user decision: "everything
+assigning text to its work and every conjecture on the work (user decision: "everything
 connected to the work", not only what the edition draws on). Unpublishing
 takes them back unless another published edition of the work remains; a
-transcription also cited by a published edition of ANOTHER work stays
+transcription also assigned by a published edition of ANOTHER work stays
 public. Witness visibility stays derived from its transcriptions;
 `Conjecture.visibility` was added for this. `ConjectureCatalogue::forWork`
 takes the viewer so readers see only published conjectures.
@@ -136,18 +136,18 @@ deliberate exception: a copy is always a draft.
 `EditionCopier` (user decision: full clone, because `Lemma`/`LemmaReading`
 are shared by every edition of a WORK, so a copy sharing the work would
 re-collate the original when edited). It copies the work (slug
-`-copy`, `-copy-2`, …) and passages, every witness citing the work with
-only the transcriptions that cite it (`WitnessCopier`: pages, photographs
-duplicated on disk, features, both layers, segments citing the work,
+`-copy`, `-copy-2`, …) and passages, every witness assigning text to the work with
+only the transcriptions that assign it (`WitnessCopier`: pages, photographs
+duplicated on disk, features, both layers, segments assigning text to the work,
 regions, page breaks, fresh `group_id`s per counterpart pair), the
 conjectures (supplements rewired in a second pass, ordering entries,
-citations), the collation, and the edition's passages, selections, line
-breaks, notes, adoptions and citations. Shared, not copied: the reference
+assignments), the collation, and the edition's passages, selections, line
+breaks, notes, adoptions and assignments. Shared, not copied: the reference
 scheme and bibliography items. The copy is a draft with no editors, owned
 by the copier, `copied_from_id` set throughout.
 
 THE ASSIGNMENTS FOLLOW ANY COPY (user decision, reversing an earlier one).
-A witness copied on its own used to arrive uncited, reasoning that its
+A witness copied on its own used to arrive unassigned, reasoning that its
 assignments named a work the copier may not edit; that was wrong and was
 reported. The assignments ARE the transcription work, and a copy without
 them is a wall of text somebody must assign again line by line.

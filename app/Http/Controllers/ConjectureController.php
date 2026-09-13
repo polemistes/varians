@@ -21,7 +21,7 @@ class ConjectureController extends Controller
      * lacuna or supplement is later placed from an edition's variant panel;
      * a transposition or reordering is offered by the order report and
      * followed from there. A reordering hangs from the first passage of its
-     * range by citation order, whichever passage the form was opened on.
+     * range by numbering order, whichever passage the form was opened on.
      */
     public function store(StoreConjectureRequest $request, CanonicalPassage $canonicalPassage): RedirectResponse
     {
@@ -112,7 +112,7 @@ class ConjectureController extends Controller
 
     /**
      * Deleting cascades the conjecture's readings (and any edition's
-     * selection of them), its adoptions and its citations — see
+     * selection of them), its adoptions and its bibliography citations — see
      * DeletionImpact::forConjecture for the preview shown first.
      */
     public function destroy(Conjecture $conjecture): RedirectResponse

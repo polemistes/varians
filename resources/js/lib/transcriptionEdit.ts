@@ -25,17 +25,17 @@ export type TextEditOp = {
      */
     atomic?: boolean;
     /**
-     * Which side of a citation's marker the caret stood on. A marker holds
+     * Which side of an assignment's marker the caret stood on. A marker holds
      * no text, so the offsets either side of it are EQUAL; this is the one
      * thing the offset cannot say, and it decides whether what was typed
-     * belongs to the citation the marker announces or to what stands before
+     * belongs to the assignment the marker announces or to what stands before
      * it. Nothing typed, and no caret, ever crosses a marker.
      */
     side?: 'before' | 'after' | null;
     /**
      * Text that ARRIVED rather than being typed — a paste, a drop, an
-     * import. It comes in uncited and stays so; only typing is held to
-     * citing what it lands among.
+     * import. It comes in unassigned and stays so; only typing is held to
+     * assigning what it lands among.
      */
     imported?: boolean;
     /**
@@ -50,7 +50,7 @@ export type TextEditOp = {
 
 /**
  * How an edit op came about, as reported by the editor component — a
- * clipboard cut or paste can be paired into a citation-preserving
+ * clipboard cut or paste can be paired into an assignment-preserving
  * relocation; typing cannot.
  */
 export type EditSource = 'typing' | 'cut' | 'paste';
@@ -69,7 +69,7 @@ type WorkingSpan = TransformedSpan & {
  * op from `{start, end, text}` dropped `side` and `imported` on the way,
  * which is how the marker side the editor had just read from the DOM never
  * reached the transformer that wanted it (real bug, reported as text
- * arriving at the start of the following citation). Move an op with this,
+ * arriving at the start of the following assignment). Move an op with this,
  * never by writing out a new one: fields added later come along by
  * themselves.
  */
@@ -108,7 +108,7 @@ export function transformSpans(
         const cutId = op.cut_id ?? null;
         const isCut = cutId !== null && op.text === '' && op.end > op.start;
         const isPaste = cutId !== null && op.text !== '' && op.start === op.end;
-        // Which citation, if any, takes what is typed here.
+        // Which assignment, if any, takes what is typed here.
         const claim =
             takesTextAtStart && op.start === op.end && !isPaste
                 ? claimant(
@@ -175,16 +175,16 @@ export function transformSpans(
 }
 
 /**
- * Which citation takes what is typed at this point, by index, or null when
+ * Which assignment takes what is typed at this point, by index, or null when
  * none does. TOUCHING means touching: nothing between the caret and the
- * citation's characters. Standing against its words claims for it, and
- * whatever is typed there is the citation's, a space as much as a letter. A
- * caret with whitespace between it and every citation claims for none of
+ * assignment's characters. Standing against its words claims for it, and
+ * whatever is typed there is the assignment's, a space as much as a letter. A
+ * caret with whitespace between it and every assignment claims for none of
  * them — that whitespace is the gap, and the gap is nobody's.
  *
- * `side` settles the one case an offset cannot: both sides of a citation's
+ * `side` settles the one case an offset cannot: both sides of an assignment's
  * marker measure to the SAME offset, so typing on the marker's near side
- * must not write into the citation it announces. Mirrors
+ * must not write into the assignment it announces. Mirrors
  * App\Support\Transcription\SpanTransformer::claimant.
  */
 function claimant(
@@ -196,8 +196,8 @@ function claimant(
     imported = false,
 ): number | null {
     let atEnd: number | null = null;
-    // A citation never begins with whitespace: a break typed at its first
-    // character belongs above it, and the citation moves down with its
+    // An assignment never begins with whitespace: a break typed at its first
+    // character belongs above it, and the assignment moves down with its
     // marker. Whitespace at its END is claimed, holding the line open.
     const opensWithSpace = inserted !== '' && /^\s/u.test(inserted);
 
@@ -223,26 +223,26 @@ function claimant(
         return atEnd;
     }
 
-    // Whitespace typed at a citation's first character is the gap above it,
-    // and must not be handed to the citation BEFORE either — or Enter at the
-    // start of a cited line would stretch the line above instead of pushing
+    // Whitespace typed at an assignment's first character is the gap above it,
+    // and must not be handed to the assignment BEFORE either — or Enter at the
+    // start of an assigned line would stretch the line above instead of pushing
     // this one down.
     if (opensWithSpace && spanStartsAt(spans, p)) {
         return null;
     }
 
-    // Nothing touches the caret. Between two citations, TYPING still must
-    // not leave words uncited in the midst of cited text: the citation
+    // Nothing touches the caret. Between two assignments, TYPING still must
+    // not leave words unassigned in the midst of assigned text: the assignment
     // before carries on. Imported text is the exception — it arrives
-    // uncited and stays so.
+    // unassigned and stays so.
     return imported || text === null ? null : enclosing(spans, p, text);
 }
 
 /**
- * The citation that CARRIES ON at this point: the one ending before it with
+ * The assignment that CARRIES ON at this point: the one ending before it with
  * only whitespace between, provided another begins after it on the same
- * terms. Where one side has no citation the caret is not in the midst of
- * cited text, and what is typed belongs to nobody.
+ * terms. Where one side has no assignment the caret is not in the midst of
+ * assigned text, and what is typed belongs to nobody.
  */
 function enclosing(
     spans: WorkingSpan[],
@@ -293,7 +293,7 @@ function applySpanOp(
     op: TextEditOp,
     isRelocationPaste = false,
     claims = false,
-    citations = false,
+    assignments = false,
 ): WorkingSpan {
     const insertedLen = [...op.text].length;
 
@@ -304,7 +304,7 @@ function applySpanOp(
             insertedLen,
             isRelocationPaste,
             claims,
-            citations,
+            assignments,
         );
     }
 
@@ -314,25 +314,25 @@ function applySpanOp(
 }
 
 // A pure insertion joins the span it TOUCHES: at its first character, at its
-// last, or anywhere within. A citation never owns the whitespace at its
+// last, or anywhere within. An assignment never owns the whitespace at its
 // edges, so what lies between two of them is a visible gap, and a caret in
 // that gap touches neither. Where two spans meet, the one that BEGINS at the
 // caret takes the text. Mirrors App\Support\Transcription\SpanTransformer —
 // keep the two in step. A relocation paste is exempt: those words belong to
-// the citation carried with them.
+// the assignment carried with them.
 function applyInsertion(
     span: WorkingSpan,
     p: number,
     insertedLen: number,
     isRelocationPaste = false,
     claims = false,
-    citations = false,
+    assignments = false,
 ): WorkingSpan {
-    // For citations the claim decides everything: the one that takes the text
+    // For assignments the claim decides everything: the one that takes the text
     // grows to cover it, and every other is only pushed along.
-    if (citations && !isRelocationPaste) {
+    if (assignments && !isRelocationPaste) {
         if (claims) {
-            // A citation carrying on across a gap reaches over the
+            // An assignment carrying on across a gap reaches over the
             // whitespace to cover what was typed beyond it.
             return {
                 ...span,

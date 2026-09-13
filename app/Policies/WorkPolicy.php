@@ -41,7 +41,7 @@ class WorkPolicy
     }
 
     /**
-     * Only the owner: deleting takes every edition, conjecture and citation
+     * Only the owner: deleting takes every edition, conjecture and assignment
      * of the work with it. A site-wide editor edits, never destroys — and
      * neither does the owner while an edition of the work belongs to
      * someone else (handed on, or made by an invitee), since that would

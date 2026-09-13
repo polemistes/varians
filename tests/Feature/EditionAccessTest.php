@@ -12,7 +12,7 @@ use App\Models\Work;
 use Inertia\Testing\AssertableInertia as AssertInertia;
 
 /**
- * An owner's edition on her work, with a witness citing the work and a
+ * An owner's edition on her work, with a witness assigning text to the work and a
  * conjecture recorded against it — everything a grant on the edition is
  * supposed to reach.
  *
@@ -212,7 +212,7 @@ test('a member cannot reach another member\'s witness by making an edition on he
         ->assertForbidden();
     $this->patch(route('witnesses.update', $witness), ['siglum' => 'Z'])->assertForbidden();
 
-    // Nor may she cite her own witness into that work to become connected to it.
+    // Nor may she assign her own witness into that work to become connected to it.
     $ownWitness = Witness::factory()->for($stranger)->create();
     $layer = TranscriptionLayer::factory()->for($ownWitness)->create(['text' => 'the quick fox']);
     $this->post(route('transcription-segments.store', $layer), [

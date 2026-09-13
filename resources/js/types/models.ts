@@ -134,7 +134,7 @@ export type ManuscriptImageFeature = {
  * One of a Work's critical texts, built up passage by passage by selecting,
  * for each shared Lemma it has an opinion on, which candidate reading to
  * print — unlike Witness/Transcription, this is a genuine direct relation,
- * not something inferable from citation data.
+ * not something inferable from assignment data.
  */
 export type Edition = {
     id: number;
@@ -213,7 +213,7 @@ export type ConjectureType =
  *   `move_position` ('before'/'after') `move_target_canonical_passage_id`.
  *   `text` is never set.
  *
- * All four still need the same credit — `proposed_by`, and citations.
+ * All four still need the same credit — `proposed_by`, and assignments.
  */
 export type Conjecture = {
     id: number;
@@ -237,7 +237,7 @@ export type Conjecture = {
  * manuscript witness at all) and doubles as which transcription's own
  * wording is the display default for this passage. `position` is the order
  * the editor built the edition in — the manuscript's own physical order for
- * a bulk "base a range" add, never citation order.
+ * a bulk "base a range" add, never numbering order.
  */
 export type EditionPassage = {
     id: number;
@@ -297,12 +297,12 @@ export type TranscriptionLayer = {
 };
 
 /**
- * A citation-span annotation over its parent Transcription's `text` —
+ * An assignment-span annotation over its parent Transcription's `text` —
  * doesn't own any text of its own. start_offset/end_offset index into
- * Transcription.text. Always cites a canonical passage — a span with no
- * citation has no use to anyone, so one is never created without the other.
+ * Transcription.text. Always assigns text to a canonical passage — a span with no
+ * assignment has no use to anyone, so one is never created without the other.
  *
- * Several spans in one layer may cite the same passage — its witness text is
+ * Several spans in one layer may assign the same passage — its witness text is
  * then physically discontinuous (a transposition split it) — and `part`
  * orders them by content, independently of where each physically sits.
  */
@@ -315,7 +315,7 @@ export type TranscriptionSegment = {
     part: number;
     needs_review: boolean;
     // Derived after every save: the span begins or ends inside a word
-    // (no neighbouring citation) or overlaps one — see CitationIntegrity.
+    // (no neighbouring assignment) or overlaps one — see AssignmentIntegrity.
     boundary_review?: boolean;
     canonical_passage?: CanonicalPassage & { work?: Work };
     /** Display ordinal among the passage's LIVE parts (client-derived). */
@@ -323,7 +323,7 @@ export type TranscriptionSegment = {
 };
 
 /**
- * An image-alignment span, independent of citation spans — also indexes
+ * An image-alignment span, independent of assignment spans — also indexes
  * into the parent Transcription's `text` directly.
  */
 export type TranscriptionRegion = {

@@ -32,14 +32,14 @@ use Normalizer;
 class PassageAligner
 {
     /**
-     * Collate a passage from every witness citing it — the entry point
+     * Collate a passage from every witness assigning text to it — the entry point
      * PassageAdder uses, and the one that decides between rebuilding the
      * columns and appending to them.
      *
      * Aligning witnesses one at a time diffs each against a consensus the
      * ones already present have set, so the column structure depends on the
      * order they arrived. Ordering by siglum settles that for witnesses
-     * present from the start, but not for one whose citation appears after
+     * present from the start, but not for one whose assignment appears after
      * the passage has already been collated and which sorts before the
      * witnesses that built it: appended, it never gets to seed the columns it
      * should have. So while a passage is still nothing but aligner output,
@@ -51,12 +51,12 @@ class PassageAligner
      * re-derived from witness tokens, and a passage someone has begun editing
      * has a settled structure that should grow rather than churn.
      *
-     * A layer may cite the passage with several spans — its text for the
+     * A layer may assign the passage with several spans — its text for the
      * passage is discontinuous, a transposition having split it — so the unit
      * of alignment is the *layer*, not the span: all of a layer's parts go to
      * `alignWitness` together, as one witness with one token stream.
      *
-     * @param  Collection<int, TranscriptionSegment>  $segments  every normalized witness segment citing this passage
+     * @param  Collection<int, TranscriptionSegment>  $segments  every normalized witness segment assigning text to this passage
      */
     public static function collate(CanonicalPassage $passage, Collection $segments): void
     {
@@ -277,13 +277,13 @@ class PassageAligner
      * touching the passage. Idempotent — a transcription that already has a
      * reading somewhere on this passage is left alone.
      *
-     * Takes ALL of the layer's spans citing the passage — several, when a
+     * Takes ALL of the layer's spans assigning text to the passage — several, when a
      * transposition left its text for the passage discontinuous — and
      * tokenizes them as one stream in part (content) order, NOT physical
      * order: what aligns against the other witnesses is what the layer's
      * text of the passage *reads as*, wherever its pieces physically sit.
      *
-     * @param  Collection<int, TranscriptionSegment>  $segments  one layer's citations of this passage
+     * @param  Collection<int, TranscriptionSegment>  $segments  one layer's assignments of this passage
      */
     public static function alignWitness(CanonicalPassage $passage, Collection $segments): void
     {
@@ -373,7 +373,7 @@ class PassageAligner
     }
 
     /**
-     * Re-align one layer whose citation of a passage changed after it was
+     * Re-align one layer whose assignment of a passage changed after it was
      * collated — a new part arrived, so its existing readings no longer cover
      * its text of the passage. Deletes exactly that layer's readings on the
      * passage's columns and aligns it afresh from all its current parts.
@@ -540,7 +540,7 @@ class PassageAligner
      * @param  array<int, string>  $consensusTexts
      * @param  list<array{text: string, start: int, end: int}>  $tokens
      * @param  string  $sourceText  the witness's whole transcription text — needed to slice a merged multi-token span's exact source substring, never a rejoin
-     * @param  list<int>  $partStarts  token indexes at which a later part of a discontinuous citation begins
+     * @param  list<int>  $partStarts  token indexes at which a later part of a discontinuous assignment begins
      * @return list<array<string, mixed>> each entry is {kind: string, index: int|null, token: array{text: string, start: int, end: int}|null, range_end_index: int|null}
      */
     private static function plan(array $consensusTexts, array $tokens, string $sourceText, array $partStarts = []): array

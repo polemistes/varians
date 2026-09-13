@@ -66,10 +66,10 @@ test('transcription segment order can diverge from canonical passage order', fun
         ->map(fn (TranscriptionSegment $segment) => $segment->canonicalPassage->label)
         ->all();
 
-    $citationOrder = $work->canonicalPassages()->orderBy('sort_key')->pluck('label')->all();
+    $numberingOrder = $work->canonicalPassages()->orderBy('sort_key')->pluck('label')->all();
 
     expect($physicalOrder)->toBe(['976', '1000', '977'])
-        ->and($citationOrder)->toBe(['976', '977', '1000']);
+        ->and($numberingOrder)->toBe(['976', '977', '1000']);
 });
 
 test('a transcription layer can be copied', function () {
@@ -80,7 +80,7 @@ test('a transcription layer can be copied', function () {
         ->and($original->copies->first()->is($fork))->toBeTrue();
 });
 
-test('a transcription can have two separate spans citing the same canonical passage', function () {
+test('a transcription can have two separate spans assigning text to the same canonical passage', function () {
     // e.g. a passage quoted twice, or split across a marginal interruption —
     // segments are independent offset spans, not one-per-passage slots.
     $transcription = TranscriptionLayer::factory()->create();

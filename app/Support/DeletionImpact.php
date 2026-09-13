@@ -31,7 +31,7 @@ class DeletionImpact
      * EditionPassage/EditionTransposition rows — already implied by
      * 'editions' below, not counted separately), every Lemma/LemmaReading
      * built for those passages, every Conjecture recorded against them, and
-     * — the least obvious one — every TranscriptionSegment citing those
+     * — the least obvious one — every TranscriptionSegment assigning those
      * passages, even on a witness with no other connection to this work.
      *
      * @return array{canonicalPassages: int, editions: int, segments: int, conjectures: int, lemmas: int}
@@ -101,7 +101,7 @@ class DeletionImpact
      * What deleting a conjecture takes with it: its placements as readings
      * (and every edition's selection of them), the editions that adopted it
      * as an ordering, the supplements that fill it (a lacuna's cascade),
-     * and its citations.
+     * and its bibliography citations.
      *
      * @return array{readings: int, editionSelections: int, adoptions: int, supplements: int, citations: int}
      */

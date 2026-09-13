@@ -87,7 +87,7 @@ const props = defineProps<{
     bibliography: BibliographyEntry[];
     /** What the references picker needs to create an item in place. */
     bibliographyForm: { registry: BiblatexRegistry; suggestions: Suggestions };
-    /** Every visible witness citing the work, whether or not this edition uses it yet. */
+    /** Every visible witness assigning text to the work, whether or not this edition uses it yet. */
     witnesses: {
         id: number;
         siglum: string;
@@ -221,7 +221,7 @@ function withdrawOffer(transferId: number) {
 function copyEdition() {
     if (
         !window.confirm(
-            'Make your own copy of this edition? You get a copy of the work, of every witness citing it, and of every conjecture recorded against it — all yours to edit, none of it shared with the original.',
+            'Make your own copy of this edition? You get a copy of the work, of every witness assigned to it, and of every conjecture recorded against it — all yours to edit, none of it shared with the original.',
         )
     ) {
         return;
@@ -443,13 +443,13 @@ function toggleLacunaMode() {
 // select text — whole lines or part of a line — and press Ctrl+X to lift
 // it out, put the caret somewhere and press Ctrl+V to set it down. The
 // text is a sequence of PIECES: a piece is a whole passage, or part of one
-// once a cut divided it, exactly as a witness's citation of a line can
+// once a cut divided it, exactly as a witness's assignment of a line can
 // stand in two places; a piece pasted into a line divides that line. On
 // Register, every difference between the stored order and the draft IS the
-// conjecture — one Reordering over the smallest citation-contiguous stretch
+// conjecture — one Reordering over the smallest assignment-contiguous stretch
 // covering the change, its pieces with their words
 // (conjecture-orderings.store). An arrangement that divides a line is
-// reported like a witness's split citation; the edition prints whole
+// reported like a witness's split assignment; the edition prints whole
 // lines, so only an arrangement of whole lines can also be adopted. Copy
 // is refused: text moves, it never multiplies. (User decision, replacing
 // the marker-based rearrange mode and the server's derived "what did this
@@ -597,7 +597,7 @@ function pieceText(draft: DraftPiece): string {
         .join(' ');
 }
 
-/** "3", or "3 2/2" for a part of a divided passage — the apparatus's own citation. */
+/** "3", or "3 2/2" for a part of a divided passage — the apparatus's own assignment. */
 function pieceLabel(piece: Piece): string {
     return piece.parts > 1
         ? `${piece.passage.label} ${piece.part}/${piece.parts}`
@@ -806,9 +806,9 @@ function onTextCopy(event: ClipboardEvent) {
 }
 
 /**
- * What the draft changes, widened to citation contiguity: the passages of
+ * What the draft changes, widened to assignment contiguity: the passages of
  * every piece between the first and last that stand somewhere new, plus
- * every window passage whose citation falls inside that stretch's span —
+ * every window passage whose assignment falls inside that stretch's span —
  * the smallest statement about a stretch of the work that the server
  * accepts, with every piece of each passage in it. Empty while nothing
  * moved or something is still held.
@@ -888,12 +888,12 @@ const registerSummary = computed(() => {
     }
 
     const sortKey = new Map(props.workPassages.map((p) => [p.id, p.sort_key]));
-    const byCitation = [
+    const byAssignment = [
         ...new Set(pieces.map((piece) => piece.passage.id)),
     ].sort((a, b) =>
         (sortKey.get(a) ?? '') < (sortKey.get(b) ?? '') ? -1 : 1,
     );
-    const reading = `${rangeLabel(byCitation)} will read ${pieces.map(pieceLabel).join(', ')}.`;
+    const reading = `${rangeLabel(byAssignment)} will read ${pieces.map(pieceLabel).join(', ')}.`;
 
     return registerDivides.value
         ? `${reading} This divides a line; adopted, the edition prints it in pieces.`
@@ -1350,7 +1350,7 @@ const adoptedConjectureIds = computed(
 );
 
 // The number chip carries the derived reports: violet for a split
-// citation, the order palette for a moved line, sky for a note. One colour
+// assignment, the order palette for a moved line, sky for a note. One colour
 // at a time — a split is rarer and more specific than an order block, so it
 // wins.
 function passageChipClasses(passage: WindowPassage): string[] {
@@ -1403,8 +1403,8 @@ function onChipClick(passage: WindowPassage) {
 
 // ---- what a line rests on: the top of its notice ----
 
-/** Sigla of every visible normalized transcript citing this passage. */
-function witnessesCiting(passage: WindowPassage): string[] {
+/** Sigla of every visible normalized transcript assigning text to this passage. */
+function witnessesAssigning(passage: WindowPassage): string[] {
     return [
         ...new Set(
             props.transcriptions
@@ -1443,7 +1443,7 @@ type ProvenanceLine = { text: string; conjectureId: number | null };
  */
 function provenanceLines(passage: WindowPassage): ProvenanceLine[] {
     const lines: ProvenanceLine[] = [];
-    const witnesses = witnessesCiting(passage);
+    const witnesses = witnessesAssigning(passage);
 
     if (passage.base !== null) {
         const others = witnesses.filter(
@@ -1495,7 +1495,7 @@ function orderingSource(passage: WindowPassage): ProvenanceLine | null {
     const range = passage.order_range;
     const matching = range?.candidates.find(
         (candidate) =>
-            candidate.matches_current && candidate.source !== 'citation',
+            candidate.matches_current && candidate.source !== 'numbering',
     );
 
     if (matching?.source === 'transcription') {
@@ -1516,7 +1516,7 @@ function orderingSource(passage: WindowPassage): ProvenanceLine | null {
         };
     }
 
-    // A divided line: the split-citation report knows which source's
+    // A divided line: the split-assignment report knows which source's
     // arrangement the edition prints — an adopted conjecture first.
     const followed = [...passage.discontinuous_witnesses]
         .filter((source) => source.matches_current)
@@ -1543,7 +1543,7 @@ function orderingSource(passage: WindowPassage): ProvenanceLine | null {
         : null;
 }
 
-/** The split citations that differ from what the edition prints. */
+/** The split assignments that differ from what the edition prints. */
 function splitVariants(passage: WindowPassage): DiscontinuousWitness[] {
     return passage.discontinuous_witnesses.filter(
         (source) => !source.matches_current,
@@ -1581,8 +1581,8 @@ function conjectureBibliography(conjecture: WorkConjecture) {
 }
 
 function candidateName(candidate: OrderCandidate): string {
-    return candidate.source === 'citation'
-        ? 'Citation order'
+    return candidate.source === 'numbering'
+        ? 'Numbering order'
         : (candidate.witness_siglum ?? candidate.proposed_by ?? 'Anonymous');
 }
 
@@ -1614,14 +1614,14 @@ function candidateMoves(
 
 // "R2: 3 comes after 8" — one statement per source that disagrees with the
 // printed order by moving THIS line; the number chip's hover title and, one
-// per line, the click panel. Citation order is a candidate, never a
+// per line, the click panel. Numbering order is a candidate, never a
 // source, so it never speaks here.
 function orderStatements(range: OrderRange, passage: WindowPassage): string[] {
     return range.candidates
         .filter(
             (candidate) =>
                 !candidate.matches_current &&
-                candidate.source !== 'citation' &&
+                candidate.source !== 'numbering' &&
                 candidateMoves(range, candidate, passage),
         )
         .map(
@@ -1632,7 +1632,7 @@ function orderStatements(range: OrderRange, passage: WindowPassage): string[] {
 
 // The panel lists only what DISAGREES with the printed order ABOUT THIS
 // LINE: that a source agrees is no news (a later feature will show which
-// manuscripts accord with the printed text), citation order least of all —
+// manuscripts accord with the printed text), numbering order least of all —
 // the labels on the lines already say it — and a source moving some other
 // line of the block speaks on that line's notice. The one exception is a
 // matching, not-yet-followed conjecture, kept for editors so "Record as
@@ -1642,7 +1642,7 @@ function panelCandidates(
     passage: WindowPassage,
 ): OrderCandidate[] {
     return range.candidates.filter((candidate) =>
-        candidate.source === 'citation'
+        candidate.source === 'numbering'
             ? false
             : candidate.matches_current
               ? canEdit.value &&
@@ -1665,7 +1665,7 @@ function isOrderMoved(passage: WindowPassage): boolean {
     return range.candidates.some(
         (candidate) =>
             !candidate.matches_current &&
-            candidate.source !== 'citation' &&
+            candidate.source !== 'numbering' &&
             analyzeSequence(
                 range.current_sequence,
                 candidate.sequence,
@@ -2414,7 +2414,7 @@ function submitWholeLineLacuna() {
     );
 }
 
-// Frees the passage back up in every transcription citing it, for free —
+// Frees the passage back up in every transcription assigning text to it, for free —
 // see EditionPassageController::destroy.
 /** Remove whole segments from the edition — one, or every one a selection touched. */
 function removeEditionPassages(passageIds: number[]) {
@@ -2439,7 +2439,7 @@ function passageListLabel(ids: number[]): string {
 // Apply one of the report's candidate orders to its range: the stored
 // positions are rewritten to the source's own sequence. Applying a
 // catalogued conjecture also records the application as attribution; a
-// witness's or citation order needs none — "matches witness B" is
+// witness's or numbering order needs none — "matches witness B" is
 // derivable and shown by the report itself. Never an authoring step (see
 // ReorderingAuthorPanel for that).
 /** Adopt a registered proposal reported on a line it divides. */
@@ -2772,7 +2772,7 @@ function runClasses(
 }
 
 // The moved line's number is a calm derived report, like the violet
-// split-citation number: there is no "unsettled" state to escalate, because
+// split-assignment number: there is no "unsettled" state to escalate, because
 // the stored order IS the decision. Color says only what kind of source the
 // current order happens to match: emerald when a manuscript's own order
 // matches, sky when only a conjecture does, stone when the current order
@@ -2854,7 +2854,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                     {{ props.edition.description }}
                 </p>
 
-                <!-- The witnesses that cite the work at all — not only those
+                <!-- The witnesses that assign the work at all — not only those
                      this edition draws on so far — so an editor sees what
                      is available and a reader what was left aside. -->
                 <div
@@ -2866,7 +2866,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                     <span class="flex flex-wrap gap-x-3 gap-y-0.5">
                         <template v-if="props.witnesses.length === 0">
                             <span class="text-stone-500 dark:text-stone-400"
-                                >none cite this work yet</span
+                                >none assign this work yet</span
                             >
                         </template>
                         <Link
@@ -2882,7 +2882,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                             :title="
                                 witness.in_edition
                                     ? 'Text of this edition is based on it'
-                                    : 'Cites the work; not used in this edition yet'
+                                    : 'Assigned to the work; not used in this edition yet'
                             "
                         >
                             <span class="font-serif">{{ witness.siglum }}</span
@@ -3224,7 +3224,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                 moves, and nothing is copied. Every difference
                                 from the current order becomes the conjecture; a
                                 part pasted into a line divides that line, as a
-                                witness's citation can.
+                                witness's assignment can.
                             </p>
                             <p class="text-emerald-800 dark:text-emerald-300">
                                 <template v-if="heldLabel">
@@ -3309,7 +3309,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                             @focusin="onTextFocus($event, true)"
                             @focusout="onTextFocus($event, false)"
                         >
-                            <!-- An empty edition and a work nothing cites are
+                            <!-- An empty edition and a work nothing assigns are
                              different situations, and only the second is a
                              dead end. Saying "this work has no canonical
                              passages" for both told an editor with a perfectly
@@ -3320,8 +3320,8 @@ function orderRangeClasses(range: OrderRange): string[] {
                                 class="font-sans text-sm text-stone-500 dark:text-stone-400"
                             >
                                 <template v-if="!props.transcriptions.length">
-                                    No transcription cites this work yet. An
-                                    edition takes its text from cited
+                                    No transcription assigns text to this work
+                                    yet. An edition takes its text from assigned
                                     transcriptions, so there is nothing to add
                                     until one exists.
                                 </template>
@@ -3384,7 +3384,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                     @mouseleave="hoveredEditionPassageId = null"
                                 >
                                     <!-- The number chip is where the derived
-                                     reports live: violet when a witness cites
+                                     reports live: violet when a witness assigns
                                      this line in more than one place, the
                                      order palette when a source moves this
                                      line — clicking opens the statement. -->
@@ -4350,7 +4350,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                 }}</strong>
                                                 from this edition? The segments
                                                 become available again in every
-                                                witness citing them.
+                                                witness assigning text to them.
                                             </p>
                                             <button
                                                 type="button"
@@ -4372,7 +4372,7 @@ function orderRangeClasses(range: OrderRange): string[] {
 
                                         <!-- The line's notice: what it rests on, then its
                                          variants (order disagreements and split
-                                         citations), references and notes. Open to
+                                         assignments), references and notes. Open to
                                          readers and editors alike. A conjecture named
                                          here opens in place: the edit form for editors,
                                          its literature for readers. -->
@@ -5184,7 +5184,7 @@ function orderRangeClasses(range: OrderRange): string[] {
 
             <!-- The literature the apparatus draws on: every item cited by
                  a passage of this edition or by a conjecture placed on one,
-                 anchored so a citation can link to its entry. -->
+                 anchored so an assignment can link to its entry. -->
             <section
                 v-if="props.bibliography.length > 0"
                 class="mt-2 mb-6 rounded-lg border border-stone-200 p-3 text-sm dark:border-stone-800"

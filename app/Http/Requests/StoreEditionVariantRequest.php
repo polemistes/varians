@@ -273,7 +273,7 @@ class StoreEditionVariantRequest extends FormRequest
             ->exists();
 
         if (! $covered) {
-            $validator->errors()->add('start_offset', 'That span isn\'t inside this witness\'s citation of this passage.');
+            $validator->errors()->add('start_offset', 'That span isn\'t inside this witness\'s assignment of this passage.');
         }
 
         // An empty span is no reading — unless it is the witness's own

@@ -12,18 +12,18 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
- * A citation-span annotation over its parent TranscriptionLayer's continuous
+ * An assignment-span annotation over its parent TranscriptionLayer's continuous
  * `text` — not an owner of text itself. Physical reading order is simply the
- * span's position within that string; citation order lives independently in
+ * span's position within that string; numbering order lives independently in
  * canonical_passage.sort_key, so the two can diverge (transpositions).
  *
- * A segment always cites a canonical passage — there's no "marked but
- * unassigned" state. A span with no citation has no use to anyone, so it's
+ * A segment always assigns text to a canonical passage — there's no "marked but
+ * unassigned" state. A span with no assignment has no use to anyone, so it's
  * either given one at creation or never created at all.
  *
  * One passage's witness text can be physically discontinuous — a scribe
  * transposing half a line splits it across two places — so several spans in
- * one layer may cite the same passage. `part` orders those spans by
+ * one layer may assign the same passage. `part` orders those spans by
  * *content* (which fragment is the first half of the line), a claim
  * independent of the physical order their offsets give; the two disagreeing
  * is exactly what a sub-passage transposition is. Consume parts via

@@ -6,7 +6,7 @@ use App\Models\TranscriptionSegment;
 use App\Models\Witness;
 use App\Models\Work;
 
-test('a witness is unrelated to a work until one of its transcriptions cites it', function () {
+test('a witness is unrelated to a work until one of its transcriptions assigns text to it', function () {
     $work = Work::factory()->create();
     $witness = Witness::factory()->create();
 
@@ -14,7 +14,7 @@ test('a witness is unrelated to a work until one of its transcriptions cites it'
         ->and($witness->relatedWorks()->whereKey($work->id)->exists())->toBeFalse();
 });
 
-test('a witness becomes related to a work once a segment cites one of its passages', function () {
+test('a witness becomes related to a work once a segment assigns text to one of its passages', function () {
     $work = Work::factory()->create();
     $witness = Witness::factory()->create();
     $passage = CanonicalPassage::factory()->for($work)->create();
@@ -26,14 +26,14 @@ test('a witness becomes related to a work once a segment cites one of its passag
         ->and($witness->relatedWorks()->whereKey($work->id)->exists())->toBeTrue();
 });
 
-test('a witness whose transcriptions cite no work is related to none', function () {
+test('a witness whose transcriptions assign no work is related to none', function () {
     $witness = Witness::factory()->create();
     TranscriptionLayer::factory()->for($witness)->create();
 
     expect($witness->relatedWorks()->count())->toBe(0);
 });
 
-test('a witness whose one transcription cites two works appears under both', function () {
+test('a witness whose one transcription assigns two works appears under both', function () {
     $firstWork = Work::factory()->create();
     $secondWork = Work::factory()->create();
     $witness = Witness::factory()->create();
@@ -42,7 +42,7 @@ test('a witness whose one transcription cites two works appears under both', fun
     $secondPassage = CanonicalPassage::factory()->for($secondWork)->create();
 
     // One slot per layer is enough for a manuscript containing several works:
-    // a TranscriptionLayer has no work_id, and its citations point into whichever
+    // a TranscriptionLayer has no work_id, and its assignments point into whichever
     // works its text covers.
     $transcription = TranscriptionLayer::factory()->for($witness)->create();
 

@@ -108,7 +108,7 @@ class EditionController extends Controller
         // Restricted to the collatable layer for both uses. The panel adds
         // text to an edition, which only a normalized transcription may
         // source. Ordering loses nothing by the same filter: a fork copies
-        // the citation segments verbatim, so the normalized layer carries
+        // the assignment segments verbatim, so the normalized layer carries
         // the very same physical order its diplomatic parent does.
         $transcriptions = TranscriptionLayer::forWork($work)->visibleTo($request->user())->collatable()
             ->with([
@@ -122,7 +122,7 @@ class EditionController extends Controller
         // across the page boundary is a disagreement the editor must still
         // be shown. Keyed by canonical passage id.
         $orderRanges = $this->orderRanges($orderedPassages, $transcriptions);
-        $discontinuities = $this->citationDiscontinuities(
+        $discontinuities = $this->assignmentDiscontinuities(
             $transcriptions,
             $this->conjectureArrangements(array_values(array_map('intval', $window->pluck('canonical_passage_id')->all()))),
             $orderedPassages,
@@ -176,13 +176,13 @@ class EditionController extends Controller
                     $offset + $index > 0 ? $orderedPassages->get($offset + $index - 1)?->id : null,
                 ))
                 ->values(),
-            // The work's *entire* citation space, regardless of what's in
-            // this edition yet — the bulk "base a range" picker searches a
-            // citation range for segments to add, so it must be able to
+            // The work's *entire* numbering space, regardless of what's in
+            // this edition yet — the bulk "base a range" picker searches an
+            // assignment range for segments to add, so it must be able to
             // name a range that isn't in the edition at all yet (unlike
             // `passages` above, which is deliberately scoped to what's
             // already been added). Sort keys let the page widen a
-            // registered rearrangement to citation contiguity.
+            // registered rearrangement to assignment contiguity.
             'workPassages' => $work->canonicalPassages()->orderBy('sort_key')->get(['id', 'address', 'label', 'sort_key']),
             // The work's conjectures as the Work page lists them, so a
             // conjecture named in a notice can be edited in place (editors)
@@ -197,8 +197,8 @@ class EditionController extends Controller
                     'conjecture_id' => $adoption->conjecture_id,
                 ])->values(),
             // Each transcription's own text/segments, for the "Add text"
-            // panel's selection view — scoped to segments citing *this*
-            // work, since a transcription can carry citations into more
+            // panel's selection view — scoped to segments assigning *this*
+            // work, since a transcription can carry assignments into more
             // than one work. Shaped explicitly so the panel can name each
             // transcript (witness siglum/label + the transcription's own
             // name) instead of falling back to a bare layer id.
@@ -220,9 +220,9 @@ class EditionController extends Controller
             // the edition. Both layers, unlike `transcriptions` above.
             'witnessTranscripts' => $this->witnessTranscripts($transcriptions, $diplomaticLayers, $request->user()),
             'referenceLevels' => $work->referenceScheme->levels,
-            // Every visible witness citing the work, not only those this
+            // Every visible witness assigning text to the work, not only those this
             // edition draws on — what is available, and what was left aside.
-            'witnesses' => $this->witnessesCiting($transcriptions, $editionPassages),
+            'witnesses' => $this->witnessesAssigning($transcriptions, $editionPassages),
             // Every item this edition cites — from its passages and from
             // the conjectures placed on them — for the bibliography at the
             // foot of the page, and what the references picker needs to
@@ -236,7 +236,7 @@ class EditionController extends Controller
     }
 
     /**
-     * The witnesses behind the visible normalized layers citing the work,
+     * The witnesses behind the visible normalized layers assigning text to the work,
      * by siglum, each marked whether a passage of this edition is based on
      * one of its transcripts.
      *
@@ -244,7 +244,7 @@ class EditionController extends Controller
      * @param  SupportCollection<int, EditionPassage>  $editionPassages
      * @return list<array{id: int, siglum: string, label: string|null, in_edition: bool}>
      */
-    private function witnessesCiting(SupportCollection $transcriptions, SupportCollection $editionPassages): array
+    private function witnessesAssigning(SupportCollection $transcriptions, SupportCollection $editionPassages): array
     {
         $baseWitnessIds = $editionPassages
             ->map(fn (EditionPassage $editionPassage) => $editionPassage->transcriptionLayer?->transcription->witness_id)
@@ -270,17 +270,17 @@ class EditionController extends Controller
     }
 
     /**
-     * The citations of one thing, as the apparatus prints them.
+     * The bibliography citations of one thing, as the apparatus prints them.
      *
      * @param  iterable<int, BibliographyReference>  $references
      * @return list<Citation>
      */
     private function citations(iterable $references): array
     {
-        $citations = [];
+        $assignments = [];
 
         foreach ($references as $reference) {
-            $citations[] = [
+            $assignments[] = [
                 'id' => $reference->id,
                 'item_id' => $reference->bibliography_item_id,
                 'label' => $reference->item->label,
@@ -290,7 +290,7 @@ class EditionController extends Controller
             ];
         }
 
-        return $citations;
+        return $assignments;
     }
 
     /**
@@ -318,7 +318,7 @@ class EditionController extends Controller
     /**
      * Every visible transcript of the work, in both layers, WHOLE — the
      * witnesses pane is where segments are picked for adding, so it shows
-     * the manuscript's full text with every citation, greying out what the
+     * the manuscript's full text with every assignment, greying out what the
      * edition already has (user decision, replacing the window slice). A
      * diplomatic entry names its normalized sibling, the only layer an add
      * may source.
@@ -414,7 +414,7 @@ class EditionController extends Controller
     }
 
     /**
-     * A transcript's full text and citations for the witnesses pane.
+     * A transcript's full text and assignments for the witnesses pane.
      *
      * @return array<string, mixed>
      */
@@ -423,7 +423,7 @@ class EditionController extends Controller
         // Which part of its passage each span is, as a dense ordinal — raw
         // `part` values can carry gaps after merges and removals, and
         // AlignableText prints "label · ordinal/total" on a discontinuous
-        // citation's badges.
+        // assignment's badges.
         $partOrdinals = [];
 
         foreach ($transcription->segments->groupBy('canonical_passage_id') as $group) {
@@ -547,23 +547,23 @@ class EditionController extends Controller
      * generalization of a plain adjacent swap (the smallest possible
      * non-identity block is size 2). Blocks from different sources are
      * merged wherever they overlap, since only one candidate list makes
-     * sense for one span of the text. A transcription that doesn't cite
+     * sense for one span of the text. A transcription that doesn't assign
      * every passage in the final merged block can't offer a whole-block
      * candidate (mirrors how a fragmentary witness already can't extend
      * past what it covers elsewhere, see witnessExtension()) — it simply
      * isn't listed as a candidate for that block.
      *
-     * The printed order is the reference, and CITATION ORDER IS NOT A
+     * The printed order is the reference, and NUMBERING ORDER IS NOT A
      * SOURCE (user decision): that the printed order, or a manuscript's,
-     * departs from citation order is no news — the citation labels on the
+     * departs from numbering order is no news — the passage labels on the
      * lines already say so. What the editor needs surfacing is only where
      * what she PRINTS disagrees with a witness or with a catalogued
-     * proposal. Citation order remains available inside a block as an
+     * proposal. Numbering order remains available inside a block as an
      * applyable candidate, it just never creates one. (An earlier design
-     * diffed sources against citation order and flagged the editor's own
+     * diffed sources against numbering order and flagged the editor's own
      * departure separately; both notices were noise by this measure.)
      *
-     * A block's extent is the citation span of the disagreeing stretch
+     * A block's extent is the assignment span of the disagreeing stretch
      * (min..max sort_key of its members), so its members may be scattered
      * in the printed order. Each member's window index carries the same
      * block info; `anchor` is true only on the first member in printed
@@ -589,14 +589,14 @@ class EditionController extends Controller
             return [];
         }
 
-        $byCitation = $ordered
+        $byAssignment = $ordered
             ->sortBy(fn (EditionPassage $editionPassage) => $editionPassage->canonicalPassage->sort_key)
             ->values();
 
-        $citationIndexOf = [];
+        $assignmentIndexOf = [];
 
-        foreach ($byCitation as $index => $editionPassage) {
-            $citationIndexOf[$editionPassage->canonical_passage_id] = $index;
+        foreach ($byAssignment as $index => $editionPassage) {
+            $assignmentIndexOf[$editionPassage->canonical_passage_id] = $index;
         }
 
         $printedIndexOf = [];
@@ -605,11 +605,11 @@ class EditionController extends Controller
             $printedIndexOf[$editionPassage->canonical_passage_id] = $index;
         }
 
-        // One source's disagreement with the printed order, as citation-
+        // One source's disagreement with the printed order, as assignment-
         // index blocks: the source's subset is laid out in printed order,
         // permuted into the source's own order, and each non-identity
-        // block's members map to their citation span.
-        $blocksAgainstPrinted = function (array $subsetIds, array $sourceRankOf) use ($printedIndexOf, $citationIndexOf): array {
+        // block's members map to their assignment span.
+        $blocksAgainstPrinted = function (array $subsetIds, array $sourceRankOf) use ($printedIndexOf, $assignmentIndexOf): array {
             $inPrintedOrder = collect($subsetIds)
                 ->sortBy(fn (int $id) => $printedIndexOf[$id])
                 ->values()
@@ -624,16 +624,16 @@ class EditionController extends Controller
             $blocks = [];
 
             foreach (PermutationBlocks::nonIdentityBlocks($perm) as [$localStart, $localEnd]) {
-                $memberCitationIndexes = array_map(
-                    fn (int $id) => $citationIndexOf[$id],
+                $memberAssignmentIndexes = array_map(
+                    fn (int $id) => $assignmentIndexOf[$id],
                     array_slice($inPrintedOrder, $localStart, $localEnd - $localStart + 1),
                 );
 
-                if ($memberCitationIndexes === []) {
+                if ($memberAssignmentIndexes === []) {
                     continue;
                 }
 
-                $blocks[] = [min($memberCitationIndexes), max($memberCitationIndexes)];
+                $blocks[] = [min($memberAssignmentIndexes), max($memberAssignmentIndexes)];
             }
 
             return $blocks;
@@ -642,34 +642,34 @@ class EditionController extends Controller
         $indexBlocks = [];
 
         foreach ($transcriptions as $transcription) {
-            // A passage's physical position is its *earliest* citation span.
-            // Deliberate for a passage cited in several places: a transposed
+            // A passage's physical position is its *earliest* assignment span.
+            // Deliberate for a passage assigned in several places: a transposed
             // part is a sub-passage matter, reported per passage via
-            // citationDiscontinuities(), and must not drag the whole passage
+            // assignmentDiscontinuities(), and must not drag the whole passage
             // into a whole-passage reorder block here.
             $offsetsByPassageId = $transcription->segments
                 ->groupBy('canonical_passage_id')
                 ->map(fn (SupportCollection $segments) => $segments->min('start_offset'));
 
-            $citedIds = [];
+            $assignedIds = [];
 
             foreach ($ordered as $editionPassage) {
                 if ($offsetsByPassageId->has($editionPassage->canonical_passage_id)) {
-                    $citedIds[] = $editionPassage->canonical_passage_id;
+                    $assignedIds[] = $editionPassage->canonical_passage_id;
                 }
             }
 
-            if (count($citedIds) < 2) {
+            if (count($assignedIds) < 2) {
                 continue;
             }
 
             $rankOf = [];
 
-            foreach (collect($citedIds)->sortBy(fn (int $id) => $offsetsByPassageId->get($id))->values() as $rank => $id) {
+            foreach (collect($assignedIds)->sortBy(fn (int $id) => $offsetsByPassageId->get($id))->values() as $rank => $id) {
                 $rankOf[$id] = $rank;
             }
 
-            array_push($indexBlocks, ...$blocksAgainstPrinted($citedIds, $rankOf));
+            array_push($indexBlocks, ...$blocksAgainstPrinted($assignedIds, $rankOf));
         }
 
         // Catalogued proposals are sources too: one creates a site the
@@ -677,8 +677,8 @@ class EditionController extends Controller
         // otherwise a proposal nobody has applied would be undiscoverable.
         // Both kinds come normalized to {ids, sequence} here: a
         // Reordering's stored entries, a Transposition's statement
-        // projected onto its citation span.
-        $conjectureSources = $this->conjectureOrderSources($byCitation, $citationIndexOf);
+        // projected onto its assignment span.
+        $conjectureSources = $this->conjectureOrderSources($byAssignment, $assignmentIndexOf);
 
         foreach ($conjectureSources as $source) {
             array_push($indexBlocks, ...$blocksAgainstPrinted($source['ids'], array_flip($source['sequence'])));
@@ -687,7 +687,7 @@ class EditionController extends Controller
         $ranges = [];
 
         foreach ($this->mergeIndexBlocks($indexBlocks) as [$startIndex, $endIndex]) {
-            $members = $byCitation->slice($startIndex, $endIndex - $startIndex + 1)->values();
+            $members = $byAssignment->slice($startIndex, $endIndex - $startIndex + 1)->values();
             $rangeInfo = $this->buildOrderRangeInfo($ordered, $members, $transcriptions, $conjectureSources);
 
             if ($rangeInfo === null) {
@@ -714,7 +714,7 @@ class EditionController extends Controller
      * kinds alike:
      *
      * - a Reordering carries its sequence as stored entries;
-     * - a Transposition is a statement, projected onto the citation span
+     * - a Transposition is a statement, projected onto the assignment span
      *   its anchors bracket (see TranspositionProjection). Every record
      *   counts: since the edition page registers the editor's own
      *   rearrangement as a conjecture deliberately, there are no silent
@@ -723,13 +723,13 @@ class EditionController extends Controller
      * A proposal reaching passages outside the window is skipped, like a
      * fragmentary witness.
      *
-     * @param  SupportCollection<int, EditionPassage>  $byCitation
-     * @param  array<int, int>  $citationIndexOf
-     * @return list<array{conjecture: Conjecture, ids: list<int>, sequence: list<int>}> ids in citation order; sequence the proposed order of the same set
+     * @param  SupportCollection<int, EditionPassage>  $byAssignment
+     * @param  array<int, int>  $assignmentIndexOf
+     * @return list<array{conjecture: Conjecture, ids: list<int>, sequence: list<int>}> ids in numbering order; sequence the proposed order of the same set
      */
-    private function conjectureOrderSources(SupportCollection $byCitation, array $citationIndexOf): array
+    private function conjectureOrderSources(SupportCollection $byAssignment, array $assignmentIndexOf): array
     {
-        $windowIds = $byCitation->pluck('canonical_passage_id')->all();
+        $windowIds = $byAssignment->pluck('canonical_passage_id')->all();
         $sources = [];
 
         $reorderings = Conjecture::where('type', ConjectureType::Reordering)
@@ -739,16 +739,16 @@ class EditionController extends Controller
 
         foreach ($reorderings as $conjecture) {
             // A divided passage stands where its first part stands, the
-            // way a witness's split citation does in the order report.
+            // way a witness's split assignment does in the order report.
             $entryIds = $conjecture->orderingEntries->pluck('canonical_passage_id')->unique()->values();
 
-            if ($entryIds->count() < 2 || $entryIds->contains(fn (int $id) => ! array_key_exists($id, $citationIndexOf))) {
+            if ($entryIds->count() < 2 || $entryIds->contains(fn (int $id) => ! array_key_exists($id, $assignmentIndexOf))) {
                 continue;
             }
 
             $sources[] = [
                 'conjecture' => $conjecture,
-                'ids' => array_values($entryIds->sortBy(fn (int $id) => $citationIndexOf[$id])->all()),
+                'ids' => array_values($entryIds->sortBy(fn (int $id) => $assignmentIndexOf[$id])->all()),
                 'sequence' => array_values($conjecture->orderingEntries->sortBy('sequence')->pluck('canonical_passage_id')->unique()->all()),
             ];
         }
@@ -770,14 +770,14 @@ class EditionController extends Controller
             $anchorIndexes = [];
 
             foreach ($anchors as $anchor) {
-                if ($anchor === null || ! array_key_exists($anchor, $citationIndexOf)) {
+                if ($anchor === null || ! array_key_exists($anchor, $assignmentIndexOf)) {
                     continue 2;
                 }
 
-                $anchorIndexes[] = $citationIndexOf[$anchor];
+                $anchorIndexes[] = $assignmentIndexOf[$anchor];
             }
 
-            $memberIds = array_values($byCitation
+            $memberIds = array_values($byAssignment
                 ->slice(min($anchorIndexes), max($anchorIndexes) - min($anchorIndexes) + 1)
                 ->pluck('canonical_passage_id')
                 ->all());
@@ -826,15 +826,15 @@ class EditionController extends Controller
     }
 
     /**
-     * One block's report. `$members` are the block's passages in citation
+     * One block's report. `$members` are the block's passages in assignment
      * order; `matches_current` compares each candidate against the members'
      * relative order as printed (they may be scattered among non-members in
      * the printed text — see orderRanges()). The block's endpoints are its
-     * citation-order first and last member, which is also how the apply
+     * assignment-order first and last member, which is also how the apply
      * endpoint re-derives membership (EditionOrderController).
      *
      * @param  SupportCollection<int, EditionPassage>  $ordered  the window, in printed order
-     * @param  SupportCollection<int, EditionPassage>  $members  the block, in citation order
+     * @param  SupportCollection<int, EditionPassage>  $members  the block, in numbering order
      * @param  SupportCollection<int, TranscriptionLayer>  $transcriptions
      * @param  list<array{conjecture: Conjecture, ids: list<int>, sequence: list<int>}>  $conjectureSources
      * @return array<string, mixed>|null
@@ -849,32 +849,32 @@ class EditionController extends Controller
         )->values();
         $currentIds = $currentMembers->pluck('canonical_passage_id')->all();
 
-        $citationSequence = $members->pluck('canonical_passage_id')->all();
-        $memberCount = count($citationSequence);
+        $numberingSequence = $members->pluck('canonical_passage_id')->all();
+        $memberCount = count($numberingSequence);
 
         $candidates = [];
 
-        // Citation order is always a candidate — the vulgate numbering an
+        // The numbering order is always a candidate — the vulgate numbering an
         // apparatus reports transpositions against.
         $candidates[] = [
-            'source' => 'citation',
+            'source' => 'numbering',
             'transcription_layer_id' => null,
             'conjecture_id' => null,
             'proposed_by' => null,
-            'sequence' => collect($citationSequence)->map(fn (int $id) => $labelByPassageId->get($id)?->canonicalPassage->label)->all(),
+            'sequence' => collect($numberingSequence)->map(fn (int $id) => $labelByPassageId->get($id)?->canonicalPassage->label)->all(),
             'witness_siglum' => null,
-            'matches_current' => $citationSequence === $currentIds,
+            'matches_current' => $numberingSequence === $currentIds,
         ];
 
         foreach ($transcriptions as $transcription) {
-            $citedIds = $transcription->segments->pluck('canonical_passage_id')->unique();
+            $assignedIds = $transcription->segments->pluck('canonical_passage_id')->unique();
 
-            if ($citedIds->intersect($citationSequence)->count() !== $memberCount) {
-                continue; // fragmentary — doesn't cite every passage in the block
+            if ($assignedIds->intersect($numberingSequence)->count() !== $memberCount) {
+                continue; // fragmentary — doesn't assign every passage in the block
             }
 
             $sequence = $transcription->segments
-                ->whereIn('canonical_passage_id', $citationSequence)
+                ->whereIn('canonical_passage_id', $numberingSequence)
                 ->groupBy('canonical_passage_id')
                 ->map(fn (SupportCollection $segments) => $segments->min('start_offset'))
                 ->sortBy(fn (int $offset) => $offset)
@@ -893,7 +893,7 @@ class EditionController extends Controller
         }
 
         foreach ($conjectureSources as $source) {
-            if ($source['ids'] !== $citationSequence) {
+            if ($source['ids'] !== $numberingSequence) {
                 continue; // proposes an order for a different set than this block
             }
 
@@ -911,14 +911,14 @@ class EditionController extends Controller
         }
 
         // A block exists only where a WITNESS or a catalogued conjecture
-        // disagrees with the printed order — the citation candidate alone
+        // disagrees with the printed order — the assignment candidate alone
         // never keeps one alive (that the printed order departs from
-        // citation order is no news; the line numbers say so). This bites
-        // when the citation-span expansion swallowed the only disagreeing
+        // numbering order is no news; the line numbers say so). This bites
+        // when the assignment-span expansion swallowed the only disagreeing
         // witness's candidacy (fragmentary rule): the block then has
         // nothing to say and is dropped.
         $hasAlternative = collect($candidates)->contains(
-            fn (array $candidate) => $candidate['source'] !== 'citation' && ! $candidate['matches_current'],
+            fn (array $candidate) => $candidate['source'] !== 'numbering' && ! $candidate['matches_current'],
         );
 
         if (! $hasAlternative) {
@@ -1006,13 +1006,13 @@ class EditionController extends Controller
     /**
      * Passages whose text a witness holds in more than one place, keyed by
      * canonical passage id — the sub-passage counterpart of orderRanges'
-     * whole-passage divergence detection, and like it derived from citation
+     * whole-passage divergence detection, and like it derived from assignment
      * spans at display time rather than stored.
      *
-     * Each part carries the label of the nearest preceding span citing a
+     * Each part carries the label of the nearest preceding span assigning a
      * *different* passage (skipping sibling parts, which merely sit next to
      * each other), so the page can say "part 2 follows 42"; null means the
-     * part stands before anything else the layer cites.
+     * part stands before anything else the layer assigns.
      *
      * @param  SupportCollection<int, TranscriptionLayer>  $transcriptions
      *                                                                      Each entry also says whether the edition's own printed arrangement of
@@ -1022,7 +1022,7 @@ class EditionController extends Controller
      * @param  SupportCollection<int, EditionPassage>  $printed  the whole edition's rows, in printed order
      * @return array<int, array<int, array{siglum: string, conjecture_id: int|null, matches_current: bool, parts: array<int, array{part: int, after_label: string|null}>, statements: list<string>}>>
      */
-    private function citationDiscontinuities(SupportCollection $transcriptions, SupportCollection $arrangements, SupportCollection $printed): array
+    private function assignmentDiscontinuities(SupportCollection $transcriptions, SupportCollection $arrangements, SupportCollection $printed): array
     {
         $result = [];
         $printedKeys = array_values($printed
@@ -1036,7 +1036,7 @@ class EditionController extends Controller
         }
 
         // A conjecture that divides a line is the same kind of source as a
-        // witness that cites a line in two places, and is reported by the
+        // witness that assigns text to a line in two places, and is reported by the
         // same code (user decision).
         foreach ($arrangements as $arrangement) {
             foreach ($this->discontinuitiesOf($arrangement['name'], $arrangement['text'], $arrangement['segments'], $arrangement['conjecture_id'], $printedKeys) as $passageId => $entries) {
@@ -1051,7 +1051,7 @@ class EditionController extends Controller
     }
 
     /**
-     * One source's split citations, keyed by canonical passage id.
+     * One source's split assignments, keyed by canonical passage id.
      *
      * @param  SupportCollection<int, TranscriptionSegment>  $segments
      * @param  list<array{0: int, 1: int}>  $printedKeys  the edition's printed rows as (passage, part)
@@ -1063,16 +1063,16 @@ class EditionController extends Controller
         $byOffset = $segments->sortBy('start_offset')->values();
         $statements = $this->transpositionStatements($siglum, $text, $segments);
 
-        // The source's arrangement of the passages it cites, as (passage,
+        // The source's arrangement of the passages it assigns, as (passage,
         // part) in physical order, against the edition's printed rows of
         // the same passages: equal means the edition prints this
         // arrangement — it follows the source rather than varying from it.
         $sourceKeys = array_values($byOffset
             ->map(fn (TranscriptionSegment $segment) => [(int) $segment->canonical_passage_id, (int) $segment->part])
             ->all());
-        $cited = array_flip(array_map(fn (array $key) => $key[0], $sourceKeys));
+        $assigned = array_flip(array_map(fn (array $key) => $key[0], $sourceKeys));
         $printedIds = array_flip(array_map(fn (array $key) => $key[0], $printedKeys));
-        $matchesCurrent = array_values(array_filter($printedKeys, fn (array $key) => isset($cited[$key[0]])))
+        $matchesCurrent = array_values(array_filter($printedKeys, fn (array $key) => isset($assigned[$key[0]])))
             === array_values(array_filter($sourceKeys, fn (array $key) => isset($printedIds[$key[0]])));
 
         foreach ($segments->groupBy('canonical_passage_id') as $passageId => $parts) {
@@ -1108,8 +1108,8 @@ class EditionController extends Controller
     /**
      * Reordering conjectures that divide a passage shown in the window,
      * each shaped like a transcript — the pieces laid end to end as text,
-     * cited by unsaved TranscriptionSegment stand-ins — so the split
-     * citation report reads them like a witness.
+     * assigned by unsaved TranscriptionSegment stand-ins — so the split
+     * assignment report reads them like a witness.
      *
      * @param  list<int>  $windowPassageIds
      * @return SupportCollection<int, array{name: string, text: string, segments: SupportCollection<int, TranscriptionSegment>, conjecture_id: int}>
@@ -1165,7 +1165,7 @@ class EditionController extends Controller
      * places with 5 2/2 \"κωμῆτις ἥδʼ ἐξέρχεται.\"") rather than as two
      * passages each standing in two places. A displaced fragment with no
      * exchange partner is located against its physical neighbour ("B: 1.1
-     * 2/2 \"fox\" stands after 1.2"). Fragments are cited by part number
+     * 2/2 \"fox\" stands after 1.2"). Fragments are assigned by part number
      * plus their full verbatim text — a digital apparatus never abbreviates
      * a lemma.
      *
@@ -1198,7 +1198,7 @@ class EditionController extends Controller
         }
 
         // '4 2/2 "πάρεστιν ἐνταυθοῖ γυνή·"' — the fragment named by its
-        // passage label and part number (the numbering the citation labels
+        // passage label and part number (the numbering the passage labels
         // already teach the reader) plus its verbatim text, whole: a digital
         // apparatus never abbreviates a lemma.
         $partRef = fn (TranscriptionSegment $segment): string => sprintf(
@@ -1447,7 +1447,7 @@ class EditionController extends Controller
             'starts_new_paragraph' => $editionPassage->starts_new_paragraph,
             // Witnesses whose text for this passage is physically
             // discontinuous — a transposition split it across two or more
-            // places. Derived from the citation spans, never stored, so it
+            // places. Derived from the assignment spans, never stored, so it
             // can't drift out of sync with the transcription.
             'discontinuous_witnesses' => $discontinuousWitnesses,
             'base' => $base !== null ? [

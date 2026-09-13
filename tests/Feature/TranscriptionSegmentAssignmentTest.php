@@ -8,9 +8,9 @@ use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
-use App\Support\Transcription\CitationIntegrity;
+use App\Support\Transcription\AssignmentIntegrity;
 
-test('marking a span requires a citation — there is no unassigned state', function () {
+test('marking a span requires an assignment — there is no unassigned state', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
 
@@ -23,7 +23,7 @@ test('marking a span requires a citation — there is no unassigned state', func
     expect($transcription->segments()->count())->toBe(0);
 });
 
-test('marking a span creates it already cited, in one step', function () {
+test('marking a span creates it already assigned, in one step', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
     $scheme = ReferenceScheme::factory()->create();
@@ -44,7 +44,7 @@ test('marking a span creates it already cited, in one step', function () {
         ->and($work->relatedWitnesses()->whereKey($transcription->transcription->witness_id)->exists())->toBeTrue();
 });
 
-test('a segment can be cited with an alphanumeric line label like "4a"', function () {
+test('a segment can be assigned with an alphanumeric line label like "4a"', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
     $scheme = ReferenceScheme::factory()->create();
@@ -82,7 +82,7 @@ test('an alphanumeric line label sorts between its numeric neighbours', function
         ->and(strcmp($fourA->sort_key, $five->sort_key))->toBeLessThan(0);
 });
 
-test('a segment can be re-cited to a different work, creating the canonical passage', function () {
+test('a segment can be assign afreshd to a different work, creating the canonical passage', function () {
     $this->actingAs(User::factory()->editor()->create());
     $scheme = ReferenceScheme::factory()->create();
     $work = Work::factory()->for($scheme, 'referenceScheme')->create();
@@ -102,7 +102,7 @@ test('a segment can be re-cited to a different work, creating the canonical pass
         ->and($work->relatedWitnesses()->whereKey($segment->transcriptionLayer->transcription->witness_id)->exists())->toBeTrue();
 });
 
-test('re-citing a segment reuses an existing canonical passage for the same citation', function () {
+test('re-assigning text to a segment reuses an existing canonical passage for the same assignment', function () {
     $this->actingAs(User::factory()->editor()->create());
     $scheme = ReferenceScheme::factory()->create();
     $work = Work::factory()->for($scheme, 'referenceScheme')->create();
@@ -118,7 +118,7 @@ test('re-citing a segment reuses an existing canonical passage for the same cita
         ->and($work->canonicalPassages()->count())->toBe(1);
 });
 
-test('a segment\'s citation cannot be cleared — a work_id is always required', function () {
+test('a segment\'s assignment cannot be cleared — a work_id is always required', function () {
     $this->actingAs(User::factory()->editor()->create());
     $passage = CanonicalPassage::factory()->create();
     $segment = TranscriptionSegment::factory()->for($passage, 'canonicalPassage')->create();
@@ -131,7 +131,7 @@ test('a segment\'s citation cannot be cleared — a work_id is always required',
     expect($segment->fresh()->canonical_passage_id)->toBe($passage->id);
 });
 
-test('assigning a citation that does not match the work\'s numbering scheme fails', function () {
+test('assigning an assignment that does not match the work\'s numbering scheme fails', function () {
     $this->actingAs(User::factory()->editor()->create());
     $scheme = ReferenceScheme::factory()->create();
     $work = Work::factory()->for($scheme, 'referenceScheme')->create();
@@ -140,16 +140,16 @@ test('assigning a citation that does not match the work\'s numbering scheme fail
 
     $response = $this->patch(route('transcription-segments.assign', $segment), [
         'work_id' => $work->id,
-        'label' => 'not-a-valid-citation!!',
+        'label' => 'not-a-valid-assignment!!',
     ]);
 
     $response->assertInvalid(['label']);
     expect($segment->fresh()->canonical_passage_id)->toBe($originalPassageId);
 });
 
-test('a work another transcript of the same witness already holds cannot be cited here', function () {
+test('a work another transcript of the same witness already holds cannot be assigned here', function () {
     // One transcript per witness per work (user decision): the witness's
-    // text of a work is cited in one of its transcripts, whole.
+    // text of a work is assigned in one of its transcripts, whole.
     $this->actingAs(User::factory()->editor()->create());
     $witness = Witness::factory()->create(['siglum' => 'R']);
     $scheme = ReferenceScheme::factory()->create();
@@ -172,7 +172,7 @@ test('a work another transcript of the same witness already holds cannot be cite
 
     expect($secondLayer->segments()->count())->toBe(0);
 
-    // Re-citing a span of the second transcript to the work is refused too.
+    // Re-assigning text to a span of the second transcript to the work is refused too.
     $other = Work::factory()->for($scheme, 'referenceScheme')->create(['title' => 'Other']);
     $otherPassage = CanonicalPassage::factory()->for($other)->create(['address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1']);
     $segment = TranscriptionSegment::factory()->for($secondLayer)->for($otherPassage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 3]);
@@ -182,7 +182,7 @@ test('a work another transcript of the same witness already holds cannot be cite
         'label' => '1.1',
     ])->assertInvalid(['work_id']);
 
-    // The same transcript may go on citing the work, and another witness
+    // The same transcript may go on assigning text to the work, and another witness
     // is free to hold it.
     $this->post(route('transcription-segments.store', $firstLayer), [
         'start_offset' => 4,
@@ -211,7 +211,7 @@ test('the ownership check lists a witness holding one work in two transcripts, a
         ->assertExitCode(1);
 });
 
-test('the citation check reports spans that drifted off their words, and passes when clean', function () {
+test('the assignment check reports spans that drifted off their words, and passes when clean', function () {
     $scheme = ReferenceScheme::factory()->create();
     $work = Work::factory()->for($scheme, 'referenceScheme')->create();
     $one = CanonicalPassage::factory()->for($work)->create(['address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1']);
@@ -220,13 +220,13 @@ test('the citation check reports spans that drifted off their words, and passes 
     TranscriptionSegment::factory()->for($layer)->for($one, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
     $second = TranscriptionSegment::factory()->for($layer)->for($two, 'canonicalPassage')->create(['start_offset' => 14, 'end_offset' => 22]);
 
-    $this->artisan('transcriptions:check-citations')->assertExitCode(0);
+    $this->artisan('transcriptions:check-assignments')->assertExitCode(0);
 
     // Slid one character left: it now begins on the newline and ends a
     // letter short — the shape a drifted span takes.
     $second->update(['start_offset' => 13, 'end_offset' => 21]);
 
-    $this->artisan('transcriptions:check-citations')
+    $this->artisan('transcriptions:check-assignments')
         ->expectsOutputToContain('(1.2) ends inside a word')
         ->assertExitCode(1);
 });
@@ -264,10 +264,10 @@ test('a span that slips off its words is flagged at the save that did it, and un
 
     expect($second->fresh()->boundary_review)->toBeTrue()
         ->and($first->fresh()->boundary_review)->toBeTrue()
-        ->and(CitationIntegrity::issues($layer->fresh()))
+        ->and(AssignmentIntegrity::issues($layer->fresh()))
         ->toBe(['#'.$first->id.' (1.1) ends inside a word', '#'.$second->id.' (1.2) begins inside a word', '#'.$second->id.' (1.2) ends inside a word']);
 
-    // Re-cited on their words, the flags go by themselves.
+    // Re-assigned on their words, the flags go by themselves.
     $second->update(['start_offset' => 9, 'end_offset' => 13]);
     $first->update(['end_offset' => 8]);
     $this->patch(route('transcriptions.text.update', $layer), [
@@ -279,7 +279,7 @@ test('a span that slips off its words is flagged at the save that did it, and un
         ->and($first->fresh()->boundary_review)->toBeFalse();
 });
 
-test('the citation check can flag drifted spans in place', function () {
+test('the assignment check can flag drifted spans in place', function () {
     $scheme = ReferenceScheme::factory()->create();
     $work = Work::factory()->for($scheme, 'referenceScheme')->create();
     $two = CanonicalPassage::factory()->for($work)->create(['address' => ['book' => 1, 'line' => 2], 'sort_key' => '00000001.00000002', 'label' => '1.2']);
@@ -287,7 +287,7 @@ test('the citation check can flag drifted spans in place', function () {
     // Slid one character left: begins on the newline, ends a letter short.
     $drifted = TranscriptionSegment::factory()->for($layer)->for($two, 'canonicalPassage')->create(['start_offset' => 13, 'end_offset' => 21]);
 
-    $this->artisan('transcriptions:check-citations --snap')
+    $this->artisan('transcriptions:check-assignments --snap')
         ->expectsOutputToContain('flagged: ends inside a word')
         ->assertExitCode(1);
 

@@ -32,7 +32,7 @@ class WitnessPolicy
     /**
      * The owner, whoever may edit a work the witness is connected to, and
      * site-wide editors. Covers everything inside the witness: pages,
-     * photographs, transcriptions and their text, citations and mappings.
+     * photographs, transcriptions and their text, assignments and mappings.
      */
     public function update(User $user, Witness $witness): bool
     {

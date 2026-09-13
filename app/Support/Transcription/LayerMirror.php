@@ -77,7 +77,7 @@ class LayerMirror
                     // DIFFERENT words in the same shape still pass it — and
                     // an index-mapped cut then moves the wrong words (real
                     // incident: a mirrored paste landed mid-line, splitting
-                    // a citation, because the sibling's words no longer
+                    // an assignment, because the sibling's words no longer
                     // matched). Orthography-folded equality is the layers'
                     // own definition of "the same word".
                     if (! self::foldMatches(mb_substr($a, $op['start'], $op['end'] - $op['start']), $taken)) {

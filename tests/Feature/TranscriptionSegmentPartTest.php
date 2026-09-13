@@ -12,13 +12,13 @@ use App\Models\Work;
 use App\Support\Edition\PassageAligner;
 
 /**
- * A layer whose text for one passage is discontinuous — "the quick" cited in
+ * A layer whose text for one passage is discontinuous — "the quick" assigned in
  * place, "fox" transposed to the head of the text — plus the work/scheme the
  * store route needs to resolve the label.
  *
  * @return array{work: Work, layer: TranscriptionLayer, passage: CanonicalPassage}
  */
-function splitCitationSetup(): array
+function splitAssignmentSetup(): array
 {
     $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
     // "fox" (0..3) belongs at the END of the passage but stands first.
@@ -50,9 +50,9 @@ function layerColumnTexts(CanonicalPassage $passage, TranscriptionLayer $layer):
         ->values()->all();
 }
 
-test('citing a passage a second time in one layer adds another part, reading last by default', function () {
+test('assigning text to a passage a second time in one layer adds another part, reading last by default', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'layer' => $layer, 'passage' => $passage] = splitCitationSetup();
+    ['work' => $work, 'layer' => $layer, 'passage' => $passage] = splitAssignmentSetup();
 
     $response = $this->post(route('transcription-segments.store', $layer), [
         'start_offset' => 0,
@@ -99,7 +99,7 @@ test('after_part inserts a part into the content order and renumbers the rest', 
 
 test('a late part on an already-collated passage is refused until acknowledged', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'layer' => $layer, 'passage' => $passage] = splitCitationSetup();
+    ['work' => $work, 'layer' => $layer, 'passage' => $passage] = splitAssignmentSetup();
     PassageAligner::alignWitness($passage, $layer->segments()->get());
 
     $response = $this->post(route('transcription-segments.store', $layer), [
@@ -116,7 +116,7 @@ test('a late part on an already-collated passage is refused until acknowledged',
 
 test('an acknowledged late part re-collates the layer from all its parts', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'layer' => $layer, 'passage' => $passage] = splitCitationSetup();
+    ['work' => $work, 'layer' => $layer, 'passage' => $passage] = splitAssignmentSetup();
     PassageAligner::alignWitness($passage, $layer->segments()->get());
 
     $response = $this->post(route('transcription-segments.store', $layer), [
@@ -138,7 +138,7 @@ test('an acknowledged late part re-collates the layer from all its parts', funct
 
 test('a late part whose readings an edition selects keeps them and flags every part for review', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'layer' => $layer, 'passage' => $passage] = splitCitationSetup();
+    ['work' => $work, 'layer' => $layer, 'passage' => $passage] = splitAssignmentSetup();
     PassageAligner::alignWitness($passage, $layer->segments()->get());
 
     $lemma = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->with('readings')->first();
@@ -168,9 +168,9 @@ test('a late part whose readings an edition selects keeps them and flags every p
         ->and(EditionLemma::whereKey($selection->id)->exists())->toBeTrue();
 });
 
-test('re-citing a segment into a passage its layer already cites makes it a part of that passage', function () {
+test('re-assigning text to a segment into a passage its layer already assigns makes it a part of that passage', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'layer' => $layer, 'passage' => $passage] = splitCitationSetup();
+    ['work' => $work, 'layer' => $layer, 'passage' => $passage] = splitAssignmentSetup();
     $other = CanonicalPassage::factory()->for($work)->create([
         'address' => ['book' => 1, 'line' => 2], 'sort_key' => '00000001.00000002', 'label' => '1.2',
     ]);

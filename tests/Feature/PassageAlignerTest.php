@@ -103,10 +103,10 @@ test('two witnesses diverging in different, unrelated places each land as their 
         ->and($textsFor($lemmas[3]))->toBe(['fox', 'fox', 'hound']);
 });
 
-test('a passage cited by two spans aligns as one witness, in part order rather than physical order', function () {
+test('a passage assigned by two spans aligns as one witness, in part order rather than physical order', function () {
     $passage = CanonicalPassage::factory()->create();
     $a = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
-    // B transposes "fox" to the head of its text; the citation splits the
+    // B transposes "fox" to the head of its text; the assignment splits the
     // passage into two parts whose content order reverses their physical one.
     $b = TranscriptionLayer::factory()->create(['text' => "fox extra\nthe quick"]);
     $segmentA = TranscriptionSegment::factory()->for($a)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
@@ -135,7 +135,7 @@ test('a passage cited by two spans aligns as one witness, in part order rather t
     expect($bFox->start_offset)->toBe(0)->and($bFox->end_offset)->toBe(3);
 });
 
-test('collate aligns a split-citing layer once, all parts together', function () {
+test('collate aligns a split-assigning layer once, all parts together', function () {
     $passage = CanonicalPassage::factory()->create();
     $a = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'A']))->create(['text' => 'the quick fox']);
     $b = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'B']))->create(['text' => "fox extra\nthe quick"]);

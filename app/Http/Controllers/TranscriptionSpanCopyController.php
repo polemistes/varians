@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreTranscriptionSpanCopyRequest;
 use App\Models\TranscriptionLayer;
-use App\Support\Transcription\CitationIntegrity;
+use App\Support\Transcription\AssignmentIntegrity;
 use App\Support\Transcription\SiblingSync;
 use App\Support\Transcription\WorkOwnership;
 use Illuminate\Http\RedirectResponse;
@@ -20,12 +20,12 @@ class TranscriptionSpanCopyController extends Controller
      * landing offset here, AFTER the pasted text has been saved.
      *
      * What travels depends on what stays true where the text goes.
-     * Citations travel always — which passage of a work a stretch of text
+     * Assignments travel always — which passage of a work a stretch of text
      * is holds wherever it stands, so even a segment the copy cuts through
      * contributes its contained part. Facsimile mappings are facts about
      * ONE parchment: they travel within the witness (whole spans only —
      * half a box is not a meaningful geometry) and never to another
-     * witness. A copied segment joins its passage's citation in the target
+     * witness. A copied segment joins its passage's assignment in the target
      * as a further part; a copied mapping is skipped where the target
      * already maps overlapping text. The source is untouched: this is a
      * copy.
@@ -46,9 +46,9 @@ class TranscriptionSpanCopyController extends Controller
 
         $sameWitness = $source->transcription->witness_id === $transcription->transcription->witness_id;
 
-        // Citations travel with the text — but within one witness a work
+        // Assignments travel with the text — but within one witness a work
         // lives in one transcript (WorkOwnership), so a copy from another
-        // transcript of the same witness may not bring its citations here.
+        // transcript of the same witness may not bring its assignments here.
         if ($sameWitness && $source->transcription_id !== $transcription->transcription_id) {
             $works = $source->segments
                 ->filter(fn ($segment) => $segment->start_offset < (int) $request->validated('source_end')
@@ -78,9 +78,9 @@ class TranscriptionSpanCopyController extends Controller
             return back();
         }
 
-        [$citations, $mappings] = DB::transaction(function () use ($source, $transcription, $start, $end, $at, $sameWitness) {
+        [$assignments, $mappings] = DB::transaction(function () use ($source, $transcription, $start, $end, $at, $sameWitness) {
             $shift = $at - $start;
-            $citations = 0;
+            $assignments = 0;
             $mappings = 0;
             $nextPart = [];
 
@@ -133,23 +133,23 @@ class TranscriptionSpanCopyController extends Controller
                     'needs_review' => $segment->needs_review,
                     'group_id' => (string) Str::uuid(),
                 ]);
-                $citations++;
+                $assignments++;
                 $landings[] = [$landStart, $landEnd];
             }
 
-            // The pasted words belong to the citations that traveled with
+            // The pasted words belong to the assignments that traveled with
             // them, never to a target span that merely absorbed the arrival:
             // the text save that preceded this request extends a span whose
             // end sits exactly at the paste point (end-gravity — right for
             // typing, wrong for a carrying paste), and a paste into the
-            // middle of a cited span lands inside it. Mirror the relocation
+            // middle of an assigned span lands inside it. Mirror the relocation
             // twin (RelocationSegmentEffects): a span covering an arrival on
             // both sides splits into two parts of its own passage; one
             // overlapping from a single side is clipped back to the
             // boundary. Unflagged — nothing needs review once the arrival
-            // carries its own citation. Without this, a cross-layer paste
-            // right after a cited line left the neighbour's span covering
-            // the whole arrival, overlapping the traveled citation (real
+            // carries its own assignment. Without this, a cross-layer paste
+            // right after an assigned line left the neighbour's span covering
+            // the whole arrival, overlapping the traveled assignment (real
             // bug, found in live data).
             foreach ($landings as [$landStart, $landEnd]) {
                 foreach ($standing as $bystander) {
@@ -188,7 +188,7 @@ class TranscriptionSpanCopyController extends Controller
 
             if (! $sameWitness) {
                 // Mappings stay with their own parchment.
-                return [$citations, 0];
+                return [$assignments, 0];
             }
 
             $position = (int) ($transcription->regions()->max('position') ?? 0);
@@ -227,10 +227,10 @@ class TranscriptionSpanCopyController extends Controller
                 $mappings++;
             }
 
-            return [$citations, $mappings];
+            return [$assignments, $mappings];
         });
 
-        if ($citations > 0 || $mappings > 0) {
+        if ($assignments > 0 || $mappings > 0) {
             // Assignments are done once per TRANSCRIPT too: when the
             // target's layers are in step, the imported spans get their
             // counterparts in the sibling layer right away, exactly as a
@@ -238,13 +238,13 @@ class TranscriptionSpanCopyController extends Controller
             SiblingSync::heal($transcription->refresh());
 
             foreach ($transcription->transcription->layers as $layer) {
-                CitationIntegrity::snap($layer);
+                AssignmentIntegrity::snap($layer);
             }
 
             $parts = [];
 
-            if ($citations > 0) {
-                $parts[] = $citations.' assignment'.($citations === 1 ? '' : 's');
+            if ($assignments > 0) {
+                $parts[] = $assignments.' assignment'.($assignments === 1 ? '' : 's');
             }
 
             if ($mappings > 0) {

@@ -399,7 +399,7 @@ function addPage() {
 // untouched, it simply stops being divided there.
 function deletePage(item: ManuscriptPage) {
     const confirmed = window.confirm(
-        `Delete page ${item.label}? Its photograph and the mappings of text onto it are deleted, and the text standing on it joins the previous page (in every transcript). Citations to work passages are untouched.`,
+        `Delete page ${item.label}? Its photograph and the mappings of text onto it are deleted, and the text standing on it joins the previous page (in every transcript). Assignments to work passages are untouched.`,
     );
 
     if (!confirmed) {
@@ -610,7 +610,7 @@ function onRegionDrawn(box: {
  * A paste into one pane matched a copy from the other layer: once both
  * panes' pending edits are saved (the posted offsets must be into saved
  * text on BOTH sides), ask the server to bring the copied range's
- * citations and facsimile mappings along.
+ * assignments and facsimile mappings along.
  */
 function onImportSpans(request: {
     targetLayerId: number;

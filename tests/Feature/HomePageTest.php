@@ -62,7 +62,7 @@ test('the counts a deletion warning needs come with the lists', function () {
     //
     // Assignments, not passages: a passage is a citable line number, cheap to
     // recreate, while assigning a witness's words to it is the work. Two
-    // witnesses citing the same passage is two assignments and one passage.
+    // witnesses assigning text to the same passage is two assignments and one passage.
     $this->actingAs(User::factory()->editor()->create());
 
     $work = Work::factory()->create();

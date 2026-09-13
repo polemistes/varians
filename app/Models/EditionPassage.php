@@ -17,7 +17,7 @@ use Illuminate\Support\Carbon;
  * EditionVariantController's `new_passage` placement) and doubles as which
  * transcription's own wording is the display default for this passage.
  * `position` is the order the editor built the edition in — the manuscript's
- * own physical order for a bulk "base a range" add, never citation order.
+ * own physical order for a bulk "base a range" add, never numbering order.
  *
  * `starts_new_line`/`starts_new_paragraph` are this edition's OWN lineation —
  * a display choice seeded once from the base transcription's newlines when

@@ -7,7 +7,7 @@ use App\Models\TranscriptionSegment;
 use Illuminate\Support\Collection;
 
 /**
- * Whether a layer's citation spans still sit where citations can sit:
+ * Whether a layer's assignment spans still sit where assignments can sit:
  * on whole words, never beginning or ending inside one, never
  * overlapping one another. Spans are offsets into the text and every
  * edit transforms them, so a span that has drifted off its words is the
@@ -16,16 +16,16 @@ use Illuminate\Support\Collection;
  * spans had slid a character, then a word, and its number tags stood at
  * the ends of the preceding lines).
  */
-class CitationIntegrity
+class AssignmentIntegrity
 {
     /**
      * Every complaint about the layer, in reading order; empty when clean.
      * Whitespace at a span's edges is not one: a drag over a whole line
-     * routinely takes its line break along, and citations have always
+     * routinely takes its line break along, and assignments have always
      * been allowed that. What is never right is a span that begins or
-     * ends INSIDE a word (unless another citation meets it exactly there —
+     * ends INSIDE a word (unless another assignment meets it exactly there —
      * two lines pasted flush together — or the neighbour is inside another
-     * citation), or one that overlaps another.
+     * assignment), or one that overlaps another.
      *
      * @return list<string>
      */

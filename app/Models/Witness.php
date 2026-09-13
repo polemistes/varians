@@ -71,7 +71,7 @@ class Witness extends Model
     /**
      * Works connected to this witness — derived, not stored: a work is
      * related to a witness only once one of the witness's transcriptions has
-     * a segment citing one of that work's canonical passages.
+     * a segment assigning text to one of that work's canonical passages.
      *
      * @return Builder<Work>
      */
@@ -119,7 +119,7 @@ class Witness extends Model
 
     /**
      * Whether this member may edit the witness: its owner, or anyone who
-     * may edit a work one of its transcriptions cites. Site-wide roles are
+     * may edit a work one of its transcriptions assigns. Site-wide roles are
      * the policies' business, not this one's.
      */
     public function isEditableBy(User $user): bool

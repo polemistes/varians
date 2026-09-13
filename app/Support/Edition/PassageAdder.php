@@ -79,7 +79,7 @@ class PassageAdder
      * the manuscript has it, and adding never creates an arrangement that
      * needs a transposition conjecture (user decision, replacing "append
      * at the end"). A witness sharing no passage with the edition yet goes
-     * by citation order. The position returned is fractional; the caller
+     * by numbering order. The position returned is fractional; the caller
      * renumbers the edition once its batch is in
      * (PassageOrderRewriter::renumberEdition).
      */
@@ -133,17 +133,17 @@ class PassageAdder
     }
 
     /**
-     * Hand every witness currently citing this passage to the collator — not
+     * Hand every witness currently assigning text to this passage to the collator — not
      * just the one being added, and not only on first touch, so a witness
-     * whose segment was cited *after* this passage was first materialized
+     * whose segment was assigned *after* this passage was first materialized
      * (by this edition or another) still gets picked up. PassageAligner
      * decides from there whether to rebuild the columns or append to them;
      * the added segment gets no special standing, since letting it seed the
      * structure was itself a source of order-dependence.
      *
      * Restricted to the normalized layer (see Layer). A witness's
-     * diplomatic and normalized transcriptions cite the same passages — fork
-     * copies the citation segments verbatim — so without this filter both
+     * diplomatic and normalized transcriptions assign the same passages — fork
+     * copies the assignment segments verbatim — so without this filter both
      * would align as if they were independent witnesses, and a manuscript
      * would appear in its own apparatus disagreeing with itself over exactly
      * the orthography the normalized layer regularized.

@@ -34,7 +34,7 @@ class StoreEditionPassagesBulkRequest extends FormRequest
      * edition's work. Unlike the old EditionBase range, no overlap check:
      * PassageAdder's own "already added" guard is the only conflict
      * resolution needed, so a second bulk add over the same (or an
-     * overlapping) citation range from a different transcription simply
+     * overlapping) assignment range from a different transcription simply
      * no-ops on whatever the first one already claimed.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
@@ -67,7 +67,7 @@ class StoreEditionPassagesBulkRequest extends FormRequest
                     ->exists();
 
                 if (! $belongsToWork) {
-                    $validator->errors()->add('transcription_layer_id', 'That transcription has no citations in this work.');
+                    $validator->errors()->add('transcription_layer_id', 'That transcription has no assignments in this work.');
                 }
             }
 

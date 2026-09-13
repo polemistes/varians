@@ -25,12 +25,12 @@ function inStepLayers(): array
     return [$diplomatic, $normalized];
 }
 
-test('assigning in one layer cites the same words in the other', function () {
+test('assigning in one layer assigns text to the same words in the other', function () {
     $this->actingAs(User::factory()->editor()->create());
     [$diplomatic, $normalized] = inStepLayers();
     $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
 
-    // Cite "παντα" (words 1..2) in the diplomatic layer.
+    // Assign "παντα" (words 1..2) in the diplomatic layer.
     $this->post(route('transcription-segments.store', $diplomatic), [
         'work_id' => $work->id,
         'label' => '1.2',

@@ -28,7 +28,7 @@ function lineationSetup(string $text, string $siglum = 'A'): array
     return ['work' => $work, 'edition' => $edition, 'layer' => $layer];
 }
 
-function citePassage(Work $work, TranscriptionLayer $layer, string $label, int $start, int $end, int $part = 1): TranscriptionSegment
+function assignPassage(Work $work, TranscriptionLayer $layer, string $label, int $start, int $end, int $part = 1): TranscriptionSegment
 {
     static $line = 0;
     $passage = CanonicalPassage::factory()->for($work)->create([
@@ -45,10 +45,10 @@ test('adding passages seeds the boundary flags from the base transcription\'s sp
     $this->actingAs(User::factory()->editor()->create());
     // "one two" share a line; "three" starts a new line; "four" a paragraph.
     ['work' => $work, 'edition' => $edition, 'layer' => $layer] = lineationSetup("one two\nthree\n\nfour");
-    citePassage($work, $layer, '1.1', 0, 3);
-    citePassage($work, $layer, '1.2', 4, 7);
-    citePassage($work, $layer, '1.3', 8, 13);
-    citePassage($work, $layer, '1.4', 15, 19);
+    assignPassage($work, $layer, '1.1', 0, 3);
+    assignPassage($work, $layer, '1.2', 4, 7);
+    assignPassage($work, $layer, '1.3', 8, 13);
+    assignPassage($work, $layer, '1.4', 15, 19);
 
     $this->post(route('edition-passages.store', $edition), [
         'transcription_layer_id' => $layer->id,
@@ -73,14 +73,14 @@ test('adding passages seeds the boundary flags from the base transcription\'s sp
 test('a span that swallows its own newline still seeds the boundary flags', function () {
     $this->actingAs(User::factory()->editor()->create());
     // Drag-selecting a full line routinely runs the span to the start of
-    // the next line, so the "\n" sits INSIDE the cited span and the gap
+    // the next line, so the "\n" sits INSIDE the assigned span and the gap
     // between spans is empty — real R2 data looked exactly like this, and
     // the seeder read verse as prose. The newline's side of the span
     // boundary is an accident of selection; the flags must not depend on it.
     ['work' => $work, 'edition' => $edition, 'layer' => $layer] = lineationSetup("one two\nthree\n\nfour");
-    citePassage($work, $layer, '4.1', 0, 8);   // "one two\n" — newline swallowed
-    citePassage($work, $layer, '4.2', 8, 15);  // "three\n\n" — both newlines swallowed
-    citePassage($work, $layer, '4.3', 15, 19); // "four"
+    assignPassage($work, $layer, '4.1', 0, 8);   // "one two\n" — newline swallowed
+    assignPassage($work, $layer, '4.2', 8, 15);  // "three\n\n" — both newlines swallowed
+    assignPassage($work, $layer, '4.3', 15, 19); // "four"
 
     $this->post(route('edition-passages.store', $edition), [
         'transcription_layer_id' => $layer->id,
@@ -104,7 +104,7 @@ test('a span that swallows its own newline still seeds the boundary flags', func
 test('newlines inside a passage seed colometry breaks before the right columns', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition, 'layer' => $layer] = lineationSetup("one two\nthree four");
-    $segment = citePassage($work, $layer, '2.1', 0, 18);
+    $segment = assignPassage($work, $layer, '2.1', 0, 18);
 
     $this->post(route('edition-passages.store', $edition), [
         'transcription_layer_id' => $layer->id,
@@ -122,12 +122,12 @@ test('newlines inside a passage seed colometry breaks before the right columns',
         ->and($breaks->first()->kind)->toBe('line');
 });
 
-test('the gap across a discontinuous citation\'s part boundary seeds nothing', function () {
+test('the gap across a discontinuous assignment\'s part boundary seeds nothing', function () {
     $this->actingAs(User::factory()->editor()->create());
     // Content order "the quick" then "fox", physically reversed — the jump
     // between parts is displacement, not whitespace.
     ['work' => $work, 'edition' => $edition, 'layer' => $layer] = lineationSetup("fox\nthe quick");
-    $first = citePassage($work, $layer, '3.1', 4, 13, 1);
+    $first = assignPassage($work, $layer, '3.1', 4, 13, 1);
     TranscriptionSegment::factory()->for($layer)->for($first->canonicalPassage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 3, 'part' => 2]);
 
@@ -143,7 +143,7 @@ test('the gap across a discontinuous citation\'s part boundary seeds nothing', f
 test('the edition page ships lineation: passage flags and per-run break_before', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition, 'layer' => $layer] = lineationSetup("one two\nthree four");
-    citePassage($work, $layer, '4.1', 0, 18);
+    assignPassage($work, $layer, '4.1', 0, 18);
 
     $this->post(route('edition-passages.store', $edition), [
         'transcription_layer_id' => $layer->id,
@@ -162,7 +162,7 @@ test('the edition page ships lineation: passage flags and per-run break_before',
 test('a colometry break pins the passage\'s columns against a collation rebuild', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition, 'layer' => $layer] = lineationSetup('the quick fox');
-    $segment = citePassage($work, $layer, '5.1', 0, 13);
+    $segment = assignPassage($work, $layer, '5.1', 0, 13);
     $passage = $segment->canonicalPassage;
 
     PassageAligner::collate($passage, collect([$segment]));
@@ -187,7 +187,7 @@ test('a colometry break pins the passage\'s columns against a collation rebuild'
 test('realignLayer declines while a break sits on a column only that layer fills', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition, 'layer' => $layer] = lineationSetup('the quick fox');
-    $segment = citePassage($work, $layer, '6.1', 0, 13);
+    $segment = assignPassage($work, $layer, '6.1', 0, 13);
     $passage = $segment->canonicalPassage;
 
     PassageAligner::alignWitness($passage, collect([$segment]));
@@ -207,7 +207,7 @@ test('realignLayer declines while a break sits on a column only that layer fills
 test('the break endpoint cycles: set, change kind, clear', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition, 'layer' => $layer] = lineationSetup('the quick fox');
-    $segment = citePassage($work, $layer, '7.1', 0, 13);
+    $segment = assignPassage($work, $layer, '7.1', 0, 13);
     $this->post(route('edition-passages.store', $edition), [
         'transcription_layer_id' => $layer->id, 'start_offset' => 0, 'end_offset' => 13,
     ]);
@@ -226,7 +226,7 @@ test('the break endpoint cycles: set, change kind, clear', function () {
 test('a break cannot be placed on a column of a passage the edition does not contain', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition, 'layer' => $layer] = lineationSetup('the quick fox');
-    $segment = citePassage($work, $layer, '8.1', 0, 13);
+    $segment = assignPassage($work, $layer, '8.1', 0, 13);
     PassageAligner::collate($segment->canonicalPassage, collect([$segment]));
     $lemma = Lemma::where('canonical_passage_id', $segment->canonical_passage_id)->first();
 
@@ -237,7 +237,7 @@ test('a break cannot be placed on a column of a passage the edition does not con
 test('the passage-boundary flags update through their endpoint', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition, 'layer' => $layer] = lineationSetup('the quick fox');
-    citePassage($work, $layer, '9.1', 0, 13);
+    assignPassage($work, $layer, '9.1', 0, 13);
     $this->post(route('edition-passages.store', $edition), [
         'transcription_layer_id' => $layer->id, 'start_offset' => 0, 'end_offset' => 13,
     ]);

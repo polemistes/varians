@@ -26,7 +26,7 @@ containing several works, since a Transcription has no `work_id`.
 
 A copy (`transcriptions.fork.store`) names the slot it fills — `witness_id`
 plus a required `layer` — and is refused if that slot is occupied, rather than
-overwriting citation spans, image regions and collated readings.
+overwriting assignment spans, image regions and collated readings.
 
 Only normalized transcriptions enter the apparatus (`PassageAdder::materialize`
 filters via `whereRelation('transcription', 'layer', ...)`, mirrored by the
@@ -34,7 +34,7 @@ filters via `whereRelation('transcription', 'layer', ...)`, mirrored by the
 they may be an edition's base or a witness-sourced `LemmaReading` (guarded in
 `StoreEditionPassageRequest`, `StoreEditionPassagesBulkRequest`,
 `StoreEditionVariantRequest`). Without that filter a fork — which copies
-citation segments verbatim — makes a manuscript appear in its own apparatus
+assignment segments verbatim — makes a manuscript appear in its own apparatus
 disagreeing with itself over the very orthography the normalized layer
 regularized.
 
@@ -85,7 +85,7 @@ Three things make the result independent of how an editor happened to work:
    order.
 3. While a passage is still nothing but aligner output, `collate` **deletes the
    columns and rebuilds** from all witnesses at once. Ordering alone does not
-   cover a witness cited after the passage was collated that sorts before the
+   cover a witness assigned after the passage was collated that sorts before the
    ones that built it.
 
 `hasEditorialContent` gates the rebuild: any reading with a `conjecture_id` (a
@@ -104,7 +104,7 @@ the second witness for this reason.
 ## A passage's witness text can be discontinuous — collation consumes all its parts
 A transposition can cut across the work's segmentation (half of line 40
 standing where line 42 belongs), so several `TranscriptionSegment` spans in
-one layer may cite the same passage. `part` orders them by **content** (which
+one layer may assign the same passage. `part` orders them by **content** (which
 fragment reads first as text of the passage), independent of the physical
 order their offsets give — the two disagreeing *is* the transposition. Never
 "fix" one to match the other.
@@ -118,8 +118,8 @@ Consequences, all real code paths:
   reading — its offsets would span the physical gap or run backwards.
   `plan()` carries `$partStarts`; `mergeSubstitutions` cuts insert runs there
   and `reorderingWindow` rejects windows crossing a boundary.
-- Citing a passage the layer already cites is the **late-part flow**
-  (`TranscriptionSegmentController::store`/`assignCitation`): refused with a
+- Assigning a passage the layer already assigns is the **late-part flow**
+  (`TranscriptionSegmentController::store`/`reassign`): refused with a
   structured `acknowledge_realignment` validation error until acknowledged,
   then `PassageAligner::realignLayer` redoes that layer's collation — unless
   its readings are pinned (edition-selected, conjecture-carrying, or on a
@@ -131,10 +131,10 @@ Consequences, all real code paths:
   re-alignment (this bit a single-witness passage in testing).
 - Whole-passage order detection (`orderRanges`) keeps `min(start_offset)` as a
   passage's physical position, deliberately: a sub-passage transposition is
-  reported per passage by `EditionController::citationDiscontinuities` (the
+  reported per passage by `EditionController::assignmentDiscontinuities` (the
   violet line number, derived at display time, never stored) and must not
   register as a whole-passage reorder.
-- The split-citation report speaks apparatus, not mechanics
+- The split-assignment report speaks apparatus, not mechanics
   (`EditionController::transpositionStatements`, user decision): "R2 has this
   passage in 2 places" is not how an edition reports a sub-line transposition.
   A fragment is DISPLACED when its physical predecessor segment differs from
@@ -142,13 +142,13 @@ Consequences, all real code paths:
   fragments of different passages whose physical and content predecessors
   cross-match have CHANGED PLACES and are reported as one statement on both
   passages — 'R2: 4 2/2 "πάρεστιν ἐνταυθοῖ γυνή·" has exchanged places with
-  5 2/2 "κωμῆτις ἥδʼ ἐξέρχεται."'. Fragments are cited by part number
+  5 2/2 "κωμῆτις ἥδʼ ἐξέρχεται."'. Fragments are assigned by part number
   (`label part/total`) PLUS their full verbatim text in quotes — never
   abbreviated `first … last` (user decision: a digital apparatus never
-  abbreviates a lemma; an abbreviating `citedSpan` version existed briefly
+  abbreviates a lemma; an abbreviating `assignedSpan` version existed briefly
   and was removed). A lone displaced fragment is located against its
   physical neighbour ('B: 1.1 2/2 "fox" stands after 1.2'). Presentation (user decision):
-  no ⇄ badge and no explanatory notice — the passage's citation-label chip
+  no ⇄ badge and no explanatory notice — the passage's assignment-label chip
   itself turns violet when a witness splits the passage, its hover title is
   the statements, and clicking it opens the panel showing only the
   statements. The mechanical per-part sentence survives only as the client's
@@ -162,34 +162,34 @@ Consequences, all real code paths:
 `EditionController::orderRanges` compares every source — each witness's
 physical order AND each catalogued (attributed) Transposition/Reordering
 conjecture — against the edition's PRINTED order (user decision, refining
-an intermediate citation-anchored design): the editor wants to be made
+an intermediate assignment-anchored design): the editor wants to be made
 aware exactly where what she prints disagrees with a witness or with a
-catalogued proposal, and of nothing else. CITATION ORDER IS NEVER A
-SOURCE: that the printed order (or a manuscript's) departs from citation
-order is no news — the citation labels on the lines already say so — so
-no site and no notice exists for it (the `citationOrderStatus` "restore
-citation order" notice was removed for this reason). The server still
-ships citation order as a candidate, but the client's panel no longer
-offers it (user decision — no "Citation order: …" row); the
+catalogued proposal, and of nothing else. NUMBERING ORDER IS NEVER A
+SOURCE: that the printed order (or a manuscript's) departs from assignment
+order is no news — the passage labels on the lines already say so — so
+no site and no notice exists for it (the `assignmentOrderStatus` "restore
+numbering order" notice was removed for this reason). The server still
+ships numbering order as a candidate, but the client's panel no longer
+offers it (user decision — no "Numbering order: …" row); the
 `buildOrderRangeInfo` guard drops a block whose only differing candidate
-is citation order
-(possible when the citation-span expansion cost the disagreeing witness
+is numbering order
+(possible when the assignment-span expansion cost the disagreeing witness
 its candidacy under the fragmentary rule).
 
 Consequences, all deliberate:
-- A block's extent is the citation span (min..max sort_key) of the
+- A block's extent is the assignment span (min..max sort_key) of the
   disagreeing stretch, so its members may be scattered in the printed
   text. Every member's window entry carries the same block info. There is
   NO separate ⇅ badge (user decision): the line-number chip itself carries
-  the report — `isOrderMoved` colours exactly the lines some non-citation
+  the report — `isOrderMoved` colours exactly the lines some non-assignment
   candidate MOVES (`analyzeSequence().movedLabels`), the slid lines stay
   plain, and clicking a coloured number opens the panel. Nothing else marks
   the block: the sky ring that highlighted every member 3–8 while the panel
-  was open read as a citation-range leftover and was removed (user
+  was open read as an assignment-range leftover and was removed (user
   decision) — the statement in the panel already names the lines involved.
   `anchor` is still sent but unused client-side.
 - `matches_current` compares against the members' *relative printed
-  order*; chip color (`orderRangeClasses`): emerald = a witness/citation
+  order*; chip color (`orderRangeClasses`): emerald = a witness/assignment
   matches, sky = only a conjecture matches, stone = the editor's own
   arrangement (never amber — a legitimate state is not an alarm).
 - The presentation is what keeps a printed-order baseline from reading as
@@ -201,10 +201,10 @@ Consequences, all deliberate:
   `labelBeforeRange`, and "comes before X" appears only when the block
   opens the edition) — never a comma-separated sequence to mentally diff.
   The slope graphs were removed (user decision, "at least for now"); the
-  chip's hover title is the joined statements (`orderStatements`, citation
+  chip's hover title is the joined statements (`orderStatements`, assignment
   order excluded — it is a candidate, never a source). The panel shows ONLY
   disagreement (`panelCandidates`, user decision): no "Sources order …
-  differently" header, no citation-order row, no "X: matches the printed
+  differently" header, no assignment-order row, no "X: matches the printed
   order" rows — agreement is no news (a planned feature will show which
   manuscripts accord with the printed text). The one matching row kept is a
   not-yet-followed conjecture, for editors only, so "Record as followed"
@@ -216,7 +216,7 @@ Consequences, all deliberate:
   `PassageOrderRewriter::applySequence` permutes members among the
   position slots they occupy, wherever those are — non-members between
   them stay put. `StoreConjectureOrderingRequest` likewise requires
-  citation-contiguity, not printed-contiguity.
+  assignment-contiguity, not printed-contiguity.
 
 Rearranging IS registering a conjecture (user decision, replacing the
 marker-based rearrange mode and the server's derived "what did this move
@@ -230,12 +230,12 @@ meanwhile. The text is rendered as PIECES (`shownPieces`: passage, run
 range, part n/m; run spans carry `data-piece-index`, the caret helpers
 index pieces), which outside registering are just the passages. Register
 submits every difference between the stored order and the draft as ONE
-Reordering over the smallest citation-contiguous stretch covering the
+Reordering over the smallest assignment-contiguous stretch covering the
 change (`registerPieces`) — `pieces` with `part` and `text` on
 `conjecture-orderings.store`, the same shape as a witness's split
-citation, which is how the apparatus reports it (the server builds a
+assignment, which is how the apparatus reports it (the server builds a
 transcript stand-in per such conjecture, `EditionController::
-conjectureArrangements`, and the split-citation report reads it like a
+conjectureArrangements`, and the split-assignment report reads it like a
 witness, named "Bergk (conjecture)" with `conjecture_id`). Adopting such an
 arrangement PRINTS the line in pieces: `ArrangementAdopter` gives the
 edition one `EditionPassage` row per part (`part`, `part_text`; part 1
@@ -294,7 +294,7 @@ runs, `data-spacer-*` on the spaces between them).
 
 Seeding (`LineationSeeder`, called from `PassageAdder::add`/`addSegments`)
 copies the base transcription's newlines ONCE at add time — one `\n` in a
-gap → line, two → paragraph; gaps across a discontinuous citation's part
+gap → line, two → paragraph; gaps across a discontinuous assignment's part
 boundary seed nothing (physical displacement, not whitespace). From then on
 the lineation is edition-owned; the invariant that manuscript newlines mean
 nothing to the work stands.
@@ -424,7 +424,7 @@ consists of exactly two `TranscriptionLayer` rows — diplomatic and normalized.
 A witness may hold any number of transcriptions: a manuscript can carry texts
 belonging to different works, or several kinds of text across the same pages.
 Nothing records what kind of text a transcription holds or which is principal;
-the editor names them, and an edition reaches one through the citation
+the editor names them, and an edition reaches one through the assignment
 segments on its normalized layer.
 
 The `transcription_layers` table is the old `transcriptions` table renamed — a
@@ -450,9 +450,9 @@ destination transcription is the only choice; the layer follows from it
 (`TranscriptionLayer::destinationLayerIn`): within its own transcription there
 is just the other layer, and any other transcription receives the corresponding
 one. What travels with the text depends on whether it still describes the same
-physical document — inside the transcription the citation segments *and* the
+physical document — inside the transcription the assignment segments *and* the
 image regions come, since the other layer is the same manuscript text
-regularized; into another transcription only the citations do, because which
+regularized; into another transcription only the assignments do, because which
 passage of a work a stretch of text is stays true wherever it goes while where
 it sits on a page does not. Copying over a layer that already has text is
 refused: it would take that layer's spans, regions and collated readings with
@@ -512,9 +512,9 @@ printed order follows something other than the base text, "Ordering based
 on R2" / "Ordering based on Bergk's proposal" / "Ordering by this
 edition". Then headings, each only when there is something: VARIANTS
 (order statements scoped to the line, Follow and the proposal draft for
-editors, split-citation statements), REFERENCES (the passage's own
-citations, picker for editors), NOTES (comments and the composer).
-Citations of a CONJECTURE are never printed in the notice or the
+editors, split-assignment statements), REFERENCES (the passage's own
+assignments, picker for editors), NOTES (comments and the composer).
+Assignments of a CONJECTURE are never printed in the notice or the
 candidate list or the hover apparatus: a conjecture's name is a button
 that opens, in place, the edit form (`ConjectureForm`, fed by the
 `workConjectures`/`workPassages` props from `ConjectureCatalogue`) for
@@ -523,13 +523,13 @@ editors and its literature for readers. The old kinds `order_range`,
 
 ## Adding and removing text (user decision, 2026-09-09)
 The Witnesses pane (`WitnessesPanel.vue`) shows a witness WHOLE, in either
-layer, with every citation; segments the edition has print grey
+layer, with every assignment; segments the edition has print grey
 (`AlignableText` `unavailableSegmentIds`, no strikethrough). "Add selection"
-posts the cited passages fully inside the selection by id
+posts the assigned passages fully inside the selection by id
 (`edition-passages.store` with `canonical_passage_ids`, the layer being the
 diplomatic entry's normalized sibling). A segment lands where its
 manuscript has it — after the last edition passage preceding it in its
-own witness's physical order, else by citation order
+own witness's physical order, else by numbering order
 (`PassageAdder::insertionPosition`, then
 `PassageOrderRewriter::renumberEdition`) — so adding never creates an
 arrangement that needs a transposition conjecture; the editor registers
@@ -565,7 +565,7 @@ under the pointer lights the runs whose spans overlap it
 (`hover-image-region` → `onImageRegionHover` → `imageLitRunKeys`, amber in
 `runClasses`). A box mapped on the diplomatic layer alone (drawn while the
 layers were out of step, not healed) falls back to the whole line via its
-citation. Resolution is the column: a sub-word box lights the word.
+assignment. Resolution is the column: a sub-word box lights the word.
 
 ## Omissions are readings; a deletion is a conjecture by nothing (user decision, 2026-09-09)
 

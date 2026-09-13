@@ -24,14 +24,14 @@ namespace App\Enums;
  *   (see `Conjecture::orderingEntries()`). Competes in the same pool a
  *   transcription's own physical order already forms for that same set of
  *   passages; `canonical_passage_id` is only the set's first passage by
- *   citation order, kept as the usual anchor. `text` is never set.
+ *   numbering order, kept as the usual anchor. `text` is never set.
  * - Deletion: the words of a span should not be read at all — the
  *   editor's counterpart of a witness omitting them (see
  *   LemmaReading::$omitted). Placed as a range reading like a
  *   substitution; adopted, it prints nothing. `text` is never set.
  * A transposition of part of a line (words moved elsewhere, even into
  * another line) is a Reordering whose entries carry `part`/`text` — the
- * same shape a witness's split citation has — see
+ * same shape a witness's split assignment has — see
  * ConjectureOrderingEntry.
  */
 enum ConjectureType: string

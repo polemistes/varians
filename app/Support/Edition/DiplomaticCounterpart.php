@@ -85,7 +85,7 @@ class DiplomaticCounterpart
      * The whole passage as the manuscript has it, for reading the line rather
      * than one word of it.
      *
-     * A passage cited by several spans is physically discontinuous — a
+     * A passage assigned by several spans is physically discontinuous — a
      * transposition split it — so its parts are joined with an ellipsis
      * rather than run together, which would present as contiguous what the
      * manuscript does not have in one place.
@@ -106,7 +106,7 @@ class DiplomaticCounterpart
     }
 
     /**
-     * The token stream of a layer's citation — all its parts, concatenated
+     * The token stream of a layer's assignment — all its parts, concatenated
      * in content order, exactly as PassageAligner consumes them. Both layers
      * go through this, so the token-index mapping holds whenever both divide
      * the passage into the same number of words, parts included; layers whose
@@ -131,7 +131,7 @@ class DiplomaticCounterpart
     }
 
     /**
-     * This transcription's own citation of the passage, every part of it, in
+     * This transcription's own assignment of the passage, every part of it, in
      * content order. Uses the loaded relation when there is one, so a caller
      * that eager-loaded segments pays no query here.
      *

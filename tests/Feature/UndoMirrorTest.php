@@ -82,7 +82,7 @@ test('the undo of a mirrored word deletion gives the sibling its own spelling ba
     expect($normalized->fresh()->text)->toBe("μῆνιν ἄειδε θεὰ\nοὐλομένην");
 });
 
-test('undoing a deletion at the head of a cited span puts the span back over the restored words', function () {
+test('undoing a deletion at the head of an assigned span puts the span back over the restored words', function () {
     $this->actingAs(User::factory()->editor()->create());
     [$diplomatic, $normalized] = undoMirrorLayers();
     $passage = CanonicalPassage::factory()->for(Work::factory())->create();
@@ -103,9 +103,9 @@ test('undoing a deletion at the head of a cited span puts the span back over the
     ])->assertRedirect();
 
     // The restored letters land flush against the span's first word, so the
-    // transform alone now takes them back into the citation — a word is
+    // transform alone now takes them back into the assignment — a word is
     // never split between spans, and "ΜΗΝΙΝ" is one word (see
-    // SpanTransformer). This used to leave them uncited at {2,15}.
+    // SpanTransformer). This used to leave them unassigned at {2,15}.
     expect([$segment->fresh()->start_offset, $segment->fresh()->end_offset])->toBe([0, 15]);
 
     // The history's snapshot still posts the bounds it remembers, which must

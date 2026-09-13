@@ -21,13 +21,13 @@ class EditionPassageController extends Controller
 {
     /**
      * Add the transcription's segments for the named passages — or, given a
-     * raw drag-selected span, every already-cited segment fully inside it —
+     * raw drag-selected span, every already-assigned segment fully inside it —
      * to the edition, each landing where the manuscript has it (see
      * PassageAdder::insertionPosition).
      */
     public function store(StoreEditionPassageRequest $request, Edition $edition): RedirectResponse
     {
-        // Only this work's passages, whatever the layer also cites — a
+        // Only this work's passages, whatever the layer also assigns — a
         // codex transcription may carry several works, and a passage of
         // another work has no place in this edition.
         $query = TranscriptionSegment::where('transcription_layer_id', $request->validated('transcription_layer_id'))
@@ -46,9 +46,9 @@ class EditionPassageController extends Controller
     }
 
     /**
-     * "Add lines…" — every already-cited segment for the transcription
-     * within a citation range, added in the transcription's own physical
-     * order, not citation order — and each lands where the manuscript has
+     * "Add lines…" — every already-assigned segment for the transcription
+     * within an assignment range, added in the transcription's own physical
+     * order, not numbering order — and each lands where the manuscript has
      * it among the passages already in the edition.
      */
     public function storeBulk(StoreEditionPassagesBulkRequest $request, Edition $edition): RedirectResponse
@@ -77,7 +77,7 @@ class EditionPassageController extends Controller
      * reusable stockpile any edition of the work can draw on, never
      * entangled with any one edition's own passage lifecycle). This
      * edition's own selections for the passage's lemmas are cleared. The
-     * passage becomes available again in every transcription citing it,
+     * passage becomes available again in every transcription assigning text to it,
      * for free.
      */
     public function destroy(DestroyEditionPassagesRequest $request, Edition $edition): RedirectResponse

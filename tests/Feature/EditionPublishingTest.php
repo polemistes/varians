@@ -13,10 +13,10 @@ use App\Models\Work;
 
 /**
  * An owner's draft edition of a work; a witness with one transcription
- * citing the work and another citing nothing; a conjecture on the work
+ * assigning text to the work and another assigning nothing; a conjecture on the work
  * and one on another work.
  *
- * @return array{owner: User, work: Work, edition: Edition, witness: Witness, citing: Transcription, other: Transcription, conjecture: Conjecture, foreign: Conjecture}
+ * @return array{owner: User, work: Work, edition: Edition, witness: Witness, assigning: Transcription, other: Transcription, conjecture: Conjecture, foreign: Conjecture}
  */
 function draftEditionWithEvidence(): array
 {
@@ -26,8 +26,8 @@ function draftEditionWithEvidence(): array
     $passage = CanonicalPassage::factory()->for($work)->create();
     $witness = Witness::factory()->for($owner)->create();
 
-    $citing = Transcription::factory()->for($witness)->create();
-    $layer = TranscriptionLayer::factory()->for($citing)->create(['text' => 'the quick fox']);
+    $assigning = Transcription::factory()->for($witness)->create();
+    $layer = TranscriptionLayer::factory()->for($assigning)->create(['text' => 'the quick fox']);
     TranscriptionSegment::factory()->for($layer)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
 
     $other = Transcription::factory()->for($witness)->create();
@@ -36,11 +36,11 @@ function draftEditionWithEvidence(): array
     $conjecture = Conjecture::factory()->for($owner)->for($passage, 'canonicalPassage')->create();
     $foreign = Conjecture::factory()->for($owner)->create();
 
-    return compact('owner', 'work', 'edition', 'witness', 'citing', 'other', 'conjecture', 'foreign');
+    return compact('owner', 'work', 'edition', 'witness', 'assigning', 'other', 'conjecture', 'foreign');
 }
 
-test('publishing an edition publishes the transcriptions citing its work and the conjectures recorded against it', function () {
-    ['owner' => $owner, 'work' => $work, 'edition' => $edition, 'witness' => $witness, 'citing' => $citing, 'other' => $other, 'conjecture' => $conjecture, 'foreign' => $foreign] = draftEditionWithEvidence();
+test('publishing an edition publishes the transcriptions assigning text to its work and the conjectures recorded against it', function () {
+    ['owner' => $owner, 'work' => $work, 'edition' => $edition, 'witness' => $witness, 'assigning' => $assigning, 'other' => $other, 'conjecture' => $conjecture, 'foreign' => $foreign] = draftEditionWithEvidence();
 
     $this->get(route('witnesses.show', $witness))->assertForbidden();
 
@@ -49,7 +49,7 @@ test('publishing an edition publishes the transcriptions citing its work and the
         ->assertRedirect();
 
     expect($edition->fresh()->visibility)->toBe(Visibility::Published)
-        ->and($citing->fresh()->visibility)->toBe(Visibility::Published)
+        ->and($assigning->fresh()->visibility)->toBe(Visibility::Published)
         ->and($other->fresh()->visibility)->toBe(Visibility::Draft)
         ->and($conjecture->fresh()->visibility)->toBe(Visibility::Published)
         ->and($foreign->fresh()->visibility)->toBe(Visibility::Draft);
@@ -61,7 +61,7 @@ test('publishing an edition publishes the transcriptions citing its work and the
 });
 
 test('unpublishing takes the transcriptions and conjectures back — unless another published edition still needs them', function () {
-    ['owner' => $owner, 'work' => $work, 'edition' => $edition, 'citing' => $citing, 'conjecture' => $conjecture] = draftEditionWithEvidence();
+    ['owner' => $owner, 'work' => $work, 'edition' => $edition, 'assigning' => $assigning, 'conjecture' => $conjecture] = draftEditionWithEvidence();
     $this->actingAs($owner)->patch(route('editions.update', $edition), ['visibility' => 'published']);
 
     $second = Edition::factory()->for($owner)->for($work)->create();
@@ -69,30 +69,30 @@ test('unpublishing takes the transcriptions and conjectures back — unless anot
 
     $this->patch(route('editions.update', $edition), ['visibility' => 'draft'])->assertRedirect();
     expect($edition->fresh()->visibility)->toBe(Visibility::Draft)
-        ->and($citing->fresh()->visibility)->toBe(Visibility::Published)
+        ->and($assigning->fresh()->visibility)->toBe(Visibility::Published)
         ->and($conjecture->fresh()->visibility)->toBe(Visibility::Published);
 
     $this->patch(route('editions.update', $second), ['visibility' => 'draft'])->assertRedirect();
-    expect($citing->fresh()->visibility)->toBe(Visibility::Draft)
+    expect($assigning->fresh()->visibility)->toBe(Visibility::Draft)
         ->and($conjecture->fresh()->visibility)->toBe(Visibility::Draft);
 });
 
-test('a transcription of a codex stays public while a published edition of another work it cites needs it', function () {
-    ['owner' => $owner, 'edition' => $edition, 'citing' => $citing, 'conjecture' => $conjecture] = draftEditionWithEvidence();
+test('a transcription of a codex stays public while a published edition of another work it assigns needs it', function () {
+    ['owner' => $owner, 'edition' => $edition, 'assigning' => $assigning, 'conjecture' => $conjecture] = draftEditionWithEvidence();
 
-    // The same transcription also cites a second work, with its own
+    // The same transcription also assigns text to a second work, with its own
     // published edition.
     $otherWork = Work::factory()->for($owner)->create();
     $otherEdition = Edition::factory()->for($owner)->for($otherWork)->create();
     $otherPassage = CanonicalPassage::factory()->for($otherWork)->create();
-    TranscriptionSegment::factory()->for($citing->layers()->first())->for($otherPassage, 'canonicalPassage')->create(['start_offset' => 4, 'end_offset' => 9]);
+    TranscriptionSegment::factory()->for($assigning->layers()->first())->for($otherPassage, 'canonicalPassage')->create(['start_offset' => 4, 'end_offset' => 9]);
 
     $this->actingAs($owner);
     $this->patch(route('editions.update', $edition), ['visibility' => 'published']);
     $this->patch(route('editions.update', $otherEdition), ['visibility' => 'published']);
     $this->patch(route('editions.update', $edition), ['visibility' => 'draft']);
 
-    expect($citing->fresh()->visibility)->toBe(Visibility::Published)
+    expect($assigning->fresh()->visibility)->toBe(Visibility::Published)
         ->and($conjecture->fresh()->visibility)->toBe(Visibility::Draft);
 });
 
@@ -113,7 +113,7 @@ test('a reader sees only published conjectures on the work page; the owner sees 
     ['owner' => $owner, 'work' => $work, 'conjecture' => $conjecture] = draftEditionWithEvidence();
     $conjecture->update(['visibility' => Visibility::Published]);
     $draft = Conjecture::factory()->for($owner)->for($conjecture->canonicalPassage, 'canonicalPassage')->create();
-    // The work is readable because a transcription citing it is published.
+    // The work is readable because a transcription assigning text to it is published.
     Transcription::query()->update(['visibility' => Visibility::Published->value]);
 
     $this->get(route('works.show', $work))

@@ -25,11 +25,11 @@ const props = withDefaults(
         selectionEnd?: number | null;
         editable?: boolean;
         // Segments whose canonical passage is already in some target
-        // edition — greyed out instead of the normal citation-badge
+        // edition — greyed out instead of the normal assignment-badge
         // treatment. Purely visual (see AddToEditionPanel.vue); rendering
         // doesn't otherwise change what's selectable.
         unavailableSegmentIds?: number[];
-        // How many spans cite each passage (by canonical_passage_id) in the
+        // How many spans assign each passage (by canonical_passage_id) in the
         // whole layer — so a badge can say "part 1/2" even when the sibling
         // part sits outside the text handed to this component (another page,
         // another window). Absent, it's derived from `segments`.
@@ -61,7 +61,7 @@ const emit = defineEmits<{
     (e: 'hover-region', id: number | null): void;
     (e: 'badge-click', segment: TranscriptionSegment, event: MouseEvent): void;
     // `source` distinguishes a clipboard cut/paste (which the parent may pair
-    // into a citation-preserving relocation) from ordinary typing.
+    // into an assignment-preserving relocation) from ordinary typing.
     (e: 'edit', op: TextEditOp, source: EditSource): void;
     (e: 'undo'): void;
     (e: 'redo'): void;
@@ -84,7 +84,7 @@ type Chunk = {
     pageBreak: { offset: number; label: string; pageId: number } | null;
 };
 
-// Region boundaries (image-alignment), citation-span boundaries, and
+// Region boundaries (image-alignment), assignment-span boundaries, and
 // markup-token boundaries (gaps, uncertain readings) are three independent
 // dimensions that can partially overlap, so all three are merged into one set
 // of cut points. Rendering never changes the underlying characters — only
@@ -234,8 +234,8 @@ function markupTitle(markup: Chunk['markup']): string | undefined {
         : `Lost — ${extent}`;
 }
 
-// A citation's marker stands at its first character and is NOT part of the
-// text: it is there to tell a reader which citation follows. The caret can
+// An assignment's marker stands at its first character and is NOT part of the
+// text: it is there to tell a reader which assignment follows. The caret can
 // rest on either side of it, and BOTH SIDES MEASURE TO THE SAME OFFSET — so
 // which side it stood on is read from the DOM and travels with the edit
 // (`side` on the op). Nothing typed, and no caret, ever crosses a marker.
@@ -275,7 +275,7 @@ function isMarker(node: Node | null): boolean {
  * they appear and disappear as the DOM is patched). Neither is text, so
  * neither may stand between the caret and a marker: a walk that stopped at
  * one reported no marker at all, and what was typed went to the wrong
- * citation until the next re-render happened to clear the node away. That
+ * assignment until the next re-render happened to clear the node away. That
  * is the whole shape of "sometimes it works, sometimes it does not" —
  * twice, once for each kind (both found in the browser).
  */
@@ -332,7 +332,7 @@ function flowNext(node: Node): Node | null {
 }
 
 /**
- * Which side of a citation's marker the caret stands on, or null when it is
+ * Which side of an assignment's marker the caret stands on, or null when it is
  * not against one. A marker holds no text, so the offsets on either side of
  * it are EQUAL and only the document order tells them apart — this is the
  * one thing an offset can never say, and everything that went wrong at a
@@ -386,7 +386,7 @@ function markerSide(): 'before' | 'after' | null {
     return isMarker(next) ? 'before' : null;
 }
 
-/** The label a chunk draws, if it opens a citation that has one. */
+/** The label a chunk draws, if it opens an assignment that has one. */
 function chunkLabel(chunk: Chunk): string | undefined {
     if (!chunk.segmentStart || !chunk.segment) {
         return undefined;
@@ -397,7 +397,7 @@ function chunkLabel(chunk: Chunk): string | undefined {
 
 /**
  * The tooltip a chunk carries: what its markup means, or — on the chunk that
- * opens a citation, which is where the label is drawn — what the label says.
+ * opens an assignment, which is where the label is drawn — what the label says.
  */
 function chunkTitle(chunk: Chunk): string | undefined {
     return (
@@ -414,7 +414,7 @@ function badgeTitle(segment: TranscriptionSegment): string {
     }
 
     if (segment.boundary_review) {
-        return 'This citation begins or ends inside a word, or overlaps another — its bounds have slipped. Select the words again to re-cite them.';
+        return 'This assignment begins or ends inside a word, or overlaps another — its bounds have slipped. Select the words again to assign them afresh.';
     }
 
     if (props.unavailableSegmentIds.includes(segment.id)) {
@@ -432,7 +432,7 @@ function badgeTitle(segment: TranscriptionSegment): string {
     return title;
 }
 
-// A passage cited by several spans (its text is physically discontinuous —
+// A passage assigned by several spans (its text is physically discontinuous —
 // a transposition split it) shows which part of it each span is.
 function partTotalFor(segment: TranscriptionSegment): number {
     if (props.partTotals) {
@@ -537,11 +537,11 @@ function rememberCaret(): void {
  * caret rectangle is drawn for such a position, so nothing shows the writer
  * where she stands, and the side of the marker — which decides what her
  * typing joins — cannot be read either. Home lands there, the chip being
- * the first thing on a line that a citation opens (measured in the
+ * the first thing on a line that an assignment opens (measured in the
  * browser); so does anything else that aims at the very start of such a
  * line.
  *
- * It is stepped out to the marker's FAR side, where the citation's own
+ * It is stepped out to the marker's FAR side, where the assignment's own
  * words begin: that is what the start of the line means, and it is where
  * the line's first character would go anyway.
  */
@@ -761,11 +761,11 @@ function opFromBeforeInput(event: InputEvent): TextEditOp | null {
 /**
  * A deletion the browser could not express as text.
  *
- * A citation's marker is a real element in the flow and holds no text, so
+ * An assignment's marker is a real element in the flow and holds no text, so
  * Backspace with the caret just after it targets the MARKER rather than the
  * character before it, and `offsetAt` — which discounts every non-text
  * element — measures that target as empty. The keystroke then deleted
- * nothing at all, which is what made it so hard to run a cited line onto
+ * nothing at all, which is what made it so hard to run an assigned line onto
  * the line before: the newline standing between them could not be reached
  * from the side the caret naturally sits on (user report).
  *
@@ -859,9 +859,9 @@ function editSourceOf(inputType: string): EditSource {
 
 /**
  * Copy and cut own the clipboard: the browser's own serialization of a
- * selection includes the citation badges' visible text ("1.1the quick fox"),
+ * selection includes the assignment badges' visible text ("1.1the quick fox"),
  * so a paste never exactly matched what a cut removed and the
- * citation-preserving relocation silently failed whenever the selection
+ * assignment-preserving relocation silently failed whenever the selection
  * covered a badge (real bug). Both handlers put the PURE text — the same
  * characters the offsets describe — on the clipboard; cut additionally
  * performs the deletion as an ordinary tagged edit op (preventing the event
@@ -979,8 +979,8 @@ function onContainerKeydown(event: KeyboardEvent) {
  * press the arrow key twice for the caret to move once is not normal").
  *
  * So a marker's near side is no place to stop, and the caret is stepped over
- * it in whichever direction it arrived. The one exception is where a
- * citation genuinely ENDS at that offset: two citations meeting flush have a
+ * it in whichever direction it arrived. The one exception is where an
+ * assignment genuinely ENDS at that offset: two assignments meeting flush have a
  * real position on each side, and an editor must be able to reach both.
  *
  * Read after the browser has moved the caret, since the move happens in the
@@ -1015,7 +1015,7 @@ function stepOverMarker(event: KeyboardEvent) {
         }
 
         // Leftward, on past the marker to the character before it; rightward,
-        // over to its far side, where the citation's own words begin.
+        // over to its far side, where the assignment's own words begin.
         restoreCaret(right ? offset : offset - 1, right ? 'after' : null);
     }, 0);
 }
@@ -1077,7 +1077,7 @@ function onBeforeInput(event: InputEvent) {
         const source = editSourceOf(event.inputType);
 
         applyAndRestoreCaret(
-            // Arriving text stays uncited; typing is held to citing what it
+            // Arriving text stays unassigned; typing is held to assigning what it
             // lands among. See SpanTransformer::claimant.
             source === 'paste' ? { ...op, imported: true } : op,
             source,

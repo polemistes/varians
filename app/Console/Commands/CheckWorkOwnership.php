@@ -22,7 +22,7 @@ class CheckWorkOwnership extends Command
         $violations = WorkOwnership::violations();
 
         if ($violations->isEmpty()) {
-            $this->info('Every work a witness holds is cited in one transcript of it.');
+            $this->info('Every work a witness holds is assigned in one transcript of it.');
 
             return self::SUCCESS;
         }
@@ -31,11 +31,11 @@ class CheckWorkOwnership extends Command
             $this->warn(sprintf('%s holds %s in %d transcripts:', $violation['siglum'], $violation['title'], count($violation['transcriptions'])));
 
             foreach ($violation['transcriptions'] as $transcription) {
-                $this->line(sprintf('  #%d %s — %d citation(s)', $transcription['id'], $transcription['name'], $transcription['citations']));
+                $this->line(sprintf('  #%d %s — %d assignment(s)', $transcription['id'], $transcription['name'], $transcription['assignments']));
             }
         }
 
-        $this->line('Move the citations into one transcript per witness in the transcript editor; nothing was changed.');
+        $this->line('Move the assignments into one transcript per witness in the transcript editor; nothing was changed.');
 
         return self::FAILURE;
     }

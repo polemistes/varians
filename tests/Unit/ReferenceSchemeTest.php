@@ -163,5 +163,5 @@ test('parseLabel returns null for a label that does not match the scheme', funct
         ],
     ]);
 
-    expect($scheme->parseLabel('not a citation'))->toBeNull();
+    expect($scheme->parseLabel('not an assignment'))->toBeNull();
 });

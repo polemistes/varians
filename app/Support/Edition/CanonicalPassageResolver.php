@@ -8,7 +8,7 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Resolves a work + label into a canonical passage, creating it if it
- * doesn't exist yet. Shared by transcription citation (a passage backed by
+ * doesn't exist yet. Shared by transcription assignment (a passage backed by
  * an actual manuscript span) and whole-line lacuna authoring (a passage with
  * no manuscript witness at all) — both just need "the passage this label
  * names, creating it on first mention."
@@ -21,7 +21,7 @@ class CanonicalPassageResolver
 
         if ($address === null) {
             throw ValidationException::withMessages([
-                'label' => 'That citation doesn\'t match this work\'s numbering scheme.',
+                'label' => 'That assignment doesn\'t match this work\'s numbering scheme.',
             ]);
         }
 

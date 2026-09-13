@@ -128,7 +128,7 @@ test('a witness whose own physical order disagrees is flagged with the whole sha
     $edition = Edition::factory()->for($work)->create();
     $passages = addPassagesToEdition($work, $edition, 3);
 
-    // Witness B cites the same passages 2 and 3, but has 3 physically
+    // Witness B assigns text to the same passages 2 and 3, but has 3 physically
     // before 2 — the opposite of the edition's current order.
     $witnessB = TranscriptionLayer::factory()->create(['text' => 'gamma beta']);
     TranscriptionSegment::factory()->for($witnessB)->for($passages[2], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
@@ -139,7 +139,7 @@ test('a witness whose own physical order disagrees is flagged with the whole sha
     // Every passage in the shared range carries the *same* range info —
     // not just the ones that individually differ from a neighbor — since a
     // reader hovering any single one of them needs the whole block's story.
-    // Candidates are keyed by source, not index: citation order is now
+    // Candidates are keyed by source, not index: numbering order is now
     // always listed as a candidate too.
     $show->assertInertia(fn (AssertInertia $page) => $page
         ->where('windowPassages.0.order_range', null)
@@ -154,7 +154,7 @@ test('a witness whose own physical order disagrees is flagged with the whole sha
         ->where('windowPassages.2.order_range.candidates', fn ($candidates) => collect($candidates)->firstWhere('transcription_layer_id', $witnessB->id) !== null));
 });
 
-test('no order range when a witness agrees or only cites one passage of the pair', function () {
+test('no order range when a witness agrees or only assigns text to one passage of the pair', function () {
     $this->actingAs(User::factory()->editor()->create());
     $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
     $edition = Edition::factory()->for($work)->create();

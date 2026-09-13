@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\DB;
  * candidate LemmaReadings to print (see EditionLemma) — unlike
  * Witness<->Work, this is a genuine direct relation: an Edition is an
  * editorial artifact the editor explicitly creates for a work, not
- * something inferable from citation data.
+ * something inferable from assignment data.
  *
  * `user_id` is the OWNER: the one member who may publish, delete, invite
  * editors (`editors()`) and hand the edition on (`ownershipTransfers()`).

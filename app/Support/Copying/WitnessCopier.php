@@ -114,7 +114,7 @@ class WitnessCopier
         $works = [];
 
         if ($passageMap === [] && ! $owner->can('update', $witness)) {
-            [$passageMap, $works] = self::copyCitedWorks($transcriptions, $owner);
+            [$passageMap, $works] = self::copyAssignedWorks($transcriptions, $owner);
         }
 
         foreach ($transcriptions as $transcription) {
@@ -184,7 +184,7 @@ class WitnessCopier
      * @param  Collection<int, Transcription>  $transcriptions
      * @return array{0: array<int, int>, 1: array<int, Work>} old passage id → new, and the works copied by old id
      */
-    private static function copyCitedWorks(Collection $transcriptions, User $owner): array
+    private static function copyAssignedWorks(Collection $transcriptions, User $owner): array
     {
         $works = Work::query()
             ->whereHas(

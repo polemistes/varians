@@ -19,7 +19,7 @@ use Inertia\Testing\AssertableInertia as AssertInertia;
  * Adds $count canonical passages (book 1, lines 1..$count) to the edition,
  * each backed by its own throwaway single-passage transcription — mirrors
  * EditionOrderTest's addPassagesToEdition(). The
- * throwaways each cite one passage only, so they never contribute to the
+ * throwaways each assign one passage only, so they never contribute to the
  * order report (a source needs at least two).
  */
 function editionForOrderReport(int $count): array
@@ -45,7 +45,7 @@ function editionForOrderReport(int $count): array
 }
 
 /**
- * A witness citing the given passages in the given physical order, one
+ * A witness assigning text to the given passages in the given physical order, one
  * word each, space-separated.
  */
 function witnessWithPhysicalOrder(array $passages): TranscriptionLayer
@@ -73,7 +73,7 @@ test('a witness\'s block covers exactly where it differs from the printed order,
     witnessWithPhysicalOrder([$passages[3], $passages[2]]);
 
     // The editor moves line 1 to the end: printed order 2, 3, 4, 1. W does
-    // not cite lines 1 or 2, so nothing about that move concerns W.
+    // not assign lines 1 or 2, so nothing about that move concerns W.
     PassageOrderRewriter::moveRange($edition, $passages[0]->id, null, $passages[3]->id, 'after');
 
     $show = $this->get(route('editions.show', [$work, $edition]));
@@ -122,7 +122,7 @@ test('the block marker anchors on the first member in printed order, and members
         ->where('windowPassages.1.order_range.current_sequence', [$passages[1]->label, $passages[2]->label]));
 });
 
-test('a catalogued reordering conjecture creates a site even where every witness follows citation order', function () {
+test('a catalogued reordering conjecture creates a site even where every witness follows numbering order', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition, 'passages' => $passages] = editionForOrderReport(3);
 
@@ -170,16 +170,16 @@ test('applying a candidate to a block scattered by the editor permutes only its 
     expect($stored)->toBe([$passages[0]->id, $passages[2]->id, $passages[3]->id, $passages[1]->id]);
 });
 
-test('departing from citation order raises no site — the line numbers already say it', function () {
+test('departing from numbering order raises no site — the line numbers already say it', function () {
     // User decision: the report concerns only disagreement between the
-    // PRINTED order and a witness or catalogued proposal. Citation order
+    // PRINTED order and a witness or catalogued proposal. Numbering order
     // is visible in the numbering and is nobody's claim about the text.
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition, 'passages' => $passages] = editionForOrderReport(3);
 
-    // Move line 1 to the end: printed 2, 3, 1. No witness cites two of
+    // Move line 1 to the end: printed 2, 3, 1. No witness assigns two of
     // these lines and no proposal exists, so nothing disagrees with what
-    // is printed — no site, however far from citation order this is.
+    // is printed — no site, however far from numbering order this is.
     PassageOrderRewriter::moveRange($edition, $passages[0]->id, null, $passages[2]->id, 'after');
 
     $rearranged = $this->get(route('editions.show', [$work, $edition]));
@@ -187,7 +187,7 @@ test('departing from citation order raises no site — the line numbers already 
         ->where('windowPassages.0.order_range', null)
         ->where('windowPassages.1.order_range', null)
         ->where('windowPassages.2.order_range', null)
-        ->missing('citationOrderStatus'));
+        ->missing('numberingOrderStatus'));
 });
 
 test('a catalogued transposition conjecture is an order-report site and an applyable candidate', function () {

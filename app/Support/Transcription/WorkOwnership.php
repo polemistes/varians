@@ -10,7 +10,7 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * One transcript per witness per work (user decision): once a witness's
- * text of a work is cited in one of its transcripts, every citation of
+ * text of a work is assigned in one of its transcripts, every assignment of
  * that work in that witness belongs to the same transcript. A witness may
  * still hold several transcripts — for different works, or one transcript
  * for all its works — and a work a witness carries in two separate places
@@ -18,7 +18,7 @@ use Illuminate\Validation\ValidationException;
  * sits. The edition page's witness pulldown can then name a witness and
  * mean one transcript.
  *
- * Enforced where citations are made (marking a span, re-citing it,
+ * Enforced where assignments are made (marking a span, re-assigning text to it,
  * copying spans across transcripts); `violations()` reports what older
  * data breaks the rule, for the `witnesses:check-work-ownership` command —
  * nothing is changed silently.
@@ -40,7 +40,7 @@ class WorkOwnership
     }
 
     /**
-     * Refuse a citation of the work in this transcript when another
+     * Refuse an assignment of the work in this transcript when another
      * transcript of the witness holds it.
      */
     public static function guard(Transcription $transcription, Work $work, string $field = 'work_id'): void
@@ -53,7 +53,7 @@ class WorkOwnership
 
         throw ValidationException::withMessages([
             $field => sprintf(
-                '%s already holds %s in the transcript “%s”. All of a work\'s text in a witness belongs to one transcript — cite it there.',
+                '%s already holds %s in the transcript “%s”. All of a work\'s text in a witness belongs to one transcript — assign it there.',
                 $holder->witness->siglum,
                 $work->title,
                 $holder->name,
@@ -64,7 +64,7 @@ class WorkOwnership
     /**
      * Every (witness, work) held by more than one transcript.
      *
-     * @return Collection<int, array{witness_id: int, siglum: string, work_id: int, title: string, transcriptions: list<array{id: int, name: string, citations: int}>}>
+     * @return Collection<int, array{witness_id: int, siglum: string, work_id: int, title: string, transcriptions: list<array{id: int, name: string, assignments: int}>}>
      */
     public static function violations(): Collection
     {
@@ -74,7 +74,7 @@ class WorkOwnership
             ->join('witnesses', 'witnesses.id', '=', 'transcriptions.witness_id')
             ->join('canonical_passages', 'canonical_passages.id', '=', 'transcription_segments.canonical_passage_id')
             ->join('works', 'works.id', '=', 'canonical_passages.work_id')
-            ->selectRaw('witnesses.id as witness_id, witnesses.siglum, works.id as work_id, works.title, transcriptions.id as transcription_id, transcriptions.name, count(*) as citations')
+            ->selectRaw('witnesses.id as witness_id, witnesses.siglum, works.id as work_id, works.title, transcriptions.id as transcription_id, transcriptions.name, count(*) as assignments')
             ->groupBy('witnesses.id', 'witnesses.siglum', 'works.id', 'works.title', 'transcriptions.id', 'transcriptions.name')
             ->orderBy('witnesses.siglum')
             ->orderBy('works.title')
@@ -93,11 +93,11 @@ class WorkOwnership
             $transcriptions = [];
 
             foreach ($group as $row) {
-                /** @var object{transcription_id: int|string, name: string, citations: int|string} $row */
+                /** @var object{transcription_id: int|string, name: string, assignments: int|string} $row */
                 $transcriptions[] = [
                     'id' => (int) $row->transcription_id,
                     'name' => (string) $row->name,
-                    'citations' => (int) $row->citations,
+                    'assignments' => (int) $row->assignments,
                 ];
             }
 

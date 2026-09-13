@@ -96,7 +96,7 @@ class PassageOrderRewriter
      * the set currently occupies, filled in the given order — the k-th
      * occupied slot (in position order) receives the sequence's k-th
      * passage. The slots need NOT be contiguous: an order-report block is
-     * contiguous in citation order, and the editor's own arrangement may
+     * contiguous in numbering order, and the editor's own arrangement may
      * have scattered its members among other passages, which stay exactly
      * where they are. A sequence naming a passage not in the edition
      * returns false untouched.

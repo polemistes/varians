@@ -11,7 +11,7 @@ test('a plain adjacent swap is its own single block', function () {
 });
 
 test('a whole range shuffled into what looks like a random order decomposes into its true independent blocks', function () {
-    // Citation 12..18 in D's own order (the reference/identity axis) vs P's
+    // Assignment 12..18 in D's own order (the reference/identity axis) vs P's
     // physical order 14, 12, 13, 18, 17, 15, 16 — the example from the
     // design conversation. perm[i] = P's rank of whatever D has at rank i.
     // Despite looking like one big 7-line tangle, {12,13,14} and

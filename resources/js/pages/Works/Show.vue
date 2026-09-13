@@ -345,8 +345,8 @@ function manuscriptSummary(witness: Witness): string | null {
                     class="mb-3 text-xs text-stone-500 dark:text-stone-400"
                 >
                     A witness becomes connected to this work once one of its
-                    transcriptions has a segment citing it — there's no separate
-                    step to attach one.
+                    transcriptions has a segment assigned to it — there's no
+                    separate step to attach one.
                 </p>
 
                 <ul class="flex flex-col gap-3">

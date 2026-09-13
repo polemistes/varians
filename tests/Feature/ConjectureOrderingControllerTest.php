@@ -55,7 +55,7 @@ test('authoring a new reordering conjecture creates it, its entries, and selects
     $conjecture = Conjecture::sole();
     expect($conjecture->type)->toBe(ConjectureType::Reordering)
         ->and($conjecture->proposed_by)->toBe('Bergk')
-        ->and($conjecture->canonical_passage_id)->toBe($passages[0]->id) // first by citation order
+        ->and($conjecture->canonical_passage_id)->toBe($passages[0]->id) // first by numbering order
         ->and($conjecture->orderingEntries->pluck('canonical_passage_id')->all())->toBe([$passages[2]->id, $passages[0]->id, $passages[1]->id]);
 
     // Applying rewrote the stored positions, and the application itself is
@@ -134,7 +134,7 @@ test('a guest cannot author a reordering conjecture', function () {
     expect(Conjecture::count())->toBe(0);
 });
 
-test('an arrangement that divides a line is registered as pieces and reported like a witness\'s split citation', function () {
+test('an arrangement that divides a line is registered as pieces and reported like a witness\'s split assignment', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition, 'passages' => $passages] = editionForOrdering(2);
 

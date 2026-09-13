@@ -31,7 +31,7 @@ function submit() {
             </h1>
             <p class="mb-6 text-sm text-stone-500 dark:text-stone-400">
                 A witness isn't tied to any work yet — it becomes connected to
-                one once a transcription of it has a segment citing it.
+                one once a transcription of it has a segment assigned to it.
             </p>
 
             <form class="flex flex-col gap-4" @submit.prevent="submit">

@@ -221,7 +221,7 @@ Route::middleware('auth')->group(function () {
         ->name('transcription-spans.restore');
     Route::patch('/transcription-segments/{segment}', [TranscriptionSegmentController::class, 'update'])
         ->name('transcription-segments.update');
-    Route::patch('/transcription-segments/{segment}/assignment', [TranscriptionSegmentController::class, 'assignCitation'])
+    Route::patch('/transcription-segments/{segment}/assignment', [TranscriptionSegmentController::class, 'reassign'])
         ->name('transcription-segments.assign');
     Route::delete('/transcription-segments/{segment}', [TranscriptionSegmentController::class, 'destroy'])
         ->name('transcription-segments.destroy');

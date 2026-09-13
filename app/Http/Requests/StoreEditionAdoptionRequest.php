@@ -27,7 +27,7 @@ class StoreEditionAdoptionRequest extends FormRequest
     /**
      * Adopt a catalogued ordering proposal — a Reordering or Transposition
      * of this edition's work — wherever it is offered: the order panel, or
-     * the split-citation report of a line the proposal divides.
+     * the split-assignment report of a line the proposal divides.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
