@@ -24,12 +24,12 @@ const props = withDefaults(
         selectionStart?: number | null;
         selectionEnd?: number | null;
         editable?: boolean;
-        // Assignments whose canonical passage is already in some target
+        // Assignments whose segment is already in some target
         // edition — greyed out instead of the normal assignment-badge
         // treatment. Purely visual (see AddToEditionPanel.vue); rendering
         // doesn't otherwise change what's selectable.
         unavailableAssignmentIds?: number[];
-        // How many spans assign each passage (by canonical_passage_id) in the
+        // How many spans assign each segment (by segment_id) in the
         // whole layer — so a badge can say "part 1/2" even when the sibling
         // part sits outside the text handed to this component (another page,
         // another window). Absent, it's derived from `assignments`.
@@ -424,10 +424,10 @@ function badgeTitle(assignment: Assignment): string {
         return 'Already added to the edition';
     }
 
-    const title = assignment.canonical_passage?.work?.title ?? '';
+    const title = assignment.segment?.work?.title ?? '';
 
     if (partTotalFor(assignment) > 1) {
-        const note = `This passage's text stands in ${partTotalFor(assignment)} separate places in this layer`;
+        const note = `This segment's text stands in ${partTotalFor(assignment)} separate places in this layer`;
 
         return title ? `${title} — ${note}` : note;
     }
@@ -435,20 +435,20 @@ function badgeTitle(assignment: Assignment): string {
     return title;
 }
 
-// A passage assigned by several spans (its text is physically discontinuous —
+// A segment assigned by several spans (its text is physically discontinuous —
 // a transposition split it) shows which part of it each span is.
 function partTotalFor(assignment: Assignment): number {
     if (props.partTotals) {
-        return props.partTotals[assignment.canonical_passage_id] ?? 1;
+        return props.partTotals[assignment.segment_id] ?? 1;
     }
 
     return props.assignments.filter(
-        (s) => s.canonical_passage_id === assignment.canonical_passage_id,
+        (s) => s.segment_id === assignment.segment_id,
     ).length;
 }
 
 function badgeText(assignment: Assignment): string {
-    const label = assignment.canonical_passage?.label ?? '';
+    const label = assignment.segment?.label ?? '';
     const total = partTotalFor(assignment);
 
     return total > 1

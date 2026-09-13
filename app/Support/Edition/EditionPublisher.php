@@ -3,8 +3,8 @@
 namespace App\Support\Edition;
 
 use App\Enums\Visibility;
-use App\Models\CanonicalPassage;
 use App\Models\Edition;
+use App\Models\Segment;
 use App\Models\Transcription;
 use App\Models\Work;
 use Illuminate\Database\Eloquent\Builder;
@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Publishing an edition publishes the work's evidence with it: every
- * transcription assigning text to one of the work's passages (and so every witness
+ * transcription assigning text to one of the work's segments (and so every witness
  * they belong to), and every conjecture recorded against the work. A
  * reader of the edition must be able to follow its apparatus back to what
  * it reports; an apparatus assigning manuscripts she may not open is no
@@ -26,7 +26,7 @@ use Illuminate\Support\Facades\DB;
 class EditionPublisher
 {
     /**
-     * What a conjecture newly recorded against this passage's work is born
+     * What a conjecture newly recorded against this segment's work is born
      * with. Where a published edition of the work already stands, a new
      * conjecture is published at once: it can be placed in that edition's
      * apparatus immediately, and a conjecture a reader can see printed
@@ -34,10 +34,10 @@ class EditionPublisher
      * no edition is published, it stays a draft until one is, and
      * publish() below sweeps it up.
      */
-    public static function visibilityForConjectureOn(int $canonicalPassageId): Visibility
+    public static function visibilityForConjectureOn(int $segmentId): Visibility
     {
-        $published = CanonicalPassage::query()
-            ->whereKey($canonicalPassageId)
+        $published = Segment::query()
+            ->whereKey($segmentId)
             ->whereHas('work.editions', fn (Builder $editions) => $editions->where('visibility', Visibility::Published))
             ->exists();
 
@@ -70,7 +70,7 @@ class EditionPublisher
             // A transcription of a codex holding several works stays public
             // while a published edition of any of the others still assigns text to it.
             self::transcriptionsAssigning($work)
-                ->whereDoesntHave('layers.assignments.canonicalPassage.work', fn (Builder $works) => $works
+                ->whereDoesntHave('layers.assignments.segment.work', fn (Builder $works) => $works
                     ->whereKeyNot($work->id)
                     ->whereHas('editions', fn (Builder $editions) => $editions->where('visibility', Visibility::Published)))
                 ->update(['visibility' => Visibility::Draft->value]);
@@ -83,8 +83,8 @@ class EditionPublisher
     private static function transcriptionsAssigning(Work $work): Builder
     {
         return Transcription::query()->whereHas(
-            'layers.assignments.canonicalPassage',
-            fn (Builder $passages) => $passages->where('work_id', $work->id),
+            'layers.assignments.segment',
+            fn (Builder $segments) => $segments->where('work_id', $work->id),
         );
     }
 }

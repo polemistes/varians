@@ -41,7 +41,7 @@ class WitnessPolicy
 
     /**
      * Only the owner — and not while someone else's edition prints text
-     * from it, since deleting cascades that edition's passages and chosen
+     * from it, since deleting cascades that edition's segments and chosen
      * readings away with the transcriptions. A site-wide editor edits,
      * never destroys; an administrator may still.
      */

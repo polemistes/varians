@@ -13,17 +13,17 @@ namespace App\Enums;
  * - Supplement: a proposed restoration for a specific Lacuna
  *   (`supplements_conjecture_id`). Several supplements, from different
  *   proposers, can compete for the same lacuna. `text` required.
- * - Transposition: this passage (or, with
- *   `transposition_range_end_canonical_passage_id`, a range of consecutive
- *   passages) is proposed to be read moved `move_position` ('before' /
- *   'after') `move_target_canonical_passage_id` — an edition-ordering
+ * - Transposition: this segment (or, with
+ *   `transposition_range_end_segment_id`, a range of consecutive
+ *   segments) is proposed to be read moved `move_position` ('before' /
+ *   'after') `move_target_segment_id` — an edition-ordering
  *   proposal, not a word-level one. `text` is never set; the moved
- *   passage(s) keep printing whatever they already read.
- * - Reordering: a proposed *internal* sequence for a fixed set of passages —
+ *   segment(s) keep printing whatever they already read.
+ * - Reordering: a proposed *internal* sequence for a fixed set of segments —
  *   not moved anywhere, just read in a different order among themselves
  *   (see `Conjecture::orderingEntries()`). Competes in the same pool a
  *   transcription's own physical order already forms for that same set of
- *   passages; `canonical_passage_id` is only the set's first passage by
+ *   segments; `segment_id` is only the set's first segment by
  *   numbering order, kept as the usual anchor. `text` is never set.
  * - Deletion: the words of a span should not be read at all — the
  *   editor's counterpart of a witness omitting them (see

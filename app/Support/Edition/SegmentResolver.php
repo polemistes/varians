@@ -2,20 +2,20 @@
 
 namespace App\Support\Edition;
 
-use App\Models\CanonicalPassage;
+use App\Models\Segment;
 use App\Models\Work;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Resolves a work + label into a canonical passage, creating it if it
- * doesn't exist yet. Shared by transcription assignment (a passage backed by
- * an actual manuscript span) and whole-line lacuna authoring (a passage with
- * no manuscript witness at all) — both just need "the passage this label
+ * Resolves a work + label into a segment, creating it if it
+ * doesn't exist yet. Shared by transcription assignment (a segment backed by
+ * an actual manuscript span) and whole-line lacuna authoring (a segment with
+ * no manuscript witness at all) — both just need "the segment this label
  * names, creating it on first mention."
  */
-class CanonicalPassageResolver
+class SegmentResolver
 {
-    public static function resolve(Work $work, string $label): CanonicalPassage
+    public static function resolve(Work $work, string $label): Segment
     {
         $address = $work->referenceScheme->parseLabel($label);
 
@@ -27,7 +27,7 @@ class CanonicalPassageResolver
 
         $formatted = $work->referenceScheme->format($address);
 
-        return $work->canonicalPassages()->firstOrCreate(
+        return $work->segments()->firstOrCreate(
             ['sort_key' => $formatted['sort_key']],
             ['address' => $address, 'label' => $formatted['label']],
         );

@@ -3,15 +3,15 @@
 namespace App\Support\Edition;
 
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
 use App\Models\EditionLineBreak;
-use App\Models\EditionPassage;
+use App\Models\EditionSegment;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
+use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 
 /**
- * Seeds an edition's lineation from the transcription a passage is added
+ * Seeds an edition's lineation from the transcription a segment is added
  * from — a one-time convenience copy, taken because for a poetic text the
  * base manuscript's line divisions are the natural starting point. From the
  * moment it's seeded the lineation is the edition's own data, freely
@@ -19,16 +19,16 @@ use App\Models\TranscriptionLayer;
  * invariant that a transcription's newlines mean nothing to the work stands.
  *
  * Two granularities, mirroring how lineation is stored:
- * - between passages: `EditionPassage.starts_new_line`/`starts_new_paragraph`,
+ * - between segments: `EditionSegment.starts_new_line`/`starts_new_paragraph`,
  *   read off the whitespace between consecutive assigned spans;
- * - inside a passage: `EditionLineBreak` rows before collation columns,
+ * - inside a segment: `EditionLineBreak` rows before collation columns,
  *   read off the whitespace between the layer's consecutive readings —
  *   colometry, which lyric drama needs from the start.
  */
 class LineationSeeder
 {
     /**
-     * The between-passage flags for an assignment added right after `$previous`
+     * The between-segment flags for an assignment added right after `$previous`
      * in the same add batch: two-or-more newlines between the spans read as
      * a paragraph, one as a line, none as prose flowing on. No previous
      * assignment (or one from a different layer, or physically out of order)
@@ -45,7 +45,7 @@ class LineationSeeder
      *
      * @return array{starts_new_line: bool, starts_new_paragraph: bool}
      */
-    public static function interPassageFlags(?Assignment $previous, Assignment $assignment): array
+    public static function interSegmentFlags(?Assignment $previous, Assignment $assignment): array
     {
         if (
             $previous === null
@@ -74,15 +74,15 @@ class LineationSeeder
     }
 
     /**
-     * Colometry inside the passage: a newline in the layer's text between
+     * Colometry inside the segment: a newline in the layer's text between
      * two consecutive readings becomes a break before the later reading's
      * column. Gaps that jump between the parts of a discontinuous assignment
      * are physical displacement, not whitespace, and seed nothing.
      */
-    public static function seedWithinPassage(EditionPassage $editionPassage, TranscriptionLayer $layer): void
+    public static function seedWithinSegment(EditionSegment $editionSegment, TranscriptionLayer $layer): void
     {
-        $passage = $editionPassage->canonicalPassage;
-        $spans = Assignment::where('canonical_passage_id', $passage->id)
+        $segment = $editionSegment->segment;
+        $spans = Assignment::where('segment_id', $segment->id)
             ->where('transcription_layer_id', $layer->id)
             ->get(['start_offset', 'end_offset']);
 
@@ -97,7 +97,7 @@ class LineationSeeder
 
         $previous = null;
 
-        foreach (self::layerReadingsInColumnOrder($passage, $layer) as $reading) {
+        foreach (self::layerReadingsInColumnOrder($segment, $layer) as $reading) {
             if ($previous !== null
                 && $reading->start_offset > $previous->end_offset
                 && $containingSpan($reading) === $containingSpan($previous)) {
@@ -111,11 +111,11 @@ class LineationSeeder
                 if ($newlines >= 1) {
                     EditionLineBreak::firstOrCreate(
                         [
-                            'edition_id' => $editionPassage->edition_id,
+                            'edition_id' => $editionSegment->edition_id,
                             'lemma_id' => $reading->lemma_id,
                         ],
                         [
-                            'canonical_passage_id' => $passage->id,
+                            'segment_id' => $segment->id,
                             'kind' => $newlines >= 2 ? 'paragraph' : 'line',
                         ],
                     );
@@ -129,9 +129,9 @@ class LineationSeeder
     /**
      * @return array<int, LemmaReading>
      */
-    private static function layerReadingsInColumnOrder(CanonicalPassage $passage, TranscriptionLayer $layer): array
+    private static function layerReadingsInColumnOrder(Segment $segment, TranscriptionLayer $layer): array
     {
-        $positions = Lemma::where('canonical_passage_id', $passage->id)
+        $positions = Lemma::where('segment_id', $segment->id)
             ->pluck('position', 'id');
 
         return LemmaReading::whereIn('lemma_id', $positions->keys())

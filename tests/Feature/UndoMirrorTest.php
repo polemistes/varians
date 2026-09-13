@@ -1,7 +1,7 @@
 <?php
 
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
+use App\Models\Segment;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\User;
@@ -85,11 +85,11 @@ test('the undo of a mirrored word deletion gives the sibling its own spelling ba
 test('undoing a deletion at the head of an assigned span puts the span back over the restored words', function () {
     $this->actingAs(User::factory()->editor()->create());
     [$diplomatic, $normalized] = undoMirrorLayers();
-    $passage = CanonicalPassage::factory()->for(Work::factory())->create();
+    $segment = Segment::factory()->for(Work::factory())->create();
     $group = (string) Str::uuid();
-    $assignment = Assignment::factory()->for($diplomatic)->for($passage, 'canonicalPassage')
+    $assignment = Assignment::factory()->for($diplomatic)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 15, 'part' => 1, 'group_id' => $group]);
-    $counterpart = Assignment::factory()->for($normalized)->for($passage, 'canonicalPassage')
+    $counterpart = Assignment::factory()->for($normalized)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 15, 'part' => 1, 'group_id' => $group]);
 
     $this->patch(route('transcriptions.text.update', $diplomatic), [
@@ -126,8 +126,8 @@ test('undoing a deletion at the head of an assigned span puts the span back over
 test('an adjustment can only name a span of the layer it is posted to', function () {
     $this->actingAs(User::factory()->editor()->create());
     [$diplomatic, $normalized] = undoMirrorLayers();
-    $passage = CanonicalPassage::factory()->for(Work::factory())->create();
-    $foreign = Assignment::factory()->for($normalized)->for($passage, 'canonicalPassage')
+    $segment = Segment::factory()->for(Work::factory())->create();
+    $foreign = Assignment::factory()->for($normalized)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 5, 'part' => 1]);
 
     $this->post(route('transcription-spans.restore', $diplomatic), [

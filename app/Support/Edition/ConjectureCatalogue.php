@@ -19,8 +19,8 @@ use App\Support\DeletionImpact;
 class ConjectureCatalogue
 {
     /**
-     * Every conjecture recorded against a passage of the work, with what
-     * the list needs to show and edit it: its passages by label, its
+     * Every conjecture recorded against a segment of the work, with what
+     * the list needs to show and edit it: its segments by label, its
      * sequence (a reordering), its bibliography citations, and where it is in use.
      *
      * @return list<array<string, mixed>>
@@ -28,21 +28,21 @@ class ConjectureCatalogue
     public static function forWork(Work $work, ?User $viewer = null): array
     {
         $conjectures = Conjecture::query()
-            ->whereHas('canonicalPassage', fn ($query) => $query->where('work_id', $work->id))
+            ->whereHas('segment', fn ($query) => $query->where('work_id', $work->id))
             ->visibleTo($viewer)
             ->with([
-                'canonicalPassage:id,label,sort_key',
+                'segment:id,label,sort_key',
                 'transpositionRangeEnd:id,label',
                 'moveTarget:id,label',
-                'supplements.canonicalPassage:id,label',
+                'supplements.segment:id,label',
                 'supplements.user:id,name',
-                'orderingEntries.canonicalPassage:id,label',
+                'orderingEntries.segment:id,label',
                 'references.item',
                 'user:id,name',
             ])
             ->withCount('lemmaReadings')
             ->get()
-            ->sortBy(fn (Conjecture $conjecture) => [$conjecture->canonicalPassage->sort_key, $conjecture->id])
+            ->sortBy(fn (Conjecture $conjecture) => [$conjecture->segment->sort_key, $conjecture->id])
             ->values();
 
         $adoptedBy = EditionTransposition::query()
@@ -63,18 +63,18 @@ class ConjectureCatalogue
             $entries[] = [
                 'id' => $conjecture->id,
                 'type' => $conjecture->type->value,
-                'canonical_passage_id' => $conjecture->canonical_passage_id,
-                'passage_label' => $conjecture->canonicalPassage->label,
+                'segment_id' => $conjecture->segment_id,
+                'segment_label' => $conjecture->segment->label,
                 'text' => $conjecture->text,
                 'extent' => $conjecture->extent,
                 'extent_characters' => $conjecture->extent_characters,
                 'supplements_conjecture_id' => $conjecture->supplements_conjecture_id,
                 'supplements_label' => $conjecture->supplements !== null
-                    ? $conjecture->supplements->canonicalPassage->label.' — '.($conjecture->supplements->proposed_by ?? $conjecture->supplements->user->name)
+                    ? $conjecture->supplements->segment->label.' — '.($conjecture->supplements->proposed_by ?? $conjecture->supplements->user->name)
                     : null,
-                'transposition_range_end_canonical_passage_id' => $conjecture->transposition_range_end_canonical_passage_id,
+                'transposition_range_end_segment_id' => $conjecture->transposition_range_end_segment_id,
                 'range_end_label' => $conjecture->transpositionRangeEnd?->label,
-                'move_target_canonical_passage_id' => $conjecture->move_target_canonical_passage_id,
+                'move_target_segment_id' => $conjecture->move_target_segment_id,
                 'target_label' => $conjecture->moveTarget?->label,
                 'move_position' => $conjecture->move_position,
                 'ordering' => self::orderingPieces($conjecture),
@@ -100,24 +100,24 @@ class ConjectureCatalogue
     }
 
     /**
-     * The pieces of a reordering in proposed order — a divided passage's
+     * The pieces of a reordering in proposed order — a divided segment's
      * parts labelled "3 2/2", the way the apparatus cites a witness's.
      *
      * @return list<array{id: int, label: string}>
      */
     private static function orderingPieces(Conjecture $conjecture): array
     {
-        $counts = $conjecture->orderingEntries->countBy('canonical_passage_id');
+        $counts = $conjecture->orderingEntries->countBy('segment_id');
 
         $pieces = [];
 
         foreach ($conjecture->orderingEntries->sortBy('sequence') as $entry) {
-            $count = (int) ($counts[$entry->canonical_passage_id] ?? 1);
+            $count = (int) ($counts[$entry->segment_id] ?? 1);
             $pieces[] = [
-                'id' => (int) $entry->canonical_passage_id,
+                'id' => (int) $entry->segment_id,
                 'label' => $count > 1
-                    ? sprintf('%s %d/%d', $entry->canonicalPassage->label, $entry->part, $count)
-                    : (string) $entry->canonicalPassage->label,
+                    ? sprintf('%s %d/%d', $entry->segment->label, $entry->part, $count)
+                    : (string) $entry->segment->label,
             ];
         }
 

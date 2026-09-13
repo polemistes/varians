@@ -39,7 +39,7 @@ class RestoreTranscriptionSpansRequest extends FormRequest
 
         return [
             'assignments' => ['array'],
-            'assignments.*.canonical_passage_id' => ['required', 'integer', Rule::exists('canonical_passages', 'id')],
+            'assignments.*.segment_id' => ['required', 'integer', Rule::exists('segments', 'id')],
             'assignments.*.start_offset' => ['required', 'integer', 'min:0'],
             'assignments.*.end_offset' => ['required', 'integer', 'min:0'],
             'assignments.*.part' => ['required', 'integer', 'min:1'],

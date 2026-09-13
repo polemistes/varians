@@ -3,8 +3,8 @@
 namespace App\Policies;
 
 use App\Enums\Role;
-use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
+use App\Models\Segment;
 use App\Models\User;
 
 class ConjecturePolicy
@@ -19,11 +19,11 @@ class ConjecturePolicy
     }
 
     /**
-     * A conjecture is recorded against a passage of a work one may edit.
+     * A conjecture is recorded against a segment of a work one may edit.
      */
-    public function create(User $user, CanonicalPassage $canonicalPassage): bool
+    public function create(User $user, Segment $segment): bool
     {
-        return $user->hasRole(Role::Editor) || $canonicalPassage->work->isEditableBy($user);
+        return $user->hasRole(Role::Editor) || $segment->work->isEditableBy($user);
     }
 
     /**

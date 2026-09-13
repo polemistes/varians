@@ -6,20 +6,20 @@ use App\Enums\Visibility;
 use App\Models\Assignment;
 use App\Models\BibliographyItem;
 use App\Models\BibliographyReference;
-use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\ConjectureOrderingEntry;
 use App\Models\Edition;
 use App\Models\EditionComment;
 use App\Models\EditionLemma;
 use App\Models\EditionLineBreak;
-use App\Models\EditionPassage;
+use App\Models\EditionSegment;
 use App\Models\EditionTransposition;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\ManuscriptImage;
 use App\Models\ManuscriptImageFeature;
 use App\Models\ManuscriptPage;
+use App\Models\Segment;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionPageBreak;
@@ -31,13 +31,13 @@ use Illuminate\Support\Facades\Storage;
 
 /**
  * A published edition standing on everything an edition can stand on: two
- * passages; a witness with a page, a photograph, a feature on it, a
- * two-layer transcription assigning both passages (with counterpart spans, an
+ * segments; a witness with a page, a photograph, a feature on it, a
+ * two-layer transcription assigning both segments (with counterpart spans, an
  * image mapping and a page break) and a second transcription assigning
  * nothing; a lacuna with a supplement and a reordering, assigned from the
  * bibliography; a lemma with a witness reading and a conjectural one; and
- * the edition's passages, selection, line break, note, adoption and
- * passage assignment.
+ * the edition's segments, selection, line break, note, adoption and
+ * segment assignment.
  *
  * @return array<string, mixed>
  */
@@ -46,8 +46,8 @@ function publishedEditionGraph(): array
     Storage::fake('public');
     $owner = User::factory()->create();
     $work = Work::factory()->for($owner)->create(['slug' => 'iliad']);
-    $p1 = CanonicalPassage::factory()->for($work)->create(['sort_key' => '0001', 'label' => '1']);
-    $p2 = CanonicalPassage::factory()->for($work)->create(['sort_key' => '0002', 'label' => '2']);
+    $p1 = Segment::factory()->for($work)->create(['sort_key' => '0001', 'label' => '1']);
+    $p2 = Segment::factory()->for($work)->create(['sort_key' => '0002', 'label' => '2']);
 
     $witness = Witness::factory()->for($owner)->create(['siglum' => 'A']);
     $page = ManuscriptPage::factory()->create(['witness_id' => $witness->id, 'label' => '1r', 'position' => 1]);
@@ -59,8 +59,8 @@ function publishedEditionGraph(): array
     $diplomatic = TranscriptionLayer::factory()->for($transcription)->create(['layer' => Layer::Diplomatic, 'text' => 'the quick fox jumps', 'user_id' => $owner->id]);
     $normalized = TranscriptionLayer::factory()->for($transcription)->create(['layer' => Layer::Normalized, 'text' => 'the quick fox jumps', 'user_id' => $owner->id]);
     foreach ([$diplomatic, $normalized] as $layer) {
-        Assignment::factory()->for($layer)->for($p1, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 9, 'group_id' => 'group-1']);
-        Assignment::factory()->for($layer)->for($p2, 'canonicalPassage')->create(['start_offset' => 10, 'end_offset' => 19, 'group_id' => 'group-2']);
+        Assignment::factory()->for($layer)->for($p1, 'segment')->create(['start_offset' => 0, 'end_offset' => 9, 'group_id' => 'group-1']);
+        Assignment::factory()->for($layer)->for($p2, 'segment')->create(['start_offset' => 10, 'end_offset' => 19, 'group_id' => 'group-2']);
     }
     TranscriptionRegion::factory()->create(['transcription_layer_id' => $diplomatic->id, 'manuscript_image_id' => $image->id, 'text' => 'the', 'start_offset' => 0, 'end_offset' => 3, 'position' => 1, 'x' => 0.1, 'y' => 0.1, 'width' => 0.2, 'height' => 0.1, 'group_id' => 'region-1']);
     TranscriptionPageBreak::factory()->create(['transcription_id' => $transcription->id, 'manuscript_page_id' => $page->id, 'start_line' => 1]);
@@ -68,26 +68,26 @@ function publishedEditionGraph(): array
     $unassigned = Transcription::factory()->for($witness)->create();
     TranscriptionLayer::factory()->for($unassigned)->create(['text' => 'something else', 'user_id' => $owner->id]);
 
-    $lacuna = Conjecture::factory()->for($owner)->for($p1, 'canonicalPassage')->create(['type' => ConjectureType::Lacuna, 'text' => null, 'visibility' => Visibility::Published]);
-    $supplement = Conjecture::factory()->for($owner)->for($p1, 'canonicalPassage')->create(['type' => ConjectureType::Supplement, 'text' => 'slow', 'supplements_conjecture_id' => $lacuna->id, 'visibility' => Visibility::Published]);
-    $reordering = Conjecture::factory()->for($owner)->for($p1, 'canonicalPassage')->create(['type' => ConjectureType::Reordering, 'text' => null, 'visibility' => Visibility::Published]);
-    ConjectureOrderingEntry::factory()->create(['conjecture_id' => $reordering->id, 'canonical_passage_id' => $p2->id, 'sequence' => 1]);
-    ConjectureOrderingEntry::factory()->create(['conjecture_id' => $reordering->id, 'canonical_passage_id' => $p1->id, 'sequence' => 2]);
+    $lacuna = Conjecture::factory()->for($owner)->for($p1, 'segment')->create(['type' => ConjectureType::Lacuna, 'text' => null, 'visibility' => Visibility::Published]);
+    $supplement = Conjecture::factory()->for($owner)->for($p1, 'segment')->create(['type' => ConjectureType::Supplement, 'text' => 'slow', 'supplements_conjecture_id' => $lacuna->id, 'visibility' => Visibility::Published]);
+    $reordering = Conjecture::factory()->for($owner)->for($p1, 'segment')->create(['type' => ConjectureType::Reordering, 'text' => null, 'visibility' => Visibility::Published]);
+    ConjectureOrderingEntry::factory()->create(['conjecture_id' => $reordering->id, 'segment_id' => $p2->id, 'sequence' => 1]);
+    ConjectureOrderingEntry::factory()->create(['conjecture_id' => $reordering->id, 'segment_id' => $p1->id, 'sequence' => 2]);
     $item = BibliographyItem::factory()->create();
-    BibliographyReference::factory()->create(['bibliography_item_id' => $item->id, 'conjecture_id' => $supplement->id, 'edition_id' => null, 'canonical_passage_id' => null]);
+    BibliographyReference::factory()->create(['bibliography_item_id' => $item->id, 'conjecture_id' => $supplement->id, 'edition_id' => null, 'segment_id' => null]);
 
-    $lemma = Lemma::factory()->create(['canonical_passage_id' => $p1->id, 'position' => 1]);
+    $lemma = Lemma::factory()->create(['segment_id' => $p1->id, 'position' => 1]);
     $witnessReading = LemmaReading::factory()->create(['lemma_id' => $lemma->id, 'transcription_layer_id' => $normalized->id, 'start_offset' => 0, 'end_offset' => 9, 'conjecture_id' => null]);
     $conjecturalReading = LemmaReading::factory()->create(['lemma_id' => $lemma->id, 'transcription_layer_id' => null, 'start_offset' => null, 'end_offset' => null, 'conjecture_id' => $supplement->id]);
 
     $edition = Edition::factory()->for($owner)->for($work)->create(['title' => 'Editio maior', 'visibility' => Visibility::Published]);
-    EditionPassage::factory()->create(['edition_id' => $edition->id, 'canonical_passage_id' => $p1->id, 'transcription_layer_id' => $normalized->id, 'position' => 1]);
-    EditionPassage::factory()->create(['edition_id' => $edition->id, 'canonical_passage_id' => $p2->id, 'transcription_layer_id' => $normalized->id, 'position' => 2]);
+    EditionSegment::factory()->create(['edition_id' => $edition->id, 'segment_id' => $p1->id, 'transcription_layer_id' => $normalized->id, 'position' => 1]);
+    EditionSegment::factory()->create(['edition_id' => $edition->id, 'segment_id' => $p2->id, 'transcription_layer_id' => $normalized->id, 'position' => 2]);
     EditionLemma::factory()->create(['edition_id' => $edition->id, 'lemma_id' => $lemma->id, 'selected_reading_id' => $conjecturalReading->id]);
-    EditionLineBreak::factory()->create(['edition_id' => $edition->id, 'canonical_passage_id' => $p1->id, 'lemma_id' => $lemma->id]);
-    EditionComment::factory()->create(['edition_id' => $edition->id, 'canonical_passage_id' => $p1->id, 'lemma_id' => $lemma->id, 'user_id' => $owner->id, 'note' => 'A note']);
+    EditionLineBreak::factory()->create(['edition_id' => $edition->id, 'segment_id' => $p1->id, 'lemma_id' => $lemma->id]);
+    EditionComment::factory()->create(['edition_id' => $edition->id, 'segment_id' => $p1->id, 'lemma_id' => $lemma->id, 'user_id' => $owner->id, 'note' => 'A note']);
     EditionTransposition::factory()->create(['edition_id' => $edition->id, 'conjecture_id' => $reordering->id]);
-    BibliographyReference::factory()->create(['bibliography_item_id' => $item->id, 'conjecture_id' => null, 'edition_id' => $edition->id, 'canonical_passage_id' => $p2->id]);
+    BibliographyReference::factory()->create(['bibliography_item_id' => $item->id, 'conjecture_id' => null, 'edition_id' => $edition->id, 'segment_id' => $p2->id]);
     $transcription->update(['visibility' => Visibility::Published]);
 
     return compact('owner', 'work', 'edition', 'witness', 'transcription', 'unassigned', 'normalized', 'lacuna', 'supplement', 'reordering', 'lemma', 'conjecturalReading', 'item', 'image');
@@ -129,7 +129,7 @@ test('copying a public edition gives the member a work, witnesses, conjectures a
         ->and($work->copied_from_id)->toBe($graph['work']->id)
         ->and($work->slug)->toBe('iliad-copy')
         ->and($work->reference_scheme_id)->toBe($graph['work']->reference_scheme_id)
-        ->and($work->canonicalPassages()->count())->toBe(2);
+        ->and($work->segments()->count())->toBe(2);
 
     // The witness, with only the transcription that assigns text to the work.
     $witness = Witness::where('copied_from_id', $graph['witness']->id)->sole();
@@ -153,7 +153,7 @@ test('copying a public edition gives the member a work, witnesses, conjectures a
     expect($normalized->user_id)->toBe($member->id)
         ->and($normalized->copied_from_id)->toBe($graph['normalized']->id)
         ->and($normalized->assignments()->count())->toBe(2)
-        ->and($normalized->assignments()->first()->canonicalPassage->work_id)->toBe($work->id)
+        ->and($normalized->assignments()->first()->segment->work_id)->toBe($work->id)
         ->and($normalized->assignments()->first()->group_id)->not->toBe('group-1')
         ->and($transcription->layers()->where('layer', Layer::Diplomatic)->sole()->regions()->sole()->manuscript_image_id)->toBe($image->id);
 
@@ -161,8 +161,8 @@ test('copying a public edition gives the member a work, witnesses, conjectures a
     $groups = Assignment::whereIn('transcription_layer_id', $transcription->layers()->pluck('id'))->pluck('group_id');
     expect($groups->unique()->count())->toBe(2)->and($groups->count())->toBe(4);
 
-    // Conjectures, wired to the copied passages and to each other.
-    $conjectures = Conjecture::whereIn('canonical_passage_id', $work->canonicalPassages()->pluck('id'))->get();
+    // Conjectures, wired to the copied segments and to each other.
+    $conjectures = Conjecture::whereIn('segment_id', $work->segments()->pluck('id'))->get();
     expect($conjectures)->toHaveCount(3)
         ->and($conjectures->every(fn (Conjecture $conjecture) => $conjecture->user_id === $member->id && $conjecture->visibility === Visibility::Draft))->toBeTrue();
     $supplement = $conjectures->firstWhere('copied_from_id', $graph['supplement']->id);
@@ -170,28 +170,28 @@ test('copying a public edition gives the member a work, witnesses, conjectures a
     $reordering = $conjectures->firstWhere('copied_from_id', $graph['reordering']->id);
     expect($supplement->supplements_conjecture_id)->toBe($lacuna->id)
         ->and($reordering->orderingEntries()->count())->toBe(2)
-        ->and($reordering->orderingEntries()->first()->canonicalPassage->work_id)->toBe($work->id)
+        ->and($reordering->orderingEntries()->first()->segment->work_id)->toBe($work->id)
         ->and($supplement->references()->sole()->bibliography_item_id)->toBe($graph['item']->id);
 
     // The collation, and the edition's choices on it.
-    $lemma = Lemma::whereIn('canonical_passage_id', $work->canonicalPassages()->pluck('id'))->sole();
+    $lemma = Lemma::whereIn('segment_id', $work->segments()->pluck('id'))->sole();
     expect($lemma->readings()->count())->toBe(2)
         ->and($lemma->readings()->whereNotNull('transcription_layer_id')->sole()->transcription_layer_id)->toBe($normalized->id)
         ->and($lemma->readings()->whereNotNull('conjecture_id')->sole()->conjecture_id)->toBe($supplement->id);
 
-    expect($copy->passages()->count())->toBe(2)
-        ->and($copy->passages()->first()->transcription_layer_id)->toBe($normalized->id)
+    expect($copy->segments()->count())->toBe(2)
+        ->and($copy->segments()->first()->transcription_layer_id)->toBe($normalized->id)
         ->and($copy->selections()->sole()->lemma_id)->toBe($lemma->id)
         ->and($copy->selections()->sole()->selected_reading_id)->toBe($lemma->readings()->whereNotNull('conjecture_id')->sole()->id)
         ->and(EditionLineBreak::where('edition_id', $copy->id)->sole()->lemma_id)->toBe($lemma->id)
         ->and($copy->comments()->sole()->lemma_id)->toBe($lemma->id)
         ->and($copy->transpositions()->sole()->conjecture_id)->toBe($reordering->id)
-        ->and(BibliographyReference::where('edition_id', $copy->id)->sole()->canonical_passage_id)->toBe($work->canonicalPassages()->where('label', '2')->sole()->id);
+        ->and(BibliographyReference::where('edition_id', $copy->id)->sole()->segment_id)->toBe($work->segments()->where('label', '2')->sole()->id);
 
     // Nothing in the copy points back at the original graph.
     expect($copy->editors()->count())->toBe(0)
         ->and(Assignment::whereIn('transcription_layer_id', $transcription->layers()->pluck('id'))
-            ->whereIn('canonical_passage_id', $graph['work']->canonicalPassages()->pluck('id'))->exists())->toBeFalse();
+            ->whereIn('segment_id', $graph['work']->segments()->pluck('id'))->exists())->toBeFalse();
 });
 
 test('editing the copy leaves the original untouched, and vice versa', function () {
@@ -203,8 +203,8 @@ test('editing the copy leaves the original untouched, and vice versa', function 
 
     $before = [
         'assignments' => Assignment::whereIn('transcription_layer_id', $graph['transcription']->layers()->pluck('id'))->count(),
-        'lemmas' => Lemma::whereIn('canonical_passage_id', $graph['work']->canonicalPassages()->pluck('id'))->count(),
-        'conjectures' => Conjecture::whereIn('canonical_passage_id', $graph['work']->canonicalPassages()->pluck('id'))->count(),
+        'lemmas' => Lemma::whereIn('segment_id', $graph['work']->segments()->pluck('id'))->count(),
+        'conjectures' => Conjecture::whereIn('segment_id', $graph['work']->segments()->pluck('id'))->count(),
     ];
 
     $this->delete(route('witnesses.destroy', $copiedWitness))->assertRedirect();
@@ -214,8 +214,8 @@ test('editing the copy leaves the original untouched, and vice versa', function 
     expect(Witness::find($graph['witness']->id))->not->toBeNull()
         ->and(Edition::find($graph['edition']->id))->not->toBeNull()
         ->and(Assignment::whereIn('transcription_layer_id', $graph['transcription']->layers()->pluck('id'))->count())->toBe($before['assignments'])
-        ->and(Lemma::whereIn('canonical_passage_id', $graph['work']->canonicalPassages()->pluck('id'))->count())->toBe($before['lemmas'])
-        ->and(Conjecture::whereIn('canonical_passage_id', $graph['work']->canonicalPassages()->pluck('id'))->count())->toBe($before['conjectures'])
+        ->and(Lemma::whereIn('segment_id', $graph['work']->segments()->pluck('id'))->count())->toBe($before['lemmas'])
+        ->and(Conjecture::whereIn('segment_id', $graph['work']->segments()->pluck('id'))->count())->toBe($before['conjectures'])
         ->and(Storage::disk('public')->exists('manuscript-images/original.jpg'))->toBeTrue();
 });
 
@@ -256,12 +256,12 @@ test('copying a public witness gives the member its pages, photographs, transcri
         ->and(TranscriptionRegion::whereIn('transcription_layer_id', $copy->transcriptionLayers()->pluck('transcription_layers.id'))->count())->toBe(1);
 
     // A stranger's copy brings its own copy of the work, and the
-    // assignments name ITS passages — nothing she does reaches the
+    // assignments name ITS segments — nothing she does reaches the
     // original editor's apparatus.
     $workCopy = Work::where('copied_from_id', $graph['work']->id)->sole();
     expect($workCopy->user_id)->toBe($member->id)
-        ->and($workCopy->canonicalPassages()->count())
-        ->toBe($graph['work']->canonicalPassages()->count());
+        ->and($workCopy->segments()->count())
+        ->toBe($graph['work']->segments()->count());
 
     $copied = Assignment::whereIn(
         'transcription_layer_id',
@@ -278,13 +278,13 @@ test('copying a public witness gives the member its pages, photographs, transcri
         ->and($copied)->not->toBeEmpty()
         ->and($copied->pluck('start_offset')->sort()->values()->all())
         ->toBe($original->pluck('start_offset')->sort()->values()->all())
-        // Every one of them on the copy's own passages, none on the
+        // Every one of them on the copy's own segments, none on the
         // original's.
-        ->and($copied->pluck('canonical_passage_id')->unique()->diff(
-            $workCopy->canonicalPassages()->pluck('id')
+        ->and($copied->pluck('segment_id')->unique()->diff(
+            $workCopy->segments()->pluck('id')
         )->all())->toBe([])
-        ->and($copied->pluck('canonical_passage_id')->intersect(
-            $graph['work']->canonicalPassages()->pluck('id')
+        ->and($copied->pluck('segment_id')->intersect(
+            $graph['work']->segments()->pluck('id')
         )->all())->toBe([]);
 
     // A witness nobody has published is not there to copy.
@@ -309,8 +309,8 @@ test('copying a witness one may edit keeps its assignments on the same work', fu
 
     expect(Work::where('copied_from_id', $graph['work']->id)->exists())->toBeFalse()
         ->and($copied)->not->toBeEmpty()
-        ->and($copied->pluck('canonical_passage_id')->unique()->diff(
-            $graph['work']->canonicalPassages()->pluck('id')
+        ->and($copied->pluck('segment_id')->unique()->diff(
+            $graph['work']->segments()->pluck('id')
         )->all())->toBe([]);
 });
 
@@ -318,13 +318,13 @@ test('a copy carries only what the copier may see — no draft transcription, no
     $graph = publishedEditionGraph();
     $owner = $graph['owner'];
     $work = $graph['work'];
-    $p1 = $work->canonicalPassages()->where('label', '1')->sole();
+    $p1 = $work->segments()->where('label', '1')->sole();
 
     // A second transcription assigning text to the work, kept as a draft after the
     // edition was published, with a reading in the collation.
     $draft = Transcription::factory()->for($graph['witness'])->create(['visibility' => Visibility::Draft]);
     $draftLayer = TranscriptionLayer::factory()->for($draft)->create(['layer' => Layer::Normalized, 'text' => 'the quick fox', 'user_id' => $owner->id]);
-    Assignment::factory()->for($draftLayer)->for($p1, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 9]);
+    Assignment::factory()->for($draftLayer)->for($p1, 'segment')->create(['start_offset' => 0, 'end_offset' => 9]);
     LemmaReading::factory()->create(['lemma_id' => $graph['lemma']->id, 'transcription_layer_id' => $draftLayer->id, 'start_offset' => 0, 'end_offset' => 9, 'conjecture_id' => null]);
 
     // A photograph of a page nothing published maps to.
@@ -335,7 +335,7 @@ test('a copy carries only what the copier may see — no draft transcription, no
     $this->actingAs($stranger)->post(route('editions.copy', $graph['edition']))->assertRedirect();
 
     $witness = Witness::where('copied_from_id', $graph['witness']->id)->sole();
-    $lemma = Lemma::whereIn('canonical_passage_id', Work::where('copied_from_id', $work->id)->sole()->canonicalPassages()->pluck('id'))->sole();
+    $lemma = Lemma::whereIn('segment_id', Work::where('copied_from_id', $work->id)->sole()->segments()->pluck('id'))->sole();
 
     expect($witness->transcriptions()->count())->toBe(1)
         ->and($witness->pages()->count())->toBe(2)
@@ -352,13 +352,13 @@ test('a copy carries only what the copier may see — no draft transcription, no
 test('a witness whose transcriptions the copier may not read is left out, not copied as an empty siglum', function () {
     $graph = publishedEditionGraph();
     $work = $graph['work'];
-    $p1 = $work->canonicalPassages()->where('label', '1')->sole();
+    $p1 = $work->segments()->where('label', '1')->sole();
 
     // A second witness assigning text to the work, whose only transcription is a draft.
     $hidden = Witness::factory()->for($graph['owner'])->create(['siglum' => 'Z']);
     $draft = Transcription::factory()->for($hidden)->create(['visibility' => Visibility::Draft]);
     $draftLayer = TranscriptionLayer::factory()->for($draft)->create(['layer' => Layer::Normalized, 'text' => 'the quick fox', 'user_id' => $graph['owner']->id]);
-    Assignment::factory()->for($draftLayer)->for($p1, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 9]);
+    Assignment::factory()->for($draftLayer)->for($p1, 'segment')->create(['start_offset' => 0, 'end_offset' => 9]);
 
     $this->actingAs(User::factory()->create())->post(route('editions.copy', $graph['edition']))->assertRedirect();
 

@@ -18,8 +18,8 @@ use Illuminate\Support\Carbon;
  *
  * `range_end_lemma_id` is set when this one reading spans more than its own
  * `lemma_id` column — an editor's multi-word conjecture, or a witness's own
- * reading when PassageAligner finds it doesn't decompose 1-for-1 against the
- * passage's existing columns. The lemmas in between are never touched,
+ * reading when SegmentAligner finds it doesn't decompose 1-for-1 against the
+ * segment's existing columns. The lemmas in between are never touched,
  * merged, or deleted by this — they keep their own independent readings for
  * every other witness/edition; only rendering collapses the span when this
  * particular reading is the one selected.
@@ -27,7 +27,7 @@ use Illuminate\Support\Carbon;
  * `omitted` marks a witness's *absence* at the columns it spans: a
  * zero-width reading (start_offset = end_offset, at the point in the
  * witness's text where the missing words would stand) that
- * PassageAligner::recordOmissions writes for every maximal run of columns a
+ * SegmentAligner::recordOmissions writes for every maximal run of columns a
  * witness lacks. It makes the omission a candidate like any other — an
  * edition can adopt it and print nothing there — and lets the apparatus
  * say "omitted in B" without recomputing the collation. Never a tombstone:

@@ -2,14 +2,14 @@
 
 namespace Database\Factories;
 
-use App\Models\CanonicalPassage;
+use App\Models\Segment;
 use App\Models\Work;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends Factory<CanonicalPassage>
+ * @extends Factory<Segment>
  */
-class CanonicalPassageFactory extends Factory
+class SegmentFactory extends Factory
 {
     /**
      * Define the model's default state.

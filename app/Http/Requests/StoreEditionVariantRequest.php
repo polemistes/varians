@@ -34,7 +34,7 @@ class StoreEditionVariantRequest extends FormRequest
      *
      * `placement` picks which column the reading lands on:
      * - `existing` (the default): pick a reading that already exists as a
-     *   candidate on one clicked column — `lemma_id` once the passage is
+     *   candidate on one clicked column — `lemma_id` once the segment is
      *   touched, otherwise `base_start_offset`/`base_end_offset`, the exact
      *   span the live preview reported. A witness reading, an existing
      *   catalogued conjecture (substitution or supplement), or a brand new
@@ -54,20 +54,20 @@ class StoreEditionVariantRequest extends FormRequest
      *   column, which is exactly the single-word case; there's no separate
      *   mechanism for it). Almost always a brand new substitution
      *   conjecture; the one exception is a witness's own wider reading an
-     *   editor compares/adopts for the first time even though PassageAligner
+     *   editor compares/adopts for the first time even though SegmentAligner
      *   never had a divergence to merge it from automatically (see
      *   EditionController::witnessExtension) — everywhere else, a witness
      *   reading is placed via ordinary `existing` instead, since
-     *   PassageAligner is normally the only thing that creates a witness's
+     *   SegmentAligner is normally the only thing that creates a witness's
      *   own multi-word reading. Never a lacuna/supplement (those have their
      *   own placements above).
-     * - `new_passage`: a whole-line lacuna with no manuscript witness at
-     *   all — `canonical_passage_id` is never sent for this placement;
-     *   `label` names (and, on first mention, creates) the passage instead,
-     *   via the work's own ReferenceScheme. `insert_after_edition_passage_id`
+     * - `new_segment`: a whole-line lacuna with no manuscript witness at
+     *   all — `segment_id` is never sent for this placement;
+     *   `label` names (and, on first mention, creates) the segment instead,
+     *   via the work's own ReferenceScheme. `insert_after_edition_segment_id`
      *   anchors where it lands in this edition's own order (null = the very
-     *   start) — only meaningful the first time this passage is added; a
-     *   repeat submission for the same label finds the same EditionPassage
+     *   start) — only meaningful the first time this segment is added; a
+     *   repeat submission for the same label finds the same EditionSegment
      *   and leaves its position alone. Only a brand new lacuna conjecture
      *   belongs here.
      *
@@ -85,26 +85,26 @@ class StoreEditionVariantRequest extends FormRequest
         $edition = $this->route('edition');
 
         return [
-            'canonical_passage_id' => ['required_unless:placement,new_passage', Rule::exists('canonical_passages', 'id')->where('work_id', $edition->work_id)],
-            'placement' => ['nullable', Rule::in(['existing', 'insert', 'range', 'new_passage'])],
-            'label' => ['required_if:placement,new_passage', 'string', 'max:100'],
-            'insert_after_edition_passage_id' => ['nullable', Rule::exists('edition_passages', 'id')->where('edition_id', $edition->id)],
+            'segment_id' => ['required_unless:placement,new_segment', Rule::exists('segments', 'id')->where('work_id', $edition->work_id)],
+            'placement' => ['nullable', Rule::in(['existing', 'insert', 'range', 'new_segment'])],
+            'label' => ['required_if:placement,new_segment', 'string', 'max:100'],
+            'insert_after_edition_segment_id' => ['nullable', Rule::exists('edition_segments', 'id')->where('edition_id', $edition->id)],
 
-            'lemma_id' => ['nullable', Rule::exists('lemmas', 'id')->where('canonical_passage_id', $this->input('canonical_passage_id'))],
+            'lemma_id' => ['nullable', Rule::exists('lemmas', 'id')->where('segment_id', $this->input('segment_id'))],
             'base_start_offset' => ['nullable', 'integer', 'min:0'],
             'base_end_offset' => ['nullable', 'integer', 'gte:base_start_offset'],
 
-            'insert_after_lemma_id' => ['nullable', Rule::exists('lemmas', 'id')->where('canonical_passage_id', $this->input('canonical_passage_id'))],
+            'insert_after_lemma_id' => ['nullable', Rule::exists('lemmas', 'id')->where('segment_id', $this->input('segment_id'))],
             'insert_after_base_offset' => ['nullable', 'integer', 'min:0'],
 
-            'range_start_lemma_id' => ['nullable', Rule::exists('lemmas', 'id')->where('canonical_passage_id', $this->input('canonical_passage_id'))],
+            'range_start_lemma_id' => ['nullable', Rule::exists('lemmas', 'id')->where('segment_id', $this->input('segment_id'))],
             'range_start_base_offset' => ['nullable', 'integer', 'min:0'],
-            'range_end_lemma_id' => ['nullable', Rule::exists('lemmas', 'id')->where('canonical_passage_id', $this->input('canonical_passage_id'))],
+            'range_end_lemma_id' => ['nullable', Rule::exists('lemmas', 'id')->where('segment_id', $this->input('segment_id'))],
             'range_end_base_offset' => ['nullable', 'integer', 'gte:range_start_base_offset'],
 
             'source' => ['required', Rule::in(['transcription', 'existing_conjecture', 'new_conjecture'])],
             // A witness reading placed here becomes a real LemmaReading (the
-            // one path that mints one outside PassageAdder), so it is bound
+            // one path that mints one outside SegmentAdder), so it is bound
             // by the same rule — see App\Enums\Layer.
             'transcription_layer_id' => ['required_if:source,transcription', Rule::exists('transcription_layers', 'id')->where('layer', Layer::Normalized->value)],
             'start_offset' => ['required_if:source,transcription', 'integer', 'min:0'],
@@ -113,7 +113,7 @@ class StoreEditionVariantRequest extends FormRequest
             'end_offset' => ['required_if:source,transcription', 'integer', 'gte:start_offset'],
             'conjecture_id' => [
                 'required_if:source,existing_conjecture',
-                Rule::exists('conjectures', 'id')->where('canonical_passage_id', $this->input('canonical_passage_id')),
+                Rule::exists('conjectures', 'id')->where('segment_id', $this->input('segment_id')),
             ],
             ...ConjectureValidationRules::structuralRules('conjecture_'),
             'conjecture_proposed_by' => ['nullable', 'string', 'max:255'],
@@ -163,10 +163,10 @@ class StoreEditionVariantRequest extends FormRequest
             }
 
             // A witness reading normally belongs at an existing column
-            // instead, however many words it spans (PassageAligner is what
+            // instead, however many words it spans (SegmentAligner is what
             // creates that reading, at materialization time) — but a witness
             // can agree word-for-word with its neighbours across a whole
-            // conjecture's disputed span, leaving nothing for PassageAligner
+            // conjecture's disputed span, leaving nothing for SegmentAligner
             // to have merged automatically. Comparing/adopting that wider
             // reading for the first time is the one place `transcription`
             // belongs here too (see EditionController::witnessExtension).
@@ -179,7 +179,7 @@ class StoreEditionVariantRequest extends FormRequest
             return;
         }
 
-        if ($placement === 'new_passage') {
+        if ($placement === 'new_segment') {
             if ($this->input('source') === 'transcription') {
                 $validator->errors()->add('source', 'A whole-line lacuna has no manuscript witness — only a brand new conjecture belongs here.');
             } elseif (! $this->wantsLacuna()) {
@@ -267,13 +267,13 @@ class StoreEditionVariantRequest extends FormRequest
         }
 
         $covered = Assignment::where('transcription_layer_id', (int) $transcriptionId)
-            ->where('canonical_passage_id', $this->input('canonical_passage_id'))
+            ->where('segment_id', $this->input('segment_id'))
             ->where('start_offset', '<=', (int) $startOffset)
             ->where('end_offset', '>=', (int) $endOffset)
             ->exists();
 
         if (! $covered) {
-            $validator->errors()->add('start_offset', 'That span isn\'t inside this witness\'s assignment of this passage.');
+            $validator->errors()->add('start_offset', 'That span isn\'t inside this witness\'s assignment of this segment.');
         }
 
         // An empty span is no reading — unless it is the witness's own
@@ -283,7 +283,7 @@ class StoreEditionVariantRequest extends FormRequest
             $isOmission = LemmaReading::where('transcription_layer_id', (int) $transcriptionId)
                 ->where('start_offset', (int) $startOffset)
                 ->where('omitted', true)
-                ->whereHas('lemma', fn ($query) => $query->where('canonical_passage_id', $this->input('canonical_passage_id')))
+                ->whereHas('lemma', fn ($query) => $query->where('segment_id', $this->input('segment_id')))
                 ->exists();
 
             if (! $isOmission) {

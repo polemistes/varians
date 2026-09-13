@@ -19,7 +19,7 @@ import {
     show as showWitness,
 } from '@/routes/witnesses';
 import { destroy as destroyWork, update as updateWork } from '@/routes/works';
-import type { WorkConjecture, WorkPassage } from '@/types/conjectures';
+import type { WorkConjecture, WorkSegment } from '@/types/conjectures';
 import type {
     ReferenceLevel,
     TranscriptionLayer,
@@ -38,12 +38,12 @@ const props = defineProps<{
 
 // ---- the work's conjectures: recorded, edited and removed here, whatever
 // their kind; an edition places or follows them from its own page. ----
-const passagesForForm = computed<WorkPassage[]>(() =>
-    (props.work.canonical_passages ?? []).map((passage) => ({
-        id: passage.id,
-        address: passage.address,
-        label: passage.label,
-        sort_key: passage.sort_key,
+const segmentsForForm = computed<WorkSegment[]>(() =>
+    (props.work.segments ?? []).map((segment) => ({
+        id: segment.id,
+        address: segment.address,
+        label: segment.label,
+        sort_key: segment.sort_key,
     })),
 );
 
@@ -52,8 +52,8 @@ const lacunas = computed(() =>
         .filter((conjecture) => conjecture.type === 'lacuna')
         .map((conjecture) => ({
             id: conjecture.id,
-            canonical_passage_id: conjecture.canonical_passage_id,
-            label: `${conjecture.passage_label} — ${conjecture.proposed_by ?? conjecture.entered_by}${conjecture.extent ? ` (${conjecture.extent})` : ''}`,
+            segment_id: conjecture.segment_id,
+            label: `${conjecture.segment_label} — ${conjecture.proposed_by ?? conjecture.entered_by}${conjecture.extent ? ` (${conjecture.extent})` : ''}`,
         })),
 );
 
@@ -85,7 +85,7 @@ function statement(conjecture: WorkConjecture): string {
                 ? `lacuna: ${conjecture.extent}`
                 : 'lacuna';
         case 'transposition':
-            return `${conjecture.passage_label}${conjecture.range_end_label ? `–${conjecture.range_end_label}` : ''} moves ${conjecture.move_position} ${conjecture.target_label}`;
+            return `${conjecture.segment_label}${conjecture.range_end_label ? `–${conjecture.range_end_label}` : ''} moves ${conjecture.move_position} ${conjecture.target_label}`;
         case 'reordering':
             return conjecture.ordering.map((entry) => entry.label).join(' ');
     }
@@ -130,7 +130,7 @@ function removeConjecture(conjecture: WorkConjecture) {
 
     if (
         !confirmDeletion(
-            `the ${TYPE_LABELS[conjecture.type]} ${conjecture.proposed_by ?? conjecture.entered_by} on ${conjecture.passage_label}`,
+            `the ${TYPE_LABELS[conjecture.type]} ${conjecture.proposed_by ?? conjecture.entered_by} on ${conjecture.segment_label}`,
             parts,
         )
     ) {
@@ -164,10 +164,10 @@ function cancelDetails() {
 }
 
 function removeWork() {
-    // Assignments first, and passages not at all: a passage is a citable line
+    // Assignments first, and segments not at all: a segment is a citable line
     // number, cheap to recreate, while assigning some witness's words to it is
     // the work. A hundred lines across seven manuscripts is seven hundred
-    // assignments and only a hundred passages, and the second number is the
+    // assignments and only a hundred segments, and the second number is the
     // one that sounds harmless.
     const parts = describeDeletionImpact(props.work.deletion_impact, [
         {
@@ -273,7 +273,7 @@ function manuscriptSummary(witness: Witness): string | null {
                 <p class="text-xs text-stone-500 dark:text-stone-500">
                     {{ props.work.language }} ·
                     {{ props.work.reference_scheme?.name }} ·
-                    {{ props.work.canonical_passages?.length ?? 0 }} segments
+                    {{ props.work.segments?.length ?? 0 }} segments
                 </p>
                 <button
                     v-if="props.can.delete"
@@ -413,7 +413,7 @@ function manuscriptSummary(witness: Witness): string | null {
                 <ConjectureForm
                     v-if="addingConjecture"
                     class="mb-3"
-                    :passages="passagesForForm"
+                    :segments="segmentsForForm"
                     :levels="props.referenceLevels"
                     :lacunas="lacunas"
                     :registry="props.bibliographyForm.registry"
@@ -432,7 +432,7 @@ function manuscriptSummary(witness: Witness): string | null {
                             <span>
                                 <span
                                     class="mr-2 rounded bg-stone-200 px-1.5 py-0.5 font-sans text-xs text-stone-600 dark:bg-stone-800 dark:text-stone-400"
-                                    >{{ conjecture.passage_label }}</span
+                                    >{{ conjecture.segment_label }}</span
                                 >
                                 <span
                                     class="text-xs text-stone-500 dark:text-stone-400"
@@ -516,7 +516,7 @@ function manuscriptSummary(witness: Witness): string | null {
                         <ConjectureForm
                             v-if="editingConjectureId === conjecture.id"
                             class="mt-3"
-                            :passages="passagesForForm"
+                            :segments="segmentsForForm"
                             :levels="props.referenceLevels"
                             :lacunas="lacunas"
                             :conjecture="conjecture"

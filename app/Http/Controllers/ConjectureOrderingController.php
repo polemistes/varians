@@ -4,10 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Enums\ConjectureType;
 use App\Http\Requests\StoreConjectureOrderingRequest;
-use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\ConjectureOrderingEntry;
 use App\Models\Edition;
+use App\Models\Segment;
 use App\Support\Bibliography\ReferenceAttacher;
 use App\Support\Edition\ArrangementAdopter;
 use App\Support\Edition\EditionPublisher;
@@ -19,7 +19,7 @@ class ConjectureOrderingController extends Controller
     /**
      * Authors a brand-new ConjectureType::Reordering for the submitted
      * sequence and — when `follow` is set (the default) — APPLIES it to
-     * this edition's stored passage order and records the application as
+     * this edition's stored segment order and records the application as
      * attribution (EditionTransposition — a Reordering is a Conjecture like
      * a Transposition is, so the same per-edition application record serves
      * both). The edition page's "Register transposition conjecture" arrives
@@ -37,14 +37,14 @@ class ConjectureOrderingController extends Controller
      */
     public function store(StoreConjectureOrderingRequest $request, Edition $edition): RedirectResponse
     {
-        $orderedIds = $request->passageIds();
+        $orderedIds = $request->segmentIds();
         $pieces = $request->validated('pieces');
 
         DB::transaction(function () use ($request, $edition, $orderedIds, $pieces) {
-            $anchorId = CanonicalPassage::whereIn('id', $orderedIds)->orderBy('sort_key')->value('id');
+            $anchorId = Segment::whereIn('id', $orderedIds)->orderBy('sort_key')->value('id');
 
             $conjecture = Conjecture::create([
-                'canonical_passage_id' => $anchorId,
+                'segment_id' => $anchorId,
                 'user_id' => $request->user()->id,
                 'visibility' => EditionPublisher::visibilityForConjectureOn($anchorId),
                 'type' => ConjectureType::Reordering,
@@ -54,15 +54,15 @@ class ConjectureOrderingController extends Controller
 
             ReferenceAttacher::toConjecture($conjecture, $request->validated('references'));
 
-            // One entry per piece: a whole passage, or a part of one with
+            // One entry per piece: a whole segment, or a part of one with
             // its words (see ConjectureOrderingEntry).
             $entries = is_array($pieces)
                 ? array_map(fn (array $piece) => [
-                    'canonical_passage_id' => (int) $piece['canonical_passage_id'],
+                    'segment_id' => (int) $piece['segment_id'],
                     'part' => (int) $piece['part'],
                     'text' => isset($piece['text']) && trim((string) $piece['text']) !== '' ? (string) $piece['text'] : null,
                 ], $pieces)
-                : array_map(fn (int $id) => ['canonical_passage_id' => $id, 'part' => 1, 'text' => null], $orderedIds);
+                : array_map(fn (int $id) => ['segment_id' => $id, 'part' => 1, 'text' => null], $orderedIds);
 
             foreach (array_values($entries) as $sequence => $entry) {
                 ConjectureOrderingEntry::create([

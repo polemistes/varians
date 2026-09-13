@@ -3,7 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Edition;
-use App\Models\EditionPassage;
+use App\Models\EditionSegment;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -21,7 +21,7 @@ class StoreBibliographyReferenceRequest extends FormRequest
 
     /**
      * One citation of an item by exactly one thing: a conjecture, or a
-     * passage of an edition (which must be in that edition). `prenote` and
+     * segment of an edition (which must be in that edition). `prenote` and
      * `postnote` are biblatex's `\cite[pre][post]` — "cf." and the locator.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
@@ -32,7 +32,7 @@ class StoreBibliographyReferenceRequest extends FormRequest
             'bibliography_item_id' => ['required', 'integer', Rule::exists('bibliography_items', 'id')],
             'conjecture_id' => ['nullable', 'integer', Rule::exists('conjectures', 'id')],
             'edition_id' => ['nullable', 'integer', Rule::exists('editions', 'id')],
-            'canonical_passage_id' => ['nullable', 'integer', Rule::exists('canonical_passages', 'id')],
+            'segment_id' => ['nullable', 'integer', Rule::exists('segments', 'id')],
             'prenote' => ['nullable', 'string', 'max:255'],
             'postnote' => ['nullable', 'string', 'max:255'],
         ];
@@ -42,28 +42,28 @@ class StoreBibliographyReferenceRequest extends FormRequest
     {
         $validator->after(function (Validator $validator) {
             $onConjecture = $this->filled('conjecture_id');
-            $onPassage = $this->filled('edition_id') || $this->filled('canonical_passage_id');
+            $onSegment = $this->filled('edition_id') || $this->filled('segment_id');
 
-            if ($onConjecture === $onPassage) {
+            if ($onConjecture === $onSegment) {
                 $validator->errors()->add('conjecture_id', 'A citation belongs to a conjecture or to a segment of an edition — exactly one.');
 
                 return;
             }
 
-            if ($onPassage) {
-                if (! $this->filled('edition_id') || ! $this->filled('canonical_passage_id')) {
-                    $validator->errors()->add('canonical_passage_id', 'A segment citation names both the edition and the segment.');
+            if ($onSegment) {
+                if (! $this->filled('edition_id') || ! $this->filled('segment_id')) {
+                    $validator->errors()->add('segment_id', 'A segment citation names both the edition and the segment.');
 
                     return;
                 }
 
                 $edition = Edition::find((int) $this->input('edition_id'));
-                $inEdition = $edition !== null && EditionPassage::where('edition_id', $edition->id)
-                    ->where('canonical_passage_id', (int) $this->input('canonical_passage_id'))
+                $inEdition = $edition !== null && EditionSegment::where('edition_id', $edition->id)
+                    ->where('segment_id', (int) $this->input('segment_id'))
                     ->exists();
 
                 if (! $inEdition) {
-                    $validator->errors()->add('canonical_passage_id', 'That segment is not in this edition.');
+                    $validator->errors()->add('segment_id', 'That segment is not in this edition.');
                 }
             }
         });

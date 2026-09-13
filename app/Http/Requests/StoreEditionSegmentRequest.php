@@ -10,7 +10,7 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
-class StoreEditionPassageRequest extends FormRequest
+class StoreEditionSegmentRequest extends FormRequest
 {
     /**
      * The policy decides — see App\Policies. Checked before validation, so
@@ -27,11 +27,11 @@ class StoreEditionPassageRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * Either the passages to add by id (`canonical_passage_ids` — the
+     * Either the segments to add by id (`segment_ids` — the
      * witnesses pane names the assignments a selection touched, whichever
      * layer it was made in) or a raw span of the layer's text, every
      * already-assigned assignment fully inside it (see
-     * EditionPassageController::store). A selection covering only
+     * EditionSegmentController::store). A selection covering only
      * already-added or unassigned text isn't an error, just a no-op, so
      * there's no "at least one citable assignment" rule here.
      *
@@ -43,10 +43,10 @@ class StoreEditionPassageRequest extends FormRequest
             // Only the normalized layer collates and only it may be a base —
             // see App\Enums\Layer.
             'transcription_layer_id' => ['required', Rule::exists('transcription_layers', 'id')->where('layer', Layer::Normalized->value)],
-            'canonical_passage_ids' => ['nullable', 'array'],
-            'canonical_passage_ids.*' => ['integer', Rule::exists('canonical_passages', 'id')],
-            'start_offset' => ['required_without:canonical_passage_ids', 'integer', 'min:0'],
-            'end_offset' => ['required_without:canonical_passage_ids', 'integer', 'gt:start_offset'],
+            'segment_ids' => ['nullable', 'array'],
+            'segment_ids.*' => ['integer', Rule::exists('segments', 'id')],
+            'start_offset' => ['required_without:segment_ids', 'integer', 'min:0'],
+            'end_offset' => ['required_without:segment_ids', 'integer', 'gt:start_offset'],
         ];
     }
 

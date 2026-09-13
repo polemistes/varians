@@ -3,43 +3,43 @@
 use App\Models\Assignment;
 use App\Models\BibliographyItem;
 use App\Models\BibliographyReference;
-use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
 use App\Models\ReferenceScheme;
+use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Models\User;
 use App\Models\Work;
-use App\Support\Edition\PassageAdder;
+use App\Support\Edition\SegmentAdder;
 use Inertia\Testing\AssertableInertia as AssertInertia;
 
-/** An edition with one passage added from a one-word transcription. */
-function editionWithOnePassage(): array
+/** An edition with one segment added from a one-word transcription. */
+function editionWithOneSegment(): array
 {
     $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
     $edition = Edition::factory()->for($work)->create();
     $formatted = $work->referenceScheme->format(['book' => 1, 'line' => 1]);
-    $passage = CanonicalPassage::factory()->for($work)->create([
+    $segment = Segment::factory()->for($work)->create([
         'address' => ['book' => 1, 'line' => 1],
         'sort_key' => $formatted['sort_key'],
         'label' => $formatted['label'],
     ]);
     $layer = TranscriptionLayer::factory()->create(['text' => 'word']);
-    $assignment = Assignment::factory()->for($layer)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 4]);
-    PassageAdder::add($edition, $assignment, 1.0);
+    $assignment = Assignment::factory()->for($layer)->for($segment, 'segment')->create(['start_offset' => 0, 'end_offset' => 4]);
+    SegmentAdder::add($edition, $assignment, 1.0);
 
-    return compact('work', 'edition', 'passage');
+    return compact('work', 'edition', 'segment');
 }
 
-test('a passage of an edition cites an item, with the locator saved and editable', function () {
+test('a segment of an edition cites an item, with the locator saved and editable', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage] = editionWithOnePassage();
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment] = editionWithOneSegment();
     $item = BibliographyItem::factory()->create(['label' => 'Bergk 1882']);
 
     $this->post(route('bibliography-references.store'), [
         'bibliography_item_id' => $item->id,
         'edition_id' => $edition->id,
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'postnote' => 'p. 45',
     ])->assertRedirect();
 
@@ -49,10 +49,10 @@ test('a passage of an edition cites an item, with the locator saved and editable
     $this->patch(route('bibliography-references.update', $reference), ['prenote' => 'cf.', 'postnote' => 'pp. 45–47'])->assertRedirect();
     expect($reference->fresh()->citation())->toBe('cf. Bergk 1882, pp. 45–47');
 
-    // The edition page carries it on the passage and in its bibliography.
+    // The edition page carries it on the segment and in its bibliography.
     $this->get(route('editions.show', [$work, $edition]))
         ->assertInertia(fn (AssertInertia $page) => $page
-            ->where('windowPassages.0.references.0.citation', 'cf. Bergk 1882, pp. 45–47')
+            ->where('windowSegments.0.references.0.citation', 'cf. Bergk 1882, pp. 45–47')
             ->where('bibliography.0.label', 'Bergk 1882')
             ->has('bibliographyForm.registry.types')
             ->has('bibliographyForm.suggestions.names'));
@@ -61,11 +61,11 @@ test('a passage of an edition cites an item, with the locator saved and editable
     expect(BibliographyReference::count())->toBe(0);
 });
 
-test('a citation names a conjecture or a passage of an edition, never both or neither', function () {
+test('a citation names a conjecture or a segment of an edition, never both or neither', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['edition' => $edition, 'passage' => $passage] = editionWithOnePassage();
+    ['edition' => $edition, 'segment' => $segment] = editionWithOneSegment();
     $item = BibliographyItem::factory()->create();
-    $conjecture = Conjecture::factory()->for($passage, 'canonicalPassage')->create();
+    $conjecture = Conjecture::factory()->for($segment, 'segment')->create();
 
     $this->post(route('bibliography-references.store'), ['bibliography_item_id' => $item->id])
         ->assertInvalid(['conjecture_id']);
@@ -73,16 +73,16 @@ test('a citation names a conjecture or a passage of an edition, never both or ne
         'bibliography_item_id' => $item->id,
         'conjecture_id' => $conjecture->id,
         'edition_id' => $edition->id,
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
     ])->assertInvalid(['conjecture_id']);
 
-    // A passage not in the edition cannot be cited from.
-    $other = CanonicalPassage::factory()->for($edition->work)->create();
+    // A segment not in the edition cannot be cited from.
+    $other = Segment::factory()->for($edition->work)->create();
     $this->post(route('bibliography-references.store'), [
         'bibliography_item_id' => $item->id,
         'edition_id' => $edition->id,
-        'canonical_passage_id' => $other->id,
-    ])->assertInvalid(['canonical_passage_id']);
+        'segment_id' => $other->id,
+    ])->assertInvalid(['segment_id']);
 
     $this->post(route('bibliography-references.store'), [
         'bibliography_item_id' => $item->id,
@@ -94,12 +94,12 @@ test('a citation names a conjecture or a passage of an edition, never both or ne
 
 test('a new conjecture is recorded with its citations in the same request', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage] = editionWithOnePassage();
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment] = editionWithOneSegment();
     $item = BibliographyItem::factory()->create(['label' => 'Dover 1972']);
-    $lemma = $passage->lemmas()->sole();
+    $lemma = $segment->lemmas()->sole();
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_lemma_id' => $lemma->id,
         'range_end_lemma_id' => $lemma->id,
@@ -117,7 +117,7 @@ test('a new conjecture is recorded with its citations in the same request', func
     // item joins the edition's bibliography.
     $this->get(route('editions.show', [$work, $edition]))
         ->assertInertia(fn (AssertInertia $page) => $page
-            ->where('windowPassages.0.runs.0.candidates.1.references.0.citation', 'Dover 1972, 12')
+            ->where('windowSegments.0.runs.0.candidates.1.references.0.citation', 'Dover 1972, 12')
             ->where('bibliography.0.id', $item->id));
 });
 

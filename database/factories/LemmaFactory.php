@@ -2,8 +2,8 @@
 
 namespace Database\Factories;
 
-use App\Models\CanonicalPassage;
 use App\Models\Lemma;
+use App\Models\Segment;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -19,7 +19,7 @@ class LemmaFactory extends Factory
     public function definition(): array
     {
         return [
-            'canonical_passage_id' => CanonicalPassage::factory(),
+            'segment_id' => Segment::factory(),
             'position' => fake()->unique()->randomFloat(4, 1, 1000),
         ];
     }

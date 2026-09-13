@@ -16,7 +16,7 @@ All three must go through `SpanTransformer` in
 Missing the third was a real bug: editing "the quick fox" into "the slow fox"
 left the apparatus reading "the" / "slow " / "ox", and it failed silently
 because `mb_substr` past the end returns `""`. It also fed
-`PassageAligner::representativeText`, so one stale reading corrupted the
+`SegmentAligner::representativeText`, so one stale reading corrupted the
 consensus every later witness was diffed against.
 
 Filter to `whereNotNull('start_offset')` first — conjecture-sourced readings
@@ -39,9 +39,9 @@ What `applyReadings` does instead:
   narrowing an earlier broad flag): an edition's SELECTED choice whose
   manuscript backing changed — confirm or re-choose. An UNSELECTED reading
   the edit destroyed or left with guessed boundaries is never flagged: it
-  is deleted and its passage re-derived (`realignDamaged`, calling
-  `PassageAligner::realignLayer` AFTER the new text is saved, since
-  collation reads it; refused where pinned readings hold the passage, in
+  is deleted and its segment re-derived (`realignDamaged`, calling
+  `SegmentAligner::realignLayer` AFTER the new text is saved, since
+  collation reads it; refused where pinned readings hold the segment, in
   which case the deleted candidate simply returns at the next
   materialization). A reading flagged before the edit is not re-judged. A
   destroyed SELECTED reading is kept zero-width and flagged, because
@@ -70,22 +70,22 @@ What `applyReadings` does instead:
   decision: undo covers blanking too). Do not reintroduce tombstones;
 - a cut/paste op pair (shared `cut_id`) relocates instead of destroying:
   spans wholly inside the cut travel to the paste, unflagged; a *partial*
-  cut of a span spawns a new part of the source passage at the paste site,
+  cut of a span spawns a new part of the source segment at the paste site,
   and a paste inside another span splits it into two parts of its own
-  passage (`RelocationAssignmentEffects`) — see `.ai/rules/requests.md`;
+  segment (`RelocationAssignmentEffects`) — see `.ai/rules/requests.md`;
 - afterwards `update()` flashes the one consequence the editor cannot see from
   that page: that her correction also changed an edition's own printed
   wording. Keyed off the reading's *text*, so an edit elsewhere that merely
   shifts offsets stays silent.
 
 Assignments are disposable on destruction — with one addition: when a destroyed
-assignment was one *part* of a passage assigned by several spans in the layer (see
-`Assignment.part`), the passage's collation for the layer may be
+assignment was one *part* of a segment assigned by several spans in the layer (see
+`Assignment.part`), the segment's collation for the layer may be
 stale, and `recollateLostParts` resolves it AFTER the new text saves, by the
 same narrowing as damaged readings: re-derive (`realignLayer`) where a
 collation exists, flag the surviving parts only where re-derivation is
 refused (pinned readings — the late-part rule), and do NOTHING where the
-layer was never collated on the passage. Blind-flagging the survivors was
+layer was never collated on the segment. Blind-flagging the survivors was
 the old rule and read as noise (real incident: a rearranged, never-collated
 line arrived flagged in both layers).
 

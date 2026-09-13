@@ -6,7 +6,7 @@ use App\Enums\ConjectureType;
 use App\Models\Conjecture;
 
 /**
- * A Transposition conjecture is a statement — "these passages stand
+ * A Transposition conjecture is a statement — "these segments stand
  * before/after that one" — not a stored sequence the way a Reordering's
  * ordering entries are. This turns the statement into concrete orderings so
  * the rest of the order machinery can treat both kinds alike: the order
@@ -34,9 +34,9 @@ class TranspositionProjection
 
         $indexOf = array_flip($numberingOrderedIds);
 
-        $startIndex = $indexOf[$conjecture->canonical_passage_id] ?? null;
-        $endIndex = $indexOf[$conjecture->transposition_range_end_canonical_passage_id ?? $conjecture->canonical_passage_id] ?? null;
-        $targetIndex = $indexOf[$conjecture->move_target_canonical_passage_id] ?? null;
+        $startIndex = $indexOf[$conjecture->segment_id] ?? null;
+        $endIndex = $indexOf[$conjecture->transposition_range_end_segment_id ?? $conjecture->segment_id] ?? null;
+        $targetIndex = $indexOf[$conjecture->move_target_segment_id] ?? null;
 
         if ($startIndex === null || $endIndex === null || $targetIndex === null) {
             return null;
@@ -48,7 +48,7 @@ class TranspositionProjection
 
         $range = array_slice($numberingOrderedIds, $startIndex, $endIndex - $startIndex + 1);
         $rest = array_values(array_diff($numberingOrderedIds, $range));
-        $restTargetIndex = array_search($conjecture->move_target_canonical_passage_id, $rest, true);
+        $restTargetIndex = array_search($conjecture->move_target_segment_id, $rest, true);
 
         if (! is_int($restTargetIndex)) {
             return null;
@@ -64,9 +64,9 @@ class TranspositionProjection
      * Whether the printed order still says what the statement says: the
      * range's endpoints bracket a run standing immediately on the stated
      * side of the target. An anchor missing from the order (a removed
-     * passage) means the statement no longer resolves — false.
+     * segment) means the statement no longer resolves — false.
      *
-     * @param  list<int>  $printedIds  the edition's passages in printed order
+     * @param  list<int>  $printedIds  the edition's segments in printed order
      */
     public static function holdsIn(Conjecture $conjecture, array $printedIds): bool
     {
@@ -76,9 +76,9 @@ class TranspositionProjection
 
         $indexOf = array_flip($printedIds);
 
-        $startIndex = $indexOf[$conjecture->canonical_passage_id] ?? null;
-        $endIndex = $indexOf[$conjecture->transposition_range_end_canonical_passage_id ?? $conjecture->canonical_passage_id] ?? null;
-        $targetIndex = $indexOf[$conjecture->move_target_canonical_passage_id] ?? null;
+        $startIndex = $indexOf[$conjecture->segment_id] ?? null;
+        $endIndex = $indexOf[$conjecture->transposition_range_end_segment_id ?? $conjecture->segment_id] ?? null;
+        $targetIndex = $indexOf[$conjecture->move_target_segment_id] ?? null;
 
         if ($startIndex === null || $endIndex === null || $targetIndex === null || $endIndex < $startIndex) {
             return false;

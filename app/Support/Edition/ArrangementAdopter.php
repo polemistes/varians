@@ -3,11 +3,11 @@
 namespace App\Support\Edition;
 
 use App\Enums\ConjectureType;
-use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
-use App\Models\EditionPassage;
+use App\Models\EditionSegment;
 use App\Models\EditionTransposition;
+use App\Models\Segment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -15,15 +15,15 @@ use Illuminate\Validation\ValidationException;
  * Adopting a catalogued ordering proposal for an edition: the printed
  * order takes the proposal's sequence, and — what makes a proposal that
  * moves PART of a line printable — each line the proposal divides gets one
- * EditionPassage row per part, while a line it reads whole is rejoined.
- * The pieces are then resequenced in place (PassageOrderRewriter) and the
+ * EditionSegment row per part, while a line it reads whole is rejoined.
+ * The pieces are then resequenced in place (SegmentOrderRewriter) and the
  * adoption recorded (EditionTransposition). The parts' words are stored
  * with the rows; whether they still match the line's printed text is
  * judged when the page renders (EditionController::partRange), never
  * here — adopting stores what the proposal says.
  *
  * Serves Reorderings (stored pieces) and Transpositions (a statement,
- * projected onto the edition's passages between its anchors).
+ * projected onto the edition's segments between its anchors).
  */
 class ArrangementAdopter
 {
@@ -41,11 +41,11 @@ class ArrangementAdopter
             self::divideLines($edition, $pieces);
 
             $sequence = array_map(fn (array $piece) => [
-                'canonical_passage_id' => $piece['canonical_passage_id'],
+                'segment_id' => $piece['segment_id'],
                 'part' => $piece['part'],
             ], $pieces);
 
-            if (! PassageOrderRewriter::applyPieceSequence($edition, $sequence)) {
+            if (! SegmentOrderRewriter::applyPieceSequence($edition, $sequence)) {
                 throw ValidationException::withMessages([
                     'conjecture_id' => 'That proposal names a line this edition does not contain.',
                 ]);
@@ -62,7 +62,7 @@ class ArrangementAdopter
      * The proposal as pieces in proposed order; null when it cannot be
      * projected onto this edition.
      *
-     * @return list<array{canonical_passage_id: int, part: int, text: string|null}>|null
+     * @return list<array{segment_id: int, part: int, text: string|null}>|null
      */
     private static function pieces(Edition $edition, Conjecture $conjecture): ?array
     {
@@ -71,7 +71,7 @@ class ArrangementAdopter
 
             foreach ($conjecture->orderingEntries()->orderBy('sequence')->get() as $entry) {
                 $pieces[] = [
-                    'canonical_passage_id' => (int) $entry->canonical_passage_id,
+                    'segment_id' => (int) $entry->segment_id,
                     'part' => (int) $entry->part,
                     'text' => $entry->text,
                 ];
@@ -85,25 +85,25 @@ class ArrangementAdopter
         }
 
         $anchorIds = array_values(array_unique(array_filter([
-            $conjecture->canonical_passage_id,
-            $conjecture->transposition_range_end_canonical_passage_id,
-            $conjecture->move_target_canonical_passage_id,
+            $conjecture->segment_id,
+            $conjecture->transposition_range_end_segment_id,
+            $conjecture->move_target_segment_id,
         ])));
-        $anchorKeys = CanonicalPassage::whereIn('id', $anchorIds)->pluck('sort_key');
+        $anchorKeys = Segment::whereIn('id', $anchorIds)->pluck('sort_key');
 
         if ($anchorKeys->count() !== count($anchorIds)) {
             return null;
         }
 
-        $ids = EditionPassage::where('edition_id', $edition->id)
+        $ids = EditionSegment::where('edition_id', $edition->id)
             ->where('part', 1)
-            ->whereHas('canonicalPassage', fn ($query) => $query
+            ->whereHas('segment', fn ($query) => $query
                 ->where('sort_key', '>=', $anchorKeys->min())
                 ->where('sort_key', '<=', $anchorKeys->max()))
-            ->with('canonicalPassage:id,sort_key')
+            ->with('segment:id,sort_key')
             ->get()
-            ->sortBy(fn (EditionPassage $row) => $row->canonicalPassage->sort_key)
-            ->pluck('canonical_passage_id')
+            ->sortBy(fn (EditionSegment $row) => $row->segment->sort_key)
+            ->pluck('segment_id')
             ->map(fn ($id) => (int) $id)
             ->values()
             ->all();
@@ -114,7 +114,7 @@ class ArrangementAdopter
             return null;
         }
 
-        return array_map(fn (int $id) => ['canonical_passage_id' => $id, 'part' => 1, 'text' => null], $sequence);
+        return array_map(fn (int $id) => ['segment_id' => $id, 'part' => 1, 'text' => null], $sequence);
     }
 
     /**
@@ -123,19 +123,19 @@ class ArrangementAdopter
      * on from wherever they are put — and one row again for a line it
      * reads whole.
      *
-     * @param  list<array{canonical_passage_id: int, part: int, text: string|null}>  $pieces
+     * @param  list<array{segment_id: int, part: int, text: string|null}>  $pieces
      */
     private static function divideLines(Edition $edition, array $pieces): void
     {
-        $byPassage = [];
+        $bySegment = [];
 
         foreach ($pieces as $piece) {
-            $byPassage[$piece['canonical_passage_id']][$piece['part']] = $piece['text'];
+            $bySegment[$piece['segment_id']][$piece['part']] = $piece['text'];
         }
 
-        foreach ($byPassage as $passageId => $parts) {
-            $rows = EditionPassage::where('edition_id', $edition->id)
-                ->where('canonical_passage_id', $passageId)
+        foreach ($bySegment as $segmentId => $parts) {
+            $rows = EditionSegment::where('edition_id', $edition->id)
+                ->where('segment_id', $segmentId)
                 ->orderBy('part')
                 ->lockForUpdate()
                 ->get();
@@ -163,8 +163,8 @@ class ArrangementAdopter
                     continue;
                 }
 
-                EditionPassage::updateOrCreate(
-                    ['edition_id' => $edition->id, 'canonical_passage_id' => $passageId, 'part' => $part],
+                EditionSegment::updateOrCreate(
+                    ['edition_id' => $edition->id, 'segment_id' => $segmentId, 'part' => $part],
                     [
                         'transcription_layer_id' => $first->transcription_layer_id,
                         'position' => (float) $first->position + $part / 1000,

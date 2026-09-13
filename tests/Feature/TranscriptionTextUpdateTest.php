@@ -1,15 +1,15 @@
 <?php
 
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\EditionLemma;
 use App\Models\LemmaReading;
 use App\Models\ManuscriptImage;
+use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
 use App\Models\User;
-use App\Support\Edition\PassageAligner;
+use App\Support\Edition\SegmentAligner;
 use App\Support\Transcription\AssignmentIntegrity;
 
 test('an insertion persists and shifts a trailing span', function () {
@@ -216,15 +216,15 @@ test('a guest cannot edit a transcription\'s text', function () {
 
 test('destroying one part of an uncollated split assignment flags nothing — there is nothing stale', function () {
     // The old rule blind-flagged the survivors; narrowed (user decision):
-    // a layer never collated on the passage has no stale collation, so the
+    // a layer never collated on the segment has no stale collation, so the
     // surviving part passes silently (real incident: a rearranged,
     // never-collated line arrived flagged in both layers).
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "fox\nthe quick"]);
-    $passage = CanonicalPassage::factory()->create();
-    $destroyed = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    $segment = Segment::factory()->create();
+    $destroyed = Assignment::factory()->for($transcription)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 3, 'part' => 2]); // "fox"
-    $survivor = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    $survivor = Assignment::factory()->for($transcription)->for($segment, 'segment')
         ->create(['start_offset' => 4, 'end_offset' => 13, 'part' => 1]); // "the quick"
 
     $response = $this->patch(route('transcriptions.text.update', $transcription), [
@@ -240,12 +240,12 @@ test('destroying one part of an uncollated split assignment flags nothing — th
 test('destroying one part of a COLLATED split assignment re-derives the collation', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->normalized()->create(['text' => "fox\nthe quick"]);
-    $passage = CanonicalPassage::factory()->create();
-    $partTwo = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    $segment = Segment::factory()->create();
+    $partTwo = Assignment::factory()->for($transcription)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 3, 'part' => 2]); // "fox"
-    $survivor = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    $survivor = Assignment::factory()->for($transcription)->for($segment, 'segment')
         ->create(['start_offset' => 4, 'end_offset' => 13, 'part' => 1]); // "the quick"
-    PassageAligner::collate($passage, $transcription->assignments()->get());
+    SegmentAligner::collate($segment, $transcription->assignments()->get());
     expect(LemmaReading::where('transcription_layer_id', $transcription->id)->count())->toBe(3);
 
     $this->patch(route('transcriptions.text.update', $transcription), [
@@ -266,17 +266,17 @@ test('destroying one part of a COLLATED split assignment re-derives the collatio
         ->and($survivor->fresh()->needs_review)->toBeFalse();
 });
 
-test('destroying a part while a pinned reading holds the passage flags the surviving parts', function () {
+test('destroying a part while a pinned reading holds the segment flags the surviving parts', function () {
     // Re-derivation is refused where an edition's selection pins the
     // collation — the late-part rule — so the survivors carry the flag.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->normalized()->create(['text' => "fox\nthe quick"]);
-    $passage = CanonicalPassage::factory()->create();
-    Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    $segment = Segment::factory()->create();
+    Assignment::factory()->for($transcription)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 3, 'part' => 2]);
-    $survivor = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    $survivor = Assignment::factory()->for($transcription)->for($segment, 'segment')
         ->create(['start_offset' => 4, 'end_offset' => 13, 'part' => 1]);
-    PassageAligner::collate($passage, $transcription->assignments()->get());
+    SegmentAligner::collate($segment, $transcription->assignments()->get());
 
     $pinned = LemmaReading::where('transcription_layer_id', $transcription->id)
         ->orderBy('start_offset')->skip(1)->first(); // "the"
@@ -298,9 +298,9 @@ test('destroying an assignment with no sibling parts flags nothing else', functi
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "fox\nthe quick"]);
     $destroyed = Assignment::factory()->for($transcription)
-        ->create(['start_offset' => 0, 'end_offset' => 3]); // "fox", its own passage
+        ->create(['start_offset' => 0, 'end_offset' => 3]); // "fox", its own segment
     $unrelated = Assignment::factory()->for($transcription)
-        ->create(['start_offset' => 4, 'end_offset' => 13]); // different passage
+        ->create(['start_offset' => 4, 'end_offset' => 13]); // different segment
 
     $response = $this->patch(route('transcriptions.text.update', $transcription), [
         'ops' => [['start' => 0, 'end' => 4, 'text' => '']],

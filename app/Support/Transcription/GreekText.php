@@ -91,7 +91,7 @@ class GreekText
 
     /**
      * Back to the composed form, so the result is encoded the way the rest of
-     * the app compares text (see PassageAligner::comparisonForm).
+     * the app compares text (see SegmentAligner::comparisonForm).
      */
     private static function compose(string $text): string
     {

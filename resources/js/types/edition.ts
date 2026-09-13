@@ -1,6 +1,6 @@
 /**
  * The edition page's server payload — see EditionController::show and
- * passageDetail() for what each field carries and why.
+ * segmentDetail() for what each field carries and why.
  */
 
 import type { ConjectureType } from '@/types/models';
@@ -31,7 +31,7 @@ export type BibliographyEntry = {
     reference: { text: string; italic: boolean }[];
 };
 
-export type PassageListItem = {
+export type SegmentListItem = {
     id: number;
     label: string;
     sort_key: string;
@@ -118,15 +118,15 @@ export type OrderCandidate = {
 // One self-contained block of the numbering order that some source — a
 // witness's physical order or a catalogued reordering — rearranges. Members
 // are contiguous in numbering order but may sit scattered in the printed
-// text; every member passage carries the same block. `anchor` marks the
+// text; every member segment carries the same block. `anchor` marks the
 // first member in printed order (unused since the badge moved onto the
 // moved lines' own numbers, but still sent).
 export type OrderRange = {
     range_key: string;
-    range_start_canonical_passage_id: number;
-    range_end_canonical_passage_id: number;
+    range_start_segment_id: number;
+    range_end_segment_id: number;
     range_label: string;
-    member_canonical_passage_ids: number[];
+    member_segment_ids: number[];
     current_sequence: string[];
     candidates: OrderCandidate[];
     anchor: boolean;
@@ -135,7 +135,7 @@ export type OrderRange = {
 // The editor's own note on a point in this edition — free text, because
 // what it carries (accentuation, word division, speaker assignment, why a
 // reading was printed) is judgment rather than data. `lemma_id` null means
-// the note is about the whole passage. See App\Models\EditionComment.
+// the note is about the whole segment. See App\Models\EditionComment.
 export type EditionComment = {
     id: number;
     lemma_id: number | null;
@@ -144,8 +144,8 @@ export type EditionComment = {
     author: string;
 };
 
-// A witness whose text for a passage stands in more than one place — a
-// transposition split it below passage granularity. Derived server-side
+// A witness whose text for a segment stands in more than one place — a
+// transposition split it below segment granularity. Derived server-side
 // from the assignment spans; see EditionController::assignmentDiscontinuities.
 export type DiscontinuousWitness = {
     // A witness's siglum — or, for a conjecture that divides a line into
@@ -166,26 +166,26 @@ export type DiscontinuousWitness = {
     statements: string[];
 };
 
-export type WindowPassage = {
+export type WindowSegment = {
     id: number;
-    edition_passage_id: number;
-    // The printed predecessor's EditionPassage id, from the whole order —
+    edition_segment_id: number;
+    // The printed predecessor's EditionSegment id, from the whole order —
     // null only at the very start of the edition.
-    previous_edition_passage_id: number | null;
+    previous_edition_segment_id: number | null;
     label: string;
     order_range: OrderRange | null;
-    // Which piece of the passage this row prints: a whole passage is part
-    // 1 of 1 over all its runs; a passage the edition prints in pieces
+    // Which piece of the segment this row prints: a whole segment is part
+    // 1 of 1 over all its runs; a segment the edition prints in pieces
     // (it adopted a transposition moving part of the line) has one row per
     // part, each printing runs run_start..run_end. `division_stale` means
     // the words no longer match the printed text — part 1 then prints the
-    // whole passage and the other parts nothing. See EditionPassage::$part.
+    // whole segment and the other parts nothing. See EditionSegment::$part.
     part: number;
     parts: number;
     run_start: number;
     run_end: number;
     division_stale: boolean;
-    // This edition's own lineation for the passage boundary — verse renders
+    // This edition's own lineation for the segment boundary — verse renders
     // with every flag set, prose with none; mixtures are free.
     starts_new_line: boolean;
     starts_new_paragraph: boolean;
@@ -194,7 +194,7 @@ export type WindowPassage = {
     runs: Run[];
     unplacedConjectures: UnplacedConjecture[];
     comments: EditionComment[];
-    // The literature this edition cites on the passage as a whole.
+    // The literature this edition cites on the segment as a whole.
     references: Citation[];
     // The base witness's whole line as the manuscript has it.
     base_diplomatic: string | null;
@@ -206,12 +206,12 @@ export type TranspositionAdoption = {
     conjecture_id: number;
 };
 
-/** A normalized transcript assigning text to the work — which witness, which passages. */
+/** A normalized transcript assigning text to the work — which witness, which segments. */
 export type TranscriptionOption = {
     id: number;
     name: string;
     witness: { id: number; siglum: string; label: string | null };
-    assignments: { id: number; canonical_passage_id: number }[];
+    assignments: { id: number; segment_id: number }[];
 };
 
 /**

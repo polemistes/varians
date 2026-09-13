@@ -23,11 +23,11 @@ class StoreEditionCommentRequest extends FormRequest
     }
 
     /**
-     * A note always names a passage of this edition's own work. `lemma_id`
-     * optionally narrows it to one column of that passage, and
+     * A note always names a segment of this edition's own work. `lemma_id`
+     * optionally narrows it to one column of that segment, and
      * `range_end_lemma_id` widens that to a span — carrying a value only when
      * more than one column is genuinely covered, the same convention
-     * LemmaReading uses. Omit both for a note about the passage as a whole,
+     * LemmaReading uses. Omit both for a note about the segment as a whole,
      * which is what a speaker assignment usually is.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
@@ -37,13 +37,13 @@ class StoreEditionCommentRequest extends FormRequest
         /** @var Edition $edition */
         $edition = $this->route('edition');
 
-        $inPassage = fn () => Rule::exists('lemmas', 'id')
-            ->where('canonical_passage_id', $this->input('canonical_passage_id'));
+        $inSegment = fn () => Rule::exists('lemmas', 'id')
+            ->where('segment_id', $this->input('segment_id'));
 
         return [
-            'canonical_passage_id' => ['required', Rule::exists('canonical_passages', 'id')->where('work_id', $edition->work_id)],
-            'lemma_id' => ['nullable', $inPassage()],
-            'range_end_lemma_id' => ['nullable', $inPassage()],
+            'segment_id' => ['required', Rule::exists('segments', 'id')->where('work_id', $edition->work_id)],
+            'lemma_id' => ['nullable', $inSegment()],
+            'range_end_lemma_id' => ['nullable', $inSegment()],
             'note' => ['required', 'string', 'max:5000'],
         ];
     }

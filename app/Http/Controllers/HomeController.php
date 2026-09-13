@@ -100,7 +100,7 @@ class HomeController extends Controller
             'witnesses' => array_fill_keys(
                 Witness::query()
                     ->whereHas(
-                        'transcriptionLayers.assignments.canonicalPassage',
+                        'transcriptionLayers.assignments.segment',
                         fn (Builder $query) => $query->whereIn(
                             'work_id',
                             Work::query()->editableBy($user)->select('works.id')

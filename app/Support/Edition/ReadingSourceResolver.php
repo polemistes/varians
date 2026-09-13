@@ -19,7 +19,7 @@ class ReadingSourceResolver
      * @param  array<string, mixed>  $data  the request's validated() array
      * @return array<string, mixed>
      */
-    public static function resolve(array $data, int $canonicalPassageId, int $userId): array
+    public static function resolve(array $data, int $segmentId, int $userId): array
     {
         return match ($data['source']) {
             'transcription' => [
@@ -31,7 +31,7 @@ class ReadingSourceResolver
                 'conjecture_id' => $data['conjecture_id'],
             ],
             'new_conjecture' => [
-                'conjecture_id' => self::createConjecture($data, $canonicalPassageId, $userId)->id,
+                'conjecture_id' => self::createConjecture($data, $segmentId, $userId)->id,
             ],
             default => throw new LogicException('Unreachable: source is validated against a fixed list of values.'),
         };
@@ -43,12 +43,12 @@ class ReadingSourceResolver
      *
      * @param  array<string, mixed>  $data
      */
-    private static function createConjecture(array $data, int $canonicalPassageId, int $userId): Conjecture
+    private static function createConjecture(array $data, int $segmentId, int $userId): Conjecture
     {
         $conjecture = Conjecture::create([
-            'canonical_passage_id' => $canonicalPassageId,
+            'segment_id' => $segmentId,
             'user_id' => $userId,
-            'visibility' => EditionPublisher::visibilityForConjectureOn($canonicalPassageId),
+            'visibility' => EditionPublisher::visibilityForConjectureOn($segmentId),
             'type' => $data['conjecture_type'] ?? ConjectureType::Substitution->value,
             'text' => $data['conjecture_text'] ?? null,
             'extent' => $data['conjecture_extent'] ?? null,

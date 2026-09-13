@@ -4,14 +4,14 @@ namespace App\Support\Edition;
 
 use App\Enums\Layer;
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
+use App\Models\Segment;
 use App\Models\Edition;
-use App\Models\EditionPassage;
+use App\Models\EditionSegment;
 
 /**
- * Adds one witness assignment's passage to an edition — materializing it if
+ * Adds one witness assignment's segment to an edition — materializing it if
  * needed and recording its place in this edition's own order. Shared by
- * EditionPassageController's single and bulk add actions; the only
+ * EditionSegmentController's single and bulk add actions; the only
  * difference between them is which assignments get looped through and in what
  * order.
  *
@@ -24,69 +24,69 @@ use App\Models\EditionPassage;
  * silently mark every word "decided" the instant it's added, suppressing
  * that flag even where witnesses actually disagree.
  */
-class PassageAdder
+class SegmentAdder
 {
     /**
-     * Always aligns the assignment's own transcription into the passage's
+     * Always aligns the assignment's own transcription into the segment's
      * shared collation, even if this specific edition already has the
-     * passage from a different transcription — a bulk "base a range" add
-     * can legitimately re-encounter a passage another transcription already
+     * segment from a different transcription — a bulk "base a range" add
+     * can legitimately re-encounter a segment another transcription already
      * claimed for this edition, and that transcription's own reading still
      * belongs in the apparatus as a candidate, even though it won't be this
-     * edition's default there. Only the EditionPassage part — this
+     * edition's default there. Only the EditionSegment part — this
      * edition's own scope and order — is skipped (returns null) once the
-     * passage is already in this edition, from any source.
+     * segment is already in this edition, from any source.
      *
-     * A freshly added passage also gets its lineation seeded from the
-     * assignment's layer (`$lineation` carries the between-passage flags the
-     * caller derived from the previous assignment in its batch; within-passage
+     * A freshly added segment also gets its lineation seeded from the
+     * assignment's layer (`$lineation` carries the between-segment flags the
+     * caller derived from the previous assignment in its batch; within-segment
      * breaks come from the layer's own newlines) — a one-time copy the
      * edition owns from then on, see LineationSeeder.
      *
      * @param  array{starts_new_line?: bool, starts_new_paragraph?: bool}  $lineation
      */
-    public static function add(Edition $edition, Assignment $assignment, float $position, array $lineation = []): ?EditionPassage
+    public static function add(Edition $edition, Assignment $assignment, float $position, array $lineation = []): ?EditionSegment
     {
-        $passage = $assignment->canonicalPassage;
+        $segment = $assignment->segment;
 
-        self::materialize($passage);
+        self::materialize($segment);
 
-        $alreadyAdded = EditionPassage::where('edition_id', $edition->id)
-            ->where('canonical_passage_id', $passage->id)
+        $alreadyAdded = EditionSegment::where('edition_id', $edition->id)
+            ->where('segment_id', $segment->id)
             ->exists();
 
         if ($alreadyAdded) {
             return null;
         }
 
-        $editionPassage = EditionPassage::create([
+        $editionSegment = EditionSegment::create([
             'edition_id' => $edition->id,
-            'canonical_passage_id' => $passage->id,
+            'segment_id' => $segment->id,
             'transcription_layer_id' => $assignment->transcription_layer_id,
             'position' => $position,
             ...$lineation,
         ]);
 
-        LineationSeeder::seedWithinPassage($editionPassage, $assignment->transcriptionLayer);
+        LineationSeeder::seedWithinSegment($editionSegment, $assignment->transcriptionLayer);
 
-        return $editionPassage;
+        return $editionSegment;
     }
 
     /**
      * Where a newly added assignment lands in the printed order: after the
-     * last passage already in the edition that precedes it in its own
+     * last segment already in the edition that precedes it in its own
      * witness's physical order — so a line added late still stands where
      * the manuscript has it, and adding never creates an arrangement that
      * needs a transposition conjecture (user decision, replacing "append
-     * at the end"). A witness sharing no passage with the edition yet goes
+     * at the end"). A witness sharing no segment with the edition yet goes
      * by numbering order. The position returned is fractional; the caller
      * renumbers the edition once its batch is in
-     * (PassageOrderRewriter::renumberEdition).
+     * (SegmentOrderRewriter::renumberEdition).
      */
     public static function insertionPosition(Edition $edition, Assignment $assignment): float
     {
-        $rows = EditionPassage::where('edition_id', $edition->id)
-            ->with('canonicalPassage:id,sort_key')
+        $rows = EditionSegment::where('edition_id', $edition->id)
+            ->with('segment:id,sort_key')
             ->orderBy('position')
             ->get();
 
@@ -94,17 +94,17 @@ class PassageAdder
             return 1.0;
         }
 
-        $lastPositionOf = fn (int $passageId): float => (float) $rows
-            ->where('canonical_passage_id', $passageId)
-            ->max(fn (EditionPassage $row) => (float) $row->position);
-        $firstPositionOf = fn (int $passageId): float => (float) $rows
-            ->where('canonical_passage_id', $passageId)
-            ->min(fn (EditionPassage $row) => (float) $row->position);
+        $lastPositionOf = fn (int $segmentId): float => (float) $rows
+            ->where('segment_id', $segmentId)
+            ->max(fn (EditionSegment $row) => (float) $row->position);
+        $firstPositionOf = fn (int $segmentId): float => (float) $rows
+            ->where('segment_id', $segmentId)
+            ->min(fn (EditionSegment $row) => (float) $row->position);
 
         $offsets = Assignment::where('transcription_layer_id', $assignment->transcription_layer_id)
-            ->whereIn('canonical_passage_id', $rows->pluck('canonical_passage_id')->unique())
+            ->whereIn('segment_id', $rows->pluck('segment_id')->unique())
             ->get()
-            ->groupBy('canonical_passage_id')
+            ->groupBy('segment_id')
             ->map(fn ($group) => (int) $group->min('start_offset'));
 
         $preceding = $offsets->filter(fn (int $offset) => $offset < $assignment->start_offset);
@@ -119,40 +119,40 @@ class PassageAdder
             return $firstPositionOf((int) $following->sort()->keys()->first()) - 0.5;
         }
 
-        $sortKey = $assignment->canonicalPassage->sort_key;
+        $sortKey = $assignment->segment->sort_key;
         $before = $rows
-            ->filter(fn (EditionPassage $row) => $row->canonicalPassage->sort_key < $sortKey)
-            ->sortByDesc(fn (EditionPassage $row) => $row->canonicalPassage->sort_key)
+            ->filter(fn (EditionSegment $row) => $row->segment->sort_key < $sortKey)
+            ->sortByDesc(fn (EditionSegment $row) => $row->segment->sort_key)
             ->first();
 
         if ($before !== null) {
-            return $lastPositionOf((int) $before->canonical_passage_id) + 0.5;
+            return $lastPositionOf((int) $before->segment_id) + 0.5;
         }
 
         return (float) $rows->first()->position - 0.5;
     }
 
     /**
-     * Hand every witness currently assigning text to this passage to the collator — not
+     * Hand every witness currently assigning text to this segment to the collator — not
      * just the one being added, and not only on first touch, so a witness
-     * whose assignment was assigned *after* this passage was first materialized
-     * (by this edition or another) still gets picked up. PassageAligner
+     * whose assignment was assigned *after* this segment was first materialized
+     * (by this edition or another) still gets picked up. SegmentAligner
      * decides from there whether to rebuild the columns or append to them;
      * the added assignment gets no special standing, since letting it seed the
      * structure was itself a source of order-dependence.
      *
      * Restricted to the normalized layer (see Layer). A witness's
-     * diplomatic and normalized transcriptions assign the same passages — fork
+     * diplomatic and normalized transcriptions assign the same segments — fork
      * copies the assignment assignments verbatim — so without this filter both
      * would align as if they were independent witnesses, and a manuscript
      * would appear in its own apparatus disagreeing with itself over exactly
      * the orthography the normalized layer regularized.
      */
-    private static function materialize(CanonicalPassage $passage): void
+    private static function materialize(Segment $segment): void
     {
-        PassageAligner::collate(
-            $passage,
-            Assignment::where('canonical_passage_id', $passage->id)
+        SegmentAligner::collate(
+            $segment,
+            Assignment::where('segment_id', $segment->id)
                 ->whereRelation('transcriptionLayer', 'layer', Layer::Normalized)
                 ->with('transcriptionLayer.transcription.witness:id,siglum')
                 ->get(),

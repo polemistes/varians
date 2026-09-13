@@ -25,7 +25,7 @@ class UpdateWorkRequest extends FormRequest
      *
      * The slug is deliberately not editable: it is in the URL of every
      * edition of this work, so changing it would break links that are already
-     * out there. Nor is the reference scheme, which every canonical passage's
+     * out there. Nor is the reference scheme, which every segment's
      * address was built against — changing it would leave those addresses
      * describing a scheme that no longer exists.
      *

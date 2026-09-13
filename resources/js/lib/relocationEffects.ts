@@ -3,7 +3,7 @@
  * for LIVE PREVIEW — the client mirror of
  * App\Support\Transcription\RelocationAssignmentEffects (which remains the
  * authority at save time); keep the two in step. Cutting PART of an assigned
- * span makes the fragment a new part of its passage at the paste site, and
+ * span makes the fragment a new part of its segment at the paste site, and
  * pasting INTO another assigned span splits it around the arrival — the
  * preview shows those badges the moment the paste lands, instead of after
  * the autosave round-trip.

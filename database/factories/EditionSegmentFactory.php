@@ -2,16 +2,16 @@
 
 namespace Database\Factories;
 
-use App\Models\CanonicalPassage;
+use App\Models\Segment;
 use App\Models\Edition;
-use App\Models\EditionPassage;
+use App\Models\EditionSegment;
 use App\Models\TranscriptionLayer;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends Factory<EditionPassage>
+ * @extends Factory<EditionSegment>
  */
-class EditionPassageFactory extends Factory
+class EditionSegmentFactory extends Factory
 {
     /**
      * Define the model's default state.
@@ -22,7 +22,7 @@ class EditionPassageFactory extends Factory
     {
         return [
             'edition_id' => Edition::factory(),
-            'canonical_passage_id' => CanonicalPassage::factory(),
+            'segment_id' => Segment::factory(),
             'transcription_layer_id' => TranscriptionLayer::factory(),
             'position' => fake()->unique()->randomFloat(4, 1, 1000),
         ];

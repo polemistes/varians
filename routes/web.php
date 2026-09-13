@@ -18,7 +18,7 @@ use App\Http\Controllers\EditionLemmaController;
 use App\Http\Controllers\EditionLineationController;
 use App\Http\Controllers\EditionOrderController;
 use App\Http\Controllers\EditionOwnershipTransferController;
-use App\Http\Controllers\EditionPassageController;
+use App\Http\Controllers\EditionSegmentController;
 use App\Http\Controllers\EditionVariantController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ManuscriptImageController;
@@ -125,32 +125,32 @@ Route::middleware('auth')->group(function () {
     Route::post('/ownership-transfers/{transfer}/decline', [EditionOwnershipTransferController::class, 'decline'])
         ->name('ownership-transfers.decline');
 
-    // An edition's own scope, order, and per-passage source transcription —
-    // see EditionPassage. The single add resolves already-cited assignments
+    // An edition's own scope, order, and per-segment source transcription —
+    // see EditionSegment. The single add resolves already-cited assignments
     // inside a raw drag-selected span; the bulk add ("base a range")
     // resolves them by citation range but orders by the transcription's own
     // physical offset, not citation order — the whole point of the redesign.
-    Route::post('/editions/{edition}/passages', [EditionPassageController::class, 'store'])
-        ->name('edition-passages.store');
-    Route::post('/editions/{edition}/passages/bulk', [EditionPassageController::class, 'storeBulk'])
-        ->name('edition-passages.store-bulk');
-    Route::delete('/editions/{edition}/passages', [EditionPassageController::class, 'destroy'])
-        ->name('edition-passages.destroy');
+    Route::post('/editions/{edition}/segments', [EditionSegmentController::class, 'store'])
+        ->name('edition-segments.store');
+    Route::post('/editions/{edition}/segments/bulk', [EditionSegmentController::class, 'storeBulk'])
+        ->name('edition-segments.store-bulk');
+    Route::delete('/editions/{edition}/segments', [EditionSegmentController::class, 'destroy'])
+        ->name('edition-segments.destroy');
 
     // The single "seamlessly add this to the edition" action — materializes
-    // a passage's shared Lemma columns on first touch if needed, then
+    // a segment's shared Lemma columns on first touch if needed, then
     // places and selects whichever candidate was picked. See
     // EditionVariantController.
     Route::post('/editions/{edition}/variants', [EditionVariantController::class, 'store'])
         ->name('edition-variants.store');
 
-    // This edition's own lineation — passage-boundary flags and
-    // within-passage (colometry) breaks. Pure display choices; see
+    // This edition's own lineation — segment-boundary flags and
+    // within-segment (colometry) breaks. Pure display choices; see
     // EditionLineationController.
     Route::patch('/editions/{edition}/line-breaks', [EditionLineationController::class, 'updateBreak'])
         ->name('edition-line-breaks.update');
-    Route::patch('/edition-passages/{editionPassage}/lineation', [EditionLineationController::class, 'updatePassage'])
-        ->name('edition-passages.lineation.update');
+    Route::patch('/edition-segments/{editionSegment}/lineation', [EditionLineationController::class, 'updateSegment'])
+        ->name('edition-segments.lineation.update');
 
     // Applying an order-report candidate (a witness's sequence, a
     // catalogued conjecture, or citation order) to a flagged range. See
@@ -187,7 +187,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/edition-comments/{comment}', [EditionCommentController::class, 'destroy'])
         ->name('edition-comments.destroy');
 
-    Route::post('/canonical-passages/{canonicalPassage}/conjectures', [ConjectureController::class, 'store'])
+    Route::post('/segments/{segment}/conjectures', [ConjectureController::class, 'store'])
         ->name('conjectures.store');
     Route::patch('/conjectures/{conjecture}', [ConjectureController::class, 'update'])
         ->name('conjectures.update');

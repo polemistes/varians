@@ -23,7 +23,7 @@ class EditionCommentController extends Controller
         $lemmaId = $request->validated('lemma_id');
 
         $edition->comments()->create([
-            'canonical_passage_id' => $request->validated('canonical_passage_id'),
+            'segment_id' => $request->validated('segment_id'),
             'lemma_id' => $lemmaId,
             // Null unless more than one column is genuinely covered — the
             // convention LemmaReading already uses.

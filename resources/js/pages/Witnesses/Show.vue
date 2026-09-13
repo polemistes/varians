@@ -103,7 +103,7 @@ function removeWitness() {
                 ),
         },
         {
-            key: 'editionPassages',
+            key: 'editionSegments',
             label: (n) =>
                 pluralize(
                     n,

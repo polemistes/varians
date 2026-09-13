@@ -3,7 +3,7 @@
 namespace App\Support\Edition;
 
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
+use App\Models\Segment;
 use App\Models\EditionComment;
 use App\Models\EditionLemma;
 use App\Models\EditionLineBreak;
@@ -15,7 +15,7 @@ use Illuminate\Support\Collection;
 use Normalizer;
 
 /**
- * Grows a passage's shared, transcription-independent Lemma columns by
+ * Grows a segment's shared, transcription-independent Lemma columns by
  * progressively aligning each witness's tokens into them — the same
  * technique behind collation tools like CollateX. A column (Lemma) is
  * anchored at one word, but a witness's own reading for it can span
@@ -29,36 +29,36 @@ use Normalizer;
  * The diff/merge plan (see `plan()`) is computed once by `alignWitness()`
  * and persisted as real Lemma/LemmaReading rows.
  */
-class PassageAligner
+class SegmentAligner
 {
     /**
-     * Collate a passage from every witness assigning text to it — the entry point
-     * PassageAdder uses, and the one that decides between rebuilding the
+     * Collate a segment from every witness assigning text to it — the entry point
+     * SegmentAdder uses, and the one that decides between rebuilding the
      * columns and appending to them.
      *
      * Aligning witnesses one at a time diffs each against a consensus the
      * ones already present have set, so the column structure depends on the
      * order they arrived. Ordering by siglum settles that for witnesses
      * present from the start, but not for one whose assignment appears after
-     * the passage has already been collated and which sorts before the
+     * the segment has already been collated and which sorts before the
      * witnesses that built it: appended, it never gets to seed the columns it
-     * should have. So while a passage is still nothing but aligner output,
+     * should have. So while a segment is still nothing but aligner output,
      * this throws the columns away and rebuilds from all witnesses at once.
      *
      * Once anything editorial is attached (see `hasEditorialContent`) it
      * appends instead. That is not a compromise but the right behaviour:
      * rebuilding would destroy placements and decisions that cannot be
-     * re-derived from witness tokens, and a passage someone has begun editing
+     * re-derived from witness tokens, and a segment someone has begun editing
      * has a settled structure that should grow rather than churn.
      *
-     * A layer may assign the passage with several spans — its text for the
-     * passage is discontinuous, a transposition having split it — so the unit
+     * A layer may assign the segment with several spans — its text for the
+     * segment is discontinuous, a transposition having split it — so the unit
      * of alignment is the *layer*, not the span: all of a layer's parts go to
      * `alignWitness` together, as one witness with one token stream.
      *
-     * @param  Collection<int, Assignment>  $assignments  every normalized witness assignment assigning text to this passage
+     * @param  Collection<int, Assignment>  $assignments  every normalized witness assignment assigning text to this segment
      */
-    public static function collate(CanonicalPassage $passage, Collection $assignments): void
+    public static function collate(Segment $segment, Collection $assignments): void
     {
         // By siglum — the conventional order of an apparatus, and the only
         // key here derived from the evidence rather than from bookkeeping.
@@ -72,19 +72,19 @@ class PassageAligner
             ])
             ->values();
 
-        if (! self::hasEditorialContent($passage)) {
-            Lemma::where('canonical_passage_id', $passage->id)->delete();
+        if (! self::hasEditorialContent($segment)) {
+            Lemma::where('segment_id', $segment->id)->delete();
         }
 
         foreach ($orderedLayers as $layerAssignments) {
-            self::alignWitness($passage, $layerAssignments);
+            self::alignWitness($segment, $layerAssignments);
         }
 
-        self::recordOmissions($passage);
+        self::recordOmissions($segment);
     }
 
     /**
-     * Record, for every witness aligned into a passage, where it *lacks*
+     * Record, for every witness aligned into a segment, where it *lacks*
      * columns the other witnesses attest — one zero-width `omitted` reading
      * per maximal run of such columns (see LemmaReading::$omitted), spanning
      * the run through `range_end_lemma_id` the way any wider reading does.
@@ -109,9 +109,9 @@ class PassageAligner
      * unless an edition selects it — that decision is the editor's, not
      * the collator's, and stands until she changes it.
      */
-    public static function recordOmissions(CanonicalPassage $passage): void
+    public static function recordOmissions(Segment $segment): void
     {
-        $lemmas = Lemma::where('canonical_passage_id', $passage->id)
+        $lemmas = Lemma::where('segment_id', $segment->id)
             ->orderBy('position')
             ->with('readings')
             ->get()
@@ -236,7 +236,7 @@ class PassageAligner
     }
 
     /**
-     * Whether anything on this passage's columns came from an editor rather
+     * Whether anything on this segment's columns came from an editor rather
      * than from alignment, and so could not be reproduced by rebuilding.
      *
      * Two checks cover it. A reading carrying a `conjecture_id` is a
@@ -251,15 +251,15 @@ class PassageAligner
      *
      * A note anchored to a column counts as well (see EditionComment): an
      * editor who wrote about a particular word chose that column, and a
-     * rebuild would move her argument under her. A note about the passage as
+     * rebuild would move her argument under her. A note about the segment as
      * a whole anchors to nothing and so does not block anything. A line
      * break anchored to a column (EditionLineBreak — an edition's colometry)
      * counts for the same reason, and doubly so: its lemma FK cascades, so a
      * rebuild would not merely move the break but destroy it.
      */
-    private static function hasEditorialContent(CanonicalPassage $passage): bool
+    private static function hasEditorialContent(Segment $segment): bool
     {
-        $lemmaIds = Lemma::where('canonical_passage_id', $passage->id)->pluck('id');
+        $lemmaIds = Lemma::where('segment_id', $segment->id)->pluck('id');
 
         if ($lemmaIds->isEmpty()) {
             return false;
@@ -272,20 +272,20 @@ class PassageAligner
     }
 
     /**
-     * Align one witness layer into a passage's existing Lemma columns,
+     * Align one witness layer into a segment's existing Lemma columns,
      * creating the columns from scratch if this is the first witness
-     * touching the passage. Idempotent — a transcription that already has a
-     * reading somewhere on this passage is left alone.
+     * touching the segment. Idempotent — a transcription that already has a
+     * reading somewhere on this segment is left alone.
      *
-     * Takes ALL of the layer's spans assigning text to the passage — several, when a
-     * transposition left its text for the passage discontinuous — and
+     * Takes ALL of the layer's spans assigning text to the segment — several, when a
+     * transposition left its text for the segment discontinuous — and
      * tokenizes them as one stream in part (content) order, NOT physical
      * order: what aligns against the other witnesses is what the layer's
-     * text of the passage *reads as*, wherever its pieces physically sit.
+     * text of the segment *reads as*, wherever its pieces physically sit.
      *
-     * @param  Collection<int, Assignment>  $assignments  one layer's assignments of this passage
+     * @param  Collection<int, Assignment>  $assignments  one layer's assignments of this segment
      */
-    public static function alignWitness(CanonicalPassage $passage, Collection $assignments): void
+    public static function alignWitness(Segment $segment, Collection $assignments): void
     {
         $assignments = Assignment::sortByPartOrder($assignments);
         $first = $assignments->first();
@@ -296,7 +296,7 @@ class PassageAligner
 
         $layer = $first->transcriptionLayer;
 
-        $lemmas = Lemma::where('canonical_passage_id', $passage->id)
+        $lemmas = Lemma::where('segment_id', $segment->id)
             ->orderBy('position')
             ->with('readings.transcriptionLayer')
             ->get();
@@ -313,7 +313,7 @@ class PassageAligner
                 $layer->text,
                 $assignment->start_offset,
                 $assignment->end_offset,
-                $passage->work->tokenization,
+                $segment->work->tokenization,
             );
 
             if ($tokens !== [] && $partTokens !== []) {
@@ -333,7 +333,7 @@ class PassageAligner
             $position = 1.0;
 
             foreach ($tokens as $token) {
-                $lemma = Lemma::create(['canonical_passage_id' => $passage->id, 'position' => $position++]);
+                $lemma = Lemma::create(['segment_id' => $segment->id, 'position' => $position++]);
                 $lemma->readings()->create($attributes($token));
             }
 
@@ -367,16 +367,16 @@ class PassageAligner
                 continue;
             }
 
-            $lemma = Lemma::create(['canonical_passage_id' => $passage->id, 'position' => $entry['position']]);
+            $lemma = Lemma::create(['segment_id' => $segment->id, 'position' => $entry['position']]);
             $lemma->readings()->create($attributes($token));
         }
     }
 
     /**
-     * Re-align one layer whose assignment of a passage changed after it was
+     * Re-align one layer whose assignment of a segment changed after it was
      * collated — a new part arrived, so its existing readings no longer cover
-     * its text of the passage. Deletes exactly that layer's readings on the
-     * passage's columns and aligns it afresh from all its current parts.
+     * its text of the segment. Deletes exactly that layer's readings on the
+     * segment's columns and aligns it afresh from all its current parts.
      *
      * Columns holding nothing but this layer's readings were this layer's own
      * contribution, so they go too and the re-alignment rebuilds them — left
@@ -391,11 +391,11 @@ class PassageAligner
      * same rule as hasEditorialContent). The caller decides what to do with a
      * declined layer — flag it for review, never delete unilaterally.
      */
-    public static function realignLayer(CanonicalPassage $passage, TranscriptionLayer $layer): bool
+    public static function realignLayer(Segment $segment, TranscriptionLayer $layer): bool
     {
-        $readings = self::layerReadings($passage, $layer);
+        $readings = self::layerReadings($segment, $layer);
 
-        if (self::pinnedReadings($passage, $layer)->isNotEmpty()) {
+        if (self::pinnedReadings($segment, $layer)->isNotEmpty()) {
             return false;
         }
 
@@ -405,7 +405,7 @@ class PassageAligner
         // Another witness's omission reading is not "another reading" here:
         // it records the absence of a word, and a column standing on nothing
         // but absences is empty.
-        $emptyingLemmaIds = Lemma::where('canonical_passage_id', $passage->id)
+        $emptyingLemmaIds = Lemma::where('segment_id', $segment->id)
             ->whereDoesntHave('readings', fn ($query) => $query
                 ->where('omitted', false)
                 ->where(
@@ -425,41 +425,41 @@ class PassageAligner
         Lemma::whereIn('id', $emptyingLemmaIds)->delete();
 
         self::alignWitness(
-            $passage,
-            Assignment::where('canonical_passage_id', $passage->id)
+            $segment,
+            Assignment::where('segment_id', $segment->id)
                 ->where('transcription_layer_id', $layer->id)
                 ->get(),
         );
-        self::recordOmissions($passage);
+        self::recordOmissions($segment);
 
         return true;
     }
 
     /**
-     * One layer's collated readings on one passage's columns — non-empty
-     * exactly when the layer has already been aligned into the passage.
+     * One layer's collated readings on one segment's columns — non-empty
+     * exactly when the layer has already been aligned into the segment.
      *
      * @return Collection<int, LemmaReading>
      */
-    public static function layerReadings(CanonicalPassage $passage, TranscriptionLayer $layer): Collection
+    public static function layerReadings(Segment $segment, TranscriptionLayer $layer): Collection
     {
-        return LemmaReading::whereIn('lemma_id', Lemma::where('canonical_passage_id', $passage->id)->pluck('id'))
+        return LemmaReading::whereIn('lemma_id', Lemma::where('segment_id', $segment->id)->pluck('id'))
             ->where('transcription_layer_id', $layer->id)
             ->get()
             ->toBase();
     }
 
     /**
-     * The subset of a layer's readings on a passage that `realignLayer` must
+     * The subset of a layer's readings on a segment that `realignLayer` must
      * not delete: readings an edition selects (the selection cascades away
      * with the reading) or that carry a conjecture placement. Non-empty means
      * re-alignment is blocked for this layer.
      *
      * @return Collection<int, LemmaReading>
      */
-    public static function pinnedReadings(CanonicalPassage $passage, TranscriptionLayer $layer): Collection
+    public static function pinnedReadings(Segment $segment, TranscriptionLayer $layer): Collection
     {
-        $readings = self::layerReadings($passage, $layer);
+        $readings = self::layerReadings($segment, $layer);
 
         $selectedIds = EditionLemma::whereIn('selected_reading_id', $readings->pluck('id'))
             ->pluck('selected_reading_id');
@@ -877,7 +877,7 @@ class PassageAligner
     /**
      * Word-level LCS diff between two token-text sequences — a textbook
      * O(n×m) dynamic-programming alignment, well-scoped at this app's scale
-     * (single passages, a handful of witnesses). Handles isolated word
+     * (single segments, a handful of witnesses). Handles isolated word
      * substitution/insertion/deletion well; a full-line reorder degrades to
      * one large delete+insert run rather than failing.
      *

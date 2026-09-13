@@ -5,7 +5,7 @@
  * resources/js/lib/deletionImpact.ts for how this becomes a warning.
  */
 export type DeletionImpact = {
-    canonicalPassages?: number;
+    segments?: number;
     editions?: number;
     conjectures?: number;
     lemmas?: number;
@@ -15,7 +15,7 @@ export type DeletionImpact = {
     images?: number;
     pages?: number;
     editionSelections?: number;
-    editionPassages?: number;
+    editionSegments?: number;
     features?: number;
 };
 
@@ -32,7 +32,7 @@ export type ReferenceScheme = {
     levels: ReferenceLevel[];
 };
 
-export type CanonicalPassage = {
+export type Segment = {
     id: number;
     work_id: number;
     address: Record<string, string | number>;
@@ -48,7 +48,7 @@ export type Work = {
     language: string;
     slug: string;
     reference_scheme?: ReferenceScheme;
-    canonical_passages?: CanonicalPassage[];
+    segments?: Segment[];
     witnesses?: Witness[];
     editions?: Edition[];
     deletion_impact?: DeletionImpact;
@@ -131,7 +131,7 @@ export type ManuscriptImageFeature = {
 };
 
 /**
- * One of a Work's critical texts, built up passage by passage by selecting,
+ * One of a Work's critical texts, built up segment by segment by selecting,
  * for each shared Lemma it has an opinion on, which candidate reading to
  * print — unlike Witness/Transcription, this is a genuine direct relation,
  * not something inferable from assignment data.
@@ -148,15 +148,15 @@ export type Edition = {
 };
 
 /**
- * A slot within one CanonicalPassage, shared by every Edition of the work —
- * most passages get exactly one lemma spanning the whole thing; a passage
+ * A slot within one Segment, shared by every Edition of the work —
+ * most segments get exactly one lemma spanning the whole thing; a segment
  * only gets split into several when readings need to be mixed within it.
  * Which candidate a given Edition prints is recorded separately (see
  * EditionLemma) — collation is edition-independent, selection is not.
  */
 export type Lemma = {
     id: number;
-    canonical_passage_id: number;
+    segment_id: number;
     position: string;
 };
 
@@ -194,7 +194,7 @@ export type ConjectureType =
     | 'reordering';
 
 /**
- * A recorded conjecture for a passage — usually not the current editor's own
+ * A recorded conjecture for a segment — usually not the current editor's own
  * idea, but one a scholar proposed long ago. `proposed_by` is that
  * historical proposer (free text); `user_id` stays attribution for who
  * entered the record into Varians, not who thought of it.
@@ -208,41 +208,41 @@ export type ConjectureType =
  *   (`supplements_conjecture_id`) — several, from different proposers, can
  *   target the same one. `text` required.
  * - Transposition: an edition-ordering proposal, not a word-level one —
- *   `canonical_passage_id` (through `transposition_range_end_canonical_passage_id`,
- *   inclusive, if moving more than one passage) is proposed to move
- *   `move_position` ('before'/'after') `move_target_canonical_passage_id`.
+ *   `segment_id` (through `transposition_range_end_segment_id`,
+ *   inclusive, if moving more than one segment) is proposed to move
+ *   `move_position` ('before'/'after') `move_target_segment_id`.
  *   `text` is never set.
  *
  * All four still need the same credit — `proposed_by`, and assignments.
  */
 export type Conjecture = {
     id: number;
-    canonical_passage_id: number;
+    segment_id: number;
     user_id: number;
     type: ConjectureType;
     text: string | null;
     extent: string | null;
     supplements_conjecture_id: number | null;
-    transposition_range_end_canonical_passage_id: number | null;
-    move_target_canonical_passage_id: number | null;
+    transposition_range_end_segment_id: number | null;
+    move_target_segment_id: number | null;
     move_position: 'before' | 'after' | null;
     proposed_by: string | null;
     note: string | null;
 };
 
 /**
- * A canonical passage's membership in an edition — a passage is "in" an
+ * A segment's membership in an edition — a segment is "in" an
  * edition iff it has a row here. `transcription_layer_id` is the transcription its
  * assignment was added from (null only for a whole-line lacuna, which has no
  * manuscript witness at all) and doubles as which transcription's own
- * wording is the display default for this passage. `position` is the order
+ * wording is the display default for this segment. `position` is the order
  * the editor built the edition in — the manuscript's own physical order for
  * a bulk "base a range" add, never numbering order.
  */
-export type EditionPassage = {
+export type EditionSegment = {
     id: number;
     edition_id: number;
-    canonical_passage_id: number;
+    segment_id: number;
     transcription_layer_id: number | null;
     position: string;
 };
@@ -299,17 +299,17 @@ export type TranscriptionLayer = {
 /**
  * An assignment-span annotation over its parent Transcription's `text` —
  * doesn't own any text of its own. start_offset/end_offset index into
- * Transcription.text. Always assigns text to a canonical passage — a span with no
+ * Transcription.text. Always assigns text to a segment — a span with no
  * assignment has no use to anyone, so one is never created without the other.
  *
- * Several spans in one layer may assign the same passage — its witness text is
+ * Several spans in one layer may assign the same segment — its witness text is
  * then physically discontinuous (a transposition split it) — and `part`
  * orders them by content, independently of where each physically sits.
  */
 export type Assignment = {
     id: number;
     transcription_layer_id: number;
-    canonical_passage_id: number;
+    segment_id: number;
     start_offset: number;
     end_offset: number;
     part: number;
@@ -317,8 +317,8 @@ export type Assignment = {
     // Derived after every save: the span begins or ends inside a word
     // (no neighbouring assignment) or overlaps one — see AssignmentIntegrity.
     boundary_review?: boolean;
-    canonical_passage?: CanonicalPassage & { work?: Work };
-    /** Display ordinal among the passage's LIVE parts (client-derived). */
+    segment?: Segment & { work?: Work };
+    /** Display ordinal among the segment's LIVE parts (client-derived). */
     part_ordinal?: number;
 };
 

@@ -57,7 +57,7 @@ class WorkController extends Controller
 
         $work->load([
             'referenceScheme',
-            'canonicalPassages' => fn ($query) => $query->orderBy('sort_key'),
+            'segments' => fn ($query) => $query->orderBy('sort_key'),
             'editions' => fn ($query) => $query->visibleTo($request->user())->orderBy('title'),
         ]);
 
@@ -90,7 +90,7 @@ class WorkController extends Controller
     }
 
     /**
-     * Deleting a work cascades every canonical passage of it, and through
+     * Deleting a work cascades every segment of it, and through
      * those: every edition of the work (and that edition's own selections
      * and base-text choices), every lemma/collation built for it, every
      * conjecture recorded against it, and every assignment assignment on any
@@ -101,7 +101,7 @@ class WorkController extends Controller
     /**
      * Rename a work, or correct its author. Not its slug — that is in the URL
      * of every edition of it — and not its reference scheme, which every
-     * passage address was built against.
+     * segment address was built against.
      */
     public function update(UpdateWorkRequest $request, Work $work): RedirectResponse
     {

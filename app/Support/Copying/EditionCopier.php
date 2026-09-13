@@ -10,7 +10,7 @@ use App\Models\Edition;
 use App\Models\EditionComment;
 use App\Models\EditionLemma;
 use App\Models\EditionLineBreak;
-use App\Models\EditionPassage;
+use App\Models\EditionSegment;
 use App\Models\EditionTransposition;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Gives a member a public edition of her own: not the edition alone but
- * the whole of what it stands on — a copy of the work with its passages,
+ * the whole of what it stands on — a copy of the work with its segments,
  * of every witness assigning text to the work (their transcriptions, restricted to
  * what assigns text to it), of the collation built on them, and of every conjecture
  * recorded against the work — so that editing the copy can never touch
@@ -41,13 +41,13 @@ class EditionCopier
     {
         return DB::transaction(function () use ($edition, $owner): Edition {
             $work = $edition->work;
-            ['work' => $workCopy, 'passages' => $passages] = WorkCopier::copy($work, $owner);
+            ['work' => $workCopy, 'segments' => $segments] = WorkCopier::copy($work, $owner);
 
-            $layers = self::copyWitnesses($work, $owner, $passages);
-            $conjectures = self::copyConjectures($work, $owner, $passages);
-            [$lemmas, $readings] = self::copyCollation($work, $passages, $layers, $conjectures);
+            $layers = self::copyWitnesses($work, $owner, $segments);
+            $conjectures = self::copyConjectures($work, $owner, $segments);
+            [$lemmas, $readings] = self::copyCollation($work, $segments, $layers, $conjectures);
 
-            return self::copyEdition($edition, $owner, $workCopy, $passages, $layers, $conjectures, $lemmas, $readings);
+            return self::copyEdition($edition, $owner, $workCopy, $segments, $layers, $conjectures, $lemmas, $readings);
         });
     }
 
@@ -55,10 +55,10 @@ class EditionCopier
      * Every witness assigning text to the work, with only the transcriptions that
      * assign it — a codex's other texts belong to other works.
      *
-     * @param  array<int, int>  $passages
+     * @param  array<int, int>  $segments
      * @return array<int, int> old layer id → new
      */
-    private static function copyWitnesses(Work $work, User $owner, array $passages): array
+    private static function copyWitnesses(Work $work, User $owner, array $segments): array
     {
         $layers = [];
 
@@ -67,7 +67,7 @@ class EditionCopier
             $transcriptionIds = Transcription::query()
                 ->where('witness_id', $witness->id)
                 ->visibleTo($owner)
-                ->whereHas('layers.assignments.canonicalPassage', fn (Builder $query) => $query->where('work_id', $work->id))
+                ->whereHas('layers.assignments.segment', fn (Builder $query) => $query->where('work_id', $work->id))
                 ->pluck('id')
                 ->all();
 
@@ -78,7 +78,7 @@ class EditionCopier
                 continue;
             }
 
-            $copied = WitnessCopier::copy($witness, $owner, $passages, $transcriptionIds);
+            $copied = WitnessCopier::copy($witness, $owner, $segments, $transcriptionIds);
             $layers += $copied['layers'];
         }
 
@@ -89,13 +89,13 @@ class EditionCopier
      * Conjectures first without their self-references, then the
      * supplements wired to their lacunae once every id is known.
      *
-     * @param  array<int, int>  $passages
+     * @param  array<int, int>  $segments
      * @return array<int, int> old conjecture id → new
      */
-    private static function copyConjectures(Work $work, User $owner, array $passages): array
+    private static function copyConjectures(Work $work, User $owner, array $segments): array
     {
         $originals = Conjecture::query()
-            ->whereIn('canonical_passage_id', array_keys($passages))
+            ->whereIn('segment_id', array_keys($segments))
             ->visibleTo($owner)
             ->with(['orderingEntries', 'references'])
             ->orderBy('id')
@@ -114,21 +114,21 @@ class EditionCopier
             $copy->user_id = $owner->id;
             $copy->copied_from_id = $conjecture->id;
             $copy->visibility = Visibility::Draft;
-            $copy->canonical_passage_id = $passages[$conjecture->canonical_passage_id];
-            $copy->transposition_range_end_canonical_passage_id = self::mapped($passages, $conjecture->transposition_range_end_canonical_passage_id);
-            $copy->move_target_canonical_passage_id = self::mapped($passages, $conjecture->move_target_canonical_passage_id);
+            $copy->segment_id = $segments[$conjecture->segment_id];
+            $copy->transposition_range_end_segment_id = self::mapped($segments, $conjecture->transposition_range_end_segment_id);
+            $copy->move_target_segment_id = self::mapped($segments, $conjecture->move_target_segment_id);
             $copy->save();
             $map[$conjecture->id] = $copy->id;
 
             foreach ($conjecture->orderingEntries as $entry) {
                 /** @var ConjectureOrderingEntry $entry */
-                if (! isset($passages[$entry->canonical_passage_id])) {
+                if (! isset($segments[$entry->segment_id])) {
                     continue;
                 }
 
                 $entryCopy = $entry->replicate();
                 $entryCopy->conjecture_id = $copy->id;
-                $entryCopy->canonical_passage_id = $passages[$entry->canonical_passage_id];
+                $entryCopy->segment_id = $segments[$entry->segment_id];
                 $entryCopy->save();
             }
 
@@ -156,20 +156,20 @@ class EditionCopier
      * does not assign this work cannot have one, so that is a safety net,
      * not an expected path.
      *
-     * @param  array<int, int>  $passages
+     * @param  array<int, int>  $segments
      * @param  array<int, int>  $layers
      * @param  array<int, int>  $conjectures
      * @return array{0: array<int, int>, 1: array<int, int>} old lemma id → new, old reading id → new
      */
-    private static function copyCollation(Work $work, array $passages, array $layers, array $conjectures): array
+    private static function copyCollation(Work $work, array $segments, array $layers, array $conjectures): array
     {
         $lemmas = [];
-        $originals = Lemma::query()->whereIn('canonical_passage_id', array_keys($passages))->orderBy('id')->get();
+        $originals = Lemma::query()->whereIn('segment_id', array_keys($segments))->orderBy('id')->get();
 
         foreach ($originals as $lemma) {
             /** @var Lemma $lemma */
             $copy = $lemma->replicate();
-            $copy->canonical_passage_id = $passages[$lemma->canonical_passage_id];
+            $copy->segment_id = $segments[$lemma->segment_id];
             $copy->save();
             $lemmas[$lemma->id] = $copy->id;
         }
@@ -199,13 +199,13 @@ class EditionCopier
     }
 
     /**
-     * @param  array<int, int>  $passages
+     * @param  array<int, int>  $segments
      * @param  array<int, int>  $layers
      * @param  array<int, int>  $conjectures
      * @param  array<int, int>  $lemmas
      * @param  array<int, int>  $readings
      */
-    private static function copyEdition(Edition $edition, User $owner, Work $workCopy, array $passages, array $layers, array $conjectures, array $lemmas, array $readings): Edition
+    private static function copyEdition(Edition $edition, User $owner, Work $workCopy, array $segments, array $layers, array $conjectures, array $lemmas, array $readings): Edition
     {
         $copy = $edition->replicate(['user_id', 'copied_from_id', 'visibility']);
         $copy->work_id = $workCopy->id;
@@ -222,17 +222,17 @@ class EditionCopier
         $copy->setRelation('work', $workCopy);
         $copy->save();
 
-        foreach ($edition->passages()->orderBy('position')->get() as $passage) {
-            /** @var EditionPassage $passage */
-            if (! isset($passages[$passage->canonical_passage_id])) {
+        foreach ($edition->segments()->orderBy('position')->get() as $segment) {
+            /** @var EditionSegment $segment */
+            if (! isset($segments[$segment->segment_id])) {
                 continue;
             }
 
-            $passageCopy = $passage->replicate();
-            $passageCopy->edition_id = $copy->id;
-            $passageCopy->canonical_passage_id = $passages[$passage->canonical_passage_id];
-            $passageCopy->transcription_layer_id = self::mapped($layers, $passage->transcription_layer_id);
-            $passageCopy->save();
+            $segmentCopy = $segment->replicate();
+            $segmentCopy->edition_id = $copy->id;
+            $segmentCopy->segment_id = $segments[$segment->segment_id];
+            $segmentCopy->transcription_layer_id = self::mapped($layers, $segment->transcription_layer_id);
+            $segmentCopy->save();
         }
 
         foreach ($edition->selections as $selection) {
@@ -256,20 +256,20 @@ class EditionCopier
 
             $breakCopy = $break->replicate();
             $breakCopy->edition_id = $copy->id;
-            $breakCopy->canonical_passage_id = $passages[$break->canonical_passage_id];
+            $breakCopy->segment_id = $segments[$break->segment_id];
             $breakCopy->lemma_id = $lemmas[$break->lemma_id];
             $breakCopy->save();
         }
 
         foreach ($edition->comments as $comment) {
             /** @var EditionComment $comment */
-            if (! isset($passages[$comment->canonical_passage_id])) {
+            if (! isset($segments[$comment->segment_id])) {
                 continue;
             }
 
             $commentCopy = $comment->replicate();
             $commentCopy->edition_id = $copy->id;
-            $commentCopy->canonical_passage_id = $passages[$comment->canonical_passage_id];
+            $commentCopy->segment_id = $segments[$comment->segment_id];
             $commentCopy->lemma_id = self::mapped($lemmas, $comment->lemma_id);
             $commentCopy->range_end_lemma_id = self::mapped($lemmas, $comment->range_end_lemma_id);
             $commentCopy->save();
@@ -289,13 +289,13 @@ class EditionCopier
 
         foreach (BibliographyReference::query()->where('edition_id', $edition->id)->orderBy('position')->get() as $reference) {
             /** @var BibliographyReference $reference */
-            if ($reference->canonical_passage_id !== null && ! isset($passages[$reference->canonical_passage_id])) {
+            if ($reference->segment_id !== null && ! isset($segments[$reference->segment_id])) {
                 continue;
             }
 
             $referenceCopy = $reference->replicate();
             $referenceCopy->edition_id = $copy->id;
-            $referenceCopy->canonical_passage_id = self::mapped($passages, $reference->canonical_passage_id);
+            $referenceCopy->segment_id = self::mapped($segments, $reference->segment_id);
             $referenceCopy->save();
         }
 

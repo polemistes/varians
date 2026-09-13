@@ -37,8 +37,8 @@ class ApplyEditionOrderCandidateRequest extends FormRequest
         $edition = $this->route('edition');
 
         return [
-            'range_start_canonical_passage_id' => ['required', Rule::exists('edition_passages', 'canonical_passage_id')->where('edition_id', $edition->id)],
-            'range_end_canonical_passage_id' => ['required', Rule::exists('edition_passages', 'canonical_passage_id')->where('edition_id', $edition->id)],
+            'range_start_segment_id' => ['required', Rule::exists('edition_segments', 'segment_id')->where('edition_id', $edition->id)],
+            'range_end_segment_id' => ['required', Rule::exists('edition_segments', 'segment_id')->where('edition_id', $edition->id)],
             'transcription_layer_id' => ['nullable', Rule::exists('transcription_layers', 'id'), 'prohibits:conjecture_id'],
             'conjecture_id' => ['nullable', Rule::exists('conjectures', 'id')],
         ];

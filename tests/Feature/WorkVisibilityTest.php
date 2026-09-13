@@ -1,7 +1,7 @@
 <?php
 
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
+use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Models\User;
 use App\Models\Work;
@@ -21,9 +21,9 @@ test('a guest cannot see a work with no published transcription', function () {
 test('a guest can see a work once one of its transcriptions is published', function () {
     $this->actingAs(User::factory()->create());
     $work = Work::factory()->create();
-    $passage = CanonicalPassage::factory()->for($work)->create();
+    $segment = Segment::factory()->for($work)->create();
     $transcription = TranscriptionLayer::factory()->published()->create();
-    Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create();
+    Assignment::factory()->for($transcription)->for($segment, 'segment')->create();
 
     $homeResponse = $this->get(route('home'));
     $showResponse = $this->get(route('works.show', $work));
@@ -54,13 +54,13 @@ test('an editor sees every work regardless of publication status', function () {
 test('a draft transcription on an otherwise-published work stays hidden from a guest', function () {
     $this->actingAs(User::factory()->create());
     $work = Work::factory()->create();
-    $publishedPassage = CanonicalPassage::factory()->for($work)->create();
+    $publishedSegment = Segment::factory()->for($work)->create();
     $publishedTranscription = TranscriptionLayer::factory()->published()->create();
-    Assignment::factory()->for($publishedTranscription)->for($publishedPassage, 'canonicalPassage')->create();
+    Assignment::factory()->for($publishedTranscription)->for($publishedSegment, 'segment')->create();
 
-    $draftPassage = CanonicalPassage::factory()->for($work)->create();
+    $draftSegment = Segment::factory()->for($work)->create();
     $draftTranscription = TranscriptionLayer::factory()->create();
-    Assignment::factory()->for($draftTranscription)->for($draftPassage, 'canonicalPassage')->create();
+    Assignment::factory()->for($draftTranscription)->for($draftSegment, 'segment')->create();
 
     $response = $this->get(route('works.show', $work));
 

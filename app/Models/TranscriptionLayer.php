@@ -165,7 +165,7 @@ class TranscriptionLayer extends Model
     protected function forWork(Builder $query, Work $work): void
     {
         $query->whereHas(
-            'assignments.canonicalPassage',
+            'assignments.segment',
             fn (Builder $q) => $q->where('work_id', $work->id),
         );
     }

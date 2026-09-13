@@ -2,12 +2,12 @@
 import { router, useForm } from '@inertiajs/vue3';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import AlignableText from '@/components/AlignableText.vue';
-import HierarchicalPassagePicker from '@/components/HierarchicalPassagePicker.vue';
+import HierarchicalSegmentPicker from '@/components/HierarchicalSegmentPicker.vue';
 import ManuscriptImageViewer from '@/components/ManuscriptImageViewer.vue';
 import {
-    store as storeEditionPassage,
-    storeBulk as storeEditionPassageBulk,
-} from '@/routes/edition-passages';
+    store as storeEditionSegment,
+    storeBulk as storeEditionSegmentBulk,
+} from '@/routes/edition-segments';
 import type {
     Edition,
     ManuscriptImage,
@@ -51,7 +51,7 @@ export type WitnessTranscript = {
     regions: TranscriptionRegion[];
 };
 
-type PassageOption = {
+type SegmentOption = {
     id: number;
     address: Record<string, string | number>;
 };
@@ -62,14 +62,14 @@ type PassageOption = {
  * where its assignments are picked for the edition (user decision, merging
  * the former "Add text" and "The manuscripts" panes). Selecting text and
  * pressing "Add selection" adds every assigned assignment inside the selection;
- * each lands where the manuscript has it (PassageAdder::insertionPosition).
+ * each lands where the manuscript has it (SegmentAdder::insertionPosition).
  * Assignments the edition already has print grey.
  */
 const props = defineProps<{
     edition: Edition;
     transcripts: WitnessTranscript[];
-    alreadyAddedPassageIds: number[];
-    passages: PassageOption[];
+    alreadyAddedSegmentIds: number[];
+    segments: SegmentOption[];
     referenceLevels: ReferenceLevel[];
     canEdit: boolean;
     // While a transposition is being registered the edition text is a
@@ -79,7 +79,7 @@ const props = defineProps<{
     // text it corresponds to (layer id + offsets), and its line — lit up
     // on the image, word by word.
     hoveredSpans: { layerId: number; start: number; end: number }[];
-    hoveredPassageId: number | null;
+    hoveredSegmentId: number | null;
 }>();
 
 const emit = defineEmits<{
@@ -90,7 +90,7 @@ const emit = defineEmits<{
         e: 'hover-image-region',
         target: {
             spans: { layerId: number; start: number; end: number }[];
-            passageIds: number[];
+            segmentIds: number[];
         },
     ): void;
 }>();
@@ -155,7 +155,7 @@ const shownLayer = computed(() =>
 
 /**
  * The transcripts to show: every transcript of the witness in the shown
- * layer, in the order of their first assigned passage — a witness may hold
+ * layer, in the order of their first assigned segment — a witness may hold
  * texts of the work in more than one transcript.
  */
 const shownTranscripts = computed(() =>
@@ -243,7 +243,7 @@ function showText(layer?: string) {
         activeLayer.value = layer;
     }
 
-    emit('hover-image-region', { spans: [], passageIds: [] });
+    emit('hover-image-region', { spans: [], segmentIds: [] });
 
     const wanted = selectedPageId.value;
     view.value = 'text';
@@ -308,7 +308,7 @@ function overlaps(
     return a.start < b.end_offset && a.end > b.start_offset;
 }
 
-function passagesOf(region: TranscriptionRegion, layer: WitnessTranscript) {
+function segmentsOf(region: TranscriptionRegion, layer: WitnessTranscript) {
     return [
         ...new Set(
             layer.assignments
@@ -318,7 +318,7 @@ function passagesOf(region: TranscriptionRegion, layer: WitnessTranscript) {
                         assignment,
                     ),
                 )
-                .map((assignment) => assignment.canonical_passage_id),
+                .map((assignment) => assignment.segment_id),
         ),
     ];
 }
@@ -342,9 +342,9 @@ const highlightedRegionIds = computed(() =>
             }
 
             return (
-                props.hoveredPassageId !== null &&
+                props.hoveredSegmentId !== null &&
                 group.some(({ region, layer }) =>
-                    passagesOf(region, layer).includes(props.hoveredPassageId!),
+                    segmentsOf(region, layer).includes(props.hoveredSegmentId!),
                 )
             );
         })
@@ -357,7 +357,7 @@ function onHoverRegion(regionId: number | null) {
     );
 
     if (!group) {
-        emit('hover-image-region', { spans: [], passageIds: [] });
+        emit('hover-image-region', { spans: [], segmentIds: [] });
 
         return;
     }
@@ -370,13 +370,13 @@ function onHoverRegion(regionId: number | null) {
             start: region.start_offset,
             end: region.end_offset,
         })),
-        passageIds:
+        segmentIds:
             rows.length > 0
                 ? []
                 : [
                       ...new Set(
                           group.flatMap(({ region, layer }) =>
-                              passagesOf(region, layer),
+                              segmentsOf(region, layer),
                           ),
                       ),
                   ],
@@ -397,9 +397,7 @@ function stepPage(delta: -1 | 1) {
 function unavailableAssignmentIds(transcript: WitnessTranscript): number[] {
     return transcript.assignments
         .filter((assignment) =>
-            props.alreadyAddedPassageIds.includes(
-                assignment.canonical_passage_id,
-            ),
+            props.alreadyAddedSegmentIds.includes(assignment.segment_id),
         )
         .map((assignment) => assignment.id);
 }
@@ -441,8 +439,8 @@ watch(activeWitnessId, () => {
     selectedPageId.value = null;
 });
 
-/** The assigned, not yet added passages fully inside the selection. */
-const selectedPassageIds = computed(() => {
+/** The assigned, not yet added segments fully inside the selection. */
+const selectedSegmentIds = computed(() => {
     const sel = selection.value;
     const transcript = props.transcripts.find(
         (t) => t.id === sel?.transcriptId,
@@ -459,11 +457,11 @@ const selectedPassageIds = computed(() => {
                     (assignment) =>
                         assignment.start_offset >= sel.start &&
                         assignment.end_offset <= sel.end &&
-                        !props.alreadyAddedPassageIds.includes(
-                            assignment.canonical_passage_id,
+                        !props.alreadyAddedSegmentIds.includes(
+                            assignment.segment_id,
                         ),
                 )
-                .map((assignment) => assignment.canonical_passage_id),
+                .map((assignment) => assignment.segment_id),
         ),
     ];
 });
@@ -472,7 +470,7 @@ const canAdd = computed(
     () =>
         props.canEdit &&
         !props.locked &&
-        selectedPassageIds.value.length > 0 &&
+        selectedSegmentIds.value.length > 0 &&
         sourceLayerId(selection.value?.transcriptId ?? null) !== null,
 );
 
@@ -491,10 +489,10 @@ function addSelection() {
     }
 
     router.post(
-        storeEditionPassage.url(props.edition),
+        storeEditionSegment.url(props.edition),
         {
             transcription_layer_id: layerId,
-            canonical_passage_ids: selectedPassageIds.value,
+            segment_ids: selectedSegmentIds.value,
         },
         {
             preserveScroll: true,
@@ -508,8 +506,8 @@ function addSelection() {
 // ---- "Add lines…" — the bulk add: an assignment range from this witness ----
 const showBulkForm = ref(false);
 const bulkForm = useForm({
-    from_canonical_passage_id: null as number | null,
-    to_canonical_passage_id: null as number | null,
+    from_segment_id: null as number | null,
+    to_segment_id: null as number | null,
 });
 
 const bulkSourceLayerId = computed(
@@ -533,7 +531,7 @@ function submitBulk() {
 
     bulkForm
         .transform((data) => ({ ...data, transcription_layer_id: layerId }))
-        .post(storeEditionPassageBulk.url(props.edition), {
+        .post(storeEditionSegmentBulk.url(props.edition), {
             preserveScroll: true,
             onSuccess: () => {
                 bulkForm.reset();
@@ -650,15 +648,15 @@ function submitBulk() {
                 are left as they are.
             </p>
             <span class="text-stone-500 dark:text-stone-400">from</span>
-            <HierarchicalPassagePicker
-                v-model="bulkForm.from_canonical_passage_id"
-                :passages="passages"
+            <HierarchicalSegmentPicker
+                v-model="bulkForm.from_segment_id"
+                :segments="segments"
                 :levels="referenceLevels"
             />
             <span class="text-stone-500 dark:text-stone-400">to</span>
-            <HierarchicalPassagePicker
-                v-model="bulkForm.to_canonical_passage_id"
-                :passages="passages"
+            <HierarchicalSegmentPicker
+                v-model="bulkForm.to_segment_id"
+                :segments="segments"
                 :levels="referenceLevels"
             />
             <button
@@ -666,22 +664,22 @@ function submitBulk() {
                 class="rounded bg-stone-900 px-2 py-1 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
                 :disabled="
                     bulkForm.processing ||
-                    !bulkForm.from_canonical_passage_id ||
-                    !bulkForm.to_canonical_passage_id
+                    !bulkForm.from_segment_id ||
+                    !bulkForm.to_segment_id
                 "
             >
                 Add
             </button>
             <span
                 v-if="
-                    bulkForm.errors.from_canonical_passage_id ||
-                    bulkForm.errors.to_canonical_passage_id
+                    bulkForm.errors.from_segment_id ||
+                    bulkForm.errors.to_segment_id
                 "
                 class="block w-full text-red-600 dark:text-red-400"
             >
                 {{
-                    bulkForm.errors.from_canonical_passage_id ??
-                    bulkForm.errors.to_canonical_passage_id
+                    bulkForm.errors.from_segment_id ??
+                    bulkForm.errors.to_segment_id
                 }}
             </span>
         </form>

@@ -20,12 +20,12 @@ class TranscriptionSpanCopyController extends Controller
      * landing offset here, AFTER the pasted text has been saved.
      *
      * What travels depends on what stays true where the text goes.
-     * Assignments travel always — which passage of a work a stretch of text
+     * Assignments travel always — which segment of a work a stretch of text
      * is holds wherever it stands, so even an assignment the copy cuts through
      * contributes its contained part. Facsimile mappings are facts about
      * ONE parchment: they travel within the witness (whole spans only —
      * half a box is not a meaningful geometry) and never to another
-     * witness. A copied assignment joins its passage's assignment in the target
+     * witness. A copied assignment joins its segment's assignment in the target
      * as a further part; a copied mapping is skipped where the target
      * already maps overlapping text. The source is untouched: this is a
      * copy.
@@ -53,7 +53,7 @@ class TranscriptionSpanCopyController extends Controller
             $works = $source->assignments
                 ->filter(fn ($assignment) => $assignment->start_offset < (int) $request->validated('source_end')
                     && $assignment->end_offset > (int) $request->validated('source_start'))
-                ->map(fn ($assignment) => $assignment->canonicalPassage?->work)
+                ->map(fn ($assignment) => $assignment->segment?->work)
                 ->filter()
                 ->unique('id');
 
@@ -90,20 +90,20 @@ class TranscriptionSpanCopyController extends Controller
             $standing = $transcription->assignments()->orderBy('start_offset')->get();
 
             // Overlap is enough: an assignment the copy cuts through contributes
-            // its contained part — still genuine text of its passage.
+            // its contained part — still genuine text of its segment.
             $touched = $source->assignments
                 ->filter(fn ($assignment) => $assignment->start_offset < $end
                     && $assignment->end_offset > $start
                     && $assignment->end_offset > $assignment->start_offset)
-                ->sortBy([['canonical_passage_id', 'asc'], ['part', 'asc']]);
+                ->sortBy([['segment_id', 'asc'], ['part', 'asc']]);
 
             $landings = [];
 
             foreach ($touched as $assignment) {
-                // A further part of the passage's assignment in the target,
+                // A further part of the segment's assignment in the target,
                 // in the copied content order — the target may already
                 // assign it elsewhere.
-                $passageId = $assignment->canonical_passage_id;
+                $segmentId = $assignment->segment_id;
                 $landStart = max($assignment->start_offset, $start) + $shift;
                 $landEnd = min($assignment->end_offset, $end) + $shift;
 
@@ -113,7 +113,7 @@ class TranscriptionSpanCopyController extends Controller
                 // only duplicate it (real bug: every pasted assignment
                 // showed as 1/2).
                 $alreadyAssigned = $transcription->assignments()
-                    ->where('canonical_passage_id', $passageId)
+                    ->where('segment_id', $segmentId)
                     ->where('start_offset', '<', $landEnd)
                     ->where('end_offset', '>', $landStart)
                     ->exists();
@@ -122,14 +122,14 @@ class TranscriptionSpanCopyController extends Controller
                     continue;
                 }
 
-                $nextPart[$passageId] ??= ((int) $transcription->assignments()
-                    ->where('canonical_passage_id', $passageId)->max('part')) + 1;
+                $nextPart[$segmentId] ??= ((int) $transcription->assignments()
+                    ->where('segment_id', $segmentId)->max('part')) + 1;
 
                 $transcription->assignments()->create([
-                    'canonical_passage_id' => $passageId,
+                    'segment_id' => $segmentId,
                     'start_offset' => $landStart,
                     'end_offset' => $landEnd,
-                    'part' => $nextPart[$passageId]++,
+                    'part' => $nextPart[$segmentId]++,
                     'needs_review' => $assignment->needs_review,
                     'group_id' => (string) Str::uuid(),
                 ]);
@@ -144,7 +144,7 @@ class TranscriptionSpanCopyController extends Controller
             // typing, wrong for a carrying paste), and a paste into the
             // middle of an assigned span lands inside it. Mirror the relocation
             // twin (RelocationAssignmentEffects): a span covering an arrival on
-            // both sides splits into two parts of its own passage; one
+            // both sides splits into two parts of its own segment; one
             // overlapping from a single side is clipped back to the
             // boundary. Unflagged — nothing needs review once the arrival
             // carries its own assignment. Without this, a cross-layer paste
@@ -164,14 +164,14 @@ class TranscriptionSpanCopyController extends Controller
                     $coversRight = $bystander->end_offset > $landEnd;
 
                     if ($coversLeft && $coversRight) {
-                        $nextPart[$bystander->canonical_passage_id] ??= ((int) $transcription->assignments()
-                            ->where('canonical_passage_id', $bystander->canonical_passage_id)->max('part')) + 1;
+                        $nextPart[$bystander->segment_id] ??= ((int) $transcription->assignments()
+                            ->where('segment_id', $bystander->segment_id)->max('part')) + 1;
 
                         $transcription->assignments()->create([
-                            'canonical_passage_id' => $bystander->canonical_passage_id,
+                            'segment_id' => $bystander->segment_id,
                             'start_offset' => $landEnd,
                             'end_offset' => $bystander->end_offset,
-                            'part' => $nextPart[$bystander->canonical_passage_id]++,
+                            'part' => $nextPart[$bystander->segment_id]++,
                             'needs_review' => $bystander->needs_review,
                             'group_id' => (string) Str::uuid(),
                         ]);

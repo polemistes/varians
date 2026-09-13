@@ -1,28 +1,28 @@
 <?php
 
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\EditionLemma;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
+use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Models\User;
-use App\Support\Edition\PassageAligner;
+use App\Support\Edition\SegmentAligner;
 
 /**
- * Collate one transcription into a passage and return its readings keyed by
+ * Collate one transcription into a segment and return its readings keyed by
  * the word each was taken from.
  */
 function collatedReadings(TranscriptionLayer $transcription, string $text): array
 {
-    $passage = CanonicalPassage::factory()->create();
-    $assignment = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    $segment = Segment::factory()->create();
+    $assignment = Assignment::factory()->for($transcription)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => mb_strlen($text)]);
 
-    PassageAligner::alignWitness($passage, collect([$assignment]));
+    SegmentAligner::alignWitness($segment, collect([$assignment]));
 
-    return Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')
+    return Lemma::where('segment_id', $segment->id)->orderBy('position')
         ->with('readings')->get()
         ->mapWithKeys(fn (Lemma $lemma) => [
             mb_substr($text, $lemma->readings->first()->start_offset, $lemma->readings->first()->end_offset - $lemma->readings->first()->start_offset) => $lemma->readings->first(),
@@ -42,7 +42,7 @@ test('editing a word re-derives the reading collated from it', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
     $readings = collatedReadings($transcription, 'the quick fox');
-    $passageId = $readings['quick']->lemma->canonical_passage_id;
+    $segmentId = $readings['quick']->lemma->segment_id;
 
     // Replace "quick" (4-9) with "slow" — the exact case that used to leave
     // the apparatus reading "the" / "slow " / "ox". Nothing selects these
@@ -54,7 +54,7 @@ test('editing a word re-derives the reading collated from it', function () {
 
     $words = LemmaReading::whereIn(
         'lemma_id',
-        Lemma::where('canonical_passage_id', $passageId)->pluck('id'),
+        Lemma::where('segment_id', $segmentId)->pluck('id'),
     )->where('transcription_layer_id', $transcription->id)->get()
         ->map(fn (LemmaReading $reading) => mb_substr(
             $transcription->fresh()->text,
@@ -86,7 +86,7 @@ test('an edit partially clobbering unselected readings re-derives them instead o
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->normalized()->create(['text' => 'the quick fox']);
     $readings = collatedReadings($transcription, 'the quick fox');
-    $passageId = $readings['quick']->lemma->canonical_passage_id;
+    $segmentId = $readings['quick']->lemma->segment_id;
 
     // Replace "ick f" — straddles the "quick" and "fox" readings.
     $this->patch(route('transcriptions.text.update', $transcription), [
@@ -94,14 +94,14 @@ test('an edit partially clobbering unselected readings re-derives them instead o
         'text' => 'the quXox',
     ])->assertRedirect();
 
-    // The damaged rows are gone; the passage was re-collated against the
+    // The damaged rows are gone; the segment was re-collated against the
     // new text, so the apparatus reads real words again, unflagged.
     expect(LemmaReading::whereKey($readings['quick']->id)->exists())->toBeFalse()
         ->and(LemmaReading::whereKey($readings['fox']->id)->exists())->toBeFalse();
 
     $rederived = LemmaReading::whereIn(
         'lemma_id',
-        Lemma::where('canonical_passage_id', $passageId)->pluck('id'),
+        Lemma::where('segment_id', $segmentId)->pluck('id'),
     )->where('transcription_layer_id', $transcription->id)->get();
 
     $words = $rederived->map(fn (LemmaReading $reading) => mb_substr(
@@ -135,8 +135,8 @@ test('an edit partially clobbering a SELECTED reading flags it for the editor', 
 
     // The selected reading is kept and flagged; the unselected 'fox' was
     // damaged too and deleted, but re-derivation is refused while a pinned
-    // (selected) reading holds the passage — the flag on the selection is
-    // now the passage's one open question.
+    // (selected) reading holds the segment — the flag on the selection is
+    // now the segment's one open question.
     expect($readings['quick']->fresh()->needs_review)->toBeTrue()
         ->and(LemmaReading::whereKey($readings['fox']->id)->exists())->toBeFalse();
 });
@@ -147,7 +147,7 @@ test('a destroyed reading nothing selected is removed and the rest re-derived, w
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
     $readings = collatedReadings($transcription, 'the quick fox');
-    $passageId = $readings['quick']->lemma->canonical_passage_id;
+    $segmentId = $readings['quick']->lemma->segment_id;
 
     $this->patch(route('transcriptions.text.update', $transcription), [
         'ops' => [['start' => 3, 'end' => 9, 'text' => '']],
@@ -156,7 +156,7 @@ test('a destroyed reading nothing selected is removed and the rest re-derived, w
 
     $words = LemmaReading::whereIn(
         'lemma_id',
-        Lemma::where('canonical_passage_id', $passageId)->pluck('id'),
+        Lemma::where('segment_id', $segmentId)->pluck('id'),
     )->where('transcription_layer_id', $transcription->id)->get()
         ->map(fn (LemmaReading $reading) => mb_substr(
             $transcription->fresh()->text,
@@ -219,13 +219,13 @@ test('editing a witness the edition does not print reports nothing', function ()
     $printed = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
     $other = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
 
-    $passage = CanonicalPassage::factory()->create();
+    $segment = Segment::factory()->create();
     foreach ([$printed, $other] as $t) {
-        PassageAligner::alignWitness($passage, collect([Assignment::factory()->for($t)
-            ->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13])]));
+        SegmentAligner::alignWitness($segment, collect([Assignment::factory()->for($t)
+            ->for($segment, 'segment')->create(['start_offset' => 0, 'end_offset' => 13])]));
     }
 
-    $middle = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->get()[1];
+    $middle = Lemma::where('segment_id', $segment->id)->orderBy('position')->get()[1];
     EditionLemma::create([
         'edition_id' => Edition::factory()->create(['title' => 'Iliad, a new edition'])->id,
         'lemma_id' => $middle->id,

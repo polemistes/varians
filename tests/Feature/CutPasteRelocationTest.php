@@ -1,19 +1,19 @@
 <?php
 
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
 use App\Models\Lemma;
 use App\Models\ManuscriptImage;
+use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
 use App\Models\User;
 use App\Models\Work;
-use App\Support\Edition\PassageAligner;
+use App\Support\Edition\SegmentAligner;
 
 /**
  * A cut op and the paste of exactly its text, linked by a shared cut_id, are
  * a relocation: everything anchored wholly inside the cut travels with the
- * words. This replaces the old one-click "Move this passage" — the editor
+ * words. This replaces the old one-click "Move this segment" — the editor
  * now simply cuts and pastes in the always-editable transcript.
  */
 test('cut and paste of an assigned span moves the assignment with the words', function () {
@@ -44,7 +44,7 @@ test('cut and paste of an assigned span moves the assignment with the words', fu
 });
 
 test('the same two ops WITHOUT a cut_id delete the assignment instead of moving it', function () {
-    // The inverse of the old MoveAssignedPassageTest raison-d'être case: a
+    // The inverse of the old MoveAssignedSegmentTest raison-d'être case: a
     // plain delete + unrelated insert is not a relocation claim, and the
     // deleted words take their assignment with them.
     $this->actingAs(User::factory()->editor()->create());
@@ -136,12 +136,12 @@ test('an image region anchored to the moved words travels with them', function (
 test('a collated reading inside the moved words travels with them', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
-    $passage = CanonicalPassage::factory()->create();
-    $assignment = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    $segment = Segment::factory()->create();
+    $assignment = Assignment::factory()->for($transcription)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 13]);
-    PassageAligner::alignWitness($passage, collect([$assignment]));
+    SegmentAligner::alignWitness($segment, collect([$assignment]));
 
-    $quick = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->with('readings')->get()[1]
+    $quick = Lemma::where('segment_id', $segment->id)->orderBy('position')->with('readings')->get()[1]
         ->readings->first();
     expect($quick->start_offset)->toBe(4); // sanity: "quick"
 
@@ -255,11 +255,11 @@ test('a cut fragment of an assigned span keeps its own assignment as a new part,
     // (the tail of α) and paste it into the middle of β, after "line".
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "the quick brown fox\nline two"]);
-    $alpha = CanonicalPassage::factory()->create();
-    $beta = CanonicalPassage::factory()->create();
-    $alphaAssignment = Assignment::factory()->for($transcription)->for($alpha, 'canonicalPassage')
+    $alpha = Segment::factory()->create();
+    $beta = Segment::factory()->create();
+    $alphaAssignment = Assignment::factory()->for($transcription)->for($alpha, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 19]);
-    $betaAssignment = Assignment::factory()->for($transcription)->for($beta, 'canonicalPassage')
+    $betaAssignment = Assignment::factory()->for($transcription)->for($beta, 'segment')
         ->create(['start_offset' => 20, 'end_offset' => 28]);
 
     $this->patch(route('transcriptions.text.update', $transcription), [
@@ -281,14 +281,14 @@ test('a cut fragment of an assigned span keeps its own assignment as a new part,
 
     // The fragment is a new PART of α at the paste site.
     $fragment = Assignment::where('transcription_layer_id', $transcription->id)
-        ->where('canonical_passage_id', $alpha->id)->where('part', 2)->sole();
+        ->where('segment_id', $alpha->id)->where('part', 2)->sole();
     expect([$fragment->start_offset, $fragment->end_offset])->toBe([14, 24])
         ->and(mb_substr($text, $fragment->start_offset, 10))->toBe(' brown fox')
         ->and($fragment->needs_review)->toBeFalse();
 
     // β keeps assigning both sides of the arrival: split into two parts.
     $betaParts = Assignment::where('transcription_layer_id', $transcription->id)
-        ->where('canonical_passage_id', $beta->id)->inPartOrder()->get();
+        ->where('segment_id', $beta->id)->inPartOrder()->get();
     expect($betaParts)->toHaveCount(2)
         ->and([$betaParts[0]->start_offset, $betaParts[0]->end_offset])->toBe([10, 14]) // "line"
         ->and([$betaParts[1]->start_offset, $betaParts[1]->end_offset])->toBe([24, 28]) // " two"
@@ -299,8 +299,8 @@ test('a cut fragment of an assigned span keeps its own assignment as a new part,
 test('a fragment cut from a span\'s head reads as the part BEFORE what remains', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "the quick fox\nrest"]);
-    $alpha = CanonicalPassage::factory()->create();
-    $assignment = Assignment::factory()->for($transcription)->for($alpha, 'canonicalPassage')
+    $alpha = Segment::factory()->create();
+    $assignment = Assignment::factory()->for($transcription)->for($alpha, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 13]);
 
     // Cut "the " (the head) and paste it at the very end.
@@ -313,7 +313,7 @@ test('a fragment cut from a span\'s head reads as the part BEFORE what remains',
     ])->assertRedirect();
 
     $parts = Assignment::where('transcription_layer_id', $transcription->id)
-        ->where('canonical_passage_id', $alpha->id)->inPartOrder()->get();
+        ->where('segment_id', $alpha->id)->inPartOrder()->get();
 
     // Content order: "the " still reads FIRST, wherever it physically sits.
     expect($parts)->toHaveCount(2)
@@ -350,8 +350,8 @@ test('cutting a whole line carries exactly the selection — its newline travels
 test('undoing a partial relocation merges the fragment back into its remainder', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
-    $passage = CanonicalPassage::factory()->for(Work::factory())->create();
-    Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    $segment = Segment::factory()->for(Work::factory())->create();
+    Assignment::factory()->for($transcription)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 15]); // "the quick brown"
 
     // Cut " brown" out of the assigned span and paste it at the end — the

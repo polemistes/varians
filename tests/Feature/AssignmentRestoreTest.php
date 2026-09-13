@@ -1,11 +1,11 @@
 <?php
 
-use App\Models\CanonicalPassage;
+use App\Models\Assignment;
 use App\Models\ManuscriptImage;
+use App\Models\Segment;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
-use App\Models\Assignment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
@@ -19,8 +19,8 @@ use App\Models\Work;
 test('undoing a destructive edit restores the assignments it deleted', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
-    $passage = CanonicalPassage::factory()->for(Work::factory())->create();
-    $assignment = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    $segment = Segment::factory()->for(Work::factory())->create();
+    $assignment = Assignment::factory()->for($transcription)->for($segment, 'segment')
         ->create(['start_offset' => 4, 'end_offset' => 7, 'part' => 1]);
 
     // The destructive edit deletes the assignment with its words...
@@ -39,7 +39,7 @@ test('undoing a destructive edit restores the assignments it deleted', function 
     // ...and the history's snapshot restores the row.
     $this->post(route('transcription-spans.restore', $transcription), [
         'assignments' => [[
-            'canonical_passage_id' => $passage->id,
+            'segment_id' => $segment->id,
             'start_offset' => 4,
             'end_offset' => 7,
             'part' => 1,
@@ -49,7 +49,7 @@ test('undoing a destructive edit restores the assignments it deleted', function 
     $restored = $transcription->assignments()->sole();
     expect([$restored->start_offset, $restored->end_offset, $restored->part])
         ->toBe([4, 7, 1])
-        ->and($restored->canonical_passage_id)->toBe($passage->id);
+        ->and($restored->segment_id)->toBe($segment->id);
 });
 
 test('a restore is skipped where the landing words already carry the assignment', function () {
@@ -58,13 +58,13 @@ test('a restore is skipped where the landing words already carry the assignment'
     // duplicate the assignment.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
-    $passage = CanonicalPassage::factory()->for(Work::factory())->create();
-    Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    $segment = Segment::factory()->for(Work::factory())->create();
+    Assignment::factory()->for($transcription)->for($segment, 'segment')
         ->create(['start_offset' => 4, 'end_offset' => 7, 'part' => 1]);
 
     $this->post(route('transcription-spans.restore', $transcription), [
         'assignments' => [[
-            'canonical_passage_id' => $passage->id,
+            'segment_id' => $segment->id,
             'start_offset' => 4,
             'end_offset' => 7,
             'part' => 1,
@@ -77,11 +77,11 @@ test('a restore is skipped where the landing words already carry the assignment'
 test('a restored span must cover existing text', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'short']);
-    $passage = CanonicalPassage::factory()->for(Work::factory())->create();
+    $segment = Segment::factory()->for(Work::factory())->create();
 
     $this->post(route('transcription-spans.restore', $transcription), [
         'assignments' => [[
-            'canonical_passage_id' => $passage->id,
+            'segment_id' => $segment->id,
             'start_offset' => 2,
             'end_offset' => 40,
             'part' => 1,
@@ -96,11 +96,11 @@ test('a restored span heals its counterpart in an in-step sibling layer', functi
     $parent = Transcription::factory()->create();
     $layer = TranscriptionLayer::factory()->normalized()->for($parent)->create(['text' => 'the cät sat']);
     $sibling = TranscriptionLayer::factory()->diplomatic()->for($parent)->create(['text' => 'the cat sat']);
-    $passage = CanonicalPassage::factory()->for(Work::factory())->create();
+    $segment = Segment::factory()->for(Work::factory())->create();
 
     $this->post(route('transcription-spans.restore', $layer), [
         'assignments' => [[
-            'canonical_passage_id' => $passage->id,
+            'segment_id' => $segment->id,
             'start_offset' => 4,
             'end_offset' => 7,
             'part' => 1,
@@ -109,17 +109,17 @@ test('a restored span heals its counterpart in an in-step sibling layer', functi
 
     expect($layer->assignments()->count())->toBe(1)
         ->and($sibling->assignments()->count())->toBe(1)
-        ->and($sibling->assignments()->sole()->canonical_passage_id)->toBe($passage->id);
+        ->and($sibling->assignments()->sole()->segment_id)->toBe($segment->id);
 });
 
 test('a guest cannot restore assignment spans', function () {
     $this->actingAs(User::factory()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
-    $passage = CanonicalPassage::factory()->for(Work::factory())->create();
+    $segment = Segment::factory()->for(Work::factory())->create();
 
     $this->post(route('transcription-spans.restore', $transcription), [
         'assignments' => [[
-            'canonical_passage_id' => $passage->id,
+            'segment_id' => $segment->id,
             'start_offset' => 4,
             'end_offset' => 7,
             'part' => 1,

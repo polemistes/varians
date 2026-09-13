@@ -77,22 +77,22 @@ class BibliographyItemController extends Controller
     private function citedBy(BibliographyItem $item): array
     {
         $references = $item->references()
-            ->with(['conjecture.canonicalPassage:id,label', 'edition:id,title', 'canonicalPassage:id,label'])
+            ->with(['conjecture.segment:id,label', 'edition:id,title', 'segment:id,label'])
             ->get();
 
         $citedBy = [];
 
         foreach ($references as $reference) {
             if ($reference->conjecture_id !== null) {
-                $passage = $reference->conjecture?->canonicalPassage;
-                $citedBy[] = ['kind' => 'conjecture', 'label' => 'a conjecture on '.($passage !== null ? $passage->label : '?')];
+                $segment = $reference->conjecture?->segment;
+                $citedBy[] = ['kind' => 'conjecture', 'label' => 'a conjecture on '.($segment !== null ? $segment->label : '?')];
 
                 continue;
             }
 
-            $passage = $reference->canonicalPassage;
+            $segment = $reference->segment;
             $edition = $reference->edition;
-            $citedBy[] = ['kind' => 'passage', 'label' => ($passage !== null ? $passage->label : '?').' in “'.($edition !== null ? $edition->title : '?').'”'];
+            $citedBy[] = ['kind' => 'segment', 'label' => ($segment !== null ? $segment->label : '?').' in “'.($edition !== null ? $edition->title : '?').'”'];
         }
 
         return $citedBy;
@@ -161,7 +161,7 @@ class BibliographyItemController extends Controller
     }
 
     /**
-     * Only what one edition cites — its passages' and its conjectures'
+     * Only what one edition cites — its segments' and its conjectures'
      * literature — as a .bib file of its own.
      */
     public function exportEdition(Edition $edition): Response

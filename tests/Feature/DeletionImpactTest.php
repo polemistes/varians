@@ -1,36 +1,36 @@
 <?php
 
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
 use App\Models\EditionLemma;
-use App\Models\EditionPassage;
+use App\Models\EditionSegment;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\ManuscriptImage;
 use App\Models\ManuscriptImageFeature;
+use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
 use App\Models\Witness;
 use App\Models\Work;
 use App\Support\DeletionImpact;
 
-test('forWork counts passages, editions, lemmas, conjectures, and assignment assignments across any witness', function () {
+test('forWork counts segments, editions, lemmas, conjectures, and assignment assignments across any witness', function () {
     $work = Work::factory()->create();
-    $passage = CanonicalPassage::factory()->for($work)->create();
+    $segment = Segment::factory()->for($work)->create();
     Edition::factory()->for($work)->create();
-    Lemma::factory()->for($passage, 'canonicalPassage')->create();
-    Conjecture::factory()->for($passage, 'canonicalPassage')->create();
+    Lemma::factory()->for($segment, 'segment')->create();
+    Conjecture::factory()->for($segment, 'segment')->create();
 
     // An assignment on a witness with no other tie to this work — the least
     // obvious part of the cascade, since it's not "owned" by the work.
-    $otherWorkPassage = CanonicalPassage::factory()->create();
-    Assignment::factory()->for($passage, 'canonicalPassage')->create();
-    Assignment::factory()->for($otherWorkPassage, 'canonicalPassage')->create();
+    $otherWorkSegment = Segment::factory()->create();
+    Assignment::factory()->for($segment, 'segment')->create();
+    Assignment::factory()->for($otherWorkSegment, 'segment')->create();
 
     expect(DeletionImpact::forWork($work))->toBe([
-        'canonicalPassages' => 1,
+        'segments' => 1,
         'editions' => 1,
         'assignments' => 1,
         'conjectures' => 1,
@@ -56,7 +56,7 @@ test('forWitness counts every cascaded category, without double-counting a regio
     $lemma = Lemma::factory()->create();
     $reading = LemmaReading::factory()->for($lemma)->for($transcription)->create();
     EditionLemma::factory()->create(['lemma_id' => $lemma->id, 'selected_reading_id' => $reading->id]);
-    EditionPassage::factory()->create(['transcription_layer_id' => $transcription->id]);
+    EditionSegment::factory()->create(['transcription_layer_id' => $transcription->id]);
 
     expect(DeletionImpact::forWitness($witness))->toBe([
         'transcriptions' => 1,
@@ -65,7 +65,7 @@ test('forWitness counts every cascaded category, without double-counting a regio
         'images' => 2,
         'pages' => 2,
         'editionSelections' => 1,
-        'editionPassages' => 1,
+        'editionSegments' => 1,
     ]);
 });
 
@@ -79,7 +79,7 @@ test('forWitness on a bare witness reports zero everything', function () {
         'images' => 0,
         'pages' => 0,
         'editionSelections' => 0,
-        'editionPassages' => 0,
+        'editionSegments' => 0,
     ]);
 });
 
@@ -94,13 +94,13 @@ test('forTranscription counts assignments, regions, and edition impact scoped to
     $lemma = Lemma::factory()->create();
     $reading = LemmaReading::factory()->for($lemma)->for($transcription)->create();
     EditionLemma::factory()->create(['lemma_id' => $lemma->id, 'selected_reading_id' => $reading->id]);
-    EditionPassage::factory()->create(['transcription_layer_id' => $transcription->id]);
+    EditionSegment::factory()->create(['transcription_layer_id' => $transcription->id]);
 
     expect(DeletionImpact::forTranscription($transcription))->toBe([
         'assignments' => 1,
         'regions' => 1,
         'editionSelections' => 1,
-        'editionPassages' => 1,
+        'editionSegments' => 1,
     ]);
 });
 

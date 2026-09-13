@@ -78,24 +78,24 @@ class Work extends Model
     }
 
     /**
-     * @return HasMany<CanonicalPassage, $this>
+     * @return HasMany<Segment, $this>
      */
-    public function canonicalPassages(): HasMany
+    public function segments(): HasMany
     {
-        return $this->hasMany(CanonicalPassage::class);
+        return $this->hasMany(Segment::class);
     }
 
     /**
      * Every assignment of a stretch of some witness's text to one of this
-     * work's passages. This, rather than the passages themselves, is what a
+     * work's segments. This, rather than the segments themselves, is what a
      * scholar spends her time on and what she would lose: a work of a hundred
      * lines collated from seven manuscripts holds seven hundred of these.
      *
-     * @return HasManyThrough<Assignment, CanonicalPassage, $this>
+     * @return HasManyThrough<Assignment, Segment, $this>
      */
     public function assignments(): HasManyThrough
     {
-        return $this->hasManyThrough(Assignment::class, CanonicalPassage::class);
+        return $this->hasManyThrough(Assignment::class, Segment::class);
     }
 
     /**
@@ -111,26 +111,26 @@ class Work extends Model
     }
 
     /**
-     * Every conjecture recorded against one of this work's passages.
+     * Every conjecture recorded against one of this work's segments.
      *
-     * @return HasManyThrough<Conjecture, CanonicalPassage, $this>
+     * @return HasManyThrough<Conjecture, Segment, $this>
      */
     public function conjectures(): HasManyThrough
     {
-        return $this->hasManyThrough(Conjecture::class, CanonicalPassage::class);
+        return $this->hasManyThrough(Conjecture::class, Segment::class);
     }
 
     /**
      * Witnesses connected to this work — derived, not stored: a witness is
      * related to a work only once one of its transcriptions has an assignment
-     * assigning text to one of the work's canonical passages.
+     * assigning text to one of the work's segments.
      *
      * @return Builder<Witness>
      */
     public function relatedWitnesses(): Builder
     {
         return Witness::query()->whereHas(
-            'transcriptionLayers.assignments.canonicalPassage',
+            'transcriptionLayers.assignments.segment',
             fn (Builder $query) => $query->where('work_id', $this->id),
         );
     }
@@ -148,12 +148,12 @@ class Work extends Model
 
     /**
      * Whether readers at large may see the work: an edition of it is
-     * published, or a published transcription assigns text to one of its passages.
+     * published, or a published transcription assigns text to one of its segments.
      */
     public function isPublished(): bool
     {
         return $this->editions()->where('visibility', Visibility::Published)->exists()
-            || $this->canonicalPassages()
+            || $this->segments()
                 ->whereHas('assignments.transcriptionLayer.transcription', fn (Builder $query) => $query->where('visibility', Visibility::Published))
                 ->exists();
     }
@@ -193,7 +193,7 @@ class Work extends Model
      * Scope a query to works visible to the given viewer: editors and
      * administrators see everything; a member also sees what she may edit;
      * everyone sees a work with a published edition or with at least one
-     * published transcription assigning text to one of its passages.
+     * published transcription assigning text to one of its segments.
      *
      * @param  Builder<Work>  $query
      */
@@ -207,7 +207,7 @@ class Work extends Model
         $query->where(function (Builder $query) use ($viewer) {
             $query->whereHas('editions', fn (Builder $editions) => $editions->where('visibility', Visibility::Published))
                 ->orWhereHas(
-                    'canonicalPassages.assignments.transcriptionLayer.transcription',
+                    'segments.assignments.transcriptionLayer.transcription',
                     fn (Builder $q) => $q->where('visibility', Visibility::Published),
                 );
 

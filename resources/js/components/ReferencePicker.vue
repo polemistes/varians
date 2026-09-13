@@ -31,8 +31,7 @@ import type { Citation, DraftReference } from '@/types/edition';
  * the picker that opened the form attaches it.
  */
 type Target =
-    | { conjecture_id: number }
-    | { edition_id: number; canonical_passage_id: number };
+    { conjecture_id: number } | { edition_id: number; segment_id: number };
 
 const props = defineProps<{
     modelValue?: DraftReference[];

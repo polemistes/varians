@@ -4,7 +4,7 @@ namespace App\Support\Edition;
 
 use App\Enums\Tokenization;
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
+use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Support\Transcription\Tokenizer;
 use Illuminate\Support\Collection;
@@ -21,7 +21,7 @@ use Illuminate\Support\Collection;
  * mapping by position.
  *
  * There is a mapping by *token index*, though, and it holds whenever the two
- * layers divide the passage into the same number of words — which is the
+ * layers divide the segment into the same number of words — which is the
  * ordinary case, since the normalized layer is made by copying the diplomatic
  * one and regularizing it in place. Where the counts differ (crasis resolved,
  * a word divided differently) no correspondence can be trusted, and this
@@ -39,10 +39,10 @@ class DiplomaticCounterpart
      *
      * @param  TranscriptionLayer  $normalized  the transcription the span belongs to
      * @param  TranscriptionLayer|null  $diplomatic  its witness's diplomatic layer, if the viewer may see one
-     * @param  Tokenization  $tokenization  the work's own strategy — passed in rather than read off the passage, since one edition is one work
+     * @param  Tokenization  $tokenization  the work's own strategy — passed in rather than read off the segment, since one edition is one work
      */
     public static function forSpan(
-        CanonicalPassage $passage,
+        Segment $segment,
         TranscriptionLayer $normalized,
         ?TranscriptionLayer $diplomatic,
         int $start,
@@ -53,8 +53,8 @@ class DiplomaticCounterpart
             return null;
         }
 
-        $normalizedTokens = self::tokens($passage, $normalized, $tokenization);
-        $diplomaticTokens = self::tokens($passage, $diplomatic, $tokenization);
+        $normalizedTokens = self::tokens($segment, $normalized, $tokenization);
+        $diplomaticTokens = self::tokens($segment, $diplomatic, $tokenization);
 
         // Same number of words, or no trustworthy correspondence.
         if ($normalizedTokens === null || $diplomaticTokens === null || count($normalizedTokens) !== count($diplomaticTokens)) {
@@ -82,21 +82,21 @@ class DiplomaticCounterpart
     }
 
     /**
-     * The whole passage as the manuscript has it, for reading the line rather
+     * The whole segment as the manuscript has it, for reading the line rather
      * than one word of it.
      *
-     * A passage assigned by several spans is physically discontinuous — a
+     * A segment assigned by several spans is physically discontinuous — a
      * transposition split it — so its parts are joined with an ellipsis
      * rather than run together, which would present as contiguous what the
      * manuscript does not have in one place.
      */
-    public static function forPassage(CanonicalPassage $passage, ?TranscriptionLayer $diplomatic): ?string
+    public static function forSegment(Segment $segment, ?TranscriptionLayer $diplomatic): ?string
     {
         if ($diplomatic === null) {
             return null;
         }
 
-        $assignments = self::assignments($passage, $diplomatic);
+        $assignments = self::assignments($segment, $diplomatic);
 
         return $assignments->isEmpty()
             ? null
@@ -107,16 +107,16 @@ class DiplomaticCounterpart
 
     /**
      * The token stream of a layer's assignment — all its parts, concatenated
-     * in content order, exactly as PassageAligner consumes them. Both layers
+     * in content order, exactly as SegmentAligner consumes them. Both layers
      * go through this, so the token-index mapping holds whenever both divide
-     * the passage into the same number of words, parts included; layers whose
+     * the segment into the same number of words, parts included; layers whose
      * parts split the text differently fail the count check as usual.
      *
      * @return list<array{text: string, start: int, end: int}>|null
      */
-    private static function tokens(CanonicalPassage $passage, TranscriptionLayer $transcription, Tokenization $tokenization): ?array
+    private static function tokens(Segment $segment, TranscriptionLayer $transcription, Tokenization $tokenization): ?array
     {
-        $assignments = self::assignments($passage, $transcription);
+        $assignments = self::assignments($segment, $transcription);
 
         return $assignments->isEmpty()
             ? null
@@ -131,13 +131,13 @@ class DiplomaticCounterpart
     }
 
     /**
-     * This transcription's own assignment of the passage, every part of it, in
+     * This transcription's own assignment of the segment, every part of it, in
      * content order. Uses the loaded relation when there is one, so a caller
      * that eager-loaded assignments pays no query here.
      *
      * @return Collection<int, Assignment>
      */
-    private static function assignments(CanonicalPassage $passage, TranscriptionLayer $transcription): Collection
+    private static function assignments(Segment $segment, TranscriptionLayer $transcription): Collection
     {
         /** @var Collection<int, Assignment> $assignments */
         $assignments = $transcription->relationLoaded('assignments')
@@ -145,7 +145,7 @@ class DiplomaticCounterpart
             : $transcription->assignments()->get();
 
         return Assignment::sortByPartOrder(
-            $assignments->where('canonical_passage_id', $passage->id)
+            $assignments->where('segment_id', $segment->id)
         );
     }
 }

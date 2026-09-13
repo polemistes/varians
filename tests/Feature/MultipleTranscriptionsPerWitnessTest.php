@@ -2,14 +2,14 @@
 
 use App\Enums\Layer;
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
 use App\Models\Edition;
+use App\Models\Segment;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
-use App\Support\Edition\PassageAdder;
+use App\Support\Edition\SegmentAdder;
 use Illuminate\Database\QueryException;
 
 /**
@@ -58,7 +58,7 @@ test('a diplomatic counterpart is the sibling layer, not merely one of the same 
     $this->actingAs(User::factory()->editor()->create());
 
     $work = Work::factory()->create();
-    $passage = CanonicalPassage::factory()->for($work)->create([
+    $segment = Segment::factory()->for($work)->create([
         'address' => ['line' => 1], 'sort_key' => '00000001', 'label' => '1',
     ]);
     $edition = Edition::factory()->for($work)->create();
@@ -70,9 +70,9 @@ test('a diplomatic counterpart is the sibling layer, not merely one of the same 
         ->create(['text' => 'ἄλφα']);
     $diplomatic = TranscriptionLayer::factory()->diplomatic()->for($printed)->published()
         ->create(['text' => 'ΑΛΦΑ']);
-    Assignment::factory()->for($diplomatic)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($diplomatic)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 4]);
-    $assignment = Assignment::factory()->for($normalized)->for($passage, 'canonicalPassage')
+    $assignment = Assignment::factory()->for($normalized)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 4]);
 
     // A second transcription of the same manuscript, whose diplomatic layer
@@ -81,13 +81,13 @@ test('a diplomatic counterpart is the sibling layer, not merely one of the same 
     $other = Transcription::factory()->for($witness)->create(['name' => 'Scholia']);
     $otherDiplomatic = TranscriptionLayer::factory()->diplomatic()->for($other)->published()
         ->create(['text' => 'ΩΜΕΓΑ']);
-    Assignment::factory()->for($otherDiplomatic)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($otherDiplomatic)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 5]);
 
-    PassageAdder::add($edition, $assignment, 1.0);
+    SegmentAdder::add($edition, $assignment, 1.0);
 
     $payload = $this->get(route('editions.show', [$work, $edition]))
-        ->viewData('page')['props']['windowPassages'][0];
+        ->viewData('page')['props']['windowSegments'][0];
 
     expect($payload['base_diplomatic'])->toBe('ΑΛΦΑ');
 });

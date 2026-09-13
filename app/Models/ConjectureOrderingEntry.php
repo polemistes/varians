@@ -12,26 +12,26 @@ use Illuminate\Support\Carbon;
 /**
  * One piece's rank within a ConjectureType::Reordering's proposed
  * sequence — the authoritative set-and-order for that conjecture;
- * `Conjecture.canonical_passage_id` itself is only the set's first passage
+ * `Conjecture.segment_id` itself is only the set's first segment
  * by numbering order, kept as the usual anchor.
  *
- * A piece is normally a whole passage (`part` 1, `text` null). An
+ * A piece is normally a whole segment (`part` 1, `text` null). An
  * arrangement registered from the edition text by cutting PART of a line
- * and pasting it elsewhere divides that passage into pieces, numbered in
- * the passage's own content order, each carrying its words — the same
+ * and pasting it elsewhere divides that segment into pieces, numbered in
+ * the segment's own content order, each carrying its words — the same
  * shape as a witness's split assignment (Assignment::part), and
  * reported by the same code (EditionController::assignmentDiscontinuities).
  *
  * @property int $id
  * @property int $conjecture_id
- * @property int $canonical_passage_id
+ * @property int $segment_id
  * @property int $part
  * @property int $sequence
  * @property string|null $text
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['conjecture_id', 'canonical_passage_id', 'part', 'sequence', 'text'])]
+#[Fillable(['conjecture_id', 'segment_id', 'part', 'sequence', 'text'])]
 class ConjectureOrderingEntry extends Model
 {
     /** @use HasFactory<ConjectureOrderingEntryFactory> */
@@ -46,11 +46,11 @@ class ConjectureOrderingEntry extends Model
     }
 
     /**
-     * @return BelongsTo<CanonicalPassage, $this>
+     * @return BelongsTo<Segment, $this>
      */
-    public function canonicalPassage(): BelongsTo
+    public function segment(): BelongsTo
     {
-        return $this->belongsTo(CanonicalPassage::class);
+        return $this->belongsTo(Segment::class);
     }
 
     /**

@@ -15,7 +15,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | .github/workflows/**,deploy.sh,composer.json,composer.lock,phpstan.neon | .ai/rules/deployment.md |
 | ** | .ai/rules/vocabulary.md |
 | app/Models/{Transcription,Assignment,TranscriptionRegion,Tag}.php,app/Http/Controllers/Transcription*.php,resources/js/pages/Transcriptions/**,resources/js/components/AlignableText.vue | .ai/rules/js-components.md |
-| app/Models/{CanonicalPassage,Assignment,Transcription,ReferenceScheme}.php, app/Models/{Transcription,Assignment,Witness,Work}.php, app/Models/User.php, app/Models/{Conjecture,Lemma,LemmaReading,EditionLemma,EditionBase}.php, app/Support/Edition/**, app/Models/ReferenceScheme.php | .ai/rules/models.md |
+| app/Models/{Segment,Assignment,Transcription,ReferenceScheme}.php, app/Models/{Transcription,Assignment,Witness,Work}.php, app/Models/User.php, app/Models/{Conjecture,Lemma,LemmaReading,EditionLemma,EditionBase}.php, app/Support/Edition/**, app/Models/ReferenceScheme.php | .ai/rules/models.md |
 | resources/js/components/AlignableText.vue,resources/js/pages/Transcriptions/Editor.vue | .ai/rules/pages-transcriptions.md |
 | app/Support/Transcription/**,app/Http/Controllers/TranscriptionTextController.php,app/Http/Requests/UpdateTranscriptionTextRequest.php | .ai/rules/requests.md |
 | resources/js/components/AlignableText.vue | .ai/rules/resources-js-components.md |

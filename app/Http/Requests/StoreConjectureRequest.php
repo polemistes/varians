@@ -3,8 +3,8 @@
 namespace App\Http\Requests;
 
 use App\Enums\ConjectureType;
-use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
+use App\Models\Segment;
 use App\Support\Bibliography\ReferenceRules;
 use App\Support\Edition\ConjectureShape;
 use App\Support\Edition\ConjectureValidationRules;
@@ -20,14 +20,14 @@ class StoreConjectureRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        /** @var CanonicalPassage $canonicalPassage */
-        $canonicalPassage = $this->route('canonicalPassage');
+        /** @var Segment $segment */
+        $segment = $this->route('segment');
 
-        return $this->user()->can('create', [Conjecture::class, $canonicalPassage]);
+        return $this->user()->can('create', [Conjecture::class, $segment]);
     }
 
     /**
-     * Record a conjecture of any kind against a passage of the work — the
+     * Record a conjecture of any kind against a segment of the work — the
      * Work page's own list records every type as a catalogue entry, applied
      * to no edition (an edition follows an ordering proposal through
      * `edition-order.apply`, or records and follows a new one through
@@ -38,12 +38,12 @@ class StoreConjectureRequest extends FormRequest
      */
     public function rules(): array
     {
-        /** @var CanonicalPassage $canonicalPassage */
-        $canonicalPassage = $this->route('canonicalPassage');
+        /** @var Segment $segment */
+        $segment = $this->route('segment');
 
         return [
             ...ConjectureValidationRules::structuralRules(''),
-            ...ConjectureShape::orderingRules($canonicalPassage->work),
+            ...ConjectureShape::orderingRules($segment->work),
             'proposed_by' => ['nullable', 'string', 'max:255'],
             'note' => ['nullable', 'string'],
             ...ReferenceRules::rules('references'),
@@ -53,14 +53,14 @@ class StoreConjectureRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator) {
-            /** @var CanonicalPassage $canonicalPassage */
-            $canonicalPassage = $this->route('canonicalPassage');
+            /** @var Segment $segment */
+            $segment = $this->route('segment');
 
             ConjectureShape::check($validator, [
                 ...$this->all(),
                 'type' => $this->input('type') ?? ConjectureType::Substitution->value,
-                'canonical_passage_id' => $canonicalPassage->id,
-            ], $canonicalPassage->work);
+                'segment_id' => $segment->id,
+            ], $segment->work);
         });
     }
 }

@@ -15,24 +15,24 @@ use Illuminate\Support\Collection;
  * An assignment-span annotation over its parent TranscriptionLayer's continuous
  * `text` — not an owner of text itself. Physical reading order is simply the
  * span's position within that string; numbering order lives independently in
- * canonical_passage.sort_key, so the two can diverge (transpositions).
+ * segment.sort_key, so the two can diverge (transpositions).
  *
- * An assignment always assigns text to a canonical passage — there's no "marked but
+ * An assignment always assigns text to a segment — there's no "marked but
  * unassigned" state. A span with no assignment has no use to anyone, so it's
  * either given one at creation or never created at all.
  *
- * One passage's witness text can be physically discontinuous — a scribe
+ * One segment's witness text can be physically discontinuous — a scribe
  * transposing half a line splits it across two places — so several spans in
- * one layer may assign the same passage. `part` orders those spans by
+ * one layer may assign the same segment. `part` orders those spans by
  * *content* (which fragment is the first half of the line), a claim
  * independent of the physical order their offsets give; the two disagreeing
- * is exactly what a sub-passage transposition is. Consume parts via
+ * is exactly what a sub-segment transposition is. Consume parts via
  * `scopeInPartOrder`/`sortByPartOrder` so every reader concatenates them the
  * same way.
  *
  * @property int $id
  * @property int $transcription_layer_id
- * @property int $canonical_passage_id
+ * @property int $segment_id
  * @property int $start_offset
  * @property int $end_offset
  * @property int $part
@@ -41,7 +41,7 @@ use Illuminate\Support\Collection;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['transcription_layer_id', 'canonical_passage_id', 'start_offset', 'end_offset', 'part', 'needs_review', 'boundary_review', 'group_id'])]
+#[Fillable(['transcription_layer_id', 'segment_id', 'start_offset', 'end_offset', 'part', 'needs_review', 'boundary_review', 'group_id'])]
 class Assignment extends Model
 {
     /** @use HasFactory<AssignmentFactory> */
@@ -56,15 +56,15 @@ class Assignment extends Model
     }
 
     /**
-     * @return BelongsTo<CanonicalPassage, $this>
+     * @return BelongsTo<Segment, $this>
      */
-    public function canonicalPassage(): BelongsTo
+    public function segment(): BelongsTo
     {
-        return $this->belongsTo(CanonicalPassage::class);
+        return $this->belongsTo(Segment::class);
     }
 
     /**
-     * Content order — the order the parts read in as text of their passage.
+     * Content order — the order the parts read in as text of their segment.
      * `start_offset` only tiebreaks spans that predate part numbering or
      * were left equal; it must never override an explicit difference in
      * `part`, or a transposed fragment would read in physical order again.

@@ -1,35 +1,35 @@
 <?php
 
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
 use App\Models\Lemma;
+use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
 
-test('deleting a work cascades its passages, editions, lemmas, conjectures, and assignment assignments on any witness, and redirects home', function () {
+test('deleting a work cascades its segments, editions, lemmas, conjectures, and assignment assignments on any witness, and redirects home', function () {
     $owner = User::factory()->create();
     $this->actingAs($owner);
     $work = Work::factory()->for($owner)->create();
-    $passage = CanonicalPassage::factory()->for($work)->create();
+    $segment = Segment::factory()->for($work)->create();
     $edition = Edition::factory()->for($work)->for($owner)->create();
-    $lemma = Lemma::factory()->for($passage, 'canonicalPassage')->create();
-    $conjecture = Conjecture::factory()->for($passage, 'canonicalPassage')->create();
+    $lemma = Lemma::factory()->for($segment, 'segment')->create();
+    $conjecture = Conjecture::factory()->for($segment, 'segment')->create();
 
     // A witness with no other connection to this work, assigned only via an
     // assignment — the least obvious part of the cascade.
     $witness = Witness::factory()->create();
     $transcription = TranscriptionLayer::factory()->for($witness)->create();
-    $assignment = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create();
+    $assignment = Assignment::factory()->for($transcription)->for($segment, 'segment')->create();
 
     $response = $this->delete(route('works.destroy', $work));
 
     $response->assertRedirect(route('home'));
     expect(Work::find($work->id))->toBeNull()
-        ->and(CanonicalPassage::find($passage->id))->toBeNull()
+        ->and(Segment::find($segment->id))->toBeNull()
         ->and(Edition::find($edition->id))->toBeNull()
         ->and(Lemma::find($lemma->id))->toBeNull()
         ->and(Conjecture::find($conjecture->id))->toBeNull()

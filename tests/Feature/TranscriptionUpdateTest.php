@@ -2,8 +2,8 @@
 
 use App\Enums\Visibility;
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
 use App\Models\Edition;
+use App\Models\Segment;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\User;
@@ -34,8 +34,8 @@ test('a transcription a published edition assigns cannot be taken back to a draf
     $witness = Witness::factory()->for($owner)->create();
     $layer = TranscriptionLayer::factory()->for(Transcription::factory()->for($witness))->create(['text' => 'the quick fox']);
     $edition = Edition::factory()->for($owner)->create(['visibility' => Visibility::Draft]);
-    $passage = CanonicalPassage::factory()->for($edition->work)->create();
-    Assignment::factory()->for($layer)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
+    $segment = Segment::factory()->for($edition->work)->create();
+    Assignment::factory()->for($layer)->for($segment, 'segment')->create(['start_offset' => 0, 'end_offset' => 13]);
 
     $this->actingAs($owner);
     $this->patch(route('editions.update', $edition), ['visibility' => 'published']);

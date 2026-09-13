@@ -4,9 +4,9 @@ namespace Database\Factories;
 
 use App\Models\BibliographyItem;
 use App\Models\BibliographyReference;
-use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
+use App\Models\Segment;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -15,8 +15,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class BibliographyReferenceFactory extends Factory
 {
     /**
-     * A conjecture citing an item by default; `onPassage()` cites from a
-     * passage of an edition instead.
+     * A conjecture citing an item by default; `onSegment()` cites from a
+     * segment of an edition instead.
      *
      * @return array<string, mixed>
      */
@@ -26,19 +26,19 @@ class BibliographyReferenceFactory extends Factory
             'bibliography_item_id' => BibliographyItem::factory(),
             'conjecture_id' => Conjecture::factory(),
             'edition_id' => null,
-            'canonical_passage_id' => null,
+            'segment_id' => null,
             'prenote' => null,
             'postnote' => null,
             'position' => 0,
         ];
     }
 
-    public function onPassage(Edition $edition, CanonicalPassage $passage): static
+    public function onSegment(Edition $edition, Segment $segment): static
     {
         return $this->state(fn () => [
             'conjecture_id' => null,
             'edition_id' => $edition->id,
-            'canonical_passage_id' => $passage->id,
+            'segment_id' => $segment->id,
         ]);
     }
 }

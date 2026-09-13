@@ -2,12 +2,12 @@
 
 namespace App\Support\Copying;
 
-use App\Models\CanonicalPassage;
+use App\Models\Segment;
 use App\Models\User;
 use App\Models\Work;
 
 /**
- * A work of one's own: the work itself under a free slug, and its passages,
+ * A work of one's own: the work itself under a free slug, and its segments,
  * which everything else is addressed by. Nothing that hangs off the work
  * comes along — editions, conjectures and witnesses are copied by their own
  * copiers, each of which decides what its copy needs.
@@ -22,7 +22,7 @@ use App\Models\Work;
 class WorkCopier
 {
     /**
-     * @return array{work: Work, passages: array<int, int>} the copy, and old passage id → new
+     * @return array{work: Work, segments: array<int, int>} the copy, and old segment id → new
      */
     public static function copy(Work $work, User $owner): array
     {
@@ -32,17 +32,17 @@ class WorkCopier
         $copy->slug = self::freshSlug($work->slug);
         $copy->save();
 
-        $passages = [];
+        $segments = [];
 
-        foreach ($work->canonicalPassages()->orderBy('sort_key')->get() as $passage) {
-            /** @var CanonicalPassage $passage */
-            $passageCopy = $passage->replicate();
-            $passageCopy->work_id = $copy->id;
-            $passageCopy->save();
-            $passages[$passage->id] = $passageCopy->id;
+        foreach ($work->segments()->orderBy('sort_key')->get() as $segment) {
+            /** @var Segment $segment */
+            $segmentCopy = $segment->replicate();
+            $segmentCopy->work_id = $copy->id;
+            $segmentCopy->save();
+            $segments[$segment->id] = $segmentCopy->id;
         }
 
-        return ['work' => $copy, 'passages' => $passages];
+        return ['work' => $copy, 'segments' => $segments];
     }
 
     /**

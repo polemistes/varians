@@ -34,10 +34,10 @@ field it ignores is still in the export (`BiblatexWriter`,
 `bibliography.export`).
 
 ## References cite from exactly one place; items are never deleted under them
-`BibliographyReference` targets a conjecture (`conjecture_id`) OR a passage
-of one edition (`edition_id` + `canonical_passage_id`, keyed like
-EditionComment — never through EditionPassage, so removing and re-adding a
-passage keeps its literature), with biblatex's `prenote`/`postnote`
+`BibliographyReference` targets a conjecture (`conjecture_id`) OR a segment
+of one edition (`edition_id` + `segment_id`, keyed like
+EditionComment — never through EditionSegment, so removing and re-adding a
+segment keeps its literature), with biblatex's `prenote`/`postnote`
 ("cf.", "pp. 45–47") and a `position`. The item FK RESTRICTS: an item
 anything cites cannot be deleted (`BibliographyItemController::destroy`
 lists what cites it). The list is readable by everyone (page and .bib);
@@ -68,9 +68,9 @@ proposal — and the citations travel in that thing's own request
 conjectures.store / conjecture-orderings.store; rules in
 `ReferenceRules`, rows written by `ReferenceAttacher`), so a conjecture is
 never created uncited. LIVE mode (`target` = `{conjecture_id}` or
-`{edition_id, canonical_passage_id}` plus the current `references`) saves
+`{edition_id, segment_id}` plus the current `references`) saves
 at once through `bibliography-references.*`, as notes do — used for a
-passage's References section in the line notice and for editing an
+segment's References section in the line notice and for editing an
 adopted transposition's record. The typeahead is `bibliography.search`
 (JSON, editors). "+ New item…" embeds `BibliographyItemForm`; the store
 flashes `created_bibliography_item_id`, `HandleInertiaRequests` resolves it
@@ -85,8 +85,8 @@ Dover 1972)" beside the proposer, in the popover and the hover apparatus.
 The free-text `conjectures.bibliography` column is gone (user decision:
 nothing in it was worth converting, and a text field beside structured
 citations invites two spellings of one work). `bibliography` (`EditionController::bibliography`) is every
-item cited by a passage of the edition or by a conjecture with a reading
-on one of its passages, formatted, anchored `#bibliography-{id}` at the
+item cited by a segment of the edition or by a conjecture with a reading
+on one of its segments, formatted, anchored `#bibliography-{id}` at the
 foot of the page. A line with references opens the notes notice and
 takes the sky chip, like a line with notes.
 

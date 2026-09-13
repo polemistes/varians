@@ -1,10 +1,10 @@
 <?php
 
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\ManuscriptImage;
 use App\Models\ManuscriptPage;
+use App\Models\Segment;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionPageBreak;
@@ -12,7 +12,7 @@ use App\Models\TranscriptionRegion;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
-use App\Support\Edition\PassageAdder;
+use App\Support\Edition\SegmentAdder;
 
 /**
  * The `witnessTranscripts` prop behind the edition page's witnesses pane:
@@ -20,7 +20,7 @@ use App\Support\Edition\PassageAdder;
  */
 
 /**
- * A work whose two canonical passages are assigned by one witness, with the
+ * A work whose two segments are assigned by one witness, with the
  * edition printing only the first. The transcript deliberately carries text
  * on both sides of the assigned stretches, so a slice that failed to trim would
  * be obvious.
@@ -32,10 +32,10 @@ function assignedTranscript(string $layer = 'normalized'): array
     $work = Work::factory()->create();
     $edition = Edition::factory()->for($work)->create();
 
-    $first = CanonicalPassage::factory()->for($work)->create([
+    $first = Segment::factory()->for($work)->create([
         'address' => ['line' => 1], 'sort_key' => '00000001', 'label' => '1',
     ]);
-    $second = CanonicalPassage::factory()->for($work)->create([
+    $second = Segment::factory()->for($work)->create([
         'address' => ['line' => 2], 'sort_key' => '00000002', 'label' => '2',
     ]);
 
@@ -46,12 +46,12 @@ function assignedTranscript(string $layer = 'normalized'): array
     $transcription = TranscriptionLayer::factory()->{$layer}()->for($parent)->published()
         ->create(['text' => $text]);
 
-    $one = Assignment::factory()->for($transcription)->for($first, 'canonicalPassage')
+    $one = Assignment::factory()->for($transcription)->for($first, 'segment')
         ->create(['start_offset' => 3, 'end_offset' => 8]);
-    Assignment::factory()->for($transcription)->for($second, 'canonicalPassage')
+    Assignment::factory()->for($transcription)->for($second, 'segment')
         ->create(['start_offset' => 9, 'end_offset' => 13]);
 
-    PassageAdder::add($edition, $one, 1.0);
+    SegmentAdder::add($edition, $one, 1.0);
 
     return compact('work', 'edition', 'witness', 'transcription', 'parent');
 }
@@ -72,7 +72,7 @@ test('a transcript is sent whole, with every assignment', function () {
 
     $pane = witnessTranscripts($work, $edition);
 
-    // The pane is where assignments are picked for the edition, so passage
+    // The pane is where assignments are picked for the edition, so segment
     // 2 — not in the edition yet — must be there to pick.
     expect($pane)->toHaveCount(1)
         ->and($pane[0]['siglum'])->toBe('A')
@@ -86,16 +86,16 @@ test('a diplomatic entry names its normalized sibling, the layer an add draws on
 
     ['work' => $work, 'edition' => $edition, 'parent' => $parent, 'transcription' => $normalized] = assignedTranscript();
 
-    $passage = CanonicalPassage::where('work_id', $work->id)->orderBy('sort_key')->first();
+    $segment = Segment::where('work_id', $work->id)->orderBy('sort_key')->first();
     $diplomatic = TranscriptionLayer::factory()->diplomatic()->for($parent)->published()
         ->create(['text' => 'ΑΛΦΑ']);
-    Assignment::factory()->for($diplomatic)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($diplomatic)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 4]);
 
     $entry = collect(witnessTranscripts($work, $edition))->firstWhere('layer', 'diplomatic');
 
     expect($entry['normalized_layer_id'])->toBe($normalized->id)
-        ->and($entry['assignments'][0]['canonical_passage']['label'])->toBe('1');
+        ->and($entry['assignments'][0]['segment']['label'])->toBe('1');
 });
 
 test('a discontinuous assignment ships its part ordinals and whole-layer totals', function () {
@@ -103,23 +103,23 @@ test('a discontinuous assignment ships its part ordinals and whole-layer totals'
 
     ['work' => $work, 'edition' => $edition, 'transcription' => $transcription] = assignedTranscript();
 
-    // Passage 1 stands in a second place too — a transposition split it.
+    // Segment 1 stands in a second place too — a transposition split it.
     // The badge must say "1 · 1/2" / "1 · 2/2", so the payload carries a
     // dense ordinal (raw `part` values can have gaps) and a whole-layer
     // total (the slice alone would undercount when a part sits off-window).
-    $passage = CanonicalPassage::where('work_id', $work->id)->where('label', '1')->sole();
-    Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    $segment = Segment::where('work_id', $work->id)->where('label', '1')->sole();
+    Assignment::factory()->for($transcription)->for($segment, 'segment')
         ->create(['start_offset' => 9, 'end_offset' => 13, 'part' => 5]);
 
     $pane = witnessTranscripts($work, $edition)[0];
     $ordinals = collect($pane['assignments'])
-        ->where('canonical_passage_id', $passage->id)
+        ->where('segment_id', $segment->id)
         ->map(fn (array $assignment) => $assignment['part_ordinal'])
         ->values()
         ->all();
 
     expect($ordinals)->toBe([1, 2])
-        ->and($pane['part_totals'][$passage->id])->toBe(2);
+        ->and($pane['part_totals'][$segment->id])->toBe(2);
 });
 
 test('both layers of a witness are offered', function () {
@@ -127,10 +127,10 @@ test('both layers of a witness are offered', function () {
 
     ['work' => $work, 'edition' => $edition, 'parent' => $parent] = assignedTranscript();
 
-    $passage = CanonicalPassage::where('work_id', $work->id)->orderBy('sort_key')->first();
+    $segment = Segment::where('work_id', $work->id)->orderBy('sort_key')->first();
     $diplomatic = TranscriptionLayer::factory()->diplomatic()->for($parent)->published()
         ->create(['text' => 'ΑΛΦΑ']);
-    Assignment::factory()->for($diplomatic)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($diplomatic)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 4]);
 
     $pane = witnessTranscripts($work, $edition);
@@ -146,11 +146,11 @@ test('a draft transcription stays out of the pane for a reader', function () {
 
     // Visibility belongs to the transcription, not to a layer, so a witness
     // still being worked on is hidden whole rather than layer by layer.
-    $passage = CanonicalPassage::where('work_id', $work->id)->orderBy('sort_key')->first();
+    $segment = Segment::where('work_id', $work->id)->orderBy('sort_key')->first();
     $unfinished = Witness::factory()->create(['siglum' => 'Z']);
     $draft = Transcription::factory()->for($unfinished)->create(['visibility' => 'draft']);
     $layer = TranscriptionLayer::factory()->normalized()->for($draft)->create(['text' => 'ΑΛΦΑ']);
-    Assignment::factory()->for($layer)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($layer)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 4]);
 
     $edition->update(['visibility' => 'published']);
@@ -168,19 +168,19 @@ test('the edition box lists every visible witness assigning text to the work, ma
 
     // A second witness assigns text to the work but the edition has taken nothing
     // from it yet — it must still appear, so an editor sees what is left.
-    $passage = CanonicalPassage::where('work_id', $work->id)->orderBy('sort_key')->first();
+    $segment = Segment::where('work_id', $work->id)->orderBy('sort_key')->first();
     $unused = Witness::factory()->create(['siglum' => 'B', 'label' => 'Spare copy']);
     $spare = Transcription::factory()->for($unused)->create();
     $layer = TranscriptionLayer::factory()->normalized()->for($spare)->published()->create(['text' => 'ΑΛΦΑ']);
-    Assignment::factory()->for($layer)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($layer)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 4]);
 
     // A witness of another work never shows, however visible.
-    $elsewhere = CanonicalPassage::factory()->create();
+    $elsewhere = Segment::factory()->create();
     $foreign = Witness::factory()->create(['siglum' => 'C']);
     $foreignLayer = TranscriptionLayer::factory()->normalized()
         ->for(Transcription::factory()->for($foreign)->create())->published()->create(['text' => 'ΒΗΤΑ']);
-    Assignment::factory()->for($foreignLayer)->for($elsewhere, 'canonicalPassage')
+    Assignment::factory()->for($foreignLayer)->for($elsewhere, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 4]);
 
     $this->actingAs(User::factory()->editor()->create());

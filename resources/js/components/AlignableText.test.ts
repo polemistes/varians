@@ -20,12 +20,12 @@ const assignment = (
 ): Assignment => ({
     id,
     transcription_layer_id: 1,
-    canonical_passage_id: id,
+    segment_id: id,
     start_offset: start,
     end_offset: end,
     part: 1,
     needs_review: false,
-    canonical_passage: {
+    segment: {
         id,
         work_id: 1,
         address: { line: id },

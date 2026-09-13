@@ -12,7 +12,7 @@ use Illuminate\Support\Carbon;
 /**
  * Which transposition proposals a given edition has adopted — a thin
  * per-edition adoption, mirroring EditionLemma except boolean rather than a
- * selection: a row's mere existence *is* "this edition prints its passages
+ * selection: a row's mere existence *is* "this edition prints its segments
  * in this moved order." The shared Conjecture(type: transposition) is
  * untouched by adopting or un-adopting it here.
  *

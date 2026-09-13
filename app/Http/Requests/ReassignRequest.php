@@ -24,7 +24,7 @@ class ReassignRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * Re-assigns text to an already-assigned assignment to a different passage — there's no
+     * Re-assigns text to an already-assigned assignment to a different segment — there's no
      * way to clear an assignment's assignment without removing the assignment itself.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
@@ -34,7 +34,7 @@ class ReassignRequest extends FormRequest
         return [
             'work_id' => ['required', Rule::exists('works', 'id')],
             'label' => ['required', 'string', 'max:100'],
-            // Only meaningful when the label names a passage this layer
+            // Only meaningful when the label names a segment this layer
             // already assigns — the span becomes another *part* of it. See
             // AssignmentController::reassign.
             'after_part' => ['nullable', 'integer', 'min:0'],

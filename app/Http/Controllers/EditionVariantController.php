@@ -4,16 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Enums\ConjectureType;
 use App\Http\Requests\StoreEditionVariantRequest;
-use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
 use App\Models\EditionLemma;
-use App\Models\EditionPassage;
+use App\Models\EditionSegment;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
+use App\Models\Segment;
 use App\Models\TranscriptionLayer;
-use App\Support\Edition\CanonicalPassageResolver;
 use App\Support\Edition\ReadingSourceResolver;
+use App\Support\Edition\SegmentResolver;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -24,8 +24,8 @@ class EditionVariantController extends Controller
 {
     /**
      * The single "seamlessly add this to the edition" action for word-level
-     * decisions on a passage already in the edition (see EditionPassage —
-     * scope/materialization happens at add time now, via PassageAdder, not
+     * decisions on a segment already in the edition (see EditionSegment —
+     * scope/materialization happens at add time now, via SegmentAdder, not
      * here): places whichever candidate was picked — either an *existing*
      * candidate on one clicked column (`placement: existing` — a witness
      * reading, an existing conjecture, or a new supplement; the reading
@@ -36,12 +36,12 @@ class EditionVariantController extends Controller
      * (`placement: range` — a brand new substitution conjecture, a single
      * word being just a range of one, or a witness's own wider reading an
      * editor is comparing/adopting for the first time even though
-     * PassageAligner never had a divergence to merge it from automatically)
+     * SegmentAligner never had a divergence to merge it from automatically)
      * — and selects it for this edition, except when authoring a brand new
      * substitution or deletion without `adopt` (see isNewSubstitution — "Register" only
-     * catalogues it; "Register and adopt" selects it in the same step). `placement: new_passage`
+     * catalogues it; "Register and adopt" selects it in the same step). `placement: new_segment`
      * (a whole-line lacuna with no manuscript witness) is different enough —
-     * it creates the EditionPassage itself, rather than requiring one to
+     * it creates the EditionSegment itself, rather than requiring one to
      * already exist — that it's handled entirely separately, see
      * storeWholeLineLacuna().
      */
@@ -49,42 +49,42 @@ class EditionVariantController extends Controller
     {
         $placement = $request->validated('placement') ?? 'existing';
 
-        if ($placement === 'new_passage') {
+        if ($placement === 'new_segment') {
             return $this->storeWholeLineLacuna($request, $edition);
         }
 
-        $passage = CanonicalPassage::findOrFail((int) $request->validated('canonical_passage_id'));
-        $editionPassage = EditionPassage::where('edition_id', $edition->id)
-            ->where('canonical_passage_id', $passage->id)
+        $segment = Segment::findOrFail((int) $request->validated('segment_id'));
+        $editionSegment = EditionSegment::where('edition_id', $edition->id)
+            ->where('segment_id', $segment->id)
             ->first();
 
-        if ($editionPassage === null) {
+        if ($editionSegment === null) {
             throw ValidationException::withMessages([
-                'canonical_passage_id' => 'This segment hasn\'t been added to the edition yet.',
+                'segment_id' => 'This segment hasn\'t been added to the edition yet.',
             ]);
         }
 
-        $base = $editionPassage->transcriptionLayer;
+        $base = $editionSegment->transcriptionLayer;
 
-        DB::transaction(function () use ($request, $edition, $passage, $base, $placement) {
+        DB::transaction(function () use ($request, $edition, $segment, $base, $placement) {
             [$lemma, $rangeEndLemma] = match ($placement) {
-                'insert' => [$this->resolveInsertedLemma($request, $passage, $base), null],
-                'range' => $this->resolveRange($request, $passage, $base),
-                default => [$this->resolveLemma($request, $passage, $base), null],
+                'insert' => [$this->resolveInsertedLemma($request, $segment, $base), null],
+                'range' => $this->resolveRange($request, $segment, $base),
+                default => [$this->resolveLemma($request, $segment, $base), null],
             };
 
-            $attributes = ReadingSourceResolver::resolve($request->validated(), $passage->id, $request->user()->id);
+            $attributes = ReadingSourceResolver::resolve($request->validated(), $segment->id, $request->user()->id);
             $attributes['range_end_lemma_id'] = $rangeEndLemma?->id;
 
             $this->guardSupplementMatchesLemma($request, $lemma, $attributes);
 
             // A witness-sourced reading picked via ordinary placement=existing
-            // is never originated here — it's always PassageAligner's own
+            // is never originated here — it's always SegmentAligner's own
             // doing at materialization time (possibly spanning several
-            // columns, see PassageAligner), so that's always a lookup, never
+            // columns, see SegmentAligner), so that's always a lookup, never
             // a firstOrCreate. placement=range is different: a witness can
             // agree word-for-word with its neighbours across a whole
-            // conjecture's disputed span without PassageAligner ever having a
+            // conjecture's disputed span without SegmentAligner ever having a
             // divergence to detect there, so nothing merged those columns for
             // it automatically — picking that wider comparison (see
             // EditionController::witnessExtension, which is what offers it)
@@ -143,7 +143,7 @@ class EditionVariantController extends Controller
             // else currently claims the ground it covers.
             $this->clearOverlappingSelections(
                 $edition,
-                $passage,
+                $segment,
                 $lemma,
                 $reading->range_end_lemma_id !== null ? Lemma::findOrFail($reading->range_end_lemma_id) : $lemma,
             );
@@ -174,34 +174,34 @@ class EditionVariantController extends Controller
 
     /**
      * A whole-line lacuna has no manuscript witness at all, so unlike every
-     * other placement it creates its own EditionPassage (transcription_layer_id
+     * other placement it creates its own EditionSegment (transcription_layer_id
      * null) rather than requiring one to already exist —
-     * `insert_after_edition_passage_id` anchors where it lands in this
+     * `insert_after_edition_segment_id` anchors where it lands in this
      * edition's own order. Idempotent per label: a repeat submission finds
-     * the same CanonicalPassage/Lemma/EditionPassage and only adds a new
+     * the same Segment/Lemma/EditionSegment and only adds a new
      * competing reading, which — like any lacuna — auto-selects.
      */
     private function storeWholeLineLacuna(StoreEditionVariantRequest $request, Edition $edition): RedirectResponse
     {
-        $passage = CanonicalPassageResolver::resolve($edition->work, $request->validated('label'));
+        $segment = SegmentResolver::resolve($edition->work, $request->validated('label'));
 
-        DB::transaction(function () use ($request, $edition, $passage) {
-            $lemma = $this->resolveWholePassageLemma($passage);
+        DB::transaction(function () use ($request, $edition, $segment) {
+            $lemma = $this->resolveWholeSegmentLemma($segment);
 
-            $editionPassage = EditionPassage::where('edition_id', $edition->id)
-                ->where('canonical_passage_id', $passage->id)
+            $editionSegment = EditionSegment::where('edition_id', $edition->id)
+                ->where('segment_id', $segment->id)
                 ->first();
 
-            if ($editionPassage === null) {
-                EditionPassage::create([
+            if ($editionSegment === null) {
+                EditionSegment::create([
                     'edition_id' => $edition->id,
-                    'canonical_passage_id' => $passage->id,
+                    'segment_id' => $segment->id,
                     'transcription_layer_id' => null,
-                    'position' => $this->positionAfter($edition, $request->validated('insert_after_edition_passage_id')),
+                    'position' => $this->positionAfter($edition, $request->validated('insert_after_edition_segment_id')),
                 ]);
             }
 
-            $attributes = ReadingSourceResolver::resolve($request->validated(), $passage->id, $request->user()->id);
+            $attributes = ReadingSourceResolver::resolve($request->validated(), $segment->id, $request->user()->id);
             $attributes['range_end_lemma_id'] = null;
 
             $reading = $lemma->readings()->create($attributes);
@@ -216,17 +216,17 @@ class EditionVariantController extends Controller
     }
 
     /**
-     * The midpoint between an anchor EditionPassage's own position (or 0.0,
+     * The midpoint between an anchor EditionSegment's own position (or 0.0,
      * for "at the very start") and whatever currently follows it — same
      * insertable-ordinal technique resolveInsertedLemma() already uses for
      * a point lacuna's Lemma.position.
      */
-    private function positionAfter(Edition $edition, ?int $afterEditionPassageId): float
+    private function positionAfter(Edition $edition, ?int $afterEditionSegmentId): float
     {
-        $after = $afterEditionPassageId !== null ? EditionPassage::findOrFail($afterEditionPassageId) : null;
+        $after = $afterEditionSegmentId !== null ? EditionSegment::findOrFail($afterEditionSegmentId) : null;
         $afterPosition = $after !== null ? (float) $after->position : 0.0;
 
-        $next = EditionPassage::where('edition_id', $edition->id)
+        $next = EditionSegment::where('edition_id', $edition->id)
             ->where('position', '>', $afterPosition)
             ->orderBy('position')
             ->first();
@@ -235,7 +235,7 @@ class EditionVariantController extends Controller
         return $afterPosition + ($beforePosition - $afterPosition) / 2;
     }
 
-    private function resolveLemma(StoreEditionVariantRequest $request, CanonicalPassage $passage, ?TranscriptionLayer $base): Lemma
+    private function resolveLemma(StoreEditionVariantRequest $request, Segment $segment, ?TranscriptionLayer $base): Lemma
     {
         $lemmaId = $request->validated('lemma_id');
 
@@ -247,7 +247,7 @@ class EditionVariantController extends Controller
             ? LemmaReading::where('transcription_layer_id', $base->id)
                 ->where('start_offset', (int) $request->validated('base_start_offset'))
                 ->where('end_offset', (int) $request->validated('base_end_offset'))
-                ->whereHas('lemma', fn ($query) => $query->where('canonical_passage_id', $passage->id))
+                ->whereHas('lemma', fn ($query) => $query->where('segment_id', $segment->id))
                 ->first()
             : null;
 
@@ -262,7 +262,7 @@ class EditionVariantController extends Controller
             $reading = LemmaReading::where('transcription_layer_id', (int) $request->validated('transcription_layer_id'))
                 ->where('start_offset', (int) $request->validated('start_offset'))
                 ->where('end_offset', (int) $request->validated('end_offset'))
-                ->whereHas('lemma', fn ($query) => $query->where('canonical_passage_id', $passage->id))
+                ->whereHas('lemma', fn ($query) => $query->where('segment_id', $segment->id))
                 ->first();
 
             if ($reading !== null) {
@@ -274,7 +274,7 @@ class EditionVariantController extends Controller
         // a base whose words do not divide one-per-column — see
         // baseReadingAt. Snaps the selection to the whole variant site.
         $containing = $base !== null
-            ? $this->baseReadingAt($passage, $base, fn ($query) => $query
+            ? $this->baseReadingAt($segment, $base, fn ($query) => $query
                 ->where('start_offset', '<=', (int) $request->validated('base_start_offset'))
                 ->where('end_offset', '>=', (int) $request->validated('base_end_offset')))
             : null;
@@ -293,37 +293,37 @@ class EditionVariantController extends Controller
      * either end) — never a competing candidate for an existing word, which
      * is exactly what a lacuna needs: it doesn't replace anything.
      */
-    private function resolveInsertedLemma(StoreEditionVariantRequest $request, CanonicalPassage $passage, ?TranscriptionLayer $base): Lemma
+    private function resolveInsertedLemma(StoreEditionVariantRequest $request, Segment $segment, ?TranscriptionLayer $base): Lemma
     {
         $afterLemmaId = $request->validated('insert_after_lemma_id');
         $afterLemma = $afterLemmaId !== null
             ? Lemma::findOrFail((int) $afterLemmaId)
-            : $this->findLemmaEndingAt($passage, $base, $request->validated('insert_after_base_offset'), 'insert_after_base_offset');
+            : $this->findLemmaEndingAt($segment, $base, $request->validated('insert_after_base_offset'), 'insert_after_base_offset');
 
-        $siblings = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->get();
+        $siblings = Lemma::where('segment_id', $segment->id)->orderBy('position')->get();
         $afterPosition = $afterLemma !== null ? (float) $afterLemma->position : 0.0;
         $nextLemma = $siblings->first(fn (Lemma $lemma) => (float) $lemma->position > $afterPosition);
         $beforePosition = $nextLemma !== null ? (float) $nextLemma->position : $afterPosition + 1;
 
         return Lemma::create([
-            'canonical_passage_id' => $passage->id,
+            'segment_id' => $segment->id,
             'position' => $afterPosition + ($beforePosition - $afterPosition) / 2,
         ]);
     }
 
     /**
      * The sole column of a brand-new (or previously touched) whole-line
-     * lacuna passage — one that has no manuscript witness at all, so there's
+     * lacuna segment — one that has no manuscript witness at all, so there's
      * nothing for materialize() to have seeded. firstOrCreate makes a
-     * repeat `new_passage` submission for the same label land on the same
+     * repeat `new_segment` submission for the same label land on the same
      * column instead of minting a second one, so a second lacuna proposal
      * for "80A" becomes a competing reading on this one lemma, exactly like
      * any other conjecture.
      */
-    private function resolveWholePassageLemma(CanonicalPassage $passage): Lemma
+    private function resolveWholeSegmentLemma(Segment $segment): Lemma
     {
         return Lemma::firstOrCreate(
-            ['canonical_passage_id' => $passage->id],
+            ['segment_id' => $segment->id],
             ['position' => 1.0],
         );
     }
@@ -337,24 +337,24 @@ class EditionVariantController extends Controller
      * edges. The ends may name the same lemma (the single-word case), in
      * which case the second element is null — `range_end_lemma_id` only
      * ever carries a value when more than one column is genuinely spanned,
-     * exactly the convention PassageAligner's own automatic detection
+     * exactly the convention SegmentAligner's own automatic detection
      * already uses. Never merges/creates anything on the Lemma side; a
      * genuine range is carried entirely on the new reading's own
      * `range_end_lemma_id`.
      *
      * @return array{0: Lemma, 1: ?Lemma}
      */
-    private function resolveRange(StoreEditionVariantRequest $request, CanonicalPassage $passage, ?TranscriptionLayer $base): array
+    private function resolveRange(StoreEditionVariantRequest $request, Segment $segment, ?TranscriptionLayer $base): array
     {
         $startLemmaId = $request->validated('range_start_lemma_id');
         $startLemma = $startLemmaId !== null
             ? Lemma::findOrFail((int) $startLemmaId)
-            : $this->findLemmaStartingAt($passage, $base, (int) $request->validated('range_start_base_offset'), 'range_start_base_offset');
+            : $this->findLemmaStartingAt($segment, $base, (int) $request->validated('range_start_base_offset'), 'range_start_base_offset');
 
         $endLemmaId = $request->validated('range_end_lemma_id');
         $endLemma = $endLemmaId !== null
             ? Lemma::findOrFail((int) $endLemmaId)
-            : $this->findLemmaEndingAt($passage, $base, (int) $request->validated('range_end_base_offset'), 'range_end_base_offset');
+            : $this->findLemmaEndingAt($segment, $base, (int) $request->validated('range_end_base_offset'), 'range_end_base_offset');
 
         if ($startLemma === null || $endLemma === null || (float) $endLemma->position < (float) $startLemma->position) {
             throw ValidationException::withMessages([
@@ -398,16 +398,16 @@ class EditionVariantController extends Controller
             : $endLemma;
     }
 
-    private function findLemmaEndingAt(CanonicalPassage $passage, ?TranscriptionLayer $base, ?int $baseOffset, string $errorField): ?Lemma
+    private function findLemmaEndingAt(Segment $segment, ?TranscriptionLayer $base, ?int $baseOffset, string $errorField): ?Lemma
     {
         if ($baseOffset === null || $base === null) {
             return null;
         }
 
-        $reading = $this->baseReadingAt($passage, $base, fn ($query) => $query->where('end_offset', $baseOffset))
+        $reading = $this->baseReadingAt($segment, $base, fn ($query) => $query->where('end_offset', $baseOffset))
             // The offset falls *inside* one of the base's own readings — see
             // baseReadingAt. Snap to the column that reading belongs to.
-            ?? $this->baseReadingAt($passage, $base, fn ($query) => $query
+            ?? $this->baseReadingAt($segment, $base, fn ($query) => $query
                 ->where('start_offset', '<', $baseOffset)
                 ->where('end_offset', '>', $baseOffset));
 
@@ -420,14 +420,14 @@ class EditionVariantController extends Controller
         return $reading->lemma;
     }
 
-    private function findLemmaStartingAt(CanonicalPassage $passage, ?TranscriptionLayer $base, ?int $baseOffset, string $errorField): ?Lemma
+    private function findLemmaStartingAt(Segment $segment, ?TranscriptionLayer $base, ?int $baseOffset, string $errorField): ?Lemma
     {
         if ($baseOffset === null || $base === null) {
             return null;
         }
 
-        $reading = $this->baseReadingAt($passage, $base, fn ($query) => $query->where('start_offset', $baseOffset))
-            ?? $this->baseReadingAt($passage, $base, fn ($query) => $query
+        $reading = $this->baseReadingAt($segment, $base, fn ($query) => $query->where('start_offset', $baseOffset))
+            ?? $this->baseReadingAt($segment, $base, fn ($query) => $query
                 ->where('start_offset', '<', $baseOffset)
                 ->where('end_offset', '>', $baseOffset));
 
@@ -441,11 +441,11 @@ class EditionVariantController extends Controller
     }
 
     /**
-     * One of the base transcription's own readings on this passage, matched
+     * One of the base transcription's own readings on this segment, matched
      * by whatever offset condition is given.
      *
      * The callers try an exact boundary match first and fall back to
-     * containment, because a base that did not itself build this passage's
+     * containment, because a base that did not itself build this segment's
      * columns does not have one word per column: aligned into columns some
      * other witness's wording set, its readings can span several, and an
      * editor selecting one word inside such a span has no exact boundary to
@@ -458,14 +458,14 @@ class EditionVariantController extends Controller
      *
      * @param  callable(Builder<LemmaReading>): Builder<LemmaReading>  $offsets
      */
-    private function baseReadingAt(CanonicalPassage $passage, TranscriptionLayer $base, callable $offsets): ?LemmaReading
+    private function baseReadingAt(Segment $segment, TranscriptionLayer $base, callable $offsets): ?LemmaReading
     {
         return $offsets(
             LemmaReading::where('transcription_layer_id', $base->id)
                 // An omission reading sits at exactly the boundary of a
                 // neighbouring word — never the word an editor selected.
                 ->where('omitted', false)
-                ->whereHas('lemma', fn ($query) => $query->where('canonical_passage_id', $passage->id))
+                ->whereHas('lemma', fn ($query) => $query->where('segment_id', $segment->id))
         )->first();
     }
 
@@ -480,14 +480,14 @@ class EditionVariantController extends Controller
      * row is a cheap, re-derivable pointer, not scholarly data; nothing it
      * points at is ever touched.
      */
-    private function clearOverlappingSelections(Edition $edition, CanonicalPassage $passage, Lemma $rangeStart, Lemma $rangeEnd): void
+    private function clearOverlappingSelections(Edition $edition, Segment $segment, Lemma $rangeStart, Lemma $rangeEnd): void
     {
         $startPosition = (float) $rangeStart->position;
         $endPosition = (float) $rangeEnd->position;
 
         EditionLemma::where('edition_id', $edition->id)
             ->where('lemma_id', '!=', $rangeStart->id)
-            ->whereHas('lemma', fn ($query) => $query->where('canonical_passage_id', $passage->id))
+            ->whereHas('lemma', fn ($query) => $query->where('segment_id', $segment->id))
             ->with(['lemma:id,position', 'selectedReading:id,range_end_lemma_id', 'selectedReading.rangeEndLemma:id,position'])
             ->get()
             ->each(function (EditionLemma $selection) use ($startPosition, $endPosition): void {

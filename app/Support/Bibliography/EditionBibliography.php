@@ -5,13 +5,13 @@ namespace App\Support\Bibliography;
 use App\Models\BibliographyReference;
 use App\Models\Conjecture;
 use App\Models\Edition;
-use App\Models\EditionPassage;
+use App\Models\EditionSegment;
 use Illuminate\Support\Collection;
 
 /**
- * What one edition cites: the items its passages reference, and those
+ * What one edition cites: the items its segments reference, and those
  * referenced by any conjecture placed (as a reading) on one of its
- * passages — the literature its apparatus draws on. The bibliography at
+ * segments — the literature its apparatus draws on. The bibliography at
  * the foot of the edition page and the edition's own .bib export both read
  * this.
  */
@@ -22,10 +22,10 @@ class EditionBibliography
      */
     public static function itemIds(Edition $edition): Collection
     {
-        $passageIds = EditionPassage::where('edition_id', $edition->id)->pluck('canonical_passage_id');
+        $segmentIds = EditionSegment::where('edition_id', $edition->id)->pluck('segment_id');
 
         $conjectureIds = Conjecture::query()
-            ->whereHas('lemmaReadings.lemma', fn ($query) => $query->whereIn('canonical_passage_id', $passageIds))
+            ->whereHas('lemmaReadings.lemma', fn ($query) => $query->whereIn('segment_id', $segmentIds))
             ->pluck('id');
 
         return BibliographyReference::query()

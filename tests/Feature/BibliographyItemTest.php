@@ -2,9 +2,9 @@
 
 use App\Models\BibliographyItem;
 use App\Models\BibliographyReference;
-use App\Models\CanonicalPassage;
 use App\Models\Edition;
-use App\Models\EditionPassage;
+use App\Models\EditionSegment;
+use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Models\User;
 use Inertia\Testing\AssertableInertia as AssertInertia;
@@ -162,12 +162,12 @@ test('any member adds to the bibliography, but may only change what nobody else 
 
     // Cited only by her own edition: hers, whoever added it.
     $ownEdition = Edition::factory()->for($member)->create();
-    BibliographyReference::factory()->create(['bibliography_item_id' => $theirs->id, 'edition_id' => $ownEdition->id, 'canonical_passage_id' => CanonicalPassage::factory()->for($ownEdition->work)->create()->id, 'conjecture_id' => null]);
+    BibliographyReference::factory()->create(['bibliography_item_id' => $theirs->id, 'edition_id' => $ownEdition->id, 'segment_id' => Segment::factory()->for($ownEdition->work)->create()->id, 'conjecture_id' => null]);
     $this->patch(route('bibliography.update', $theirs), ['entry_type' => 'book', 'fields' => ['title' => 'Now cited by me']])->assertRedirect();
 
     // Also cited by another's edition: no longer only hers.
     $other = Edition::factory()->create();
-    BibliographyReference::factory()->create(['bibliography_item_id' => $theirs->id, 'edition_id' => $other->id, 'canonical_passage_id' => CanonicalPassage::factory()->for($other->work)->create()->id, 'conjecture_id' => null]);
+    BibliographyReference::factory()->create(['bibliography_item_id' => $theirs->id, 'edition_id' => $other->id, 'segment_id' => Segment::factory()->for($other->work)->create()->id, 'conjecture_id' => null]);
     $this->patch(route('bibliography.update', $theirs), ['entry_type' => 'book', 'fields' => ['title' => 'X']])->assertForbidden();
 
     // An editor may change any item.
@@ -240,9 +240,9 @@ test('an edition exports only the items it cites', function () {
     $cited = BibliographyItem::factory()->create(['citation_key' => 'cited1900']);
     BibliographyItem::factory()->create(['citation_key' => 'uncited1900']);
     $edition = Edition::factory()->create();
-    $passage = CanonicalPassage::factory()->for($edition->work)->create();
-    EditionPassage::factory()->create(['edition_id' => $edition->id, 'canonical_passage_id' => $passage->id, 'transcription_layer_id' => TranscriptionLayer::factory()->create()->id]);
-    BibliographyReference::factory()->for($cited, 'item')->onPassage($edition, $passage)->create();
+    $segment = Segment::factory()->for($edition->work)->create();
+    EditionSegment::factory()->create(['edition_id' => $edition->id, 'segment_id' => $segment->id, 'transcription_layer_id' => TranscriptionLayer::factory()->create()->id]);
+    BibliographyReference::factory()->for($cited, 'item')->onSegment($edition, $segment)->create();
 
     $response = $this->get(route('editions.bibliography.export', $edition));
 

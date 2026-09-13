@@ -12,7 +12,7 @@ use Illuminate\Support\Collection;
  *
  * - Cutting PART of an assigned span and pasting it elsewhere is a sub-assignment
  *   transposition: the fragment still reads as text of its original
- *   passage, so it becomes another *part* of that passage (see
+ *   segment, so it becomes another *part* of that segment (see
  *   Assignment::$part) — a new span at the paste site carrying
  *   the source's assignment. The source keeps its assignment on what remains,
  *   unflagged: nothing about the trim needs review once the fragment is
@@ -20,13 +20,13 @@ use Illuminate\Support\Collection;
  *
  * - Pasting INTO the middle of another assigned span must not absorb the
  *   arrival into that assignment: the target splits into two parts of its own
- *   passage, one on each side of the inserted text.
+ *   segment, one on each side of the inserted text.
  *
  * This runs server-side only. The live preview shows the plain transform
  * until the autosave round-trip returns the created rows — a brief,
  * self-correcting divergence.
  *
- * @phpstan-type Effects array{overrides: array<int, array{start: int, end: int, needsReview: bool}>, unflag: list<int>, creates: list<array{canonical_passage_id: int, start: int, end: int, anchor_index: int, placement: 'before'|'after'}>}
+ * @phpstan-type Effects array{overrides: array<int, array{start: int, end: int, needsReview: bool}>, unflag: list<int>, creates: list<array{segment_id: int, start: int, end: int, anchor_index: int, placement: 'before'|'after'}>}
  */
 class RelocationAssignmentEffects
 {
@@ -94,7 +94,7 @@ class RelocationAssignmentEffects
 
                 if (! $fragment['deleted'] && $fragment['end'] > $fragment['start']) {
                     $creates[] = [
-                        'canonical_passage_id' => (int) $assignment->canonical_passage_id,
+                        'segment_id' => (int) $assignment->segment_id,
                         'start' => $fragment['start'],
                         'end' => $fragment['end'],
                         'anchor_index' => $index,
@@ -113,7 +113,7 @@ class RelocationAssignmentEffects
                 }
             }
 
-            // Split any assignment the paste lands strictly inside: its passage
+            // Split any assignment the paste lands strictly inside: its segment
             // keeps assigning both sides, never absorbing the arrival.
             foreach ($assignments as $index => $assignment) {
                 $stateAtPaste = $atPaste[$index];
@@ -157,7 +157,7 @@ class RelocationAssignmentEffects
 
                 if (! $right['deleted'] && $right['end'] > $right['start']) {
                     $creates[] = [
-                        'canonical_passage_id' => (int) $assignment->canonical_passage_id,
+                        'segment_id' => (int) $assignment->segment_id,
                         'start' => $right['start'],
                         'end' => $right['end'],
                         'anchor_index' => $index,

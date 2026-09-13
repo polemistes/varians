@@ -2,19 +2,19 @@
 import { computed, ref, watch } from 'vue';
 import type { ReferenceLevel } from '@/types/models';
 
-type PassageOption = {
+type SegmentOption = {
     id: number;
     address: Record<string, string | number>;
 };
 
 type TreeNode = {
     value: string | number;
-    passageId: number | null;
+    segmentId: number | null;
     children: TreeNode[];
 };
 
 const props = defineProps<{
-    passages: PassageOption[];
+    segments: SegmentOption[];
     levels: ReferenceLevel[];
     modelValue: number | null;
 }>();
@@ -23,22 +23,22 @@ const emit = defineEmits<{
     (e: 'update:modelValue', value: number | null): void;
 }>();
 
-// A passage is always fully qualified (every level present) — there's no
+// A segment is always fully qualified (every level present) — there's no
 // separate "book-only" assignment — so the picker's hierarchy is derived by
-// grouping the flat passage list, not fetched from anywhere new.
+// grouping the flat segment list, not fetched from anywhere new.
 const tree = computed<TreeNode[]>(() => {
     const root: TreeNode[] = [];
 
-    for (const passage of props.passages) {
+    for (const segment of props.segments) {
         let siblings = root;
         let node: TreeNode | undefined;
 
         for (const level of props.levels) {
-            const value = passage.address[level.key];
+            const value = segment.address[level.key];
             node = siblings.find((candidate) => candidate.value === value);
 
             if (!node) {
-                node = { value, passageId: null, children: [] };
+                node = { value, segmentId: null, children: [] };
                 siblings.push(node);
             }
 
@@ -46,7 +46,7 @@ const tree = computed<TreeNode[]>(() => {
         }
 
         if (node) {
-            node.passageId = passage.id;
+            node.segmentId = segment.id;
         }
     }
 
@@ -93,7 +93,7 @@ function selectAt(levelIndex: number, raw: string) {
     }
 }
 
-const resolvedPassageId = computed<number | null>(() => {
+const resolvedSegmentId = computed<number | null>(() => {
     let nodes = tree.value;
     let node: TreeNode | undefined;
 
@@ -111,18 +111,18 @@ const resolvedPassageId = computed<number | null>(() => {
         nodes = node.children;
     }
 
-    return node?.passageId ?? null;
+    return node?.segmentId ?? null;
 });
 
-watch(resolvedPassageId, (value) => emit('update:modelValue', value));
+watch(resolvedSegmentId, (value) => emit('update:modelValue', value));
 
-/** The dropdown values that name a passage: its address, level by level. */
-function selectionsFor(passageId: number): (string | number | null)[] {
-    const passage = props.passages.find(
-        (candidate) => candidate.id === passageId,
+/** The dropdown values that name a segment: its address, level by level. */
+function selectionsFor(segmentId: number): (string | number | null)[] {
+    const segment = props.segments.find(
+        (candidate) => candidate.id === segmentId,
     );
 
-    return props.levels.map((level) => passage?.address[level.key] ?? null);
+    return props.levels.map((level) => segment?.address[level.key] ?? null);
 }
 
 // A model set from outside — a conjecture opened for editing, say —
@@ -133,7 +133,7 @@ watch(
     (value) => {
         if (value === null) {
             selections.value = props.levels.map(() => null);
-        } else if (value !== resolvedPassageId.value) {
+        } else if (value !== resolvedSegmentId.value) {
             selections.value = selectionsFor(value);
         }
     },

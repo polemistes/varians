@@ -3,7 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Edition;
-use App\Models\EditionPassage;
+use App\Models\EditionSegment;
 use App\Support\Bibliography\ReferenceRules;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -26,8 +26,8 @@ class StoreConjectureOrderingRequest extends FormRequest
 
     /**
      * Authors a brand-new ConjectureType::Reordering proposing
-     * `canonical_passage_ids` be read in exactly the given order — every id
-     * must already be an EditionPassage of this edition, with no
+     * `segment_ids` be read in exactly the given order — every id
+     * must already be an EditionSegment of this edition, with no
      * duplicates, and together they must form one contiguous range of the
      * NUMBERING order, nothing left out (see withValidator). A reordering
      * proposal is a statement about a stretch of the work ("lines 6–7"),
@@ -36,9 +36,9 @@ class StoreConjectureOrderingRequest extends FormRequest
      * scattered the stretch. The conjecture itself is edition-independent,
      * exactly like every other Conjecture.
      *
-     * Either `canonical_passage_ids` (whole passages, the order panel's
+     * Either `segment_ids` (whole segments, the order panel's
      * form) or `pieces` (the edition text's cut and paste, which may divide
-     * a passage into parts, which the edition then prints in pieces when
+     * a segment into parts, which the edition then prints in pieces when
      * it adopts the arrangement — see ArrangementAdopter).
      *
      * @return array<string, ValidationRule|array<mixed>|string>
@@ -49,12 +49,12 @@ class StoreConjectureOrderingRequest extends FormRequest
         $edition = $this->route('edition');
 
         return [
-            'canonical_passage_ids' => ['required_without:pieces', 'array', 'min:2'],
-            'canonical_passage_ids.*' => ['distinct', 'integer', Rule::exists('edition_passages', 'canonical_passage_id')->where('edition_id', $edition->id)],
+            'segment_ids' => ['required_without:pieces', 'array', 'min:2'],
+            'segment_ids.*' => ['distinct', 'integer', Rule::exists('edition_segments', 'segment_id')->where('edition_id', $edition->id)],
             // The edition page's cut-and-paste form: pieces in proposed
-            // order, a passage possibly divided (see ConjectureOrderingEntry).
-            'pieces' => ['required_without:canonical_passage_ids', 'array', 'min:2'],
-            'pieces.*.canonical_passage_id' => ['required', 'integer', Rule::exists('edition_passages', 'canonical_passage_id')->where('edition_id', $edition->id)],
+            // order, a segment possibly divided (see ConjectureOrderingEntry).
+            'pieces' => ['required_without:segment_ids', 'array', 'min:2'],
+            'pieces.*.segment_id' => ['required', 'integer', Rule::exists('edition_segments', 'segment_id')->where('edition_id', $edition->id)],
             'pieces.*.part' => ['required', 'integer', 'min:1'],
             'pieces.*.text' => ['nullable', 'string'],
             'proposed_by' => ['nullable', 'string', 'max:255'],
@@ -70,7 +70,7 @@ class StoreConjectureOrderingRequest extends FormRequest
         $validator->after(function (Validator $validator) {
             /** @var Edition $edition */
             $edition = $this->route('edition');
-            $ids = $this->passageIds();
+            $ids = $this->segmentIds();
 
             if ($ids === []) {
                 return;
@@ -78,35 +78,35 @@ class StoreConjectureOrderingRequest extends FormRequest
 
             $this->validatePieces($validator);
 
-            $passages = EditionPassage::where('edition_id', $edition->id)
-                ->whereIn('canonical_passage_id', $ids)
-                ->with('canonicalPassage:id,sort_key')
+            $segments = EditionSegment::where('edition_id', $edition->id)
+                ->whereIn('segment_id', $ids)
+                ->with('segment:id,sort_key')
                 ->get();
 
-            if ($passages->count() !== count($ids)) {
+            if ($segments->count() !== count($ids)) {
                 return; // already reported by the per-item exists rule
             }
 
-            $sortKeys = $passages->map(fn (EditionPassage $passage) => $passage->canonicalPassage->sort_key);
+            $sortKeys = $segments->map(fn (EditionSegment $segment) => $segment->segment->sort_key);
 
-            $spanCount = EditionPassage::where('edition_id', $edition->id)
-                ->whereHas('canonicalPassage', fn ($query) => $query
+            $spanCount = EditionSegment::where('edition_id', $edition->id)
+                ->whereHas('segment', fn ($query) => $query
                     ->where('sort_key', '>=', $sortKeys->min())
                     ->where('sort_key', '<=', $sortKeys->max()))
                 ->count();
 
             if ($spanCount !== count($ids)) {
-                $validator->errors()->add($this->has('pieces') ? 'pieces' : 'canonical_passage_ids', 'These segments must form one contiguous range of the numbering order, with nothing left out.');
+                $validator->errors()->add($this->has('pieces') ? 'pieces' : 'segment_ids', 'These segments must form one contiguous range of the numbering order, with nothing left out.');
             }
         });
     }
 
     /**
-     * The passages proposed, each once, in proposed order.
+     * The segments proposed, each once, in proposed order.
      *
      * @return list<int>
      */
-    public function passageIds(): array
+    public function segmentIds(): array
     {
         $pieces = $this->input('pieces');
 
@@ -114,23 +114,23 @@ class StoreConjectureOrderingRequest extends FormRequest
             $ids = [];
 
             foreach ($pieces as $piece) {
-                if (is_array($piece) && is_numeric($piece['canonical_passage_id'] ?? null)) {
-                    $ids[] = (int) $piece['canonical_passage_id'];
+                if (is_array($piece) && is_numeric($piece['segment_id'] ?? null)) {
+                    $ids[] = (int) $piece['segment_id'];
                 }
             }
 
             return array_values(array_unique($ids));
         }
 
-        $ids = $this->input('canonical_passage_ids');
+        $ids = $this->input('segment_ids');
 
         return is_array($ids) ? array_values(array_map('intval', $ids)) : [];
     }
 
     /**
-     * Whether any passage is divided into parts.
+     * Whether any segment is divided into parts.
      */
-    public function dividesPassages(): bool
+    public function dividesSegments(): bool
     {
         $pieces = $this->input('pieces');
 
@@ -141,7 +141,7 @@ class StoreConjectureOrderingRequest extends FormRequest
         $counts = [];
 
         foreach ($pieces as $piece) {
-            $id = is_array($piece) ? ($piece['canonical_passage_id'] ?? null) : null;
+            $id = is_array($piece) ? ($piece['segment_id'] ?? null) : null;
             $counts[$id] = ($counts[$id] ?? 0) + 1;
         }
 
@@ -149,7 +149,7 @@ class StoreConjectureOrderingRequest extends FormRequest
     }
 
     /**
-     * A divided passage must be complete — parts 1..n each exactly once,
+     * A divided segment must be complete — parts 1..n each exactly once,
      * each with its words.
      */
     private function validatePieces(Validator $validator): void
@@ -167,19 +167,19 @@ class StoreConjectureOrderingRequest extends FormRequest
                 continue;
             }
 
-            $parts[$piece['canonical_passage_id'] ?? 0][] = (int) ($piece['part'] ?? 0);
+            $parts[$piece['segment_id'] ?? 0][] = (int) ($piece['part'] ?? 0);
 
-            if (($piece['part'] ?? 1) > 1 || count($parts[$piece['canonical_passage_id'] ?? 0]) > 1) {
+            if (($piece['part'] ?? 1) > 1 || count($parts[$piece['segment_id'] ?? 0]) > 1) {
                 if (trim((string) ($piece['text'] ?? '')) === '') {
                     $validator->errors()->add('pieces', 'Each part of a divided segment needs its words.');
                 }
             }
         }
 
-        foreach ($parts as $passageParts) {
-            sort($passageParts);
+        foreach ($parts as $segmentParts) {
+            sort($segmentParts);
 
-            if ($passageParts !== range(1, count($passageParts))) {
+            if ($segmentParts !== range(1, count($segmentParts))) {
                 $validator->errors()->add('pieces', 'A divided segment must be complete: every part once, in order.');
 
                 return;

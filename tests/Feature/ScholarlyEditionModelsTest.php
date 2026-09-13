@@ -1,23 +1,23 @@
 <?php
 
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
 use App\Models\ManuscriptImage;
 use App\Models\ManuscriptPage;
 use App\Models\ReferenceScheme;
+use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
 use Illuminate\Database\QueryException;
 
-test('a work belongs to a reference scheme and has canonical passages', function () {
+test('a work belongs to a reference scheme and has segments', function () {
     $scheme = ReferenceScheme::factory()->create();
     $work = Work::factory()->for($scheme, 'referenceScheme')->create();
-    $passage = CanonicalPassage::factory()->for($work)->create();
+    $segment = Segment::factory()->for($work)->create();
 
     expect($work->referenceScheme->is($scheme))->toBeTrue()
-        ->and($work->canonicalPassages->first()->is($passage))->toBeTrue();
+        ->and($work->segments->first()->is($segment))->toBeTrue();
 });
 
 test('a witness has ordered images', function () {
@@ -34,13 +34,13 @@ test('a witness has ordered images', function () {
         ->toBe(['1v', '2r']);
 });
 
-test('transcription assignment order can diverge from canonical passage order', function () {
+test('transcription assignment order can diverge from segment order', function () {
     $work = Work::factory()->create();
     $witness = Witness::factory()->create();
 
-    $line976 = CanonicalPassage::factory()->for($work)->create(['address' => ['line' => 976], 'sort_key' => '00000976', 'label' => '976']);
-    $line1000 = CanonicalPassage::factory()->for($work)->create(['address' => ['line' => 1000], 'sort_key' => '00001000', 'label' => '1000']);
-    $line977 = CanonicalPassage::factory()->for($work)->create(['address' => ['line' => 977], 'sort_key' => '00000977', 'label' => '977']);
+    $line976 = Segment::factory()->for($work)->create(['address' => ['line' => 976], 'sort_key' => '00000976', 'label' => '976']);
+    $line1000 = Segment::factory()->for($work)->create(['address' => ['line' => 1000], 'sort_key' => '00001000', 'label' => '1000']);
+    $line977 = Segment::factory()->for($work)->create(['address' => ['line' => 977], 'sort_key' => '00000977', 'label' => '977']);
 
     // In this witness, line 1000 physically appears between 976 and 977.
     $lines = ['nine seven six', 'one thousand', 'nine seven seven'];
@@ -51,10 +51,10 @@ test('transcription assignment order can diverge from canonical passage order', 
 
     $offset = 0;
 
-    foreach ([$line976, $line1000, $line977] as $index => $passage) {
+    foreach ([$line976, $line1000, $line977] as $index => $segment) {
         $length = mb_strlen($lines[$index]);
 
-        Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create([
+        Assignment::factory()->for($transcription)->for($segment, 'segment')->create([
             'start_offset' => $offset,
             'end_offset' => $offset + $length,
         ]);
@@ -62,11 +62,11 @@ test('transcription assignment order can diverge from canonical passage order', 
         $offset += $length + 1;
     }
 
-    $physicalOrder = $transcription->assignments()->orderBy('start_offset')->with('canonicalPassage')->get()
-        ->map(fn (Assignment $assignment) => $assignment->canonicalPassage->label)
+    $physicalOrder = $transcription->assignments()->orderBy('start_offset')->with('segment')->get()
+        ->map(fn (Assignment $assignment) => $assignment->segment->label)
         ->all();
 
-    $numberingOrder = $work->canonicalPassages()->orderBy('sort_key')->pluck('label')->all();
+    $numberingOrder = $work->segments()->orderBy('sort_key')->pluck('label')->all();
 
     expect($physicalOrder)->toBe(['976', '1000', '977'])
         ->and($numberingOrder)->toBe(['976', '977', '1000']);
@@ -80,20 +80,20 @@ test('a transcription layer can be copied', function () {
         ->and($original->copies->first()->is($fork))->toBeTrue();
 });
 
-test('a transcription can have two separate spans assigning text to the same canonical passage', function () {
-    // e.g. a passage quoted twice, or split across a marginal interruption —
-    // assignments are independent offset spans, not one-per-passage slots.
+test('a transcription can have two separate spans assigning text to the same segment', function () {
+    // e.g. a segment quoted twice, or split across a marginal interruption —
+    // assignments are independent offset spans, not one-per-segment slots.
     $transcription = TranscriptionLayer::factory()->create();
-    $passage = CanonicalPassage::factory()->create();
+    $segment = Segment::factory()->create();
 
-    Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($transcription)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 5]);
-    Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($transcription)->for($segment, 'segment')
         ->create(['start_offset' => 10, 'end_offset' => 15]);
 
-    expect($transcription->assignments()->where('canonical_passage_id', $passage->id)->count())->toBe(2);
+    expect($transcription->assignments()->where('segment_id', $segment->id)->count())->toBe(2);
 });
 
-test('an assignment always requires a canonical passage', function () {
-    Assignment::factory()->create(['canonical_passage_id' => null]);
+test('an assignment always requires a segment', function () {
+    Assignment::factory()->create(['segment_id' => null]);
 })->throws(QueryException::class);

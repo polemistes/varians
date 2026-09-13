@@ -111,7 +111,7 @@ class TranscriptionController extends Controller
     {
         $edition = Edition::query()
             ->where('visibility', Visibility::Published)
-            ->whereHas('work.canonicalPassages.assignments.transcriptionLayer', fn (Builder $layers) => $layers->where('transcription_id', $transcription->id))
+            ->whereHas('work.segments.assignments.transcriptionLayer', fn (Builder $layers) => $layers->where('transcription_id', $transcription->id))
             ->first();
 
         if ($edition !== null) {
@@ -140,7 +140,7 @@ class TranscriptionController extends Controller
         /** @var Witness $witness */
         $witness = $transcription->witness;
 
-        // Deleting a transcript cascades the passages and chosen readings
+        // Deleting a transcript cascades the segments and chosen readings
         // of every edition standing on it — including editions that are
         // not this member's to gut. Hers, she may destroy.
         $layerIds = $transcription->transcription->layers()->pluck('id')->all();

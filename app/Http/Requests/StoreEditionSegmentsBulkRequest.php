@@ -4,14 +4,14 @@ namespace App\Http\Requests;
 
 use App\Enums\Layer;
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
+use App\Models\Segment;
 use App\Models\Edition;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
-class StoreEditionPassagesBulkRequest extends FormRequest
+class StoreEditionSegmentsBulkRequest extends FormRequest
 {
     /**
      * The policy decides — see App\Policies. Checked before validation, so
@@ -29,10 +29,10 @@ class StoreEditionPassagesBulkRequest extends FormRequest
      * Get the validation rules that apply to the request.
      *
      * "Add lines…" — the bulk add. Both endpoints are
-     * picked from the work's own passage list (a hierarchical dropdown, not
-     * free text), so they're always real, existing passages of this
+     * picked from the work's own segment list (a hierarchical dropdown, not
+     * free text), so they're always real, existing segments of this
      * edition's work. Unlike the old EditionBase range, no overlap check:
-     * PassageAdder's own "already added" guard is the only conflict
+     * SegmentAdder's own "already added" guard is the only conflict
      * resolution needed, so a second bulk add over the same (or an
      * overlapping) assignment range from a different transcription simply
      * no-ops on whatever the first one already claimed.
@@ -48,8 +48,8 @@ class StoreEditionPassagesBulkRequest extends FormRequest
             // Only the normalized layer collates and only it may be a base —
             // see App\Enums\Layer.
             'transcription_layer_id' => ['required', Rule::exists('transcription_layers', 'id')->where('layer', Layer::Normalized->value)],
-            'from_canonical_passage_id' => ['required', Rule::exists('canonical_passages', 'id')->where('work_id', $edition->work_id)],
-            'to_canonical_passage_id' => ['required', Rule::exists('canonical_passages', 'id')->where('work_id', $edition->work_id)],
+            'from_segment_id' => ['required', Rule::exists('segments', 'id')->where('work_id', $edition->work_id)],
+            'to_segment_id' => ['required', Rule::exists('segments', 'id')->where('work_id', $edition->work_id)],
         ];
     }
 
@@ -63,7 +63,7 @@ class StoreEditionPassagesBulkRequest extends FormRequest
 
             if (is_numeric($transcriptionId)) {
                 $belongsToWork = Assignment::where('transcription_layer_id', (int) $transcriptionId)
-                    ->whereHas('canonicalPassage', fn ($query) => $query->where('work_id', $edition->work_id))
+                    ->whereHas('segment', fn ($query) => $query->where('work_id', $edition->work_id))
                     ->exists();
 
                 if (! $belongsToWork) {
@@ -71,18 +71,18 @@ class StoreEditionPassagesBulkRequest extends FormRequest
                 }
             }
 
-            $fromId = $this->input('from_canonical_passage_id');
-            $toId = $this->input('to_canonical_passage_id');
+            $fromId = $this->input('from_segment_id');
+            $toId = $this->input('to_segment_id');
 
             if (! is_numeric($fromId) || ! is_numeric($toId)) {
                 return;
             }
 
-            $from = CanonicalPassage::find((int) $fromId);
-            $to = CanonicalPassage::find((int) $toId);
+            $from = Segment::find((int) $fromId);
+            $to = Segment::find((int) $toId);
 
             if ($from !== null && $to !== null && $from->sort_key > $to->sort_key) {
-                $validator->errors()->add('to_canonical_passage_id', 'The range must end at or after where it starts.');
+                $validator->errors()->add('to_segment_id', 'The range must end at or after where it starts.');
             }
         });
     }

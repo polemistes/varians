@@ -2,35 +2,35 @@
 
 use App\Enums\Layer;
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
+use App\Models\Segment;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
-use App\Support\Edition\PassageAdder;
+use App\Support\Edition\SegmentAdder;
 
-/** Assign a passage from a transcription at the given span. */
-function assignLayer(TranscriptionLayer $transcription, CanonicalPassage $passage, string $text): Assignment
+/** Assign a segment from a transcription at the given span. */
+function assignLayer(TranscriptionLayer $transcription, Segment $segment, string $text): Assignment
 {
-    return Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    return Assignment::factory()->for($transcription)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => mb_strlen($text)]);
 }
 
-test('a diplomatic transcription assigning text to the passage is not collated', function () {
+test('a diplomatic transcription assigning text to the segment is not collated', function () {
     $work = Work::factory()->create();
-    $passage = CanonicalPassage::factory()->for($work)->create();
+    $segment = Segment::factory()->for($work)->create();
     $edition = Edition::factory()->for($work)->create();
 
     $normalized = TranscriptionLayer::factory()->normalized()->create(['text' => 'the quick fox']);
     $diplomatic = TranscriptionLayer::factory()->diplomatic()->create(['text' => 'THE QVICK FOX']);
-    $assignment = assignLayer($normalized, $passage, 'the quick fox');
-    assignLayer($diplomatic, $passage, 'THE QVICK FOX');
+    $assignment = assignLayer($normalized, $segment, 'the quick fox');
+    assignLayer($diplomatic, $segment, 'THE QVICK FOX');
 
-    PassageAdder::add($edition, $assignment, 1.0);
+    SegmentAdder::add($edition, $assignment, 1.0);
 
     expect(LemmaReading::where('transcription_layer_id', $diplomatic->id)->exists())->toBeFalse()
         ->and(LemmaReading::where('transcription_layer_id', $normalized->id)->count())->toBe(3);
@@ -41,7 +41,7 @@ test('both layers of one witness collate as one witness, not two', function () {
     // verbatim, so without the layer filter a manuscript would appear in its
     // own apparatus disagreeing with itself over its own orthography.
     $work = Work::factory()->create();
-    $passage = CanonicalPassage::factory()->for($work)->create();
+    $segment = Segment::factory()->for($work)->create();
     $edition = Edition::factory()->for($work)->create();
     $witness = Witness::factory()->create();
 
@@ -49,12 +49,12 @@ test('both layers of one witness collate as one witness, not two', function () {
     $normalized = TranscriptionLayer::factory()->normalized()->for($witness)
         ->create(['text' => 'τοσοῦτοι μὲν οὖν', 'copied_from_id' => $diplomatic->id]);
 
-    assignLayer($diplomatic, $passage, 'τοσουτοι μεν ουν');
-    $assignment = assignLayer($normalized, $passage, 'τοσοῦτοι μὲν οὖν');
+    assignLayer($diplomatic, $segment, 'τοσουτοι μεν ουν');
+    $assignment = assignLayer($normalized, $segment, 'τοσοῦτοι μὲν οὖν');
 
-    PassageAdder::add($edition, $assignment, 1.0);
+    SegmentAdder::add($edition, $assignment, 1.0);
 
-    $lemmas = Lemma::where('canonical_passage_id', $passage->id)->with('readings')->get();
+    $lemmas = Lemma::where('segment_id', $segment->id)->with('readings')->get();
 
     expect($lemmas)->toHaveCount(3);
 
@@ -66,13 +66,13 @@ test('both layers of one witness collate as one witness, not two', function () {
 test('an edition base must be a normalized transcription', function () {
     $this->actingAs(User::factory()->editor()->create());
     $work = Work::factory()->create();
-    $passage = CanonicalPassage::factory()->for($work)->create();
+    $segment = Segment::factory()->for($work)->create();
     $edition = Edition::factory()->for($work)->create();
 
     $diplomatic = TranscriptionLayer::factory()->diplomatic()->create(['text' => 'the quick fox']);
-    assignLayer($diplomatic, $passage, 'the quick fox');
+    assignLayer($diplomatic, $segment, 'the quick fox');
 
-    $this->post(route('edition-passages.store', $edition), [
+    $this->post(route('edition-segments.store', $edition), [
         'transcription_layer_id' => $diplomatic->id,
         'start_offset' => 0,
         'end_offset' => 13,
@@ -82,29 +82,29 @@ test('an edition base must be a normalized transcription', function () {
 test('a bulk range add rejects a diplomatic transcription', function () {
     $this->actingAs(User::factory()->editor()->create());
     $work = Work::factory()->create();
-    $passage = CanonicalPassage::factory()->for($work)->create();
+    $segment = Segment::factory()->for($work)->create();
     $edition = Edition::factory()->for($work)->create();
 
     $diplomatic = TranscriptionLayer::factory()->diplomatic()->create(['text' => 'the quick fox']);
-    assignLayer($diplomatic, $passage, 'the quick fox');
+    assignLayer($diplomatic, $segment, 'the quick fox');
 
-    $this->post(route('edition-passages.store-bulk', $edition), [
+    $this->post(route('edition-segments.store-bulk', $edition), [
         'transcription_layer_id' => $diplomatic->id,
-        'from_canonical_passage_id' => $passage->id,
-        'to_canonical_passage_id' => $passage->id,
+        'from_segment_id' => $segment->id,
+        'to_segment_id' => $segment->id,
     ])->assertInvalid(['transcription_layer_id']);
 });
 
 test('the add-text panel only offers collatable transcriptions', function () {
     $this->actingAs(User::factory()->editor()->create());
     $work = Work::factory()->create();
-    $passage = CanonicalPassage::factory()->for($work)->create();
+    $segment = Segment::factory()->for($work)->create();
     $edition = Edition::factory()->for($work)->create();
 
     $normalized = TranscriptionLayer::factory()->normalized()->create(['text' => 'the quick fox']);
     $diplomatic = TranscriptionLayer::factory()->diplomatic()->create(['text' => 'THE QVICK FOX']);
-    assignLayer($normalized, $passage, 'the quick fox');
-    assignLayer($diplomatic, $passage, 'THE QVICK FOX');
+    assignLayer($normalized, $segment, 'the quick fox');
+    assignLayer($diplomatic, $segment, 'THE QVICK FOX');
 
     $this->get(route('editions.show', [$work, $edition]))
         ->assertOk()
@@ -116,7 +116,7 @@ test('the add-text panel only offers collatable transcriptions', function () {
 test('the add-text panel names each transcript by its witness and its own name', function () {
     $this->actingAs(User::factory()->editor()->create());
     $work = Work::factory()->create();
-    $passage = CanonicalPassage::factory()->for($work)->create();
+    $segment = Segment::factory()->for($work)->create();
     $edition = Edition::factory()->for($work)->create();
 
     $witness = Witness::factory()->create(['siglum' => 'R', 'label' => 'Ravennas 429']);
@@ -125,7 +125,7 @@ test('the add-text panel names each transcript by its witness and its own name',
         'visibility' => 'published',
     ]);
     $normalized = TranscriptionLayer::factory()->normalized()->for($transcription)->create(['text' => 'the quick fox']);
-    assignLayer($normalized, $passage, 'the quick fox');
+    assignLayer($normalized, $segment, 'the quick fox');
 
     $this->get(route('editions.show', [$work, $edition]))
         ->assertOk()

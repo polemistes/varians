@@ -1,18 +1,18 @@
 <?php
 
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
+use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
-use App\Support\Edition\PassageAdder;
+use App\Support\Edition\SegmentAdder;
 
 /**
- * Collate one passage from the given witnesses and return both the columns
+ * Collate one segment from the given witnesses and return both the columns
  * and each edition-eye view of the text.
  *
  * @param  array<string, string>  $texts  siglum => text
@@ -21,7 +21,7 @@ use App\Support\Edition\PassageAdder;
 function collationOf(array $texts): array
 {
     $work = Work::factory()->create();
-    $passage = CanonicalPassage::factory()->for($work)->create([
+    $segment = Segment::factory()->for($work)->create([
         'address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1',
     ]);
 
@@ -32,15 +32,15 @@ function collationOf(array $texts): array
         $transcription = TranscriptionLayer::factory()
             ->for(Witness::factory()->create(['siglum' => $siglum]))
             ->create(['text' => $text]);
-        $assignment = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+        $assignment = Assignment::factory()->for($transcription)->for($segment, 'segment')
             ->create(['start_offset' => 0, 'end_offset' => mb_strlen($text)]);
 
         $edition = Edition::factory()->for($work)->create(['title' => "Based on {$siglum}"]);
-        PassageAdder::add($edition, $assignment, $position++);
+        SegmentAdder::add($edition, $assignment, $position++);
         $editions[$siglum] = $edition;
     }
 
-    $columns = Lemma::where('canonical_passage_id', $passage->id)
+    $columns = Lemma::where('segment_id', $segment->id)
         ->orderBy('position')
         ->with('readings.transcriptionLayer.transcription.witness')
         ->get()
@@ -57,7 +57,7 @@ function collationOf(array $texts): array
 
     foreach ($editions as $siglum => $edition) {
         $runs = test()->get(route('editions.show', [$work, $edition]))
-            ->viewData('page')['props']['windowPassages'][0]['runs'];
+            ->viewData('page')['props']['windowSegments'][0]['runs'];
         // Skip gap runs — a column the base omits contributes no words.
         $printed[$siglum] = implode(' ', array_filter(array_column($runs, 'text'), fn (string $t) => $t !== ''));
     }

@@ -442,7 +442,7 @@ function spansDestroyedBy(op: TextEditOp): RestorableSpans {
     return {
         assignments: destroyedByOp(layerAssignments.value, op).map(
             ({ row, start, end }) => ({
-                canonical_passage_id: row.canonical_passage_id,
+                segment_id: row.segment_id,
                 start_offset: start,
                 end_offset: end,
                 part: row.part,
@@ -1194,7 +1194,7 @@ function removeTranscript() {
                 ),
         },
         {
-            key: 'editionPassages',
+            key: 'editionSegments',
             label: (n) =>
                 pluralize(
                     n,
@@ -1703,8 +1703,8 @@ function prefillAssignForm(start: number, end: number) {
     );
 
     if (existing) {
-        assignForm.work_id = existing.canonical_passage?.work_id ?? '';
-        assignForm.label = existing.canonical_passage?.label ?? '';
+        assignForm.work_id = existing.segment?.work_id ?? '';
+        assignForm.label = existing.segment?.label ?? '';
 
         return;
     }
@@ -1921,41 +1921,41 @@ function placePage(pageId: number) {
 }
 
 // ---- assignment assignment ----
-// How many spans assign each passage across the whole layer, so badges can
-// mark the parts of a split-assigned passage even when a sibling part sits on
+// How many spans assign each segment across the whole layer, so badges can
+// mark the parts of a split-assigned segment even when a sibling part sits on
 // another page.
 const layerPartTotals = computed<Record<number, number>>(() => {
     const totals: Record<number, number> = {};
 
     // The PREVIEWED set, live spans only — a tombstone is not a place the
-    // passage's text stands, and counting it said "2/3" over one span.
+    // segment's text stands, and counting it said "2/3" over one span.
     for (const assignment of editedAssignments.value) {
         if (assignment.end_offset > assignment.start_offset) {
-            totals[assignment.canonical_passage_id] =
-                (totals[assignment.canonical_passage_id] ?? 0) + 1;
+            totals[assignment.segment_id] =
+                (totals[assignment.segment_id] ?? 0) + 1;
         }
     }
 
     return totals;
 });
 
-// Display ordinals among each passage's live parts, in content order —
+// Display ordinals among each segment's live parts, in content order —
 // the raw `part` keys can carry gaps after merges and removals, and a
 // lone surviving "part 2" should read as what it is: the only part.
 const partOrdinals = computed<Record<number, number>>(() => {
-    const byPassage = new Map<number, Assignment[]>();
+    const bySegment = new Map<number, Assignment[]>();
 
     for (const assignment of editedAssignments.value) {
         if (assignment.end_offset > assignment.start_offset) {
-            const list = byPassage.get(assignment.canonical_passage_id) ?? [];
+            const list = bySegment.get(assignment.segment_id) ?? [];
             list.push(assignment);
-            byPassage.set(assignment.canonical_passage_id, list);
+            bySegment.set(assignment.segment_id, list);
         }
     }
 
     const ordinals: Record<number, number> = {};
 
-    for (const list of byPassage.values()) {
+    for (const list of bySegment.values()) {
         list.sort((a, b) => a.part - b.part || a.start_offset - b.start_offset);
         list.forEach((assignment, index) => {
             ordinals[assignment.id] = index + 1;
@@ -1965,9 +1965,9 @@ const partOrdinals = computed<Record<number, number>>(() => {
     return ordinals;
 });
 
-// The spans this layer already has for the passage the form currently names
+// The spans this layer already has for the segment the form currently names
 // (excluding the one being assign afreshd, if any), in content order. Non-empty
-// means saving adds another *part* of that passage rather than a new one —
+// means saving adds another *part* of that segment rather than a new one —
 // the witness's text for it is discontinuous, a transposition split it.
 const existingParts = computed<Assignment[]>(() => {
     if (!assignForm.work_id || !assignForm.label) {
@@ -1977,14 +1977,14 @@ const existingParts = computed<Assignment[]>(() => {
     return activeAssignments.value
         .filter(
             (assignment) =>
-                assignment.canonical_passage?.work_id === assignForm.work_id &&
-                assignment.canonical_passage?.label === assignForm.label &&
+                assignment.segment?.work_id === assignForm.work_id &&
+                assignment.segment?.label === assignForm.label &&
                 assignment.id !== matchingAssignment.value?.id,
         )
         .sort((a, b) => a.part - b.part || a.start_offset - b.start_offset);
 });
 
-// Where in the passage's content order the new part goes: a part number to
+// Where in the segment's content order the new part goes: a part number to
 // follow (0 = first), or null to read last. Only sent when parts exist.
 const partPlacement = ref<number | null>(null);
 
@@ -2442,10 +2442,7 @@ defineExpose({
                     @click="fixBoundaries"
                 >
                     Make this the extent of
-                    {{
-                        overlappingAssignment.canonical_passage?.label ??
-                        'that span'
-                    }}
+                    {{ overlappingAssignment.segment?.label ?? 'that span' }}
                 </button>
             </span>
 
@@ -2614,7 +2611,7 @@ defineExpose({
                                   : 'Mark & assign'
                         }}
                     </button>
-                    <!-- Moving a passage is plain cut & paste: the
+                    <!-- Moving a segment is plain cut & paste: the
                              assignment travels with the words. -->
                     <button
                         v-if="matchingAssignment"

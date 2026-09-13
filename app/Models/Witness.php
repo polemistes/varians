@@ -71,14 +71,14 @@ class Witness extends Model
     /**
      * Works connected to this witness — derived, not stored: a work is
      * related to a witness only once one of the witness's transcriptions has
-     * an assignment assigning text to one of that work's canonical passages.
+     * an assignment assigning text to one of that work's segments.
      *
      * @return Builder<Work>
      */
     public function relatedWorks(): Builder
     {
         return Work::query()->whereHas(
-            'canonicalPassages.assignments.transcriptionLayer.transcription',
+            'segments.assignments.transcriptionLayer.transcription',
             fn (Builder $query) => $query->where('witness_id', $this->id),
         );
     }
@@ -130,7 +130,7 @@ class Witness extends Model
 
     /**
      * Whether an edition belonging to someone else prints text from this
-     * witness — as a passage's base, or as a reading that edition has
+     * witness — as a segment's base, or as a reading that edition has
      * chosen. Deleting the witness cascades both away, so its owner is
      * refused while that stands (an administrator is not: see
      * WitnessPolicy::delete). The same question, asked of one transcript,
@@ -148,7 +148,7 @@ class Witness extends Model
 
         $elsewhere = fn (Builder $editions) => $editions->where('editions.user_id', '!=', $owner->id);
 
-        return EditionPassage::query()
+        return EditionSegment::query()
             ->whereIn('transcription_layer_id', $layerIds)
             ->whereHas('edition', $elsewhere)
             ->exists()
@@ -179,8 +179,8 @@ class Witness extends Model
         $query->where(function (Builder $query) use ($user) {
             $query->where('witnesses.user_id', $user->id)
                 ->orWhereHas(
-                    'transcriptionLayers.assignments.canonicalPassage',
-                    fn (Builder $passages) => $passages->whereIn('work_id', Work::query()->editableBy($user)->select('works.id')),
+                    'transcriptionLayers.assignments.segment',
+                    fn (Builder $segments) => $segments->whereIn('work_id', Work::query()->editableBy($user)->select('works.id')),
                 );
         });
     }

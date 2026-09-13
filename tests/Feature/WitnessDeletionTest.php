@@ -3,7 +3,7 @@
 use App\Models\Assignment;
 use App\Models\Edition;
 use App\Models\EditionLemma;
-use App\Models\EditionPassage;
+use App\Models\EditionSegment;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\ManuscriptImage;
@@ -34,7 +34,7 @@ test('deleting a witness cascades its pages, images, transcriptions, and their s
         ->and(TranscriptionRegion::find($region->id))->toBeNull();
 });
 
-test('deleting a witness whose transcription feeds a published edition removes that edition\'s selection and edition-passage membership', function () {
+test('deleting a witness whose transcription feeds a published edition removes that edition\'s selection and edition-segment membership', function () {
     $owner = User::factory()->create();
     $this->actingAs($owner);
     $witness = Witness::factory()->for($owner)->create();
@@ -45,13 +45,13 @@ test('deleting a witness whose transcription feeds a published edition removes t
     $lemma = Lemma::factory()->create();
     $reading = LemmaReading::factory()->for($lemma)->for($transcription)->create();
     $editionLemma = EditionLemma::factory()->create(['edition_id' => $edition->id, 'lemma_id' => $lemma->id, 'selected_reading_id' => $reading->id]);
-    $editionPassage = EditionPassage::factory()->create(['edition_id' => $edition->id, 'transcription_layer_id' => $transcription->id]);
+    $editionSegment = EditionSegment::factory()->create(['edition_id' => $edition->id, 'transcription_layer_id' => $transcription->id]);
 
     $this->delete(route('witnesses.destroy', $witness))->assertRedirect();
 
     expect(LemmaReading::find($reading->id))->toBeNull()
         ->and(EditionLemma::find($editionLemma->id))->toBeNull()
-        ->and(EditionPassage::find($editionPassage->id))->toBeNull();
+        ->and(EditionSegment::find($editionSegment->id))->toBeNull();
 });
 
 test('a layer copied from one belonging to a deleted witness survives, with its provenance link cleared', function () {
@@ -93,15 +93,15 @@ test('a witness another member\'s edition prints from cannot be deleted by its o
     $witness = Witness::factory()->for($owner)->create();
     $layer = TranscriptionLayer::factory()->for($witness)->create();
 
-    // Someone else's edition takes this witness as a passage's base.
+    // Someone else's edition takes this witness as a segment's base.
     $edition = Edition::factory()->create();
-    EditionPassage::factory()->create(['edition_id' => $edition->id, 'transcription_layer_id' => $layer->id]);
+    EditionSegment::factory()->create(['edition_id' => $edition->id, 'transcription_layer_id' => $layer->id]);
 
     $this->actingAs($owner)->delete(route('witnesses.destroy', $witness))->assertForbidden();
     expect(Witness::find($witness->id))->not->toBeNull();
 
     // The same holds for a reading that edition has chosen, not just a base.
-    EditionPassage::query()->delete();
+    EditionSegment::query()->delete();
     $lemma = Lemma::factory()->create();
     $reading = LemmaReading::factory()->for($lemma)->for($layer)->create();
     EditionLemma::factory()->create(['edition_id' => $edition->id, 'lemma_id' => $lemma->id, 'selected_reading_id' => $reading->id]);

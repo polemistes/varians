@@ -1,33 +1,33 @@
 <script setup lang="ts">
 import { useForm } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
-import HierarchicalPassagePicker from '@/components/HierarchicalPassagePicker.vue';
+import HierarchicalSegmentPicker from '@/components/HierarchicalSegmentPicker.vue';
 import ReferencePicker from '@/components/ReferencePicker.vue';
 import type { BiblatexRegistry, Suggestions } from '@/lib/biblatex';
 import {
     store as storeConjecture,
     update as updateConjecture,
 } from '@/routes/conjectures';
-import type { WorkConjecture, WorkPassage } from '@/types/conjectures';
+import type { WorkConjecture, WorkSegment } from '@/types/conjectures';
 import type { DraftReference } from '@/types/edition';
 import type { ConjectureType, ReferenceLevel } from '@/types/models';
 
 /**
  * One conjecture of any kind, recorded or edited from the Work page: the
  * kind decides which fields show (ConjectureShape on the server decides
- * which are required). A substitution proposes text for a passage; a
+ * which are required). A substitution proposes text for a segment; a
  * lacuna marks a gap (with an optional extent); a supplement fills a
- * lacuna of the same passage; a transposition moves a passage or range
+ * lacuna of the same segment; a transposition moves a segment or range
  * before or after a target; a reordering arranges a contiguous stretch.
  *
  * A NEW conjecture carries its citations in its own request (draft
  * picker); an existing one edits them in place (live picker, below).
  */
 const props = defineProps<{
-    passages: WorkPassage[];
+    segments: WorkSegment[];
     levels: ReferenceLevel[];
     /** The work's lacunas, for a supplement to name the one it fills. */
-    lacunas: { id: number; canonical_passage_id: number; label: string }[];
+    lacunas: { id: number; segment_id: number; label: string }[];
     conjecture?: WorkConjecture | null;
     registry: BiblatexRegistry;
     suggestions: Suggestions;
@@ -49,46 +49,42 @@ const TYPE_LABELS: Record<ConjectureType, string> = {
 
 const form = useForm<{
     type: ConjectureType;
-    canonical_passage_id: number | null;
+    segment_id: number | null;
     text: string;
     extent: string;
     extent_characters: number | '';
     supplements_conjecture_id: number | null;
-    transposition_range_end_canonical_passage_id: number | null;
-    move_target_canonical_passage_id: number | null;
+    transposition_range_end_segment_id: number | null;
+    move_target_segment_id: number | null;
     move_position: 'before' | 'after';
-    canonical_passage_ids: number[];
+    segment_ids: number[];
     proposed_by: string;
     note: string;
     references: DraftReference[];
 }>({
     type: props.conjecture?.type ?? 'substitution',
-    canonical_passage_id: props.conjecture?.canonical_passage_id ?? null,
+    segment_id: props.conjecture?.segment_id ?? null,
     text: props.conjecture?.text ?? '',
     extent: props.conjecture?.extent ?? '',
     extent_characters: props.conjecture?.extent_characters ?? '',
     supplements_conjecture_id:
         props.conjecture?.supplements_conjecture_id ?? null,
-    transposition_range_end_canonical_passage_id:
-        props.conjecture?.transposition_range_end_canonical_passage_id ?? null,
-    move_target_canonical_passage_id:
-        props.conjecture?.move_target_canonical_passage_id ?? null,
+    transposition_range_end_segment_id:
+        props.conjecture?.transposition_range_end_segment_id ?? null,
+    move_target_segment_id: props.conjecture?.move_target_segment_id ?? null,
     move_position: props.conjecture?.move_position ?? 'after',
-    canonical_passage_ids:
-        props.conjecture?.ordering.map((entry) => entry.id) ?? [],
+    segment_ids: props.conjecture?.ordering.map((entry) => entry.id) ?? [],
     proposed_by: props.conjecture?.proposed_by ?? '',
     note: props.conjecture?.note ?? '',
     references: [],
 });
 
-const passageById = computed(
-    () => new Map(props.passages.map((passage) => [passage.id, passage])),
+const segmentById = computed(
+    () => new Map(props.segments.map((segment) => [segment.id, segment])),
 );
 
-const lacunasOnPassage = computed(() =>
-    props.lacunas.filter(
-        (lacuna) => lacuna.canonical_passage_id === form.canonical_passage_id,
-    ),
+const lacunasOnSegment = computed(() =>
+    props.lacunas.filter((lacuna) => lacuna.segment_id === form.segment_id),
 );
 
 // ---- reordering: a contiguous stretch, then arranged ----
@@ -99,8 +95,8 @@ const stretch = ref<{ from: number | null; to: number | null }>({
         ? [...props.conjecture.ordering]
               .map((e) => e.id)
               .sort((a, b) =>
-                  (passageById.value.get(a)?.sort_key ?? '').localeCompare(
-                      passageById.value.get(b)?.sort_key ?? '',
+                  (segmentById.value.get(a)?.sort_key ?? '').localeCompare(
+                      segmentById.value.get(b)?.sort_key ?? '',
                   ),
               )[0]
         : null,
@@ -108,8 +104,8 @@ const stretch = ref<{ from: number | null; to: number | null }>({
         ? [...props.conjecture.ordering]
               .map((e) => e.id)
               .sort((a, b) =>
-                  (passageById.value.get(b)?.sort_key ?? '').localeCompare(
-                      passageById.value.get(a)?.sort_key ?? '',
+                  (segmentById.value.get(b)?.sort_key ?? '').localeCompare(
+                      segmentById.value.get(a)?.sort_key ?? '',
                   ),
               )[0]
         : null,
@@ -122,24 +118,24 @@ watch(
             return;
         }
 
-        const fromKey = passageById.value.get(from)?.sort_key ?? '';
-        const toKey = passageById.value.get(to)?.sort_key ?? '';
+        const fromKey = segmentById.value.get(from)?.sort_key ?? '';
+        const toKey = segmentById.value.get(to)?.sort_key ?? '';
         const [low, high] =
             fromKey <= toKey ? [fromKey, toKey] : [toKey, fromKey];
-        const ids = props.passages
+        const ids = props.segments
             .filter(
-                (passage) =>
-                    passage.sort_key >= low && passage.sort_key <= high,
+                (segment) =>
+                    segment.sort_key >= low && segment.sort_key <= high,
             )
-            .map((passage) => passage.id);
+            .map((segment) => segment.id);
 
         // Keep the editor's arrangement where the stretch is unchanged.
         const same =
-            ids.length === form.canonical_passage_ids.length &&
-            ids.every((id) => form.canonical_passage_ids.includes(id));
+            ids.length === form.segment_ids.length &&
+            ids.every((id) => form.segment_ids.includes(id));
 
         if (!same) {
-            form.canonical_passage_ids = ids;
+            form.segment_ids = ids;
         }
     },
 );
@@ -147,23 +143,23 @@ watch(
 function moveEntry(index: number, delta: -1 | 1) {
     const target = index + delta;
 
-    if (target < 0 || target >= form.canonical_passage_ids.length) {
+    if (target < 0 || target >= form.segment_ids.length) {
         return;
     }
 
-    const ids = [...form.canonical_passage_ids];
+    const ids = [...form.segment_ids];
     [ids[index], ids[target]] = [ids[target], ids[index]];
-    form.canonical_passage_ids = ids;
+    form.segment_ids = ids;
 }
 
 function labelOf(id: number): string {
-    return passageById.value.get(id)?.label ?? String(id);
+    return segmentById.value.get(id)?.label ?? String(id);
 }
 
 const canSubmit = computed(() =>
     form.type === 'reordering'
-        ? form.canonical_passage_ids.length >= 2
-        : form.canonical_passage_id !== null,
+        ? form.segment_ids.length >= 2
+        : form.segment_id !== null,
 );
 
 function submit() {
@@ -174,17 +170,17 @@ function submit() {
 
     const payload = form.transform((data) => ({
         type: data.type,
-        canonical_passage_id: data.canonical_passage_id,
+        segment_id: data.segment_id,
         text: data.text || null,
         extent: data.extent || null,
         extent_characters:
             data.extent_characters === '' ? null : data.extent_characters,
         supplements_conjecture_id: data.supplements_conjecture_id,
-        transposition_range_end_canonical_passage_id:
-            data.transposition_range_end_canonical_passage_id,
-        move_target_canonical_passage_id: data.move_target_canonical_passage_id,
+        transposition_range_end_segment_id:
+            data.transposition_range_end_segment_id,
+        move_target_segment_id: data.move_target_segment_id,
         move_position: data.move_position,
-        canonical_passage_ids: data.canonical_passage_ids,
+        segment_ids: data.segment_ids,
         proposed_by: data.proposed_by || null,
         note: data.note || null,
         references: data.references.map((reference) => ({
@@ -200,18 +196,16 @@ function submit() {
         return;
     }
 
-    // A reordering hangs from its first passage; the server settles the
-    // anchor, the route only needs some passage of the stretch.
-    const passageId =
-        form.type === 'reordering'
-            ? form.canonical_passage_ids[0]
-            : form.canonical_passage_id;
+    // A reordering hangs from its first segment; the server settles the
+    // anchor, the route only needs some segment of the stretch.
+    const segmentId =
+        form.type === 'reordering' ? form.segment_ids[0] : form.segment_id;
 
-    if (passageId == null) {
+    if (segmentId == null) {
         return;
     }
 
-    payload.post(storeConjecture.url(passageId), options);
+    payload.post(storeConjecture.url(segmentId), options);
 }
 
 const fieldError = (field: string) =>
@@ -252,9 +246,9 @@ const fieldError = (field: string) =>
                             ? 'Segment (start of range)'
                             : 'Segment'
                     }}
-                    <HierarchicalPassagePicker
-                        v-model="form.canonical_passage_id"
-                        :passages="props.passages"
+                    <HierarchicalSegmentPicker
+                        v-model="form.segment_id"
+                        :segments="props.segments"
                         :levels="props.levels"
                     />
                 </span>
@@ -288,15 +282,15 @@ const fieldError = (field: string) =>
             >
                 <option :value="null" disabled>
                     {{
-                        form.canonical_passage_id === null
+                        form.segment_id === null
                             ? 'Choose the segment first'
-                            : lacunasOnPassage.length === 0
+                            : lacunasOnSegment.length === 0
                               ? 'No lacuna recorded on this segment'
                               : 'Choose…'
                     }}
                 </option>
                 <option
-                    v-for="lacuna in lacunasOnPassage"
+                    v-for="lacuna in lacunasOnSegment"
                     :key="lacuna.id"
                     :value="lacuna.id"
                 >
@@ -339,9 +333,9 @@ const fieldError = (field: string) =>
         >
             <span class="flex flex-col gap-0.5">
                 End of range (optional)
-                <HierarchicalPassagePicker
-                    v-model="form.transposition_range_end_canonical_passage_id"
-                    :passages="props.passages"
+                <HierarchicalSegmentPicker
+                    v-model="form.transposition_range_end_segment_id"
+                    :segments="props.segments"
                     :levels="props.levels"
                 />
             </span>
@@ -357,23 +351,23 @@ const fieldError = (field: string) =>
             </label>
             <span class="flex flex-col gap-0.5">
                 Target segment
-                <HierarchicalPassagePicker
-                    v-model="form.move_target_canonical_passage_id"
-                    :passages="props.passages"
+                <HierarchicalSegmentPicker
+                    v-model="form.move_target_segment_id"
+                    :segments="props.segments"
                     :levels="props.levels"
                 />
             </span>
             <span
                 v-if="
-                    fieldError('move_target_canonical_passage_id') ||
+                    fieldError('move_target_segment_id') ||
                     fieldError('move_position') ||
-                    fieldError('transposition_range_end_canonical_passage_id')
+                    fieldError('transposition_range_end_segment_id')
                 "
                 class="w-full text-red-600 dark:text-red-400"
                 >{{
-                    fieldError('move_target_canonical_passage_id') ??
+                    fieldError('move_target_segment_id') ??
                     fieldError('move_position') ??
-                    fieldError('transposition_range_end_canonical_passage_id')
+                    fieldError('transposition_range_end_segment_id')
                 }}</span
             >
         </div>
@@ -383,27 +377,24 @@ const fieldError = (field: string) =>
             <div class="flex flex-wrap items-end gap-3">
                 <span class="flex flex-col gap-0.5">
                     From
-                    <HierarchicalPassagePicker
+                    <HierarchicalSegmentPicker
                         v-model="stretch.from"
-                        :passages="props.passages"
+                        :segments="props.segments"
                         :levels="props.levels"
                     />
                 </span>
                 <span class="flex flex-col gap-0.5">
                     To
-                    <HierarchicalPassagePicker
+                    <HierarchicalSegmentPicker
                         v-model="stretch.to"
-                        :passages="props.passages"
+                        :segments="props.segments"
                         :levels="props.levels"
                     />
                 </span>
             </div>
-            <ol
-                v-if="form.canonical_passage_ids.length > 0"
-                class="flex flex-col gap-1"
-            >
+            <ol v-if="form.segment_ids.length > 0" class="flex flex-col gap-1">
                 <li
-                    v-for="(id, index) in form.canonical_passage_ids"
+                    v-for="(id, index) in form.segment_ids"
                     :key="id"
                     class="flex items-center justify-between gap-2 rounded border border-stone-200 px-2 py-1 dark:border-stone-800"
                 >
@@ -420,9 +411,7 @@ const fieldError = (field: string) =>
                         <button
                             type="button"
                             class="underline disabled:opacity-30"
-                            :disabled="
-                                index === form.canonical_passage_ids.length - 1
-                            "
+                            :disabled="index === form.segment_ids.length - 1"
                             @click="moveEntry(index, 1)"
                         >
                             &darr;
@@ -431,9 +420,9 @@ const fieldError = (field: string) =>
                 </li>
             </ol>
             <span
-                v-if="fieldError('canonical_passage_ids')"
+                v-if="fieldError('segment_ids')"
                 class="text-red-600 dark:text-red-400"
-                >{{ fieldError('canonical_passage_ids') }}</span
+                >{{ fieldError('segment_ids') }}</span
             >
         </div>
 

@@ -30,9 +30,9 @@ extends a span whose end sits exactly at the paste point over the whole
 arrival — found in live data as a line-7 span swallowing a pasted line 6,
 overlapping the traveled span. The rule mirrors the relocation twin
 (`RelocationAssignmentEffects`): a span covering an arrival on both sides
-splits into two parts of its own passage; one overlapping from a single
+splits into two parts of its own segment; one overlapping from a single
 side is clipped back to the boundary; all unflagged. A span of the SAME
-passage as the arrival is deliberately untouched — that is the healing
+segment as the arrival is deliberately untouched — that is the healing
 case (`alreadyAssigned`), where absorbing is correct. A span wholly inside
 the arrival cannot come from absorbing an insertion and is left for a
 human. Do not "fix" absorption by making atomic insertions exclusive at

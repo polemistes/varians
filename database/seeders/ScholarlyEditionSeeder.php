@@ -6,7 +6,6 @@ use App\Enums\ConjectureType;
 use App\Enums\Layer;
 use App\Enums\Visibility;
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
 use App\Models\EditionComment;
@@ -16,12 +15,13 @@ use App\Models\LemmaReading;
 use App\Models\ManuscriptImage;
 use App\Models\ManuscriptPage;
 use App\Models\ReferenceScheme;
+use App\Models\Segment;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
-use App\Support\Edition\PassageAdder;
+use App\Support\Edition\SegmentAdder;
 use App\Support\Transcription\GreekText;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Storage;
@@ -74,13 +74,13 @@ class ScholarlyEditionSeeder extends Seeder
             10 => 'νοῦσον ἀνὰ στρατὸν ὄρσε κακήν, ὀλέκοντο δὲ λαοί,',
         ];
 
-        /** @var array<int, CanonicalPassage> $passages */
-        $passages = [];
+        /** @var array<int, Segment> $segments */
+        $segments = [];
 
         foreach ($lines as $line => $text) {
             $formatted = $scheme->format(['book' => 1, 'line' => $line]);
 
-            $passages[$line] = CanonicalPassage::create([
+            $segments[$line] = Segment::create([
                 'work_id' => $work->id,
                 'address' => ['book' => 1, 'line' => $line],
                 'sort_key' => $formatted['sort_key'],
@@ -142,16 +142,16 @@ class ScholarlyEditionSeeder extends Seeder
         ];
 
         $transcriptionA = $this->startTranscription($witness);
-        $this->createTranscription($transcriptionA, $scholar, $this->entriesFor($lines, $passages), Layer::Diplomatic);
-        $baseA = $this->createTranscription($transcriptionA, $scholar, $this->entriesFor($normalized, $passages), Layer::Normalized);
+        $this->createTranscription($transcriptionA, $scholar, $this->entriesFor($lines, $segments), Layer::Diplomatic);
+        $baseA = $this->createTranscription($transcriptionA, $scholar, $this->entriesFor($normalized, $segments), Layer::Normalized);
 
         // Divide both layers onto the pages: five lines to 12r, three to 12v,
         // the last two to the unphotographed 13r. Each layer is divided on its
         // own offsets, since the two texts differ.
         $this->divideOntoPages($transcriptionA, $pages, [1 => '12r', 6 => '12v', 9 => '13r']);
 
-        $this->seedIliadWitnesses($scholar, $passages, $normalized);
-        $this->seedIliadEdition($work, $scholar, $passages, $baseA);
+        $this->seedIliadWitnesses($scholar, $segments, $normalized);
+        $this->seedIliadEdition($work, $scholar, $segments, $baseA);
     }
 
     /**
@@ -160,10 +160,10 @@ class ScholarlyEditionSeeder extends Seeder
      * missing altogether, and — the case worth telling apart from the rest —
      * a difference of accent alone.
      *
-     * @param  array<int, CanonicalPassage>  $passages
+     * @param  array<int, Segment>  $segments
      * @param  array<int, string>  $normalized
      */
-    private function seedIliadWitnesses(User $scholar, array $passages, array $normalized): void
+    private function seedIliadWitnesses(User $scholar, array $segments, array $normalized): void
     {
         $b = Witness::create([
             'user_id' => $scholar->id,
@@ -188,8 +188,8 @@ class ScholarlyEditionSeeder extends Seeder
         $bDiplomatic = array_map(fn (string $line) => GreekText::stripDiacritics($line), $bNormalized);
 
         $transcriptionB = $this->startTranscription($b);
-        $this->createTranscription($transcriptionB, $scholar, $this->entriesFor($bDiplomatic, $passages), Layer::Diplomatic);
-        $this->createTranscription($transcriptionB, $scholar, $this->entriesFor($bNormalized, $passages), Layer::Normalized);
+        $this->createTranscription($transcriptionB, $scholar, $this->entriesFor($bDiplomatic, $segments), Layer::Diplomatic);
+        $this->createTranscription($transcriptionB, $scholar, $this->entriesFor($bNormalized, $segments), Layer::Normalized);
 
         $c = Witness::create([
             'user_id' => $scholar->id,
@@ -203,7 +203,7 @@ class ScholarlyEditionSeeder extends Seeder
         unset($cNormalized[3], $cNormalized[6]);
         $cNormalized[10] = 'νοῦσον ἀνὰ στρατὸν ὄρσε κακά, ὀλέκοντο δὲ λαοί,';
 
-        $this->createTranscription($this->startTranscription($c), $scholar, $this->entriesFor($cNormalized, $passages), Layer::Normalized);
+        $this->createTranscription($this->startTranscription($c), $scholar, $this->entriesFor($cNormalized, $segments), Layer::Normalized);
     }
 
     /**
@@ -212,9 +212,9 @@ class ScholarlyEditionSeeder extends Seeder
      * conjectures — one adopted, one merely catalogued — a reading taken from
      * B against A, and the editor's own notes.
      *
-     * @param  array<int, CanonicalPassage>  $passages
+     * @param  array<int, Segment>  $segments
      */
-    private function seedIliadEdition(Work $work, User $scholar, array $passages, TranscriptionLayer $baseA): void
+    private function seedIliadEdition(Work $work, User $scholar, array $segments, TranscriptionLayer $baseA): void
     {
         $edition = Edition::create([
             'work_id' => $work->id,
@@ -226,19 +226,19 @@ class ScholarlyEditionSeeder extends Seeder
 
         $position = 1.0;
 
-        foreach ($passages as $passage) {
+        foreach ($segments as $segment) {
             $assignment = Assignment::where('transcription_layer_id', $baseA->id)
-                ->where('canonical_passage_id', $passage->id)
+                ->where('segment_id', $segment->id)
                 ->sole();
 
-            PassageAdder::add($edition, $assignment, $position++);
+            SegmentAdder::add($edition, $assignment, $position++);
         }
 
         // Zenodotus read δαῖτα here, reported by Athenaeus — a genuine
         // ancient variant, and one this edition adopts, so the printed line
         // departs from every surviving manuscript.
         $daita = Conjecture::create([
-            'canonical_passage_id' => $passages[5]->id,
+            'segment_id' => $segments[5]->id,
             'user_id' => $scholar->id,
             'type' => ConjectureType::Substitution,
             'text' => 'δαῖτα,',
@@ -248,44 +248,44 @@ class ScholarlyEditionSeeder extends Seeder
             'note' => 'Reported as the reading of Zenodotus (Athenaeus, Deipnosophistae 1.12e); no surviving manuscript has it.',
         ]);
 
-        $this->adopt($edition, $this->columnFor($passages[5], $baseA, 'πᾶσι,'), $daita);
+        $this->adopt($edition, $this->columnFor($segments[5], $baseA, 'πᾶσι,'), $daita);
 
         // The seeding editor's own, catalogued as a candidate but not adopted:
         // recording a conjecture and printing it are separate acts.
         $heloria = Conjecture::create([
-            'canonical_passage_id' => $passages[4]->id,
+            'segment_id' => $segments[4]->id,
             'user_id' => $scholar->id,
             'type' => ConjectureType::Substitution,
             'text' => 'ἑλώριον',
             'note' => 'Offered for the sake of the metre; not adopted here.',
         ]);
 
-        $this->place($this->columnFor($passages[4], $baseA, 'ἑλώρια'), $heloria);
+        $this->place($this->columnFor($segments[4], $baseA, 'ἑλώρια'), $heloria);
 
         // A decision in B's favour against the base, so the edition is
         // genuinely eclectic rather than a copy of one witness.
-        $this->adoptWitness($edition, $this->columnFor($passages[2], $baseA, 'ἄλγε᾽'), 'B');
+        $this->adoptWitness($edition, $this->columnFor($segments[2], $baseA, 'ἄλγε᾽'), 'B');
 
         EditionComment::create([
             'edition_id' => $edition->id,
-            'canonical_passage_id' => $passages[8]->id,
-            'lemma_id' => $this->columnFor($passages[8], $baseA, 'ξυνέηκε')?->id,
+            'segment_id' => $segments[8]->id,
+            'lemma_id' => $this->columnFor($segments[8], $baseA, 'ξυνέηκε')?->id,
             'user_id' => $scholar->id,
             'note' => 'B has the Attic συν- for the Ionic ξυν-. Printed as ξυν- throughout with A and C.',
         ]);
 
         EditionComment::create([
             'edition_id' => $edition->id,
-            'canonical_passage_id' => $passages[9]->id,
+            'segment_id' => $segments[9]->id,
             'user_id' => $scholar->id,
             'note' => 'B transposes Διὸς and Λητοῦς. The order printed here follows A and C.',
         ]);
     }
 
     /** The column whose reading in the base is exactly this word. */
-    private function columnFor(CanonicalPassage $passage, TranscriptionLayer $base, string $word): ?Lemma
+    private function columnFor(Segment $segment, TranscriptionLayer $base, string $word): ?Lemma
     {
-        return Lemma::where('canonical_passage_id', $passage->id)
+        return Lemma::where('segment_id', $segment->id)
             ->orderBy('position')
             ->with('readings')
             ->get()
@@ -338,14 +338,14 @@ class ScholarlyEditionSeeder extends Seeder
 
     /**
      * @param  array<int, string>  $lines
-     * @param  array<int, CanonicalPassage>  $passages
-     * @return list<array{text: string, passage: CanonicalPassage}>
+     * @param  array<int, Segment>  $segments
+     * @return list<array{text: string, segment: Segment}>
      */
-    private function entriesFor(array $lines, array $passages): array
+    private function entriesFor(array $lines, array $segments): array
     {
         return array_values(collect($lines)->map(fn (string $text, int $line) => [
             'text' => $text,
-            'passage' => $passages[$line],
+            'segment' => $segments[$line],
         ])->all());
     }
 
@@ -404,7 +404,7 @@ class ScholarlyEditionSeeder extends Seeder
         $entries = collect($sections)->map(function (array $section) use ($scheme, $work) {
             $formatted = $scheme->format(['page' => $section['page'], 'section' => $section['section']]);
 
-            $passage = CanonicalPassage::create([
+            $segment = Segment::create([
                 'work_id' => $work->id,
                 'address' => ['page' => $section['page'], 'section' => $section['section']],
                 'sort_key' => $formatted['sort_key'],
@@ -413,7 +413,7 @@ class ScholarlyEditionSeeder extends Seeder
 
             return [
                 'text' => $section['text'],
-                'passage' => $passage,
+                'segment' => $segment,
                 // Demonstrates that paragraphing is an editorial call, not derived
                 // from the Stephanus structure: this break falls mid-page, at 17c.
                 'paragraphBreakBefore' => $section['paragraphBreakBefore'] ?? false,
@@ -465,7 +465,7 @@ class ScholarlyEditionSeeder extends Seeder
      * span over that text — mirroring how a real transcription is built up:
      * one continuous document, annotated with spans afterward.
      *
-     * @param  list<array{text: string, passage: CanonicalPassage, paragraphBreakBefore?: bool}>  $entries
+     * @param  list<array{text: string, segment: Segment, paragraphBreakBefore?: bool}>  $entries
      */
     private function createTranscription(Transcription $parent, User $scholar, array $entries, Layer $layer): TranscriptionLayer
     {
@@ -479,7 +479,7 @@ class ScholarlyEditionSeeder extends Seeder
 
             $start = mb_strlen($text);
             $text .= $entry['text'];
-            $spans[] = ['start' => $start, 'end' => mb_strlen($text), 'passage' => $entry['passage']];
+            $spans[] = ['start' => $start, 'end' => mb_strlen($text), 'segment' => $entry['segment']];
         }
 
         $transcription = TranscriptionLayer::create([
@@ -491,7 +491,7 @@ class ScholarlyEditionSeeder extends Seeder
 
         foreach ($spans as $span) {
             $transcription->assignments()->create([
-                'canonical_passage_id' => $span['passage']->id,
+                'segment_id' => $span['segment']->id,
                 'start_offset' => $span['start'],
                 'end_offset' => $span['end'],
             ]);

@@ -1,10 +1,10 @@
 <?php
 
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
 use App\Models\EditionOwnershipTransfer;
+use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Models\User;
 use App\Models\Witness;
@@ -23,11 +23,11 @@ function editionWithEvidence(): array
     $owner = User::factory()->create();
     $work = Work::factory()->for($owner)->create();
     $edition = Edition::factory()->for($owner)->for($work)->create();
-    $passage = CanonicalPassage::factory()->for($work)->create();
+    $segment = Segment::factory()->for($work)->create();
     $witness = Witness::factory()->for($owner)->create();
     $layer = TranscriptionLayer::factory()->for($witness)->create(['text' => 'the quick fox']);
-    Assignment::factory()->for($layer)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
-    $conjecture = Conjecture::factory()->for($owner)->for($passage, 'canonicalPassage')->create();
+    Assignment::factory()->for($layer)->for($segment, 'segment')->create(['start_offset' => 0, 'end_offset' => 13]);
+    $conjecture = Conjecture::factory()->for($owner)->for($segment, 'segment')->create();
 
     return compact('owner', 'work', 'edition', 'witness', 'layer', 'conjecture');
 }

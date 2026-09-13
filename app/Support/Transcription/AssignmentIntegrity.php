@@ -82,7 +82,7 @@ class AssignmentIntegrity
     {
         $text = $layer->text;
         $length = mb_strlen($text);
-        $assignments = $layer->assignments()->with('canonicalPassage:id,label')->orderBy('start_offset')->get()->values();
+        $assignments = $layer->assignments()->with('segment:id,label')->orderBy('start_offset')->get()->values();
         $isSpace = fn (string $char): bool => $char === '' || preg_match('/\\s/u', $char) === 1;
         $coveredBy = fn (int $offset, Assignment $self): bool => $assignments->contains(
             fn (Assignment $other) => $other->id !== $self->id
@@ -151,7 +151,7 @@ class AssignmentIntegrity
     {
         $findings = [];
 
-        foreach (TranscriptionLayer::with(['assignments.canonicalPassage', 'transcription.witness'])->get() as $layer) {
+        foreach (TranscriptionLayer::with(['assignments.segment', 'transcription.witness'])->get() as $layer) {
             $issues = self::issues($layer);
 
             if ($issues !== []) {
@@ -166,6 +166,6 @@ class AssignmentIntegrity
     {
         $part = $assignment->part > 1 ? " part {$assignment->part}" : '';
 
-        return "#{$assignment->id} (".($assignment->canonicalPassage->label ?? '?')."$part)";
+        return "#{$assignment->id} (".($assignment->segment->label ?? '?')."$part)";
     }
 }

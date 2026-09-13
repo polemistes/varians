@@ -206,7 +206,7 @@ class SiblingSync
                 continue;
             }
 
-            $twin = $toAssignments->first(fn (Assignment $candidate) => $candidate->canonical_passage_id === $assignment->canonical_passage_id
+            $twin = $toAssignments->first(fn (Assignment $candidate) => $candidate->segment_id === $assignment->segment_id
                 && (int) $candidate->start_offset === $start
                 && (int) $candidate->end_offset === $end
                 && ($candidate->group_id === null
@@ -219,8 +219,8 @@ class SiblingSync
             }
 
             // Never manufacture a duplicate: an overlapping live assignment
-            // of the same passage already covers (some of) these words.
-            $overlapping = $toAssignments->contains(fn (Assignment $candidate) => $candidate->canonical_passage_id === $assignment->canonical_passage_id
+            // of the same segment already covers (some of) these words.
+            $overlapping = $toAssignments->contains(fn (Assignment $candidate) => $candidate->segment_id === $assignment->segment_id
                 && $candidate->end_offset > $candidate->start_offset
                 && $candidate->start_offset < $end
                 && $candidate->end_offset > $start);
@@ -230,7 +230,7 @@ class SiblingSync
             }
 
             $created = $to->assignments()->create([
-                'canonical_passage_id' => $assignment->canonical_passage_id,
+                'segment_id' => $assignment->segment_id,
                 'start_offset' => $start,
                 'end_offset' => $end,
                 'part' => $assignment->part,

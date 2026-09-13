@@ -43,13 +43,13 @@ class StoreEditionAdoptionRequest extends FormRequest
         $validator->after(function (Validator $validator) {
             /** @var Edition $edition */
             $edition = $this->route('edition');
-            $conjecture = Conjecture::with('canonicalPassage:id,work_id')->find((int) $this->input('conjecture_id'));
+            $conjecture = Conjecture::with('segment:id,work_id')->find((int) $this->input('conjecture_id'));
 
             if ($conjecture === null) {
                 return;
             }
 
-            if ($conjecture->canonicalPassage->work_id !== $edition->work_id) {
+            if ($conjecture->segment->work_id !== $edition->work_id) {
                 $validator->errors()->add('conjecture_id', 'That proposal belongs to another work.');
             } elseif (! in_array($conjecture->type, [ConjectureType::Reordering, ConjectureType::Transposition], true)) {
                 $validator->errors()->add('conjecture_id', 'Only an ordering proposal is adopted this way — a reading is picked from its column.');

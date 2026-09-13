@@ -17,7 +17,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
- * One of a Work's critical texts, built up passage by passage by selecting,
+ * One of a Work's critical texts, built up segment by segment by selecting,
  * for each shared Lemma it has an opinion on, which of that lemma's
  * candidate LemmaReadings to print (see EditionLemma) — unlike
  * Witness<->Work, this is a genuine direct relation: an Edition is an
@@ -114,20 +114,20 @@ class Edition extends Model
     }
 
     /**
-     * This edition's scope, order, and per-passage source transcription —
-     * a passage is "in" this edition iff it has a row here, see
-     * EditionPassage.
+     * This edition's scope, order, and per-segment source transcription —
+     * a segment is "in" this edition iff it has a row here, see
+     * EditionSegment.
      *
-     * @return HasMany<EditionPassage, $this>
+     * @return HasMany<EditionSegment, $this>
      */
-    public function passages(): HasMany
+    public function segments(): HasMany
     {
-        return $this->hasMany(EditionPassage::class);
+        return $this->hasMany(EditionSegment::class);
     }
 
     /**
      * Which transposition proposals this edition has adopted — changes its
-     * passage rendering order, see EditionTransposition.
+     * segment rendering order, see EditionTransposition.
      *
      * @return HasMany<EditionTransposition, $this>
      */

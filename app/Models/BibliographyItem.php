@@ -23,7 +23,7 @@ use Illuminate\Support\Carbon;
  * App\Support\Bibliography\Biblatex for the registry of types and fields.
  *
  * The list is shared by everything that cites: a conjecture (whatever
- * edition it is read in) and a passage of an edition both point at the same
+ * edition it is read in) and a segment of an edition both point at the same
  * item through BibliographyReference. Every member adds to the list;
  * `user_id` records who did, and decides — with who cites the item — who
  * may change it, see BibliographyItemPolicy.

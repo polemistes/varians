@@ -3,8 +3,8 @@
 namespace Database\Factories;
 
 use App\Enums\ConjectureType;
-use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
+use App\Models\Segment;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -21,7 +21,7 @@ class ConjectureFactory extends Factory
     public function definition(): array
     {
         return [
-            'canonical_passage_id' => CanonicalPassage::factory(),
+            'segment_id' => Segment::factory(),
             'user_id' => User::factory(),
             'type' => ConjectureType::Substitution,
             'text' => fake()->words(3, true),
@@ -51,30 +51,30 @@ class ConjectureFactory extends Factory
     public function supplement(Conjecture $lacuna): static
     {
         return $this->state(fn (array $attributes) => [
-            'canonical_passage_id' => $lacuna->canonical_passage_id,
+            'segment_id' => $lacuna->segment_id,
             'type' => ConjectureType::Supplement,
             'supplements_conjecture_id' => $lacuna->id,
         ]);
     }
 
     /**
-     * A proposal that this passage (or, with a range end passed in) a range
-     * of passages should be read moved before/after another passage —
+     * A proposal that this segment (or, with a range end passed in) a range
+     * of segments should be read moved before/after another segment —
      * changes edition ordering, not wording.
      */
-    public function transposition(?CanonicalPassage $rangeEnd = null): static
+    public function transposition(?Segment $rangeEnd = null): static
     {
         return $this->state(fn (array $attributes) => [
             'type' => ConjectureType::Transposition,
             'text' => null,
-            'transposition_range_end_canonical_passage_id' => $rangeEnd?->id,
-            'move_target_canonical_passage_id' => CanonicalPassage::factory(),
+            'transposition_range_end_segment_id' => $rangeEnd?->id,
+            'move_target_segment_id' => Segment::factory(),
             'move_position' => fake()->randomElement(['before', 'after']),
         ]);
     }
 
     /**
-     * A proposed *internal* sequence for a fixed set of passages — never
+     * A proposed *internal* sequence for a fixed set of segments — never
      * moved anywhere, see ConjectureOrderingEntry for the actual
      * set-and-sequence. Bare here (no entries) since callers almost always
      * need to control the sequence explicitly — see

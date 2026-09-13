@@ -30,7 +30,7 @@ use Illuminate\Support\Str;
  *
  * - One the copier may edit — her own, or one whose work she has been given
  *   editing privileges on — keeps its assignments pointing at the very same
- *   passages. Her edits then show up as variants in her own editions of that
+ *   segments. Her edits then show up as variants in her own editions of that
  *   work, and in the shared edition she took the witness from, which is the
  *   point of copying a witness one already works on.
  * - Someone else's public witness brings COPIES of the works it assigns text
@@ -39,7 +39,7 @@ use Illuminate\Support\Str;
  *   where she has no business appearing.
  *
  * A caller that has already copied the works says so by passing
- * `$passageMap` (old passage id to new) — EditionCopier does, having copied
+ * `$segmentMap` (old segment id to new) — EditionCopier does, having copied
  * the work for its own reasons.
  *
  * Only what the copier may see is copied: her own copy must not be a way
@@ -53,11 +53,11 @@ use Illuminate\Support\Str;
 class WitnessCopier
 {
     /**
-     * @param  array<int, int>  $passageMap  old canonical passage id → new, where the caller has copied the works itself
+     * @param  array<int, int>  $segmentMap  old segment id → new, where the caller has copied the works itself
      * @param  array<int, mixed>|null  $transcriptionIds  which of the witness's transcriptions to copy — all when null
      * @return array{witness: Witness, layers: array<int, int>, works: array<int, Work>} the copy, old layer id → new, and any works copied along the way by old id
      */
-    public static function copy(Witness $witness, User $owner, array $passageMap = [], ?array $transcriptionIds = null): array
+    public static function copy(Witness $witness, User $owner, array $segmentMap = [], ?array $transcriptionIds = null): array
     {
         $copy = $witness->replicate(['user_id', 'copied_from_id']);
         $copy->user_id = $owner->id;
@@ -105,7 +105,7 @@ class WitnessCopier
 
         // Where the copier may edit this witness — her own, or one whose
         // work she has been given editing privileges on — the assignments
-        // go on naming the passages they named, and what she does to her
+        // go on naming the segments they named, and what she does to her
         // copy shows up as variants in her own editions of that work and in
         // the shared edition she took it from. Where she may not, the works
         // are copied too and every assignment is moved onto them, so that
@@ -113,8 +113,8 @@ class WitnessCopier
         // decision; see .ai/rules/access.md).
         $works = [];
 
-        if ($passageMap === [] && ! $owner->can('update', $witness)) {
-            [$passageMap, $works] = self::copyAssignedWorks($transcriptions, $owner);
+        if ($segmentMap === [] && ! $owner->can('update', $witness)) {
+            [$segmentMap, $works] = self::copyAssignedWorks($transcriptions, $owner);
         }
 
         foreach ($transcriptions as $transcription) {
@@ -151,8 +151,8 @@ class WitnessCopier
                     $assignmentCopy->transcription_layer_id = $layerCopy->id;
                     // Remapped where the caller copied the work too, and
                     // otherwise left pointing where it pointed.
-                    $assignmentCopy->canonical_passage_id = $passageMap[$assignment->canonical_passage_id]
-                        ?? $assignment->canonical_passage_id;
+                    $assignmentCopy->segment_id = $segmentMap[$assignment->segment_id]
+                        ?? $assignment->segment_id;
                     $assignmentCopy->group_id = self::regroup($groups, $assignment->group_id);
                     $assignmentCopy->save();
                 }
@@ -177,34 +177,34 @@ class WitnessCopier
 
     /**
      * A copy of every work these transcriptions assign text to, with its
-     * passages — so the assignments have somewhere of the copier's own to
+     * segments — so the assignments have somewhere of the copier's own to
      * point. Works are taken in title order, so several copies arrive in a
      * predictable one.
      *
      * @param  Collection<int, Transcription>  $transcriptions
-     * @return array{0: array<int, int>, 1: array<int, Work>} old passage id → new, and the works copied by old id
+     * @return array{0: array<int, int>, 1: array<int, Work>} old segment id → new, and the works copied by old id
      */
     private static function copyAssignedWorks(Collection $transcriptions, User $owner): array
     {
         $works = Work::query()
             ->whereHas(
-                'canonicalPassages.assignments.transcriptionLayer',
+                'segments.assignments.transcriptionLayer',
                 fn (Builder $query) => $query->whereIn('transcription_id', $transcriptions->modelKeys())
             )
             ->orderBy('title')
             ->get();
 
-        $passageMap = [];
+        $segmentMap = [];
         $copies = [];
 
         foreach ($works as $work) {
             /** @var Work $work */
-            ['work' => $copy, 'passages' => $passages] = WorkCopier::copy($work, $owner);
-            $passageMap += $passages;
+            ['work' => $copy, 'segments' => $segments] = WorkCopier::copy($work, $owner);
+            $segmentMap += $segments;
             $copies[$work->id] = $copy;
         }
 
-        return [$passageMap, $copies];
+        return [$segmentMap, $copies];
     }
 
     /**

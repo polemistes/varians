@@ -2,9 +2,9 @@
 
 namespace Database\Factories;
 
-use App\Models\CanonicalPassage;
-use App\Models\TranscriptionLayer;
 use App\Models\Assignment;
+use App\Models\Segment;
+use App\Models\TranscriptionLayer;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -21,7 +21,7 @@ class AssignmentFactory extends Factory
     {
         return [
             'transcription_layer_id' => TranscriptionLayer::factory(),
-            'canonical_passage_id' => CanonicalPassage::factory(),
+            'segment_id' => Segment::factory(),
             'start_offset' => 0,
             'end_offset' => 1,
             'needs_review' => false,

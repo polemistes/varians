@@ -16,10 +16,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
- * A recorded conjecture for a passage — the complete proposed reading, not
+ * A recorded conjecture for a segment — the complete proposed reading, not
  * an offset-anchored span (there's no single "base" text to anchor to once
  * several witnesses and conjectures can all compete for the same lemma).
- * Kept directly on the passage, not only reachable via a reading, so an
+ * Kept directly on the segment, not only reachable via a reading, so an
  * editor can record one before committing to any lemma-splitting.
  *
  * Not every conjecture is a plain substitution — see ConjectureType. A
@@ -36,7 +36,7 @@ use Illuminate\Support\Carbon;
  * is published, which publishes every conjecture of the work with it.
  *
  * @property int $id
- * @property int $canonical_passage_id
+ * @property int $segment_id
  * @property int $user_id
  * @property int|null $copied_from_id
  * @property Visibility $visibility
@@ -45,8 +45,8 @@ use Illuminate\Support\Carbon;
  * @property string|null $extent
  * @property int|null $extent_characters
  * @property int|null $supplements_conjecture_id
- * @property int|null $transposition_range_end_canonical_passage_id
- * @property int|null $move_target_canonical_passage_id
+ * @property int|null $transposition_range_end_segment_id
+ * @property int|null $move_target_segment_id
  * @property string|null $move_position
  * @property string|null $proposed_by
  * @property string|null $note
@@ -54,7 +54,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  */
 #[Fillable([
-    'canonical_passage_id',
+    'segment_id',
     'user_id',
     'copied_from_id',
     'visibility',
@@ -63,8 +63,8 @@ use Illuminate\Support\Carbon;
     'extent',
     'extent_characters',
     'supplements_conjecture_id',
-    'transposition_range_end_canonical_passage_id',
-    'move_target_canonical_passage_id',
+    'transposition_range_end_segment_id',
+    'move_target_segment_id',
     'move_position',
     'proposed_by',
     'note',
@@ -102,11 +102,11 @@ class Conjecture extends Model
     }
 
     /**
-     * @return BelongsTo<CanonicalPassage, $this>
+     * @return BelongsTo<Segment, $this>
      */
-    public function canonicalPassage(): BelongsTo
+    public function segment(): BelongsTo
     {
-        return $this->belongsTo(CanonicalPassage::class);
+        return $this->belongsTo(Segment::class);
     }
 
     /**
@@ -140,27 +140,27 @@ class Conjecture extends Model
     }
 
     /**
-     * The last passage of a moved range — only set when `type` is
-     * Transposition and more than one passage moves together;
-     * `canonical_passage_id` is always the range's first passage.
+     * The last segment of a moved range — only set when `type` is
+     * Transposition and more than one segment moves together;
+     * `segment_id` is always the range's first segment.
      *
-     * @return BelongsTo<CanonicalPassage, $this>
+     * @return BelongsTo<Segment, $this>
      */
     public function transpositionRangeEnd(): BelongsTo
     {
-        return $this->belongsTo(CanonicalPassage::class, 'transposition_range_end_canonical_passage_id');
+        return $this->belongsTo(Segment::class, 'transposition_range_end_segment_id');
     }
 
     /**
-     * The passage a Transposition's range is proposed to move
+     * The segment a Transposition's range is proposed to move
      * `move_position` ('before'/'after') of — only set when `type` is
      * Transposition.
      *
-     * @return BelongsTo<CanonicalPassage, $this>
+     * @return BelongsTo<Segment, $this>
      */
     public function moveTarget(): BelongsTo
     {
-        return $this->belongsTo(CanonicalPassage::class, 'move_target_canonical_passage_id');
+        return $this->belongsTo(Segment::class, 'move_target_segment_id');
     }
 
     /**
@@ -192,7 +192,7 @@ class Conjecture extends Model
     public function isEditableBy(User $user): bool
     {
         return $this->user_id === $user->id
-            || $this->canonicalPassage->work->isEditableBy($user);
+            || $this->segment->work->isEditableBy($user);
     }
 
     public function isPublished(): bool
@@ -219,7 +219,7 @@ class Conjecture extends Model
 
             if ($viewer !== null) {
                 $query->orWhere('conjectures.user_id', $viewer->id)
-                    ->orWhereHas('canonicalPassage', fn (Builder $passages) => $passages->whereIn('work_id', Work::query()->editableBy($viewer)->select('works.id')));
+                    ->orWhereHas('segment', fn (Builder $segments) => $segments->whereIn('work_id', Work::query()->editableBy($viewer)->select('works.id')));
             }
         });
     }

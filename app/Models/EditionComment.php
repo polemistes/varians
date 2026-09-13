@@ -25,14 +25,14 @@ use Illuminate\Support\Carbon;
  * different things about the same word, and a note justifying a choice belongs
  * to the edition that made it.
  *
- * A note always names a `CanonicalPassage`. `lemma_id` narrows it to one
+ * A note always names a `Segment`. `lemma_id` narrows it to one
  * column, and `range_end_lemma_id` widens that to a span — the same shape
- * `LemmaReading` uses. With `lemma_id` null the note is about the passage as
+ * `LemmaReading` uses. With `lemma_id` null the note is about the segment as
  * a whole, which is what a speaker assignment usually is.
  *
  * @property int $id
  * @property int $edition_id
- * @property int $canonical_passage_id
+ * @property int $segment_id
  * @property int|null $lemma_id
  * @property int|null $range_end_lemma_id
  * @property int $user_id
@@ -40,7 +40,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['edition_id', 'canonical_passage_id', 'lemma_id', 'range_end_lemma_id', 'user_id', 'note'])]
+#[Fillable(['edition_id', 'segment_id', 'lemma_id', 'range_end_lemma_id', 'user_id', 'note'])]
 class EditionComment extends Model
 {
     /** @use HasFactory<EditionCommentFactory> */
@@ -55,11 +55,11 @@ class EditionComment extends Model
     }
 
     /**
-     * @return BelongsTo<CanonicalPassage, $this>
+     * @return BelongsTo<Segment, $this>
      */
-    public function canonicalPassage(): BelongsTo
+    public function segment(): BelongsTo
     {
-        return $this->belongsTo(CanonicalPassage::class);
+        return $this->belongsTo(Segment::class);
     }
 
     /**

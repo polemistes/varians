@@ -1,17 +1,17 @@
 <?php
 
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
 use App\Models\Edition;
+use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
-use App\Support\Edition\PassageAdder;
+use App\Support\Edition\SegmentAdder;
 use Inertia\Testing\AssertableInertia as AssertInertia;
 
 /**
- * Two witnesses on one passage, the first added seeding the columns; returns
+ * Two witnesses on one segment, the first added seeding the columns; returns
  * the wording each edition prints.
  *
  * @return array{first: string, second: string}
@@ -19,7 +19,7 @@ use Inertia\Testing\AssertableInertia as AssertInertia;
 function printedByEachEdition(string $seedText, string $otherText): array
 {
     $work = Work::factory()->create();
-    $passage = CanonicalPassage::factory()->for($work)->create([
+    $segment = Segment::factory()->for($work)->create([
         'address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1',
     ]);
 
@@ -27,20 +27,20 @@ function printedByEachEdition(string $seedText, string $otherText): array
     // siglum order, and these tests turn on which one built the columns.
     $seed = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'A']))->create(['text' => $seedText]);
     $other = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'B']))->create(['text' => $otherText]);
-    $seedAssignment = Assignment::factory()->for($seed)->for($passage, 'canonicalPassage')
+    $seedAssignment = Assignment::factory()->for($seed)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => mb_strlen($seedText)]);
-    $otherAssignment = Assignment::factory()->for($other)->for($passage, 'canonicalPassage')
+    $otherAssignment = Assignment::factory()->for($other)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => mb_strlen($otherText)]);
 
     $first = Edition::factory()->for($work)->create(['title' => 'First edition']);
-    PassageAdder::add($first, $seedAssignment, 1.0);
+    SegmentAdder::add($first, $seedAssignment, 1.0);
 
     $second = Edition::factory()->for($work)->create(['title' => 'Second edition']);
-    PassageAdder::add($second, $otherAssignment, 1.0);
+    SegmentAdder::add($second, $otherAssignment, 1.0);
 
     $printed = function (Edition $edition) use ($work): string {
         $runs = test()->get(route('editions.show', [$work, $edition]))
-            ->viewData('page')['props']['windowPassages'][0]['runs'];
+            ->viewData('page')['props']['windowSegments'][0]['runs'];
 
         return implode(' ', array_column($runs, 'text'));
     };
@@ -74,7 +74,7 @@ test('a run standing in for several columns says so', function () {
     $this->actingAs(User::factory()->editor()->create());
 
     $work = Work::factory()->create();
-    $passage = CanonicalPassage::factory()->for($work)->create([
+    $segment = Segment::factory()->for($work)->create([
         'address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1',
     ]);
 
@@ -82,24 +82,24 @@ test('a run standing in for several columns says so', function () {
         ->create(['text' => 'the swift red fox sleeps']);
     $other = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'B']))
         ->create(['text' => 'the creature sleeps']);
-    Assignment::factory()->for($seed)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($seed)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 24]);
-    $otherAssignment = Assignment::factory()->for($other)->for($passage, 'canonicalPassage')
+    $otherAssignment = Assignment::factory()->for($other)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 19]);
 
     $first = Edition::factory()->for($work)->create();
-    PassageAdder::add($first, Assignment::where('transcription_layer_id', $seed->id)->sole(), 1.0);
+    SegmentAdder::add($first, Assignment::where('transcription_layer_id', $seed->id)->sole(), 1.0);
 
     $second = Edition::factory()->for($work)->create();
-    PassageAdder::add($second, $otherAssignment, 1.0);
+    SegmentAdder::add($second, $otherAssignment, 1.0);
 
     $this->get(route('editions.show', [$work, $second]))
         ->assertInertia(fn (AssertInertia $page) => $page
             // Three runs, not five: "creature" answers for the columns the
             // seed witness split into swift/red/fox.
-            ->has('windowPassages.0.runs', 3)
-            ->where('windowPassages.0.runs.1.text', 'creature')
-            ->where('windowPassages.0.runs.1.range_end_lemma_id', fn ($id) => $id !== null));
+            ->has('windowSegments.0.runs', 3)
+            ->where('windowSegments.0.runs.1.text', 'creature')
+            ->where('windowSegments.0.runs.1.range_end_lemma_id', fn ($id) => $id !== null));
 });
 
 test('a base that omits a word prints nothing there, not another witness\'s word', function () {
@@ -119,7 +119,7 @@ test('a column the base omits is reported as a gap, and stays a variant site', f
     $this->actingAs(User::factory()->editor()->create());
 
     $work = Work::factory()->create();
-    $passage = CanonicalPassage::factory()->for($work)->create([
+    $segment = Segment::factory()->for($work)->create([
         'address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1',
     ]);
 
@@ -127,17 +127,17 @@ test('a column the base omits is reported as a gap, and stays a variant site', f
         ->create(['text' => 'the swift red fox']);
     $shorter = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'B']))
         ->create(['text' => 'the red fox']);
-    Assignment::factory()->for($seed)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($seed)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 17]);
-    $shorterAssignment = Assignment::factory()->for($shorter)->for($passage, 'canonicalPassage')
+    $shorterAssignment = Assignment::factory()->for($shorter)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 11]);
 
-    PassageAdder::add(Edition::factory()->for($work)->create(), Assignment::where('transcription_layer_id', $seed->id)->sole(), 1.0);
+    SegmentAdder::add(Edition::factory()->for($work)->create(), Assignment::where('transcription_layer_id', $seed->id)->sole(), 1.0);
     $second = Edition::factory()->for($work)->create();
-    PassageAdder::add($second, $shorterAssignment, 1.0);
+    SegmentAdder::add($second, $shorterAssignment, 1.0);
 
     $runs = $this->get(route('editions.show', [$work, $second]))
-        ->viewData('page')['props']['windowPassages'][0]['runs'];
+        ->viewData('page')['props']['windowSegments'][0]['runs'];
 
     // The site survives so the editor can still adopt A's reading there.
     // B's own candidate is its omission of the word (LemmaReading::$omitted),

@@ -214,7 +214,7 @@ panes (offsets must be into saved text on both sides), then posts
 `transcriptions.span-copies.store`, which re-verifies the characters match
 at both ends before importing. Assigned ONCE also on import: a copied
 assignment is skipped when the landing words already carry a live assignment
-to the same passage — the sibling-healing pass restores assignments the
+to the same segment — the sibling-healing pass restores assignments the
 moment a pasted text saves, and the import arriving after it duplicated
 every one as a second part (real bug: badges all read 1/2). User-visible
 wording is "assignment(s)" and "image mapping(s)", never "assignment(s)"
@@ -240,7 +240,7 @@ created row a fresh `group_id` and runs `SiblingSync::heal` on the target,
 so an in-step target transcript receives the assignment in BOTH its layers
 (test-pinned). Assignments travel ALWAYS — cross-layer,
 cross-transcript, cross-witness — and an assignment the copy cuts through
-contributes its contained part (still genuine text of its passage, as a
+contributes its contained part (still genuine text of its segment, as a
 further part where the target already assigns text to it, unflagged). Facsimile
 mappings are facts about one parchment: whole-span-only, same witness
 only, skipped where the target already maps overlapping text. Cut stays

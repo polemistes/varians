@@ -2,11 +2,11 @@
 
 namespace App\Http\Requests;
 
-use App\Models\EditionPassage;
+use App\Models\EditionSegment;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
-class UpdateEditionPassageLineationRequest extends FormRequest
+class UpdateEditionSegmentLineationRequest extends FormRequest
 {
     /**
      * The policy decides — see App\Policies. Checked before validation, so
@@ -14,10 +14,10 @@ class UpdateEditionPassageLineationRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        /** @var EditionPassage $editionPassage */
-        $editionPassage = $this->route('editionPassage');
+        /** @var EditionSegment $editionSegment */
+        $editionSegment = $this->route('editionSegment');
 
-        return $this->user()->can('update', $editionPassage->edition);
+        return $this->user()->can('update', $editionSegment->edition);
     }
 
     /**

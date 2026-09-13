@@ -37,13 +37,13 @@ class UpdateConjectureRequest extends FormRequest
     {
         /** @var Conjecture $conjecture */
         $conjecture = $this->route('conjecture');
-        $work = $conjecture->canonicalPassage->work;
+        $work = $conjecture->segment->work;
         $structural = ConjectureValidationRules::structuralRules('');
 
         return [
             ...array_map(fn (array $rule) => ['sometimes', ...$rule], $structural),
             ...array_map(fn (array $rule) => ['sometimes', ...$rule], ConjectureShape::orderingRules($work)),
-            'canonical_passage_id' => ['sometimes', 'integer', Rule::exists('canonical_passages', 'id')->where('work_id', $work->id)],
+            'segment_id' => ['sometimes', 'integer', Rule::exists('segments', 'id')->where('work_id', $work->id)],
             'proposed_by' => ['sometimes', 'nullable', 'string', 'max:255'],
             'note' => ['sometimes', 'nullable', 'string'],
         ];
@@ -58,7 +58,7 @@ class UpdateConjectureRequest extends FormRequest
             ConjectureShape::check(
                 $validator,
                 ConjectureShape::merged($conjecture, $this->all()),
-                $conjecture->canonicalPassage->work,
+                $conjecture->segment->work,
                 $conjecture,
             );
         });

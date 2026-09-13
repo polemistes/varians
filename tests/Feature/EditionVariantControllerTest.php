@@ -2,29 +2,29 @@
 
 use App\Enums\ConjectureType;
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
 use App\Models\EditionLemma;
-use App\Models\EditionPassage;
+use App\Models\EditionSegment;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\ReferenceScheme;
+use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
-use App\Support\Edition\PassageAdder;
+use App\Support\Edition\SegmentAdder;
 use Inertia\Testing\AssertableInertia as AssertInertia;
 
 /**
- * Builds a work/edition/passage with a base transcription already added to
- * the edition (materialized via the same PassageAdder the real
- * edition-passages.store endpoint uses, so every word is a real Lemma
+ * Builds a work/edition/segment with a base transcription already added to
+ * the edition (materialized via the same SegmentAdder the real
+ * edition-segments.store endpoint uses, so every word is a real Lemma
  * column and the base's own text already renders by default) — so every
  * test below can skip straight to the word-level decision it's actually
  * testing. `$witnessB`'s assignment, when given, is created *before* the add
- * so PassageAdder's own "align every assigning assignment" sweep picks it up too,
+ * so SegmentAdder's own "align every assigning assignment" sweep picks it up too,
  * exactly as it would for a real bulk add encountering more than one
  * witness at once.
  */
@@ -32,62 +32,62 @@ function editionWithBase(string $baseText, ?string $witnessB = null): array
 {
     $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
     $edition = Edition::factory()->for($work)->create();
-    $passage = CanonicalPassage::factory()->for($work)->create(['address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1']);
+    $segment = Segment::factory()->for($work)->create(['address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1']);
     // Sigla pinned: witnesses are aligned in siglum order, so leaving these
     // to the factory's random letters would let either witness build the
     // columns and make every structural assertion below a coin flip. "A" is
     // the base and so seeds them.
     $base = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'A']))->create(['text' => $baseText]);
-    $baseAssignment = Assignment::factory()->for($base)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => mb_strlen($baseText)]);
+    $baseAssignment = Assignment::factory()->for($base)->for($segment, 'segment')->create(['start_offset' => 0, 'end_offset' => mb_strlen($baseText)]);
 
-    $result = compact('work', 'edition', 'passage', 'base');
+    $result = compact('work', 'edition', 'segment', 'base');
 
     if ($witnessB !== null) {
         $other = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'B']))->create(['text' => $witnessB]);
-        Assignment::factory()->for($other)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => mb_strlen($witnessB)]);
+        Assignment::factory()->for($other)->for($segment, 'segment')->create(['start_offset' => 0, 'end_offset' => mb_strlen($witnessB)]);
         $result['other'] = $other;
     }
 
-    $result['editionPassage'] = PassageAdder::add($edition, $baseAssignment, 1.0);
+    $result['editionSegment'] = SegmentAdder::add($edition, $baseAssignment, 1.0);
 
     return $result;
 }
 
 /**
- * A work/edition with passage 1.1 already added (real assignment, real base)
- * and passage 1.2 not created at all — for the whole-line-lacuna tests,
- * which anchor a fresh "1.1a" via `insert_after_edition_passage_id` rather
+ * A work/edition with segment 1.1 already added (real assignment, real base)
+ * and segment 1.2 not created at all — for the whole-line-lacuna tests,
+ * which anchor a fresh "1.1a" via `insert_after_edition_segment_id` rather
  * than relying on any base-range coverage (that mechanism doesn't exist
- * anymore — see EditionPassage).
+ * anymore — see EditionSegment).
  *
- * @return array{work: Work, edition: Edition, editionPassage: EditionPassage}
+ * @return array{work: Work, edition: Edition, editionSegment: EditionSegment}
  */
 function editionSpanningTwoLines(): array
 {
     $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
     $edition = Edition::factory()->for($work)->create();
-    $passage = CanonicalPassage::factory()->for($work)->create(['address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1']);
+    $segment = Segment::factory()->for($work)->create(['address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1']);
     $base = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
-    $assignment = Assignment::factory()->for($base)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
+    $assignment = Assignment::factory()->for($base)->for($segment, 'segment')->create(['start_offset' => 0, 'end_offset' => 13]);
 
-    $editionPassage = PassageAdder::add($edition, $assignment, 1.0);
+    $editionSegment = SegmentAdder::add($edition, $assignment, 1.0);
 
-    return compact('work', 'edition', 'editionPassage');
+    return compact('work', 'edition', 'editionSegment');
 }
 
 test('picking a detected witness variant selects it', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage, 'other' => $other] = editionWithBase('the quick fox', 'the slow fox');
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment, 'other' => $other] = editionWithBase('the quick fox', 'the slow fox');
 
-    // The whole passage was already materialized (3 words) when added to
+    // The whole segment was already materialized (3 words) when added to
     // the edition — nothing is selected yet (the base's own text already
     // renders by default for an undecided column), picking a candidate here
     // is the first real decision.
-    expect(Lemma::where('canonical_passage_id', $passage->id)->count())->toBe(3)
+    expect(Lemma::where('segment_id', $segment->id)->count())->toBe(3)
         ->and(EditionLemma::where('edition_id', $edition->id)->exists())->toBeFalse();
 
     $response = $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 4,
         'base_end_offset' => 9,
         'source' => 'transcription',
@@ -105,8 +105,8 @@ test('picking a detected witness variant selects it', function () {
 
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page
-        ->where('windowPassages.0.runs.1.decided', true)
-        ->where('windowPassages.0.runs.1.text', 'slow'));
+        ->where('windowSegments.0.runs.1.decided', true)
+        ->where('windowSegments.0.runs.1.text', 'slow'));
 });
 
 test('picking a flagged candidate is the confirmation that clears its needs-review flag', function () {
@@ -115,14 +115,14 @@ test('picking a flagged candidate is the confirmation that clears its needs-revi
     // confirmation, the same way re-selecting an assignment span clears its
     // own flag.
     $this->actingAs(User::factory()->editor()->create());
-    ['edition' => $edition, 'passage' => $passage, 'other' => $other] = editionWithBase('the quick fox', 'the slow fox');
+    ['edition' => $edition, 'segment' => $segment, 'other' => $other] = editionWithBase('the quick fox', 'the slow fox');
 
     $flagged = LemmaReading::where('transcription_layer_id', $other->id)
         ->where('start_offset', 4)->where('end_offset', 8)->sole();
     $flagged->update(['needs_review' => true]);
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 4,
         'base_end_offset' => 9,
         'source' => 'transcription',
@@ -139,7 +139,7 @@ test('re-choosing away from a destroyed selected reading drops the empty flagged
     // (zero-width, flagged). Choosing another candidate removes its reason
     // to exist — once nothing selects it, it goes.
     $this->actingAs(User::factory()->editor()->create());
-    ['edition' => $edition, 'passage' => $passage, 'other' => $other] = editionWithBase('the quick fox', 'the slow fox');
+    ['edition' => $edition, 'segment' => $segment, 'other' => $other] = editionWithBase('the quick fox', 'the slow fox');
 
     $lemma = LemmaReading::where('transcription_layer_id', $other->id)
         ->where('start_offset', 4)->where('end_offset', 8)->sole()->lemma;
@@ -157,7 +157,7 @@ test('re-choosing away from a destroyed selected reading drops the empty flagged
 
     // The editor re-chooses: B's reading replaces the emptied one.
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 4,
         'base_end_offset' => 9,
         'source' => 'transcription',
@@ -172,10 +172,10 @@ test('re-choosing away from a destroyed selected reading drops the empty flagged
 
 test('recording a fresh conjecture on a plain span catalogues it as a candidate without adopting it', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['edition' => $edition, 'passage' => $passage] = editionWithBase('the quick fox');
+    ['edition' => $edition, 'segment' => $segment] = editionWithBase('the quick fox');
 
     $response = $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 4,
         'range_end_base_offset' => 9,
@@ -198,11 +198,11 @@ test('recording a fresh conjecture on a plain span catalogues it as a candidate 
 
 test('recording a fresh conjecture with adopt selects it for the edition in the same step', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['edition' => $edition, 'passage' => $passage] = editionWithBase('the quick fox');
+    ['edition' => $edition, 'segment' => $segment] = editionWithBase('the quick fox');
 
     // "Register and adopt" — the one request both catalogues and prints.
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 4,
         'range_end_base_offset' => 9,
@@ -220,11 +220,11 @@ test('recording a fresh conjecture with adopt selects it for the edition in the 
 
 test('a catalogued, still-unplaced conjecture can be placed at a specific column', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['edition' => $edition, 'passage' => $passage] = editionWithBase('the quick fox');
-    $conjecture = Conjecture::factory()->for($passage, 'canonicalPassage')->create(['text' => 'swift']);
+    ['edition' => $edition, 'segment' => $segment] = editionWithBase('the quick fox');
+    $conjecture = Conjecture::factory()->for($segment, 'segment')->create(['text' => 'swift']);
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 4,
         'base_end_offset' => 9,
         'source' => 'existing_conjecture',
@@ -239,10 +239,10 @@ test('a catalogued, still-unplaced conjecture can be placed at a specific column
 
 test('re-visiting an already-decided column still reports the full original candidate set, not just the winner', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage, 'other' => $other] = editionWithBase('the quick fox', 'the slow fox');
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment, 'other' => $other] = editionWithBase('the quick fox', 'the slow fox');
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 4,
         'base_end_offset' => 9,
         'source' => 'transcription',
@@ -254,17 +254,17 @@ test('re-visiting an already-decided column still reports the full original cand
     $show = $this->get(route('editions.show', [$work, $edition]));
 
     $show->assertInertia(fn (AssertInertia $page) => $page
-        ->has('windowPassages.0.runs.1.candidates', 2)
-        ->where('windowPassages.0.runs.1.candidates.0.selected', false)
-        ->where('windowPassages.0.runs.1.candidates.1.selected', true));
+        ->has('windowSegments.0.runs.1.candidates', 2)
+        ->where('windowSegments.0.runs.1.candidates.0.selected', false)
+        ->where('windowSegments.0.runs.1.candidates.1.selected', true));
 });
 
 test('picking the same candidate twice does not create a duplicate reading', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['edition' => $edition, 'passage' => $passage, 'base' => $base] = editionWithBase('the quick fox');
+    ['edition' => $edition, 'segment' => $segment, 'base' => $base] = editionWithBase('the quick fox');
 
     $payload = [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 0,
         'base_end_offset' => 3,
         'source' => 'transcription',
@@ -276,7 +276,7 @@ test('picking the same candidate twice does not create a duplicate reading', fun
     $this->post(route('edition-variants.store', $edition), $payload);
     $this->post(route('edition-variants.store', $edition), $payload);
 
-    $lemma = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->first();
+    $lemma = Lemma::where('segment_id', $segment->id)->orderBy('position')->first();
     // Still just the base's own reading — re-picking it twice never creates
     // a second reading, and the selection stays exactly one row.
     expect($lemma->readings)->toHaveCount(1)
@@ -285,11 +285,11 @@ test('picking the same candidate twice does not create a duplicate reading', fun
 
 test('a guest cannot add a variant to an edition', function () {
     $this->actingAs(User::factory()->create());
-    ['edition' => $edition, 'passage' => $passage] = editionWithBase('the quick fox');
-    $lemmaCountBefore = Lemma::where('canonical_passage_id', $passage->id)->count();
+    ['edition' => $edition, 'segment' => $segment] = editionWithBase('the quick fox');
+    $lemmaCountBefore = Lemma::where('segment_id', $segment->id)->count();
 
     $response = $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 0,
         'base_end_offset' => 3,
         'source' => 'new_conjecture',
@@ -297,15 +297,15 @@ test('a guest cannot add a variant to an edition', function () {
     ]);
 
     $response->assertForbidden();
-    expect(Lemma::where('canonical_passage_id', $passage->id)->count())->toBe($lemmaCountBefore);
+    expect(Lemma::where('segment_id', $segment->id)->count())->toBe($lemmaCountBefore);
 });
 
 test('a bare lacuna is inserted between two words without replacing either of them', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage] = editionWithBase('the quick fox');
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment] = editionWithBase('the quick fox');
 
     $response = $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'insert',
         'insert_after_base_offset' => 3,
         'source' => 'new_conjecture',
@@ -316,9 +316,9 @@ test('a bare lacuna is inserted between two words without replacing either of th
 
     $response->assertRedirect();
 
-    // The passage was materialized (3 words) at add time, plus the new
+    // The segment was materialized (3 words) at add time, plus the new
     // column — 4 lemmas, not 3, since the lacuna never competes with "quick".
-    expect(Lemma::where('canonical_passage_id', $passage->id)->count())->toBe(4);
+    expect(Lemma::where('segment_id', $segment->id)->count())->toBe(4);
 
     $conjecture = Conjecture::sole();
     expect($conjecture->type)->toBe(ConjectureType::Lacuna)
@@ -327,19 +327,19 @@ test('a bare lacuna is inserted between two words without replacing either of th
 
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page
-        ->where('windowPassages.0.runs.0.text', 'the')
-        ->where('windowPassages.0.runs.1.text', '[lacuna: one word]')
-        ->where('windowPassages.0.runs.1.candidates.0.label', 'Wolf (lacuna)')
-        ->where('windowPassages.0.runs.2.text', 'quick')
-        ->where('windowPassages.0.runs.3.text', 'fox'));
+        ->where('windowSegments.0.runs.0.text', 'the')
+        ->where('windowSegments.0.runs.1.text', '[lacuna: one word]')
+        ->where('windowSegments.0.runs.1.candidates.0.label', 'Wolf (lacuna)')
+        ->where('windowSegments.0.runs.2.text', 'quick')
+        ->where('windowSegments.0.runs.3.text', 'fox'));
 });
 
 test('a supplement proposed for an existing lacuna column can be selected in its place', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage] = editionWithBase('the quick fox');
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment] = editionWithBase('the quick fox');
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'insert',
         'insert_after_base_offset' => 3,
         'source' => 'new_conjecture',
@@ -350,7 +350,7 @@ test('a supplement proposed for an existing lacuna column can be selected in its
     $lemma = Lemma::whereHas('readings', fn ($q) => $q->where('conjecture_id', $lacuna->id))->sole();
 
     $response = $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'existing',
         'lemma_id' => $lemma->id,
         'source' => 'new_conjecture',
@@ -366,29 +366,29 @@ test('a supplement proposed for an existing lacuna column can be selected in its
 
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page
-        ->where('windowPassages.0.runs.1.text', 'indeed')
-        ->where('windowPassages.0.runs.1.candidates.1.label', 'Bentley (supplement)')
-        ->has('windowPassages.0.runs.1.candidates', 2));
+        ->where('windowSegments.0.runs.1.text', 'indeed')
+        ->where('windowSegments.0.runs.1.candidates.1.label', 'Bentley (supplement)')
+        ->has('windowSegments.0.runs.1.candidates', 2));
 });
 
 test('a supplement targeting a lacuna that isn\'t on the clicked column is rejected', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['edition' => $edition, 'passage' => $passage] = editionWithBase('the quick fox');
+    ['edition' => $edition, 'segment' => $segment] = editionWithBase('the quick fox');
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'insert',
         'insert_after_base_offset' => 3,
         'source' => 'new_conjecture',
         'conjecture_type' => 'lacuna',
     ]);
     $lacuna = Conjecture::sole();
-    $unrelatedLemma = Lemma::where('canonical_passage_id', $passage->id)
+    $unrelatedLemma = Lemma::where('segment_id', $segment->id)
         ->whereHas('readings', fn ($q) => $q->where('start_offset', 4))
         ->sole();
 
     $response = $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'existing',
         'lemma_id' => $unrelatedLemma->id,
         'source' => 'new_conjecture',
@@ -402,10 +402,10 @@ test('a supplement targeting a lacuna that isn\'t on the clicked column is rejec
 
 test('a lacuna cannot be placed as if it were a witness span', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['edition' => $edition, 'passage' => $passage] = editionWithBase('the quick fox');
+    ['edition' => $edition, 'segment' => $segment] = editionWithBase('the quick fox');
 
     $response = $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 4,
         'base_end_offset' => 9,
         'source' => 'new_conjecture',
@@ -419,10 +419,10 @@ test('a lacuna cannot be placed as if it were a witness span', function () {
 
 test('a witness reading cannot be used as a point insertion', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['edition' => $edition, 'passage' => $passage, 'base' => $base] = editionWithBase('the quick fox');
+    ['edition' => $edition, 'segment' => $segment, 'base' => $base] = editionWithBase('the quick fox');
 
     $response = $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'insert',
         'insert_after_base_offset' => 3,
         'source' => 'transcription',
@@ -436,11 +436,11 @@ test('a witness reading cannot be used as a point insertion', function () {
 
 test('a fresh multi-word range conjecture spans several columns without changing the lemma count', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage] = editionWithBase('the swift red fox');
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment] = editionWithBase('the swift red fox');
     // the=[0,3) swift=[4,9) red=[10,13) fox=[14,17)
 
     $response = $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 4,
         'range_end_base_offset' => 17,
@@ -451,48 +451,48 @@ test('a fresh multi-word range conjecture spans several columns without changing
 
     $response->assertRedirect();
 
-    // The passage was already materialized as 4 word-level lemmas when
+    // The segment was already materialized as 4 word-level lemmas when
     // added to the edition — the range never merges/deletes the underlying
     // columns.
-    expect(Lemma::where('canonical_passage_id', $passage->id)->count())->toBe(4);
+    expect(Lemma::where('segment_id', $segment->id)->count())->toBe(4);
 
     $conjecture = Conjecture::sole();
     expect($conjecture->text)->toBe('creature');
 
-    $reading = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->get()[1]
+    $reading = Lemma::where('segment_id', $segment->id)->orderBy('position')->get()[1]
         ->readings->firstWhere('conjecture_id', $conjecture->id);
-    $endLemma = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->get()[3];
+    $endLemma = Lemma::where('segment_id', $segment->id)->orderBy('position')->get()[3];
     expect($reading->range_end_lemma_id)->toBe($endLemma->id);
 
     // Catalogued as a candidate, but not adopted — still 4 independent runs.
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page
-        ->where('windowPassages.0.runs.0.text', 'the')
-        ->where('windowPassages.0.runs.1.text', 'swift')
-        ->where('windowPassages.0.runs.1.decided', false)
-        ->has('windowPassages.0.runs', 4));
+        ->where('windowSegments.0.runs.0.text', 'the')
+        ->where('windowSegments.0.runs.1.text', 'swift')
+        ->where('windowSegments.0.runs.1.decided', false)
+        ->has('windowSegments.0.runs', 4));
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 4, 'base_end_offset' => 9,
         'source' => 'existing_conjecture', 'conjecture_id' => $conjecture->id,
     ]);
 
     $showAfterPick = $this->get(route('editions.show', [$work, $edition]));
     $showAfterPick->assertInertia(fn (AssertInertia $page) => $page
-        ->where('windowPassages.0.runs.0.text', 'the')
-        ->where('windowPassages.0.runs.1.text', 'creature')
-        ->where('windowPassages.0.runs.1.decided', true)
-        ->has('windowPassages.0.runs', 2)); // "the" + the collapsed range — not 4
+        ->where('windowSegments.0.runs.0.text', 'the')
+        ->where('windowSegments.0.runs.1.text', 'creature')
+        ->where('windowSegments.0.runs.1.decided', true)
+        ->has('windowSegments.0.runs', 2)); // "the" + the collapsed range — not 4
 });
 
 test('authoring a covering range conjecture does not itself clear an intermediate lemma\'s individual decision', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['edition' => $edition, 'passage' => $passage, 'base' => $base] = editionWithBase('the swift red fox');
+    ['edition' => $edition, 'segment' => $segment, 'base' => $base] = editionWithBase('the swift red fox');
 
     // Decide "red" (offsets [10,13)) on its own first.
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 10, 'base_end_offset' => 13,
         'source' => 'transcription', 'transcription_layer_id' => $base->id, 'start_offset' => 10, 'end_offset' => 13,
     ]);
@@ -501,7 +501,7 @@ test('authoring a covering range conjecture does not itself clear an intermediat
     // Merely authoring a range spanning swift..fox catalogues it, but
     // doesn't adopt it — "red"'s own decision is untouched.
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 4, 'range_end_base_offset' => 17,
         'source' => 'new_conjecture', 'conjecture_text' => 'creature',
@@ -512,16 +512,16 @@ test('authoring a covering range conjecture does not itself clear an intermediat
 
 test('adopting a covering range conjecture clears an intermediate lemma\'s individual decision', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['edition' => $edition, 'passage' => $passage, 'base' => $base] = editionWithBase('the swift red fox');
+    ['edition' => $edition, 'segment' => $segment, 'base' => $base] = editionWithBase('the swift red fox');
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 10, 'base_end_offset' => 13,
         'source' => 'transcription', 'transcription_layer_id' => $base->id, 'start_offset' => 10, 'end_offset' => 13,
     ]);
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 4, 'range_end_base_offset' => 17,
         'source' => 'new_conjecture', 'conjecture_text' => 'creature',
@@ -530,7 +530,7 @@ test('adopting a covering range conjecture clears an intermediate lemma\'s indiv
 
     // Now actually adopt it — pick it like any other candidate on its anchor.
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 4, 'base_end_offset' => 9,
         'source' => 'existing_conjecture', 'conjecture_id' => $conjecture->id,
     ]);
@@ -543,17 +543,17 @@ test('adopting a covering range conjecture clears an intermediate lemma\'s indiv
 
 test('picking a normal candidate for a lemma inside an active range breaks the range', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['edition' => $edition, 'passage' => $passage, 'base' => $base] = editionWithBase('the swift red fox');
+    ['edition' => $edition, 'segment' => $segment, 'base' => $base] = editionWithBase('the swift red fox');
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 4, 'range_end_base_offset' => 17,
         'source' => 'new_conjecture', 'conjecture_text' => 'creature',
     ]);
     $conjecture = Conjecture::sole();
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 4, 'base_end_offset' => 9,
         'source' => 'existing_conjecture', 'conjecture_id' => $conjecture->id,
     ]);
@@ -561,7 +561,7 @@ test('picking a normal candidate for a lemma inside an active range breaks the r
 
     // Now pick a normal candidate for "red" directly, inside the range.
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 10, 'base_end_offset' => 13,
         'source' => 'transcription', 'transcription_layer_id' => $base->id, 'start_offset' => 10, 'end_offset' => 13,
     ]);
@@ -574,10 +574,10 @@ test('picking a normal candidate for a lemma inside an active range breaks the r
 
 test('a competing range proposal for the exact same span appears as a candidate on re-render', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage] = editionWithBase('the swift red fox');
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment] = editionWithBase('the swift red fox');
 
     $payload = [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 4,
         'range_end_base_offset' => 17,
@@ -591,61 +591,61 @@ test('a competing range proposal for the exact same span appears as a candidate 
     // Neither is adopted just by being authored — pick one, like any other
     // candidate on its anchor.
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 4, 'base_end_offset' => 9,
         'source' => 'existing_conjecture', 'conjecture_id' => $beast->id,
     ]);
 
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page
-        ->where('windowPassages.0.runs.1.text', 'beast')
+        ->where('windowSegments.0.runs.1.text', 'beast')
         // The anchor lemma's own plain base-witness reading ("swift") plus
         // both range-shaped proposals — candidates are unfiltered by shape.
-        ->has('windowPassages.0.runs.1.candidates', 3));
+        ->has('windowSegments.0.runs.1.candidates', 3));
 });
 
-test('removing a range via edition-lemmas.destroy reverts the passage to per-word rendering', function () {
+test('removing a range via edition-lemmas.destroy reverts the segment to per-word rendering', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage] = editionWithBase('the swift red fox');
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment] = editionWithBase('the swift red fox');
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 4, 'range_end_base_offset' => 17,
         'source' => 'new_conjecture', 'conjecture_text' => 'creature',
     ]);
 
-    $startLemma = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->get()[1];
+    $startLemma = Lemma::where('segment_id', $segment->id)->orderBy('position')->get()[1];
     $this->delete(route('edition-lemmas.destroy', [$edition, $startLemma]));
 
     expect(EditionLemma::where('edition_id', $edition->id)->count())->toBe(0);
 
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page
-        ->has('windowPassages.0.runs', 4) // the / swift / red / fox — independent again
-        ->where('windowPassages.0.runs.1.range_end_lemma_id', null)
-        ->where('windowPassages.0.runs.1.decided', false));
+        ->has('windowSegments.0.runs', 4) // the / swift / red / fox — independent again
+        ->where('windowSegments.0.runs.1.range_end_lemma_id', null)
+        ->where('windowSegments.0.runs.1.decided', false));
 });
 
 test('a witness reading can be placed as a range when its neighbours have nothing else to merge it from', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage, 'base' => $base] = editionWithBase('the swift red fox');
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment, 'base' => $base] = editionWithBase('the swift red fox');
 
     // First, a competing conjecture over the same span — this is what makes
     // the base's own "swift red fox" a genuine alternative worth adopting
     // as a range in its own right (see EditionController::witnessExtension).
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 4, 'range_end_base_offset' => 17,
         'source' => 'new_conjecture', 'conjecture_text' => 'creature',
     ]);
 
-    $startLemma = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->get()[1];
-    $endLemma = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->get()[3];
+    $startLemma = Lemma::where('segment_id', $segment->id)->orderBy('position')->get()[1];
+    $endLemma = Lemma::where('segment_id', $segment->id)->orderBy('position')->get()[3];
 
     $response = $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_lemma_id' => $startLemma->id,
         'range_end_lemma_id' => $endLemma->id,
@@ -665,23 +665,23 @@ test('a witness reading can be placed as a range when its neighbours have nothin
 
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page
-        ->where('windowPassages.0.runs.1.text', 'swift red fox')
-        ->where('windowPassages.0.runs.1.decided', true));
+        ->where('windowSegments.0.runs.1.text', 'swift red fox')
+        ->where('windowSegments.0.runs.1.decided', true));
 });
 
 test('re-placing an already-persisted witness range does not create a duplicate reading', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['edition' => $edition, 'passage' => $passage, 'base' => $base] = editionWithBase('the swift red fox');
+    ['edition' => $edition, 'segment' => $segment, 'base' => $base] = editionWithBase('the swift red fox');
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 4, 'range_end_base_offset' => 17,
         'source' => 'new_conjecture', 'conjecture_text' => 'creature',
     ]);
 
     $payload = [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 4, 'range_end_base_offset' => 17,
         'source' => 'transcription', 'transcription_layer_id' => $base->id, 'start_offset' => 4, 'end_offset' => 17,
@@ -697,10 +697,10 @@ test('re-placing an already-persisted witness range does not create a duplicate 
 
 test('a lacuna cannot be placed as a range', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['edition' => $edition, 'passage' => $passage] = editionWithBase('the swift red fox');
+    ['edition' => $edition, 'segment' => $segment] = editionWithBase('the swift red fox');
 
     $response = $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 4, 'range_end_base_offset' => 17,
         'source' => 'new_conjecture', 'conjecture_type' => 'lacuna',
@@ -711,10 +711,10 @@ test('a lacuna cannot be placed as a range', function () {
 
 test('a range whose end comes before its start is rejected', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['edition' => $edition, 'passage' => $passage] = editionWithBase('the swift red fox');
+    ['edition' => $edition, 'segment' => $segment] = editionWithBase('the swift red fox');
 
     $response = $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 10, // "red"
         'range_end_base_offset' => 9, // "swift" ends before "red" even starts
@@ -726,10 +726,10 @@ test('a range whose end comes before its start is rejected', function () {
 
 test('a range of exactly one word is allowed and stored without a range_end_lemma_id', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage] = editionWithBase('the swift red fox');
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment] = editionWithBase('the swift red fox');
 
     $response = $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 4,
         'range_end_base_offset' => 9, // exactly "swift" itself — the single-word case
@@ -746,30 +746,30 @@ test('a range of exactly one word is allowed and stored without a range_end_lemm
     // base's own word.
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page
-        ->where('windowPassages.0.runs.1.text', 'swift')
-        ->where('windowPassages.0.runs.1.decided', false)
-        ->has('windowPassages.0.runs.1.candidates', 2)
-        ->has('windowPassages.0.runs', 4)); // still 4 independent runs, not collapsed
+        ->where('windowSegments.0.runs.1.text', 'swift')
+        ->where('windowSegments.0.runs.1.decided', false)
+        ->has('windowSegments.0.runs.1.candidates', 2)
+        ->has('windowSegments.0.runs', 4)); // still 4 independent runs, not collapsed
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 4, 'base_end_offset' => 9,
         'source' => 'existing_conjecture', 'conjecture_id' => $conjecture->id,
     ]);
 
     $showAfterPick = $this->get(route('editions.show', [$work, $edition]));
     $showAfterPick->assertInertia(fn (AssertInertia $page) => $page
-        ->where('windowPassages.0.runs.1.text', 'nimble')
-        ->where('windowPassages.0.runs.1.range_end_lemma_id', null)
-        ->has('windowPassages.0.runs', 4));
+        ->where('windowSegments.0.runs.1.text', 'nimble')
+        ->where('windowSegments.0.runs.1.range_end_lemma_id', null)
+        ->has('windowSegments.0.runs', 4));
 });
 
 test('a brand new substitution can no longer be placed via ordinary placement=existing', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['edition' => $edition, 'passage' => $passage] = editionWithBase('the quick fox');
+    ['edition' => $edition, 'segment' => $segment] = editionWithBase('the quick fox');
 
     $response = $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 4,
         'base_end_offset' => 9,
         'source' => 'new_conjecture',
@@ -782,10 +782,10 @@ test('a brand new substitution can no longer be placed via ordinary placement=ex
 
 test('a range-shaped candidate reports the original span it would replace, not just its own proposed text', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage] = editionWithBase('the swift red fox');
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment] = editionWithBase('the swift red fox');
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 4, 'range_end_base_offset' => 17,
         'source' => 'new_conjecture', 'conjecture_text' => 'creature',
@@ -798,23 +798,23 @@ test('a range-shaped candidate reports the original span it would replace, not j
         // competing span — see EditionController::witnessExtension — so an
         // editor compares "swift red fox" against "creature", not a
         // misleading "swift" against "creature".
-        ->where('windowPassages.0.runs.1.candidates.0.text', 'swift red fox')
-        ->where('windowPassages.0.runs.1.candidates.0.replaced_text', null)
-        ->where('windowPassages.0.runs.1.candidates.0.end_offset', 17)
-        ->where('windowPassages.0.runs.1.candidates.1.text', 'creature')
-        ->where('windowPassages.0.runs.1.candidates.1.replaced_text', 'swift red fox'));
+        ->where('windowSegments.0.runs.1.candidates.0.text', 'swift red fox')
+        ->where('windowSegments.0.runs.1.candidates.0.replaced_text', null)
+        ->where('windowSegments.0.runs.1.candidates.0.end_offset', 17)
+        ->where('windowSegments.0.runs.1.candidates.1.text', 'creature')
+        ->where('windowSegments.0.runs.1.candidates.1.replaced_text', 'swift red fox'));
 });
 
 test('each manuscript\'s own reading extends to its own full competing span, even when they disagree', function () {
     $this->actingAs(User::factory()->editor()->create());
     // A reads "swift red fox"; B reads "nimble red fox" — they diverge only
-    // on the first word, so PassageAligner never had cause to merge either
+    // on the first word, so SegmentAligner never had cause to merge either
     // one into a range at materialization time.
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage, 'other' => $other] =
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment, 'other' => $other] =
         editionWithBase('the swift red fox', 'the nimble red fox');
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 4, 'range_end_base_offset' => 17,
         'source' => 'new_conjecture', 'conjecture_text' => 'creature',
@@ -822,9 +822,9 @@ test('each manuscript\'s own reading extends to its own full competing span, eve
 
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page
-        ->where('windowPassages.0.runs.1.candidates.0.text', 'swift red fox')
-        ->where('windowPassages.0.runs.1.candidates.1.text', 'nimble red fox')
-        ->where('windowPassages.0.runs.1.candidates.2.text', 'creature'));
+        ->where('windowSegments.0.runs.1.candidates.0.text', 'swift red fox')
+        ->where('windowSegments.0.runs.1.candidates.1.text', 'nimble red fox')
+        ->where('windowSegments.0.runs.1.candidates.2.text', 'creature'));
 
     expect($other)->not->toBeNull();
 });
@@ -835,16 +835,16 @@ test('a fragmentary witness that does not reach as far as a competing range is l
     // so there is nothing honest to extend its candidate to.
     $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
     $edition = Edition::factory()->for($work)->create();
-    $passage = CanonicalPassage::factory()->for($work)->create(['address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1']);
+    $segment = Segment::factory()->for($work)->create(['address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1']);
     $base = TranscriptionLayer::factory()->create(['text' => 'the swift red fox']);
-    $baseAssignment = Assignment::factory()->for($base)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 18]);
+    $baseAssignment = Assignment::factory()->for($base)->for($segment, 'segment')->create(['start_offset' => 0, 'end_offset' => 18]);
     $fragment = TranscriptionLayer::factory()->create(['text' => 'swift']);
-    Assignment::factory()->for($fragment)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
+    Assignment::factory()->for($fragment)->for($segment, 'segment')->create(['start_offset' => 0, 'end_offset' => 5]);
 
-    PassageAdder::add($edition, $baseAssignment, 1.0);
+    SegmentAdder::add($edition, $baseAssignment, 1.0);
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 4, 'range_end_base_offset' => 17,
         'source' => 'new_conjecture', 'conjecture_text' => 'creature',
@@ -852,18 +852,18 @@ test('a fragmentary witness that does not reach as far as a competing range is l
 
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page
-        ->where('windowPassages.0.runs.1.candidates.0.text', 'swift red fox') // base, extended
-        ->where('windowPassages.0.runs.1.candidates.1.text', 'swift') // fragment, left as-is
-        ->where('windowPassages.0.runs.1.candidates.1.range_end_lemma_id', null));
+        ->where('windowSegments.0.runs.1.candidates.0.text', 'swift red fox') // base, extended
+        ->where('windowSegments.0.runs.1.candidates.1.text', 'swift') // fragment, left as-is
+        ->where('windowSegments.0.runs.1.candidates.1.range_end_lemma_id', null));
 });
 
-test('picking a PassageAligner-detected multi-word witness variant selects the merged reading via ordinary placement=existing', function () {
+test('picking a SegmentAligner-detected multi-word witness variant selects the merged reading via ordinary placement=existing', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage, 'other' => $other] =
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment, 'other' => $other] =
         editionWithBase('the fox sleeps', 'the exceedingly swift creature sleeps');
 
     $response = $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 4, 'base_end_offset' => 7, // "fox"
         'source' => 'transcription',
         'transcription_layer_id' => $other->id,
@@ -871,7 +871,7 @@ test('picking a PassageAligner-detected multi-word witness variant selects the m
     ]);
 
     $response->assertRedirect();
-    expect(Lemma::where('canonical_passage_id', $passage->id)->count())->toBe(3);
+    expect(Lemma::where('segment_id', $segment->id)->count())->toBe(3);
 
     $selection = EditionLemma::where('edition_id', $edition->id)->sole();
     expect($selection->selectedReading->range_end_lemma_id)->toBeNull() // only one existing lemma involved
@@ -880,17 +880,17 @@ test('picking a PassageAligner-detected multi-word witness variant selects the m
 
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page
-        ->where('windowPassages.0.runs.1.decided', true)
-        ->where('windowPassages.0.runs.1.text', 'exceedingly swift creature'));
+        ->where('windowSegments.0.runs.1.decided', true)
+        ->where('windowSegments.0.runs.1.text', 'exceedingly swift creature'));
 });
 
 test('re-selecting an already-persisted range-shaped witness reading does not create a duplicate', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['edition' => $edition, 'passage' => $passage, 'other' => $other] =
+    ['edition' => $edition, 'segment' => $segment, 'other' => $other] =
         editionWithBase('the swift fox sleeps', 'the creature very quickly sleeps');
 
     $payload = [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 4, 'base_end_offset' => 13, // "swift fox"
         'source' => 'transcription',
         'transcription_layer_id' => $other->id,
@@ -907,11 +907,11 @@ test('re-selecting an already-persisted range-shaped witness reading does not cr
 
 test('a witness-sourced range run renders the witness\'s own text, not a conjecture placeholder', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage, 'other' => $other] =
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment, 'other' => $other] =
         editionWithBase('the swift fox sleeps', 'the creature very quickly sleeps');
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 4, 'base_end_offset' => 13,
         'source' => 'transcription', 'transcription_layer_id' => $other->id,
         'start_offset' => 4, 'end_offset' => 25,
@@ -919,53 +919,53 @@ test('a witness-sourced range run renders the witness\'s own text, not a conject
 
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page
-        ->where('windowPassages.0.runs.1.text', 'creature very quickly')
-        ->where('windowPassages.0.runs.1.range_end_lemma_id', fn ($id) => $id !== null));
+        ->where('windowSegments.0.runs.1.text', 'creature very quickly')
+        ->where('windowSegments.0.runs.1.range_end_lemma_id', fn ($id) => $id !== null));
 });
 
-test('a passage fully covered by one range reports complete status, not stuck at partial', function () {
+test('a segment fully covered by one range reports complete status, not stuck at partial', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage] = editionWithBase('the swift red fox');
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment] = editionWithBase('the swift red fox');
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 0, 'range_end_base_offset' => 3,
         'source' => 'new_conjecture', 'conjecture_text' => 'lo',
     ]);
     $first = Conjecture::sole();
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 0, 'base_end_offset' => 3,
         'source' => 'existing_conjecture', 'conjecture_id' => $first->id,
     ]);
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 4, 'range_end_base_offset' => 17,
         'source' => 'new_conjecture', 'conjecture_text' => 'creature',
     ]);
     $second = Conjecture::where('text', 'creature')->sole();
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 4, 'base_end_offset' => 9,
         'source' => 'existing_conjecture', 'conjecture_id' => $second->id,
     ]);
 
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page
-        ->where('passages.0.status', 'complete'));
+        ->where('segments.0.status', 'complete'));
 });
 
-test('a whole-line lacuna creates its own passage and auto-selects', function () {
+test('a whole-line lacuna creates its own segment and auto-selects', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'editionPassage' => $editionPassage] = editionSpanningTwoLines();
+    ['work' => $work, 'edition' => $edition, 'editionSegment' => $editionSegment] = editionSpanningTwoLines();
 
     $response = $this->post(route('edition-variants.store', $edition), [
-        'placement' => 'new_passage',
+        'placement' => 'new_segment',
         'label' => '1.1a',
-        'insert_after_edition_passage_id' => $editionPassage->id,
+        'insert_after_edition_segment_id' => $editionSegment->id,
         'source' => 'new_conjecture',
         'conjecture_type' => 'lacuna',
         'conjecture_extent' => 'two lines',
@@ -975,50 +975,50 @@ test('a whole-line lacuna creates its own passage and auto-selects', function ()
 
     $response->assertRedirect();
 
-    $passage = CanonicalPassage::where('work_id', $work->id)->where('label', '1.1a')->sole();
-    expect($passage->address)->toBe(['book' => 1, 'line' => '1a'])
-        ->and(Lemma::where('canonical_passage_id', $passage->id)->count())->toBe(1);
+    $segment = Segment::where('work_id', $work->id)->where('label', '1.1a')->sole();
+    expect($segment->address)->toBe(['book' => 1, 'line' => '1a'])
+        ->and(Lemma::where('segment_id', $segment->id)->count())->toBe(1);
 
     $conjecture = Conjecture::sole();
     expect($conjecture->type)->toBe(ConjectureType::Lacuna)
         ->and($conjecture->extent_characters)->toBe(40);
 
-    $lemma = Lemma::where('canonical_passage_id', $passage->id)->sole();
+    $lemma = Lemma::where('segment_id', $segment->id)->sole();
     $selection = EditionLemma::where('edition_id', $edition->id)->where('lemma_id', $lemma->id)->sole();
     expect($selection->selectedReading->conjecture_id)->toBe($conjecture->id);
 
     // Positioned after 1.1, as anchored.
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page
-        ->where('passages.0.label', '1.1')
-        ->where('passages.1.label', '1.1a'));
+        ->where('segments.0.label', '1.1')
+        ->where('segments.1.label', '1.1a'));
 });
 
-test('a whole-line lacuna passage is only ever created for a lacuna, never another conjecture type', function () {
+test('a whole-line lacuna segment is only ever created for a lacuna, never another conjecture type', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['edition' => $edition, 'editionPassage' => $editionPassage] = editionSpanningTwoLines();
+    ['edition' => $edition, 'editionSegment' => $editionSegment] = editionSpanningTwoLines();
 
     $response = $this->post(route('edition-variants.store', $edition), [
-        'placement' => 'new_passage',
+        'placement' => 'new_segment',
         'label' => '1.1a',
-        'insert_after_edition_passage_id' => $editionPassage->id,
+        'insert_after_edition_segment_id' => $editionSegment->id,
         'source' => 'new_conjecture',
         'conjecture_type' => 'substitution',
         'conjecture_text' => 'not a lacuna',
     ]);
 
     $response->assertInvalid(['conjecture_type']);
-    expect(CanonicalPassage::where('label', '1.1a')->exists())->toBeFalse();
+    expect(Segment::where('label', '1.1a')->exists())->toBeFalse();
 });
 
-test('repeating a whole-line lacuna label reuses the same passage instead of duplicating it', function () {
+test('repeating a whole-line lacuna label reuses the same segment instead of duplicating it', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'editionPassage' => $editionPassage] = editionSpanningTwoLines();
+    ['work' => $work, 'edition' => $edition, 'editionSegment' => $editionSegment] = editionSpanningTwoLines();
 
     $payload = [
-        'placement' => 'new_passage',
+        'placement' => 'new_segment',
         'label' => '1.1a',
-        'insert_after_edition_passage_id' => $editionPassage->id,
+        'insert_after_edition_segment_id' => $editionSegment->id,
         'source' => 'new_conjecture',
         'conjecture_type' => 'lacuna',
         'conjecture_proposed_by' => 'Wolf',
@@ -1027,21 +1027,21 @@ test('repeating a whole-line lacuna label reuses the same passage instead of dup
     $this->post(route('edition-variants.store', $edition), $payload);
     $this->post(route('edition-variants.store', $edition), [...$payload, 'conjecture_proposed_by' => 'Bentley']);
 
-    expect(CanonicalPassage::where('work_id', $work->id)->where('label', '1.1a')->count())->toBe(1);
-    $passage = CanonicalPassage::where('work_id', $work->id)->where('label', '1.1a')->sole();
-    // Both proposals land on the passage's one lemma as competing readings —
+    expect(Segment::where('work_id', $work->id)->where('label', '1.1a')->count())->toBe(1);
+    $segment = Segment::where('work_id', $work->id)->where('label', '1.1a')->sole();
+    // Both proposals land on the segment's one lemma as competing readings —
     // the second author auto-selects, same as any other lacuna.
-    expect(Lemma::where('canonical_passage_id', $passage->id)->count())->toBe(1);
-    $lemma = Lemma::where('canonical_passage_id', $passage->id)->sole();
+    expect(Lemma::where('segment_id', $segment->id)->count())->toBe(1);
+    $lemma = Lemma::where('segment_id', $segment->id)->sole();
     expect($lemma->readings)->toHaveCount(2);
 });
 
 test('extent_characters flows through to the rendered run and candidate, and is null when never set', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage] = editionWithBase('the quick fox');
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment] = editionWithBase('the quick fox');
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'insert',
         'insert_after_base_offset' => 3,
         'source' => 'new_conjecture',
@@ -1052,17 +1052,17 @@ test('extent_characters flows through to the rendered run and candidate, and is 
 
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page
-        ->where('windowPassages.0.runs.1.extent_characters', 12)
-        ->where('windowPassages.0.runs.1.candidates.0.extent_characters', 12)
-        ->where('windowPassages.0.runs.0.extent_characters', null));
+        ->where('windowSegments.0.runs.1.extent_characters', 12)
+        ->where('windowSegments.0.runs.1.candidates.0.extent_characters', 12)
+        ->where('windowSegments.0.runs.0.extent_characters', null));
 });
 
 test('a lacuna authored without extent_characters still renders the old bracketed text unregressed', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage] = editionWithBase('the quick fox');
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment] = editionWithBase('the quick fox');
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'insert',
         'insert_after_base_offset' => 3,
         'source' => 'new_conjecture',
@@ -1073,8 +1073,8 @@ test('a lacuna authored without extent_characters still renders the old brackete
 
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page
-        ->where('windowPassages.0.runs.1.extent_characters', null)
-        ->where('windowPassages.0.runs.1.text', '[lacuna: one word]'));
+        ->where('windowSegments.0.runs.1.extent_characters', null)
+        ->where('windowSegments.0.runs.1.text', '[lacuna: one word]'));
 });
 
 test('a whole-line lacuna at an ordinary canonical number, never attested by any witness, reports complete rather than stuck at partial', function () {
@@ -1086,15 +1086,15 @@ test('a whole-line lacuna at an ordinary canonical number, never attested by any
     // lacuna discovered later.
     $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
     $edition = Edition::factory()->for($work)->create();
-    $p33 = CanonicalPassage::factory()->for($work)->create(['address' => ['book' => 3, 'line' => 33], 'sort_key' => '00000003.00000033', 'label' => '3.33']);
+    $p33 = Segment::factory()->for($work)->create(['address' => ['book' => 3, 'line' => 33], 'sort_key' => '00000003.00000033', 'label' => '3.33']);
     $base = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
-    $assignment = Assignment::factory()->for($base)->for($p33, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
-    $editionPassage = PassageAdder::add($edition, $assignment, 1.0);
+    $assignment = Assignment::factory()->for($base)->for($p33, 'segment')->create(['start_offset' => 0, 'end_offset' => 13]);
+    $editionSegment = SegmentAdder::add($edition, $assignment, 1.0);
 
     $this->post(route('edition-variants.store', $edition), [
-        'placement' => 'new_passage',
+        'placement' => 'new_segment',
         'label' => '3.34',
-        'insert_after_edition_passage_id' => $editionPassage->id,
+        'insert_after_edition_segment_id' => $editionSegment->id,
         'source' => 'new_conjecture',
         'conjecture_type' => 'lacuna',
         'conjecture_extent' => 'one line',
@@ -1103,16 +1103,16 @@ test('a whole-line lacuna at an ordinary canonical number, never attested by any
 
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page
-        ->where('passages.1.label', '3.34')
-        ->where('passages.1.status', 'complete'));
+        ->where('segments.1.label', '3.34')
+        ->where('segments.1.status', 'complete'));
 });
 
 test('a transposition cannot be placed through the word-level variant endpoint', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['edition' => $edition, 'passage' => $passage] = editionWithBase('the quick fox');
+    ['edition' => $edition, 'segment' => $segment] = editionWithBase('the quick fox');
 
     $response = $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'base_start_offset' => 4,
         'base_end_offset' => 9,
         'source' => 'new_conjecture',
@@ -1126,10 +1126,10 @@ test('a transposition cannot be placed through the word-level variant endpoint',
 
 test('a deletion conjecture is registered over the selected words without changing the printed text', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage] = editionWithBase('the quick brown fox');
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment] = editionWithBase('the quick brown fox');
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 4,
         'range_end_base_offset' => 15,
@@ -1140,7 +1140,7 @@ test('a deletion conjecture is registered over the selected words without changi
 
     $conjecture = Conjecture::sole();
     $reading = LemmaReading::where('conjecture_id', $conjecture->id)->sole();
-    $lemmas = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->get();
+    $lemmas = Lemma::where('segment_id', $segment->id)->orderBy('position')->get();
 
     expect($conjecture->type)->toBe(ConjectureType::Deletion)
         ->and($conjecture->text)->toBeNull()
@@ -1150,20 +1150,20 @@ test('a deletion conjecture is registered over the selected words without changi
 
     $this->get(route('editions.show', [$work, $edition]))
         ->assertInertia(fn (AssertInertia $page) => $page
-            ->where('windowPassages.0.runs.1.text', 'quick')
-            ->where('windowPassages.0.runs.1.omitted', false)
-            ->where('windowPassages.0.runs.1.candidates.1.label', 'Bergk (deletion)')
-            ->where('windowPassages.0.runs.1.candidates.1.text', '')
-            ->where('windowPassages.0.runs.1.candidates.1.omitted', true)
-            ->where('windowPassages.0.runs.1.candidates.1.replaced_text', 'quick brown'));
+            ->where('windowSegments.0.runs.1.text', 'quick')
+            ->where('windowSegments.0.runs.1.omitted', false)
+            ->where('windowSegments.0.runs.1.candidates.1.label', 'Bergk (deletion)')
+            ->where('windowSegments.0.runs.1.candidates.1.text', '')
+            ->where('windowSegments.0.runs.1.candidates.1.omitted', true)
+            ->where('windowSegments.0.runs.1.candidates.1.replaced_text', 'quick brown'));
 });
 
 test('adopting a deletion prints nothing where the words stood and marks the place', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage] = editionWithBase('the quick brown fox');
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment] = editionWithBase('the quick brown fox');
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 4,
         'range_end_base_offset' => 15,
@@ -1175,20 +1175,20 @@ test('adopting a deletion prints nothing where the words stood and marks the pla
 
     $this->get(route('editions.show', [$work, $edition]))
         ->assertInertia(fn (AssertInertia $page) => $page
-            ->has('windowPassages.0.runs', 3)
-            ->where('windowPassages.0.runs.0.text', 'the')
-            ->where('windowPassages.0.runs.1.text', '')
-            ->where('windowPassages.0.runs.1.omitted', true)
-            ->where('windowPassages.0.runs.1.decided', true)
-            ->where('windowPassages.0.runs.2.text', 'fox'));
+            ->has('windowSegments.0.runs', 3)
+            ->where('windowSegments.0.runs.0.text', 'the')
+            ->where('windowSegments.0.runs.1.text', '')
+            ->where('windowSegments.0.runs.1.omitted', true)
+            ->where('windowSegments.0.runs.1.decided', true)
+            ->where('windowSegments.0.runs.2.text', 'fox'));
 });
 
 test('a deletion never carries text of its own', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['edition' => $edition, 'passage' => $passage] = editionWithBase('the quick brown fox');
+    ['edition' => $edition, 'segment' => $segment] = editionWithBase('the quick brown fox');
 
     $this->from('/')->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'range',
         'range_start_base_offset' => 4,
         'range_end_base_offset' => 15,
@@ -1202,24 +1202,24 @@ test('a deletion never carries text of its own', function () {
 
 test('a witness that lacks words the base has is offered as an omission the edition can adopt', function () {
     $this->actingAs(User::factory()->editor()->create());
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage, 'other' => $other] = editionWithBase('the quick brown fox', 'the fox');
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment, 'other' => $other] = editionWithBase('the quick brown fox', 'the fox');
 
-    $lemmas = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->get();
+    $lemmas = Lemma::where('segment_id', $segment->id)->orderBy('position')->get();
     $omission = LemmaReading::where('transcription_layer_id', $other->id)->where('omitted', true)->sole();
 
     // Base A prints its words; B's omission is a candidate at "quick",
     // spanning "brown" — the apparatus can say "quick brown A, omitted B".
     $this->get(route('editions.show', [$work, $edition]))
         ->assertInertia(fn (AssertInertia $page) => $page
-            ->where('windowPassages.0.runs.1.text', 'quick')
-            ->where('windowPassages.0.runs.1.candidates.1.label', 'B')
-            ->where('windowPassages.0.runs.1.candidates.1.omitted', true)
-            ->where('windowPassages.0.runs.1.candidates.1.text', '')
-            ->where('windowPassages.0.runs.1.candidates.1.range_end_lemma_id', $lemmas[2]->id)
-            ->where('windowPassages.0.runs.1.candidates.1.replaced_text', 'quick brown'));
+            ->where('windowSegments.0.runs.1.text', 'quick')
+            ->where('windowSegments.0.runs.1.candidates.1.label', 'B')
+            ->where('windowSegments.0.runs.1.candidates.1.omitted', true)
+            ->where('windowSegments.0.runs.1.candidates.1.text', '')
+            ->where('windowSegments.0.runs.1.candidates.1.range_end_lemma_id', $lemmas[2]->id)
+            ->where('windowSegments.0.runs.1.candidates.1.replaced_text', 'quick brown'));
 
     $this->post(route('edition-variants.store', $edition), [
-        'canonical_passage_id' => $passage->id,
+        'segment_id' => $segment->id,
         'placement' => 'existing',
         'lemma_id' => $lemmas[1]->id,
         'source' => 'transcription',
@@ -1230,32 +1230,32 @@ test('a witness that lacks words the base has is offered as an omission the edit
 
     $this->get(route('editions.show', [$work, $edition]))
         ->assertInertia(fn (AssertInertia $page) => $page
-            ->has('windowPassages.0.runs', 3)
-            ->where('windowPassages.0.runs.1.text', '')
-            ->where('windowPassages.0.runs.1.omitted', true)
-            ->where('windowPassages.0.runs.1.range_end_lemma_id', $lemmas[2]->id)
-            ->where('windowPassages.0.runs.2.text', 'fox'));
+            ->has('windowSegments.0.runs', 3)
+            ->where('windowSegments.0.runs.1.text', '')
+            ->where('windowSegments.0.runs.1.omitted', true)
+            ->where('windowSegments.0.runs.1.range_end_lemma_id', $lemmas[2]->id)
+            ->where('windowSegments.0.runs.2.text', 'fox'));
 });
 
 test('a base that lacks words another witness has prints one gap for the whole run, not one per column', function () {
     $this->actingAs(User::factory()->editor()->create());
     // B is the base here; A has two words B lacks.
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage] = editionWithBase('the fox', 'the quick brown fox');
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment] = editionWithBase('the fox', 'the quick brown fox');
 
-    $lemmas = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->get();
+    $lemmas = Lemma::where('segment_id', $segment->id)->orderBy('position')->get();
 
     $this->get(route('editions.show', [$work, $edition]))
         ->assertInertia(fn (AssertInertia $page) => $page
-            ->has('windowPassages.0.runs', 3)
-            ->where('windowPassages.0.runs.0.text', 'the')
-            ->where('windowPassages.0.runs.1.text', '')
-            ->where('windowPassages.0.runs.1.gap', true)
-            ->where('windowPassages.0.runs.1.omitted', true)
-            ->where('windowPassages.0.runs.1.decided', false)
-            ->where('windowPassages.0.runs.1.candidates.0.label', 'A')
-            ->where('windowPassages.0.runs.1.candidates.0.omitted', true)
-            ->where('windowPassages.0.runs.1.candidates.1.label', 'B')
-            ->where('windowPassages.0.runs.1.candidates.1.text', 'quick brown')
-            ->where('windowPassages.0.runs.1.candidates.1.range_end_lemma_id', $lemmas[2]->id)
-            ->where('windowPassages.0.runs.2.text', 'fox'));
+            ->has('windowSegments.0.runs', 3)
+            ->where('windowSegments.0.runs.0.text', 'the')
+            ->where('windowSegments.0.runs.1.text', '')
+            ->where('windowSegments.0.runs.1.gap', true)
+            ->where('windowSegments.0.runs.1.omitted', true)
+            ->where('windowSegments.0.runs.1.decided', false)
+            ->where('windowSegments.0.runs.1.candidates.0.label', 'A')
+            ->where('windowSegments.0.runs.1.candidates.0.omitted', true)
+            ->where('windowSegments.0.runs.1.candidates.1.label', 'B')
+            ->where('windowSegments.0.runs.1.candidates.1.text', 'quick brown')
+            ->where('windowSegments.0.runs.1.candidates.1.range_end_lemma_id', $lemmas[2]->id)
+            ->where('windowSegments.0.runs.2.text', 'fox'));
 });

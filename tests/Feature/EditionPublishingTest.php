@@ -2,9 +2,9 @@
 
 use App\Enums\Visibility;
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
+use App\Models\Segment;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\User;
@@ -23,17 +23,17 @@ function draftEditionWithEvidence(): array
     $owner = User::factory()->create();
     $work = Work::factory()->for($owner)->create();
     $edition = Edition::factory()->for($owner)->for($work)->create();
-    $passage = CanonicalPassage::factory()->for($work)->create();
+    $segment = Segment::factory()->for($work)->create();
     $witness = Witness::factory()->for($owner)->create();
 
     $assigning = Transcription::factory()->for($witness)->create();
     $layer = TranscriptionLayer::factory()->for($assigning)->create(['text' => 'the quick fox']);
-    Assignment::factory()->for($layer)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
+    Assignment::factory()->for($layer)->for($segment, 'segment')->create(['start_offset' => 0, 'end_offset' => 13]);
 
     $other = Transcription::factory()->for($witness)->create();
     TranscriptionLayer::factory()->for($other)->create(['text' => 'unrelated']);
 
-    $conjecture = Conjecture::factory()->for($owner)->for($passage, 'canonicalPassage')->create();
+    $conjecture = Conjecture::factory()->for($owner)->for($segment, 'segment')->create();
     $foreign = Conjecture::factory()->for($owner)->create();
 
     return compact('owner', 'work', 'edition', 'witness', 'assigning', 'other', 'conjecture', 'foreign');
@@ -84,8 +84,8 @@ test('a transcription of a codex stays public while a published edition of anoth
     // published edition.
     $otherWork = Work::factory()->for($owner)->create();
     $otherEdition = Edition::factory()->for($owner)->for($otherWork)->create();
-    $otherPassage = CanonicalPassage::factory()->for($otherWork)->create();
-    Assignment::factory()->for($assigning->layers()->first())->for($otherPassage, 'canonicalPassage')->create(['start_offset' => 4, 'end_offset' => 9]);
+    $otherSegment = Segment::factory()->for($otherWork)->create();
+    Assignment::factory()->for($assigning->layers()->first())->for($otherSegment, 'segment')->create(['start_offset' => 4, 'end_offset' => 9]);
 
     $this->actingAs($owner);
     $this->patch(route('editions.update', $edition), ['visibility' => 'published']);
@@ -112,7 +112,7 @@ test('only the owner or an administrator publishes — not an invited editor, no
 test('a reader sees only published conjectures on the work page; the owner sees all', function () {
     ['owner' => $owner, 'work' => $work, 'conjecture' => $conjecture] = draftEditionWithEvidence();
     $conjecture->update(['visibility' => Visibility::Published]);
-    $draft = Conjecture::factory()->for($owner)->for($conjecture->canonicalPassage, 'canonicalPassage')->create();
+    $draft = Conjecture::factory()->for($owner)->for($conjecture->segment, 'segment')->create();
     // The work is readable because a transcription assigning text to it is published.
     Transcription::query()->update(['visibility' => Visibility::Published->value]);
 
@@ -128,10 +128,10 @@ test('a reader sees only published conjectures on the work page; the owner sees 
 
 test('a conjecture recorded on a work that already has a published edition is published at once', function () {
     ['owner' => $owner, 'work' => $work, 'edition' => $edition] = draftEditionWithEvidence();
-    $passage = $work->canonicalPassages()->sole();
+    $segment = $work->segments()->sole();
 
     $this->actingAs($owner);
-    $this->post(route('conjectures.store', $passage), ['text' => 'while a draft', 'proposed_by' => 'Bentley'])->assertRedirect();
+    $this->post(route('conjectures.store', $segment), ['text' => 'while a draft', 'proposed_by' => 'Bentley'])->assertRedirect();
     expect(Conjecture::where('text', 'while a draft')->sole()->visibility)->toBe(Visibility::Draft);
 
     // Publishing sweeps up the drafts already recorded against the work.
@@ -140,7 +140,7 @@ test('a conjecture recorded on a work that already has a published edition is pu
 
     // Recorded into a public apparatus: a reader who sees it printed must
     // find it on the work page too, so it is born published.
-    $this->post(route('conjectures.store', $passage), ['text' => 'once public', 'proposed_by' => 'Porson'])->assertRedirect();
+    $this->post(route('conjectures.store', $segment), ['text' => 'once public', 'proposed_by' => 'Porson'])->assertRedirect();
     expect(Conjecture::where('text', 'once public')->sole()->visibility)->toBe(Visibility::Published);
 
     // The fixture's own conjecture, the swept-up draft, and the new one.

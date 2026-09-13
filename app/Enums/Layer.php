@@ -12,7 +12,7 @@ namespace App\Enums;
  * regularization of it, and is the layer collation runs on.
  *
  * Only normalized transcriptions are collated (see
- * App\Support\Edition\PassageAdder) and only they may be an edition's base.
+ * App\Support\Edition\SegmentAdder) and only they may be an edition's base.
  * That is not a limitation imposed here but a requirement of collation
  * itself: a fully normalized witness cannot be meaningfully collated against
  * one that preserves accents, because every accent becomes a false variant.

@@ -30,11 +30,11 @@ The WORK is the hub (`Work::isEditableBy`): a work is editable by its
 owner and by the owner or invited editors of any of its editions; a
 witness by its owner or whoever may edit a work one of its transcriptions
 assigns (`Witness::relatedWorks`); a conjecture by its owner or whoever may
-edit its passage's work. That is how "editing privileges of an edition
+edit its segment's work. That is how "editing privileges of an edition
 come with its witnesses and conjectures" is realised — nothing is granted
 per witness. Assigning an assignment INTO a work therefore requires `update` on
 that work (`AssignmentController::store/reassign`) — it
-creates passages and re-collates, and it would otherwise let a stranger
+creates segments and re-collates, and it would otherwise let a stranger
 attach her witness to someone's edition. The witness page offers only
 works the member may assign text to (`Work::editableOrAllFor`).
 
@@ -51,7 +51,7 @@ another's published edition, since the cascades reach every edition.
 - A work cannot be deleted by its owner while an edition of it belongs to
   someone else (`WorkPolicy::delete`).
 - A witness cannot be deleted by its owner while another member's edition
-  prints text from it — as a passage's base or as a chosen reading
+  prints text from it — as a segment's base or as a chosen reading
   (`Witness::isPrintedByAnothersEdition`, used by `WitnessPolicy::delete`).
   The same question, asked of one transcript's layers, refuses
   `TranscriptionController::destroy` with a message rather than a 403,
@@ -69,7 +69,7 @@ Data that crosses a boundary is refused at validation, since the copier
 maps by owner: a page break names a page of the layer's own witness
 (`StoreTranscriptionPageBreakRequest`), a span copy's source must be
 viewable (`TranscriptionSpanCopyController` authorizes `view`), and
-`EditionPassageController::store` adds only passages of the edition's own
+`EditionSegmentController::store` adds only segments of the edition's own
 work whatever else the layer assigns.
 
 Every mutating route is `auth` and authorizes against its resource — in
@@ -136,12 +136,12 @@ deliberate exception: a copy is always a draft.
 `EditionCopier` (user decision: full clone, because `Lemma`/`LemmaReading`
 are shared by every edition of a WORK, so a copy sharing the work would
 re-collate the original when edited). It copies the work (slug
-`-copy`, `-copy-2`, …) and passages, every witness assigning text to the work with
+`-copy`, `-copy-2`, …) and segments, every witness assigning text to the work with
 only the transcriptions that assign it (`WitnessCopier`: pages, photographs
 duplicated on disk, features, both layers, assignments assigning text to the work,
 regions, page breaks, fresh `group_id`s per counterpart pair), the
 conjectures (supplements rewired in a second pass, ordering entries,
-assignments), the collation, and the edition's passages, selections, line
+assignments), the collation, and the edition's segments, selections, line
 breaks, notes, adoptions and assignments. Shared, not copied: the reference
 scheme and bibliography items. The copy is a draft with no editors, owned
 by the copier, `copied_from_id` set throughout.
@@ -157,7 +157,7 @@ WHAT THEY POINT AT depends on whose witness it is, decided once per copy by
 one of its works:
 
 - A witness the copier MAY EDIT keeps its assignments on the very same
-  passages. Her edits then show up as variants in her own editions of that
+  segments. Her edits then show up as variants in her own editions of that
   work and in the shared edition she took the witness from, which is the
   point of copying a witness one already works on.
 - SOMEONE ELSE'S public witness brings copies of the works it assigns text

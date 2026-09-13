@@ -2,9 +2,9 @@
 
 namespace Database\Factories;
 
-use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\ConjectureOrderingEntry;
+use App\Models\Segment;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -21,7 +21,7 @@ class ConjectureOrderingEntryFactory extends Factory
     {
         return [
             'conjecture_id' => Conjecture::factory()->reordering(),
-            'canonical_passage_id' => CanonicalPassage::factory(),
+            'segment_id' => Segment::factory(),
             'sequence' => 0,
         ];
     }

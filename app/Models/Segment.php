@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use Database\Factories\CanonicalPassageFactory;
+use Database\Factories\SegmentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -20,9 +20,9 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  */
 #[Fillable(['work_id', 'address', 'sort_key', 'label'])]
-class CanonicalPassage extends Model
+class Segment extends Model
 {
-    /** @use HasFactory<CanonicalPassageFactory> */
+    /** @use HasFactory<SegmentFactory> */
     use HasFactory;
 
     /**
@@ -50,7 +50,7 @@ class CanonicalPassage extends Model
     }
 
     /**
-     * The shared lemma collation for this passage — every Edition of the
+     * The shared lemma collation for this segment — every Edition of the
      * work draws its selections from these, see Lemma.
      *
      * @return HasMany<Lemma, $this>

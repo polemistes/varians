@@ -3,7 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Edition;
-use App\Models\EditionPassage;
+use App\Models\EditionSegment;
 use App\Models\Lemma;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Contracts\Validation\Validator;
@@ -39,7 +39,7 @@ class UpdateEditionLineBreakRequest extends FormRequest
     }
 
     /**
-     * The column must belong to a passage this edition actually contains —
+     * The column must belong to a segment this edition actually contains —
      * colometry for text the edition doesn't print means nothing.
      */
     public function withValidator(Validator $validator): void
@@ -53,8 +53,8 @@ class UpdateEditionLineBreakRequest extends FormRequest
                 return;
             }
 
-            $inEdition = EditionPassage::where('edition_id', $edition->id)
-                ->where('canonical_passage_id', $lemma->canonical_passage_id)
+            $inEdition = EditionSegment::where('edition_id', $edition->id)
+                ->where('segment_id', $lemma->segment_id)
                 ->exists();
 
             if (! $inEdition) {

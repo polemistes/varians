@@ -15,7 +15,7 @@ use Illuminate\Http\Request;
 
 /**
  * Citations of the common bibliography by things that already exist — a
- * recorded conjecture, or a passage of an edition — saved immediately, as
+ * recorded conjecture, or a segment of an edition — saved immediately, as
  * notes are. A NEW conjecture sends its citations in its own request
  * instead (see ReferenceAttacher), so it is never created without them.
  */
@@ -45,8 +45,8 @@ class BibliographyReferenceController extends Controller
     public function store(StoreBibliographyReferenceRequest $request): RedirectResponse
     {
         $target = $request->filled('conjecture_id')
-            ? ['conjecture_id' => (int) $request->validated('conjecture_id'), 'edition_id' => null, 'canonical_passage_id' => null]
-            : ['conjecture_id' => null, 'edition_id' => (int) $request->validated('edition_id'), 'canonical_passage_id' => (int) $request->validated('canonical_passage_id')];
+            ? ['conjecture_id' => (int) $request->validated('conjecture_id'), 'edition_id' => null, 'segment_id' => null]
+            : ['conjecture_id' => null, 'edition_id' => (int) $request->validated('edition_id'), 'segment_id' => (int) $request->validated('segment_id')];
 
         $this->authorize('update', $target['conjecture_id'] !== null
             ? Conjecture::findOrFail($target['conjecture_id'])

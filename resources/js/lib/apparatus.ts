@@ -102,7 +102,7 @@ export function groupBy(
  * and NFC "ἄειδε" and NFD "ἄειδε" are the same word rendered identically but
  * different strings. Ungrouped, one manuscript would be listed twice over a
  * difference nobody can see. Collation already compares in this form — see
- * PassageAligner::comparisonForm.
+ * SegmentAligner::comparisonForm.
  */
 export function sameReading(text: string | null): string | null {
     return text === null ? null : text.normalize('NFC');
@@ -166,8 +166,8 @@ export function differenceProvenance(run: Run): string | null {
     return null;
 }
 
-// "B has this passage in 2 places (part 1 follows 41, part 2 follows 44)" —
-// the sub-passage transposition story, one sentence per witness. Shown in
+// "B has this segment in 2 places (part 1 follows 41, part 2 follows 44)" —
+// the sub-segment transposition story, one sentence per witness. Shown in
 // the ⇄ marker's click panel and, joined up, as its hover title.
 export function discontinuitySentence(witness: DiscontinuousWitness): string {
     const parts = witness.parts
@@ -178,7 +178,7 @@ export function discontinuitySentence(witness: DiscontinuousWitness): string {
         )
         .join(', ');
 
-    return `${witness.siglum} has this passage in ${witness.parts.length} places (${parts})`;
+    return `${witness.siglum} has this segment in ${witness.parts.length} places (${parts})`;
 }
 
 // Prefer the apparatus statements ('R2: 4 2/2 "πάρεστιν ἐνταυθοῖ γυνή·"

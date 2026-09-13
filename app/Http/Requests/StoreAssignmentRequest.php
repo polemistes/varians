@@ -44,7 +44,7 @@ class StoreAssignmentRequest extends FormRequest
             ],
             'work_id' => ['required', Rule::exists('works', 'id')],
             'label' => ['required', 'string', 'max:100'],
-            // Only meaningful when the label names a passage this layer
+            // Only meaningful when the label names a segment this layer
             // already assigns — the span becomes another *part* of it. See
             // AssignmentController::store.
             'after_part' => ['nullable', 'integer', 'min:0'],

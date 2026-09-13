@@ -105,7 +105,7 @@ class WitnessController extends Controller
             // payloads — the rest of this page is far too heavy per keystroke.
             'leftPane' => fn () => $this->panePayload($left),
             'rightPane' => fn () => $this->panePayload($right),
-            // Only works the member may assign text to: assigning creates passages
+            // Only works the member may assign text to: assigning creates segments
             // and re-collates, so it is editing the work.
             'works' => $request->user() === null
                 ? collect()
@@ -172,7 +172,7 @@ class WitnessController extends Controller
             ->with([
                 'transcription',
                 'assignments' => fn ($query) => $query->orderBy('start_offset'),
-                'assignments.canonicalPassage.work',
+                'assignments.segment.work',
                 'regions' => fn ($query) => $query->orderBy('position'),
             ])
             ->findOrFail($layerId);

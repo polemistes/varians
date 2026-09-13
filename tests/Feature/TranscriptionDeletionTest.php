@@ -3,7 +3,7 @@
 use App\Models\Assignment;
 use App\Models\Edition;
 use App\Models\EditionLemma;
-use App\Models\EditionPassage;
+use App\Models\EditionSegment;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\ManuscriptImage;
@@ -49,7 +49,7 @@ test('a copy of a deleted layer survives, with its provenance link cleared', fun
         ->and($fork->copied_from_id)->toBeNull();
 });
 
-test('deleting a transcription that feeds a published edition removes that edition\'s selection and edition-passage membership', function () {
+test('deleting a transcription that feeds a published edition removes that edition\'s selection and edition-segment membership', function () {
     $owner = User::factory()->create();
     $this->actingAs($owner);
     $transcription = TranscriptionLayer::factory()->for(Witness::factory()->for($owner))->create();
@@ -59,19 +59,19 @@ test('deleting a transcription that feeds a published edition removes that editi
     $lemma = Lemma::factory()->create();
     $reading = LemmaReading::factory()->for($lemma)->for($transcription)->create();
     $editionLemma = EditionLemma::factory()->create(['edition_id' => $edition->id, 'lemma_id' => $lemma->id, 'selected_reading_id' => $reading->id]);
-    $editionPassage = EditionPassage::factory()->create(['edition_id' => $edition->id, 'transcription_layer_id' => $transcription->id]);
+    $editionSegment = EditionSegment::factory()->create(['edition_id' => $edition->id, 'transcription_layer_id' => $transcription->id]);
 
     $this->delete(route('transcriptions.destroy', $transcription));
 
     expect(LemmaReading::find($reading->id))->toBeNull()
         ->and(EditionLemma::find($editionLemma->id))->toBeNull()
-        ->and(EditionPassage::find($editionPassage->id))->toBeNull();
+        ->and(EditionSegment::find($editionSegment->id))->toBeNull();
 });
 
 test('a transcript another member\'s edition prints from cannot be deleted, and says why', function () {
     $owner = User::factory()->create();
     $layer = TranscriptionLayer::factory()->for(Witness::factory()->for($owner))->create();
-    EditionPassage::factory()->create([
+    EditionSegment::factory()->create([
         'edition_id' => Edition::factory()->create()->id,
         'transcription_layer_id' => $layer->id,
     ]);

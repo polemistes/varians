@@ -40,7 +40,7 @@ import type { TextEditOp } from '@/lib/transcriptionEdit';
  * posts these rows back and restores everything.
  */
 export type RestorableAssignment = {
-    canonical_passage_id: number;
+    segment_id: number;
     start_offset: number;
     end_offset: number;
     part: number;

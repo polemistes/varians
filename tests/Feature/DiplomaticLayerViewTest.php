@@ -2,30 +2,30 @@
 
 use App\Enums\Tokenization;
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
 use App\Models\Lemma;
+use App\Models\Segment;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
 use App\Support\Edition\DiplomaticCounterpart;
-use App\Support\Edition\PassageAdder;
+use App\Support\Edition\SegmentAdder;
 
 /**
- * A passage collated from witnesses given as `siglum => [normalized,
+ * A segment collated from witnesses given as `siglum => [normalized,
  * diplomatic]`, the first being the edition's base. A null diplomatic means
  * that witness has no such layer.
  *
  * @param  array<string, array{0: string, 1: ?string}>  $witnesses
- * @return array{work: Work, edition: Edition, passage: CanonicalPassage}
+ * @return array{work: Work, edition: Edition, segment: Segment}
  */
 function collatedWithLayers(array $witnesses, bool $publish = true): array
 {
     $work = Work::factory()->create();
-    $passage = CanonicalPassage::factory()->for($work)->create([
+    $segment = Segment::factory()->for($work)->create([
         'address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1',
     ]);
     $edition = Edition::factory()->for($work)->create();
@@ -45,27 +45,27 @@ function collatedWithLayers(array $witnesses, bool $publish = true): array
 
         $normalized = TranscriptionLayer::factory()->normalized()->for($transcription)
             ->create(['text' => $normalizedText]);
-        $assignment = Assignment::factory()->for($normalized)->for($passage, 'canonicalPassage')
+        $assignment = Assignment::factory()->for($normalized)->for($segment, 'segment')
             ->create(['start_offset' => 0, 'end_offset' => mb_strlen($normalizedText)]);
 
         if ($diplomaticText !== null) {
             $diplomatic = TranscriptionLayer::factory()->diplomatic()->for($transcription)
                 ->create(['text' => $diplomaticText]);
 
-            Assignment::factory()->for($diplomatic)->for($passage, 'canonicalPassage')
+            Assignment::factory()->for($diplomatic)->for($segment, 'segment')
                 ->create(['start_offset' => 0, 'end_offset' => mb_strlen($diplomaticText)]);
         }
 
-        PassageAdder::add($edition, $assignment, $position++);
+        SegmentAdder::add($edition, $assignment, $position++);
     }
 
-    return ['work' => $work, 'edition' => $edition, 'passage' => $passage];
+    return ['work' => $work, 'edition' => $edition, 'segment' => $segment];
 }
 
-function passagePayload(Work $work, Edition $edition): array
+function segmentPayload(Work $work, Edition $edition): array
 {
     return test()->get(route('editions.show', [$work, $edition]))
-        ->viewData('page')['props']['windowPassages'][0];
+        ->viewData('page')['props']['windowSegments'][0];
 }
 
 test('each printed word carries what the base manuscript itself shows', function () {
@@ -75,7 +75,7 @@ test('each printed word carries what the base manuscript itself shows', function
         'A' => ['τοσοῦτοι μὲν οὖν', 'ΤΟΣΟΥΤΟΙ ΜΕΝ ΟΥΝ'],
     ]);
 
-    $runs = passagePayload($work, $edition)['runs'];
+    $runs = segmentPayload($work, $edition)['runs'];
 
     expect(array_column($runs, 'text'))->toBe(['τοσοῦτοι', 'μὲν', 'οὖν'])
         ->and(array_column($runs, 'diplomatic'))->toBe(['ΤΟΣΟΥΤΟΙ', 'ΜΕΝ', 'ΟΥΝ']);
@@ -88,7 +88,7 @@ test('the whole line is available as the manuscript has it', function () {
         'A' => ['τοσοῦτοι μὲν οὖν', 'ΤΟΣΟΥΤΟΙ ΜΕΝ ΟΥΝ'],
     ]);
 
-    expect(passagePayload($work, $edition)['base_diplomatic'])->toBe('ΤΟΣΟΥΤΟΙ ΜΕΝ ΟΥΝ');
+    expect(segmentPayload($work, $edition)['base_diplomatic'])->toBe('ΤΟΣΟΥΤΟΙ ΜΕΝ ΟΥΝ');
 });
 
 test('a variant carries its own witness\'s diplomatic wording, not the base\'s', function () {
@@ -99,7 +99,7 @@ test('a variant carries its own witness\'s diplomatic wording, not the base\'s',
         'B' => ['τοσοῦτοι δὲ οὖν', 'ΤΟΣΟΥΤΟΙ ΔΕ ΟΥΝ'],
     ]);
 
-    $candidates = passagePayload($work, $edition)['runs'][1]['candidates'];
+    $candidates = segmentPayload($work, $edition)['runs'][1]['candidates'];
 
     expect(collect($candidates)->map(fn ($c) => [$c['label'], $c['text'], $c['diplomatic']])->all())
         ->toBe([
@@ -111,16 +111,16 @@ test('a variant carries its own witness\'s diplomatic wording, not the base\'s',
 test('a conjecture has no diplomatic wording', function () {
     $this->actingAs(User::factory()->editor()->create());
 
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage] = collatedWithLayers([
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment] = collatedWithLayers([
         'A' => ['τοσοῦτοι μὲν οὖν', 'ΤΟΣΟΥΤΟΙ ΜΕΝ ΟΥΝ'],
     ]);
 
-    $middle = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->get()[1];
+    $middle = Lemma::where('segment_id', $segment->id)->orderBy('position')->get()[1];
     $middle->readings()->create([
-        'conjecture_id' => Conjecture::factory()->for($passage, 'canonicalPassage')->create(['text' => 'γὰρ'])->id,
+        'conjecture_id' => Conjecture::factory()->for($segment, 'segment')->create(['text' => 'γὰρ'])->id,
     ]);
 
-    $conjecture = collect(passagePayload($work, $edition)['runs'][1]['candidates'])
+    $conjecture = collect(segmentPayload($work, $edition)['runs'][1]['candidates'])
         ->firstWhere('conjecture_id', '!=', null);
 
     expect($conjecture['text'])->toBe('γὰρ')
@@ -134,7 +134,7 @@ test('a witness with no diplomatic layer simply has none to show', function () {
         'A' => ['τοσοῦτοι μὲν οὖν', null],
     ]);
 
-    $payload = passagePayload($work, $edition);
+    $payload = segmentPayload($work, $edition);
 
     expect($payload['base_diplomatic'])->toBeNull()
         ->and(array_column($payload['runs'], 'diplomatic'))->toBe([null, null, null]);
@@ -150,7 +150,7 @@ test('a draft transcription\'s diplomatic layer stays hidden from a reader', fun
     $edition->update(['visibility' => 'published']);
     $this->actingAs(User::factory()->create()); // a reader, not an editor
 
-    $payload = passagePayload($work, $edition);
+    $payload = segmentPayload($work, $edition);
 
     expect($payload['base_diplomatic'])->toBeNull()
         ->and(array_column($payload['runs'], 'diplomatic'))->toBe([null, null, null]);
@@ -165,7 +165,7 @@ test('layers that divide the line differently report nothing rather than guessin
         'A' => ['καὶ ἐγώ εἶπον', 'ΚΑΓΩ ΕΙΠΟΝ'],
     ]);
 
-    $payload = passagePayload($work, $edition);
+    $payload = segmentPayload($work, $edition);
 
     expect(array_column($payload['runs'], 'diplomatic'))->toBe([null, null, null])
         // The line as a whole is still readable — only the word-by-word
@@ -183,7 +183,7 @@ test('a variant that differs only in accent is marked as orthographic', function
         'B' => ['τοσοῦτοι μεν, οὖν', 'ΤΟΣΟΥΤΟΙ ΜΕΝ ΟΥΝ'],
     ]);
 
-    $candidates = passagePayload($work, $edition)['runs'][1]['candidates'];
+    $candidates = segmentPayload($work, $edition)['runs'][1]['candidates'];
 
     expect(collect($candidates)->map(fn ($c) => [$c['label'], $c['text'], $c['orthographic_only']])->all())
         ->toBe([
@@ -200,7 +200,7 @@ test('a genuinely different word is not marked as orthographic', function () {
         'B' => ['τοσοῦτοι δὲ οὖν', 'ΤΟΣΟΥΤΟΙ ΔΕ ΟΥΝ'],
     ]);
 
-    $candidates = passagePayload($work, $edition)['runs'][1]['candidates'];
+    $candidates = segmentPayload($work, $edition)['runs'][1]['candidates'];
 
     expect(collect($candidates)->pluck('orthographic_only')->all())->toBe([false, false]);
 });
@@ -208,17 +208,17 @@ test('a genuinely different word is not marked as orthographic', function () {
 test('a conjecture is never an orthographic variant', function () {
     $this->actingAs(User::factory()->editor()->create());
 
-    ['work' => $work, 'edition' => $edition, 'passage' => $passage] = collatedWithLayers([
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment] = collatedWithLayers([
         'A' => ['τοσοῦτοι μὲν οὖν', 'ΤΟΣΟΥΤΟΙ ΜΕΝ ΟΥΝ'],
     ]);
 
-    $middle = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->get()[1];
+    $middle = Lemma::where('segment_id', $segment->id)->orderBy('position')->get()[1];
     $middle->readings()->create([
         // Spelled the same but for the accent — still a proposal, not a variant.
-        'conjecture_id' => Conjecture::factory()->for($passage, 'canonicalPassage')->create(['text' => 'μεν'])->id,
+        'conjecture_id' => Conjecture::factory()->for($segment, 'segment')->create(['text' => 'μεν'])->id,
     ]);
 
-    $conjecture = collect(passagePayload($work, $edition)['runs'][1]['candidates'])
+    $conjecture = collect(segmentPayload($work, $edition)['runs'][1]['candidates'])
         ->firstWhere('conjecture_id', '!=', null);
 
     expect($conjecture['orthographic_only'])->toBeFalse();
@@ -235,7 +235,7 @@ test('a site whose differences are all orthographic is marked as such', function
         'B' => ['τοσοῦτοι μεν, οὖν', null],
     ]);
 
-    expect(array_column(passagePayload($work, $edition)['runs'], 'orthographic_variation'))
+    expect(array_column(segmentPayload($work, $edition)['runs'], 'orthographic_variation'))
         ->toBe([false, true, false]);
 });
 
@@ -247,7 +247,7 @@ test('a site with a real difference of wording is not marked orthographic', func
         'B' => ['τοσοῦτοι δὲ οὖν', null],
     ]);
 
-    expect(array_column(passagePayload($work, $edition)['runs'], 'orthographic_variation'))
+    expect(array_column(segmentPayload($work, $edition)['runs'], 'orthographic_variation'))
         ->toBe([false, false, false]);
 });
 
@@ -262,7 +262,7 @@ test('a site is only orthographic when every difference at it is', function () {
         'C' => ['τοσοῦτοι δὲ οὖν', null],
     ]);
 
-    expect(passagePayload($work, $edition)['runs'][1]['orthographic_variation'])->toBeFalse();
+    expect(segmentPayload($work, $edition)['runs'][1]['orthographic_variation'])->toBeFalse();
 });
 
 test('where the witnesses agree there is nothing to attribute', function () {
@@ -273,47 +273,47 @@ test('where the witnesses agree there is nothing to attribute', function () {
         'B' => ['τοσοῦτοι μὲν οὖν', null],
     ]);
 
-    expect(array_column(passagePayload($work, $edition)['runs'], 'orthographic_variation'))
+    expect(array_column(segmentPayload($work, $edition)['runs'], 'orthographic_variation'))
         ->toBe([false, false, false]);
 });
 
 /**
- * A witness whose text for the passage is discontinuous in BOTH layers, split
+ * A witness whose text for the segment is discontinuous in BOTH layers, split
  * the same way: "the quick" assigned in place, "fox" transposed to the head.
  *
- * @return array{passage: CanonicalPassage, normalized: TranscriptionLayer, diplomatic: TranscriptionLayer}
+ * @return array{segment: Segment, normalized: TranscriptionLayer, diplomatic: TranscriptionLayer}
  */
 function splitLayers(): array
 {
-    $passage = CanonicalPassage::factory()->create();
+    $segment = Segment::factory()->create();
     $transcription = Transcription::factory()->create(['visibility' => 'published']);
     $normalized = TranscriptionLayer::factory()->normalized()->for($transcription)->create(['text' => "fox\nthe quick"]);
     $diplomatic = TranscriptionLayer::factory()->diplomatic()->for($transcription)->create(['text' => "FOX\nTHE QUICK"]);
 
     foreach ([$normalized, $diplomatic] as $layer) {
-        Assignment::factory()->for($layer)->for($passage, 'canonicalPassage')
+        Assignment::factory()->for($layer)->for($segment, 'segment')
             ->create(['start_offset' => 4, 'end_offset' => 13, 'part' => 1]); // "the quick"
-        Assignment::factory()->for($layer)->for($passage, 'canonicalPassage')
+        Assignment::factory()->for($layer)->for($segment, 'segment')
             ->create(['start_offset' => 0, 'end_offset' => 3, 'part' => 2]); // "fox"
     }
 
-    return ['passage' => $passage, 'normalized' => $normalized, 'diplomatic' => $diplomatic];
+    return ['segment' => $segment, 'normalized' => $normalized, 'diplomatic' => $diplomatic];
 }
 
-test('a discontinuous passage reads part by part in the manuscript view, never as one contiguous line', function () {
-    ['passage' => $passage, 'diplomatic' => $diplomatic] = splitLayers();
+test('a discontinuous segment reads part by part in the manuscript view, never as one contiguous line', function () {
+    ['segment' => $segment, 'diplomatic' => $diplomatic] = splitLayers();
 
-    expect(DiplomaticCounterpart::forPassage($passage, $diplomatic))
+    expect(DiplomaticCounterpart::forSegment($segment, $diplomatic))
         ->toBe('THE QUICK … FOX');
 });
 
 test('the token-index mapping holds across parts, including a transposed one', function () {
-    ['passage' => $passage, 'normalized' => $normalized, 'diplomatic' => $diplomatic] = splitLayers();
+    ['segment' => $segment, 'normalized' => $normalized, 'diplomatic' => $diplomatic] = splitLayers();
 
-    // "fox" is the passage's LAST word by content but stands FIRST in the
+    // "fox" is the segment's LAST word by content but stands FIRST in the
     // text — the counterpart must come from the same content position.
-    expect(DiplomaticCounterpart::forSpan($passage, $normalized, $diplomatic, 0, 3, Tokenization::Whitespace))
+    expect(DiplomaticCounterpart::forSpan($segment, $normalized, $diplomatic, 0, 3, Tokenization::Whitespace))
         ->toBe('FOX')
-        ->and(DiplomaticCounterpart::forSpan($passage, $normalized, $diplomatic, 8, 13, Tokenization::Whitespace))
+        ->and(DiplomaticCounterpart::forSpan($segment, $normalized, $diplomatic, 8, 13, Tokenization::Whitespace))
         ->toBe('QUICK');
 });

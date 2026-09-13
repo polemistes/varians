@@ -42,7 +42,7 @@ class TranscriptionSpanRestoreController extends Controller
         DB::transaction(function () use ($request, $transcription) {
             foreach ($request->validated('assignments') ?? [] as $row) {
                 $alreadyAssigned = $transcription->assignments()
-                    ->where('canonical_passage_id', (int) $row['canonical_passage_id'])
+                    ->where('segment_id', (int) $row['segment_id'])
                     ->where('start_offset', '<', (int) $row['end_offset'])
                     ->where('end_offset', '>', (int) $row['start_offset'])
                     ->exists();
@@ -52,7 +52,7 @@ class TranscriptionSpanRestoreController extends Controller
                 }
 
                 $transcription->assignments()->create([
-                    'canonical_passage_id' => (int) $row['canonical_passage_id'],
+                    'segment_id' => (int) $row['segment_id'],
                     'start_offset' => (int) $row['start_offset'],
                     'end_offset' => (int) $row['end_offset'],
                     'part' => (int) $row['part'],

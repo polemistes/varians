@@ -5,20 +5,20 @@ namespace App\Http\Controllers;
 use App\Enums\ConjectureType;
 use App\Http\Requests\ApplyEditionOrderCandidateRequest;
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\ConjectureOrderingEntry;
 use App\Models\Edition;
-use App\Models\EditionPassage;
+use App\Models\EditionSegment;
+use App\Models\Segment;
 use App\Support\Edition\ArrangementAdopter;
-use App\Support\Edition\PassageOrderRewriter;
+use App\Support\Edition\SegmentOrderRewriter;
 use App\Support\Edition\TranspositionProjection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Applying another source's order to an edition's stored passage order.
+ * Applying another source's order to an edition's stored segment order.
  * Since the materialized-order redesign the positions ARE the printed
  * order; they change here, by following a candidate the order report
  * offers (a witness's own sequence, a catalogued conjecture, or plain
@@ -36,17 +36,17 @@ class EditionOrderController extends Controller
      */
     public function applyCandidate(ApplyEditionOrderCandidateRequest $request, Edition $edition): RedirectResponse
     {
-        $rangeIds = $this->rangePassageIds(
+        $rangeIds = $this->rangeSegmentIds(
             $edition,
-            (int) $request->validated('range_start_canonical_passage_id'),
-            (int) $request->validated('range_end_canonical_passage_id'),
+            (int) $request->validated('range_start_segment_id'),
+            (int) $request->validated('range_end_segment_id'),
         );
 
         $sequence = $this->candidateSequence($request, $rangeIds);
 
         if ($sequence === null) {
             throw ValidationException::withMessages([
-                'range_start_canonical_passage_id' => 'That source no longer orders exactly this range.',
+                'range_start_segment_id' => 'That source no longer orders exactly this range.',
             ]);
         }
 
@@ -60,44 +60,44 @@ class EditionOrderController extends Controller
         }
 
         DB::transaction(function () use ($edition, $sequence) {
-            PassageOrderRewriter::applySequence($edition, $sequence);
+            SegmentOrderRewriter::applySequence($edition, $sequence);
         });
 
         return back();
     }
 
     /**
-     * The block's member passages in stored (printed) order — membership
-     * derived exactly like the report derives it: every passage of this
+     * The block's member segments in stored (printed) order — membership
+     * derived exactly like the report derives it: every segment of this
      * edition whose assignment sort_key falls between the two endpoints,
      * inclusive. The block is contiguous in NUMBERING order (its endpoints
      * are assignment-order first and last, see EditionController::orderRanges),
      * but its members may be scattered in the printed order, so locating a
-     * printed slice between the endpoints would grab the wrong passages.
+     * printed slice between the endpoints would grab the wrong segments.
      *
      * @return list<int>
      */
-    private function rangePassageIds(Edition $edition, int $startId, int $endId): array
+    private function rangeSegmentIds(Edition $edition, int $startId, int $endId): array
     {
-        $passages = EditionPassage::where('edition_id', $edition->id)
-            ->with('canonicalPassage:id,sort_key')
+        $segments = EditionSegment::where('edition_id', $edition->id)
+            ->with('segment:id,sort_key')
             ->orderBy('position')
             ->get();
 
-        $start = $passages->firstWhere('canonical_passage_id', $startId);
-        $end = $passages->firstWhere('canonical_passage_id', $endId);
+        $start = $segments->firstWhere('segment_id', $startId);
+        $end = $segments->firstWhere('segment_id', $endId);
 
         if ($start === null || $end === null) {
             return [];
         }
 
-        $from = min($start->canonicalPassage->sort_key, $end->canonicalPassage->sort_key);
-        $to = max($start->canonicalPassage->sort_key, $end->canonicalPassage->sort_key);
+        $from = min($start->segment->sort_key, $end->segment->sort_key);
+        $to = max($start->segment->sort_key, $end->segment->sort_key);
 
-        return array_values($passages
-            ->filter(fn (EditionPassage $passage) => $passage->canonicalPassage->sort_key >= $from
-                && $passage->canonicalPassage->sort_key <= $to)
-            ->pluck('canonical_passage_id')
+        return array_values($segments
+            ->filter(fn (EditionSegment $segment) => $segment->segment->sort_key >= $from
+                && $segment->segment->sort_key <= $to)
+            ->pluck('segment_id')
             ->map(fn ($id) => (int) $id)
             ->unique()
             ->all());
@@ -120,7 +120,7 @@ class EditionOrderController extends Controller
                 // A transposition is a statement, not stored entries —
                 // project it onto the block's numbering order to get the
                 // sequence it proposes (see TranspositionProjection).
-                $numberingOrdered = array_values(CanonicalPassage::whereIn('id', $rangeIds)
+                $numberingOrdered = array_values(Segment::whereIn('id', $rangeIds)
                     ->orderBy('sort_key')
                     ->pluck('id')
                     ->map(fn ($id) => (int) $id)
@@ -131,7 +131,7 @@ class EditionOrderController extends Controller
                 // A divided line stands where its first part stands.
                 $sequence = ConjectureOrderingEntry::where('conjecture_id', $conjecture->id)
                     ->orderBy('sequence')
-                    ->pluck('canonical_passage_id')
+                    ->pluck('segment_id')
                     ->map(fn ($id) => (int) $id)
                     ->unique()
                     ->values()
@@ -139,16 +139,16 @@ class EditionOrderController extends Controller
             }
         } elseif ($request->validated('transcription_layer_id') !== null) {
             $sequence = Assignment::where('transcription_layer_id', $request->validated('transcription_layer_id'))
-                ->whereIn('canonical_passage_id', $rangeIds)
+                ->whereIn('segment_id', $rangeIds)
                 ->orderBy('start_offset')
-                ->pluck('canonical_passage_id')
+                ->pluck('segment_id')
                 ->map(fn ($id) => (int) $id)
                 ->unique()
                 ->values()
                 ->all();
         } else {
             // Numbering order — the vulgate numbering.
-            $sequence = CanonicalPassage::whereIn('id', $rangeIds)
+            $sequence = Segment::whereIn('id', $rangeIds)
                 ->orderBy('sort_key')
                 ->pluck('id')
                 ->map(fn ($id) => (int) $id)

@@ -28,11 +28,11 @@ A copy (`transcriptions.fork.store`) names the slot it fills — `witness_id`
 plus a required `layer` — and is refused if that slot is occupied, rather than
 overwriting assignment spans, image regions and collated readings.
 
-Only normalized transcriptions enter the apparatus (`PassageAdder::materialize`
+Only normalized transcriptions enter the apparatus (`SegmentAdder::materialize`
 filters via `whereRelation('transcription', 'layer', ...)`, mirrored by the
 `Transcription::collatable()` scope used in `EditionController::show`) and only
 they may be an edition's base or a witness-sourced `LemmaReading` (guarded in
-`StoreEditionPassageRequest`, `StoreEditionPassagesBulkRequest`,
+`StoreEditionSegmentRequest`, `StoreEditionSegmentsBulkRequest`,
 `StoreEditionVariantRequest`). Without that filter a fork — which copies
 assignment assignments verbatim — makes a manuscript appear in its own apparatus
 disagreeing with itself over the very orthography the normalized layer
@@ -49,7 +49,7 @@ coexist. Do not "restore" the old rule that no fixed diplomatic/normalized
 distinction may exist.
 
 ## Columns need not follow the edition's base — but everything reading them must allow for that
-A passage's `Lemma` columns are shared across every edition of the work, so
+A segment's `Lemma` columns are shared across every edition of the work, so
 they cannot line up with each edition's own base. A base that did not build the
 columns has readings that span several of them, and both rendering and
 placement have to cope:
@@ -72,7 +72,7 @@ Keep exact matching first everywhere: a base that *did* build the columns must
 keep resolving precisely as before.
 
 ## Collation is a function of the evidence, not of click order
-`PassageAligner::collate` is the entry point; `alignWitness` is the per-witness
+`SegmentAligner::collate` is the entry point; `alignWitness` is the per-witness
 step and should not be called directly outside it (tests aside).
 
 Three things make the result independent of how an editor happened to work:
@@ -83,9 +83,9 @@ Three things make the result independent of how an editor happened to work:
 2. `representativeText` sorts a column's readings before choosing a consensus —
    `readings` is a bare `hasMany`, so an unsorted `first()` rests on storage
    order.
-3. While a passage is still nothing but aligner output, `collate` **deletes the
+3. While a segment is still nothing but aligner output, `collate` **deletes the
    columns and rebuilds** from all witnesses at once. Ordering alone does not
-   cover a witness assigned after the passage was collated that sorts before the
+   cover a witness assigned after the segment was collated that sorts before the
    ones that built it.
 
 `hasEditorialContent` gates the rebuild: any reading with a `conjecture_id` (a
@@ -93,7 +93,7 @@ placement whose column is its only record — this also covers lacuna columns) o
 any `EditionLemma` (an edition's decision, and since every
 `EditionVariantController::store` path upserts one, this catches hand-placed
 witness readings too, which are otherwise indistinguishable from aligner
-output). Once either exists the passage appends instead, which is correct: its
+output). Once either exists the segment appends instead, which is correct: its
 structure is settled and should grow, not churn.
 
 **Tests that assert column structure must pin witness sigla.** Factory sigla
@@ -101,61 +101,61 @@ are random, so leaving them makes the seed witness — and therefore the
 structure — a coin flip. `editionWithBase()` pins "A" for the base and "B" for
 the second witness for this reason.
 
-## A passage's witness text can be discontinuous — collation consumes all its parts
+## A segment's witness text can be discontinuous — collation consumes all its parts
 A transposition can cut across the work's segmentation (half of line 40
 standing where line 42 belongs), so several `Assignment` spans in
-one layer may assign the same passage. `part` orders them by **content** (which
-fragment reads first as text of the passage), independent of the physical
+one layer may assign the same segment. `part` orders them by **content** (which
+fragment reads first as text of the segment), independent of the physical
 order their offsets give — the two disagreeing *is* the transposition. Never
 "fix" one to match the other.
 
 Consequences, all real code paths:
-- The unit of alignment is the **layer**, not the span: `PassageAligner::collate`
-  groups a passage's assignments by layer and `alignWitness` takes ALL of a
+- The unit of alignment is the **layer**, not the span: `SegmentAligner::collate`
+  groups a segment's assignments by layer and `alignWitness` takes ALL of a
   layer's parts, tokenizing them as one stream in part order. The
   `alreadyAligned` idempotency skip stays per layer.
 - A diff merge must never fuse witness tokens from different parts into one
   reading — its offsets would span the physical gap or run backwards.
   `plan()` carries `$partStarts`; `mergeSubstitutions` cuts insert runs there
   and `reorderingWindow` rejects windows crossing a boundary.
-- Assigning a passage the layer already assigns is the **late-part flow**
+- Assigning a segment the layer already assigns is the **late-part flow**
   (`AssignmentController::store`/`reassign`): refused with a
   structured `acknowledge_realignment` validation error until acknowledged,
-  then `PassageAligner::realignLayer` redoes that layer's collation — unless
+  then `SegmentAligner::realignLayer` redoes that layer's collation — unless
   its readings are pinned (edition-selected, conjecture-carrying, or on a
   column whose only readings are this layer's and which carries an anchored
   EditionComment), in which case the readings are kept and every part is
   flagged `needs_review`. Never delete pinned readings: selections cascade.
 - `realignLayer` also deletes columns left empty by removing the layer's
   readings — left standing they become blank consensus text and corrupt the
-  re-alignment (this bit a single-witness passage in testing).
-- Whole-passage order detection (`orderRanges`) keeps `min(start_offset)` as a
-  passage's physical position, deliberately: a sub-passage transposition is
-  reported per passage by `EditionController::assignmentDiscontinuities` (the
+  re-alignment (this bit a single-witness segment in testing).
+- Whole-segment order detection (`orderRanges`) keeps `min(start_offset)` as a
+  segment's physical position, deliberately: a sub-segment transposition is
+  reported per segment by `EditionController::assignmentDiscontinuities` (the
   violet line number, derived at display time, never stored) and must not
-  register as a whole-passage reorder.
+  register as a whole-segment reorder.
 - The split-assignment report speaks apparatus, not mechanics
   (`EditionController::transpositionStatements`, user decision): "R2 has this
-  passage in 2 places" is not how an edition reports a sub-line transposition.
+  segment in 2 places" is not how an edition reports a sub-line transposition.
   A fragment is DISPLACED when its physical predecessor assignment differs from
   its content predecessor (previous part in part order); two displaced
-  fragments of different passages whose physical and content predecessors
+  fragments of different segments whose physical and content predecessors
   cross-match have CHANGED PLACES and are reported as one statement on both
-  passages — 'R2: 4 2/2 "πάρεστιν ἐνταυθοῖ γυνή·" has exchanged places with
+  segments — 'R2: 4 2/2 "πάρεστιν ἐνταυθοῖ γυνή·" has exchanged places with
   5 2/2 "κωμῆτις ἥδʼ ἐξέρχεται."'. Fragments are assigned by part number
   (`label part/total`) PLUS their full verbatim text in quotes — never
   abbreviated `first … last` (user decision: a digital apparatus never
   abbreviates a lemma; an abbreviating `assignedSpan` version existed briefly
   and was removed). A lone displaced fragment is located against its
   physical neighbour ('B: 1.1 2/2 "fox" stands after 1.2'). Presentation (user decision):
-  no ⇄ badge and no explanatory notice — the passage's assignment-label chip
-  itself turns violet when a witness splits the passage, its hover title is
+  no ⇄ badge and no explanatory notice — the segment's assignment-label chip
+  itself turns violet when a witness splits the segment, its hover title is
   the statements, and clicking it opens the panel showing only the
   statements. The mechanical per-part sentence survives only as the client's
-  fallback when a multi-part passage has nothing displaced
+  fallback when a multi-part segment has nothing displaced
   (`discontinuityLines` in `Editions/Show.vue`).
 - `DiplomaticCounterpart` maps by token index over the concatenated parts in
-  part order on both layers; `forPassage` joins part slices with " … " so a
+  part order on both layers; `forSegment` joins part slices with " … " so a
   discontinuous line never presents as contiguous.
 
 ## The order report flags only disagreement with the PRINTED order, one block one marker
@@ -166,7 +166,7 @@ an intermediate assignment-anchored design): the editor wants to be made
 aware exactly where what she prints disagrees with a witness or with a
 catalogued proposal, and of nothing else. NUMBERING ORDER IS NEVER A
 SOURCE: that the printed order (or a manuscript's) departs from assignment
-order is no news — the passage labels on the lines already say so — so
+order is no news — the segment labels on the lines already say so — so
 no site and no notice exists for it (the `assignmentOrderStatus` "restore
 numbering order" notice was removed for this reason). The server still
 ships numbering order as a candidate, but the client's panel no longer
@@ -211,9 +211,9 @@ Consequences, all deliberate:
   has somewhere to live. The panel opens for READERS too — reading the
   report is not editing (`toggleOrderRange` is ungated; Follow and the
   proposal form stay behind `canEdit`).
-- Apply-side: `EditionOrderController::rangePassageIds` derives membership
+- Apply-side: `EditionOrderController::rangeSegmentIds` derives membership
   by sort_key span (not a printed-position slice), and
-  `PassageOrderRewriter::applySequence` permutes members among the
+  `SegmentOrderRewriter::applySequence` permutes members among the
   position slots they occupy, wherever those are — non-members between
   them stay put. `StoreConjectureOrderingRequest` likewise requires
   assignment-contiguity, not printed-contiguity.
@@ -226,9 +226,9 @@ text out — whole lines, or WORDS within one line, which divides it
 (`onTextCut` → `heldPieces`) — the caret and Ctrl+V sets it down, dividing
 the line it lands in (`onTextPaste` → `draftPieces`, merged back by
 `mergedPieces` when parts abut again); copy is refused; nothing is saved
-meanwhile. The text is rendered as PIECES (`shownPieces`: passage, run
+meanwhile. The text is rendered as PIECES (`shownPieces`: segment, run
 range, part n/m; run spans carry `data-piece-index`, the caret helpers
-index pieces), which outside registering are just the passages. Register
+index pieces), which outside registering are just the segments. Register
 submits every difference between the stored order and the draft as ONE
 Reordering over the smallest assignment-contiguous stretch covering the
 change (`registerPieces`) — `pieces` with `part` and `text` on
@@ -238,17 +238,17 @@ transcript stand-in per such conjecture, `EditionController::
 conjectureArrangements`, and the split-assignment report reads it like a
 witness, named "Bergk (conjecture)" with `conjecture_id`). Adopting such an
 arrangement PRINTS the line in pieces: `ArrangementAdopter` gives the
-edition one `EditionPassage` row per part (`part`, `part_text`; part 1
+edition one `EditionSegment` row per part (`part`, `part_text`; part 1
 keeps the row, base and lineation, later parts flow on), rejoins lines a
 proposal reads whole, resequences the pieces in place
-(`PassageOrderRewriter::applyPieceSequence`) and records the adoption. It
+(`SegmentOrderRewriter::applyPieceSequence`) and records the adoption. It
 serves every adoption path — the order panel (`edition-order.apply` with a
 conjecture), `conjecture-orderings.store` with `follow`, and the line
 notice's Adopt button on a divided-line report (`edition-adoptions.store`).
 Rows find their runs at render time by matching `part_text` against the
 printed text (`EditionController::partRange`); a mismatch leaves the
 division stale — part 1 prints the whole line, the page says so. The order
-report, `annotatePassageStatus` and the rewriter's whole-passage moves
+report, `annotateSegmentStatus` and the rewriter's whole-segment moves
 treat a divided line as standing at its first part. The editor never
 names a kind of transposition — the cut says it (user decision; the
 short-lived `word_transposition` conjecture kind was removed for that
@@ -258,7 +258,7 @@ pruning and auto-attribution) and `TranspositionValidator` are gone, and
 every Transposition/Reordering record — attributed or not — is a source
 and candidate for the order report. Removing a record stays a deliberate
 act (one-way apply). Tests set up an order with
-`PassageOrderRewriter::moveRange` directly.
+`SegmentOrderRewriter::moveRange` directly.
 
 A Reordering proposal is authored inside a block's own panel with members
 preloaded (`conjecture-orderings.store`, applies and attributes in one
@@ -270,11 +270,11 @@ surface detached from the act it records.
 
 ## Lineation is the edition's own display vocabulary
 Where an edition's printed text breaks is edition data, never derived from
-any manuscript: `EditionPassage.starts_new_line`/`starts_new_paragraph` for
-passage boundaries, `EditionLineBreak` (a break before one Lemma column) for
-colometry inside a passage — which lyric drama needs, since every edition
+any manuscript: `EditionSegment.starts_new_line`/`starts_new_paragraph` for
+segment boundaries, `EditionLineBreak` (a break before one Lemma column) for
+colometry inside a segment — which lyric drama needs, since every edition
 divides the lyric parts differently. Verse rendering is all flags set, prose
-none; `Editions/Show.vue` renders passages INLINE with every break an
+none; `Editions/Show.vue` renders segments INLINE with every break an
 explicit element, so both come from one mechanism.
 
 Editing them works like an editor, not a mode (user decision, replacing the
@@ -289,10 +289,10 @@ open notices inside the box are `contenteditable="false"` islands: events
 from inside them are ignored by the text handlers (`inEditableIsland`), so
 forms in a notice keep working. Readers get the plain text with focusable
 words (`onRunKey`); editors navigate with the caret instead. Keep the
-data attributes the caret logic reads (`data-passage-id`/`data-run-index` on
+data attributes the caret logic reads (`data-segment-id`/`data-run-index` on
 runs, `data-spacer-*` on the spaces between them).
 
-Seeding (`LineationSeeder`, called from `PassageAdder::add`/`addAssignments`)
+Seeding (`LineationSeeder`, called from `SegmentAdder::add`/`addAssignments`)
 copies the base transcription's newlines ONCE at add time — one `\n` in a
 gap → line, two → paragraph; gaps across a discontinuous assignment's part
 boundary seed nothing (physical displacement, not whitespace). From then on
@@ -302,7 +302,7 @@ nothing to the work stands.
 `edition_line_breaks.lemma_id` **cascades**, deliberately NOT copying
 EditionComment's `nullOnDelete`: a break with no column means nothing, there
 are no words to preserve. The safety comes from the other side — breaks
-count as editorial content in BOTH `PassageAligner::hasEditorialContent` and
+count as editorial content in BOTH `SegmentAligner::hasEditorialContent` and
 the emptying-column check inside `realignLayer`, so no collation rebuild can
 fire the cascade; only explicit editor action removes a break. When adding
 any new lemma-anchored record, extend both checks or pick nullOnDelete —
@@ -323,19 +323,19 @@ them would be prescribing the scholarship.
 
 Scoped to one `Edition`, like `EditionLemma`: two editions of a work can say
 different things about the same word. A note always names a
-`CanonicalPassage`; `lemma_id` (+ `range_end_lemma_id`) optionally narrows it
+`Segment`; `lemma_id` (+ `range_end_lemma_id`) optionally narrows it
 to a column or span, following LemmaReading's convention that the range end
 carries a value only when more than one column is genuinely covered. With
-`lemma_id` null the note is about the passage as a whole, which is what a
+`lemma_id` null the note is about the segment as a whole, which is what a
 speaker assignment usually is.
 
 The lemma foreign keys are `nullOnDelete`, not cascading: if columns are ever
-rebuilt the note must survive, degrading to a passage-level note rather than
+rebuilt the note must survive, degrading to a segment-level note rather than
 being destroyed. A scholar's own words are never collateral damage. A note
 *anchored to a column* nonetheless counts as editorial content and blocks a
 rebuild (see `hasEditorialContent`), since the editor chose that column.
 
-Only the wording is editable. Moving a note to another passage or column is
+Only the wording is editable. Moving a note to another segment or column is
 not an edit but a different note.
 
 Presentation (user decision): a line's notes are READER-FACING and live in
@@ -343,7 +343,7 @@ the notice the line number opens — never rendered between the lines (the
 old `canEdit`-gated inline block hid them from readers entirely and is
 gone). The shared notes section renders inside the popover for the
 `notes`, `discontinuity` and `order_range` kinds, so one press shows
-everything the line has to say; a passage with notes and no other report
+everything the line has to say; a segment with notes and no other report
 gets the `notes` kind (sky chip). Edit/delete/reword stay behind `canEdit`;
 writing a NEW note happens via the "+ Note" composer at the bottom of every
 popover — anchored to the open run/range, or whole-line from a
@@ -356,7 +356,7 @@ a whole-line note needs no variant site to exist.
 normalized text reads something. The two layers are separate transcriptions
 with separate offsets and may differ in every character, so there is no
 mapping by position — only by **token index**, which holds whenever both
-layers divide the passage into the same number of words. That is the ordinary
+layers divide the segment into the same number of words. That is the ordinary
 case, since the normalized layer is made by copying the diplomatic one and
 regularizing it in place.
 
@@ -369,7 +369,7 @@ A conjecture never has a counterpart — no manuscript attests it.
 
 `EditionController::show` preloads each witness's diplomatic layer keyed by
 witness, visibility-filtered, and passes the work's `Tokenization` down rather
-than reading it off a passage (the eager-loaded `canonicalPassage` carries a
+than reading it off a segment (the eager-loaded `segment` carries a
 narrow column list and has no `work`). The toggle in `Editions/Show.vue` is
 available to every reader, not only editors — seeing what the manuscripts have
 is reading, not editing.
@@ -429,7 +429,7 @@ assignments on its normalized layer.
 
 The `transcription_layers` table is the old `transcriptions` table renamed — a
 row there always was one layer, and every FK to it (assignments, regions,
-`lemma_readings`, `edition_passages`, the tag pivot)
+`lemma_readings`, `edition_segments`, the tag pivot)
 still means a layer, now spelled `transcription_layer_id`.
 
 `visibility` is on the **transcription**, not the layer. A transcription is
@@ -453,7 +453,7 @@ one. What travels with the text depends on whether it still describes the same
 physical document — inside the transcription the assignment assignments *and* the
 image regions come, since the other layer is the same manuscript text
 regularized; into another transcription only the assignments do, because which
-passage of a work a stretch of text is stays true wherever it goes while where
+segment of a work a stretch of text is stays true wherever it goes while where
 it sits on a page does not. Copying over a layer that already has text is
 refused: it would take that layer's spans, regions and collated readings with
 it.
@@ -465,18 +465,18 @@ must create the parent and pass it to both. `->published()` on a layer factory
 publishes its transcription, which is what publishing a layer now means.
 
 ## The order report and the lacuna anchor are derived over the WHOLE edition
-`EditionController::orderRanges` runs over `$orderedPassages`, keyed by
+`EditionController::orderRanges` runs over `$orderedSegments`, keyed by
 printed index and read back through the page offset — a witness moving a
-line across the fifty-passage page boundary used to produce no marker at
+line across the fifty-segment page boundary used to produce no marker at
 all (test-pinned: "a disagreement straddling the page boundary"). Each
-window passage also carries `previous_edition_passage_id` from the whole
+window segment also carries `previous_edition_segment_id` from the whole
 order, so the whole-line-lacuna marker on page 2's first line anchors
 before it, not at the edition's start.
 
 `windowContext()` loads comments, unplaced conjectures, columns with
 readings, selections and line breaks ONCE per window and hands them to
-`passageDetail`/`materializedRuns`/`withBreaks` grouped; do not reintroduce
-per-passage queries there.
+`segmentDetail`/`materializedRuns`/`withBreaks` grouped; do not reintroduce
+per-segment queries there.
 
 Presentation notes (user decision, all three): "Delete edition" confirms
 like every other delete; the line-number chip is a real `<button>` and runs
@@ -512,12 +512,12 @@ printed order follows something other than the base text, "Ordering based
 on R2" / "Ordering based on Bergk's proposal" / "Ordering by this
 edition". Then headings, each only when there is something: VARIANTS
 (order statements scoped to the line, Follow and the proposal draft for
-editors, split-assignment statements), REFERENCES (the passage's own
+editors, split-assignment statements), REFERENCES (the segment's own
 assignments, picker for editors), NOTES (comments and the composer).
 Assignments of a CONJECTURE are never printed in the notice or the
 candidate list or the hover apparatus: a conjecture's name is a button
 that opens, in place, the edit form (`ConjectureForm`, fed by the
-`workConjectures`/`workPassages` props from `ConjectureCatalogue`) for
+`workConjectures`/`workSegments` props from `ConjectureCatalogue`) for
 editors and its literature for readers. The old kinds `order_range`,
 `discontinuity` and `notes` are gone; do not bring back per-kind notices.
 
@@ -525,19 +525,19 @@ editors and its literature for readers. The old kinds `order_range`,
 The Witnesses pane (`WitnessesPanel.vue`) shows a witness WHOLE, in either
 layer, with every assignment; assignments the edition has print grey
 (`AlignableText` `unavailableAssignmentIds`, no strikethrough). "Add selection"
-posts the assigned passages fully inside the selection by id
-(`edition-passages.store` with `canonical_passage_ids`, the layer being the
+posts the assigned segments fully inside the selection by id
+(`edition-segments.store` with `segment_ids`, the layer being the
 diplomatic entry's normalized sibling). An assignment lands where its
-manuscript has it — after the last edition passage preceding it in its
+manuscript has it — after the last edition segment preceding it in its
 own witness's physical order, else by numbering order
-(`PassageAdder::insertionPosition`, then
-`PassageOrderRewriter::renumberEdition`) — so adding never creates an
+(`SegmentAdder::insertionPosition`, then
+`SegmentOrderRewriter::renumberEdition`) — so adding never creates an
 arrangement that needs a transposition conjecture; the editor registers
 one from the edition text if she wants another order. Removing: a
 selection in the edition text reaching into several segments opens the
 remove box for all of them; within one segment the conjecture box opens
-and offers "Remove segment from edition" too (`edition-passages.destroy`
-takes `canonical_passage_ids`). There is no add/remove mode and no pane
+and offers "Remove segment from edition" too (`edition-segments.destroy`
+takes `segment_ids`). There is no add/remove mode and no pane
 choice any more; adding is locked while a transposition is registered.
 
 ## The witnesses pane's pages and image view (user decision, 2026-09-09)
@@ -569,8 +569,8 @@ assignment. Resolution is the column: a sub-word box lights the word.
 
 ## Omissions are readings; a deletion is a conjecture by nothing (user decision, 2026-09-09)
 
-- `PassageAligner::recordOmissions` runs at the end of `collate()` and
-  `realignLayer()`: for every witness aligned into a passage, one
+- `SegmentAligner::recordOmissions` runs at the end of `collate()` and
+  `realignLayer()`: for every witness aligned into a segment, one
   zero-width `lemma_readings.omitted = true` reading per maximal run of
   columns it lacks, anchored at the witness's own offset where its words
   resume (end of its last word before the run, else start of its first

@@ -17,7 +17,7 @@ test('an editor can correct a work\'s title and author', function () {
 });
 
 test('the slug and reference scheme are not editable here', function () {
-    // The slug is in the URL of every edition of this work, and every passage
+    // The slug is in the URL of every edition of this work, and every segment
     // address was built against the scheme; neither is a rename.
     $this->actingAs(User::factory()->editor()->create());
     $work = Work::factory()->create(['slug' => 'iliad']);

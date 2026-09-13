@@ -35,8 +35,8 @@ import { destroy as destroyEditionLemma } from '@/routes/edition-lemmas';
 import { update as updateLineBreak } from '@/routes/edition-line-breaks';
 import { apply as applyEditionOrder } from '@/routes/edition-order';
 import { store as storeTransfer } from '@/routes/edition-ownership-transfers';
-import { destroy as destroyEditionPassage } from '@/routes/edition-passages';
-import { update as updatePassageLineation } from '@/routes/edition-passages/lineation';
+import { destroy as destroyEditionSegment } from '@/routes/edition-segments';
+import { update as updateSegmentLineation } from '@/routes/edition-segments/lineation';
 import { store as storeVariant } from '@/routes/edition-variants';
 import { copy as copyEditionRoute } from '@/routes/editions';
 import {
@@ -47,7 +47,7 @@ import {
 import { exportMethod as exportEditionBibliography } from '@/routes/editions/bibliography';
 import { destroy as destroyTransfer } from '@/routes/ownership-transfers';
 import { show as showWitness } from '@/routes/witnesses';
-import type { WorkConjecture, WorkPassage } from '@/types/conjectures';
+import type { WorkConjecture, WorkSegment } from '@/types/conjectures';
 import type {
     BibliographyEntry,
     Candidate,
@@ -56,12 +56,12 @@ import type {
     EditionComment,
     OrderCandidate,
     OrderRange,
-    PassageListItem,
+    SegmentListItem,
     Run,
     TranscriptionOption,
     TranspositionAdoption,
     UnplacedConjecture,
-    WindowPassage,
+    WindowSegment,
     EditionAbilities,
     EditionAccess,
 } from '@/types/edition';
@@ -74,16 +74,16 @@ const props = defineProps<{
     access: EditionAccess;
     page: number;
     totalPages: number;
-    passages: PassageListItem[];
-    windowPassages: WindowPassage[];
+    segments: SegmentListItem[];
+    windowSegments: WindowSegment[];
     transpositions: TranspositionAdoption[];
     transcriptions: TranscriptionOption[];
-    workPassages: WorkPassage[];
+    workSegments: WorkSegment[];
     /** The work's conjectures as the Work page lists them — see ConjectureCatalogue. */
     workConjectures: WorkConjecture[];
     referenceLevels: ReferenceLevel[];
     witnessTranscripts: WitnessTranscript[];
-    /** Every item this edition's passages and conjectures cite, formatted. */
+    /** Every item this edition's segments and conjectures cite, formatted. */
     bibliography: BibliographyEntry[];
     /** What the references picker needs to create an item in place. */
     bibliographyForm: { registry: BiblatexRegistry; suggestions: Suggestions };
@@ -104,10 +104,10 @@ function draftReferencesPayload(references: DraftReference[]) {
     }));
 }
 
-// Every canonical passage already in this edition, from any transcription —
+// Every segment already in this edition, from any transcription —
 // used by the add-to-edition panel to grey out what's already claimed.
-const alreadyAddedPassageIds = computed(() =>
-    props.passages.map((passage) => passage.id),
+const alreadyAddedSegmentIds = computed(() =>
+    props.segments.map((segment) => segment.id),
 );
 
 // What the server's policies allow this viewer — the page only reflects it.
@@ -134,9 +134,9 @@ function goToPage(targetPage: number) {
 const jumpLabel = ref('');
 const jumpError = ref<string | null>(null);
 
-function jumpToPassage() {
+function jumpToSegment() {
     const label = jumpLabel.value.trim();
-    const target = props.passages.find((passage) => passage.label === label);
+    const target = props.segments.find((segment) => segment.label === label);
 
     if (!target) {
         jumpError.value = label ? `No line ${label} in this edition.` : null;
@@ -147,7 +147,7 @@ function jumpToPassage() {
     jumpError.value = null;
     const scroll = () =>
         document
-            .getElementById(`passage-${target.id}`)
+            .getElementById(`segment-${target.id}`)
             ?.scrollIntoView({ block: 'center' });
 
     if (target.page === props.page) {
@@ -247,35 +247,35 @@ function removeEdition() {
 // wider candidate — to choose among its candidates; click a boundary dot to
 // insert a lacuna. Clicking anywhere else does nothing. ----
 type OpenTarget =
-    | { passageId: number; kind: 'run'; index: number }
-    | { passageId: number; kind: 'boundary'; index: number }
+    | { segmentId: number; kind: 'run'; index: number }
+    | { segmentId: number; kind: 'boundary'; index: number }
     | {
-          passageId: number;
-          kind: 'new_passage';
-          afterEditionPassageId: number | null;
+          segmentId: number;
+          kind: 'new_segment';
+          afterEditionSegmentId: number | null;
       }
     | {
-          passageId: number;
+          segmentId: number;
           kind: 'range';
           startIndex: number;
           endIndex: number;
       }
-    | { passageId: number; kind: 'remove'; passageIds: number[] }
-    | { passageId: number; kind: 'line' };
+    | { segmentId: number; kind: 'remove'; segmentIds: number[] }
+    | { segmentId: number; kind: 'line' };
 
 const openTarget = ref<OpenTarget | null>(null);
 const submitError = ref<string | null>(null);
 
 // ---- editorial notes ----
-// Which passage has its note composer open, which note is being reworded,
+// Which segment has its note composer open, which note is being reworded,
 // and the text in hand. A note is anchored to whatever run is currently
 // open, if any, so writing about one word needs no separate gesture.
-const notingPassageId = ref<number | null>(null);
+const notingSegmentId = ref<number | null>(null);
 const editingNoteId = ref<number | null>(null);
 const noteDraft = ref('');
 
-function openNoteComposer(passage: WindowPassage) {
-    notingPassageId.value = passage.id;
+function openNoteComposer(segment: WindowSegment) {
+    notingSegmentId.value = segment.id;
     editingNoteId.value = null;
     noteDraft.value = '';
 }
@@ -286,30 +286,30 @@ function startEditingNote(comment: EditionComment) {
 }
 
 function cancelNote() {
-    notingPassageId.value = null;
+    notingSegmentId.value = null;
     editingNoteId.value = null;
     noteDraft.value = '';
 }
 
 /**
  * The columns a new note will be pinned to, or nulls for a note about the
- * passage as a whole. Follows whichever run or range is open, so writing
+ * segment as a whole. Follows whichever run or range is open, so writing
  * about one word needs no separate gesture.
  */
-function noteAnchor(passage: WindowPassage): {
+function noteAnchor(segment: WindowSegment): {
     lemma_id: number | null;
     range_end_lemma_id: number | null;
 } {
     const unanchored = { lemma_id: null, range_end_lemma_id: null };
     const target = openTarget.value;
 
-    if (target === null || target.passageId !== passage.id) {
+    if (target === null || target.segmentId !== segment.id) {
         return unanchored;
     }
 
     if (target.kind === 'range') {
-        const startRun = passage.runs[target.startIndex];
-        const endRun = passage.runs[target.endIndex];
+        const startRun = segment.runs[target.startIndex];
+        const endRun = segment.runs[target.endIndex];
 
         return startRun && endRun
             ? {
@@ -321,7 +321,7 @@ function noteAnchor(passage: WindowPassage): {
     }
 
     if (target.kind === 'run') {
-        const run = passage.runs[target.index];
+        const run = segment.runs[target.index];
 
         return run
             ? {
@@ -334,7 +334,7 @@ function noteAnchor(passage: WindowPassage): {
     return unanchored;
 }
 
-function saveNote(passage: WindowPassage) {
+function saveNote(segment: WindowSegment) {
     if (!noteDraft.value.trim()) {
         return;
     }
@@ -359,8 +359,8 @@ function saveNote(passage: WindowPassage) {
     router.post(
         storeComment.url(props.edition),
         {
-            canonical_passage_id: passage.id,
-            ...noteAnchor(passage),
+            segment_id: segment.id,
+            ...noteAnchor(segment),
             note: noteDraft.value,
         },
         { preserveScroll: true, onSuccess: done },
@@ -377,14 +377,14 @@ function removeNote(comment: EditionComment) {
 
 /** The words a note is anchored to, for showing what it is about. */
 function noteAnchorText(
-    passage: WindowPassage,
+    segment: WindowSegment,
     comment: EditionComment,
 ): string | null {
     if (comment.lemma_id === null) {
         return null;
     }
 
-    const start = passage.runs.findIndex(
+    const start = segment.runs.findIndex(
         (run) => run.lemma_id === comment.lemma_id,
     );
 
@@ -395,20 +395,20 @@ function noteAnchorText(
     const end =
         comment.range_end_lemma_id === null
             ? start
-            : passage.runs.findIndex(
+            : segment.runs.findIndex(
                   (run) => run.lemma_id === comment.range_end_lemma_id,
               );
 
-    return passage.runs
+    return segment.runs
         .slice(start, (end === -1 ? start : end) + 1)
         .map((run) => run.text)
         .filter((text) => text !== '')
         .join(' ');
 }
 
-/** Whether this passage's popover is open — its block box then ends the line. */
-function popoverOpenOn(passageId: number): boolean {
-    return openTarget.value?.passageId === passageId;
+/** Whether this segment's popover is open — its block box then ends the line. */
+function popoverOpenOn(segmentId: number): boolean {
+    return openTarget.value?.segmentId === segmentId;
 }
 
 // The one way to dismiss whichever popover (Add Conjecture, Select Variant,
@@ -442,7 +442,7 @@ function toggleLacunaMode() {
 // "Register transposition conjecture" turns the edition text into a draft:
 // select text — whole lines or part of a line — and press Ctrl+X to lift
 // it out, put the caret somewhere and press Ctrl+V to set it down. The
-// text is a sequence of PIECES: a piece is a whole passage, or part of one
+// text is a sequence of PIECES: a piece is a whole segment, or part of one
 // once a cut divided it, exactly as a witness's assignment of a line can
 // stand in two places; a piece pasted into a line divides that line. On
 // Register, every difference between the stored order and the draft IS the
@@ -464,12 +464,12 @@ const registerDraft = reactive({
 });
 const registerError = ref<string | null>(null);
 
-/** A run of one passage's words, by run index, as the draft moves it. */
-type DraftPiece = { passageId: number; runStart: number; runEnd: number };
+/** A run of one segment's words, by run index, as the draft moves it. */
+type DraftPiece = { segmentId: number; runStart: number; runEnd: number };
 
-/** What the text renders: a passage, or one part of it, with its runs. */
+/** What the text renders: a segment, or one part of it, with its runs. */
 type Piece = {
-    passage: WindowPassage;
+    segment: WindowSegment;
     runStart: number;
     runEnd: number;
     part: number;
@@ -477,12 +477,12 @@ type Piece = {
     runs: { run: Run; runIndex: number }[];
 };
 
-// A passage printed in pieces has one row per part; every row carries
-// the passage's full runs, so the first row stands for the passage.
-const passageById = computed(() => {
-    const byId = new Map<number, WindowPassage>();
+// A segment printed in pieces has one row per part; every row carries
+// the segment's full runs, so the first row stands for the segment.
+const segmentById = computed(() => {
+    const byId = new Map<number, WindowSegment>();
 
-    for (const row of props.windowPassages) {
+    for (const row of props.windowSegments) {
         if (!byId.has(row.id)) {
             byId.set(row.id, row);
         }
@@ -493,44 +493,44 @@ const passageById = computed(() => {
 
 /** The printed rows as draft pieces — a divided line starts divided. */
 function printedPieces(): DraftPiece[] {
-    return props.windowPassages.map((row) => ({
-        passageId: row.id,
+    return props.windowSegments.map((row) => ({
+        segmentId: row.id,
         runStart: row.run_start,
         runEnd: row.run_end,
     }));
 }
 
-/** Number a passage's pieces in the passage's own order, as a witness's parts are. */
+/** Number a segment's pieces in the segment's own order, as a witness's parts are. */
 function toPieces(drafts: DraftPiece[]): Piece[] {
     const counts = new Map<number, number>();
     const ranks = new Map<DraftPiece, number>();
 
     for (const draft of drafts) {
-        counts.set(draft.passageId, (counts.get(draft.passageId) ?? 0) + 1);
+        counts.set(draft.segmentId, (counts.get(draft.segmentId) ?? 0) + 1);
     }
 
-    for (const passageId of counts.keys()) {
+    for (const segmentId of counts.keys()) {
         drafts
-            .filter((draft) => draft.passageId === passageId)
+            .filter((draft) => draft.segmentId === segmentId)
             .sort((a, b) => a.runStart - b.runStart)
             .forEach((draft, index) => ranks.set(draft, index + 1));
     }
 
     return drafts.flatMap((draft) => {
-        const passage = passageById.value.get(draft.passageId);
+        const segment = segmentById.value.get(draft.segmentId);
 
-        if (!passage) {
+        if (!segment) {
             return [];
         }
 
         return [
             {
-                passage,
+                segment,
                 runStart: draft.runStart,
                 runEnd: draft.runEnd,
                 part: ranks.get(draft) ?? 1,
-                parts: counts.get(draft.passageId) ?? 1,
-                runs: passage.runs
+                parts: counts.get(draft.segmentId) ?? 1,
+                runs: segment.runs
                     .slice(draft.runStart, draft.runEnd + 1)
                     .map((run, index) => ({
                         run,
@@ -541,12 +541,12 @@ function toPieces(drafts: DraftPiece[]): Piece[] {
     });
 }
 
-/** The window's text in the order it shows: whole passages, or the draft's pieces. */
+/** The window's text in the order it shows: whole segments, or the draft's pieces. */
 const shownPieces = computed<Piece[]>(() =>
     registering.value
         ? toPieces(draftPieces.value)
-        : props.windowPassages.map((row) => ({
-              passage: row,
+        : props.windowSegments.map((row) => ({
+              segment: row,
               runStart: row.run_start,
               runEnd: row.run_end,
               part: row.part,
@@ -578,37 +578,37 @@ function stopRegistering() {
     registerError.value = null;
 }
 
-function passageLabel(id: number): string {
-    return passageById.value.get(id)?.label ?? '?';
+function segmentLabel(id: number): string {
+    return segmentById.value.get(id)?.label ?? '?';
 }
 
-/** "3" or "3–8", from the first and last of a run of passages. */
+/** "3" or "3–8", from the first and last of a run of segments. */
 function rangeLabel(ids: number[]): string {
-    const first = passageLabel(ids[0]);
-    const last = passageLabel(ids[ids.length - 1]);
+    const first = segmentLabel(ids[0]);
+    const last = segmentLabel(ids[ids.length - 1]);
 
     return first === last ? first : `${first}–${last}`;
 }
 
 function pieceText(draft: DraftPiece): string {
-    return (passageById.value.get(draft.passageId)?.runs ?? [])
+    return (segmentById.value.get(draft.segmentId)?.runs ?? [])
         .slice(draft.runStart, draft.runEnd + 1)
         .map((run) => run.text)
         .join(' ');
 }
 
-/** "3", or "3 2/2" for a part of a divided passage — the apparatus's own assignment. */
+/** "3", or "3 2/2" for a part of a divided segment — the apparatus's own assignment. */
 function pieceLabel(piece: Piece): string {
     return piece.parts > 1
-        ? `${piece.passage.label} ${piece.part}/${piece.parts}`
-        : piece.passage.label;
+        ? `${piece.segment.label} ${piece.part}/${piece.parts}`
+        : piece.segment.label;
 }
 
 function isWholePiece(draft: DraftPiece): boolean {
-    const passage = passageById.value.get(draft.passageId);
+    const segment = segmentById.value.get(draft.segmentId);
 
     return (
-        draft.runStart === 0 && draft.runEnd === (passage?.runs.length ?? 0) - 1
+        draft.runStart === 0 && draft.runEnd === (segment?.runs.length ?? 0) - 1
     );
 }
 
@@ -620,13 +620,13 @@ const heldLabel = computed(() => {
     }
 
     if (held.length === 1 && !isWholePiece(held[0])) {
-        return `part of ${passageLabel(held[0].passageId)}: “${pieceText(held[0])}”`;
+        return `part of ${segmentLabel(held[0].segmentId)}: “${pieceText(held[0])}”`;
     }
 
-    return rangeLabel(held.map((piece) => piece.passageId));
+    return rangeLabel(held.map((piece) => piece.segmentId));
 });
 
-/** Adjacent pieces of one passage that abut become one piece again. */
+/** Adjacent pieces of one segment that abut become one piece again. */
 function mergedPieces(drafts: DraftPiece[]): DraftPiece[] {
     const merged: DraftPiece[] = [];
 
@@ -635,7 +635,7 @@ function mergedPieces(drafts: DraftPiece[]): DraftPiece[] {
 
         if (
             last &&
-            last.passageId === draft.passageId &&
+            last.segmentId === draft.segmentId &&
             last.runEnd + 1 === draft.runStart
         ) {
             merged[merged.length - 1] = { ...last, runEnd: draft.runEnd };
@@ -755,7 +755,7 @@ function onTextPaste(event: ClipboardEvent) {
     }
 
     const caret = caretPosition();
-    const piece = caret ? draftPieces.value[caret.passageIndex] : undefined;
+    const piece = caret ? draftPieces.value[caret.segmentIndex] : undefined;
 
     if (!caret || !piece) {
         return;
@@ -767,10 +767,10 @@ function onTextPaste(event: ClipboardEvent) {
     const before = caret.offset === 0;
     const drafts = draftPieces.value;
     let replacement: DraftPiece[] = [piece];
-    let insertAt = caret.passageIndex + 1;
+    let insertAt = caret.segmentIndex + 1;
 
     if (before && caret.runIndex === piece.runStart) {
-        insertAt = caret.passageIndex;
+        insertAt = caret.segmentIndex;
     } else if (!(!before && caret.runIndex === piece.runEnd)) {
         const cut = before ? caret.runIndex : caret.runIndex + 1;
         replacement = [
@@ -780,9 +780,9 @@ function onTextPaste(event: ClipboardEvent) {
     }
 
     const next = [
-        ...drafts.slice(0, caret.passageIndex),
+        ...drafts.slice(0, caret.segmentIndex),
         ...replacement,
-        ...drafts.slice(caret.passageIndex + 1),
+        ...drafts.slice(caret.segmentIndex + 1),
     ];
     const held = heldPieces.value;
     next.splice(insertAt, 0, ...held);
@@ -792,7 +792,7 @@ function onTextPaste(event: ClipboardEvent) {
 
     void nextTick(() =>
         placeCaret({
-            passageId: held[0].passageId,
+            segmentId: held[0].segmentId,
             runIndex: held[0].runStart,
             offset: 0,
         }),
@@ -806,11 +806,11 @@ function onTextCopy(event: ClipboardEvent) {
 }
 
 /**
- * What the draft changes, widened to assignment contiguity: the passages of
+ * What the draft changes, widened to assignment contiguity: the segments of
  * every piece between the first and last that stand somewhere new, plus
- * every window passage whose assignment falls inside that stretch's span —
+ * every window segment whose assignment falls inside that stretch's span —
  * the smallest statement about a stretch of the work that the server
- * accepts, with every piece of each passage in it. Empty while nothing
+ * accepts, with every piece of each segment in it. Empty while nothing
  * moved or something is still held.
  */
 const registerPieces = computed<Piece[]>(() => {
@@ -822,7 +822,7 @@ const registerPieces = computed<Piece[]>(() => {
     }
 
     const same = (a: DraftPiece, b: DraftPiece) =>
-        a.passageId === b.passageId &&
+        a.segmentId === b.segmentId &&
         a.runStart === b.runStart &&
         a.runEnd === b.runEnd;
 
@@ -856,23 +856,23 @@ const registerPieces = computed<Piece[]>(() => {
         [
             ...current.slice(first, endCurrent + 1),
             ...draft.slice(first, endDraft + 1),
-        ].map((piece) => piece.passageId),
+        ].map((piece) => piece.segmentId),
     );
-    const sortKey = new Map(props.workPassages.map((p) => [p.id, p.sort_key]));
+    const sortKey = new Map(props.workSegments.map((p) => [p.id, p.sort_key]));
     const keys = [...involved].map((id) => sortKey.get(id) ?? '');
     const min = keys.reduce((a, b) => (a < b ? a : b));
     const max = keys.reduce((a, b) => (a > b ? a : b));
     const members = new Set(
-        props.windowPassages
-            .filter((passage) => {
-                const key = sortKey.get(passage.id) ?? '';
+        props.windowSegments
+            .filter((segment) => {
+                const key = sortKey.get(segment.id) ?? '';
 
                 return key >= min && key <= max;
             })
-            .map((passage) => passage.id),
+            .map((segment) => segment.id),
     );
 
-    return toPieces(draft.filter((piece) => members.has(piece.passageId)));
+    return toPieces(draft.filter((piece) => members.has(piece.segmentId)));
 });
 
 /** Whether the arrangement divides a line — reportable, not printable. */
@@ -887,9 +887,9 @@ const registerSummary = computed(() => {
         return null;
     }
 
-    const sortKey = new Map(props.workPassages.map((p) => [p.id, p.sort_key]));
+    const sortKey = new Map(props.workSegments.map((p) => [p.id, p.sort_key]));
     const byAssignment = [
-        ...new Set(pieces.map((piece) => piece.passage.id)),
+        ...new Set(pieces.map((piece) => piece.segment.id)),
     ].sort((a, b) =>
         (sortKey.get(a) ?? '') < (sortKey.get(b) ?? '') ? -1 : 1,
     );
@@ -907,10 +907,10 @@ function submitRegistration(adopt: boolean) {
         storeConjectureOrdering.url(props.edition),
         {
             pieces: registerPieces.value.map((piece) => ({
-                canonical_passage_id: piece.passage.id,
+                segment_id: piece.segment.id,
                 part: piece.part,
                 text: pieceText({
-                    passageId: piece.passage.id,
+                    segmentId: piece.segment.id,
                     runStart: piece.runStart,
                     runEnd: piece.runEnd,
                 }),
@@ -936,8 +936,8 @@ function submitRegistration(adopt: boolean) {
 // The text box is a contenteditable host for editors, but every edit that
 // would change the words is refused (beforeinput/paste/drop): only Enter,
 // Backspace and Delete mean anything, and they act on the GAPS — the break
-// before a collation column (EditionLineBreak) or before a passage (the
-// EditionPassage flags). Enter breaks the line at the caret's word boundary
+// before a collation column (EditionLineBreak) or before a segment (the
+// EditionSegment flags). Enter breaks the line at the caret's word boundary
 // (mid-word, after the word), Enter again opens a paragraph; Backspace at
 // the start of a line and Delete at its end join lines, a paragraph first
 // closing to a plain line break. All of it is this edition's own display
@@ -947,17 +947,17 @@ const editionTextEl = ref<HTMLElement | null>(null);
 const textFocused = ref(false);
 
 type Caret = {
-    /** Index into shownPieces — a passage, or one part of it while registering. */
-    passageIndex: number;
+    /** Index into shownPieces — a segment, or one part of it while registering. */
+    segmentIndex: number;
     runIndex: number;
     offset: number;
     length: number;
 };
 
-/** A gap: before one run (colometry) or before a passage (`run` null). */
-type Gap = { passage: WindowPassage; run: Run | null };
+/** A gap: before one run (colometry) or before a segment (`run` null). */
+type Gap = { segment: WindowSegment; run: Run | null };
 
-type CaretTarget = { passageId: number; runIndex: number; offset: number };
+type CaretTarget = { segmentId: number; runIndex: number; offset: number };
 
 /** Chips, markers and open notices are islands: not text, not editable. */
 function inEditableIsland(node: Node | null): boolean {
@@ -997,12 +997,12 @@ function caretPosition(): Caret | null {
 
     const runs = [...box.querySelectorAll<HTMLElement>('[data-run-index]')];
     const describe = (runEl: HTMLElement, offset: number): Caret | null => {
-        const passageIndex = Number(runEl.dataset.pieceIndex ?? -1);
+        const segmentIndex = Number(runEl.dataset.pieceIndex ?? -1);
 
-        return passageIndex === -1
+        return segmentIndex === -1
             ? null
             : {
-                  passageIndex,
+                  segmentIndex,
                   runIndex: Number(runEl.dataset.runIndex),
                   offset,
                   length: (runEl.textContent ?? '').length,
@@ -1018,7 +1018,7 @@ function caretPosition(): Caret | null {
     if (spacer && box.contains(spacer)) {
         const runEl = runs.find(
             (el) =>
-                el.dataset.passageId === spacer.dataset.spacerPassageId &&
+                el.dataset.segmentId === spacer.dataset.spacerSegmentId &&
                 el.dataset.runIndex === spacer.dataset.spacerRunIndex,
         );
 
@@ -1051,49 +1051,49 @@ function caretPosition(): Caret | null {
     return last ? describe(last, (last.textContent ?? '').length) : null;
 }
 
-function gapBeforeRun(passageIndex: number, runIndex: number): Gap | null {
-    const piece = shownPieces.value[passageIndex];
-    const passage = piece?.passage;
+function gapBeforeRun(segmentIndex: number, runIndex: number): Gap | null {
+    const piece = shownPieces.value[segmentIndex];
+    const segment = piece?.segment;
 
-    if (!piece || !passage) {
+    if (!piece || !segment) {
         return null;
     }
 
     if (runIndex === piece.runStart) {
-        // The very first passage of the edition has nothing before it.
-        return passage.previous_edition_passage_id === null
+        // The very first segment of the edition has nothing before it.
+        return segment.previous_edition_segment_id === null
             ? null
-            : { passage, run: null };
+            : { segment, run: null };
     }
 
-    const run = passage.runs[runIndex];
+    const run = segment.runs[runIndex];
 
     // A break stands before a column; a run without one cannot carry it.
-    return run && run.lemma_id !== null ? { passage, run } : null;
+    return run && run.lemma_id !== null ? { segment, run } : null;
 }
 
-function gapAfterRun(passageIndex: number, runIndex: number): Gap | null {
-    const passage = shownPieces.value[passageIndex]?.passage;
+function gapAfterRun(segmentIndex: number, runIndex: number): Gap | null {
+    const segment = shownPieces.value[segmentIndex]?.segment;
 
-    if (!passage) {
+    if (!segment) {
         return null;
     }
 
-    if (runIndex + 1 <= (shownPieces.value[passageIndex]?.runEnd ?? -1)) {
-        return gapBeforeRun(passageIndex, runIndex + 1);
+    if (runIndex + 1 <= (shownPieces.value[segmentIndex]?.runEnd ?? -1)) {
+        return gapBeforeRun(segmentIndex, runIndex + 1);
     }
 
-    const next = shownPieces.value[passageIndex + 1]?.passage;
+    const next = shownPieces.value[segmentIndex + 1]?.segment;
 
-    return next ? { passage: next, run: null } : null;
+    return next ? { segment: next, run: null } : null;
 }
 
 /** 0 flows on, 1 a new line, 2 a new paragraph. */
 function gapLevel(gap: Gap): 0 | 1 | 2 {
     if (gap.run === null) {
-        return gap.passage.starts_new_paragraph
+        return gap.segment.starts_new_paragraph
             ? 2
-            : gap.passage.starts_new_line
+            : gap.segment.starts_new_line
               ? 1
               : 0;
     }
@@ -1108,8 +1108,8 @@ function gapLevel(gap: Gap): 0 | 1 | 2 {
 /** The word that opens the line after this gap. */
 function runAfterGap(gap: Gap): CaretTarget {
     return {
-        passageId: gap.passage.id,
-        runIndex: gap.run === null ? 0 : gap.passage.runs.indexOf(gap.run),
+        segmentId: gap.segment.id,
+        runIndex: gap.run === null ? 0 : gap.segment.runs.indexOf(gap.run),
         offset: 0,
     };
 }
@@ -1124,7 +1124,7 @@ function setGapLevel(gap: Gap, level: 0 | 1 | 2, caretAfter: CaretTarget) {
 
     if (gap.run === null) {
         router.patch(
-            updatePassageLineation.url(gap.passage.edition_passage_id),
+            updateSegmentLineation.url(gap.segment.edition_segment_id),
             { starts_new_line: level >= 1, starts_new_paragraph: level >= 2 },
             options,
         );
@@ -1146,7 +1146,7 @@ function setGapLevel(gap: Gap, level: 0 | 1 | 2, caretAfter: CaretTarget) {
 function placeCaret(target: CaretTarget) {
     const box = editionTextEl.value;
     const runEl = box?.querySelector<HTMLElement>(
-        `[data-passage-id="${target.passageId}"][data-run-index="${target.runIndex}"]`,
+        `[data-segment-id="${target.segmentId}"][data-run-index="${target.runIndex}"]`,
     );
 
     if (!box || !runEl) {
@@ -1202,8 +1202,8 @@ function onTextKeydown(event: KeyboardEvent) {
 
     if (event.key === 'Enter') {
         const gap = atStart
-            ? gapBeforeRun(caret.passageIndex, caret.runIndex)
-            : gapAfterRun(caret.passageIndex, caret.runIndex);
+            ? gapBeforeRun(caret.segmentIndex, caret.runIndex)
+            : gapAfterRun(caret.segmentIndex, caret.runIndex);
         const level = gap ? gapLevel(gap) : 2;
 
         if (gap && level < 2) {
@@ -1216,17 +1216,17 @@ function onTextKeydown(event: KeyboardEvent) {
     const gap =
         event.key === 'Backspace'
             ? atStart
-                ? gapBeforeRun(caret.passageIndex, caret.runIndex)
+                ? gapBeforeRun(caret.segmentIndex, caret.runIndex)
                 : null
             : atEnd
-              ? gapAfterRun(caret.passageIndex, caret.runIndex)
+              ? gapAfterRun(caret.segmentIndex, caret.runIndex)
               : null;
     const level = gap ? gapLevel(gap) : 0;
 
     if (gap && level > 0) {
-        const passage = shownPieces.value[caret.passageIndex].passage;
+        const segment = shownPieces.value[caret.segmentIndex].segment;
         setGapLevel(gap, (level - 1) as 0 | 1, {
-            passageId: passage.id,
+            segmentId: segment.id,
             runIndex: caret.runIndex,
             offset: event.key === 'Backspace' ? 0 : caret.length,
         });
@@ -1247,13 +1247,13 @@ function onTextFocus(event: FocusEvent, focused: boolean) {
 }
 
 /** Readers open a word's notice from the keyboard; editors' Enter is a line break. */
-function onRunKey(passageId: number, runIndex: number, event: KeyboardEvent) {
+function onRunKey(segmentId: number, runIndex: number, event: KeyboardEvent) {
     if (canEdit.value) {
         return;
     }
 
     event.preventDefault();
-    toggleRun(passageId, runIndex);
+    toggleRun(segmentId, runIndex);
 }
 
 // The page is always two panes: the edition on the left, the witnesses on
@@ -1264,23 +1264,23 @@ function onRunKey(passageId: number, runIndex: number, event: KeyboardEvent) {
 // exactly as in the transcript editor (user decision). The correspondence
 // goes through the collation column: a run's base offsets and each
 // candidate's own witness offsets say where every witness has this word.
-const hoveredEditionPassageId = ref<number | null>(null);
-const hoveredRun = ref<{ passageId: number; runIndex: number } | null>(null);
+const hoveredEditionSegmentId = ref<number | null>(null);
+const hoveredRun = ref<{ segmentId: number; runIndex: number } | null>(null);
 const imageLitRunKeys = ref<Set<string>>(new Set());
 
 type WitnessSpan = { layerId: number; start: number; end: number };
 
 /** Every witness's stretch of text at a run's column. */
-function witnessSpansOf(passage: WindowPassage, run: Run): WitnessSpan[] {
+function witnessSpansOf(segment: WindowSegment, run: Run): WitnessSpan[] {
     const spans: WitnessSpan[] = [];
 
     if (
-        passage.base !== null &&
+        segment.base !== null &&
         run.base_start !== null &&
         run.base_end !== null
     ) {
         spans.push({
-            layerId: passage.base.transcription_layer_id,
+            layerId: segment.base.transcription_layer_id,
             start: run.base_start,
             end: run.base_end,
         });
@@ -1305,26 +1305,26 @@ function witnessSpansOf(passage: WindowPassage, run: Run): WitnessSpan[] {
 
 const hoveredSpans = computed<WitnessSpan[]>(() => {
     const target = hoveredRun.value;
-    const passage = target
-        ? passageById.value.get(target.passageId)
+    const segment = target
+        ? segmentById.value.get(target.segmentId)
         : undefined;
-    const run = passage?.runs[target?.runIndex ?? -1];
+    const run = segment?.runs[target?.runIndex ?? -1];
 
-    return passage && run ? witnessSpansOf(passage, run) : [];
+    return segment && run ? witnessSpansOf(segment, run) : [];
 });
 
 /** Light the words the image box under the pointer is aligned to. */
 function onImageRegionHover(target: {
     spans: WitnessSpan[];
-    passageIds: number[];
+    segmentIds: number[];
 }) {
     const keys = new Set<string>();
 
-    for (const passage of props.windowPassages) {
-        passage.runs.forEach((run, runIndex) => {
+    for (const segment of props.windowSegments) {
+        segment.runs.forEach((run, runIndex) => {
             const lit =
-                target.passageIds.includes(passage.id) ||
-                witnessSpansOf(passage, run).some((mine) =>
+                target.segmentIds.includes(segment.id) ||
+                witnessSpansOf(segment, run).some((mine) =>
                     target.spans.some(
                         (span) =>
                             span.layerId === mine.layerId &&
@@ -1334,7 +1334,7 @@ function onImageRegionHover(target: {
                 );
 
             if (lit) {
-                keys.add(`${passage.id}:${runIndex}`);
+                keys.add(`${segment.id}:${runIndex}`);
             }
         });
     }
@@ -1353,18 +1353,18 @@ const adoptedConjectureIds = computed(
 // assignment, the order palette for a moved line, sky for a note. One colour
 // at a time — a split is rarer and more specific than an order block, so it
 // wins.
-function passageChipClasses(passage: WindowPassage): string[] {
-    if (passage.discontinuous_witnesses.length > 0) {
+function segmentChipClasses(segment: WindowSegment): string[] {
+    if (segment.discontinuous_witnesses.length > 0) {
         return [
             'cursor-pointer bg-violet-200 text-violet-800 hover:bg-violet-300 dark:bg-violet-950 dark:text-violet-300 dark:hover:bg-violet-900',
         ];
     }
 
-    if (passage.order_range && isOrderMoved(passage)) {
-        return ['cursor-pointer', ...orderRangeClasses(passage.order_range)];
+    if (segment.order_range && isOrderMoved(segment)) {
+        return ['cursor-pointer', ...orderRangeClasses(segment.order_range)];
     }
 
-    if (passage.comments.length > 0 || passage.references.length > 0) {
+    if (segment.comments.length > 0 || segment.references.length > 0) {
         return [
             'cursor-pointer bg-sky-300 text-sky-950 hover:bg-sky-400 dark:bg-sky-800/60 dark:text-sky-100 dark:hover:bg-sky-800',
         ];
@@ -1375,43 +1375,42 @@ function passageChipClasses(passage: WindowPassage): string[] {
     ];
 }
 
-function passageChipTitle(passage: WindowPassage): string | undefined {
-    if (passage.discontinuous_witnesses.length > 0) {
-        return discontinuityTitle(passage.discontinuous_witnesses);
+function segmentChipTitle(segment: WindowSegment): string | undefined {
+    if (segment.discontinuous_witnesses.length > 0) {
+        return discontinuityTitle(segment.discontinuous_witnesses);
     }
 
-    if (passage.order_range && isOrderMoved(passage)) {
-        return orderStatements(passage.order_range, passage).join('; ');
+    if (segment.order_range && isOrderMoved(segment)) {
+        return orderStatements(segment.order_range, segment).join('; ');
     }
 
-    if (passage.comments.length > 0 || passage.references.length > 0) {
+    if (segment.comments.length > 0 || segment.references.length > 0) {
         return [
-            ...passage.comments.map((comment) => comment.note),
-            ...passage.references.map((reference) => reference.citation),
+            ...segment.comments.map((comment) => comment.note),
+            ...segment.references.map((reference) => reference.citation),
         ].join('; ');
     }
 
     return 'What this line rests on';
 }
 
-function onChipClick(passage: WindowPassage) {
+function onChipClick(segment: WindowSegment) {
     // Every number opens the line's notice, for readers and editors
     // alike: what the line rests on, then its variants, references and
     // notes (user decision).
-    toggleLine(passage.id);
+    toggleLine(segment.id);
 }
 
 // ---- what a line rests on: the top of its notice ----
 
-/** Sigla of every visible normalized transcript assigning text to this passage. */
-function witnessesAssigning(passage: WindowPassage): string[] {
+/** Sigla of every visible normalized transcript assigning text to this segment. */
+function witnessesAssigning(segment: WindowSegment): string[] {
     return [
         ...new Set(
             props.transcriptions
                 .filter((transcription) =>
                     transcription.assignments.some(
-                        (assignment) =>
-                            assignment.canonical_passage_id === passage.id,
+                        (assignment) => assignment.segment_id === segment.id,
                     ),
                 )
                 .map((transcription) => transcription.witness.siglum),
@@ -1441,25 +1440,25 @@ type ProvenanceLine = { text: string; conjectureId: number | null };
  * by this edition." (user decision: the source is named at the top, and
  * only the sources that differ are listed as variants).
  */
-function provenanceLines(passage: WindowPassage): ProvenanceLine[] {
+function provenanceLines(segment: WindowSegment): ProvenanceLine[] {
     const lines: ProvenanceLine[] = [];
-    const witnesses = witnessesAssigning(passage);
+    const witnesses = witnessesAssigning(segment);
 
-    if (passage.base !== null) {
+    if (segment.base !== null) {
         const others = witnesses.filter(
-            (siglum) => siglum !== passage.base?.witness_siglum,
+            (siglum) => siglum !== segment.base?.witness_siglum,
         );
 
         lines.push({
             text:
-                `Based on ${passage.base.witness_siglum}.` +
+                `Based on ${segment.base.witness_siglum}.` +
                 (others.length > 0
                     ? ` Also present in ${others.join(', ')}.`
                     : ''),
             conjectureId: null,
         });
     } else {
-        const selected = passage.runs
+        const selected = segment.runs
             .flatMap((run) => run.candidates)
             .find(
                 (candidate) =>
@@ -1477,7 +1476,7 @@ function provenanceLines(passage: WindowPassage): ProvenanceLine[] {
         );
     }
 
-    const ordering = orderingSource(passage);
+    const ordering = orderingSource(segment);
 
     if (ordering !== null) {
         lines.push(ordering);
@@ -1491,15 +1490,15 @@ function provenanceLines(passage: WindowPassage): ProvenanceLine[] {
  * not the base text's own order. Null where the text's own order stands,
  * or where no source disagrees at all.
  */
-function orderingSource(passage: WindowPassage): ProvenanceLine | null {
-    const range = passage.order_range;
+function orderingSource(segment: WindowSegment): ProvenanceLine | null {
+    const range = segment.order_range;
     const matching = range?.candidates.find(
         (candidate) =>
             candidate.matches_current && candidate.source !== 'numbering',
     );
 
     if (matching?.source === 'transcription') {
-        return matching.witness_siglum === passage.base?.witness_siglum
+        return matching.witness_siglum === segment.base?.witness_siglum
             ? null
             : {
                   text: `Ordering by ${matching.witness_siglum}.`,
@@ -1518,7 +1517,7 @@ function orderingSource(passage: WindowPassage): ProvenanceLine | null {
 
     // A divided line: the split-assignment report knows which source's
     // arrangement the edition prints — an adopted conjecture first.
-    const followed = [...passage.discontinuous_witnesses]
+    const followed = [...segment.discontinuous_witnesses]
         .filter((source) => source.matches_current)
         .sort((a, b) => {
             const adoptedA =
@@ -1538,14 +1537,14 @@ function orderingSource(passage: WindowPassage): ProvenanceLine | null {
         };
     }
 
-    return range || passage.discontinuous_witnesses.length > 0
+    return range || segment.discontinuous_witnesses.length > 0
         ? { text: 'Ordering by this edition.', conjectureId: null }
         : null;
 }
 
 /** The split assignments that differ from what the edition prints. */
-function splitVariants(passage: WindowPassage): DiscontinuousWitness[] {
-    return passage.discontinuous_witnesses.filter(
+function splitVariants(segment: WindowSegment): DiscontinuousWitness[] {
+    return segment.discontinuous_witnesses.filter(
         (source) => !source.matches_current,
     );
 }
@@ -1564,8 +1563,8 @@ const lacunasForForm = computed(() =>
         .filter((conjecture) => conjecture.type === 'lacuna')
         .map((conjecture) => ({
             id: conjecture.id,
-            canonical_passage_id: conjecture.canonical_passage_id,
-            label: `${conjecture.passage_label} — ${proposerOf(conjecture)}${conjecture.extent ? ` (${conjecture.extent})` : ''}`,
+            segment_id: conjecture.segment_id,
+            label: `${conjecture.segment_label} — ${proposerOf(conjecture)}${conjecture.extent ? ` (${conjecture.extent})` : ''}`,
         })),
 );
 
@@ -1590,11 +1589,11 @@ function candidateName(candidate: OrderCandidate): string {
 // member — the neighbour a head-of-block move anchors on. Null when the
 // block opens the edition.
 function labelBeforeRange(range: OrderRange): string | null {
-    const index = props.passages.findIndex((item) =>
-        range.member_canonical_passage_ids.includes(item.id),
+    const index = props.segments.findIndex((item) =>
+        range.member_segment_ids.includes(item.id),
     );
 
-    return index > 0 ? props.passages[index - 1].label : null;
+    return index > 0 ? props.segments[index - 1].label : null;
 }
 
 // Whether a disagreeing candidate's statement is about THIS line — the
@@ -1604,25 +1603,25 @@ function labelBeforeRange(range: OrderRange): string | null {
 function candidateMoves(
     range: OrderRange,
     candidate: OrderCandidate,
-    passage: WindowPassage,
+    segment: WindowSegment,
 ): boolean {
     return analyzeSequence(
         range.current_sequence,
         candidate.sequence,
-    ).movedLabels.has(passage.label);
+    ).movedLabels.has(segment.label);
 }
 
 // "R2: 3 comes after 8" — one statement per source that disagrees with the
 // printed order by moving THIS line; the number chip's hover title and, one
 // per line, the click panel. Numbering order is a candidate, never a
 // source, so it never speaks here.
-function orderStatements(range: OrderRange, passage: WindowPassage): string[] {
+function orderStatements(range: OrderRange, segment: WindowSegment): string[] {
     return range.candidates
         .filter(
             (candidate) =>
                 !candidate.matches_current &&
                 candidate.source !== 'numbering' &&
-                candidateMoves(range, candidate, passage),
+                candidateMoves(range, candidate, segment),
         )
         .map(
             (candidate) =>
@@ -1639,7 +1638,7 @@ function orderStatements(range: OrderRange, passage: WindowPassage): string[] {
 // followed" has somewhere to live.
 function panelCandidates(
     range: OrderRange,
-    passage: WindowPassage,
+    segment: WindowSegment,
 ): OrderCandidate[] {
     return range.candidates.filter((candidate) =>
         candidate.source === 'numbering'
@@ -1648,15 +1647,15 @@ function panelCandidates(
               ? canEdit.value &&
                 candidate.conjecture_id !== null &&
                 !adoptedConjectureIds.value.has(candidate.conjecture_id)
-              : candidateMoves(range, candidate, passage),
+              : candidateMoves(range, candidate, segment),
     );
 }
 
 // The line number itself is the order marker: it takes the block colour
 // exactly on the lines some source MOVES — the lines that merely slide to
 // make room stay plain, matching the statements above.
-function isOrderMoved(passage: WindowPassage): boolean {
-    const range = passage.order_range;
+function isOrderMoved(segment: WindowSegment): boolean {
+    const range = segment.order_range;
 
     if (!range) {
         return false;
@@ -1669,7 +1668,7 @@ function isOrderMoved(passage: WindowPassage): boolean {
             analyzeSequence(
                 range.current_sequence,
                 candidate.sequence,
-            ).movedLabels.has(passage.label),
+            ).movedLabels.has(segment.label),
     );
 }
 
@@ -1690,9 +1689,10 @@ const proposalDraft = reactive({
 
 function openProposalDraft(range: OrderRange) {
     proposalDraft.open = true;
-    proposalDraft.order = range.member_canonical_passage_ids.map(
-        (id, index) => ({ id, label: range.current_sequence[index] }),
-    );
+    proposalDraft.order = range.member_segment_ids.map((id, index) => ({
+        id,
+        label: range.current_sequence[index],
+    }));
     proposalDraft.proposed_by = '';
     proposalDraft.references = [];
 }
@@ -1719,7 +1719,7 @@ function submitOrderProposal(follow: boolean) {
     router.post(
         storeConjectureOrdering.url(props.edition),
         {
-            canonical_passage_ids: proposalDraft.order.map((entry) => entry.id),
+            segment_ids: proposalDraft.order.map((entry) => entry.id),
             proposed_by: proposalDraft.proposed_by || null,
             references: draftReferencesPayload(proposalDraft.references),
             follow,
@@ -1738,32 +1738,32 @@ function submitOrderProposal(follow: boolean) {
     );
 }
 
-function isRunOpen(passageId: number, runIndex: number): boolean {
+function isRunOpen(segmentId: number, runIndex: number): boolean {
     return (
-        openTarget.value?.passageId === passageId &&
+        openTarget.value?.segmentId === segmentId &&
         openTarget.value?.kind === 'run' &&
         openTarget.value.index === runIndex
     );
 }
 
-function isBoundaryOpen(passageId: number, boundaryIndex: number): boolean {
+function isBoundaryOpen(segmentId: number, boundaryIndex: number): boolean {
     return (
-        openTarget.value?.passageId === passageId &&
+        openTarget.value?.segmentId === segmentId &&
         openTarget.value?.kind === 'boundary' &&
         openTarget.value.index === boundaryIndex
     );
 }
 
-function isLineOpen(passageId: number): boolean {
+function isLineOpen(segmentId: number): boolean {
     return (
-        openTarget.value?.passageId === passageId &&
+        openTarget.value?.segmentId === segmentId &&
         openTarget.value?.kind === 'line'
     );
 }
 
-function isRunInPendingRange(passageId: number, runIndex: number): boolean {
+function isRunInPendingRange(segmentId: number, runIndex: number): boolean {
     return (
-        openTarget.value?.passageId === passageId &&
+        openTarget.value?.segmentId === segmentId &&
         openTarget.value?.kind === 'range' &&
         runIndex >= openTarget.value.startIndex &&
         runIndex <= openTarget.value.endIndex
@@ -1812,16 +1812,16 @@ function resetConjectureDraft() {
 // candidate of their own that says so. Used to flag the whole disputed span
 // as "needs a decision" (see runClasses) and to hover the site as one.
 function coveringAnchorIndex(
-    passage: WindowPassage,
+    segment: WindowSegment,
     runIndex: number,
 ): number | null {
     for (let i = runIndex - 1; i >= 0; i--) {
-        const reachesHere = passage.runs[i].candidates.some((candidate) => {
+        const reachesHere = segment.runs[i].candidates.some((candidate) => {
             if (candidate.range_end_lemma_id === null || candidate.selected) {
                 return false;
             }
 
-            const endIndex = passage.runs.findIndex(
+            const endIndex = segment.runs.findIndex(
                 (run) => run.lemma_id === candidate.range_end_lemma_id,
             );
 
@@ -1846,10 +1846,10 @@ function coveringAnchorIndex(
 type OfferedCandidate = Candidate & { anchorRun: Run };
 
 function popoverCandidates(
-    passage: WindowPassage,
+    segment: WindowSegment,
     runIndex: number,
 ): OfferedCandidate[] {
-    const run = passage.runs[runIndex];
+    const run = segment.runs[runIndex];
     const own = run.candidates.map((candidate) => ({
         ...candidate,
         anchorRun: run,
@@ -1857,14 +1857,14 @@ function popoverCandidates(
     const covering: OfferedCandidate[] = [];
 
     for (let i = runIndex - 1; i >= 0; i--) {
-        const anchor = passage.runs[i];
+        const anchor = segment.runs[i];
 
         for (const candidate of anchor.candidates) {
             if (candidate.range_end_lemma_id === null || candidate.selected) {
                 continue;
             }
 
-            const endIndex = passage.runs.findIndex(
+            const endIndex = segment.runs.findIndex(
                 (r) => r.lemma_id === candidate.range_end_lemma_id,
             );
 
@@ -1875,8 +1875,8 @@ function popoverCandidates(
     }
 
     return [
-        ...groupWitnesses(own, passage),
-        ...groupWitnesses(covering, passage),
+        ...groupWitnesses(own, segment),
+        ...groupWitnesses(covering, segment),
     ];
 }
 
@@ -1891,7 +1891,7 @@ function popoverCandidates(
 // was formed on spelling, which it is not.
 function groupWitnesses(
     candidates: OfferedCandidate[],
-    passage: WindowPassage,
+    segment: WindowSegment,
 ): OfferedCandidate[] {
     const groups = new Map<string, OfferedCandidate[]>();
 
@@ -1920,7 +1920,7 @@ function groupWitnesses(
             members.find(
                 (member) =>
                     member.transcription_layer_id ===
-                    passage.base?.transcription_layer_id,
+                    segment.base?.transcription_layer_id,
             ) ??
             members[0];
 
@@ -1936,7 +1936,7 @@ function groupWitnesses(
 // Open to readers too: the candidate list is the apparatus, and a
 // conjecture's name there is how a reader reaches its literature (the
 // picks, the supplement form and Revert stay behind canEdit).
-function toggleRun(passageId: number, runIndex: number) {
+function toggleRun(segmentId: number, runIndex: number) {
     // A drag just landed here — the mouseup handler below already opened
     // (or will open) the Add Conjecture popover for the selection; a plain
     // click shouldn't also open Select Variant on top of it.
@@ -1944,9 +1944,9 @@ function toggleRun(passageId: number, runIndex: number) {
         return;
     }
 
-    const passage = props.windowPassages.find((p) => p.id === passageId);
+    const segment = props.windowSegments.find((p) => p.id === segmentId);
 
-    if (!passage) {
+    if (!segment) {
         return;
     }
 
@@ -1957,99 +1957,99 @@ function toggleRun(passageId: number, runIndex: number) {
     // registered on it, say) would be unreachable from there. The wider
     // readings covering it from an earlier column are listed alongside —
     // see popoverCandidates.
-    if (isRunOpen(passageId, runIndex)) {
+    if (isRunOpen(segmentId, runIndex)) {
         openTarget.value = null;
 
         return;
     }
 
-    openTarget.value = { passageId, kind: 'run', index: runIndex };
+    openTarget.value = { segmentId, kind: 'run', index: runIndex };
     resetConjectureDraft();
     submitError.value = null;
 }
 
-function toggleBoundary(passageId: number, boundaryIndex: number) {
+function toggleBoundary(segmentId: number, boundaryIndex: number) {
     if (!canEdit.value) {
         return;
     }
 
-    if (isBoundaryOpen(passageId, boundaryIndex)) {
+    if (isBoundaryOpen(segmentId, boundaryIndex)) {
         openTarget.value = null;
 
         return;
     }
 
-    openTarget.value = { passageId, kind: 'boundary', index: boundaryIndex };
+    openTarget.value = { segmentId, kind: 'boundary', index: boundaryIndex };
     resetLacunaDraft();
     submitError.value = null;
 }
 
-function toggleLine(passageId: number) {
+function toggleLine(segmentId: number) {
     closeProposalDraft();
     openConjectureId.value = null;
 
-    if (isLineOpen(passageId)) {
+    if (isLineOpen(segmentId)) {
         openTarget.value = null;
 
         return;
     }
 
-    openTarget.value = { passageId, kind: 'line' };
+    openTarget.value = { segmentId, kind: 'line' };
     submitError.value = null;
 }
 
-// Distinguishes the "before" and "after" markers around the same passage —
-// each carries its own anchor (the preceding EditionPassage.id, or null for
+// Distinguishes the "before" and "after" markers around the same segment —
+// each carries its own anchor (the preceding EditionSegment.id, or null for
 // the very start of the edition), so clicking the other marker while one is
 // open switches the anchor instead of just closing the popover.
-function isNewPassageOpenAt(
-    passageId: number,
-    afterEditionPassageId: number | null,
+function isNewSegmentOpenAt(
+    segmentId: number,
+    afterEditionSegmentId: number | null,
 ): boolean {
     return (
-        openTarget.value?.passageId === passageId &&
-        openTarget.value?.kind === 'new_passage' &&
-        openTarget.value.afterEditionPassageId === afterEditionPassageId
+        openTarget.value?.segmentId === segmentId &&
+        openTarget.value?.kind === 'new_segment' &&
+        openTarget.value.afterEditionSegmentId === afterEditionSegmentId
     );
 }
 
 // The whole-line-lacuna entry point — unlike a point lacuna (placement=
-// insert into an already-numbered passage), this creates a brand new
-// passage the editor names directly (e.g. "80A"). Available near any
-// passage while lacuna mode is active, regardless of whether that passage
+// insert into an already-numbered segment), this creates a brand new
+// segment the editor names directly (e.g. "80A"). Available near any
+// segment while lacuna mode is active, regardless of whether that segment
 // itself has a base/runs yet — the marker is just a convenient click point
-// near the relevant text; `afterEditionPassageId` is what actually anchors
-// where the new passage lands in this edition's own order.
-function toggleNewPassage(
-    passageId: number,
-    afterEditionPassageId: number | null,
+// near the relevant text; `afterEditionSegmentId` is what actually anchors
+// where the new segment lands in this edition's own order.
+function toggleNewSegment(
+    segmentId: number,
+    afterEditionSegmentId: number | null,
 ) {
     if (!canEdit.value) {
         return;
     }
 
-    if (isNewPassageOpenAt(passageId, afterEditionPassageId)) {
+    if (isNewSegmentOpenAt(segmentId, afterEditionSegmentId)) {
         openTarget.value = null;
 
         return;
     }
 
     openTarget.value = {
-        passageId,
-        kind: 'new_passage',
-        afterEditionPassageId,
+        segmentId,
+        kind: 'new_segment',
+        afterEditionSegmentId,
     };
     resetLacunaDraft();
     submitError.value = null;
 }
 
-// The preceding passage's own EditionPassage id, as the server derived it
+// The preceding segment's own EditionSegment id, as the server derived it
 // from the whole printed order — null only at the very start of the
-// edition. (Read off the page's neighbour, the first passage of page 2+
+// edition. (Read off the page's neighbour, the first segment of page 2+
 // anchored a whole-line lacuna at the edition's start instead of before
 // itself.)
-function previousEditionPassageId(passageIndex: number): number | null {
-    return shownPieces.value[passageIndex].passage.previous_edition_passage_id;
+function previousEditionSegmentId(segmentIndex: number): number | null {
+    return shownPieces.value[segmentIndex].segment.previous_edition_segment_id;
 }
 
 // Selecting a span of the continuous text is the one way to author a brand
@@ -2075,14 +2075,14 @@ function onDocumentMouseUp() {
     }
 
     const range = selection.getRangeAt(0);
-    const touched: { passageId: number; runIndex: number }[] = [];
+    const touched: { segmentId: number; runIndex: number }[] = [];
 
     for (const el of document.querySelectorAll<HTMLElement>(
         '[data-run-index]',
     )) {
         if (range.intersectsNode(el)) {
             touched.push({
-                passageId: Number(el.dataset.passageId),
+                segmentId: Number(el.dataset.segmentId),
                 runIndex: Number(el.dataset.runIndex),
             });
         }
@@ -2092,12 +2092,12 @@ function onDocumentMouseUp() {
         return;
     }
 
-    const passageId = touched[0].passageId;
-    const passageIds = [...new Set(touched.map((t) => t.passageId))];
+    const segmentId = touched[0].segmentId;
+    const segmentIds = [...new Set(touched.map((t) => t.segmentId))];
 
-    const passage = props.windowPassages.find((p) => p.id === passageId);
+    const segment = props.windowSegments.find((p) => p.id === segmentId);
 
-    if (!passage) {
+    if (!segment) {
         return;
     }
 
@@ -2108,8 +2108,8 @@ function onDocumentMouseUp() {
     // A selection reaching into several assignments can only mean removing
     // them, whole (user decision); within one assignment it opens the
     // conjecture box, which offers removal too.
-    if (passageIds.length > 1) {
-        openTarget.value = { passageId, kind: 'remove', passageIds };
+    if (segmentIds.length > 1) {
+        openTarget.value = { segmentId, kind: 'remove', segmentIds };
         submitError.value = null;
 
         return;
@@ -2119,11 +2119,11 @@ function onDocumentMouseUp() {
     const startIndex = Math.min(...indices);
     const endIndex = Math.max(...indices);
 
-    if (passage.runs[startIndex].gap || passage.runs[endIndex].gap) {
+    if (segment.runs[startIndex].gap || segment.runs[endIndex].gap) {
         return;
     }
 
-    openTarget.value = { passageId, kind: 'range', startIndex, endIndex };
+    openTarget.value = { segmentId, kind: 'range', startIndex, endIndex };
     resetConjectureDraft();
     submitError.value = null;
 }
@@ -2131,12 +2131,12 @@ function onDocumentMouseUp() {
 onMounted(() => document.addEventListener('mouseup', onDocumentMouseUp));
 onUnmounted(() => document.removeEventListener('mouseup', onDocumentMouseUp));
 
-function submitCommon(passage: WindowPassage, fields: Record<string, unknown>) {
+function submitCommon(segment: WindowSegment, fields: Record<string, unknown>) {
     submitError.value = null;
 
     router.post(
         storeVariant.url(props.edition),
-        { canonical_passage_id: passage.id, ...fields },
+        { segment_id: segment.id, ...fields },
         {
             preserveScroll: true,
             onSuccess: () => {
@@ -2151,11 +2151,11 @@ function submitCommon(passage: WindowPassage, fields: Record<string, unknown>) {
 }
 
 function submitAtRun(
-    passage: WindowPassage,
+    segment: WindowSegment,
     run: Run,
     fields: Record<string, unknown>,
 ) {
-    submitCommon(passage, {
+    submitCommon(segment, {
         lemma_id: run.lemma_id,
         base_start_offset: run.base_start ?? 0,
         base_end_offset: run.base_end ?? 0,
@@ -2175,11 +2175,11 @@ function boundaryBefore(runs: Run[], index: number): Boundary {
 }
 
 function submitAtBoundary(
-    passage: WindowPassage,
+    segment: WindowSegment,
     boundary: Boundary,
     fields: Record<string, unknown>,
 ) {
-    submitCommon(passage, {
+    submitCommon(segment, {
         placement: 'insert',
         insert_after_lemma_id: boundary.afterLemmaId,
         insert_after_base_offset: boundary.afterBaseOffset,
@@ -2189,13 +2189,13 @@ function submitAtBoundary(
 
 // A witness candidate carrying range_end_lemma_id needs placement=range,
 // not the ordinary single-column placement=existing — whether that range
-// is a reading PassageAligner already persisted, or one this candidate's
+// is a reading SegmentAligner already persisted, or one this candidate's
 // own text was only just extended to cover for comparison (see the backend's
 // EditionController::witnessExtension — picking it creates the matching
-// reading on the spot, same as if PassageAligner had merged it automatically).
-function pickWitness(passage: WindowPassage, run: Run, candidate: Candidate) {
+// reading on the spot, same as if SegmentAligner had merged it automatically).
+function pickWitness(segment: WindowSegment, run: Run, candidate: Candidate) {
     if (candidate.range_end_lemma_id !== null) {
-        submitCommon(passage, {
+        submitCommon(segment, {
             placement: 'range',
             range_start_lemma_id: run.lemma_id,
             range_end_lemma_id: candidate.range_end_lemma_id,
@@ -2208,7 +2208,7 @@ function pickWitness(passage: WindowPassage, run: Run, candidate: Candidate) {
         return;
     }
 
-    submitAtRun(passage, run, {
+    submitAtRun(segment, run, {
         source: 'transcription',
         transcription_layer_id: candidate.transcription_layer_id,
         start_offset: candidate.start_offset,
@@ -2217,11 +2217,11 @@ function pickWitness(passage: WindowPassage, run: Run, candidate: Candidate) {
 }
 
 function pickConjecture(
-    passage: WindowPassage,
+    segment: WindowSegment,
     run: Run,
     conjectureId: number,
 ) {
-    submitAtRun(passage, run, {
+    submitAtRun(segment, run, {
         source: 'existing_conjecture',
         conjecture_id: conjectureId,
     });
@@ -2230,14 +2230,14 @@ function pickConjecture(
 // The plain text a pending range selection would replace — several
 // already-rendered runs joined back together for display only.
 function rangeSelectionText(
-    passage: WindowPassage,
+    segment: WindowSegment,
     target: OpenTarget,
 ): string {
     if (target.kind !== 'range') {
         return '';
     }
 
-    return passage.runs
+    return segment.runs
         .slice(target.startIndex, target.endIndex + 1)
         .map((run) => run.text)
         .join(' ');
@@ -2250,15 +2250,15 @@ function rangeSelectionText(
 // transposition of words is never typed here: it is cut and pasted in the
 // text itself under "Register transposition conjecture".
 function submitConjecture(
-    passage: WindowPassage,
+    segment: WindowSegment,
     startIndex: number,
     endIndex: number,
     adopt: boolean,
 ) {
-    const startRun = passage.runs[startIndex];
-    const endRun = passage.runs[endIndex];
+    const startRun = segment.runs[startIndex];
+    const endRun = segment.runs[endIndex];
 
-    submitCommon(passage, {
+    submitCommon(segment, {
         placement: 'range',
         range_start_lemma_id: startRun.lemma_id,
         range_start_base_offset: startRun.base_start ?? 0,
@@ -2302,20 +2302,20 @@ function lacunaCandidateOf(run: Run): Candidate | undefined {
 }
 
 function unplacedForRun(
-    passage: WindowPassage,
+    segment: WindowSegment,
     run: Run,
 ): UnplacedConjecture[] {
     const lacuna = lacunaCandidateOf(run);
 
     if (lacuna) {
-        return passage.unplacedConjectures.filter(
+        return segment.unplacedConjectures.filter(
             (c) =>
                 c.type === 'supplement' &&
                 c.supplements_conjecture_id === lacuna.conjecture_id,
         );
     }
 
-    return passage.unplacedConjectures.filter(
+    return segment.unplacedConjectures.filter(
         (c) => c.type === 'substitution' || c.type === 'deletion',
     );
 }
@@ -2324,14 +2324,14 @@ function unplacedForRun(
 // since it targets its lacuna's own single column — never a range, so it
 // stays out of the selection-driven Add Conjecture flow entirely (see
 // submitConjecture, reached only via onDocumentMouseUp/toggleRun).
-function submitSupplementForRun(passage: WindowPassage, run: Run) {
+function submitSupplementForRun(segment: WindowSegment, run: Run) {
     const lacuna = lacunaCandidateOf(run);
 
     if (!lacuna) {
         return;
     }
 
-    submitAtRun(passage, run, {
+    submitAtRun(segment, run, {
         source: 'new_conjecture',
         conjecture_type: 'supplement',
         conjecture_text: conjectureDraft.text,
@@ -2344,23 +2344,23 @@ function submitSupplementForRun(passage: WindowPassage, run: Run) {
     });
 }
 
-function unplacedLacunasFor(passage: WindowPassage): UnplacedConjecture[] {
-    return passage.unplacedConjectures.filter((c) => c.type === 'lacuna');
+function unplacedLacunasFor(segment: WindowSegment): UnplacedConjecture[] {
+    return segment.unplacedConjectures.filter((c) => c.type === 'lacuna');
 }
 
 function pickUnplacedLacuna(
-    passage: WindowPassage,
+    segment: WindowSegment,
     boundary: Boundary,
     conjectureId: number,
 ) {
-    submitAtBoundary(passage, boundary, {
+    submitAtBoundary(segment, boundary, {
         source: 'existing_conjecture',
         conjecture_id: conjectureId,
     });
 }
 
-function submitNewLacuna(passage: WindowPassage, boundary: Boundary) {
-    submitAtBoundary(passage, boundary, {
+function submitNewLacuna(segment: WindowSegment, boundary: Boundary) {
+    submitAtBoundary(segment, boundary, {
         source: 'new_conjecture',
         conjecture_type: 'lacuna',
         conjecture_extent: lacunaDraft.extent || null,
@@ -2371,14 +2371,14 @@ function submitNewLacuna(passage: WindowPassage, boundary: Boundary) {
     });
 }
 
-// A whole-line lacuna never targets an existing canonical_passage_id — the
-// backend resolves (or creates, on first mention) the passage from `label`
-// alone, via the work's own ReferenceScheme (see CanonicalPassageResolver).
-// `insert_after_edition_passage_id` anchors where it lands in this
+// A whole-line lacuna never targets an existing segment_id — the
+// backend resolves (or creates, on first mention) the segment from `label`
+// alone, via the work's own ReferenceScheme (see SegmentResolver).
+// `insert_after_edition_segment_id` anchors where it lands in this
 // edition's own order — only meaningful the first time this label is
-// added; a repeat submission finds the same passage and leaves it in place.
+// added; a repeat submission finds the same segment and leaves it in place.
 function submitWholeLineLacuna() {
-    if (openTarget.value?.kind !== 'new_passage') {
+    if (openTarget.value?.kind !== 'new_segment') {
         return;
     }
 
@@ -2387,10 +2387,10 @@ function submitWholeLineLacuna() {
     router.post(
         storeVariant.url(props.edition),
         {
-            placement: 'new_passage',
+            placement: 'new_segment',
             label: lacunaDraft.label,
-            insert_after_edition_passage_id:
-                openTarget.value.afterEditionPassageId,
+            insert_after_edition_segment_id:
+                openTarget.value.afterEditionSegmentId,
             source: 'new_conjecture',
             conjecture_type: 'lacuna',
             conjecture_extent: lacunaDraft.extent || null,
@@ -2414,12 +2414,12 @@ function submitWholeLineLacuna() {
     );
 }
 
-// Frees the passage back up in every transcription assigning text to it, for free —
-// see EditionPassageController::destroy.
+// Frees the segment back up in every transcription assigning text to it, for free —
+// see EditionSegmentController::destroy.
 /** Remove whole assignments from the edition — one, or every one a selection touched. */
-function removeEditionPassages(passageIds: number[]) {
-    router.delete(destroyEditionPassage.url(props.edition), {
-        data: { canonical_passage_ids: passageIds },
+function removeEditionSegments(segmentIds: number[]) {
+    router.delete(destroyEditionSegment.url(props.edition), {
+        data: { segment_ids: segmentIds },
         preserveScroll: true,
         onSuccess: () => {
             openTarget.value = null;
@@ -2428,8 +2428,8 @@ function removeEditionPassages(passageIds: number[]) {
 }
 
 /** "3", "3 and 4", "3, 4 and 7". */
-function passageListLabel(ids: number[]): string {
-    const labels = ids.map(passageLabel);
+function segmentListLabel(ids: number[]): string {
+    const labels = ids.map(segmentLabel);
 
     return labels.length <= 1
         ? (labels[0] ?? '')
@@ -2466,10 +2466,8 @@ function chooseOrder(range: OrderRange, candidate: OrderCandidate) {
     router.post(
         applyEditionOrder.url(props.edition),
         {
-            range_start_canonical_passage_id:
-                range.range_start_canonical_passage_id,
-            range_end_canonical_passage_id:
-                range.range_end_canonical_passage_id,
+            range_start_segment_id: range.range_start_segment_id,
+            range_end_segment_id: range.range_end_segment_id,
             transcription_layer_id: candidate.transcription_layer_id,
             conjecture_id: candidate.conjecture_id,
         },
@@ -2488,15 +2486,15 @@ function chooseOrder(range: OrderRange, candidate: OrderCandidate) {
 
 // Insertion points render between every pair of adjacent runs (and at
 // either end) so a lacuna can be dropped in anywhere — but only once the
-// passage actually has word-level structure to sit between; a whole-passage
+// segment actually has word-level structure to sit between; a whole-segment
 // gap placeholder has none.
-function showsBoundaries(passage: WindowPassage): boolean {
+function showsBoundaries(segment: WindowSegment): boolean {
     return (
         canEdit.value &&
         lacunaMode.value &&
         !registering.value &&
-        passage.runs.length > 0 &&
-        !passage.runs.some((run) => run.gap)
+        segment.runs.length > 0 &&
+        !segment.runs.some((run) => run.gap)
     );
 }
 
@@ -2538,14 +2536,14 @@ function hasVariation(run: Run): boolean {
  */
 /** The runs an anchored note is pinned to, as [start, end], or null. */
 function noteSpan(
-    passage: WindowPassage,
+    segment: WindowSegment,
     comment: EditionComment,
 ): [number, number] | null {
     if (comment.lemma_id === null) {
         return null;
     }
 
-    const start = passage.runs.findIndex(
+    const start = segment.runs.findIndex(
         (run) => run.lemma_id === comment.lemma_id,
     );
 
@@ -2556,7 +2554,7 @@ function noteSpan(
     const end =
         comment.range_end_lemma_id === null
             ? start
-            : passage.runs.findIndex(
+            : segment.runs.findIndex(
                   (run) => run.lemma_id === comment.range_end_lemma_id,
               );
 
@@ -2565,11 +2563,11 @@ function noteSpan(
 
 /** Where the anchored note covering this run begins, if one does. */
 function noteSpanStart(
-    passage: WindowPassage,
+    segment: WindowSegment,
     runIndex: number,
 ): number | null {
-    for (const comment of passage.comments) {
-        const span = noteSpan(passage, comment);
+    for (const comment of segment.comments) {
+        const span = noteSpan(segment, comment);
 
         if (span !== null && runIndex >= span[0] && runIndex <= span[1]) {
             return span[0];
@@ -2580,15 +2578,15 @@ function noteSpanStart(
 }
 
 /** Whether the editor has written about this word in particular. */
-function hasAnchoredNote(passage: WindowPassage, runIndex: number): boolean {
-    return noteSpanStart(passage, runIndex) !== null;
+function hasAnchoredNote(segment: WindowSegment, runIndex: number): boolean {
+    return noteSpanStart(segment, runIndex) !== null;
 }
 
-function notesFor(passage: WindowPassage, run: Run): EditionComment[] {
-    const runIndex = passage.runs.indexOf(run);
+function notesFor(segment: WindowSegment, run: Run): EditionComment[] {
+    const runIndex = segment.runs.indexOf(run);
 
-    return passage.comments.filter((comment) => {
-        const span = noteSpan(passage, comment);
+    return segment.comments.filter((comment) => {
+        const span = noteSpan(segment, comment);
 
         // A note about the line bears on every word of it.
         return span === null
@@ -2605,23 +2603,23 @@ const TOOLTIP_WIDTH = 448; // max-w-md
 const TOOLTIP_FLIP_MARGIN = 240;
 
 const hovered = ref<{
-    passage: WindowPassage;
+    segment: WindowSegment;
     run: Run;
     left: number;
     top: number | null;
     bottom: number | null;
 } | null>(null);
 
-function showReadings(event: Event, passage: WindowPassage, runIndex: number) {
-    hoveredRun.value = { passageId: passage.id, runIndex };
+function showReadings(event: Event, segment: WindowSegment, runIndex: number) {
+    hoveredRun.value = { segmentId: segment.id, runIndex };
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     // The site's own run, so hovering any word of a transposition reports the
     // whole competing phrase rather than the one word under the cursor.
-    const run = passage.runs[siteAnchorIndex(passage, runIndex)];
+    const run = segment.runs[siteAnchorIndex(segment, runIndex)];
     const flipAbove = rect.bottom + TOOLTIP_FLIP_MARGIN > window.innerHeight;
 
     hovered.value = {
-        passage,
+        segment,
         run,
         left: Math.max(
             8,
@@ -2646,23 +2644,23 @@ function hideReadings() {
  * against three columns of the base. They are one place in the text where the
  * tradition differs, and should read as one.
  */
-function siteAnchorIndex(passage: WindowPassage, runIndex: number): number {
-    return coveringAnchorIndex(passage, runIndex) ?? runIndex;
+function siteAnchorIndex(segment: WindowSegment, runIndex: number): number {
+    return coveringAnchorIndex(segment, runIndex) ?? runIndex;
 }
 
-function sameSite(passage: WindowPassage, a: number, b: number): boolean {
-    if (a < 0 || b >= passage.runs.length) {
+function sameSite(segment: WindowSegment, a: number, b: number): boolean {
+    if (a < 0 || b >= segment.runs.length) {
         return false;
     }
 
-    if (siteAnchorIndex(passage, a) === siteAnchorIndex(passage, b)) {
+    if (siteAnchorIndex(segment, a) === siteAnchorIndex(segment, b)) {
         return true;
     }
 
     // A note pinned across several words holds them together too.
-    const start = noteSpanStart(passage, a);
+    const start = noteSpanStart(segment, a);
 
-    return start !== null && start === noteSpanStart(passage, b);
+    return start !== null && start === noteSpanStart(segment, b);
 }
 
 /**
@@ -2670,12 +2668,12 @@ function sameSite(passage: WindowPassage, a: number, b: number): boolean {
  * variant site — otherwise a site spanning three words reads as three
  * separate marks with gaps between them.
  */
-function spacerClasses(passage: WindowPassage, runIndex: number): string[] {
+function spacerClasses(segment: WindowSegment, runIndex: number): string[] {
     const next = runIndex + 1;
-    const fill = siteFill(passage, passage.runs[runIndex], runIndex);
+    const fill = siteFill(segment, segment.runs[runIndex], runIndex);
 
-    return next < passage.runs.length &&
-        sameSite(passage, runIndex, next) &&
+    return next < segment.runs.length &&
+        sameSite(segment, runIndex, next) &&
         fill !== null
         ? [fill]
         : [];
@@ -2718,7 +2716,7 @@ function printsConjecture(run: Run): boolean {
  * these and you must move the rest, or the ordering above stops holding.
  */
 function siteFill(
-    passage: WindowPassage,
+    segment: WindowSegment,
     run: Run,
     runIndex: number,
 ): string | null {
@@ -2726,34 +2724,34 @@ function siteFill(
         return 'bg-amber-400 dark:bg-amber-700/60';
     }
 
-    if (hasVariation(run) || coveringAnchorIndex(passage, runIndex) !== null) {
+    if (hasVariation(run) || coveringAnchorIndex(segment, runIndex) !== null) {
         return 'bg-amber-200 dark:bg-amber-900/50';
     }
 
-    return hasAnchoredNote(passage, runIndex)
+    return hasAnchoredNote(segment, runIndex)
         ? 'bg-sky-300 dark:bg-sky-800/60'
         : null;
 }
 
 function runClasses(
-    passage: WindowPassage,
+    segment: WindowSegment,
     run: Run,
     runIndex: number,
 ): string[] {
     // Neutral, not blue: this marks what the editor is currently selecting,
     // which is UI state rather than a fact about the text, and a blue fill
     // here would read as a note that has already been saved.
-    if (isRunInPendingRange(passage.id, runIndex)) {
+    if (isRunInPendingRange(segment.id, runIndex)) {
         return ['rounded-sm bg-stone-300 dark:bg-stone-600'];
     }
 
     // The words the image box under the pointer is aligned to — the
     // transcript editor's amber.
-    if (imageLitRunKeys.value.has(`${passage.id}:${runIndex}`)) {
+    if (imageLitRunKeys.value.has(`${segment.id}:${runIndex}`)) {
         return ['rounded-sm bg-amber-300/60 dark:bg-amber-800/60'];
     }
 
-    const fill = siteFill(passage, run, runIndex);
+    const fill = siteFill(segment, run, runIndex);
 
     if (fill === null) {
         return [];
@@ -2761,8 +2759,8 @@ function runClasses(
 
     // Rounded only where the site begins and ends, so the words between run
     // together into one mark.
-    const opensSite = !sameSite(passage, runIndex - 1, runIndex);
-    const closesSite = !sameSite(passage, runIndex, runIndex + 1);
+    const opensSite = !sameSite(segment, runIndex - 1, runIndex);
+    const closesSite = !sameSite(segment, runIndex, runIndex + 1);
 
     return [
         fill,
@@ -3146,9 +3144,9 @@ function orderRangeClasses(range: OrderRange): string[] {
                                 </button>
                             </template>
                             <form
-                                v-if="props.passages.length > 0"
+                                v-if="props.segments.length > 0"
                                 class="ml-auto flex flex-wrap items-center gap-2"
-                                @submit.prevent="jumpToPassage"
+                                @submit.prevent="jumpToSegment"
                             >
                                 <label
                                     for="jump-to-line"
@@ -3158,15 +3156,15 @@ function orderRangeClasses(range: OrderRange): string[] {
                                 <input
                                     id="jump-to-line"
                                     v-model="jumpLabel"
-                                    list="edition-passage-labels"
+                                    list="edition-segment-labels"
                                     type="text"
                                     class="w-24 rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
                                 />
-                                <datalist id="edition-passage-labels">
+                                <datalist id="edition-segment-labels">
                                     <option
-                                        v-for="passage in props.passages"
-                                        :key="passage.id"
-                                        :value="passage.label"
+                                        v-for="segment in props.segments"
+                                        :key="segment.id"
+                                        :value="segment.label"
                                     />
                                 </datalist>
                                 <button
@@ -3316,7 +3314,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                              good transcription that there was nothing to do,
                              when the text was one click away in the panel. -->
                             <p
-                                v-if="!props.windowPassages.length"
+                                v-if="!props.windowSegments.length"
                                 class="font-sans text-sm text-stone-500 dark:text-stone-400"
                             >
                                 <template v-if="!props.transcriptions.length">
@@ -3335,22 +3333,22 @@ function orderRangeClasses(range: OrderRange): string[] {
                                 </template>
                             </p>
 
-                            <!-- Passages render INLINE and every printed break is
+                            <!-- Segments render INLINE and every printed break is
                              an explicit element, so verse, flowing prose and
                              mixtures all come from the same mechanism: the
                              edition's own lineation flags — never from any
                              manuscript's line breaks. -->
                             <template
                                 v-for="(
-                                    { passage, part, parts, runs }, passageIndex
+                                    { segment, part, parts, runs }, segmentIndex
                                 ) in shownPieces"
-                                :key="`${passage.id}-${part}`"
+                                :key="`${segment.id}-${part}`"
                             >
                                 <div
                                     v-if="
                                         (!registering || part === 1) &&
-                                        passage.starts_new_paragraph &&
-                                        passageIndex > 0
+                                        segment.starts_new_paragraph &&
+                                        segmentIndex > 0
                                     "
                                     class="h-4"
                                     aria-hidden="true"
@@ -3362,26 +3360,26 @@ function orderRangeClasses(range: OrderRange): string[] {
                                 <br
                                     v-else-if="
                                         (!registering || part === 1) &&
-                                        passage.starts_new_line &&
-                                        passageIndex > 0 &&
+                                        segment.starts_new_line &&
+                                        segmentIndex > 0 &&
                                         !popoverOpenOn(
-                                            shownPieces[passageIndex - 1]
-                                                .passage.id,
+                                            shownPieces[segmentIndex - 1]
+                                                .segment.id,
                                         )
                                     "
                                 />
                                 <article
                                     :id="
                                         part === 1
-                                            ? `passage-${passage.id}`
+                                            ? `segment-${segment.id}`
                                             : undefined
                                     "
-                                    :data-piece-index="passageIndex"
+                                    :data-piece-index="segmentIndex"
                                     class="inline"
                                     @mouseenter="
-                                        hoveredEditionPassageId = passage.id
+                                        hoveredEditionSegmentId = segment.id
                                     "
-                                    @mouseleave="hoveredEditionPassageId = null"
+                                    @mouseleave="hoveredEditionSegmentId = null"
                                 >
                                     <!-- The number chip is where the derived
                                      reports live: violet when a witness assigns
@@ -3394,14 +3392,14 @@ function orderRangeClasses(range: OrderRange): string[] {
                                         type="button"
                                         contenteditable="false"
                                         class="mr-1 rounded px-1.5 py-0.5 align-middle font-sans text-xs tracking-wide select-none"
-                                        :class="[passageChipClasses(passage)]"
-                                        :title="passageChipTitle(passage)"
-                                        @click="onChipClick(passage)"
+                                        :class="[segmentChipClasses(segment)]"
+                                        :title="segmentChipTitle(segment)"
+                                        @click="onChipClick(segment)"
                                     >
                                         {{
                                             parts > 1
-                                                ? `${passage.label} ${part}/${parts}`
-                                                : passage.label
+                                                ? `${segment.label} ${part}/${parts}`
+                                                : segment.label
                                         }}
                                     </button>
 
@@ -3416,10 +3414,10 @@ function orderRangeClasses(range: OrderRange): string[] {
                                         class="mr-1 rounded bg-amber-100 px-1 align-middle font-sans text-xs leading-normal text-amber-700 select-none hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:hover:bg-amber-900"
                                         title="Insert a whole-line lacuna before this segment"
                                         @click="
-                                            toggleNewPassage(
-                                                passage.id,
-                                                previousEditionPassageId(
-                                                    passageIndex,
+                                            toggleNewSegment(
+                                                segment.id,
+                                                previousEditionSegmentId(
+                                                    segmentIndex,
                                                 ),
                                             )
                                         "
@@ -3427,14 +3425,14 @@ function orderRangeClasses(range: OrderRange): string[] {
                                         + line
                                     </button>
 
-                                    <template v-if="passage.base === null">
+                                    <template v-if="segment.base === null">
                                         <span
                                             class="font-sans text-sm text-stone-400 italic dark:text-stone-600"
                                             >No base transcription assigned to
                                             this segment yet.</span
                                         >
                                     </template>
-                                    <template v-else-if="!passage.runs.length">
+                                    <template v-else-if="!segment.runs.length">
                                         <span
                                             class="font-sans text-sm text-stone-400 italic dark:text-stone-600"
                                             >Nothing transcribed for this
@@ -3443,12 +3441,12 @@ function orderRangeClasses(range: OrderRange): string[] {
                                     </template>
                                     <template
                                         v-else-if="
-                                            passage.division_stale && part > 1
+                                            segment.division_stale && part > 1
                                         "
                                     >
                                         <span
                                             class="font-sans text-sm text-stone-400 italic dark:text-stone-600"
-                                            >this part of {{ passage.label }} no
+                                            >this part of {{ segment.label }} no
                                             longer matches the printed words;
                                             the whole line prints at its first
                                             part</span
@@ -3473,13 +3471,13 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                 "
                                             />
                                             <span
-                                                v-if="showsBoundaries(passage)"
+                                                v-if="showsBoundaries(segment)"
                                                 contenteditable="false"
                                                 class="mx-0.5 cursor-pointer rounded bg-amber-100 px-1 align-middle font-sans text-xs leading-normal text-amber-700 select-none hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:hover:bg-amber-900"
                                                 title="Insert a lacuna here"
                                                 @click="
                                                     toggleBoundary(
-                                                        passage.id,
+                                                        segment.id,
                                                         runIndex,
                                                     )
                                                 "
@@ -3487,12 +3485,12 @@ function orderRangeClasses(range: OrderRange): string[] {
                                             >
                                             <span
                                                 class="cursor-pointer"
-                                                :data-passage-id="passage.id"
-                                                :data-piece-index="passageIndex"
+                                                :data-segment-id="segment.id"
+                                                :data-piece-index="segmentIndex"
                                                 :data-run-index="runIndex"
                                                 :class="
                                                     runClasses(
-                                                        passage,
+                                                        segment,
                                                         run,
                                                         runIndex,
                                                     )
@@ -3508,7 +3506,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                 @mouseenter="
                                                     showReadings(
                                                         $event,
-                                                        passage,
+                                                        segment,
                                                         runIndex,
                                                     )
                                                 "
@@ -3516,27 +3514,27 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                 @focus="
                                                     showReadings(
                                                         $event,
-                                                        passage,
+                                                        segment,
                                                         runIndex,
                                                     )
                                                 "
                                                 @blur="hideReadings"
                                                 @click="
                                                     toggleRun(
-                                                        passage.id,
+                                                        segment.id,
                                                         runIndex,
                                                     )
                                                 "
                                                 @keydown.enter="
                                                     onRunKey(
-                                                        passage.id,
+                                                        segment.id,
                                                         runIndex,
                                                         $event,
                                                     )
                                                 "
                                                 @keydown.space="
                                                     onRunKey(
-                                                        passage.id,
+                                                        segment.id,
                                                         runIndex,
                                                         $event,
                                                     )
@@ -3565,15 +3563,15 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                     >⟨insert⟩</template
                                                 ></span
                                             ><span
-                                                :data-spacer-passage-id="
-                                                    passage.id
+                                                :data-spacer-segment-id="
+                                                    segment.id
                                                 "
                                                 :data-spacer-run-index="
                                                     runIndex
                                                 "
                                                 :class="
                                                     spacerClasses(
-                                                        passage,
+                                                        segment,
                                                         runIndex,
                                                     )
                                                 "
@@ -3581,14 +3579,14 @@ function orderRangeClasses(range: OrderRange): string[] {
                                             >
                                         </template>
                                         <span
-                                            v-if="showsBoundaries(passage)"
+                                            v-if="showsBoundaries(segment)"
                                             contenteditable="false"
                                             class="mx-0.5 cursor-pointer rounded bg-amber-100 px-1 align-middle font-sans text-xs leading-normal text-amber-700 select-none hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:hover:bg-amber-900"
                                             title="Insert a lacuna here"
                                             @click="
                                                 toggleBoundary(
-                                                    passage.id,
-                                                    passage.runs.length,
+                                                    segment.id,
+                                                    segment.runs.length,
                                                 )
                                             "
                                             >+</span
@@ -3606,25 +3604,25 @@ function orderRangeClasses(range: OrderRange): string[] {
                                         class="mr-1 rounded bg-amber-100 px-1 align-middle font-sans text-xs leading-normal text-amber-700 select-none hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:hover:bg-amber-900"
                                         title="Insert a whole-line lacuna after this segment"
                                         @click="
-                                            toggleNewPassage(
-                                                passage.id,
-                                                passage.edition_passage_id,
+                                            toggleNewSegment(
+                                                segment.id,
+                                                segment.edition_segment_id,
                                             )
                                         "
                                     >
                                         + line
                                     </button>
 
-                                    <!-- One popover per passage, rendered after the whole
+                                    <!-- One popover per segment, rendered after the whole
                         line — never splits the running text mid-line. Sits
                         outside the base/runs branches above so it can still
-                        render for kind=new_passage even when this passage
+                        render for kind=new_segment even when this segment
                         itself has no base or runs of its own yet. -->
                                     <span
                                         v-if="
                                             part === 1 &&
                                             openTarget &&
-                                            openTarget.passageId === passage.id
+                                            openTarget.segmentId === segment.id
                                         "
                                         contenteditable="false"
                                         class="my-2 block w-full rounded border p-2 font-sans text-xs whitespace-normal"
@@ -3666,14 +3664,14 @@ function orderRangeClasses(range: OrderRange): string[] {
                                             </p>
                                             <ul
                                                 v-if="
-                                                    unplacedLacunasFor(passage)
+                                                    unplacedLacunasFor(segment)
                                                         .length
                                                 "
                                                 class="mb-2 flex flex-col gap-1"
                                             >
                                                 <li
                                                     v-for="conjecture in unplacedLacunasFor(
-                                                        passage,
+                                                        segment,
                                                     )"
                                                     :key="conjecture.id"
                                                     class="rounded p-1 hover:bg-white dark:hover:bg-stone-900"
@@ -3683,9 +3681,9 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                         class="text-left"
                                                         @click="
                                                             pickUnplacedLacuna(
-                                                                passage,
+                                                                segment,
                                                                 boundaryBefore(
-                                                                    passage.runs,
+                                                                    segment.runs,
                                                                     openTarget.index,
                                                                 ),
                                                                 conjecture.id,
@@ -3747,9 +3745,9 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                     class="self-start rounded bg-stone-900 px-2 py-1 text-white dark:bg-stone-100 dark:text-stone-900"
                                                     @click="
                                                         submitNewLacuna(
-                                                            passage,
+                                                            segment,
                                                             boundaryBefore(
-                                                                passage.runs,
+                                                                segment.runs,
                                                                 openTarget.index,
                                                             ),
                                                         )
@@ -3768,7 +3766,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                         >
                                             <template
                                                 v-for="run in [
-                                                    passage.runs[
+                                                    segment.runs[
                                                         openTarget.index
                                                     ],
                                                 ]"
@@ -3814,7 +3812,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                 >
                                                     <li
                                                         v-for="candidate in popoverCandidates(
-                                                            passage,
+                                                            segment,
                                                             openTarget.index,
                                                         )"
                                                         :key="candidate.key"
@@ -3866,12 +3864,12 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                                 candidate.conjecture_id !==
                                                                 null
                                                                     ? pickConjecture(
-                                                                          passage,
+                                                                          segment,
                                                                           candidate.anchorRun,
                                                                           candidate.conjecture_id,
                                                                       )
                                                                     : pickWitness(
-                                                                          passage,
+                                                                          segment,
                                                                           candidate.anchorRun,
                                                                           candidate,
                                                                       )
@@ -3924,12 +3922,12 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                                 candidate.conjecture_id !==
                                                                 null
                                                                     ? pickConjecture(
-                                                                          passage,
+                                                                          segment,
                                                                           candidate.anchorRun,
                                                                           candidate.conjecture_id,
                                                                       )
                                                                     : pickWitness(
-                                                                          passage,
+                                                                          segment,
                                                                           candidate.anchorRun,
                                                                           candidate,
                                                                       )
@@ -3960,8 +3958,8 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                                     v-if="
                                                                         canEdit
                                                                     "
-                                                                    :passages="
-                                                                        props.workPassages
+                                                                    :segments="
+                                                                        props.workSegments
                                                                     "
                                                                     :levels="
                                                                         props.referenceLevels
@@ -4091,7 +4089,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                     <ul
                                                         v-if="
                                                             unplacedForRun(
-                                                                passage,
+                                                                segment,
                                                                 run,
                                                             ).length
                                                         "
@@ -4099,7 +4097,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                     >
                                                         <li
                                                             v-for="conjecture in unplacedForRun(
-                                                                passage,
+                                                                segment,
                                                                 run,
                                                             )"
                                                             :key="conjecture.id"
@@ -4110,7 +4108,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                                 class="flex-1 text-left"
                                                                 @click="
                                                                     pickConjecture(
-                                                                        passage,
+                                                                        segment,
                                                                         run,
                                                                         conjecture.id,
                                                                     )
@@ -4185,7 +4183,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                             "
                                                             @click="
                                                                 submitSupplementForRun(
-                                                                    passage,
+                                                                    segment,
                                                                     run,
                                                                 )
                                                             "
@@ -4213,7 +4211,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                 }}
                                                 <strong>{{
                                                     rangeSelectionText(
-                                                        passage,
+                                                        segment,
                                                         openTarget,
                                                     )
                                                 }}</strong>
@@ -4288,7 +4286,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                         title="Catalogue the conjecture as a candidate without changing the edition's text"
                                                         @click="
                                                             submitConjecture(
-                                                                passage,
+                                                                segment,
                                                                 openTarget.startIndex,
                                                                 openTarget.endIndex,
                                                                 false,
@@ -4307,7 +4305,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                         title="Catalogue the conjecture and print it in this edition"
                                                         @click="
                                                             submitConjecture(
-                                                                passage,
+                                                                segment,
                                                                 openTarget.startIndex,
                                                                 openTarget.endIndex,
                                                                 true,
@@ -4321,8 +4319,8 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                         class="ml-auto text-red-600 underline dark:text-red-400"
                                                         title="Remove the whole segment these words belong to from the edition"
                                                         @click="
-                                                            removeEditionPassages(
-                                                                [passage.id],
+                                                            removeEditionSegments(
+                                                                [segment.id],
                                                             )
                                                         "
                                                     >
@@ -4344,8 +4342,8 @@ function orderRangeClasses(range: OrderRange): string[] {
                                             >
                                                 Remove
                                                 <strong>{{
-                                                    passageListLabel(
-                                                        openTarget.passageIds,
+                                                    segmentListLabel(
+                                                        openTarget.segmentIds,
                                                     )
                                                 }}</strong>
                                                 from this edition? The segments
@@ -4356,13 +4354,13 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                 type="button"
                                                 class="self-start rounded bg-red-600 px-2 py-1 text-white dark:bg-red-500"
                                                 @click="
-                                                    removeEditionPassages(
-                                                        openTarget.passageIds,
+                                                    removeEditionSegments(
+                                                        openTarget.segmentIds,
                                                     )
                                                 "
                                             >
                                                 {{
-                                                    openTarget.passageIds
+                                                    openTarget.segmentIds
                                                         .length > 1
                                                         ? 'Remove segments from edition'
                                                         : 'Remove segment from edition'
@@ -4383,7 +4381,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                         >
                                             <p
                                                 v-for="line in provenanceLines(
-                                                    passage,
+                                                    segment,
                                                 )"
                                                 :key="line.text"
                                                 class="mb-1 text-stone-700 dark:text-stone-300"
@@ -4423,8 +4421,8 @@ function orderRangeClasses(range: OrderRange): string[] {
                                             >
                                                 <ConjectureForm
                                                     v-if="canEdit"
-                                                    :passages="
-                                                        props.workPassages
+                                                    :segments="
+                                                        props.workSegments
                                                     "
                                                     :levels="
                                                         props.referenceLevels
@@ -4527,12 +4525,12 @@ function orderRangeClasses(range: OrderRange): string[] {
 
                                             <template
                                                 v-if="
-                                                    splitVariants(passage)
+                                                    splitVariants(segment)
                                                         .length > 0 ||
-                                                    (passage.order_range &&
+                                                    (segment.order_range &&
                                                         panelCandidates(
-                                                            passage.order_range,
-                                                            passage,
+                                                            segment.order_range,
+                                                            segment,
                                                         ).length > 0)
                                                 "
                                             >
@@ -4543,7 +4541,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                 </p>
                                                 <template
                                                     v-for="witness in splitVariants(
-                                                        passage,
+                                                        segment,
                                                     )"
                                                     :key="witness.siglum"
                                                 >
@@ -4581,15 +4579,15 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                     </p>
                                                 </template>
                                                 <template
-                                                    v-if="passage.order_range"
+                                                    v-if="segment.order_range"
                                                 >
                                                     <ul
                                                         class="mb-2 flex flex-col gap-2"
                                                     >
                                                         <li
                                                             v-for="candidate in panelCandidates(
-                                                                passage.order_range,
-                                                                passage,
+                                                                segment.order_range,
+                                                                segment,
                                                             )"
                                                             :key="`${candidate.source}-${candidate.transcription_layer_id ?? candidate.conjecture_id}`"
                                                             class="rounded p-1"
@@ -4623,12 +4621,12 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                                     >
                                                                         {{
                                                                             analyzeSequence(
-                                                                                passage
+                                                                                segment
                                                                                     .order_range
                                                                                     .current_sequence,
                                                                                 candidate.sequence,
                                                                                 labelBeforeRange(
-                                                                                    passage.order_range,
+                                                                                    segment.order_range,
                                                                                 ),
                                                                             )
                                                                                 .text
@@ -4652,7 +4650,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                                     class="text-stone-700 underline dark:text-stone-300"
                                                                     @click="
                                                                         chooseOrder(
-                                                                            passage.order_range,
+                                                                            segment.order_range,
                                                                             candidate,
                                                                         )
                                                                     "
@@ -4672,7 +4670,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                                     title="The edition's order already matches this proposal — record that this edition adopts it"
                                                                     @click="
                                                                         chooseOrder(
-                                                                            passage.order_range,
+                                                                            segment.order_range,
                                                                             candidate,
                                                                         )
                                                                     "
@@ -4692,7 +4690,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                             class="text-stone-700 underline dark:text-stone-300"
                                                             @click="
                                                                 openProposalDraft(
-                                                                    passage.order_range,
+                                                                    segment.order_range,
                                                                 )
                                                             "
                                                         >
@@ -4708,7 +4706,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                             >
                                                                 Arrange
                                                                 {{
-                                                                    passage
+                                                                    segment
                                                                         .order_range
                                                                         .range_label
                                                                 }}
@@ -4848,7 +4846,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                         <template
                                             v-else-if="
                                                 openTarget.kind ===
-                                                'new_passage'
+                                                'new_segment'
                                             "
                                         >
                                             <p
@@ -4932,7 +4930,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                             v-if="
                                                 openTarget.kind === 'line' &&
                                                 (canEdit ||
-                                                    passage.references.length >
+                                                    segment.references.length >
                                                         0)
                                             "
                                             class="mt-2 border-l-2 border-stone-200 pl-3 dark:border-stone-800"
@@ -4946,10 +4944,9 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                 :target="{
                                                     edition_id:
                                                         props.edition.id,
-                                                    canonical_passage_id:
-                                                        passage.id,
+                                                    segment_id: segment.id,
                                                 }"
-                                                :references="passage.references"
+                                                :references="segment.references"
                                                 :registry="
                                                     props.bibliographyForm
                                                         .registry
@@ -4969,7 +4966,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                         <div
                                             v-if="
                                                 openTarget.kind === 'line' &&
-                                                passage.comments.length > 0
+                                                segment.comments.length > 0
                                             "
                                             class="mt-2 border-l-2 border-stone-200 pl-3 dark:border-stone-800"
                                         >
@@ -4979,21 +4976,21 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                 Notes
                                             </p>
                                             <p
-                                                v-for="comment in passage.comments"
+                                                v-for="comment in segment.comments"
                                                 :key="comment.id"
                                                 class="mb-1 text-stone-600 dark:text-stone-400"
                                             >
                                                 <em
                                                     v-if="
                                                         noteAnchorText(
-                                                            passage,
+                                                            segment,
                                                             comment,
                                                         )
                                                     "
                                                     class="text-stone-800 dark:text-stone-200"
                                                     >{{
                                                         noteAnchorText(
-                                                            passage,
+                                                            segment,
                                                             comment,
                                                         )
                                                     }}]
@@ -5059,7 +5056,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                             !noteDraft.trim()
                                                         "
                                                         @click="
-                                                            saveNote(passage)
+                                                            saveNote(segment)
                                                         "
                                                     >
                                                         Save note
@@ -5089,13 +5086,13 @@ function orderRangeClasses(range: OrderRange): string[] {
                                         <template v-if="canEdit">
                                             <button
                                                 v-if="
-                                                    notingPassageId !==
-                                                    passage.id
+                                                    notingSegmentId !==
+                                                    segment.id
                                                 "
                                                 type="button"
                                                 class="mt-2 block text-stone-500 underline dark:text-stone-400"
                                                 @click="
-                                                    openNoteComposer(passage)
+                                                    openNoteComposer(segment)
                                                 "
                                             >
                                                 + Note
@@ -5109,7 +5106,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                     v-model="noteDraft"
                                                     rows="2"
                                                     :placeholder="
-                                                        noteAnchor(passage)
+                                                        noteAnchor(segment)
                                                             .lemma_id !== null
                                                             ? 'Note on the selected words'
                                                             : 'Note on this line'
@@ -5126,7 +5123,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                             !noteDraft.trim()
                                                         "
                                                         @click="
-                                                            saveNote(passage)
+                                                            saveNote(segment)
                                                         "
                                                     >
                                                         Save note
@@ -5171,13 +5168,13 @@ function orderRangeClasses(range: OrderRange): string[] {
                 <WitnessesPanel
                     :edition="props.edition"
                     :transcripts="props.witnessTranscripts"
-                    :already-added-passage-ids="alreadyAddedPassageIds"
-                    :passages="props.workPassages"
+                    :already-added-segment-ids="alreadyAddedSegmentIds"
+                    :segments="props.workSegments"
                     :reference-levels="props.referenceLevels"
                     :can-edit="canEdit"
                     :locked="registering"
                     :hovered-spans="hoveredSpans"
-                    :hovered-passage-id="hoveredEditionPassageId"
+                    :hovered-segment-id="hoveredEditionSegmentId"
                     @hover-image-region="onImageRegionHover"
                 />
             </div>
@@ -5277,12 +5274,12 @@ function orderRangeClasses(range: OrderRange): string[] {
             <template
                 v-if="
                     !canEdit &&
-                    notesFor(hovered.passage, hovered.run).length > 0
+                    notesFor(hovered.segment, hovered.run).length > 0
                 "
             >
                 <hr class="my-1 border-stone-200 dark:border-stone-800" />
                 <p
-                    v-for="comment in notesFor(hovered.passage, hovered.run)"
+                    v-for="comment in notesFor(hovered.segment, hovered.run)"
                     :key="`n-${comment.id}`"
                     class="text-stone-600 dark:text-stone-400"
                 >

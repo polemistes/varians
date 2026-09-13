@@ -1,7 +1,7 @@
 <?php
 
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
+use App\Models\Segment;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionPageBreak;
@@ -29,11 +29,11 @@ test('relocating whole words in one layer moves the same words in the other, ass
     $this->actingAs(User::factory()->editor()->create());
     [$normalized, $diplomatic] = twoLayerTranscription();
 
-    $passage = CanonicalPassage::factory()->for(Work::factory())->create();
+    $segment = Segment::factory()->for(Work::factory())->create();
     // "γίνεται" assigned in the normalized layer, "γιγνεται" in the diplomatic.
-    Assignment::factory()->for($normalized)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($normalized)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 7]);
-    $diplomaticAssignment = Assignment::factory()->for($diplomatic)->for($passage, 'canonicalPassage')
+    $diplomaticAssignment = Assignment::factory()->for($diplomatic)->for($segment, 'segment')
         ->create(['start_offset' => 0, 'end_offset' => 8]);
 
     // Move "γίνεται " to the very end of the normalized text.

@@ -1,7 +1,7 @@
 <?php
 
 use App\Models\Assignment;
-use App\Models\CanonicalPassage;
+use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Models\Witness;
 use App\Models\Work;
@@ -14,13 +14,13 @@ test('a witness is unrelated to a work until one of its transcriptions assigns t
         ->and($witness->relatedWorks()->whereKey($work->id)->exists())->toBeFalse();
 });
 
-test('a witness becomes related to a work once an assignment assigns text to one of its passages', function () {
+test('a witness becomes related to a work once an assignment assigns text to one of its segments', function () {
     $work = Work::factory()->create();
     $witness = Witness::factory()->create();
-    $passage = CanonicalPassage::factory()->for($work)->create();
+    $segment = Segment::factory()->for($work)->create();
     $transcription = TranscriptionLayer::factory()->for($witness)->create();
 
-    Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create();
+    Assignment::factory()->for($transcription)->for($segment, 'segment')->create();
 
     expect($work->relatedWitnesses()->whereKey($witness->id)->exists())->toBeTrue()
         ->and($witness->relatedWorks()->whereKey($work->id)->exists())->toBeTrue();
@@ -38,16 +38,16 @@ test('a witness whose one transcription assigns two works appears under both', f
     $secondWork = Work::factory()->create();
     $witness = Witness::factory()->create();
 
-    $firstPassage = CanonicalPassage::factory()->for($firstWork)->create();
-    $secondPassage = CanonicalPassage::factory()->for($secondWork)->create();
+    $firstSegment = Segment::factory()->for($firstWork)->create();
+    $secondSegment = Segment::factory()->for($secondWork)->create();
 
     // One slot per layer is enough for a manuscript containing several works:
     // a TranscriptionLayer has no work_id, and its assignments point into whichever
     // works its text covers.
     $transcription = TranscriptionLayer::factory()->for($witness)->create();
 
-    Assignment::factory()->for($transcription)->for($firstPassage, 'canonicalPassage')->create();
-    Assignment::factory()->for($transcription)->for($secondPassage, 'canonicalPassage')->create();
+    Assignment::factory()->for($transcription)->for($firstSegment, 'segment')->create();
+    Assignment::factory()->for($transcription)->for($secondSegment, 'segment')->create();
 
     expect($witness->relatedWorks()->pluck('works.id')->all())
         ->toEqualCanonicalizing([$firstWork->id, $secondWork->id]);

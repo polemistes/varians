@@ -12,7 +12,7 @@ test('whitespace tokenization returns each word with its offset in the full text
 });
 
 test('offsets are relative to the whole text, not the extracted span', function () {
-    // PassageAligner persists these straight onto LemmaReading, which indexes
+    // SegmentAligner persists these straight onto LemmaReading, which indexes
     // into the transcription's full text — so a span starting mid-text must
     // still report absolute offsets.
     expect(Tokenizer::tokenize("line one\nthe quick fox", 9, 22, Tokenization::Whitespace))->toBe([
@@ -53,7 +53,7 @@ test('an empty span yields no tokens', function () {
 });
 
 test('tokenizing several spans concatenates their tokens in span order, offsets staying absolute', function () {
-    // The token stream of a passage whose witness text is discontinuous — a
+    // The token stream of a segment whose witness text is discontinuous — a
     // transposition split it. The spans arrive in *content* order, which here
     // is deliberately not their physical order.
     expect(Tokenizer::tokenizeSpans("the fox\nsleeps here", [

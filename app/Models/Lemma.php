@@ -11,11 +11,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
- * A slot within one CanonicalPassage — where competing readings (witness
+ * A slot within one Segment — where competing readings (witness
  * spans or conjectures) are collated. Shared by every Edition of the work;
- * most passages get exactly one lemma spanning the whole thing (the simple,
+ * most segments get exactly one lemma spanning the whole thing (the simple,
  * common case stays simple), only splitting into several when readings need
- * to be mixed within the passage. Which candidate a given Edition prints is
+ * to be mixed within the segment. Which candidate a given Edition prints is
  * recorded separately, on EditionLemma — collation is edition-independent
  * scholarship, selection is not. `position` is a real stored ordering
  * column (unlike Assignment's offset-derived order), since a
@@ -23,23 +23,23 @@ use Illuminate\Support\Carbon;
  * unrelated offsets.
  *
  * @property int $id
- * @property int $canonical_passage_id
+ * @property int $segment_id
  * @property string $position
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['canonical_passage_id', 'position'])]
+#[Fillable(['segment_id', 'position'])]
 class Lemma extends Model
 {
     /** @use HasFactory<LemmaFactory> */
     use HasFactory;
 
     /**
-     * @return BelongsTo<CanonicalPassage, $this>
+     * @return BelongsTo<Segment, $this>
      */
-    public function canonicalPassage(): BelongsTo
+    public function segment(): BelongsTo
     {
-        return $this->belongsTo(CanonicalPassage::class);
+        return $this->belongsTo(Segment::class);
     }
 
     /**

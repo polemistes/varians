@@ -6,11 +6,11 @@ use App\Enums\Tokenization;
 
 /**
  * Divides a span of a transcription's text into the tokens collation aligns
- * on (see App\Support\Edition\PassageAligner), according to the work's own
+ * on (see App\Support\Edition\SegmentAligner), according to the work's own
  * Tokenization strategy.
  *
  * Every token carries its offsets in the *whole* transcription text, not in
- * the extracted substring — PassageAligner persists them directly onto
+ * the extracted substring — SegmentAligner persists them directly onto
  * LemmaReading, which indexes into the full text.
  */
 class Tokenizer
@@ -27,7 +27,7 @@ class Tokenizer
     }
 
     /**
-     * Tokenize several spans as one sequence — the token stream of a passage
+     * Tokenize several spans as one sequence — the token stream of a segment
      * whose witness text is physically discontinuous (a transposition split
      * it), given the spans in *content* order. Offsets stay absolute into the
      * full text, so they remain valid across the gaps between spans.

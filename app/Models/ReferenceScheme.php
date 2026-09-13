@@ -83,7 +83,7 @@ class ReferenceScheme extends Model
     }
 
     /**
-     * Parse an passage label back into an address, given this scheme's levels.
+     * Parse an segment label back into an address, given this scheme's levels.
      * Inverse of format() — only reliable for labels this scheme would itself produce.
      *
      * @return array<string, int|string>|null null if the label doesn't match the scheme

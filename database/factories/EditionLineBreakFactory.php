@@ -2,10 +2,10 @@
 
 namespace Database\Factories;
 
-use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\EditionLineBreak;
 use App\Models\Lemma;
+use App\Models\Segment;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -22,7 +22,7 @@ class EditionLineBreakFactory extends Factory
     {
         return [
             'edition_id' => Edition::factory(),
-            'canonical_passage_id' => CanonicalPassage::factory(),
+            'segment_id' => Segment::factory(),
             'lemma_id' => Lemma::factory(),
             'kind' => 'line',
         ];
