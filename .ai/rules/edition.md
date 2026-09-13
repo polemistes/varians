@@ -640,3 +640,17 @@ assignment. Resolution is the column: a sub-word box lights the word.
   whole segments a witness lacks — the witness lists already say which
   segments each witness has, and works with many fragmentary witnesses
   would drown in it.
+
+## The edition page's queries are bounded: load what the counterpart reads (2026-09-14)
+`DiplomaticCounterpart::tokens` reads a layer's assignments of the segment
+for EVERY word and EVERY candidate, and uses the loaded relation only when
+there is one — unloaded, each call is a query. Production showed 1056
+queries and 5.8 s on one edition page (read off the `LogSlowRequests`
+line). So `EditionController::show` eager-loads the work's assignments on
+the edition segments' base layers AND `windowContext` loads them on every
+reading's layer (`readings.transcriptionLayer.assignments`), and
+`ConjectureCatalogue::forWork` takes its delete-impact counts with
+`withCount` and the already-loaded adoption/selection groups rather than
+five queries per conjecture. `EditionPageQueryCountTest` pins it: ten
+lines cost at most a dozen queries more than two. When adding a relation
+the counterpart or the catalogue reads, load it with the rest.

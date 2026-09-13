@@ -7,7 +7,6 @@ use App\Models\EditionLemma;
 use App\Models\EditionTransposition;
 use App\Models\User;
 use App\Models\Work;
-use App\Support\DeletionImpact;
 
 /**
  * A work's whole stockpile of conjectures as the pages present and edit
@@ -40,7 +39,10 @@ class ConjectureCatalogue
                 'references.item',
                 'user:id,name',
             ])
-            ->withCount('lemmaReadings')
+            // The counts the delete confirmation shows, taken in the same
+            // query rather than five per conjecture (real incident: a page
+            // running over a thousand queries).
+            ->withCount(['lemmaReadings', 'suppliedBy', 'references'])
             ->get()
             ->sortBy(fn (Conjecture $conjecture) => [$conjecture->segment->sort_key, $conjecture->id])
             ->values();
@@ -92,7 +94,13 @@ class ConjectureCatalogue
                 'placed' => $conjecture->lemma_readings_count > 0,
                 'adopted_by' => ($adoptedBy[$conjecture->id] ?? collect())->map(fn ($adoption) => $adoption->edition->title)->unique()->values()->all(),
                 'selected_by' => ($selectedBy[$conjecture->id] ?? collect())->map(fn ($selection) => $selection->edition->title)->unique()->values()->all(),
-                'deletion_impact' => DeletionImpact::forConjecture($conjecture),
+                'deletion_impact' => [
+                    'readings' => (int) $conjecture->lemma_readings_count,
+                    'editionSelections' => ($selectedBy[$conjecture->id] ?? collect())->count(),
+                    'adoptions' => ($adoptedBy[$conjecture->id] ?? collect())->count(),
+                    'supplements' => (int) $conjecture->supplied_by_count,
+                    'citations' => (int) $conjecture->references_count,
+                ],
             ];
         }
 

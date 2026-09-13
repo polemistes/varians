@@ -85,7 +85,15 @@ class EditionController extends Controller
 
         $editionSegments = EditionSegment::where('edition_id', $edition->id)
             ->orderBy('position')
-            ->with(['segment:id,label,sort_key,address', 'transcriptionLayer.transcription.witness:id,siglum'])
+            ->with([
+                'segment:id,label,sort_key,address',
+                'transcriptionLayer.transcription.witness:id,siglum',
+                // The base layer's own assignments, loaded once: the
+                // diplomatic counterpart reads them for every word and
+                // every candidate, and unloaded they cost a query each
+                // (real incident: 1056 queries, 5.8 s, on one edition page).
+                'transcriptionLayer.assignments' => fn ($query) => $query->whereHas('segment', fn ($q) => $q->where('work_id', $work->id)),
+            ])
             ->get();
 
         // The stored positions ARE the printed order — nothing is reordered
@@ -1302,6 +1310,10 @@ class EditionController extends Controller
             ->orderBy('position')
             ->with([
                 'readings.transcriptionLayer:id,transcription_id,text',
+                // Each reading's layer with its assignments of this work,
+                // loaded once per layer: DiplomaticCounterpart reads them
+                // for every candidate (see the note in show()).
+                'readings.transcriptionLayer.assignments' => fn ($query) => $query->whereHas('segment', fn ($q) => $q->where('work_id', $edition->work_id)),
                 'readings.transcriptionLayer.transcription.witness:id,siglum',
                 'readings.conjecture.user:id,name',
                 'readings.conjecture.references.item',
