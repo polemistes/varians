@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\Layer;
 use App\Enums\Tokenization;
 use App\Models\Assignment;
 use App\Models\Conjecture;
@@ -316,4 +317,21 @@ test('the token-index mapping holds across parts, including a transposed one', f
         ->toBe('FOX')
         ->and(DiplomaticCounterpart::forSpan($segment, $normalized, $diplomatic, 8, 13, Tokenization::Whitespace))
         ->toBe('QUICK');
+});
+
+test('the counterpart follows a layer\'s current text, never a cached earlier one', function () {
+    // DiplomaticCounterpart caches a layer's tokens per model INSTANCE for
+    // the length of a request. A fresh instance — another request, a test
+    // reusing the id — must see the text as it now is.
+    $this->actingAs(User::factory()->editor()->create());
+
+    ['work' => $work, 'edition' => $edition] = collatedWithLayers([
+        'A' => ['τοσοῦτοι μὲν οὖν', 'ΤΟΣΟΥΤΟΙ ΜΕΝ ΟΥΝ'],
+    ]);
+
+    expect(array_column(segmentPayload($work, $edition)['runs'], 'diplomatic'))->toBe(['ΤΟΣΟΥΤΟΙ', 'ΜΕΝ', 'ΟΥΝ']);
+
+    TranscriptionLayer::where('layer', Layer::Diplomatic)->sole()->update(['text' => 'ΤΟΣΟΥΤΟΙ ΜΗΝ ΟΥΝ']);
+
+    expect(array_column(segmentPayload($work, $edition)['runs'], 'diplomatic'))->toBe(['ΤΟΣΟΥΤΟΙ', 'ΜΗΝ', 'ΟΥΝ']);
 });

@@ -654,3 +654,9 @@ reading's layer (`readings.transcriptionLayer.assignments`), and
 five queries per conjecture. `EditionPageQueryCountTest` pins it: ten
 lines cost at most a dozen queries more than two. When adding a relation
 the counterpart or the catalogue reads, load it with the rest.
+`DiplomaticCounterpart::tokens` also caches its tokens per layer INSTANCE
+and segment in a `WeakMap` for the length of a request — asked for every
+word and candidate, it re-tokenized the same lines each time (two thirds
+of the page's CPU in profiling). Keyed by instance, never by id, so a
+fresh request or a test reusing an id sees the current text
+(test-pinned in DiplomaticLayerViewTest).

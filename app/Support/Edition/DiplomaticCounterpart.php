@@ -9,6 +9,7 @@ use App\Models\TranscriptionLayer;
 use App\Support\Transcription\Tokenizer;
 use App\Support\Transcription\WordDivision;
 use Illuminate\Support\Collection;
+use WeakMap;
 
 /**
  * Finds what a witness physically has where its normalized text reads
@@ -34,6 +35,9 @@ use Illuminate\Support\Collection;
  */
 class DiplomaticCounterpart
 {
+    /** @var WeakMap<TranscriptionLayer, array<int, list<array{text: string, start: int, end: int}>|null>>|null */
+    private static ?WeakMap $tokenCache = null;
+
     /**
      * The diplomatic wording for the tokens a normalized span covers, or null
      * if the layers cannot be lined up.
@@ -118,9 +122,23 @@ class DiplomaticCounterpart
      */
     private static function tokens(Segment $segment, TranscriptionLayer $transcription, Tokenization $tokenization): ?array
     {
+        // Asked for every word and every candidate of a segment, and the
+        // answer is the same each time: tokenized once per layer instance
+        // and segment. Keyed by the model INSTANCE (a WeakMap), never by
+        // id — a request's instances are its own, so nothing survives into
+        // another request or test with a different text under the same id
+        // (real incident: the edition page spent two thirds of its time
+        // re-tokenizing the same lines).
+        self::$tokenCache ??= new WeakMap;
+        $cached = self::$tokenCache[$transcription] ?? [];
+
+        if (array_key_exists($segment->id, $cached)) {
+            return $cached[$segment->id];
+        }
+
         $assignments = self::assignments($segment, $transcription);
 
-        return $assignments->isEmpty()
+        $tokens = $assignments->isEmpty()
             ? null
             : Tokenizer::tokenizeSpans(
                 $transcription->text,
@@ -130,6 +148,11 @@ class DiplomaticCounterpart
                 ])->all()),
                 $tokenization,
             );
+
+        $cached[$segment->id] = $tokens;
+        self::$tokenCache[$transcription] = $cached;
+
+        return $tokens;
     }
 
     /**
