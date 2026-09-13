@@ -4,6 +4,15 @@
 
 The "Edition text" fieldset and the Witnesses fieldset (WitnessesPanel — the former add pane and manuscripts pane merged, user decision) are built to line up: `fieldset` + `legend`, then ONE `min-h-9` control row (`border-b pb-2`) — on the left the editing tools then the jump form, on the right the witness pulldown, layer toggles, "Add selection" and "Add lines…" — then the text box. There is no button row above the frames any more. Anything else — tool hints, the Add panel's "Add lines…" form — goes below the text box or in a slot that both sides fill (the left "remove" hint is the counterpart of the Add panel's action row, `min-h-[26px]`). Adding a row above the text box on one side only breaks the alignment the user asked for. The `Edition` fieldset above lists every visible witness assigning text to the work (`witnesses` prop, `in_edition` flag), not only those the edition uses.
 
+## The witnesses pane asks for its own text (2026-09-14)
+`WitnessesPanel` takes `witnesses` (the page's list, by siglum) and `pane`
+(`witnessPane`, an optional Inertia prop: one witness, a run of its
+pages, both layers, offsets the slice's own) and fetches the latter itself
+— see "The witnesses pane is fetched on demand" in edition.md. Keep the
+control row as it is; the text view's pager sits BELOW the text. Every
+action on the page names its props (`only:`) — see "Every action on the
+edition page is a partial reload" in edition.md.
+
 ## Paratext mode, and the two display toggles (2026-09-13)
 The control row's transposition button is called "Transposition" /
 "Cancel transposition" (renamed from "Register transposition conjecture"

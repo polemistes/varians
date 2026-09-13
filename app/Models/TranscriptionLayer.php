@@ -136,6 +136,36 @@ class TranscriptionLayer extends Model
         return min($offset, mb_strlen($this->text));
     }
 
+    /**
+     * The character offsets at which each of the given lines begins, in one
+     * pass over the text — offsetOfLine() for every page break of a
+     * transcript of hundreds of pages would walk the text once per page.
+     *
+     * @param  list<int>  $lines
+     * @return array<int, int> keyed by line
+     */
+    public function offsetsOfLines(array $lines): array
+    {
+        $wanted = array_fill_keys($lines, true);
+        $length = mb_strlen($this->text);
+        $offsets = [];
+        $offset = 0;
+
+        foreach (explode("\n", $this->text) as $index => $line) {
+            if (isset($wanted[$index])) {
+                $offsets[$index] = min($offset, $length);
+            }
+
+            $offset += mb_strlen($line) + 1;
+        }
+
+        foreach ($lines as $line) {
+            $offsets[$line] ??= $line <= 0 ? 0 : $length;
+        }
+
+        return $offsets;
+    }
+
     /** The line the given character offset falls on. */
     public function lineOfOffset(int $offset): int
     {

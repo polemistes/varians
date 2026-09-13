@@ -444,9 +444,10 @@ read as clutter and is gone; `run.diplomatic` survives only in the hover
 tooltip and the apparatus popover. Editing affordances still fold `canEdit`
 into every render test (as the lacuna markers do with
 `canEdit && lacunaMode`): a choice records an intention, and permission is
-re-checked at render. The pane shows each transcript WHOLE
-(`EditionController::witnessTranscripts`/`wholeTranscript`; the old window
-slice is gone) — see "Adding and removing text" below.
+re-checked at render. The pane's text is NOT in the page's own response:
+`witnessPane` is an `Inertia::optional` prop the pane asks for itself
+(`EditionController::witnessPane`; see "The witnesses pane is fetched on
+demand" below) — see also "Adding and removing text" below.
 
 ## A witness has transcriptions; a transcription has two layers
 `Transcription` is the named thing an editor creates on a witness, and it
@@ -570,11 +571,64 @@ and offers "Remove segment from edition" too (`edition-segments.destroy`
 takes `segment_ids`). There is no add/remove mode and no pane
 choice any more; adding is locked while a transposition is registered.
 
+## The witnesses pane is fetched on demand, one witness, a run of pages (2026-09-14)
+The edition page used to send every layer of every witness of the work,
+whole (`witnessTranscripts`), and every action rebuilt it: the payload
+scaled with the corpus, not with what was read. Now `witnessPane` is an
+`Inertia::optional` prop (never in a full response) that
+`WitnessesPanel.vue` asks for with `router.reload({ only: ['witnessPane'],
+data: { witness, witness_page } })` — after its mount (in a `nextTick`, so a
+pane the page puts away at once from a remembered preference asks for
+nothing), when the witness pulldown changes (the list comes from the
+page's `witnesses` prop), when a step is taken through the pages, and
+whenever a full visit (a page jump) has dropped the prop. The choice lives
+in the URL's query, so the actions that follow keep it; `witness` is read
+from the URL once mounted, never at setup (hydration).
+`EditionController::witnessPane` sends the witness asked for (else the
+first by siglum; a witness the viewer may not see falls back likewise) in
+both layers, each transcript cut by `sliceOf` to `PANE_PAGES` (3)
+manuscript pages from the page asked for — else the page where the
+witness has the first segment of the edition's window (`pageOfWindow`),
+so the pane opens beside the text being read; the text before the first
+break counts with the first page, and the line break before a slice's end
+is dropped. EVERY offset in an entry is the slice's own (`slicedTranscript`
+rebases and clips assignments, page breaks and regions; `slice.start`
+says where it stands in the layer's full text): the pane shifts the
+edition's hovered spans by `slice.start` before matching regions and
+shifts a region's span back when it emits one. Part ordinals and totals
+are the whole layer's. `slice.previous_page_id`/`next_page_id` step a
+whole run at a time (no overlap); `transcribed_page_ids` says which of the
+witness's pages a transcript starts somewhere, so the text view's pager
+(below the text, keeping the frames' tops aligned) and the image view's
+page choice ask only for pages that exist in a transcript. Until the
+chosen witness's own pages arrive the pane shows a pulsing skeleton; a
+further run of the same witness dims the text it has. A transcript
+without breaks comes whole (`slice.whole`, no pager).
+`TranscriptionLayer::offsetsOfLines` resolves every break in one pass
+(`offsetOfLine` per break walked the text once per page). Tests:
+WitnessTranscriptPaneTest fetches the prop as the pane does (a partial
+request with the page's `X-Inertia-Version`, or the 409 conflict answers).
+
+## Every action on the edition page is a partial reload (2026-09-14)
+All 28 `router`/`useForm` calls in `Editions/Show.vue` and the two adds
+in `WitnessesPanel.vue` name the props they can have changed
+(`TEXT_PROPS`, `SEGMENT_PROPS`, `WINDOW_PROPS`, `EDITION_PROPS`,
+`ACCESS_PROPS` at the top of the script; `ADD_PROPS` in the pane) —
+registering a conjecture no longer rebuilds the access panel, the
+bibliography form or the witnesses pane, and a note refreshes the window
+alone. `errors` always comes; `flash` is in every list (it is shared, not
+`always`, so a partial reload without it drops the message). `witnessPane`
+is in no list: nothing done on the page changes a manuscript, and the
+pane keeps what it has. Only `copyEdition`/`removeEdition` (navigations
+away) and the page jumps (full visits, after which the pane re-asks for
+itself) are not partial. A new action MUST name its props, or it silently
+refetches everything.
+
 ## The witnesses pane's pages and image view (user decision, 2026-09-09)
-`EditionController::pagesOf` sends, per transcript entry, the page breaks
-resolved to that layer's own offsets (`TranscriptionLayer::offsetOfLine`)
-and the witness's pages with their visible photograph
-(`ManuscriptImage::visibleTo`). `AlignableText` draws a page-break line
+`EditionController::pageBreaksOf` and `witnessPages` send, per transcript
+entry, the page breaks resolved to that layer's own offsets (then rebased
+to the slice, see above) and the witness's pages with their visible
+photograph (`ManuscriptImage::visibleTo`). `AlignableText` draws a page-break line
 with the page's label before the chunk starting at each break
 (`pageBreaks` prop; markers carry `data-page-id`). In `WitnessesPanel` the
 text scrolls inside the pane (`max-h-[70vh]`), and the last marker that

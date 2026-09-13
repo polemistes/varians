@@ -15,8 +15,9 @@ use App\Models\Work;
 use App\Support\Edition\SegmentAdder;
 
 /**
- * The `witnessTranscripts` prop behind the edition page's witnesses pane:
- * every visible layer of every witness, whole, with every assignment.
+ * The `witnessPane` prop behind the edition page's witnesses pane: an
+ * optional prop the pane asks for — one witness, both layers, a run of
+ * its manuscript pages — never in the page's own response.
  */
 
 /**
@@ -57,13 +58,43 @@ function assignedTranscript(string $layer = 'normalized'): array
 }
 
 /**
+ * The pane as the page fetches it: a partial reload asking for the
+ * optional prop alone, for the witness and page named.
+ *
+ * @return array{witness_id: int|null, page_id: int|null, transcripts: list<array<string, mixed>>}
+ */
+function witnessPane(Work $work, Edition $edition, array $query = []): array
+{
+    $url = route('editions.show', [$work, $edition, ...$query]);
+    $version = test()->get($url)->assertOk()->viewData('page')['version'];
+
+    return test()->get($url, [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => $version,
+        'X-Inertia-Partial-Component' => 'Editions/Show',
+        'X-Inertia-Partial-Data' => 'witnessPane',
+    ])->assertOk()->json('props.witnessPane');
+}
+
+/**
+ * @param  array<string, int>  $query
  * @return array<int, array<string, mixed>>
  */
-function witnessTranscripts(Work $work, Edition $edition): array
+function witnessTranscripts(Work $work, Edition $edition, array $query = []): array
 {
-    return test()->get(route('editions.show', [$work, $edition]))
-        ->viewData('page')['props']['witnessTranscripts'];
+    return witnessPane($work, $edition, $query)['transcripts'];
 }
+
+test('the page itself carries no transcript; the pane is fetched on demand', function () {
+    $this->actingAs(User::factory()->editor()->create());
+
+    ['work' => $work, 'edition' => $edition] = assignedTranscript();
+
+    $props = $this->get(route('editions.show', [$work, $edition]))->assertOk()->viewData('page')['props'];
+
+    expect($props)->not->toHaveKey('witnessPane')
+        ->and(witnessPane($work, $edition)['witness_id'])->toBe($props['witnesses'][0]['id']);
+});
 
 test('a transcript is sent whole, with every assignment', function () {
     $this->actingAs(User::factory()->editor()->create());
@@ -156,11 +187,13 @@ test('a draft transcription stays out of the pane for a reader', function () {
     $edition->update(['visibility' => 'published']);
     $this->actingAs(User::factory()->create());
 
-    expect(array_column(witnessTranscripts($work, $edition), 'siglum'))->toBe(['A']);
+    // Asked for, the draft's witness is still not sent: the pane falls
+    // back to the first witness the reader may see.
+    expect(array_column(witnessTranscripts($work, $edition, ['witness' => $unfinished->id]), 'siglum'))->toBe(['A']);
 
     $this->actingAs(User::factory()->editor()->create());
 
-    expect(array_column(witnessTranscripts($work, $edition), 'siglum'))->toBe(['A', 'Z']);
+    expect(array_column(witnessTranscripts($work, $edition, ['witness' => $unfinished->id]), 'siglum'))->toBe(['Z']);
 });
 
 test('the edition box lists every visible witness assigning text to the work, marking those the edition draws on', function () {
@@ -232,4 +265,112 @@ test('a transcript ships its image alignments, so the image view can light up li
         ->and($pane['regions'][0]['manuscript_image_id'])->toBe($image->id)
         ->and([$pane['regions'][0]['start_offset'], $pane['regions'][0]['end_offset']])->toBe([3, 8])
         ->and($pane['pages'][0]['image']['id'])->toBe($image->id);
+});
+
+/**
+ * A witness of six pages, two lines each, with a break at every page;
+ * the edition's window has the segment assigned on the fourth page.
+ *
+ * @return array{work: Work, edition: Edition, witness: Witness, layer: TranscriptionLayer, pages: array<int, ManuscriptPage>}
+ */
+function pagedTranscript(): array
+{
+    $work = Work::factory()->create();
+    $edition = Edition::factory()->for($work)->create();
+    $witness = Witness::factory()->create(['siglum' => 'P']);
+    $parent = Transcription::factory()->for($witness)->create();
+    $lines = [];
+
+    for ($page = 1; $page <= 6; $page++) {
+        $lines[] = "p{$page}a p{$page}a";
+        $lines[] = "p{$page}b p{$page}b";
+    }
+
+    $layer = TranscriptionLayer::factory()->normalized()->for($parent)->published()
+        ->create(['text' => implode("\n", $lines)]);
+    $pages = [];
+
+    for ($page = 1; $page <= 6; $page++) {
+        $pages[$page] = ManuscriptPage::create(['witness_id' => $witness->id, 'label' => "f. {$page}", 'position' => $page]);
+        TranscriptionPageBreak::create(['transcription_id' => $parent->id, 'manuscript_page_id' => $pages[$page]->id, 'start_line' => ($page - 1) * 2]);
+    }
+
+    $segment = Segment::factory()->for($work)->create(['address' => ['line' => 4], 'sort_key' => '00000004', 'label' => '4']);
+    $assignment = Assignment::factory()->for($layer)->for($segment, 'segment')
+        ->create(['start_offset' => $layer->offsetOfLine(6), 'end_offset' => $layer->offsetOfLine(6) + 7]);
+    SegmentAdder::add($edition, $assignment, 1.0);
+
+    return compact('work', 'edition', 'witness', 'layer', 'pages');
+}
+
+test('the pane opens at the page where the witness has the window\'s first segment, three pages long', function () {
+    $this->actingAs(User::factory()->editor()->create());
+
+    ['work' => $work, 'edition' => $edition, 'layer' => $layer, 'pages' => $pages] = pagedTranscript();
+
+    $pane = witnessPane($work, $edition);
+    $entry = $pane['transcripts'][0];
+
+    expect($pane['page_id'])->toBe($pages[4]->id)
+        ->and($entry['text'])->toBe("p4a p4a\np4b p4b\np5a p5a\np5b p5b\np6a p6a\np6b p6b")
+        ->and($entry['slice'])->toBe([
+            'start' => $layer->offsetOfLine(6),
+            'end' => mb_strlen($layer->text),
+            'whole' => false,
+            'page_ids' => [$pages[4]->id, $pages[5]->id, $pages[6]->id],
+            'previous_page_id' => $pages[1]->id,
+            'next_page_id' => null,
+        ])
+        // Offsets are the slice's own: the assignment on the fourth page
+        // starts its text, and the page breaks stand at the slice's lines.
+        ->and([$entry['assignments'][0]['start_offset'], $entry['assignments'][0]['end_offset']])->toBe([0, 7])
+        ->and(collect($entry['page_breaks'])->map(fn (array $break) => [$break['label'], $break['start_offset']])->all())
+        ->toBe([['f. 4', 0], ['f. 5', 16], ['f. 6', 32]])
+        ->and(count($entry['pages']))->toBe(6);
+});
+
+test('a page asked for starts the slice there, and the text before the first break comes with the first page', function () {
+    $this->actingAs(User::factory()->editor()->create());
+
+    ['work' => $work, 'edition' => $edition, 'witness' => $witness, 'pages' => $pages] = pagedTranscript();
+
+    $second = witnessPane($work, $edition, ['witness' => $witness->id, 'witness_page' => $pages[2]->id]);
+
+    expect($second['page_id'])->toBe($pages[2]->id)
+        ->and($second['transcripts'][0]['text'])->toBe("p2a p2a\np2b p2b\np3a p3a\np3b p3b\np4a p4a\np4b p4b")
+        ->and($second['transcripts'][0]['slice']['previous_page_id'])->toBe($pages[1]->id)
+        ->and($second['transcripts'][0]['slice']['next_page_id'])->toBe($pages[5]->id)
+        // Nothing of the fourth page's assignment is lost: the run ends inside it.
+        ->and($second['transcripts'][0]['assignments'])->toHaveCount(1);
+
+    $first = witnessPane($work, $edition, ['witness' => $witness->id, 'witness_page' => $pages[1]->id]);
+
+    expect($first['transcripts'][0]['slice']['start'])->toBe(0)
+        ->and($first['transcripts'][0]['slice']['previous_page_id'])->toBeNull()
+        ->and($first['transcripts'][0]['assignments'])->toBe([]);
+});
+
+test('the witness asked for is the one sent, and a page of another witness is ignored', function () {
+    $this->actingAs(User::factory()->editor()->create());
+
+    ['work' => $work, 'edition' => $edition, 'witness' => $paged, 'pages' => $pages] = pagedTranscript();
+    $segment = Segment::where('work_id', $work->id)->sole();
+    $other = Witness::factory()->create(['siglum' => 'A']);
+    $layer = TranscriptionLayer::factory()->normalized()
+        ->for(Transcription::factory()->for($other)->create())->published()->create(['text' => 'alpha beta']);
+    Assignment::factory()->for($layer)->for($segment, 'segment')->create(['start_offset' => 0, 'end_offset' => 5]);
+
+    // Unasked, the first witness by siglum.
+    expect(witnessPane($work, $edition)['witness_id'])->toBe($other->id);
+
+    $pane = witnessPane($work, $edition, ['witness' => $paged->id, 'witness_page' => 999999]);
+
+    expect($pane['witness_id'])->toBe($paged->id)
+        ->and($pane['page_id'])->toBe($pages[4]->id);
+
+    $unpaged = witnessPane($work, $edition, ['witness' => $other->id, 'witness_page' => $pages[2]->id]);
+
+    expect($unpaged['witness_id'])->toBe($other->id)
+        ->and($unpaged['transcripts'][0]['text'])->toBe('alpha beta')
+        ->and($unpaged['transcripts'][0]['slice']['whole'])->toBeTrue();
 });

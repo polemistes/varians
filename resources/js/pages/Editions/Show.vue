@@ -16,7 +16,7 @@ import ParatextBox from '@/components/ParatextBox.vue';
 import ParatextEntry from '@/components/ParatextEntry.vue';
 import ReferencePicker from '@/components/ReferencePicker.vue';
 import WitnessesPanel from '@/components/WitnessesPanel.vue';
-import type { WitnessTranscript } from '@/components/WitnessesPanel.vue';
+import type { WitnessPane } from '@/components/WitnessesPanel.vue';
 import {
     candidateSummary,
     candidateText,
@@ -106,7 +106,11 @@ const props = defineProps<{
     /** The work's conjectures as the Work page lists them — see ConjectureCatalogue. */
     workConjectures: WorkConjecture[];
     referenceLevels: ReferenceLevel[];
-    witnessTranscripts: WitnessTranscript[];
+    /**
+     * The witnesses pane's text — an optional prop the pane asks for
+     * itself, absent on every full visit. See EditionController::witnessPane.
+     */
+    witnessPane?: WitnessPane;
     /** Every item this edition's segments and conjectures cite, formatted. */
     bibliography: BibliographyEntry[];
     /** What the references picker needs to create an item in place. */
@@ -142,6 +146,31 @@ const mayEdit = computed(() => props.can.edit);
 // editing panels or markers, though the derived notices on the line numbers
 // (order, splits, notes) stay readable — without needing a second account
 // to check the work in.
+// ---- What each action refreshes. Every action on this page is a partial
+// reload naming the props it can have changed (Inertia `only`), so
+// registering a conjecture rebuilds neither the witnesses pane nor the
+// access panel, and a note touches only the window it is in. `errors`
+// always comes; `flash` is asked for wherever the server may speak. The
+// witnesses pane (`witnessPane`) is never in a list: it is the pane's own
+// to ask for, and nothing done here changes a manuscript. ----
+/** The text and its apparatus: the window, the segment list, the catalogue, the adoptions, the literature. */
+const TEXT_PROPS = [
+    'windowSegments',
+    'segments',
+    'workConjectures',
+    'transpositions',
+    'bibliography',
+    'flash',
+];
+/** Segments come or go: the text, and with it the paging and which witnesses the edition draws on. */
+const SEGMENT_PROPS = [...TEXT_PROPS, 'page', 'totalPages', 'witnesses'];
+/** Only the window's own annotations moved — a note, a paratext, a line break. */
+const WINDOW_PROPS = ['windowSegments', 'flash'];
+/** The edition's own properties and what they permit. */
+const EDITION_PROPS = ['edition', 'can', 'access', 'flash'];
+/** Who may edit and who holds the edition. */
+const ACCESS_PROPS = ['access', 'can', 'flash'];
+
 const readerView = ref(false);
 const canEdit = computed(() => mayEdit.value && !readerView.value);
 
@@ -199,6 +228,7 @@ const headerForm = useForm({
 
 function saveHeader() {
     headerForm.patch(updateEdition.url(props.edition), {
+        only: EDITION_PROPS,
         preserveScroll: true,
         onSuccess: () => {
             editingHeader.value = false;
@@ -210,7 +240,7 @@ function saveVisibility(visibility: Visibility) {
     router.patch(
         updateEdition.url(props.edition),
         { visibility },
-        { preserveScroll: true },
+        { only: EDITION_PROPS, preserveScroll: true },
     );
 }
 
@@ -219,6 +249,7 @@ const editorForm = useForm({ email: '' });
 
 function grantEditor() {
     editorForm.post(storeEditor.url(props.edition), {
+        only: ACCESS_PROPS,
         preserveScroll: true,
         onSuccess: () => editorForm.reset(),
     });
@@ -226,6 +257,7 @@ function grantEditor() {
 
 function revokeEditor(userId: number) {
     router.delete(destroyEditor.url({ edition: props.edition, user: userId }), {
+        only: ACCESS_PROPS,
         preserveScroll: true,
     });
 }
@@ -234,13 +266,17 @@ const transferForm = useForm({ email: '' });
 
 function offerOwnership() {
     transferForm.post(storeTransfer.url(props.edition), {
+        only: ACCESS_PROPS,
         preserveScroll: true,
         onSuccess: () => transferForm.reset(),
     });
 }
 
 function withdrawOffer(transferId: number) {
-    router.delete(destroyTransfer.url(transferId), { preserveScroll: true });
+    router.delete(destroyTransfer.url(transferId), {
+        only: ACCESS_PROPS,
+        preserveScroll: true,
+    });
 }
 
 function copyEdition() {
@@ -374,7 +410,11 @@ function saveNote(segment: WindowSegment) {
         router.patch(
             updateComment.url(editingNoteId.value),
             { note: noteDraft.value },
-            { preserveScroll: true, onSuccess: () => cancelNote() },
+            {
+                only: WINDOW_PROPS,
+                preserveScroll: true,
+                onSuccess: () => cancelNote(),
+            },
         );
 
         return;
@@ -394,7 +434,7 @@ function saveNote(segment: WindowSegment) {
             ...noteAnchor(segment),
             note: noteDraft.value,
         },
-        { preserveScroll: true, onSuccess: done },
+        { only: WINDOW_PROPS, preserveScroll: true, onSuccess: done },
     );
 }
 
@@ -403,7 +443,10 @@ function removeNote(comment: EditionComment) {
         return;
     }
 
-    router.delete(destroyComment.url(comment.id), { preserveScroll: true });
+    router.delete(destroyComment.url(comment.id), {
+        only: WINDOW_PROPS,
+        preserveScroll: true,
+    });
 }
 
 /** The words a note is anchored to, for showing what it is about. */
@@ -964,6 +1007,7 @@ function submitRegistration(adopt: boolean) {
             follow: adopt,
         },
         {
+            only: TEXT_PROPS,
             preserveScroll: true,
             onSuccess: () => stopRegistering(),
             onError: (errors) => {
@@ -1159,6 +1203,7 @@ function runAfterGap(gap: Gap): CaretTarget {
 
 function setGapLevel(gap: Gap, level: 0 | 1 | 2, caretAfter: CaretTarget) {
     const options = {
+        only: WINDOW_PROPS,
         preserveScroll: true,
         onSuccess: () => {
             void nextTick(() => placeCaret(caretAfter));
@@ -1344,7 +1389,7 @@ function setSpeakerDisplay(value: SpeakerDisplay) {
     router.patch(
         updateEdition.url(props.edition),
         { speaker_display: value },
-        { preserveScroll: true },
+        { only: EDITION_PROPS, preserveScroll: true },
     );
 }
 
@@ -1781,6 +1826,7 @@ function saveParatext(entry: ParatextEntry, text: string) {
                 text: trimmed,
             },
             {
+                only: WINDOW_PROPS,
                 preserveScroll: true,
                 onError: (errors) => {
                     paratextError.value =
@@ -1796,7 +1842,10 @@ function saveParatext(entry: ParatextEntry, text: string) {
     editingParatextId.value = null;
 
     if (trimmed === '') {
-        router.delete(destroyParatext.url(entry.id), { preserveScroll: true });
+        router.delete(destroyParatext.url(entry.id), {
+            only: WINDOW_PROPS,
+            preserveScroll: true,
+        });
 
         return;
     }
@@ -1805,7 +1854,7 @@ function saveParatext(entry: ParatextEntry, text: string) {
         router.patch(
             updateParatext.url(entry.id),
             { text: trimmed },
-            { preserveScroll: true },
+            { only: WINDOW_PROPS, preserveScroll: true },
         );
     }
 }
@@ -2320,6 +2369,7 @@ function submitOrderProposal(follow: boolean) {
             follow,
         },
         {
+            only: TEXT_PROPS,
             preserveScroll: true,
             onSuccess: () => {
                 closeProposalDraft();
@@ -2733,6 +2783,7 @@ function submitCommon(segment: WindowSegment, fields: Record<string, unknown>) {
         storeVariant.url(props.edition),
         { segment_id: segment.id, ...fields },
         {
+            only: TEXT_PROPS,
             preserveScroll: true,
             onSuccess: () => {
                 openTarget.value = null;
@@ -2879,6 +2930,7 @@ function revertRange(run: Run) {
     }
 
     router.delete(destroyEditionLemma.url([props.edition, run.lemma_id]), {
+        only: TEXT_PROPS,
         preserveScroll: true,
         onSuccess: () => {
             openTarget.value = null;
@@ -2968,6 +3020,7 @@ function adoptNoLacuna(segment: WindowSegment, run: Run) {
     }
 
     router.delete(destroyEditionLemma.url([props.edition, run.lemma_id]), {
+        only: TEXT_PROPS,
         preserveScroll: true,
         onSuccess: () => {
             openTarget.value = null;
@@ -3123,6 +3176,7 @@ function submitSupplementForCataloguedLacuna(
             adopt,
         },
         {
+            only: SEGMENT_PROPS,
             preserveScroll: true,
             onSuccess: () => {
                 resetConjectureDraft();
@@ -3157,6 +3211,7 @@ function adoptCataloguedSegmentLacuna(conjecture: WorkConjecture) {
             adopt: true,
         },
         {
+            only: SEGMENT_PROPS,
             preserveScroll: true,
             onSuccess: () => {
                 openTarget.value = null;
@@ -3233,6 +3288,7 @@ function submitWholeLineLacuna(adopt: boolean) {
             conjecture_note: lacunaDraft.note || null,
         },
         {
+            only: SEGMENT_PROPS,
             preserveScroll: true,
             onSuccess: () => {
                 openTarget.value = null;
@@ -3257,6 +3313,7 @@ function removeEditionSegments(segmentIds: number[]) {
 
     router.delete(destroyEditionSegment.url(props.edition), {
         data: { segment_ids: segmentIds },
+        only: SEGMENT_PROPS,
         preserveScroll: true,
         onSuccess: () => {
             openTarget.value = null;
@@ -3287,6 +3344,7 @@ function adoptArrangement(conjectureId: number) {
         storeEditionAdoption.url(props.edition),
         { conjecture_id: conjectureId },
         {
+            only: TEXT_PROPS,
             preserveScroll: true,
             onError: (errors) => {
                 submitError.value =
@@ -3309,6 +3367,7 @@ function chooseOrder(range: OrderRange, candidate: OrderCandidate) {
             conjecture_id: candidate.conjecture_id,
         },
         {
+            only: TEXT_PROPS,
             preserveScroll: true,
             onSuccess: () => {
                 openTarget.value = null;
@@ -6788,7 +6847,8 @@ function orderRangeClasses(range: OrderRange): string[] {
                 <WitnessesPanel
                     v-if="showWitnesses"
                     :edition="props.edition"
-                    :transcripts="props.witnessTranscripts"
+                    :witnesses="props.witnesses"
+                    :pane="props.witnessPane"
                     :already-added-segment-ids="alreadyAddedSegmentIds"
                     :segments="props.workSegments"
                     :reference-levels="props.referenceLevels"

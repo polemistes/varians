@@ -24,6 +24,7 @@ use App\Models\LemmaReading;
 use App\Models\ManuscriptImage;
 use App\Models\Segment;
 use App\Models\TranscriptionLayer;
+use App\Models\TranscriptionRegion;
 use App\Models\User;
 use App\Models\Work;
 use App\Support\Bibliography\Biblatex;
@@ -58,6 +59,9 @@ class EditionController extends Controller
      * windowing.
      */
     private const WINDOW = 50;
+
+    /** Manuscript pages a witnesses-pane slice holds — see witnessPane(). */
+    private const PANE_PAGES = 3;
 
     public function create(Work $work): Response
     {
@@ -226,10 +230,9 @@ class EditionController extends Controller
                     'label' => $layer->transcription->witness->label,
                 ],
             ])->values(),
-            // Every layer of every witness, whole, for the witnesses pane —
-            // where a manuscript is read and its assignments are picked for
-            // the edition. Both layers, unlike `transcriptions` above.
-            'witnessTranscripts' => $this->witnessTranscripts($transcriptions, $diplomaticLayers, $request->user()),
+            // The witnesses pane — one witness, a run of its pages, both
+            // layers — sent only when the pane asks for it, see witnessPane().
+            'witnessPane' => Inertia::optional(fn () => $this->witnessPane($request, $transcriptions, $diplomaticLayers, $window, $request->user())),
             'referenceLevels' => $work->referenceScheme->levels,
             // Every visible witness assigning text to the work, not only those this
             // edition draws on — what is available, and what was left aside.
@@ -327,21 +330,42 @@ class EditionController extends Controller
     }
 
     /**
-     * Every visible transcript of the work, in both layers, WHOLE — the
-     * witnesses pane is where assignments are picked for adding, so it shows
-     * the manuscript's full text with every assignment, greying out what the
-     * edition already has (user decision, replacing the window slice). A
-     * diplomatic entry names its normalized sibling, the only layer an add
-     * may source.
+     * The witnesses pane, on demand — ONE witness, cut to a run of its
+     * manuscript pages. An `Inertia::optional` prop: never in the page's
+     * own response, sent only when the pane asks for it (`only:
+     * ['witnessPane']`, with `witness` and `witness_page` in the query),
+     * so a work with twenty witnesses of hundreds of pages costs the
+     * edition page nothing until a manuscript is opened, and then only
+     * the pages being read (user decision, 2026-09-14 — the whole-corpus
+     * payload scaled with every transcript of the work).
+     *
+     * The witness is the one asked for, else the first by siglum. Both
+     * layers of each of its transcripts come, each cut to PANE_PAGES
+     * pages starting at the page asked for — or, when none is, at the
+     * page where the witness has the first segment of the edition's
+     * window, so the pane opens beside the text being read. A transcript
+     * without page breaks comes whole.
      *
      * @param  SupportCollection<int, TranscriptionLayer>  $normalized
      * @param  SupportCollection<int, TranscriptionLayer>  $diplomatic
-     * @return array<int, array<string, mixed>>
+     * @param  SupportCollection<int, EditionSegment>  $window
+     * @return array{witness_id: int|null, page_id: int|null, transcribed_page_ids: list<int>, transcripts: list<array<string, mixed>>}
      */
-    private function witnessTranscripts(SupportCollection $normalized, SupportCollection $diplomatic, ?User $viewer): array
+    private function witnessPane(Request $request, SupportCollection $normalized, SupportCollection $diplomatic, SupportCollection $window, ?User $viewer): array
     {
-        $normalizedIdByTranscription = $normalized->keyBy('transcription_id')->map(fn (TranscriptionLayer $layer) => $layer->id);
-        $layers = $normalized->values()->merge($diplomatic->values());
+        $bySiglum = $normalized->sortBy(fn (TranscriptionLayer $layer) => $layer->transcription->witness->siglum, SORT_NATURAL | SORT_FLAG_CASE);
+        $witnessIds = $bySiglum->map(fn (TranscriptionLayer $layer) => (int) $layer->transcription->witness_id)->unique()->values();
+        $requestedWitness = $request->integer('witness');
+        $witnessId = $witnessIds->contains($requestedWitness) ? $requestedWitness : $witnessIds->first();
+
+        if ($witnessId === null) {
+            return ['witness_id' => null, 'page_id' => null, 'transcribed_page_ids' => [], 'transcripts' => []];
+        }
+
+        $ofWitness = fn (TranscriptionLayer $layer) => (int) $layer->transcription->witness_id === $witnessId;
+        $normalizedOfWitness = $normalized->filter($ofWitness)->values();
+        $layers = $normalizedOfWitness->merge($diplomatic->filter($ofWitness)->values());
+        $normalizedIdByTranscription = $normalizedOfWitness->keyBy('transcription_id')->map(fn (TranscriptionLayer $layer) => $layer->id);
 
         // Pages and page breaks belong to the transcription and the witness;
         // photographs are filtered like everything else the viewer may see.
@@ -350,58 +374,246 @@ class EditionController extends Controller
         }
 
         $imagesByPage = ManuscriptImage::visibleTo($viewer)
-            ->whereIn('witness_id', $layers->map(fn (TranscriptionLayer $layer) => $layer->transcription->witness_id)->unique())
+            ->where('witness_id', $witnessId)
             ->orderBy('position')
             ->get()
             ->groupBy('manuscript_page_id');
 
-        return $layers
-            ->map(fn (TranscriptionLayer $transcription) => [
-                'id' => $transcription->id,
-                'transcription_id' => $transcription->transcription_id,
-                'normalized_layer_id' => $normalizedIdByTranscription->get($transcription->transcription_id),
-                'name' => $transcription->transcription->name,
-                'witness_id' => $transcription->transcription->witness_id,
-                'siglum' => $transcription->transcription->witness->siglum,
-                'layer' => $transcription->layer->value,
-                'first_sort_key' => (string) ($transcription->assignments->min(fn (Assignment $assignment) => $assignment->segment?->sort_key) ?? ''),
-                ...$this->wholeTranscript($transcription),
-                ...$this->pagesOf($transcription, $imagesByPage),
-                // The layer's image alignments, so the image view can light
-                // up a region for the edition line under the pointer and
-                // the line for the region under it (user decision).
-                'regions' => $transcription->regions()
-                    ->orderBy('position')
-                    ->get(['id', 'transcription_layer_id', 'manuscript_image_id', 'group_id', 'text', 'start_offset', 'end_offset', 'position', 'x', 'y', 'width', 'height', 'needs_review']),
-            ])
-            ->sortBy(fn (array $entry) => [$entry['siglum'], $entry['first_sort_key'], $entry['layer']])
+        $breaksByLayer = $layers->mapWithKeys(fn (TranscriptionLayer $layer) => [$layer->id => $this->pageBreaksOf($layer)]);
+
+        $pageIds = $layers->flatMap(fn (TranscriptionLayer $layer) => array_column($breaksByLayer[$layer->id], 'manuscript_page_id'));
+        $requestedPage = $request->integer('witness_page');
+        $pageId = $pageIds->contains($requestedPage)
+            ? $requestedPage
+            : $this->pageOfWindow($normalizedOfWitness, $breaksByLayer, $window);
+
+        $transcripts = $layers
             ->values()
-            ->all();
+            ->map(function (TranscriptionLayer $transcription) use ($normalizedIdByTranscription, $imagesByPage, $breaksByLayer, $pageId) {
+                $slice = $this->sliceOf($transcription, $breaksByLayer[$transcription->id], $pageId);
+
+                return [
+                    'id' => $transcription->id,
+                    'transcription_id' => $transcription->transcription_id,
+                    'normalized_layer_id' => $normalizedIdByTranscription->get($transcription->transcription_id),
+                    'name' => $transcription->transcription->name,
+                    'witness_id' => $transcription->transcription->witness_id,
+                    'siglum' => $transcription->transcription->witness->siglum,
+                    'layer' => $transcription->layer->value,
+                    'first_sort_key' => (string) ($transcription->assignments->min(fn (Assignment $assignment) => $assignment->segment?->sort_key) ?? ''),
+                    ...$this->slicedTranscript($transcription, $slice, $breaksByLayer[$transcription->id]),
+                    'pages' => $this->witnessPages($transcription, $imagesByPage),
+                ];
+            })
+            ->sortBy(fn (array $entry) => [$entry['siglum'], $entry['first_sort_key'], $entry['layer']])
+            ->values();
+
+        return [
+            'witness_id' => $witnessId,
+            'page_id' => $pageId,
+            'transcribed_page_ids' => array_values(array_unique(array_map('intval', $pageIds->all()))),
+            'transcripts' => array_values($transcripts->all()),
+        ];
     }
 
     /**
-     * Where the manuscript's pages begin in this layer's text, and the
-     * witness's pages with their photograph — the page-break lines the
-     * witnesses pane draws in the text, and its image view (user decision).
-     * A page break is held as a line (see TranscriptionPageBreak) and
-     * resolved to this layer's own offset here.
+     * The page on which the witness has the first segment of the edition's
+     * window — the first assignment, in window order, of one of its
+     * normalized layers, and the last page break at or before it. Null
+     * where the witness has none of the window, or no pages: the pane
+     * then opens at the transcript's start.
      *
-     * @param  SupportCollection<int, EloquentCollection<int, ManuscriptImage>>  $imagesByPage
-     * @return array{page_breaks: list<array{manuscript_page_id: int, start_line: int, start_offset: int, label: string}>, pages: list<array{id: int, label: string, position: float, image: array{id: int, witness_id: int, manuscript_page_id: int, url: string, position: string}|null}>}
+     * @param  SupportCollection<int, TranscriptionLayer>  $normalizedOfWitness
+     * @param  SupportCollection<int, list<array{manuscript_page_id: int, start_line: int, start_offset: int, label: string}>>  $breaksByLayer
+     * @param  SupportCollection<int, EditionSegment>  $window
      */
-    private function pagesOf(TranscriptionLayer $transcription, SupportCollection $imagesByPage): array
+    private function pageOfWindow(SupportCollection $normalizedOfWitness, SupportCollection $breaksByLayer, SupportCollection $window): ?int
+    {
+        foreach ($window as $editionSegment) {
+            foreach ($normalizedOfWitness as $layer) {
+                $assignment = $layer->assignments
+                    ->where('segment_id', $editionSegment->segment_id)
+                    ->sortBy('start_offset')
+                    ->first();
+
+                if ($assignment === null) {
+                    continue;
+                }
+
+                $pageId = null;
+
+                foreach ($breaksByLayer[$layer->id] as $break) {
+                    if ($break['start_offset'] > $assignment->start_offset) {
+                        break;
+                    }
+
+                    $pageId = $break['manuscript_page_id'];
+                }
+
+                return $pageId;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Where the manuscript's pages begin in this layer's text, in text
+     * order. A page break is held as a line (see TranscriptionPageBreak)
+     * and resolved to this layer's own offset here.
+     *
+     * @return list<array{manuscript_page_id: int, start_line: int, start_offset: int, label: string}>
+     */
+    private function pageBreaksOf(TranscriptionLayer $transcription): array
     {
         $breaks = [];
+        $sorted = $transcription->transcription->pageBreaks->sortBy('start_line');
+        $offsets = $transcription->offsetsOfLines(array_values($sorted->map(fn ($break) => (int) $break->start_line)->all()));
 
-        foreach ($transcription->transcription->pageBreaks->sortBy('start_line') as $break) {
+        foreach ($sorted as $break) {
             $breaks[] = [
                 'manuscript_page_id' => (int) $break->manuscript_page_id,
                 'start_line' => (int) $break->start_line,
-                'start_offset' => $transcription->offsetOfLine((int) $break->start_line),
+                'start_offset' => $offsets[(int) $break->start_line],
                 'label' => (string) ($break->manuscriptPage->label ?? ''),
             ];
         }
 
+        usort($breaks, fn (array $a, array $b) => $a['start_offset'] <=> $b['start_offset']);
+
+        return $breaks;
+    }
+
+    /**
+     * The stretch of a layer's text the pane shows: PANE_PAGES pages from
+     * the one asked for (the first, when the page is not in this
+     * transcript), the text before the first break counting with the
+     * first page. A transcript without breaks is one page: the whole.
+     *
+     * `previous_page_id` and `next_page_id` name the pages a step back or
+     * on would start at — a step is a whole slice, so consecutive slices
+     * do not overlap.
+     *
+     * @param  list<array{manuscript_page_id: int, start_line: int, start_offset: int, label: string}>  $breaks
+     * @return array{start: int, end: int, whole: bool, page_ids: list<int>, previous_page_id: int|null, next_page_id: int|null}
+     */
+    private function sliceOf(TranscriptionLayer $transcription, array $breaks, ?int $pageId): array
+    {
+        $length = mb_strlen($transcription->text);
+
+        if ($breaks === []) {
+            return ['start' => 0, 'end' => $length, 'whole' => true, 'page_ids' => [], 'previous_page_id' => null, 'next_page_id' => null];
+        }
+
+        $starts = array_column($breaks, 'start_offset');
+        $starts[0] = 0;
+        $ids = array_column($breaks, 'manuscript_page_id');
+        $index = array_search($pageId, $ids, true);
+        $index = $index === false ? 0 : $index;
+        $after = min($index + self::PANE_PAGES, count($breaks));
+        $end = $starts[$after] ?? $length;
+
+        // A break stands at a line's start; the line break before it ends
+        // the previous page's last line and would print as an empty one.
+        if (isset($starts[$after]) && $end > 0 && mb_substr($transcription->text, $end - 1, 1) === "\n") {
+            $end--;
+        }
+
+        return [
+            'start' => $starts[$index],
+            'end' => $end,
+            'whole' => $index === 0 && $after >= count($breaks),
+            'page_ids' => array_slice($ids, $index, $after - $index),
+            'previous_page_id' => $index > 0 ? $ids[max(0, $index - self::PANE_PAGES)] : null,
+            'next_page_id' => $ids[$after] ?? null,
+        ];
+    }
+
+    /**
+     * A layer's text, assignments, page breaks and image alignments within
+     * the slice, offsets rebased to the slice's start and spans clipped to
+     * its ends — the pane reads them against the text it was sent. Part
+     * totals and ordinals are the whole layer's: a badge says "1 · 2/2"
+     * even where the other part is on a page not sent.
+     *
+     * @param  array{start: int, end: int, whole: bool, page_ids: list<int>, previous_page_id: int|null, next_page_id: int|null}  $slice
+     * @param  list<array{manuscript_page_id: int, start_line: int, start_offset: int, label: string}>  $breaks
+     * @return array<string, mixed>
+     */
+    private function slicedTranscript(TranscriptionLayer $transcription, array $slice, array $breaks): array
+    {
+        $start = $slice['start'];
+        $end = $slice['end'];
+        $within = fn (int $spanStart, int $spanEnd) => $spanStart < $end && $spanEnd > $start;
+        $rebase = fn (int $offset) => max(0, min($end, $offset) - $start);
+
+        // Which part of its segment each span is, as a dense ordinal — raw
+        // `part` values can carry gaps after merges and removals, and
+        // AlignableText prints "label · ordinal/total" on a discontinuous
+        // assignment's badges.
+        $partOrdinals = [];
+
+        foreach ($transcription->assignments->groupBy('segment_id') as $group) {
+            foreach ($group->sortBy('part')->values() as $index => $assignment) {
+                $partOrdinals[$assignment->id] = $index + 1;
+            }
+        }
+
+        return [
+            'text' => mb_substr($transcription->text, $start, $end - $start),
+            'slice' => $slice,
+            'assignments' => $transcription->assignments
+                ->filter(fn (Assignment $assignment) => $within($assignment->start_offset, $assignment->end_offset))
+                ->sortBy('start_offset')
+                ->map(fn (Assignment $assignment) => [
+                    'id' => $assignment->id,
+                    'segment_id' => $assignment->segment_id,
+                    'start_offset' => $rebase($assignment->start_offset),
+                    'end_offset' => $rebase($assignment->end_offset),
+                    'part' => $assignment->part,
+                    'part_ordinal' => $partOrdinals[$assignment->id],
+                    'segment' => [
+                        'id' => $assignment->segment_id,
+                        'label' => $assignment->segment?->label,
+                    ],
+                ])
+                ->values()
+                ->all(),
+            'part_totals' => $transcription->assignments
+                ->groupBy('segment_id')
+                ->map(fn (SupportCollection $group) => $group->count())
+                ->all(),
+            'page_breaks' => array_values(array_map(
+                fn (array $break) => [...$break, 'start_offset' => $rebase($break['start_offset'])],
+                array_filter($breaks, fn (array $break) => $break['start_offset'] >= $start && $break['start_offset'] < $end),
+            )),
+            // The layer's image alignments on the pages sent, so the image
+            // view can light up a region for the edition line under the
+            // pointer and the line for the region under it (user decision).
+            'regions' => $transcription->regions()
+                ->where('start_offset', '<', $end)
+                ->where('end_offset', '>', $start)
+                ->orderBy('position')
+                ->get(['id', 'transcription_layer_id', 'manuscript_image_id', 'group_id', 'text', 'start_offset', 'end_offset', 'position', 'x', 'y', 'width', 'height', 'needs_review'])
+                ->map(function (TranscriptionRegion $region) use ($rebase) {
+                    $region->start_offset = $rebase($region->start_offset);
+                    $region->end_offset = $rebase($region->end_offset);
+
+                    return $region;
+                })
+                ->values(),
+        ];
+    }
+
+    /**
+     * The witness's pages with their photograph — the pane's page
+     * pulldowns, in both views.
+     *
+     * @param  SupportCollection<int, EloquentCollection<int, ManuscriptImage>>  $imagesByPage
+     * @return list<array{id: int, label: string, position: float, image: array{id: int, witness_id: int, manuscript_page_id: int, url: string, position: string}|null}>
+     */
+    private function witnessPages(TranscriptionLayer $transcription, SupportCollection $imagesByPage): array
+    {
         $pages = [];
 
         foreach ($transcription->transcription->witness->pages->sortBy('position') as $page) {
@@ -421,51 +633,7 @@ class EditionController extends Controller
             ];
         }
 
-        return ['page_breaks' => $breaks, 'pages' => $pages];
-    }
-
-    /**
-     * A transcript's full text and assignments for the witnesses pane.
-     *
-     * @return array<string, mixed>
-     */
-    private function wholeTranscript(TranscriptionLayer $transcription): array
-    {
-        // Which part of its segment each span is, as a dense ordinal — raw
-        // `part` values can carry gaps after merges and removals, and
-        // AlignableText prints "label · ordinal/total" on a discontinuous
-        // assignment's badges.
-        $partOrdinals = [];
-
-        foreach ($transcription->assignments->groupBy('segment_id') as $group) {
-            foreach ($group->sortBy('part')->values() as $index => $assignment) {
-                $partOrdinals[$assignment->id] = $index + 1;
-            }
-        }
-
-        return [
-            'text' => $transcription->text,
-            'assignments' => $transcription->assignments
-                ->sortBy('start_offset')
-                ->map(fn (Assignment $assignment) => [
-                    'id' => $assignment->id,
-                    'segment_id' => $assignment->segment_id,
-                    'start_offset' => $assignment->start_offset,
-                    'end_offset' => $assignment->end_offset,
-                    'part' => $assignment->part,
-                    'part_ordinal' => $partOrdinals[$assignment->id],
-                    'segment' => [
-                        'id' => $assignment->segment_id,
-                        'label' => $assignment->segment?->label,
-                    ],
-                ])
-                ->values()
-                ->all(),
-            'part_totals' => $transcription->assignments
-                ->groupBy('segment_id')
-                ->map(fn (SupportCollection $group) => $group->count())
-                ->all(),
-        ];
+        return $pages;
     }
 
     /**

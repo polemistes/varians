@@ -17,8 +17,10 @@ import type {
 } from '@/types/models';
 
 /**
- * One layer of one transcript of one witness, whole — see
- * EditionController::witnessTranscripts. A diplomatic entry names its
+ * One layer of one transcript of one witness, cut to a run of its
+ * manuscript pages — see EditionController::witnessPane. Every offset in
+ * it (assignments, page breaks, regions) is the slice's own, counted from
+ * `slice.start` of the layer's full text. A diplomatic entry names its
  * normalized sibling, the only layer an add may draw on.
  */
 export type WitnessTranscript = {
@@ -31,6 +33,16 @@ export type WitnessTranscript = {
     layer: string;
     first_sort_key: string;
     text: string;
+    // Where in the layer's full text this stretch stands, which pages it
+    // holds, and the pages a step back or on would start at.
+    slice: {
+        start: number;
+        end: number;
+        whole: boolean;
+        page_ids: number[];
+        previous_page_id: number | null;
+        next_page_id: number | null;
+    };
     assignments: Assignment[];
     part_totals?: Record<number, number>;
     // Where the manuscript's pages begin in this layer's text, and the
@@ -47,8 +59,22 @@ export type WitnessTranscript = {
         position: number;
         image: ManuscriptImage | null;
     }[];
-    // This layer's image alignments.
+    // This layer's image alignments on the pages sent.
     regions: TranscriptionRegion[];
+};
+
+/**
+ * What the pane asked the server for and got: one witness, a run of its
+ * pages, in both layers. An optional Inertia prop — absent until asked
+ * for, and absent again after any full visit.
+ */
+export type WitnessPane = {
+    witness_id: number | null;
+    page_id: number | null;
+    // Every page a transcript of the witness starts somewhere — the pages
+    // the pane can open at.
+    transcribed_page_ids: number[];
+    transcripts: WitnessTranscript[];
 };
 
 type SegmentOption = {
@@ -58,16 +84,25 @@ type SegmentOption = {
 
 /**
  * The witnesses pane: the manuscripts of the work, one at a time, in
- * either layer, whole — where a witness is read beside the edition and
- * where its assignments are picked for the edition (user decision, merging
- * the former "Add text" and "The manuscripts" panes). Selecting text and
- * pressing "Add selection" adds every assigned assignment inside the selection;
- * each lands where the manuscript has it (SegmentAdder::insertionPosition).
- * Assignments the edition already has print grey.
+ * either layer, a few pages at a time — where a witness is read beside the
+ * edition and where its assignments are picked for the edition (user
+ * decision, merging the former "Add text" and "The manuscripts" panes).
+ * Selecting text and pressing "Add selection" adds every assigned
+ * assignment inside the selection; each lands where the manuscript has it
+ * (SegmentAdder::insertionPosition). Assignments the edition already has
+ * print grey.
+ *
+ * The text is fetched on demand (`witnessPane`, an optional prop): the
+ * pane asks for the chosen witness when it mounts, when the witness
+ * changes, when a step is taken through the pages, and again whenever a
+ * full visit has dropped the prop — so the edition page itself carries no
+ * transcript, however many witnesses of however many pages the work has.
  */
 const props = defineProps<{
     edition: Edition;
-    transcripts: WitnessTranscript[];
+    /** Every witness the pane may show, in the server's order (by siglum). */
+    witnesses: { id: number; siglum: string }[];
+    pane?: WitnessPane;
     alreadyAddedSegmentIds: number[];
     segments: SegmentOption[];
     referenceLevels: ReferenceLevel[];
@@ -95,26 +130,27 @@ const emit = defineEmits<{
     ): void;
 }>();
 
+/** The page props an add can change — see TEXT_PROPS in Editions/Show.vue. */
+const ADD_PROPS = [
+    'windowSegments',
+    'segments',
+    'workConjectures',
+    'transpositions',
+    'bibliography',
+    'page',
+    'totalPages',
+    'witnesses',
+    'flash',
+];
+
 const LAYER_LABELS: Record<string, string> = {
     diplomatic: 'Diplomatic',
     normalized: 'Normalized',
 };
 
-/**
- * Witnesses in the server's order (by siglum). Keyed by id, not siglum:
- * sigla are conventional per work, not unique across the system.
- */
-const witnesses = computed(() => {
-    const seen = new Map<number, string>();
-
-    for (const transcript of props.transcripts) {
-        if (!seen.has(transcript.witness_id)) {
-            seen.set(transcript.witness_id, transcript.siglum);
-        }
-    }
-
-    return [...seen.entries()].map(([id, siglum]) => ({ id, siglum }));
-});
+// Keyed by id, not siglum: sigla are conventional per work, not unique
+// across the system.
+const witnesses = computed(() => props.witnesses);
 
 const activeWitnessId = ref<number | null>(witnesses.value[0]?.id ?? null);
 
@@ -131,8 +167,63 @@ watch(
     { immediate: true },
 );
 
+// ---- fetching. What was sent is shown only while it is the chosen
+// witness's; until the chosen witness's own pages arrive the pane shows a
+// skeleton, and while a further run of the same witness's pages is on
+// its way the text it has dims. ----
+const loading = ref(false);
+// What is on its way, so the same ask made twice at once — the mount's
+// and the witness watcher's, when the URL names a witness — goes once.
+let inFlight: string | null = null;
+
+const stale = computed(
+    () =>
+        props.pane === undefined ||
+        props.pane.witness_id !== activeWitnessId.value,
+);
+
+const transcripts = computed<WitnessTranscript[]>(() =>
+    stale.value ? [] : (props.pane?.transcripts ?? []),
+);
+
+/**
+ * Ask for the chosen witness, from the page given — or, with none, from
+ * the page where it has the edition's window. A partial reload of the
+ * one prop: the rest of the page stays as it is, and the choice goes into
+ * the URL, so the actions that follow keep it.
+ */
+function load(pageId: number | null) {
+    const key = `${activeWitnessId.value}:${pageId ?? ''}`;
+
+    if (activeWitnessId.value === null || inFlight === key) {
+        return;
+    }
+
+    inFlight = key;
+    loading.value = true;
+    router.reload({
+        only: ['witnessPane'],
+        data: { witness: activeWitnessId.value, witness_page: pageId ?? '' },
+        onFinish: () => {
+            loading.value = false;
+            inFlight = null;
+        },
+    });
+}
+
+watch(
+    () => props.pane,
+    (pane) => {
+        // A full visit dropped the prop (a jump to another page of the
+        // edition): follow the edition to where the witness has it.
+        if (pane === undefined && !loading.value) {
+            load(null);
+        }
+    },
+);
+
 const layersForWitness = computed(() =>
-    props.transcripts.filter((t) => t.witness_id === activeWitnessId.value),
+    transcripts.value.filter((t) => t.witness_id === activeWitnessId.value),
 );
 
 /** The layers this witness has at all — the toggle offers what exists. */
@@ -226,11 +317,36 @@ function onScroll() {
     });
 }
 
+let mounted = true;
+
 onMounted(() => {
+    // The witness the URL names — the choice made before a full reload —
+    // read once mounted, never at setup: the server renders the first
+    // witness, and a first client render that differed would be a
+    // hydration mismatch.
+    const named = Number(
+        new URLSearchParams(window.location.search).get('witness'),
+    );
+
+    if (witnesses.value.some((witness) => witness.id === named)) {
+        activeWitnessId.value = named;
+    }
+
+    // After the page's own mount: it may put the pane away at once (a
+    // remembered preference), and a pane put away asks for nothing.
+    void nextTick(() => {
+        if (mounted && stale.value) {
+            load(null);
+        }
+    });
+
     trackPageAtTop();
     window.addEventListener('resize', onScroll);
 });
-onUnmounted(() => window.removeEventListener('resize', onScroll));
+onUnmounted(() => {
+    mounted = false;
+    window.removeEventListener('resize', onScroll);
+});
 
 function showImage() {
     selectedPageId.value =
@@ -333,10 +449,19 @@ const highlightedRegionIds = computed(() =>
             const rows = normalizedRows(group);
 
             if (rows.length > 0) {
+                // The edition's spans are the layer's own offsets; the
+                // regions here are the slice's.
                 return rows.some(({ region, layer }) =>
                     props.hoveredSpans.some(
                         (span) =>
-                            span.layerId === layer.id && overlaps(span, region),
+                            span.layerId === layer.id &&
+                            overlaps(
+                                {
+                                    start: span.start - layer.slice.start,
+                                    end: span.end - layer.slice.start,
+                                },
+                                region,
+                            ),
                     ),
                 );
             }
@@ -367,8 +492,8 @@ function onHoverRegion(regionId: number | null) {
     emit('hover-image-region', {
         spans: rows.map(({ region, layer }) => ({
             layerId: layer.id,
-            start: region.start_offset,
-            end: region.end_offset,
+            start: region.start_offset + layer.slice.start,
+            end: region.end_offset + layer.slice.start,
         })),
         segmentIds:
             rows.length > 0
@@ -393,6 +518,60 @@ function stepPage(delta: -1 | 1) {
         selectedPageId.value = next.id;
     }
 }
+
+// ---- the run of pages sent. The image view's page choice fetches the
+// run starting at a page outside it, so its regions come along; the text
+// view steps a run at a time, or opens at a page chosen. ----
+const slicePageIds = computed(() =>
+    shownTranscripts.value.flatMap((transcript) => transcript.slice.page_ids),
+);
+
+watch(selectedPageId, (pageId) => {
+    if (
+        pageId !== null &&
+        view.value === 'image' &&
+        !slicePageIds.value.includes(pageId) &&
+        (props.pane?.transcribed_page_ids ?? []).includes(pageId)
+    ) {
+        load(pageId);
+    }
+});
+
+/** The text view's pager: absent where the whole transcript is shown. */
+const slicePager = computed(() => {
+    const slice = shownTranscripts.value.find(
+        (transcript) => !transcript.slice.whole,
+    )?.slice;
+
+    if (!slice) {
+        return null;
+    }
+
+    const labelOf = (id: number) =>
+        pages.value.find((page) => page.id === id)?.label ?? '';
+    const first = slice.page_ids[0];
+    const last = slice.page_ids[slice.page_ids.length - 1];
+
+    return {
+        previous: slice.previous_page_id,
+        next: slice.next_page_id,
+        // The run's extent; a single page is already named by the pulldown.
+        label:
+            first === undefined || first === last
+                ? ''
+                : `${labelOf(first)} – ${labelOf(last)}`,
+    };
+});
+
+/** The page chosen in the text view's pulldown: the run starting there. */
+const pagerPageId = computed({
+    get: () => shownTranscripts.value[0]?.slice.page_ids[0] ?? null,
+    set: (pageId: number | null) => {
+        if (pageId !== null && !slicePageIds.value.includes(pageId)) {
+            load(pageId);
+        }
+    },
+});
 
 function unavailableAssignmentIds(transcript: WitnessTranscript): number[] {
     return transcript.assignments
@@ -437,12 +616,13 @@ watch([activeWitnessId, shownLayer], () => {
 watch(activeWitnessId, () => {
     view.value = 'text';
     selectedPageId.value = null;
+    load(null);
 });
 
 /** The assigned, not yet added segments fully inside the selection. */
 const selectedSegmentIds = computed(() => {
     const sel = selection.value;
-    const transcript = props.transcripts.find(
+    const transcript = transcripts.value.find(
         (t) => t.id === sel?.transcriptId,
     );
 
@@ -476,7 +656,7 @@ const canAdd = computed(
 
 function sourceLayerId(transcriptId: number | null): number | null {
     return (
-        props.transcripts.find((t) => t.id === transcriptId)
+        transcripts.value.find((t) => t.id === transcriptId)
             ?.normalized_layer_id ?? null
     );
 }
@@ -495,6 +675,9 @@ function addSelection() {
             segment_ids: selectedSegmentIds.value,
         },
         {
+            // What adding changes: the text, the paging, which witnesses
+            // the edition draws on — never this pane's own transcript.
+            only: ADD_PROPS,
             preserveScroll: true,
             onSuccess: () => {
                 selection.value = null;
@@ -532,6 +715,7 @@ function submitBulk() {
     bulkForm
         .transform((data) => ({ ...data, transcription_layer_id: layerId }))
         .post(storeEditionSegmentBulk.url(props.edition), {
+            only: ADD_PROPS,
             preserveScroll: true,
             onSuccess: () => {
                 bulkForm.reset();
@@ -635,6 +819,27 @@ function submitBulk() {
             No transcriptions of this work yet.
         </p>
 
+        <!-- Until the chosen witness's pages arrive: the shape of a text. -->
+        <div
+            v-if="witnesses.length && stale"
+            class="animate-pulse space-y-3 rounded border border-stone-200 p-3 dark:border-stone-800"
+            aria-busy="true"
+            aria-label="Loading the witness"
+        >
+            <div
+                v-for="width in [
+                    'w-11/12',
+                    'w-4/5',
+                    'w-full',
+                    'w-3/4',
+                    'w-5/6',
+                ]"
+                :key="width"
+                class="h-4 rounded bg-stone-200 dark:bg-stone-800"
+                :class="width"
+            ></div>
+        </div>
+
         <!-- The "Add lines…" dialogue sits between the row that opened it
              and the transcript it draws from — never below the text. -->
         <form
@@ -686,7 +891,7 @@ function submitBulk() {
 
         <!-- The image view: the page at the top of the text when opened,
              then whichever page is chosen here. -->
-        <div v-if="view === 'image'" class="flex flex-col gap-2">
+        <div v-if="view === 'image' && !stale" class="flex flex-col gap-2">
             <div class="flex flex-wrap items-center gap-2">
                 <button
                     type="button"
@@ -746,9 +951,10 @@ function submitBulk() {
         <!-- The text, scrolling within the pane: the page whose break has
              scrolled past the top is what the Facsimile tab opens on. -->
         <div
-            v-show="view === 'text'"
+            v-show="view === 'text' && !stale"
             ref="scrollEl"
             class="max-h-[70vh] overflow-y-auto"
+            :class="loading && 'opacity-50'"
             @scroll="onScroll"
         >
             <template
@@ -788,6 +994,49 @@ function submitBulk() {
                     />
                 </div>
             </template>
+        </div>
+
+        <!-- A run of pages at a time: step back or on by a run, or open at
+             a page — below the text, so the frames' tops stay aligned. -->
+        <div
+            v-if="view === 'text' && !stale && slicePager"
+            class="mt-2 flex flex-wrap items-center gap-2 text-stone-600 dark:text-stone-400"
+        >
+            <button
+                type="button"
+                class="rounded border border-stone-300 px-2 py-1 disabled:opacity-40 dark:border-stone-700"
+                :disabled="loading || slicePager.previous === null"
+                title="The pages before these"
+                @click="load(slicePager.previous)"
+            >
+                &larr;
+            </button>
+            <select
+                v-model="pagerPageId"
+                class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700 dark:bg-stone-950"
+                title="Open the text at a page"
+                :disabled="loading"
+            >
+                <option
+                    v-for="page in pages.filter((page) =>
+                        (pane?.transcribed_page_ids ?? []).includes(page.id),
+                    )"
+                    :key="page.id"
+                    :value="page.id"
+                >
+                    {{ page.label }}
+                </option>
+            </select>
+            <span v-if="slicePager.label">{{ slicePager.label }}</span>
+            <button
+                type="button"
+                class="rounded border border-stone-300 px-2 py-1 disabled:opacity-40 dark:border-stone-700"
+                :disabled="loading || slicePager.next === null"
+                title="The pages after these"
+                @click="load(slicePager.next)"
+            >
+                &rarr;
+            </button>
         </div>
     </fieldset>
 </template>
