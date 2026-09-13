@@ -27,6 +27,16 @@ import type { Witness, Work } from '@/types/models';
 type Owned = {
     user?: { id: number; name: string } | null;
     created_at: string | null;
+    /** Which of the three groups the row belongs in — see HomeController. */
+    sharing: Sharing;
+};
+
+type Sharing = 'own' | 'shared' | 'public';
+
+const groupLabels: Record<Sharing, string> = {
+    own: 'Your own',
+    shared: 'Shared with you',
+    public: 'Public',
 };
 
 type EditionRow = Owned & {
@@ -60,6 +70,31 @@ const props = defineProps<{
 
 // Every member may start a work, a witness or an edition of her own.
 const canEdit = computed(() => props.can.create);
+
+/**
+ * Each list under its three headings, in a fixed order, with empty groups
+ * left out. A signed-out visitor sees only public material, where a heading
+ * saying so would be noise, so the lists stay flat for her.
+ */
+function grouped<Row extends Owned>(rows: Row[]) {
+    const order: Sharing[] = canEdit.value
+        ? ['own', 'shared', 'public']
+        : ['public'];
+
+    return order
+        .map((key) => ({
+            key,
+            label: groupLabels[key],
+            rows: canEdit.value
+                ? rows.filter((row) => row.sharing === key)
+                : rows,
+        }))
+        .filter((group) => group.rows.length > 0);
+}
+
+const workGroups = computed(() => grouped(props.works));
+const witnessGroups = computed(() => grouped(props.witnesses));
+const editionGroups = computed(() => grouped(props.editions));
 
 // An edition belongs to a work, so starting one means naming the work first.
 // Revealed on demand rather than sitting there as a permanent select.
@@ -137,49 +172,61 @@ function removeWitness(witness: WitnessRow) {
                         >
                     </div>
 
-                    <ul class="flex flex-col gap-2">
-                        <li
-                            v-for="work in props.works"
-                            :key="work.id"
-                            class="flex items-baseline justify-between gap-2 rounded border border-stone-200 p-3 dark:border-stone-800"
-                        >
-                            <Link
-                                :href="showWork.url(work)"
-                                class="min-w-0 flex-1"
+                    <div class="flex flex-col gap-5">
+                        <div v-for="group in workGroups" :key="group.key">
+                            <h3
+                                v-if="canEdit"
+                                class="mb-2 text-xs font-medium tracking-widest text-stone-500 uppercase dark:text-stone-400"
                             >
-                                <span class="font-serif">{{ work.title }}</span>
-                                <span
-                                    v-if="work.author"
-                                    class="block text-xs text-stone-500 dark:text-stone-400"
-                                    >{{ work.author }}</span
+                                {{ group.label }}
+                            </h3>
+                            <ul class="flex flex-col gap-2">
+                                <li
+                                    v-for="work in group.rows"
+                                    :key="work.id"
+                                    class="flex items-baseline justify-between gap-2 rounded border border-stone-200 p-3 dark:border-stone-800"
                                 >
-                                <span
-                                    class="block text-xs text-stone-400 dark:text-stone-500"
-                                    :title="recordedAt(work.created_at)"
-                                    >{{
-                                        provenance(
-                                            work.user?.name,
-                                            work.created_at,
-                                        )
-                                    }}</span
-                                >
-                            </Link>
-                            <button
-                                v-if="work.can_delete"
-                                type="button"
-                                class="text-xs text-red-600 underline dark:text-red-400"
-                                @click="removeWork(work)"
-                            >
-                                Delete
-                            </button>
-                        </li>
-                        <li
+                                    <Link
+                                        :href="showWork.url(work)"
+                                        class="min-w-0 flex-1"
+                                    >
+                                        <span class="font-serif">{{
+                                            work.title
+                                        }}</span>
+                                        <span
+                                            v-if="work.author"
+                                            class="block text-xs text-stone-500 dark:text-stone-400"
+                                            >{{ work.author }}</span
+                                        >
+                                        <span
+                                            class="block text-xs text-stone-400 dark:text-stone-500"
+                                            :title="recordedAt(work.created_at)"
+                                            >{{
+                                                provenance(
+                                                    work.user?.name,
+                                                    work.created_at,
+                                                )
+                                            }}</span
+                                        >
+                                    </Link>
+                                    <button
+                                        v-if="work.can_delete"
+                                        type="button"
+                                        class="text-xs text-red-600 underline dark:text-red-400"
+                                        @click="removeWork(work)"
+                                    >
+                                        Delete
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                        <p
                             v-if="props.works.length === 0"
                             class="text-sm text-stone-500 dark:text-stone-400"
                         >
                             No works yet.
-                        </li>
-                    </ul>
+                        </p>
+                    </div>
                 </section>
 
                 <!-- Witnesses -->
@@ -194,53 +241,67 @@ function removeWitness(witness: WitnessRow) {
                         >
                     </div>
 
-                    <ul class="flex flex-col gap-2">
-                        <li
-                            v-for="witness in props.witnesses"
-                            :key="witness.id"
-                            class="flex items-baseline justify-between gap-2 rounded border border-stone-200 p-3 dark:border-stone-800"
-                        >
-                            <Link
-                                :href="showWitness.url(witness.id)"
-                                class="min-w-0 flex-1"
+                    <div class="flex flex-col gap-5">
+                        <div v-for="group in witnessGroups" :key="group.key">
+                            <h3
+                                v-if="canEdit"
+                                class="mb-2 text-xs font-medium tracking-widest text-stone-500 uppercase dark:text-stone-400"
                             >
-                                <span class="font-serif">{{
-                                    witness.siglum
-                                }}</span>
-                                <span
-                                    class="block text-xs text-stone-500 dark:text-stone-400"
+                                {{ group.label }}
+                            </h3>
+                            <ul class="flex flex-col gap-2">
+                                <li
+                                    v-for="witness in group.rows"
+                                    :key="witness.id"
+                                    class="flex items-baseline justify-between gap-2 rounded border border-stone-200 p-3 dark:border-stone-800"
                                 >
-                                    {{
-                                        witness.label ?? witness.date_text ?? ''
-                                    }}
-                                </span>
-                                <span
-                                    class="block text-xs text-stone-400 dark:text-stone-500"
-                                    :title="recordedAt(witness.created_at)"
-                                    >{{
-                                        provenance(
-                                            witness.user?.name,
-                                            witness.created_at,
-                                        )
-                                    }}</span
-                                >
-                            </Link>
-                            <button
-                                v-if="witness.can_delete"
-                                type="button"
-                                class="text-xs text-red-600 underline dark:text-red-400"
-                                @click="removeWitness(witness)"
-                            >
-                                Delete
-                            </button>
-                        </li>
-                        <li
+                                    <Link
+                                        :href="showWitness.url(witness.id)"
+                                        class="min-w-0 flex-1"
+                                    >
+                                        <span class="font-serif">{{
+                                            witness.siglum
+                                        }}</span>
+                                        <span
+                                            class="block text-xs text-stone-500 dark:text-stone-400"
+                                        >
+                                            {{
+                                                witness.label ??
+                                                witness.date_text ??
+                                                ''
+                                            }}
+                                        </span>
+                                        <span
+                                            class="block text-xs text-stone-400 dark:text-stone-500"
+                                            :title="
+                                                recordedAt(witness.created_at)
+                                            "
+                                            >{{
+                                                provenance(
+                                                    witness.user?.name,
+                                                    witness.created_at,
+                                                )
+                                            }}</span
+                                        >
+                                    </Link>
+                                    <button
+                                        v-if="witness.can_delete"
+                                        type="button"
+                                        class="text-xs text-red-600 underline dark:text-red-400"
+                                        @click="removeWitness(witness)"
+                                    >
+                                        Delete
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                        <p
                             v-if="props.witnesses.length === 0"
                             class="text-sm text-stone-500 dark:text-stone-400"
                         >
                             No witnesses yet.
-                        </li>
-                    </ul>
+                        </p>
+                    </div>
                 </section>
 
                 <!-- Editions -->
@@ -282,64 +343,78 @@ function removeWitness(witness: WitnessRow) {
                         </option>
                     </select>
 
-                    <ul class="flex flex-col gap-2">
-                        <li
-                            v-for="edition in props.editions"
-                            :key="edition.id"
-                            class="flex items-baseline justify-between gap-2 rounded border border-stone-200 p-3 dark:border-stone-800"
-                        >
-                            <Link
-                                v-if="edition.work"
-                                :href="
-                                    showEdition.url({
-                                        work: edition.work.slug,
-                                        edition: edition.id,
-                                    })
-                                "
-                                class="min-w-0 flex-1"
+                    <div class="flex flex-col gap-5">
+                        <div v-for="group in editionGroups" :key="group.key">
+                            <h3
+                                v-if="canEdit"
+                                class="mb-2 text-xs font-medium tracking-widest text-stone-500 uppercase dark:text-stone-400"
                             >
-                                <span class="font-serif">{{
-                                    edition.title
-                                }}</span>
-                                <span
-                                    class="block text-xs text-stone-500 dark:text-stone-400"
+                                {{ group.label }}
+                            </h3>
+                            <ul class="flex flex-col gap-2">
+                                <li
+                                    v-for="edition in group.rows"
+                                    :key="edition.id"
+                                    class="flex items-baseline justify-between gap-2 rounded border border-stone-200 p-3 dark:border-stone-800"
                                 >
-                                    {{ edition.work.title
-                                    }}<template
-                                        v-if="
-                                            edition.visibility !== 'published'
+                                    <Link
+                                        v-if="edition.work"
+                                        :href="
+                                            showEdition.url({
+                                                work: edition.work.slug,
+                                                edition: edition.id,
+                                            })
                                         "
+                                        class="min-w-0 flex-1"
                                     >
-                                        &middot; {{ edition.visibility }}
-                                    </template>
-                                </span>
-                                <span
-                                    class="block text-xs text-stone-400 dark:text-stone-500"
-                                    :title="recordedAt(edition.created_at)"
-                                    >{{
-                                        provenance(
-                                            edition.user?.name,
-                                            edition.created_at,
-                                        )
-                                    }}</span
-                                >
-                            </Link>
-                            <button
-                                v-if="edition.can_delete"
-                                type="button"
-                                class="text-xs text-red-600 underline dark:text-red-400"
-                                @click="removeEdition(edition)"
-                            >
-                                Delete
-                            </button>
-                        </li>
-                        <li
+                                        <span class="font-serif">{{
+                                            edition.title
+                                        }}</span>
+                                        <span
+                                            class="block text-xs text-stone-500 dark:text-stone-400"
+                                        >
+                                            {{ edition.work.title
+                                            }}<template
+                                                v-if="
+                                                    edition.visibility !==
+                                                    'published'
+                                                "
+                                            >
+                                                &middot;
+                                                {{ edition.visibility }}
+                                            </template>
+                                        </span>
+                                        <span
+                                            class="block text-xs text-stone-400 dark:text-stone-500"
+                                            :title="
+                                                recordedAt(edition.created_at)
+                                            "
+                                            >{{
+                                                provenance(
+                                                    edition.user?.name,
+                                                    edition.created_at,
+                                                )
+                                            }}</span
+                                        >
+                                    </Link>
+                                    <button
+                                        v-if="edition.can_delete"
+                                        type="button"
+                                        class="text-xs text-red-600 underline dark:text-red-400"
+                                        @click="removeEdition(edition)"
+                                    >
+                                        Delete
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                        <p
                             v-if="props.editions.length === 0"
                             class="text-sm text-stone-500 dark:text-stone-400"
                         >
                             No editions yet.
-                        </li>
-                    </ul>
+                        </p>
+                    </div>
                 </section>
             </div>
         </div>

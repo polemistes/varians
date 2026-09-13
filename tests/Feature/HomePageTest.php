@@ -113,3 +113,66 @@ test('every front-page row names its owner and when it was made, so copies are t
         expect($works->every(fn ($row) => filled($row['created_at']) && filled($row['user']['name'])))->toBeTrue();
     });
 });
+
+test('each list is grouped into your own, shared with you, and public', function () {
+    // Sharing is by NAME — an edition one was invited to edit — and reaches
+    // the work and the witnesses assigned to it, which is how editing
+    // privileges travel (see WitnessPolicy). Everything else one may see is
+    // public.
+    $me = User::factory()->create();
+    $other = User::factory()->create();
+
+    $mine = Work::factory()->for($me)->create(['title' => 'Mine']);
+    Edition::factory()->for($mine)->for($me)->create(['title' => 'My edition']);
+    Witness::factory()->for($me)->create(['siglum' => 'M']);
+
+    // Someone else's work, with an edition I have been invited to edit and
+    // a witness assigned to it.
+    $shared = Work::factory()->for($other)->create(['title' => 'Shared']);
+    $sharedEdition = Edition::factory()->for($shared)->for($other)->create(['title' => 'Their edition']);
+    $sharedEdition->editors()->attach($me);
+    $sharedWitness = Witness::factory()->for($other)->create(['siglum' => 'S']);
+    $sharedLayer = TranscriptionLayer::factory()->for($sharedWitness)->create(['text' => 'the quick fox']);
+    $sharedPassage = CanonicalPassage::factory()->for($shared)->create();
+    TranscriptionSegment::factory()->for($sharedLayer)->for($sharedPassage, 'canonicalPassage')
+        ->create(['start_offset' => 0, 'end_offset' => 13]);
+
+    // A third member's published work, with nothing shared about it.
+    $stranger = User::factory()->create();
+    $public = Work::factory()->for($stranger)->create(['title' => 'Public']);
+    Edition::factory()->for($public)->for($stranger)->create(['title' => 'Public edition', 'visibility' => 'published']);
+    $publicWitness = Witness::factory()->for($stranger)->create(['siglum' => 'P']);
+    $publicLayer = TranscriptionLayer::factory()->for($publicWitness)->create(['text' => 'the quick fox']);
+    $publicPassage = CanonicalPassage::factory()->for($public)->create();
+    TranscriptionSegment::factory()->for($publicLayer)->for($publicPassage, 'canonicalPassage')
+        ->create(['start_offset' => 0, 'end_offset' => 13]);
+    $publicLayer->transcription->update(['visibility' => 'published']);
+
+    $this->actingAs($me)->get(route('home'))->assertInertia(function (AssertInertia $page) {
+        $props = $page->toArray()['props'];
+        $sharingOf = fn (string $list, string $key, string $value) => collect($props[$list])
+            ->firstWhere($key, $value)['sharing'] ?? null;
+
+        expect($sharingOf('works', 'title', 'Mine'))->toBe('own')
+            ->and($sharingOf('works', 'title', 'Shared'))->toBe('shared')
+            ->and($sharingOf('works', 'title', 'Public'))->toBe('public')
+            ->and($sharingOf('editions', 'title', 'My edition'))->toBe('own')
+            ->and($sharingOf('editions', 'title', 'Their edition'))->toBe('shared')
+            ->and($sharingOf('editions', 'title', 'Public edition'))->toBe('public')
+            ->and($sharingOf('witnesses', 'siglum', 'M'))->toBe('own')
+            ->and($sharingOf('witnesses', 'siglum', 'S'))->toBe('shared')
+            ->and($sharingOf('witnesses', 'siglum', 'P'))->toBe('public');
+    });
+});
+
+test('a site-wide editor is not told that the whole site is shared with her', function () {
+    // The policies answer yes to everything for her, so asking them would
+    // leave one enormous "shared with you" group and nothing else.
+    $editor = User::factory()->editor()->create();
+    Work::factory()->create(['title' => 'Someone else’s']);
+
+    $this->actingAs($editor)->get(route('home'))->assertInertia(function (AssertInertia $page) {
+        $work = collect($page->toArray()['props']['works'])->firstWhere('title', 'Someone else’s');
+        expect($work['sharing'])->toBe('public');
+    });
+});
