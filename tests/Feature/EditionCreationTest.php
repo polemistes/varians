@@ -85,3 +85,19 @@ test('an editor may edit any edition but not delete it; an administrator may do 
         ->assertRedirect();
     expect(Edition::find($edition->id))->toBeNull();
 });
+
+test('whether the lines wrap is chosen when the edition is made', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $work = Work::factory()->create();
+
+    $this->post(route('editions.store', $work), [
+        'title' => 'Editio minor',
+        'wraps_lines' => false,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    expect(Edition::where('title', 'Editio minor')->sole()->wraps_lines)->toBeFalse();
+
+    $this->post(route('editions.store', $work), ['title' => 'Editio maior'])->assertRedirect();
+
+    expect(Edition::where('title', 'Editio maior')->sole()->wraps_lines)->toBeTrue();
+});

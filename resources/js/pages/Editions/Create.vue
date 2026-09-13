@@ -12,6 +12,9 @@ const props = defineProps<{
 const form = useForm({
     title: '',
     description: '',
+    // Lines wrap to the text box unless the editor says otherwise —
+    // a property of the edition, changed later among its properties.
+    wraps_lines: true,
 });
 
 function submit() {
@@ -72,6 +75,14 @@ function submit() {
                         class="text-xs text-red-600 dark:text-red-400"
                         >{{ form.errors.description }}</span
                     >
+                </label>
+
+                <label
+                    class="flex items-center gap-2 text-sm"
+                    title="Off, lines run on as you set them and the text box scrolls sideways"
+                >
+                    <input v-model="form.wraps_lines" type="checkbox" />
+                    Wrap lines to the width of the text box
                 </label>
 
                 <button

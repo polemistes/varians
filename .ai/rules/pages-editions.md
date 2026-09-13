@@ -42,9 +42,14 @@ renders the defaults, and a first client render that already differs is
 a hydration mismatch (real bug — a pane put away last time). "Show
 witnesses pane" (same store) puts the right pane away for reader or
 editor — the grid drops to one column and the edition has the whole
-width for its text and margins. "Wrap lines" is NOT a viewer preference
-but the EDITION's (`editions.wraps_lines`, editors only, through
-`editions.update`): off, the text box gets `overflow-x-auto
+width for its text and margins. "Variants on hover" (same store) keeps
+the apparatus tooltip away while the pointer moves over the words — a
+click still opens the notice, and the word still lights its facsimile
+box (`showReadings` sets `hoveredRun` and returns). "Wrap lines" is NOT
+a viewer preference but the EDITION's (`editions.wraps_lines`): chosen
+on the create form (`StoreEditionRequest`, default on) and changed in
+"Edit edition properties" (the renamed title/description form, through
+`editions.update`) — never in the display row: off, the text box gets `overflow-x-auto
 whitespace-nowrap`, so lines run on as the editor set them and the box
 scrolls sideways (user request — horizontal space is scarce); the anchor
 measurement adds `scrollLeft`. A RIGHT-margin note is placed just past the

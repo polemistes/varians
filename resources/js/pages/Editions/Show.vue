@@ -194,6 +194,7 @@ const headerForm = useForm({
     title: props.edition.title,
     description: props.edition.description ?? '',
     visibility: props.edition.visibility,
+    wraps_lines: props.edition.wraps_lines,
 });
 
 function saveHeader() {
@@ -1353,6 +1354,7 @@ function storedDisplay(): {
     paratext: boolean;
     markers: boolean;
     witnesses: boolean;
+    hover: boolean;
 } {
     try {
         const raw = localStorage.getItem(DISPLAY_KEY);
@@ -1362,9 +1364,10 @@ function storedDisplay(): {
             paratext: parsed.paratext !== false,
             markers: parsed.markers !== false,
             witnesses: parsed.witnesses !== false,
+            hover: parsed.hover !== false,
         };
     } catch {
-        return { paratext: true, markers: true, witnesses: true };
+        return { paratext: true, markers: true, witnesses: true, hover: true };
     }
 }
 
@@ -1377,20 +1380,25 @@ const showSegmentMarkers = ref(true);
 // The witnesses pane can be put away — reader or editor — and the edition
 // then has the whole width for its text and its margins.
 const showWitnesses = ref(true);
+// The apparatus tooltip under the pointer can be disturbing while reading
+// or editing; off, the words still mark their variant sites and open their
+// notices on a click, only the hover report stays away.
+const variantsOnHover = ref(true);
 
 onMounted(() => {
     const stored = storedDisplay();
     showParatext.value = stored.paratext;
     showSegmentMarkers.value = stored.markers;
     showWitnesses.value = stored.witnesses;
+    variantsOnHover.value = stored.hover;
 
     watch(
-        [showParatext, showSegmentMarkers, showWitnesses],
-        ([paratext, markers, witnesses]) => {
+        [showParatext, showSegmentMarkers, showWitnesses, variantsOnHover],
+        ([paratext, markers, witnesses, hover]) => {
             try {
                 localStorage.setItem(
                     DISPLAY_KEY,
-                    JSON.stringify({ paratext, markers, witnesses }),
+                    JSON.stringify({ paratext, markers, witnesses, hover }),
                 );
             } catch {
                 // Storage unavailable — the in-session choice still works.
@@ -1398,19 +1406,6 @@ onMounted(() => {
         },
     );
 });
-
-/**
- * Whether the printed lines wrap to the text box or run on, the box
- * scrolling sideways — the editor's choice for her edition, since a verse
- * broken by the window's width reads as a break she never made.
- */
-function setWrapsLines(value: boolean) {
-    router.patch(
-        updateEdition.url(props.edition),
-        { wraps_lines: value },
-        { preserveScroll: true },
-    );
-}
 
 /** A paratext being written where none is saved yet. */
 type ParatextDraft = {
@@ -3463,6 +3458,12 @@ const hovered = ref<{
 
 function showReadings(event: Event, segment: WindowSegment, runIndex: number) {
     hoveredRun.value = { segmentId: segment.id, runIndex };
+
+    // The word still lights its box on the facsimile; only the report stays away.
+    if (!variantsOnHover.value) {
+        return;
+    }
+
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     // The site's own run, so hovering any word of a transposition reports the
     // whole competing phrase rather than the one word under the cursor.
@@ -3791,24 +3792,12 @@ function orderRangeClasses(range: OrderRange): string[] {
                         <input v-model="showWitnesses" type="checkbox" />
                         Show witnesses pane
                     </label>
-                    <!-- The editor's, and the edition's: how its lines are
-                         set is part of the edition, unlike what a viewer
-                         chooses to look at. -->
                     <label
-                        v-if="canEdit"
                         class="flex items-center gap-1"
-                        title="Off, lines run on as the editor set them and the text box scrolls sideways"
+                        title="Off, the apparatus is not shown under the pointer; a click still opens a word's notice"
                     >
-                        <input
-                            type="checkbox"
-                            :checked="props.edition.wraps_lines"
-                            @change="
-                                setWrapsLines(
-                                    ($event.target as HTMLInputElement).checked,
-                                )
-                            "
-                        />
-                        Wrap lines
+                        <input v-model="variantsOnHover" type="checkbox" />
+                        Variants on hover
                     </label>
                 </div>
 
@@ -3824,7 +3813,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                             {{
                                 editingHeader
                                     ? 'Cancel'
-                                    : 'Edit title/description'
+                                    : 'Edit edition properties'
                             }}
                         </button>
                         <button
@@ -3995,6 +3984,18 @@ function orderRangeClasses(range: OrderRange): string[] {
                         rows="2"
                         class="rounded border border-stone-300 bg-transparent p-2 dark:border-stone-700"
                     />
+                    <!-- How the lines are set is a property of the edition,
+                         unlike what a viewer chooses to look at. -->
+                    <label
+                        class="flex items-center gap-2"
+                        title="Off, lines run on as you set them and the text box scrolls sideways"
+                    >
+                        <input
+                            v-model="headerForm.wraps_lines"
+                            type="checkbox"
+                        />
+                        Wrap lines to the width of the text box
+                    </label>
                     <button
                         type="submit"
                         class="self-start rounded bg-stone-900 px-3 py-1 text-xs text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"

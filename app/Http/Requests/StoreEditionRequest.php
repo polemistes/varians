@@ -35,6 +35,10 @@ class StoreEditionRequest extends FormRequest
         return [
             'title' => ['required', 'string', 'max:255', Rule::unique('editions', 'title')->where('work_id', $work->id)],
             'description' => ['nullable', 'string'],
+            // Whether printed lines wrap to the text box or run on with the
+            // box scrolling sideways — chosen when the edition is made, and
+            // changed among its properties afterwards.
+            'wraps_lines' => ['sometimes', 'boolean'],
         ];
     }
 }

@@ -71,6 +71,7 @@ class EditionController extends Controller
             'user_id' => $request->user()->id,
             'title' => $request->validated('title'),
             'description' => $request->validated('description'),
+            'wraps_lines' => $request->boolean('wraps_lines', true),
         ]);
 
         return redirect()->route('editions.show', [$work, $edition]);
