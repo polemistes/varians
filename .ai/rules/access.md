@@ -122,6 +122,16 @@ owner and naming her there would say nothing.
 Any new list that can show a copy must ship both columns and use the same
 helper — otherwise the copies are indistinguishable again.
 
+The helper formats in the READER's locale and time zone, which the SSR
+server cannot know: it rendered "10. sep. 2026", the browser expected
+"Sep 10, 2026", and every witness page load logged a Vue hydration
+mismatch (real bug). So the formatters give a locale-free ISO form until a
+browser has mounted the page, and every component that renders one calls
+`useHydrated()` from the same module, which flips them to the locale on
+mount. A new consumer that forgets the call shows the ISO form for ever —
+and never a mismatch; a consumer that formats dates its own way brings the
+mismatch back. `provenance.test.ts` pins both halves.
+
 ## A conjecture is born with the work's standing
 A conjecture recorded against a work that ALREADY has a published edition
 is created published (`EditionPublisher::visibilityForConjectureOn`, used

@@ -18,7 +18,12 @@ import type {
 } from '@/lib/editHistory';
 import { stripOps } from '@/lib/greekText';
 import type { StripKind } from '@/lib/greekText';
-import { provenance, recordedAt, recordedOn } from '@/lib/provenance';
+import {
+    provenance,
+    recordedAt,
+    recordedOn,
+    useHydrated,
+} from '@/lib/provenance';
 import { planRelocationEffects } from '@/lib/relocationEffects';
 import {
     matchTranscriptCopy,
@@ -70,6 +75,10 @@ export type PanePayload = {
         } | null;
     } | null;
 };
+
+// Recorded dates render in the reader's locale only once mounted — see
+// lib/provenance.ts.
+useHydrated();
 
 const props = defineProps<{
     pane: PanePayload;

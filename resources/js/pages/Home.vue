@@ -3,7 +3,7 @@ import { Head, Link, router } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import AppHeader from '@/components/AppHeader.vue';
 import { confirmDeletion, pluralize } from '@/lib/deletionImpact';
-import { provenance, recordedAt } from '@/lib/provenance';
+import { provenance, recordedAt, useHydrated } from '@/lib/provenance';
 import {
     create as createEdition,
     destroy as destroyEdition,
@@ -60,6 +60,10 @@ type WitnessRow = Pick<Witness, 'id' | 'siglum' | 'label' | 'date_text'> &
         transcriptions_count: number;
         can_delete: boolean;
     };
+
+// Recorded dates render in the reader's locale only once mounted — see
+// lib/provenance.ts.
+useHydrated();
 
 const props = defineProps<{
     can: { create: boolean };
