@@ -1422,9 +1422,18 @@ test('a lacuna segment registered without adopting is catalogued only, and adopt
     $segment = Segment::where('work_id', $work->id)->where('label', '1.1a')->sole();
     $lacuna = Conjecture::sole();
 
-    // The work knows the segment and the proposal; this edition prints nothing.
+    // The work knows the segment and the proposal; this edition prints nothing
+    // — but the page is told, so the text can mark where it would stand.
     expect(Lemma::where('segment_id', $segment->id)->count())->toBe(1)
         ->and(EditionSegment::where('edition_id', $edition->id)->where('segment_id', $segment->id)->exists())->toBeFalse();
+
+    $this->get(route('editions.show', [$work, $edition]))
+        ->assertInertia(fn (AssertInertia $page) => $page
+            ->where('workConjectures.0.id', $lacuna->id)
+            ->where('workConjectures.0.type', 'lacuna')
+            ->where('workConjectures.0.segment_label', '1.1a')
+            ->where('workSegments.1.label', '1.1a')
+            ->has('windowSegments', 1));
 
     $this->post(route('edition-variants.store', $edition), [
         'placement' => 'new_segment',

@@ -36,7 +36,10 @@ edition's lineation — a piece's first run when the segment starts a line,
 or a run with `break_before` — never wrapping. The Edition box's "Show
 paratext" / "Show segment markers" checkboxes are the VIEWER's own,
 kept per browser in localStorage (`varians:edition:{id}:display`); hiding
-markers hides the number chips (and with them their notices). "Show
+markers hides the number chips (and with them their notices). ALL THREE
+are read from localStorage in `onMounted`, never at setup: the server
+renders the defaults, and a first client render that already differs is
+a hydration mismatch (real bug — a pane put away last time). "Show
 witnesses pane" (same store) puts the right pane away for reader or
 editor — the grid drops to one column and the edition has the whole
 width for its text and margins. "Wrap lines" is NOT a viewer preference

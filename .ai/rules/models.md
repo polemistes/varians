@@ -128,7 +128,11 @@ unlike every other conjecture. Consequences:
   catalogued lacuna segments (`cataloguedSegmentLacunas`: lacuna
   conjectures whose segment is not in the edition); the controller
   `firstOrCreate`s the reading and checks the label names the
-  conjecture's own segment.
+  conjecture's own segment. In the TEXT such a lacuna is marked where
+  it would stand — a dashed amber chip "‸ 1.4a" after the printed
+  segment preceding it in numbering order (`cataloguedLacunasBySegment`),
+  for readers a report, for editors the way into that box (user report:
+  registered and then nowhere to be seen).
 - The lacuna's notice lists the witnesses' reading as a row like any
   other — "R, K, Pb: no lacuna" (`noLacunaLabel`, sigla of every witness
   assigning the segment), "no such segment" for a lacuna segment —

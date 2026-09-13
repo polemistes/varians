@@ -1363,25 +1363,36 @@ function storedDisplay(): {
     }
 }
 
-const showParatext = ref(storedDisplay().paratext);
-const showSegmentMarkers = ref(storedDisplay().markers);
+// All three start at their defaults and take the browser's remembered
+// choice only once mounted: the server renders the defaults, and a first
+// client render that already differed (a pane put away here last time)
+// was a hydration mismatch (real bug, the same shape as the date locale).
+const showParatext = ref(true);
+const showSegmentMarkers = ref(true);
 // The witnesses pane can be put away — reader or editor — and the edition
 // then has the whole width for its text and its margins.
-const showWitnesses = ref(storedDisplay().witnesses);
+const showWitnesses = ref(true);
 
-watch(
-    [showParatext, showSegmentMarkers, showWitnesses],
-    ([paratext, markers, witnesses]) => {
-        try {
-            localStorage.setItem(
-                DISPLAY_KEY,
-                JSON.stringify({ paratext, markers, witnesses }),
-            );
-        } catch {
-            // Storage unavailable — the in-session choice still works.
-        }
-    },
-);
+onMounted(() => {
+    const stored = storedDisplay();
+    showParatext.value = stored.paratext;
+    showSegmentMarkers.value = stored.markers;
+    showWitnesses.value = stored.witnesses;
+
+    watch(
+        [showParatext, showSegmentMarkers, showWitnesses],
+        ([paratext, markers, witnesses]) => {
+            try {
+                localStorage.setItem(
+                    DISPLAY_KEY,
+                    JSON.stringify({ paratext, markers, witnesses }),
+                );
+            } catch {
+                // Storage unavailable — the in-session choice still works.
+            }
+        },
+    );
+});
 
 /**
  * Whether the printed lines wrap to the text box or run on, the box
@@ -2984,6 +2995,55 @@ const cataloguedSegmentLacunas = computed(() => {
     );
 });
 
+// Where a catalogued lacuna segment WOULD stand in this edition — after
+// the printed segment that precedes it in numbering order — so an
+// unadopted one is visible in the text as a dashed chip ("‸ 1.4a"),
+// like a point lacuna's mark (user report: registered, then nowhere to be
+// seen). For editors the chip opens the "+ segment" box there, which
+// lists it for adoption.
+const cataloguedLacunasBySegment = computed(() => {
+    const byPreceding = new Map<number, WorkConjecture[]>();
+    const printed = [...props.segments].sort((a, b) =>
+        a.sort_key < b.sort_key ? -1 : a.sort_key > b.sort_key ? 1 : 0,
+    );
+
+    for (const lacuna of cataloguedSegmentLacunas.value) {
+        const sortKey = props.workSegments.find(
+            (segment) => segment.id === lacuna.segment_id,
+        )?.sort_key;
+
+        if (sortKey === undefined) {
+            continue;
+        }
+
+        const preceding = printed
+            .filter((segment) => segment.sort_key < sortKey)
+            .at(-1);
+
+        if (preceding === undefined) {
+            continue;
+        }
+
+        byPreceding.set(preceding.id, [
+            ...(byPreceding.get(preceding.id) ?? []),
+            lacuna,
+        ]);
+    }
+
+    return byPreceding;
+});
+
+function cataloguedLacunasAfter(segmentId: number): WorkConjecture[] {
+    return cataloguedLacunasBySegment.value.get(segmentId) ?? [];
+}
+
+function cataloguedLacunaTitle(lacuna: WorkConjecture): string {
+    const who = lacuna.proposed_by ?? lacuna.entered_by;
+    const what = `A lacuna segment ${lacuna.segment_label} is conjectured here (${who}); this edition does not print it.`;
+
+    return canEdit.value ? `${what} Click to adopt it.` : what;
+}
+
 function adoptCataloguedSegmentLacuna(conjecture: WorkConjecture) {
     if (openTarget.value?.kind !== 'new_segment') {
         return;
@@ -4568,6 +4628,36 @@ function orderRangeClasses(range: OrderRange): string[] {
                                     >
                                         + segment
                                     </button>
+
+                                    <!-- A catalogued lacuna segment not in this
+                                         edition, marked where it would stand. -->
+                                    <template v-if="part === 1">
+                                        <button
+                                            v-for="lacuna in cataloguedLacunasAfter(
+                                                segment.id,
+                                            )"
+                                            :key="`lacuna-${lacuna.id}`"
+                                            type="button"
+                                            contenteditable="false"
+                                            class="mr-1 rounded border border-dashed border-amber-400 px-1 align-middle font-sans text-xs leading-normal text-amber-700 select-none dark:border-amber-700 dark:text-amber-400"
+                                            :class="
+                                                canEdit
+                                                    ? 'hover:bg-amber-100 dark:hover:bg-amber-950'
+                                                    : 'cursor-default'
+                                            "
+                                            :title="
+                                                cataloguedLacunaTitle(lacuna)
+                                            "
+                                            @click="
+                                                toggleNewSegment(
+                                                    segment.id,
+                                                    segment.edition_segment_id,
+                                                )
+                                            "
+                                        >
+                                            ‸ {{ lacuna.segment_label }}
+                                        </button>
+                                    </template>
 
                                     <!-- One popover per segment, rendered after the whole
                         line — never splits the running text mid-line. Sits
