@@ -24,7 +24,7 @@ import {
     matchTranscriptCopy,
     rememberTranscriptCopy,
 } from '@/lib/transcriptClipboard';
-import { applyOps, transformSpans } from '@/lib/transcriptionEdit';
+import { applyOps, shiftOp, transformSpans } from '@/lib/transcriptionEdit';
 import type { EditSource, TextEditOp } from '@/lib/transcriptionEdit';
 import { mapOffset, pattern, words } from '@/lib/wordSpans';
 import { store as storePageBreak } from '@/routes/transcription-page-breaks';
@@ -556,15 +556,14 @@ function onCopied(copy: { start: number; end: number; text: string }) {
 function onEdit(op: TextEditOp, source: PaneEditSource = 'typing') {
     // Typed inside the page, recorded against the whole text — that is what
     // the server replays and what every other offset is measured in. Only
-    // the OFFSETS are page-relative: everything else the surface reports
-    // must be carried over verbatim, which is why this SPREADS the op
-    // rather than rebuilding it. Rebuilding it silently dropped `side` and
-    // `imported` — the marker side the surface had just read from the DOM
-    // never reached the transformer, so text typed at a marker's near side
-    // went to the citation the marker announces (reported repeatedly, and
-    // unfindable from the surface, which was computing the side correctly),
-    // and pasted text was held to citing what it landed among.
-    applyEdit({ ...op, start: toFull(op.start), end: toFull(op.end) }, source);
+    // the OFFSETS are page-relative; everything else the surface reports
+    // must be carried over verbatim, which is `shiftOp`'s whole job. Writing
+    // out a new op here instead silently dropped `side` and `imported`, so
+    // the marker side the surface had just read from the DOM never reached
+    // the transformer, and text typed at a marker's near side went to the
+    // citation the marker announces (reported repeatedly, and unfindable
+    // from the surface, which was computing the side correctly).
+    applyEdit(shiftOp(op, pageStart.value), source);
 }
 
 /**

@@ -61,6 +61,22 @@ type WorkingSpan = TransformedSpan & {
     carried: { cutId: string; relStart: number; relEnd: number } | null;
 };
 
+/**
+ * The same op measured from a different origin — every other field intact.
+ *
+ * A pane editing one page of a transcript reports offsets into that page and
+ * has to hand on offsets into the whole text. Doing that by REBUILDING the
+ * op from `{start, end, text}` dropped `side` and `imported` on the way,
+ * which is how the marker side the editor had just read from the DOM never
+ * reached the transformer that wanted it (real bug, reported as text
+ * arriving at the start of the following citation). Move an op with this,
+ * never by writing out a new one: fields added later come along by
+ * themselves.
+ */
+export function shiftOp(op: TextEditOp, by: number): TextEditOp {
+    return { ...op, start: op.start + by, end: op.end + by };
+}
+
 export function applyOps(text: string, ops: TextEditOp[]): string {
     return ops.reduce((current, op) => applyOp(current, op), text);
 }
