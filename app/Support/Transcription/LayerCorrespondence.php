@@ -50,7 +50,7 @@ class LayerCorrespondence
      */
     public static function pattern(string $text): string
     {
-        return preg_replace('/\S+/u', 'w', $text) ?? $text;
+        return preg_replace(WordDivision::WORD, 'w', $text) ?? $text;
     }
 
     /**
@@ -60,16 +60,6 @@ class LayerCorrespondence
      */
     public static function words(string $text): array
     {
-        preg_match_all('/\S+/u', $text, $matches, PREG_OFFSET_CAPTURE);
-
-        $words = [];
-
-        foreach ($matches[0] as [$word, $byteOffset]) {
-            // preg offsets are bytes; spans everywhere else are characters.
-            $start = mb_strlen(substr($text, 0, $byteOffset));
-            $words[] = ['start' => $start, 'end' => $start + mb_strlen($word)];
-        }
-
-        return $words;
+        return WordDivision::words($text);
     }
 }

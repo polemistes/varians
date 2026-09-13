@@ -18,6 +18,7 @@ use App\Support\Transcription\RelocationAssignmentEffects;
 use App\Support\Transcription\SiblingSync;
 use App\Support\Transcription\SpanTransformer;
 use App\Support\Transcription\TextOpApplier;
+use App\Support\Transcription\WordDivision;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Collection as SupportCollection;
@@ -612,10 +613,12 @@ class TranscriptionTextController extends Controller
                 continue;
             }
 
-            $before = mb_substr(
+            // As words: dividing a word at a line's end changes the
+            // characters, not the wording (WordDivision).
+            $before = WordDivision::wordText(
                 $transcription->text,
                 (int) $reading->start_offset,
-                (int) $reading->end_offset - (int) $reading->start_offset,
+                (int) $reading->end_offset,
             );
 
             // Damaged BY THIS EDIT: destroyed, or newly left with guessed
@@ -641,7 +644,7 @@ class TranscriptionTextController extends Controller
                 'needs_review' => $result['deleted'] ? true : $result['needsReview'],
             ]);
 
-            $after = mb_substr($newText, $result['start'], $end - $result['start']);
+            $after = WordDivision::wordText($newText, $result['start'], $end);
 
             // Only a change to the *words* is edition-visible; an edit
             // elsewhere that merely shifts this reading's offsets is not.

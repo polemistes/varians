@@ -81,9 +81,10 @@ class AssignmentIntegrity
     private static function assess(TranscriptionLayer $layer): array
     {
         $text = $layer->text;
-        $length = mb_strlen($text);
         $assignments = $layer->assignments()->with('segment:id,label')->orderBy('start_offset')->get()->values();
-        $isSpace = fn (string $char): bool => $char === '' || preg_match('/\\s/u', $char) === 1;
+        // Whitespace separates words — except the line break a hyphen stands
+        // before, which is inside a word divided at a line's end (WordDivision).
+        $isSeparator = fn (int $offset): bool => WordDivision::isSeparatorAt($text, $offset);
         $coveredBy = fn (int $offset, Assignment $self): bool => $assignments->contains(
             fn (Assignment $other) => $other->id !== $self->id
                 && $other->end_offset > $other->start_offset
@@ -111,23 +112,20 @@ class AssignmentIntegrity
             // Trailing or leading whitespace inside the span is allowed;
             // judge the boundary from the first and last real characters.
             $firstReal = $start;
-            while ($firstReal < $end && $isSpace(mb_substr($text, $firstReal, 1))) {
+            while ($firstReal < $end && $isSeparator($firstReal)) {
                 $firstReal++;
             }
             $lastReal = $end;
-            while ($lastReal > $firstReal && $isSpace(mb_substr($text, $lastReal - 1, 1))) {
+            while ($lastReal > $firstReal && $isSeparator($lastReal - 1)) {
                 $lastReal--;
             }
 
             if ($firstReal < $lastReal) {
-                $before = $firstReal > 0 ? mb_substr($text, $firstReal - 1, 1) : '';
-                $after = $lastReal < $length ? mb_substr($text, $lastReal, 1) : '';
-
-                if (! $isSpace($before) && ! $coveredBy($firstReal - 1, $assignment) && ! $meetsAt($firstReal, $assignment)) {
+                if (! $isSeparator($firstReal - 1) && ! $coveredBy($firstReal - 1, $assignment) && ! $meetsAt($firstReal, $assignment)) {
                     $problems[] = 'begins inside a word';
                 }
 
-                if (! $isSpace($after) && ! $coveredBy($lastReal, $assignment) && ! $meetsAt($lastReal, $assignment)) {
+                if (! $isSeparator($lastReal) && ! $coveredBy($lastReal, $assignment) && ! $meetsAt($lastReal, $assignment)) {
                     $problems[] = 'ends inside a word';
                 }
             }

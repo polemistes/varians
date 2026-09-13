@@ -50,3 +50,8 @@ test('folding makes two spellings equal only where they differ in orthography', 
     // A different word stays different.
     expect(GreekText::foldOrthography('μὲν'))->not->toBe(GreekText::foldOrthography('δὲ'));
 });
+
+test('stripping punctuation spares the hyphen that divides a word at a line\'s end', function () {
+    expect(GreekText::stripPunctuation("ἄνδ-\nρα, μοι"))->toBe("ἄνδ-\nρα μοι")
+        ->and(GreekText::stripPunctuation('ἄνδ- ρα'))->toBe('ἄνδ ρα');
+});

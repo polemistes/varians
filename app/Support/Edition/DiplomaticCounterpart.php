@@ -7,6 +7,7 @@ use App\Models\Assignment;
 use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Support\Transcription\Tokenizer;
+use App\Support\Transcription\WordDivision;
 use Illuminate\Support\Collection;
 
 /**
@@ -77,8 +78,9 @@ class DiplomaticCounterpart
         $last = $diplomaticTokens[max($covered)];
 
         // Sliced from the source rather than rejoined, so whatever stands
-        // between the words — spacing, markup — survives as written.
-        return mb_substr($diplomatic->text, $first['start'], $last['end'] - $first['start']);
+        // between the words — spacing, markup — survives as written; a word
+        // divided at a line's end shows its division, "ἄνδ-|ρα".
+        return WordDivision::asWritten($diplomatic->text, $first['start'], $last['end']);
     }
 
     /**
@@ -101,7 +103,7 @@ class DiplomaticCounterpart
         return $assignments->isEmpty()
             ? null
             : $assignments
-                ->map(fn (Assignment $assignment) => mb_substr($diplomatic->text, $assignment->start_offset, $assignment->end_offset - $assignment->start_offset))
+                ->map(fn (Assignment $assignment) => WordDivision::asWritten($diplomatic->text, $assignment->start_offset, $assignment->end_offset))
                 ->join(' … ');
     }
 

@@ -36,6 +36,7 @@ use App\Support\Edition\EditionPublisher;
 use App\Support\Edition\PermutationBlocks;
 use App\Support\Edition\TranspositionProjection;
 use App\Support\Transcription\GreekText;
+use App\Support\Transcription\WordDivision;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -1211,7 +1212,7 @@ class EditionController extends Controller
             preg_replace(
                 '/\s+/u',
                 ' ',
-                trim(mb_substr($text, $assignment->start_offset, $assignment->end_offset - $assignment->start_offset)),
+                trim(WordDivision::wordText($text, $assignment->start_offset, $assignment->end_offset)),
             ),
         );
 
@@ -1739,7 +1740,7 @@ class EditionController extends Controller
 
         $text = $selectedCandidate['text']
             ?? match (true) {
-                $baseReading !== null => mb_substr($baseReading->transcriptionLayer->text, $baseReading->start_offset, $baseReading->end_offset - $baseReading->start_offset),
+                $baseReading !== null => WordDivision::wordText($baseReading->transcriptionLayer->text, $baseReading->start_offset, $baseReading->end_offset),
                 $isGap => '',
                 default => $candidates->first()['text'] ?? '',
             };
@@ -1935,7 +1936,7 @@ class EditionController extends Controller
         $extension = $this->witnessExtension($reading, $anchor, $referenceEnd);
         $baseReading = $this->baseReadingOf($anchor, $base);
         $baseText = $baseReading !== null
-            ? mb_substr($baseReading->transcriptionLayer->text, $baseReading->start_offset, $baseReading->end_offset - $baseReading->start_offset)
+            ? WordDivision::wordText($baseReading->transcriptionLayer->text, $baseReading->start_offset, $baseReading->end_offset)
             : null;
 
         if ($reading->omitted) {
@@ -1967,7 +1968,7 @@ class EditionController extends Controller
             return [
                 'key' => 'reading:'.$reading->id,
                 'label' => $reading->transcriptionLayer->transcription->witness->siglum,
-                'text' => $extension['text'] ?? mb_substr($reading->transcriptionLayer->text, $reading->start_offset, $reading->end_offset - $reading->start_offset),
+                'text' => $extension['text'] ?? WordDivision::wordText($reading->transcriptionLayer->text, $reading->start_offset, $reading->end_offset),
                 'omitted' => false,
                 'selected' => $reading->id === $selectedReadingId,
                 'reading_id' => $reading->id,
@@ -1991,7 +1992,7 @@ class EditionController extends Controller
                 // rather than a different word. See GreekText::foldOrthography.
                 'orthographic_only' => self::differsOnlyInOrthography(
                     $baseText,
-                    $extension['text'] ?? mb_substr($reading->transcriptionLayer->text, $reading->start_offset, $reading->end_offset - $reading->start_offset),
+                    $extension['text'] ?? WordDivision::wordText($reading->transcriptionLayer->text, $reading->start_offset, $reading->end_offset),
                 ),
                 'diplomatic' => DiplomaticCounterpart::forSpan(
                     $segment,
@@ -2047,7 +2048,7 @@ class EditionController extends Controller
             return null;
         }
 
-        return mb_substr($base->text, $startReading->start_offset, $endReading->end_offset - $startReading->start_offset);
+        return WordDivision::wordText($base->text, $startReading->start_offset, $endReading->end_offset);
     }
 
     /**
@@ -2097,7 +2098,7 @@ class EditionController extends Controller
         }
 
         return [
-            'text' => mb_substr($reading->transcriptionLayer->text, $reading->start_offset, $endReading->end_offset - $reading->start_offset),
+            'text' => WordDivision::wordText($reading->transcriptionLayer->text, $reading->start_offset, $endReading->end_offset),
             'end_offset' => $endReading->end_offset,
             'range_end_lemma_id' => $referenceEnd->id,
         ];

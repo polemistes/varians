@@ -12,6 +12,7 @@ use App\Models\LemmaReading;
 use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Support\Transcription\Tokenizer;
+use App\Support\Transcription\WordDivision;
 use Illuminate\Support\Collection;
 use Normalizer;
 
@@ -516,7 +517,7 @@ class SegmentAligner
             return '';
         }
 
-        return mb_substr($reading->transcriptionLayer->text, $reading->start_offset, $reading->end_offset - $reading->start_offset);
+        return WordDivision::wordText($reading->transcriptionLayer->text, $reading->start_offset, $reading->end_offset);
     }
 
     /**
@@ -575,7 +576,7 @@ class SegmentAligner
                 $token = $bEnd === $op['b']
                     ? $tokens[$op['b']]
                     : [
-                        'text' => mb_substr($sourceText, $tokens[$op['b']]['start'], $tokens[$bEnd]['end'] - $tokens[$op['b']]['start']),
+                        'text' => WordDivision::wordText($sourceText, $tokens[$op['b']]['start'], $tokens[$bEnd]['end']),
                         'start' => $tokens[$op['b']]['start'],
                         'end' => $tokens[$bEnd]['end'],
                     ];

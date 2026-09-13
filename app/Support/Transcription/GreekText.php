@@ -39,7 +39,7 @@ class GreekText
      */
     private const PUNCTUATION = [
         ',', '.', ';', ':', '!', '?', '·', "\u{037E}", "\u{0387}", '’', '‘', '“', '”', '"', "'",
-        '(', ')', '«', '»', '—', '–', '-', '‹', '›', '…',
+        '(', ')', '«', '»', '—', '–', '‹', '›', '…',
     ];
 
     public static function stripAccents(string $text): string
@@ -65,7 +65,11 @@ class GreekText
 
     public static function stripPunctuation(string $text): string
     {
-        return self::compose(str_replace(self::PUNCTUATION, '', $text));
+        // A hyphen directly before a line break is a word divided at the
+        // line's end (WordDivision), not punctuation; every other hyphen is.
+        $stripped = preg_replace('/-(?!\R)/u', '', str_replace(self::PUNCTUATION, '', $text)) ?? $text;
+
+        return self::compose($stripped);
     }
 
     /**

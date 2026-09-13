@@ -69,3 +69,12 @@ test('tokenizing several spans concatenates their tokens in span order, offsets 
 test('tokenizing no spans yields no tokens', function () {
     expect(Tokenizer::tokenizeSpans('the fox', [], Tokenization::Whitespace))->toBe([]);
 });
+
+test('a word divided at a line\'s end is one token, its text closed up, its span whole', function () {
+    $tokens = Tokenizer::tokenize("ἄνδ-\nρα μοι", 0, 11, Tokenization::Whitespace);
+
+    expect($tokens)->toBe([
+        ['text' => 'ἄνδρα', 'start' => 0, 'end' => 7],
+        ['text' => 'μοι', 'start' => 8, 'end' => 11],
+    ]);
+});

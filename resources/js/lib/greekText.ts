@@ -23,7 +23,10 @@ const DIACRITICS = /\p{Mn}+/gu;
  * Listed rather than taken from a Unicode class, so that the markup
  * delimiters cannot be caught by widening the definition later.
  */
-const PUNCTUATION = /[,.;:!?·\u{037E}\u{0387}’‘“”"'()«»—–\-‹›…]/gu;
+// A hyphen directly before a line break is a word divided at the line's
+// end (see WordDivision on the server), never punctuation; every other
+// hyphen is.
+const PUNCTUATION = /[,.;:!?·\u{037E}\u{0387}’‘“”"'()«»—–‹›…]|-(?!\r?\n)/gu;
 
 function compose(text: string): string {
     return text.normalize('NFC');
@@ -93,7 +96,12 @@ export function stripOps(text: string, kind: StripKind): TextEdit[] {
     };
 
     chars.forEach((char, index) => {
-        const stripped = strip(char, kind);
+        // Seen one character at a time, a hyphen cannot tell whether a
+        // line break follows it: the division hyphen is left alone here.
+        const dividesWord =
+            char === '-' &&
+            (chars[index + 1] === '\n' || chars[index + 1] === '\r');
+        const stripped = dividesWord ? char : strip(char, kind);
 
         if (stripped === char) {
             close();

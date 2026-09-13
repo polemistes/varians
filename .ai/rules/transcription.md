@@ -124,6 +124,29 @@ the same word spelled differently, rather than a different word. Reported, not
 suppressed — whether an orthographic difference is worth printing is the
 editor's call, and she can say so in an EditionComment.
 
+## A word divided at a line's end is ONE word: hyphen before the break (user decision, 2026-09-14)
+The transcription writes a word broken at the end of a manuscript line
+(or page — pages are line numbers) as the manuscript has it, with a HYPHEN
+directly before the line break: "ἄνδ-⏎ρα". That hyphen is the
+transcriber's sign; a hyphen anywhere else is ordinary text.
+`App\Support\Transcription\WordDivision` is the ONE definition of a word
+(`WORD` regex: non-whitespace plus a hyphen's line break), and everything
+goes through it: `LayerCorrespondence::words/pattern`, the `Tokenizer`
+(one token, text closed up, span whole), `AssignmentBounds` and
+`AssignmentIntegrity` (`isSeparatorAt`: that line break is inside a
+word), `SegmentAligner` (reading text as words), the edition's printed
+runs and reading texts (`EditionController`, `wordText`),
+`applyReadings`' wording comparison, and `DiplomaticCounterpart`
+(`asWritten`: "ἄνδ-|ρα" in the apparatus's as-written column).
+`GreekText::stripPunctuation` spares a hyphen before a line break. Client
+mirrors: `wordSpans.ts` (`WORD`), `greekText.ts`. Offsets stay honest
+about the ink — a reading's span still covers the hyphen and the break;
+only the word's TEXT closes them up, so "ἄνδ-⏎ρα" collates as "ἄνδρα" and
+is no variant of a witness that has it whole. Both layers keep the same
+division (same line structure), the mirror copies it. Do not add a
+dedicated division character: the plain hyphen is what people type, and
+"directly before a line break" makes it unambiguous.
+
 ## Tokenization is a per-work strategy
 `App\Support\Transcription\Tokenizer` divides text into the tokens collation
 aligns on, chosen by `Work.tokenization`. Whitespace is the only implementation

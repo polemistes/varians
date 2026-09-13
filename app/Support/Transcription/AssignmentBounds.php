@@ -31,13 +31,13 @@ class AssignmentBounds
             return [$start, $end];
         }
 
-        while ($start > 0 && ! self::isSeparator(mb_substr($text, $start - 1, 1))) {
+        while ($start > 0 && ! WordDivision::isSeparatorAt($text, $start - 1)) {
             $start--;
         }
 
         $length = mb_strlen($text);
 
-        while ($end < $length && ! self::isSeparator(mb_substr($text, $end, 1))) {
+        while ($end < $length && ! WordDivision::isSeparatorAt($text, $end)) {
             $end++;
         }
 
@@ -52,23 +52,14 @@ class AssignmentBounds
      */
     public static function trimmed(string $text, int $start, int $end): array
     {
-        while ($start < $end && self::isSeparator(mb_substr($text, $start, 1))) {
+        while ($start < $end && WordDivision::isSeparatorAt($text, $start)) {
             $start++;
         }
 
-        while ($end > $start && self::isSeparator(mb_substr($text, $end - 1, 1))) {
+        while ($end > $start && WordDivision::isSeparatorAt($text, $end - 1)) {
             $end--;
         }
 
         return [$start, $end];
-    }
-
-    /**
-     * Whitespace is the separator today. The one place to widen when a work
-     * divides its words some other way — scriptio continua, interpuncts.
-     */
-    private static function isSeparator(string $character): bool
-    {
-        return $character === '' || preg_match('/\s/u', $character) === 1;
     }
 }

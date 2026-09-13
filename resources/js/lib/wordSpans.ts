@@ -10,11 +10,18 @@
 export type WordSpan = { start: number; end: number };
 export type WordAnchor = { word: number; char: number };
 
+/**
+ * A word: non-whitespace — and a line break that a hyphen stands before,
+ * which is a word divided at the manuscript's line end ("ἄνδ-⏎ρα") and
+ * belongs to it. The client mirror of App\Support\Transcription\WordDivision.
+ */
+export const WORD = /(?:\S|(?<=-)\r?\n)+/gu;
+
 /** The words of a text, as character spans. */
 export function words(text: string): WordSpan[] {
     const result: WordSpan[] = [];
 
-    for (const match of text.matchAll(/\S+/gu)) {
+    for (const match of text.matchAll(WORD)) {
         result.push({
             start: match.index,
             end: match.index + match[0].length,
@@ -138,7 +145,7 @@ export function fromAnchor(text: string, word: number, char: number): number {
  * in the other.
  */
 export function pattern(text: string): string {
-    return text.replace(/\S+/gu, 'w');
+    return text.replace(WORD, 'w');
 }
 
 /**

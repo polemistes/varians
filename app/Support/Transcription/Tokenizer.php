@@ -53,20 +53,15 @@ class Tokenizer
     {
         $substring = mb_substr($fullText, $start, $end - $start);
         $tokens = [];
-        $offset = 0;
-        $pieces = preg_split('/(\s+)/u', $substring, -1, PREG_SPLIT_DELIM_CAPTURE) ?: [];
 
-        foreach ($pieces as $index => $piece) {
-            $length = mb_strlen($piece);
-
-            if ($piece === '' || $index % 2 === 1) {
-                $offset += $length;
-
-                continue;
-            }
-
-            $tokens[] = ['text' => $piece, 'start' => $start + $offset, 'end' => $start + $offset + $length];
-            $offset += $length;
+        // A word divided at a line's end ("ἄνδ-⏎ρα") is one token whose
+        // text closes the division up — see WordDivision.
+        foreach (WordDivision::words($substring) as $word) {
+            $tokens[] = [
+                'text' => WordDivision::wordText($substring, $word['start'], $word['end']),
+                'start' => $start + $word['start'],
+                'end' => $start + $word['end'],
+            ];
         }
 
         return $tokens;
