@@ -16,6 +16,7 @@ use App\Models\Edition;
 use App\Models\EditionComment;
 use App\Models\EditionLemma;
 use App\Models\EditionLineBreak;
+use App\Models\EditionParatext;
 use App\Models\EditionSegment;
 use App\Models\EditionTransposition;
 use App\Models\Lemma;
@@ -44,7 +45,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * @phpstan-type WindowContext array{comments: SupportCollection<array-key, SupportCollection<int, EditionComment>>, unplaced: SupportCollection<array-key, SupportCollection<int, Conjecture>>, lemmas: SupportCollection<array-key, SupportCollection<int, Lemma>>, selections: EloquentCollection<array-key, EditionLemma>, breaks: EloquentCollection<array-key, EditionLineBreak>, segment_references: SupportCollection<array-key, SupportCollection<int, BibliographyReference>>, parts: SupportCollection<array-key, SupportCollection<int, EditionSegment>>}
+ * @phpstan-type WindowContext array{comments: SupportCollection<array-key, SupportCollection<int, EditionComment>>, unplaced: SupportCollection<array-key, SupportCollection<int, Conjecture>>, lemmas: SupportCollection<array-key, SupportCollection<int, Lemma>>, selections: EloquentCollection<array-key, EditionLemma>, breaks: EloquentCollection<array-key, EditionLineBreak>, paratexts: SupportCollection<array-key, SupportCollection<int, EditionParatext>>, segment_references: SupportCollection<array-key, SupportCollection<int, BibliographyReference>>, parts: SupportCollection<array-key, SupportCollection<int, EditionSegment>>}
  * @phpstan-type Citation array{id: int, item_id: int, label: string, citation: string, prenote: string|null, postnote: string|null}
  */
 class EditionController extends Controller
@@ -1338,6 +1339,13 @@ class EditionController extends Controller
                 ->whereIn('segment_id', $segmentIds)
                 ->get()
                 ->keyBy('lemma_id'),
+            'paratexts' => EditionParatext::where('edition_id', $edition->id)
+                ->whereIn('segment_id', $segmentIds)
+                ->orderBy('position')
+                ->orderBy('id')
+                ->get()
+                ->toBase()
+                ->groupBy('segment_id'),
             // The rows of every line printed in pieces, all parts — the
             // ones on this page need their siblings to find their words.
             'parts' => EditionSegment::where('edition_id', $edition->id)
@@ -1482,7 +1490,71 @@ class EditionController extends Controller
             // The literature this edition cites on the segment as a whole
             // — see BibliographyReference.
             'references' => $this->citations($context['segment_references'][$segment->id] ?? collect()),
+            // What the edition prints beside or among this segment's words
+            // without its being text of the work — see EditionParatext.
+            'paratexts' => $this->paratextsOf(
+                array_values($runs),
+                ($context['lemmas'][$segment->id] ?? collect())->values(),
+                $context['paratexts'][$segment->id] ?? collect(),
+            ),
         ];
+    }
+
+    /**
+     * A segment's paratexts resolved against the run walk, exactly as its
+     * line breaks are (see withBreaks): a paratext stands before or after
+     * one column, and the run covering that column — which may be a range
+     * selection or the base's wider reading swallowing it — is where it
+     * prints. `run_index` is that run's index; `placement` says which side.
+     *
+     * @param  list<array<string, mixed>>  $runs
+     * @param  SupportCollection<int, Lemma>  $lemmas
+     * @param  SupportCollection<int, EditionParatext>  $paratexts
+     * @return list<array{id: int, lemma_id: int, placement: string, kind: string, text: string, position: int, run_index: int}>
+     */
+    private function paratextsOf(array $runs, SupportCollection $lemmas, SupportCollection $paratexts): array
+    {
+        $indexOf = $lemmas->pluck('id')->flip();
+        $runOfLemmaIndex = [];
+
+        foreach ($runs as $i => $run) {
+            $startIndex = $indexOf[$run['lemma_id']] ?? null;
+
+            if ($startIndex === null) {
+                continue;
+            }
+
+            $endIndex = $run['range_end_lemma_id'] !== null
+                ? ($indexOf[$run['range_end_lemma_id']] ?? $startIndex)
+                : $startIndex;
+
+            for ($j = $startIndex; $j <= $endIndex; $j++) {
+                $runOfLemmaIndex[$j] = $i;
+            }
+        }
+
+        $resolved = [];
+
+        foreach ($paratexts as $paratext) {
+            $lemmaIndex = $indexOf[$paratext->lemma_id] ?? null;
+            $runIndex = $lemmaIndex !== null ? ($runOfLemmaIndex[$lemmaIndex] ?? null) : null;
+
+            if ($runIndex === null) {
+                continue;
+            }
+
+            $resolved[] = [
+                'id' => $paratext->id,
+                'lemma_id' => $paratext->lemma_id,
+                'placement' => $paratext->placement,
+                'kind' => $paratext->kind->value,
+                'text' => $paratext->text,
+                'position' => $paratext->position,
+                'run_index' => $runIndex,
+            ];
+        }
+
+        return $resolved;
     }
 
     /**

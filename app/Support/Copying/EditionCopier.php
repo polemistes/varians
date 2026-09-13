@@ -10,6 +10,7 @@ use App\Models\Edition;
 use App\Models\EditionComment;
 use App\Models\EditionLemma;
 use App\Models\EditionLineBreak;
+use App\Models\EditionParatext;
 use App\Models\EditionSegment;
 use App\Models\EditionTransposition;
 use App\Models\Lemma;
@@ -259,6 +260,19 @@ class EditionCopier
             $breakCopy->segment_id = $segments[$break->segment_id];
             $breakCopy->lemma_id = $lemmas[$break->lemma_id];
             $breakCopy->save();
+        }
+
+        foreach ($edition->paratexts as $paratext) {
+            /** @var EditionParatext $paratext */
+            if (! isset($segments[$paratext->segment_id], $lemmas[$paratext->lemma_id])) {
+                continue;
+            }
+
+            $paratextCopy = $paratext->replicate();
+            $paratextCopy->edition_id = $copy->id;
+            $paratextCopy->segment_id = $segments[$paratext->segment_id];
+            $paratextCopy->lemma_id = $lemmas[$paratext->lemma_id];
+            $paratextCopy->save();
         }
 
         foreach ($edition->comments as $comment) {

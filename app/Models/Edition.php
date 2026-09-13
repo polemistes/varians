@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\Role;
+use App\Enums\SpeakerDisplay;
 use App\Enums\Visibility;
 use Database\Factories\EditionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -35,10 +36,11 @@ use Illuminate\Support\Facades\DB;
  * @property string $title
  * @property string|null $description
  * @property Visibility $visibility
+ * @property SpeakerDisplay $speaker_display
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['work_id', 'user_id', 'copied_from_id', 'title', 'description', 'visibility'])]
+#[Fillable(['work_id', 'user_id', 'copied_from_id', 'title', 'description', 'visibility', 'speaker_display'])]
 class Edition extends Model
 {
     /** @use HasFactory<EditionFactory> */
@@ -46,6 +48,7 @@ class Edition extends Model
 
     protected $attributes = [
         'visibility' => Visibility::Draft,
+        'speaker_display' => SpeakerDisplay::Inline,
     ];
 
     /**
@@ -147,6 +150,17 @@ class Edition extends Model
     }
 
     /**
+     * What this edition prints beside or among the words without its being
+     * text of the work — see EditionParatext.
+     *
+     * @return HasMany<EditionParatext, $this>
+     */
+    public function paratexts(): HasMany
+    {
+        return $this->hasMany(EditionParatext::class);
+    }
+
+    /**
      * Whether this member may edit the edition: its owner or an invited
      * editor. Site-wide roles are the policies' business, not this one's.
      */
@@ -206,6 +220,7 @@ class Edition extends Model
     {
         return [
             'visibility' => Visibility::class,
+            'speaker_display' => SpeakerDisplay::class,
         ];
     }
 }

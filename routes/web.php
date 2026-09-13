@@ -18,6 +18,7 @@ use App\Http\Controllers\EditionLemmaController;
 use App\Http\Controllers\EditionLineationController;
 use App\Http\Controllers\EditionOrderController;
 use App\Http\Controllers\EditionOwnershipTransferController;
+use App\Http\Controllers\EditionParatextController;
 use App\Http\Controllers\EditionSegmentController;
 use App\Http\Controllers\EditionVariantController;
 use App\Http\Controllers\HomeController;
@@ -180,6 +181,15 @@ Route::middleware('auth')->group(function () {
     // An editor's own free-text notes on her edition — the judgments the
     // apparatus's vocabulary can't carry (accentuation, word division,
     // speaker assignment, why this reading was printed). See EditionComment.
+    // Paratext: what the edition prints beside or among the words without
+    // its being text of the work — see EditionParatext.
+    Route::post('/editions/{edition}/paratexts', [EditionParatextController::class, 'store'])
+        ->name('edition-paratexts.store');
+    Route::patch('/edition-paratexts/{paratext}', [EditionParatextController::class, 'update'])
+        ->name('edition-paratexts.update');
+    Route::delete('/edition-paratexts/{paratext}', [EditionParatextController::class, 'destroy'])
+        ->name('edition-paratexts.destroy');
+
     Route::post('/editions/{edition}/comments', [EditionCommentController::class, 'store'])
         ->name('edition-comments.store');
     Route::patch('/edition-comments/{comment}', [EditionCommentController::class, 'update'])

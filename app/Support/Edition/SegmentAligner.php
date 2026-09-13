@@ -6,6 +6,7 @@ use App\Models\Assignment;
 use App\Models\EditionComment;
 use App\Models\EditionLemma;
 use App\Models\EditionLineBreak;
+use App\Models\EditionParatext;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\Segment;
@@ -268,7 +269,8 @@ class SegmentAligner
         return LemmaReading::whereIn('lemma_id', $lemmaIds)->whereNotNull('conjecture_id')->exists()
             || EditionLemma::whereIn('lemma_id', $lemmaIds)->exists()
             || EditionComment::whereIn('lemma_id', $lemmaIds)->exists()
-            || EditionLineBreak::whereIn('lemma_id', $lemmaIds)->exists();
+            || EditionLineBreak::whereIn('lemma_id', $lemmaIds)->exists()
+            || EditionParatext::whereIn('lemma_id', $lemmaIds)->exists();
     }
 
     /**
@@ -417,7 +419,8 @@ class SegmentAligner
         // would empty out pins it — same rule as hasEditorialContent, and for
         // breaks the lemma FK cascades, so deletion would destroy them.
         if (EditionComment::whereIn('lemma_id', $emptyingLemmaIds)->exists()
-            || EditionLineBreak::whereIn('lemma_id', $emptyingLemmaIds)->exists()) {
+            || EditionLineBreak::whereIn('lemma_id', $emptyingLemmaIds)->exists()
+            || EditionParatext::whereIn('lemma_id', $emptyingLemmaIds)->exists()) {
             return false;
         }
 

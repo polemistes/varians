@@ -313,6 +313,28 @@ never cascade without pinning.
 columns a range selection or wider base reading covers, and a break on a
 swallowed column folds onto the covering run.
 
+## Paratext has a place in the text and nothing else (user request, 2026-09-13)
+`EditionParatext` is what an edition prints beside or among the words
+without its being text of the work — a marginal note, an inline remark, a
+speaker's name in a dialogue. It changes no reading, enters no apparatus
+and is never collated. It stands at a point BETWEEN words: `placement`
+'before' or 'after' the column `lemma_id` of `segment_id`, several at one
+point in `position` order. `lemma_id` CASCADES and the paratext PINS the
+column (added to `hasEditorialContent` and `realignLayer`'s emptying
+check, like a line break); removing the segment from the edition removes
+its paratexts (`EditionSegmentController::destroy`), and the page warns
+before that with `paratextLossNote`/`confirmParatextLoss`. Kinds
+(`ParatextKind`): left_margin, right_margin, inline, speaker. How SPEAKER
+indications are set is ONE choice for the whole edition
+(`editions.speaker_display`, `SpeakerDisplay`: inline;
+line_start_margin — left margin at a printed line's beginning, inline
+elsewhere; own_line; own_line_centered), changed through
+`editions.update`. `EditionController::paratextsOf` resolves each to the
+run covering its column, exactly as `withBreaks` does for breaks, and
+ships `run_index` + `placement` on `WindowSegment.paratexts`.
+`EditionCopier` copies them (and the layout column). Routes:
+`edition-paratexts.store/update/destroy`.
+
 ## Editorial notes are free text, and deliberately so
 `EditionComment` carries what the apparatus's own vocabulary cannot: that two
 manuscripts differ in accentuation, breathing or word division in a way worth

@@ -166,6 +166,26 @@ export type DiscontinuousWitness = {
     statements: string[];
 };
 
+/** Where a paratext is printed — see App\Enums\ParatextKind. */
+export type ParatextKind =
+    'left_margin' | 'right_margin' | 'inline' | 'speaker';
+
+/**
+ * What the edition prints beside or among the words without its being
+ * text of the work — see App\Models\EditionParatext. It stands before or
+ * after one column; `run_index` is the run covering that column (see
+ * EditionController::paratextsOf).
+ */
+export type Paratext = {
+    id: number;
+    lemma_id: number;
+    placement: 'before' | 'after';
+    kind: ParatextKind;
+    text: string;
+    position: number;
+    run_index: number;
+};
+
 export type WindowSegment = {
     id: number;
     edition_segment_id: number;
@@ -198,6 +218,7 @@ export type WindowSegment = {
     references: Citation[];
     // The base witness's whole line as the manuscript has it.
     base_diplomatic: string | null;
+    paratexts: Paratext[];
 };
 
 /** A conjecture this edition follows — see EditionTransposition. */

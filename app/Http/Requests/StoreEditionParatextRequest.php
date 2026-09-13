@@ -2,15 +2,14 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\SpeakerDisplay;
-use App\Enums\Visibility;
+use App\Enums\ParatextKind;
 use App\Models\Edition;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Enum;
 
-class UpdateEditionRequest extends FormRequest
+class StoreEditionParatextRequest extends FormRequest
 {
     /**
      * The policy decides — see App\Policies. Checked before validation, so
@@ -25,7 +24,8 @@ class UpdateEditionRequest extends FormRequest
     }
 
     /**
-     * Get the validation rules that apply to the request.
+     * A paratext stands before or after one column of a segment of this
+     * edition's own work — see App\Models\EditionParatext.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
@@ -35,12 +35,11 @@ class UpdateEditionRequest extends FormRequest
         $edition = $this->route('edition');
 
         return [
-            'title' => ['sometimes', 'string', 'max:255', Rule::unique('editions', 'title')->where('work_id', $edition->work_id)->ignore($edition->id)],
-            'description' => ['sometimes', 'nullable', 'string'],
-            'visibility' => ['sometimes', new Enum(Visibility::class)],
-            // How the edition sets its speaker indications — one choice for
-            // the whole edition, see App\Enums\SpeakerDisplay.
-            'speaker_display' => ['sometimes', new Enum(SpeakerDisplay::class)],
+            'segment_id' => ['required', Rule::exists('segments', 'id')->where('work_id', $edition->work_id)],
+            'lemma_id' => ['required', Rule::exists('lemmas', 'id')->where('segment_id', $this->input('segment_id'))],
+            'placement' => ['required', Rule::in(['before', 'after'])],
+            'kind' => ['required', new Enum(ParatextKind::class)],
+            'text' => ['required', 'string', 'max:2000'],
         ];
     }
 }

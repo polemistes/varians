@@ -8,6 +8,7 @@ use App\Http\Requests\StoreEditionSegmentsBulkRequest;
 use App\Models\Assignment;
 use App\Models\Edition;
 use App\Models\EditionLemma;
+use App\Models\EditionParatext;
 use App\Models\EditionSegment;
 use App\Models\Segment;
 use App\Support\Edition\LineationSeeder;
@@ -87,6 +88,13 @@ class EditionSegmentController extends Controller
         DB::transaction(function () use ($edition, $segmentIds) {
             EditionLemma::where('edition_id', $edition->id)
                 ->whereHas('lemma', fn ($query) => $query->whereIn('segment_id', $segmentIds))
+                ->delete();
+
+            // A paratext has a place in the text and nothing else: with the
+            // segment gone from the edition, so is its place (the page warns
+            // before this is asked).
+            EditionParatext::where('edition_id', $edition->id)
+                ->whereIn('segment_id', $segmentIds)
                 ->delete();
 
             // A line printed in pieces leaves whole.

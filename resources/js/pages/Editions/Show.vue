@@ -1,8 +1,19 @@
 <script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue';
+import {
+    computed,
+    nextTick,
+    onMounted,
+    onUnmounted,
+    onUpdated,
+    reactive,
+    ref,
+    watch,
+} from 'vue';
 import AppHeader from '@/components/AppHeader.vue';
 import ConjectureForm from '@/components/ConjectureForm.vue';
+import ParatextBox from '@/components/ParatextBox.vue';
+import ParatextEntry from '@/components/ParatextEntry.vue';
 import ReferencePicker from '@/components/ReferencePicker.vue';
 import WitnessesPanel from '@/components/WitnessesPanel.vue';
 import type { WitnessTranscript } from '@/components/WitnessesPanel.vue';
@@ -20,6 +31,8 @@ import {
 import type { BiblatexRegistry, Suggestions } from '@/lib/biblatex';
 import { confirmDeletion } from '@/lib/deletionImpact';
 import { analyzeSequence } from '@/lib/orderReport';
+import { isLineStart, layoutOf, stackMarginBoxes } from '@/lib/paratext';
+import type { ParatextLayout } from '@/lib/paratext';
 import { store as storeConjectureOrdering } from '@/routes/conjecture-orderings';
 import { store as storeEditionAdoption } from '@/routes/edition-adoptions';
 import {
@@ -35,6 +48,11 @@ import { destroy as destroyEditionLemma } from '@/routes/edition-lemmas';
 import { update as updateLineBreak } from '@/routes/edition-line-breaks';
 import { apply as applyEditionOrder } from '@/routes/edition-order';
 import { store as storeTransfer } from '@/routes/edition-ownership-transfers';
+import {
+    destroy as destroyParatext,
+    store as storeParatext,
+    update as updateParatext,
+} from '@/routes/edition-paratexts';
 import { destroy as destroyEditionSegment } from '@/routes/edition-segments';
 import { update as updateSegmentLineation } from '@/routes/edition-segments/lineation';
 import { store as storeVariant } from '@/routes/edition-variants';
@@ -56,6 +74,7 @@ import type {
     EditionComment,
     OrderCandidate,
     OrderRange,
+    ParatextKind,
     SegmentListItem,
     Run,
     TranscriptionOption,
@@ -65,7 +84,13 @@ import type {
     EditionAbilities,
     EditionAccess,
 } from '@/types/edition';
-import type { Edition, ReferenceLevel, Visibility, Work } from '@/types/models';
+import type {
+    Edition,
+    ReferenceLevel,
+    SpeakerDisplay,
+    Visibility,
+    Work,
+} from '@/types/models';
 
 const props = defineProps<{
     work: Pick<Work, 'id' | 'title' | 'slug'>;
@@ -561,6 +586,7 @@ const shownPieces = computed<Piece[]>(() =>
 );
 
 function startRegistering() {
+    stopParatextMode();
     registering.value = true;
     draftPieces.value = printedPieces();
     heldPieces.value = [];
@@ -749,6 +775,17 @@ function onTextPaste(event: ClipboardEvent) {
     }
 
     event.preventDefault();
+
+    // Pasted words become a paratext at the caret, like typed ones.
+    if (paratextMode.value && !registering.value) {
+        const pasted = event.clipboardData?.getData('text/plain')?.trim() ?? '';
+
+        if (pasted !== '') {
+            startParatextDraft(pasted);
+        }
+
+        return;
+    }
 
     if (!registering.value || heldPieces.value.length === 0) {
         return;
@@ -1178,6 +1215,15 @@ function onTextKeydown(event: KeyboardEvent) {
         return;
     }
 
+    // In paratext mode a character typed at the caret starts a paratext
+    // there; the word-changing keys are blocked below like everything else.
+    if (paratextMode.value && !registering.value && isTypingKey(event)) {
+        event.preventDefault();
+        startParatextDraft(event.key);
+
+        return;
+    }
+
     if (!['Enter', 'Backspace', 'Delete'].includes(event.key)) {
         return;
     }
@@ -1254,6 +1300,491 @@ function onRunKey(segmentId: number, runIndex: number, event: KeyboardEvent) {
 
     event.preventDefault();
     toggleRun(segmentId, runIndex);
+}
+
+// ---- paratext: what the edition prints beside or among the words ----
+// A paratext (see EditionParatext) has a place in the text — before or
+// after a word — and nothing else: no reading, no apparatus. "Paratext"
+// in the control row opens paratext mode: a character typed at the caret
+// starts one there, of the kind chosen in the box above the text; Enter
+// keeps it, Escape discards it; clicking an existing paratext rewords it.
+// The margins draw their notes in boxes beside the line they belong to,
+// measured after every render; a speaker indication on its own line
+// pushes the text down and indents the rest of the interrupted line to
+// where it broke off. The two display toggles in the Edition box are the
+// viewer's own, kept per browser.
+const paratextMode = ref(false);
+const paratextKind = ref<ParatextKind>('inline');
+const paratextError = ref<string | null>(null);
+
+const speakerDisplay = computed<SpeakerDisplay>(
+    () => props.edition.speaker_display ?? 'inline',
+);
+
+function startParatextMode() {
+    stopRegistering();
+    closePopover();
+    paratextError.value = null;
+    paratextMode.value = true;
+}
+
+function stopParatextMode() {
+    paratextMode.value = false;
+    cancelParatextEdit();
+}
+
+/** One choice for the whole edition — every speaker indication follows it. */
+function setSpeakerDisplay(value: SpeakerDisplay) {
+    router.patch(
+        updateEdition.url(props.edition),
+        { speaker_display: value },
+        { preserveScroll: true },
+    );
+}
+
+const DISPLAY_KEY = `varians:edition:${props.edition.id}:display`;
+
+function storedDisplay(): { paratext: boolean; markers: boolean } {
+    try {
+        const raw = localStorage.getItem(DISPLAY_KEY);
+        const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+
+        return {
+            paratext: parsed.paratext !== false,
+            markers: parsed.markers !== false,
+        };
+    } catch {
+        return { paratext: true, markers: true };
+    }
+}
+
+const showParatext = ref(storedDisplay().paratext);
+const showSegmentMarkers = ref(storedDisplay().markers);
+
+watch([showParatext, showSegmentMarkers], ([paratext, markers]) => {
+    try {
+        localStorage.setItem(
+            DISPLAY_KEY,
+            JSON.stringify({ paratext, markers }),
+        );
+    } catch {
+        // Storage unavailable — the in-session choice still works.
+    }
+});
+
+/** A paratext being written where none is saved yet. */
+type ParatextDraft = {
+    segmentId: number;
+    runIndex: number;
+    lemmaId: number;
+    placement: 'before' | 'after';
+    text: string;
+};
+
+const paratextDraft = ref<ParatextDraft | null>(null);
+const editingParatextId = ref<number | null>(null);
+
+/** One paratext as the text renders it, saved or draft. */
+type ParatextEntry = {
+    key: string;
+    id: number | null;
+    segmentIndex: number;
+    segmentId: number;
+    runIndex: number;
+    lemmaId: number;
+    placement: 'before' | 'after';
+    kind: ParatextKind;
+    text: string;
+    layout: ParatextLayout;
+    /** Whether it interrupts a printed line — the rest of the line then goes on below, indented. */
+    interruptsLine: boolean;
+    editing: boolean;
+};
+
+const paratextEntries = computed<ParatextEntry[]>(() => {
+    if (!showParatext.value && !paratextMode.value) {
+        return [];
+    }
+
+    const entries: ParatextEntry[] = [];
+    const draft = paratextDraft.value;
+
+    shownPieces.value.forEach((piece, segmentIndex) => {
+        const segment = piece.segment;
+
+        piece.runs.forEach(({ run, runIndex }, position) => {
+            const next = piece.runs[position + 1]?.run ?? null;
+            const at = (placement: 'before' | 'after') => {
+                const atLineStart = isLineStart({
+                    placement,
+                    firstRunOfPiece: position === 0,
+                    firstPiece: segmentIndex === 0,
+                    segmentStartsLine:
+                        segment.starts_new_line || segment.starts_new_paragraph,
+                    breakBefore: run.break_before,
+                });
+
+                return {
+                    atLineStart,
+                    interruptsLine:
+                        placement === 'before'
+                            ? !atLineStart
+                            : next !== null && next.break_before === null,
+                };
+            };
+
+            const items: {
+                id: number | null;
+                lemmaId: number;
+                placement: 'before' | 'after';
+                kind: ParatextKind;
+                text: string;
+                position: number;
+            }[] = (segment.paratexts ?? [])
+                .filter((paratext) => paratext.run_index === runIndex)
+                .map((paratext) => ({
+                    id: paratext.id,
+                    lemmaId: paratext.lemma_id,
+                    placement: paratext.placement,
+                    kind: paratext.kind,
+                    text: paratext.text,
+                    position: paratext.position,
+                }));
+
+            if (
+                draft &&
+                draft.segmentId === segment.id &&
+                draft.runIndex === runIndex
+            ) {
+                items.push({
+                    id: null,
+                    lemmaId: draft.lemmaId,
+                    placement: draft.placement,
+                    kind: paratextKind.value,
+                    text: draft.text,
+                    position: Number.MAX_SAFE_INTEGER,
+                });
+            }
+
+            for (const item of items) {
+                const { atLineStart, interruptsLine } = at(item.placement);
+
+                entries.push({
+                    key: item.id === null ? 'draft' : `p${item.id}`,
+                    id: item.id,
+                    segmentIndex,
+                    segmentId: segment.id,
+                    runIndex,
+                    lemmaId: item.lemmaId,
+                    placement: item.placement,
+                    kind: item.kind,
+                    text: item.text,
+                    layout: layoutOf(
+                        item.kind,
+                        speakerDisplay.value,
+                        atLineStart,
+                    ),
+                    interruptsLine,
+                    editing:
+                        item.id === null || item.id === editingParatextId.value,
+                });
+            }
+        });
+    });
+
+    return entries;
+});
+
+function paratextsAt(
+    segmentIndex: number,
+    runIndex: number,
+    placement: 'before' | 'after',
+): ParatextEntry[] {
+    return paratextEntries.value.filter(
+        (entry) =>
+            entry.segmentIndex === segmentIndex &&
+            entry.runIndex === runIndex &&
+            entry.placement === placement,
+    );
+}
+
+const marginEntries = computed(() =>
+    paratextEntries.value.filter(
+        (entry) =>
+            entry.layout === 'left_margin' || entry.layout === 'right_margin',
+    ),
+);
+
+const hasLeftMargin = computed(() =>
+    marginEntries.value.some((entry) => entry.layout === 'left_margin'),
+);
+const hasRightMargin = computed(() =>
+    marginEntries.value.some((entry) => entry.layout === 'right_margin'),
+);
+
+// Where each paratext's anchor stands in the text box, measured after
+// every render: the top of its line (for a margin box) and how far in
+// from the left the text stood when it broke off (for an own-line
+// indication's continuation). Margin boxes on one side stack down.
+const anchorPlaces = ref<Record<string, { top: number; left: number }>>({});
+const marginTops = ref<Record<string, number>>({});
+
+function samePlaces<T>(a: Record<string, T>, b: Record<string, T>): boolean {
+    const keys = Object.keys(a);
+
+    return (
+        keys.length === Object.keys(b).length &&
+        keys.every((key) => JSON.stringify(a[key]) === JSON.stringify(b[key]))
+    );
+}
+
+function measureParatexts() {
+    const box = editionTextEl.value;
+
+    if (!box) {
+        return;
+    }
+
+    const boxRect = box.getBoundingClientRect();
+    const paddingLeft = parseFloat(getComputedStyle(box).paddingLeft) || 0;
+    const places: Record<string, { top: number; left: number }> = {};
+
+    for (const el of box.querySelectorAll<HTMLElement>(
+        '[data-paratext-anchor]',
+    )) {
+        const rect = el.getClientRects()[0] ?? el.getBoundingClientRect();
+        places[el.dataset.paratextAnchor ?? ''] = {
+            top: Math.round(rect.top - boxRect.top + box.scrollTop),
+            left: Math.max(
+                0,
+                Math.round(rect.left - boxRect.left - paddingLeft),
+            ),
+        };
+    }
+
+    if (!samePlaces(places, anchorPlaces.value)) {
+        anchorPlaces.value = places;
+    }
+
+    const tops: Record<string, number> = {};
+
+    for (const side of ['left_margin', 'right_margin'] as const) {
+        const boxes = marginEntries.value
+            .filter((entry) => entry.layout === side)
+            .map((entry) => ({
+                key: entry.key,
+                top: places[entry.key]?.top ?? 0,
+                height:
+                    box.querySelector<HTMLElement>(
+                        `[data-paratext-box="${entry.key}"]`,
+                    )?.offsetHeight ?? 0,
+            }));
+
+        for (const [key, top] of stackMarginBoxes(boxes)) {
+            tops[key] = top;
+        }
+    }
+
+    if (!samePlaces(tops, marginTops.value)) {
+        marginTops.value = tops;
+    }
+}
+
+onUpdated(() => void nextTick(measureParatexts));
+onMounted(() => {
+    measureParatexts();
+    window.addEventListener('resize', measureParatexts);
+});
+onUnmounted(() => window.removeEventListener('resize', measureParatexts));
+
+function indentOf(entry: ParatextEntry): number {
+    return entry.interruptsLine
+        ? (anchorPlaces.value[entry.key]?.left ?? 0)
+        : 0;
+}
+
+function marginTopOf(entry: ParatextEntry): number {
+    return (
+        marginTops.value[entry.key] ?? anchorPlaces.value[entry.key]?.top ?? 0
+    );
+}
+
+/** A character key on its own — what starts a paratext in paratext mode. */
+function isTypingKey(event: KeyboardEvent): boolean {
+    return (
+        event.key.length === 1 &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey
+    );
+}
+
+/**
+ * Open a paratext at the caret with these first characters: before the
+ * word the caret is at the start of, otherwise after it. A gap run has
+ * no column to stand at.
+ */
+function startParatextDraft(initial: string): boolean {
+    const caret = caretPosition();
+    const piece = caret ? shownPieces.value[caret.segmentIndex] : undefined;
+    const run = caret && piece ? piece.segment.runs[caret.runIndex] : undefined;
+
+    if (!caret || !piece || !run || run.lemma_id === null) {
+        return false;
+    }
+
+    editingParatextId.value = null;
+    paratextError.value = null;
+    paratextDraft.value = {
+        segmentId: piece.segment.id,
+        runIndex: caret.runIndex,
+        lemmaId: run.lemma_id,
+        placement: caret.offset === 0 ? 'before' : 'after',
+        text: initial,
+    };
+
+    return true;
+}
+
+// Dead keys (accented Greek) and IMEs compose in the box itself, and no
+// event can stop the browser putting the provisional text into a word
+// span. The caret is read when the composition starts, the composed text
+// becomes the paratext when it ends, and the word span gets its own text
+// back from the model.
+let compositionCaret: Caret | null = null;
+
+function onTextCompositionStart(event: CompositionEvent) {
+    if (!canEdit.value || inEditableIsland(event.target as Node)) {
+        return;
+    }
+
+    compositionCaret = paratextMode.value ? caretPosition() : null;
+}
+
+function onTextCompositionEnd(event: CompositionEvent) {
+    if (!canEdit.value || inEditableIsland(event.target as Node)) {
+        return;
+    }
+
+    const caret = compositionCaret;
+    compositionCaret = null;
+
+    if (!paratextMode.value || registering.value || !caret) {
+        return;
+    }
+
+    const piece = shownPieces.value[caret.segmentIndex];
+    const run = piece?.segment.runs[caret.runIndex];
+    const runEl = editionTextEl.value?.querySelector<HTMLElement>(
+        `[data-segment-id="${piece?.segment.id}"][data-run-index="${caret.runIndex}"]`,
+    );
+
+    if (runEl && run) {
+        runEl.textContent = run.text;
+    }
+
+    if (!piece || !run || run.lemma_id === null || !event.data) {
+        return;
+    }
+
+    editingParatextId.value = null;
+    paratextDraft.value = {
+        segmentId: piece.segment.id,
+        runIndex: caret.runIndex,
+        lemmaId: run.lemma_id,
+        placement: caret.offset === 0 ? 'before' : 'after',
+        text: event.data,
+    };
+}
+
+function saveParatext(entry: ParatextEntry, text: string) {
+    const trimmed = text.trim();
+
+    if (entry.id === null) {
+        paratextDraft.value = null;
+
+        if (trimmed === '') {
+            return;
+        }
+
+        router.post(
+            storeParatext.url(props.edition),
+            {
+                segment_id: entry.segmentId,
+                lemma_id: entry.lemmaId,
+                placement: entry.placement,
+                kind: paratextKind.value,
+                text: trimmed,
+            },
+            {
+                preserveScroll: true,
+                onError: (errors) => {
+                    paratextError.value =
+                        Object.values(errors)[0] ??
+                        'Could not save that paratext.';
+                },
+            },
+        );
+
+        return;
+    }
+
+    editingParatextId.value = null;
+
+    if (trimmed === '') {
+        router.delete(destroyParatext.url(entry.id), { preserveScroll: true });
+
+        return;
+    }
+
+    if (trimmed !== entry.text) {
+        router.patch(
+            updateParatext.url(entry.id),
+            { text: trimmed },
+            { preserveScroll: true },
+        );
+    }
+}
+
+function cancelParatextEdit() {
+    paratextDraft.value = null;
+    editingParatextId.value = null;
+}
+
+function editParatext(entry: ParatextEntry) {
+    if (!canEdit.value || !paratextMode.value || entry.id === null) {
+        return;
+    }
+
+    paratextDraft.value = null;
+    editingParatextId.value = entry.id;
+}
+
+/** How many paratexts stand in these segments — lost with them. */
+function paratextCountIn(segmentIds: number[]): number {
+    return segmentIds.reduce(
+        (count, id) =>
+            count + (segmentById.value.get(id)?.paratexts.length ?? 0),
+        0,
+    );
+}
+
+function paratextLossNote(segmentIds: number[]): string | null {
+    const count = paratextCountIn(segmentIds);
+
+    if (count === 0) {
+        return null;
+    }
+
+    return count === 1
+        ? 'One paratext stands in it and will be deleted with it.'
+        : `${count} paratexts stand in them and will be deleted with them.`;
+}
+
+function confirmParatextLoss(segmentIds: number[]): boolean {
+    const note = paratextLossNote(segmentIds);
+
+    return note === null || window.confirm(`${note} Remove anyway?`);
 }
 
 // The page is always two panes: the edition on the left, the witnesses on
@@ -2418,6 +2949,12 @@ function submitWholeLineLacuna() {
 // see EditionSegmentController::destroy.
 /** Remove whole assignments from the edition — one, or every one a selection touched. */
 function removeEditionSegments(segmentIds: number[]) {
+    // A paratext has its place in the text and nothing else: with the
+    // segment gone, so is the place. Said before it happens.
+    if (!confirmParatextLoss(segmentIds)) {
+        return;
+    }
+
     router.delete(destroyEditionSegment.url(props.edition), {
         data: { segment_ids: segmentIds },
         preserveScroll: true,
@@ -2891,6 +3428,21 @@ function orderRangeClasses(range: OrderRange): string[] {
                     </span>
                 </div>
 
+                <!-- What the viewer wants shown — her own choice, kept per
+                     browser; the edition itself does not change. -->
+                <div
+                    class="mt-2 flex flex-wrap items-center gap-4 text-xs text-stone-500 dark:text-stone-400"
+                >
+                    <label class="flex items-center gap-1">
+                        <input v-model="showParatext" type="checkbox" />
+                        Show paratext
+                    </label>
+                    <label class="flex items-center gap-1">
+                        <input v-model="showSegmentMarkers" type="checkbox" />
+                        Show segment markers
+                    </label>
+                </div>
+
                 <div
                     class="mt-2 flex flex-wrap items-center gap-3 text-xs text-stone-500 dark:text-stone-400"
                 >
@@ -3138,8 +3690,28 @@ function orderRangeClasses(range: OrderRange): string[] {
                                 >
                                     {{
                                         registering
-                                            ? 'Cancel registering'
-                                            : 'Register transposition conjecture'
+                                            ? 'Cancel transposition'
+                                            : 'Transposition'
+                                    }}
+                                </button>
+                                <button
+                                    type="button"
+                                    class="rounded border px-2 py-1"
+                                    :class="
+                                        paratextMode
+                                            ? 'border-violet-300 bg-violet-100 text-violet-700 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-300'
+                                            : 'border-stone-300 dark:border-stone-700'
+                                    "
+                                    @click="
+                                        paratextMode
+                                            ? stopParatextMode()
+                                            : startParatextMode()
+                                    "
+                                >
+                                    {{
+                                        paratextMode
+                                            ? 'Done with paratext'
+                                            : 'Paratext'
                                     }}
                                 </button>
                             </template>
@@ -3288,13 +3860,106 @@ function orderRangeClasses(range: OrderRange): string[] {
                             </span>
                         </div>
 
+                        <!-- The paratext box: what kind the next paratext is,
+                             and how the edition sets its speaker
+                             indications. Stays up until the editor is done. -->
+                        <div
+                            v-if="paratextMode"
+                            class="mb-2 flex flex-col gap-2 rounded border border-violet-200 bg-violet-50 p-2 font-sans dark:border-violet-900 dark:bg-violet-950"
+                        >
+                            <p class="text-stone-600 dark:text-stone-300">
+                                Put the caret where the paratext belongs and
+                                start typing: before a word or after it. Enter
+                                keeps it, Escape discards it. Click a paratext
+                                to reword it; empty it to remove it. Paratext is
+                                not text of the work — it changes no reading and
+                                enters no apparatus.
+                            </p>
+                            <span
+                                class="flex flex-wrap items-center gap-3 text-stone-700 dark:text-stone-300"
+                            >
+                                <label
+                                    v-for="option in [
+                                        ['left_margin', 'Left margin'],
+                                        ['right_margin', 'Right margin'],
+                                        ['inline', 'Inline'],
+                                        ['speaker', 'Speaker indication'],
+                                    ] as const"
+                                    :key="option[0]"
+                                    class="flex items-center gap-1"
+                                >
+                                    <input
+                                        v-model="paratextKind"
+                                        type="radio"
+                                        name="paratext-kind"
+                                        :value="option[0]"
+                                    />
+                                    {{ option[1] }}
+                                </label>
+                            </span>
+                            <span
+                                v-if="paratextKind === 'speaker'"
+                                class="flex flex-wrap items-center gap-3 text-stone-700 dark:text-stone-300"
+                            >
+                                <span class="text-stone-500 dark:text-stone-400"
+                                    >Speaker indications in this edition:</span
+                                >
+                                <label
+                                    v-for="option in [
+                                        ['inline', 'all inline'],
+                                        [
+                                            'line_start_margin',
+                                            'in the left margin at a line beginning, else inline',
+                                        ],
+                                        [
+                                            'own_line',
+                                            'on a line of their own, to the left',
+                                        ],
+                                        [
+                                            'own_line_centered',
+                                            'on a line of their own, centred',
+                                        ],
+                                    ] as const"
+                                    :key="option[0]"
+                                    class="flex items-center gap-1"
+                                >
+                                    <input
+                                        type="radio"
+                                        name="speaker-display"
+                                        :value="option[0]"
+                                        :checked="speakerDisplay === option[0]"
+                                        @change="setSpeakerDisplay(option[0])"
+                                    />
+                                    {{ option[1] }}
+                                </label>
+                            </span>
+                            <span class="flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    class="rounded border border-stone-300 px-2 py-1 dark:border-stone-700"
+                                    @click="stopParatextMode"
+                                >
+                                    Done
+                                </button>
+                                <span
+                                    v-if="paratextError"
+                                    class="text-red-600 dark:text-red-400"
+                                    >{{ paratextError }}</span
+                                >
+                            </span>
+                        </div>
+
+                        <!-- Margin paratexts need room beside the text; the
+                             padding opens only when there are any to show. -->
                         <div
                             ref="editionTextEl"
-                            class="rounded border border-stone-200 p-2 font-serif text-lg leading-loose dark:border-stone-800"
-                            :class="
+                            class="relative rounded border border-stone-200 p-2 font-serif text-lg leading-loose dark:border-stone-800"
+                            :class="[
                                 canEdit &&
-                                'focus:ring-1 focus:ring-sky-300 focus:outline-none dark:focus:ring-sky-800'
-                            "
+                                    'focus:ring-1 focus:ring-sky-300 focus:outline-none dark:focus:ring-sky-800',
+                                hasLeftMargin && 'pl-36',
+                                hasRightMargin && 'pr-36',
+                            ]"
                             :contenteditable="canEdit ? 'true' : undefined"
                             spellcheck="false"
                             @keydown="onTextKeydown"
@@ -3304,6 +3969,8 @@ function orderRangeClasses(range: OrderRange): string[] {
                             @copy="onTextCopy"
                             @drop="blockTextEdit"
                             @dragstart="blockTextEdit"
+                            @compositionstart="onTextCompositionStart"
+                            @compositionend="onTextCompositionEnd"
                             @focusin="onTextFocus($event, true)"
                             @focusout="onTextFocus($event, false)"
                         >
@@ -3389,6 +4056,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                     <!-- A real button, so the report a number
                                      opens is reachable from the keyboard. -->
                                     <button
+                                        v-if="showSegmentMarkers"
                                         type="button"
                                         contenteditable="false"
                                         class="mr-1 rounded px-1.5 py-0.5 align-middle font-sans text-xs tracking-wide select-none"
@@ -3483,6 +4151,34 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                 "
                                                 >+</span
                                             >
+                                            <ParatextEntry
+                                                v-for="entry in paratextsAt(
+                                                    segmentIndex,
+                                                    runIndex,
+                                                    'before',
+                                                )"
+                                                :key="entry.key"
+                                                :entry-key="entry.key"
+                                                :text="entry.text"
+                                                :layout="entry.layout"
+                                                :speaker="
+                                                    entry.kind === 'speaker'
+                                                "
+                                                :editing="entry.editing"
+                                                :editable="
+                                                    canEdit && paratextMode
+                                                "
+                                                :indent="indentOf(entry)"
+                                                @save="
+                                                    (value) =>
+                                                        saveParatext(
+                                                            entry,
+                                                            value,
+                                                        )
+                                                "
+                                                @cancel="cancelParatextEdit"
+                                                @edit="editParatext(entry)"
+                                            />
                                             <span
                                                 class="cursor-pointer"
                                                 :data-segment-id="segment.id"
@@ -3576,7 +4272,34 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                     )
                                                 "
                                                 >{{ ' ' }}</span
-                                            >
+                                            ><ParatextEntry
+                                                v-for="entry in paratextsAt(
+                                                    segmentIndex,
+                                                    runIndex,
+                                                    'after',
+                                                )"
+                                                :key="entry.key"
+                                                :entry-key="entry.key"
+                                                :text="entry.text"
+                                                :layout="entry.layout"
+                                                :speaker="
+                                                    entry.kind === 'speaker'
+                                                "
+                                                :editing="entry.editing"
+                                                :editable="
+                                                    canEdit && paratextMode
+                                                "
+                                                :indent="indentOf(entry)"
+                                                @save="
+                                                    (value) =>
+                                                        saveParatext(
+                                                            entry,
+                                                            value,
+                                                        )
+                                                "
+                                                @cancel="cancelParatextEdit"
+                                                @edit="editParatext(entry)"
+                                            />
                                         </template>
                                         <span
                                             v-if="showsBoundaries(segment)"
@@ -4349,6 +5072,19 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                 from this edition? The segments
                                                 become available again in every
                                                 witness assigning text to them.
+                                                <template
+                                                    v-if="
+                                                        paratextLossNote(
+                                                            openTarget.segmentIds,
+                                                        )
+                                                    "
+                                                >
+                                                    {{
+                                                        paratextLossNote(
+                                                            openTarget.segmentIds,
+                                                        )
+                                                    }}
+                                                </template>
                                             </p>
                                             <button
                                                 type="button"
@@ -5141,6 +5877,38 @@ function orderRangeClasses(range: OrderRange): string[] {
                                     </span>
                                 </article>
                             </template>
+
+                            <!-- Margin paratexts: boxes beside the text,
+                                 each at the top of the line its anchor
+                                 stands in (measured after every render),
+                                 stacked down where two would overlap. -->
+                            <span
+                                v-for="entry in marginEntries"
+                                :key="entry.key"
+                                :data-paratext-box="entry.key"
+                                contenteditable="false"
+                                data-non-text
+                                class="absolute w-32 whitespace-normal"
+                                :class="
+                                    entry.layout === 'left_margin'
+                                        ? 'left-1 border-r border-violet-200 pr-1 text-right dark:border-violet-900'
+                                        : 'right-1 border-l border-violet-200 pl-1 dark:border-violet-900'
+                                "
+                                :style="{ top: `${marginTopOf(entry)}px` }"
+                            >
+                                <ParatextBox
+                                    :text="entry.text"
+                                    :layout="entry.layout"
+                                    :speaker="entry.kind === 'speaker'"
+                                    :editing="entry.editing"
+                                    :editable="canEdit && paratextMode"
+                                    @save="
+                                        (value) => saveParatext(entry, value)
+                                    "
+                                    @cancel="cancelParatextEdit"
+                                    @edit="editParatext(entry)"
+                                />
+                            </span>
                         </div>
                         <!-- What the current tool wants of the user — below the
                              text, so the text box itself never moves. -->

@@ -136,6 +136,10 @@ export type ManuscriptImageFeature = {
  * print — unlike Witness/Transcription, this is a genuine direct relation,
  * not something inferable from assignment data.
  */
+/** How an edition sets its speaker indications — see App\Enums\SpeakerDisplay. */
+export type SpeakerDisplay =
+    'inline' | 'line_start_margin' | 'own_line' | 'own_line_centered';
+
 export type Edition = {
     id: number;
     work_id: number;
@@ -143,6 +147,7 @@ export type Edition = {
     title: string;
     description: string | null;
     visibility: Visibility;
+    speaker_display: SpeakerDisplay;
     work?: Work;
     user?: { id: number; name: string };
 };
