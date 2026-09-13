@@ -145,7 +145,9 @@ class StoreEditionVariantRequest extends FormRequest
         $placement = $this->input('placement') ?? 'existing';
 
         if ($placement === 'existing') {
-            if ($this->input('lemma_id') === null && ! $this->filled('base_start_offset')) {
+            // A supplement names its lacuna, whose column the controller
+            // finds; every other pick names the column itself.
+            if ($this->input('lemma_id') === null && ! $this->filled('base_start_offset') && ! $this->wantsSupplement()) {
                 $validator->errors()->add('base_start_offset', 'Missing the target column.');
             }
 

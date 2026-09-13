@@ -132,7 +132,21 @@ unlike every other conjecture. Consequences:
   it would stand — a dashed amber chip "‸ 1.4a" after the printed
   segment preceding it in numbering order (`cataloguedLacunasBySegment`),
   for readers a report, for editors the way into that box (user report:
-  registered and then nowhere to be seen).
+  registered and then nowhere to be seen). The mark is the plain `‸` of
+  a lacuna, with NO segment label on it (user decision); clicking it —
+  readers too, as with every lacuna — opens a `catalogued_lacuna` notice
+  naming the segment, the proposer (name opens the edit form / literature),
+  its supplements, and for editors "Adopt here" and a supplement form.
+- SUPPLEMENTS may be proposed for a lacuna the edition has NOT adopted
+  (user decision): a point lacuna's gap run shows the form
+  (`!run.gap || lacunaCandidateOf(run)`), and for a lacuna segment the
+  edition lacks, `EditionVariantController::store` accepts a new supplement
+  with no `lemma_id` (`lemmaOfLacuna` finds the lacuna's column;
+  `supplementForAbsentSegment`) — registered, the edition is untouched;
+  adopted, it creates the EditionSegment as adopting the lacuna would.
+- Wording: "adopted", never "selected", wherever a reading is the one the
+  edition prints (user decision). The `+ segment` box no longer explains
+  itself at length.
 - The lacuna's notice lists the witnesses' reading as a row like any
   other — "R, K, Pb: no lacuna" (`noLacunaLabel`, sigla of every witness
   assigning the segment), "no such segment" for a lacuna segment —

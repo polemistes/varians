@@ -410,6 +410,14 @@ This is a real trap, not a hypothetical: the seeded edition originally carried
 exactly such a false variant — A normalized σφωε to σφῶε and B was left
 unaccented, while both manuscripts write σφωε.
 
+The hover NOTICE about it ("The manuscripts agree here — this difference
+was made in normalizing…", `differenceProvenance`/`manuscriptEvidence` in
+lib/apparatus.ts) was REMOVED on 2026-09-13 (user decision: superfluous,
+and it read as though a difference between the two layers counted as a
+variant). Variant detection is unchanged — normalized readings only — and
+`orthographic_variation` is still sent; only the sentence is gone. Do not
+bring the notice back.
+
 Where the manuscripts *cannot* be consulted — an edition with no diplomatic
 layers, or fewer than two witnesses having one — a difference of accent,
 breathing or pointing is still not attributable to them. Collation reads the

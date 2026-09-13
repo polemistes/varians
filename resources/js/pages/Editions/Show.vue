@@ -21,7 +21,6 @@ import {
     candidateSummary,
     candidateText,
     conjectureCandidates,
-    differenceProvenance,
     discontinuityLines,
     discontinuityTitle,
     manuscriptReadings,
@@ -286,6 +285,12 @@ type OpenTarget =
           endIndex: number;
       }
     | { segmentId: number; kind: 'remove'; segmentIds: number[] }
+    | {
+          segmentId: number;
+          kind: 'catalogued_lacuna';
+          lacunaId: number;
+          afterEditionSegmentId: number | null;
+      }
     | { segmentId: number; kind: 'line' };
 
 const openTarget = ref<OpenTarget | null>(null);
@@ -3039,13 +3044,108 @@ function cataloguedLacunasAfter(segmentId: number): WorkConjecture[] {
 
 function cataloguedLacunaTitle(lacuna: WorkConjecture): string {
     const who = lacuna.proposed_by ?? lacuna.entered_by;
-    const what = `A lacuna segment ${lacuna.segment_label} is conjectured here (${who}); this edition does not print it.`;
 
-    return canEdit.value ? `${what} Click to adopt it.` : what;
+    return `A lacuna segment ${lacuna.segment_label} is conjectured here (${who}); this edition does not print it. Click to see.`;
+}
+
+// The mark opens a notice for everyone, as a point lacuna's does: what is
+// conjectured missing, by whom, the supplements proposed for it — and for
+// editors, adopting it here and proposing a supplement (which needs no
+// adoption of the lacuna first: a proposal is a proposal).
+function toggleCataloguedLacuna(
+    segment: WindowSegment,
+    lacuna: WorkConjecture,
+) {
+    const target = openTarget.value;
+
+    if (
+        target?.kind === 'catalogued_lacuna' &&
+        target.lacunaId === lacuna.id &&
+        target.segmentId === segment.id
+    ) {
+        openTarget.value = null;
+
+        return;
+    }
+
+    openTarget.value = {
+        segmentId: segment.id,
+        kind: 'catalogued_lacuna',
+        lacunaId: lacuna.id,
+        afterEditionSegmentId: segment.edition_segment_id,
+    };
+    resetConjectureDraft();
+    submitError.value = null;
+}
+
+function openCataloguedLacuna(): WorkConjecture | null {
+    return openTarget.value?.kind === 'catalogued_lacuna'
+        ? conjectureById(openTarget.value.lacunaId)
+        : null;
+}
+
+/** "[lacuna: two lines]" — the lacuna as a candidate reads. */
+function lacunaReading(lacuna: WorkConjecture): string {
+    return lacuna.extent ? `[lacuna: ${lacuna.extent}]` : '[lacuna]';
+}
+
+function supplementsOf(lacuna: WorkConjecture): WorkConjecture[] {
+    return props.workConjectures.filter(
+        (conjecture) =>
+            conjecture.type === 'supplement' &&
+            conjecture.supplements_conjecture_id === lacuna.id,
+    );
+}
+
+// A supplement for a lacuna segment this edition has not adopted: the
+// server finds the lacuna's own column; adopting the supplement gives the
+// edition the segment in the same step.
+function submitSupplementForCataloguedLacuna(
+    lacuna: WorkConjecture,
+    adopt: boolean,
+) {
+    if (openTarget.value?.kind !== 'catalogued_lacuna') {
+        return;
+    }
+
+    submitError.value = null;
+    router.post(
+        storeVariant.url(props.edition),
+        {
+            segment_id: lacuna.segment_id,
+            placement: 'existing',
+            insert_after_edition_segment_id:
+                openTarget.value.afterEditionSegmentId,
+            source: 'new_conjecture',
+            conjecture_type: 'supplement',
+            conjecture_text: conjectureDraft.text,
+            conjecture_supplements_conjecture_id: lacuna.id,
+            conjecture_proposed_by: conjectureDraft.proposed_by || null,
+            conjecture_references: draftReferencesPayload(
+                conjectureDraft.references,
+            ),
+            conjecture_note: conjectureDraft.note || null,
+            adopt,
+        },
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                resetConjectureDraft();
+            },
+            onError: (errors) => {
+                submitError.value =
+                    Object.values(errors)[0] ??
+                    'Could not register that supplement.';
+            },
+        },
+    );
 }
 
 function adoptCataloguedSegmentLacuna(conjecture: WorkConjecture) {
-    if (openTarget.value?.kind !== 'new_segment') {
+    if (
+        openTarget.value?.kind !== 'new_segment' &&
+        openTarget.value?.kind !== 'catalogued_lacuna'
+    ) {
         return;
     }
 
@@ -4639,23 +4739,18 @@ function orderRangeClasses(range: OrderRange): string[] {
                                             :key="`lacuna-${lacuna.id}`"
                                             type="button"
                                             contenteditable="false"
-                                            class="mr-1 rounded border border-dashed border-amber-400 px-1 align-middle font-sans text-xs leading-normal text-amber-700 select-none dark:border-amber-700 dark:text-amber-400"
-                                            :class="
-                                                canEdit
-                                                    ? 'hover:bg-amber-100 dark:hover:bg-amber-950'
-                                                    : 'cursor-default'
-                                            "
+                                            class="inline-block min-w-[1.5ch] cursor-pointer rounded-sm bg-amber-200 px-1 text-center text-stone-500 select-none dark:bg-amber-900/50 dark:text-stone-400"
                                             :title="
                                                 cataloguedLacunaTitle(lacuna)
                                             "
                                             @click="
-                                                toggleNewSegment(
-                                                    segment.id,
-                                                    segment.edition_segment_id,
+                                                toggleCataloguedLacuna(
+                                                    segment,
+                                                    lacuna,
                                                 )
                                             "
                                         >
-                                            ‸ {{ lacuna.segment_label }}
+                                            ‸
                                         </button>
                                     </template>
 
@@ -4827,7 +4922,270 @@ function orderRangeClasses(range: OrderRange): string[] {
                                             </div>
                                         </template>
 
+                                        <!-- A lacuna segment catalogued for the
+                                             work but not printed here: what is
+                                             conjectured missing, its supplements,
+                                             and for editors the way to adopt it
+                                             or propose a supplement. -->
+                                        <template
+                                            v-else-if="
+                                                openTarget.kind ===
+                                                    'catalogued_lacuna' &&
+                                                openCataloguedLacuna()
+                                            "
+                                        >
+                                            <template
+                                                v-for="lacuna in [
+                                                    openCataloguedLacuna()!,
+                                                ]"
+                                                :key="lacuna.id"
+                                            >
+                                                <p
+                                                    class="mb-2 text-stone-700 dark:text-stone-300"
+                                                >
+                                                    Lacuna segment
+                                                    <strong>{{
+                                                        lacuna.segment_label
+                                                    }}</strong>
+                                                    — not in this edition.
+                                                </p>
+                                                <ul
+                                                    class="mb-2 flex flex-col gap-1"
+                                                >
+                                                    <li
+                                                        class="flex flex-wrap items-center justify-between gap-2 rounded p-1 hover:bg-white dark:hover:bg-stone-900"
+                                                    >
+                                                        <button
+                                                            type="button"
+                                                            class="shrink-0 font-bold underline decoration-stone-300 dark:decoration-stone-700"
+                                                            :title="
+                                                                canEdit
+                                                                    ? 'Edit this conjecture'
+                                                                    : 'Its literature'
+                                                            "
+                                                            @click="
+                                                                toggleConjecture(
+                                                                    lacuna.id,
+                                                                )
+                                                            "
+                                                        >
+                                                            {{
+                                                                lacuna.proposed_by ??
+                                                                lacuna.entered_by
+                                                            }}
+                                                            (lacuna):
+                                                        </button>
+                                                        <span class="flex-1">
+                                                            {{
+                                                                lacunaReading(
+                                                                    lacuna,
+                                                                )
+                                                            }}
+                                                            <em
+                                                                v-if="
+                                                                    lacuna.note
+                                                                "
+                                                                >&mdash;
+                                                                {{
+                                                                    lacuna.note
+                                                                }}</em
+                                                            >
+                                                        </span>
+                                                        <button
+                                                            v-if="canEdit"
+                                                            type="button"
+                                                            class="rounded border border-stone-300 px-1.5 text-xs dark:border-stone-700"
+                                                            title="Give this edition the segment and print the lacuna here"
+                                                            @click="
+                                                                adoptCataloguedSegmentLacuna(
+                                                                    lacuna,
+                                                                )
+                                                            "
+                                                        >
+                                                            Adopt here
+                                                        </button>
+                                                        <div
+                                                            v-if="
+                                                                openConjectureId ===
+                                                                lacuna.id
+                                                            "
+                                                            class="w-full"
+                                                        >
+                                                            <div
+                                                                class="mt-2 border-l-2 border-sky-200 pl-3 dark:border-sky-900"
+                                                            >
+                                                                <ConjectureForm
+                                                                    v-if="
+                                                                        canEdit
+                                                                    "
+                                                                    :segments="
+                                                                        props.workSegments
+                                                                    "
+                                                                    :levels="
+                                                                        props.referenceLevels
+                                                                    "
+                                                                    :lacunas="
+                                                                        lacunasForForm
+                                                                    "
+                                                                    :conjecture="
+                                                                        lacuna
+                                                                    "
+                                                                    :registry="
+                                                                        props
+                                                                            .bibliographyForm
+                                                                            .registry
+                                                                    "
+                                                                    :suggestions="
+                                                                        props
+                                                                            .bibliographyForm
+                                                                            .suggestions
+                                                                    "
+                                                                    @saved="
+                                                                        openConjectureId =
+                                                                            null
+                                                                    "
+                                                                    @cancel="
+                                                                        openConjectureId =
+                                                                            null
+                                                                    "
+                                                                />
+                                                                <p
+                                                                    v-else-if="
+                                                                        conjectureBibliography(
+                                                                            lacuna,
+                                                                        )
+                                                                            .length ===
+                                                                        0
+                                                                    "
+                                                                    class="text-stone-500 dark:text-stone-400"
+                                                                >
+                                                                    No
+                                                                    literature
+                                                                    recorded for
+                                                                    this
+                                                                    conjecture.
+                                                                </p>
+                                                                <p
+                                                                    v-for="entry in conjectureBibliography(
+                                                                        lacuna,
+                                                                    )"
+                                                                    v-else
+                                                                    :key="
+                                                                        entry.id
+                                                                    "
+                                                                >
+                                                                    {{
+                                                                        entry.citation
+                                                                    }}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </li>
+                                                    <li
+                                                        v-for="supplement in supplementsOf(
+                                                            lacuna,
+                                                        )"
+                                                        :key="supplement.id"
+                                                        class="flex flex-wrap items-center justify-between gap-2 rounded p-1"
+                                                    >
+                                                        <strong class="shrink-0"
+                                                            >{{
+                                                                supplement.proposed_by ??
+                                                                supplement.entered_by
+                                                            }}
+                                                            (supplement):</strong
+                                                        >
+                                                        <span class="flex-1">
+                                                            &lt;{{
+                                                                supplement.text
+                                                            }}&gt;
+                                                            <em
+                                                                v-if="
+                                                                    supplement.note
+                                                                "
+                                                                >&mdash;
+                                                                {{
+                                                                    supplement.note
+                                                                }}</em
+                                                            >
+                                                        </span>
+                                                    </li>
+                                                </ul>
+                                                <div
+                                                    v-if="canEdit"
+                                                    class="flex flex-col gap-1"
+                                                >
+                                                    <p
+                                                        class="text-stone-500 dark:text-stone-400"
+                                                    >
+                                                        Propose a supplement for
+                                                        this lacuna:
+                                                    </p>
+                                                    <input
+                                                        v-model="
+                                                            conjectureDraft.text
+                                                        "
+                                                        type="text"
+                                                        placeholder="Proposed supplement"
+                                                        class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                                                    />
+                                                    <input
+                                                        v-model="
+                                                            conjectureDraft.proposed_by
+                                                        "
+                                                        type="text"
+                                                        placeholder="First proposed by"
+                                                        class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
+                                                    />
+                                                    <span
+                                                        class="flex flex-wrap items-center gap-2"
+                                                    >
+                                                        <button
+                                                            type="button"
+                                                            class="rounded bg-stone-900 px-2 py-1 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
+                                                            :disabled="
+                                                                !conjectureDraft.text
+                                                            "
+                                                            title="Catalogue the supplement as a candidate"
+                                                            @click="
+                                                                submitSupplementForCataloguedLacuna(
+                                                                    lacuna,
+                                                                    false,
+                                                                )
+                                                            "
+                                                        >
+                                                            Register
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            class="rounded border border-stone-300 px-2 py-1 disabled:opacity-50 dark:border-stone-700"
+                                                            :disabled="
+                                                                !conjectureDraft.text
+                                                            "
+                                                            title="Catalogue the supplement, give this edition the segment and print the supplement in it"
+                                                            @click="
+                                                                submitSupplementForCataloguedLacuna(
+                                                                    lacuna,
+                                                                    true,
+                                                                )
+                                                            "
+                                                        >
+                                                            Register and adopt
+                                                        </button>
+                                                        <span
+                                                            v-if="submitError"
+                                                            class="text-red-600 dark:text-red-400"
+                                                            >{{
+                                                                submitError
+                                                            }}</span
+                                                        >
+                                                    </span>
+                                                </div>
+                                            </template>
+                                        </template>
+
                                         <!-- Select variant -->
+
                                         <template
                                             v-else-if="
                                                 openTarget.kind === 'run'
@@ -4912,7 +5270,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                         <span
                                                             v-if="!run.decided"
                                                             class="text-emerald-700 dark:text-emerald-400"
-                                                            >selected</span
+                                                            >adopted</span
                                                         >
                                                         <button
                                                             v-else-if="canEdit"
@@ -5029,7 +5387,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                                 candidate.selected
                                                             "
                                                             class="text-emerald-700 dark:text-emerald-400"
-                                                            >selected</span
+                                                            >adopted</span
                                                         >
                                                         <!-- The reading itself is clickable
                                                          too, but a reading that is
@@ -5208,7 +5566,13 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                 </ul>
 
                                                 <template
-                                                    v-if="canEdit && !run.gap"
+                                                    v-if="
+                                                        canEdit &&
+                                                        (!run.gap ||
+                                                            lacunaCandidateOf(
+                                                                run,
+                                                            ))
+                                                    "
                                                 >
                                                     <ul
                                                         v-if="
@@ -6010,18 +6374,6 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                 'new_segment'
                                             "
                                         >
-                                            <p
-                                                class="mb-1 text-stone-500 dark:text-stone-400"
-                                            >
-                                                A lacuna segment has no
-                                                manuscript witness of its own —
-                                                name the segment it should
-                                                occupy (e.g. "2.4A") and it is
-                                                printed as empty brackets;
-                                                proposals for its wording go in
-                                                as supplements from the
-                                                brackets' own notice.
-                                            </p>
                                             <div class="flex flex-col gap-1">
                                                 <input
                                                     v-model="lacunaDraft.label"
@@ -6530,13 +6882,6 @@ function orderRangeClasses(range: OrderRange): string[] {
                 <span class="text-stone-500 dark:text-stone-400">{{
                     candidate.label
                 }}</span>
-            </p>
-
-            <p
-                v-if="differenceProvenance(hovered.run)"
-                class="mt-1 text-xs text-amber-700 dark:text-amber-400"
-            >
-                {{ differenceProvenance(hovered.run) }}
             </p>
 
             <template

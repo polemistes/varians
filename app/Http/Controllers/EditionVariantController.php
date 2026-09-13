@@ -58,18 +58,24 @@ class EditionVariantController extends Controller
             ->where('segment_id', $segment->id)
             ->first();
 
-        if ($editionSegment === null) {
+        // A supplement may be proposed for a lacuna segment this edition
+        // has not adopted (a proposal is a proposal): it goes on the
+        // lacuna's own column, and only adopting it brings the segment in.
+        $supplementForAbsentSegment = $editionSegment === null && $this->isNewSupplement($request);
+
+        if ($editionSegment === null && ! $supplementForAbsentSegment) {
             throw ValidationException::withMessages([
                 'segment_id' => 'This segment hasn\'t been added to the edition yet.',
             ]);
         }
 
-        $base = $editionSegment->transcriptionLayer;
+        $base = $editionSegment?->transcriptionLayer;
 
-        DB::transaction(function () use ($request, $edition, $segment, $base, $placement) {
-            [$lemma, $rangeEndLemma] = match ($placement) {
-                'insert' => [$this->resolveInsertedLemma($request, $segment, $base), null],
-                'range' => $this->resolveRange($request, $segment, $base),
+        DB::transaction(function () use ($request, $edition, $segment, $base, $placement, $supplementForAbsentSegment) {
+            [$lemma, $rangeEndLemma] = match (true) {
+                $supplementForAbsentSegment => [$this->lemmaOfLacuna($request, $segment), null],
+                $placement === 'insert' => [$this->resolveInsertedLemma($request, $segment, $base), null],
+                $placement === 'range' => $this->resolveRange($request, $segment, $base),
                 default => [$this->resolveLemma($request, $segment, $base), null],
             };
 
@@ -138,6 +144,17 @@ class EditionVariantController extends Controller
             // picking it from the column's candidate list.
             if ($request->validated('source') === 'new_conjecture' && ! $request->boolean('adopt')) {
                 return;
+            }
+
+            // Adopting a supplement for a lacuna segment the edition lacks
+            // gives it the segment, exactly as adopting the lacuna would.
+            if ($supplementForAbsentSegment) {
+                EditionSegment::create([
+                    'edition_id' => $edition->id,
+                    'segment_id' => $segment->id,
+                    'transcription_layer_id' => null,
+                    'position' => $this->positionAfter($edition, $request->validated('insert_after_edition_segment_id')),
+                ]);
             }
 
             // Derived from the resolved reading's own range, not from
@@ -249,6 +266,32 @@ class EditionVariantController extends Controller
      * insertable-ordinal technique resolveInsertedLemma() already uses for
      * a point lacuna's Lemma.position.
      */
+    private function isNewSupplement(StoreEditionVariantRequest $request): bool
+    {
+        return $request->validated('source') === 'new_conjecture'
+            && $request->validated('conjecture_type') === ConjectureType::Supplement->value;
+    }
+
+    /**
+     * The column the supplemented lacuna stands on in this segment — the
+     * one a supplement competes at, whether or not the edition has adopted
+     * the lacuna (or the segment) yet.
+     */
+    private function lemmaOfLacuna(StoreEditionVariantRequest $request, Segment $segment): Lemma
+    {
+        $reading = LemmaReading::where('conjecture_id', (int) $request->validated('conjecture_supplements_conjecture_id'))
+            ->whereHas('lemma', fn ($query) => $query->where('segment_id', $segment->id))
+            ->first();
+
+        if ($reading === null) {
+            throw ValidationException::withMessages([
+                'conjecture_supplements_conjecture_id' => 'That lacuna is not placed in this segment.',
+            ]);
+        }
+
+        return $reading->lemma;
+    }
+
     private function positionAfter(Edition $edition, ?int $afterEditionSegmentId): float
     {
         $after = $afterEditionSegmentId !== null ? EditionSegment::findOrFail($afterEditionSegmentId) : null;

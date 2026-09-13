@@ -1470,3 +1470,82 @@ test('a catalogued lacuna cannot be adopted as a segment under another label', f
         'adopt' => true,
     ])->assertSessionHasErrors('conjecture_id');
 });
+
+test('a supplement can be proposed for a lacuna segment the edition has not adopted, and adopting it brings the segment in', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    ['work' => $work, 'edition' => $edition, 'editionSegment' => $editionSegment] = editionSpanningTwoLines();
+
+    $this->post(route('edition-variants.store', $edition), [
+        'placement' => 'new_segment',
+        'label' => '1.1a',
+        'insert_after_edition_segment_id' => $editionSegment->id,
+        'source' => 'new_conjecture',
+        'conjecture_type' => 'lacuna',
+    ])->assertSessionHasNoErrors();
+    $segment = Segment::where('work_id', $work->id)->where('label', '1.1a')->sole();
+    $lacuna = Conjecture::sole();
+
+    // Registered only: catalogued on the lacuna's column, the edition unchanged.
+    $this->post(route('edition-variants.store', $edition), [
+        'segment_id' => $segment->id,
+        'placement' => 'existing',
+        'source' => 'new_conjecture',
+        'conjecture_type' => 'supplement',
+        'conjecture_text' => 'ἄνδρα μοι',
+        'conjecture_supplements_conjecture_id' => $lacuna->id,
+        'insert_after_edition_segment_id' => $editionSegment->id,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $supplement = Conjecture::where('type', ConjectureType::Supplement)->sole();
+    expect($supplement->lemmaReadings()->sole()->lemma->segment_id)->toBe($segment->id)
+        ->and(EditionSegment::where('edition_id', $edition->id)->where('segment_id', $segment->id)->exists())->toBeFalse();
+
+    // Adopted: the edition gets the segment, printing the supplement in it.
+    $this->post(route('edition-variants.store', $edition), [
+        'segment_id' => $segment->id,
+        'placement' => 'existing',
+        'source' => 'new_conjecture',
+        'conjecture_type' => 'supplement',
+        'conjecture_text' => 'ἄνδρα μοι ἔννεπε',
+        'conjecture_supplements_conjecture_id' => $lacuna->id,
+        'insert_after_edition_segment_id' => $editionSegment->id,
+        'adopt' => true,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    expect(EditionSegment::where('edition_id', $edition->id)->where('segment_id', $segment->id)->exists())->toBeTrue();
+
+    $this->get(route('editions.show', [$work, $edition]))
+        ->assertInertia(fn (AssertInertia $page) => $page
+            ->where('windowSegments.1.label', '1.1a')
+            ->where('windowSegments.1.runs.0.text', 'ἄνδρα μοι ἔννεπε')
+            ->has('windowSegments.1.runs.0.candidates', 3));
+});
+
+test('a supplement may be registered for a point lacuna the edition has not adopted', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    ['edition' => $edition, 'segment' => $segment] = editionWithBase('the quick fox');
+    $after = Lemma::where('segment_id', $segment->id)->whereHas('readings', fn ($q) => $q->where('start_offset', 0))->sole();
+
+    $this->post(route('edition-variants.store', $edition), [
+        'segment_id' => $segment->id,
+        'placement' => 'insert',
+        'insert_after_lemma_id' => $after->id,
+        'source' => 'new_conjecture',
+        'conjecture_type' => 'lacuna',
+    ])->assertSessionHasNoErrors();
+    $lacuna = Conjecture::sole();
+    $lemma = Lemma::whereHas('readings', fn ($q) => $q->where('conjecture_id', $lacuna->id))->sole();
+
+    $this->post(route('edition-variants.store', $edition), [
+        'segment_id' => $segment->id,
+        'placement' => 'existing',
+        'lemma_id' => $lemma->id,
+        'source' => 'new_conjecture',
+        'conjecture_type' => 'supplement',
+        'conjecture_text' => 'indeed',
+        'conjecture_supplements_conjecture_id' => $lacuna->id,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    expect(Conjecture::where('type', ConjectureType::Supplement)->sole()->lemmaReadings()->sole()->lemma_id)->toBe($lemma->id)
+        ->and(EditionLemma::where('edition_id', $edition->id)->exists())->toBeFalse();
+});
