@@ -478,6 +478,12 @@ function regionClasses(regionId: Chunk['regionId']) {
 
 defineExpose({
     caretOffset: () => lastCaret.value,
+    // The remembered caret is an offset into THIS text; when the pane hands
+    // over another page's text it names nothing (an import landed at a
+    // stale offset — real bug).
+    forgetCaret: () => {
+        lastCaret.value = null;
+    },
     // Lets the parent restore the caret after applying ops of its own
     // making (undo/redo), which never pass through applyAndRestoreCaret.
     restoreCaretAt: (offset: number) => restoreCaret(offset),

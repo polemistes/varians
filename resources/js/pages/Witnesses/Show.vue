@@ -257,9 +257,23 @@ function flushBoth(): Promise<boolean> {
     ]).then((results) => results.every(Boolean));
 }
 
-/** Open a different transcript — both panes follow, sides fixed. */
+/**
+ * Open a different transcript — both panes follow, sides fixed. The pane
+ * that was picked from has already flushed and asked about its own
+ * unsavable edits; the OTHER pane's are asked about here rather than
+ * discarded silently.
+ */
 function navigateTranscript(transcriptId: number) {
-    void flushBoth().then(() => {
+    void flushBoth().then((flushed) => {
+        if (
+            !flushed &&
+            !window.confirm(
+                'Some changes in the other transcript pane could not be saved. Leave anyway and discard them?',
+            )
+        ) {
+            return;
+        }
+
         router.get(
             showWitnessRoute.url(props.witness),
             { transcript: transcriptId },

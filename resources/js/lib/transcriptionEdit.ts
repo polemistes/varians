@@ -8,9 +8,9 @@
  * - cut/paste relocation: an op pair sharing a `cut_id` (one pure deletion,
  *   one later pure insertion of the same text) carries every span wholly
  *   inside the cut to the paste point, offsets shifted verbatim, unflagged;
- * - tombstones: a destroyed span collapses to zero width at the point of
- *   destruction, flagged, and keeps transforming — it is never dropped from
- *   the preview, because the server keeps the row too.
+ * - destruction: a destroyed span is reported `deleted`, its offsets
+ *   collapsed to the point of destruction; the preview drops it, as the
+ *   server deletes the row (undo restores both).
  */
 
 export type TextEditOp = {
@@ -135,7 +135,7 @@ export function transformSpans(
                 }
 
                 // The span itself is in the clipboard; only its fallback
-                // tombstone position rides through intermediate ops, so
+                // collapse point rides through intermediate ops, so
                 // positional effects apply but destruction flags don't.
                 return {
                     ...applySpanOp(span, op, isPaste, claims, takesTextAtStart),
@@ -383,8 +383,8 @@ function applyReplace(
 
     if (start <= span.start && end >= span.end) {
         if (insertedLen === 0) {
-            // Collapse to a zero-width tombstone at the point of
-            // destruction — kept and flagged, mirroring the server.
+            // Collapse to the point of destruction and report it —
+            // mirroring the server, which then deletes the row.
             return {
                 ...span,
                 start,

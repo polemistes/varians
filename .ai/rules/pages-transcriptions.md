@@ -82,7 +82,17 @@ history, and because a pair's two halves live in SEPARATE history entries,
 the re-mint is stateful (`openReMints`): the delete half opens a fresh id,
 the matching insert half consumes it — independent minting left the halves
 unpaired and the server tombstoned the assignment an undo was restoring.
-An insert half with NO open re-mint keeps its ORIGINAL id: that is the
+**A relocation is ONE history entry**: `EditHistory.record` lets a paste
+half JOIN the newest entry when that entry holds its unpasted cut half
+(`entryOfOutstandingCut`), so Ctrl+Z undoes the move whole and both halves
+reach the server in one save. Split across two entries they were flushed
+one at a time — `applyHistoryStep` force-flushes every step that carries a
+span snapshot, which bypassed the unpaired-cut hold, and the undo of the
+paste went up as a lone deletion: the server destroyed what it should have
+carried (an edition-selected reading came back flagged, assignments were
+deleted and re-created; real bug, test-pinned in editHistory.test.ts).
+Typing between cut and paste keeps them separate entries, and that path
+still force-flushes. An insert half with NO open re-mint keeps its ORIGINAL id: that is the
 undo of a LONE cut, whose other half is the original cut op still sitting
 unsaved in the log under that very id (the unpaired-cut hold keeps it
 there) — a fresh mint here paired with nothing, and undoing an accidental
@@ -94,6 +104,13 @@ adopts the first outstanding cut whose removed text matches exactly
 intent, so old mis-paired logs land safely instead of tombstoning. The
 autosave hold likewise keys on any unpaired delete-half in the op log (not
 just clipboard cuts), so an undo's pair is never split across requests.
+
+**Every op field travels on every path.** `beaconFlush` (pagehide) builds
+its form by hand and dropped `side` and `imported`, so edits saved on tab
+close went to the wrong assignment; `destroyedByOp` transformed assignments
+with the region rule (no claim, no text), so restore snapshots were short
+of pending typed text. When an op grows a field or a rule, check the beacon
+and every `transformSpans` call that names assignments.
 
 **Copy/cut own the clipboard** (`onCopy`/`onCut`): the browser's own
 serialization of a selection includes the badges' visible text

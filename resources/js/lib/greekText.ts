@@ -23,7 +23,7 @@ const DIACRITICS = /\p{Mn}+/gu;
  * Listed rather than taken from a Unicode class, so that the markup
  * delimiters cannot be caught by widening the definition later.
  */
-const PUNCTUATION = /[,.;:!?·’‘“”"'()«»—–\-‹›…]/gu;
+const PUNCTUATION = /[,.;:!?·\u{037E}\u{0387}’‘“”"'()«»—–\-‹›…]/gu;
 
 function compose(text: string): string {
     return text.normalize('NFC');

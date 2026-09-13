@@ -8,7 +8,7 @@
  * preview shows those badges the moment the paste lands, instead of after
  * the autosave round-trip.
  */
-import { transformSpans } from '@/lib/transcriptionEdit';
+import { applyOps, transformSpans } from '@/lib/transcriptionEdit';
 import type { TextEditOp } from '@/lib/transcriptionEdit';
 
 type SpanRow = {
@@ -56,9 +56,16 @@ function pairs(ops: TextEditOp[]): [number, number][] {
     return result;
 }
 
+/**
+ * `text` is the text BEFORE the ops. Every replay is given it, so the plan
+ * sees exactly what the real transform sees — the assignment that carries on
+ * across a gap included; without it that claim is invisible and the plan
+ * works from stale bounds (see SpanTransformer::claimant).
+ */
 export function planRelocationEffects(
     assignments: SpanRow[],
     ops: TextEditOp[],
+    text: string | null = null,
 ): RelocationEffects {
     const overrides = new Map<
         number,
@@ -81,14 +88,21 @@ export function planRelocationEffects(
         const atCut =
             cutIndex === 0
                 ? original.map((span) => ({ ...span, deleted: false }))
-                : transformSpans(original, ops.slice(0, cutIndex), true);
+                : transformSpans(original, ops.slice(0, cutIndex), true, text);
         const atPaste = transformSpans(
             original,
             ops.slice(0, pasteIndex),
             true,
+            text,
         );
         const opsAfterPasteInclusive = ops.slice(pasteIndex);
         const opsAfterPaste = ops.slice(pasteIndex + 1);
+        // The text as the rows created here first see it: before the paste
+        // for the left half, after it for the fragment and the right half.
+        const textAtPaste =
+            text === null ? null : applyOps(text, ops.slice(0, pasteIndex));
+        const textAfterPaste =
+            textAtPaste === null ? null : applyOps(textAtPaste, [pasteOp]);
 
         assignments.forEach((assignment, index) => {
             const stateAtCut = atCut[index];
@@ -119,6 +133,8 @@ export function planRelocationEffects(
                     },
                 ],
                 opsAfterPaste,
+                true,
+                textAfterPaste,
             );
 
             if (!fragment.deleted && fragment.end > fragment.start) {
@@ -160,6 +176,8 @@ export function planRelocationEffects(
                     },
                 ],
                 opsAfterPasteInclusive,
+                true,
+                textAtPaste,
             );
 
             const [right] = transformSpans(
@@ -171,6 +189,8 @@ export function planRelocationEffects(
                     },
                 ],
                 opsAfterPaste,
+                true,
+                textAfterPaste,
             );
 
             if (!left.deleted && left.end > left.start) {

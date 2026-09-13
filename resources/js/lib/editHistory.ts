@@ -27,6 +27,15 @@
  * ride home. Every pass through undo/redo re-mints the ids — the server
  * validates a pair within one request, and a repeated id in one save would
  * be refused as already claimed.
+ *
+ * A relocation is ONE step. The paste half joins the entry its cut half
+ * made (when that entry is still the newest one — a cut is normally pasted
+ * straight away), so Ctrl+Z undoes the move whole and both halves of the
+ * pair reach the server in one save. Split across two entries they were
+ * flushed one at a time — the undo of the paste went up as a lone deletion,
+ * which the server treats as destroying rather than carrying (real bug:
+ * an edition-selected reading inside the moved words came back flagged for
+ * review, and the assignments were deleted and re-created).
  */
 
 import type { TextEditOp } from '@/lib/transcriptionEdit';
@@ -219,6 +228,21 @@ export class EditHistory {
         this.redoStack = [];
 
         const inverse = invertOp(textBefore, op, mirroring);
+
+        // The paste half of a relocation completes the step its cut began:
+        // the cut's entry already holds the state to return to (its
+        // snapshot, and the spans a lone cut would have destroyed — skipped
+        // as already present once the pair has carried them home).
+        const cutEntry = this.entryOfOutstandingCut(op);
+
+        if (cutEntry !== null) {
+            this.closeGroup();
+            cutEntry.undoOps.unshift(inverse);
+            cutEntry.redoOps.push(op);
+
+            return;
+        }
+
         const now = Date.now();
         const coalesce =
             kind === 'typing' &&
@@ -246,6 +270,42 @@ export class EditHistory {
         if (kind === 'atomic') {
             this.closeGroup();
         }
+    }
+
+    /**
+     * The newest entry, when it is the cut half of the relocation this
+     * insert completes — nothing recorded in between, and its cut not yet
+     * pasted. Any other shape (typing between cut and paste, say) leaves
+     * the paste to its own entry.
+     */
+    private entryOfOutstandingCut(op: TextEditOp): HistoryEntry | null {
+        if (!op.cut_id || op.text === '' || op.start !== op.end) {
+            return null;
+        }
+
+        if (this.openGroup !== null && this.openGroup.redoOps.length > 0) {
+            return null;
+        }
+
+        const newest = this.undoStack[this.undoStack.length - 1];
+
+        if (newest === undefined) {
+            return null;
+        }
+
+        const isCutHalf = (candidate: TextEditOp) =>
+            candidate.cut_id === op.cut_id &&
+            candidate.text === '' &&
+            candidate.end > candidate.start;
+        const isPasteHalf = (candidate: TextEditOp) =>
+            candidate.cut_id === op.cut_id &&
+            candidate.text !== '' &&
+            candidate.start === candidate.end;
+
+        return newest.redoOps.some(isCutHalf) &&
+            !newest.redoOps.some(isPasteHalf)
+            ? newest
+            : null;
     }
 
     /**

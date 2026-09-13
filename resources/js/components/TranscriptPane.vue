@@ -178,6 +178,7 @@ const editedAssignments = computed<Assignment[]>(() => {
     const effects = planRelocationEffects(
         layerAssignments.value,
         editOps.value,
+        layerText.value,
     );
     const transformed = transformSpans(
         layerAssignments.value.map((span) => ({
@@ -413,7 +414,15 @@ function destroyedByOp<
         end_offset: number;
         needs_review: boolean;
     },
->(rows: T[], op: TextEditOp): { row: T; start: number; end: number }[] {
+>(
+    rows: T[],
+    op: TextEditOp,
+    assignments: boolean,
+): { row: T; start: number; end: number }[] {
+    // Assignments claim what is typed against them and regions do not —
+    // the same rule editedAssignments/editedRegions apply, or the "before"
+    // bounds here are short of pending typed text and the restore lands
+    // the row a few characters off (real bug).
     const before = transformSpans(
         rows.map((span) => ({
             start: span.start_offset,
@@ -421,6 +430,8 @@ function destroyedByOp<
             needsReview: span.needs_review,
         })),
         editOps.value,
+        assignments,
+        assignments ? layerText.value : null,
     );
     const after = transformSpans(
         before.map((span) => ({
@@ -429,6 +440,8 @@ function destroyedByOp<
             needsReview: span.needsReview,
         })),
         [op],
+        assignments,
+        assignments ? editedText.value : null,
     );
 
     return rows.flatMap((row, index) =>
@@ -440,7 +453,7 @@ function destroyedByOp<
 
 function spansDestroyedBy(op: TextEditOp): RestorableSpans {
     return {
-        assignments: destroyedByOp(layerAssignments.value, op).map(
+        assignments: destroyedByOp(layerAssignments.value, op, true).map(
             ({ row, start, end }) => ({
                 segment_id: row.segment_id,
                 start_offset: start,
@@ -450,7 +463,7 @@ function spansDestroyedBy(op: TextEditOp): RestorableSpans {
         ),
         // Decimal columns serialize as strings — the restore payload is
         // numeric.
-        regions: destroyedByOp(layerRegions.value, op).map(
+        regions: destroyedByOp(layerRegions.value, op, false).map(
             ({ row, start, end }) => ({
                 manuscript_image_id: row.manuscript_image_id,
                 start_offset: start,
@@ -627,7 +640,10 @@ function applyHistoryStep(step: HistoryStep | null) {
 
     // Each op reverses its original as it was — as atomic as the edit,
     // never more, so the sibling layer sees the undo exactly as it saw the
-    // edit (see EditHistory). Relocation halves keep their pairing.
+    // edit (see EditHistory). A relocation is one step, so both halves of
+    // its pair are in `ops` together and the forced flush below sends
+    // them in one request — split across steps, the delete half went up
+    // alone and the server destroyed what it should have carried.
     const ops = step.ops;
     editOps.value = [...editOps.value, ...ops];
     historyVersion.value++;
@@ -746,9 +762,8 @@ function flushableOpCount(force: boolean): number {
 
     // Hold back from the first cut-half whose paste-half hasn't joined the
     // log yet — a pair must reach the server in one request to relocate
-    // rather than tombstone. This covers both a clipboard cut awaiting its
-    // paste AND the halves of an undo/redo in progress (undoing a
-    // relocation replays its pair across two history steps).
+    // rather than delete. This covers a clipboard cut awaiting its paste;
+    // an undo/redo of a relocation carries both halves in one step.
     const held = editOps.value.findIndex(
         (op, index) =>
             op.cut_id != null &&
@@ -903,7 +918,8 @@ function reloadAfterConflict() {
 // Leaving the page — including the hard reload Inertia performs when the
 // asset version changed under a long-lived tab — must not lose pending
 // ops. A beacon carries them out synchronously (an unpaired cut degrades
-// to a tombstone server-side, which is the safe direction), so there is
+// to a deletion server-side, which undo cannot reach any more — the
+// unpaired-cut hold makes that window short), so there is
 // no need to nag with a leave-page dialog; the old beforeunload warning
 // remains only where sendBeacon does not exist.
 function beaconFlush() {
@@ -936,6 +952,18 @@ function beaconFlush() {
 
         if (op.mirror_text != null) {
             form.append(`ops[${index}][mirror_text]`, op.mirror_text);
+        }
+
+        // Every field the transformer reads — the side of a marker and
+        // whether the text arrived rather than was typed decide WHICH
+        // assignment takes it, and a beacon that dropped them saved the
+        // last edits into the wrong assignment (see shiftOp).
+        if (op.side) {
+            form.append(`ops[${index}][side]`, op.side);
+        }
+
+        if (op.imported) {
+            form.append(`ops[${index}][imported]`, '1');
         }
     });
 
@@ -993,8 +1021,8 @@ watch(
 );
 
 // The text/assignments/regions actually rendered: always the live-edited local
-// state, so highlighted spans (and tombstones) visibly move as the scholar
-// types. With an empty op log these equal exactly what's persisted.
+// state, so highlighted spans visibly move as the scholar types. With an
+// empty op log these equal exactly what's persisted.
 const activeText = computed(() => editedText.value);
 const activeAssignments = computed(() => editedAssignments.value);
 const activeRegions = computed(() => editedRegions.value);
@@ -1232,7 +1260,8 @@ function importTargetOffset(): number | null {
     const caret = textEl.value?.caretOffset();
 
     if (caret !== null && caret !== undefined) {
-        return toFull(caret); // the caret is page-relative
+        // The caret is page-relative, and remembered: never past the page.
+        return toFull(Math.min(caret, cpLength(pageText.value)));
     }
 
     if (activeSelection.value) {
@@ -1257,9 +1286,17 @@ function openImportDialog() {
 }
 const textEl = ref<{
     caretOffset: () => number | null;
+    forgetCaret: () => void;
     restoreCaretAt: (offset: number) => void;
     selectRangeAt: (start: number, end: number) => void;
 } | null>(null);
+
+// Another page is another text: a caret remembered in the old one names
+// nothing in it (an import landed at a stale offset — real bug).
+watch(
+    () => props.selectedPageId,
+    () => textEl.value?.forgetCaret(),
+);
 
 function importFile(event: Event) {
     const input = event.target as HTMLInputElement;
@@ -1927,8 +1964,8 @@ function placePage(pageId: number) {
 const layerPartTotals = computed<Record<number, number>>(() => {
     const totals: Record<number, number> = {};
 
-    // The PREVIEWED set, live spans only — a tombstone is not a place the
-    // segment's text stands, and counting it said "2/3" over one span.
+    // The PREVIEWED set, live spans only — a span being carried by a cut
+    // is not a place the segment's text stands.
     for (const assignment of editedAssignments.value) {
         if (assignment.end_offset > assignment.start_offset) {
             totals[assignment.segment_id] =
