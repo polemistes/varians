@@ -12,6 +12,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Http/Controllers/TranscriptionTextController.php,app/Models/LemmaReading.php,app/Support/Transcription/** | .ai/rules/transcription.md |
 | tests/Feature/** | .ai/rules/feature.md |
 | resources/js/**/*.test.ts,vitest.config.ts | .ai/rules/js-tests.md |
+| .github/workflows/**,deploy.sh,composer.json,composer.lock,phpstan.neon | .ai/rules/deployment.md |
 | ** | .ai/rules/vocabulary.md |
 | app/Models/{Transcription,TranscriptionSegment,TranscriptionRegion,Tag}.php,app/Http/Controllers/Transcription*.php,resources/js/pages/Transcriptions/**,resources/js/components/AlignableText.vue | .ai/rules/js-components.md |
 | app/Models/{CanonicalPassage,TranscriptionSegment,Transcription,ReferenceScheme}.php, app/Models/{Transcription,TranscriptionSegment,Witness,Work}.php, app/Models/User.php, app/Models/{Conjecture,Lemma,LemmaReading,EditionLemma,EditionBase}.php, app/Support/Edition/**, app/Models/ReferenceScheme.php | .ai/rules/models.md |
