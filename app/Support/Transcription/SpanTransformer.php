@@ -18,11 +18,10 @@ namespace App\Support\Transcription;
  *
  * A pure insertion (start === end) joins the span it TOUCHES (user decision).
  * The caret touches a span when nothing stands between it and that span's text:
- * at the span's first character, at its last, or anywhere within. Since an
- * assignment never owns the whitespace at its edges (see AssignmentBounds), what
- * lies between two of them is a visible gap of unassigned whitespace, and a
- * caret placed in that gap touches neither — so what is typed there joins
- * nothing, and the span after it is pushed along as ever.
+ * at the span's first character, at its last, or anywhere within. A caret with
+ * whitespace between it and every span touches none — unless it stands in the
+ * midst of assigned text, where the span before carries on across the gap
+ * (see claimant()).
  *
  * This is what makes typing in front of an assigned line's first word write INTO
  * that line, which is what an editor means by it. Where two spans meet with no
@@ -30,9 +29,8 @@ namespace App\Support\Transcription;
  * there takes the text: typing in front of a word belongs to that word's
  * assignment, not to whatever ended against it.
  *
- * Whitespace typed at an edge joins the span like anything else and is then
- * trimmed straight back out of it — which is how pressing space or Enter widens
- * the gap rather than growing the assignment.
+ * Whitespace typed at a span's END joins it and stays (nothing trims it back
+ * out — user decision); whitespace typed at a span's START is left above it.
  *
  * A relocation paste is exempt throughout: those words belong to the assignment
  * carried with them, never to a neighbour they happen to land against.
@@ -50,14 +48,15 @@ namespace App\Support\Transcription;
  * unflagged — a cut-and-paste moves the words, and what is anchored to those
  * words is not changed by them sitting somewhere else (the same semantics the
  * old single-click relocation had). A cut whose paste never arrives in this log
- * (the pair was split across saves) degrades to a plain deletion — the span
- * collapses to a tombstone rather than being destroyed, see below.
+ * (the pair was split across saves) degrades to a plain deletion.
  *
- * A span the ops destroy is not frozen but collapses to a zero-width span at
- * the point of destruction, flagged, and keeps transforming through later ops —
- * so the caller can keep the row as a tombstone at the right final offset
- * rather than deleting it. `deleted` reports that the destruction happened;
- * what to do about it stays the caller's decision.
+ * A span the ops destroy is reported `deleted`, and its offsets collapse to
+ * the point of destruction and keep transforming through later ops. What to
+ * do with a destroyed span is the caller's decision: assignments and regions
+ * are DELETED (an assignment without text is nothing — user decision), and
+ * only an edition-SELECTED collation reading is kept, zero-width and flagged,
+ * because deleting it would cascade away the edition's choice. The collapse
+ * point exists for that one caller; nothing else keeps a destroyed row.
  *
  * @phpstan-type WorkingSpan array{start: int, end: int, needsReview: bool, deleted: bool, carried: array{cut_id: string, rel_start: int, rel_end: int}|null}
  */
@@ -101,7 +100,7 @@ class SpanTransformer
                     }
 
                     // The span itself is in the clipboard; only its fallback
-                    // tombstone position rides through intermediate ops, so
+                    // collapse point rides through intermediate ops, so
                     // positional effects apply but destruction flags don't.
                     $flags = [$span['needsReview'], $span['deleted']];
                     $span = self::applyOp($span, $op, $isPaste, $beginsHere, $takesTextAtStart);
@@ -116,8 +115,8 @@ class SpanTransformer
                         'rel_start' => $span['start'] - $op['start'],
                         'rel_end' => $span['end'] - $op['start'],
                     ];
-                    // Where the span tombstones if the paste never comes:
-                    // the cut point, kept transforming like any other offset.
+                    // Where the span is reported destroyed if the paste never
+                    // comes: the cut point, kept transforming like any offset.
                     $span['start'] = $op['start'];
                     $span['end'] = $op['start'];
 
@@ -425,9 +424,9 @@ class SpanTransformer
 
         if ($start <= $span['start'] && $end >= $span['end']) {
             if ($insertedLen === 0) {
-                // Collapse to a zero-width tombstone at the point of
-                // destruction and keep transforming — the caller keeps the
-                // row (flagged) rather than deleting a span an editor made.
+                // Collapse to the point of destruction and keep
+                // transforming — a caller that must keep the row (a selected
+                // reading) then knows where in the final text it stood.
                 $span['start'] = $start;
                 $span['end'] = $start;
                 $span['deleted'] = true;

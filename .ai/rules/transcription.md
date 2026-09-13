@@ -250,6 +250,61 @@ layer) and the join the edition-facsimile highlight will use — a reading's
 char range in the normalized layer and a mapping drawn on the diplomatic
 layer meet in word indices.
 
+## Text is assigned ONCE: no overlapping assignments, ever (user decision, 2026-09-13)
+No stretch of a layer's text belongs to two segments — of the same work or
+of different ones — and a span must hold words. This is REFUSED where a
+span is made or moved (`AssignmentController::guardAssignable`, on store
+and update: a validation error naming the segment that holds the words)
+and SKIPPED wherever the machinery would otherwise manufacture one: the
+sibling sync on store, `SiblingSync::followAssignment`/`healAssignments`,
+the undo restore, and a span-copy landing over a bystander standing wholly
+inside the arrival. `AssignmentIntegrity`'s "overlaps" complaint stays only
+as a report on data older than the rule. Do not add a rendering path for
+overlapping spans (AlignableText draws a marker only for the first span
+covering a chunk) — prevent them instead.
+
+## Concurrent saves are serialized on the transcript row
+`TranscriptionTextController::update` writes the parent `transcriptions`
+row FIRST inside its transaction (a touch of `updated_at`), then re-reads
+the layer. That takes the row lock on MySQL/Postgres and the database write
+lock on SQLite (production is SQLite; `lockForUpdate` is a no-op there), so
+a second editor's save waits, reads the fresh text behind it, and fails the
+replay check with the `ops`-keyed "changed since you started" error — a
+reload — instead of overwriting the first save. Without it two saves in the
+same moment could both pass the check against the same original. One row
+for both layers, so mirrored saves into each other's layer cannot deadlock.
+Genuine simultaneous editing of one text (merging both editors' ops) is
+NOT built; the conflict is detected and reported, not resolved.
+
+## Rejoined parts merge by CONTENT order, never by adjacency alone
+`mergeRejoinedParts` fuses two parts of a segment only when they stand a
+whitespace apart in the text AND the later one is the earlier one's
+successor in part order. Two halves a scribe swapped ("beta alpha", parts
+2 then 1) also stand a space apart, and the earlier adjacency-only rule
+fused them on the next unrelated keystroke, erasing the transposition (real
+bug, test-pinned both ways in TranscriptionTextUpdateTest).
+
+## Nothing is tombstoned any more, except a selected reading
+A destroyed assignment or region is DELETED (undo restores it). The only
+zero-width row the transformer's collapse point still serves is an
+edition-SELECTED `LemmaReading` the edit destroyed, kept flagged because
+`edition_lemmas.selected_reading_id` cascades. `SiblingSync::heal` no
+longer "revives" zero-width counterparts; a whitespace-only selection is
+refused as an assignment. A row with `group_id` NULL has NO counterpart —
+`counterpartAssignment`/`counterpartRegion` return null for it; the old
+`where('group_id', null)` matched every other ungrouped row and deleting one
+part deleted its neighbour (real bug). Rows created by relocation effects
+get their own uuid.
+
+## Removing or re-assigning a span re-collates the segment it left
+`AssignmentController::destroy` and `::reassign` call
+`recollateAfterRemoval` for the former segment on both layers: re-derive
+from the remaining parts (none left: the layer's readings go, and the
+witness drops out of that segment's apparatus); where an edition pins the
+readings, keep them and flag the surviving parts — or, with no part left,
+the readings themselves. Before this the readings stayed behind, collated
+from words the layer no longer claimed (real bug).
+
 ## Assignments and mappings are DONE ONCE — counterpart rows linked by group_id
 A span is ONE identity seen from two layers: counterpart rows share a
 `group_id` (assignments and regions both). `SiblingSync` creates the pair on

@@ -7,6 +7,7 @@ use App\Models\Assignment;
 use App\Models\EditionLemma;
 use App\Models\LemmaReading;
 use App\Models\Segment;
+use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionPageBreak;
 use App\Models\TranscriptionRegion;
@@ -22,6 +23,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class TranscriptionTextController extends Controller
@@ -42,6 +44,17 @@ class TranscriptionTextController extends Controller
     public function update(UpdateTranscriptionTextRequest $request, TranscriptionLayer $transcription): RedirectResponse
     {
         $affectedEditions = DB::transaction(function () use ($request, $transcription): array {
+            // Two editors saving at once: the replay check below is only
+            // sound against a text nobody else is changing in the same
+            // moment. Writing the transcript row FIRST takes its row lock on
+            // MySQL/Postgres and the database write lock on SQLite (where
+            // lockForUpdate is a no-op), so a second save waits here, reads
+            // the fresh text behind it, and is told its base is stale
+            // instead of silently overwriting the first. One row for both
+            // layers, so mirrored saves into each other's layer cannot
+            // deadlock.
+            Transcription::whereKey($transcription->transcription_id)->update(['updated_at' => now()]);
+            $transcription->refresh();
             $original = $transcription->text;
             $ops = $this->normalizeOps($request->validated('ops'), $original);
             $recomputedText = TextOpApplier::applyAll($original, $ops);
@@ -184,7 +197,7 @@ class TranscriptionTextController extends Controller
      * recomputed here by replaying the log against the stored text, so a
      * client cannot pair unrelated ops and teleport an assignment onto words it
      * never covered. A malformed claim keeps its op but loses the id,
-     * degrading to an ordinary edit (which tombstones rather than destroys).
+     * degrading to an ordinary edit (which deletes rather than carries).
      * A cut whose paste hasn't arrived in this save keeps its id — the
      * transformer degrades it to a deletion by itself.
      *
@@ -266,7 +279,7 @@ class TranscriptionTextController extends Controller
      * apart from its half (a client bug now fixed — but logs it saved still
      * arrive). Both halves declared relocation intent, so when an
      * outstanding cut removed exactly these characters the intent is
-     * unambiguous: re-pair them by content rather than tombstone the very
+     * unambiguous: re-pair them by content rather than delete the very
      * assignments the undo was restoring.
      *
      * @param  array{start: int, end: int, text: string}  $op
@@ -362,6 +375,7 @@ class TranscriptionTextController extends Controller
             ? RelocationAssignmentEffects::plan(
                 $spans->whereInstanceOf(Assignment::class)->values(),
                 $ops,
+                $textBefore,
             )
             : ['overrides' => [], 'unflag' => [], 'creates' => []];
 
@@ -384,8 +398,8 @@ class TranscriptionTextController extends Controller
             if ($result['deleted']) {
                 // The manuscript no longer carries these words, so the
                 // assignment goes with them: an assignment without text is
-                // nothing (user decision, reversing the earlier tombstone
-                // policy — a zero-width flagged marker preserved the
+                // nothing (user decision, reversing an earlier policy that
+                // kept a zero-width flagged marker — it preserved the
                 // assignment but never restored it, and read as clutter).
                 // What protects the editor instead: cut/paste pairs carry
                 // spans whole, and undoing a destructive edit restores the
@@ -445,6 +459,8 @@ class TranscriptionTextController extends Controller
                 'start_offset' => $create['start'],
                 'end_offset' => $create['end'],
                 'part' => $newPart,
+                // Its own identity; the healing pass gives it a counterpart.
+                'group_id' => (string) Str::uuid(),
             ]);
         }
 
@@ -464,27 +480,42 @@ class TranscriptionTextController extends Controller
     }
 
     /**
-     * Collapse same-segment LIVE spans that now stand identical, adjacent,
-     * or separated by NOTHING BUT WHITESPACE into one row. A relocation that
-     * cut a fragment out of a span created a separate part for it; UNDOING
-     * that relocation carries the fragment back — the text rejoins, and so
-     * must the rows, or every move-and-undo leaves duplicate assignments
-     * behind (real incident: one line 4, three rows, a badge saying 2/3).
+     * Collapse two parts of one segment that have REJOINED into one row: they
+     * stand next to each other in the text with nothing but whitespace
+     * between, AND read next to each other as content — the later one is the
+     * earlier one's successor in part order. A relocation that cut a
+     * fragment out of a span created a separate part for it; UNDOING that
+     * relocation carries the fragment back — the text rejoins, and so must
+     * the rows, or every move-and-undo leaves duplicate assignments behind
+     * (real incident: one line 4, three rows, a badge saying 2/3).
+     *
+     * Content order is the half that matters. Two halves of a line that a
+     * scribe SWAPPED also stand a space apart, and fusing them would erase
+     * the transposition — which an earlier version did on the next
+     * unrelated keystroke (real bug). Parts 2 and 1 in that physical order
+     * are not rejoined text; parts 1 and 2 are.
      *
      * Whitespace between them is no division: an assignment owns none at its
      * edges (AssignmentBounds), so two parts that read continuously stand a
-     * space apart rather than flush. Parts genuinely in two places have real
-     * words between them, so this cannot fuse a transposition back together.
+     * space apart rather than flush.
      */
     private function mergeRejoinedParts(TranscriptionLayer $transcription, string $text): void
     {
         $bySegment = $transcription->assignments()
-            ->whereColumn('end_offset', '>', 'start_offset')
             ->orderBy('start_offset')
             ->get()
             ->groupBy('segment_id');
 
         foreach ($bySegment as $rows) {
+            // Who follows whom as CONTENT: each part's successor in part
+            // order, by id — a merge inherits the merged part's successor.
+            $inPartOrder = Assignment::sortByPartOrder($rows);
+            $successor = [];
+
+            foreach ($inPartOrder as $index => $part) {
+                $successor[$part->id] = $inPartOrder[$index + 1]->id ?? null;
+            }
+
             /** @var Assignment|null $kept */
             $kept = null;
 
@@ -496,14 +527,14 @@ class TranscriptionTextController extends Controller
                 );
 
                 if ($kept !== null
-                    && $row->start_offset <= $kept->end_offset + mb_strlen($between)
-                    && trim($between) === ''
-                    && $row->end_offset >= $kept->start_offset) {
+                    && $successor[$kept->id] === $row->id
+                    && preg_match('/^\s*$/u', $between) === 1) {
                     $kept->update([
                         'start_offset' => min((int) $kept->start_offset, (int) $row->start_offset),
                         'end_offset' => max((int) $kept->end_offset, (int) $row->end_offset),
                         'needs_review' => $kept->needs_review || $row->needs_review,
                     ]);
+                    $successor[$kept->id] = $successor[$row->id];
                     $row->delete();
 
                     continue;

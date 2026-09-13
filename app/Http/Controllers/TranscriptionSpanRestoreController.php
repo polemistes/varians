@@ -20,8 +20,9 @@ class TranscriptionSpanRestoreController extends Controller
      *
      * - `assignments`/`regions`: rows the edit DELETED outright (deleting text
      *   deletes assignments and image mappings), re-created verbatim. An
-     *   assignment whose landing words already carry the same assignment is
-     *   skipped (the redo/undo dance must not duplicate); a mapping is
+     *   assignment whose landing words already carry an assignment — the
+     *   same one (the redo/undo dance must not duplicate) or any other
+     *   (text is assigned once) — is skipped; a mapping is
      *   skipped where the target already maps overlapping text (mapped
      *   once, like span-copy) or where its image belongs to another witness.
      *
@@ -42,7 +43,6 @@ class TranscriptionSpanRestoreController extends Controller
         DB::transaction(function () use ($request, $transcription) {
             foreach ($request->validated('assignments') ?? [] as $row) {
                 $alreadyAssigned = $transcription->assignments()
-                    ->where('segment_id', (int) $row['segment_id'])
                     ->where('start_offset', '<', (int) $row['end_offset'])
                     ->where('end_offset', '>', (int) $row['start_offset'])
                     ->exists();

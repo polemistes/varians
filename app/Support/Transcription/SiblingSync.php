@@ -68,18 +68,31 @@ class SiblingSync
         ];
     }
 
-    /** The counterpart row on the other layer, by the shared group. */
+    /**
+     * The counterpart row on the other layer, by the shared group. A row
+     * with NO group has no counterpart — `where('group_id', null)` would
+     * match every other ungrouped row, and deleting a span then took an
+     * unrelated one with it (real bug, caught by a test).
+     */
     public static function counterpartAssignment(Assignment $assignment): ?Assignment
     {
+        if ($assignment->group_id === null) {
+            return null;
+        }
+
         return Assignment::query()
             ->where('group_id', $assignment->group_id)
             ->whereKeyNot($assignment->id)
             ->first();
     }
 
-    /** The counterpart row on the other layer, by the shared group. */
+    /** The same for a facsimile mapping. */
     public static function counterpartRegion(TranscriptionRegion $region): ?TranscriptionRegion
     {
+        if ($region->group_id === null) {
+            return null;
+        }
+
         return TranscriptionRegion::query()
             ->where('group_id', $region->group_id)
             ->whereKeyNot($region->id)
@@ -108,7 +121,15 @@ class SiblingSync
             (int) $assignment->end_offset,
         );
 
-        if ($end > $start) {
+        // Text is assigned once on the sibling too: a projection that would
+        // run into another of its assignments is not applied.
+        $taken = $counterpart->transcriptionLayer->assignments()
+            ->whereKeyNot($counterpart->id)
+            ->where('start_offset', '<', $end)
+            ->where('end_offset', '>', $start)
+            ->exists();
+
+        if ($end > $start && ! $taken) {
             $counterpart->update([
                 'start_offset' => $start,
                 'end_offset' => $end,
@@ -179,21 +200,6 @@ class SiblingSync
                 : Assignment::query()->where('group_id', $assignment->group_id)->whereKeyNot($assignment->id)->first();
 
             if ($counterpart !== null) {
-                // A live span whose other half was tombstoned by an edit
-                // that never mirrored: in step again, the projection names
-                // its words — revive it.
-                if ($counterpart->end_offset <= $counterpart->start_offset) {
-                    [$start, $end] = self::projectRange($from, $to, (int) $assignment->start_offset, (int) $assignment->end_offset);
-
-                    if ($end > $start) {
-                        $counterpart->update([
-                            'start_offset' => $start,
-                            'end_offset' => $end,
-                            'needs_review' => $assignment->needs_review,
-                        ]);
-                    }
-                }
-
                 continue;
             }
 
@@ -218,10 +224,10 @@ class SiblingSync
                 continue;
             }
 
-            // Never manufacture a duplicate: an overlapping live assignment
-            // of the same segment already covers (some of) these words.
-            $overlapping = $toAssignments->contains(fn (Assignment $candidate) => $candidate->segment_id === $assignment->segment_id
-                && $candidate->end_offset > $candidate->start_offset
+            // Text is assigned once: where any live assignment of the
+            // sibling already covers (some of) these words — to this
+            // segment or another — nothing is created.
+            $overlapping = $toAssignments->contains(fn (Assignment $candidate) => $candidate->end_offset > $candidate->start_offset
                 && $candidate->start_offset < $end
                 && $candidate->end_offset > $start);
 

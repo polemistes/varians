@@ -122,6 +122,18 @@ class TranscriptionSpanCopyController extends Controller
                     continue;
                 }
 
+                // Text is assigned once: a bystander standing WHOLLY inside
+                // the arrival cannot be clipped around it (see below), so
+                // the arrival's own assignment yields and the standing one
+                // is kept — never both.
+                $blocked = $standing->contains(fn ($bystander) => $bystander->segment_id !== $segmentId
+                    && $bystander->start_offset >= $landStart
+                    && $bystander->end_offset <= $landEnd);
+
+                if ($blocked) {
+                    continue;
+                }
+
                 $nextPart[$segmentId] ??= ((int) $transcription->assignments()
                     ->where('segment_id', $segmentId)->max('part')) + 1;
 
@@ -181,8 +193,8 @@ class TranscriptionSpanCopyController extends Controller
                     } elseif ($coversRight) {
                         $bystander->update(['start_offset' => $landEnd]);
                     }
-                    // Wholly inside the arrival cannot come from absorbing an
-                    // insertion — leave it for a human.
+                    // Wholly inside the arrival is excluded above: no
+                    // traveled assignment is created over such a span.
                 }
             }
 

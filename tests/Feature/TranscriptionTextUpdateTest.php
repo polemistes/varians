@@ -9,6 +9,7 @@ use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
 use App\Models\User;
+use App\Models\Work;
 use App\Support\Edition\SegmentAligner;
 use App\Support\Transcription\AssignmentIntegrity;
 
@@ -739,4 +740,44 @@ test('a letter at the start of an assigned line still writes into it', function 
     ])->assertRedirect();
 
     expect([$second->fresh()->start_offset, $second->fresh()->end_offset])->toBe([12, 26]);
+});
+
+test('two parts a scribe swapped are not fused by an unrelated edit', function () {
+    // Line 5's halves stand swapped in the manuscript — "beta alpha", with
+    // "alpha" reading first (part 1). They are a space apart, exactly like
+    // two parts that have REJOINED after an undone move — but content order
+    // says they have not, and fusing them erased the transposition on the
+    // next keystroke anywhere in the text (real bug).
+    $this->actingAs(User::factory()->editor()->create());
+    $layer = TranscriptionLayer::factory()->create(['text' => "line four\nbeta alpha\nline six"]);
+    $segment = Segment::factory()->for(Work::factory())->create();
+    $layer->assignments()->create(['segment_id' => $segment->id, 'start_offset' => 10, 'end_offset' => 14, 'part' => 2]); // "beta"
+    $layer->assignments()->create(['segment_id' => $segment->id, 'start_offset' => 15, 'end_offset' => 20, 'part' => 1]); // "alpha"
+
+    $this->patch(route('transcriptions.text.update', $layer), [
+        'ops' => [['start' => 29, 'end' => 29, 'text' => 'x']],
+        'text' => "line four\nbeta alpha\nline sixx",
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $rows = $layer->assignments()->where('segment_id', $segment->id)->orderBy('start_offset')->get();
+
+    expect($rows)->toHaveCount(2)
+        ->and($rows->map(fn ($row) => $row->part)->all())->toBe([2, 1]);
+});
+
+test('two parts that read consecutively and stand a space apart are rejoined', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    $layer = TranscriptionLayer::factory()->create(['text' => "alpha beta\nline six"]);
+    $segment = Segment::factory()->for(Work::factory())->create();
+    $layer->assignments()->create(['segment_id' => $segment->id, 'start_offset' => 0, 'end_offset' => 5, 'part' => 1]);
+    $layer->assignments()->create(['segment_id' => $segment->id, 'start_offset' => 6, 'end_offset' => 10, 'part' => 2]);
+
+    $this->patch(route('transcriptions.text.update', $layer), [
+        'ops' => [['start' => 19, 'end' => 19, 'text' => 'x']],
+        'text' => "alpha beta\nline sixx",
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $merged = $layer->assignments()->sole();
+
+    expect([$merged->start_offset, $merged->end_offset])->toBe([0, 10]);
 });

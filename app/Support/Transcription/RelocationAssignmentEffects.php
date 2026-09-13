@@ -22,9 +22,11 @@ use Illuminate\Support\Collection;
  *   arrival into that assignment: the target splits into two parts of its own
  *   segment, one on each side of the inserted text.
  *
- * This runs server-side only. The live preview shows the plain transform
- * until the autosave round-trip returns the created rows — a brief,
- * self-correcting divergence.
+ * Mirrored for the live preview in resources/js/lib/relocationEffects.ts —
+ * keep the two in step. Every replay here is given the TEXT the ops apply
+ * to, so it sees exactly what the real transform sees, the assignment that
+ * carries on across a gap included (see SpanTransformer::claimant); without
+ * the text that claim is invisible and the plan works from stale bounds.
  *
  * @phpstan-type Effects array{overrides: array<int, array{start: int, end: int, needsReview: bool}>, unflag: list<int>, creates: list<array{segment_id: int, start: int, end: int, anchor_index: int, placement: 'before'|'after'}>}
  */
@@ -33,9 +35,10 @@ class RelocationAssignmentEffects
     /**
      * @param  Collection<int, Assignment>  $assignments  the layer's assignments, in the order applySpans will walk them
      * @param  list<array{start: int, end: int, text: string, cut_id?: string|null}>  $ops
+     * @param  string|null  $text  the text BEFORE the ops
      * @return Effects
      */
-    public static function plan(Collection $assignments, array $ops): array
+    public static function plan(Collection $assignments, array $ops, ?string $text = null): array
     {
         $overrides = [];
         $unflag = [];
@@ -58,10 +61,15 @@ class RelocationAssignmentEffects
             // real transform sees at those moments.
             $atCut = $cutIndex === 0
                 ? $original
-                : SpanTransformer::transform($original, array_slice($ops, 0, $cutIndex), true);
-            $atPaste = SpanTransformer::transform($original, array_slice($ops, 0, $pasteIndex), true);
+                : SpanTransformer::transform($original, array_slice($ops, 0, $cutIndex), true, $text);
+            $atPaste = SpanTransformer::transform($original, array_slice($ops, 0, $pasteIndex), true, $text);
             $opsAfterPasteInclusive = array_slice($ops, $pasteIndex);
             $opsAfterPaste = array_slice($ops, $pasteIndex + 1);
+            // The text as the rows created here first see it: before the
+            // paste for the left half, after it for the fragment and the
+            // right half.
+            $textAtPaste = $text === null ? null : TextOpApplier::applyAll($text, array_slice($ops, 0, $pasteIndex));
+            $textAfterPaste = $text === null ? null : TextOpApplier::apply($textAtPaste, $pasteOp);
 
             foreach ($assignments as $index => $assignment) {
                 $stateAtCut = $atCut[$index];
@@ -90,6 +98,8 @@ class RelocationAssignmentEffects
                         'needsReview' => false,
                     ]],
                     $opsAfterPaste,
+                    true,
+                    $textAfterPaste,
                 );
 
                 if (! $fragment['deleted'] && $fragment['end'] > $fragment['start']) {
@@ -135,6 +145,8 @@ class RelocationAssignmentEffects
                         'needsReview' => $stateAtPaste['needsReview'],
                     ]],
                     $opsAfterPasteInclusive,
+                    true,
+                    $textAtPaste,
                 );
 
                 // Right half: begins after the pasted text.
@@ -145,6 +157,8 @@ class RelocationAssignmentEffects
                         'needsReview' => $stateAtPaste['needsReview'],
                     ]],
                     $opsAfterPaste,
+                    true,
+                    $textAfterPaste,
                 );
 
                 if (! $left['deleted'] && $left['end'] > $left['start']) {

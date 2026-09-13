@@ -7,6 +7,7 @@ use App\Http\Requests\StoreAssignmentRequest;
 use App\Http\Requests\UpdateAssignmentRequest;
 use App\Models\Assignment;
 use App\Models\EditionLemma;
+use App\Models\LemmaReading;
 use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Models\Work;
@@ -55,6 +56,7 @@ class AssignmentController extends Controller
                 (int) $request->validated('start_offset'),
                 (int) $request->validated('end_offset'),
             );
+            $this->guardAssignable($transcription, $start, $end);
 
             $transcription->assignments()->create([
                 'segment_id' => $segment->id,
@@ -104,14 +106,14 @@ class AssignmentController extends Controller
             return;
         }
 
-        // Already assigned there on exactly these words — nothing to add.
-        $exists = $sibling->assignments()
-            ->where('segment_id', $segment->id)
-            ->where('start_offset', $siblingStart)
-            ->where('end_offset', $siblingEnd)
+        // Text is assigned once: where the sibling already assigns any of
+        // these words — to this segment or another — nothing is added.
+        $taken = $sibling->assignments()
+            ->where('start_offset', '<', $siblingEnd)
+            ->where('end_offset', '>', $siblingStart)
             ->exists();
 
-        if ($exists) {
+        if ($taken) {
             return;
         }
 
@@ -154,6 +156,7 @@ class AssignmentController extends Controller
                 (int) $request->validated('start_offset'),
                 (int) $request->validated('end_offset'),
             );
+            $this->guardAssignable($assignment->transcriptionLayer, $start, $end, $assignment);
 
             $assignment->update(['start_offset' => $start, 'end_offset' => $end, 'needs_review' => false]);
             SiblingSync::followAssignment($assignment);
@@ -188,6 +191,7 @@ class AssignmentController extends Controller
 
         DB::transaction(function () use ($request, $assignment, $segment) {
             $layer = $assignment->transcriptionLayer;
+            $former = $assignment->segment;
             $aligned = $this->guardLatePart($request, $layer, $segment);
             $counterpart = $this->siblingCounterpart($assignment);
 
@@ -199,6 +203,9 @@ class AssignmentController extends Controller
             if ($aligned) {
                 $this->recollateLayer($layer, $segment);
             }
+
+            // The words left the segment they were collated into.
+            $this->recollateAfterRemoval($layer, $former);
 
             if ($counterpart !== null) {
                 $sibling = $counterpart->transcriptionLayer;
@@ -212,6 +219,8 @@ class AssignmentController extends Controller
                 if ($siblingAligned) {
                     $this->recollateLayer($sibling, $segment);
                 }
+
+                $this->recollateAfterRemoval($sibling, $former);
             }
         });
 
@@ -223,11 +232,86 @@ class AssignmentController extends Controller
         $this->authorize('update', $assignment->transcriptionLayer);
 
         DB::transaction(function () use ($assignment) {
-            $this->siblingCounterpart($assignment)?->delete();
+            $segment = $assignment->segment;
+            $layer = $assignment->transcriptionLayer;
+            $counterpart = $this->siblingCounterpart($assignment);
+            $sibling = $counterpart?->transcriptionLayer;
+
+            $counterpart?->delete();
             $assignment->delete();
+
+            // The segment's collation of this layer read these words; it
+            // must not go on reporting them (real bug: a removed span left
+            // its readings behind, and the witness stayed in the apparatus).
+            $this->recollateAfterRemoval($layer, $segment);
+
+            if ($sibling !== null) {
+                $this->recollateAfterRemoval($sibling, $segment);
+            }
         });
 
         return back();
+    }
+
+    /**
+     * Text is assigned ONCE (user decision): a span must hold words, and may
+     * not overlap another assignment of the layer — to any segment of any
+     * work. Refused here, where the span is made, rather than tolerated and
+     * flagged afterwards; AssignmentIntegrity's overlap check stays only as
+     * a report on data that predates this rule.
+     */
+    private function guardAssignable(TranscriptionLayer $layer, int $start, int $end, ?Assignment $except = null): void
+    {
+        if ($end <= $start) {
+            throw ValidationException::withMessages([
+                'start_offset' => 'Select some words to assign — a span of nothing but whitespace is no assignment.',
+            ]);
+        }
+
+        $overlapping = $layer->assignments()
+            ->where('start_offset', '<', $end)
+            ->where('end_offset', '>', $start)
+            ->when($except !== null, fn ($query) => $query->whereKeyNot($except->id))
+            ->with('segment:id,label')
+            ->orderBy('start_offset')
+            ->first();
+
+        if ($overlapping !== null) {
+            throw ValidationException::withMessages([
+                'start_offset' => 'Some of these words are already assigned to '
+                    .($overlapping->segment->label ?? 'a segment')
+                    .' — text is assigned once. Remove or shrink that span first.',
+            ]);
+        }
+    }
+
+    /**
+     * A layer that stops assigning (some of) a segment's text still has its
+     * readings on the segment's columns, collated from words it no longer
+     * claims. Re-derive from the parts that remain — none left, and the
+     * layer's readings go with them, so the witness drops out of that
+     * segment's apparatus. Where an edition pins the readings they are kept
+     * (selections cascade) and what remains is flagged for review: the
+     * surviving parts, or the readings themselves when no part is left to
+     * carry the flag.
+     */
+    private function recollateAfterRemoval(TranscriptionLayer $layer, Segment $segment): void
+    {
+        $readings = SegmentAligner::layerReadings($segment, $layer);
+
+        if ($readings->isEmpty() || SegmentAligner::realignLayer($segment, $layer)) {
+            return;
+        }
+
+        $parts = $layer->assignments()->where('segment_id', $segment->id);
+
+        if ($parts->exists()) {
+            $parts->update(['needs_review' => true]);
+
+            return;
+        }
+
+        LemmaReading::whereIn('id', $readings->pluck('id'))->update(['needs_review' => true]);
     }
 
     /**
