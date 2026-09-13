@@ -21,7 +21,7 @@ class CanonicalPassageResolver
 
         if ($address === null) {
             throw ValidationException::withMessages([
-                'label' => 'That assignment doesn\'t match this work\'s numbering scheme.',
+                'label' => 'That segment label doesn\'t match this work\'s numbering scheme.',
             ]);
         }
 

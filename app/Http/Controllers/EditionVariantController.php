@@ -60,7 +60,7 @@ class EditionVariantController extends Controller
 
         if ($editionPassage === null) {
             throw ValidationException::withMessages([
-                'canonical_passage_id' => 'This passage hasn\'t been added to the edition yet.',
+                'canonical_passage_id' => 'This segment hasn\'t been added to the edition yet.',
             ]);
         }
 
@@ -284,7 +284,7 @@ class EditionVariantController extends Controller
         }
 
         throw ValidationException::withMessages([
-            'base_start_offset' => 'This passage\'s structure has changed — please refresh and try again.',
+            'base_start_offset' => 'This segment\'s structure has changed — please refresh and try again.',
         ]);
     }
 
@@ -413,7 +413,7 @@ class EditionVariantController extends Controller
 
         if ($reading === null) {
             throw ValidationException::withMessages([
-                $errorField => 'This passage\'s structure has changed — please refresh and try again.',
+                $errorField => 'This segment\'s structure has changed — please refresh and try again.',
             ]);
         }
 
@@ -433,7 +433,7 @@ class EditionVariantController extends Controller
 
         if ($reading === null) {
             throw ValidationException::withMessages([
-                $errorField => 'This passage\'s structure has changed — please refresh and try again.',
+                $errorField => 'This segment\'s structure has changed — please refresh and try again.',
             ]);
         }
 

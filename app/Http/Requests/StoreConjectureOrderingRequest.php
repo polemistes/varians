@@ -96,7 +96,7 @@ class StoreConjectureOrderingRequest extends FormRequest
                 ->count();
 
             if ($spanCount !== count($ids)) {
-                $validator->errors()->add($this->has('pieces') ? 'pieces' : 'canonical_passage_ids', 'These passages must form one contiguous range of the numbering order, with nothing left out.');
+                $validator->errors()->add($this->has('pieces') ? 'pieces' : 'canonical_passage_ids', 'These segments must form one contiguous range of the numbering order, with nothing left out.');
             }
         });
     }
@@ -171,7 +171,7 @@ class StoreConjectureOrderingRequest extends FormRequest
 
             if (($piece['part'] ?? 1) > 1 || count($parts[$piece['canonical_passage_id'] ?? 0]) > 1) {
                 if (trim((string) ($piece['text'] ?? '')) === '') {
-                    $validator->errors()->add('pieces', 'Each part of a divided passage needs its words.');
+                    $validator->errors()->add('pieces', 'Each part of a divided segment needs its words.');
                 }
             }
         }
@@ -180,7 +180,7 @@ class StoreConjectureOrderingRequest extends FormRequest
             sort($passageParts);
 
             if ($passageParts !== range(1, count($passageParts))) {
-                $validator->errors()->add('pieces', 'A divided passage must be complete: every part once, in order.');
+                $validator->errors()->add('pieces', 'A divided segment must be complete: every part once, in order.');
 
                 return;
             }

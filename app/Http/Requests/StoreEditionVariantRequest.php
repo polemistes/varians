@@ -183,7 +183,7 @@ class StoreEditionVariantRequest extends FormRequest
             if ($this->input('source') === 'transcription') {
                 $validator->errors()->add('source', 'A whole-line lacuna has no manuscript witness — only a brand new conjecture belongs here.');
             } elseif (! $this->wantsLacuna()) {
-                $validator->errors()->add('conjecture_type', 'A new passage is only ever created to house a lacuna.');
+                $validator->errors()->add('conjecture_type', 'A new segment is only ever created to house a lacuna.');
             }
 
             return;

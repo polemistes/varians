@@ -172,7 +172,7 @@ function removeWork() {
     const parts = describeDeletionImpact(props.work.deletion_impact, [
         {
             key: 'segments',
-            label: (n) => pluralize(n, 'passage assignment on a witness'),
+            label: (n) => pluralize(n, 'segment assignment on a witness'),
         },
         { key: 'editions', label: (n) => pluralize(n, 'edition of this work') },
         { key: 'conjectures', label: (n) => pluralize(n, 'conjecture') },
@@ -226,7 +226,7 @@ function manuscriptSummary(witness: Witness): string | null {
             </p>
 
             <!-- Title and author only: the slug is in the URL of every edition
-                 of this work, and the reference scheme is what every passage
+                 of this work, and the reference scheme is what every segment
                  address was built against. -->
             <form
                 v-if="editingDetails"
@@ -273,7 +273,7 @@ function manuscriptSummary(witness: Witness): string | null {
                 <p class="text-xs text-stone-500 dark:text-stone-500">
                     {{ props.work.language }} ·
                     {{ props.work.reference_scheme?.name }} ·
-                    {{ props.work.canonical_passages?.length ?? 0 }} passages
+                    {{ props.work.canonical_passages?.length ?? 0 }} segments
                 </p>
                 <button
                     v-if="props.can.delete"

@@ -3312,7 +3312,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                             <!-- An empty edition and a work nothing assigns are
                              different situations, and only the second is a
                              dead end. Saying "this work has no canonical
-                             passages" for both told an editor with a perfectly
+                             segments" for both told an editor with a perfectly
                              good transcription that there was nothing to do,
                              when the text was one click away in the panel. -->
                             <p
@@ -3414,7 +3414,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                         type="button"
                                         contenteditable="false"
                                         class="mr-1 rounded bg-amber-100 px-1 align-middle font-sans text-xs leading-normal text-amber-700 select-none hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:hover:bg-amber-900"
-                                        title="Insert a whole-line lacuna before this passage"
+                                        title="Insert a whole-line lacuna before this segment"
                                         @click="
                                             toggleNewPassage(
                                                 passage.id,
@@ -3431,14 +3431,14 @@ function orderRangeClasses(range: OrderRange): string[] {
                                         <span
                                             class="font-sans text-sm text-stone-400 italic dark:text-stone-600"
                                             >No base transcription assigned to
-                                            this passage yet.</span
+                                            this segment yet.</span
                                         >
                                     </template>
                                     <template v-else-if="!passage.runs.length">
                                         <span
                                             class="font-sans text-sm text-stone-400 italic dark:text-stone-600"
                                             >Nothing transcribed for this
-                                            passage yet.</span
+                                            segment yet.</span
                                         >
                                     </template>
                                     <template
@@ -3604,7 +3604,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                         type="button"
                                         contenteditable="false"
                                         class="mr-1 rounded bg-amber-100 px-1 align-middle font-sans text-xs leading-normal text-amber-700 select-none hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:hover:bg-amber-900"
-                                        title="Insert a whole-line lacuna after this passage"
+                                        title="Insert a whole-line lacuna after this segment"
                                         @click="
                                             toggleNewPassage(
                                                 passage.id,
@@ -3779,7 +3779,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                     class="mb-1 text-stone-500 dark:text-stone-400"
                                                 >
                                                     No witness covers this whole
-                                                    passage under the current
+                                                    segment under the current
                                                     base &mdash; pick a starting
                                                     point:
                                                 </p>
@@ -4858,7 +4858,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                 manuscript witness of its own —
                                                 name the line it should occupy
                                                 (e.g. "80A") and it becomes its
-                                                own passage.
+                                                own segment.
                                             </p>
                                             <div class="flex flex-col gap-1">
                                                 <input
@@ -5183,7 +5183,7 @@ function orderRangeClasses(range: OrderRange): string[] {
             </div>
 
             <!-- The literature the apparatus draws on: every item cited by
-                 a passage of this edition or by a conjecture placed on one,
+                 a segment of this edition or by a conjecture placed on one,
                  anchored so an assignment can link to its entry. -->
             <section
                 v-if="props.bibliography.length > 0"

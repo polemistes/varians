@@ -249,8 +249,8 @@ const fieldError = (field: string) =>
                 <span class="flex flex-col gap-0.5">
                     {{
                         form.type === 'transposition'
-                            ? 'Passage (start of range)'
-                            : 'Passage'
+                            ? 'Segment (start of range)'
+                            : 'Segment'
                     }}
                     <HierarchicalPassagePicker
                         v-model="form.canonical_passage_id"
@@ -289,9 +289,9 @@ const fieldError = (field: string) =>
                 <option :value="null" disabled>
                     {{
                         form.canonical_passage_id === null
-                            ? 'Choose the passage first'
+                            ? 'Choose the segment first'
                             : lacunasOnPassage.length === 0
-                              ? 'No lacuna recorded on this passage'
+                              ? 'No lacuna recorded on this segment'
                               : 'Choose…'
                     }}
                 </option>
@@ -356,7 +356,7 @@ const fieldError = (field: string) =>
                 </select>
             </label>
             <span class="flex flex-col gap-0.5">
-                Target passage
+                Target segment
                 <HierarchicalPassagePicker
                     v-model="form.move_target_canonical_passage_id"
                     :passages="props.passages"

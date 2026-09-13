@@ -123,7 +123,7 @@ function removeEdition(edition: EditionRow) {
 function removeWork(work: WorkRow) {
     const parts = [
         pluralize(work.editions_count, 'edition'),
-        pluralize(work.transcription_segments_count, 'passage assignment'),
+        pluralize(work.transcription_segments_count, 'segment assignment'),
     ].filter((part) => !part.startsWith('0 '));
 
     if (confirmDeletion(`the work "${work.title}"`, parts)) {

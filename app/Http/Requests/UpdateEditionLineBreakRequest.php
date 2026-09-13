@@ -58,7 +58,7 @@ class UpdateEditionLineBreakRequest extends FormRequest
                 ->exists();
 
             if (! $inEdition) {
-                $validator->errors()->add('lemma_id', 'That column belongs to a passage this edition does not contain.');
+                $validator->errors()->add('lemma_id', 'That column belongs to a segment this edition does not contain.');
             }
         });
     }

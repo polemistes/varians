@@ -643,7 +643,7 @@ function submitBulk() {
             @submit.prevent="submitBulk"
         >
             <p class="w-full text-stone-500 dark:text-stone-400">
-                Adds everything this witness has for a range of passages, each
+                Adds everything this witness has for a range of segments, each
                 line where the manuscript has it. Lines already in the edition
                 are left as they are.
             </p>

@@ -39,7 +39,7 @@ function submit() {
                 New edition
             </h1>
             <p class="mb-6 text-sm text-stone-500 dark:text-stone-400">
-                An edition starts out empty — build it up passage by passage
+                An edition starts out empty — build it up segment by segment
                 afterward, choosing readings from the work's transcriptions and
                 conjectures.
             </p>

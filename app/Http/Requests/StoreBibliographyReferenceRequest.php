@@ -45,14 +45,14 @@ class StoreBibliographyReferenceRequest extends FormRequest
             $onPassage = $this->filled('edition_id') || $this->filled('canonical_passage_id');
 
             if ($onConjecture === $onPassage) {
-                $validator->errors()->add('conjecture_id', 'A citation belongs to a conjecture or to a passage of an edition — exactly one.');
+                $validator->errors()->add('conjecture_id', 'A citation belongs to a conjecture or to a segment of an edition — exactly one.');
 
                 return;
             }
 
             if ($onPassage) {
                 if (! $this->filled('edition_id') || ! $this->filled('canonical_passage_id')) {
-                    $validator->errors()->add('canonical_passage_id', 'A passage citation names both the edition and the passage.');
+                    $validator->errors()->add('canonical_passage_id', 'A segment citation names both the edition and the segment.');
 
                     return;
                 }
@@ -63,7 +63,7 @@ class StoreBibliographyReferenceRequest extends FormRequest
                     ->exists();
 
                 if (! $inEdition) {
-                    $validator->errors()->add('canonical_passage_id', 'That passage is not in this edition.');
+                    $validator->errors()->add('canonical_passage_id', 'That segment is not in this edition.');
                 }
             }
         });

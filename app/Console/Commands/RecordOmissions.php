@@ -17,7 +17,7 @@ class RecordOmissions extends Command
 {
     protected $signature = 'collation:record-omissions';
 
-    protected $description = 'Record, for every collated passage, where each witness lacks words the others have';
+    protected $description = 'Record, for every collated segment, where each witness lacks words the others have';
 
     public function handle(): int
     {
@@ -29,7 +29,7 @@ class RecordOmissions extends Command
             $count++;
         }
 
-        $this->info("Omissions recorded on {$count} passages.");
+        $this->info("Omissions recorded on {$count} segments.");
 
         return self::SUCCESS;
     }

@@ -87,7 +87,7 @@ class ConjectureShape
                 $lacuna = Conjecture::find((int) $lacunaId);
 
                 if ($lacuna !== null && $lacuna->canonical_passage_id !== $passageId) {
-                    $validator->errors()->add('supplements_conjecture_id', 'That lacuna belongs to a different passage.');
+                    $validator->errors()->add('supplements_conjecture_id', 'That lacuna belongs to a different segment.');
                 }
             }
         }
@@ -110,11 +110,11 @@ class ConjectureShape
         $endId = $values['transposition_range_end_canonical_passage_id'] ?? null;
 
         if (! is_numeric($targetId)) {
-            $validator->errors()->add('move_target_canonical_passage_id', 'A transposition names the passage it moves before or after.');
+            $validator->errors()->add('move_target_canonical_passage_id', 'A transposition names the segment it moves before or after.');
         }
 
         if (! in_array($values['move_position'] ?? null, ['before', 'after'], true)) {
-            $validator->errors()->add('move_position', 'Say whether the passage moves before or after its target.');
+            $validator->errors()->add('move_position', 'Say whether the segment moves before or after its target.');
         }
 
         if (! is_numeric($targetId)) {
@@ -146,7 +146,7 @@ class ConjectureShape
         $ids = $values['canonical_passage_ids'] ?? null;
 
         if (! is_array($ids) || count($ids) < 2) {
-            $validator->errors()->add('canonical_passage_ids', 'A reordering arranges at least two passages.');
+            $validator->errors()->add('canonical_passage_ids', 'A reordering arranges at least two segments.');
 
             return;
         }
@@ -163,7 +163,7 @@ class ConjectureShape
             ->count();
 
         if ($spanCount !== count($ids)) {
-            $validator->errors()->add('canonical_passage_ids', 'These passages must form one contiguous range of the numbering order, with nothing left out.');
+            $validator->errors()->add('canonical_passage_ids', 'These segments must form one contiguous range of the numbering order, with nothing left out.');
         }
     }
 
