@@ -113,7 +113,12 @@ class StoreEditionVariantRequest extends FormRequest
             'end_offset' => ['required_if:source,transcription', 'integer', 'gte:start_offset'],
             'conjecture_id' => [
                 'required_if:source,existing_conjecture',
-                Rule::exists('conjectures', 'id')->where('segment_id', $this->input('segment_id')),
+                // A lacuna segment adopted from the catalogue names no
+                // segment_id — its label does, and the controller checks
+                // the two agree.
+                $this->input('placement') === 'new_segment'
+                    ? Rule::exists('conjectures', 'id')
+                    : Rule::exists('conjectures', 'id')->where('segment_id', $this->input('segment_id')),
             ],
             ...ConjectureValidationRules::structuralRules('conjecture_'),
             'conjecture_proposed_by' => ['nullable', 'string', 'max:255'],
@@ -144,7 +149,10 @@ class StoreEditionVariantRequest extends FormRequest
                 $validator->errors()->add('base_start_offset', 'Missing the target column.');
             }
 
-            if ($this->wantsLacuna()) {
+            // A lacuna is INSERTED as a column of its own; but one already
+            // standing on the clicked column may be picked again there —
+            // over a supplement that was adopted in its place, say.
+            if ($this->wantsLacuna() && ! $this->lacunaAlreadyOnColumn()) {
                 $validator->errors()->add('source', 'A lacuna is a point insertion, not a word-level column — see placement=insert.');
             } elseif ($this->wantsNewSubstitution()) {
                 $validator->errors()->add('placement', 'A brand new substitution or deletion is always placed as a range — a single word is just a range of one — see placement=range.');
@@ -196,6 +204,18 @@ class StoreEditionVariantRequest extends FormRequest
         } elseif (! $this->wantsLacuna()) {
             $validator->errors()->add('conjecture_type', 'Only a lacuna can be inserted this way.');
         }
+    }
+
+    /** Whether the existing lacuna named is already placed on the target column. */
+    private function lacunaAlreadyOnColumn(): bool
+    {
+        if ($this->input('source') !== 'existing_conjecture' || ! is_numeric($this->input('lemma_id'))) {
+            return false;
+        }
+
+        return LemmaReading::where('lemma_id', (int) $this->input('lemma_id'))
+            ->where('conjecture_id', (int) $this->input('conjecture_id'))
+            ->exists();
     }
 
     private function wantsLacuna(): bool

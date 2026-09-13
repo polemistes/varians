@@ -108,6 +108,37 @@ wide or a default width (`printsLacuna`/`lacunaWidth` in Editions/Show.vue)
 — never a "no base transcription" message (it used to, which hid the run,
 its popover, the edit form and the supplement entry point). An adopted
 supplement prints its words inside the same brackets (`printsSupplement`).
+
+## A lacuna is a conjecture like any other: registered, then adopted (user decision, 2026-09-13)
+A NEW conjecture of ANY kind — substitution, deletion, lacuna, supplement
+— is only catalogued by `EditionVariantController::store` unless `adopt`
+is sent ("Register" / "Register and adopt", both buttons everywhere a
+conjecture is authored, the lacuna and supplement forms included).
+Lacunas and supplements used to select themselves, which made a lacuna
+unlike every other conjecture. Consequences:
+- A point lacuna registered without adopting has its column (zero-width)
+  and reading; the edition prints the text running on and the column is
+  an `omitted` gap run marked `‸` (title: "A lacuna is conjectured here")
+  and painted as a variant site — `hasVariation` counts a conjecture-only
+  column as one, since the witnesses' reading there is "no lacuna".
+- A lacuna SEGMENT registered without adopting gets its Segment, column
+  and reading (the work knows), but NO EditionSegment: this edition prints
+  nothing. Adopting later is `placement=new_segment, source=
+  existing_conjecture, adopt=true` from the "+ segment" box's list of
+  catalogued lacuna segments (`cataloguedSegmentLacunas`: lacuna
+  conjectures whose segment is not in the edition); the controller
+  `firstOrCreate`s the reading and checks the label names the
+  conjecture's own segment.
+- The lacuna's notice lists the witnesses' reading as a row like any
+  other — "R, K, Pb: no lacuna" (`noLacunaLabel`, sigla of every witness
+  assigning the segment), "no such segment" for a lacuna segment —
+  selected when nothing is, adoptable (`adoptNoLacuna`: withdraw the
+  column's selection; for a lacuna segment, remove the segment).
+- Picking a lacuna that is ALREADY on the clicked column at
+  `placement=existing` is allowed (`lacunaAlreadyOnColumn` in
+  StoreEditionVariantRequest) — that is how the empty lacuna is chosen
+  again over an adopted supplement; a lacuna is still never INSERTED that
+  way.
 A lacuna spanning a whole missing line (no manuscript witness at all) is a *different* placement from a point lacuna inserted mid-segment:
 - Point lacuna: `placement=insert` — a zero-width Lemma inserted between two existing ones in an *already-numbered* segment (unchanged, pre-existing mechanism).
 - Whole-line lacuna: `placement=new_segment` — the editor types a `label` (e.g. "80A") instead of a `segment_id`; `SegmentResolver::resolve()` finds-or-creates that Segment via the work's ReferenceScheme, then `EditionVariantController::resolveWholeSegmentLemma()` finds-or-creates that segment's *one* Lemma (`firstOrCreate` on `segment_id` alone) so a repeated submission for the same label lands a competing reading on the same column instead of duplicating the segment/lemma.

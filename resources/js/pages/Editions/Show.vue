@@ -2908,7 +2908,11 @@ function unplacedForRun(
 // since it targets its lacuna's own single column — never a range, so it
 // stays out of the selection-driven Add Conjecture flow entirely (see
 // submitConjecture, reached only via onDocumentMouseUp/toggleRun).
-function submitSupplementForRun(segment: WindowSegment, run: Run) {
+function submitSupplementForRun(
+    segment: WindowSegment,
+    run: Run,
+    adopt: boolean,
+) {
     const lacuna = lacunaCandidateOf(run);
 
     if (!lacuna) {
@@ -2925,7 +2929,89 @@ function submitSupplementForRun(segment: WindowSegment, run: Run) {
             conjectureDraft.references,
         ),
         conjecture_note: conjectureDraft.note || null,
+        adopt,
     });
+}
+
+// The witnesses' own reading at a conjectured lacuna is that the text
+// runs on — "R, K, Pb: no lacuna" — offered in the notice like any other
+// candidate (user decision), so a lacuna's notice looks like every other
+// conjecture's. Adopting it withdraws the edition's choice at the column;
+// for a lacuna segment, which exists only by the conjecture, it removes
+// the segment from the edition.
+function noLacunaLabel(segment: WindowSegment): string {
+    const sigla = witnessesAssigning(segment);
+
+    return sigla.length > 0 ? sigla.join(', ') : 'The witnesses';
+}
+
+function adoptNoLacuna(segment: WindowSegment, run: Run) {
+    if (segment.base === null) {
+        removeEditionSegments([segment.id]);
+
+        return;
+    }
+
+    if (run.lemma_id === null) {
+        return;
+    }
+
+    router.delete(destroyEditionLemma.url([props.edition, run.lemma_id]), {
+        preserveScroll: true,
+        onSuccess: () => {
+            openTarget.value = null;
+        },
+    });
+}
+
+/** What the omission mark means here — a conjectured lacuna the edition does not print, or an omission. */
+function omittedTitle(run: Run): string {
+    return lacunaCandidateOf(run)
+        ? 'A lacuna is conjectured here; this edition prints the text running on. Click to see the conjecture.'
+        : 'Nothing is printed here: another witness or a conjecture has words at this point which this edition omits';
+}
+
+// Lacuna segments catalogued for the work but not in this edition — a
+// lacuna registered without adopting, or adopted by another edition —
+// offered in the "+ segment" box for adoption here.
+const cataloguedSegmentLacunas = computed(() => {
+    const inEdition = new Set(props.segments.map((segment) => segment.id));
+
+    return props.workConjectures.filter(
+        (conjecture) =>
+            conjecture.type === 'lacuna' &&
+            !inEdition.has(conjecture.segment_id),
+    );
+});
+
+function adoptCataloguedSegmentLacuna(conjecture: WorkConjecture) {
+    if (openTarget.value?.kind !== 'new_segment') {
+        return;
+    }
+
+    submitError.value = null;
+    router.post(
+        storeVariant.url(props.edition),
+        {
+            placement: 'new_segment',
+            label: conjecture.segment_label,
+            insert_after_edition_segment_id:
+                openTarget.value.afterEditionSegmentId,
+            source: 'existing_conjecture',
+            conjecture_id: conjecture.id,
+            adopt: true,
+        },
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                openTarget.value = null;
+            },
+            onError: (errors) => {
+                submitError.value =
+                    Object.values(errors)[0] ?? 'Could not adopt that lacuna.';
+            },
+        },
+    );
 }
 
 function unplacedLacunasFor(segment: WindowSegment): UnplacedConjecture[] {
@@ -2943,7 +3029,11 @@ function pickUnplacedLacuna(
     });
 }
 
-function submitNewLacuna(segment: WindowSegment, boundary: Boundary) {
+function submitNewLacuna(
+    segment: WindowSegment,
+    boundary: Boundary,
+    adopt: boolean,
+) {
     submitAtBoundary(segment, boundary, {
         source: 'new_conjecture',
         conjecture_type: 'lacuna',
@@ -2952,6 +3042,7 @@ function submitNewLacuna(segment: WindowSegment, boundary: Boundary) {
         conjecture_proposed_by: lacunaDraft.proposed_by || null,
         conjecture_references: draftReferencesPayload(lacunaDraft.references),
         conjecture_note: lacunaDraft.note || null,
+        adopt,
     });
 }
 
@@ -2961,7 +3052,7 @@ function submitNewLacuna(segment: WindowSegment, boundary: Boundary) {
 // `insert_after_edition_segment_id` anchors where it lands in this
 // edition's own order — only meaningful the first time this label is
 // added; a repeat submission finds the same segment and leaves it in place.
-function submitWholeLineLacuna() {
+function submitWholeLineLacuna(adopt: boolean) {
     if (openTarget.value?.kind !== 'new_segment') {
         return;
     }
@@ -2973,6 +3064,7 @@ function submitWholeLineLacuna() {
         {
             placement: 'new_segment',
             label: lacunaDraft.label,
+            adopt,
             insert_after_edition_segment_id:
                 openTarget.value.afterEditionSegmentId,
             source: 'new_conjecture',
@@ -3103,6 +3195,15 @@ function hasVariation(run: Run): boolean {
     // A witness's omission (or a deletion conjecture) is the opposite: an
     // empty text that IS a reading — "B has no word here" disagrees with
     // every witness that has one.
+    // A column holding nothing but conjectures — a lacuna's — is a variant
+    // site too: the witnesses' reading there is that the text runs on.
+    if (
+        run.candidates.length > 0 &&
+        run.candidates.every((candidate) => candidate.conjecture_id !== null)
+    ) {
+        return true;
+    }
+
     return (
         new Set(
             run.candidates
@@ -4385,7 +4486,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                 ><span
                                                     v-else-if="run.omitted"
                                                     class="inline-block min-w-[1.5ch] px-1 text-center text-stone-400 dark:text-stone-500"
-                                                    title="Nothing is printed here: another witness or a conjecture has words at this point which this edition omits"
+                                                    :title="omittedTitle(run)"
                                                     >‸</span
                                                 ><template v-else
                                                     >⟨insert⟩</template
@@ -4595,21 +4696,44 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                         "
                                                     />
                                                 </div>
-                                                <button
-                                                    type="button"
-                                                    class="self-start rounded bg-stone-900 px-2 py-1 text-white dark:bg-stone-100 dark:text-stone-900"
-                                                    @click="
-                                                        submitNewLacuna(
-                                                            segment,
-                                                            boundaryBefore(
-                                                                segment.runs,
-                                                                openTarget.index,
-                                                            ),
-                                                        )
-                                                    "
+                                                <span
+                                                    class="flex flex-wrap items-center gap-2"
                                                 >
-                                                    Insert lacuna
-                                                </button>
+                                                    <button
+                                                        type="button"
+                                                        class="rounded bg-stone-900 px-2 py-1 text-white dark:bg-stone-100 dark:text-stone-900"
+                                                        title="Catalogue the lacuna as a candidate; the edition keeps printing the text running on"
+                                                        @click="
+                                                            submitNewLacuna(
+                                                                segment,
+                                                                boundaryBefore(
+                                                                    segment.runs,
+                                                                    openTarget.index,
+                                                                ),
+                                                                false,
+                                                            )
+                                                        "
+                                                    >
+                                                        Register
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        class="rounded border border-stone-300 px-2 py-1 dark:border-stone-700"
+                                                        title="Catalogue the lacuna and print it here"
+                                                        @click="
+                                                            submitNewLacuna(
+                                                                segment,
+                                                                boundaryBefore(
+                                                                    segment.runs,
+                                                                    openTarget.index,
+                                                                ),
+                                                                true,
+                                                            )
+                                                        "
+                                                    >
+                                                        Register and adopt
+                                                    </button>
+                                                </span>
                                             </div>
                                         </template>
 
@@ -4665,6 +4789,61 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                 <ul
                                                     class="mb-2 flex flex-col gap-1"
                                                 >
+                                                    <!-- At a conjectured lacuna the
+                                                         witnesses' own reading is that
+                                                         the text runs on — a row like
+                                                         any other, adoptable. -->
+                                                    <li
+                                                        v-if="
+                                                            lacunaCandidateOf(
+                                                                run,
+                                                            )
+                                                        "
+                                                        class="flex flex-wrap items-center justify-between gap-2 rounded p-1"
+                                                        :class="
+                                                            !run.decided
+                                                                ? 'bg-emerald-100 dark:bg-emerald-950/50'
+                                                                : 'hover:bg-white dark:hover:bg-stone-900'
+                                                        "
+                                                    >
+                                                        <strong class="shrink-0"
+                                                            >{{
+                                                                noLacunaLabel(
+                                                                    segment,
+                                                                )
+                                                            }}:</strong
+                                                        >
+                                                        <span class="flex-1">{{
+                                                            segment.base ===
+                                                            null
+                                                                ? 'no such segment'
+                                                                : 'no lacuna'
+                                                        }}</span>
+                                                        <span
+                                                            v-if="!run.decided"
+                                                            class="text-emerald-700 dark:text-emerald-400"
+                                                            >selected</span
+                                                        >
+                                                        <button
+                                                            v-else-if="canEdit"
+                                                            type="button"
+                                                            class="rounded border border-stone-300 px-1.5 text-xs dark:border-stone-700"
+                                                            :title="
+                                                                segment.base ===
+                                                                null
+                                                                    ? 'Remove the lacuna segment from the edition'
+                                                                    : 'Print the text running on, as the witnesses have it'
+                                                            "
+                                                            @click="
+                                                                adoptNoLacuna(
+                                                                    segment,
+                                                                    run,
+                                                                )
+                                                            "
+                                                        >
+                                                            Adopt
+                                                        </button>
+                                                    </li>
                                                     <li
                                                         v-for="candidate in popoverCandidates(
                                                             segment,
@@ -5030,21 +5209,45 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                                 "
                                                             />
                                                         </div>
-                                                        <button
-                                                            type="button"
-                                                            class="self-start rounded bg-stone-900 px-2 py-1 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
-                                                            :disabled="
-                                                                !conjectureDraft.text
-                                                            "
-                                                            @click="
-                                                                submitSupplementForRun(
-                                                                    segment,
-                                                                    run,
-                                                                )
-                                                            "
+                                                        <span
+                                                            class="flex flex-wrap items-center gap-2"
                                                         >
-                                                            Add supplement
-                                                        </button>
+                                                            <button
+                                                                type="button"
+                                                                class="self-start rounded bg-stone-900 px-2 py-1 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
+                                                                :disabled="
+                                                                    !conjectureDraft.text
+                                                                "
+                                                                title="Catalogue the supplement as a candidate; the lacuna stays as printed"
+                                                                @click="
+                                                                    submitSupplementForRun(
+                                                                        segment,
+                                                                        run,
+                                                                        false,
+                                                                    )
+                                                                "
+                                                            >
+                                                                Register
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                class="rounded border border-stone-300 px-2 py-1 disabled:opacity-50 dark:border-stone-700"
+                                                                :disabled="
+                                                                    !conjectureDraft.text
+                                                                "
+                                                                title="Catalogue the supplement and print it in the lacuna"
+                                                                @click="
+                                                                    submitSupplementForRun(
+                                                                        segment,
+                                                                        run,
+                                                                        true,
+                                                                    )
+                                                                "
+                                                            >
+                                                                Register and
+                                                                adopt
+                                                            </button>
+                                                        </span>
                                                     </div>
                                                 </template>
                                             </template>
@@ -5779,18 +5982,83 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                         "
                                                     />
                                                 </div>
-                                                <button
-                                                    type="button"
-                                                    class="self-start rounded bg-stone-900 px-2 py-1 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
-                                                    :disabled="
-                                                        !lacunaDraft.label
-                                                    "
-                                                    @click="
-                                                        submitWholeLineLacuna()
-                                                    "
+                                                <span
+                                                    class="flex flex-wrap items-center gap-2"
                                                 >
-                                                    Insert lacuna segment
-                                                </button>
+                                                    <button
+                                                        type="button"
+                                                        class="rounded bg-stone-900 px-2 py-1 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
+                                                        :disabled="
+                                                            !lacunaDraft.label
+                                                        "
+                                                        title="Catalogue the lacuna segment as a proposal; this edition does not print it"
+                                                        @click="
+                                                            submitWholeLineLacuna(
+                                                                false,
+                                                            )
+                                                        "
+                                                    >
+                                                        Register
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        class="rounded border border-stone-300 px-2 py-1 disabled:opacity-50 dark:border-stone-700"
+                                                        :disabled="
+                                                            !lacunaDraft.label
+                                                        "
+                                                        title="Catalogue the lacuna segment and print it here as empty brackets"
+                                                        @click="
+                                                            submitWholeLineLacuna(
+                                                                true,
+                                                            )
+                                                        "
+                                                    >
+                                                        Register and adopt
+                                                    </button>
+                                                </span>
+                                                <ul
+                                                    v-if="
+                                                        cataloguedSegmentLacunas.length
+                                                    "
+                                                    class="mt-2 flex flex-col gap-1"
+                                                >
+                                                    <li
+                                                        class="text-stone-500 dark:text-stone-400"
+                                                    >
+                                                        Or adopt a lacuna
+                                                        segment already
+                                                        catalogued for this
+                                                        work:
+                                                    </li>
+                                                    <li
+                                                        v-for="conjecture in cataloguedSegmentLacunas"
+                                                        :key="conjecture.id"
+                                                        class="flex items-center justify-between gap-2 rounded p-1 hover:bg-white dark:hover:bg-stone-900"
+                                                    >
+                                                        <span
+                                                            ><strong>{{
+                                                                conjecture.segment_label
+                                                            }}</strong>
+                                                            —
+                                                            {{
+                                                                conjecture.proposed_by ??
+                                                                conjecture.entered_by
+                                                            }}
+                                                            (lacuna)</span
+                                                        >
+                                                        <button
+                                                            type="button"
+                                                            class="rounded border border-stone-300 px-1.5 text-xs dark:border-stone-700"
+                                                            @click="
+                                                                adoptCataloguedSegmentLacuna(
+                                                                    conjecture,
+                                                                )
+                                                            "
+                                                        >
+                                                            Adopt here
+                                                        </button>
+                                                    </li>
+                                                </ul>
                                             </div>
                                         </template>
 

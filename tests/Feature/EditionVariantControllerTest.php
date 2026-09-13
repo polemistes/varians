@@ -312,6 +312,7 @@ test('a bare lacuna is inserted between two words without replacing either of th
         'conjecture_type' => 'lacuna',
         'conjecture_extent' => 'one word',
         'conjecture_proposed_by' => 'Wolf',
+        'adopt' => true,
     ]);
 
     $response->assertRedirect();
@@ -358,6 +359,7 @@ test('a supplement proposed for an existing lacuna column can be selected in its
         'conjecture_text' => 'indeed',
         'conjecture_supplements_conjecture_id' => $lacuna->id,
         'conjecture_proposed_by' => 'Bentley',
+        'adopt' => true,
     ]);
 
     $response->assertRedirect();
@@ -395,6 +397,7 @@ test('a supplement targeting a lacuna that isn\'t on the clicked column is rejec
         'conjecture_type' => 'supplement',
         'conjecture_text' => 'indeed',
         'conjecture_supplements_conjecture_id' => $lacuna->id,
+        'adopt' => true,
     ]);
 
     $response->assertInvalid(['conjecture_id']);
@@ -411,6 +414,7 @@ test('a lacuna cannot be placed as if it were a witness span', function () {
         'source' => 'new_conjecture',
         'conjecture_type' => 'lacuna',
         'conjecture_proposed_by' => 'Wolf',
+        'adopt' => true,
     ]);
 
     $response->assertInvalid(['source']);
@@ -958,7 +962,7 @@ test('a segment fully covered by one range reports complete status, not stuck at
         ->where('segments.0.status', 'complete'));
 });
 
-test('a whole-line lacuna creates its own segment and auto-selects', function () {
+test('a whole-line lacuna creates its own segment and selects it when adopted', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition, 'editionSegment' => $editionSegment] = editionSpanningTwoLines();
 
@@ -971,6 +975,7 @@ test('a whole-line lacuna creates its own segment and auto-selects', function ()
         'conjecture_extent' => 'two lines',
         'conjecture_extent_characters' => 40,
         'conjecture_proposed_by' => 'Wolf',
+        'adopt' => true,
     ]);
 
     $response->assertRedirect();
@@ -1046,6 +1051,7 @@ test('extent_characters flows through to the rendered run and candidate, and is 
         'insert_after_base_offset' => 3,
         'source' => 'new_conjecture',
         'conjecture_type' => 'lacuna',
+        'adopt' => true,
         'conjecture_extent_characters' => 12,
         'conjecture_proposed_by' => 'Wolf',
     ]);
@@ -1067,6 +1073,7 @@ test('a lacuna authored without extent_characters still renders the old brackete
         'insert_after_base_offset' => 3,
         'source' => 'new_conjecture',
         'conjecture_type' => 'lacuna',
+        'adopt' => true,
         'conjecture_extent' => 'one word',
         'conjecture_proposed_by' => 'Wolf',
     ]);
@@ -1097,6 +1104,7 @@ test('a whole-line lacuna at an ordinary canonical number, never attested by any
         'insert_after_edition_segment_id' => $editionSegment->id,
         'source' => 'new_conjecture',
         'conjecture_type' => 'lacuna',
+        'adopt' => true,
         'conjecture_extent' => 'one line',
         'conjecture_proposed_by' => 'Ancient scribe',
     ])->assertRedirect();
@@ -1270,6 +1278,7 @@ test('a lacuna segment prints as a bracketed run, and a supplement proposed from
         'insert_after_edition_segment_id' => $editionSegment->id,
         'source' => 'new_conjecture',
         'conjecture_type' => 'lacuna',
+        'adopt' => true,
         'conjecture_extent_characters' => 40,
         'conjecture_proposed_by' => 'Wolf',
     ])->assertRedirect()->assertSessionHasNoErrors();
@@ -1306,4 +1315,149 @@ test('a lacuna segment prints as a bracketed run, and a supplement proposed from
             ->where('windowSegments.1.runs.0.extent_characters', null)
             ->where('windowSegments.1.runs.0.candidates.1.conjecture_type', 'supplement')
             ->where('windowSegments.1.runs.0.candidates.1.selected', true));
+});
+
+test('a new lacuna between two words is only catalogued until adopted', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment] = editionWithBase('the quick fox');
+    $after = Lemma::where('segment_id', $segment->id)->whereHas('readings', fn ($q) => $q->where('start_offset', 0))->sole();
+
+    $this->post(route('edition-variants.store', $edition), [
+        'segment_id' => $segment->id,
+        'placement' => 'insert',
+        'insert_after_lemma_id' => $after->id,
+        'source' => 'new_conjecture',
+        'conjecture_type' => 'lacuna',
+        'conjecture_extent_characters' => 12,
+        'conjecture_proposed_by' => 'Wolf',
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    // Catalogued and placed on its own column, but the edition still prints
+    // the text running on: the column is a marked gap, the lacuna a candidate.
+    expect(Conjecture::sole()->type)->toBe(ConjectureType::Lacuna)
+        ->and(EditionLemma::where('edition_id', $edition->id)->exists())->toBeFalse();
+
+    $this->get(route('editions.show', [$work, $edition]))
+        ->assertInertia(fn (AssertInertia $page) => $page
+            ->where('windowSegments.0.runs.1.omitted', true)
+            ->where('windowSegments.0.runs.1.decided', false)
+            ->where('windowSegments.0.runs.1.extent_characters', null)
+            ->where('windowSegments.0.runs.1.candidates.0.conjecture_type', 'lacuna')
+            ->where('windowSegments.0.runs.1.candidates.0.selected', false));
+
+    // Adopting it later is picking it from the column's candidates.
+    $lemma = Lemma::whereHas('readings', fn ($q) => $q->whereNotNull('conjecture_id'))->sole();
+
+    $this->post(route('edition-variants.store', $edition), [
+        'segment_id' => $segment->id,
+        'placement' => 'existing',
+        'lemma_id' => $lemma->id,
+        'source' => 'existing_conjecture',
+        'conjecture_id' => Conjecture::sole()->id,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    expect(EditionLemma::where('edition_id', $edition->id)->sole()->lemma_id)->toBe($lemma->id);
+});
+
+test('the empty lacuna can be chosen again over a supplement adopted in its place', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    ['work' => $work, 'edition' => $edition, 'segment' => $segment] = editionWithBase('the quick fox');
+    $after = Lemma::where('segment_id', $segment->id)->whereHas('readings', fn ($q) => $q->where('start_offset', 0))->sole();
+
+    $this->post(route('edition-variants.store', $edition), [
+        'segment_id' => $segment->id,
+        'placement' => 'insert',
+        'insert_after_lemma_id' => $after->id,
+        'source' => 'new_conjecture',
+        'conjecture_type' => 'lacuna',
+        'conjecture_extent_characters' => 12,
+        'adopt' => true,
+    ])->assertSessionHasNoErrors();
+    $lacuna = Conjecture::sole();
+    $lemma = Lemma::whereHas('readings', fn ($q) => $q->where('conjecture_id', $lacuna->id))->sole();
+
+    $this->post(route('edition-variants.store', $edition), [
+        'segment_id' => $segment->id,
+        'placement' => 'existing',
+        'lemma_id' => $lemma->id,
+        'source' => 'new_conjecture',
+        'conjecture_type' => 'supplement',
+        'conjecture_text' => 'indeed',
+        'conjecture_supplements_conjecture_id' => $lacuna->id,
+        'adopt' => true,
+    ])->assertSessionHasNoErrors();
+
+    $selected = fn () => EditionLemma::where('edition_id', $edition->id)->where('lemma_id', $lemma->id)->sole()->selectedReading;
+    expect($selected()->conjecture->type)->toBe(ConjectureType::Supplement);
+
+    // Back to the empty lacuna: the same pick as any candidate, at the same column.
+    $this->post(route('edition-variants.store', $edition), [
+        'segment_id' => $segment->id,
+        'placement' => 'existing',
+        'lemma_id' => $lemma->id,
+        'source' => 'existing_conjecture',
+        'conjecture_id' => $lacuna->id,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    expect($selected()->conjecture_id)->toBe($lacuna->id)
+        ->and(LemmaReading::where('conjecture_id', $lacuna->id)->count())->toBe(1);
+
+    $this->get(route('editions.show', [$work, $edition]))
+        ->assertInertia(fn (AssertInertia $page) => $page->where('windowSegments.0.runs.1.extent_characters', 12));
+});
+
+test('a lacuna segment registered without adopting is catalogued only, and adopted later from the catalogue', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    ['work' => $work, 'edition' => $edition, 'editionSegment' => $editionSegment] = editionSpanningTwoLines();
+
+    $this->post(route('edition-variants.store', $edition), [
+        'placement' => 'new_segment',
+        'label' => '1.1a',
+        'insert_after_edition_segment_id' => $editionSegment->id,
+        'source' => 'new_conjecture',
+        'conjecture_type' => 'lacuna',
+        'conjecture_proposed_by' => 'Wolf',
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $segment = Segment::where('work_id', $work->id)->where('label', '1.1a')->sole();
+    $lacuna = Conjecture::sole();
+
+    // The work knows the segment and the proposal; this edition prints nothing.
+    expect(Lemma::where('segment_id', $segment->id)->count())->toBe(1)
+        ->and(EditionSegment::where('edition_id', $edition->id)->where('segment_id', $segment->id)->exists())->toBeFalse();
+
+    $this->post(route('edition-variants.store', $edition), [
+        'placement' => 'new_segment',
+        'label' => '1.1a',
+        'insert_after_edition_segment_id' => $editionSegment->id,
+        'source' => 'existing_conjecture',
+        'conjecture_id' => $lacuna->id,
+        'adopt' => true,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    expect(EditionSegment::where('edition_id', $edition->id)->where('segment_id', $segment->id)->exists())->toBeTrue()
+        ->and(LemmaReading::where('conjecture_id', $lacuna->id)->count())->toBe(1)
+        ->and(EditionLemma::where('edition_id', $edition->id)->sole()->selectedReading->conjecture_id)->toBe($lacuna->id);
+});
+
+test('a catalogued lacuna cannot be adopted as a segment under another label', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    ['edition' => $edition, 'editionSegment' => $editionSegment] = editionSpanningTwoLines();
+
+    $this->post(route('edition-variants.store', $edition), [
+        'placement' => 'new_segment',
+        'label' => '1.1a',
+        'insert_after_edition_segment_id' => $editionSegment->id,
+        'source' => 'new_conjecture',
+        'conjecture_type' => 'lacuna',
+    ])->assertSessionHasNoErrors();
+
+    $this->post(route('edition-variants.store', $edition), [
+        'placement' => 'new_segment',
+        'label' => '1.1b',
+        'insert_after_edition_segment_id' => $editionSegment->id,
+        'source' => 'existing_conjecture',
+        'conjecture_id' => Conjecture::sole()->id,
+        'adopt' => true,
+    ])->assertSessionHasErrors('conjecture_id');
 });

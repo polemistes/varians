@@ -128,12 +128,15 @@ class EditionVariantController extends Controller
                 $reading->update(['needs_review' => false]);
             }
 
-            // Authoring a brand new substitution only catalogues it as a
+            // Authoring a brand new conjecture of ANY kind — substitution,
+            // deletion, lacuna, supplement — only catalogues it as a
             // candidate unless the editor asked to adopt it too ("Register"
-            // vs "Register and adopt", user decision). Without `adopt`,
-            // nothing here touches this edition's existing decisions;
-            // adopting later is picking it from the column's candidate list.
-            if ($this->isNewSubstitution($request) && ! $request->boolean('adopt')) {
+            // vs "Register and adopt", user decision; lacunas and
+            // supplements used to select themselves, which made a lacuna
+            // unlike every other conjecture). Without `adopt`, nothing here
+            // touches this edition's existing decisions; adopting later is
+            // picking it from the column's candidate list.
+            if ($request->validated('source') === 'new_conjecture' && ! $request->boolean('adopt')) {
                 return;
             }
 
@@ -179,14 +182,44 @@ class EditionVariantController extends Controller
      * `insert_after_edition_segment_id` anchors where it lands in this
      * edition's own order. Idempotent per label: a repeat submission finds
      * the same Segment/Lemma/EditionSegment and only adds a new
-     * competing reading, which — like any lacuna — auto-selects.
+     * competing reading.
+     *
+     * Like every other conjecture, a new lacuna segment is only CATALOGUED
+     * unless `adopt` is asked for: the Segment, its column and the reading
+     * come into being (so the work knows a segment is conjectured missing
+     * here), but the edition gets no row for it and prints nothing.
+     * Adopting — now, or later from the catalogue with
+     * `source=existing_conjecture` — is what gives the edition the segment
+     * and selects the lacuna in it.
      */
     private function storeWholeLineLacuna(StoreEditionVariantRequest $request, Edition $edition): RedirectResponse
     {
         $segment = SegmentResolver::resolve($edition->work, $request->validated('label'));
+        $existing = $request->validated('source') === 'existing_conjecture'
+            ? Conjecture::findOrFail((int) $request->validated('conjecture_id'))
+            : null;
 
-        DB::transaction(function () use ($request, $edition, $segment) {
+        if ($existing !== null && $existing->segment_id !== $segment->id) {
+            throw ValidationException::withMessages([
+                'conjecture_id' => 'That lacuna belongs to another segment than the label names.',
+            ]);
+        }
+
+        DB::transaction(function () use ($request, $edition, $segment, $existing) {
             $lemma = $this->resolveWholeSegmentLemma($segment);
+
+            $attributes = ReadingSourceResolver::resolve($request->validated(), $segment->id, $request->user()->id);
+            $attributes['range_end_lemma_id'] = null;
+
+            // A catalogued lacuna already has its reading on the segment's
+            // one column; adopting it must not mint a second.
+            $reading = $existing !== null
+                ? $lemma->readings()->firstOrCreate(['conjecture_id' => $existing->id], $attributes)
+                : $lemma->readings()->create($attributes);
+
+            if (! $request->boolean('adopt')) {
+                return;
+            }
 
             $editionSegment = EditionSegment::where('edition_id', $edition->id)
                 ->where('segment_id', $segment->id)
@@ -200,11 +233,6 @@ class EditionVariantController extends Controller
                     'position' => $this->positionAfter($edition, $request->validated('insert_after_edition_segment_id')),
                 ]);
             }
-
-            $attributes = ReadingSourceResolver::resolve($request->validated(), $segment->id, $request->user()->id);
-            $attributes['range_end_lemma_id'] = null;
-
-            $reading = $lemma->readings()->create($attributes);
 
             EditionLemma::updateOrCreate(
                 ['edition_id' => $edition->id, 'lemma_id' => $lemma->id],
@@ -530,24 +558,5 @@ class EditionVariantController extends Controller
                 'conjecture_id' => 'That supplement belongs to a different lacuna.',
             ]);
         }
-    }
-
-    /**
-     * A lacuna or supplement still adopts itself on creation — a lacuna has
-     * nothing else to compete with at its own brand new column, and a
-     * supplement explicitly names the one lacuna it fills. A substitution
-     * or deletion is different: it's proposed over columns that already
-     * hold a perfectly good reading, so authoring one is never itself a
-     * decision.
-     */
-    private function isNewSubstitution(StoreEditionVariantRequest $request): bool
-    {
-        if ($request->validated('source') !== 'new_conjecture') {
-            return false;
-        }
-
-        $type = $request->validated('conjecture_type') ?? ConjectureType::Substitution->value;
-
-        return in_array($type, [ConjectureType::Substitution->value, ConjectureType::Deletion->value], true);
     }
 }
