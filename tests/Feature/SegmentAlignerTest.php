@@ -1,10 +1,10 @@
 <?php
 
 use App\Models\Assignment;
-use App\Models\Segment;
 use App\Models\Conjecture;
 use App\Models\EditionComment;
 use App\Models\Lemma;
+use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Models\Witness;
 use App\Support\Edition\SegmentAligner;

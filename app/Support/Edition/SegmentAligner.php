@@ -3,12 +3,12 @@
 namespace App\Support\Edition;
 
 use App\Models\Assignment;
-use App\Models\Segment;
 use App\Models\EditionComment;
 use App\Models\EditionLemma;
 use App\Models\EditionLineBreak;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
+use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Support\Transcription\Tokenizer;
 use Illuminate\Support\Collection;

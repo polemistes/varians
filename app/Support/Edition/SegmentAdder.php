@@ -4,9 +4,9 @@ namespace App\Support\Edition;
 
 use App\Enums\Layer;
 use App\Models\Assignment;
-use App\Models\Segment;
 use App\Models\Edition;
 use App\Models\EditionSegment;
+use App\Models\Segment;
 
 /**
  * Adds one witness assignment's segment to an edition — materializing it if

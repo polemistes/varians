@@ -4,8 +4,8 @@ namespace App\Http\Requests;
 
 use App\Enums\Layer;
 use App\Models\Assignment;
-use App\Models\Segment;
 use App\Models\Edition;
+use App\Models\Segment;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;

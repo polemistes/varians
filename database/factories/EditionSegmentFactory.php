@@ -2,9 +2,9 @@
 
 namespace Database\Factories;
 
-use App\Models\Segment;
 use App\Models\Edition;
 use App\Models\EditionSegment;
+use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use Illuminate\Database\Eloquent\Factories\Factory;
 

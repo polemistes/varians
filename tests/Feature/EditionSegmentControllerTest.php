@@ -1,13 +1,13 @@
 <?php
 
 use App\Models\Assignment;
-use App\Models\Segment;
 use App\Models\Edition;
 use App\Models\EditionLemma;
 use App\Models\EditionSegment;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\ReferenceScheme;
+use App\Models\Segment;
 use App\Models\TranscriptionLayer;
 use App\Models\User;
 use App\Models\Work;

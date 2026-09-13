@@ -1,8 +1,8 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\ReferenceScheme;
 use App\Models\TranscriptionLayer;
-use App\Models\Assignment;
 use App\Models\User;
 use App\Models\Work;
 
