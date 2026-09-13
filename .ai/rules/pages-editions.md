@@ -36,8 +36,17 @@ edition's lineation — a piece's first run when the segment starts a line,
 or a run with `break_before` — never wrapping. The Edition box's "Show
 paratext" / "Show segment markers" checkboxes are the VIEWER's own,
 kept per browser in localStorage (`varians:edition:{id}:display`); hiding
-markers hides the number chips (and with them their notices). Verified
-in the browser for all three layouts on 2026-09-13.
+markers hides the number chips (and with them their notices). "Show
+witnesses pane" (same store) puts the right pane away for reader or
+editor — the grid drops to one column and the edition has the whole
+width for its text and margins. "Wrap lines" is NOT a viewer preference
+but the EDITION's (`editions.wraps_lines`, editors only, through
+`editions.update`): off, the text box gets `overflow-x-auto
+whitespace-nowrap`, so lines run on as the editor set them and the box
+scrolls sideways (user request — horizontal space is scarce); the anchor
+measurement adds `scrollLeft`. Speaker indications are NOT capitalised
+automatically (user decision) — the editor types them as they should
+print. Verified in the browser for all three layouts on 2026-09-13.
 
 ## A word's popover is its own, plus the wider readings covering it (2026-09-09)
 

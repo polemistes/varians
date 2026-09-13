@@ -179,3 +179,18 @@ test('a copied edition carries its paratexts and its speaker layout', function (
         ->and($copied->lemma->segment_id)->toBe($copied->segment_id)
         ->and($copy->speaker_display)->toBe(SpeakerDisplay::OwnLine);
 });
+
+test('whether the printed lines wrap is the editor\'s choice for the edition', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    ['work' => $work, 'edition' => $edition] = paratextEdition();
+
+    expect($edition->wraps_lines)->toBeTrue();
+
+    $this->patch(route('editions.update', $edition), ['wraps_lines' => false])
+        ->assertRedirect()->assertSessionHasNoErrors();
+
+    expect($edition->fresh()->wraps_lines)->toBeFalse();
+
+    $this->get(route('editions.show', [$work, $edition]))
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('edition.wraps_lines', false));
+});

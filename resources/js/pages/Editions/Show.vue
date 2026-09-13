@@ -1344,7 +1344,11 @@ function setSpeakerDisplay(value: SpeakerDisplay) {
 
 const DISPLAY_KEY = `varians:edition:${props.edition.id}:display`;
 
-function storedDisplay(): { paratext: boolean; markers: boolean } {
+function storedDisplay(): {
+    paratext: boolean;
+    markers: boolean;
+    witnesses: boolean;
+} {
     try {
         const raw = localStorage.getItem(DISPLAY_KEY);
         const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
@@ -1352,25 +1356,45 @@ function storedDisplay(): { paratext: boolean; markers: boolean } {
         return {
             paratext: parsed.paratext !== false,
             markers: parsed.markers !== false,
+            witnesses: parsed.witnesses !== false,
         };
     } catch {
-        return { paratext: true, markers: true };
+        return { paratext: true, markers: true, witnesses: true };
     }
 }
 
 const showParatext = ref(storedDisplay().paratext);
 const showSegmentMarkers = ref(storedDisplay().markers);
+// The witnesses pane can be put away — reader or editor — and the edition
+// then has the whole width for its text and its margins.
+const showWitnesses = ref(storedDisplay().witnesses);
 
-watch([showParatext, showSegmentMarkers], ([paratext, markers]) => {
-    try {
-        localStorage.setItem(
-            DISPLAY_KEY,
-            JSON.stringify({ paratext, markers }),
-        );
-    } catch {
-        // Storage unavailable — the in-session choice still works.
-    }
-});
+watch(
+    [showParatext, showSegmentMarkers, showWitnesses],
+    ([paratext, markers, witnesses]) => {
+        try {
+            localStorage.setItem(
+                DISPLAY_KEY,
+                JSON.stringify({ paratext, markers, witnesses }),
+            );
+        } catch {
+            // Storage unavailable — the in-session choice still works.
+        }
+    },
+);
+
+/**
+ * Whether the printed lines wrap to the text box or run on, the box
+ * scrolling sideways — the editor's choice for her edition, since a verse
+ * broken by the window's width reads as a break she never made.
+ */
+function setWrapsLines(value: boolean) {
+    router.patch(
+        updateEdition.url(props.edition),
+        { wraps_lines: value },
+        { preserveScroll: true },
+    );
+}
 
 /** A paratext being written where none is saved yet. */
 type ParatextDraft = {
@@ -1557,7 +1581,9 @@ function measureParatexts() {
             top: Math.round(rect.top - boxRect.top + box.scrollTop),
             left: Math.max(
                 0,
-                Math.round(rect.left - boxRect.left - paddingLeft),
+                Math.round(
+                    rect.left - boxRect.left + box.scrollLeft - paddingLeft,
+                ),
             ),
         };
     }
@@ -3441,6 +3467,29 @@ function orderRangeClasses(range: OrderRange): string[] {
                         <input v-model="showSegmentMarkers" type="checkbox" />
                         Show segment markers
                     </label>
+                    <label class="flex items-center gap-1">
+                        <input v-model="showWitnesses" type="checkbox" />
+                        Show witnesses pane
+                    </label>
+                    <!-- The editor's, and the edition's: how its lines are
+                         set is part of the edition, unlike what a viewer
+                         chooses to look at. -->
+                    <label
+                        v-if="canEdit"
+                        class="flex items-center gap-1"
+                        title="Off, lines run on as the editor set them and the text box scrolls sideways"
+                    >
+                        <input
+                            type="checkbox"
+                            :checked="props.edition.wraps_lines"
+                            @change="
+                                setWrapsLines(
+                                    ($event.target as HTMLInputElement).checked,
+                                )
+                            "
+                        />
+                        Wrap lines
+                    </label>
                 </div>
 
                 <div
@@ -3641,7 +3690,10 @@ function orderRangeClasses(range: OrderRange): string[] {
                  used to be shown interlinearly, printed under each word of
                  the edition, which read as clutter in the middle of the text
                  rather than as a manuscript. They get their own pane now. -->
-            <div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
+            <div
+                class="grid grid-cols-1 gap-8"
+                :class="showWitnesses && 'lg:grid-cols-2'"
+            >
                 <div>
                     <fieldset
                         class="rounded-lg border border-stone-200 px-3 pb-3 text-xs dark:border-stone-800"
@@ -3959,6 +4011,8 @@ function orderRangeClasses(range: OrderRange): string[] {
                                     'focus:ring-1 focus:ring-sky-300 focus:outline-none dark:focus:ring-sky-800',
                                 hasLeftMargin && 'pl-36',
                                 hasRightMargin && 'pr-36',
+                                !props.edition.wraps_lines &&
+                                    'overflow-x-auto whitespace-nowrap',
                             ]"
                             :contenteditable="canEdit ? 'true' : undefined"
                             spellcheck="false"
@@ -5934,6 +5988,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                 <!-- The witnesses pane: the manuscripts beside the edition's
                 own continuous text, and where segments are picked for it. -->
                 <WitnessesPanel
+                    v-if="showWitnesses"
                     :edition="props.edition"
                     :transcripts="props.witnessTranscripts"
                     :already-added-segment-ids="alreadyAddedSegmentIds"

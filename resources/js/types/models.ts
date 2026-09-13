@@ -148,6 +148,9 @@ export type Edition = {
     description: string | null;
     visibility: Visibility;
     speaker_display: SpeakerDisplay;
+    // Printed lines wrap to the text box, or run on with the box scrolling
+    // sideways — the editor's choice for the edition.
+    wraps_lines: boolean;
     work?: Work;
     user?: { id: number; name: string };
 };

@@ -37,10 +37,11 @@ use Illuminate\Support\Facades\DB;
  * @property string|null $description
  * @property Visibility $visibility
  * @property SpeakerDisplay $speaker_display
+ * @property bool $wraps_lines
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['work_id', 'user_id', 'copied_from_id', 'title', 'description', 'visibility', 'speaker_display'])]
+#[Fillable(['work_id', 'user_id', 'copied_from_id', 'title', 'description', 'visibility', 'speaker_display', 'wraps_lines'])]
 class Edition extends Model
 {
     /** @use HasFactory<EditionFactory> */
@@ -49,6 +50,7 @@ class Edition extends Model
     protected $attributes = [
         'visibility' => Visibility::Draft,
         'speaker_display' => SpeakerDisplay::Inline,
+        'wraps_lines' => true,
     ];
 
     /**
@@ -221,6 +223,7 @@ class Edition extends Model
         return [
             'visibility' => Visibility::class,
             'speaker_display' => SpeakerDisplay::class,
+            'wraps_lines' => 'boolean',
         ];
     }
 }

@@ -41,6 +41,9 @@ class UpdateEditionRequest extends FormRequest
             // How the edition sets its speaker indications — one choice for
             // the whole edition, see App\Enums\SpeakerDisplay.
             'speaker_display' => ['sometimes', new Enum(SpeakerDisplay::class)],
+            // Whether printed lines wrap to the text box or run on, the
+            // box scrolling sideways — the editor's choice for her edition.
+            'wraps_lines' => ['sometimes', 'boolean'],
         ];
     }
 }

@@ -128,7 +128,7 @@ function onBlur() {
         class="paratext font-sans"
         :class="[
             speaker
-                ? 'tracking-wide text-violet-800 uppercase dark:text-violet-300'
+                ? 'tracking-wide text-violet-800 dark:text-violet-300'
                 : 'text-violet-800 italic dark:text-violet-300',
             layout === 'inline' && 'mx-0.5 text-sm',
             (layout === 'own_line' || layout === 'own_line_centered') &&
