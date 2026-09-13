@@ -99,3 +99,39 @@ test('an anonymous visitor is redirected to log in when trying to create a work'
     $response->assertRedirect(route('login'));
     expect(Work::count())->toBe(0);
 });
+
+test('a scheme may run a number level and a letter level together with no separator, named by word', function () {
+    $this->actingAs(User::factory()->editor()->create());
+
+    $this->post(route('works.store'), [
+        'title' => 'Republic',
+        'language' => 'grc',
+        'slug' => 'republic',
+        'new_scheme_name' => 'Stephanus',
+        'levels' => [
+            ['key' => 'page', 'label' => 'Page', 'type' => 'integer', 'separator' => 'none'],
+            ['key' => 'section', 'label' => 'Section', 'type' => 'string', 'separator' => 'none'],
+            ['key' => 'line', 'label' => 'Line', 'type' => 'integer', 'separator' => 'space'],
+        ],
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $levels = Work::sole()->referenceScheme->levels;
+
+    expect(array_column($levels, 'separator'))->toBe(['', '', ' '])
+        ->and(Work::sole()->referenceScheme->parseLabel('327a 4'))->toBe(['page' => 327, 'section' => 'a', 'line' => 4]);
+});
+
+test('two levels of the same kind cannot run together without a separator', function () {
+    $this->actingAs(User::factory()->editor()->create());
+
+    $this->post(route('works.store'), [
+        'title' => 'Antigone',
+        'language' => 'grc',
+        'slug' => 'antigone-2',
+        'new_scheme_name' => 'Book and line',
+        'levels' => [
+            ['key' => 'book', 'label' => 'Book', 'type' => 'integer', 'separator' => 'none'],
+            ['key' => 'line', 'label' => 'Line', 'type' => 'integer', 'separator' => 'none'],
+        ],
+    ])->assertSessionHasErrors('levels.1.separator');
+});

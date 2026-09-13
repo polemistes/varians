@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Work;
 use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -36,7 +37,34 @@ class StoreWorkRequest extends FormRequest
             'levels.*.key' => ['required_with:levels', 'string', 'max:50', 'regex:/^[a-z_]+$/'],
             'levels.*.label' => ['required_with:levels', 'string', 'max:50'],
             'levels.*.type' => ['required_with:levels', Rule::in(['integer', 'string'])],
+            // What stands between this level and the one before it. The
+            // client names a space or no separator by word ('space',
+            // 'none'), since the trimming middleware would empty either;
+            // WorkController::store turns them into the characters.
             'levels.*.separator' => ['nullable', 'string', 'max:5'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            $levels = array_values((array) $this->input('levels', []));
+
+            // Without a separator only the change of type says where one
+            // level ends and the next begins (digits against letters), so
+            // two levels of one type cannot run together.
+            foreach ($levels as $index => $level) {
+                if ($index === 0 || ! is_array($level) || ($level['separator'] ?? null) !== 'none') {
+                    continue;
+                }
+
+                if (($levels[$index - 1]['type'] ?? null) === ($level['type'] ?? null)) {
+                    $validator->errors()->add(
+                        "levels.{$index}.separator",
+                        'Two levels of the same kind need a separator between them — without one there is no telling where one ends and the next begins.',
+                    );
+                }
+            }
+        });
     }
 }

@@ -83,19 +83,44 @@ class ReferenceScheme extends Model
     }
 
     /**
-     * Parse an segment label back into an address, given this scheme's levels.
-     * Inverse of format() — only reliable for labels this scheme would itself produce.
+     * Parse a segment label back into an address, given this scheme's levels.
+     * Inverse of format() — only reliable for labels this scheme would itself
+     * produce.
+     *
+     * Every level holds ANY string (user decision): a level typed "integer"
+     * takes "4a", "2.4A" or "45bis" as readily as "45", and a level typed
+     * "letter" may carry digits. The type only says how values SORT and
+     * what the next value is likely to be; it never limits what an editor
+     * may name a segment. So the separators are what divide a label —
+     * each level takes the shortest stretch that lets the rest match — and
+     * only where two levels meet with NO separator between them do the
+     * types decide the boundary: digits on the integer side, non-digits on
+     * the other (Stephanus "327a"). Such a pair must differ in type, which
+     * StoreWorkRequest enforces.
      *
      * @return array<string, int|string>|null null if the label doesn't match the scheme
      */
     public function parseLabel(string $label): ?array
     {
         $pattern = '';
+        $levels = array_values($this->levels);
 
-        foreach ($this->levels as $index => $level) {
+        foreach ($levels as $index => $level) {
             $separator = $index === 0 ? '' : ($level['separator'] ?? '.');
+            $next = $levels[$index + 1] ?? null;
+            $nextSeparator = $next === null ? null : ($next['separator'] ?? '.');
+
+            $isInteger = $level['type'] === 'integer';
+
             $pattern .= preg_quote($separator, '/');
-            $pattern .= $level['type'] === 'integer' ? '(\d+[A-Za-z]*)' : '([^\d]+)';
+            // Running into the next level: whole of its own kind. Running on
+            // from the previous: at least its first character of its own
+            // kind, or "327" would divide into page 32, section "7".
+            $pattern .= match (true) {
+                $nextSeparator === '' => $isInteger ? '(\d+)' : '(\D+)',
+                $index > 0 && $separator === '' => $isInteger ? '(\d.*?)' : '(\D.*?)',
+                default => '(.+?)',
+            };
         }
 
         if (! preg_match('/^'.$pattern.'$/u', $label, $matches)) {

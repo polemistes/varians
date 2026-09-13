@@ -25,6 +25,7 @@ import {
     useHydrated,
 } from '@/lib/provenance';
 import { planRelocationEffects } from '@/lib/relocationEffects';
+import { nextLabel } from '@/lib/segmentLabel';
 import {
     matchTranscriptCopy,
     rememberTranscriptCopy,
@@ -1590,19 +1591,9 @@ watch(
     },
 );
 
-// Increments the trailing run of digits in a label ("1.5" -> "1.6"). A label
-// with no trailing digits (e.g. ends in a letter, like a Stephanus section)
-// is returned unchanged — there's no sensible "next" value to guess.
+// The next label to propose after the last one assigned — see nextLabel.
 function incrementLabel(label: string): string {
-    const match = label.match(/^(.*?)(\d+)$/);
-
-    if (!match) {
-        return label;
-    }
-
-    const [, prefix, digits] = match;
-
-    return prefix + (parseInt(digits, 10) + 1);
+    return nextLabel(label);
 }
 
 /**

@@ -225,12 +225,24 @@ function submit() {
                                 <option value="integer">Number</option>
                                 <option value="string">Letter</option>
                             </select>
-                            <input
+                            <!-- What stands before this level in a label.
+                                 Prose editions often run levels together
+                                 ("327a"): "none" is a real choice, allowed
+                                 only between a number and a letter level,
+                                 since nothing else could divide them. -->
+                            <select
+                                v-if="index > 0"
                                 v-model="level.separator"
-                                type="text"
-                                placeholder="sep (.)"
-                                class="w-16 rounded border border-stone-300 bg-transparent px-2 py-1 text-sm dark:border-stone-700"
-                            />
+                                class="rounded border border-stone-300 bg-transparent px-2 py-1 text-sm dark:border-stone-700"
+                                title="What comes before this level in a label"
+                            >
+                                <option value=".">. full stop</option>
+                                <option value=":">: colon</option>
+                                <option value=",">, comma</option>
+                                <option value="-">- hyphen</option>
+                                <option value="space">space</option>
+                                <option value="none">no separator</option>
+                            </select>
                             <button
                                 v-if="form.levels.length > 1"
                                 type="button"

@@ -28,6 +28,34 @@ class WorkController extends Controller
         ]);
     }
 
+    /**
+     * The separators as characters. The form names a space and no separator
+     * by word — 'space', 'none' — because the trimming middleware would
+     * empty either before validation; the first level never has one.
+     *
+     * @param  array<int, array{key: string, label: string, type: string, separator?: string|null}>  $levels
+     * @return array<int, array{key: string, label: string, type: string, separator: string}>
+     */
+    private static function withSeparatorCharacters(array $levels): array
+    {
+        $converted = [];
+
+        foreach (array_values($levels) as $index => $level) {
+            $separator = $level['separator'] ?? '.';
+
+            $converted[] = [
+                ...$level,
+                'separator' => $index === 0 ? '' : match ($separator) {
+                    'none' => '',
+                    'space' => ' ',
+                    default => $separator,
+                },
+            ];
+        }
+
+        return $converted;
+    }
+
     public function store(StoreWorkRequest $request): RedirectResponse
     {
         $schemeId = $request->validated('reference_scheme_id');
@@ -35,7 +63,7 @@ class WorkController extends Controller
         if (! $schemeId) {
             $schemeId = ReferenceScheme::create([
                 'name' => $request->validated('new_scheme_name'),
-                'levels' => $request->validated('levels'),
+                'levels' => self::withSeparatorCharacters($request->validated('levels')),
             ])->id;
         }
 

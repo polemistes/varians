@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { addressValue } from '@/lib/segmentLabel';
 import type { ReferenceLevel } from '@/types/models';
 
 type SegmentOption = {
@@ -77,12 +78,7 @@ function optionsAt(levelIndex: number): TreeNode[] {
 }
 
 function selectAt(levelIndex: number, raw: string) {
-    const value =
-        raw === ''
-            ? null
-            : props.levels[levelIndex].type === 'integer'
-              ? Number(raw)
-              : raw;
+    const value = raw === '' ? null : addressValue(raw);
 
     selections.value[levelIndex] = value;
 

@@ -165,3 +165,57 @@ test('parseLabel returns null for a label that does not match the scheme', funct
 
     expect($scheme->parseLabel('not an assignment'))->toBeNull();
 });
+
+test('every level holds any string, whatever its type', function () {
+    $scheme = new ReferenceScheme([
+        'levels' => [
+            ['key' => 'book', 'label' => 'Book', 'type' => 'integer', 'separator' => ''],
+            ['key' => 'line', 'label' => 'Line', 'type' => 'integer', 'separator' => '.'],
+        ],
+    ]);
+    $letters = new ReferenceScheme([
+        'levels' => [
+            ['key' => 'page', 'label' => 'Page', 'type' => 'integer', 'separator' => ''],
+            ['key' => 'section', 'label' => 'Section', 'type' => 'string', 'separator' => '.'],
+        ],
+    ]);
+
+    expect($scheme->parseLabel('2.4A'))->toBe(['book' => 2, 'line' => '4A'])
+        ->and($scheme->parseLabel('2.45bis'))->toBe(['book' => 2, 'line' => '45bis'])
+        ->and($scheme->parseLabel('II.4'))->toBe(['book' => 'II', 'line' => 4])
+        ->and($letters->parseLabel('327.b2'))->toBe(['page' => 327, 'section' => 'b2'])
+        ->and($scheme->format(['book' => 2, 'line' => '4A'])['label'])->toBe('2.4A');
+});
+
+test('levels run together only where a number meets a letter level, and the types divide them', function () {
+    $stephanus = new ReferenceScheme([
+        'levels' => [
+            ['key' => 'page', 'label' => 'Page', 'type' => 'integer', 'separator' => ''],
+            ['key' => 'section', 'label' => 'Section', 'type' => 'string', 'separator' => ''],
+        ],
+    ]);
+    $reversed = new ReferenceScheme([
+        'levels' => [
+            ['key' => 'part', 'label' => 'Part', 'type' => 'string', 'separator' => ''],
+            ['key' => 'number', 'label' => 'Number', 'type' => 'integer', 'separator' => ''],
+            ['key' => 'line', 'label' => 'Line', 'type' => 'integer', 'separator' => '.'],
+        ],
+    ]);
+
+    expect($stephanus->parseLabel('327a'))->toBe(['page' => 327, 'section' => 'a'])
+        ->and($stephanus->parseLabel('327'))->toBeNull()
+        ->and($reversed->parseLabel('A12.3b'))->toBe(['part' => 'A', 'number' => 12, 'line' => '3b'])
+        ->and($stephanus->format(['page' => 327, 'section' => 'a'])['label'])->toBe('327a');
+});
+
+test('a scheme saved before separators were explicit still divides by a full stop', function () {
+    $scheme = new ReferenceScheme([
+        'levels' => [
+            ['key' => 'book', 'label' => 'Book', 'type' => 'integer'],
+            ['key' => 'line', 'label' => 'Line', 'type' => 'integer'],
+        ],
+    ]);
+
+    expect($scheme->parseLabel('1.2'))->toBe(['book' => 1, 'line' => 2])
+        ->and($scheme->format(['book' => 1, 'line' => 2])['label'])->toBe('1.2');
+});
