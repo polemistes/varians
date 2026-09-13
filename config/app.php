@@ -65,6 +65,19 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Slow Request Logging
+    |--------------------------------------------------------------------------
+    |
+    | A request that takes longer than this many milliseconds is logged with
+    | its query count and time — see App\Http\Middleware\LogSlowRequests.
+    | Zero disables the log.
+    |
+    */
+
+    'slow_request_ms' => (int) env('SLOW_REQUEST_MS', 2000),
+
     'timezone' => 'UTC',
 
     /*

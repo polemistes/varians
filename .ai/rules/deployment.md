@@ -47,3 +47,22 @@ nothing to do with the server's PHP. `tests.yml` pins them by SHA
 still says `@v4`, which is why the build warns about Node 20. Dependabot
 PR #1 raises exactly those two and has simply never been merged. Nothing
 about the host prevents it.
+
+## SQLite runs in WAL mode, sessions and cache are files, slow requests are logged (2026-09-14)
+Production is SQLite on a VPS, and pages "sometimes took more than five
+seconds" there while everything was instant locally. The cause is
+environmental, not the code: in SQLite's default rollback-journal mode
+readers and writers block each other and every commit syncs the disk
+twice, and with sessions/cache in the database every request was a write
+transaction contending with real edits. So `config/database.php` sets
+`journal_mode=wal`, `synchronous=normal` and a 5 s `busy_timeout` for the
+sqlite connection (env-overridable; pragmas applied on connect, WAL
+takes effect on the next connection to an existing database),
+`.env.production.example` puts SESSION_DRIVER and CACHE_STORE on `file`
+(`.env` on the server must be changed by hand), and `LogSlowRequests`
+(prepended to the global stack) logs every request over
+`SLOW_REQUEST_MS` (default 2000) with its ms, query count and query ms —
+read `storage/logs/` after a slow spell before guessing further. OPcache
+is the remaining suspect if that shows time outside the queries: check
+the host's PHP handler. The tests run on `:memory:`, where the WAL pragma
+is a no-op.

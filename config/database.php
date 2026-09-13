@@ -38,9 +38,16 @@ return [
             'database' => env('DB_DATABASE', database_path('database.sqlite')),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
-            'busy_timeout' => null,
-            'journal_mode' => null,
-            'synchronous' => null,
+            // Applied as pragmas on every connection. Write-ahead logging
+            // lets readers proceed while a request writes (in the default
+            // rollback-journal mode they block each other, and a busy
+            // production server showed multi-second waits); NORMAL
+            // syncing is safe under WAL and spares a disk sync per commit;
+            // the busy timeout bounds a wait for the lock. See
+            // .ai/rules/deployment.md.
+            'busy_timeout' => env('DB_BUSY_TIMEOUT', 5000),
+            'journal_mode' => env('DB_JOURNAL_MODE', 'wal'),
+            'synchronous' => env('DB_SYNCHRONOUS', 'normal'),
             'transaction_mode' => 'DEFERRED',
         ],
 
