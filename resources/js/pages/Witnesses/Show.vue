@@ -10,7 +10,7 @@ const paneTabMemory = new Map<
 </script>
 
 <script setup lang="ts">
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import AppHeader from '@/components/AppHeader.vue';
 import FacsimilePane from '@/components/FacsimilePane.vue';
@@ -57,11 +57,24 @@ const props = defineProps<{
 // What the server's policies allow this viewer — the page only reflects it.
 const canEdit = computed(() => props.can.edit);
 
+// A notice about the witness as a whole. Notices about one transcript carry
+// the layer they concern and are shown over that pane instead.
+const page = usePage<{
+    flash?: { message?: string | null; layer?: number | null };
+}>();
+const witnessNotice = computed(() => {
+    const flash = page.props.flash;
+
+    return flash?.message && flash.layer == null ? flash.message : null;
+});
+
 // ---- the witness box ----
 function copyWitness() {
     if (
         !window.confirm(
-            'Make your own copy of this witness? You get its pages, photographs and transcriptions to edit as you like; its citations stay with the original.',
+            props.can.edit
+                ? 'Make your own copy of this witness? You get its pages, photographs and transcriptions, with their assignments, which go on naming the same work.'
+                : 'Make your own copy of this witness? You get its pages, photographs and transcriptions, with their assignments — and your own copy of every work they assign text to, so that what you edit stays yours.',
         )
     ) {
         return;
@@ -651,6 +664,17 @@ const sides: Side[] = ['left', 'right'];
         <div class="mx-auto max-w-7xl">
             <AppHeader />
 
+            <!-- A notice about the WITNESS rather than about one transcript
+                 — copying it brought copies of the works it assigns text
+                 to, say. Layer-scoped notices belong over their own pane
+                 (see TranscriptPane) and are left to it. -->
+            <p
+                v-if="witnessNotice"
+                class="mt-3 rounded border border-sky-300 bg-white px-3 py-2 text-sm text-sky-800 dark:border-sky-800 dark:bg-stone-900 dark:text-sky-300"
+            >
+                {{ witnessNotice }}
+            </p>
+
             <!-- Everything that pertains to the WITNESS lives in this one
                  box, and the word in its border says which editor page this
                  is — the edition page carries the same device. -->
@@ -787,7 +811,7 @@ const sides: Side[] = ['left', 'right'];
                             v-if="props.can.copy"
                             type="button"
                             class="text-stone-500 underline dark:text-stone-400"
-                            title="Your own copy — pages, photographs, transcriptions and their citations"
+                            title="Your own copy — pages, photographs, transcriptions and their assignments"
                             @click="copyWitness"
                         >
                             Copy witness

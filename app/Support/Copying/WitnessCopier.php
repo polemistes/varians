@@ -13,24 +13,34 @@ use App\Models\TranscriptionRegion;
 use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
+use App\Models\Work;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
  * Reproduces a witness for another owner: the physical apparatus (pages,
  * photographs, their features), its transcriptions with both layers, the
- * image mappings and page division — and ITS CITATIONS, always. Where the
- * caller copied the work as well it says so with `$passageMap` (old
- * passage id to new) and each citation is remapped onto the copy's own
- * passages; where it did not, the citation keeps pointing at the passage
- * it pointed at.
+ * image mappings and page division — and ITS ASSIGNMENTS, always. A copy
+ * without them is a wall of text somebody has to assign again line by line;
+ * the assignments are the transcription work (user decision).
  *
- * A witness copied on its own used to arrive uncited, on the reasoning
- * that its citations named a work the copier may not edit. That was
- * wrong, and reported: the assignments ARE the transcription work, and a
- * copy without them is a wall of text somebody has to cite again line by
- * line (user decision — "the assignments should follow any copy").
+ * What they point AT depends on whose witness it is:
+ *
+ * - One the copier may edit — her own, or one whose work she has been given
+ *   editing privileges on — keeps its assignments pointing at the very same
+ *   passages. Her edits then show up as variants in her own editions of that
+ *   work, and in the shared edition she took the witness from, which is the
+ *   point of copying a witness one already works on.
+ * - Someone else's public witness brings COPIES of the works it assigns text
+ *   to, and every assignment is moved onto those. Her copy is then wholly
+ *   her own: nothing she does to it reaches the original editor's apparatus,
+ *   where she has no business appearing.
+ *
+ * A caller that has already copied the works says so by passing
+ * `$passageMap` (old passage id to new) — EditionCopier does, having copied
+ * the work for its own reasons.
  *
  * Only what the copier may see is copied: her own copy must not be a way
  * of reading a draft transcription, or an unmapped photograph, that its
@@ -43,9 +53,9 @@ use Illuminate\Support\Str;
 class WitnessCopier
 {
     /**
-     * @param  array<int, int>  $passageMap  old canonical passage id → new
+     * @param  array<int, int>  $passageMap  old canonical passage id → new, where the caller has copied the works itself
      * @param  array<int, mixed>|null  $transcriptionIds  which of the witness's transcriptions to copy — all when null
-     * @return array{witness: Witness, layers: array<int, int>} the copy, and old layer id → new
+     * @return array{witness: Witness, layers: array<int, int>, works: array<int, Work>} the copy, old layer id → new, and any works copied along the way by old id
      */
     public static function copy(Witness $witness, User $owner, array $passageMap = [], ?array $transcriptionIds = null): array
     {
@@ -92,6 +102,20 @@ class WitnessCopier
         $transcriptions = $witness->transcriptions()->visibleTo($owner)->orderBy('position')
             ->when($transcriptionIds !== null, fn (Builder $query) => $query->whereKey($transcriptionIds))
             ->get();
+
+        // Where the copier may edit this witness — her own, or one whose
+        // work she has been given editing privileges on — the assignments
+        // go on naming the passages they named, and what she does to her
+        // copy shows up as variants in her own editions of that work and in
+        // the shared edition she took it from. Where she may not, the works
+        // are copied too and every assignment is moved onto them, so that
+        // her edits are hers and reach nobody else's apparatus (user
+        // decision; see .ai/rules/access.md).
+        $works = [];
+
+        if ($passageMap === [] && ! $owner->can('update', $witness)) {
+            [$passageMap, $works] = self::copyCitedWorks($transcriptions, $owner);
+        }
 
         foreach ($transcriptions as $transcription) {
             /** @var Transcription $transcription */
@@ -148,7 +172,39 @@ class WitnessCopier
             }
         }
 
-        return ['witness' => $copy, 'layers' => $layers];
+        return ['witness' => $copy, 'layers' => $layers, 'works' => $works];
+    }
+
+    /**
+     * A copy of every work these transcriptions assign text to, with its
+     * passages — so the assignments have somewhere of the copier's own to
+     * point. Works are taken in title order, so several copies arrive in a
+     * predictable one.
+     *
+     * @param  Collection<int, Transcription>  $transcriptions
+     * @return array{0: array<int, int>, 1: array<int, Work>} old passage id → new, and the works copied by old id
+     */
+    private static function copyCitedWorks(Collection $transcriptions, User $owner): array
+    {
+        $works = Work::query()
+            ->whereHas(
+                'canonicalPassages.transcriptionSegments.transcriptionLayer',
+                fn (Builder $query) => $query->whereIn('transcription_id', $transcriptions->modelKeys())
+            )
+            ->orderBy('title')
+            ->get();
+
+        $passageMap = [];
+        $copies = [];
+
+        foreach ($works as $work) {
+            /** @var Work $work */
+            ['work' => $copy, 'passages' => $passages] = WorkCopier::copy($work, $owner);
+            $passageMap += $passages;
+            $copies[$work->id] = $copy;
+        }
+
+        return [$passageMap, $copies];
     }
 
     /**

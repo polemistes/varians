@@ -3,15 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Models\Witness;
+use App\Models\Work;
 use App\Support\Copying\WitnessCopier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 /**
- * A member's own copy of a public witness: pages, photographs,
- * transcriptions and the citations over them, which go on naming the
- * passages they named before — the assignments follow any copy (user
- * decision). See WitnessCopier.
+ * A member's own copy of a witness: pages, photographs, transcriptions and
+ * the assignments over them. Copying someone else's witness copies the
+ * works it assigns text to as well, so the assignments are her own — and
+ * since that puts works in her list she never asked for by name, it is
+ * reported rather than left to be discovered. See WitnessCopier.
  */
 class WitnessCopyController extends Controller
 {
@@ -19,8 +21,16 @@ class WitnessCopyController extends Controller
     {
         $this->authorize('copy', $witness);
 
-        $copy = WitnessCopier::copy($witness, $request->user())['witness'];
+        $copied = WitnessCopier::copy($witness, $request->user());
+        $works = collect($copied['works'])->map(fn (Work $work) => $work->title)->sort()->values();
+        $redirect = redirect()->route('witnesses.show', $copied['witness']);
 
-        return redirect()->route('witnesses.show', $copy);
+        if ($works->isEmpty()) {
+            return $redirect;
+        }
+
+        return $redirect->with('message', $works->count() === 1
+            ? "Your copy assigns its text to your own copy of {$works->first()}, not to the original."
+            : 'Your copy assigns its text to your own copies of '.$works->join(', ', ' and ').', not to the originals.');
     }
 }

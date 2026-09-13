@@ -4,7 +4,6 @@ namespace App\Support\Copying;
 
 use App\Enums\Visibility;
 use App\Models\BibliographyReference;
-use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\ConjectureOrderingEntry;
 use App\Models\Edition;
@@ -42,44 +41,14 @@ class EditionCopier
     {
         return DB::transaction(function () use ($edition, $owner): Edition {
             $work = $edition->work;
-            $workCopy = self::copyWork($work, $owner);
+            ['work' => $workCopy, 'passages' => $passages] = WorkCopier::copy($work, $owner);
 
-            $passages = self::copyPassages($work, $workCopy);
             $layers = self::copyWitnesses($work, $owner, $passages);
             $conjectures = self::copyConjectures($work, $owner, $passages);
             [$lemmas, $readings] = self::copyCollation($work, $passages, $layers, $conjectures);
 
             return self::copyEdition($edition, $owner, $workCopy, $passages, $layers, $conjectures, $lemmas, $readings);
         });
-    }
-
-    private static function copyWork(Work $work, User $owner): Work
-    {
-        $copy = $work->replicate(['user_id', 'copied_from_id', 'slug']);
-        $copy->user_id = $owner->id;
-        $copy->copied_from_id = $work->id;
-        $copy->slug = self::freshSlug($work->slug);
-        $copy->save();
-
-        return $copy;
-    }
-
-    /**
-     * @return array<int, int> old passage id → new
-     */
-    private static function copyPassages(Work $work, Work $workCopy): array
-    {
-        $map = [];
-
-        foreach ($work->canonicalPassages()->orderBy('sort_key')->get() as $passage) {
-            /** @var CanonicalPassage $passage */
-            $copy = $passage->replicate();
-            $copy->work_id = $workCopy->id;
-            $copy->save();
-            $map[$passage->id] = $copy->id;
-        }
-
-        return $map;
     }
 
     /**
@@ -344,15 +313,4 @@ class EditionCopier
     /**
      * "iliad" copies to "iliad-copy", then "iliad-copy-2", and so on.
      */
-    private static function freshSlug(string $slug): string
-    {
-        $base = $slug.'-copy';
-        $candidate = $base;
-
-        for ($n = 2; Work::query()->where('slug', $candidate)->exists(); $n++) {
-            $candidate = $base.'-'.$n;
-        }
-
-        return $candidate;
-    }
 }

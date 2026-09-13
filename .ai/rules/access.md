@@ -148,16 +148,26 @@ by the copier, `copied_from_id` set throughout.
 
 THE ASSIGNMENTS FOLLOW ANY COPY (user decision, reversing an earlier one).
 A witness copied on its own used to arrive uncited, reasoning that its
-citations named a work the copier may not edit; that was wrong and was
+assignments named a work the copier may not edit; that was wrong and was
 reported. The assignments ARE the transcription work, and a copy without
-them is a wall of text somebody must cite again line by line. Where the
-work is copied too, `$passageMap` remaps each citation onto the copy's own
-passages; where it is not, the citation goes on naming the passage it
-named. This does mean a copied witness cites the ORIGINAL work and so
-stands among the witnesses citing it — `EditionController::
-witnessesCiting` lists every visible one, and `PassageAligner` collates
-every witness citing a passage. That is the cost of the decision and it is
-accepted, not overlooked.
+them is a wall of text somebody must assign again line by line.
+
+WHAT THEY POINT AT depends on whose witness it is, decided once per copy by
+`can('update', $witness)` — the owner, or whoever has editing privileges on
+one of its works:
+
+- A witness the copier MAY EDIT keeps its assignments on the very same
+  passages. Her edits then show up as variants in her own editions of that
+  work and in the shared edition she took the witness from, which is the
+  point of copying a witness one already works on.
+- SOMEONE ELSE'S public witness brings copies of the works it assigns text
+  to (`WorkCopier`, shared with `EditionCopier`), and every assignment moves
+  onto those. Her copy reaches no apparatus but her own. Since that puts
+  works in her list she never asked for by name, `WitnessCopyController`
+  flashes a notice saying so.
+
+Conjectures are NOT copied with a witness: they belong to the edition
+story, and a witness copy is about the manuscript.
 
 Both copiers copy only what the copier may SEE
 (`visibleTo` on transcriptions, images and conjectures) and skip rows

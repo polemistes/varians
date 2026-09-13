@@ -271,7 +271,11 @@ const textSaveNotice = computed(() => {
         return null;
     }
 
-    if (flash.layer != null && flash.layer !== layer.value?.id) {
+    // Only this layer's own. Every sender scopes its notice, and an
+    // unscoped one is about the WITNESS (a copy that brought works with
+    // it) — the page shows that above both panes rather than each pane
+    // showing it once.
+    if (flash.layer !== layer.value?.id) {
         return null;
     }
 

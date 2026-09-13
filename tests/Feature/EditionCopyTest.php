@@ -255,9 +255,14 @@ test('copying a public witness gives the member its pages, photographs, transcri
         ->and($copy->transcriptions()->where('visibility', Visibility::Published)->exists())->toBeFalse()
         ->and(TranscriptionRegion::whereIn('transcription_layer_id', $copy->transcriptionLayers()->pluck('transcription_layers.id'))->count())->toBe(1);
 
-    // The assignments follow the copy (user decision — a copy without them
-    // is a wall of text somebody has to cite again line by line). No work
-    // was copied here, so they go on naming the passages they named.
+    // A stranger's copy brings its own copy of the work, and the
+    // assignments name ITS passages — nothing she does reaches the
+    // original editor's apparatus.
+    $workCopy = Work::where('copied_from_id', $graph['work']->id)->sole();
+    expect($workCopy->user_id)->toBe($member->id)
+        ->and($workCopy->canonicalPassages()->count())
+        ->toBe($graph['work']->canonicalPassages()->count());
+
     $copied = TranscriptionSegment::whereIn(
         'transcription_layer_id',
         $copy->transcriptionLayers()->pluck('transcription_layers.id')
@@ -271,15 +276,42 @@ test('copying a public witness gives the member its pages, photographs, transcri
 
     expect($copied)->toHaveCount($original->count())
         ->and($copied)->not->toBeEmpty()
-        ->and($copied->pluck('canonical_passage_id')->sort()->values()->all())
-        ->toBe($original->pluck('canonical_passage_id')->sort()->values()->all())
         ->and($copied->pluck('start_offset')->sort()->values()->all())
-        ->toBe($original->pluck('start_offset')->sort()->values()->all());
+        ->toBe($original->pluck('start_offset')->sort()->values()->all())
+        // Every one of them on the copy's own passages, none on the
+        // original's.
+        ->and($copied->pluck('canonical_passage_id')->unique()->diff(
+            $workCopy->canonicalPassages()->pluck('id')
+        )->all())->toBe([])
+        ->and($copied->pluck('canonical_passage_id')->intersect(
+            $graph['work']->canonicalPassages()->pluck('id')
+        )->all())->toBe([]);
 
     // A witness nobody has published is not there to copy.
     $private = Witness::factory()->create();
     Transcription::factory()->for($private)->create();
     $this->post(route('witnesses.copy', $private))->assertForbidden();
+});
+
+test('copying a witness one may edit keeps its assignments on the same work', function () {
+    // Her own witness, or one whose work she has been given editing
+    // privileges on: her edits are meant to show up as variants in her
+    // editions of that work, and in the shared edition she took it from.
+    $graph = publishedEditionGraph();
+
+    $this->actingAs($graph['owner'])->post(route('witnesses.copy', $graph['witness']))->assertRedirect();
+
+    $copy = Witness::where('copied_from_id', $graph['witness']->id)->sole();
+    $copied = TranscriptionSegment::whereIn(
+        'transcription_layer_id',
+        $copy->transcriptionLayers()->pluck('transcription_layers.id')
+    )->get();
+
+    expect(Work::where('copied_from_id', $graph['work']->id)->exists())->toBeFalse()
+        ->and($copied)->not->toBeEmpty()
+        ->and($copied->pluck('canonical_passage_id')->unique()->diff(
+            $graph['work']->canonicalPassages()->pluck('id')
+        )->all())->toBe([]);
 });
 
 test('a copy carries only what the copier may see — no draft transcription, no unmapped photograph', function () {
