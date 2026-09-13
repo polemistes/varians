@@ -20,11 +20,17 @@ use Illuminate\Support\Str;
 /**
  * Reproduces a witness for another owner: the physical apparatus (pages,
  * photographs, their features), its transcriptions with both layers, the
- * image mappings and page division — and its citations only where the
- * caller can say which passages they now point at (`$passageMap`, old id
- * to new). A witness copied on its own therefore arrives uncited: its
- * citations belonged to a work the copier does not own, and citing into a
- * work is editing it.
+ * image mappings and page division — and ITS CITATIONS, always. Where the
+ * caller copied the work as well it says so with `$passageMap` (old
+ * passage id to new) and each citation is remapped onto the copy's own
+ * passages; where it did not, the citation keeps pointing at the passage
+ * it pointed at.
+ *
+ * A witness copied on its own used to arrive uncited, on the reasoning
+ * that its citations named a work the copier may not edit. That was
+ * wrong, and reported: the assignments ARE the transcription work, and a
+ * copy without them is a wall of text somebody has to cite again line by
+ * line (user decision — "the assignments should follow any copy").
  *
  * Only what the copier may see is copied: her own copy must not be a way
  * of reading a draft transcription, or an unmapped photograph, that its
@@ -117,13 +123,12 @@ class WitnessCopier
 
                 foreach ($layer->segments as $segment) {
                     /** @var TranscriptionSegment $segment */
-                    if (! isset($passageMap[$segment->canonical_passage_id])) {
-                        continue;
-                    }
-
                     $segmentCopy = $segment->replicate();
                     $segmentCopy->transcription_layer_id = $layerCopy->id;
-                    $segmentCopy->canonical_passage_id = $passageMap[$segment->canonical_passage_id];
+                    // Remapped where the caller copied the work too, and
+                    // otherwise left pointing where it pointed.
+                    $segmentCopy->canonical_passage_id = $passageMap[$segment->canonical_passage_id]
+                        ?? $segment->canonical_passage_id;
                     $segmentCopy->group_id = self::regroup($groups, $segment->group_id);
                     $segmentCopy->save();
                 }

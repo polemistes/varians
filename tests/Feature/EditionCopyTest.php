@@ -238,7 +238,7 @@ test('a draft edition can be copied only by those who may edit it; a published o
     $this->post(route('editions.copy', $graph['edition']))->assertRedirect(route('login'));
 });
 
-test('copying a public witness gives the member its pages, photographs and transcriptions, uncited', function () {
+test('copying a public witness gives the member its pages, photographs, transcriptions and citations', function () {
     $graph = publishedEditionGraph();
     $member = User::factory()->create();
 
@@ -253,8 +253,28 @@ test('copying a public witness gives the member its pages, photographs and trans
         ->and($copy->transcriptions()->count())->toBe(1)
         ->and($copy->transcriptionLayers()->count())->toBe(2)
         ->and($copy->transcriptions()->where('visibility', Visibility::Published)->exists())->toBeFalse()
-        ->and(TranscriptionSegment::whereIn('transcription_layer_id', $copy->transcriptionLayers()->pluck('transcription_layers.id'))->exists())->toBeFalse()
         ->and(TranscriptionRegion::whereIn('transcription_layer_id', $copy->transcriptionLayers()->pluck('transcription_layers.id'))->count())->toBe(1);
+
+    // The assignments follow the copy (user decision — a copy without them
+    // is a wall of text somebody has to cite again line by line). No work
+    // was copied here, so they go on naming the passages they named.
+    $copied = TranscriptionSegment::whereIn(
+        'transcription_layer_id',
+        $copy->transcriptionLayers()->pluck('transcription_layers.id')
+    )->get();
+    $publishedLayers = $graph['witness']->transcriptions()
+        ->where('visibility', Visibility::Published)
+        ->with('layers')
+        ->get()
+        ->flatMap(fn (Transcription $transcription) => $transcription->layers->pluck('id'));
+    $original = TranscriptionSegment::whereIn('transcription_layer_id', $publishedLayers)->get();
+
+    expect($copied)->toHaveCount($original->count())
+        ->and($copied)->not->toBeEmpty()
+        ->and($copied->pluck('canonical_passage_id')->sort()->values()->all())
+        ->toBe($original->pluck('canonical_passage_id')->sort()->values()->all())
+        ->and($copied->pluck('start_offset')->sort()->values()->all())
+        ->toBe($original->pluck('start_offset')->sort()->values()->all());
 
     // A witness nobody has published is not there to copy.
     $private = Witness::factory()->create();

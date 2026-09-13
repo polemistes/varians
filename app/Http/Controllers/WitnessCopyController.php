@@ -8,9 +8,10 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 /**
- * A member's own copy of a public witness: pages, photographs and
- * transcriptions, but not its citations — those belong to works she does
- * not own. See WitnessCopier.
+ * A member's own copy of a public witness: pages, photographs,
+ * transcriptions and the citations over them, which go on naming the
+ * passages they named before — the assignments follow any copy (user
+ * decision). See WitnessCopier.
  */
 class WitnessCopyController extends Controller
 {

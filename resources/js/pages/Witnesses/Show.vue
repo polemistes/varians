@@ -787,7 +787,7 @@ const sides: Side[] = ['left', 'right'];
                             v-if="props.can.copy"
                             type="button"
                             class="text-stone-500 underline dark:text-stone-400"
-                            title="Your own copy — pages, photographs and transcriptions, without the citations"
+                            title="Your own copy — pages, photographs, transcriptions and their citations"
                             @click="copyWitness"
                         >
                             Copy witness
