@@ -3690,13 +3690,17 @@ function orderRangeClasses(range: OrderRange): string[] {
                  used to be shown interlinearly, printed under each word of
                  the edition, which read as clutter in the middle of the text
                  rather than as a manuscript. They get their own pane now. -->
+            <!-- min-w-0 on the edition's column: a grid column is at
+                 least as wide as its content by default, so unwrapped
+                 lines widened the column into the witnesses pane instead
+                 of scrolling inside the text box (real bug). -->
             <div
                 class="grid grid-cols-1 gap-8"
                 :class="showWitnesses && 'lg:grid-cols-2'"
             >
-                <div>
+                <div class="min-w-0">
                     <fieldset
-                        class="rounded-lg border border-stone-200 px-3 pb-3 text-xs dark:border-stone-800"
+                        class="min-w-0 rounded-lg border border-stone-200 px-3 pb-3 text-xs dark:border-stone-800"
                     >
                         <legend
                             class="px-2 text-xs font-medium tracking-widest text-stone-500 uppercase dark:text-stone-400"
