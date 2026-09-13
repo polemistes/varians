@@ -1552,6 +1552,12 @@ const hasRightMargin = computed(() =>
 // indication's continuation). Margin boxes on one side stack down.
 const anchorPlaces = ref<Record<string, { top: number; left: number }>>({});
 const marginTops = ref<Record<string, number>>({});
+// Where the widest printed line ends, from the box's left border: a
+// right-margin note stands just past it (user decision) — beyond the
+// longest line when the lines run on and the box scrolls, close to the
+// text when there is room to spare — never at the window's edge on top
+// of a line that reaches it.
+const textRightEdge = ref(0);
 
 function samePlaces<T>(a: Record<string, T>, b: Record<string, T>): boolean {
     const keys = Object.keys(a);
@@ -1590,6 +1596,27 @@ function measureParatexts() {
 
     if (!samePlaces(places, anchorPlaces.value)) {
         anchorPlaces.value = places;
+    }
+
+    let rightEdge = 0;
+
+    for (const el of box.querySelectorAll<HTMLElement>(
+        '[data-run-index], article > button, .paratext',
+    )) {
+        if (el.closest('[data-paratext-box]')) {
+            continue;
+        }
+
+        for (const rect of el.getClientRects()) {
+            rightEdge = Math.max(
+                rightEdge,
+                Math.round(rect.right - boxRect.left + box.scrollLeft),
+            );
+        }
+    }
+
+    if (rightEdge !== textRightEdge.value) {
+        textRightEdge.value = rightEdge;
     }
 
     const tops: Record<string, number> = {};
@@ -5950,9 +5977,15 @@ function orderRangeClasses(range: OrderRange): string[] {
                                 :class="
                                     entry.layout === 'left_margin'
                                         ? 'left-1 border-r border-violet-200 pr-1 text-right dark:border-violet-900'
-                                        : 'right-1 border-l border-violet-200 pl-1 dark:border-violet-900'
+                                        : 'border-l border-violet-200 pl-1 dark:border-violet-900'
                                 "
-                                :style="{ top: `${marginTopOf(entry)}px` }"
+                                :style="{
+                                    top: `${marginTopOf(entry)}px`,
+                                    left:
+                                        entry.layout === 'right_margin'
+                                            ? `${textRightEdge + 12}px`
+                                            : undefined,
+                                }"
                             >
                                 <ParatextBox
                                     :text="entry.text"

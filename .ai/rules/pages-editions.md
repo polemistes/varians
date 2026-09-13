@@ -44,7 +44,12 @@ but the EDITION's (`editions.wraps_lines`, editors only, through
 `editions.update`): off, the text box gets `overflow-x-auto
 whitespace-nowrap`, so lines run on as the editor set them and the box
 scrolls sideways (user request — horizontal space is scarce); the anchor
-measurement adds `scrollLeft`. Speaker indications are NOT capitalised
+measurement adds `scrollLeft`. A RIGHT-margin note is placed just past the
+widest printed line (`textRightEdge`, measured over runs, chips and inline
+paratext after each render), not at the box's right edge: at the edge it
+sat on top of a line that reached it in no-wrap mode and too far from
+the text when the witnesses pane was hidden (user report). Left-margin
+notes stay in the left padding. Speaker indications are NOT capitalised
 automatically (user decision) — the editor types them as they should
 print. Verified in the browser for all three layouts on 2026-09-13.
 
