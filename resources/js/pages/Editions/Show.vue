@@ -3285,6 +3285,38 @@ function printsConjecture(run: Run): boolean {
     return selected !== undefined && selected.conjecture_id !== null;
 }
 
+/** The kind of conjecture printed here, or null where a witness is. */
+function printedConjectureType(run: Run) {
+    const selected = run.candidates.find((candidate) => candidate.selected);
+
+    return selected !== undefined && selected.conjecture_id !== null
+        ? selected.conjecture_type
+        : null;
+}
+
+// A lacuna prints as empty space between brackets — as wide as its
+// estimated extent, or a token width when none was given — whether it is
+// a point lacuna among words or a whole segment with no witness at all
+// (user decision: never a message, never "[lacuna]" in words). An adopted
+// SUPPLEMENT prints its words inside the same brackets: supplied text is
+// never set as though the manuscripts had it.
+const DEFAULT_LACUNA_WIDTH = 6;
+
+function printsLacuna(run: Run): boolean {
+    return (
+        run.extent_characters !== null ||
+        printedConjectureType(run) === 'lacuna'
+    );
+}
+
+function printsSupplement(run: Run): boolean {
+    return printedConjectureType(run) === 'supplement';
+}
+
+function lacunaWidth(run: Run): number {
+    return run.extent_characters ?? DEFAULT_LACUNA_WIDTH;
+}
+
 /**
  * The mark a word carries, or null for none. Three things are worth seeing at
  * a glance, and they are told apart by colour:
@@ -4165,7 +4197,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                         type="button"
                                         contenteditable="false"
                                         class="mr-1 rounded bg-amber-100 px-1 align-middle font-sans text-xs leading-normal text-amber-700 select-none hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:hover:bg-amber-900"
-                                        title="Insert a whole-line lacuna before this segment"
+                                        title="Insert a lacuna segment before this one"
                                         @click="
                                             toggleNewSegment(
                                                 segment.id,
@@ -4175,14 +4207,24 @@ function orderRangeClasses(range: OrderRange): string[] {
                                             )
                                         "
                                     >
-                                        + line
+                                        + segment
                                     </button>
 
-                                    <template v-if="segment.base === null">
+                                    <!-- A segment without a base witness is a
+                                         lacuna segment: it prints its run —
+                                         the brackets — like any other. Only a
+                                         segment with nothing to print at all
+                                         says so. -->
+                                    <template
+                                        v-if="
+                                            segment.base === null &&
+                                            !segment.runs.length
+                                        "
+                                    >
                                         <span
                                             class="font-sans text-sm text-stone-400 italic dark:text-stone-600"
-                                            >No base transcription assigned to
-                                            this segment yet.</span
+                                            >Nothing to print for this segment
+                                            yet.</span
                                         >
                                     </template>
                                     <template v-else-if="!segment.runs.length">
@@ -4321,17 +4363,22 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                     )
                                                 "
                                                 ><template
-                                                    v-if="
-                                                        run.extent_characters !==
-                                                        null
-                                                    "
+                                                    v-if="printsLacuna(run)"
                                                     >&lt;<span
                                                         class="inline-block border-b border-dotted border-stone-400 align-middle dark:border-stone-600"
                                                         :style="{
-                                                            width: `${run.extent_characters}ch`,
+                                                            width: `${lacunaWidth(run)}ch`,
                                                         }"
                                                     ></span
                                                     >&gt;</template
+                                                ><template
+                                                    v-else-if="
+                                                        printsSupplement(run) &&
+                                                        run.text
+                                                    "
+                                                    >&lt;{{
+                                                        run.text
+                                                    }}&gt;</template
                                                 ><template
                                                     v-else-if="run.text"
                                                     >{{ run.text }}</template
@@ -4410,7 +4457,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                         type="button"
                                         contenteditable="false"
                                         class="mr-1 rounded bg-amber-100 px-1 align-middle font-sans text-xs leading-normal text-amber-700 select-none hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:hover:bg-amber-900"
-                                        title="Insert a whole-line lacuna after this segment"
+                                        title="Insert a lacuna segment after this one"
                                         @click="
                                             toggleNewSegment(
                                                 segment.id,
@@ -4418,7 +4465,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                             )
                                         "
                                     >
-                                        + line
+                                        + segment
                                     </button>
 
                                     <!-- One popover per segment, rendered after the whole
@@ -5673,17 +5720,20 @@ function orderRangeClasses(range: OrderRange): string[] {
                                             <p
                                                 class="mb-1 text-stone-500 dark:text-stone-400"
                                             >
-                                                A whole-line lacuna has no
+                                                A lacuna segment has no
                                                 manuscript witness of its own —
-                                                name the line it should occupy
-                                                (e.g. "80A") and it becomes its
-                                                own segment.
+                                                name the segment it should
+                                                occupy (e.g. "2.4A") and it is
+                                                printed as empty brackets;
+                                                proposals for its wording go in
+                                                as supplements from the
+                                                brackets' own notice.
                                             </p>
                                             <div class="flex flex-col gap-1">
                                                 <input
                                                     v-model="lacunaDraft.label"
                                                     type="text"
-                                                    placeholder="Line label (e.g. 80A)"
+                                                    placeholder="Segment label (e.g. 2.4A)"
                                                     class="rounded border border-stone-300 bg-transparent px-2 py-1 dark:border-stone-700"
                                                 />
                                                 <input
@@ -5739,7 +5789,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                                                         submitWholeLineLacuna()
                                                     "
                                                 >
-                                                    Insert whole-line lacuna
+                                                    Insert lacuna segment
                                                 </button>
                                             </div>
                                         </template>

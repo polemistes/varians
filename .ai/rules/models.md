@@ -98,7 +98,16 @@ An "integer"-typed level (e.g. line number) still accepts and stores an alphanum
 
 Since 2026-09-13 EVERY level holds ANY string, whatever its type (user decision: "2.4A" for a lacuna line, "45bis", a letter level with a digit in it). The type decides only how values SORT (`format()`'s integer branch, `padIntegerLevel()`, pads the leading digit run and appends the rest literally, so "4" < "4a" < "5") and what `nextLabel` in `lib/segmentLabel.ts` proposes next (trailing digits +1, else the next letter). `parseLabel()` divides a label by the SEPARATORS — each level takes the shortest stretch that lets the rest match (`(.+?)`) — and only where two levels meet with NO separator do the types decide the boundary: `(\d+)` for the integer side, `(\D+)` for the other (Stephanus "327a"). Such a pair must differ in type; `StoreWorkRequest` refuses two same-typed levels with no separator. "No separator" is a real choice in the scheme form (a select: full stop, colon, comma, hyphen, space, none); the client sends 'none'/'space' by word because the trimming/empty-to-null middleware would turn '' and ' ' into null, which the model reads as the legacy default '.' — `WorkController::withSeparatorCharacters` converts. Values are cast to `int` only when pure digits (`ctype_digit`); the client's `addressValue` mirrors that for the segment picker. Don't revert to a digits-only grammar — "4a" being refused was a real bug.
 
-## A whole-line lacuna is placement=new_segment, not placement=insert
+## A whole-segment lacuna is placement=new_segment, not placement=insert
+User-facing wording is SEGMENT, never line ("+ segment", "Insert lacuna
+segment", "Segment label (e.g. 2.4A)" — user decision 2026-09-13: "line"
+belongs to poetry and does not even align with segments there). A lacuna
+segment has no base witness (`transcription_layer_id` null) and PRINTS ITS
+RUN like any other — empty space between brackets, `extent_characters`
+wide or a default width (`printsLacuna`/`lacunaWidth` in Editions/Show.vue)
+— never a "no base transcription" message (it used to, which hid the run,
+its popover, the edit form and the supplement entry point). An adopted
+supplement prints its words inside the same brackets (`printsSupplement`).
 A lacuna spanning a whole missing line (no manuscript witness at all) is a *different* placement from a point lacuna inserted mid-segment:
 - Point lacuna: `placement=insert` — a zero-width Lemma inserted between two existing ones in an *already-numbered* segment (unchanged, pre-existing mechanism).
 - Whole-line lacuna: `placement=new_segment` — the editor types a `label` (e.g. "80A") instead of a `segment_id`; `SegmentResolver::resolve()` finds-or-creates that Segment via the work's ReferenceScheme, then `EditionVariantController::resolveWholeSegmentLemma()` finds-or-creates that segment's *one* Lemma (`firstOrCreate` on `segment_id` alone) so a repeated submission for the same label lands a competing reading on the same column instead of duplicating the segment/lemma.

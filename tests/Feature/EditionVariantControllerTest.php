@@ -1259,3 +1259,51 @@ test('a base that lacks words another witness has prints one gap for the whole r
             ->where('windowSegments.0.runs.1.candidates.1.range_end_lemma_id', $lemmas[2]->id)
             ->where('windowSegments.0.runs.2.text', 'fox'));
 });
+
+test('a lacuna segment prints as a bracketed run, and a supplement proposed from it fills it', function () {
+    $this->actingAs(User::factory()->editor()->create());
+    ['work' => $work, 'edition' => $edition, 'editionSegment' => $editionSegment] = editionSpanningTwoLines();
+
+    $this->post(route('edition-variants.store', $edition), [
+        'placement' => 'new_segment',
+        'label' => '1.1a',
+        'insert_after_edition_segment_id' => $editionSegment->id,
+        'source' => 'new_conjecture',
+        'conjecture_type' => 'lacuna',
+        'conjecture_extent_characters' => 40,
+        'conjecture_proposed_by' => 'Wolf',
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $segment = Segment::where('work_id', $work->id)->where('label', '1.1a')->sole();
+    $lacuna = Conjecture::sole();
+
+    // No base witness, yet a run to print — the brackets, 40 wide.
+    $this->get(route('editions.show', [$work, $edition]))
+        ->assertInertia(fn (AssertInertia $page) => $page
+            ->where('windowSegments.1.label', '1.1a')
+            ->where('windowSegments.1.base', null)
+            ->where('windowSegments.1.runs.0.extent_characters', 40)
+            ->where('windowSegments.1.runs.0.candidates.0.conjecture_type', 'lacuna'));
+
+    // The supplement goes in at the segment's one column, as from the run's notice.
+    $lemma = Lemma::where('segment_id', $segment->id)->sole();
+
+    $this->post(route('edition-variants.store', $edition), [
+        'segment_id' => $segment->id,
+        'placement' => 'existing',
+        'lemma_id' => $lemma->id,
+        'source' => 'new_conjecture',
+        'conjecture_type' => 'supplement',
+        'conjecture_text' => 'ἄνδρα μοι ἔννεπε',
+        'conjecture_supplements_conjecture_id' => $lacuna->id,
+        'conjecture_proposed_by' => 'Bentley',
+        'adopt' => true,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $this->get(route('editions.show', [$work, $edition]))
+        ->assertInertia(fn (AssertInertia $page) => $page
+            ->where('windowSegments.1.runs.0.text', 'ἄνδρα μοι ἔννεπε')
+            ->where('windowSegments.1.runs.0.extent_characters', null)
+            ->where('windowSegments.1.runs.0.candidates.1.conjecture_type', 'supplement')
+            ->where('windowSegments.1.runs.0.candidates.1.selected', true));
+});
