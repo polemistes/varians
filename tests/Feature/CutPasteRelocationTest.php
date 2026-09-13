@@ -1,11 +1,11 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Lemma;
 use App\Models\ManuscriptImage;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Work;
 use App\Support\Edition\PassageAligner;
@@ -19,7 +19,7 @@ use App\Support\Edition\PassageAligner;
 test('cut and paste of an assigned span moves the assignment with the words', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
-    $segment = TranscriptionSegment::factory()->for($transcription)->create([
+    $assignment = Assignment::factory()->for($transcription)->create([
         'start_offset' => 4, 'end_offset' => 10, // "quick "
     ]);
 
@@ -34,13 +34,13 @@ test('cut and paste of an assigned span moves the assignment with the words', fu
     $response->assertRedirect();
     expect($transcription->fresh()->text)->toBe('the brown foxquick ');
 
-    $segment->refresh();
+    $assignment->refresh();
     // The assignment travels with its words, exactly as it was assigned — the
     // trailing space it was made with included.
-    expect($segment->start_offset)->toBe(13)
-        ->and($segment->end_offset)->toBe(19)
-        ->and($segment->needs_review)->toBeFalse()
-        ->and(mb_substr($transcription->fresh()->text, $segment->start_offset, 6))->toBe('quick ');
+    expect($assignment->start_offset)->toBe(13)
+        ->and($assignment->end_offset)->toBe(19)
+        ->and($assignment->needs_review)->toBeFalse()
+        ->and(mb_substr($transcription->fresh()->text, $assignment->start_offset, 6))->toBe('quick ');
 });
 
 test('the same two ops WITHOUT a cut_id delete the assignment instead of moving it', function () {
@@ -49,7 +49,7 @@ test('the same two ops WITHOUT a cut_id delete the assignment instead of moving 
     // deleted words take their assignment with them.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
-    $segment = TranscriptionSegment::factory()->for($transcription)->create([
+    $assignment = Assignment::factory()->for($transcription)->create([
         'start_offset' => 4, 'end_offset' => 10,
     ]);
 
@@ -62,7 +62,7 @@ test('the same two ops WITHOUT a cut_id delete the assignment instead of moving 
     ]);
 
     $response->assertRedirect();
-    expect(TranscriptionSegment::find($segment->id))->toBeNull();
+    expect(Assignment::find($assignment->id))->toBeNull();
 });
 
 test('mismatched cut ids re-pair by their text — the undo of a lone cut restores, not deletes', function () {
@@ -72,7 +72,7 @@ test('mismatched cut ids re-pair by their text — the undo of a lone cut restor
     // "paste" is the undo putting the text straight back.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
-    $segment = TranscriptionSegment::factory()->for($transcription)->create([
+    $assignment = Assignment::factory()->for($transcription)->create([
         'start_offset' => 4, 'end_offset' => 10, // "quick "
     ]);
 
@@ -85,15 +85,15 @@ test('mismatched cut ids re-pair by their text — the undo of a lone cut restor
     ]);
 
     $response->assertRedirect();
-    $segment->refresh();
-    expect([$segment->start_offset, $segment->end_offset])->toBe([4, 10])
-        ->and($segment->needs_review)->toBeFalse();
+    $assignment->refresh();
+    expect([$assignment->start_offset, $assignment->end_offset])->toBe([4, 10])
+        ->and($assignment->needs_review)->toBeFalse();
 });
 
 test('a backward cut and paste moves the assignment too', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
-    $segment = TranscriptionSegment::factory()->for($transcription)->create([
+    $assignment = Assignment::factory()->for($transcription)->create([
         'start_offset' => 4, 'end_offset' => 10, // "quick "
     ]);
 
@@ -106,10 +106,10 @@ test('a backward cut and paste moves the assignment too', function () {
     ]);
 
     $response->assertRedirect();
-    $segment->refresh();
-    expect($segment->start_offset)->toBe(0)
-        ->and($segment->end_offset)->toBe(6)
-        ->and($segment->needs_review)->toBeFalse();
+    $assignment->refresh();
+    expect($assignment->start_offset)->toBe(0)
+        ->and($assignment->end_offset)->toBe(6)
+        ->and($assignment->needs_review)->toBeFalse();
 });
 
 test('an image region anchored to the moved words travels with them', function () {
@@ -137,9 +137,9 @@ test('a collated reading inside the moved words travels with them', function () 
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
     $passage = CanonicalPassage::factory()->create();
-    $segment = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    $assignment = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 13]);
-    PassageAligner::alignWitness($passage, collect([$segment]));
+    PassageAligner::alignWitness($passage, collect([$assignment]));
 
     $quick = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->with('readings')->get()[1]
         ->readings->first();
@@ -162,7 +162,7 @@ test('a collated reading inside the moved words travels with them', function () 
 test('an assignment outside the moved stretch shifts rather than travelling', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
-    $fox = TranscriptionSegment::factory()->for($transcription)->create([
+    $fox = Assignment::factory()->for($transcription)->create([
         'start_offset' => 16, 'end_offset' => 19, // "fox"
     ]);
 
@@ -186,7 +186,7 @@ test('a cut saved without its paste deletes the assignment — the text left, un
     // degrades to a plain deletion — restorable by undo like any other.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
-    $segment = TranscriptionSegment::factory()->for($transcription)->create([
+    $assignment = Assignment::factory()->for($transcription)->create([
         'start_offset' => 4, 'end_offset' => 10,
     ]);
 
@@ -195,7 +195,7 @@ test('a cut saved without its paste deletes the assignment — the text left, un
         'text' => 'the brown fox',
     ])->assertRedirect();
 
-    expect(TranscriptionSegment::find($segment->id))->toBeNull();
+    expect(Assignment::find($assignment->id))->toBeNull();
 });
 
 test('a paste whose text does not match its cut is not honoured as a relocation', function () {
@@ -203,7 +203,7 @@ test('a paste whose text does not match its cut is not honoured as a relocation'
     // unrelated ops and teleport an assignment onto words it never covered.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
-    $segment = TranscriptionSegment::factory()->for($transcription)->create([
+    $assignment = Assignment::factory()->for($transcription)->create([
         'start_offset' => 4, 'end_offset' => 10,
     ]);
 
@@ -217,7 +217,7 @@ test('a paste whose text does not match its cut is not honoured as a relocation'
 
     // The claim degrades to a plain deletion — the assignment goes with the
     // words it covered, never onto words it did not.
-    expect(TranscriptionSegment::find($segment->id))->toBeNull();
+    expect(Assignment::find($assignment->id))->toBeNull();
 });
 
 test('pasting a cut line right after another assigned line does not absorb into it', function () {
@@ -225,10 +225,10 @@ test('pasting a cut line right after another assigned line does not absorb into 
     // two, with the paste landing exactly at line two's assignment end.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "alpha\nbeta"]);
-    $alpha = TranscriptionSegment::factory()->for($transcription)->create([
+    $alpha = Assignment::factory()->for($transcription)->create([
         'start_offset' => 0, 'end_offset' => 5,
     ]);
-    $beta = TranscriptionSegment::factory()->for($transcription)->create([
+    $beta = Assignment::factory()->for($transcription)->create([
         'start_offset' => 6, 'end_offset' => 10,
     ]);
 
@@ -257,9 +257,9 @@ test('a cut fragment of an assigned span keeps its own assignment as a new part,
     $transcription = TranscriptionLayer::factory()->create(['text' => "the quick brown fox\nline two"]);
     $alpha = CanonicalPassage::factory()->create();
     $beta = CanonicalPassage::factory()->create();
-    $alphaSegment = TranscriptionSegment::factory()->for($transcription)->for($alpha, 'canonicalPassage')
+    $alphaAssignment = Assignment::factory()->for($transcription)->for($alpha, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 19]);
-    $betaSegment = TranscriptionSegment::factory()->for($transcription)->for($beta, 'canonicalPassage')
+    $betaAssignment = Assignment::factory()->for($transcription)->for($beta, 'canonicalPassage')
         ->create(['start_offset' => 20, 'end_offset' => 28]);
 
     $this->patch(route('transcriptions.text.update', $transcription), [
@@ -274,33 +274,33 @@ test('a cut fragment of an assigned span keeps its own assignment as a new part,
     expect($text)->toBe("the quick\nline brown fox two");
 
     // The source keeps α on what remains — trimmed, clean, unflagged.
-    $alphaSegment->refresh();
-    expect([$alphaSegment->start_offset, $alphaSegment->end_offset])->toBe([0, 9])
-        ->and($alphaSegment->needs_review)->toBeFalse()
-        ->and($alphaSegment->part)->toBe(1);
+    $alphaAssignment->refresh();
+    expect([$alphaAssignment->start_offset, $alphaAssignment->end_offset])->toBe([0, 9])
+        ->and($alphaAssignment->needs_review)->toBeFalse()
+        ->and($alphaAssignment->part)->toBe(1);
 
     // The fragment is a new PART of α at the paste site.
-    $fragment = TranscriptionSegment::where('transcription_layer_id', $transcription->id)
+    $fragment = Assignment::where('transcription_layer_id', $transcription->id)
         ->where('canonical_passage_id', $alpha->id)->where('part', 2)->sole();
     expect([$fragment->start_offset, $fragment->end_offset])->toBe([14, 24])
         ->and(mb_substr($text, $fragment->start_offset, 10))->toBe(' brown fox')
         ->and($fragment->needs_review)->toBeFalse();
 
     // β keeps assigning both sides of the arrival: split into two parts.
-    $betaParts = TranscriptionSegment::where('transcription_layer_id', $transcription->id)
+    $betaParts = Assignment::where('transcription_layer_id', $transcription->id)
         ->where('canonical_passage_id', $beta->id)->inPartOrder()->get();
     expect($betaParts)->toHaveCount(2)
         ->and([$betaParts[0]->start_offset, $betaParts[0]->end_offset])->toBe([10, 14]) // "line"
         ->and([$betaParts[1]->start_offset, $betaParts[1]->end_offset])->toBe([24, 28]) // " two"
         ->and($betaParts->every(fn ($part) => ! $part->needs_review))->toBeTrue()
-        ->and($betaParts[0]->id)->toBe($betaSegment->id);
+        ->and($betaParts[0]->id)->toBe($betaAssignment->id);
 });
 
 test('a fragment cut from a span\'s head reads as the part BEFORE what remains', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "the quick fox\nrest"]);
     $alpha = CanonicalPassage::factory()->create();
-    $segment = TranscriptionSegment::factory()->for($transcription)->for($alpha, 'canonicalPassage')
+    $assignment = Assignment::factory()->for($transcription)->for($alpha, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 13]);
 
     // Cut "the " (the head) and paste it at the very end.
@@ -312,14 +312,14 @@ test('a fragment cut from a span\'s head reads as the part BEFORE what remains',
         'text' => "quick fox\nrestthe ",
     ])->assertRedirect();
 
-    $parts = TranscriptionSegment::where('transcription_layer_id', $transcription->id)
+    $parts = Assignment::where('transcription_layer_id', $transcription->id)
         ->where('canonical_passage_id', $alpha->id)->inPartOrder()->get();
 
     // Content order: "the " still reads FIRST, wherever it physically sits.
     expect($parts)->toHaveCount(2)
         ->and([$parts[0]->start_offset, $parts[0]->end_offset])->toBe([14, 18]) // "the ", part 1
         ->and([$parts[1]->start_offset, $parts[1]->end_offset])->toBe([0, 9])   // "quick fox", part 2
-        ->and($parts[1]->id)->toBe($segment->id)
+        ->and($parts[1]->id)->toBe($assignment->id)
         ->and($parts->every(fn ($part) => ! $part->needs_review))->toBeTrue();
 });
 
@@ -328,7 +328,7 @@ test('cutting a whole line carries exactly the selection — its newline travels
     // result, so what is cut is precisely what was selected.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "alpha\nbeta\ngamma"]);
-    $beta = TranscriptionSegment::factory()->for($transcription)->create([
+    $beta = Assignment::factory()->for($transcription)->create([
         'start_offset' => 6, 'end_offset' => 10, // "beta"
     ]);
 
@@ -351,7 +351,7 @@ test('undoing a partial relocation merges the fragment back into its remainder',
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
     $passage = CanonicalPassage::factory()->for(Work::factory())->create();
-    TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 15]); // "the quick brown"
 
     // Cut " brown" out of the assigned span and paste it at the end — the
@@ -364,7 +364,7 @@ test('undoing a partial relocation merges the fragment back into its remainder',
         'text' => 'the quick fox brown',
     ])->assertRedirect();
 
-    expect($transcription->segments()->count())->toBe(2);
+    expect($transcription->assignments()->count())->toBe(2);
 
     // The reverse move (what undo replays, with a fresh pair id): the
     // fragment rejoins its remainder — and so must the rows.
@@ -376,7 +376,7 @@ test('undoing a partial relocation merges the fragment back into its remainder',
         'text' => 'the quick brown fox',
     ])->assertRedirect();
 
-    $merged = $transcription->segments()->sole();
+    $merged = $transcription->assignments()->sole();
 
     expect([$merged->start_offset, $merged->end_offset])->toBe([0, 15]);
 });

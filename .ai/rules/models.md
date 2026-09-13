@@ -1,7 +1,7 @@
 ---
 paths:
-  - 'app/Models/{CanonicalPassage,TranscriptionSegment,Transcription,ReferenceScheme}.php'
-  - 'app/Models/{Transcription,TranscriptionSegment,Witness,Work}.php'
+  - 'app/Models/{CanonicalPassage,Assignment,Transcription,ReferenceScheme}.php'
+  - 'app/Models/{Transcription,Assignment,Witness,Work}.php'
   - app/Models/User.php
   - 'app/Models/{Conjecture,Lemma,LemmaReading,EditionLemma,EditionBase}.php'
   - 'app/Support/Edition/**'
@@ -13,19 +13,19 @@ paths:
 ## Passage identity vs. reading order are separate fields
 CanonicalPassage.sort_key/address is the permanent assignment number (e.g. "line 1000") and must never be renumbered based on where the text actually belongs.
 
-Within one *transcription*, physical/reading order is not a stored field at all — it's simply a `TranscriptionSegment`'s offset position within that transcription's continuous `text` (manuscripts sometimes transpose passages, e.g. "line 1000" physically sitting between 976 and 977 but keeping the assignment "1000" via its `canonical_passage_id`; order by `start_offset` to see physical order, by the passage's `sort_key` to see numbering order — never assume they match).
+Within one *transcription*, physical/reading order is not a stored field at all — it's simply a `Assignment`'s offset position within that transcription's continuous `text` (manuscripts sometimes transpose passages, e.g. "line 1000" physically sitting between 976 and 977 but keeping the assignment "1000" via its `canonical_passage_id`; order by `start_offset` to see physical order, by the passage's `sort_key` to see numbering order — never assume they match).
 
-The one stored ordering on segments is `part`, and it is *within* one passage's assignment, not across the transcription: several spans in a layer may assign the same passage (its witness text is discontinuous — a transposition split it below segmentation granularity), and `part` records which fragment reads first as content, independent of physical offsets. Consume parts via `TranscriptionSegment::inPartOrder`/`sortByPartOrder`; see `.ai/rules/edition.md` for the collation consequences.
+The one stored ordering on assignments is `part`, and it is *within* one passage's assignment, not across the transcription: several spans in a layer may assign the same passage (its witness text is discontinuous — a transposition split it below segmentation granularity), and `part` records which fragment reads first as content, independent of physical offsets. Consume parts via `Assignment::inPartOrder`/`sortByPartOrder`; see `.ai/rules/edition.md` for the collation consequences.
 
-Within one *passage's collation*, `Lemma.position` (decimal, orderable/insertable) **is** a real stored ordering column — unlike a transcription, a lemma's candidate readings can come from unrelated transcriptions with unrelated offsets, so there's no shared coordinate space order could be derived from; the sequence has to be recorded explicitly. A lemma reading whose source span falls inside a *different* canonical passage's segment is a transposition, detected by comparison at display time, not a stored flag.
+Within one *passage's collation*, `Lemma.position` (decimal, orderable/insertable) **is** a real stored ordering column — unlike a transcription, a lemma's candidate readings can come from unrelated transcriptions with unrelated offsets, so there's no shared coordinate space order could be derived from; the sequence has to be recorded explicitly. A lemma reading whose source span falls inside a *different* canonical passage's assignment is a transposition, detected by comparison at display time, not a stored flag.
 
 ## Transcription↔Work and Witness↔Work associations are both fully derived, not stored
-A `Transcription` belongs to a `Witness` only (`witness_id`) — it has no `work_id`. `TranscriptionSegment.canonical_passage_id` is **NOT NULL** — a segment always assigns text to a canonical passage; there is no "unassigned" state (marking a span and assigning text to it happen in one step). `TranscriptionSegment` also no longer has a `position` column — physical/reading order is simply a span's offset in the transcription's continuous `text`.
+A `Transcription` belongs to a `Witness` only (`witness_id`) — it has no `work_id`. `Assignment.canonical_passage_id` is **NOT NULL** — an assignment always assigns text to a canonical passage; there is no "unassigned" state (marking a span and assigning text to it happen in one step). `Assignment` also no longer has a `position` column — physical/reading order is simply a span's offset in the transcription's continuous `text`.
 
 Consequences:
-- To list transcriptions relevant to a Work, use `Transcription::forWork($work)` (a scope that checks `whereHas('segments.canonicalPassage', ...)`) — there is no `Work::transcriptions()` relation.
-- Assigning/reassigning a segment's assignment happens via `TranscriptionSegmentController::reassign` (route `transcription-segments.assign`), which resolves a `{work_id, label}` pair through `ReferenceScheme::parseLabel()`/`format()` into a `canonical_passage_id` (`firstOrCreate`). There is no way to clear an assignment — remove the span instead.
-- **Witness↔Work has no pivot table** (the old `work_witness` table was removed) — it's a derived relationship computed from assignment data: `Work::relatedWitnesses()` / `Witness::relatedWorks()` (plain `Builder`-returning methods, not Eloquent relations, since the chain is witness → transcription → segment → canonical passage → work). A witness is only "related" to a work once one of its transcriptions has a segment assigning text to that work; nothing attaches them directly.
+- To list transcriptions relevant to a Work, use `Transcription::forWork($work)` (a scope that checks `whereHas('assignments.canonicalPassage', ...)`) — there is no `Work::transcriptions()` relation.
+- Changing which segment an assignment points at happens via `AssignmentController::reassign` (route `assignments.reassign`), which resolves a `{work_id, label}` pair through `ReferenceScheme::parseLabel()`/`format()` into a `canonical_passage_id` (`firstOrCreate`). There is no way to clear an assignment — remove the span instead.
+- **Witness↔Work has no pivot table** (the old `work_witness` table was removed) — it's a derived relationship computed from assignment data: `Work::relatedWitnesses()` / `Witness::relatedWorks()` (plain `Builder`-returning methods, not Eloquent relations, since the chain is witness → transcription → assignment → canonical passage → work). A witness is only "related" to a work once one of its transcriptions has an assignment assigning text to that work; nothing attaches them directly.
 - Routes for transcriptions take only `{transcription}`, never `{work}/{transcription}`.
 
 `Edition`, by contrast, genuinely does belong directly to a `Work` (`Work::editions(): HasMany`) — it's an editorial artifact the editor explicitly creates, not something inferable from assignment data, so it doesn't follow the derived-relationship pattern above.
@@ -94,7 +94,7 @@ placed as a range reading like a substitution, printing nothing when
 adopted. See `.ai/rules/edition.md`, "Omissions are readings".
 
 ## A scheme's level values are free-text, even when typed "integer"
-An "integer"-typed level (e.g. line number) still accepts and stores an alphanumeric value like "4a" or "80A" — editors must be free to name any segment whatever they like; only the scheme's *structure* (how many levels, separators) is enforced, never a level's value format.
+An "integer"-typed level (e.g. line number) still accepts and stores an alphanumeric value like "4a" or "80A" — editors must be free to name any assignment whatever they like; only the scheme's *structure* (how many levels, separators) is enforced, never a level's value format.
 
 `parseLabel()`'s integer branch matches `(\d+[A-Za-z]*)` and only casts to `int` when the match is pure digits (`ctype_digit`) — otherwise the address value stays a string. `format()`'s integer branch (`padIntegerLevel()`) pads only the leading digit run and appends any letters literally, so "4" < "4a" < "5" sorts correctly. Don't revert to `(\d+)`/`(int)` — that was a real bug (assigning "4a" was rejected, and a naive cast silently truncated it to 4).
 

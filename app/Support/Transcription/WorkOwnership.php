@@ -34,7 +34,7 @@ class WorkOwnership
         return Transcription::query()
             ->where('witness_id', $transcription->witness_id)
             ->whereKeyNot($transcription->id)
-            ->whereHas('layers.segments.canonicalPassage', fn ($query) => $query->where('work_id', $work->id))
+            ->whereHas('layers.assignments.canonicalPassage', fn ($query) => $query->where('work_id', $work->id))
             ->with('witness:id,siglum')
             ->first();
     }
@@ -68,11 +68,11 @@ class WorkOwnership
      */
     public static function violations(): Collection
     {
-        $rows = DB::table('transcription_segments')
-            ->join('transcription_layers', 'transcription_layers.id', '=', 'transcription_segments.transcription_layer_id')
+        $rows = DB::table('assignments')
+            ->join('transcription_layers', 'transcription_layers.id', '=', 'assignments.transcription_layer_id')
             ->join('transcriptions', 'transcriptions.id', '=', 'transcription_layers.transcription_id')
             ->join('witnesses', 'witnesses.id', '=', 'transcriptions.witness_id')
-            ->join('canonical_passages', 'canonical_passages.id', '=', 'transcription_segments.canonical_passage_id')
+            ->join('canonical_passages', 'canonical_passages.id', '=', 'assignments.canonical_passage_id')
             ->join('works', 'works.id', '=', 'canonical_passages.work_id')
             ->selectRaw('witnesses.id as witness_id, witnesses.siglum, works.id as work_id, works.title, transcriptions.id as transcription_id, transcriptions.name, count(*) as assignments')
             ->groupBy('witnesses.id', 'witnesses.siglum', 'works.id', 'works.title', 'transcriptions.id', 'transcriptions.name')

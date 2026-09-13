@@ -1,11 +1,11 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\ManuscriptImage;
 use App\Models\ReferenceScheme;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Work;
 
@@ -31,14 +31,14 @@ test('assigning in one layer assigns text to the same words in the other', funct
     $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
 
     // Assign "παντα" (words 1..2) in the diplomatic layer.
-    $this->post(route('transcription-segments.store', $diplomatic), [
+    $this->post(route('assignments.store', $diplomatic), [
         'work_id' => $work->id,
         'label' => '1.2',
         'start_offset' => 9,
         'end_offset' => 14,
     ])->assertRedirect()->assertSessionHasNoErrors();
 
-    $mirrored = $normalized->segments()->sole();
+    $mirrored = $normalized->assignments()->sole();
 
     // The same WORD, in the normalized layer's own spelling: "πάντα".
     expect(mb_substr($normalized->text, $mirrored->start_offset, $mirrored->end_offset - $mirrored->start_offset))
@@ -51,14 +51,14 @@ test('an out-of-step sibling is left alone', function () {
     $normalized->update(['text' => 'γίνεται πάντα']); // one word short
     $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
 
-    $this->post(route('transcription-segments.store', $diplomatic), [
+    $this->post(route('assignments.store', $diplomatic), [
         'work_id' => $work->id,
         'label' => '1.2',
         'start_offset' => 9,
         'end_offset' => 14,
     ])->assertRedirect();
 
-    expect($normalized->segments()->count())->toBe(0);
+    expect($normalized->assignments()->count())->toBe(0);
 });
 
 test('removing a span removes its counterpart', function () {
@@ -66,17 +66,17 @@ test('removing a span removes its counterpart', function () {
     [$diplomatic, $normalized] = inStepLayers();
     $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
 
-    $this->post(route('transcription-segments.store', $diplomatic), [
+    $this->post(route('assignments.store', $diplomatic), [
         'work_id' => $work->id,
         'label' => '1.2',
         'start_offset' => 9,
         'end_offset' => 14,
     ]);
 
-    $this->delete(route('transcription-segments.destroy', $diplomatic->segments()->sole()))
+    $this->delete(route('assignments.destroy', $diplomatic->assignments()->sole()))
         ->assertRedirect();
 
-    expect(TranscriptionSegment::count())->toBe(0);
+    expect(Assignment::count())->toBe(0);
 });
 
 test('mapping text to the facsimile maps the same words in the other layer', function () {
@@ -129,7 +129,7 @@ test('the counterpart link survives the layers drifting apart', function () {
     [$diplomatic, $normalized] = inStepLayers();
     $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
 
-    $this->post(route('transcription-segments.store', $diplomatic), [
+    $this->post(route('assignments.store', $diplomatic), [
         'work_id' => $work->id,
         'label' => '1.2',
         'start_offset' => 9,
@@ -140,10 +140,10 @@ test('the counterpart link survives the layers drifting apart', function () {
     // but the pair is ONE identity, linked by group.
     $normalized->update(['text' => 'γίνεται πάντα ῥεῖ ὥσπερ ποταμός']);
 
-    $this->delete(route('transcription-segments.destroy', $diplomatic->segments()->sole()))
+    $this->delete(route('assignments.destroy', $diplomatic->assignments()->sole()))
         ->assertRedirect();
 
-    expect(TranscriptionSegment::count())->toBe(0);
+    expect(Assignment::count())->toBe(0);
 });
 
 test('a span assigned while the layers were apart heals when they come back in step', function () {
@@ -153,14 +153,14 @@ test('a span assigned while the layers were apart heals when they come back in s
     $work = Work::factory()->for(ReferenceScheme::factory(), 'referenceScheme')->create();
 
     // Assigned one-sided — the sibling cannot receive it yet.
-    $this->post(route('transcription-segments.store', $diplomatic), [
+    $this->post(route('assignments.store', $diplomatic), [
         'work_id' => $work->id,
         'label' => '1.2',
         'start_offset' => 9,
         'end_offset' => 14,
     ]);
 
-    expect($normalized->segments()->count())->toBe(0);
+    expect($normalized->assignments()->count())->toBe(0);
 
     // The catch-up edit that restores the word skeleton (a save through the
     // text pipeline runs the healing pass).
@@ -169,9 +169,9 @@ test('a span assigned while the layers were apart heals when they come back in s
         'text' => 'γίνεται πάντα ῥεῖ',
     ])->assertRedirect();
 
-    $healed = $normalized->segments()->sole();
+    $healed = $normalized->assignments()->sole();
 
     expect(mb_substr($normalized->fresh()->text, $healed->start_offset, $healed->end_offset - $healed->start_offset))
         ->toBe('πάντα')
-        ->and($healed->group_id)->toBe($diplomatic->segments()->sole()->group_id);
+        ->and($healed->group_id)->toBe($diplomatic->assignments()->sole()->group_id);
 });

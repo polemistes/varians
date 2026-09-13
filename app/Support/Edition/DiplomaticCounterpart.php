@@ -3,9 +3,9 @@
 namespace App\Support\Edition;
 
 use App\Enums\Tokenization;
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Support\Transcription\Tokenizer;
 use Illuminate\Support\Collection;
 
@@ -96,12 +96,12 @@ class DiplomaticCounterpart
             return null;
         }
 
-        $segments = self::segments($passage, $diplomatic);
+        $assignments = self::assignments($passage, $diplomatic);
 
-        return $segments->isEmpty()
+        return $assignments->isEmpty()
             ? null
-            : $segments
-                ->map(fn (TranscriptionSegment $segment) => mb_substr($diplomatic->text, $segment->start_offset, $segment->end_offset - $segment->start_offset))
+            : $assignments
+                ->map(fn (Assignment $assignment) => mb_substr($diplomatic->text, $assignment->start_offset, $assignment->end_offset - $assignment->start_offset))
                 ->join(' … ');
     }
 
@@ -116,15 +116,15 @@ class DiplomaticCounterpart
      */
     private static function tokens(CanonicalPassage $passage, TranscriptionLayer $transcription, Tokenization $tokenization): ?array
     {
-        $segments = self::segments($passage, $transcription);
+        $assignments = self::assignments($passage, $transcription);
 
-        return $segments->isEmpty()
+        return $assignments->isEmpty()
             ? null
             : Tokenizer::tokenizeSpans(
                 $transcription->text,
-                array_values($segments->map(fn (TranscriptionSegment $segment) => [
-                    'start' => $segment->start_offset,
-                    'end' => $segment->end_offset,
+                array_values($assignments->map(fn (Assignment $assignment) => [
+                    'start' => $assignment->start_offset,
+                    'end' => $assignment->end_offset,
                 ])->all()),
                 $tokenization,
             );
@@ -133,19 +133,19 @@ class DiplomaticCounterpart
     /**
      * This transcription's own assignment of the passage, every part of it, in
      * content order. Uses the loaded relation when there is one, so a caller
-     * that eager-loaded segments pays no query here.
+     * that eager-loaded assignments pays no query here.
      *
-     * @return Collection<int, TranscriptionSegment>
+     * @return Collection<int, Assignment>
      */
-    private static function segments(CanonicalPassage $passage, TranscriptionLayer $transcription): Collection
+    private static function assignments(CanonicalPassage $passage, TranscriptionLayer $transcription): Collection
     {
-        /** @var Collection<int, TranscriptionSegment> $segments */
-        $segments = $transcription->relationLoaded('segments')
-            ? $transcription->segments
-            : $transcription->segments()->get();
+        /** @var Collection<int, Assignment> $assignments */
+        $assignments = $transcription->relationLoaded('assignments')
+            ? $transcription->assignments
+            : $transcription->assignments()->get();
 
-        return TranscriptionSegment::sortByPartOrder(
-            $segments->where('canonical_passage_id', $passage->id)
+        return Assignment::sortByPartOrder(
+            $assignments->where('canonical_passage_id', $passage->id)
         );
     }
 }

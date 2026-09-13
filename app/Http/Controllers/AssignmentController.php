@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\AssignTranscriptionSegmentRequest;
-use App\Http\Requests\StoreTranscriptionSegmentRequest;
-use App\Http\Requests\UpdateTranscriptionSegmentRequest;
+use App\Http\Requests\ReassignRequest;
+use App\Http\Requests\StoreAssignmentRequest;
+use App\Http\Requests\UpdateAssignmentRequest;
 use App\Models\CanonicalPassage;
 use App\Models\EditionLemma;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
+use App\Models\Assignment;
 use App\Models\Work;
 use App\Support\Edition\CanonicalPassageResolver;
 use App\Support\Edition\PassageAligner;
@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
-class TranscriptionSegmentController extends Controller
+class AssignmentController extends Controller
 {
     /**
      * Mark a span and assign it in one step — a span with no assignment has no
@@ -36,7 +36,7 @@ class TranscriptionSegmentController extends Controller
      * so saving re-collates — behind `acknowledge_realignment`, since the
      * editor should get to cancel before her collation is touched.
      */
-    public function store(StoreTranscriptionSegmentRequest $request, TranscriptionLayer $transcription): RedirectResponse
+    public function store(StoreAssignmentRequest $request, TranscriptionLayer $transcription): RedirectResponse
     {
         $this->authorize('update', Work::findOrFail((int) $request->validated('work_id')));
 
@@ -56,7 +56,7 @@ class TranscriptionSegmentController extends Controller
                 (int) $request->validated('end_offset'),
             );
 
-            $transcription->segments()->create([
+            $transcription->assignments()->create([
                 'canonical_passage_id' => $passage->id,
                 'start_offset' => $start,
                 'end_offset' => $end,
@@ -105,7 +105,7 @@ class TranscriptionSegmentController extends Controller
         }
 
         // Already assigned there on exactly these words — nothing to add.
-        $exists = $sibling->segments()
+        $exists = $sibling->assignments()
             ->where('canonical_passage_id', $passage->id)
             ->where('start_offset', $siblingStart)
             ->where('end_offset', $siblingEnd)
@@ -117,7 +117,7 @@ class TranscriptionSegmentController extends Controller
 
         $aligned = PassageAligner::layerReadings($passage, $sibling)->isNotEmpty();
 
-        $sibling->segments()->create([
+        $sibling->assignments()->create([
             'canonical_passage_id' => $passage->id,
             'start_offset' => $siblingStart,
             'end_offset' => $siblingEnd,
@@ -134,9 +134,9 @@ class TranscriptionSegmentController extends Controller
      * The other layer's half of this span — one identity, linked by the
      * shared group, immune to the layers drifting apart.
      */
-    private function siblingCounterpart(TranscriptionSegment $segment): ?TranscriptionSegment
+    private function siblingCounterpart(Assignment $assignment): ?Assignment
     {
-        return SiblingSync::counterpartSegment($segment);
+        return SiblingSync::counterpartAssignment($assignment);
     }
 
     /**
@@ -144,54 +144,54 @@ class TranscriptionSegmentController extends Controller
      * the underlying text changed. A manual re-selection is a live human
      * confirmation, so it always clears the flag.
      */
-    public function update(UpdateTranscriptionSegmentRequest $request, TranscriptionSegment $segment): RedirectResponse
+    public function update(UpdateAssignmentRequest $request, Assignment $assignment): RedirectResponse
     {
-        DB::transaction(function () use ($request, $segment) {
+        DB::transaction(function () use ($request, $assignment) {
             // An editor's own bounds are snapped out to whole words: half
             // a word is no assignment, and the aligner reads words.
             [$start, $end] = AssignmentBounds::wholeWords(
-                $segment->transcriptionLayer->text,
+                $assignment->transcriptionLayer->text,
                 (int) $request->validated('start_offset'),
                 (int) $request->validated('end_offset'),
             );
 
-            $segment->update(['start_offset' => $start, 'end_offset' => $end, 'needs_review' => false]);
-            SiblingSync::followSegment($segment);
+            $assignment->update(['start_offset' => $start, 'end_offset' => $end, 'needs_review' => false]);
+            SiblingSync::followAssignment($assignment);
         });
 
-        $this->snapAssignments($segment->transcriptionLayer);
+        $this->snapAssignments($assignment->transcriptionLayer);
 
         return back();
     }
 
     /**
-     * Re-assign this segment to a different passage within a work. There's no
-     * way to clear a segment's assignment — remove the span instead if it's no
+     * Re-assign this assignment to a different passage within a work. There's no
+     * way to clear an assignment's assignment — remove the span instead if it's no
      * longer wanted.
      *
      * Re-assigning to a passage the layer already assigns makes this span another
      * part of it, through the same late-part guard as `store` — see there.
      */
-    public function reassign(AssignTranscriptionSegmentRequest $request, TranscriptionSegment $segment): RedirectResponse
+    public function reassign(ReassignRequest $request, Assignment $assignment): RedirectResponse
     {
         $this->authorize('update', Work::findOrFail((int) $request->validated('work_id')));
 
         $passage = $this->resolveAssignment((int) $request->validated('work_id'), $request->validated('label'));
 
-        if ($segment->canonical_passage_id === $passage->id) {
-            $this->snapAssignments($segment->transcriptionLayer);
+        if ($assignment->canonical_passage_id === $passage->id) {
+            $this->snapAssignments($assignment->transcriptionLayer);
 
             return back();
         }
 
-        WorkOwnership::guard($segment->transcriptionLayer->transcription, $passage->work);
+        WorkOwnership::guard($assignment->transcriptionLayer->transcription, $passage->work);
 
-        DB::transaction(function () use ($request, $segment, $passage) {
-            $layer = $segment->transcriptionLayer;
+        DB::transaction(function () use ($request, $assignment, $passage) {
+            $layer = $assignment->transcriptionLayer;
             $aligned = $this->guardLatePart($request, $layer, $passage);
-            $counterpart = $this->siblingCounterpart($segment);
+            $counterpart = $this->siblingCounterpart($assignment);
 
-            $segment->update([
+            $assignment->update([
                 'canonical_passage_id' => $passage->id,
                 'part' => $this->placePart($request, $layer, $passage),
             ]);
@@ -218,13 +218,13 @@ class TranscriptionSegmentController extends Controller
         return back();
     }
 
-    public function destroy(TranscriptionSegment $segment): RedirectResponse
+    public function destroy(Assignment $assignment): RedirectResponse
     {
-        $this->authorize('update', $segment->transcriptionLayer);
+        $this->authorize('update', $assignment->transcriptionLayer);
 
-        DB::transaction(function () use ($segment) {
-            $this->siblingCounterpart($segment)?->delete();
-            $segment->delete();
+        DB::transaction(function () use ($assignment) {
+            $this->siblingCounterpart($assignment)?->delete();
+            $assignment->delete();
         });
 
         return back();
@@ -292,7 +292,7 @@ class TranscriptionSegmentController extends Controller
      */
     private function placePart(FormRequest $request, TranscriptionLayer $layer, CanonicalPassage $passage): int
     {
-        $siblings = $layer->segments()->where('canonical_passage_id', $passage->id);
+        $siblings = $layer->assignments()->where('canonical_passage_id', $passage->id);
         $afterPart = $request->validated('after_part');
 
         if ($afterPart === null) {
@@ -312,7 +312,7 @@ class TranscriptionSegmentController extends Controller
     private function recollateLayer(TranscriptionLayer $layer, CanonicalPassage $passage): void
     {
         if (! PassageAligner::realignLayer($passage, $layer)) {
-            $layer->segments()
+            $layer->assignments()
                 ->where('canonical_passage_id', $passage->id)
                 ->update(['needs_review' => true]);
         }

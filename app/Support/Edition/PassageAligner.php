@@ -2,6 +2,7 @@
 
 namespace App\Support\Edition;
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\EditionComment;
 use App\Models\EditionLemma;
@@ -9,7 +10,6 @@ use App\Models\EditionLineBreak;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Support\Transcription\Tokenizer;
 use Illuminate\Support\Collection;
 use Normalizer;
@@ -56,19 +56,19 @@ class PassageAligner
      * of alignment is the *layer*, not the span: all of a layer's parts go to
      * `alignWitness` together, as one witness with one token stream.
      *
-     * @param  Collection<int, TranscriptionSegment>  $segments  every normalized witness segment assigning text to this passage
+     * @param  Collection<int, Assignment>  $assignments  every normalized witness assignment assigning text to this passage
      */
-    public static function collate(CanonicalPassage $passage, Collection $segments): void
+    public static function collate(CanonicalPassage $passage, Collection $assignments): void
     {
         // By siglum — the conventional order of an apparatus, and the only
         // key here derived from the evidence rather than from bookkeeping.
         // Not `transcription_layer_id`, which is merely creation order and would
         // make the collation depend on when each witness was typed up.
-        $orderedLayers = $segments
+        $orderedLayers = $assignments
             ->groupBy('transcription_layer_id')
-            ->sortBy(fn (Collection $layerSegments) => [
-                $layerSegments->first()->transcriptionLayer->witness->siglum,
-                $layerSegments->first()->transcription_layer_id,
+            ->sortBy(fn (Collection $layerAssignments) => [
+                $layerAssignments->first()->transcriptionLayer->witness->siglum,
+                $layerAssignments->first()->transcription_layer_id,
             ])
             ->values();
 
@@ -76,8 +76,8 @@ class PassageAligner
             Lemma::where('canonical_passage_id', $passage->id)->delete();
         }
 
-        foreach ($orderedLayers as $layerSegments) {
-            self::alignWitness($passage, $layerSegments);
+        foreach ($orderedLayers as $layerAssignments) {
+            self::alignWitness($passage, $layerAssignments);
         }
 
         self::recordOmissions($passage);
@@ -283,12 +283,12 @@ class PassageAligner
      * order: what aligns against the other witnesses is what the layer's
      * text of the passage *reads as*, wherever its pieces physically sit.
      *
-     * @param  Collection<int, TranscriptionSegment>  $segments  one layer's assignments of this passage
+     * @param  Collection<int, Assignment>  $assignments  one layer's assignments of this passage
      */
-    public static function alignWitness(CanonicalPassage $passage, Collection $segments): void
+    public static function alignWitness(CanonicalPassage $passage, Collection $assignments): void
     {
-        $segments = TranscriptionSegment::sortByPartOrder($segments);
-        $first = $segments->first();
+        $assignments = Assignment::sortByPartOrder($assignments);
+        $first = $assignments->first();
 
         if ($first === null) {
             return;
@@ -308,11 +308,11 @@ class PassageAligner
         $tokens = [];
         $partStarts = [];
 
-        foreach ($segments as $segment) {
+        foreach ($assignments as $assignment) {
             $partTokens = Tokenizer::tokenize(
                 $layer->text,
-                $segment->start_offset,
-                $segment->end_offset,
+                $assignment->start_offset,
+                $assignment->end_offset,
                 $passage->work->tokenization,
             );
 
@@ -426,7 +426,7 @@ class PassageAligner
 
         self::alignWitness(
             $passage,
-            TranscriptionSegment::where('canonical_passage_id', $passage->id)
+            Assignment::where('canonical_passage_id', $passage->id)
                 ->where('transcription_layer_id', $layer->id)
                 ->get(),
         );
@@ -476,7 +476,7 @@ class PassageAligner
      * This is the seam where any further comparison-only regularization
      * belongs (folding diacritics, say, to stop an accent-only difference
      * reading as a variant). Anything added here must leave the stored text
-     * untouched: `TranscriptionSegment`, `TranscriptionRegion` and
+     * untouched: `Assignment`, `TranscriptionRegion` and
      * `LemmaReading` all index into it by character offset.
      */
     private static function comparisonForm(string $text): string

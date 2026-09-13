@@ -93,7 +93,7 @@ class WorkController extends Controller
      * Deleting a work cascades every canonical passage of it, and through
      * those: every edition of the work (and that edition's own selections
      * and base-text choices), every lemma/collation built for it, every
-     * conjecture recorded against it, and every assignment segment on any
+     * conjecture recorded against it, and every assignment assignment on any
      * witness's transcription that assigned it — even a witness with no other
      * connection to this work. See App\Support\DeletionImpact for the
      * preview shown before this is confirmed.

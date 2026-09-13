@@ -1,10 +1,10 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionPageBreak;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Work;
 
@@ -31,9 +31,9 @@ test('relocating whole words in one layer moves the same words in the other, ass
 
     $passage = CanonicalPassage::factory()->for(Work::factory())->create();
     // "γίνεται" assigned in the normalized layer, "γιγνεται" in the diplomatic.
-    TranscriptionSegment::factory()->for($normalized)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($normalized)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 7]);
-    $diplomaticSegment = TranscriptionSegment::factory()->for($diplomatic)->for($passage, 'canonicalPassage')
+    $diplomaticAssignment = Assignment::factory()->for($diplomatic)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 8]);
 
     // Move "γίνεται " to the very end of the normalized text.
@@ -49,7 +49,7 @@ test('relocating whole words in one layer moves the same words in the other, ass
     expect($diplomatic->fresh()->text)->toBe("παντα\nκατ ερινγιγνεται ");
 
     // …and its assignment travelled with the move, unflagged.
-    $moved = $diplomaticSegment->fresh();
+    $moved = $diplomaticAssignment->fresh();
     expect(mb_substr($diplomatic->fresh()->text, $moved->start_offset, $moved->end_offset - $moved->start_offset))
         ->toBe('γιγνεται')
         ->and($moved->needs_review)->toBeFalse();

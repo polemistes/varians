@@ -3,17 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\UpdateTranscriptionTextRequest;
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\EditionLemma;
 use App\Models\LemmaReading;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionPageBreak;
 use App\Models\TranscriptionRegion;
-use App\Models\TranscriptionSegment;
 use App\Support\Edition\PassageAligner;
 use App\Support\Transcription\AssignmentIntegrity;
 use App\Support\Transcription\LayerMirror;
-use App\Support\Transcription\RelocationSegmentEffects;
+use App\Support\Transcription\RelocationAssignmentEffects;
 use App\Support\Transcription\SiblingSync;
 use App\Support\Transcription\SpanTransformer;
 use App\Support\Transcription\TextOpApplier;
@@ -57,7 +57,7 @@ class TranscriptionTextController extends Controller
                 ]);
             }
 
-            $lostParts = $this->applySpans($transcription->segments, $ops, $recomputedText, $original);
+            $lostParts = $this->applySpans($transcription->assignments, $ops, $recomputedText, $original);
             $this->applySpans($transcription->regions, $ops, $recomputedText, $original);
             $this->applyPageBreaks($transcription, $ops, $recomputedText);
             $readingOutcome = $this->applyReadings($transcription, $ops, $recomputedText);
@@ -129,7 +129,7 @@ class TranscriptionTextController extends Controller
      * whole-word move means the same thing in either spelling.
      *
      * The mirrored ops run through the very same span pipeline, so the
-     * sibling's assignment segments, image regions and collation readings
+     * sibling's assignment assignments, image regions and collation readings
      * travel exactly as this layer's did. Page breaks are deliberately NOT
      * reapplied: they live on the transcription in line coordinates, shared
      * by both layers, and this layer's pass already moved them — a second
@@ -166,7 +166,7 @@ class TranscriptionTextController extends Controller
             return;
         }
 
-        $siblingLostParts = $this->applySpans($sibling->segments, $mirror['ops'], $mirror['text'], $siblingBefore);
+        $siblingLostParts = $this->applySpans($sibling->assignments, $mirror['ops'], $mirror['text'], $siblingBefore);
         $this->applySpans($sibling->regions, $mirror['ops'], $mirror['text'], $siblingBefore);
         $siblingOutcome = $this->applyReadings($sibling, $mirror['ops'], $mirror['text']);
         $affected = [...$affected, ...$siblingOutcome['editions']];
@@ -332,9 +332,9 @@ class TranscriptionTextController extends Controller
     }
 
     /**
-     * @param  Collection<int, TranscriptionSegment>|Collection<int, TranscriptionRegion>  $spans
+     * @param  Collection<int, Assignment>|Collection<int, TranscriptionRegion>  $spans
      * @param  list<array{start: int, end: int, text: string, cut_id?: string|null}>  $ops
-     * @return list<int> canonical passage ids that lost an assigned part (segments only)
+     * @return list<int> canonical passage ids that lost an assigned part (assignments only)
      */
     private function applySpans(Collection $spans, array $ops, ?string $newText = null, ?string $textBefore = null): array
     {
@@ -349,18 +349,18 @@ class TranscriptionTextController extends Controller
             $ops,
             // Only assignments claim what is typed against them; a region or a
             // reading is pushed along instead.
-            $spans->first() instanceof TranscriptionSegment,
+            $spans->first() instanceof Assignment,
             $textBefore,
         );
 
         // A relocation's assignment consequences beyond offset moves: a cut
         // FRAGMENT of an assigned span becomes a new part of its own passage at
         // the paste site, and a span the paste lands inside SPLITS around
-        // the arrival instead of absorbing it. Segments only — see
-        // RelocationSegmentEffects.
-        $effects = $spans->first() instanceof TranscriptionSegment
-            ? RelocationSegmentEffects::plan(
-                $spans->whereInstanceOf(TranscriptionSegment::class)->values(),
+        // the arrival instead of absorbing it. Assignments only — see
+        // RelocationAssignmentEffects.
+        $effects = $spans->first() instanceof Assignment
+            ? RelocationAssignmentEffects::plan(
+                $spans->whereInstanceOf(Assignment::class)->values(),
                 $ops,
             )
             : ['overrides' => [], 'unflag' => [], 'creates' => []];
@@ -391,11 +391,11 @@ class TranscriptionTextController extends Controller
                 // spans whole, and undoing a destructive edit restores the
                 // rows along
                 // with the text — the client's history snapshots what an op
-                // destroyed and re-creates it (transcription-segments
+                // destroyed and re-creates it (assignments
                 // restore endpoint). A destroyed PART still flags its
                 // surviving sibling parts below, since the passage's
                 // witness text just lost a piece.
-                if ($span instanceof TranscriptionSegment) {
+                if ($span instanceof Assignment) {
                     $lostPartPassages[$span->canonical_passage_id] = true;
                 }
 
@@ -422,13 +422,13 @@ class TranscriptionTextController extends Controller
         // Rows the relocation calls into being: cut fragments carrying
         // their source's assignment, and the right halves of split targets —
         // each placed in its passage's part order next to the span it came
-        // from (see TranscriptionSegment::$part).
+        // from (see Assignment::$part).
         foreach ($effects['creates'] as $create) {
-            /** @var TranscriptionSegment $anchor */
+            /** @var Assignment $anchor */
             $anchor = $spans[$create['anchor_index']];
             $anchor->refresh();
 
-            $siblings = TranscriptionSegment::where('transcription_layer_id', $anchor->transcription_layer_id)
+            $siblings = Assignment::where('transcription_layer_id', $anchor->transcription_layer_id)
                 ->where('canonical_passage_id', $create['canonical_passage_id']);
 
             if ($create['placement'] === 'before') {
@@ -439,7 +439,7 @@ class TranscriptionTextController extends Controller
                 $siblings->clone()->where('part', '>', $anchor->part)->increment('part');
             }
 
-            TranscriptionSegment::create([
+            Assignment::create([
                 'transcription_layer_id' => $anchor->transcription_layer_id,
                 'canonical_passage_id' => $create['canonical_passage_id'],
                 'start_offset' => $create['start'],
@@ -448,11 +448,11 @@ class TranscriptionTextController extends Controller
             ]);
         }
 
-        if ($spans->first() instanceof TranscriptionSegment && $newText !== null) {
+        if ($spans->first() instanceof Assignment && $newText !== null) {
             $this->mergeRejoinedParts($spans->first()->transcriptionLayer, $newText);
         }
 
-        // A destroyed segment may have been one *part* of a passage assigned
+        // A destroyed assignment may have been one *part* of a passage assigned
         // by several spans — the passage's witness text lost a piece, so
         // its collation for this layer may be stale. That is the CALLER's
         // to resolve once the new text is saved (see recollateLostParts):
@@ -478,14 +478,14 @@ class TranscriptionTextController extends Controller
      */
     private function mergeRejoinedParts(TranscriptionLayer $transcription, string $text): void
     {
-        $byPassage = $transcription->segments()
+        $byPassage = $transcription->assignments()
             ->whereColumn('end_offset', '>', 'start_offset')
             ->orderBy('start_offset')
             ->get()
             ->groupBy('canonical_passage_id');
 
         foreach ($byPassage as $rows) {
-            /** @var TranscriptionSegment|null $kept */
+            /** @var Assignment|null $kept */
             $kept = null;
 
             foreach ($rows as $row) {
@@ -516,7 +516,7 @@ class TranscriptionTextController extends Controller
 
     /**
      * Collation readings carry offsets into this same text, so they transform
-     * exactly like segments and regions.
+     * exactly like assignments and regions.
      *
      * Nothing here needs the editor's permission. An edit to a witness only
      * reaches a reader when that witness is the reading some edition prints:
@@ -651,7 +651,7 @@ class TranscriptionTextController extends Controller
      * damaged readings: re-derive rather than flag; where re-derivation is
      * refused (pinned readings hold the passage) flag the surviving parts,
      * exactly like the late-part flow
-     * (TranscriptionSegmentController::recollateLayer); and where the
+     * (AssignmentController::recollateLayer); and where the
      * layer was never collated on the passage there is nothing stale, so
      * nothing happens.
      *
@@ -667,7 +667,7 @@ class TranscriptionTextController extends Controller
             }
 
             if (! PassageAligner::realignLayer($passage, $transcription)) {
-                $transcription->segments()
+                $transcription->assignments()
                     ->where('canonical_passage_id', $passage->id)
                     ->update(['needs_review' => true]);
             }

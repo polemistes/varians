@@ -1257,7 +1257,7 @@ function onRunKey(passageId: number, runIndex: number, event: KeyboardEvent) {
 }
 
 // The page is always two panes: the edition on the left, the witnesses on
-// the right — where a manuscript is read and its segments are picked for
+// the right — where a manuscript is read and its assignments are picked for
 // the edition (user decision, merging the former add pane and pane choice).
 // With the witness's photograph open, the word under the pointer lights
 // up its box on the image, and the box under the pointer its words —
@@ -1409,9 +1409,9 @@ function witnessesAssigning(passage: WindowPassage): string[] {
         ...new Set(
             props.transcriptions
                 .filter((transcription) =>
-                    transcription.segments.some(
-                        (segment) =>
-                            segment.canonical_passage_id === passage.id,
+                    transcription.assignments.some(
+                        (assignment) =>
+                            assignment.canonical_passage_id === passage.id,
                     ),
                 )
                 .map((transcription) => transcription.witness.siglum),
@@ -2105,8 +2105,8 @@ function onDocumentMouseUp() {
     // over from here — the native selection has done its job.
     selection.removeAllRanges();
 
-    // A selection reaching into several segments can only mean removing
-    // them, whole (user decision); within one segment it opens the
+    // A selection reaching into several assignments can only mean removing
+    // them, whole (user decision); within one assignment it opens the
     // conjecture box, which offers removal too.
     if (passageIds.length > 1) {
         openTarget.value = { passageId, kind: 'remove', passageIds };
@@ -2416,7 +2416,7 @@ function submitWholeLineLacuna() {
 
 // Frees the passage back up in every transcription assigning text to it, for free —
 // see EditionPassageController::destroy.
-/** Remove whole segments from the edition — one, or every one a selection touched. */
+/** Remove whole assignments from the edition — one, or every one a selection touched. */
 function removeEditionPassages(passageIds: number[]) {
     router.delete(destroyEditionPassage.url(props.edition), {
         data: { canonical_passage_ids: passageIds },

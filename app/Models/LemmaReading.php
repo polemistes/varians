@@ -12,7 +12,7 @@ use Illuminate\Support\Carbon;
 /**
  * One candidate reading attached to a Lemma — either an ad-hoc span
  * directly into one transcription's continuous text (its own offsets, not
- * required to fall inside any existing TranscriptionSegment's boundaries),
+ * required to fall inside any existing Assignment's boundaries),
  * or a Conjecture. Exactly one of the two is set. Shared by every Edition —
  * see Lemma for why collation and edition-selection are kept separate.
  *

@@ -1,9 +1,9 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
@@ -70,7 +70,7 @@ test('the counts a deletion warning needs come with the lists', function () {
     $passage = CanonicalPassage::factory()->for($work)->create();
 
     foreach (range(1, 2) as $ignored) {
-        TranscriptionSegment::factory()
+        Assignment::factory()
             ->for(TranscriptionLayer::factory())
             ->for($passage, 'canonicalPassage')
             ->create();
@@ -78,7 +78,7 @@ test('the counts a deletion warning needs come with the lists', function () {
 
     $this->get(route('home'))->assertInertia(fn (AssertInertia $page) => $page
         ->where('works.0.editions_count', 2)
-        ->where('works.0.transcription_segments_count', 2)
+        ->where('works.0.assignments_count', 2)
     );
 });
 
@@ -91,7 +91,7 @@ test('every front-page row names its owner and when it was made, so copies are t
     $witness = Witness::factory()->for($owner)->create(['siglum' => 'A']);
     $layer = TranscriptionLayer::factory()->for($witness)->create(['text' => 'the quick fox']);
     $passage = CanonicalPassage::factory()->for($work)->create();
-    TranscriptionSegment::factory()->for($layer)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($layer)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 13]);
     $layer->transcription->update(['visibility' => 'published']);
 
@@ -134,7 +134,7 @@ test('each list is grouped into your own, shared with you, and public', function
     $sharedWitness = Witness::factory()->for($other)->create(['siglum' => 'S']);
     $sharedLayer = TranscriptionLayer::factory()->for($sharedWitness)->create(['text' => 'the quick fox']);
     $sharedPassage = CanonicalPassage::factory()->for($shared)->create();
-    TranscriptionSegment::factory()->for($sharedLayer)->for($sharedPassage, 'canonicalPassage')
+    Assignment::factory()->for($sharedLayer)->for($sharedPassage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 13]);
 
     // A third member's published work, with nothing shared about it.
@@ -144,7 +144,7 @@ test('each list is grouped into your own, shared with you, and public', function
     $publicWitness = Witness::factory()->for($stranger)->create(['siglum' => 'P']);
     $publicLayer = TranscriptionLayer::factory()->for($publicWitness)->create(['text' => 'the quick fox']);
     $publicPassage = CanonicalPassage::factory()->for($public)->create();
-    TranscriptionSegment::factory()->for($publicLayer)->for($publicPassage, 'canonicalPassage')
+    Assignment::factory()->for($publicLayer)->for($publicPassage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 13]);
     $publicLayer->transcription->update(['visibility' => 'published']);
 

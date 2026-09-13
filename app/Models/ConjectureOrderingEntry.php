@@ -19,7 +19,7 @@ use Illuminate\Support\Carbon;
  * arrangement registered from the edition text by cutting PART of a line
  * and pasting it elsewhere divides that passage into pieces, numbered in
  * the passage's own content order, each carrying its words — the same
- * shape as a witness's split assignment (TranscriptionSegment::part), and
+ * shape as a witness's split assignment (Assignment::part), and
  * reported by the same code (EditionController::assignmentDiscontinuities).
  *
  * @property int $id

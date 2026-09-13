@@ -1,9 +1,9 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Work;
 use Illuminate\Support\Str;
@@ -87,9 +87,9 @@ test('undoing a deletion at the head of an assigned span puts the span back over
     [$diplomatic, $normalized] = undoMirrorLayers();
     $passage = CanonicalPassage::factory()->for(Work::factory())->create();
     $group = (string) Str::uuid();
-    $segment = TranscriptionSegment::factory()->for($diplomatic)->for($passage, 'canonicalPassage')
+    $assignment = Assignment::factory()->for($diplomatic)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 15, 'part' => 1, 'group_id' => $group]);
-    $counterpart = TranscriptionSegment::factory()->for($normalized)->for($passage, 'canonicalPassage')
+    $counterpart = Assignment::factory()->for($normalized)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 15, 'part' => 1, 'group_id' => $group]);
 
     $this->patch(route('transcriptions.text.update', $diplomatic), [
@@ -106,20 +106,20 @@ test('undoing a deletion at the head of an assigned span puts the span back over
     // transform alone now takes them back into the assignment — a word is
     // never split between spans, and "ΜΗΝΙΝ" is one word (see
     // SpanTransformer). This used to leave them unassigned at {2,15}.
-    expect([$segment->fresh()->start_offset, $segment->fresh()->end_offset])->toBe([0, 15]);
+    expect([$assignment->fresh()->start_offset, $assignment->fresh()->end_offset])->toBe([0, 15]);
 
     // The history's snapshot still posts the bounds it remembers, which must
     // agree rather than move anything, and carry the counterpart with it.
     $this->post(route('transcription-spans.restore', $diplomatic), [
-        'adjust_segments' => [[
-            'id' => $segment->id,
+        'adjust_assignments' => [[
+            'id' => $assignment->id,
             'start_offset' => 0,
             'end_offset' => 15,
             'needs_review' => false,
         ]],
     ])->assertRedirect();
 
-    expect([$segment->fresh()->start_offset, $segment->fresh()->end_offset])->toBe([0, 15])
+    expect([$assignment->fresh()->start_offset, $assignment->fresh()->end_offset])->toBe([0, 15])
         ->and([$counterpart->fresh()->start_offset, $counterpart->fresh()->end_offset])->toBe([0, 15]);
 });
 
@@ -127,12 +127,12 @@ test('an adjustment can only name a span of the layer it is posted to', function
     $this->actingAs(User::factory()->editor()->create());
     [$diplomatic, $normalized] = undoMirrorLayers();
     $passage = CanonicalPassage::factory()->for(Work::factory())->create();
-    $foreign = TranscriptionSegment::factory()->for($normalized)->for($passage, 'canonicalPassage')
+    $foreign = Assignment::factory()->for($normalized)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 5, 'part' => 1]);
 
     $this->post(route('transcription-spans.restore', $diplomatic), [
-        'adjust_segments' => [['id' => $foreign->id, 'start_offset' => 0, 'end_offset' => 15]],
-    ])->assertInvalid(['adjust_segments.0.id']);
+        'adjust_assignments' => [['id' => $foreign->id, 'start_offset' => 0, 'end_offset' => 15]],
+    ])->assertInvalid(['adjust_assignments.0.id']);
 
     expect([$foreign->fresh()->start_offset, $foreign->fresh()->end_offset])->toBe([0, 5]);
 });

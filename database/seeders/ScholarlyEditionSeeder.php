@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Enums\ConjectureType;
 use App\Enums\Layer;
 use App\Enums\Visibility;
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
@@ -17,7 +18,6 @@ use App\Models\ManuscriptPage;
 use App\Models\ReferenceScheme;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
@@ -227,11 +227,11 @@ class ScholarlyEditionSeeder extends Seeder
         $position = 1.0;
 
         foreach ($passages as $passage) {
-            $segment = TranscriptionSegment::where('transcription_layer_id', $baseA->id)
+            $assignment = Assignment::where('transcription_layer_id', $baseA->id)
                 ->where('canonical_passage_id', $passage->id)
                 ->sole();
 
-            PassageAdder::add($edition, $segment, $position++);
+            PassageAdder::add($edition, $assignment, $position++);
         }
 
         // Zenodotus read δαῖτα here, reported by Athenaeus — a genuine
@@ -490,7 +490,7 @@ class ScholarlyEditionSeeder extends Seeder
         ]);
 
         foreach ($spans as $span) {
-            $transcription->segments()->create([
+            $transcription->assignments()->create([
                 'canonical_passage_id' => $span['passage']->id,
                 'start_offset' => $span['start'],
                 'end_offset' => $span['end'],

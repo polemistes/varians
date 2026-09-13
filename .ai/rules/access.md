@@ -32,8 +32,8 @@ witness by its owner or whoever may edit a work one of its transcriptions
 assigns (`Witness::relatedWorks`); a conjecture by its owner or whoever may
 edit its passage's work. That is how "editing privileges of an edition
 come with its witnesses and conjectures" is realised — nothing is granted
-per witness. Assigning a segment INTO a work therefore requires `update` on
-that work (`TranscriptionSegmentController::store/reassign`) — it
+per witness. Assigning an assignment INTO a work therefore requires `update` on
+that work (`AssignmentController::store/reassign`) — it
 creates passages and re-collates, and it would otherwise let a stranger
 attach her witness to someone's edition. The witness page offers only
 works the member may assign text to (`Work::editableOrAllFor`).
@@ -138,7 +138,7 @@ are shared by every edition of a WORK, so a copy sharing the work would
 re-collate the original when edited). It copies the work (slug
 `-copy`, `-copy-2`, …) and passages, every witness assigning text to the work with
 only the transcriptions that assign it (`WitnessCopier`: pages, photographs
-duplicated on disk, features, both layers, segments assigning text to the work,
+duplicated on disk, features, both layers, assignments assigning text to the work,
 regions, page breaks, fresh `group_id`s per counterpart pair), the
 conjectures (supplements rewired in a second pass, ordering entries,
 assignments), the collation, and the edition's passages, selections, line

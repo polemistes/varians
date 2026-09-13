@@ -2,12 +2,12 @@
 
 namespace App\Http\Requests;
 
-use App\Models\TranscriptionLayer;
+use App\Models\Assignment;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class StoreTranscriptionSegmentRequest extends FormRequest
+class ReassignRequest extends FormRequest
 {
     /**
      * The policy decides — see App\Policies. Checked before validation, so
@@ -15,38 +15,28 @@ class StoreTranscriptionSegmentRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        /** @var TranscriptionLayer $transcription */
-        $transcription = $this->route('transcription');
+        /** @var Assignment $assignment */
+        $assignment = $this->route('assignment');
 
-        return $this->user()->can('update', $transcription);
+        return $this->user()->can('update', $assignment->transcriptionLayer);
     }
 
     /**
      * Get the validation rules that apply to the request.
      *
-     * Marking a span always assigns text to it at the same time — a span with no
-     * assignment would have no use to anyone, so there's no "assign later" step.
+     * Re-assigns text to an already-assigned assignment to a different passage — there's no
+     * way to clear an assignment's assignment without removing the assignment itself.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
-        /** @var TranscriptionLayer $transcription */
-        $transcription = $this->route('transcription');
-
         return [
-            'start_offset' => ['required', 'integer', 'min:0'],
-            'end_offset' => [
-                'required',
-                'integer',
-                'gt:start_offset',
-                'max:'.mb_strlen($transcription->text),
-            ],
             'work_id' => ['required', Rule::exists('works', 'id')],
             'label' => ['required', 'string', 'max:100'],
             // Only meaningful when the label names a passage this layer
             // already assigns — the span becomes another *part* of it. See
-            // TranscriptionSegmentController::store.
+            // AssignmentController::reassign.
             'after_part' => ['nullable', 'integer', 'min:0'],
             'acknowledge_realignment' => ['nullable', 'boolean'],
         ];

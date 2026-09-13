@@ -2,11 +2,11 @@
 
 namespace App\Http\Requests;
 
-use App\Models\TranscriptionSegment;
+use App\Models\Assignment;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
-class UpdateTranscriptionSegmentRequest extends FormRequest
+class UpdateAssignmentRequest extends FormRequest
 {
     /**
      * The policy decides — see App\Policies. Checked before validation, so
@@ -14,10 +14,10 @@ class UpdateTranscriptionSegmentRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        /** @var TranscriptionSegment $segment */
-        $segment = $this->route('segment');
+        /** @var Assignment $assignment */
+        $assignment = $this->route('assignment');
 
-        return $this->user()->can('update', $segment->transcriptionLayer);
+        return $this->user()->can('update', $assignment->transcriptionLayer);
     }
 
     /**
@@ -30,8 +30,8 @@ class UpdateTranscriptionSegmentRequest extends FormRequest
      */
     public function rules(): array
     {
-        /** @var TranscriptionSegment $segment */
-        $segment = $this->route('segment');
+        /** @var Assignment $assignment */
+        $assignment = $this->route('assignment');
 
         return [
             'start_offset' => ['required', 'integer', 'min:0'],
@@ -39,7 +39,7 @@ class UpdateTranscriptionSegmentRequest extends FormRequest
                 'required',
                 'integer',
                 'gt:start_offset',
-                'max:'.mb_strlen($segment->transcriptionLayer->text),
+                'max:'.mb_strlen($assignment->transcriptionLayer->text),
             ],
         ];
     }

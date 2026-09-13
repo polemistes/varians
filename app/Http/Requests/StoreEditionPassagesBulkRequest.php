@@ -3,9 +3,9 @@
 namespace App\Http\Requests;
 
 use App\Enums\Layer;
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Edition;
-use App\Models\TranscriptionSegment;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -62,7 +62,7 @@ class StoreEditionPassagesBulkRequest extends FormRequest
             $transcriptionId = $this->input('transcription_layer_id');
 
             if (is_numeric($transcriptionId)) {
-                $belongsToWork = TranscriptionSegment::where('transcription_layer_id', (int) $transcriptionId)
+                $belongsToWork = Assignment::where('transcription_layer_id', (int) $transcriptionId)
                     ->whereHas('canonicalPassage', fn ($query) => $query->where('work_id', $edition->work_id))
                     ->exists();
 

@@ -18,7 +18,7 @@ use Illuminate\Support\Carbon;
  * to be mixed within the passage. Which candidate a given Edition prints is
  * recorded separately, on EditionLemma — collation is edition-independent
  * scholarship, selection is not. `position` is a real stored ordering
- * column (unlike TranscriptionSegment's offset-derived order), since a
+ * column (unlike Assignment's offset-derived order), since a
  * lemma's candidate readings can come from unrelated transcriptions with
  * unrelated offsets.
  *

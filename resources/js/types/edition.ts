@@ -211,7 +211,7 @@ export type TranscriptionOption = {
     id: number;
     name: string;
     witness: { id: number; siglum: string; label: string | null };
-    segments: { id: number; canonical_passage_id: number }[];
+    assignments: { id: number; canonical_passage_id: number }[];
 };
 
 /**

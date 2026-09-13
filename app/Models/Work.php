@@ -91,11 +91,11 @@ class Work extends Model
      * scholar spends her time on and what she would lose: a work of a hundred
      * lines collated from seven manuscripts holds seven hundred of these.
      *
-     * @return HasManyThrough<TranscriptionSegment, CanonicalPassage, $this>
+     * @return HasManyThrough<Assignment, CanonicalPassage, $this>
      */
-    public function transcriptionSegments(): HasManyThrough
+    public function assignments(): HasManyThrough
     {
-        return $this->hasManyThrough(TranscriptionSegment::class, CanonicalPassage::class);
+        return $this->hasManyThrough(Assignment::class, CanonicalPassage::class);
     }
 
     /**
@@ -122,7 +122,7 @@ class Work extends Model
 
     /**
      * Witnesses connected to this work — derived, not stored: a witness is
-     * related to a work only once one of its transcriptions has a segment
+     * related to a work only once one of its transcriptions has an assignment
      * assigning text to one of the work's canonical passages.
      *
      * @return Builder<Witness>
@@ -130,7 +130,7 @@ class Work extends Model
     public function relatedWitnesses(): Builder
     {
         return Witness::query()->whereHas(
-            'transcriptionLayers.segments.canonicalPassage',
+            'transcriptionLayers.assignments.canonicalPassage',
             fn (Builder $query) => $query->where('work_id', $this->id),
         );
     }
@@ -154,7 +154,7 @@ class Work extends Model
     {
         return $this->editions()->where('visibility', Visibility::Published)->exists()
             || $this->canonicalPassages()
-                ->whereHas('transcriptionSegments.transcriptionLayer.transcription', fn (Builder $query) => $query->where('visibility', Visibility::Published))
+                ->whereHas('assignments.transcriptionLayer.transcription', fn (Builder $query) => $query->where('visibility', Visibility::Published))
                 ->exists();
     }
 
@@ -207,7 +207,7 @@ class Work extends Model
         $query->where(function (Builder $query) use ($viewer) {
             $query->whereHas('editions', fn (Builder $editions) => $editions->where('visibility', Visibility::Published))
                 ->orWhereHas(
-                    'canonicalPassages.transcriptionSegments.transcriptionLayer.transcription',
+                    'canonicalPassages.assignments.transcriptionLayer.transcription',
                     fn (Builder $q) => $q->where('visibility', Visibility::Published),
                 );
 

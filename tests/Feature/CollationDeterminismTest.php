@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
@@ -7,7 +8,6 @@ use App\Models\EditionLemma;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\Witness;
 use App\Models\Work;
 use App\Support\Edition\PassageAdder;
@@ -32,13 +32,13 @@ function columnsOf(CanonicalPassage $passage): array
 }
 
 /** Assign a passage from a new witness with the given siglum. */
-function assignAs(CanonicalPassage $passage, string $siglum, string $text): TranscriptionSegment
+function assignAs(CanonicalPassage $passage, string $siglum, string $text): Assignment
 {
     $transcription = TranscriptionLayer::factory()
         ->for(Witness::factory()->create(['siglum' => $siglum]))
         ->create(['text' => $text]);
 
-    return TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    return Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => mb_strlen($text)]);
 }
 
@@ -55,16 +55,16 @@ function columnsAddedInOrder(array $texts, array $addOrder): array
     $passage = CanonicalPassage::factory()->for($work)->create();
     $edition = Edition::factory()->for($work)->create();
 
-    $segments = [];
+    $assignments = [];
 
     foreach ($texts as $siglum => $text) {
-        $segments[$siglum] = assignAs($passage, $siglum, $text);
+        $assignments[$siglum] = assignAs($passage, $siglum, $text);
     }
 
     $position = 1.0;
 
     foreach ($addOrder as $siglum) {
-        PassageAdder::add($edition, $segments[$siglum], $position++);
+        PassageAdder::add($edition, $assignments[$siglum], $position++);
     }
 
     return columnsOf($passage);

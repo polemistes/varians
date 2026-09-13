@@ -67,7 +67,7 @@ class EditionCopier
             $transcriptionIds = Transcription::query()
                 ->where('witness_id', $witness->id)
                 ->visibleTo($owner)
-                ->whereHas('layers.segments.canonicalPassage', fn (Builder $query) => $query->where('work_id', $work->id))
+                ->whereHas('layers.assignments.canonicalPassage', fn (Builder $query) => $query->where('work_id', $work->id))
                 ->pluck('id')
                 ->all();
 

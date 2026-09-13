@@ -27,18 +27,18 @@ import {
 import { applyOps, shiftOp, transformSpans } from '@/lib/transcriptionEdit';
 import type { EditSource, TextEditOp } from '@/lib/transcriptionEdit';
 import { mapOffset, pattern, words } from '@/lib/wordSpans';
+import {
+    reassign as reassignRoute,
+    destroy as destroyAssignment,
+    store as storeAssignment,
+    update as updateAssignment,
+} from '@/routes/assignments';
 import { store as storePageBreak } from '@/routes/transcription-page-breaks';
 import {
     destroySpan as destroyRegionSpan,
     store as storeRegion,
     storeBatch as storeRegionBatch,
 } from '@/routes/transcription-regions';
-import {
-    assign as reassignRoute,
-    destroy as destroySegment,
-    store as storeSegment,
-    update as updateSegment,
-} from '@/routes/transcription-segments';
 import { restore as restoreSpans } from '@/routes/transcription-spans';
 import {
     destroy as destroyTranscription,
@@ -51,7 +51,7 @@ import type {
     TranscriptionLayer,
     TranscriptionPageBreak,
     TranscriptionRegion,
-    TranscriptionSegment,
+    Assignment,
     Work,
 } from '@/types/models';
 
@@ -108,7 +108,7 @@ const emit = defineEmits<{
 
 const layer = computed(() => props.pane.layer);
 const layerText = computed(() => layer.value?.text ?? '');
-const layerSegments = computed(() => layer.value?.segments ?? []);
+const layerAssignments = computed(() => layer.value?.assignments ?? []);
 const layerRegions = computed(() => layer.value?.regions ?? []);
 
 const page = usePage<{
@@ -169,15 +169,18 @@ function transformedSpans<
     });
 }
 
-// Segments get the full relocation semantics in the PREVIEW too: a cut
+// Assignments get the full relocation semantics in the PREVIEW too: a cut
 // fragment shows its new part badge and a split target shows both halves
 // the moment the paste lands, instead of after the autosave round-trip
-// (client mirror of RelocationSegmentEffects — the server stays the
+// (client mirror of RelocationAssignmentEffects — the server stays the
 // authority at save time). Synthetic rows carry negative ids.
-const editedSegments = computed<TranscriptionSegment[]>(() => {
-    const effects = planRelocationEffects(layerSegments.value, editOps.value);
+const editedAssignments = computed<Assignment[]>(() => {
+    const effects = planRelocationEffects(
+        layerAssignments.value,
+        editOps.value,
+    );
     const transformed = transformSpans(
-        layerSegments.value.map((span) => ({
+        layerAssignments.value.map((span) => ({
             start: span.start_offset,
             end: span.end_offset,
             needsReview: span.needs_review,
@@ -189,7 +192,7 @@ const editedSegments = computed<TranscriptionSegment[]>(() => {
         layerText.value,
     );
 
-    const mapped: (TranscriptionSegment | null)[] = layerSegments.value.map(
+    const mapped: (Assignment | null)[] = layerAssignments.value.map(
         (span, index) => {
             const override = effects.overrides.get(index);
 
@@ -219,14 +222,14 @@ const editedSegments = computed<TranscriptionSegment[]>(() => {
         },
     );
 
-    const result: TranscriptionSegment[] = mapped.filter(
-        (span): span is TranscriptionSegment => span !== null,
+    const result: Assignment[] = mapped.filter(
+        (span): span is Assignment => span !== null,
     );
 
     let syntheticId = -1;
 
     for (const create of effects.creates) {
-        const anchor = layerSegments.value[create.anchorIndex];
+        const anchor = layerAssignments.value[create.anchorIndex];
 
         result.push({
             ...anchor,
@@ -320,7 +323,7 @@ function spanSnapshots(): SpanSnapshots {
             }));
 
     return {
-        segments: snapshot(editedSegments.value),
+        assignments: snapshot(editedAssignments.value),
         regions: snapshot(editedRegions.value),
     };
 }
@@ -395,7 +398,7 @@ function inverseMirroring(
 }
 
 /**
- * The spans this op would destroy — assignment segments AND image-mapping
+ * The spans this op would destroy — assignment assignments AND image-mapping
  * regions — snapshotted in the pre-op text's coordinates: exactly the
  * state undoing the op restores, so the history can post them back
  * verbatim (deleting text deletes what was anchored to it; undo restores
@@ -437,7 +440,7 @@ function destroyedByOp<
 
 function spansDestroyedBy(op: TextEditOp): RestorableSpans {
     return {
-        segments: destroyedByOp(layerSegments.value, op).map(
+        assignments: destroyedByOp(layerAssignments.value, op).map(
             ({ row, start, end }) => ({
                 canonical_passage_id: row.canonical_passage_id,
                 start_offset: start,
@@ -516,7 +519,7 @@ function applyEdit(op: TextEditOp, source: PaneEditSource) {
     // undo restores exactly the state the snapshot describes.
     const destroyed = spansDestroyedBy(op);
     const destroys =
-        destroyed.segments.length > 0 || destroyed.regions.length > 0;
+        destroyed.assignments.length > 0 || destroyed.regions.length > 0;
     const snapshot = spanSnapshots();
     const mirroring = inverseMirroring(op, textBefore);
 
@@ -639,9 +642,9 @@ function applyHistoryStep(step: HistoryStep | null) {
     // refer to it. Rows the undo's own relocation already brought home
     // are skipped server-side as already present.
     if (
-        step.restore.segments.length > 0 ||
+        step.restore.assignments.length > 0 ||
         step.restore.regions.length > 0 ||
-        step.snapshot.segments.length > 0 ||
+        step.snapshot.assignments.length > 0 ||
         step.snapshot.regions.length > 0
     ) {
         void flushText(true).then((saved) => {
@@ -650,9 +653,9 @@ function applyHistoryStep(step: HistoryStep | null) {
             }
 
             const adjustments = {
-                adjust_segments: spansToAdjust(
-                    step.snapshot.segments,
-                    layerSegments.value,
+                adjust_assignments: spansToAdjust(
+                    step.snapshot.assignments,
+                    layerAssignments.value,
                 ),
                 adjust_regions: spansToAdjust(
                     step.snapshot.regions,
@@ -661,9 +664,9 @@ function applyHistoryStep(step: HistoryStep | null) {
             };
 
             if (
-                step.restore.segments.length === 0 &&
+                step.restore.assignments.length === 0 &&
                 step.restore.regions.length === 0 &&
-                adjustments.adjust_segments.length === 0 &&
+                adjustments.adjust_assignments.length === 0 &&
                 adjustments.adjust_regions.length === 0
             ) {
                 return;
@@ -989,11 +992,11 @@ watch(
     },
 );
 
-// The text/segments/regions actually rendered: always the live-edited local
+// The text/assignments/regions actually rendered: always the live-edited local
 // state, so highlighted spans (and tombstones) visibly move as the scholar
 // types. With an empty op log these equal exactly what's persisted.
 const activeText = computed(() => editedText.value);
-const activeSegments = computed(() => editedSegments.value);
+const activeAssignments = computed(() => editedAssignments.value);
 const activeRegions = computed(() => editedRegions.value);
 
 // ---- pages ----
@@ -1079,7 +1082,7 @@ function toPage(offset: number): number {
     return offset - pageStart.value;
 }
 
-/** The text, segments and regions of the page alone, in page coordinates. */
+/** The text, assignments and regions of the page alone, in page coordinates. */
 const pageText = computed(() =>
     cpSlice(activeText.value, pageStart.value, pageEnd.value),
 );
@@ -1100,10 +1103,10 @@ function withinPage<T extends { start_offset: number; end_offset: number }>(
         }));
 }
 
-const pageSegments = computed(() =>
-    withinPage(activeSegments.value).map((segment) => ({
-        ...segment,
-        part_ordinal: partOrdinals.value[segment.id],
+const pageAssignments = computed(() =>
+    withinPage(activeAssignments.value).map((assignment) => ({
+        ...assignment,
+        part_ordinal: partOrdinals.value[assignment.id],
     })),
 );
 const pageRegions = computed(() => withinPage(activeRegions.value));
@@ -1179,7 +1182,7 @@ function saveVisibility() {
 
 function removeTranscript() {
     const parts = describeDeletionImpact(layer.value?.deletion_impact, [
-        { key: 'segments', label: (n) => pluralize(n, 'assignment') },
+        { key: 'assignments', label: (n) => pluralize(n, 'assignment') },
         { key: 'regions', label: (n) => pluralize(n, 'image mapping') },
         {
             key: 'editionSelections',
@@ -1643,16 +1646,16 @@ const splitGranularity = ref<SplitGranularity>('span');
 // All selection lookups read the *edited* state — the surface is always
 // editable, so comparing against saved offsets would silently target the
 // wrong characters the moment anything was typed.
-const matchingSegment = computed<TranscriptionSegment | null>(() => {
+const matchingAssignment = computed<Assignment | null>(() => {
     if (!activeSelection.value) {
         return null;
     }
 
     return (
-        activeSegments.value.find(
-            (segment) =>
-                segment.start_offset === activeSelection.value!.start &&
-                segment.end_offset === activeSelection.value!.end,
+        activeAssignments.value.find(
+            (assignment) =>
+                assignment.start_offset === activeSelection.value!.start &&
+                assignment.end_offset === activeSelection.value!.end,
         ) ?? null
     );
 });
@@ -1661,16 +1664,16 @@ const matchingSegment = computed<TranscriptionSegment | null>(() => {
 // assignment's bounds used to be offered ONLY for one flagged for review,
 // which left a healthy one with no way to be resized at all — so a marker
 // could not be pulled back to the line before it (user report).
-const overlappingSegment = computed<TranscriptionSegment | null>(() => {
-    if (!activeSelection.value || matchingSegment.value) {
+const overlappingAssignment = computed<Assignment | null>(() => {
+    if (!activeSelection.value || matchingAssignment.value) {
         return null;
     }
 
     return (
-        activeSegments.value.find(
-            (segment) =>
-                segment.start_offset < activeSelection.value!.end &&
-                segment.end_offset > activeSelection.value!.start,
+        activeAssignments.value.find(
+            (assignment) =>
+                assignment.start_offset < activeSelection.value!.end &&
+                assignment.end_offset > activeSelection.value!.start,
         ) ?? null
     );
 });
@@ -1694,9 +1697,9 @@ function rememberSelection(start: number, end: number, text: string) {
 
 /** What the assign menu should propose for this span. */
 function prefillAssignForm(start: number, end: number) {
-    const existing = activeSegments.value.find(
-        (segment) =>
-            segment.start_offset === start && segment.end_offset === end,
+    const existing = activeAssignments.value.find(
+        (assignment) =>
+            assignment.start_offset === start && assignment.end_offset === end,
     );
 
     if (existing) {
@@ -1738,25 +1741,28 @@ function onSelectionCleared() {
     clearSelection();
 }
 
-function onBadgeClick(segment: TranscriptionSegment) {
+function onBadgeClick(assignment: Assignment) {
     if (!canEdit.value) {
         return;
     }
 
-    if (matchingSegment.value?.id === segment.id && activeMenu.value !== null) {
+    if (
+        matchingAssignment.value?.id === assignment.id &&
+        activeMenu.value !== null
+    ) {
         clearSelection();
 
         return;
     }
 
-    // The badge came from the page-scoped segments handed to AlignableText,
+    // The badge came from the page-scoped assignments handed to AlignableText,
     // so its offsets are the page's. Selecting the span gives the floating
     // actions a real selection rectangle to anchor under.
-    const start = toFull(segment.start_offset);
-    const end = toFull(segment.end_offset);
+    const start = toFull(assignment.start_offset);
+    const end = toFull(assignment.end_offset);
 
     rememberSelection(start, end, cpSlice(activeText.value, start, end));
-    textEl.value?.selectRangeAt(segment.start_offset, segment.end_offset);
+    textEl.value?.selectRangeAt(assignment.start_offset, assignment.end_offset);
     updateSelectionAnchor();
     prefillAssignForm(start, end);
     overlayVisible.value = true;
@@ -1923,10 +1929,10 @@ const layerPartTotals = computed<Record<number, number>>(() => {
 
     // The PREVIEWED set, live spans only — a tombstone is not a place the
     // passage's text stands, and counting it said "2/3" over one span.
-    for (const segment of editedSegments.value) {
-        if (segment.end_offset > segment.start_offset) {
-            totals[segment.canonical_passage_id] =
-                (totals[segment.canonical_passage_id] ?? 0) + 1;
+    for (const assignment of editedAssignments.value) {
+        if (assignment.end_offset > assignment.start_offset) {
+            totals[assignment.canonical_passage_id] =
+                (totals[assignment.canonical_passage_id] ?? 0) + 1;
         }
     }
 
@@ -1937,13 +1943,13 @@ const layerPartTotals = computed<Record<number, number>>(() => {
 // the raw `part` keys can carry gaps after merges and removals, and a
 // lone surviving "part 2" should read as what it is: the only part.
 const partOrdinals = computed<Record<number, number>>(() => {
-    const byPassage = new Map<number, TranscriptionSegment[]>();
+    const byPassage = new Map<number, Assignment[]>();
 
-    for (const segment of editedSegments.value) {
-        if (segment.end_offset > segment.start_offset) {
-            const list = byPassage.get(segment.canonical_passage_id) ?? [];
-            list.push(segment);
-            byPassage.set(segment.canonical_passage_id, list);
+    for (const assignment of editedAssignments.value) {
+        if (assignment.end_offset > assignment.start_offset) {
+            const list = byPassage.get(assignment.canonical_passage_id) ?? [];
+            list.push(assignment);
+            byPassage.set(assignment.canonical_passage_id, list);
         }
     }
 
@@ -1951,8 +1957,8 @@ const partOrdinals = computed<Record<number, number>>(() => {
 
     for (const list of byPassage.values()) {
         list.sort((a, b) => a.part - b.part || a.start_offset - b.start_offset);
-        list.forEach((segment, index) => {
-            ordinals[segment.id] = index + 1;
+        list.forEach((assignment, index) => {
+            ordinals[assignment.id] = index + 1;
         });
     }
 
@@ -1963,17 +1969,17 @@ const partOrdinals = computed<Record<number, number>>(() => {
 // (excluding the one being assign afreshd, if any), in content order. Non-empty
 // means saving adds another *part* of that passage rather than a new one —
 // the witness's text for it is discontinuous, a transposition split it.
-const existingParts = computed<TranscriptionSegment[]>(() => {
+const existingParts = computed<Assignment[]>(() => {
     if (!assignForm.work_id || !assignForm.label) {
         return [];
     }
 
-    return activeSegments.value
+    return activeAssignments.value
         .filter(
-            (segment) =>
-                segment.canonical_passage?.work_id === assignForm.work_id &&
-                segment.canonical_passage?.label === assignForm.label &&
-                segment.id !== matchingSegment.value?.id,
+            (assignment) =>
+                assignment.canonical_passage?.work_id === assignForm.work_id &&
+                assignment.canonical_passage?.label === assignForm.label &&
+                assignment.id !== matchingAssignment.value?.id,
         )
         .sort((a, b) => a.part - b.part || a.start_offset - b.start_offset);
 });
@@ -2032,9 +2038,9 @@ function postAssignment(acknowledgeRealignment: boolean) {
             Object.values(errors)[0] ?? 'Could not save that assignment.';
     };
 
-    if (matchingSegment.value) {
+    if (matchingAssignment.value) {
         router.patch(
-            reassignRoute.url(matchingSegment.value.id),
+            reassignRoute.url(matchingAssignment.value.id),
             { work_id: workId, label, ...partFields },
             {
                 preserveScroll: true,
@@ -2052,7 +2058,7 @@ function postAssignment(acknowledgeRealignment: boolean) {
     const selection = activeSelection.value;
 
     router.post(
-        storeSegment.url(layer.value!.id),
+        storeAssignment.url(layer.value!.id),
         {
             start_offset: selection.start,
             end_offset: selection.end,
@@ -2071,26 +2077,26 @@ function postAssignment(acknowledgeRealignment: boolean) {
     );
 }
 
-function removeSegment(segmentId: number) {
-    router.delete(destroySegment.url(segmentId), {
+function removeAssignment(assignmentId: number) {
+    router.delete(destroyAssignment.url(assignmentId), {
         preserveScroll: true,
         onSuccess: () => clearSelection(),
     });
 }
 
 function fixBoundaries() {
-    if (!activeSelection.value || !overlappingSegment.value) {
+    if (!activeSelection.value || !overlappingAssignment.value) {
         return;
     }
 
     // Offsets are posted against the saved text — flush pending edits first.
     void flushText(true).then((ok) => {
-        if (!ok || !activeSelection.value || !overlappingSegment.value) {
+        if (!ok || !activeSelection.value || !overlappingAssignment.value) {
             return;
         }
 
         router.patch(
-            updateSegment.url(overlappingSegment.value.id),
+            updateAssignment.url(overlappingAssignment.value.id),
             {
                 start_offset: activeSelection.value.start,
                 end_offset: activeSelection.value.end,
@@ -2361,7 +2367,7 @@ defineExpose({
                 ref="textEl"
                 :text="pageText"
                 :regions="pageRegions"
-                :segments="pageSegments"
+                :assignments="pageAssignments"
                 :part-totals="layerPartTotals"
                 :highlighted-region-id="props.hoveredRegionId"
                 :editable="canEdit"
@@ -2406,19 +2412,19 @@ defineExpose({
             </span>
 
             <span
-                v-if="overlappingSegment"
+                v-if="overlappingAssignment"
                 class="rounded border p-2"
                 :class="
-                    overlappingSegment.needs_review ||
-                    overlappingSegment.boundary_review
+                    overlappingAssignment.needs_review ||
+                    overlappingAssignment.boundary_review
                         ? 'border-dashed border-red-400'
                         : 'border-stone-300 dark:border-stone-700'
                 "
             >
                 <span
                     v-if="
-                        overlappingSegment.needs_review ||
-                        overlappingSegment.boundary_review
+                        overlappingAssignment.needs_review ||
+                        overlappingAssignment.boundary_review
                     "
                     class="mb-1 block text-red-600 dark:text-red-400"
                 >
@@ -2428,8 +2434,8 @@ defineExpose({
                     type="button"
                     class="rounded px-2 py-0.5 text-white"
                     :class="
-                        overlappingSegment.needs_review ||
-                        overlappingSegment.boundary_review
+                        overlappingAssignment.needs_review ||
+                        overlappingAssignment.boundary_review
                             ? 'bg-red-600'
                             : 'bg-stone-600 dark:bg-stone-500'
                     "
@@ -2437,7 +2443,7 @@ defineExpose({
                 >
                     Make this the extent of
                     {{
-                        overlappingSegment.canonical_passage?.label ??
+                        overlappingAssignment.canonical_passage?.label ??
                         'that span'
                     }}
                 </button>
@@ -2519,7 +2525,7 @@ defineExpose({
 
             <template v-else-if="activeMenu === 'assign'">
                 <span
-                    v-if="matchingSegment?.needs_review"
+                    v-if="matchingAssignment?.needs_review"
                     class="text-red-600 dark:text-red-400"
                 >
                     Flagged for review — the text here changed since this was
@@ -2601,7 +2607,7 @@ defineExpose({
                         @click="assignSelection()"
                     >
                         {{
-                            matchingSegment
+                            matchingAssignment
                                 ? 'Update assignment'
                                 : existingParts.length > 0
                                   ? 'Add as part'
@@ -2611,10 +2617,10 @@ defineExpose({
                     <!-- Moving a passage is plain cut & paste: the
                              assignment travels with the words. -->
                     <button
-                        v-if="matchingSegment"
+                        v-if="matchingAssignment"
                         type="button"
                         class="text-red-600 underline dark:text-red-400"
-                        @click="removeSegment(matchingSegment.id)"
+                        @click="removeAssignment(matchingAssignment.id)"
                     >
                         Remove span
                     </button>

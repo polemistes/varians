@@ -24,8 +24,8 @@ class RestoreTranscriptionSpansRequest extends FormRequest
 
     /**
      * Put spans back the way they stood before an undone edit — see
-     * TranscriptionSpanRestoreController. `segments`/`regions` re-create
-     * rows the edit deleted; `adjust_segments`/`adjust_regions` name
+     * TranscriptionSpanRestoreController. `assignments`/`regions` re-create
+     * rows the edit deleted; `adjust_assignments`/`adjust_regions` name
      * surviving rows by id and give them their pre-edit bounds back. All
      * offsets are the history's snapshot of what stood before the edit,
      * valid because an undo returns the text to exactly that state.
@@ -38,11 +38,11 @@ class RestoreTranscriptionSpansRequest extends FormRequest
         $transcription = $this->route('transcription');
 
         return [
-            'segments' => ['array'],
-            'segments.*.canonical_passage_id' => ['required', 'integer', Rule::exists('canonical_passages', 'id')],
-            'segments.*.start_offset' => ['required', 'integer', 'min:0'],
-            'segments.*.end_offset' => ['required', 'integer', 'min:0'],
-            'segments.*.part' => ['required', 'integer', 'min:1'],
+            'assignments' => ['array'],
+            'assignments.*.canonical_passage_id' => ['required', 'integer', Rule::exists('canonical_passages', 'id')],
+            'assignments.*.start_offset' => ['required', 'integer', 'min:0'],
+            'assignments.*.end_offset' => ['required', 'integer', 'min:0'],
+            'assignments.*.part' => ['required', 'integer', 'min:1'],
             'regions' => ['array'],
             'regions.*.manuscript_image_id' => ['required', 'integer', Rule::exists('manuscript_images', 'id')],
             'regions.*.start_offset' => ['required', 'integer', 'min:0'],
@@ -52,11 +52,11 @@ class RestoreTranscriptionSpansRequest extends FormRequest
             'regions.*.y' => ['required', 'numeric'],
             'regions.*.width' => ['required', 'numeric'],
             'regions.*.height' => ['required', 'numeric'],
-            'adjust_segments' => ['array'],
-            'adjust_segments.*.id' => ['required', 'integer', Rule::exists('transcription_segments', 'id')->where('transcription_layer_id', $transcription->id)],
-            'adjust_segments.*.start_offset' => ['required', 'integer', 'min:0'],
-            'adjust_segments.*.end_offset' => ['required', 'integer', 'min:0'],
-            'adjust_segments.*.needs_review' => ['sometimes', 'boolean'],
+            'adjust_assignments' => ['array'],
+            'adjust_assignments.*.id' => ['required', 'integer', Rule::exists('assignments', 'id')->where('transcription_layer_id', $transcription->id)],
+            'adjust_assignments.*.start_offset' => ['required', 'integer', 'min:0'],
+            'adjust_assignments.*.end_offset' => ['required', 'integer', 'min:0'],
+            'adjust_assignments.*.needs_review' => ['sometimes', 'boolean'],
             'adjust_regions' => ['array'],
             'adjust_regions.*.id' => ['required', 'integer', Rule::exists('transcription_regions', 'id')->where('transcription_layer_id', $transcription->id)],
             'adjust_regions.*.start_offset' => ['required', 'integer', 'min:0'],
@@ -73,14 +73,14 @@ class RestoreTranscriptionSpansRequest extends FormRequest
             $length = mb_strlen($transcription->text);
 
             $lists = [
-                'segments' => (array) $this->input('segments', []),
+                'assignments' => (array) $this->input('assignments', []),
                 'regions' => (array) $this->input('regions', []),
-                'adjust_segments' => (array) $this->input('adjust_segments', []),
+                'adjust_assignments' => (array) $this->input('adjust_assignments', []),
                 'adjust_regions' => (array) $this->input('adjust_regions', []),
             ];
 
             if (array_filter($lists) === []) {
-                $validator->errors()->add('segments', 'Nothing to restore.');
+                $validator->errors()->add('assignments', 'Nothing to restore.');
             }
 
             foreach ($lists as $key => $rows) {

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\UsersController;
+use App\Http\Controllers\AssignmentController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\RegisterController;
@@ -27,7 +28,6 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TranscriptionController;
 use App\Http\Controllers\TranscriptionPageBreakController;
 use App\Http\Controllers\TranscriptionRegionController;
-use App\Http\Controllers\TranscriptionSegmentController;
 use App\Http\Controllers\TranscriptionSpanCopyController;
 use App\Http\Controllers\TranscriptionSpanRestoreController;
 use App\Http\Controllers\TranscriptionTextController;
@@ -126,7 +126,7 @@ Route::middleware('auth')->group(function () {
         ->name('ownership-transfers.decline');
 
     // An edition's own scope, order, and per-passage source transcription —
-    // see EditionPassage. The single add resolves already-cited segments
+    // see EditionPassage. The single add resolves already-cited assignments
     // inside a raw drag-selected span; the bulk add ("base a range")
     // resolves them by citation range but orders by the transcription's own
     // physical offset, not citation order — the whole point of the redesign.
@@ -206,25 +206,25 @@ Route::middleware('auth')->group(function () {
         ->name('transcriptions.destroy');
 
     // Applies an ordered log of exact edit operations from the in-place text
-    // editor, transforming every segment/region offset deterministically in
+    // editor, transforming every assignment/region offset deterministically in
     // the same pass — see SpanTransformer. Distinct from transcriptions.update
     // (tags/visibility), which no longer touches text at all.
     Route::patch('/transcriptions/{transcription}/text', [TranscriptionTextController::class, 'update'])
         ->name('transcriptions.text.update');
 
-    Route::post('/transcriptions/{transcription}/segments', [TranscriptionSegmentController::class, 'store'])
-        ->name('transcription-segments.store');
+    Route::post('/transcriptions/{transcription}/assignments', [AssignmentController::class, 'store'])
+        ->name('assignments.store');
     // Undoing a destructive text edit restores the citations AND image
     // mappings it destroyed along with the text — the client's edit
     // history snapshots the rows.
     Route::post('/transcriptions/{transcription}/span-restores', [TranscriptionSpanRestoreController::class, 'store'])
         ->name('transcription-spans.restore');
-    Route::patch('/transcription-segments/{segment}', [TranscriptionSegmentController::class, 'update'])
-        ->name('transcription-segments.update');
-    Route::patch('/transcription-segments/{segment}/assignment', [TranscriptionSegmentController::class, 'reassign'])
-        ->name('transcription-segments.assign');
-    Route::delete('/transcription-segments/{segment}', [TranscriptionSegmentController::class, 'destroy'])
-        ->name('transcription-segments.destroy');
+    Route::patch('/assignments/{assignment}', [AssignmentController::class, 'update'])
+        ->name('assignments.update');
+    Route::patch('/assignments/{assignment}/target', [AssignmentController::class, 'reassign'])
+        ->name('assignments.reassign');
+    Route::delete('/assignments/{assignment}', [AssignmentController::class, 'destroy'])
+        ->name('assignments.destroy');
 
     Route::post('/transcriptions/{transcription}/span-copies', [TranscriptionSpanCopyController::class, 'store'])
         ->name('transcriptions.span-copies.store');

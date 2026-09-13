@@ -18,7 +18,7 @@ use Illuminate\Support\Carbon;
 /**
  * One layer — diplomatic or normalized — of a witness's transcription. It
  * owns the continuous `text` and everything that carries character offsets
- * into it: assignment segments, image-alignment regions and collation readings.
+ * into it: assignment assignments, image-alignment regions and collation readings.
  *
  * Visibility is not here: a transcription is public or it is not, and if it
  * is, both of its layers are. Which layer an editor writes first is how she
@@ -93,11 +93,11 @@ class TranscriptionLayer extends Model
     }
 
     /**
-     * @return HasMany<TranscriptionSegment, $this>
+     * @return HasMany<Assignment, $this>
      */
-    public function segments(): HasMany
+    public function assignments(): HasMany
     {
-        return $this->hasMany(TranscriptionSegment::class);
+        return $this->hasMany(Assignment::class);
     }
 
     /**
@@ -144,7 +144,7 @@ class TranscriptionLayer extends Model
 
     /**
      * Collation readings sourced from this transcription's text. Like
-     * segments and regions these carry character offsets into `text`, so they
+     * assignments and regions these carry character offsets into `text`, so they
      * must be transformed whenever it is edited — see
      * TranscriptionTextController. Conjecture-sourced readings have a null
      * `transcription_id` and no offsets, and are not part of this relation.
@@ -157,7 +157,7 @@ class TranscriptionLayer extends Model
     }
 
     /**
-     * Scope a query to transcriptions with at least one segment assigned to the given work.
+     * Scope a query to transcriptions with at least one assignment assigned to the given work.
      *
      * @param  Builder<TranscriptionLayer>  $query
      */
@@ -165,7 +165,7 @@ class TranscriptionLayer extends Model
     protected function forWork(Builder $query, Work $work): void
     {
         $query->whereHas(
-            'segments.canonicalPassage',
+            'assignments.canonicalPassage',
             fn (Builder $q) => $q->where('work_id', $work->id),
         );
     }

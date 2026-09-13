@@ -39,7 +39,7 @@ class ManuscriptImageController extends Controller
 
     /**
      * Deleting an image cascades its features and any image-alignment
-     * regions on it — the region's own transcription/segments are
+     * regions on it — the region's own transcription/assignments are
      * untouched, regions are independent leaf annotations.
      */
     public function destroy(ManuscriptImage $image): RedirectResponse

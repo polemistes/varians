@@ -1,11 +1,11 @@
 <?php
 
 use App\Enums\Layer;
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
@@ -70,9 +70,9 @@ test('a diplomatic counterpart is the sibling layer, not merely one of the same 
         ->create(['text' => 'ἄλφα']);
     $diplomatic = TranscriptionLayer::factory()->diplomatic()->for($printed)->published()
         ->create(['text' => 'ΑΛΦΑ']);
-    TranscriptionSegment::factory()->for($diplomatic)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($diplomatic)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 4]);
-    $segment = TranscriptionSegment::factory()->for($normalized)->for($passage, 'canonicalPassage')
+    $assignment = Assignment::factory()->for($normalized)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 4]);
 
     // A second transcription of the same manuscript, whose diplomatic layer
@@ -81,10 +81,10 @@ test('a diplomatic counterpart is the sibling layer, not merely one of the same 
     $other = Transcription::factory()->for($witness)->create(['name' => 'Scholia']);
     $otherDiplomatic = TranscriptionLayer::factory()->diplomatic()->for($other)->published()
         ->create(['text' => 'ΩΜΕΓΑ']);
-    TranscriptionSegment::factory()->for($otherDiplomatic)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($otherDiplomatic)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 5]);
 
-    PassageAdder::add($edition, $segment, 1.0);
+    PassageAdder::add($edition, $assignment, 1.0);
 
     $payload = $this->get(route('editions.show', [$work, $edition]))
         ->viewData('page')['props']['windowPassages'][0];

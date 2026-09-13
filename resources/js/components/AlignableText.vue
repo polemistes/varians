@@ -12,27 +12,27 @@ import { cpLength, cpSlice } from '@/lib/codePoints';
 import type { EditSource, TextEditOp } from '@/lib/transcriptionEdit';
 import { parseTranscriptionMarkup } from '@/lib/transcriptionMarkup';
 import type { MarkupToken } from '@/lib/transcriptionMarkup';
-import type { TranscriptionRegion, TranscriptionSegment } from '@/types/models';
+import type { TranscriptionRegion, Assignment } from '@/types/models';
 
 const props = withDefaults(
     defineProps<{
         text: string;
         regions?: TranscriptionRegion[];
-        segments?: TranscriptionSegment[];
+        assignments?: Assignment[];
         highlightedRegionId?: number | null;
         editableRegionId?: number | null;
         selectionStart?: number | null;
         selectionEnd?: number | null;
         editable?: boolean;
-        // Segments whose canonical passage is already in some target
+        // Assignments whose canonical passage is already in some target
         // edition — greyed out instead of the normal assignment-badge
         // treatment. Purely visual (see AddToEditionPanel.vue); rendering
         // doesn't otherwise change what's selectable.
-        unavailableSegmentIds?: number[];
+        unavailableAssignmentIds?: number[];
         // How many spans assign each passage (by canonical_passage_id) in the
         // whole layer — so a badge can say "part 1/2" even when the sibling
         // part sits outside the text handed to this component (another page,
-        // another window). Absent, it's derived from `segments`.
+        // another window). Absent, it's derived from `assignments`.
         partTotals?: Record<number, number> | null;
         // Where the manuscript's pages begin in this text, drawn as a
         // ruled line with the page's label before the chunk that starts
@@ -41,13 +41,13 @@ const props = withDefaults(
     }>(),
     {
         regions: () => [],
-        segments: () => [],
+        assignments: () => [],
         highlightedRegionId: null,
         editableRegionId: null,
         selectionStart: null,
         selectionEnd: null,
         editable: false,
-        unavailableSegmentIds: () => [],
+        unavailableAssignmentIds: () => [],
         partTotals: null,
         pageBreaks: () => [],
     },
@@ -59,7 +59,7 @@ const emit = defineEmits<{
         selection: { start: number; end: number; text: string },
     ): void;
     (e: 'hover-region', id: number | null): void;
-    (e: 'badge-click', segment: TranscriptionSegment, event: MouseEvent): void;
+    (e: 'badge-click', assignment: Assignment, event: MouseEvent): void;
     // `source` distinguishes a clipboard cut/paste (which the parent may pair
     // into an assignment-preserving relocation) from ordinary typing.
     (e: 'edit', op: TextEditOp, source: EditSource): void;
@@ -78,8 +78,8 @@ type Chunk = {
     text: string;
     regionId: number | null;
     markup: Exclude<MarkupToken, { type: 'text' }> | null;
-    segment: TranscriptionSegment | null;
-    segmentStart: boolean;
+    assignment: Assignment | null;
+    assignmentStart: boolean;
     selected: boolean;
     pageBreak: { offset: number; label: string; pageId: number } | null;
 };
@@ -88,7 +88,7 @@ type Chunk = {
 // markup-token boundaries (gaps, uncertain readings) are three independent
 // dimensions that can partially overlap, so all three are merged into one set
 // of cut points. Rendering never changes the underlying characters — only
-// wraps them in extra styling spans — so the character offsets region/segment
+// wraps them in extra styling spans — so the character offsets region/assignment
 // selection relies on stay valid no matter what markup exists.
 // Offsets count code points, like every stored span (see lib/codePoints):
 // the text's UTF-16 length and slices must not meet them directly.
@@ -101,10 +101,11 @@ const chunks = computed<Chunk[]>(() => {
         )
         .sort((a, b) => a.start_offset - b.start_offset);
 
-    const segments = [...props.segments]
+    const assignments = [...props.assignments]
         .filter(
-            (segment) =>
-                segment.start_offset >= 0 && segment.end_offset <= textLength,
+            (assignment) =>
+                assignment.start_offset >= 0 &&
+                assignment.end_offset <= textLength,
         )
         .sort((a, b) => a.start_offset - b.start_offset);
 
@@ -119,9 +120,9 @@ const chunks = computed<Chunk[]>(() => {
         points.add(region.end_offset);
     }
 
-    for (const segment of segments) {
-        points.add(segment.start_offset);
-        points.add(segment.end_offset);
+    for (const assignment of assignments) {
+        points.add(assignment.start_offset);
+        points.add(assignment.end_offset);
     }
 
     for (const span of markupSpans) {
@@ -161,7 +162,7 @@ const chunks = computed<Chunk[]>(() => {
         const region = regions.find(
             (r) => r.start_offset <= start && r.end_offset >= end,
         );
-        const segment = segments.find(
+        const assignment = assignments.find(
             (s) =>
                 s.start_offset <= start &&
                 s.end_offset >= end &&
@@ -175,8 +176,10 @@ const chunks = computed<Chunk[]>(() => {
             text: cpSlice(props.text, start, end),
             regionId: region ? region.id : null,
             markup: markup ?? null,
-            segment: segment ?? null,
-            segmentStart: segment ? segment.start_offset === start : false,
+            assignment: assignment ?? null,
+            assignmentStart: assignment
+                ? assignment.start_offset === start
+                : false,
             pageBreak:
                 props.pageBreaks.find((item) => item.offset === start) ?? null,
             selected:
@@ -244,17 +247,17 @@ function markupTitle(markup: Chunk['markup']): string | undefined {
 // one side of the marker. It is gone (user decision): the marker should not
 // be noticed at all, and the caret already knows which side it is on.
 function badgeClasses(chunk: Chunk) {
-    const segment = chunk.segment;
+    const assignment = chunk.assignment;
 
-    if (!chunkLabel(chunk) || !segment) {
+    if (!chunkLabel(chunk) || !assignment) {
         return [];
     }
 
-    if (segment.needs_review || segment.boundary_review) {
+    if (assignment.needs_review || assignment.boundary_review) {
         return 'border border-dashed border-red-500 text-red-600 dark:text-red-400';
     }
 
-    if (props.unavailableSegmentIds.includes(segment.id)) {
+    if (props.unavailableAssignmentIds.includes(assignment.id)) {
         return 'bg-stone-100 text-stone-400 dark:bg-stone-900 dark:text-stone-600';
     }
 
@@ -388,11 +391,11 @@ function markerSide(): 'before' | 'after' | null {
 
 /** The label a chunk draws, if it opens an assignment that has one. */
 function chunkLabel(chunk: Chunk): string | undefined {
-    if (!chunk.segmentStart || !chunk.segment) {
+    if (!chunk.assignmentStart || !chunk.assignment) {
         return undefined;
     }
 
-    return badgeText(chunk.segment) || undefined;
+    return badgeText(chunk.assignment) || undefined;
 }
 
 /**
@@ -402,29 +405,29 @@ function chunkLabel(chunk: Chunk): string | undefined {
 function chunkTitle(chunk: Chunk): string | undefined {
     return (
         markupTitle(chunk.markup) ||
-        (chunk.segmentStart && chunk.segment
-            ? badgeTitle(chunk.segment)
+        (chunk.assignmentStart && chunk.assignment
+            ? badgeTitle(chunk.assignment)
             : undefined)
     );
 }
 
-function badgeTitle(segment: TranscriptionSegment): string {
-    if (segment.needs_review) {
+function badgeTitle(assignment: Assignment): string {
+    if (assignment.needs_review) {
         return 'The underlying text changed here — please recheck this mapping';
     }
 
-    if (segment.boundary_review) {
+    if (assignment.boundary_review) {
         return 'This assignment begins or ends inside a word, or overlaps another — its bounds have slipped. Select the words again to assign them afresh.';
     }
 
-    if (props.unavailableSegmentIds.includes(segment.id)) {
+    if (props.unavailableAssignmentIds.includes(assignment.id)) {
         return 'Already added to the edition';
     }
 
-    const title = segment.canonical_passage?.work?.title ?? '';
+    const title = assignment.canonical_passage?.work?.title ?? '';
 
-    if (partTotalFor(segment) > 1) {
-        const note = `This passage's text stands in ${partTotalFor(segment)} separate places in this layer`;
+    if (partTotalFor(assignment) > 1) {
+        const note = `This passage's text stands in ${partTotalFor(assignment)} separate places in this layer`;
 
         return title ? `${title} — ${note}` : note;
     }
@@ -434,22 +437,22 @@ function badgeTitle(segment: TranscriptionSegment): string {
 
 // A passage assigned by several spans (its text is physically discontinuous —
 // a transposition split it) shows which part of it each span is.
-function partTotalFor(segment: TranscriptionSegment): number {
+function partTotalFor(assignment: Assignment): number {
     if (props.partTotals) {
-        return props.partTotals[segment.canonical_passage_id] ?? 1;
+        return props.partTotals[assignment.canonical_passage_id] ?? 1;
     }
 
-    return props.segments.filter(
-        (s) => s.canonical_passage_id === segment.canonical_passage_id,
+    return props.assignments.filter(
+        (s) => s.canonical_passage_id === assignment.canonical_passage_id,
     ).length;
 }
 
-function badgeText(segment: TranscriptionSegment): string {
-    const label = segment.canonical_passage?.label ?? '';
-    const total = partTotalFor(segment);
+function badgeText(assignment: Assignment): string {
+    const label = assignment.canonical_passage?.label ?? '';
+    const total = partTotalFor(assignment);
 
     return total > 1
-        ? `${label} · ${segment.part_ordinal ?? segment.part}/${total}`
+        ? `${label} · ${assignment.part_ordinal ?? assignment.part}/${total}`
         : label;
 }
 
@@ -581,8 +584,8 @@ function onSelectionChange(): void {
     settleCaret();
 }
 
-function onBadgeClick(segment: TranscriptionSegment, event: MouseEvent) {
-    emit('badge-click', segment, event);
+function onBadgeClick(assignment: Assignment, event: MouseEvent) {
+    emit('badge-click', assignment, event);
 }
 
 /**
@@ -1004,10 +1007,10 @@ function stepOverMarker(event: KeyboardEvent) {
             return;
         }
 
-        const ends = (props.segments ?? []).some(
-            (segment) =>
-                segment.end_offset === offset &&
-                segment.end_offset > segment.start_offset,
+        const ends = (props.assignments ?? []).some(
+            (assignment) =>
+                assignment.end_offset === offset &&
+                assignment.end_offset > assignment.start_offset,
         );
 
         if (ends) {
@@ -1344,24 +1347,26 @@ function liveCaretOffset(): number | null {
                 ></span
             ></span>
             <span
-                v-if="chunkLabel(chunk) && chunk.segment"
+                v-if="chunkLabel(chunk) && chunk.assignment"
                 data-non-text
                 contenteditable="false"
                 class="mx-1 cursor-pointer rounded px-1.5 py-0.5 align-middle font-sans text-xs tracking-wide select-none"
                 :class="badgeClasses(chunk)"
-                :data-segment-id="chunk.segment.id"
-                :data-marker-offset="chunk.segment.start_offset"
-                :title="badgeTitle(chunk.segment)"
-                @mousedown.prevent="onBadgeClick(chunk.segment, $event)"
+                :data-assignment-id="chunk.assignment.id"
+                :data-marker-offset="chunk.assignment.start_offset"
+                :title="badgeTitle(chunk.assignment)"
+                @mousedown.prevent="onBadgeClick(chunk.assignment, $event)"
                 >{{ chunkLabel(chunk) }}</span
             >
             <span
                 :title="chunkTitle(chunk)"
                 :class="[
                     ...markupClasses(chunk.markup),
-                    !chunk.segment && 'bg-stone-200 dark:bg-stone-700/60',
-                    chunk.segment &&
-                        unavailableSegmentIds.includes(chunk.segment.id) &&
+                    !chunk.assignment && 'bg-stone-200 dark:bg-stone-700/60',
+                    chunk.assignment &&
+                        unavailableAssignmentIds.includes(
+                            chunk.assignment.id,
+                        ) &&
                         'text-stone-400 dark:text-stone-600',
                     ...regionClasses(chunk.regionId),
                     chunk.selected && 'bg-sky-200/70 dark:bg-sky-800/60',

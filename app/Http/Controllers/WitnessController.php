@@ -29,7 +29,7 @@ class WitnessController extends Controller
 
     /**
      * Register a witness on its own — a witness only becomes connected to a
-     * work once one of its transcriptions has a segment assigning text to it.
+     * work once one of its transcriptions has an assignment assigning text to it.
      */
     public function store(StoreWitnessRequest $request): RedirectResponse
     {
@@ -57,7 +57,7 @@ class WitnessController extends Controller
      * is client-side — the facsimile's data is already on the page).
      *
      * Which TRANSCRIPT is open is in the URL (`?transcript=12`) rather than
-     * in client state: a layer's segments, regions and page breaks all have
+     * in client state: a layer's assignments, regions and page breaks all have
      * to be loaded for it, so choosing one is a visit — and a bookmark
      * reproduces the whole arrangement.
      */
@@ -171,8 +171,8 @@ class WitnessController extends Controller
         $layer = TranscriptionLayer::query()
             ->with([
                 'transcription',
-                'segments' => fn ($query) => $query->orderBy('start_offset'),
-                'segments.canonicalPassage.work',
+                'assignments' => fn ($query) => $query->orderBy('start_offset'),
+                'assignments.canonicalPassage.work',
                 'regions' => fn ($query) => $query->orderBy('position'),
             ])
             ->findOrFail($layerId);
@@ -224,7 +224,7 @@ class WitnessController extends Controller
     /**
      * Deleting a witness cascades its pages (and every image, feature,
      * and image-region on them) and every one of its transcriptions (and
-     * their segments, regions, and — if any feed a published edition —
+     * their assignments, regions, and — if any feed a published edition —
      * the edition's own LemmaReading selections and base-text choices). See
      * App\Support\DeletionImpact for the preview shown before this is
      * confirmed.

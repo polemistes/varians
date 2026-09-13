@@ -130,7 +130,7 @@ function submit() {
                         Reference scheme
                     </legend>
                     <p class="mb-3 text-xs text-stone-500 dark:text-stone-400">
-                        Defines how segments of this work are numbered — e.g.
+                        Defines how assignments of this work are numbered — e.g.
                         book and line for epic, or Stephanus page and section
                         for Plato.
                     </p>

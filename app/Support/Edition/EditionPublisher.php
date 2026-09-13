@@ -70,7 +70,7 @@ class EditionPublisher
             // A transcription of a codex holding several works stays public
             // while a published edition of any of the others still assigns text to it.
             self::transcriptionsAssigning($work)
-                ->whereDoesntHave('layers.segments.canonicalPassage.work', fn (Builder $works) => $works
+                ->whereDoesntHave('layers.assignments.canonicalPassage.work', fn (Builder $works) => $works
                     ->whereKeyNot($work->id)
                     ->whereHas('editions', fn (Builder $editions) => $editions->where('visibility', Visibility::Published)))
                 ->update(['visibility' => Visibility::Draft->value]);
@@ -83,7 +83,7 @@ class EditionPublisher
     private static function transcriptionsAssigning(Work $work): Builder
     {
         return Transcription::query()->whereHas(
-            'layers.segments.canonicalPassage',
+            'layers.assignments.canonicalPassage',
             fn (Builder $passages) => $passages->where('work_id', $work->id),
         );
     }

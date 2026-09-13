@@ -2,9 +2,9 @@
 
 namespace App\Support\Transcription;
 
+use App\Models\Assignment;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
-use App\Models\TranscriptionSegment;
 use Illuminate\Support\Str;
 
 /**
@@ -39,7 +39,7 @@ class SiblingSync
 
     /**
      * The sibling's character range for the same WORDS — for assignment
-     * segments, which are word-granular.
+     * assignments, which are word-granular.
      *
      * @return array{0: int, 1: int}
      */
@@ -69,11 +69,11 @@ class SiblingSync
     }
 
     /** The counterpart row on the other layer, by the shared group. */
-    public static function counterpartSegment(TranscriptionSegment $segment): ?TranscriptionSegment
+    public static function counterpartAssignment(Assignment $assignment): ?Assignment
     {
-        return TranscriptionSegment::query()
-            ->where('group_id', $segment->group_id)
-            ->whereKeyNot($segment->id)
+        return Assignment::query()
+            ->where('group_id', $assignment->group_id)
+            ->whereKeyNot($assignment->id)
             ->first();
     }
 
@@ -87,15 +87,15 @@ class SiblingSync
     }
 
     /**
-     * Carry a segment's bounds and flag over to its counterpart, projected
+     * Carry an assignment's bounds and flag over to its counterpart, projected
      * into the sibling's own spelling — the one identity seen from the other
      * side. Nothing happens while the layers are out of step: a projection
      * would name the wrong words, and heal() catches up once they agree.
      */
-    public static function followSegment(TranscriptionSegment $segment): void
+    public static function followAssignment(Assignment $assignment): void
     {
-        $counterpart = self::counterpartSegment($segment);
-        $layer = $segment->transcriptionLayer;
+        $counterpart = self::counterpartAssignment($assignment);
+        $layer = $assignment->transcriptionLayer;
 
         if ($counterpart === null || self::inStepSibling($layer) === null) {
             return;
@@ -104,15 +104,15 @@ class SiblingSync
         [$start, $end] = self::projectRange(
             $layer,
             $counterpart->transcriptionLayer,
-            (int) $segment->start_offset,
-            (int) $segment->end_offset,
+            (int) $assignment->start_offset,
+            (int) $assignment->end_offset,
         );
 
         if ($end > $start) {
             $counterpart->update([
                 'start_offset' => $start,
                 'end_offset' => $end,
-                'needs_review' => $segment->needs_review,
+                'needs_review' => $assignment->needs_review,
             ]);
         }
     }
@@ -159,37 +159,37 @@ class SiblingSync
 
         foreach ([$layer, $sibling] as $side) {
             $other = $side->is($layer) ? $sibling : $layer;
-            self::healSegments($side, $other);
+            self::healAssignments($side, $other);
             self::healRegions($side, $other);
         }
     }
 
-    private static function healSegments(TranscriptionLayer $from, TranscriptionLayer $to): void
+    private static function healAssignments(TranscriptionLayer $from, TranscriptionLayer $to): void
     {
-        $toSegments = $to->segments()->get();
+        $toAssignments = $to->assignments()->get();
 
-        foreach ($from->segments()->get() as $segment) {
+        foreach ($from->assignments()->get() as $assignment) {
             // Tombstones stay one-sided: there is nothing to project.
-            if ($segment->end_offset <= $segment->start_offset) {
+            if ($assignment->end_offset <= $assignment->start_offset) {
                 continue;
             }
 
-            $counterpart = $segment->group_id === null
+            $counterpart = $assignment->group_id === null
                 ? null
-                : TranscriptionSegment::query()->where('group_id', $segment->group_id)->whereKeyNot($segment->id)->first();
+                : Assignment::query()->where('group_id', $assignment->group_id)->whereKeyNot($assignment->id)->first();
 
             if ($counterpart !== null) {
                 // A live span whose other half was tombstoned by an edit
                 // that never mirrored: in step again, the projection names
                 // its words — revive it.
                 if ($counterpart->end_offset <= $counterpart->start_offset) {
-                    [$start, $end] = self::projectRange($from, $to, (int) $segment->start_offset, (int) $segment->end_offset);
+                    [$start, $end] = self::projectRange($from, $to, (int) $assignment->start_offset, (int) $assignment->end_offset);
 
                     if ($end > $start) {
                         $counterpart->update([
                             'start_offset' => $start,
                             'end_offset' => $end,
-                            'needs_review' => $segment->needs_review,
+                            'needs_review' => $assignment->needs_review,
                         ]);
                     }
                 }
@@ -197,30 +197,30 @@ class SiblingSync
                 continue;
             }
 
-            $segment->group_id ??= (string) Str::uuid();
-            $segment->save();
+            $assignment->group_id ??= (string) Str::uuid();
+            $assignment->save();
 
-            [$start, $end] = self::projectRange($from, $to, (int) $segment->start_offset, (int) $segment->end_offset);
+            [$start, $end] = self::projectRange($from, $to, (int) $assignment->start_offset, (int) $assignment->end_offset);
 
             if ($end <= $start) {
                 continue;
             }
 
-            $twin = $toSegments->first(fn (TranscriptionSegment $candidate) => $candidate->canonical_passage_id === $segment->canonical_passage_id
+            $twin = $toAssignments->first(fn (Assignment $candidate) => $candidate->canonical_passage_id === $assignment->canonical_passage_id
                 && (int) $candidate->start_offset === $start
                 && (int) $candidate->end_offset === $end
                 && ($candidate->group_id === null
-                    || ! TranscriptionSegment::query()->where('group_id', $candidate->group_id)->whereKeyNot($candidate->id)->exists()));
+                    || ! Assignment::query()->where('group_id', $candidate->group_id)->whereKeyNot($candidate->id)->exists()));
 
             if ($twin !== null) {
-                $twin->update(['group_id' => $segment->group_id]);
+                $twin->update(['group_id' => $assignment->group_id]);
 
                 continue;
             }
 
             // Never manufacture a duplicate: an overlapping live assignment
             // of the same passage already covers (some of) these words.
-            $overlapping = $toSegments->contains(fn (TranscriptionSegment $candidate) => $candidate->canonical_passage_id === $segment->canonical_passage_id
+            $overlapping = $toAssignments->contains(fn (Assignment $candidate) => $candidate->canonical_passage_id === $assignment->canonical_passage_id
                 && $candidate->end_offset > $candidate->start_offset
                 && $candidate->start_offset < $end
                 && $candidate->end_offset > $start);
@@ -229,15 +229,15 @@ class SiblingSync
                 continue;
             }
 
-            $created = $to->segments()->create([
-                'canonical_passage_id' => $segment->canonical_passage_id,
+            $created = $to->assignments()->create([
+                'canonical_passage_id' => $assignment->canonical_passage_id,
                 'start_offset' => $start,
                 'end_offset' => $end,
-                'part' => $segment->part,
-                'needs_review' => $segment->needs_review,
-                'group_id' => $segment->group_id,
+                'part' => $assignment->part,
+                'needs_review' => $assignment->needs_review,
+                'group_id' => $assignment->group_id,
             ]);
-            $toSegments->push($created);
+            $toAssignments->push($created);
         }
     }
 

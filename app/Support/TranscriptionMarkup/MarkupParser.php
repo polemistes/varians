@@ -4,7 +4,7 @@ namespace App\Support\TranscriptionMarkup;
 
 /**
  * Parses the Leiden-inspired inline transcription markup used in
- * TranscriptionSegment::$text. Deliberately narrow in scope — it covers only
+ * Assignment::$text. Deliberately narrow in scope — it covers only
  * the three things a diplomatic transcript needs to record about the state of
  * the text itself, not variants, apparatus, or assignment structure:
  *

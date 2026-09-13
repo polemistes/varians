@@ -12,7 +12,7 @@ use Illuminate\Support\Carbon;
 /**
  * A canonical passage's membership in an edition — a passage is "in" an
  * edition iff it has a row here. `transcription_layer_id` is the transcription its
- * segment was added from (nullable only for a whole-line lacuna, which has
+ * assignment was added from (nullable only for a whole-line lacuna, which has
  * no manuscript witness at all — see App\Support\Edition\PassageAdder and
  * EditionVariantController's `new_passage` placement) and doubles as which
  * transcription's own wording is the display default for this passage.

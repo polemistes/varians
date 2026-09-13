@@ -1,12 +1,12 @@
 <?php
 
 use App\Enums\Visibility;
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
@@ -28,7 +28,7 @@ function draftEditionWithEvidence(): array
 
     $assigning = Transcription::factory()->for($witness)->create();
     $layer = TranscriptionLayer::factory()->for($assigning)->create(['text' => 'the quick fox']);
-    TranscriptionSegment::factory()->for($layer)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
+    Assignment::factory()->for($layer)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
 
     $other = Transcription::factory()->for($witness)->create();
     TranscriptionLayer::factory()->for($other)->create(['text' => 'unrelated']);
@@ -85,7 +85,7 @@ test('a transcription of a codex stays public while a published edition of anoth
     $otherWork = Work::factory()->for($owner)->create();
     $otherEdition = Edition::factory()->for($owner)->for($otherWork)->create();
     $otherPassage = CanonicalPassage::factory()->for($otherWork)->create();
-    TranscriptionSegment::factory()->for($assigning->layers()->first())->for($otherPassage, 'canonicalPassage')->create(['start_offset' => 4, 'end_offset' => 9]);
+    Assignment::factory()->for($assigning->layers()->first())->for($otherPassage, 'canonicalPassage')->create(['start_offset' => 4, 'end_offset' => 9]);
 
     $this->actingAs($owner);
     $this->patch(route('editions.update', $edition), ['visibility' => 'published']);

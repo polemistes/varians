@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\ConjectureType;
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
@@ -10,7 +11,6 @@ use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\ReferenceScheme;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
@@ -23,8 +23,8 @@ use Inertia\Testing\AssertableInertia as AssertInertia;
  * edition-passages.store endpoint uses, so every word is a real Lemma
  * column and the base's own text already renders by default) — so every
  * test below can skip straight to the word-level decision it's actually
- * testing. `$witnessB`'s segment, when given, is created *before* the add
- * so PassageAdder's own "align every assigning segment" sweep picks it up too,
+ * testing. `$witnessB`'s assignment, when given, is created *before* the add
+ * so PassageAdder's own "align every assigning assignment" sweep picks it up too,
  * exactly as it would for a real bulk add encountering more than one
  * witness at once.
  */
@@ -38,23 +38,23 @@ function editionWithBase(string $baseText, ?string $witnessB = null): array
     // columns and make every structural assertion below a coin flip. "A" is
     // the base and so seeds them.
     $base = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'A']))->create(['text' => $baseText]);
-    $baseSegment = TranscriptionSegment::factory()->for($base)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => mb_strlen($baseText)]);
+    $baseAssignment = Assignment::factory()->for($base)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => mb_strlen($baseText)]);
 
     $result = compact('work', 'edition', 'passage', 'base');
 
     if ($witnessB !== null) {
         $other = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'B']))->create(['text' => $witnessB]);
-        TranscriptionSegment::factory()->for($other)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => mb_strlen($witnessB)]);
+        Assignment::factory()->for($other)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => mb_strlen($witnessB)]);
         $result['other'] = $other;
     }
 
-    $result['editionPassage'] = PassageAdder::add($edition, $baseSegment, 1.0);
+    $result['editionPassage'] = PassageAdder::add($edition, $baseAssignment, 1.0);
 
     return $result;
 }
 
 /**
- * A work/edition with passage 1.1 already added (real segment, real base)
+ * A work/edition with passage 1.1 already added (real assignment, real base)
  * and passage 1.2 not created at all — for the whole-line-lacuna tests,
  * which anchor a fresh "1.1a" via `insert_after_edition_passage_id` rather
  * than relying on any base-range coverage (that mechanism doesn't exist
@@ -68,9 +68,9 @@ function editionSpanningTwoLines(): array
     $edition = Edition::factory()->for($work)->create();
     $passage = CanonicalPassage::factory()->for($work)->create(['address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1']);
     $base = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
-    $segment = TranscriptionSegment::factory()->for($base)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
+    $assignment = Assignment::factory()->for($base)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
 
-    $editionPassage = PassageAdder::add($edition, $segment, 1.0);
+    $editionPassage = PassageAdder::add($edition, $assignment, 1.0);
 
     return compact('work', 'edition', 'editionPassage');
 }
@@ -837,11 +837,11 @@ test('a fragmentary witness that does not reach as far as a competing range is l
     $edition = Edition::factory()->for($work)->create();
     $passage = CanonicalPassage::factory()->for($work)->create(['address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1']);
     $base = TranscriptionLayer::factory()->create(['text' => 'the swift red fox']);
-    $baseSegment = TranscriptionSegment::factory()->for($base)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 18]);
+    $baseAssignment = Assignment::factory()->for($base)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 18]);
     $fragment = TranscriptionLayer::factory()->create(['text' => 'swift']);
-    TranscriptionSegment::factory()->for($fragment)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
+    Assignment::factory()->for($fragment)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
 
-    PassageAdder::add($edition, $baseSegment, 1.0);
+    PassageAdder::add($edition, $baseAssignment, 1.0);
 
     $this->post(route('edition-variants.store', $edition), [
         'canonical_passage_id' => $passage->id,
@@ -1088,8 +1088,8 @@ test('a whole-line lacuna at an ordinary canonical number, never attested by any
     $edition = Edition::factory()->for($work)->create();
     $p33 = CanonicalPassage::factory()->for($work)->create(['address' => ['book' => 3, 'line' => 33], 'sort_key' => '00000003.00000033', 'label' => '3.33']);
     $base = TranscriptionLayer::factory()->create(['text' => 'the quick fox']);
-    $segment = TranscriptionSegment::factory()->for($base)->for($p33, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
-    $editionPassage = PassageAdder::add($edition, $segment, 1.0);
+    $assignment = Assignment::factory()->for($base)->for($p33, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
+    $editionPassage = PassageAdder::add($edition, $assignment, 1.0);
 
     $this->post(route('edition-variants.store', $edition), [
         'placement' => 'new_passage',

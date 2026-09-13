@@ -1,8 +1,8 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 
 test('an editor can update another editor\'s transcription text', function () {
@@ -20,17 +20,17 @@ test('an editor can update another editor\'s transcription text', function () {
     expect($transcription->fresh()->text)->toBe('new text');
 });
 
-test('an editor can delete a segment created by another editor', function () {
+test('an editor can delete an assignment created by another editor', function () {
     $author = User::factory()->editor()->create();
     $editor = User::factory()->editor()->create();
     $transcription = TranscriptionLayer::factory()->for($author)->create(['text' => 'the quick fox']);
-    $segment = TranscriptionSegment::factory()->for($transcription)->create();
+    $assignment = Assignment::factory()->for($transcription)->create();
     $this->actingAs($editor);
 
-    $response = $this->delete(route('transcription-segments.destroy', $segment));
+    $response = $this->delete(route('assignments.destroy', $assignment));
 
     $response->assertRedirect();
-    expect(TranscriptionSegment::find($segment->id))->toBeNull();
+    expect(Assignment::find($assignment->id))->toBeNull();
 });
 
 test('an editor can move a region on another editor\'s transcription', function () {

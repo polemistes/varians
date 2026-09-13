@@ -1,11 +1,11 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\ManuscriptImage;
 use App\Models\ManuscriptPage;
 use App\Models\ReferenceScheme;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
@@ -34,7 +34,7 @@ test('a witness has ordered images', function () {
         ->toBe(['1v', '2r']);
 });
 
-test('transcription segment order can diverge from canonical passage order', function () {
+test('transcription assignment order can diverge from canonical passage order', function () {
     $work = Work::factory()->create();
     $witness = Witness::factory()->create();
 
@@ -54,7 +54,7 @@ test('transcription segment order can diverge from canonical passage order', fun
     foreach ([$line976, $line1000, $line977] as $index => $passage) {
         $length = mb_strlen($lines[$index]);
 
-        TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create([
+        Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create([
             'start_offset' => $offset,
             'end_offset' => $offset + $length,
         ]);
@@ -62,8 +62,8 @@ test('transcription segment order can diverge from canonical passage order', fun
         $offset += $length + 1;
     }
 
-    $physicalOrder = $transcription->segments()->orderBy('start_offset')->with('canonicalPassage')->get()
-        ->map(fn (TranscriptionSegment $segment) => $segment->canonicalPassage->label)
+    $physicalOrder = $transcription->assignments()->orderBy('start_offset')->with('canonicalPassage')->get()
+        ->map(fn (Assignment $assignment) => $assignment->canonicalPassage->label)
         ->all();
 
     $numberingOrder = $work->canonicalPassages()->orderBy('sort_key')->pluck('label')->all();
@@ -82,18 +82,18 @@ test('a transcription layer can be copied', function () {
 
 test('a transcription can have two separate spans assigning text to the same canonical passage', function () {
     // e.g. a passage quoted twice, or split across a marginal interruption —
-    // segments are independent offset spans, not one-per-passage slots.
+    // assignments are independent offset spans, not one-per-passage slots.
     $transcription = TranscriptionLayer::factory()->create();
     $passage = CanonicalPassage::factory()->create();
 
-    TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 5]);
-    TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 10, 'end_offset' => 15]);
 
-    expect($transcription->segments()->where('canonical_passage_id', $passage->id)->count())->toBe(2);
+    expect($transcription->assignments()->where('canonical_passage_id', $passage->id)->count())->toBe(2);
 });
 
-test('a segment always requires a canonical passage', function () {
-    TranscriptionSegment::factory()->create(['canonical_passage_id' => null]);
+test('an assignment always requires a canonical passage', function () {
+    Assignment::factory()->create(['canonical_passage_id' => null]);
 })->throws(QueryException::class);

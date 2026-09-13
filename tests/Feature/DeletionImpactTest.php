@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
@@ -11,28 +12,27 @@ use App\Models\ManuscriptImage;
 use App\Models\ManuscriptImageFeature;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
-use App\Models\TranscriptionSegment;
 use App\Models\Witness;
 use App\Models\Work;
 use App\Support\DeletionImpact;
 
-test('forWork counts passages, editions, lemmas, conjectures, and assignment segments across any witness', function () {
+test('forWork counts passages, editions, lemmas, conjectures, and assignment assignments across any witness', function () {
     $work = Work::factory()->create();
     $passage = CanonicalPassage::factory()->for($work)->create();
     Edition::factory()->for($work)->create();
     Lemma::factory()->for($passage, 'canonicalPassage')->create();
     Conjecture::factory()->for($passage, 'canonicalPassage')->create();
 
-    // A segment on a witness with no other tie to this work — the least
+    // An assignment on a witness with no other tie to this work — the least
     // obvious part of the cascade, since it's not "owned" by the work.
     $otherWorkPassage = CanonicalPassage::factory()->create();
-    TranscriptionSegment::factory()->for($passage, 'canonicalPassage')->create();
-    TranscriptionSegment::factory()->for($otherWorkPassage, 'canonicalPassage')->create();
+    Assignment::factory()->for($passage, 'canonicalPassage')->create();
+    Assignment::factory()->for($otherWorkPassage, 'canonicalPassage')->create();
 
     expect(DeletionImpact::forWork($work))->toBe([
         'canonicalPassages' => 1,
         'editions' => 1,
-        'segments' => 1,
+        'assignments' => 1,
         'conjectures' => 1,
         'lemmas' => 1,
     ]);
@@ -44,7 +44,7 @@ test('forWitness counts every cascaded category, without double-counting a regio
     $images = ManuscriptImage::factory()->for($witness)->count(2)->create();
     $transcription = TranscriptionLayer::factory()->for($witness)->create();
 
-    TranscriptionSegment::factory()->for($transcription)->create();
+    Assignment::factory()->for($transcription)->create();
 
     // Matches via both transcription_layer_id and manuscript_image_id — must
     // still count once, not twice.
@@ -60,7 +60,7 @@ test('forWitness counts every cascaded category, without double-counting a regio
 
     expect(DeletionImpact::forWitness($witness))->toBe([
         'transcriptions' => 1,
-        'segments' => 1,
+        'assignments' => 1,
         'regions' => 1,
         'images' => 2,
         'pages' => 2,
@@ -74,7 +74,7 @@ test('forWitness on a bare witness reports zero everything', function () {
 
     expect(DeletionImpact::forWitness($witness))->toBe([
         'transcriptions' => 0,
-        'segments' => 0,
+        'assignments' => 0,
         'regions' => 0,
         'images' => 0,
         'pages' => 0,
@@ -83,12 +83,12 @@ test('forWitness on a bare witness reports zero everything', function () {
     ]);
 });
 
-test('forTranscription counts segments, regions, and edition impact scoped to that transcription', function () {
+test('forTranscription counts assignments, regions, and edition impact scoped to that transcription', function () {
     $transcription = TranscriptionLayer::factory()->create();
     $otherTranscription = TranscriptionLayer::factory()->create();
 
-    TranscriptionSegment::factory()->for($transcription)->create();
-    TranscriptionSegment::factory()->for($otherTranscription)->create();
+    Assignment::factory()->for($transcription)->create();
+    Assignment::factory()->for($otherTranscription)->create();
     TranscriptionRegion::factory()->for($transcription)->create();
 
     $lemma = Lemma::factory()->create();
@@ -97,7 +97,7 @@ test('forTranscription counts segments, regions, and edition impact scoped to th
     EditionPassage::factory()->create(['transcription_layer_id' => $transcription->id]);
 
     expect(DeletionImpact::forTranscription($transcription))->toBe([
-        'segments' => 1,
+        'assignments' => 1,
         'regions' => 1,
         'editionSelections' => 1,
         'editionPassages' => 1,

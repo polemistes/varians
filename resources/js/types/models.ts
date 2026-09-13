@@ -10,7 +10,7 @@ export type DeletionImpact = {
     conjectures?: number;
     lemmas?: number;
     transcriptions?: number;
-    segments?: number;
+    assignments?: number;
     regions?: number;
     images?: number;
     pages?: number;
@@ -233,7 +233,7 @@ export type Conjecture = {
 /**
  * A canonical passage's membership in an edition — a passage is "in" an
  * edition iff it has a row here. `transcription_layer_id` is the transcription its
- * segment was added from (null only for a whole-line lacuna, which has no
+ * assignment was added from (null only for a whole-line lacuna, which has no
  * manuscript witness at all) and doubles as which transcription's own
  * wording is the display default for this passage. `position` is the order
  * the editor built the edition in — the manuscript's own physical order for
@@ -291,7 +291,7 @@ export type TranscriptionLayer = {
     transcription?: Transcription;
     witness?: Witness;
     user?: { id: number; name: string };
-    segments?: TranscriptionSegment[];
+    assignments?: Assignment[];
     regions?: TranscriptionRegion[];
     deletion_impact?: DeletionImpact;
 };
@@ -306,7 +306,7 @@ export type TranscriptionLayer = {
  * then physically discontinuous (a transposition split it) — and `part`
  * orders them by content, independently of where each physically sits.
  */
-export type TranscriptionSegment = {
+export type Assignment = {
     id: number;
     transcription_layer_id: number;
     canonical_passage_id: number;

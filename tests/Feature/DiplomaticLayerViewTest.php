@@ -1,13 +1,13 @@
 <?php
 
 use App\Enums\Tokenization;
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
 use App\Models\Lemma;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
@@ -45,18 +45,18 @@ function collatedWithLayers(array $witnesses, bool $publish = true): array
 
         $normalized = TranscriptionLayer::factory()->normalized()->for($transcription)
             ->create(['text' => $normalizedText]);
-        $segment = TranscriptionSegment::factory()->for($normalized)->for($passage, 'canonicalPassage')
+        $assignment = Assignment::factory()->for($normalized)->for($passage, 'canonicalPassage')
             ->create(['start_offset' => 0, 'end_offset' => mb_strlen($normalizedText)]);
 
         if ($diplomaticText !== null) {
             $diplomatic = TranscriptionLayer::factory()->diplomatic()->for($transcription)
                 ->create(['text' => $diplomaticText]);
 
-            TranscriptionSegment::factory()->for($diplomatic)->for($passage, 'canonicalPassage')
+            Assignment::factory()->for($diplomatic)->for($passage, 'canonicalPassage')
                 ->create(['start_offset' => 0, 'end_offset' => mb_strlen($diplomaticText)]);
         }
 
-        PassageAdder::add($edition, $segment, $position++);
+        PassageAdder::add($edition, $assignment, $position++);
     }
 
     return ['work' => $work, 'edition' => $edition, 'passage' => $passage];
@@ -291,9 +291,9 @@ function splitLayers(): array
     $diplomatic = TranscriptionLayer::factory()->diplomatic()->for($transcription)->create(['text' => "FOX\nTHE QUICK"]);
 
     foreach ([$normalized, $diplomatic] as $layer) {
-        TranscriptionSegment::factory()->for($layer)->for($passage, 'canonicalPassage')
+        Assignment::factory()->for($layer)->for($passage, 'canonicalPassage')
             ->create(['start_offset' => 4, 'end_offset' => 13, 'part' => 1]); // "the quick"
-        TranscriptionSegment::factory()->for($layer)->for($passage, 'canonicalPassage')
+        Assignment::factory()->for($layer)->for($passage, 'canonicalPassage')
             ->create(['start_offset' => 0, 'end_offset' => 3, 'part' => 2]); // "fox"
     }
 

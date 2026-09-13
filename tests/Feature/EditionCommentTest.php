@@ -1,11 +1,11 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\EditionComment;
 use App\Models\Lemma;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
@@ -28,10 +28,10 @@ function commentableEdition(string $text = 'the swift red fox'): array
 
     $transcription = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'A']))
         ->create(['text' => $text]);
-    $segment = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    $assignment = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => mb_strlen($text)]);
 
-    PassageAdder::add($edition, $segment, 1.0);
+    PassageAdder::add($edition, $assignment, 1.0);
 
     return [
         'work' => $work,
@@ -153,7 +153,7 @@ test('another edition of the same work does not see the note', function () {
     ]);
 
     $other = Edition::factory()->for($work)->create();
-    PassageAdder::add($other, TranscriptionSegment::where('canonical_passage_id', $passage->id)->sole(), 1.0);
+    PassageAdder::add($other, Assignment::where('canonical_passage_id', $passage->id)->sole(), 1.0);
 
     $this->get(route('editions.show', [$work, $other]))
         ->assertInertia(fn (AssertInertia $page) => $page->has('windowPassages.0.comments', 0));
@@ -209,7 +209,7 @@ test('a note anchored to a column stops the collation being rebuilt', function (
     // trigger a rebuild.
     $earlier = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'AA']))
         ->create(['text' => 'the red fox']);
-    PassageAdder::add($edition, TranscriptionSegment::factory()->for($earlier)->for($passage, 'canonicalPassage')
+    PassageAdder::add($edition, Assignment::factory()->for($earlier)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 11]), 2.0);
 
     expect(Lemma::whereKey($lemmas[1]->id)->exists())->toBeTrue()
@@ -227,7 +227,7 @@ test('a passage-level note does not stop a rebuild, and survives one', function 
 
     $earlier = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'AA']))
         ->create(['text' => 'the red fox']);
-    PassageAdder::add($edition, TranscriptionSegment::factory()->for($earlier)->for($passage, 'canonicalPassage')
+    PassageAdder::add($edition, Assignment::factory()->for($earlier)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 11]), 2.0);
 
     expect(EditionComment::sole()->note)->toBe('About the line as a whole.');

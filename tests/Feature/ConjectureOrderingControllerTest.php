@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\ConjectureType;
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
@@ -8,7 +9,6 @@ use App\Models\EditionPassage;
 use App\Models\EditionTransposition;
 use App\Models\ReferenceScheme;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Work;
 use App\Support\Edition\PassageAdder;
@@ -16,7 +16,7 @@ use Inertia\Testing\AssertableInertia as AssertInertia;
 
 /**
  * Adds $count canonical passages (book 1, lines 1..$count) to the edition,
- * each backed by its own throwaway transcription/segment — mirrors
+ * each backed by its own throwaway transcription/assignment — mirrors
  * EditionOrderTest's addPassagesToEdition().
  */
 function editionForOrdering(int $count): array
@@ -32,8 +32,8 @@ function editionForOrdering(int $count): array
             'label' => $formatted['label'],
         ]);
         $transcription = TranscriptionLayer::factory()->create(['text' => 'word']);
-        $segment = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 4]);
-        PassageAdder::add($edition, $segment, (float) $line);
+        $assignment = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 4]);
+        PassageAdder::add($edition, $assignment, (float) $line);
 
         return $passage;
     });
@@ -208,8 +208,8 @@ function editionWithWordyLines(): array
             'sort_key' => $formatted['sort_key'],
             'label' => $formatted['label'],
         ]);
-        $segment = TranscriptionSegment::factory()->for($layer)->for($passage, 'canonicalPassage')->create(['start_offset' => $start, 'end_offset' => $end]);
-        PassageAdder::add($edition, $segment, (float) $line);
+        $assignment = Assignment::factory()->for($layer)->for($passage, 'canonicalPassage')->create(['start_offset' => $start, 'end_offset' => $end]);
+        PassageAdder::add($edition, $assignment, (float) $line);
         $passages[] = $passage;
     }
 

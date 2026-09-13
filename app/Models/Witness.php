@@ -71,14 +71,14 @@ class Witness extends Model
     /**
      * Works connected to this witness — derived, not stored: a work is
      * related to a witness only once one of the witness's transcriptions has
-     * a segment assigning text to one of that work's canonical passages.
+     * an assignment assigning text to one of that work's canonical passages.
      *
      * @return Builder<Work>
      */
     public function relatedWorks(): Builder
     {
         return Work::query()->whereHas(
-            'canonicalPassages.transcriptionSegments.transcriptionLayer.transcription',
+            'canonicalPassages.assignments.transcriptionLayer.transcription',
             fn (Builder $query) => $query->where('witness_id', $this->id),
         );
     }
@@ -179,7 +179,7 @@ class Witness extends Model
         $query->where(function (Builder $query) use ($user) {
             $query->where('witnesses.user_id', $user->id)
                 ->orWhereHas(
-                    'transcriptionLayers.segments.canonicalPassage',
+                    'transcriptionLayers.assignments.canonicalPassage',
                     fn (Builder $passages) => $passages->whereIn('work_id', Work::query()->editableBy($user)->select('works.id')),
                 );
         });

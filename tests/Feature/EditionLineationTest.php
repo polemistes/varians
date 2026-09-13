@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\EditionLineBreak;
@@ -7,7 +8,6 @@ use App\Models\EditionPassage;
 use App\Models\Lemma;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
@@ -28,7 +28,7 @@ function lineationSetup(string $text, string $siglum = 'A'): array
     return ['work' => $work, 'edition' => $edition, 'layer' => $layer];
 }
 
-function assignPassage(Work $work, TranscriptionLayer $layer, string $label, int $start, int $end, int $part = 1): TranscriptionSegment
+function assignPassage(Work $work, TranscriptionLayer $layer, string $label, int $start, int $end, int $part = 1): Assignment
 {
     static $line = 0;
     $passage = CanonicalPassage::factory()->for($work)->create([
@@ -37,7 +37,7 @@ function assignPassage(Work $work, TranscriptionLayer $layer, string $label, int
         'label' => $label,
     ]);
 
-    return TranscriptionSegment::factory()->for($layer)->for($passage, 'canonicalPassage')
+    return Assignment::factory()->for($layer)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => $start, 'end_offset' => $end, 'part' => $part]);
 }
 
@@ -104,7 +104,7 @@ test('a span that swallows its own newline still seeds the boundary flags', func
 test('newlines inside a passage seed colometry breaks before the right columns', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition, 'layer' => $layer] = lineationSetup("one two\nthree four");
-    $segment = assignPassage($work, $layer, '2.1', 0, 18);
+    $assignment = assignPassage($work, $layer, '2.1', 0, 18);
 
     $this->post(route('edition-passages.store', $edition), [
         'transcription_layer_id' => $layer->id,
@@ -112,7 +112,7 @@ test('newlines inside a passage seed colometry breaks before the right columns',
         'end_offset' => 18,
     ])->assertRedirect();
 
-    $lemmas = Lemma::where('canonical_passage_id', $segment->canonical_passage_id)
+    $lemmas = Lemma::where('canonical_passage_id', $assignment->canonical_passage_id)
         ->orderBy('position')->get();
     $breaks = EditionLineBreak::where('edition_id', $edition->id)->get();
 
@@ -128,7 +128,7 @@ test('the gap across a discontinuous assignment\'s part boundary seeds nothing',
     // between parts is displacement, not whitespace.
     ['work' => $work, 'edition' => $edition, 'layer' => $layer] = lineationSetup("fox\nthe quick");
     $first = assignPassage($work, $layer, '3.1', 4, 13, 1);
-    TranscriptionSegment::factory()->for($layer)->for($first->canonicalPassage, 'canonicalPassage')
+    Assignment::factory()->for($layer)->for($first->canonicalPassage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 3, 'part' => 2]);
 
     $this->post(route('edition-passages.store', $edition), [
@@ -162,10 +162,10 @@ test('the edition page ships lineation: passage flags and per-run break_before',
 test('a colometry break pins the passage\'s columns against a collation rebuild', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition, 'layer' => $layer] = lineationSetup('the quick fox');
-    $segment = assignPassage($work, $layer, '5.1', 0, 13);
-    $passage = $segment->canonicalPassage;
+    $assignment = assignPassage($work, $layer, '5.1', 0, 13);
+    $passage = $assignment->canonicalPassage;
 
-    PassageAligner::collate($passage, collect([$segment]));
+    PassageAligner::collate($passage, collect([$assignment]));
     $lemmaIds = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->pluck('id');
 
     EditionLineBreak::create([
@@ -177,7 +177,7 @@ test('a colometry break pins the passage\'s columns against a collation rebuild'
 
     // A rebuild would cascade the break away with its column — so the
     // columns must be appended to, never rebuilt, while a break stands.
-    PassageAligner::collate($passage, collect([$segment]));
+    PassageAligner::collate($passage, collect([$assignment]));
 
     expect(Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->pluck('id')->all())
         ->toBe($lemmaIds->all())
@@ -187,10 +187,10 @@ test('a colometry break pins the passage\'s columns against a collation rebuild'
 test('realignLayer declines while a break sits on a column only that layer fills', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition, 'layer' => $layer] = lineationSetup('the quick fox');
-    $segment = assignPassage($work, $layer, '6.1', 0, 13);
-    $passage = $segment->canonicalPassage;
+    $assignment = assignPassage($work, $layer, '6.1', 0, 13);
+    $passage = $assignment->canonicalPassage;
 
-    PassageAligner::alignWitness($passage, collect([$segment]));
+    PassageAligner::alignWitness($passage, collect([$assignment]));
     $lemma = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->first();
 
     EditionLineBreak::create([
@@ -207,11 +207,11 @@ test('realignLayer declines while a break sits on a column only that layer fills
 test('the break endpoint cycles: set, change kind, clear', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition, 'layer' => $layer] = lineationSetup('the quick fox');
-    $segment = assignPassage($work, $layer, '7.1', 0, 13);
+    $assignment = assignPassage($work, $layer, '7.1', 0, 13);
     $this->post(route('edition-passages.store', $edition), [
         'transcription_layer_id' => $layer->id, 'start_offset' => 0, 'end_offset' => 13,
     ]);
-    $lemma = Lemma::where('canonical_passage_id', $segment->canonical_passage_id)->orderBy('position')->get()[1];
+    $lemma = Lemma::where('canonical_passage_id', $assignment->canonical_passage_id)->orderBy('position')->get()[1];
 
     $this->patch(route('edition-line-breaks.update', $edition), ['lemma_id' => $lemma->id, 'kind' => 'line'])->assertRedirect();
     expect(EditionLineBreak::where('edition_id', $edition->id)->sole()->kind)->toBe('line');
@@ -226,9 +226,9 @@ test('the break endpoint cycles: set, change kind, clear', function () {
 test('a break cannot be placed on a column of a passage the edition does not contain', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'edition' => $edition, 'layer' => $layer] = lineationSetup('the quick fox');
-    $segment = assignPassage($work, $layer, '8.1', 0, 13);
-    PassageAligner::collate($segment->canonicalPassage, collect([$segment]));
-    $lemma = Lemma::where('canonical_passage_id', $segment->canonical_passage_id)->first();
+    $assignment = assignPassage($work, $layer, '8.1', 0, 13);
+    PassageAligner::collate($assignment->canonicalPassage, collect([$assignment]));
+    $lemma = Lemma::where('canonical_passage_id', $assignment->canonical_passage_id)->first();
 
     $this->patch(route('edition-line-breaks.update', $edition), ['lemma_id' => $lemma->id, 'kind' => 'line'])
         ->assertInvalid(['lemma_id']);

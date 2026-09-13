@@ -5,11 +5,11 @@ namespace App\Http\Controllers;
 use App\Http\Requests\DestroyEditionPassagesRequest;
 use App\Http\Requests\StoreEditionPassageRequest;
 use App\Http\Requests\StoreEditionPassagesBulkRequest;
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\EditionLemma;
 use App\Models\EditionPassage;
-use App\Models\TranscriptionSegment;
 use App\Support\Edition\LineationSeeder;
 use App\Support\Edition\PassageAdder;
 use App\Support\Edition\PassageOrderRewriter;
@@ -20,8 +20,8 @@ use Illuminate\Support\Facades\DB;
 class EditionPassageController extends Controller
 {
     /**
-     * Add the transcription's segments for the named passages — or, given a
-     * raw drag-selected span, every already-assigned segment fully inside it —
+     * Add the transcription's assignments for the named passages — or, given a
+     * raw drag-selected span, every already-assigned assignment fully inside it —
      * to the edition, each landing where the manuscript has it (see
      * PassageAdder::insertionPosition).
      */
@@ -30,7 +30,7 @@ class EditionPassageController extends Controller
         // Only this work's passages, whatever the layer also assigns — a
         // codex transcription may carry several works, and a passage of
         // another work has no place in this edition.
-        $query = TranscriptionSegment::where('transcription_layer_id', $request->validated('transcription_layer_id'))
+        $query = Assignment::where('transcription_layer_id', $request->validated('transcription_layer_id'))
             ->whereRelation('canonicalPassage', 'work_id', $edition->work_id);
 
         if ($request->validated('canonical_passage_ids') !== null) {
@@ -40,13 +40,13 @@ class EditionPassageController extends Controller
                 ->where('end_offset', '<=', $request->validated('end_offset'));
         }
 
-        $this->addSegments($edition, $query->orderBy('start_offset')->get());
+        $this->addAssignments($edition, $query->orderBy('start_offset')->get());
 
         return back();
     }
 
     /**
-     * "Add lines…" — every already-assigned segment for the transcription
+     * "Add lines…" — every already-assigned assignment for the transcription
      * within an assignment range, added in the transcription's own physical
      * order, not numbering order — and each lands where the manuscript has
      * it among the passages already in the edition.
@@ -56,16 +56,16 @@ class EditionPassageController extends Controller
         $from = CanonicalPassage::findOrFail((int) $request->validated('from_canonical_passage_id'));
         $to = CanonicalPassage::findOrFail((int) $request->validated('to_canonical_passage_id'));
 
-        $segments = TranscriptionSegment::where('transcription_layer_id', $request->validated('transcription_layer_id'))
+        $assignments = Assignment::where('transcription_layer_id', $request->validated('transcription_layer_id'))
             ->whereHas('canonicalPassage', fn ($query) => $query
                 ->where('work_id', $edition->work_id)
                 ->where('sort_key', '>=', $from->sort_key)
                 ->where('sort_key', '<=', $to->sort_key))
             ->get()
-            ->sortBy(fn (TranscriptionSegment $segment) => $segment->start_offset)
+            ->sortBy(fn (Assignment $assignment) => $assignment->start_offset)
             ->values();
 
-        $this->addSegments($edition, $segments);
+        $this->addAssignments($edition, $assignments);
 
         return back();
     }
@@ -99,22 +99,22 @@ class EditionPassageController extends Controller
     }
 
     /**
-     * @param  SupportCollection<int, TranscriptionSegment>  $segments
+     * @param  SupportCollection<int, Assignment>  $assignments
      */
-    private function addSegments(Edition $edition, SupportCollection $segments): void
+    private function addAssignments(Edition $edition, SupportCollection $assignments): void
     {
-        DB::transaction(function () use ($edition, $segments) {
+        DB::transaction(function () use ($edition, $assignments) {
             $previous = null;
 
-            foreach ($segments as $segment) {
+            foreach ($assignments as $assignment) {
                 PassageAdder::add(
                     $edition,
-                    $segment,
-                    PassageAdder::insertionPosition($edition, $segment),
-                    LineationSeeder::interPassageFlags($previous, $segment),
+                    $assignment,
+                    PassageAdder::insertionPosition($edition, $assignment),
+                    LineationSeeder::interPassageFlags($previous, $assignment),
                 );
 
-                $previous = $segment;
+                $previous = $assignment;
             }
 
             PassageOrderRewriter::renumberEdition($edition);

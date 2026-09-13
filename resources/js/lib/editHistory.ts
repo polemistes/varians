@@ -32,14 +32,14 @@
 import type { TextEditOp } from '@/lib/transcriptionEdit';
 
 /**
- * The spans a destructive edit deleted — assignment segments and
+ * The spans a destructive edit deleted — assignment assignments and
  * image-mapping regions alike — snapshotted at record time in the
  * coordinates of the text the edit was applied to, which is exactly the
  * state an undo of that edit restores, so the offsets land verbatim.
  * Deleting text deletes what was anchored to it; undoing the deletion
  * posts these rows back and restores everything.
  */
-export type RestorableSegment = {
+export type RestorableAssignment = {
     canonical_passage_id: number;
     start_offset: number;
     end_offset: number;
@@ -58,7 +58,7 @@ export type RestorableRegion = {
 };
 
 export type RestorableSpans = {
-    segments: RestorableSegment[];
+    assignments: RestorableAssignment[];
     regions: RestorableRegion[];
 };
 
@@ -79,16 +79,16 @@ export type SpanSnapshot = {
 };
 
 export type SpanSnapshots = {
-    segments: SpanSnapshot[];
+    assignments: SpanSnapshot[];
     regions: SpanSnapshot[];
 };
 
 export function emptyRestorableSpans(): RestorableSpans {
-    return { segments: [], regions: [] };
+    return { assignments: [], regions: [] };
 }
 
 export function emptySpanSnapshots(): SpanSnapshots {
-    return { segments: [], regions: [] };
+    return { assignments: [], regions: [] };
 }
 
 type HistoryEntry = {
@@ -239,7 +239,7 @@ export class EditHistory {
         // its original saw — prepending keeps that order.
         this.openGroup!.undoOps.unshift(inverse);
         this.openGroup!.redoOps.push(op);
-        this.openGroup!.restore.segments.push(...destroyed.segments);
+        this.openGroup!.restore.assignments.push(...destroyed.assignments);
         this.openGroup!.restore.regions.push(...destroyed.regions);
         this.openGroupLastAt = now;
 

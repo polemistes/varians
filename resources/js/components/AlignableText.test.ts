@@ -3,7 +3,7 @@ import type { VueWrapper } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import AlignableText from '@/components/AlignableText.vue';
 import type { TextEditOp } from '@/lib/transcriptionEdit';
-import type { TranscriptionSegment } from '@/types/models';
+import type { Assignment } from '@/types/models';
 
 /**
  * The editable surface, checked where only a DOM can answer: which side of an
@@ -12,12 +12,12 @@ import type { TranscriptionSegment } from '@/types/models';
  * them apart — everything that ever went wrong at a marker went wrong for
  * want of that. See .ai/rules/pages-transcriptions.md.
  */
-const segment = (
+const assignment = (
     id: number,
     start: number,
     end: number,
     label: string,
-): TranscriptionSegment => ({
+): Assignment => ({
     id,
     transcription_layer_id: 1,
     canonical_passage_id: id,
@@ -37,10 +37,10 @@ const segment = (
 /** "alpha gamma" — two assignments with a space, so a marker stands at 6. */
 const surface = (
     text = 'alpha gamma',
-    segments = [segment(1, 0, 5, '1'), segment(2, 6, 11, '2')],
+    assignments = [assignment(1, 0, 5, '1'), assignment(2, 6, 11, '2')],
 ) =>
     mount(AlignableText, {
-        props: { text, segments, editable: true },
+        props: { text, assignments, editable: true },
         attachTo: document.body,
     });
 

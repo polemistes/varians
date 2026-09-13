@@ -4,13 +4,13 @@ namespace Database\Factories;
 
 use App\Models\CanonicalPassage;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
+use App\Models\Assignment;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends Factory<TranscriptionSegment>
+ * @extends Factory<Assignment>
  */
-class TranscriptionSegmentFactory extends Factory
+class AssignmentFactory extends Factory
 {
     /**
      * Define the model's default state.

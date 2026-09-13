@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\BibliographyItem;
 use App\Models\BibliographyReference;
 use App\Models\CanonicalPassage;
@@ -7,7 +8,6 @@ use App\Models\Conjecture;
 use App\Models\Edition;
 use App\Models\ReferenceScheme;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Work;
 use App\Support\Edition\PassageAdder;
@@ -25,8 +25,8 @@ function editionWithOnePassage(): array
         'label' => $formatted['label'],
     ]);
     $layer = TranscriptionLayer::factory()->create(['text' => 'word']);
-    $segment = TranscriptionSegment::factory()->for($layer)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 4]);
-    PassageAdder::add($edition, $segment, 1.0);
+    $assignment = Assignment::factory()->for($layer)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 4]);
+    PassageAdder::add($edition, $assignment, 1.0);
 
     return compact('work', 'edition', 'passage');
 }

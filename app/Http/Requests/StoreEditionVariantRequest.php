@@ -4,10 +4,10 @@ namespace App\Http\Requests;
 
 use App\Enums\ConjectureType;
 use App\Enums\Layer;
+use App\Models\Assignment;
 use App\Models\Conjecture;
 use App\Models\Edition;
 use App\Models\LemmaReading;
-use App\Models\TranscriptionSegment;
 use App\Support\Bibliography\ReferenceRules;
 use App\Support\Edition\ConjectureValidationRules;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -266,7 +266,7 @@ class StoreEditionVariantRequest extends FormRequest
             return;
         }
 
-        $covered = TranscriptionSegment::where('transcription_layer_id', (int) $transcriptionId)
+        $covered = Assignment::where('transcription_layer_id', (int) $transcriptionId)
             ->where('canonical_passage_id', $this->input('canonical_passage_id'))
             ->where('start_offset', '<=', (int) $startOffset)
             ->where('end_offset', '>=', (int) $endOffset)

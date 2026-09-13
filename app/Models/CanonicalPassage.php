@@ -34,11 +34,11 @@ class CanonicalPassage extends Model
     }
 
     /**
-     * @return HasMany<TranscriptionSegment, $this>
+     * @return HasMany<Assignment, $this>
      */
-    public function transcriptionSegments(): HasMany
+    public function assignments(): HasMany
     {
-        return $this->hasMany(TranscriptionSegment::class);
+        return $this->hasMany(Assignment::class);
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Support\Copying;
 
 use App\Enums\Visibility;
+use App\Models\Assignment;
 use App\Models\ManuscriptImage;
 use App\Models\ManuscriptImageFeature;
 use App\Models\ManuscriptPage;
@@ -10,7 +11,6 @@ use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionPageBreak;
 use App\Models\TranscriptionRegion;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
@@ -145,16 +145,16 @@ class WitnessCopier
                 $layerCopy->save();
                 $layers[$layer->id] = $layerCopy->id;
 
-                foreach ($layer->segments as $segment) {
-                    /** @var TranscriptionSegment $segment */
-                    $segmentCopy = $segment->replicate();
-                    $segmentCopy->transcription_layer_id = $layerCopy->id;
+                foreach ($layer->assignments as $assignment) {
+                    /** @var Assignment $assignment */
+                    $assignmentCopy = $assignment->replicate();
+                    $assignmentCopy->transcription_layer_id = $layerCopy->id;
                     // Remapped where the caller copied the work too, and
                     // otherwise left pointing where it pointed.
-                    $segmentCopy->canonical_passage_id = $passageMap[$segment->canonical_passage_id]
-                        ?? $segment->canonical_passage_id;
-                    $segmentCopy->group_id = self::regroup($groups, $segment->group_id);
-                    $segmentCopy->save();
+                    $assignmentCopy->canonical_passage_id = $passageMap[$assignment->canonical_passage_id]
+                        ?? $assignment->canonical_passage_id;
+                    $assignmentCopy->group_id = self::regroup($groups, $assignment->group_id);
+                    $assignmentCopy->save();
                 }
 
                 foreach ($layer->regions as $region) {
@@ -188,7 +188,7 @@ class WitnessCopier
     {
         $works = Work::query()
             ->whereHas(
-                'canonicalPassages.transcriptionSegments.transcriptionLayer',
+                'canonicalPassages.assignments.transcriptionLayer',
                 fn (Builder $query) => $query->whereIn('transcription_id', $transcriptions->modelKeys())
             )
             ->orderBy('title')

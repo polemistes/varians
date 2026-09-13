@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\ConjectureOrderingEntry;
@@ -8,7 +9,6 @@ use App\Models\EditionPassage;
 use App\Models\EditionTransposition;
 use App\Models\ReferenceScheme;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Work;
 use App\Support\Edition\PassageAdder;
@@ -35,8 +35,8 @@ function editionForOrderReport(int $count): array
             'label' => $formatted['label'],
         ]);
         $transcription = TranscriptionLayer::factory()->create(['text' => 'word']);
-        $segment = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 4]);
-        PassageAdder::add($edition, $segment, (float) $line);
+        $assignment = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 4]);
+        PassageAdder::add($edition, $assignment, (float) $line);
 
         return $passage;
     });
@@ -55,7 +55,7 @@ function witnessWithPhysicalOrder(array $passages): TranscriptionLayer
     ]);
 
     foreach (array_values($passages) as $index => $passage) {
-        TranscriptionSegment::factory()->for($layer)->for($passage, 'canonicalPassage')->create([
+        Assignment::factory()->for($layer)->for($passage, 'canonicalPassage')->create([
             'start_offset' => $index * 5,
             'end_offset' => $index * 5 + 4,
         ]);

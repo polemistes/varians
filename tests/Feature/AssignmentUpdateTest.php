@@ -2,52 +2,52 @@
 
 use App\Models\ReferenceScheme;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
+use App\Models\Assignment;
 use App\Models\User;
 use App\Models\Work;
 
 test('a span can be resized', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
-    $segment = TranscriptionSegment::factory()
+    $assignment = Assignment::factory()
         ->for($transcription)
         ->create(['start_offset' => 0, 'end_offset' => 3]);
 
-    $response = $this->patch(route('transcription-segments.update', $segment), [
+    $response = $this->patch(route('assignments.update', $assignment), [
         'start_offset' => 4,
         'end_offset' => 9,
     ]);
 
     $response->assertRedirect();
 
-    $segment->refresh();
-    expect($segment->start_offset)->toBe(4)
-        ->and($segment->end_offset)->toBe(9);
+    $assignment->refresh();
+    expect($assignment->start_offset)->toBe(4)
+        ->and($assignment->end_offset)->toBe(9);
 });
 
 test('resizing a span clears its needs_review flag', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
-    $segment = TranscriptionSegment::factory()
+    $assignment = Assignment::factory()
         ->for($transcription)
         ->create(['start_offset' => 0, 'end_offset' => 3, 'needs_review' => true]);
 
-    $this->patch(route('transcription-segments.update', $segment), [
+    $this->patch(route('assignments.update', $assignment), [
         'start_offset' => 4,
         'end_offset' => 9,
     ]);
 
-    expect($segment->fresh()->needs_review)->toBeFalse();
+    expect($assignment->fresh()->needs_review)->toBeFalse();
 });
 
 test('a span cannot be resized past the end of the transcription text', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'short']);
-    $segment = TranscriptionSegment::factory()
+    $assignment = Assignment::factory()
         ->for($transcription)
         ->create(['start_offset' => 0, 'end_offset' => 3]);
 
-    $response = $this->patch(route('transcription-segments.update', $segment), [
+    $response = $this->patch(route('assignments.update', $assignment), [
         'start_offset' => 0,
         'end_offset' => 999,
     ]);
@@ -61,47 +61,47 @@ test('a new span starts out not needing review', function () {
     $scheme = ReferenceScheme::factory()->create();
     $work = Work::factory()->for($scheme, 'referenceScheme')->create();
 
-    $this->post(route('transcription-segments.store', $transcription), [
+    $this->post(route('assignments.store', $transcription), [
         'start_offset' => 0,
         'end_offset' => 3,
         'work_id' => $work->id,
         'label' => '1.1',
     ]);
 
-    expect($transcription->segments()->sole()->needs_review)->toBeFalse();
+    expect($transcription->assignments()->sole()->needs_review)->toBeFalse();
 });
 
 test('an editor can resize a span on another editor\'s transcription', function () {
     $this->actingAs(User::factory()->editor()->create());
     $author = User::factory()->editor()->create();
     $transcription = TranscriptionLayer::factory()->for($author)->create(['text' => 'the quick brown fox']);
-    $segment = TranscriptionSegment::factory()
+    $assignment = Assignment::factory()
         ->for($transcription)
         ->create(['start_offset' => 0, 'end_offset' => 3]);
 
-    $response = $this->patch(route('transcription-segments.update', $segment), [
+    $response = $this->patch(route('assignments.update', $assignment), [
         'start_offset' => 4,
         'end_offset' => 9,
     ]);
 
     $response->assertRedirect();
-    expect($segment->fresh()->start_offset)->toBe(4);
+    expect($assignment->fresh()->start_offset)->toBe(4);
 });
 
 test('a guest cannot modify a span', function () {
     $this->actingAs(User::factory()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
-    $segment = TranscriptionSegment::factory()
+    $assignment = Assignment::factory()
         ->for($transcription)
         ->create(['start_offset' => 0, 'end_offset' => 3]);
 
-    $response = $this->patch(route('transcription-segments.update', $segment), [
+    $response = $this->patch(route('assignments.update', $assignment), [
         'start_offset' => 4,
         'end_offset' => 9,
     ]);
 
     $response->assertForbidden();
-    expect($segment->fresh()->start_offset)->toBe(0);
+    expect($assignment->fresh()->start_offset)->toBe(0);
 });
 
 test('an assignment moved to begin at the end of the line before it stays there through later edits', function () {
@@ -110,17 +110,17 @@ test('an assignment moved to begin at the end of the line before it stays there 
     // one reserved for a span flagged for review.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);
-    $segment = TranscriptionSegment::factory()->for($transcription)->create([
+    $assignment = Assignment::factory()->for($transcription)->create([
         'start_offset' => 12, 'end_offset' => 25,
     ]);
 
     // Take in "ἄειδε", the last word of the line before.
-    $this->patch(route('transcription-segments.update', $segment), [
+    $this->patch(route('assignments.update', $assignment), [
         'start_offset' => 6,
         'end_offset' => 25,
     ])->assertRedirect();
 
-    expect(mb_substr("μῆνιν ἄειδε\nθεὰ Πηληϊάδεω", $segment->fresh()->start_offset, 5))->toBe('ἄειδε');
+    expect(mb_substr("μῆνιν ἄειδε\nθεὰ Πηληϊάδεω", $assignment->fresh()->start_offset, 5))->toBe('ἄειδε');
 
     // An edit elsewhere in the layer must not pull it back.
     $this->patch(route('transcriptions.text.update', $transcription), [
@@ -128,8 +128,8 @@ test('an assignment moved to begin at the end of the line before it stays there 
         'text' => "ὦ μῆνιν ἄειδε\nθεὰ Πηληϊάδεω",
     ])->assertRedirect();
 
-    $segment->refresh();
+    $assignment->refresh();
 
-    expect(mb_substr("ὦ μῆνιν ἄειδε\nθεὰ Πηληϊάδεω", $segment->start_offset, $segment->end_offset - $segment->start_offset))
+    expect(mb_substr("ὦ μῆνιν ἄειδε\nθεὰ Πηληϊάδεω", $assignment->start_offset, $assignment->end_offset - $assignment->start_offset))
         ->toBe("ἄειδε\nθεὰ Πηληϊάδεω");
 });

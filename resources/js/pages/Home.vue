@@ -50,7 +50,7 @@ type EditionRow = Owned & {
 type WorkRow = Pick<Work, 'id' | 'title' | 'slug' | 'author'> &
     Owned & {
         editions_count: number;
-        transcription_segments_count: number;
+        assignments_count: number;
         can_edit: boolean;
         can_delete: boolean;
     };
@@ -123,7 +123,7 @@ function removeEdition(edition: EditionRow) {
 function removeWork(work: WorkRow) {
     const parts = [
         pluralize(work.editions_count, 'edition'),
-        pluralize(work.transcription_segments_count, 'segment assignment'),
+        pluralize(work.assignments_count, 'segment assignment'),
     ].filter((part) => !part.startsWith('0 '));
 
     if (confirmDeletion(`the work "${work.title}"`, parts)) {

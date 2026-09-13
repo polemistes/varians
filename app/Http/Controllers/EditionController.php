@@ -8,6 +8,7 @@ use App\Enums\Tokenization;
 use App\Enums\Visibility;
 use App\Http\Requests\StoreEditionRequest;
 use App\Http\Requests\UpdateEditionRequest;
+use App\Models\Assignment;
 use App\Models\BibliographyItem;
 use App\Models\BibliographyReference;
 use App\Models\CanonicalPassage;
@@ -22,7 +23,6 @@ use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\ManuscriptImage;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Work;
 use App\Support\Bibliography\Biblatex;
@@ -98,7 +98,7 @@ class EditionController extends Controller
         $window = $orderedPassages->slice($offset, self::WINDOW)->values();
 
         // Loaded once and shared by the "Add text" panel prop below and by
-        // orderRanges() — every transcription's own segments already carry
+        // orderRanges() — every transcription's own assignments already carry
         // exactly the start_offset data a physical-order comparison needs,
         // so detection costs no extra query. Scoped to transcriptions this
         // viewer can actually see, same as the panel itself: a draft
@@ -108,13 +108,13 @@ class EditionController extends Controller
         // Restricted to the collatable layer for both uses. The panel adds
         // text to an edition, which only a normalized transcription may
         // source. Ordering loses nothing by the same filter: a fork copies
-        // the assignment segments verbatim, so the normalized layer carries
+        // the assignment assignments verbatim, so the normalized layer carries
         // the very same physical order its diplomatic parent does.
         $transcriptions = TranscriptionLayer::forWork($work)->visibleTo($request->user())->collatable()
             ->with([
                 'transcription.witness:id,siglum,label',
-                'segments' => fn ($query) => $query->whereHas('canonicalPassage', fn ($q) => $q->where('work_id', $work->id)),
-                'segments.canonicalPassage:id,work_id,address,sort_key,label',
+                'assignments' => fn ($query) => $query->whereHas('canonicalPassage', fn ($q) => $q->where('work_id', $work->id)),
+                'assignments.canonicalPassage:id,work_id,address,sort_key,label',
             ])
             ->get(['id', 'transcription_id', 'text', 'layer']);
 
@@ -147,8 +147,8 @@ class EditionController extends Controller
             ->whereIn('transcription_id', $transcriptions->pluck('transcription_id')->unique())
             ->with([
                 'transcription.witness:id,siglum',
-                'segments' => fn ($query) => $query->whereHas('canonicalPassage', fn ($q) => $q->where('work_id', $work->id)),
-                'segments.canonicalPassage:id,label',
+                'assignments' => fn ($query) => $query->whereHas('canonicalPassage', fn ($q) => $q->where('work_id', $work->id)),
+                'assignments.canonicalPassage:id,label',
             ])
             ->get(['id', 'transcription_id', 'text', 'layer'])
             ->keyBy('transcription_id');
@@ -178,7 +178,7 @@ class EditionController extends Controller
                 ->values(),
             // The work's *entire* numbering space, regardless of what's in
             // this edition yet — the bulk "base a range" picker searches an
-            // assignment range for segments to add, so it must be able to
+            // assignment range for assignments to add, so it must be able to
             // name a range that isn't in the edition at all yet (unlike
             // `passages` above, which is deliberately scoped to what's
             // already been added). Sort keys let the page widen a
@@ -196,8 +196,8 @@ class EditionController extends Controller
                     'id' => $adoption->id,
                     'conjecture_id' => $adoption->conjecture_id,
                 ])->values(),
-            // Each transcription's own text/segments, for the "Add text"
-            // panel's selection view — scoped to segments assigning *this*
+            // Each transcription's own text/assignments, for the "Add text"
+            // panel's selection view — scoped to assignments assigning *this*
             // work, since a transcription can carry assignments into more
             // than one work. Shaped explicitly so the panel can name each
             // transcript (witness siglum/label + the transcription's own
@@ -205,9 +205,9 @@ class EditionController extends Controller
             'transcriptions' => $transcriptions->map(fn (TranscriptionLayer $layer) => [
                 'id' => $layer->id,
                 'name' => $layer->transcription->name,
-                'segments' => $layer->segments->map(fn (TranscriptionSegment $segment) => [
-                    'id' => $segment->id,
-                    'canonical_passage_id' => $segment->canonical_passage_id,
+                'assignments' => $layer->assignments->map(fn (Assignment $assignment) => [
+                    'id' => $assignment->id,
+                    'canonical_passage_id' => $assignment->canonical_passage_id,
                 ])->values(),
                 'witness' => [
                     'id' => $layer->transcription->witness->id,
@@ -216,7 +216,7 @@ class EditionController extends Controller
                 ],
             ])->values(),
             // Every layer of every witness, whole, for the witnesses pane —
-            // where a manuscript is read and its segments are picked for
+            // where a manuscript is read and its assignments are picked for
             // the edition. Both layers, unlike `transcriptions` above.
             'witnessTranscripts' => $this->witnessTranscripts($transcriptions, $diplomaticLayers, $request->user()),
             'referenceLevels' => $work->referenceScheme->levels,
@@ -277,10 +277,10 @@ class EditionController extends Controller
      */
     private function citations(iterable $references): array
     {
-        $assignments = [];
+        $citations = [];
 
         foreach ($references as $reference) {
-            $assignments[] = [
+            $citations[] = [
                 'id' => $reference->id,
                 'item_id' => $reference->bibliography_item_id,
                 'label' => $reference->item->label,
@@ -290,7 +290,7 @@ class EditionController extends Controller
             ];
         }
 
-        return $assignments;
+        return $citations;
     }
 
     /**
@@ -317,7 +317,7 @@ class EditionController extends Controller
 
     /**
      * Every visible transcript of the work, in both layers, WHOLE — the
-     * witnesses pane is where segments are picked for adding, so it shows
+     * witnesses pane is where assignments are picked for adding, so it shows
      * the manuscript's full text with every assignment, greying out what the
      * edition already has (user decision, replacing the window slice). A
      * diplomatic entry names its normalized sibling, the only layer an add
@@ -353,7 +353,7 @@ class EditionController extends Controller
                 'witness_id' => $transcription->transcription->witness_id,
                 'siglum' => $transcription->transcription->witness->siglum,
                 'layer' => $transcription->layer->value,
-                'first_sort_key' => (string) ($transcription->segments->min(fn (TranscriptionSegment $segment) => $segment->canonicalPassage?->sort_key) ?? ''),
+                'first_sort_key' => (string) ($transcription->assignments->min(fn (Assignment $assignment) => $assignment->canonicalPassage?->sort_key) ?? ''),
                 ...$this->wholeTranscript($transcription),
                 ...$this->pagesOf($transcription, $imagesByPage),
                 // The layer's image alignments, so the image view can light
@@ -426,31 +426,31 @@ class EditionController extends Controller
         // assignment's badges.
         $partOrdinals = [];
 
-        foreach ($transcription->segments->groupBy('canonical_passage_id') as $group) {
-            foreach ($group->sortBy('part')->values() as $index => $segment) {
-                $partOrdinals[$segment->id] = $index + 1;
+        foreach ($transcription->assignments->groupBy('canonical_passage_id') as $group) {
+            foreach ($group->sortBy('part')->values() as $index => $assignment) {
+                $partOrdinals[$assignment->id] = $index + 1;
             }
         }
 
         return [
             'text' => $transcription->text,
-            'segments' => $transcription->segments
+            'assignments' => $transcription->assignments
                 ->sortBy('start_offset')
-                ->map(fn (TranscriptionSegment $segment) => [
-                    'id' => $segment->id,
-                    'canonical_passage_id' => $segment->canonical_passage_id,
-                    'start_offset' => $segment->start_offset,
-                    'end_offset' => $segment->end_offset,
-                    'part' => $segment->part,
-                    'part_ordinal' => $partOrdinals[$segment->id],
+                ->map(fn (Assignment $assignment) => [
+                    'id' => $assignment->id,
+                    'canonical_passage_id' => $assignment->canonical_passage_id,
+                    'start_offset' => $assignment->start_offset,
+                    'end_offset' => $assignment->end_offset,
+                    'part' => $assignment->part,
+                    'part_ordinal' => $partOrdinals[$assignment->id],
                     'canonical_passage' => [
-                        'id' => $segment->canonical_passage_id,
-                        'label' => $segment->canonicalPassage?->label,
+                        'id' => $assignment->canonical_passage_id,
+                        'label' => $assignment->canonicalPassage?->label,
                     ],
                 ])
                 ->values()
                 ->all(),
-            'part_totals' => $transcription->segments
+            'part_totals' => $transcription->assignments
                 ->groupBy('canonical_passage_id')
                 ->map(fn (SupportCollection $group) => $group->count())
                 ->all(),
@@ -577,7 +577,7 @@ class EditionController extends Controller
      * them simply shows nothing.
      *
      * @param  SupportCollection<int, EditionPassage>  $printed  the whole edition, in printed order
-     * @param  SupportCollection<int, TranscriptionLayer>  $transcriptions  Each with `segments` (and `segments.canonicalPassage`) and `witness` already eager-loaded — see show().
+     * @param  SupportCollection<int, TranscriptionLayer>  $transcriptions  Each with `assignments` (and `assignments.canonicalPassage`) and `witness` already eager-loaded — see show().
      * @return array<int, array<string, mixed>> keyed by canonical passage id
      */
     private function orderRanges(SupportCollection $printed, SupportCollection $transcriptions): array
@@ -647,9 +647,9 @@ class EditionController extends Controller
             // part is a sub-passage matter, reported per passage via
             // assignmentDiscontinuities(), and must not drag the whole passage
             // into a whole-passage reorder block here.
-            $offsetsByPassageId = $transcription->segments
+            $offsetsByPassageId = $transcription->assignments
                 ->groupBy('canonical_passage_id')
-                ->map(fn (SupportCollection $segments) => $segments->min('start_offset'));
+                ->map(fn (SupportCollection $assignments) => $assignments->min('start_offset'));
 
             $assignedIds = [];
 
@@ -867,16 +867,16 @@ class EditionController extends Controller
         ];
 
         foreach ($transcriptions as $transcription) {
-            $assignedIds = $transcription->segments->pluck('canonical_passage_id')->unique();
+            $assignedIds = $transcription->assignments->pluck('canonical_passage_id')->unique();
 
             if ($assignedIds->intersect($numberingSequence)->count() !== $memberCount) {
                 continue; // fragmentary — doesn't assign every passage in the block
             }
 
-            $sequence = $transcription->segments
+            $sequence = $transcription->assignments
                 ->whereIn('canonical_passage_id', $numberingSequence)
                 ->groupBy('canonical_passage_id')
-                ->map(fn (SupportCollection $segments) => $segments->min('start_offset'))
+                ->map(fn (SupportCollection $assignments) => $assignments->min('start_offset'))
                 ->sortBy(fn (int $offset) => $offset)
                 ->keys()
                 ->all();
@@ -1018,7 +1018,7 @@ class EditionController extends Controller
      *                                                                      Each entry also says whether the edition's own printed arrangement of
      *                                                                      the source's pieces is the same (`matches_current`) — the source the
      *                                                                      line's ordering follows, rather than a variant of it.
-     * @param  SupportCollection<int, array{name: string, text: string, segments: SupportCollection<int, TranscriptionSegment>, conjecture_id: int}>  $arrangements
+     * @param  SupportCollection<int, array{name: string, text: string, assignments: SupportCollection<int, Assignment>, conjecture_id: int}>  $arrangements
      * @param  SupportCollection<int, EditionPassage>  $printed  the whole edition's rows, in printed order
      * @return array<int, array<int, array{siglum: string, conjecture_id: int|null, matches_current: bool, parts: array<int, array{part: int, after_label: string|null}>, statements: list<string>}>>
      */
@@ -1030,7 +1030,7 @@ class EditionController extends Controller
             ->all());
 
         foreach ($transcriptions as $layer) {
-            foreach ($this->discontinuitiesOf($layer->transcription->witness->siglum, $layer->text, $layer->segments->toBase(), null, $printedKeys) as $passageId => $entries) {
+            foreach ($this->discontinuitiesOf($layer->transcription->witness->siglum, $layer->text, $layer->assignments->toBase(), null, $printedKeys) as $passageId => $entries) {
                 $result[$passageId] = [...($result[$passageId] ?? []), ...$entries];
             }
         }
@@ -1039,7 +1039,7 @@ class EditionController extends Controller
         // witness that assigns text to a line in two places, and is reported by the
         // same code (user decision).
         foreach ($arrangements as $arrangement) {
-            foreach ($this->discontinuitiesOf($arrangement['name'], $arrangement['text'], $arrangement['segments'], $arrangement['conjecture_id'], $printedKeys) as $passageId => $entries) {
+            foreach ($this->discontinuitiesOf($arrangement['name'], $arrangement['text'], $arrangement['assignments'], $arrangement['conjecture_id'], $printedKeys) as $passageId => $entries) {
                 $result[$passageId] = [...($result[$passageId] ?? []), ...$entries];
             }
         }
@@ -1053,29 +1053,29 @@ class EditionController extends Controller
     /**
      * One source's split assignments, keyed by canonical passage id.
      *
-     * @param  SupportCollection<int, TranscriptionSegment>  $segments
+     * @param  SupportCollection<int, Assignment>  $assignments
      * @param  list<array{0: int, 1: int}>  $printedKeys  the edition's printed rows as (passage, part)
      * @return array<int, list<array{siglum: string, conjecture_id: int|null, matches_current: bool, parts: array<int, array{part: int, after_label: string|null}>, statements: list<string>}>>
      */
-    private function discontinuitiesOf(string $siglum, string $text, SupportCollection $segments, ?int $conjectureId, array $printedKeys): array
+    private function discontinuitiesOf(string $siglum, string $text, SupportCollection $assignments, ?int $conjectureId, array $printedKeys): array
     {
         $result = [];
-        $byOffset = $segments->sortBy('start_offset')->values();
-        $statements = $this->transpositionStatements($siglum, $text, $segments);
+        $byOffset = $assignments->sortBy('start_offset')->values();
+        $statements = $this->transpositionStatements($siglum, $text, $assignments);
 
         // The source's arrangement of the passages it assigns, as (passage,
         // part) in physical order, against the edition's printed rows of
         // the same passages: equal means the edition prints this
         // arrangement — it follows the source rather than varying from it.
         $sourceKeys = array_values($byOffset
-            ->map(fn (TranscriptionSegment $segment) => [(int) $segment->canonical_passage_id, (int) $segment->part])
+            ->map(fn (Assignment $assignment) => [(int) $assignment->canonical_passage_id, (int) $assignment->part])
             ->all());
         $assigned = array_flip(array_map(fn (array $key) => $key[0], $sourceKeys));
         $printedIds = array_flip(array_map(fn (array $key) => $key[0], $printedKeys));
         $matchesCurrent = array_values(array_filter($printedKeys, fn (array $key) => isset($assigned[$key[0]])))
             === array_values(array_filter($sourceKeys, fn (array $key) => isset($printedIds[$key[0]])));
 
-        foreach ($segments->groupBy('canonical_passage_id') as $passageId => $parts) {
+        foreach ($assignments->groupBy('canonical_passage_id') as $passageId => $parts) {
             if ($parts->count() < 2) {
                 continue;
             }
@@ -1084,15 +1084,15 @@ class EditionController extends Controller
                 'siglum' => $siglum,
                 'conjecture_id' => $conjectureId,
                 'matches_current' => $matchesCurrent,
-                'parts' => TranscriptionSegment::sortByPartOrder($parts)
-                    ->map(function (TranscriptionSegment $segment) use ($byOffset, $passageId) {
+                'parts' => Assignment::sortByPartOrder($parts)
+                    ->map(function (Assignment $assignment) use ($byOffset, $passageId) {
                         $preceding = $byOffset
-                            ->filter(fn (TranscriptionSegment $other) => $other->start_offset < $segment->start_offset
+                            ->filter(fn (Assignment $other) => $other->start_offset < $assignment->start_offset
                                 && $other->canonical_passage_id !== $passageId)
                             ->last();
 
                         return [
-                            'part' => $segment->part,
+                            'part' => $assignment->part,
                             'after_label' => $preceding?->canonicalPassage->label,
                         ];
                     })
@@ -1108,11 +1108,11 @@ class EditionController extends Controller
     /**
      * Reordering conjectures that divide a passage shown in the window,
      * each shaped like a transcript — the pieces laid end to end as text,
-     * assigned by unsaved TranscriptionSegment stand-ins — so the split
+     * assigned by unsaved Assignment stand-ins — so the split
      * assignment report reads them like a witness.
      *
      * @param  list<int>  $windowPassageIds
-     * @return SupportCollection<int, array{name: string, text: string, segments: SupportCollection<int, TranscriptionSegment>, conjecture_id: int}>
+     * @return SupportCollection<int, array{name: string, text: string, assignments: SupportCollection<int, Assignment>, conjecture_id: int}>
      */
     private function conjectureArrangements(array $windowPassageIds): SupportCollection
     {
@@ -1124,8 +1124,8 @@ class EditionController extends Controller
 
         return $conjectures->toBase()->map(function (Conjecture $conjecture) {
             $text = '';
-            /** @var SupportCollection<int, TranscriptionSegment> $segments */
-            $segments = new SupportCollection;
+            /** @var SupportCollection<int, Assignment> $assignments */
+            $assignments = new SupportCollection;
             $standInId = -1;
 
             foreach ($conjecture->orderingEntries->sortBy('sequence') as $entry) {
@@ -1133,21 +1133,21 @@ class EditionController extends Controller
                 $start = mb_strlen($text);
                 $text .= trim((string) $entry->text);
 
-                $segment = new TranscriptionSegment([
+                $assignment = new Assignment([
                     'canonical_passage_id' => $entry->canonical_passage_id,
                     'part' => $entry->part,
                     'start_offset' => $start,
                     'end_offset' => mb_strlen($text),
                 ]);
-                $segment->id = $standInId--;
-                $segment->setRelation('canonicalPassage', $entry->canonicalPassage);
-                $segments->push($segment);
+                $assignment->id = $standInId--;
+                $assignment->setRelation('canonicalPassage', $entry->canonicalPassage);
+                $assignments->push($assignment);
             }
 
             return [
                 'name' => ($conjecture->proposed_by ?? $conjecture->user->name).' (conjecture)',
                 'text' => $text,
-                'segments' => $segments,
+                'assignments' => $assignments,
                 'conjecture_id' => $conjecture->id,
             ];
         });
@@ -1169,31 +1169,31 @@ class EditionController extends Controller
      * plus their full verbatim text — a digital apparatus never abbreviates
      * a lemma.
      *
-     * @param  SupportCollection<int, TranscriptionSegment>  $segments
+     * @param  SupportCollection<int, Assignment>  $assignments
      * @return array<int, list<string>>
      */
-    private function transpositionStatements(string $siglum, string $text, SupportCollection $segments): array
+    private function transpositionStatements(string $siglum, string $text, SupportCollection $assignments): array
     {
-        $byOffset = $segments->sortBy('start_offset')->values();
+        $byOffset = $assignments->sortBy('start_offset')->values();
 
-        /** @var array<int, TranscriptionSegment|null> $physicalPred */
+        /** @var array<int, Assignment|null> $physicalPred */
         $physicalPred = [];
-        /** @var array<int, TranscriptionSegment|null> $physicalNext */
+        /** @var array<int, Assignment|null> $physicalNext */
         $physicalNext = [];
-        foreach ($byOffset as $index => $segment) {
-            $physicalPred[$segment->id] = $byOffset[$index - 1] ?? null;
-            $physicalNext[$segment->id] = $byOffset[$index + 1] ?? null;
+        foreach ($byOffset as $index => $assignment) {
+            $physicalPred[$assignment->id] = $byOffset[$index - 1] ?? null;
+            $physicalNext[$assignment->id] = $byOffset[$index + 1] ?? null;
         }
 
-        /** @var array<int, TranscriptionSegment|null> $contentPred */
+        /** @var array<int, Assignment|null> $contentPred */
         $contentPred = [];
         /** @var array<int, int> $partTotals */
         $partTotals = [];
-        foreach ($segments->groupBy('canonical_passage_id') as $passageId => $parts) {
+        foreach ($assignments->groupBy('canonical_passage_id') as $passageId => $parts) {
             $partTotals[$passageId] = $parts->count();
-            $ordered = TranscriptionSegment::sortByPartOrder($parts)->values();
-            foreach ($ordered as $index => $segment) {
-                $contentPred[$segment->id] = $ordered[$index - 1] ?? null;
+            $ordered = Assignment::sortByPartOrder($parts)->values();
+            foreach ($ordered as $index => $assignment) {
+                $contentPred[$assignment->id] = $ordered[$index - 1] ?? null;
             }
         }
 
@@ -1201,21 +1201,21 @@ class EditionController extends Controller
         // passage label and part number (the numbering the passage labels
         // already teach the reader) plus its verbatim text, whole: a digital
         // apparatus never abbreviates a lemma.
-        $partRef = fn (TranscriptionSegment $segment): string => sprintf(
+        $partRef = fn (Assignment $assignment): string => sprintf(
             '%s %d/%d "%s"',
-            $segment->canonicalPassage->label,
-            $segment->part,
-            $partTotals[$segment->canonical_passage_id],
+            $assignment->canonicalPassage->label,
+            $assignment->part,
+            $partTotals[$assignment->canonical_passage_id],
             preg_replace(
                 '/\s+/u',
                 ' ',
-                trim(mb_substr($text, $segment->start_offset, $segment->end_offset - $segment->start_offset)),
+                trim(mb_substr($text, $assignment->start_offset, $assignment->end_offset - $assignment->start_offset)),
             ),
         );
 
         $displaced = $byOffset
-            ->filter(fn (TranscriptionSegment $segment) => ($contentPred[$segment->id] ?? null) !== null
-                && $physicalPred[$segment->id]?->id !== $contentPred[$segment->id]->id)
+            ->filter(fn (Assignment $assignment) => ($contentPred[$assignment->id] ?? null) !== null
+                && $physicalPred[$assignment->id]?->id !== $contentPred[$assignment->id]->id)
             ->values();
 
         $statements = [];

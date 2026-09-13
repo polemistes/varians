@@ -2,7 +2,7 @@
 
 namespace App\Support\Transcription;
 
-use App\Models\TranscriptionSegment;
+use App\Models\Assignment;
 use Illuminate\Support\Collection;
 
 /**
@@ -10,10 +10,10 @@ use Illuminate\Support\Collection;
  * cannot express, because they create or reshape rows rather than merely
  * moving offsets:
  *
- * - Cutting PART of an assigned span and pasting it elsewhere is a sub-segment
+ * - Cutting PART of an assigned span and pasting it elsewhere is a sub-assignment
  *   transposition: the fragment still reads as text of its original
  *   passage, so it becomes another *part* of that passage (see
- *   TranscriptionSegment::$part) — a new span at the paste site carrying
+ *   Assignment::$part) — a new span at the paste site carrying
  *   the source's assignment. The source keeps its assignment on what remains,
  *   unflagged: nothing about the trim needs review once the fragment is
  *   properly assign afreshd.
@@ -28,23 +28,23 @@ use Illuminate\Support\Collection;
  *
  * @phpstan-type Effects array{overrides: array<int, array{start: int, end: int, needsReview: bool}>, unflag: list<int>, creates: list<array{canonical_passage_id: int, start: int, end: int, anchor_index: int, placement: 'before'|'after'}>}
  */
-class RelocationSegmentEffects
+class RelocationAssignmentEffects
 {
     /**
-     * @param  Collection<int, TranscriptionSegment>  $segments  the layer's segments, in the order applySpans will walk them
+     * @param  Collection<int, Assignment>  $assignments  the layer's assignments, in the order applySpans will walk them
      * @param  list<array{start: int, end: int, text: string, cut_id?: string|null}>  $ops
      * @return Effects
      */
-    public static function plan(Collection $segments, array $ops): array
+    public static function plan(Collection $assignments, array $ops): array
     {
         $overrides = [];
         $unflag = [];
         $creates = [];
 
-        $original = array_values($segments->map(fn ($segment) => [
-            'start' => (int) $segment->start_offset,
-            'end' => (int) $segment->end_offset,
-            'needsReview' => (bool) $segment->needs_review,
+        $original = array_values($assignments->map(fn ($assignment) => [
+            'start' => (int) $assignment->start_offset,
+            'end' => (int) $assignment->end_offset,
+            'needsReview' => (bool) $assignment->needs_review,
         ])->all());
 
         foreach (self::pairs($ops) as $pair) {
@@ -53,7 +53,7 @@ class RelocationSegmentEffects
             $pasteOp = $ops[$pasteIndex];
             $pastedLength = mb_strlen($pasteOp['text']);
 
-            // Segment offsets as they stand when the cut applies / when the
+            // Assignment offsets as they stand when the cut applies / when the
             // paste applies — replays of the op prefix, exactly what the
             // real transform sees at those moments.
             $atCut = $cutIndex === 0
@@ -63,7 +63,7 @@ class RelocationSegmentEffects
             $opsAfterPasteInclusive = array_slice($ops, $pasteIndex);
             $opsAfterPaste = array_slice($ops, $pasteIndex + 1);
 
-            foreach ($segments as $index => $segment) {
+            foreach ($assignments as $index => $assignment) {
                 $stateAtCut = $atCut[$index];
 
                 if (($stateAtCut['deleted'] ?? false) === true) {
@@ -78,7 +78,7 @@ class RelocationSegmentEffects
                     continue; // disjoint, or carried whole by the transform
                 }
 
-                // The fragment: this segment's share of the cut, re-anchored
+                // The fragment: this assignment's share of the cut, re-anchored
                 // at the paste destination and ridden through the remaining
                 // ops so its offsets land in the final text.
                 $relStart = $overlapStart - $cutOp['start'];
@@ -94,11 +94,11 @@ class RelocationSegmentEffects
 
                 if (! $fragment['deleted'] && $fragment['end'] > $fragment['start']) {
                     $creates[] = [
-                        'canonical_passage_id' => (int) $segment->canonical_passage_id,
+                        'canonical_passage_id' => (int) $assignment->canonical_passage_id,
                         'start' => $fragment['start'],
                         'end' => $fragment['end'],
                         'anchor_index' => $index,
-                        // Cut from the segment's head: the fragment reads
+                        // Cut from the assignment's head: the fragment reads
                         // before what remains; from its tail (or interior,
                         // the closest expressible position): after.
                         'placement' => $cutOp['start'] <= $stateAtCut['start'] ? 'before' : 'after',
@@ -113,9 +113,9 @@ class RelocationSegmentEffects
                 }
             }
 
-            // Split any segment the paste lands strictly inside: its passage
+            // Split any assignment the paste lands strictly inside: its passage
             // keeps assigning both sides, never absorbing the arrival.
-            foreach ($segments as $index => $segment) {
+            foreach ($assignments as $index => $assignment) {
                 $stateAtPaste = $atPaste[$index];
 
                 if ($stateAtPaste['deleted']) {
@@ -157,7 +157,7 @@ class RelocationSegmentEffects
 
                 if (! $right['deleted'] && $right['end'] > $right['start']) {
                     $creates[] = [
-                        'canonical_passage_id' => (int) $segment->canonical_passage_id,
+                        'canonical_passage_id' => (int) $assignment->canonical_passage_id,
                         'start' => $right['start'],
                         'end' => $right['end'],
                         'anchor_index' => $index,

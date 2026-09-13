@@ -1,8 +1,8 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\Witness;
 use App\Models\Work;
 
@@ -14,13 +14,13 @@ test('a witness is unrelated to a work until one of its transcriptions assigns t
         ->and($witness->relatedWorks()->whereKey($work->id)->exists())->toBeFalse();
 });
 
-test('a witness becomes related to a work once a segment assigns text to one of its passages', function () {
+test('a witness becomes related to a work once an assignment assigns text to one of its passages', function () {
     $work = Work::factory()->create();
     $witness = Witness::factory()->create();
     $passage = CanonicalPassage::factory()->for($work)->create();
     $transcription = TranscriptionLayer::factory()->for($witness)->create();
 
-    TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create();
+    Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create();
 
     expect($work->relatedWitnesses()->whereKey($witness->id)->exists())->toBeTrue()
         ->and($witness->relatedWorks()->whereKey($work->id)->exists())->toBeTrue();
@@ -46,8 +46,8 @@ test('a witness whose one transcription assigns two works appears under both', f
     // works its text covers.
     $transcription = TranscriptionLayer::factory()->for($witness)->create();
 
-    TranscriptionSegment::factory()->for($transcription)->for($firstPassage, 'canonicalPassage')->create();
-    TranscriptionSegment::factory()->for($transcription)->for($secondPassage, 'canonicalPassage')->create();
+    Assignment::factory()->for($transcription)->for($firstPassage, 'canonicalPassage')->create();
+    Assignment::factory()->for($transcription)->for($secondPassage, 'canonicalPassage')->create();
 
     expect($witness->relatedWorks()->pluck('works.id')->all())
         ->toEqualCanonicalizing([$firstWork->id, $secondWork->id]);

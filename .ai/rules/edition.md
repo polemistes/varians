@@ -34,7 +34,7 @@ filters via `whereRelation('transcription', 'layer', ...)`, mirrored by the
 they may be an edition's base or a witness-sourced `LemmaReading` (guarded in
 `StoreEditionPassageRequest`, `StoreEditionPassagesBulkRequest`,
 `StoreEditionVariantRequest`). Without that filter a fork — which copies
-assignment segments verbatim — makes a manuscript appear in its own apparatus
+assignment assignments verbatim — makes a manuscript appear in its own apparatus
 disagreeing with itself over the very orthography the normalized layer
 regularized.
 
@@ -103,7 +103,7 @@ the second witness for this reason.
 
 ## A passage's witness text can be discontinuous — collation consumes all its parts
 A transposition can cut across the work's segmentation (half of line 40
-standing where line 42 belongs), so several `TranscriptionSegment` spans in
+standing where line 42 belongs), so several `Assignment` spans in
 one layer may assign the same passage. `part` orders them by **content** (which
 fragment reads first as text of the passage), independent of the physical
 order their offsets give — the two disagreeing *is* the transposition. Never
@@ -111,7 +111,7 @@ order their offsets give — the two disagreeing *is* the transposition. Never
 
 Consequences, all real code paths:
 - The unit of alignment is the **layer**, not the span: `PassageAligner::collate`
-  groups a passage's segments by layer and `alignWitness` takes ALL of a
+  groups a passage's assignments by layer and `alignWitness` takes ALL of a
   layer's parts, tokenizing them as one stream in part order. The
   `alreadyAligned` idempotency skip stays per layer.
 - A diff merge must never fuse witness tokens from different parts into one
@@ -119,7 +119,7 @@ Consequences, all real code paths:
   `plan()` carries `$partStarts`; `mergeSubstitutions` cuts insert runs there
   and `reorderingWindow` rejects windows crossing a boundary.
 - Assigning a passage the layer already assigns is the **late-part flow**
-  (`TranscriptionSegmentController::store`/`reassign`): refused with a
+  (`AssignmentController::store`/`reassign`): refused with a
   structured `acknowledge_realignment` validation error until acknowledged,
   then `PassageAligner::realignLayer` redoes that layer's collation — unless
   its readings are pinned (edition-selected, conjecture-carrying, or on a
@@ -137,7 +137,7 @@ Consequences, all real code paths:
 - The split-assignment report speaks apparatus, not mechanics
   (`EditionController::transpositionStatements`, user decision): "R2 has this
   passage in 2 places" is not how an edition reports a sub-line transposition.
-  A fragment is DISPLACED when its physical predecessor segment differs from
+  A fragment is DISPLACED when its physical predecessor assignment differs from
   its content predecessor (previous part in part order); two displaced
   fragments of different passages whose physical and content predecessors
   cross-match have CHANGED PLACES and are reported as one statement on both
@@ -292,7 +292,7 @@ words (`onRunKey`); editors navigate with the caret instead. Keep the
 data attributes the caret logic reads (`data-passage-id`/`data-run-index` on
 runs, `data-spacer-*` on the spaces between them).
 
-Seeding (`LineationSeeder`, called from `PassageAdder::add`/`addSegments`)
+Seeding (`LineationSeeder`, called from `PassageAdder::add`/`addAssignments`)
 copies the base transcription's newlines ONCE at add time — one `\n` in a
 gap → line, two → paragraph; gaps across a discontinuous assignment's part
 boundary seed nothing (physical displacement, not whitespace). From then on
@@ -425,10 +425,10 @@ A witness may hold any number of transcriptions: a manuscript can carry texts
 belonging to different works, or several kinds of text across the same pages.
 Nothing records what kind of text a transcription holds or which is principal;
 the editor names them, and an edition reaches one through the assignment
-segments on its normalized layer.
+assignments on its normalized layer.
 
 The `transcription_layers` table is the old `transcriptions` table renamed — a
-row there always was one layer, and every FK to it (segments, regions,
+row there always was one layer, and every FK to it (assignments, regions,
 `lemma_readings`, `edition_passages`, the tag pivot)
 still means a layer, now spelled `transcription_layer_id`.
 
@@ -450,7 +450,7 @@ destination transcription is the only choice; the layer follows from it
 (`TranscriptionLayer::destinationLayerIn`): within its own transcription there
 is just the other layer, and any other transcription receives the corresponding
 one. What travels with the text depends on whether it still describes the same
-physical document — inside the transcription the assignment segments *and* the
+physical document — inside the transcription the assignment assignments *and* the
 image regions come, since the other layer is the same manuscript text
 regularized; into another transcription only the assignments do, because which
 passage of a work a stretch of text is stays true wherever it goes while where
@@ -506,7 +506,7 @@ still belongs in the apparatus.
 Every line number opens ONE notice (`kind: 'line'`), for readers and
 editors alike (user decision). Its top says what the line rests on
 (`provenanceLines`): "Based on R. Also present in R2." (witnesses from
-the `transcriptions` prop's segments), or "Proposed by Bergk" for a line
+the `transcriptions` prop's assignments), or "Proposed by Bergk" for a line
 no witness has (the selected conjecture); then, only when the block's
 printed order follows something other than the base text, "Ordering based
 on R2" / "Ordering based on Bergk's proposal" / "Ordering by this
@@ -523,11 +523,11 @@ editors and its literature for readers. The old kinds `order_range`,
 
 ## Adding and removing text (user decision, 2026-09-09)
 The Witnesses pane (`WitnessesPanel.vue`) shows a witness WHOLE, in either
-layer, with every assignment; segments the edition has print grey
-(`AlignableText` `unavailableSegmentIds`, no strikethrough). "Add selection"
+layer, with every assignment; assignments the edition has print grey
+(`AlignableText` `unavailableAssignmentIds`, no strikethrough). "Add selection"
 posts the assigned passages fully inside the selection by id
 (`edition-passages.store` with `canonical_passage_ids`, the layer being the
-diplomatic entry's normalized sibling). A segment lands where its
+diplomatic entry's normalized sibling). An assignment lands where its
 manuscript has it — after the last edition passage preceding it in its
 own witness's physical order, else by numbering order
 (`PassageAdder::insertionPosition`, then

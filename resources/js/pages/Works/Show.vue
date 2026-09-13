@@ -171,7 +171,7 @@ function removeWork() {
     // one that sounds harmless.
     const parts = describeDeletionImpact(props.work.deletion_impact, [
         {
-            key: 'segments',
+            key: 'assignments',
             label: (n) => pluralize(n, 'segment assignment on a witness'),
         },
         { key: 'editions', label: (n) => pluralize(n, 'edition of this work') },

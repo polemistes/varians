@@ -2,8 +2,8 @@
 
 namespace App\Support\Transcription;
 
+use App\Models\Assignment;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use Illuminate\Support\Collection;
 
 /**
@@ -33,9 +33,9 @@ class AssignmentIntegrity
     {
         $issues = [];
 
-        foreach (self::assess($layer) as [$segment, $problems]) {
+        foreach (self::assess($layer) as [$assignment, $problems]) {
             foreach ($problems as $problem) {
-                $issues[] = self::label($segment).' '.$problem;
+                $issues[] = self::label($assignment).' '.$problem;
             }
         }
 
@@ -57,15 +57,15 @@ class AssignmentIntegrity
     {
         $found = [];
 
-        foreach (self::assess($layer) as [$segment, $problems]) {
+        foreach (self::assess($layer) as [$assignment, $problems]) {
             $drifted = $problems !== [];
 
-            if ($drifted === (bool) $segment->boundary_review) {
+            if ($drifted === (bool) $assignment->boundary_review) {
                 continue;
             }
 
-            $segment->update(['boundary_review' => $drifted]);
-            $found[] = self::label($segment).($drifted
+            $assignment->update(['boundary_review' => $drifted]);
+            $found[] = self::label($assignment).($drifted
                 ? ' flagged: '.implode('; ', $problems)
                 : ' back on its words — flag cleared');
         }
@@ -76,34 +76,34 @@ class AssignmentIntegrity
     /**
      * Each live span with its problems (possibly none).
      *
-     * @return list<array{0: TranscriptionSegment, 1: list<string>}>
+     * @return list<array{0: Assignment, 1: list<string>}>
      */
     private static function assess(TranscriptionLayer $layer): array
     {
         $text = $layer->text;
         $length = mb_strlen($text);
-        $segments = $layer->segments()->with('canonicalPassage:id,label')->orderBy('start_offset')->get()->values();
+        $assignments = $layer->assignments()->with('canonicalPassage:id,label')->orderBy('start_offset')->get()->values();
         $isSpace = fn (string $char): bool => $char === '' || preg_match('/\\s/u', $char) === 1;
-        $coveredBy = fn (int $offset, TranscriptionSegment $self): bool => $segments->contains(
-            fn (TranscriptionSegment $other) => $other->id !== $self->id
+        $coveredBy = fn (int $offset, Assignment $self): bool => $assignments->contains(
+            fn (Assignment $other) => $other->id !== $self->id
                 && $other->end_offset > $other->start_offset
                 && $offset >= $other->start_offset
                 && $offset < $other->end_offset,
         );
-        $meetsAt = fn (int $offset, TranscriptionSegment $self): bool => $segments->contains(
-            fn (TranscriptionSegment $other) => $other->id !== $self->id
+        $meetsAt = fn (int $offset, Assignment $self): bool => $assignments->contains(
+            fn (Assignment $other) => $other->id !== $self->id
                 && $other->end_offset > $other->start_offset
                 && ($other->start_offset === $offset || $other->end_offset === $offset),
         );
         $result = [];
 
-        foreach ($segments as $index => $segment) {
-            $start = (int) $segment->start_offset;
-            $end = (int) $segment->end_offset;
+        foreach ($assignments as $index => $assignment) {
+            $start = (int) $assignment->start_offset;
+            $end = (int) $assignment->end_offset;
             $problems = [];
 
             if ($end <= $start) {
-                $result[] = [$segment, []];
+                $result[] = [$assignment, []];
 
                 continue;
             }
@@ -123,20 +123,20 @@ class AssignmentIntegrity
                 $before = $firstReal > 0 ? mb_substr($text, $firstReal - 1, 1) : '';
                 $after = $lastReal < $length ? mb_substr($text, $lastReal, 1) : '';
 
-                if (! $isSpace($before) && ! $coveredBy($firstReal - 1, $segment) && ! $meetsAt($firstReal, $segment)) {
+                if (! $isSpace($before) && ! $coveredBy($firstReal - 1, $assignment) && ! $meetsAt($firstReal, $assignment)) {
                     $problems[] = 'begins inside a word';
                 }
 
-                if (! $isSpace($after) && ! $coveredBy($lastReal, $segment) && ! $meetsAt($lastReal, $segment)) {
+                if (! $isSpace($after) && ! $coveredBy($lastReal, $assignment) && ! $meetsAt($lastReal, $assignment)) {
                     $problems[] = 'ends inside a word';
                 }
             }
 
-            if ($index > 0 && $start < (int) $segments[$index - 1]->end_offset) {
-                $problems[] = 'overlaps '.self::label($segments[$index - 1]);
+            if ($index > 0 && $start < (int) $assignments[$index - 1]->end_offset) {
+                $problems[] = 'overlaps '.self::label($assignments[$index - 1]);
             }
 
-            $result[] = [$segment, $problems];
+            $result[] = [$assignment, $problems];
         }
 
         return $result;
@@ -151,7 +151,7 @@ class AssignmentIntegrity
     {
         $findings = [];
 
-        foreach (TranscriptionLayer::with(['segments.canonicalPassage', 'transcription.witness'])->get() as $layer) {
+        foreach (TranscriptionLayer::with(['assignments.canonicalPassage', 'transcription.witness'])->get() as $layer) {
             $issues = self::issues($layer);
 
             if ($issues !== []) {
@@ -162,10 +162,10 @@ class AssignmentIntegrity
         return collect(array_values($findings));
     }
 
-    private static function label(TranscriptionSegment $segment): string
+    private static function label(Assignment $assignment): string
     {
-        $part = $segment->part > 1 ? " part {$segment->part}" : '';
+        $part = $assignment->part > 1 ? " part {$assignment->part}" : '';
 
-        return "#{$segment->id} (".($segment->canonicalPassage->label ?? '?')."$part)";
+        return "#{$assignment->id} (".($assignment->canonicalPassage->label ?? '?')."$part)";
     }
 }

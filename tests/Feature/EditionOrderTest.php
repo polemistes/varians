@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
@@ -7,7 +8,6 @@ use App\Models\EditionPassage;
 use App\Models\EditionTransposition;
 use App\Models\ReferenceScheme;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Work;
 use App\Support\Edition\PassageAdder;
@@ -17,7 +17,7 @@ use Inertia\Testing\AssertableInertia as AssertInertia;
 
 /**
  * Adds $count canonical passages (book 1, lines 1..$count) to the edition,
- * each backed by its own throwaway transcription/segment — establishing a
+ * each backed by its own throwaway transcription/assignment — establishing a
  * real EditionPassage.position order (line 1 added first, etc.) for the
  * order tests to move around (PassageOrderRewriter::moveRange stands in
  * for the editor's cut and paste). Every test below needs its referenced
@@ -35,8 +35,8 @@ function addPassagesToEdition(Work $work, Edition $edition, int $count): Support
             'label' => $formatted['label'],
         ]);
         $transcription = TranscriptionLayer::factory()->create(['text' => 'word']);
-        $segment = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 4]);
-        PassageAdder::add($edition, $segment, (float) $line);
+        $assignment = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 4]);
+        PassageAdder::add($edition, $assignment, (float) $line);
 
         return $passage;
     });
@@ -131,8 +131,8 @@ test('a witness whose own physical order disagrees is flagged with the whole sha
     // Witness B assigns text to the same passages 2 and 3, but has 3 physically
     // before 2 — the opposite of the edition's current order.
     $witnessB = TranscriptionLayer::factory()->create(['text' => 'gamma beta']);
-    TranscriptionSegment::factory()->for($witnessB)->for($passages[2], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
-    TranscriptionSegment::factory()->for($witnessB)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 6, 'end_offset' => 10]);
+    Assignment::factory()->for($witnessB)->for($passages[2], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
+    Assignment::factory()->for($witnessB)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 6, 'end_offset' => 10]);
 
     $show = $this->get(route('editions.show', [$work, $edition]));
 
@@ -161,11 +161,11 @@ test('no order range when a witness agrees or only assigns text to one passage o
     $passages = addPassagesToEdition($work, $edition, 2);
 
     $agreeing = TranscriptionLayer::factory()->create(['text' => 'alpha beta']);
-    TranscriptionSegment::factory()->for($agreeing)->for($passages[0], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
-    TranscriptionSegment::factory()->for($agreeing)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 6, 'end_offset' => 10]);
+    Assignment::factory()->for($agreeing)->for($passages[0], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
+    Assignment::factory()->for($agreeing)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 6, 'end_offset' => 10]);
 
     $fragmentary = TranscriptionLayer::factory()->create(['text' => 'gamma']);
-    TranscriptionSegment::factory()->for($fragmentary)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
+    Assignment::factory()->for($fragmentary)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
 
     $show = $this->get(route('editions.show', [$work, $edition]));
 
@@ -179,10 +179,10 @@ test('a draft witness\'s order disagreement is only visible to an editor', funct
     $passages = addPassagesToEdition($work, $edition, 2);
 
     // Draft by default (TranscriptionLayerFactory) — must not leak its order to
-    // a non-editor viewer, exactly like its text/segments already don't.
+    // a non-editor viewer, exactly like its text/assignments already don't.
     $draftWitness = TranscriptionLayer::factory()->create(['text' => 'beta alpha']);
-    TranscriptionSegment::factory()->for($draftWitness)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 4]);
-    TranscriptionSegment::factory()->for($draftWitness)->for($passages[0], 'canonicalPassage')->create(['start_offset' => 5, 'end_offset' => 10]);
+    Assignment::factory()->for($draftWitness)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 4]);
+    Assignment::factory()->for($draftWitness)->for($passages[0], 'canonicalPassage')->create(['start_offset' => 5, 'end_offset' => 10]);
 
     $this->actingAs(User::factory()->editor()->create());
     $asEditor = $this->get(route('editions.show', [$work, $edition]));
@@ -202,8 +202,8 @@ test('applying a witness\'s order rewrites the stored positions and creates no C
     $passages = addPassagesToEdition($work, $edition, 2);
 
     $witnessB = TranscriptionLayer::factory()->create(['text' => 'beta alpha']);
-    TranscriptionSegment::factory()->for($witnessB)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 4]);
-    TranscriptionSegment::factory()->for($witnessB)->for($passages[0], 'canonicalPassage')->create(['start_offset' => 5, 'end_offset' => 10]);
+    Assignment::factory()->for($witnessB)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 4]);
+    Assignment::factory()->for($witnessB)->for($passages[0], 'canonicalPassage')->create(['start_offset' => 5, 'end_offset' => 10]);
 
     $before = $this->get(route('editions.show', [$work, $edition]));
     $before->assertInertia(fn (AssertInertia $page) => $page
@@ -238,12 +238,12 @@ test('the order report is a calm derived statement: applying one source honestly
     $passages = addPassagesToEdition($work, $edition, 2); // edition order: A, B
 
     $witnessQ = TranscriptionLayer::factory()->create(['text' => 'alpha beta']);
-    TranscriptionSegment::factory()->for($witnessQ)->for($passages[0], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
-    TranscriptionSegment::factory()->for($witnessQ)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 6, 'end_offset' => 10]);
+    Assignment::factory()->for($witnessQ)->for($passages[0], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 5]);
+    Assignment::factory()->for($witnessQ)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 6, 'end_offset' => 10]);
 
     $witnessR = TranscriptionLayer::factory()->create(['text' => 'beta alpha']);
-    TranscriptionSegment::factory()->for($witnessR)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 4]);
-    TranscriptionSegment::factory()->for($witnessR)->for($passages[0], 'canonicalPassage')->create(['start_offset' => 5, 'end_offset' => 10]);
+    Assignment::factory()->for($witnessR)->for($passages[1], 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 4]);
+    Assignment::factory()->for($witnessR)->for($passages[0], 'canonicalPassage')->create(['start_offset' => 5, 'end_offset' => 10]);
 
     // Witness R disagrees with the initial order (A, B); Q agrees.
     $before = $this->get(route('editions.show', [$work, $edition]));

@@ -23,6 +23,6 @@ test('a blank transcription can be started for a witness, without importing any 
         ->and($transcription->layers()->pluck('layer')->all())
         ->toEqualCanonicalizing([Layer::Diplomatic, Layer::Normalized])
         ->and($normalized->text)->toBe('')
-        ->and($normalized->segments)->toBeEmpty()
+        ->and($normalized->assignments)->toBeEmpty()
         ->and($transcription->diplomatic->text)->toBe('');
 });

@@ -123,13 +123,13 @@ drawing a box on the image acts on the text selection. The page owns that
 state; do not try to split it into two tidy components with a thin interface.
 
 Which transcription and which layer are in the **URL** (`?transcription=&layer=`),
-not in client state, because the server has to load that layer's segments,
+not in client state, because the server has to load that layer's assignments,
 regions and page breaks — so choosing one is a visit.
 
 ## The left pane is scoped to one page, and converts coordinates at five places
 Everything in the component works in whole-text offsets; `AlignableText` is
 handed the selected page's slice. `toFull`/`toPage` are the only conversions,
-and there are exactly five: outbound `pageText`, `pageSegments`, `pageRegions`
+and there are exactly five: outbound `pageText`, `pageAssignments`, `pageRegions`
 and the selection props; inbound `onTextSelect`, `onBadgeClick` and `onEdit`.
 Anything else added to that component keeps whole-text offsets. Getting this
 wrong is silent — an edit would land at the wrong place in the text rather than
@@ -213,7 +213,7 @@ stash, into a DIFFERENT layer, emits `import-spans`; the page flushes both
 panes (offsets must be into saved text on both sides), then posts
 `transcriptions.span-copies.store`, which re-verifies the characters match
 at both ends before importing. Assigned ONCE also on import: a copied
-segment is skipped when the landing words already carry a live assignment
+assignment is skipped when the landing words already carry a live assignment
 to the same passage — the sibling-healing pass restores assignments the
 moment a pasted text saves, and the import arriving after it duplicated
 every one as a second part (real bug: badges all read 1/2). User-visible
@@ -239,7 +239,7 @@ error-bag version hid exactly this bug. The import also assigns each
 created row a fresh `group_id` and runs `SiblingSync::heal` on the target,
 so an in-step target transcript receives the assignment in BOTH its layers
 (test-pinned). Assignments travel ALWAYS — cross-layer,
-cross-transcript, cross-witness — and a segment the copy cuts through
+cross-transcript, cross-witness — and an assignment the copy cuts through
 contributes its contained part (still genuine text of its passage, as a
 further part where the target already assigns text to it, unflagged). Facsimile
 mappings are facts about one parchment: whole-span-only, same witness

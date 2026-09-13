@@ -1,9 +1,9 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
@@ -27,16 +27,16 @@ function printedByEachEdition(string $seedText, string $otherText): array
     // siglum order, and these tests turn on which one built the columns.
     $seed = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'A']))->create(['text' => $seedText]);
     $other = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'B']))->create(['text' => $otherText]);
-    $seedSegment = TranscriptionSegment::factory()->for($seed)->for($passage, 'canonicalPassage')
+    $seedAssignment = Assignment::factory()->for($seed)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => mb_strlen($seedText)]);
-    $otherSegment = TranscriptionSegment::factory()->for($other)->for($passage, 'canonicalPassage')
+    $otherAssignment = Assignment::factory()->for($other)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => mb_strlen($otherText)]);
 
     $first = Edition::factory()->for($work)->create(['title' => 'First edition']);
-    PassageAdder::add($first, $seedSegment, 1.0);
+    PassageAdder::add($first, $seedAssignment, 1.0);
 
     $second = Edition::factory()->for($work)->create(['title' => 'Second edition']);
-    PassageAdder::add($second, $otherSegment, 1.0);
+    PassageAdder::add($second, $otherAssignment, 1.0);
 
     $printed = function (Edition $edition) use ($work): string {
         $runs = test()->get(route('editions.show', [$work, $edition]))
@@ -82,16 +82,16 @@ test('a run standing in for several columns says so', function () {
         ->create(['text' => 'the swift red fox sleeps']);
     $other = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'B']))
         ->create(['text' => 'the creature sleeps']);
-    TranscriptionSegment::factory()->for($seed)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($seed)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 24]);
-    $otherSegment = TranscriptionSegment::factory()->for($other)->for($passage, 'canonicalPassage')
+    $otherAssignment = Assignment::factory()->for($other)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 19]);
 
     $first = Edition::factory()->for($work)->create();
-    PassageAdder::add($first, TranscriptionSegment::where('transcription_layer_id', $seed->id)->sole(), 1.0);
+    PassageAdder::add($first, Assignment::where('transcription_layer_id', $seed->id)->sole(), 1.0);
 
     $second = Edition::factory()->for($work)->create();
-    PassageAdder::add($second, $otherSegment, 1.0);
+    PassageAdder::add($second, $otherAssignment, 1.0);
 
     $this->get(route('editions.show', [$work, $second]))
         ->assertInertia(fn (AssertInertia $page) => $page
@@ -127,14 +127,14 @@ test('a column the base omits is reported as a gap, and stays a variant site', f
         ->create(['text' => 'the swift red fox']);
     $shorter = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'B']))
         ->create(['text' => 'the red fox']);
-    TranscriptionSegment::factory()->for($seed)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($seed)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 17]);
-    $shorterSegment = TranscriptionSegment::factory()->for($shorter)->for($passage, 'canonicalPassage')
+    $shorterAssignment = Assignment::factory()->for($shorter)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 11]);
 
-    PassageAdder::add(Edition::factory()->for($work)->create(), TranscriptionSegment::where('transcription_layer_id', $seed->id)->sole(), 1.0);
+    PassageAdder::add(Edition::factory()->for($work)->create(), Assignment::where('transcription_layer_id', $seed->id)->sole(), 1.0);
     $second = Edition::factory()->for($work)->create();
-    PassageAdder::add($second, $shorterSegment, 1.0);
+    PassageAdder::add($second, $shorterAssignment, 1.0);
 
     $runs = $this->get(route('editions.show', [$work, $second]))
         ->viewData('page')['props']['windowPassages'][0]['runs'];

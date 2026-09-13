@@ -1,17 +1,17 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
 use App\Support\Edition\PassageAdder;
 
 /**
- * Two passages, two witnesses. A assigns both contiguously; B's text for 1.1 is
+ * Two passages, two witnesses. An assigns both contiguously; B's text for 1.1 is
  * split — "the quick" in place, "fox" transposed to after 1.2.
  *
  * @return array{work: Work, edition: Edition}
@@ -36,13 +36,13 @@ function editionWithSplitWitness(): array
     };
 
     $a = $layerFor('A', "the quick fox\nline two");
-    $aOne = TranscriptionSegment::factory()->for($a)->for($one, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
-    $aTwo = TranscriptionSegment::factory()->for($a)->for($two, 'canonicalPassage')->create(['start_offset' => 14, 'end_offset' => 22]);
+    $aOne = Assignment::factory()->for($a)->for($one, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
+    $aTwo = Assignment::factory()->for($a)->for($two, 'canonicalPassage')->create(['start_offset' => 14, 'end_offset' => 22]);
 
     $b = $layerFor('B', "the quick\nline two\nfox");
-    TranscriptionSegment::factory()->for($b)->for($one, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 9, 'part' => 1]); // "the quick"
-    TranscriptionSegment::factory()->for($b)->for($two, 'canonicalPassage')->create(['start_offset' => 10, 'end_offset' => 18]); // "line two"
-    TranscriptionSegment::factory()->for($b)->for($one, 'canonicalPassage')->create(['start_offset' => 19, 'end_offset' => 22, 'part' => 2]); // "fox"
+    Assignment::factory()->for($b)->for($one, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 9, 'part' => 1]); // "the quick"
+    Assignment::factory()->for($b)->for($two, 'canonicalPassage')->create(['start_offset' => 10, 'end_offset' => 18]); // "line two"
+    Assignment::factory()->for($b)->for($one, 'canonicalPassage')->create(['start_offset' => 19, 'end_offset' => 22, 'part' => 2]); // "fox"
 
     PassageAdder::add($edition, $aOne, 1.0);
     PassageAdder::add($edition, $aTwo, 2.0);
@@ -132,8 +132,8 @@ function editionWithExchangedTails(string $tailOne = 'brown', string $tailTwo = 
 
     // A reads both lines straight through and is the edition's base.
     $a = $layerFor('A', "the quick {$tailOne}\njumps {$tailTwo}");
-    $aOne = TranscriptionSegment::factory()->for($a)->for($one, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 10 + mb_strlen($tailOne)]);
-    $aTwo = TranscriptionSegment::factory()->for($a)->for($two, 'canonicalPassage')->create(['start_offset' => 11 + mb_strlen($tailOne), 'end_offset' => 17 + mb_strlen($tailOne) + mb_strlen($tailTwo)]);
+    $aOne = Assignment::factory()->for($a)->for($one, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 10 + mb_strlen($tailOne)]);
+    $aTwo = Assignment::factory()->for($a)->for($two, 'canonicalPassage')->create(['start_offset' => 11 + mb_strlen($tailOne), 'end_offset' => 17 + mb_strlen($tailOne) + mb_strlen($tailTwo)]);
 
     // C has the tails changed places: [1.1 head][1.2 tail] / [1.2 head][1.1 tail].
     $c = $layerFor('C', "the quick {$tailTwo}\njumps {$tailOne}");
@@ -141,10 +141,10 @@ function editionWithExchangedTails(string $tailOne = 'brown', string $tailTwo = 
     $tailTwoEnd = $headOneEnd + mb_strlen($tailTwo);
     $headTwoStart = $tailTwoEnd + 1;
     $headTwoEnd = $headTwoStart + 6; // "jumps "
-    TranscriptionSegment::factory()->for($c)->for($one, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => $headOneEnd, 'part' => 1]);
-    TranscriptionSegment::factory()->for($c)->for($two, 'canonicalPassage')->create(['start_offset' => $headOneEnd, 'end_offset' => $tailTwoEnd, 'part' => 2]);
-    TranscriptionSegment::factory()->for($c)->for($two, 'canonicalPassage')->create(['start_offset' => $headTwoStart, 'end_offset' => $headTwoEnd, 'part' => 1]);
-    TranscriptionSegment::factory()->for($c)->for($one, 'canonicalPassage')->create(['start_offset' => $headTwoEnd, 'end_offset' => $headTwoEnd + mb_strlen($tailOne), 'part' => 2]);
+    Assignment::factory()->for($c)->for($one, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => $headOneEnd, 'part' => 1]);
+    Assignment::factory()->for($c)->for($two, 'canonicalPassage')->create(['start_offset' => $headOneEnd, 'end_offset' => $tailTwoEnd, 'part' => 2]);
+    Assignment::factory()->for($c)->for($two, 'canonicalPassage')->create(['start_offset' => $headTwoStart, 'end_offset' => $headTwoEnd, 'part' => 1]);
+    Assignment::factory()->for($c)->for($one, 'canonicalPassage')->create(['start_offset' => $headTwoEnd, 'end_offset' => $headTwoEnd + mb_strlen($tailOne), 'part' => 2]);
 
     PassageAdder::add($edition, $aOne, 1.0);
     PassageAdder::add($edition, $aTwo, 2.0);

@@ -1,11 +1,11 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
@@ -30,15 +30,15 @@ function passageBasedOnNonSeed(string $seedText, string $baseText): array
     // siglum order, and these tests turn on which one built the columns.
     $seed = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'A']))->create(['text' => $seedText]);
     $base = TranscriptionLayer::factory()->for(Witness::factory()->create(['siglum' => 'B']))->create(['text' => $baseText]);
-    $seedSegment = TranscriptionSegment::factory()->for($seed)->for($passage, 'canonicalPassage')
+    $seedAssignment = Assignment::factory()->for($seed)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => mb_strlen($seedText)]);
-    $baseSegment = TranscriptionSegment::factory()->for($base)->for($passage, 'canonicalPassage')
+    $baseAssignment = Assignment::factory()->for($base)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => mb_strlen($baseText)]);
 
-    PassageAdder::add(Edition::factory()->for($work)->create(['title' => 'Seeded']), $seedSegment, 1.0);
+    PassageAdder::add(Edition::factory()->for($work)->create(['title' => 'Seeded']), $seedAssignment, 1.0);
 
     $edition = Edition::factory()->for($work)->create(['title' => 'Based on the other']);
-    PassageAdder::add($edition, $baseSegment, 1.0);
+    PassageAdder::add($edition, $baseAssignment, 1.0);
 
     return ['work' => $work, 'passage' => $passage, 'edition' => $edition, 'base' => $base];
 }

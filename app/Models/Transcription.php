@@ -25,7 +25,7 @@ use Illuminate\Support\Carbon;
  * may carry texts belonging to different works, or several kinds of text
  * across the same pages, and which transcription matters depends entirely on
  * the edition being made. The editor names them; an edition reaches one
- * through the assignment segments on its normalized layer.
+ * through the assignment assignments on its normalized layer.
  *
  * @property int $id
  * @property int $witness_id

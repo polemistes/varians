@@ -27,7 +27,7 @@ function splitAssignmentSetup(): array
         'address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1',
     ]);
 
-    $layer->segments()->create([
+    $layer->assignments()->create([
         'canonical_passage_id' => $passage->id,
         'start_offset' => 4, 'end_offset' => 13, // "the quick"
         'part' => 1,
@@ -54,7 +54,7 @@ test('assigning text to a passage a second time in one layer adds another part, 
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'layer' => $layer, 'passage' => $passage] = splitAssignmentSetup();
 
-    $response = $this->post(route('transcription-segments.store', $layer), [
+    $response = $this->post(route('assignments.store', $layer), [
         'start_offset' => 0,
         'end_offset' => 3, // "fox"
         'work_id' => $work->id,
@@ -63,7 +63,7 @@ test('assigning text to a passage a second time in one layer adds another part, 
 
     $response->assertRedirect();
 
-    $parts = $layer->segments()->where('canonical_passage_id', $passage->id)->inPartOrder()->get();
+    $parts = $layer->assignments()->where('canonical_passage_id', $passage->id)->inPartOrder()->get();
     expect($parts)->toHaveCount(2)
         ->and($parts[0]->start_offset)->toBe(4) // "the quick" still reads first
         ->and($parts[1]->start_offset)->toBe(0) // "fox" reads last despite standing first
@@ -77,10 +77,10 @@ test('after_part inserts a part into the content order and renumbers the rest', 
     $passage = CanonicalPassage::factory()->for($work)->create([
         'address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1',
     ]);
-    $first = $layer->segments()->create(['canonical_passage_id' => $passage->id, 'start_offset' => 4, 'end_offset' => 7, 'part' => 1]); // "the"
-    $second = $layer->segments()->create(['canonical_passage_id' => $passage->id, 'start_offset' => 8, 'end_offset' => 13, 'part' => 2]); // "quick"
+    $first = $layer->assignments()->create(['canonical_passage_id' => $passage->id, 'start_offset' => 4, 'end_offset' => 7, 'part' => 1]); // "the"
+    $second = $layer->assignments()->create(['canonical_passage_id' => $passage->id, 'start_offset' => 8, 'end_offset' => 13, 'part' => 2]); // "quick"
 
-    $response = $this->post(route('transcription-segments.store', $layer), [
+    $response = $this->post(route('assignments.store', $layer), [
         'start_offset' => 0,
         'end_offset' => 3, // "fox", to read FIRST
         'work_id' => $work->id,
@@ -90,7 +90,7 @@ test('after_part inserts a part into the content order and renumbers the rest', 
 
     $response->assertRedirect();
 
-    $parts = $layer->segments()->where('canonical_passage_id', $passage->id)->inPartOrder()->get();
+    $parts = $layer->assignments()->where('canonical_passage_id', $passage->id)->inPartOrder()->get();
     expect($parts->pluck('start_offset')->all())->toBe([0, 4, 8])
         ->and($parts->pluck('part')->all())->toBe([1, 2, 3])
         ->and($first->fresh()->part)->toBe(2)
@@ -100,9 +100,9 @@ test('after_part inserts a part into the content order and renumbers the rest', 
 test('a late part on an already-collated passage is refused until acknowledged', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'layer' => $layer, 'passage' => $passage] = splitAssignmentSetup();
-    PassageAligner::alignWitness($passage, $layer->segments()->get());
+    PassageAligner::alignWitness($passage, $layer->assignments()->get());
 
-    $response = $this->post(route('transcription-segments.store', $layer), [
+    $response = $this->post(route('assignments.store', $layer), [
         'start_offset' => 0,
         'end_offset' => 3,
         'work_id' => $work->id,
@@ -110,16 +110,16 @@ test('a late part on an already-collated passage is refused until acknowledged',
     ]);
 
     $response->assertInvalid(['acknowledge_realignment']);
-    expect($layer->segments()->count())->toBe(1)
+    expect($layer->assignments()->count())->toBe(1)
         ->and(PassageAligner::layerReadings($passage, $layer))->toHaveCount(2); // untouched
 });
 
 test('an acknowledged late part re-collates the layer from all its parts', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'layer' => $layer, 'passage' => $passage] = splitAssignmentSetup();
-    PassageAligner::alignWitness($passage, $layer->segments()->get());
+    PassageAligner::alignWitness($passage, $layer->assignments()->get());
 
-    $response = $this->post(route('transcription-segments.store', $layer), [
+    $response = $this->post(route('assignments.store', $layer), [
         'start_offset' => 0,
         'end_offset' => 3,
         'work_id' => $work->id,
@@ -133,13 +133,13 @@ test('an acknowledged late part re-collates the layer from all its parts', funct
     // The apparatus now carries the passage's full text in content order —
     // the transposed "fox" included, after the words it follows in reading.
     expect(layerColumnTexts($passage, $layer))->toBe([['the'], ['quick'], ['fox']])
-        ->and($layer->segments()->where('canonical_passage_id', $passage->id)->count())->toBe(2);
+        ->and($layer->assignments()->where('canonical_passage_id', $passage->id)->count())->toBe(2);
 });
 
 test('a late part whose readings an edition selects keeps them and flags every part for review', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'layer' => $layer, 'passage' => $passage] = splitAssignmentSetup();
-    PassageAligner::alignWitness($passage, $layer->segments()->get());
+    PassageAligner::alignWitness($passage, $layer->assignments()->get());
 
     $lemma = Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')->with('readings')->first();
     $selection = EditionLemma::create([
@@ -149,7 +149,7 @@ test('a late part whose readings an edition selects keeps them and flags every p
     ]);
     $readingIdsBefore = PassageAligner::layerReadings($passage, $layer)->pluck('id')->sort()->values()->all();
 
-    $response = $this->post(route('transcription-segments.store', $layer), [
+    $response = $this->post(route('assignments.store', $layer), [
         'start_offset' => 0,
         'end_offset' => 3,
         'work_id' => $work->id,
@@ -160,7 +160,7 @@ test('a late part whose readings an edition selects keeps them and flags every p
     $response->assertRedirect();
     $response->assertSessionHasNoErrors();
 
-    $parts = $layer->segments()->where('canonical_passage_id', $passage->id)->get();
+    $parts = $layer->assignments()->where('canonical_passage_id', $passage->id)->get();
     expect($parts)->toHaveCount(2)
         ->and($parts->every(fn ($part) => $part->needs_review))->toBeTrue()
         // The edition's decision and the readings it rests on both survive.
@@ -168,15 +168,15 @@ test('a late part whose readings an edition selects keeps them and flags every p
         ->and(EditionLemma::whereKey($selection->id)->exists())->toBeTrue();
 });
 
-test('re-assigning text to a segment into a passage its layer already assigns makes it a part of that passage', function () {
+test('re-assigning text to an assignment into a passage its layer already assigns makes it a part of that passage', function () {
     $this->actingAs(User::factory()->editor()->create());
     ['work' => $work, 'layer' => $layer, 'passage' => $passage] = splitAssignmentSetup();
     $other = CanonicalPassage::factory()->for($work)->create([
         'address' => ['book' => 1, 'line' => 2], 'sort_key' => '00000001.00000002', 'label' => '1.2',
     ]);
-    $stray = $layer->segments()->create(['canonical_passage_id' => $other->id, 'start_offset' => 0, 'end_offset' => 3, 'part' => 1]);
+    $stray = $layer->assignments()->create(['canonical_passage_id' => $other->id, 'start_offset' => 0, 'end_offset' => 3, 'part' => 1]);
 
-    $response = $this->patch(route('transcription-segments.assign', $stray), [
+    $response = $this->patch(route('assignments.reassign', $stray), [
         'work_id' => $work->id,
         'label' => '1.1',
     ]);

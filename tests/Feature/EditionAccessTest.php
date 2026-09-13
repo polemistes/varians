@@ -1,11 +1,11 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
 use App\Models\EditionOwnershipTransfer;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
@@ -26,7 +26,7 @@ function editionWithEvidence(): array
     $passage = CanonicalPassage::factory()->for($work)->create();
     $witness = Witness::factory()->for($owner)->create();
     $layer = TranscriptionLayer::factory()->for($witness)->create(['text' => 'the quick fox']);
-    TranscriptionSegment::factory()->for($layer)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
+    Assignment::factory()->for($layer)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
     $conjecture = Conjecture::factory()->for($owner)->for($passage, 'canonicalPassage')->create();
 
     return compact('owner', 'work', 'edition', 'witness', 'layer', 'conjecture');
@@ -215,7 +215,7 @@ test('a member cannot reach another member\'s witness by making an edition on he
     // Nor may she assign her own witness into that work to become connected to it.
     $ownWitness = Witness::factory()->for($stranger)->create();
     $layer = TranscriptionLayer::factory()->for($ownWitness)->create(['text' => 'the quick fox']);
-    $this->post(route('transcription-segments.store', $layer), [
+    $this->post(route('assignments.store', $layer), [
         'work_id' => $work->id,
         'label' => '1',
         'start_offset' => 0,

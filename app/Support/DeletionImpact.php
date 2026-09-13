@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\Edition;
@@ -12,7 +13,6 @@ use App\Models\Lemma;
 use App\Models\ManuscriptImage;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
-use App\Models\TranscriptionSegment;
 use App\Models\Witness;
 use App\Models\Work;
 
@@ -31,10 +31,10 @@ class DeletionImpact
      * EditionPassage/EditionTransposition rows — already implied by
      * 'editions' below, not counted separately), every Lemma/LemmaReading
      * built for those passages, every Conjecture recorded against them, and
-     * — the least obvious one — every TranscriptionSegment assigning those
+     * — the least obvious one — every Assignment assigning those
      * passages, even on a witness with no other connection to this work.
      *
-     * @return array{canonicalPassages: int, editions: int, segments: int, conjectures: int, lemmas: int}
+     * @return array{canonicalPassages: int, editions: int, assignments: int, conjectures: int, lemmas: int}
      */
     public static function forWork(Work $work): array
     {
@@ -43,14 +43,14 @@ class DeletionImpact
         return [
             'canonicalPassages' => $passageIds->count(),
             'editions' => Edition::query()->where('work_id', $work->id)->count(),
-            'segments' => TranscriptionSegment::query()->whereIn('canonical_passage_id', $passageIds)->count(),
+            'assignments' => Assignment::query()->whereIn('canonical_passage_id', $passageIds)->count(),
             'conjectures' => Conjecture::query()->whereIn('canonical_passage_id', $passageIds)->count(),
             'lemmas' => Lemma::query()->whereIn('canonical_passage_id', $passageIds)->count(),
         ];
     }
 
     /**
-     * @return array{transcriptions: int, segments: int, regions: int, images: int, pages: int, editionSelections: int, editionPassages: int}
+     * @return array{transcriptions: int, assignments: int, regions: int, images: int, pages: int, editionSelections: int, editionPassages: int}
      */
     public static function forWitness(Witness $witness): array
     {
@@ -59,7 +59,7 @@ class DeletionImpact
 
         return [
             'transcriptions' => $transcriptionIds->count(),
-            'segments' => TranscriptionSegment::query()->whereIn('transcription_layer_id', $transcriptionIds)->count(),
+            'assignments' => Assignment::query()->whereIn('transcription_layer_id', $transcriptionIds)->count(),
             'regions' => TranscriptionRegion::query()
                 ->where(fn ($query) => $query
                     ->whereIn('transcription_layer_id', $transcriptionIds)
@@ -79,7 +79,7 @@ class DeletionImpact
      * layers, since that is what the delete removes (see
      * TranscriptionController::destroy).
      *
-     * @return array{segments: int, regions: int, editionSelections: int, editionPassages: int}
+     * @return array{assignments: int, regions: int, editionSelections: int, editionPassages: int}
      */
     public static function forTranscription(TranscriptionLayer $transcription): array
     {
@@ -88,7 +88,7 @@ class DeletionImpact
             ->pluck('id');
 
         return [
-            'segments' => TranscriptionSegment::query()->whereIn('transcription_layer_id', $layerIds)->count(),
+            'assignments' => Assignment::query()->whereIn('transcription_layer_id', $layerIds)->count(),
             'regions' => TranscriptionRegion::query()->whereIn('transcription_layer_id', $layerIds)->count(),
             'editionSelections' => EditionLemma::query()
                 ->whereHas('selectedReading', fn ($query) => $query->whereIn('transcription_layer_id', $layerIds))

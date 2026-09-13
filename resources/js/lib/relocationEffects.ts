@@ -1,7 +1,7 @@
 /**
  * The assignment consequences of a cut/paste relocation beyond offset moves,
  * for LIVE PREVIEW — the client mirror of
- * App\Support\Transcription\RelocationSegmentEffects (which remains the
+ * App\Support\Transcription\RelocationAssignmentEffects (which remains the
  * authority at save time); keep the two in step. Cutting PART of an assigned
  * span makes the fragment a new part of its passage at the paste site, and
  * pasting INTO another assigned span splits it around the arrival — the
@@ -57,7 +57,7 @@ function pairs(ops: TextEditOp[]): [number, number][] {
 }
 
 export function planRelocationEffects(
-    segments: SpanRow[],
+    assignments: SpanRow[],
     ops: TextEditOp[],
 ): RelocationEffects {
     const overrides = new Map<
@@ -67,10 +67,10 @@ export function planRelocationEffects(
     const unflag = new Set<number>();
     const creates: RelocationEffects['creates'] = [];
 
-    const original = segments.map((segment) => ({
-        start: segment.start_offset,
-        end: segment.end_offset,
-        needsReview: segment.needs_review,
+    const original = assignments.map((assignment) => ({
+        start: assignment.start_offset,
+        end: assignment.end_offset,
+        needsReview: assignment.needs_review,
     }));
 
     for (const [cutIndex, pasteIndex] of pairs(ops)) {
@@ -90,7 +90,7 @@ export function planRelocationEffects(
         const opsAfterPasteInclusive = ops.slice(pasteIndex);
         const opsAfterPaste = ops.slice(pasteIndex + 1);
 
-        segments.forEach((segment, index) => {
+        assignments.forEach((assignment, index) => {
             const stateAtCut = atCut[index];
 
             if (stateAtCut.deleted) {
@@ -106,7 +106,7 @@ export function planRelocationEffects(
                 return; // disjoint, or carried whole by the transform
             }
 
-            // The fragment: this segment's share of the cut, re-anchored at
+            // The fragment: this assignment's share of the cut, re-anchored at
             // the paste destination and ridden through the remaining ops.
             const relStart = overlapStart - cutOp.start;
             const relEnd = overlapEnd - cutOp.start;
@@ -136,8 +136,8 @@ export function planRelocationEffects(
             }
         });
 
-        // Split any segment the paste lands strictly inside.
-        segments.forEach((segment, index) => {
+        // Split any assignment the paste lands strictly inside.
+        assignments.forEach((assignment, index) => {
             const stateAtPaste = atPaste[index];
 
             if (stateAtPaste.deleted) {

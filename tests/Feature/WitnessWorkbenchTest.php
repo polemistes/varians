@@ -10,7 +10,7 @@ use App\Models\Witness;
  * The witness page is the workbench: the diplomatic layer always on the
  * left, the normalized always on the right (each pane can also show the
  * facsimile, client-side). Which TRANSCRIPT is open is in the URL, because
- * the server has to load each layer's segments, regions and breaks.
+ * the server has to load each layer's assignments, regions and breaks.
  */
 
 /**

@@ -4,7 +4,7 @@ use App\Models\CanonicalPassage;
 use App\Models\ReferenceScheme;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
+use App\Models\Assignment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
@@ -14,13 +14,13 @@ test('marking a span requires an assignment — there is no unassigned state', f
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
 
-    $response = $this->post(route('transcription-segments.store', $transcription), [
+    $response = $this->post(route('assignments.store', $transcription), [
         'start_offset' => 0,
         'end_offset' => 3,
     ]);
 
     $response->assertInvalid(['work_id', 'label']);
-    expect($transcription->segments()->count())->toBe(0);
+    expect($transcription->assignments()->count())->toBe(0);
 });
 
 test('marking a span creates it already assigned, in one step', function () {
@@ -29,7 +29,7 @@ test('marking a span creates it already assigned, in one step', function () {
     $scheme = ReferenceScheme::factory()->create();
     $work = Work::factory()->for($scheme, 'referenceScheme')->create();
 
-    $response = $this->post(route('transcription-segments.store', $transcription), [
+    $response = $this->post(route('assignments.store', $transcription), [
         'start_offset' => 0,
         'end_offset' => 3,
         'work_id' => $work->id,
@@ -38,19 +38,19 @@ test('marking a span creates it already assigned, in one step', function () {
 
     $response->assertRedirect();
 
-    $segment = $transcription->segments()->sole();
-    expect($segment->canonicalPassage->work_id)->toBe($work->id)
-        ->and($segment->canonicalPassage->label)->toBe('1.1')
+    $assignment = $transcription->assignments()->sole();
+    expect($assignment->canonicalPassage->work_id)->toBe($work->id)
+        ->and($assignment->canonicalPassage->label)->toBe('1.1')
         ->and($work->relatedWitnesses()->whereKey($transcription->transcription->witness_id)->exists())->toBeTrue();
 });
 
-test('a segment can be assigned with an alphanumeric line label like "4a"', function () {
+test('an assignment can be assigned with an alphanumeric line label like "4a"', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
     $scheme = ReferenceScheme::factory()->create();
     $work = Work::factory()->for($scheme, 'referenceScheme')->create();
 
-    $response = $this->post(route('transcription-segments.store', $transcription), [
+    $response = $this->post(route('assignments.store', $transcription), [
         'start_offset' => 0,
         'end_offset' => 3,
         'work_id' => $work->id,
@@ -59,9 +59,9 @@ test('a segment can be assigned with an alphanumeric line label like "4a"', func
 
     $response->assertRedirect();
 
-    $segment = $transcription->segments()->sole();
-    expect($segment->canonicalPassage->label)->toBe('1.4a')
-        ->and($segment->canonicalPassage->address)->toBe(['book' => 1, 'line' => '4a']);
+    $assignment = $transcription->assignments()->sole();
+    expect($assignment->canonicalPassage->label)->toBe('1.4a')
+        ->and($assignment->canonicalPassage->address)->toBe(['book' => 1, 'line' => '4a']);
 });
 
 test('an alphanumeric line label sorts between its numeric neighbours', function () {
@@ -70,81 +70,81 @@ test('an alphanumeric line label sorts between its numeric neighbours', function
     $work = Work::factory()->for($scheme, 'referenceScheme')->create();
     $four = CanonicalPassage::factory()->for($work)->create(['address' => ['book' => 1, 'line' => 4], 'sort_key' => '00000001.00000004', 'label' => '1.4']);
     $five = CanonicalPassage::factory()->for($work)->create(['address' => ['book' => 1, 'line' => 5], 'sort_key' => '00000001.00000005', 'label' => '1.5']);
-    $segment = TranscriptionSegment::factory()->create();
+    $assignment = Assignment::factory()->create();
 
-    $this->patch(route('transcription-segments.assign', $segment), [
+    $this->patch(route('assignments.reassign', $assignment), [
         'work_id' => $work->id,
         'label' => '1.4a',
     ]);
 
-    $fourA = $segment->fresh()->canonicalPassage;
+    $fourA = $assignment->fresh()->canonicalPassage;
     expect(strcmp($four->sort_key, $fourA->sort_key))->toBeLessThan(0)
         ->and(strcmp($fourA->sort_key, $five->sort_key))->toBeLessThan(0);
 });
 
-test('a segment can be assign afreshd to a different work, creating the canonical passage', function () {
+test('an assignment can be assign afreshd to a different work, creating the canonical passage', function () {
     $this->actingAs(User::factory()->editor()->create());
     $scheme = ReferenceScheme::factory()->create();
     $work = Work::factory()->for($scheme, 'referenceScheme')->create();
-    $segment = TranscriptionSegment::factory()->create();
+    $assignment = Assignment::factory()->create();
 
-    $response = $this->patch(route('transcription-segments.assign', $segment), [
+    $response = $this->patch(route('assignments.reassign', $assignment), [
         'work_id' => $work->id,
         'label' => '1.1',
     ]);
 
     $response->assertRedirect();
 
-    $segment->refresh();
-    expect($segment->canonicalPassage)->not->toBeNull()
-        ->and($segment->canonicalPassage->work_id)->toBe($work->id)
-        ->and($segment->canonicalPassage->label)->toBe('1.1')
-        ->and($work->relatedWitnesses()->whereKey($segment->transcriptionLayer->transcription->witness_id)->exists())->toBeTrue();
+    $assignment->refresh();
+    expect($assignment->canonicalPassage)->not->toBeNull()
+        ->and($assignment->canonicalPassage->work_id)->toBe($work->id)
+        ->and($assignment->canonicalPassage->label)->toBe('1.1')
+        ->and($work->relatedWitnesses()->whereKey($assignment->transcriptionLayer->transcription->witness_id)->exists())->toBeTrue();
 });
 
-test('re-assigning text to a segment reuses an existing canonical passage for the same assignment', function () {
+test('re-assigning text to an assignment reuses an existing canonical passage for the same assignment', function () {
     $this->actingAs(User::factory()->editor()->create());
     $scheme = ReferenceScheme::factory()->create();
     $work = Work::factory()->for($scheme, 'referenceScheme')->create();
     $passage = CanonicalPassage::factory()->for($work)->create(['address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1']);
-    $segment = TranscriptionSegment::factory()->create();
+    $assignment = Assignment::factory()->create();
 
-    $this->patch(route('transcription-segments.assign', $segment), [
+    $this->patch(route('assignments.reassign', $assignment), [
         'work_id' => $work->id,
         'label' => '1.1',
     ]);
 
-    expect($segment->fresh()->canonical_passage_id)->toBe($passage->id)
+    expect($assignment->fresh()->canonical_passage_id)->toBe($passage->id)
         ->and($work->canonicalPassages()->count())->toBe(1);
 });
 
-test('a segment\'s assignment cannot be cleared — a work_id is always required', function () {
+test('an assignment\'s assignment cannot be cleared — a work_id is always required', function () {
     $this->actingAs(User::factory()->editor()->create());
     $passage = CanonicalPassage::factory()->create();
-    $segment = TranscriptionSegment::factory()->for($passage, 'canonicalPassage')->create();
+    $assignment = Assignment::factory()->for($passage, 'canonicalPassage')->create();
 
-    $response = $this->patch(route('transcription-segments.assign', $segment), [
+    $response = $this->patch(route('assignments.reassign', $assignment), [
         'work_id' => null,
     ]);
 
     $response->assertInvalid(['work_id']);
-    expect($segment->fresh()->canonical_passage_id)->toBe($passage->id);
+    expect($assignment->fresh()->canonical_passage_id)->toBe($passage->id);
 });
 
 test('assigning an assignment that does not match the work\'s numbering scheme fails', function () {
     $this->actingAs(User::factory()->editor()->create());
     $scheme = ReferenceScheme::factory()->create();
     $work = Work::factory()->for($scheme, 'referenceScheme')->create();
-    $segment = TranscriptionSegment::factory()->create();
-    $originalPassageId = $segment->canonical_passage_id;
+    $assignment = Assignment::factory()->create();
+    $originalPassageId = $assignment->canonical_passage_id;
 
-    $response = $this->patch(route('transcription-segments.assign', $segment), [
+    $response = $this->patch(route('assignments.reassign', $assignment), [
         'work_id' => $work->id,
         'label' => 'not-a-valid-assignment!!',
     ]);
 
     $response->assertInvalid(['label']);
-    expect($segment->fresh()->canonical_passage_id)->toBe($originalPassageId);
+    expect($assignment->fresh()->canonical_passage_id)->toBe($originalPassageId);
 });
 
 test('a work another transcript of the same witness already holds cannot be assigned here', function () {
@@ -158,33 +158,33 @@ test('a work another transcript of the same witness already holds cannot be assi
 
     $first = Transcription::factory()->for($witness)->create(['name' => 'First']);
     $firstLayer = TranscriptionLayer::factory()->normalized()->for($first)->create(['text' => 'the quick fox']);
-    TranscriptionSegment::factory()->for($firstLayer)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 3]);
+    Assignment::factory()->for($firstLayer)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 3]);
 
     $second = Transcription::factory()->for($witness)->create(['name' => 'Second']);
     $secondLayer = TranscriptionLayer::factory()->normalized()->for($second)->create(['text' => 'the quick fox']);
 
-    $this->post(route('transcription-segments.store', $secondLayer), [
+    $this->post(route('assignments.store', $secondLayer), [
         'start_offset' => 0,
         'end_offset' => 3,
         'work_id' => $work->id,
         'label' => '1.2',
     ])->assertInvalid(['work_id']);
 
-    expect($secondLayer->segments()->count())->toBe(0);
+    expect($secondLayer->assignments()->count())->toBe(0);
 
     // Re-assigning text to a span of the second transcript to the work is refused too.
     $other = Work::factory()->for($scheme, 'referenceScheme')->create(['title' => 'Other']);
     $otherPassage = CanonicalPassage::factory()->for($other)->create(['address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1']);
-    $segment = TranscriptionSegment::factory()->for($secondLayer)->for($otherPassage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 3]);
+    $assignment = Assignment::factory()->for($secondLayer)->for($otherPassage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 3]);
 
-    $this->patch(route('transcription-segments.assign', $segment), [
+    $this->patch(route('assignments.reassign', $assignment), [
         'work_id' => $work->id,
         'label' => '1.1',
     ])->assertInvalid(['work_id']);
 
     // The same transcript may go on assigning text to the work, and another witness
     // is free to hold it.
-    $this->post(route('transcription-segments.store', $firstLayer), [
+    $this->post(route('assignments.store', $firstLayer), [
         'start_offset' => 4,
         'end_offset' => 9,
         'work_id' => $work->id,
@@ -203,7 +203,7 @@ test('the ownership check lists a witness holding one work in two transcripts, a
         $layer = TranscriptionLayer::factory()->normalized()
             ->for(Transcription::factory()->for($witness)->create(['name' => $name]))
             ->create(['text' => 'the quick fox']);
-        TranscriptionSegment::factory()->for($layer)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 3]);
+        Assignment::factory()->for($layer)->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 3]);
     }
 
     $this->artisan('witnesses:check-work-ownership')
@@ -217,8 +217,8 @@ test('the assignment check reports spans that drifted off their words, and passe
     $one = CanonicalPassage::factory()->for($work)->create(['address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1']);
     $two = CanonicalPassage::factory()->for($work)->create(['address' => ['book' => 1, 'line' => 2], 'sort_key' => '00000001.00000002', 'label' => '1.2']);
     $layer = TranscriptionLayer::factory()->create(['text' => "the quick fox\nline two"]);
-    TranscriptionSegment::factory()->for($layer)->for($one, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
-    $second = TranscriptionSegment::factory()->for($layer)->for($two, 'canonicalPassage')->create(['start_offset' => 14, 'end_offset' => 22]);
+    Assignment::factory()->for($layer)->for($one, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13]);
+    $second = Assignment::factory()->for($layer)->for($two, 'canonicalPassage')->create(['start_offset' => 14, 'end_offset' => 22]);
 
     $this->artisan('transcriptions:check-assignments')->assertExitCode(0);
 
@@ -238,8 +238,8 @@ test('a span that slips off its words is flagged at the save that did it, and un
     $one = CanonicalPassage::factory()->for($work)->create(['address' => ['book' => 1, 'line' => 1], 'sort_key' => '00000001.00000001', 'label' => '1.1']);
     $two = CanonicalPassage::factory()->for($work)->create(['address' => ['book' => 1, 'line' => 2], 'sort_key' => '00000001.00000002', 'label' => '1.2']);
     $layer = TranscriptionLayer::factory()->normalized()->create(['text' => "the fox\nline two"]);
-    $first = TranscriptionSegment::factory()->for($layer)->for($one, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 7]);
-    $second = TranscriptionSegment::factory()->for($layer)->for($two, 'canonicalPassage')->create(['start_offset' => 8, 'end_offset' => 16]);
+    $first = Assignment::factory()->for($layer)->for($one, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 7]);
+    $second = Assignment::factory()->for($layer)->for($two, 'canonicalPassage')->create(['start_offset' => 8, 'end_offset' => 16]);
 
     // Deleting "x⏎li" glues "fo" to "ne": 1.1 now ends inside a word and
     // 1.2 begins inside one — but they meet exactly there, as two lines
@@ -285,7 +285,7 @@ test('the assignment check can flag drifted spans in place', function () {
     $two = CanonicalPassage::factory()->for($work)->create(['address' => ['book' => 1, 'line' => 2], 'sort_key' => '00000001.00000002', 'label' => '1.2']);
     $layer = TranscriptionLayer::factory()->create(['text' => "the quick fox\nline two"]);
     // Slid one character left: begins on the newline, ends a letter short.
-    $drifted = TranscriptionSegment::factory()->for($layer)->for($two, 'canonicalPassage')->create(['start_offset' => 13, 'end_offset' => 21]);
+    $drifted = Assignment::factory()->for($layer)->for($two, 'canonicalPassage')->create(['start_offset' => 13, 'end_offset' => 21]);
 
     $this->artisan('transcriptions:check-assignments --snap')
         ->expectsOutputToContain('flagged: ends inside a word')

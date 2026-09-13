@@ -13,7 +13,7 @@ import type {
     ManuscriptImage,
     ReferenceLevel,
     TranscriptionRegion,
-    TranscriptionSegment,
+    Assignment,
 } from '@/types/models';
 
 /**
@@ -31,7 +31,7 @@ export type WitnessTranscript = {
     layer: string;
     first_sort_key: string;
     text: string;
-    segments: TranscriptionSegment[];
+    assignments: Assignment[];
     part_totals?: Record<number, number>;
     // Where the manuscript's pages begin in this layer's text, and the
     // witness's pages with their photograph — see EditionController::pagesOf.
@@ -59,11 +59,11 @@ type PassageOption = {
 /**
  * The witnesses pane: the manuscripts of the work, one at a time, in
  * either layer, whole — where a witness is read beside the edition and
- * where its segments are picked for the edition (user decision, merging
+ * where its assignments are picked for the edition (user decision, merging
  * the former "Add text" and "The manuscripts" panes). Selecting text and
- * pressing "Add selection" adds every assigned segment inside the selection;
+ * pressing "Add selection" adds every assigned assignment inside the selection;
  * each lands where the manuscript has it (PassageAdder::insertionPosition).
- * Segments the edition already has print grey.
+ * Assignments the edition already has print grey.
  */
 const props = defineProps<{
     edition: Edition;
@@ -311,14 +311,14 @@ function overlaps(
 function passagesOf(region: TranscriptionRegion, layer: WitnessTranscript) {
     return [
         ...new Set(
-            layer.segments
-                .filter((segment) =>
+            layer.assignments
+                .filter((assignment) =>
                     overlaps(
                         { start: region.start_offset, end: region.end_offset },
-                        segment,
+                        assignment,
                     ),
                 )
-                .map((segment) => segment.canonical_passage_id),
+                .map((assignment) => assignment.canonical_passage_id),
         ),
     ];
 }
@@ -394,12 +394,14 @@ function stepPage(delta: -1 | 1) {
     }
 }
 
-function unavailableSegmentIds(transcript: WitnessTranscript): number[] {
-    return transcript.segments
-        .filter((segment) =>
-            props.alreadyAddedPassageIds.includes(segment.canonical_passage_id),
+function unavailableAssignmentIds(transcript: WitnessTranscript): number[] {
+    return transcript.assignments
+        .filter((assignment) =>
+            props.alreadyAddedPassageIds.includes(
+                assignment.canonical_passage_id,
+            ),
         )
-        .map((segment) => segment.id);
+        .map((assignment) => assignment.id);
 }
 
 // Same interaction as the transcription editor: selecting is just
@@ -452,16 +454,16 @@ const selectedPassageIds = computed(() => {
 
     return [
         ...new Set(
-            transcript.segments
+            transcript.assignments
                 .filter(
-                    (segment) =>
-                        segment.start_offset >= sel.start &&
-                        segment.end_offset <= sel.end &&
+                    (assignment) =>
+                        assignment.start_offset >= sel.start &&
+                        assignment.end_offset <= sel.end &&
                         !props.alreadyAddedPassageIds.includes(
-                            segment.canonical_passage_id,
+                            assignment.canonical_passage_id,
                         ),
                 )
-                .map((segment) => segment.canonical_passage_id),
+                .map((assignment) => assignment.canonical_passage_id),
         ),
     ];
 });
@@ -767,11 +769,11 @@ function submitBulk() {
                 >
                     <AlignableText
                         :text="transcript.text"
-                        :segments="transcript.segments"
+                        :assignments="transcript.assignments"
                         :page-breaks="pageBreaksFor(transcript)"
                         :part-totals="transcript.part_totals ?? null"
-                        :unavailable-segment-ids="
-                            unavailableSegmentIds(transcript)
+                        :unavailable-assignment-ids="
+                            unavailableAssignmentIds(transcript)
                         "
                         :selection-start="
                             selection?.transcriptId === transcript.id

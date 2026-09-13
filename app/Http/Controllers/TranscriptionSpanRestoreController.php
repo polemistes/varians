@@ -18,14 +18,14 @@ class TranscriptionSpanRestoreController extends Controller
      * Put the spans back the way they stood before an edit that is now
      * undone. Two kinds of row come here from the client's edit history:
      *
-     * - `segments`/`regions`: rows the edit DELETED outright (deleting text
+     * - `assignments`/`regions`: rows the edit DELETED outright (deleting text
      *   deletes assignments and image mappings), re-created verbatim. An
      *   assignment whose landing words already carry the same assignment is
      *   skipped (the redo/undo dance must not duplicate); a mapping is
      *   skipped where the target already maps overlapping text (mapped
      *   once, like span-copy) or where its image belongs to another witness.
      *
-     * - `adjust_segments`/`adjust_regions`: rows that SURVIVED the edit but
+     * - `adjust_assignments`/`adjust_regions`: rows that SURVIVED the edit but
      *   came out of the undo with the wrong bounds. Undoing a deletion at
      *   the head of a span re-inserts the words, and the span's start has
      *   right-gravity, so the transform pushes the span past them instead
@@ -40,8 +40,8 @@ class TranscriptionSpanRestoreController extends Controller
     public function store(RestoreTranscriptionSpansRequest $request, TranscriptionLayer $transcription): RedirectResponse
     {
         DB::transaction(function () use ($request, $transcription) {
-            foreach ($request->validated('segments') ?? [] as $row) {
-                $alreadyAssigned = $transcription->segments()
+            foreach ($request->validated('assignments') ?? [] as $row) {
+                $alreadyAssigned = $transcription->assignments()
                     ->where('canonical_passage_id', (int) $row['canonical_passage_id'])
                     ->where('start_offset', '<', (int) $row['end_offset'])
                     ->where('end_offset', '>', (int) $row['start_offset'])
@@ -51,7 +51,7 @@ class TranscriptionSpanRestoreController extends Controller
                     continue;
                 }
 
-                $transcription->segments()->create([
+                $transcription->assignments()->create([
                     'canonical_passage_id' => (int) $row['canonical_passage_id'],
                     'start_offset' => (int) $row['start_offset'],
                     'end_offset' => (int) $row['end_offset'],
@@ -94,19 +94,19 @@ class TranscriptionSpanRestoreController extends Controller
                 ]);
             }
 
-            foreach ($request->validated('adjust_segments') ?? [] as $row) {
-                $segment = $transcription->segments()->find((int) $row['id']);
+            foreach ($request->validated('adjust_assignments') ?? [] as $row) {
+                $assignment = $transcription->assignments()->find((int) $row['id']);
 
-                if ($segment === null) {
+                if ($assignment === null) {
                     continue;
                 }
 
-                $segment->update([
+                $assignment->update([
                     'start_offset' => (int) $row['start_offset'],
                     'end_offset' => (int) $row['end_offset'],
-                    'needs_review' => (bool) ($row['needs_review'] ?? $segment->needs_review),
+                    'needs_review' => (bool) ($row['needs_review'] ?? $assignment->needs_review),
                 ]);
-                SiblingSync::followSegment($segment);
+                SiblingSync::followAssignment($assignment);
             }
 
             foreach ($request->validated('adjust_regions') ?? [] as $row) {
@@ -133,7 +133,7 @@ class TranscriptionSpanRestoreController extends Controller
                 if ($drift !== []) {
                     Log::warning('Assignment spans drifted off their words after an undo restore', [
                         'layer' => $layer->id,
-                        'adjust_segments' => $request->validated('adjust_segments') ?? [],
+                        'adjust_assignments' => $request->validated('adjust_assignments') ?? [],
                         'issues' => $drift,
                     ]);
                 }

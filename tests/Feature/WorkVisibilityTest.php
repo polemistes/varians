@@ -1,8 +1,8 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Work;
 use Inertia\Testing\AssertableInertia as AssertInertia;
@@ -23,7 +23,7 @@ test('a guest can see a work once one of its transcriptions is published', funct
     $work = Work::factory()->create();
     $passage = CanonicalPassage::factory()->for($work)->create();
     $transcription = TranscriptionLayer::factory()->published()->create();
-    TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create();
+    Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')->create();
 
     $homeResponse = $this->get(route('home'));
     $showResponse = $this->get(route('works.show', $work));
@@ -56,11 +56,11 @@ test('a draft transcription on an otherwise-published work stays hidden from a g
     $work = Work::factory()->create();
     $publishedPassage = CanonicalPassage::factory()->for($work)->create();
     $publishedTranscription = TranscriptionLayer::factory()->published()->create();
-    TranscriptionSegment::factory()->for($publishedTranscription)->for($publishedPassage, 'canonicalPassage')->create();
+    Assignment::factory()->for($publishedTranscription)->for($publishedPassage, 'canonicalPassage')->create();
 
     $draftPassage = CanonicalPassage::factory()->for($work)->create();
     $draftTranscription = TranscriptionLayer::factory()->create();
-    TranscriptionSegment::factory()->for($draftTranscription)->for($draftPassage, 'canonicalPassage')->create();
+    Assignment::factory()->for($draftTranscription)->for($draftPassage, 'canonicalPassage')->create();
 
     $response = $this->get(route('works.show', $work));
 

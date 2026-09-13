@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\Edition;
 use App\Models\EditionLemma;
 use App\Models\EditionPassage;
@@ -9,18 +10,17 @@ use App\Models\ManuscriptImage;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 
-test('deleting a transcript removes BOTH its layers with their segments and regions, redirects to its witness, and leaves the witness untouched', function () {
+test('deleting a transcript removes BOTH its layers with their assignments and regions, redirects to its witness, and leaves the witness untouched', function () {
     $this->actingAs(User::factory()->editor()->create());
     $witness = Witness::factory()->create();
     $image = ManuscriptImage::factory()->for($witness)->create();
     $parent = Transcription::factory()->for($witness)->create();
     $transcription = TranscriptionLayer::factory()->diplomatic()->for($parent)->create();
     $sibling = TranscriptionLayer::factory()->normalized()->for($parent)->create();
-    $segment = TranscriptionSegment::factory()->for($transcription)->create();
+    $assignment = Assignment::factory()->for($transcription)->create();
     $region = TranscriptionRegion::factory()->for($transcription)->for($image, 'manuscriptImage')->create();
 
     $response = $this->delete(route('transcriptions.destroy', $transcription));
@@ -31,7 +31,7 @@ test('deleting a transcript removes BOTH its layers with their segments and regi
     expect(Transcription::find($parent->id))->toBeNull()
         ->and(TranscriptionLayer::find($transcription->id))->toBeNull()
         ->and(TranscriptionLayer::find($sibling->id))->toBeNull()
-        ->and(TranscriptionSegment::find($segment->id))->toBeNull()
+        ->and(Assignment::find($assignment->id))->toBeNull()
         ->and(TranscriptionRegion::find($region->id))->toBeNull()
         ->and(Witness::find($witness->id))->not->toBeNull()
         ->and(ManuscriptImage::find($image->id))->not->toBeNull();

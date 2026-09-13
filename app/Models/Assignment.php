@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use Database\Factories\TranscriptionSegmentFactory;
+use Database\Factories\AssignmentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -17,7 +17,7 @@ use Illuminate\Support\Collection;
  * span's position within that string; numbering order lives independently in
  * canonical_passage.sort_key, so the two can diverge (transpositions).
  *
- * A segment always assigns text to a canonical passage — there's no "marked but
+ * An assignment always assigns text to a canonical passage — there's no "marked but
  * unassigned" state. A span with no assignment has no use to anyone, so it's
  * either given one at creation or never created at all.
  *
@@ -42,9 +42,9 @@ use Illuminate\Support\Collection;
  * @property Carbon|null $updated_at
  */
 #[Fillable(['transcription_layer_id', 'canonical_passage_id', 'start_offset', 'end_offset', 'part', 'needs_review', 'boundary_review', 'group_id'])]
-class TranscriptionSegment extends Model
+class Assignment extends Model
 {
-    /** @use HasFactory<TranscriptionSegmentFactory> */
+    /** @use HasFactory<AssignmentFactory> */
     use HasFactory;
 
     /**
@@ -69,8 +69,8 @@ class TranscriptionSegment extends Model
      * were left equal; it must never override an explicit difference in
      * `part`, or a transposed fragment would read in physical order again.
      *
-     * @param  Builder<TranscriptionSegment>  $query
-     * @return Builder<TranscriptionSegment>
+     * @param  Builder<Assignment>  $query
+     * @return Builder<Assignment>
      */
     public function scopeInPartOrder(Builder $query): Builder
     {
@@ -80,13 +80,13 @@ class TranscriptionSegment extends Model
     /**
      * The same content order for an already-loaded collection.
      *
-     * @param  Collection<int, TranscriptionSegment>  $segments
-     * @return Collection<int, TranscriptionSegment>
+     * @param  Collection<int, Assignment>  $assignments
+     * @return Collection<int, Assignment>
      */
-    public static function sortByPartOrder(Collection $segments): Collection
+    public static function sortByPartOrder(Collection $assignments): Collection
     {
-        return $segments
-            ->sortBy(fn (TranscriptionSegment $segment) => [$segment->part, $segment->start_offset])
+        return $assignments
+            ->sortBy(fn (Assignment $assignment) => [$assignment->part, $assignment->start_offset])
             ->values();
     }
 

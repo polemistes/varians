@@ -39,7 +39,7 @@ class LayerMirror
     {
         $roles = [];
 
-        foreach (RelocationSegmentEffects::pairs($ops) as [$cutIndex, $pasteIndex]) {
+        foreach (RelocationAssignmentEffects::pairs($ops) as [$cutIndex, $pasteIndex]) {
             $roles[$cutIndex] = 'cut';
             $roles[$pasteIndex] = 'paste';
         }

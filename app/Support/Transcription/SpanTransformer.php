@@ -4,7 +4,7 @@ namespace App\Support\Transcription;
 
 /**
  * Applies an ordered log of exact text-edit operations to a set of character-offset
- * spans (TranscriptionSegment or TranscriptionRegion rows), keeping every span's
+ * spans (Assignment or TranscriptionRegion rows), keeping every span's
  * boundaries deterministically correct as the underlying text changes — replacing
  * the old diff-based SpanRebaser, which could only infer a single changed region
  * from a before/after string and left anything overlapping it flagged with stale,

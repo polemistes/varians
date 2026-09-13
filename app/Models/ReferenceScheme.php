@@ -72,7 +72,7 @@ class ReferenceScheme extends Model
     /**
      * Pad the leading digit run of an "integer" level's value so it sorts
      * numerically, leaving any alphabetic suffix (e.g. the "a"/"A" in "4a")
-     * appended literally — editors are free to assign a segment like "4a"
+     * appended literally — editors are free to assign an assignment like "4a"
      * even though the level is typed "integer".
      */
     private static function padIntegerLevel(string $value): string

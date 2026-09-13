@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\EditionLemma;
@@ -7,7 +8,6 @@ use App\Models\LemmaReading;
 use App\Models\ManuscriptImage;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Support\Edition\PassageAligner;
 use App\Support\Transcription\AssignmentIntegrity;
@@ -15,7 +15,7 @@ use App\Support\Transcription\AssignmentIntegrity;
 test('an insertion persists and shifts a trailing span', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
-    $segment = TranscriptionSegment::factory()->for($transcription)->create([
+    $assignment = Assignment::factory()->for($transcription)->create([
         'start_offset' => 8, 'end_offset' => 11, // "sat"
     ]);
 
@@ -26,16 +26,16 @@ test('an insertion persists and shifts a trailing span', function () {
 
     $response->assertRedirect();
     expect($transcription->fresh()->text)->toBe('the big cat sat');
-    $segment->refresh();
-    expect($segment->start_offset)->toBe(12)
-        ->and($segment->end_offset)->toBe(15)
-        ->and($segment->needs_review)->toBeFalse();
+    $assignment->refresh();
+    expect($assignment->start_offset)->toBe(12)
+        ->and($assignment->end_offset)->toBe(15)
+        ->and($assignment->needs_review)->toBeFalse();
 });
 
 test('deleting everything down to an empty transcription persists once confirmed', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
-    $segment = TranscriptionSegment::factory()->for($transcription)->create([
+    $assignment = Assignment::factory()->for($transcription)->create([
         'start_offset' => 4, 'end_offset' => 7, // "cat"
     ]);
 
@@ -48,13 +48,13 @@ test('deleting everything down to an empty transcription persists once confirmed
     expect($transcription->fresh()->text)->toBe('')
         // The assignment went with its words — deleting text deletes
         // assignments; undo restores both.
-        ->and(TranscriptionSegment::find($segment->id))->toBeNull();
+        ->and(Assignment::find($assignment->id))->toBeNull();
 });
 
-test('typing inside an existing segment extends it without flagging', function () {
+test('typing inside an existing assignment extends it without flagging', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
-    $segment = TranscriptionSegment::factory()->for($transcription)->create([
+    $assignment = Assignment::factory()->for($transcription)->create([
         'start_offset' => 4, 'end_offset' => 7, // "cat"
     ]);
 
@@ -64,20 +64,20 @@ test('typing inside an existing segment extends it without flagging', function (
     ]);
 
     $response->assertRedirect();
-    $segment->refresh();
-    expect($segment->start_offset)->toBe(4)
-        ->and($segment->end_offset)->toBe(8)
-        ->and($segment->needs_review)->toBeFalse();
+    $assignment->refresh();
+    expect($assignment->start_offset)->toBe(4)
+        ->and($assignment->end_offset)->toBe(8)
+        ->and($assignment->needs_review)->toBeFalse();
 });
 
-test('deleting a segment\'s entire text deletes it — an assignment without text is nothing', function () {
+test('deleting an assignment\'s entire text deletes it — an assignment without text is nothing', function () {
     // User decision, reversing the earlier tombstone policy: deleting text
     // deletes assignments. Undo protects the editor instead — the client's
     // history snapshots what an op destroyed and restores it via
-    // transcription-segments.restore when the deletion is undone.
+    // assignments.restore when the deletion is undone.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
-    $segment = TranscriptionSegment::factory()->for($transcription)->create([
+    $assignment = Assignment::factory()->for($transcription)->create([
         'start_offset' => 4, 'end_offset' => 7, // "cat"
     ]);
 
@@ -87,13 +87,13 @@ test('deleting a segment\'s entire text deletes it — an assignment without tex
     ]);
 
     $response->assertRedirect();
-    expect(TranscriptionSegment::find($segment->id))->toBeNull();
+    expect(Assignment::find($assignment->id))->toBeNull();
 });
 
 test('blanking an assigned transcript removes its assignments — undo is what brings them back', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
-    TranscriptionSegment::factory()->for($transcription)->create([
+    Assignment::factory()->for($transcription)->create([
         'start_offset' => 4, 'end_offset' => 7,
     ]);
 
@@ -102,13 +102,13 @@ test('blanking an assigned transcript removes its assignments — undo is what b
         'text' => '',
     ])->assertRedirect();
 
-    expect($transcription->segments()->count())->toBe(0);
+    expect($transcription->assignments()->count())->toBe(0);
 });
 
-test('replacing a segment\'s entire text keeps the row, resized and flagged', function () {
+test('replacing an assignment\'s entire text keeps the row, resized and flagged', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
-    $segment = TranscriptionSegment::factory()->for($transcription)->create([
+    $assignment = Assignment::factory()->for($transcription)->create([
         'start_offset' => 4, 'end_offset' => 7, // "cat"
     ]);
 
@@ -118,10 +118,10 @@ test('replacing a segment\'s entire text keeps the row, resized and flagged', fu
     ]);
 
     $response->assertRedirect();
-    $segment->refresh();
-    expect($segment->start_offset)->toBe(4)
-        ->and($segment->end_offset)->toBe(7)
-        ->and($segment->needs_review)->toBeTrue();
+    $assignment->refresh();
+    expect($assignment->start_offset)->toBe(4)
+        ->and($assignment->end_offset)->toBe(7)
+        ->and($assignment->needs_review)->toBeTrue();
 });
 
 test('a region\'s denormalized text column stays synced with the edit', function () {
@@ -175,10 +175,10 @@ test('a submitted text that doesn\'t match the server\'s own replay of ops is re
 test('several disjoint ops in one save each transform their own span correctly', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the cat sat']);
-    $segmentA = TranscriptionSegment::factory()->for($transcription)->create([
+    $assignmentA = Assignment::factory()->for($transcription)->create([
         'start_offset' => 0, 'end_offset' => 3, // "the"
     ]);
-    $segmentB = TranscriptionSegment::factory()->for($transcription)->create([
+    $assignmentB = Assignment::factory()->for($transcription)->create([
         'start_offset' => 8, 'end_offset' => 11, // "sat"
     ]);
 
@@ -191,14 +191,14 @@ test('several disjoint ops in one save each transform their own span correctly',
     ]);
 
     $response->assertRedirect();
-    $segmentA->refresh();
-    $segmentB->refresh();
+    $assignmentA->refresh();
+    $assignmentB->refresh();
     // "Xthe" and "satY" are each one word, and each belongs wholly to the
     // assignment of the word it grew from.
-    expect($segmentA->start_offset)->toBe(0)
-        ->and($segmentA->end_offset)->toBe(4)
-        ->and($segmentB->start_offset)->toBe(9)
-        ->and($segmentB->end_offset)->toBe(13);
+    expect($assignmentA->start_offset)->toBe(0)
+        ->and($assignmentA->end_offset)->toBe(4)
+        ->and($assignmentB->start_offset)->toBe(9)
+        ->and($assignmentB->end_offset)->toBe(13);
 });
 
 test('a guest cannot edit a transcription\'s text', function () {
@@ -222,9 +222,9 @@ test('destroying one part of an uncollated split assignment flags nothing — th
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "fox\nthe quick"]);
     $passage = CanonicalPassage::factory()->create();
-    $destroyed = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    $destroyed = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 3, 'part' => 2]); // "fox"
-    $survivor = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    $survivor = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 4, 'end_offset' => 13, 'part' => 1]); // "the quick"
 
     $response = $this->patch(route('transcriptions.text.update', $transcription), [
@@ -233,7 +233,7 @@ test('destroying one part of an uncollated split assignment flags nothing — th
     ]);
 
     $response->assertRedirect();
-    expect(TranscriptionSegment::find($destroyed->id))->toBeNull()
+    expect(Assignment::find($destroyed->id))->toBeNull()
         ->and($survivor->fresh()->needs_review)->toBeFalse();
 });
 
@@ -241,11 +241,11 @@ test('destroying one part of a COLLATED split assignment re-derives the collatio
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->normalized()->create(['text' => "fox\nthe quick"]);
     $passage = CanonicalPassage::factory()->create();
-    $partTwo = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    $partTwo = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 3, 'part' => 2]); // "fox"
-    $survivor = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    $survivor = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 4, 'end_offset' => 13, 'part' => 1]); // "the quick"
-    PassageAligner::collate($passage, $transcription->segments()->get());
+    PassageAligner::collate($passage, $transcription->assignments()->get());
     expect(LemmaReading::where('transcription_layer_id', $transcription->id)->count())->toBe(3);
 
     $this->patch(route('transcriptions.text.update', $transcription), [
@@ -272,11 +272,11 @@ test('destroying a part while a pinned reading holds the passage flags the survi
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->normalized()->create(['text' => "fox\nthe quick"]);
     $passage = CanonicalPassage::factory()->create();
-    TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 3, 'part' => 2]);
-    $survivor = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    $survivor = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 4, 'end_offset' => 13, 'part' => 1]);
-    PassageAligner::collate($passage, $transcription->segments()->get());
+    PassageAligner::collate($passage, $transcription->assignments()->get());
 
     $pinned = LemmaReading::where('transcription_layer_id', $transcription->id)
         ->orderBy('start_offset')->skip(1)->first(); // "the"
@@ -294,12 +294,12 @@ test('destroying a part while a pinned reading holds the passage flags the survi
     expect($survivor->fresh()->needs_review)->toBeTrue();
 });
 
-test('destroying a segment with no sibling parts flags nothing else', function () {
+test('destroying an assignment with no sibling parts flags nothing else', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "fox\nthe quick"]);
-    $destroyed = TranscriptionSegment::factory()->for($transcription)
+    $destroyed = Assignment::factory()->for($transcription)
         ->create(['start_offset' => 0, 'end_offset' => 3]); // "fox", its own passage
-    $unrelated = TranscriptionSegment::factory()->for($transcription)
+    $unrelated = Assignment::factory()->for($transcription)
         ->create(['start_offset' => 4, 'end_offset' => 13]); // different passage
 
     $response = $this->patch(route('transcriptions.text.update', $transcription), [
@@ -308,7 +308,7 @@ test('destroying a segment with no sibling parts flags nothing else', function (
     ]);
 
     $response->assertRedirect();
-    expect(TranscriptionSegment::find($destroyed->id))->toBeNull()
+    expect(Assignment::find($destroyed->id))->toBeNull()
         ->and($unrelated->fresh()->needs_review)->toBeFalse();
 });
 
@@ -319,10 +319,10 @@ test('typing at the first character of an assigned line writes into that line, n
     // written in.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'μῆνινἄειδε']);
-    $first = TranscriptionSegment::factory()->for($transcription)->create([
+    $first = Assignment::factory()->for($transcription)->create([
         'start_offset' => 0, 'end_offset' => 5,
     ]);
-    $second = TranscriptionSegment::factory()->for($transcription)->create([
+    $second = Assignment::factory()->for($transcription)->create([
         'start_offset' => 5, 'end_offset' => 10,
     ]);
 
@@ -345,10 +345,10 @@ test('typing after an assignment with a separator before the next still continue
     // end-gravity carries on absorbing what is typed right after a span.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν\nἄειδε"]);
-    $first = TranscriptionSegment::factory()->for($transcription)->create([
+    $first = Assignment::factory()->for($transcription)->create([
         'start_offset' => 0, 'end_offset' => 5,
     ]);
-    $second = TranscriptionSegment::factory()->for($transcription)->create([
+    $second = Assignment::factory()->for($transcription)->create([
         'start_offset' => 6, 'end_offset' => 11,
     ]);
 
@@ -368,10 +368,10 @@ test('typing at the start of an assigned line joins that line, and leaves no ass
     // the second assignment beginning inside a word and flagged for review.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);
-    $first = TranscriptionSegment::factory()->for($transcription)->create([
+    $first = Assignment::factory()->for($transcription)->create([
         'start_offset' => 0, 'end_offset' => 11,
     ]);
-    $second = TranscriptionSegment::factory()->for($transcription)->create([
+    $second = Assignment::factory()->for($transcription)->create([
         'start_offset' => 12, 'end_offset' => 25,
     ]);
 
@@ -397,7 +397,7 @@ test('a separator typed at the start of an assigned line stays outside it', func
     // and the assignment moves along onto its own first word.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);
-    $second = TranscriptionSegment::factory()->for($transcription)->create([
+    $second = Assignment::factory()->for($transcription)->create([
         'start_offset' => 12, 'end_offset' => 25,
     ]);
 
@@ -414,10 +414,10 @@ test('typing in front of an assigned line writes into that line', function () {
     // word, so what is typed there belongs to that assignment.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);
-    $first = TranscriptionSegment::factory()->for($transcription)->create([
+    $first = Assignment::factory()->for($transcription)->create([
         'start_offset' => 0, 'end_offset' => 11,
     ]);
-    $second = TranscriptionSegment::factory()->for($transcription)->create([
+    $second = Assignment::factory()->for($transcription)->create([
         'start_offset' => 12, 'end_offset' => 25,
     ]);
 
@@ -437,7 +437,7 @@ test('a whole word typed in front of an assigned line belongs to it too, keystro
     // them back the moment a space appears.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'μῆνιν ἄειδε θεὰ Πηληϊάδεω']);
-    $segment = TranscriptionSegment::factory()->for($transcription)->create([
+    $assignment = Assignment::factory()->for($transcription)->create([
         'start_offset' => 12, 'end_offset' => 25,
     ]);
 
@@ -453,10 +453,10 @@ test('a whole word typed in front of an assigned line belongs to it too, keystro
         ])->assertRedirect();
     }
 
-    $segment->refresh();
+    $assignment->refresh();
 
     expect($text)->toBe('μῆνιν ἄειδε νῦν θεὰ Πηληϊάδεω')
-        ->and(mb_substr($text, $segment->start_offset, $segment->end_offset - $segment->start_offset))
+        ->and(mb_substr($text, $assignment->start_offset, $assignment->end_offset - $assignment->start_offset))
         ->toBe('νῦν θεὰ Πηληϊάδεω');
 });
 
@@ -466,7 +466,7 @@ test('whitespace typed against an assignment stays in it — nothing is trimmed 
     // read as the line having ended, and left the next word outside too.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
-    $segment = TranscriptionSegment::factory()->for($transcription)->create([
+    $assignment = Assignment::factory()->for($transcription)->create([
         'start_offset' => 4, 'end_offset' => 9, // "quick"
     ]);
 
@@ -475,9 +475,9 @@ test('whitespace typed against an assignment stays in it — nothing is trimmed 
         'text' => 'the quick  brown fox',
     ])->assertRedirect();
 
-    $segment->refresh();
+    $assignment->refresh();
 
-    expect([$segment->start_offset, $segment->end_offset])->toBe([4, 10])
+    expect([$assignment->start_offset, $assignment->end_offset])->toBe([4, 10])
         ->and(mb_substr('the quick  brown fox', 4, 6))->toBe('quick ');
 });
 
@@ -488,10 +488,10 @@ test('typing between two assignments is taken up by the one before it', function
     // Unassigned text is something an editor asks for outright.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\n\nθεὰ Πηληϊάδεω"]);
-    $first = TranscriptionSegment::factory()->for($transcription)->create([
+    $first = Assignment::factory()->for($transcription)->create([
         'start_offset' => 0, 'end_offset' => 11,
     ]);
-    $second = TranscriptionSegment::factory()->for($transcription)->create([
+    $second = Assignment::factory()->for($transcription)->create([
         'start_offset' => 13, 'end_offset' => 26,
     ]);
 
@@ -513,10 +513,10 @@ test('deleting the line break before an assignment runs it onto the line before,
     // run together is a real thing for a transcript to record.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);
-    $first = TranscriptionSegment::factory()->for($transcription)->create([
+    $first = Assignment::factory()->for($transcription)->create([
         'start_offset' => 0, 'end_offset' => 11,
     ]);
-    $second = TranscriptionSegment::factory()->for($transcription)->create([
+    $second = Assignment::factory()->for($transcription)->create([
         'start_offset' => 12, 'end_offset' => 25,
     ]);
 
@@ -543,7 +543,7 @@ test('a space then a word at the end of an assignment continues that assignment'
     // keeps one space of buffer, and writing past it carries on the line.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'μῆνιν ἄειδε']);
-    $segment = TranscriptionSegment::factory()->for($transcription)->create([
+    $assignment = Assignment::factory()->for($transcription)->create([
         'start_offset' => 0, 'end_offset' => 11,
     ]);
 
@@ -554,16 +554,16 @@ test('a space then a word at the end of an assignment continues that assignment'
 
     // The space was typed against the assignment's last word, so it is the
     // assignment's — it is not pulled back out.
-    expect([$segment->fresh()->start_offset, $segment->fresh()->end_offset])->toBe([0, 12]);
+    expect([$assignment->fresh()->start_offset, $assignment->fresh()->end_offset])->toBe([0, 12]);
 
     $this->patch(route('transcriptions.text.update', $transcription), [
         'ops' => [['start' => 12, 'end' => 12, 'text' => 'θεὰ']],
         'text' => 'μῆνιν ἄειδε θεὰ',
     ])->assertRedirect();
 
-    $segment->refresh();
+    $assignment->refresh();
 
-    expect(mb_substr('μῆνιν ἄειδε θεὰ', $segment->start_offset, $segment->end_offset - $segment->start_offset))
+    expect(mb_substr('μῆνιν ἄειδε θεὰ', $assignment->start_offset, $assignment->end_offset - $assignment->start_offset))
         ->toBe('μῆνιν ἄειδε θεὰ');
 });
 
@@ -573,7 +573,7 @@ test('a word written with whitespace between it and an assignment belongs to nob
     // what keeps an assignment from reaching out and taking it.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => ' θεὰ Πηληϊάδεω']);
-    $segment = TranscriptionSegment::factory()->for($transcription)->create([
+    $assignment = Assignment::factory()->for($transcription)->create([
         'start_offset' => 1, 'end_offset' => 14,
     ]);
 
@@ -582,9 +582,9 @@ test('a word written with whitespace between it and an assignment belongs to nob
         'text' => 'ὦ θεὰ Πηληϊάδεω',
     ])->assertRedirect();
 
-    $segment->refresh();
+    $assignment->refresh();
 
-    expect(mb_substr('ὦ θεὰ Πηληϊάδεω', $segment->start_offset, $segment->end_offset - $segment->start_offset))
+    expect(mb_substr('ὦ θεὰ Πηληϊάδεω', $assignment->start_offset, $assignment->end_offset - $assignment->start_offset))
         ->toBe('θεὰ Πηληϊάδεω');
 });
 
@@ -594,10 +594,10 @@ test('text that ARRIVES between two assignments stays unassigned', function () {
     // what it lands among.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\n\nθεὰ Πηληϊάδεω"]);
-    $first = TranscriptionSegment::factory()->for($transcription)->create([
+    $first = Assignment::factory()->for($transcription)->create([
         'start_offset' => 0, 'end_offset' => 11,
     ]);
-    $second = TranscriptionSegment::factory()->for($transcription)->create([
+    $second = Assignment::factory()->for($transcription)->create([
         'start_offset' => 13, 'end_offset' => 26,
     ]);
 
@@ -622,10 +622,10 @@ test('the near side of a marker belongs to the assignment that ENDS there', func
     // announces. This is the case the caret's side exists for.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'μῆνινἄειδε']);
-    $first = TranscriptionSegment::factory()->for($transcription)->create([
+    $first = Assignment::factory()->for($transcription)->create([
         'start_offset' => 0, 'end_offset' => 5,
     ]);
-    $second = TranscriptionSegment::factory()->for($transcription)->create([
+    $second = Assignment::factory()->for($transcription)->create([
         'start_offset' => 5, 'end_offset' => 10,
     ]);
 
@@ -646,10 +646,10 @@ test('the near side of a marker belongs to what lies BEFORE it, across whitespac
     // Nothing is left stranded either way.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'μῆνιν ἄειδε']);
-    $first = TranscriptionSegment::factory()->for($transcription)->create([
+    $first = Assignment::factory()->for($transcription)->create([
         'start_offset' => 0, 'end_offset' => 5,
     ]);
-    $second = TranscriptionSegment::factory()->for($transcription)->create([
+    $second = Assignment::factory()->for($transcription)->create([
         'start_offset' => 6, 'end_offset' => 11,
     ]);
 
@@ -667,7 +667,7 @@ test('the near side of a marker belongs to what lies BEFORE it, across whitespac
 test('typing on the far side of a marker writes into the assignment it announces', function () {
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);
-    $second = TranscriptionSegment::factory()->for($transcription)->create([
+    $second = Assignment::factory()->for($transcription)->create([
         'start_offset' => 12, 'end_offset' => 25,
     ]);
 
@@ -685,7 +685,7 @@ test('the caret side says nothing about a paste or a deletion', function () {
     // ordinary rules.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => 'the quick brown fox']);
-    $segment = TranscriptionSegment::factory()->for($transcription)->create([
+    $assignment = Assignment::factory()->for($transcription)->create([
         'start_offset' => 4, 'end_offset' => 9,
     ]);
 
@@ -694,7 +694,7 @@ test('the caret side says nothing about a paste or a deletion', function () {
         'text' => 'the slow brown fox',
     ])->assertRedirect();
 
-    expect([$segment->fresh()->start_offset, $segment->fresh()->end_offset])->toBe([4, 8]);
+    expect([$assignment->fresh()->start_offset, $assignment->fresh()->end_offset])->toBe([4, 8]);
 });
 
 test('a line break at the start of an assigned line takes the line and its marker down together', function () {
@@ -703,10 +703,10 @@ test('a line break at the start of an assigned line takes the line and its marke
     // moves down onto its words, marker and all.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);
-    $first = TranscriptionSegment::factory()->for($transcription)->create([
+    $first = Assignment::factory()->for($transcription)->create([
         'start_offset' => 0, 'end_offset' => 11,
     ]);
-    $second = TranscriptionSegment::factory()->for($transcription)->create([
+    $second = Assignment::factory()->for($transcription)->create([
         'start_offset' => 12, 'end_offset' => 25,
     ]);
 
@@ -729,7 +729,7 @@ test('a letter at the start of an assigned line still writes into it', function 
     // The same caret, the same side — only whitespace is held out.
     $this->actingAs(User::factory()->editor()->create());
     $transcription = TranscriptionLayer::factory()->create(['text' => "μῆνιν ἄειδε\nθεὰ Πηληϊάδεω"]);
-    $second = TranscriptionSegment::factory()->for($transcription)->create([
+    $second = Assignment::factory()->for($transcription)->create([
         'start_offset' => 12, 'end_offset' => 25,
     ]);
 

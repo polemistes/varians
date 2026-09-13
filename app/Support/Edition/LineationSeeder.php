@@ -2,13 +2,13 @@
 
 namespace App\Support\Edition;
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\EditionLineBreak;
 use App\Models\EditionPassage;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 
 /**
  * Seeds an edition's lineation from the transcription a passage is added
@@ -28,10 +28,10 @@ use App\Models\TranscriptionSegment;
 class LineationSeeder
 {
     /**
-     * The between-passage flags for a segment added right after `$previous`
+     * The between-passage flags for an assignment added right after `$previous`
      * in the same add batch: two-or-more newlines between the spans read as
      * a paragraph, one as a line, none as prose flowing on. No previous
-     * segment (or one from a different layer, or physically out of order)
+     * assignment (or one from a different layer, or physically out of order)
      * gives the conservative default — a fresh line.
      *
      * The newlines are counted in the whole whitespace neighbourhood of the
@@ -45,25 +45,25 @@ class LineationSeeder
      *
      * @return array{starts_new_line: bool, starts_new_paragraph: bool}
      */
-    public static function interPassageFlags(?TranscriptionSegment $previous, TranscriptionSegment $segment): array
+    public static function interPassageFlags(?Assignment $previous, Assignment $assignment): array
     {
         if (
             $previous === null
-            || $previous->transcription_layer_id !== $segment->transcription_layer_id
-            || $segment->start_offset < $previous->end_offset
+            || $previous->transcription_layer_id !== $assignment->transcription_layer_id
+            || $assignment->start_offset < $previous->end_offset
         ) {
             return ['starts_new_line' => true, 'starts_new_paragraph' => false];
         }
 
-        $text = $segment->transcriptionLayer->text;
+        $text = $assignment->transcriptionLayer->text;
         $previousText = mb_substr($text, $previous->start_offset, $previous->end_offset - $previous->start_offset);
-        $segmentText = mb_substr($text, $segment->start_offset, $segment->end_offset - $segment->start_offset);
+        $assignmentText = mb_substr($text, $assignment->start_offset, $assignment->end_offset - $assignment->start_offset);
 
         preg_match('/\s+$/u', $previousText, $trailing);
-        preg_match('/^\s+/u', $segmentText, $leading);
+        preg_match('/^\s+/u', $assignmentText, $leading);
 
         $boundary = ($trailing[0] ?? '')
-            .mb_substr($text, $previous->end_offset, $segment->start_offset - $previous->end_offset)
+            .mb_substr($text, $previous->end_offset, $assignment->start_offset - $previous->end_offset)
             .($leading[0] ?? '');
         $newlines = mb_substr_count($boundary, "\n");
 
@@ -82,13 +82,13 @@ class LineationSeeder
     public static function seedWithinPassage(EditionPassage $editionPassage, TranscriptionLayer $layer): void
     {
         $passage = $editionPassage->canonicalPassage;
-        $spans = TranscriptionSegment::where('canonical_passage_id', $passage->id)
+        $spans = Assignment::where('canonical_passage_id', $passage->id)
             ->where('transcription_layer_id', $layer->id)
             ->get(['start_offset', 'end_offset']);
 
         $containingSpan = function (LemmaReading $reading) use ($spans): ?int {
             $index = $spans->search(
-                fn (TranscriptionSegment $span) => $reading->start_offset >= $span->start_offset
+                fn (Assignment $span) => $reading->start_offset >= $span->start_offset
                     && $reading->end_offset <= $span->end_offset
             );
 

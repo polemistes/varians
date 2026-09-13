@@ -111,7 +111,7 @@ class TranscriptionController extends Controller
     {
         $edition = Edition::query()
             ->where('visibility', Visibility::Published)
-            ->whereHas('work.canonicalPassages.transcriptionSegments.transcriptionLayer', fn (Builder $layers) => $layers->where('transcription_id', $transcription->id))
+            ->whereHas('work.canonicalPassages.assignments.transcriptionLayer', fn (Builder $layers) => $layers->where('transcription_id', $transcription->id))
             ->first();
 
         if ($edition !== null) {
@@ -124,7 +124,7 @@ class TranscriptionController extends Controller
     /**
      * Deleting a transcript deletes the TRANSCRIPT — both of its layers,
      * from whichever pane the button was pressed in — and cascades their
-     * segments, regions, and, if any of their words feed a published
+     * assignments, regions, and, if any of their words feed a published
      * edition, the edition's own LemmaReading selections and base-text
      * choices for that range. See App\Support\DeletionImpact for the
      * preview shown before this is confirmed.

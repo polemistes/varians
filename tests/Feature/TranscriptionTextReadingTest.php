@@ -1,12 +1,12 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\EditionLemma;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Support\Edition\PassageAligner;
 
@@ -17,10 +17,10 @@ use App\Support\Edition\PassageAligner;
 function collatedReadings(TranscriptionLayer $transcription, string $text): array
 {
     $passage = CanonicalPassage::factory()->create();
-    $segment = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    $assignment = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => mb_strlen($text)]);
 
-    PassageAligner::alignWitness($passage, collect([$segment]));
+    PassageAligner::alignWitness($passage, collect([$assignment]));
 
     return Lemma::where('canonical_passage_id', $passage->id)->orderBy('position')
         ->with('readings')->get()
@@ -221,7 +221,7 @@ test('editing a witness the edition does not print reports nothing', function ()
 
     $passage = CanonicalPassage::factory()->create();
     foreach ([$printed, $other] as $t) {
-        PassageAligner::alignWitness($passage, collect([TranscriptionSegment::factory()->for($t)
+        PassageAligner::alignWitness($passage, collect([Assignment::factory()->for($t)
             ->for($passage, 'canonicalPassage')->create(['start_offset' => 0, 'end_offset' => 13])]));
     }
 

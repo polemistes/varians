@@ -8,7 +8,7 @@ paths:
 # Transcription
 
 ## Three sets of offsets index into transcription.text, not two
-`TranscriptionSegment`, `TranscriptionRegion` **and** a witness-sourced
+`Assignment`, `TranscriptionRegion` **and** a witness-sourced
 `LemmaReading` all carry character offsets into the same `Transcription.text`.
 All three must go through `SpanTransformer` in
 `TranscriptionTextController::update`.
@@ -51,12 +51,12 @@ What `applyReadings` does instead:
   the variant panel confirms it and CLEARS the flag
   (`EditionVariantController::store`), picking another candidate
   re-chooses and DROPS a zero-width flagged row nothing selects any more.
-  Segment/region flags keep their own rule: set on partial clobber,
-  cleared by manual re-selection/redraw. A destroyed *segment* is **deleted** too (user
+  Assignment/region flags keep their own rule: set on partial clobber,
+  cleared by manual re-selection/redraw. A destroyed *assignment* is **deleted** too (user
   decision, REVERSING the earlier tombstone policy: an assignment without text
   is nothing, and the zero-width flagged markers read as clutter and never
   actually restored anything). What protects the editor instead: cut/paste
-  pairs carry spans whole, and UNDO restores the rows with the text — the client's `EditHistory` snapshots the segments
+  pairs carry spans whole, and UNDO restores the rows with the text — the client's `EditHistory` snapshots the assignments
   AND image-mapping regions a destructive op deleted (pre-op coordinates,
   exactly what the undo restores) and posts them to
   `transcription-spans.restore` after the undone text saves; rows whose
@@ -72,15 +72,15 @@ What `applyReadings` does instead:
   spans wholly inside the cut travel to the paste, unflagged; a *partial*
   cut of a span spawns a new part of the source passage at the paste site,
   and a paste inside another span splits it into two parts of its own
-  passage (`RelocationSegmentEffects`) — see `.ai/rules/requests.md`;
+  passage (`RelocationAssignmentEffects`) — see `.ai/rules/requests.md`;
 - afterwards `update()` flashes the one consequence the editor cannot see from
   that page: that her correction also changed an edition's own printed
   wording. Keyed off the reading's *text*, so an edit elsewhere that merely
   shifts offsets stays silent.
 
-Segments are disposable on destruction — with one addition: when a destroyed
-segment was one *part* of a passage assigned by several spans in the layer (see
-`TranscriptionSegment.part`), the passage's collation for the layer may be
+Assignments are disposable on destruction — with one addition: when a destroyed
+assignment was one *part* of a passage assigned by several spans in the layer (see
+`Assignment.part`), the passage's collation for the layer may be
 stale, and `recollateLostParts` resolves it AFTER the new text saves, by the
 same narrowing as damaged readings: re-derive (`realignLayer`) where a
 collation exists, flag the surviving parts only where re-derivation is
@@ -244,7 +244,7 @@ a second pass would move them twice (test-pinned).
 character offsets ⇄ word coordinates: word RANGES snap outward to whole
 words (assignments are word-granular, user decision); sub-word ANCHORS
 `{word, char}` serve facsimile mappings, read against each layer's own
-spelling and clamped to its length. This is the coordinate system segments
+spelling and clamped to its length. This is the coordinate system assignments
 and regions migrate to (spans stored ONCE per transcript, projected per
 layer) and the join the edition-facsimile highlight will use — a reading's
 char range in the normalized layer and a mapping drawn on the diplomatic
@@ -252,10 +252,10 @@ layer meet in word indices.
 
 ## Assignments and mappings are DONE ONCE — counterpart rows linked by group_id
 A span is ONE identity seen from two layers: counterpart rows share a
-`group_id` (segments and regions both). `SiblingSync` creates the pair on
+`group_id` (assignments and regions both). `SiblingSync` creates the pair on
 assignment/mapping (projected through WordSpans: word ranges for
 assignments, sub-word anchors for mappings), every mutation reaches the
-other half by the LINK (`counterpartSegment`/`counterpartRegion` — never
+other half by the LINK (`counterpartAssignment`/`counterpartRegion` — never
 by range-matching, which broke the moment the layers drifted), and
 `SiblingSync::heal()` runs after every text save: when the layers are in
 step, one-sided spans get their counterpart (an existing unlinked twin is
@@ -295,9 +295,9 @@ gives a span's start right-gravity, so the undo of a deletion at a span's
 head pushes the span past the restored words (real bug: "the fox" assigned,
 delete "fo", undo, assignment covered "x"). The history snapshots every live
 span before a step (`SpanSnapshots`, by row id); after the undo saves, rows
-whose saved bounds differ are posted as `adjust_segments`/`adjust_regions`
+whose saved bounds differ are posted as `adjust_assignments`/`adjust_regions`
 to `transcription-spans.restore`, which updates them and lets the in-step
-counterpart follow (`SiblingSync::followSegment`/`followRegion`).
+counterpart follow (`SiblingSync::followAssignment`/`followRegion`).
 
 ## One transcript per witness per work (user decision, 2026-09-09)
 Once a witness's text of a work is assigned in one of its transcripts, every
@@ -316,7 +316,7 @@ stacked if older data has them.
 ## Assignment spans are held to their words after every save (user decision)
 `AssignmentIntegrity::snap` runs after every save that can move a span —
 text update (both layers), undo restore, span copy, marking/re-assigning a
-span — and sets or clears `transcription_segments.boundary_review`: a
+span — and sets or clears `assignments.boundary_review`: a
 span that begins or ends INSIDE a word (unless another assignment meets it
 exactly there — two lines pasted flush together — or the neighbour is
 inside another assignment) or overlaps another is flagged; when its bounds

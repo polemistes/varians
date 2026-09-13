@@ -4,12 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Enums\ConjectureType;
 use App\Http\Requests\ApplyEditionOrderCandidateRequest;
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Conjecture;
 use App\Models\ConjectureOrderingEntry;
 use App\Models\Edition;
 use App\Models\EditionPassage;
-use App\Models\TranscriptionSegment;
 use App\Support\Edition\ArrangementAdopter;
 use App\Support\Edition\PassageOrderRewriter;
 use App\Support\Edition\TranspositionProjection;
@@ -138,7 +138,7 @@ class EditionOrderController extends Controller
                     ->all();
             }
         } elseif ($request->validated('transcription_layer_id') !== null) {
-            $sequence = TranscriptionSegment::where('transcription_layer_id', $request->validated('transcription_layer_id'))
+            $sequence = Assignment::where('transcription_layer_id', $request->validated('transcription_layer_id'))
                 ->whereIn('canonical_passage_id', $rangeIds)
                 ->orderBy('start_offset')
                 ->pluck('canonical_passage_id')

@@ -1,11 +1,11 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
@@ -32,11 +32,11 @@ function collationOf(array $texts): array
         $transcription = TranscriptionLayer::factory()
             ->for(Witness::factory()->create(['siglum' => $siglum]))
             ->create(['text' => $text]);
-        $segment = TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+        $assignment = Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
             ->create(['start_offset' => 0, 'end_offset' => mb_strlen($text)]);
 
         $edition = Edition::factory()->for($work)->create(['title' => "Based on {$siglum}"]);
-        PassageAdder::add($edition, $segment, $position++);
+        PassageAdder::add($edition, $assignment, $position++);
         $editions[$siglum] = $edition;
     }
 

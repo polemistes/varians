@@ -1,22 +1,22 @@
 <?php
 
 use App\Enums\Layer;
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\Edition;
 use App\Models\Lemma;
 use App\Models\LemmaReading;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
 use App\Support\Edition\PassageAdder;
 
 /** Assign a passage from a transcription at the given span. */
-function assignLayer(TranscriptionLayer $transcription, CanonicalPassage $passage, string $text): TranscriptionSegment
+function assignLayer(TranscriptionLayer $transcription, CanonicalPassage $passage, string $text): Assignment
 {
-    return TranscriptionSegment::factory()->for($transcription)->for($passage, 'canonicalPassage')
+    return Assignment::factory()->for($transcription)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => mb_strlen($text)]);
 }
 
@@ -27,10 +27,10 @@ test('a diplomatic transcription assigning text to the passage is not collated',
 
     $normalized = TranscriptionLayer::factory()->normalized()->create(['text' => 'the quick fox']);
     $diplomatic = TranscriptionLayer::factory()->diplomatic()->create(['text' => 'THE QVICK FOX']);
-    $segment = assignLayer($normalized, $passage, 'the quick fox');
+    $assignment = assignLayer($normalized, $passage, 'the quick fox');
     assignLayer($diplomatic, $passage, 'THE QVICK FOX');
 
-    PassageAdder::add($edition, $segment, 1.0);
+    PassageAdder::add($edition, $assignment, 1.0);
 
     expect(LemmaReading::where('transcription_layer_id', $diplomatic->id)->exists())->toBeFalse()
         ->and(LemmaReading::where('transcription_layer_id', $normalized->id)->count())->toBe(3);
@@ -50,9 +50,9 @@ test('both layers of one witness collate as one witness, not two', function () {
         ->create(['text' => 'τοσοῦτοι μὲν οὖν', 'copied_from_id' => $diplomatic->id]);
 
     assignLayer($diplomatic, $passage, 'τοσουτοι μεν ουν');
-    $segment = assignLayer($normalized, $passage, 'τοσοῦτοι μὲν οὖν');
+    $assignment = assignLayer($normalized, $passage, 'τοσοῦτοι μὲν οὖν');
 
-    PassageAdder::add($edition, $segment, 1.0);
+    PassageAdder::add($edition, $assignment, 1.0);
 
     $lemmas = Lemma::where('canonical_passage_id', $passage->id)->with('readings')->get();
 

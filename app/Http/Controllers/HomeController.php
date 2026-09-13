@@ -50,7 +50,7 @@ class HomeController extends Controller
 
             'works' => Work::visibleTo($user)
                 ->with('user:id,name')
-                ->withCount(['editions', 'transcriptionSegments'])
+                ->withCount(['editions', 'assignments'])
                 ->orderBy('title')
                 ->get(['id', 'user_id', 'title', 'slug', 'author', 'created_at'])
                 ->each(function (Work $work) use ($user, $shared): void {
@@ -100,7 +100,7 @@ class HomeController extends Controller
             'witnesses' => array_fill_keys(
                 Witness::query()
                     ->whereHas(
-                        'transcriptionLayers.segments.canonicalPassage',
+                        'transcriptionLayers.assignments.canonicalPassage',
                         fn (Builder $query) => $query->whereIn(
                             'work_id',
                             Work::query()->editableBy($user)->select('works.id')

@@ -1,11 +1,11 @@
 <?php
 
+use App\Models\Assignment;
 use App\Models\CanonicalPassage;
 use App\Models\ManuscriptImage;
 use App\Models\Transcription;
 use App\Models\TranscriptionLayer;
 use App\Models\TranscriptionRegion;
-use App\Models\TranscriptionSegment;
 use App\Models\User;
 use App\Models\Witness;
 use App\Models\Work;
@@ -33,7 +33,7 @@ test('a pasted copy brings its assignments and mappings, shifted to where it lan
     [$witness, $source, $target] = spanCopyFixture();
 
     $passage = CanonicalPassage::factory()->for(Work::factory())->create();
-    TranscriptionSegment::factory()->for($source)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($source)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 5]);
     $image = ManuscriptImage::factory()->for($witness)->create();
     TranscriptionRegion::factory()->for($source)->for($image, 'manuscriptImage')
@@ -51,11 +51,11 @@ test('a pasted copy brings its assignments and mappings, shifted to where it lan
         // notice only over that pane, not over its neighbour.
         ->assertSessionHas('message_layer_id', $target->id);
 
-    $segment = $target->segments()->sole();
+    $assignment = $target->assignments()->sole();
     $region = $target->regions()->sole();
 
-    expect([$segment->start_offset, $segment->end_offset])->toBe([10, 15])
-        ->and($segment->canonical_passage_id)->toBe($passage->id)
+    expect([$assignment->start_offset, $assignment->end_offset])->toBe([10, 15])
+        ->and($assignment->canonical_passage_id)->toBe($passage->id)
         ->and([$region->start_offset, $region->end_offset])->toBe([16, 21])
         ->and($region->manuscript_image_id)->toBe($image->id);
 });
@@ -65,9 +65,9 @@ test('a copied assignment joins a passage the target already assigns, as a furth
     [, $source, $target] = spanCopyFixture();
 
     $passage = CanonicalPassage::factory()->for(Work::factory())->create();
-    TranscriptionSegment::factory()->for($source)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($source)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 5]);
-    TranscriptionSegment::factory()->for($target)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($target)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 9, 'part' => 1]);
 
     $this->post(route('transcriptions.span-copies.store', $target), [
@@ -77,7 +77,7 @@ test('a copied assignment joins a passage the target already assigns, as a furth
         'target_offset' => 10,
     ])->assertRedirect();
 
-    expect($target->segments()->where('start_offset', 10)->sole()->part)->toBe(2);
+    expect($target->assignments()->where('start_offset', 10)->sole()->part)->toBe(2);
 });
 
 test('a target span that absorbed the pasted text is clipped back around the traveled assignment', function () {
@@ -86,7 +86,7 @@ test('a target span that absorbed the pasted text is clipped back around the tra
 
     $theirs = CanonicalPassage::factory()->for(Work::factory())->create();
     $ours = CanonicalPassage::factory()->for(Work::factory())->create();
-    TranscriptionSegment::factory()->for($source)->for($ours, 'canonicalPassage')
+    Assignment::factory()->for($source)->for($ours, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 15]);
 
     // The text save that landed the paste extended this span over the whole
@@ -94,7 +94,7 @@ test('a target span that absorbed the pasted text is clipped back around the tra
     // point sat exactly there. The pasted words belong to the assignment that
     // traveled with them, so the absorber is clipped back (real bug: it
     // stayed covering the arrival, overlapping the traveled span).
-    $absorber = TranscriptionSegment::factory()->for($target)->for($theirs, 'canonicalPassage')
+    $absorber = Assignment::factory()->for($target)->for($theirs, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 25]);
 
     $this->post(route('transcriptions.span-copies.store', $target), [
@@ -104,7 +104,7 @@ test('a target span that absorbed the pasted text is clipped back around the tra
         'target_offset' => 10,
     ])->assertRedirect();
 
-    $traveled = $target->segments()->where('canonical_passage_id', $ours->id)->sole();
+    $traveled = $target->assignments()->where('canonical_passage_id', $ours->id)->sole();
 
     expect([$traveled->start_offset, $traveled->end_offset])->toBe([10, 25])
         ->and([$absorber->fresh()->start_offset, $absorber->fresh()->end_offset])->toBe([0, 10])
@@ -117,10 +117,10 @@ test('a paste landing inside another assigned span splits it into two parts arou
 
     $theirs = CanonicalPassage::factory()->for(Work::factory())->create();
     $ours = CanonicalPassage::factory()->for(Work::factory())->create();
-    TranscriptionSegment::factory()->for($source)->for($ours, 'canonicalPassage')
+    Assignment::factory()->for($source)->for($ours, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 5]);
 
-    $covering = TranscriptionSegment::factory()->for($target)->for($theirs, 'canonicalPassage')
+    $covering = Assignment::factory()->for($target)->for($theirs, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 25, 'part' => 1]);
 
     $this->post(route('transcriptions.span-copies.store', $target), [
@@ -130,8 +130,8 @@ test('a paste landing inside another assigned span splits it into two parts arou
         'target_offset' => 10,
     ])->assertRedirect();
 
-    $traveled = $target->segments()->where('canonical_passage_id', $ours->id)->sole();
-    $parts = $target->segments()->where('canonical_passage_id', $theirs->id)
+    $traveled = $target->assignments()->where('canonical_passage_id', $ours->id)->sole();
+    $parts = $target->assignments()->where('canonical_passage_id', $theirs->id)
         ->orderBy('start_offset')->get();
 
     // The covering span becomes two parts of its own passage, one on each
@@ -148,13 +148,13 @@ test('a copied assignment is skipped where the landing words already carry it', 
     [, $source, $target] = spanCopyFixture();
 
     $passage = CanonicalPassage::factory()->for(Work::factory())->create();
-    TranscriptionSegment::factory()->for($source)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($source)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 5]);
     // The landing words are already assigned to the SAME passage — e.g.
     // the sibling-healing pass restored the assignment the moment the
     // pasted text saved. A second part would only duplicate it (real bug:
     // every pasted assignment showed as 1/2).
-    TranscriptionSegment::factory()->for($target)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($target)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 10, 'end_offset' => 15, 'part' => 1]);
 
     $this->post(route('transcriptions.span-copies.store', $target), [
@@ -165,7 +165,7 @@ test('a copied assignment is skipped where the landing words already carry it', 
     ])->assertRedirect()
         ->assertSessionMissing('message');
 
-    expect($target->segments()->count())->toBe(1);
+    expect($target->assignments()->count())->toBe(1);
 });
 
 test('a copied mapping is skipped where the target already maps overlapping text', function () {
@@ -205,7 +205,7 @@ test('a copy whose text no longer matches at either end imports nothing, and say
         ->assertValid()
         ->assertSessionHas('message', 'The copied text no longer matches its source — no assignments or image mappings were brought along.');
 
-    expect($target->segments()->count())->toBe(0);
+    expect($target->assignments()->count())->toBe(0);
 });
 
 test('an imported assignment reaches both layers of an in-step target transcript', function () {
@@ -213,7 +213,7 @@ test('an imported assignment reaches both layers of an in-step target transcript
     [, $source] = spanCopyFixture();
 
     $passage = CanonicalPassage::factory()->for(Work::factory())->create();
-    TranscriptionSegment::factory()->for($source)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($source)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 5]);
 
     // A target transcript in ANOTHER witness whose two layers are in step.
@@ -233,8 +233,8 @@ test('an imported assignment reaches both layers of an in-step target transcript
     // Done once: the import lands in the pasted-into layer AND its in-step
     // sibling, as one group-linked identity — exactly as assigning there
     // by hand would.
-    $imported = $foreign->segments()->sole();
-    $counterpart = $foreignSibling->segments()->sole();
+    $imported = $foreign->assignments()->sole();
+    $counterpart = $foreignSibling->assignments()->sole();
 
     expect($imported->group_id)->not->toBeNull()
         ->and($counterpart->group_id)->toBe($imported->group_id)
@@ -247,7 +247,7 @@ test('assignments travel to another witness; facsimile mappings stay with their 
     [$witness, $source] = spanCopyFixture();
 
     $passage = CanonicalPassage::factory()->for(Work::factory())->create();
-    TranscriptionSegment::factory()->for($source)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($source)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 5]);
     $image = ManuscriptImage::factory()->for($witness)->create();
     TranscriptionRegion::factory()->for($source)->for($image, 'manuscriptImage')
@@ -265,18 +265,18 @@ test('assignments travel to another witness; facsimile mappings stay with their 
 
     // Which passage a stretch of text is stays true wherever it goes; where
     // it sits on a manuscript page does not.
-    expect($foreign->segments()->sole()->canonical_passage_id)->toBe($passage->id)
+    expect($foreign->assignments()->sole()->canonical_passage_id)->toBe($passage->id)
         ->and($foreign->regions()->count())->toBe(0);
 });
 
-test('a copy that cuts through a segment still carries the contained part of its assignment', function () {
+test('a copy that cuts through an assignment still carries the contained part of its assignment', function () {
     $this->actingAs(User::factory()->editor()->create());
     [, $source, $target] = spanCopyFixture();
 
     $passage = CanonicalPassage::factory()->for(Work::factory())->create();
     // Assigned span [0,11); the copy takes only [6,15) — the overlap [6,11)
     // is still genuine text of the passage.
-    TranscriptionSegment::factory()->for($source)->for($passage, 'canonicalPassage')
+    Assignment::factory()->for($source)->for($passage, 'canonicalPassage')
         ->create(['start_offset' => 0, 'end_offset' => 11]);
 
     $this->post(route('transcriptions.span-copies.store', $target), [
@@ -286,11 +286,11 @@ test('a copy that cuts through a segment still carries the contained part of its
         'target_offset' => 16,
     ])->assertRedirect();
 
-    $segment = $target->segments()->sole();
+    $assignment = $target->assignments()->sole();
 
-    expect([$segment->start_offset, $segment->end_offset])->toBe([16, 21])
-        ->and($segment->canonical_passage_id)->toBe($passage->id)
-        ->and($segment->needs_review)->toBeFalse();
+    expect([$assignment->start_offset, $assignment->end_offset])->toBe([16, 21])
+        ->and($assignment->canonical_passage_id)->toBe($passage->id)
+        ->and($assignment->needs_review)->toBeFalse();
 });
 
 test('a guest cannot import spans', function () {
