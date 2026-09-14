@@ -92,6 +92,35 @@ line arrived flagged in both layers).
 `HandleInertiaRequests` shares a general `flash.message` for this. It is the
 app's only flash channel; keep it generic.
 
+## A word typed into a collated witness enters its collation (2026-09-14)
+`applyReadings` only reaches readings an edit DAMAGED. An insertion between
+two words damages nothing, so a word typed into a witness after it was
+collated used to be invisible to every edition and apparatus: no column,
+no omission recorded for the others, the edition based on the witness
+printing the line without it (real defect, found by the user). Now
+`update()` (and the mirror, for the sibling) calls `collateNewWords`
+AFTER the text is saved: for every collated segment the ops could have
+reached (assignments overlapping the ops' stretch, generously), where
+`SegmentAligner::hasUncollatedWords` is true — a word overlapping NO
+reading of the layer, or exactly ONE that stops short of it — the
+collation GROWS: `SegmentAligner::growLayer`. Never `realignLayer` for
+this (tried: the rebuild re-diffs the whole line, folded the new word and
+its neighbour into one substitution against a column the edition had
+chosen from, and replaced readings by id, breaking a relocation test).
+`growLayer` keeps every reading: a reading a word grew into (typed at its
+edge) is widened to the word; a word overlapping SEVERAL readings is
+covered between them (words a relocation left abutting, "foxquick", are
+not one word to recollate); each run of uncovered words is LCS-matched
+against the columns between its neighbours' columns — a word another
+witness has there takes that column (`takeColumn`: the layer's omission
+on it goes unless an edition adopted the omission), a word no witness has
+gets a column between its neighbours (`placeColumns`, spaced as
+`withPositions` does) — and `recordOmissions` runs last so the other
+witnesses omit the new column. Editions whose segment's base is the layer
+are named in the save's flash, like a changed reading. A layer never
+collated on the segment stays uncollated (nothing to grow). Tests:
+TranscriptionTextReadingTest, the five "typed into" cases.
+
 ## Greek regularization removes, never supplies
 `App\Support\Transcription\GreekText` strips accents, breathings, all
 diacritics, or punctuation — decidable without knowing the language, by

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\UpdateTranscriptionTextRequest;
 use App\Models\Assignment;
 use App\Models\EditionLemma;
+use App\Models\EditionSegment;
 use App\Models\LemmaReading;
 use App\Models\Segment;
 use App\Models\Transcription;
@@ -80,6 +81,7 @@ class TranscriptionTextController extends Controller
             $transcription->update(['text' => $recomputedText]);
             $this->realignDamaged($transcription, $readingOutcome['realign']);
             $this->recollateLostParts($transcription, $lostParts);
+            $affected = [...$affected, ...$this->collateNewWords($transcription, $ops)];
 
             // The editor can switch mirroring off (bootstrapping each
             // layer from a different source); the sibling is then left
@@ -188,6 +190,7 @@ class TranscriptionTextController extends Controller
         $sibling->update(['text' => $mirror['text']]);
         $this->realignDamaged($sibling, $siblingOutcome['realign']);
         $this->recollateLostParts($sibling, $siblingLostParts);
+        $affected = [...$affected, ...$this->collateNewWords($sibling, $mirror['ops'])];
     }
 
     /**
@@ -706,6 +709,67 @@ class TranscriptionTextController extends Controller
                     ->update(['needs_review' => true]);
             }
         }
+    }
+
+    /**
+     * A word typed into a collated witness enters its collation — the one
+     * kind of edit the passes above do not reach: an insertion between two
+     * words damages no reading, so nothing re-derived the segment and the
+     * new word was invisible to every edition and apparatus (real defect,
+     * 2026-09-14). For every collated segment the edit touched whose text
+     * now holds words the layer's readings do not cover, the collation
+     * GROWS around what it has (SegmentAligner::growLayer) — never a
+     * rebuild: a rebuild re-diffs the whole line and can fold the new word
+     * and its neighbour into one substitution against the column an
+     * edition chose from, discarding the reading the editor decided
+     * against (seen in testing), and it replaces readings the editor's
+     * choices and the apparatus hold by id. Runs after the new text is
+     * saved, since collation reads it.
+     *
+     * @param  list<array{start: int, end: int, text: string}>  $ops
+     * @return list<string> the titles of editions whose printed text is this layer here — they gained the words
+     */
+    private function collateNewWords(TranscriptionLayer $transcription, array $ops): array
+    {
+        if ($ops === []) {
+            return [];
+        }
+
+        // The stretch of the new text the ops could have reached, generously:
+        // from the first edit to the last, plus everything typed.
+        $from = min(array_column($ops, 'start'));
+        $to = max(array_column($ops, 'end')) + array_sum(array_map(fn (array $op) => mb_strlen($op['text']), $ops));
+        $affected = [];
+
+        $segmentIds = Assignment::where('transcription_layer_id', $transcription->id)
+            ->where('start_offset', '<=', $to)
+            ->where('end_offset', '>=', $from)
+            ->pluck('segment_id')
+            ->unique();
+
+        foreach ($segmentIds as $segmentId) {
+            $segment = Segment::whereKey($segmentId)->first();
+
+            if ($segment === null
+                || SegmentAligner::layerReadings($segment, $transcription)->isEmpty()
+                || ! SegmentAligner::hasUncollatedWords($segment, $transcription)) {
+                continue;
+            }
+
+            SegmentAligner::growLayer($segment, $transcription);
+
+            $affected = [
+                ...$affected,
+                ...EditionSegment::where('segment_id', $segment->id)
+                    ->where('transcription_layer_id', $transcription->id)
+                    ->with('edition:id,title')
+                    ->get()
+                    ->map(fn (EditionSegment $editionSegment) => (string) $editionSegment->edition->title)
+                    ->all(),
+            ];
+        }
+
+        return array_values(array_unique($affected));
     }
 
     /**

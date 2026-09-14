@@ -440,6 +440,261 @@ class SegmentAligner
     }
 
     /**
+     * Whether the layer's text of the segment holds words its collation
+     * does not — a word typed into a witness after it was collated. An
+     * edit that damages a reading is re-collated on that account
+     * (TranscriptionTextController::applyReadings); an insertion between
+     * two words damages nothing, and until this was asked the new word
+     * was invisible to every edition and every apparatus (real defect,
+     * 2026-09-14). Words are counted as the aligner tokenizes them; a word
+     * only partly inside a reading counts as uncollated too, since its
+     * reading's bounds are stale.
+     */
+    public static function hasUncollatedWords(Segment $segment, TranscriptionLayer $layer): bool
+    {
+        $readings = self::layerReadings($segment, $layer)
+            ->filter(fn (LemmaReading $reading) => ! $reading->omitted && $reading->start_offset !== null);
+
+        foreach (self::layerTokens($segment, $layer) as $token) {
+            if (self::staleOrMissing(self::overlapping($readings, $token), $token)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * The layer's readings a word overlaps. None: the word is uncollated.
+     * One that stops short of the word: the word grew into it, and the
+     * reading's bounds are stale. Several: they cover it between them —
+     * words a relocation left abutting are not one word to be recollated.
+     *
+     * @param  Collection<int, LemmaReading>  $readings
+     * @param  array{text: string, start: int, end: int}  $token
+     * @return Collection<int, LemmaReading>
+     */
+    private static function overlapping(Collection $readings, array $token): Collection
+    {
+        return $readings
+            ->filter(fn (LemmaReading $reading) => $reading->start_offset < $token['end'] && $reading->end_offset > $token['start'])
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int, LemmaReading>  $overlapping
+     * @param  array{text: string, start: int, end: int}  $token
+     */
+    private static function staleOrMissing(Collection $overlapping, array $token): bool
+    {
+        if ($overlapping->isEmpty()) {
+            return true;
+        }
+
+        if ($overlapping->count() > 1) {
+            return false;
+        }
+
+        $reading = $overlapping->first();
+
+        return $reading->start_offset > $token['start'] || $reading->end_offset < $token['end'];
+    }
+
+    /**
+     * Grow the layer's collation to the words it lacks, keeping every
+     * reading it has — what a word typed into a collated witness calls
+     * for, pinned or not: a reading is what editions choose and the
+     * apparatus reports, and an insertion adds to the line, it never
+     * unsays the rest of it (realignLayer, the rebuild, is for a layer
+     * whose readings an edit destroyed).
+     *
+     * A reading a new word grew into is widened to the word (the reading's
+     * bounds were stale). Each run of words no reading covers is matched,
+     * word for word, against the columns that stand between its
+     * neighbouring readings' columns: a word another witness has there
+     * takes that column (the layer's omission on it goes, unless an
+     * edition adopted the omission — then the word stands beside it), and
+     * a word no witness has gets a column of its own, placed between its
+     * neighbours as alignWitness places one. Omissions are re-derived at
+     * the end, so every other witness now omits the new column.
+     */
+    public static function growLayer(Segment $segment, TranscriptionLayer $layer): void
+    {
+        $tokens = self::layerTokens($segment, $layer);
+
+        if ($tokens === []) {
+            return;
+        }
+
+        $readings = self::layerReadings($segment, $layer)
+            ->filter(fn (LemmaReading $reading) => ! $reading->omitted && $reading->start_offset !== null)
+            ->values();
+
+        // Stale bounds first: a reading a word grew into — the one reading
+        // the word touches, stopping short of it — takes the whole word.
+        foreach ($tokens as $token) {
+            $over = self::overlapping($readings, $token);
+
+            if ($over->count() === 1 && self::staleOrMissing($over, $token)) {
+                $reading = $over->first();
+                $reading->update([
+                    'start_offset' => min((int) $reading->start_offset, $token['start']),
+                    'end_offset' => max((int) $reading->end_offset, $token['end']),
+                ]);
+            }
+        }
+
+        $lemmas = Lemma::where('segment_id', $segment->id)
+            ->orderBy('position')
+            ->with('readings.transcriptionLayer')
+            ->get()
+            ->values();
+        $indexOf = $lemmas->pluck('id')->flip();
+
+        // Each token's column span in the layer's collation, or null.
+        /** @var list<array{start: int, end: int}|null> $columnOf */
+        $columnOf = [];
+
+        foreach ($tokens as $token) {
+            $over = self::overlapping($readings, $token);
+            $columnOf[] = $over->isEmpty() ? null : [
+                'start' => $over->min(fn (LemmaReading $reading) => (int) $indexOf[$reading->lemma_id]),
+                'end' => $over->max(fn (LemmaReading $reading) => (int) ($reading->range_end_lemma_id !== null ? $indexOf[$reading->range_end_lemma_id] : $indexOf[$reading->lemma_id])),
+            ];
+        }
+
+        $count = count($tokens);
+        $i = 0;
+
+        while ($i < $count) {
+            if ($columnOf[$i] !== null) {
+                $i++;
+
+                continue;
+            }
+
+            $gapStart = $i;
+
+            while ($i < $count && $columnOf[$i] === null) {
+                $i++;
+            }
+
+            $gapTokens = array_slice($tokens, $gapStart, $i - $gapStart);
+            $previous = $gapStart > 0 ? $columnOf[$gapStart - 1]['end'] : -1;
+            $next = $i < $count ? $columnOf[$i]['start'] : $lemmas->count();
+
+            // The columns other witnesses have between the neighbours —
+            // an inserted word may be one of theirs.
+            $between = $lemmas->slice($previous + 1, max(0, $next - $previous - 1))->values();
+            $ops = self::lcsOps(
+                $between->map(fn (Lemma $lemma) => self::comparisonForm(self::representativeText($lemma)))->all(),
+                array_map(fn (array $token) => self::comparisonForm($token['text']), $gapTokens),
+            );
+
+            $lastPosition = $previous >= 0 ? (float) $lemmas[$previous]->position : 0.0;
+            $afterPosition = $next < $lemmas->count() ? (float) $lemmas[$next]->position : null;
+            /** @var list<array{text: string, start: int, end: int}> $pending */
+            $pending = [];
+
+            foreach ($ops as $op) {
+                if ($op['type'] === 'equal' && isset($op['a'], $op['b'])) {
+                    $lemma = $between[$op['a']];
+                    self::placeColumns($segment, $layer, $pending, $lastPosition, (float) $lemma->position);
+                    $pending = [];
+                    $lastPosition = (float) $lemma->position;
+                    self::takeColumn($lemma, $layer, $gapTokens[$op['b']]);
+
+                    continue;
+                }
+
+                if ($op['type'] === 'insert' && isset($op['b'])) {
+                    $pending[] = $gapTokens[$op['b']];
+                }
+            }
+
+            self::placeColumns($segment, $layer, $pending, $lastPosition, $afterPosition);
+        }
+
+        self::recordOmissions($segment);
+    }
+
+    /**
+     * New columns for words no witness has, spaced evenly between the
+     * positions of their neighbours — as withPositions spaces them; past
+     * the last column they simply go on.
+     *
+     * @param  list<array{text: string, start: int, end: int}>  $tokens
+     */
+    private static function placeColumns(Segment $segment, TranscriptionLayer $layer, array $tokens, float $before, ?float $after): void
+    {
+        $span = count($tokens);
+
+        if ($span === 0) {
+            return;
+        }
+
+        $after ??= $before + $span + 1;
+        $step = ($after - $before) / ($span + 1);
+
+        foreach ($tokens as $k => $token) {
+            $lemma = Lemma::create(['segment_id' => $segment->id, 'position' => $before + $step * ($k + 1)]);
+            $lemma->readings()->create([
+                'transcription_layer_id' => $layer->id,
+                'start_offset' => $token['start'],
+                'end_offset' => $token['end'],
+            ]);
+        }
+    }
+
+    /**
+     * The layer's reading of a word on a column another witness built.
+     * The layer's omission there (a point, possibly a range) goes, unless
+     * an edition adopted it: a selection cascades, so the word then stands
+     * beside the adopted omission for the editor to re-choose.
+     *
+     * @param  array{text: string, start: int, end: int}  $token
+     */
+    private static function takeColumn(Lemma $lemma, TranscriptionLayer $layer, array $token): void
+    {
+        $omissions = LemmaReading::where('lemma_id', $lemma->id)
+            ->where('transcription_layer_id', $layer->id)
+            ->where('omitted', true)
+            ->get();
+        $selectedIds = EditionLemma::whereIn('selected_reading_id', $omissions->pluck('id'))->pluck('selected_reading_id');
+
+        foreach ($omissions as $omission) {
+            if (! $selectedIds->contains($omission->id)) {
+                $omission->delete();
+            }
+        }
+
+        $lemma->readings()->create([
+            'transcription_layer_id' => $layer->id,
+            'start_offset' => $token['start'],
+            'end_offset' => $token['end'],
+        ]);
+    }
+
+    /**
+     * The words of the layer's text of the segment, every part in content
+     * order, as the aligner tokenizes them.
+     *
+     * @return list<array{text: string, start: int, end: int}>
+     */
+    private static function layerTokens(Segment $segment, TranscriptionLayer $layer): array
+    {
+        $assignments = Assignment::sortByPartOrder(
+            Assignment::where('segment_id', $segment->id)->where('transcription_layer_id', $layer->id)->get(),
+        );
+
+        return Tokenizer::tokenizeSpans(
+            $layer->text,
+            array_values($assignments->map(fn (Assignment $assignment) => ['start' => (int) $assignment->start_offset, 'end' => (int) $assignment->end_offset])->all()),
+            $segment->work->tokenization,
+        );
+    }
+
+    /**
      * One layer's collated readings on one segment's columns — non-empty
      * exactly when the layer has already been aligned into the segment.
      *
