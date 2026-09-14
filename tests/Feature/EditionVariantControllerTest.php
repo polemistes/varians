@@ -255,7 +255,9 @@ test('re-visiting an already-decided column still reports the full original cand
 
     $show->assertInertia(fn (AssertInertia $page) => $page
         ->has('windowSegments.0.runs.1.candidates', 2)
-        ->where('windowSegments.0.runs.1.candidates.0.selected', false)
+        // A field at its default is left out of the wire — see
+        // EditionController::slimRun; `missing` is the assertion of "false".
+        ->missing('windowSegments.0.runs.1.candidates.0.selected')
         ->where('windowSegments.0.runs.1.candidates.1.selected', true));
 });
 
@@ -473,7 +475,7 @@ test('a fresh multi-word range conjecture spans several columns without changing
     $show->assertInertia(fn (AssertInertia $page) => $page
         ->where('windowSegments.0.runs.0.text', 'the')
         ->where('windowSegments.0.runs.1.text', 'swift')
-        ->where('windowSegments.0.runs.1.decided', false)
+        ->missing('windowSegments.0.runs.1.decided')
         ->has('windowSegments.0.runs', 4));
 
     $this->post(route('edition-variants.store', $edition), [
@@ -627,8 +629,8 @@ test('removing a range via edition-lemmas.destroy reverts the segment to per-wor
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page
         ->has('windowSegments.0.runs', 4) // the / swift / red / fox — independent again
-        ->where('windowSegments.0.runs.1.range_end_lemma_id', null)
-        ->where('windowSegments.0.runs.1.decided', false));
+        ->missing('windowSegments.0.runs.1.range_end_lemma_id')
+        ->missing('windowSegments.0.runs.1.decided'));
 });
 
 test('a witness reading can be placed as a range when its neighbours have nothing else to merge it from', function () {
@@ -751,7 +753,7 @@ test('a range of exactly one word is allowed and stored without a range_end_lemm
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page
         ->where('windowSegments.0.runs.1.text', 'swift')
-        ->where('windowSegments.0.runs.1.decided', false)
+        ->missing('windowSegments.0.runs.1.decided')
         ->has('windowSegments.0.runs.1.candidates', 2)
         ->has('windowSegments.0.runs', 4)); // still 4 independent runs, not collapsed
 
@@ -764,7 +766,7 @@ test('a range of exactly one word is allowed and stored without a range_end_lemm
     $showAfterPick = $this->get(route('editions.show', [$work, $edition]));
     $showAfterPick->assertInertia(fn (AssertInertia $page) => $page
         ->where('windowSegments.0.runs.1.text', 'nimble')
-        ->where('windowSegments.0.runs.1.range_end_lemma_id', null)
+        ->missing('windowSegments.0.runs.1.range_end_lemma_id')
         ->has('windowSegments.0.runs', 4));
 });
 
@@ -803,7 +805,7 @@ test('a range-shaped candidate reports the original span it would replace, not j
         // editor compares "swift red fox" against "creature", not a
         // misleading "swift" against "creature".
         ->where('windowSegments.0.runs.1.candidates.0.text', 'swift red fox')
-        ->where('windowSegments.0.runs.1.candidates.0.replaced_text', null)
+        ->missing('windowSegments.0.runs.1.candidates.0.replaced_text')
         ->where('windowSegments.0.runs.1.candidates.0.end_offset', 17)
         ->where('windowSegments.0.runs.1.candidates.1.text', 'creature')
         ->where('windowSegments.0.runs.1.candidates.1.replaced_text', 'swift red fox'));
@@ -858,7 +860,7 @@ test('a fragmentary witness that does not reach as far as a competing range is l
     $show->assertInertia(fn (AssertInertia $page) => $page
         ->where('windowSegments.0.runs.1.candidates.0.text', 'swift red fox') // base, extended
         ->where('windowSegments.0.runs.1.candidates.1.text', 'swift') // fragment, left as-is
-        ->where('windowSegments.0.runs.1.candidates.1.range_end_lemma_id', null));
+        ->missing('windowSegments.0.runs.1.candidates.1.range_end_lemma_id'));
 });
 
 test('picking a SegmentAligner-detected multi-word witness variant selects the merged reading via ordinary placement=existing', function () {
@@ -1060,7 +1062,7 @@ test('extent_characters flows through to the rendered run and candidate, and is 
     $show->assertInertia(fn (AssertInertia $page) => $page
         ->where('windowSegments.0.runs.1.extent_characters', 12)
         ->where('windowSegments.0.runs.1.candidates.0.extent_characters', 12)
-        ->where('windowSegments.0.runs.0.extent_characters', null));
+        ->missing('windowSegments.0.runs.0.extent_characters'));
 });
 
 test('a lacuna authored without extent_characters still renders the old bracketed text unregressed', function () {
@@ -1080,7 +1082,7 @@ test('a lacuna authored without extent_characters still renders the old brackete
 
     $show = $this->get(route('editions.show', [$work, $edition]));
     $show->assertInertia(fn (AssertInertia $page) => $page
-        ->where('windowSegments.0.runs.1.extent_characters', null)
+        ->missing('windowSegments.0.runs.1.extent_characters')
         ->where('windowSegments.0.runs.1.text', '[lacuna: one word]'));
 });
 
@@ -1159,7 +1161,7 @@ test('a deletion conjecture is registered over the selected words without changi
     $this->get(route('editions.show', [$work, $edition]))
         ->assertInertia(fn (AssertInertia $page) => $page
             ->where('windowSegments.0.runs.1.text', 'quick')
-            ->where('windowSegments.0.runs.1.omitted', false)
+            ->missing('windowSegments.0.runs.1.omitted')
             ->where('windowSegments.0.runs.1.candidates.1.label', 'Bergk (deletion)')
             ->where('windowSegments.0.runs.1.candidates.1.text', '')
             ->where('windowSegments.0.runs.1.candidates.1.omitted', true)
@@ -1259,7 +1261,7 @@ test('a base that lacks words another witness has prints one gap for the whole r
             ->where('windowSegments.0.runs.1.text', '')
             ->where('windowSegments.0.runs.1.gap', true)
             ->where('windowSegments.0.runs.1.omitted', true)
-            ->where('windowSegments.0.runs.1.decided', false)
+            ->missing('windowSegments.0.runs.1.decided')
             ->where('windowSegments.0.runs.1.candidates.0.label', 'A')
             ->where('windowSegments.0.runs.1.candidates.0.omitted', true)
             ->where('windowSegments.0.runs.1.candidates.1.label', 'B')
@@ -1312,7 +1314,7 @@ test('a lacuna segment prints as a bracketed run, and a supplement proposed from
     $this->get(route('editions.show', [$work, $edition]))
         ->assertInertia(fn (AssertInertia $page) => $page
             ->where('windowSegments.1.runs.0.text', 'ἄνδρα μοι ἔννεπε')
-            ->where('windowSegments.1.runs.0.extent_characters', null)
+            ->missing('windowSegments.1.runs.0.extent_characters')
             ->where('windowSegments.1.runs.0.candidates.1.conjecture_type', 'supplement')
             ->where('windowSegments.1.runs.0.candidates.1.selected', true));
 });
@@ -1340,10 +1342,10 @@ test('a new lacuna between two words is only catalogued until adopted', function
     $this->get(route('editions.show', [$work, $edition]))
         ->assertInertia(fn (AssertInertia $page) => $page
             ->where('windowSegments.0.runs.1.omitted', true)
-            ->where('windowSegments.0.runs.1.decided', false)
-            ->where('windowSegments.0.runs.1.extent_characters', null)
+            ->missing('windowSegments.0.runs.1.decided')
+            ->missing('windowSegments.0.runs.1.extent_characters')
             ->where('windowSegments.0.runs.1.candidates.0.conjecture_type', 'lacuna')
-            ->where('windowSegments.0.runs.1.candidates.0.selected', false));
+            ->missing('windowSegments.0.runs.1.candidates.0.selected'));
 
     // Adopting it later is picking it from the column's candidates.
     $lemma = Lemma::whereHas('readings', fn ($q) => $q->whereNotNull('conjecture_id'))->sole();

@@ -5,7 +5,66 @@
  * reasoned about) on their own.
  */
 
-import type { Candidate, DiscontinuousWitness, Run } from '@/types/edition';
+import type {
+    Candidate,
+    DiscontinuousWitness,
+    Run,
+    WindowSegment,
+    WireCandidate,
+    WireRun,
+    WireWindowSegment,
+} from '@/types/edition';
+
+/**
+ * The wire form of a run leaves out every field at its default and the
+ * spellings that are the text itself — see EditionController::slimRun and
+ * CANDIDATE_DEFAULTS/RUN_DEFAULTS there, which these mirror field for
+ * field. Put back here, once, so the rest of the page reads one shape.
+ */
+export function inflateCandidate(wire: WireCandidate): Candidate {
+    return {
+        key: `reading:${wire.reading_id}`,
+        label: wire.label,
+        text: wire.text,
+        omitted: wire.omitted ?? false,
+        selected: wire.selected ?? false,
+        reading_id: wire.reading_id,
+        transcription_layer_id: wire.transcription_layer_id ?? null,
+        start_offset: wire.start_offset ?? null,
+        end_offset: wire.end_offset ?? null,
+        conjecture_id: wire.conjecture_id ?? null,
+        conjecture_type: wire.conjecture_type ?? null,
+        supplements_conjecture_id: wire.supplements_conjecture_id ?? null,
+        references: wire.references ?? [],
+        note: wire.note ?? null,
+        range_end_lemma_id: wire.range_end_lemma_id ?? null,
+        replaced_text: wire.replaced_text ?? null,
+        extent_characters: wire.extent_characters ?? null,
+        needs_review: wire.needs_review ?? false,
+        // Left out: the manuscript spells it as the text has it. Null: the
+        // manuscript's spelling is not known — kept apart on purpose.
+        diplomatic: wire.diplomatic === undefined ? wire.text : wire.diplomatic,
+    };
+}
+
+export function inflateRun(wire: WireRun): Run {
+    return {
+        ...wire,
+        candidates: wire.candidates.map(inflateCandidate),
+        range_end_lemma_id: wire.range_end_lemma_id ?? null,
+        extent_characters: wire.extent_characters ?? null,
+        decided: wire.decided ?? false,
+        gap: wire.gap ?? false,
+        omitted: wire.omitted ?? false,
+        break_before: wire.break_before ?? null,
+        diplomatic: wire.diplomatic === undefined ? wire.text : wire.diplomatic,
+        orthographic_variation: wire.orthographic_variation ?? false,
+    };
+}
+
+export function inflateSegment(wire: WireWindowSegment): WindowSegment {
+    return { ...wire, runs: wire.runs.map(inflateRun) };
+}
 
 // A range-shaped candidate's own text is just its proposed replacement —
 // nothing there says how many (or which) words it would consume if picked.

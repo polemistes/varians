@@ -71,6 +71,17 @@ export type Candidate = {
     diplomatic: string | null;
 };
 
+/**
+ * A candidate as it travels — see EditionController::slimRun. Every field
+ * whose value would be its default (null, false, an empty list) is left
+ * out, `key` is left for the client to make from `reading_id`, and
+ * `diplomatic` is left out where it is the text itself (null stays: the
+ * manuscript's own spelling unknown). `inflateCandidate` in
+ * lib/apparatus.ts restores the full shape; the page never reads this one.
+ */
+export type WireCandidate = Pick<Candidate, 'label' | 'text' | 'reading_id'> &
+    Partial<Omit<Candidate, 'key' | 'label' | 'text' | 'reading_id'>>;
+
 export type Run = {
     lemma_id: number | null;
     base_start: number | null;
@@ -94,6 +105,33 @@ export type Run = {
     // EditionLineBreak.
     break_before: 'line' | 'paragraph' | null;
 };
+
+/** A run as it travels — see `WireCandidate` and `inflateRun`. */
+export type WireRun = Omit<
+    Run,
+    | 'candidates'
+    | 'range_end_lemma_id'
+    | 'extent_characters'
+    | 'decided'
+    | 'gap'
+    | 'omitted'
+    | 'break_before'
+    | 'diplomatic'
+    | 'orthographic_variation'
+> &
+    Partial<
+        Pick<
+            Run,
+            | 'range_end_lemma_id'
+            | 'extent_characters'
+            | 'decided'
+            | 'gap'
+            | 'omitted'
+            | 'break_before'
+            | 'diplomatic'
+            | 'orthographic_variation'
+        >
+    > & { candidates: WireCandidate[] };
 
 export type UnplacedConjecture = {
     id: number;
@@ -219,6 +257,11 @@ export type WindowSegment = {
     // The base witness's whole line as the manuscript has it.
     base_diplomatic: string | null;
     paratexts: Paratext[];
+};
+
+/** A window segment as it travels: its runs in wire form — see `inflateSegment`. */
+export type WireWindowSegment = Omit<WindowSegment, 'runs'> & {
+    runs: WireRun[];
 };
 
 /** A conjecture this edition follows — see EditionTransposition. */

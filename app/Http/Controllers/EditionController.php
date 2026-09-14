@@ -63,6 +63,49 @@ class EditionController extends Controller
     /** Manuscript pages a witnesses-pane slice holds — see witnessPane(). */
     private const PANE_PAGES = 3;
 
+    /**
+     * What a candidate carries when nothing is said — left out of the wire,
+     * and put back by `inflateCandidate` in resources/js/lib/apparatus.ts.
+     * Most candidates are a witness's plain reading: every conjecture
+     * field null, nothing selected, nothing to review — and named, those
+     * fields outweighed the reading itself (real measurement: 191
+     * candidates, 85 KB, on a ten-line page). Keep the two lists in step.
+     *
+     * @var array<string, mixed>
+     */
+    private const CANDIDATE_DEFAULTS = [
+        'omitted' => false,
+        'selected' => false,
+        'transcription_layer_id' => null,
+        'start_offset' => null,
+        'end_offset' => null,
+        'conjecture_id' => null,
+        'conjecture_type' => null,
+        'supplements_conjecture_id' => null,
+        'references' => [],
+        'note' => null,
+        'range_end_lemma_id' => null,
+        'replaced_text' => null,
+        'extent_characters' => null,
+        'needs_review' => false,
+        'orthographic_only' => false,
+    ];
+
+    /**
+     * Likewise for a run — see `inflateRun`.
+     *
+     * @var array<string, mixed>
+     */
+    private const RUN_DEFAULTS = [
+        'range_end_lemma_id' => null,
+        'extent_characters' => null,
+        'decided' => false,
+        'gap' => false,
+        'omitted' => false,
+        'break_before' => null,
+        'orthographic_variation' => false,
+    ];
+
     public function create(Work $work): Response
     {
         $this->authorize('create', [Edition::class, $work]);
@@ -634,6 +677,56 @@ class EditionController extends Controller
         }
 
         return $pages;
+    }
+
+    /**
+     * A run as it travels: default-valued fields left out (RUN_DEFAULTS,
+     * CANDIDATE_DEFAULTS), a candidate's key — always "reading:" and its
+     * id — left for the client to make, and a diplomatic spelling that is
+     * the text itself left unsaid. A null `diplomatic` stays: it means the
+     * manuscript's own spelling is not known, which is not the same thing.
+     *
+     * @param  array<string, mixed>  $run
+     * @return array<string, mixed>
+     */
+    private function slimRun(array $run): array
+    {
+        $run['candidates'] = array_map(function (array $candidate): array {
+            unset($candidate['key']);
+
+            return $this->withoutDefaults($this->withoutSameDiplomatic($candidate), self::CANDIDATE_DEFAULTS);
+        }, $run['candidates']);
+
+        return $this->withoutDefaults($this->withoutSameDiplomatic($run), self::RUN_DEFAULTS);
+    }
+
+    /**
+     * @param  array<string, mixed>  $entry
+     * @return array<string, mixed>
+     */
+    private function withoutSameDiplomatic(array $entry): array
+    {
+        if (($entry['diplomatic'] ?? null) !== null && $entry['diplomatic'] === $entry['text']) {
+            unset($entry['diplomatic']);
+        }
+
+        return $entry;
+    }
+
+    /**
+     * @param  array<string, mixed>  $entry
+     * @param  array<string, mixed>  $defaults
+     * @return array<string, mixed>
+     */
+    private function withoutDefaults(array $entry, array $defaults): array
+    {
+        foreach ($defaults as $field => $default) {
+            if (array_key_exists($field, $entry) && $entry[$field] === $default) {
+                unset($entry[$field]);
+            }
+        }
+
+        return $entry;
     }
 
     /**
@@ -1644,7 +1737,7 @@ class EditionController extends Controller
                 'transcription_layer_id' => $base->id,
                 'witness_siglum' => $base->transcription->witness->siglum,
             ] : null,
-            'runs' => $runs,
+            'runs' => array_map(fn (array $run) => $this->slimRun($run), $runs),
             // The chosen witness's own line as the manuscript has it.
             'base_diplomatic' => $base !== null
                 ? DiplomaticCounterpart::forSegment($segment, $diplomaticLayers->get($base->transcription_id))

@@ -109,6 +109,28 @@ test('a variant carries its own witness\'s diplomatic wording, not the base\'s',
         ]);
 });
 
+test('the wire leaves a candidate\'s defaults out, and a spelling that is the text itself', function () {
+    $this->actingAs(User::factory()->editor()->create());
+
+    // B's diplomatic layer spells the word as the normalized one does.
+    ['work' => $work, 'edition' => $edition] = collatedWithLayers([
+        'A' => ['τοσοῦτοι μὲν οὖν', 'ΤΟΣΟΥΤΟΙ ΜΕΝ ΟΥΝ'],
+        'B' => ['τοσοῦτοι δὲ οὖν', 'ΤΟΣΟΥΤΟΙ δὲ ΟΥΝ'],
+    ]);
+
+    $run = segmentPayload($work, $edition)['runs'][1];
+
+    // A plain witness reading is its label, text, reading and span — no
+    // conjecture fields, no flags at their defaults (EditionController::
+    // CANDIDATE_DEFAULTS, put back by lib/apparatus.ts inflateCandidate).
+    expect(array_keys($run['candidates'][1]))
+        ->toBe(['label', 'text', 'reading_id', 'transcription_layer_id', 'start_offset', 'end_offset'])
+        ->and($run['candidates'][0]['diplomatic'])->toBe('ΜΕΝ')
+        ->and($run)->not->toHaveKey('decided')
+        ->and($run)->not->toHaveKey('gap')
+        ->and($run)->not->toHaveKey('break_before');
+});
+
 test('a conjecture has no diplomatic wording', function () {
     $this->actingAs(User::factory()->editor()->create());
 
@@ -186,7 +208,7 @@ test('a variant that differs only in accent is marked as orthographic', function
 
     $candidates = segmentPayload($work, $edition)['runs'][1]['candidates'];
 
-    expect(collect($candidates)->map(fn ($c) => [$c['label'], $c['text'], $c['orthographic_only']])->all())
+    expect(collect($candidates)->map(fn ($c) => [$c['label'], $c['text'], $c['orthographic_only'] ?? false])->all())
         ->toBe([
             ['A', 'μὲν', false],  // the base itself
             ['B', 'μεν,', true],  // same word, different pointing
@@ -203,7 +225,8 @@ test('a genuinely different word is not marked as orthographic', function () {
 
     $candidates = segmentPayload($work, $edition)['runs'][1]['candidates'];
 
-    expect(collect($candidates)->pluck('orthographic_only')->all())->toBe([false, false]);
+    // Left out of the wire at its default — see EditionController::CANDIDATE_DEFAULTS.
+    expect(collect($candidates)->map(fn ($c) => $c['orthographic_only'] ?? false)->all())->toBe([false, false]);
 });
 
 test('a conjecture is never an orthographic variant', function () {
@@ -222,7 +245,7 @@ test('a conjecture is never an orthographic variant', function () {
     $conjecture = collect(segmentPayload($work, $edition)['runs'][1]['candidates'])
         ->firstWhere('conjecture_id', '!=', null);
 
-    expect($conjecture['orthographic_only'])->toBeFalse();
+    expect($conjecture['orthographic_only'] ?? false)->toBeFalse();
 });
 
 test('a site whose differences are all orthographic is marked as such', function () {
@@ -236,7 +259,7 @@ test('a site whose differences are all orthographic is marked as such', function
         'B' => ['τοσοῦτοι μεν, οὖν', null],
     ]);
 
-    expect(array_column(segmentPayload($work, $edition)['runs'], 'orthographic_variation'))
+    expect(array_map(fn (array $run) => $run['orthographic_variation'] ?? false, segmentPayload($work, $edition)['runs']))
         ->toBe([false, true, false]);
 });
 
@@ -248,7 +271,7 @@ test('a site with a real difference of wording is not marked orthographic', func
         'B' => ['τοσοῦτοι δὲ οὖν', null],
     ]);
 
-    expect(array_column(segmentPayload($work, $edition)['runs'], 'orthographic_variation'))
+    expect(array_map(fn (array $run) => $run['orthographic_variation'] ?? false, segmentPayload($work, $edition)['runs']))
         ->toBe([false, false, false]);
 });
 
@@ -263,7 +286,7 @@ test('a site is only orthographic when every difference at it is', function () {
         'C' => ['τοσοῦτοι δὲ οὖν', null],
     ]);
 
-    expect(segmentPayload($work, $edition)['runs'][1]['orthographic_variation'])->toBeFalse();
+    expect(segmentPayload($work, $edition)['runs'][1]['orthographic_variation'] ?? false)->toBeFalse();
 });
 
 test('where the witnesses agree there is nothing to attribute', function () {
@@ -274,7 +297,7 @@ test('where the witnesses agree there is nothing to attribute', function () {
         'B' => ['τοσοῦτοι μὲν οὖν', null],
     ]);
 
-    expect(array_column(segmentPayload($work, $edition)['runs'], 'orthographic_variation'))
+    expect(array_map(fn (array $run) => $run['orthographic_variation'] ?? false, segmentPayload($work, $edition)['runs']))
         ->toBe([false, false, false]);
 });
 

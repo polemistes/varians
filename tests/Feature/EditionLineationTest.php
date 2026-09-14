@@ -156,7 +156,9 @@ test('the edition page ships lineation: segment flags and per-run break_before',
 
     expect($segment['starts_new_line'])->toBeTrue()
         ->and($segment['starts_new_paragraph'])->toBeFalse()
-        ->and(array_column($segment['runs'], 'break_before'))->toBe([null, null, 'line', null]);
+        // A run without a break leaves the field out of the wire — see
+        // EditionController::slimRun.
+        ->and(array_map(fn (array $run) => $run['break_before'] ?? null, $segment['runs']))->toBe([null, null, 'line', null]);
 });
 
 test('a colometry break pins the segment\'s columns against a collation rebuild', function () {

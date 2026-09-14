@@ -149,5 +149,5 @@ test('a column the base omits is reported as a gap, and stays a variant site', f
         ->and($runs[1]['candidates'][0]['label'])->toBe('B')
         ->and($runs[1]['candidates'][0]['omitted'])->toBeTrue()
         ->and($runs[1]['candidates'][1]['text'])->toBe('swift')
-        ->and($runs[0]['gap'])->toBeFalse();
+        ->and($runs[0]['gap'] ?? false)->toBeFalse();
 });

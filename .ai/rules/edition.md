@@ -609,6 +609,23 @@ without breaks comes whole (`slice.whole`, no pager).
 WitnessTranscriptPaneTest fetches the prop as the pane does (a partial
 request with the page's `X-Inertia-Version`, or the 409 conflict answers).
 
+## Runs and candidates travel slim (2026-09-14)
+`EditionController::slimRun` strips every run and candidate field that is
+at its default (`RUN_DEFAULTS`, `CANDIDATE_DEFAULTS`: nulls, falses, empty
+`references`), drops a candidate's `key` (always `reading:` + id) and a
+`diplomatic` equal to the `text` (a NULL `diplomatic` stays — the
+manuscript's spelling unknown is not the same as "as the text"). On a
+ten-line, three-witness page this took `windowSegments` from 113 KB to
+45 KB and the page from 134 KB to 66 KB (measured 2026-09-14). The client
+restores the full shape ONCE — `inflateSegment`/`inflateRun`/
+`inflateCandidate` in `lib/apparatus.ts`, mirrored field for field to
+the PHP defaults; keep them in step — in the `windowSegments` computed of
+`Editions/Show.vue`; the prop is typed `WireWindowSegment[]` and nothing
+else on the page may read `props.windowSegments`. Feature tests assert a
+defaulted field with `->missing(...)` or `?? false`, never `->where(..., false)`.
+A new candidate or run field with a default goes in BOTH lists or it is
+sent every time.
+
 ## Every action on the edition page is a partial reload (2026-09-14)
 All 28 `router`/`useForm` calls in `Editions/Show.vue` and the two adds
 in `WitnessesPanel.vue` name the props they can have changed

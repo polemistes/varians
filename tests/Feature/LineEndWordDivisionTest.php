@@ -65,11 +65,11 @@ test('the edition prints the word whole, and the apparatus shows how the manuscr
     $this->get(route('editions.show', [$work, $edition]))
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->where('windowSegments.0.runs.0.text', 'ἄνδρα')
-            ->where('windowSegments.0.runs.0.break_before', null)
+            ->missing('windowSegments.0.runs.0.break_before')
             ->where('windowSegments.0.runs.1.text', 'μοι')
             // The edition's own lineation: no line break inside the word,
             // nor before μοι — the manuscript's line end was a division.
-            ->where('windowSegments.0.runs.1.break_before', null)
+            ->missing('windowSegments.0.runs.1.break_before')
             ->where('windowSegments.0.runs.0.diplomatic', 'ΑΝΔ-|ΡΑ')
             ->where('windowSegments.0.base_diplomatic', 'ΑΝΔ-|ΡΑ ΜΟΙ'));
 });

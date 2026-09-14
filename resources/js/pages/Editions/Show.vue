@@ -26,6 +26,7 @@ import {
     manuscriptReadings,
     sameReading,
     witnessReadings,
+    inflateSegment,
 } from '@/lib/apparatus';
 import type { BiblatexRegistry, Suggestions } from '@/lib/biblatex';
 import { confirmDeletion } from '@/lib/deletionImpact';
@@ -80,6 +81,7 @@ import type {
     TranspositionAdoption,
     UnplacedConjecture,
     WindowSegment,
+    WireWindowSegment,
     EditionAbilities,
     EditionAccess,
 } from '@/types/edition';
@@ -99,7 +101,8 @@ const props = defineProps<{
     page: number;
     totalPages: number;
     segments: SegmentListItem[];
-    windowSegments: WindowSegment[];
+    /** In wire form: read `windowSegments` (the computed) below, never this. */
+    windowSegments: WireWindowSegment[];
     transpositions: TranspositionAdoption[];
     transcriptions: TranscriptionOption[];
     workSegments: WorkSegment[];
@@ -123,6 +126,11 @@ const props = defineProps<{
         in_edition: boolean;
     }[];
 }>();
+
+// The window's segments in full shape: the wire leaves a run's and a
+// candidate's defaults out (see EditionController::slimRun), and they are
+// put back here once, so nothing else on the page meets the wire form.
+const windowSegments = computed(() => props.windowSegments.map(inflateSegment));
 
 function draftReferencesPayload(references: DraftReference[]) {
     return references.map((reference) => ({
@@ -556,7 +564,7 @@ type Piece = {
 const segmentById = computed(() => {
     const byId = new Map<number, WindowSegment>();
 
-    for (const row of props.windowSegments) {
+    for (const row of windowSegments.value) {
         if (!byId.has(row.id)) {
             byId.set(row.id, row);
         }
@@ -567,7 +575,7 @@ const segmentById = computed(() => {
 
 /** The printed rows as draft pieces — a divided line starts divided. */
 function printedPieces(): DraftPiece[] {
-    return props.windowSegments.map((row) => ({
+    return windowSegments.value.map((row) => ({
         segmentId: row.id,
         runStart: row.run_start,
         runEnd: row.run_end,
@@ -619,7 +627,7 @@ function toPieces(drafts: DraftPiece[]): Piece[] {
 const shownPieces = computed<Piece[]>(() =>
     registering.value
         ? toPieces(draftPieces.value)
-        : props.windowSegments.map((row) => ({
+        : windowSegments.value.map((row) => ({
               segment: row,
               runStart: row.run_start,
               runEnd: row.run_end,
@@ -949,7 +957,7 @@ const registerPieces = computed<Piece[]>(() => {
     const min = keys.reduce((a, b) => (a < b ? a : b));
     const max = keys.reduce((a, b) => (a > b ? a : b));
     const members = new Set(
-        props.windowSegments
+        windowSegments.value
             .filter((segment) => {
                 const key = sortKey.get(segment.id) ?? '';
 
@@ -1964,7 +1972,7 @@ function onImageRegionHover(target: {
 }) {
     const keys = new Set<string>();
 
-    for (const segment of props.windowSegments) {
+    for (const segment of windowSegments.value) {
         segment.runs.forEach((run, runIndex) => {
             const lit =
                 target.segmentIds.includes(segment.id) ||
@@ -2589,7 +2597,7 @@ function toggleRun(segmentId: number, runIndex: number) {
         return;
     }
 
-    const segment = props.windowSegments.find((p) => p.id === segmentId);
+    const segment = windowSegments.value.find((p) => p.id === segmentId);
 
     if (!segment) {
         return;
@@ -2740,7 +2748,7 @@ function onDocumentMouseUp() {
     const segmentId = touched[0].segmentId;
     const segmentIds = [...new Set(touched.map((t) => t.segmentId))];
 
-    const segment = props.windowSegments.find((p) => p.id === segmentId);
+    const segment = windowSegments.value.find((p) => p.id === segmentId);
 
     if (!segment) {
         return;
@@ -4419,7 +4427,7 @@ function orderRangeClasses(range: OrderRange): string[] {
                              good transcription that there was nothing to do,
                              when the text was one click away in the panel. -->
                             <p
-                                v-if="!props.windowSegments.length"
+                                v-if="!windowSegments.length"
                                 class="font-sans text-sm text-stone-500 dark:text-stone-400"
                             >
                                 <template v-if="!props.transcriptions.length">
