@@ -59,9 +59,11 @@ class EditionController extends Controller
      * How many segments the continuous-text view renders per page
      * — segments are typically one verse line each, so this keeps a page's
      * alignment/rendering work small without needing reference-scheme-aware
-     * windowing.
+     * windowing. Fifty until 2026-09-14; halved (user decision) because the
+     * window is the page's remaining cost — every word of every witness on
+     * it — once everything else had been bounded.
      */
-    private const WINDOW = 50;
+    private const WINDOW = 25;
 
     /** Manuscript pages a witnesses-pane slice holds — see witnessPane(). */
     private const PANE_PAGES = 3;

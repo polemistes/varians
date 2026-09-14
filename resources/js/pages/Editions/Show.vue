@@ -190,7 +190,7 @@ function goToPage(targetPage: number) {
     );
 }
 
-// ---- go to line: a long edition is many pages of fifty, and "line 412"
+// ---- go to line: a long edition is many pages of twenty-five, and "line 412"
 // should be one keystroke away, not eight Nexts.
 const jumpLabel = ref('');
 const jumpError = ref<string | null>(null);

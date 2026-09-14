@@ -520,7 +520,7 @@ assignment that moves no offset).
 ## The order report and the lacuna anchor are derived over the WHOLE edition
 `EditionController::orderRanges` runs over `$orderedSegments`, keyed by
 printed index and read back through the page offset — a witness moving a
-line across the fifty-segment page boundary used to produce no marker at
+line across the page boundary (twenty-five segments a page since 2026-09-14, fifty before) used to produce no marker at
 all (test-pinned: "a disagreement straddling the page boundary"). Each
 window segment also carries `previous_edition_segment_id` from the whole
 order, so the whole-line-lacuna marker on page 2's first line anchors
