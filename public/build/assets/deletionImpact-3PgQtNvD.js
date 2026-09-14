@@ -1,0 +1,1 @@
+function e(e,t,n=`${t}s`){return`${e} ${e===1?t:n}`}function t(e,t){return e?t.filter(t=>(e[t.key]??0)>0).map(t=>t.label(e[t.key]??0)):[]}function n(e,t){let n=t.length===0?`Delete ${e}?`:`Delete ${e}? This will also permanently delete ${t.join(`, `)}.`;return window.confirm(n)}export{t as n,e as r,n as t};
