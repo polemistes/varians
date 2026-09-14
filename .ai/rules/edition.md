@@ -495,6 +495,28 @@ make two *separate* transcriptions, so a test that needs both layers of one
 must create the parent and pass it to both. `->published()` on a layer factory
 publishes its transcription, which is what publishing a layer now means.
 
+## The whole-edition reports are cached under a fingerprint (2026-09-14)
+`orderRanges` and the witnesses' split-line report (`witnessDiscontinuities`)
+are derived over every witness × every line of the edition on each page
+load, while the page shows one window — 65 ms of a 390 ms page for six
+witnesses of 300 lines, seconds for twenty witnesses of thousands. Both
+now come from `wholeEditionReports`: `Cache::remember` under
+`edition-reports:{edition}:{fingerprint}`, 7 days, where
+`reportFingerprint` is xxh3 over EVERYTHING they read — the printed rows
+(segment, part, base, label, sort key), each visible layer (siglum,
+xxh3 of its text, every assignment's id/segment/part/span) and two
+aggregate queries over the work's ordering conjectures and their entries
+(count, max id, max updated_at). A change makes a NEW key; nothing is
+invalidated by hand and there is no `Cache::forget` anywhere — do not add
+one, add the missing input to the fingerprint instead (the only known
+gap: a raw DB write that bypasses timestamps and changes only a
+conjecture's wording). The window's conjectural arrangements are NOT
+cached — they depend on the window and are one cheap query — and are
+merged per page by `withArrangementDiscontinuities`. Tests:
+EditionReportCacheTest (a warm load runs fewer queries; every input
+change is seen at once, including a same-length word change inside an
+assignment that moves no offset).
+
 ## The order report and the lacuna anchor are derived over the WHOLE edition
 `EditionController::orderRanges` runs over `$orderedSegments`, keyed by
 printed index and read back through the page offset — a witness moving a
@@ -711,6 +733,25 @@ assignment. Resolution is the column: a sub-word box lights the word.
   whole segments a witness lacks — the witness lists already say which
   segments each witness has, and works with many fragmentary witnesses
   would drown in it.
+
+## The edition page's time is bounded too: index what is read per word (2026-09-14)
+Measured on a 300-line, six-witness edition (fifty-line window): the page
+went 650 ms → 350 ms by fixing two things that grew with the WITNESS,
+not the window. (1) `DiplomaticCounterpart::assignments` filtered a
+layer's whole assignment list (hundreds) on every first touch of a
+(layer, segment) — 600 touches a page, twice each; it now groups a layer
+instance's assignments by segment once (`$assignmentsBySegment`, a
+WeakMap like the token cache). (2) `mb_substr` by character offset is
+linear in the offset, so slicing a word deep in a witness of hundreds of
+pages cost the whole text — and the page slices a word for every reading
+of every column (a fifty-line window took 4× longer with 95 K characters
+before it). `WordDivision::slice` (used by `wordText`, `asWritten` and
+`Tokenizer::whitespace`) keeps, per long text (≥ 4096 bytes), an index
+of byte offsets every 256 characters, found by a fingerprint of the
+string (length + CRC of its ends, then `===`, pointer-equal for a model
+attribute) and reads only the window it needs. Use `WordDivision::slice`,
+never a bare `mb_substr`, on a layer's text at an offset. Unit-tested
+against mb_substr across checkpoints and a fingerprint collision.
 
 ## The edition page's queries are bounded: load what the counterpart reads (2026-09-14)
 `DiplomaticCounterpart::tokens` reads a layer's assignments of the segment

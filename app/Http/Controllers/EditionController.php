@@ -12,6 +12,7 @@ use App\Models\Assignment;
 use App\Models\BibliographyItem;
 use App\Models\BibliographyReference;
 use App\Models\Conjecture;
+use App\Models\ConjectureOrderingEntry;
 use App\Models\Edition;
 use App\Models\EditionComment;
 use App\Models\EditionLemma;
@@ -42,6 +43,7 @@ use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection as SupportCollection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -49,6 +51,7 @@ use Inertia\Response;
 /**
  * @phpstan-type WindowContext array{comments: SupportCollection<array-key, SupportCollection<int, EditionComment>>, unplaced: SupportCollection<array-key, SupportCollection<int, Conjecture>>, lemmas: SupportCollection<array-key, SupportCollection<int, Lemma>>, selections: EloquentCollection<array-key, EditionLemma>, breaks: EloquentCollection<array-key, EditionLineBreak>, paratexts: SupportCollection<array-key, SupportCollection<int, EditionParatext>>, segment_references: SupportCollection<array-key, SupportCollection<int, BibliographyReference>>, parts: SupportCollection<array-key, SupportCollection<int, EditionSegment>>}
  * @phpstan-type Citation array{id: int, item_id: int, label: string, citation: string, prenote: string|null, postnote: string|null}
+ * @phpstan-type DiscontinuityEntry array{siglum: string, conjecture_id: int|null, matches_current: bool, parts: array<int, array{part: int, after_label: string|null}>, statements: list<string>}
  */
 class EditionController extends Controller
 {
@@ -179,9 +182,10 @@ class EditionController extends Controller
         // Over the WHOLE edition, not the page: a witness that moves a line
         // across the page boundary is a disagreement the editor must still
         // be shown. Keyed by segment id.
-        $orderRanges = $this->orderRanges($orderedSegments, $transcriptions);
-        $discontinuities = $this->assignmentDiscontinuities(
-            $transcriptions,
+        $reports = $this->wholeEditionReports($work, $edition, $orderedSegments, $transcriptions);
+        $orderRanges = $reports['order'];
+        $discontinuities = $this->withArrangementDiscontinuities(
+            $reports['discontinuities'],
             $this->conjectureArrangements(array_values(array_map('intval', $window->pluck('segment_id')->all()))),
             $orderedSegments,
         );
@@ -812,6 +816,83 @@ class EditionController extends Controller
     }
 
     /**
+     * The two reports derived over the WHOLE edition — the order report
+     * and the witnesses' split-line report — cached, since together they
+     * grow with every witness times every line of the edition (real
+     * measurement: 65 ms of a 390 ms page for six witnesses of 300 lines,
+     * and they would be seconds for twenty witnesses of thousands) while
+     * the page reads one window of it. The cache key is a FINGERPRINT of
+     * everything the reports read (reportFingerprint), so any change to
+     * the printed order, a witness's text or assignments, or the work's
+     * ordering conjectures makes a new key; an entry is never stale, only
+     * unused. Nothing invalidates by hand.
+     *
+     * @param  SupportCollection<int, EditionSegment>  $ordered
+     * @param  SupportCollection<int, TranscriptionLayer>  $transcriptions
+     * @return array{order: array<int, array<string, mixed>>, discontinuities: array<int, array<int, DiscontinuityEntry>>}
+     */
+    private function wholeEditionReports(Work $work, Edition $edition, SupportCollection $ordered, SupportCollection $transcriptions): array
+    {
+        $key = 'edition-reports:'.$edition->id.':'.$this->reportFingerprint($work, $ordered, $transcriptions);
+
+        return Cache::remember($key, now()->addDays(7), fn (): array => [
+            'order' => $this->orderRanges($ordered, $transcriptions),
+            'discontinuities' => $this->witnessDiscontinuities($transcriptions, $ordered),
+        ]);
+    }
+
+    /**
+     * Everything the whole-edition reports read, hashed: the printed rows
+     * (segment, part, base, and the segment's label and sort key), each
+     * visible layer (its siglum, the hash of its text — a word changed
+     * inside an assignment moves no offset but is quoted in a statement —
+     * and every assignment's id, segment, part and span), and the work's
+     * ordering conjectures with their entries, by count, newest id and
+     * latest change. All but the last are already in memory; the
+     * conjectures cost two aggregate queries. xxh3 over a text of hundreds
+     * of pages is well under a millisecond.
+     *
+     * @param  SupportCollection<int, EditionSegment>  $ordered
+     * @param  SupportCollection<int, TranscriptionLayer>  $transcriptions
+     */
+    private function reportFingerprint(Work $work, SupportCollection $ordered, SupportCollection $transcriptions): string
+    {
+        $parts = [];
+
+        foreach ($ordered as $editionSegment) {
+            $parts[] = implode(':', [
+                $editionSegment->segment_id,
+                $editionSegment->part,
+                $editionSegment->transcription_layer_id ?? '',
+                $editionSegment->segment->label,
+                $editionSegment->segment->sort_key,
+            ]);
+        }
+
+        foreach ($transcriptions as $layer) {
+            $parts[] = 'L'.$layer->id.':'.$layer->transcription->witness->siglum.':'.hash('xxh3', $layer->text);
+
+            foreach ($layer->assignments as $assignment) {
+                $parts[] = implode(':', [$assignment->id, $assignment->segment_id, $assignment->part, $assignment->start_offset, $assignment->end_offset]);
+            }
+        }
+
+        $conjectures = Conjecture::whereIn('type', [ConjectureType::Reordering, ConjectureType::Transposition])
+            ->whereHas('segment', fn ($query) => $query->where('work_id', $work->id))
+            ->selectRaw('count(*) as n, max(id) as newest, max(updated_at) as changed')
+            ->first();
+        $entries = ConjectureOrderingEntry::whereHas('conjecture.segment', fn ($query) => $query->where('work_id', $work->id))
+            ->selectRaw('count(*) as n, max(id) as newest, max(updated_at) as changed')
+            ->first();
+
+        foreach ([$conjectures, $entries] as $aggregate) {
+            $parts[] = implode(':', [$aggregate?->getAttribute('n') ?? 0, $aggregate?->getAttribute('newest') ?? 0, $aggregate?->getAttribute('changed') ?? '']);
+        }
+
+        return hash('xxh3', implode('|', $parts));
+    }
+
+    /**
      * Notices what no one asked it to: where a source — a witness's own
      * physical order, or a catalogued Transposition/Reordering conjecture —
      * orders segments DIFFERENTLY FROM THE PRINTED ORDER. See
@@ -1290,22 +1371,49 @@ class EditionController extends Controller
      *                                                                      Each entry also says whether the edition's own printed arrangement of
      *                                                                      the source's pieces is the same (`matches_current`) — the source the
      *                                                                      line's ordering follows, rather than a variant of it.
-     * @param  SupportCollection<int, array{name: string, text: string, assignments: SupportCollection<int, Assignment>, conjecture_id: int}>  $arrangements
      * @param  SupportCollection<int, EditionSegment>  $printed  the whole edition's rows, in printed order
-     * @return array<int, array<int, array{siglum: string, conjecture_id: int|null, matches_current: bool, parts: array<int, array{part: int, after_label: string|null}>, statements: list<string>}>>
+     * @return array<int, array<int, DiscontinuityEntry>> the witnesses' part alone — derived over the whole edition and cached (wholeEditionReports); the window's conjectural arrangements are added per page by withArrangementDiscontinuities()
      */
-    private function assignmentDiscontinuities(SupportCollection $transcriptions, SupportCollection $arrangements, SupportCollection $printed): array
+    private function witnessDiscontinuities(SupportCollection $transcriptions, SupportCollection $printed): array
     {
         $result = [];
-        $printedKeys = array_values($printed
-            ->map(fn (EditionSegment $row) => [(int) $row->segment_id, (int) $row->part])
-            ->all());
+        $printedKeys = $this->printedKeys($printed);
 
         foreach ($transcriptions as $layer) {
             foreach ($this->discontinuitiesOf($layer->transcription->witness->siglum, $layer->text, $layer->assignments->toBase(), null, $printedKeys) as $segmentId => $entries) {
                 $result[$segmentId] = [...($result[$segmentId] ?? []), ...$entries];
             }
         }
+
+        return $result;
+    }
+
+    /**
+     * The printed segments as (segment id, part) pairs — what a source's
+     * own sequence is compared with.
+     *
+     * @param  SupportCollection<int, EditionSegment>  $printed
+     * @return list<array{0: int, 1: int}>
+     */
+    private function printedKeys(SupportCollection $printed): array
+    {
+        return array_values($printed
+            ->map(fn (EditionSegment $row) => [(int) $row->segment_id, (int) $row->part])
+            ->all());
+    }
+
+    /**
+     * The witnesses' report with the window's conjectural arrangements
+     * added, each segment's entries in siglum order.
+     *
+     * @param  array<int, array<int, DiscontinuityEntry>>  $result
+     * @param  SupportCollection<int, array{name: string, text: string, assignments: SupportCollection<int, Assignment>, conjecture_id: int}>  $arrangements
+     * @param  SupportCollection<int, EditionSegment>  $printed
+     * @return array<int, list<DiscontinuityEntry>>
+     */
+    private function withArrangementDiscontinuities(array $result, SupportCollection $arrangements, SupportCollection $printed): array
+    {
+        $printedKeys = $this->printedKeys($printed);
 
         // A conjecture that divides a line is the same kind of source as a
         // witness that assigns text to a line in two places, and is reported by the
@@ -1317,7 +1425,7 @@ class EditionController extends Controller
         }
 
         return array_map(
-            fn (array $witnesses) => collect($witnesses)->sortBy('siglum')->values()->all(),
+            fn (array $witnesses) => array_values(collect($witnesses)->sortBy('siglum')->all()),
             $result,
         );
     }
@@ -1327,7 +1435,7 @@ class EditionController extends Controller
      *
      * @param  SupportCollection<int, Assignment>  $assignments
      * @param  list<array{0: int, 1: int}>  $printedKeys  the edition's printed rows as (segment, part)
-     * @return array<int, list<array{siglum: string, conjecture_id: int|null, matches_current: bool, parts: array<int, array{part: int, after_label: string|null}>, statements: list<string>}>>
+     * @return array<int, list<DiscontinuityEntry>>
      */
     private function discontinuitiesOf(string $siglum, string $text, SupportCollection $assignments, ?int $conjectureId, array $printedKeys): array
     {

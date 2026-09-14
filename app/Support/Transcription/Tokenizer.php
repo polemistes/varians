@@ -51,7 +51,8 @@ class Tokenizer
      */
     private static function whitespace(string $fullText, int $start, int $end): array
     {
-        $substring = mb_substr($fullText, $start, $end - $start);
+        // Through the index: a span deep in a long text is not a walk from its start.
+        $substring = WordDivision::slice($fullText, $start, $end);
         $tokens = [];
 
         // A word divided at a line's end ("ἄνδ-⏎ρα") is one token whose
