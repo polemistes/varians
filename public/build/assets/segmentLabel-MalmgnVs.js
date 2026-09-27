@@ -1,0 +1,1 @@
+function e(e){let t=e.match(/^(.*?)(\d+)$/u);if(t)return t[1]+(parseInt(t[2],10)+1);let n=e.match(/^(.*?)([A-Za-z])$/u);if(!n)return e;let[,r,i]=n;return i===`z`?`${r}aa`:i===`Z`?`${r}AA`:r+String.fromCharCode(i.charCodeAt(0)+1)}function t(e){return/^\d+$/u.test(e)?Number(e):e}export{e as n,t};
