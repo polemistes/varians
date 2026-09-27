@@ -66,3 +66,34 @@ read `storage/logs/` after a slow spell before guessing further. OPcache
 is the remaining suspect if that shows time outside the queries: check
 the host's PHP handler. The tests run on `:memory:`, where the WAL pragma
 is a no-op.
+
+## The document root is ~/www/varians, a symlink into a web root shared with Manteion (2026-09-27)
+There is no server of Varians's own. Production is a domene.shop webhotel on
+the **`manteion` account** (`ssh manteion@login.domeneshop.no`), and
+www.varians.no is pointed at a subfolder of that account's one fixed web
+root. So the checkout is `~/varians`, and the document root is
+`~/www/varians` — a **symlink to `~/varians/public`**, recreated with
+`ln -sfn ~/varians/public ~/www/varians`.
+
+Symlink it to `~/varians` instead and Apache serves a **directory listing of
+the source tree**: the front controller and the `Options -Indexes` are both
+in `public/`, not above it. `__DIR__` resolves through the symlink to the
+real path, so `public/index.php` still reaches `../vendor/autoload.php`
+correctly. Symlinks are followed on this host — Manteion relies on it for
+its own `~/www/storage`.
+
+`~/www` is **shared with Manteion**, which is served from its root.
+Manteion's `deploy/sync-webroot.sh` rsyncs its own `public/` into `~/www`
+with `--delete`, and that deleted `~/www/varians` outright: Internal Server
+Error on every URL until the symlink was recreated. Nothing of Varians's is
+stored under `~/www`, so it cost the symlink and nothing else — the SQLite
+database, `.env` and the manuscript images are all under `~/varians`. That
+script now protects every top-level entry its own `public/` does not ship,
+so a new neighbour under `~/www` needs no edit there; but any future tool
+that mirrors into `~/www` can repeat it.
+
+`deploy.sh` here never touches `~/www` and must not start to, or two scripts
+would be fighting over one directory. If the host ever refuses a symlinked
+document root, the fallback is Manteion's `deploy/webroot-index.php`
+pattern: a real directory holding a copy of `public/` plus a front
+controller whose `../` paths reach the sibling app folder.
