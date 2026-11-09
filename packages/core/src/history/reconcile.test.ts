@@ -17,6 +17,8 @@ function initial(): Stream {
   return stream;
 }
 
+const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
 /** One installation's copy of a document, saving and reconciling as the server would. */
 class Installation {
   content: Stream;
@@ -55,8 +57,8 @@ class Installation {
   }
 
   copy(user: string): Installation {
-    const other = new Installation(user, structuredClone(this.content), this.documentId);
-    other.log = structuredClone(this.log);
+    const other = new Installation(user, clone(this.content), this.documentId);
+    other.log = clone(this.log);
     other.applied = other.log.filter((c) => this.applied.some((a) => a.id === c.id));
     return other;
   }
@@ -351,7 +353,7 @@ describe('reconcile: errors', () => {
     id,
     documentId: 'd',
     version: 1,
-    parentId,
+    ...(parentId === undefined ? {} : { parentId }),
     userId: 'u',
     at: '2026-11-09T10:00:00Z',
     ops: [],
