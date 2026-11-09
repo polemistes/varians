@@ -31,11 +31,16 @@ The footer of every page names the version of Varians that runs the site and lin
 Choose **New work** on the **Works** page, or **Register Work** on the front page. As you type the title, works with a similar title or author are shown; if yours is among them, open it instead of making a second one.
 
 - **Language** sets how words are normalized and compared when witnesses are collated (see *Diplomatic and normalized* under Transcribing). For Latin, u and v count as one letter; for Hebrew and Arabic, the vowel points are left aside.
-- **Identifier** is optional: a canonical identifier such as a CTS URN.
+- **Identifier** is optional: the work's CTS URN, such as urn:cts:greekLit:tlg0012.tlg001. Passages of the work are cited by it in the TEI.
+- **Identifiers** lists further canonical identifiers, each a scheme and a value: a CTS URN, Diktyon, Trismegistos, Wikidata (Q8275), VIAF, a URL, or Other. Each value is checked against the form of its scheme. They are shown on the work's page, linked where the scheme has a resolver, and the search finds the work by any of them, so that pasting Q8275 finds the Iliad. An archive brought in from another installation is matched to the work here by its identifiers before a new work is made.
 - **Visibility** is public by default. A private work is visible only to its maintainers and to the editors of its editions.
 - **Reference scheme**: choose a common one (book and line, chapter and verse, Stephanus page and section) or describe your own levels. An example label shows how passages will be written.
 
 The work's page lists its editions, the witnesses transcribed for it with how much of the work each covers, its conjectures and reported readings, its segments, and its archive. Maintainers change the details, the scheme and the maintainers under **Edit**.
+
+### Merging two works
+
+When a work has been registered twice, the duplicate is merged into the other under **Edit**, **Merge into…**: find the surviving work by title, author or identifier, and Varians shows what will move and what prevents the merge. Segments are matched by their address: the duplicate's 1.5 and the survivor's 1.5 become one segment, and everything that named the duplicate's (the text of its transcripts and editions, conjectures, reported readings, notes, citations) names the survivor's; segments the survivor lacks move to it, labelled in its scheme. The editions, conjectures, reported readings, transcripts and maintainers of the duplicate go to the survivor with them. Two works whose reference schemes have different levels cannot be merged, since their segments cannot be matched. The survivor keeps its title, description, visibility and scheme, and gains the duplicate's identifiers; its page lists the works merged into it. The duplicate's address and identifiers lead to the survivor from then on, also in archives brought in later. Moving a segment within a transcript or an edition is not a change of its text and is not recorded in its history. Administrators and those who maintain both works may merge them, and a merge cannot be undone.
 
 ### Conjectures and reported readings
 
@@ -45,13 +50,19 @@ A **reported reading** is what a witness is said to have at a place, by another 
 
 ## A witness
 
-Choose **New witness** on the **Witnesses** page, or **Transcribe a witness** on a work's page and then **New witness**. Every field but the name and the siglum is optional: repository, place, shelfmark, identifier, date, material (from a list, or **Other** with a word of your own), extent, hands, provenance and a description. **Hands** is a list: each hand has a label as the catalogues cite it (m1, m2, A²) and a description, and one of them is marked as the scribe of the text. Corrections in the transcripts of the witness can then name the hand that made them (see *Features* under Transcribing). The siglum given here is a default; each edition gives the witness its own.
+Choose **New witness** on the **Witnesses** page, or **Transcribe a witness** on a work's page and then **New witness**. Every field but the name and the siglum is optional: repository, place, shelfmark, identifier (a catalogue number), identifiers, date, material (from a list, or **Other** with a word of your own), extent, hands, provenance and a description. **Hands** is a list: each hand has a label as the catalogues cite it (m1, m2, A²) and a description, and one of them is marked as the scribe of the text. Corrections in the transcripts of the witness can then name the hand that made them (see *Features* under Transcribing). The siglum given here is a default; each edition gives the witness its own.
+
+**Identifiers** are canonical identifiers of the witness, each a scheme and a value, as for a work: a Diktyon number for a Greek manuscript, a Trismegistos number for a papyrus, a Wikidata item, a URL. The witness's page links them to Pinakes, Trismegistos and Wikidata, and the search finds the witness by any of them: pasting a Diktyon number finds the manuscript.
 
 The **category** says what the carrier is: a manuscript, an inscription, a printed edition, an indirect source (a text quoting or reporting this one), or something else. A papyrus is a manuscript: give papyrus as its material. For a manuscript, the **format** says whether it is a codex, a roll or a single sheet, or that this is not known; a roll's pages are best labelled as columns, col. i, col. ii. For an indirect source, give the author and the work that quote the text, such as Athenaeus, Deipnosophistae; the passage goes with each reading reported from it. A witness that survives in pieces has its fragments as pages, labelled as you cite them (fr. 1, fr. 2 verso).
 
 Whether a witness has all of a text or only part of it is a matter of the work, since one codex may hold all of one text and part of another. The work's page shows it for each witness, as complete or partial, from the passages its transcript covers.
 
 The witness's page shows its pages, its transcripts and the works they belong to. **New transcript** asks for a name, the work it is for, whether to keep a diplomatic form beside the normalized one, and optionally another transcript to start from.
+
+### Merging two witnesses
+
+A witness registered twice is merged into the other under **Edit**, **Merge into…**, as works are. Its transcripts, reported readings, sigla in the conspectus of editions, maintainers and pages go to the surviving witness, the pages after the survivor's own, with the hands and identifiers the survivor lacks. Two things prevent the merge until they are resolved: an edition whose conspectus names both witnesses (remove one of them from it), and a page label both witnesses have (rename, move or delete one of the pages). The survivor keeps its description and siglum; its page lists the witnesses merged into it, and the merged witness's address leads to it. Administrators and those who maintain both witnesses may merge them, and a merge cannot be undone.
 
 ### Pages and images
 
