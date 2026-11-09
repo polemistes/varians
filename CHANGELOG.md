@@ -4,6 +4,11 @@ What changed in each release of Varians, for those who run it. The section of a 
 
 ## Unreleased
 
+### For operators
+
+- **The dictionaries come as one file.** `varians lexicon` imports the lexicon published for the release (29 MB, checked against its SHA-256); `varians lexicon import FILE|URL [--sha256 HEX]` loads one exported elsewhere, `varians lexicon export FILE` writes the loaded one, and `varians lexicon build` builds it from its sources, the LSJ and the Middle Liddell of the Perseus Digital Library, the Ancient Greek Dependency Treebank and the analyses of Morpheus, downloading what it lacks from pinned commits. There is no `lexicon.sqlite` any more, and the command no longer takes a path or address of its own. [docs/lexicon.md](docs/lexicon.md) and [docs/install.md](docs/install.md) describe it.
+- A dictionary lemma is now found whatever its case, so a proper name opens its entry directly.
+
 ## 0.2.0
 
 The first public release.

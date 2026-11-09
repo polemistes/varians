@@ -1,6 +1,6 @@
 /**
  * The command-line scripts, bundled for a release: build/scripts/cli.js,
- * import-lexicon.js and migrate.js run with plain Node, without tsx and
+ * lexicon.js and migrate.js run with plain Node, without tsx and
  * without the TypeScript sources of the workspace packages (Node does not
  * strip types under node_modules). Run after the SvelteKit build, which
  * empties build/: `vite build && vite build -c vite.scripts.config.ts`.
@@ -31,7 +31,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         cli: 'scripts/cli.ts',
-        'import-lexicon': 'scripts/import-lexicon.ts',
+        lexicon: 'scripts/lexicon.ts',
         migrate: 'scripts/migrate.ts',
       },
       output: { format: 'es', entryFileNames: '[name].js', chunkFileNames: 'chunks/[name]-[hash].js' },

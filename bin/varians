@@ -9,8 +9,10 @@
 #                              replace the database and the storage with a backup
 #   varians cli ARGS...        the command line of the application (make-admin,
 #                              reset-password, export-all, import-archive, ...)
-#   varians lexicon PATH|URL [--sha256 HEX]
-#                              load the Greek forms and dictionaries
+#   varians lexicon            import the Greek forms and dictionaries published
+#                              for this Varians (docs/lexicon.md); also
+#                              lexicon import FILE|URL [--sha256 HEX],
+#                              lexicon export FILE, and lexicon build [options]
 #   varians version            the version of this release
 #
 # Works from a release (bin/ beside app/, as in the container and the native
@@ -220,7 +222,7 @@ case "$command" in
   backup) load_env; backup "$@" ;;
   restore) load_env; restore "$@" ;;
   cli) load_env; need_built; exec node "$APP/build/scripts/cli.js" "$@" ;;
-  lexicon) load_env; need_built; exec node "$APP/build/scripts/import-lexicon.js" "$@" ;;
+  lexicon) load_env; need_built; exec node "$APP/build/scripts/lexicon.js" "$@" ;;
   version) say "$(version)" ;;
   help | -h | --help) sed -n '2,/^# Works from/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
   *) die "unknown command $command (see varians help)." ;;

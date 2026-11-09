@@ -11,6 +11,7 @@ There are two ways to install it. **Docker Compose** is the simpler: one file st
 - For Docker Compose: Docker Engine with the compose plugin.
 - For the native installation: Linux with glibc on x64 or arm64 (Debian, Ubuntu, Fedora, Arch and the like), Node.js 24 or later, PostgreSQL 16 or later (18 is what the image uses), git, tar, and the PostgreSQL client tools (`pg_dump`, `pg_restore`, `psql`) of the server's major version, for backups.
 - Optionally, an SMTP server through which Varians can send mail.
+- For the Greek dictionaries, outbound https to GitHub while `varians lexicon` runs, which downloads the built lexicon (29 MB) once (see *The dictionaries*).
 
 ## With Docker Compose
 
@@ -223,16 +224,14 @@ Read the release notes in [CHANGELOG.md](../CHANGELOG.md) first, and make a back
 
 ## The dictionaries
 
-The reader and the workbench look Greek words up in the Liddell-Scott-Jones and the Intermediate Liddell-Scott lexica and their morphological analyses, from a `lexicon.sqlite` built by the Anagnosis pipeline ([lexicon.md](lexicon.md)). The data is licensed CC BY-SA, as the page Sources and licences states. Where the file is published for other installations, and under what statement, is still to be decided by the maintainer of Varians; this section will name the address once it is.
-
-Loading it replaces whatever was loaded before; it takes some minutes:
+The reader and the workbench look Greek words up in the Liddell-Scott-Jones and the Intermediate Liddell-Scott lexica and in the morphological analyses of the Ancient Greek Dependency Treebank and of Morpheus. The lexicon is too large to be part of a release (29 MB built, 370 MB of sources), so it is built once by the maintainer of Varians and imported by each installation ([lexicon.md](lexicon.md)):
 
 ```sh
-docker compose exec varians varians lexicon https://example.org/lexicon.sqlite --sha256 <hex>
-sudo -u varians /opt/varians/current/bin/varians lexicon /path/to/lexicon.sqlite
+docker compose exec varians varians lexicon
+sudo -u varians /opt/varians/current/bin/varians lexicon
 ```
 
-The argument is a path or an https address; an address is downloaded to a temporary file first. With `--sha256`, the file is refused unless its SHA-256 is the one given. A file on the host reaches the container with `docker compose cp lexicon.sqlite varians:/tmp/lexicon.sqlite`.
+This downloads the lexicon published for the release (29 MB, checked against its SHA-256) and loads it in one transaction, replacing whatever was loaded before; it takes under a minute. Until a lexicon is published for a release, the command says so. `varians lexicon import FILE|URL [--sha256 HEX]` loads a lexicon exported by another installation instead, for instance one built with `varians lexicon build`, which downloads some 370 MB of sources (lexicon.md says what it needs). A file on the host reaches the container with `docker compose cp lexicon.jsonl.gz varians:/tmp/lexicon.jsonl.gz`. The data is licensed CC BY-SA, as the page Sources and licences states.
 
 ## Where the data is
 

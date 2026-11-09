@@ -56,37 +56,32 @@ export const VARIANS_LICENCES: UsedSource[] = [
 export const USED_SOURCES: UsedSource[] = [
   {
     title: 'A Greek-English Lexicon (Liddell, Scott, Jones, 1940)',
-    use: 'Dictionary entries in the reader and in the workbench.',
-    source: 'Perseus Digital Library, Tufts University.',
+    use: 'Dictionary entries in the reader and in the workbench, built from the TEI by varians lexicon.',
+    source: 'Perseus Digital Library, Tufts University (PerseusDL/lexica).',
     url: 'https://github.com/PerseusDL/lexica',
     ...CC_BY_SA_4,
   },
   {
     title: 'An Intermediate Greek-English Lexicon (Liddell and Scott, 1889)',
-    use: 'Dictionary entries in the reader and in the workbench.',
-    source: 'Perseus Digital Library, Tufts University.',
-    url: 'https://github.com/PerseusDL/lexica',
+    use: 'Dictionary entries in the reader and in the workbench, built from the TEI by varians lexicon.',
+    source: 'Perseus Digital Library, Tufts University; its XML as mirrored, with a few typographical corrections, at blinskey/middle-liddell.',
+    url: 'https://github.com/blinskey/middle-liddell',
     ...CC_BY_SA_3_US,
   },
   {
     title: 'Morphological analyses of Greek word forms (Morpheus)',
     use: 'The lemma and grammar of a word, and the accented forms its letters can have.',
-    source: 'Morpheus (perseids-tools/morpheus, Mozilla Public License 2.0), run over the open Greek corpus of the Perseus Digital Library (canonical-greekLit, CC BY-SA 4.0).',
+    source:
+      'Morpheus (perseids-tools/morpheus, Mozilla Public License 2.0), run by the Anagnosis pipeline of Robert Emil Berge over the open Greek corpus of the Perseus Digital Library (canonical-greekLit, CC BY-SA 4.0) and the treebank; the file lexicon/morpheus-analyses.tsv.gz of the release.',
     url: 'https://github.com/perseids-tools/morpheus',
     ...CC_BY_SA_4,
   },
   {
     title: 'Ancient Greek Dependency Treebank',
     use: 'Hand-checked analyses of word forms, preferred to the automatic ones.',
-    source: 'Perseus Digital Library, Tufts University.',
-    url: 'https://perseusdl.github.io/treebank_data/',
+    source: 'Perseus Digital Library, Tufts University (PerseusDL/treebank_data, version 2.1).',
+    url: 'https://github.com/PerseusDL/treebank_data',
     ...CC_BY_SA_3_US,
-  },
-  {
-    title: 'The Anagnosis lexicon',
-    use: 'The forms and dictionaries above, compiled into one database.',
-    source: 'Robert Emil Berge, Anagnosis.',
-    ...CC_BY_SA_4,
   },
   {
     title: 'EB Garamond',

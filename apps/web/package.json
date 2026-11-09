@@ -14,7 +14,7 @@
     "test:e2e": "playwright test",
     "seed": "tsx scripts/seed.ts",
     "cli": "tsx scripts/cli.ts",
-    "lexicon:import": "tsx scripts/import-lexicon.ts"
+    "lexicon": "tsx scripts/lexicon.ts"
   },
   "dependencies": {
     "@annotorious/openseadragon": "^3.9.3",

@@ -65,10 +65,13 @@ As root (with `sudo`):
     sudo -u varians -H pnpm --dir /home/varians/app --filter @varians/web cli make-admin you@example.org
     ```
 
-11. **The dictionaries** (optional; see `docs/lexicon.md`). Copy a built `lexicon.sqlite` to the server, then:
+11. **The dictionaries** (optional; see `docs/lexicon.md`). Built on the owner's machine from the cache in `apps/web/lexicon-sources/`, exported as one file and imported on the server:
 
     ```sh
-    sudo -u varians -H pnpm --dir /home/varians/app --filter @varians/web lexicon:import /path/to/lexicon.sqlite
+    pnpm --filter @varians/web lexicon build                      # on the owner's machine
+    pnpm --filter @varians/web lexicon export lexicon.jsonl.gz
+    scp lexicon.jsonl.gz varians.eu:/tmp/
+    sudo -u varians -H pnpm --dir /home/varians/app --filter @varians/web lexicon import /tmp/lexicon.jsonl.gz
     ```
 
 12. **Backups.**

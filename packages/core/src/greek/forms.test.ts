@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describePostag, looseKey, parseAnalyses, variantRelation } from './forms.ts';
+import { describePostag, lemmaKey, looseKey, parseAnalyses, variantRelation } from './forms.ts';
 
 describe('looseKey', () => {
   it('keeps the letters alone, in lower case, with a final sigma', () => {
@@ -10,6 +10,15 @@ describe('looseKey', () => {
     expect(looseKey('ΛΟΓΟΣ')).toBe('λογος');
     expect(looseKey('λόγοσ')).toBe('λογος');
     expect(looseKey('ῥῆμα')).toBe('ρημα');
+  });
+});
+
+describe('lemmaKey', () => {
+  it('lowers the case, drops a homograph number and keeps the diacritics', () => {
+    expect(lemmaKey('Ἀχιλλεύς')).toBe('ἀχιλλεύς');
+    expect(lemmaKey(' μήν2 ')).toBe('μήν');
+    expect(lemmaKey('ΟΔΥΣΣΕΥΣ')).toBe('οδυσσευς');
+    expect(lemmaKey('λόγος')).toBe('λόγος');
   });
 });
 

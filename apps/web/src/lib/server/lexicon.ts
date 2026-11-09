@@ -1,9 +1,9 @@
 /**
- * The Greek analyser and dictionaries (loaded by scripts/import-lexicon.ts):
+ * The Greek analyser and dictionaries (built by scripts/lexicon.ts):
  * the analyses of word forms, and the dictionary entries of lemmas. Both
  * are empty until the data is loaded; callers then get nothing, not an error.
  */
-import { describePostag, looseKey, parseAnalyses, type Analysis } from '@varians/core';
+import { describePostag, lemmaKey, looseKey, parseAnalyses, type Analysis } from '@varians/core';
 import { greekForms, lexiconEntries, lexicons, type Database } from '@varians/db';
 import { asc, eq, inArray, or } from 'drizzle-orm';
 
@@ -52,9 +52,9 @@ export interface LexiconEntry {
   html: string;
 }
 
-/** The dictionary entries of a lemma, in the dictionaries' order: by the lemma as written, else by its letters alone. */
+/** The dictionary entries of a lemma, in the dictionaries' order: by the lemma as written (case aside), else by its letters alone. */
 export async function entriesFor(db: Database, lemma: string): Promise<LexiconEntry[]> {
-  const written = lemma.normalize('NFC').trim();
+  const written = lemmaKey(lemma);
   if (!written) return [];
   const select = () =>
     db

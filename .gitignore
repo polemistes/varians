@@ -27,3 +27,6 @@ playwright-report/
 /PLAN-*.md
 /docs/brief.md
 /docs/notes/
+
+# The cache of the lexicon sources, copied or downloaded (docs/lexicon.md)
+/apps/web/lexicon-sources/

@@ -406,7 +406,7 @@ export const transcriptionSegments = pgTable(
   ],
 );
 
-// Greek forms and dictionaries (loaded by apps/web/scripts/import-lexicon.ts; see docs/lexicon.md)
+// Greek forms and dictionaries (built from their sources by apps/web/scripts/lexicon.ts; see docs/lexicon.md)
 
 /** The analyses of Greek word forms, keyed by their letters alone (lower case, no diacritics, final ς). */
 export const greekForms = pgTable('greek_forms', {

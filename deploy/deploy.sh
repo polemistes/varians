@@ -22,7 +22,7 @@ cd "$RELEASE"
 pnpm install --frozen-lockfile
 pnpm --filter @varians/web build
 pnpm --filter @varians/db migrate
-# The command-line scripts (cli, lexicon:import) read their settings from apps/web/.env.
+# The command-line scripts (cli, lexicon) read their settings from apps/web/.env.
 ln -sfn "$ENV_FILE" apps/web/.env
 
 # Switch in one step, so that the service never sees a half-made link.

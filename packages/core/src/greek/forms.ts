@@ -14,6 +14,11 @@ export function looseKey(word: string): string {
   return out.endsWith('σ') ? `${out.slice(0, -1)}ς` : out;
 }
 
+/** A lemma as the dictionaries are keyed by it: NFC, trimmed, without a homograph number, in lower case. */
+export function lemmaKey(lemma: string): string {
+  return lemma.normalize('NFC').trim().replace(/\d+$/u, '').toLowerCase();
+}
+
 /** One analysis of a form: the form as accented, its lemma, its tag, and where it comes from. */
 export interface Analysis {
   form: string;
