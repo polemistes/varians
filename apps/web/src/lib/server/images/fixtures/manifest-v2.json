@@ -1,0 +1,106 @@
+{
+  "@context": "http://iiif.io/api/presentation/2/context.json",
+  "@id": "https://example.org/iiif/ms-1/manifest",
+  "@type": "sc:Manifest",
+  "label": [
+    { "@value": "Codex Exemplaris", "@language": "en" },
+    { "@value": "Codex Exemplaris (descriptio Latina)", "@language": "la" }
+  ],
+  "sequences": [
+    {
+      "@id": "https://example.org/iiif/ms-1/sequence/normal",
+      "@type": "sc:Sequence",
+      "canvases": [
+        {
+          "@id": "https://example.org/iiif/ms-1/canvas/1",
+          "@type": "sc:Canvas",
+          "label": "1r",
+          "width": 4000,
+          "height": 6000,
+          "images": [
+            {
+              "@type": "oa:Annotation",
+              "motivation": "sc:painting",
+              "on": "https://example.org/iiif/ms-1/canvas/1",
+              "resource": {
+                "@id": "https://example.org/iiif/images/f1r/full/full/0/default.jpg",
+                "@type": "dctypes:Image",
+                "format": "image/jpeg",
+                "width": 4000,
+                "height": 6000,
+                "service": {
+                  "@context": "http://iiif.io/api/image/2/context.json",
+                  "@id": "https://example.org/iiif/images/f1r/",
+                  "profile": "http://iiif.io/api/image/2/level1.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "@id": "https://example.org/iiif/ms-1/canvas/2",
+          "@type": "sc:Canvas",
+          "label": "1v",
+          "images": [
+            {
+              "@type": "oa:Annotation",
+              "motivation": "sc:painting",
+              "on": "https://example.org/iiif/ms-1/canvas/2",
+              "resource": {
+                "@id": "https://example.org/static/f1v.jpg",
+                "@type": "dctypes:Image",
+                "format": "image/jpeg",
+                "width": 3800,
+                "height": 5900
+              }
+            }
+          ]
+        },
+        {
+          "@id": "https://example.org/iiif/ms-1/canvas/3",
+          "@type": "sc:Canvas",
+          "label": "2r",
+          "width": 4000,
+          "height": 6000,
+          "images": [
+            {
+              "@type": "oa:Annotation",
+              "motivation": "sc:painting",
+              "on": "https://example.org/iiif/ms-1/canvas/3",
+              "resource": {
+                "@type": "oa:Choice",
+                "default": {
+                  "@id": "https://example.org/iiif/images/f2r-natural/full/full/0/default.jpg",
+                  "@type": "dctypes:Image",
+                  "service": {
+                    "@context": "http://iiif.io/api/image/2/context.json",
+                    "@id": "https://example.org/iiif/images/f2r-natural/info.json",
+                    "profile": "http://iiif.io/api/image/2/level2.json"
+                  }
+                },
+                "item": [
+                  {
+                    "@id": "https://example.org/iiif/images/f2r-uv/full/full/0/default.jpg",
+                    "@type": "dctypes:Image",
+                    "service": {
+                      "@id": "https://example.org/iiif/images/f2r-uv",
+                      "profile": "http://iiif.io/api/image/2/level2.json"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "@id": "https://example.org/iiif/ms-1/canvas/4",
+          "@type": "sc:Canvas",
+          "label": "2v",
+          "width": 4000,
+          "height": 6000,
+          "images": []
+        }
+      ]
+    }
+  ]
+}

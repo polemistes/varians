@@ -1,0 +1,90 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1790955711305,
+      "tag": "0000_init",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790964157403,
+      "tag": "0001_transcription_work",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790967823274,
+      "tag": "0002_moment_basis",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791029327072,
+      "tag": "0003_witness_kinds",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791045872195,
+      "tag": "0004_transcription_works",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791055944888,
+      "tag": "0005_sources_and_licences",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791056324676,
+      "tag": "0006_greek_lexicon",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791057622010,
+      "tag": "0007_site_kinds",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794127753351,
+      "tag": "0008_editors_list",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794130153889,
+      "tag": "0009_witness_material",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794131910476,
+      "tag": "0010_witness_hands",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794134007774,
+      "tag": "0011_sigla_states",
+      "breakpoints": true
+    }
+  ]
+}

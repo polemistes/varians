@@ -1,0 +1,53 @@
+{
+  "name": "@varians/web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "prepare": "svelte-kit sync || echo ''",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "seed": "tsx scripts/seed.ts",
+    "cli": "tsx scripts/cli.ts",
+    "lexicon:import": "tsx scripts/import-lexicon.ts"
+  },
+  "dependencies": {
+    "@annotorious/openseadragon": "^3.9.3",
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.13",
+    "@lucide/svelte": "^1.50.0",
+    "@node-rs/argon2": "^2.2.1",
+    "@varians/core": "workspace:*",
+    "@varians/db": "workspace:*",
+    "bits-ui": "^2.19.4",
+    "drizzle-orm": "^0.45.3",
+    "fast-xml-parser": "^5.11.2",
+    "openseadragon": "^6.1.1",
+    "pg": "^8.23.1",
+    "sharp": "^0.35.5",
+    "ulid": "^3.0.2",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@sveltejs/adapter-node": "^5.5.7",
+    "@sveltejs/kit": "^2.63.0",
+    "@sveltejs/vite-plugin-svelte": "^7.1.2",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/openseadragon": "^6.0.0",
+    "@types/pg": "^8.23.1",
+    "svelte": "^5.56.1",
+    "svelte-check": "^4.6.0",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^5.0.3"
+  }
+}

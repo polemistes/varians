@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://varians.no/schemas/conjectures.schema.json",
+  "title": "Conjectures",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["id", "workId", "segmentId", "kind", "lemma", "reading"],
+    "properties": {
+      "id": { "type": "string" },
+      "workId": { "type": "string" },
+      "segmentId": { "type": "string" },
+      "segmentLabel": { "type": ["string", "null"] },
+      "kind": { "enum": ["substitution", "deletion", "addition", "lacuna", "supplement", "transposition"] },
+      "lemma": { "type": "string", "description": "The words the conjecture concerns." },
+      "reading": { "type": "string", "description": "The proposed reading; empty for a deletion or a lacuna." },
+      "extent": { "type": ["string", "null"] },
+      "proposer": { "type": ["string", "null"] },
+      "note": { "type": ["string", "null"] },
+      "sequence": { "type": ["array", "null"], "items": { "type": "string" } },
+      "supplementsId": { "type": ["string", "null"] },
+      "anchor": { "type": ["object", "null"] },
+      "ownerId": { "type": "string" },
+      "visibility": { "enum": ["draft", "published"] }
+    }
+  }
+}

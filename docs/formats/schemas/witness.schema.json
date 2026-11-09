@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://varians.no/schemas/witness.schema.json",
+  "title": "Witness",
+  "type": "object",
+  "required": ["id", "slug", "siglum", "name"],
+  "properties": {
+    "id": { "type": "string" },
+    "slug": { "type": "string" },
+    "siglum": { "type": "string", "description": "The siglum proposed for a conspectus; an edition may use another." },
+    "name": { "type": "string" },
+    "category": {
+      "enum": ["manuscript", "inscription", "edition", "indirect", "other"],
+      "description": "What the carrier is. A papyrus is a manuscript with papyrus as its material; archives written before 3 October 2026 may have \"papyrus\" here."
+    },
+    "format": { "enum": ["codex", "roll", "sheet", "unknown", null], "description": "A manuscript's format; null for other categories." },
+    "sourceAuthor": { "type": ["string", "null"], "description": "For an indirect source: the author who quotes or reports the text." },
+    "sourceWork": { "type": ["string", "null"], "description": "For an indirect source: the work in which the text is quoted." },
+    "repository": { "type": ["string", "null"] },
+    "settlement": { "type": ["string", "null"] },
+    "shelfmark": { "type": ["string", "null"] },
+    "identifier": { "type": ["string", "null"] },
+    "dateText": { "type": ["string", "null"] },
+    "material": { "type": ["string", "null"], "description": "One of papyrus, parchment, paper, palm-leaf, birch-bark, leather, wood, wax-tablet, ostracon, clay, stone, metal, bone, textile, plaster; or a free text for another material." },
+    "extent": { "type": ["string", "null"] },
+    "hands": { "type": "array", "description": "The hands of the witness; corrections in its transcripts name them by id.", "items": { "type": "object", "required": ["id", "label", "main"], "properties": { "id": { "type": "string" }, "label": { "type": "string" }, "description": { "type": ["string", "null"] }, "main": { "type": "boolean", "description": "The scribe of the text." } } } },
+    "provenance": { "type": ["string", "null"] },
+    "description": { "type": ["string", "null"] },
+    "iiifManifest": { "type": ["string", "null"] }
+  }
+}

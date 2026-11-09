@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://varians.no/schemas/work.schema.json",
+  "title": "Work",
+  "type": "object",
+  "required": ["id", "slug", "title", "language", "scheme", "profile", "formatVersion"],
+  "properties": {
+    "id": { "type": "string" },
+    "slug": { "type": "string" },
+    "title": { "type": "string" },
+    "author": { "type": ["string", "null"] },
+    "language": { "type": "string", "description": "A language code: grc, la, he, ar, sa." },
+    "identifier": { "type": ["string", "null"], "description": "A canonical identifier such as a CTS URN." },
+    "description": { "type": ["string", "null"] },
+    "visibility": { "enum": ["public", "private"] },
+    "scheme": {
+      "type": "object",
+      "required": ["id", "name", "levels"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "levels": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["key", "label", "type", "separator"],
+            "properties": { "key": { "type": "string" }, "label": { "type": "string" }, "type": { "enum": ["number", "text"] }, "separator": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "description": "The normalization profile (PLAN 4.4).",
+      "properties": {
+        "language": { "type": "string" },
+        "fold": { "type": "object", "properties": { "caseFold": { "type": "boolean" }, "stripPunctuation": { "type": "boolean" }, "stripDiacritics": { "type": "boolean" }, "latinUV": { "type": "boolean" } } },
+        "lowercaseCapitals": { "type": "boolean" },
+        "finalSigma": { "type": "boolean" },
+        "expandAbbreviations": { "type": "boolean" },
+        "latinUV": { "type": "boolean" }
+      }
+    },
+    "maintainers": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": ["string", "null"] } } } },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "formatVersion": { "type": "integer" }
+  }
+}

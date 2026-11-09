@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://varians.no/schemas/transcription.schema.json",
+  "title": "Transcription",
+  "type": "object",
+  "required": ["id", "name", "witnessId", "version", "content"],
+  "properties": {
+    "id": { "type": "string" },
+    "name": { "type": "string" },
+    "witnessId": { "type": "string" },
+    "ownerId": { "type": "string" },
+    "ownerName": { "type": ["string", "null"] },
+    "visibility": { "enum": ["draft", "published"] },
+    "version": { "type": "integer", "description": "The number of changesets applied; history.ndjson has one line per version." },
+    "keepsWrittenForm": { "type": "boolean" },
+    "displayAsWritten": { "type": "boolean" },
+    "profile": { "type": ["object", "null"], "description": "Overrides of the work's normalization profile." },
+    "description": { "type": ["string", "null"] },
+    "sources": { "type": ["string", "null"], "description": "What it rests on or was made from, as its maker states it." },
+    "licence": { "type": ["string", "null"], "description": "The licence it is published under." },
+    "workIds": { "type": "array", "items": { "type": "string" }, "description": "The works the transcription is for, in order. The works its text is assigned to are named by the segments in its content." },
+    "content": { "$ref": "stream.schema.json" }
+  }
+}

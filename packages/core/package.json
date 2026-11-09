@@ -1,0 +1,23 @@
+{
+  "name": "@varians/core",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "The domain of Varians: token streams, operations, normalization, collation, apparatus, reference schemes, TEI.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "check": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^5.11.2",
+    "ulid": "^3.0.2"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.3"
+  }
+}

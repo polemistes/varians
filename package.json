@@ -1,0 +1,32 @@
+{
+  "name": "varians",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Digital scholarly editions of ancient texts",
+  "license": "UNLICENSED",
+  "type": "module",
+  "packageManager": "pnpm@11.26.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @varians/web dev",
+    "build": "pnpm -r build",
+    "check": "pnpm -r check",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "format": "prettier --write .",
+    "db:start": "pg_ctl -D $HOME/.local/share/varians/pgdata -o \"-p 54329 -k $HOME/.local/share/varians/run -c listen_addresses=127.0.0.1\" -l $HOME/.local/share/varians/pg.log start",
+    "db:stop": "pg_ctl -D $HOME/.local/share/varians/pgdata stop",
+    "db:migrate": "pnpm --filter @varians/db migrate",
+    "db:generate": "pnpm --filter @varians/db generate",
+    "db:seed": "pnpm --filter @varians/web seed"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "prettier": "^3.6.2",
+    "prettier-plugin-svelte": "^4.1.0",
+    "prettier-plugin-tailwindcss": "^0.6.11",
+    "typescript": "^5.9.0"
+  }
+}

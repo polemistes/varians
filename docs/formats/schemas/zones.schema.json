@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://varians.no/schemas/zones.schema.json",
+  "title": "Zones",
+  "description": "Regions of page images linked to tokens. Coordinates are fractions of the image's width and height.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["id", "pageId", "tokenIds", "geometry"],
+    "properties": {
+      "id": { "type": "string" },
+      "pageId": { "type": "string" },
+      "tokenIds": { "type": "array", "items": { "type": "string" } },
+      "geometry": {
+        "type": "object",
+        "properties": {
+          "rect": { "type": "object", "required": ["x", "y", "w", "h"], "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "w": { "type": "number" }, "h": { "type": "number" } } },
+          "polygon": { "type": "array", "items": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 } },
+          "rotate": { "type": "number", "description": "Degrees clockwise the rectangle is turned about its centre, in pixels of the image (TEI zone@rotate)." }
+        }
+      },
+      "feature": { "type": ["object", "null"], "properties": { "kind": { "type": "string" }, "description": { "type": "string" } } }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+# Deploying Varians over SSH without a password (deploy/push.sh).
+# Install with: sudo visudo -f /etc/sudoers.d/varians, with DEPLOYER replaced
+# by the account that runs deploy/push.sh over SSH.
+#
+# DEPLOYER may run anything as the varians user: it owns only Varians's own
+# files and database, so that reaches no further than Varians itself.
+DEPLOYER ALL=(varians) NOPASSWD: ALL
+# And restart the Varians service as root: that one command, nothing else.
+DEPLOYER ALL=(root) NOPASSWD: /usr/bin/systemctl restart varians

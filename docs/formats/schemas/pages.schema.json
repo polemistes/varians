@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://varians.no/schemas/pages.schema.json",
+  "title": "Pages",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["id", "label", "position"],
+    "properties": {
+      "id": { "type": "string" },
+      "label": { "type": "string" },
+      "position": { "type": "number" },
+      "image": {
+        "type": ["object", "null"],
+        "properties": {
+          "kind": { "enum": ["upload", "iiif"] },
+          "path": { "type": ["string", "null"], "description": "Path under the installation's storage directory." },
+          "file": { "type": ["string", "null"], "description": "Path of the copy inside this archive, when the original was copied." },
+          "iiif": { "type": ["string", "null"], "description": "Base URL of a IIIF Image API resource." },
+          "width": { "type": ["integer", "null"] },
+          "height": { "type": ["integer", "null"] }
+        }
+      }
+    }
+  }
+}

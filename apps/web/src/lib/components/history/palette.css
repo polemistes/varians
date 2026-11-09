@@ -1,0 +1,38 @@
+/*
+  The colours of the people who change a text, for the history panel: a
+  small palette, one slot per person (see $lib/history/colors), readable on
+  the page in light and in dark. Components set --c to one of these and
+  mark with it.
+*/
+.author-palette {
+  --author-0: oklch(0.5 0.13 255);
+  --author-1: oklch(0.52 0.15 32);
+  --author-2: oklch(0.5 0.12 150);
+  --author-3: oklch(0.5 0.15 310);
+  --author-4: oklch(0.56 0.12 75);
+  --author-5: oklch(0.52 0.09 205);
+  --author-6: oklch(0.52 0.16 355);
+  --author-none: var(--color-ink-muted);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .author-palette {
+    --author-0: oklch(0.78 0.1 255);
+    --author-1: oklch(0.78 0.11 35);
+    --author-2: oklch(0.78 0.1 150);
+    --author-3: oklch(0.78 0.11 310);
+    --author-4: oklch(0.8 0.1 80);
+    --author-5: oklch(0.78 0.08 205);
+    --author-6: oklch(0.78 0.11 355);
+  }
+}
+
+:root[data-theme='dark'] .author-palette {
+  --author-0: oklch(0.78 0.1 255);
+  --author-1: oklch(0.78 0.11 35);
+  --author-2: oklch(0.78 0.1 150);
+  --author-3: oklch(0.78 0.11 310);
+  --author-4: oklch(0.8 0.1 80);
+  --author-5: oklch(0.78 0.08 205);
+  --author-6: oklch(0.78 0.11 355);
+}

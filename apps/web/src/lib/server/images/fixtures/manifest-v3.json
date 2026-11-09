@@ -1,0 +1,128 @@
+{
+  "@context": "http://iiif.io/api/presentation/3/context.json",
+  "id": "https://example.org/iiif/3/ms-2/manifest",
+  "type": "Manifest",
+  "label": { "none": ["MS 2"], "en": ["Manuscript 2"], "de": ["Handschrift 2"] },
+  "items": [
+    {
+      "id": "https://example.org/iiif/3/ms-2/canvas/p1",
+      "type": "Canvas",
+      "label": { "en": ["f. 1r"] },
+      "width": 3000,
+      "height": 4500,
+      "items": [
+        {
+          "id": "https://example.org/iiif/3/ms-2/page/p1/1",
+          "type": "AnnotationPage",
+          "items": [
+            {
+              "id": "https://example.org/iiif/3/ms-2/annotation/p1-image",
+              "type": "Annotation",
+              "motivation": "painting",
+              "target": "https://example.org/iiif/3/ms-2/canvas/p1",
+              "body": {
+                "id": "https://example.org/iiif/3/images/p1/full/max/0/default.jpg",
+                "type": "Image",
+                "format": "image/jpeg",
+                "width": 3000,
+                "height": 4500,
+                "service": [
+                  {
+                    "id": "https://example.org/iiif/3/images/p1",
+                    "type": "ImageService3",
+                    "profile": "level1"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "https://example.org/iiif/3/ms-2/canvas/p2",
+      "type": "Canvas",
+      "label": { "none": ["f. 1v"] },
+      "width": 3000,
+      "height": 4500,
+      "items": [
+        {
+          "id": "https://example.org/iiif/3/ms-2/page/p2/1",
+          "type": "AnnotationPage",
+          "items": [
+            {
+              "id": "https://example.org/iiif/3/ms-2/annotation/p2-comment",
+              "type": "Annotation",
+              "motivation": "commenting",
+              "target": "https://example.org/iiif/3/ms-2/canvas/p2",
+              "body": { "type": "TextualBody", "value": "A later hand." }
+            },
+            {
+              "id": "https://example.org/iiif/3/ms-2/annotation/p2-image",
+              "type": "Annotation",
+              "motivation": ["painting"],
+              "target": "https://example.org/iiif/3/ms-2/canvas/p2",
+              "body": {
+                "type": "Choice",
+                "items": [
+                  {
+                    "id": "https://example.org/iiif/2/images/p2-color/full/full/0/default.jpg",
+                    "type": "Image",
+                    "format": "image/jpeg",
+                    "service": [
+                      {
+                        "@id": "https://example.org/iiif/2/images/p2-color",
+                        "@type": "ImageService2",
+                        "profile": "http://iiif.io/api/image/2/level2.json"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "https://example.org/iiif/3/images/p2-uv/full/max/0/default.jpg",
+                    "type": "Image",
+                    "service": [
+                      { "id": "https://example.org/iiif/3/images/p2-uv", "type": "ImageService3" }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "https://example.org/iiif/3/ms-2/canvas/p3",
+      "type": "Canvas",
+      "items": [
+        {
+          "id": "https://example.org/iiif/3/ms-2/page/p3/1",
+          "type": "AnnotationPage",
+          "items": [
+            {
+              "id": "https://example.org/iiif/3/ms-2/annotation/p3-image",
+              "type": "Annotation",
+              "motivation": "painting",
+              "target": "https://example.org/iiif/3/ms-2/canvas/p3",
+              "body": {
+                "id": "../static/p3.png",
+                "type": "Image",
+                "format": "image/png",
+                "width": 2800,
+                "height": 4200
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "https://example.org/iiif/3/ms-2/canvas/p4",
+      "type": "Canvas",
+      "label": { "en": ["f. 2v"] },
+      "width": 3000,
+      "height": 4500,
+      "items": []
+    }
+  ]
+}

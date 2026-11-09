@@ -1,0 +1,11 @@
+# Run the backup every night at 03:30; a night missed while the server was off is caught up at the next start.
+
+[Unit]
+Description=Nightly backup of Varians
+
+[Timer]
+OnCalendar=*-*-* 03:30
+Persistent=true
+
+[Install]
+WantedBy=timers.target

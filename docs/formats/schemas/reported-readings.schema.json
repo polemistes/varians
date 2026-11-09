@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://varians.no/schemas/reported-readings.schema.json",
+  "title": "Reported readings",
+  "description": "What a witness is reported to have at a place, without a transcription.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["id", "workId", "segmentId", "witnessId", "lemma", "reading"],
+    "properties": {
+      "id": { "type": "string" },
+      "workId": { "type": "string" },
+      "segmentId": { "type": "string" },
+      "segmentLabel": { "type": ["string", "null"] },
+      "witnessId": { "type": "string" },
+      "lemma": { "type": "string" },
+      "reading": { "type": "string" },
+      "source": { "type": ["string", "null"] },
+      "note": { "type": ["string", "null"] },
+      "ownerId": { "type": "string" },
+      "visibility": { "enum": ["draft", "published"] }
+    }
+  }
+}

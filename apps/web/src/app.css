@@ -1,0 +1,445 @@
+@import 'tailwindcss';
+
+/*
+  Varians: tokens, fonts and base styles.
+
+  Text is serif (EB Garamond by default, Cardo when the user chooses it, both
+  with full polytonic Greek), the interface is sans. One accent colour for
+  actions and the current site; warm greys for everything secondary. Light
+  and dark through prefers-color-scheme, overridden by data-theme on <html>.
+*/
+
+/* Self-hosted faces, split by script so a page fetches only what it renders.
+   EB Garamond runs small and is drawn at 112% to sit with Cardo and the
+   interface face. */
+@font-face {
+  font-family: 'EB Garamond';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  size-adjust: 112%;
+  src: url('/fonts/eb-garamond/eb-garamond-normal-400-greek-ext.woff2') format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+@font-face {
+  font-family: 'EB Garamond';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  size-adjust: 112%;
+  src: url('/fonts/eb-garamond/eb-garamond-normal-400-greek.woff2') format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+@font-face {
+  font-family: 'EB Garamond';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  size-adjust: 112%;
+  src: url('/fonts/eb-garamond/eb-garamond-normal-400-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'EB Garamond';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  size-adjust: 112%;
+  src: url('/fonts/eb-garamond/eb-garamond-normal-400-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'EB Garamond';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  size-adjust: 112%;
+  src: url('/fonts/eb-garamond/eb-garamond-normal-700-greek-ext.woff2') format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+@font-face {
+  font-family: 'EB Garamond';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  size-adjust: 112%;
+  src: url('/fonts/eb-garamond/eb-garamond-normal-700-greek.woff2') format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+@font-face {
+  font-family: 'EB Garamond';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  size-adjust: 112%;
+  src: url('/fonts/eb-garamond/eb-garamond-normal-700-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'EB Garamond';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  size-adjust: 112%;
+  src: url('/fonts/eb-garamond/eb-garamond-normal-700-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'EB Garamond';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  size-adjust: 112%;
+  src: url('/fonts/eb-garamond/eb-garamond-italic-400-greek-ext.woff2') format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+@font-face {
+  font-family: 'EB Garamond';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  size-adjust: 112%;
+  src: url('/fonts/eb-garamond/eb-garamond-italic-400-greek.woff2') format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+@font-face {
+  font-family: 'EB Garamond';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  size-adjust: 112%;
+  src: url('/fonts/eb-garamond/eb-garamond-italic-400-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'EB Garamond';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  size-adjust: 112%;
+  src: url('/fonts/eb-garamond/eb-garamond-italic-400-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Cardo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/cardo/cardo-normal-400-greek-ext.woff2') format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+@font-face {
+  font-family: 'Cardo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/cardo/cardo-normal-400-greek.woff2') format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+@font-face {
+  font-family: 'Cardo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/cardo/cardo-normal-400-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Cardo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/cardo/cardo-normal-400-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Cardo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/cardo/cardo-normal-700-greek-ext.woff2') format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+@font-face {
+  font-family: 'Cardo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/cardo/cardo-normal-700-greek.woff2') format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+@font-face {
+  font-family: 'Cardo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/cardo/cardo-normal-700-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Cardo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/cardo/cardo-normal-700-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Cardo';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/cardo/cardo-italic-400-greek-ext.woff2') format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+@font-face {
+  font-family: 'Cardo';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/cardo/cardo-italic-400-greek.woff2') format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+@font-face {
+  font-family: 'Cardo';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/cardo/cardo-italic-400-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Cardo';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/cardo/cardo-italic-400-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif;
+  --font-serif:
+    'EB Garamond', 'Noto Serif Hebrew', 'Noto Serif Arabic', 'Noto Serif Devanagari',
+    'Times New Roman', Georgia, ui-serif, serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /* Surfaces, text, accent and signals (light). */
+  --color-page: #fbfaf7;
+  --color-surface: #ffffff;
+  --color-sunken: #f3f1ec;
+  --color-line: #e5e1d9;
+  --color-line-strong: #cbc5ba;
+  --color-ink: #211f1b;
+  --color-ink-soft: #5d584f;
+  --color-ink-muted: #8d877c;
+  --color-accent: #2d4b86;
+  --color-accent-hover: #24407a;
+  --color-accent-ink: #ffffff;
+  --color-accent-soft: #e6ecf7;
+  --color-selection: #d6e0f4;
+  --color-danger: #9f3a2b;
+  --color-danger-soft: #f8e9e5;
+  --color-warning: #87601a;
+  --color-warning-soft: #f7efdb;
+  --color-success: #2f6a47;
+  --color-success-soft: #e3efe6;
+
+  /* Type: the reading size is for primary text, the title size for page titles. */
+  --text-reading: 1.1875rem;
+  --text-reading--line-height: 1.6;
+  --text-title: 1.75rem;
+  --text-title--line-height: 1.2;
+  --text-title--letter-spacing: -0.01em;
+
+  /* Widths of the columns a page is built from. */
+  --container-narrow: 26rem;
+  --container-reading: 44rem;
+  --container-page: 72rem;
+
+  /* Elevation for menus, popovers and dialogs. */
+  --shadow-pop: 0 1px 2px rgb(20 18 14 / 0.06), 0 8px 28px -8px rgb(20 18 14 / 0.18);
+
+  /* Motion: short and plain. */
+  --animate-fade-in: fade-in 120ms ease-out;
+  --animate-rise-in: rise-in 140ms ease-out;
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* A dark: variant for the few places where a token is not enough. */
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme='light']) *) {
+      @slot;
+    }
+  }
+  &:where(:root[data-theme='dark'] *) {
+    @slot;
+  }
+}
+
+/* Dark values: the system preference, unless the user chose light... */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --color-page: #161513;
+    --color-surface: #1e1d1a;
+    --color-sunken: #26241f;
+    --color-line: #34312b;
+    --color-line-strong: #4b473f;
+    --color-ink: #e9e5dd;
+    --color-ink-soft: #b3ada2;
+    --color-ink-muted: #817b70;
+    --color-accent: #93aadb;
+    --color-accent-hover: #a8bbe4;
+    --color-accent-ink: #121a2c;
+    --color-accent-soft: #253148;
+    --color-selection: #2f3f5e;
+    --color-danger: #e08c7c;
+    --color-danger-soft: #3a221d;
+    --color-warning: #d8b26c;
+    --color-warning-soft: #342c1a;
+    --color-success: #8fc5a2;
+    --color-success-soft: #1e2f25;
+  }
+}
+
+/* ...and the user's explicit choice. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-page: #161513;
+  --color-surface: #1e1d1a;
+  --color-sunken: #26241f;
+  --color-line: #34312b;
+  --color-line-strong: #4b473f;
+  --color-ink: #e9e5dd;
+  --color-ink-soft: #b3ada2;
+  --color-ink-muted: #817b70;
+  --color-accent: #93aadb;
+  --color-accent-hover: #a8bbe4;
+  --color-accent-ink: #121a2c;
+  --color-accent-soft: #253148;
+  --color-selection: #2f3f5e;
+  --color-danger: #e08c7c;
+  --color-danger-soft: #3a221d;
+  --color-warning: #d8b26c;
+  --color-warning-soft: #342c1a;
+  --color-success: #8fc5a2;
+  --color-success-soft: #1e2f25;
+}
+
+/* The user's text face, stamped on <html> as data-font. EB Garamond is the
+   default in the theme above; only the face in use is ever downloaded. Not
+   in an inline theme block: the utilities must resolve through the variable
+   so that this override wins by cascade. */
+html[data-font='cardo'] {
+  --font-serif:
+    'Cardo', 'Noto Serif Hebrew', 'Noto Serif Arabic', 'Noto Serif Devanagari', 'Times New Roman',
+    Georgia, ui-serif, serif;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    background-color: var(--color-page);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    min-height: 100dvh;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: var(--color-selection);
+    color: var(--color-ink);
+  }
+
+  a {
+    text-underline-offset: 0.15em;
+  }
+
+  /* Focus is always visible, and drawn in the accent. Text controls draw
+     their own ring in the components; checkboxes and radios keep this one. */
+  :where(:focus-visible):not(input, textarea, select, [data-ring='none']) {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  :where(input, textarea, select):focus-visible {
+    outline: none;
+  }
+
+  :where(input[type='checkbox'], input[type='radio']) {
+    accent-color: var(--color-accent);
+  }
+
+  :where(input[type='checkbox'], input[type='radio']):focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  /* Transcribed and edited text: serif, slightly larger, with room to breathe. */
+  .text-body {
+    font-family: var(--font-serif);
+    font-size: var(--text-reading);
+    line-height: var(--text-reading--line-height);
+  }
+}
