@@ -17,3 +17,6 @@ playwright-report/
 /deploy/host
 /deploy/LOCAL.md
 /.claude/worktrees/
+
+# TEI Stylesheets, P5 source and Saxon for docs/formats/build-rng.sh
+/tools/

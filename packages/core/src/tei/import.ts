@@ -163,6 +163,11 @@ const PARATEXT_ELEMENTS = new Set([
 ]);
 /** Paratext that stands on a line of its own; stage directions and labels may stand inside a line. */
 const INLINE_PARATEXT = new Set(['stage', 'label']);
+/**
+ * Paratext that Varians writes as `<label type="KIND">` because TEI allows
+ * no such element inside a line (see varians.odd): read back as that kind.
+ */
+const LABELLED_PARATEXT = new Set([...PARATEXT_ELEMENTS, 'margin'].filter((name) => !['stage', 'label', 'fw'].includes(name)));
 /** Elements whose content is read as if the element were not there. */
 const TRANSPARENT_ELEMENTS = new Set([
   'TEI',
@@ -720,10 +725,13 @@ class Importer {
   }
 
   private paratext(element: XmlElement): void {
-    if (!INLINE_PARATEXT.has(element.name)) this.lineBreak();
-    const attrs: Attrs = { type: element.name };
+    const labelled = element.name === 'label' ? attr(element, 'type') : undefined;
+    const kind = labelled !== undefined && LABELLED_PARATEXT.has(labelled) ? labelled : undefined;
+    if (!INLINE_PARATEXT.has(kind ?? element.name)) this.lineBreak();
+    const attrs: Attrs = { type: kind ?? element.name };
     for (const [key, value] of Object.entries(element.attrs)) {
-      if (key === 'id') continue;
+      if (key === 'id' || (kind !== undefined && key === 'type')) continue;
+      // The element's type is the paratext's subtype; a labelled kind keeps its subtype as written.
       attrs[key === 'type' ? 'subtype' : key] = collapseWhitespace(value);
     }
     this.object('paratext', attrs, textContent(element));

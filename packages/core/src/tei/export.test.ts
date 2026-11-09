@@ -1,85 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { Stream } from '../stream/items.ts';
 import { exportTranscriptionTei, handRefFor, markupToken } from './export.ts';
+import { exportInput } from './fixtures.ts';
 import { importTei } from './import.ts';
 import { parseXml } from './xml.ts';
 
-const stream: Stream = {
-  items: [
-    { kind: 'break', id: 'b1', type: 'page', pageId: 'p1' },
-    {
-      kind: 'token',
-      id: 't1',
-      form: 'ΚΣ',
-      marks: [{ kind: 'abbr', attrs: { expan: 'Κύριος' } }],
-      segment: { segmentId: 's1' },
-    },
-    { kind: 'token', id: 't2', form: 'ἄνδ', joinNext: true },
-    { kind: 'break', id: 'b2', type: 'line' },
-    {
-      kind: 'token',
-      id: 't3',
-      form: 'ρα',
-      marks: [{ kind: 'supplied', attrs: { reason: 'lost' }, from: 0, to: 1 }],
-    },
-    {
-      kind: 'object',
-      id: 'o1',
-      type: 'gap',
-      attrs: { reason: 'lost', quantity: 3, unit: 'character' },
-    },
-    { kind: 'token', id: 't4', form: 'a&b<c', norm: 'abc', segment: { segmentId: 's2' } },
-  ],
-};
-
-const input = {
-  stream,
-  title: 'Test & trial',
-  language: 'grc',
-  witness: {
-    siglum: 'A',
-    name: 'Venetus A',
-    settlement: 'Venice',
-    repository: 'Marciana',
-    idno: 'Gr. Z. 454',
-    date: '10th c.',
-    material: 'parchment',
-    extent: '327 ff.',
-    hands: [{ id: 'h1', label: 'm1', description: 'one hand', main: true }],
-    description: 'Iliad',
-    form: 'codex' as const,
-  },
-  pages: [
-    {
-      id: 'p1',
-      label: '12r',
-      imageUrl: 'https://images.example/12r.jpg',
-      width: 2000,
-      height: 3000,
-    },
-  ],
-  zones: [
-    {
-      id: 'z1',
-      pageId: 'p1',
-      tokenIds: ['t1'],
-      geometry: { rect: { x: 0.1, y: 0.1, w: 0.2, h: 0.05 } },
-    },
-    {
-      id: 'z2',
-      pageId: 'p1',
-      tokenIds: ['t2', 't3'],
-      geometry: {
-        polygon: [
-          [0.1, 0.2],
-          [0.3, 0.2],
-          [0.3, 0.25],
-        ] as [number, number][],
-      },
-    },
-  ],
-  segmentLabels: { s1: '1.1' },
-};
+const input = exportInput();
+const stream = input.stream;
 
 describe('exportTranscriptionTei', () => {
   const xml = exportTranscriptionTei({ ...input, words: true, regularizations: true });
@@ -142,6 +68,14 @@ describe('exportTranscriptionTei', () => {
     expect(xml).not.toContain('s2');
   });
 
+  it('identifies a witness without place, library or shelfmark by its name, as TEI requires', () => {
+    expect(exportTranscriptionTei({ stream, title: 'T', witness: { siglum: 'P', name: 'P.Oxy. 3.412' } })).toContain(
+      '<msIdentifier>\n            <msName>P.Oxy. 3.412</msName>\n            <altIdentifier type="siglum"><idno>P</idno></altIdentifier>\n          </msIdentifier>',
+    );
+    expect(exportTranscriptionTei({ stream, title: 'T', witness: { siglum: 'P' } })).toContain('<msName>P</msName>');
+    expect(xml).not.toContain('<msName>');
+  });
+
   it('writes plain text without w elements or regularizations when not asked for them', () => {
     const plain = exportTranscriptionTei({ stream, title: 'T' });
     expect(plain).not.toContain('<w ');
@@ -175,7 +109,7 @@ describe('exportTranscriptionTei', () => {
       },
     });
     expect(out).toContain(
-      '<p><head>Title</head> a</p>\n      <p><note place="margin">n</note> <figure><figDesc>a drawing</figDesc></figure> <space quantity="1" unit="line"/>\n      <cb n="b"/><handShift new="#h2"/><sic>b</sic></p>',
+      '<p><label type="head">Title</label> a</p>\n      <p><note place="margin">n</note> <figure><figDesc>a drawing</figDesc></figure> <space quantity="1" unit="line"/>\n      <cb n="b"/><handShift new="#h2"/><sic>b</sic></p>',
     );
     expect(() => parseXml(out)).not.toThrow();
   });

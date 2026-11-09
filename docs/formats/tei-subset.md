@@ -1,6 +1,8 @@
 # The TEI subset
 
-What Varians reads from and writes to TEI P5 (`packages/core/src/tei/`). Everything in the table has a place in the stream model; elements outside it are read through (their text kept) with a warning, and never written.
+What Varians reads from and writes to TEI P5 (`packages/core/src/tei/`). Everything in the tables has a place in the stream model; elements outside them are read through (their text kept) with a warning, and never written.
+
+**The ODD is normative.** What Varians writes is defined by the TEI customization [`varians.odd`](varians.odd) and the RelaxNG schema generated from it, [`varians.rng`](varians.rng) (see [BUILD.md](BUILD.md)); every `transcription.tei.xml` and `edition.tei.xml` must be valid against it. The customization is a pure restriction of TEI P5 4.12.0: a document valid against it is valid against tei_all. This page is the readable account of the same subset, and says how each element maps to the stream; where the two disagree, the ODD is right and this page is to be corrected. The reading side is wider than the writing side: the importer accepts any TEI and keeps what it can.
 
 ## Structure
 
@@ -15,7 +17,7 @@ What Varians reads from and writes to TEI P5 (`packages/core/src/tei/`). Everyth
 | `<p>`, `<ab>` | a paragraph break | |
 | `<lg>`, `<item>`, `<row>` | a line break | |
 | `<w>` | one token (punctuation directly after it attached) | two `<w>` with no whitespace between them are one word |
-| `<head>`, `<speaker>`, `<stage>`, `<label>`, `<trailer>`, `<fw>`, `<byline>` | a paratext object with `attrs.type` | |
+| `<head>`, `<speaker>`, `<stage>`, `<label>`, `<trailer>`, `<fw>`, `<byline>`, `<dateline>`, `<opener>`, `<closer>`, `<salute>`, `<signed>`, `<docAuthor>`, `<docTitle>`, `<argument>`, `<epigraph>` | a paratext object, `attrs.type` the element's name and `attrs.subtype` its `type` | `<label type="head">` and the like are read as the paratext they name (see Writing) |
 
 ## Features
 
@@ -25,7 +27,8 @@ What Varians reads from and writes to TEI P5 (`packages/core/src/tei/`). Everyth
 | `<supplied reason>` | `supplied` | reason, resp |
 | `<del rend>` | `del` | rend, hand |
 | `<add place>` | `add` | place, hand |
-| `<subst>` | the del and add inside it | |
+| `<subst>` | `subst` over the whole, with the del and add inside it as their own marks | |
+| `<restore>`, `<retrace>`, `<mod>`, `<secl>`; `<redo/>`, `<undo/>` | marks of those kinds; redo and undo are empty in TEI, point marks | as given |
 | `<choice><abbr/><expan/></choice>`, `<expan>…<ex>…</ex></expan>` | `abbr` with `attrs.expan` | `<am>` kept in the form |
 | `<choice><sic/><corr/></choice>` | `corr` with `attrs.corr` | the form is the sic |
 | `<choice><orig/><reg/></choice>` | the normalized form (`norm`); `<orig>` holds the diplomatic form (`form`) | no mark |
@@ -46,17 +49,29 @@ A **correction** is a `del` or `add` mark (TEI `<del>`, `<add>`). Its `attrs.han
 
 A **variant noted in the carrier** (a reading written in the margin or between the lines, often introduced by γρ., or elsewhere on the page) is the mark `variant` on each token of the words it concerns, all with the same `attrs.group`: `{ kind: 'variant', attrs: { group: 'k3f9', reading: 'ἔννεπε μοι', place: 'margin', hand: 'h2' } }`. It is always a whole-token mark, and a token has at most one. The span is written as one `<app>` whose `<lem>` holds the words as the text has them (with any breaks and marks inside) and whose single `<rdg>` holds the variant; the `<rdg>`'s `type` is the place. An edition may collate the variants as a text of their own under a sub-siglum (`A v.l.`): the words of each span are replaced by the reading, the rest of the witness as corrected.
 
+## Writing
+
+A transcription's text is written in `<body>` as one `<ab>`, or one `<p>` per paragraph when the stream has paragraph breaks, with breaks as `<lb/>`, `<cb/>` and `<pb/>` (`break="no"` after a token joined to the next), the start of each labelled segment as `<milestone unit="segment" n="LABEL"/>`, and, in the archive, every token as `<w xml:id="w-ID">` with `facs` pointing at its zones and a normalized form that differs as `<choice><orig>…</orig><reg>…</reg></choice>`. Marks are written as the elements of the table above, nested where their ranges nest and split where they overlap; a mark kind without an element of its own (`crux`, a note over a range) is `<seg type="KIND">`. Attributes of the XML namespace that an imported feature had (`xml:lang`) are written back with their prefix.
+
+TEI allows no `<head>`, `<speaker>`, `<trailer>` or similar block inside `<ab>` or `<p>`, so paratext of those kinds is written as `<label type="head">`, `<label type="speaker">` and so on, the paratext's own type as `subtype`; `<label>`, `<stage>` and `<fw>` stand as themselves with the paratext's type as `type`. The importer reads both forms back to the same object.
+
 ## Header
 
-`<titleStmt>` title and author; `<profileDesc><langUsage><language ident>` or `xml:lang`; `<sourceDesc><msDesc>`: `msIdentifier` (settlement, repository, idno, altIdentifier type="siglum"), `head` (name), `msContents/summary` (description), `physDesc/objectDesc/supportDesc` (material, extent), `handDesc` with one `handNote` per hand (`xml:id="hand-ID"`, `n` the label, `scope` sole, major or minor; the scribe of the text is sole or major), `history/origin/origDate`.
+`<titleStmt>` with the title, and in an edition an `<editor>` for each editor; `<publicationStmt>` with `<authority>Varians</authority><availability><licence>` when the record has a licence, else a plain statement; `<profileDesc><langUsage><language ident>` and `xml:lang` on `<text>`. In `<sourceDesc>`, a transcription has `<msDesc>` and an edition `<listWit>`, and either may have `<bibl type="sources">` with the sources its maker states; a source description with nothing to say has a `<p>`.
+
+`<msDesc>`: `msIdentifier` (settlement, repository, idno; when none of these is known, `msName` with the witness's name, or its siglum, since TEI's rule `msId_minimal` forbids an identifier that is empty or begins with the siglum; then `altIdentifier type="siglum"`), `head` (name), `msContents/summary` (description), `physDesc/objectDesc` with `form` codex, scroll or leaf and `supportDesc` (material, extent), `handDesc hands` with one `handNote` per hand (`xml:id="hand-ID"`, `n` the label, `scope` sole, major or minor; the scribe of the text is sole or major), `history/origin/origDate`.
 
 ## Facsimile
 
-Written: `<facsimile><surface xml:id n><graphic url width height/><zone xml:id ulx uly lrx lry|points/></surface></facsimile>`, with `<pb facs="#surface">` and `<w facs="#zone">` linking text to image. Coordinates are scaled to the image size when known, else to 1000. Zones are not read back from TEI yet; the archive's `zones.json` is the authoritative record.
+Written: `<facsimile><surface xml:id n><graphic url width height/><zone xml:id ulx uly lrx lry|points/></surface></facsimile>`, with `<pb facs="#surface">` and `<w facs="#zone">` linking text to image. Coordinates are in pixels of the image when its size is known (`width` and `height` in `px`), else in thousandths of its width and height; a polygon, and a turned rectangle, are written as `points`. Zones are not read back from TEI yet; the archive's `zones.json` is the authoritative record.
 
 ## Editions
 
-`exportEditionTei` writes the critical text with the parallel-segmentation apparatus: `<listWit>` from the conspectus (`<witness xml:id="wit-SIGLUM">`), one `<ab n="label">` per segment, and at every site `<app><lem wit="#wit-A #wit-C">…</lem><rdg wit="#wit-B">…</rdg></app>`; an omission is an empty `<rdg wit/>`, a lacunose witness `<rdg wit><gap reason="lost"/></rdg>`, a conjecture `<rdg type="conjecture" resp="Name" source="…">`, an adopted conjecture `<lem resp="Name">`, a reported reading `<rdg type="reported">`.
+`exportEditionTei` writes the critical text with the parallel-segmentation apparatus: `<listWit>` from the conspectus (`<witness xml:id="wit-SIGLUM" n="SIGLUM">`, the siglum made a name: characters that cannot stand in one become `_`, and sigla that then coincide, such as A¹ and A², are told apart as `wit-A_` and `wit-A_-2`; no `<listWit>` when the conspectus is empty), the preface as `<front><div type="preface">`, `<body><div type="edition">` with one `<ab n="label">` per segment, and at every site `<app><lem wit="#wit-A #wit-C">…</lem><rdg wit="#wit-B">…</rdg></app>` (the base is left out of `wit`); an omission is an empty `<rdg wit/>`, a lacunose witness `<rdg wit><gap reason="lost"/></rdg>`, a conjecture `<rdg type="conjecture" resp="Name" source="…">`, an adopted conjecture `<lem resp="Name">`, a reported reading `<rdg type="reported">`, and a place where the witnesses have the same letters read otherwise `<app type="interpretative">`. Paratext is written as in a transcription (a marginal note of the edition as `<label type="margin">`), a paragraph break as `<lb/><lb/>`. Variants noted in a witness's carrier belong to the transcription and are not written in the edition's text.
+
+## Restrictions of the ODD
+
+Beyond the choice of elements, the ODD closes the values of a few attributes that have a fixed meaning here: `milestone/@unit` is `segment`; `app/@type` is `interpretative`; `rdg/@type` is `margin`, `interlinear` or `other` (a variant noted in the carrier) or `conjecture` or `reported` (in an edition); `objectDesc/@form` is `codex`, `scroll` or `leaf`; `altIdentifier/@type` is `siglum`. It documents the prefixes `tok`, `seg`, `wit`, `conj` and `person` for `<prefixDef>` without closing the list. Other attributes are as TEI defines them, since imported features keep theirs.
 
 ## What is not in TEI
 
