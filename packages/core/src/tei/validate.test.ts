@@ -233,10 +233,12 @@ describe.skipIf(!xmllint)('transcription TEI is valid', slow, () => {
       <text><body><div type="edition"><div type="textpart" subtype="book" n="1">
         <head>Βιβλίον Α</head>
         <sp><speaker>ΧΟ.</speaker><l n="1">μῆνιν <unclear reason="damage">ἄει</unclear>δε <choice><abbr>θα</abbr><expan>θεὰ</expan></choice></l>
-        <l n="2"><subst><del rend="erasure">α</del><add place="above">β</add></subst> <supplied reason="lost">γ</supplied><gap reason="lost" quantity="2" unit="character"/></l></sp>
+        <l n="2"><subst><del rend="erasure">α</del><add place="above">β</add></subst> <supplied reason="lost">γ</supplied><gap reason="lost" quantity="2" unit="character"/> <hi rend="italic" xml:lang="la">vale</hi><note xml:lang="la" place="margin">nota</note></l></sp>
         <trailer>τέλος</trailer>
       </div></div></body></text></TEI>`;
     const imported = importTei(foreign, { ids: sequentialIds('i') });
+    // The parser drops the prefix of xml:lang; it is written back with it.
+    expect(transcription({ stream: imported.stream })).toContain('<hi rend="italic" xml:lang="la">vale</hi>');
     for (const words of [true, false]) expect(errors(transcription({ stream: imported.stream, words, regularizations: true }))).toEqual([]);
   });
 });

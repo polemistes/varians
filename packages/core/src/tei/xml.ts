@@ -214,6 +214,13 @@ export function ncName(id: string, prefix = ''): string {
 
 export type AttrValue = string | number | boolean | null | undefined;
 
+/**
+ * Attributes of the XML namespace as the importer keeps them: the parser
+ * drops prefixes, so `xml:lang` on an imported feature is stored as `lang`.
+ * They are written back with their prefix; TEI has no attributes of these names.
+ */
+const XML_NAMESPACE_ATTRS = new Set(['lang', 'space', 'base']);
+
 /** Attributes serialized for a start tag, with a leading space per attribute; null, undefined and invalid names are left out. */
 export function attrsXml(
   attrs: Record<string, AttrValue> | undefined,
@@ -223,7 +230,7 @@ export function attrsXml(
   let out = '';
   for (const [key, value] of Object.entries(attrs)) {
     if (value === null || value === undefined || exclude.includes(key) || !isXmlName(key)) continue;
-    out += ` ${key}="${escapeAttr(String(value))}"`;
+    out += ` ${XML_NAMESPACE_ATTRS.has(key) ? `xml:${key}` : key}="${escapeAttr(String(value))}"`;
   }
   return out;
 }
