@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { site } from '$lib/strings/site';
   import Download from '@lucide/svelte/icons/download';
   import Pencil from '@lucide/svelte/icons/pencil';
   import Plus from '@lucide/svelte/icons/plus';
@@ -80,6 +81,7 @@
               <Pencil class="size-4" aria-hidden="true" />
               {t.work.editDetails}
             </Button>
+            <Button href="/works/{work.slug}/remotes" variant="ghost" size="sm">{site.remotes.title}</Button>
           {/if}
         </div>
       {/if}

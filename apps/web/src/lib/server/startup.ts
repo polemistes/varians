@@ -8,6 +8,7 @@ import { env } from '$env/dynamic/private';
 import path from 'node:path';
 import { markChangedWorks, startArchiveScheduler } from './archive/schedule.ts';
 import { startArchiveWriter } from './archive/queue.ts';
+import { pullDueRemotes } from './sync.ts';
 import { storageDir } from './images/storage.ts';
 import { db } from './db';
 
@@ -37,4 +38,7 @@ export function startBackgroundWork(): void {
   // Changes made while the server was down, or before the queue existed, are written too.
   void markChangedWorks(db).catch((cause) => console.error('archive: marking changed works failed', cause));
   startArchiveWriter(db, { root: archiveRoot(), storageRoot: storageRoot(), delaySeconds });
+  // Remotes set to be pulled every so many hours (PLAN-2 G3): looked at hourly.
+  const pulls = setInterval(() => void pullDueRemotes(db).catch((cause) => console.error('sync: scheduled pulls failed', cause)), 60 * 60 * 1000);
+  pulls.unref?.();
 }

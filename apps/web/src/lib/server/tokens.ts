@@ -7,19 +7,17 @@
  */
 
 import { newId } from '@varians/core';
-import { apiTokens, users, type Database } from '@varians/db';
+import { apiTokens, type Database } from '@varians/db';
 import { and, eq } from 'drizzle-orm';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
-import type { CurrentUser } from '$lib/types';
-import { toCurrentUser } from './auth.ts';
 
-const hash = (token: string) => createHash('sha256').update(token).digest('hex');
+export const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
 
 /** Make a token for an account; the token is returned this once. */
 export async function createToken(db: Database, userId: string, name: string, expiresAt: Date | null = null): Promise<{ id: string; token: string }> {
   const token = `vt_${randomBytes(32).toString('base64url')}`;
   const id = newId();
-  await db.insert(apiTokens).values({ id, tokenHash: hash(token), userId, name: name.trim().slice(0, 100) || 'Token', expiresAt });
+  await db.insert(apiTokens).values({ id, tokenHash: hashToken(token), userId, name: name.trim().slice(0, 100) || 'Token', expiresAt });
   return { id, token };
 }
 
@@ -34,16 +32,6 @@ export async function tokensOf(db: Database, userId: string) {
 export async function revokeToken(db: Database, userId: string, id: string): Promise<boolean> {
   const removed = await db.delete(apiTokens).where(and(eq(apiTokens.id, id), eq(apiTokens.userId, userId))).returning({ id: apiTokens.id });
   return removed.length > 0;
-}
-
-/** The account a bearer token stands for, or null; notes when it was last used. */
-export async function userForToken(db: Database, token: string): Promise<CurrentUser | null> {
-  if (!/^vt_[A-Za-z0-9_-]{20,100}$/u.test(token)) return null;
-  const [row] = await db.select({ token: apiTokens, user: users }).from(apiTokens).innerJoin(users, eq(users.id, apiTokens.userId)).where(eq(apiTokens.tokenHash, hash(token)));
-  if (!row) return null;
-  if (row.token.expiresAt && row.token.expiresAt.getTime() < Date.now()) return null;
-  await db.update(apiTokens).set({ lastUsedAt: new Date() }).where(eq(apiTokens.id, row.token.id));
-  return toCurrentUser(row.user);
 }
 
 /** Paths where a bearer token is accepted: the sync state, the packages, and the import endpoint. */

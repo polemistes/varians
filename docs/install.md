@@ -131,7 +131,7 @@ With Docker Compose the settings are in `.env` beside `compose.yaml`; natively i
 | `POSTGRES_PASSWORD` | Compose only: the database's password. Letters and digits only, since it is written into a connection address. | none |
 | `DOMAIN` | Compose with `--profile tls` only: the host name Caddy obtains a certificate for. | none |
 | `SITE_NAME` | The installation's name, used in mail, citations and package metadata. | Varians |
-| `DATA_LICENCE` | The licence under which published scholarly records are released: `CC-BY-SA-4.0`, `CC-BY-4.0` or `CC0-1.0` (see "Licences and rights" in guide.md). | CC-BY-SA-4.0 |
+| `DATA_LICENCE` | The licence under which published scholarly records are released: `CC-BY-SA-4.0`, `CC-BY-4.0` or `CC0-1.0` (see "Licences and rights" in guide.md). A record keeps the licence it was first published under, so change this only before anything is published. Packages from installations with a licence that cannot be published under this one are refused. | CC-BY-SA-4.0 |
 | `SMTP_URL` | The mail server, see *Mail*. Empty: no mail. | empty |
 | `MAIL_FROM` | The sender of the mail, `"Name <address>"`. | the site's name at noreply@ the host of `ORIGIN` |
 | `STORAGE_DIR` | Where the images, tiles and archives are kept. | `/data/storage` in the image; `/var/lib/varians/storage` natively |
@@ -142,6 +142,8 @@ With Docker Compose the settings are in `.env` beside `compose.yaml`; natively i
 | `HOST`, `PORT` | Where the server listens. | `0.0.0.0:3000` in the image; `127.0.0.1:3000` natively |
 | `ARCHIVE_INTERVAL_HOURS` | Hours between the passes that write changed works to the archives. | 24 |
 | `ARCHIVE_SCHEDULER` | `off` stops those passes (for a second instance on the same data, for instance). | on |
+| `ARCHIVE_WRITE_DELAY_SECONDS` | Seconds a record must be left alone before its archive files are rewritten; between these writes the archive follows every change. | 60 |
+| `SECRET_KEY` | A long random string (at least 16 characters), used to encrypt the tokens of accounts on other installations that a work's maintainers keep for pulling and pushing. Without it, other installations can only be pulled from where their works are public. Keep it with the backups: without it the stored tokens cannot be read. | none |
 | `SOURCE_URL` | If you run a changed Varians: the address of its source code, which the footer links. See *The source code*. | the public repository at the running commit |
 | `VARIANS_FORMATS_DIR` | Where the format specification (`docs/formats`) is. | `/opt/varians/docs/formats` in the image; set by the native unit; found beside `bin/` otherwise |
 | `VARIANS_VERSION` | Compose only: the image tag to run, for instance `0.2` to follow the 0.2 releases. | latest |
@@ -244,3 +246,12 @@ In the container the storage is the volume `varians_storage` at `/data/storage`;
 Varians is free software under the GNU Affero General Public License, version 3 or later. The licence asks that the users of a network service can obtain the source of the version that runs it. The footer of every page links the source of the running version, which meets this for an unchanged release. If you change Varians, publish your changes and set `SOURCE_URL` to where they are.
 
 Security problems are reported privately, as [SECURITY.md](../SECURITY.md) describes.
+
+## Terms of contribution
+
+`docs/terms.md` holds the terms every account accepts before it edits or publishes, with their version in the front matter (`version: 1`). Read them before opening an installation, and change them to suit it: they speak of "the operator of this installation", which is you. When you change their substance, raise the version; every account is then asked to accept the new version at its next edit, and can go on reading meanwhile. The terms are part of the release: change them in your checkout or image, not on the server.
+
+## Other installations
+
+Works move between installations as packages (see "The archive" in guide.md): downloaded from a work's, edition's or transcript's page and brought in under **Import…**, or pulled and pushed from a work's page under **Other installations** by its maintainers. Pulling a public work needs nothing; pulling drafts or a private work, and pushing, need a token of an account on the other installation (made on that account's page) and `SECRET_KEY` here to keep it. A pull can be repeated every so many hours; conflicts it meets are reported and left for a maintainer. From the command line: `varians cli pull <work-slug> <address there> --user <email> [--token <token>]` and `varians cli push <work-slug> <address there> --user <email> --token <token>`.
+

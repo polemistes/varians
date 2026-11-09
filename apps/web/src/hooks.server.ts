@@ -5,7 +5,8 @@
 import type { Handle } from '@sveltejs/kit';
 import { SESSION_COOKIE, cookieOptions, getSessionUser } from '$lib/server/auth';
 import { hasAcceptedTerms, termsGate } from '$lib/server/terms';
-import { acceptsBearer, userForToken } from '$lib/server/tokens';
+import { acceptsBearer } from '$lib/server/tokens';
+import { userForToken } from '$lib/server/token-auth';
 import { site } from '$lib/strings/site';
 import { db } from '$lib/server/db';
 import { startBackgroundWork } from '$lib/server/startup';

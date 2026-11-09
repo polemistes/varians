@@ -7,6 +7,8 @@
  *   pnpm --filter @varians/web cli write-example [--out DIR]
  *   pnpm --filter @varians/web cli export-package (--work <slug> | --edition <slug> | --transcription <id> | --all) --out <file.zip>
  *   pnpm --filter @varians/web cli export-all --package <file.zip>
+ *   pnpm --filter @varians/web cli pull <work-slug> <address there> --user <email> [--token T] [--on-conflict keep|take] [--dry-run]
+ *   pnpm --filter @varians/web cli push <work-slug> <address there> --user <email> --token T
  *   pnpm --filter @varians/web cli import-archive <dir> --user <email> [--on-conflict keep|take] [--dry-run]
  *   pnpm --filter @varians/web cli seed-sample --user <email>
  *   pnpm --filter @varians/web cli make-admin <email>
@@ -30,6 +32,7 @@ import { checkArchive, isClean } from '../src/lib/server/archive/check.ts';
 import { writeExample } from '../src/lib/server/archive/example.ts';
 import { importPackage } from '../src/lib/server/archive/import-package.ts';
 import { buildPackage, type PackageScope } from '../src/lib/server/archive/package.ts';
+import { addRemote, httpTransport, parseRemoteAddress, pullRemote, pushRemote, remotesOf, transportOf } from '../src/lib/server/sync.ts';
 import { confirmEmailDirectly, makeResetLinkFor } from '../src/lib/server/account-mail.ts';
 import { seedSample } from '../src/lib/server/seed/sample.ts';
 import { formatVersion } from '../src/lib/version-format.ts';
@@ -167,6 +170,40 @@ async function main(): Promise<void> {
         }
         break;
       }
+      case 'pull':
+      case 'push': {
+        // pull <work-slug> <address of the work there> --user <email> [--token T] [--on-conflict keep|take] [--dry-run]
+        // push <work-slug> <address of the work there> --user <email> --token T
+        const [slug, address] = args;
+        const email = flag(args, 'user');
+        if (!slug || !address || !email) throw new Error(`usage: ${command} <work-slug> <address of the work there> --user <email> [--token <token>]`);
+        const [work] = await db.select({ id: works.id }).from(works).where(eq(works.slug, slug));
+        if (!work) throw new Error(`no work with slug ${slug}`);
+        const parsed = parseRemoteAddress(address);
+        if (!parsed) throw new Error('give the address of the work there, such as https://example.org/works/iliad');
+        const user = await userByEmail(db, email);
+        const token = flag(args, 'token') ?? null;
+        const transport = httpTransport(parsed.origin, parsed.slug, token);
+        const known = (await remotesOf(db, work.id)).find((r) => r.origin === parsed.origin && r.remoteSlug === parsed.slug);
+        // The token is kept only where SECRET_KEY allows; otherwise it is used for this run alone.
+        const remote = known ?? (await addRemote(db, user, work.id, address, token && process.env.SECRET_KEY ? token : null, transport)).remote;
+        if (command === 'push') {
+          if (!token && !remote.token) throw new Error('pushing needs --token, a token of an account there');
+          console.log(JSON.stringify(await pushRemote(db, user, remote, { transport: token ? transport : transportOf(remote), storageRoot: storage }), null, 2));
+          break;
+        }
+        const policy = flag(args, 'on-conflict');
+        if (policy !== undefined && policy !== 'keep' && policy !== 'take') throw new Error('--on-conflict is keep or take');
+        const report = await pullRemote(db, user, remote, { transport: token || !remote.token ? transport : transportOf(remote), dryRun: args.includes('--dry-run'), ...(policy ? { policy } : {}) });
+        if (report.refused) {
+          console.log(`Nothing was imported: ${report.refused}`);
+          process.exitCode = 1;
+          break;
+        }
+        for (const w of report.works) for (const d of w.documents) console.log(`  ${d.result.padEnd(12)} ${d.kind} ${d.name}${d.segments.length ? ` (segments ${d.segments.join(', ')})` : ''}`);
+        if (report.works.some((w) => w.documents.some((d) => d.result === 'conflict'))) process.exitCode = 2;
+        break;
+      }
       case 'seed-sample': {
         const email = flag(args, 'user');
         if (!email) throw new Error('usage: seed-sample --user <email>');
@@ -204,7 +241,7 @@ async function main(): Promise<void> {
       }
       default:
         console.log(
-          'commands: export-archive <slug>, export-all [--package <file>], export-package --work|--edition|--transcription|--all --out <file>, check-archive [<slug>], write-example, import-archive <dir> --user <email> [--on-conflict keep|take] [--dry-run], seed-sample --user <email>, make-admin <email>, reset-password <email>, confirm-email <email>, version',
+          'commands: pull <slug> <address> --user <email>, push <slug> <address> --user <email> --token <t>, export-archive <slug>, export-all [--package <file>], export-package --work|--edition|--transcription|--all --out <file>, check-archive [<slug>], write-example, import-archive <dir> --user <email> [--on-conflict keep|take] [--dry-run], seed-sample --user <email>, make-admin <email>, reset-password <email>, confirm-email <email>, version',
         );
     }
   } finally {
