@@ -77,7 +77,9 @@ export const site = {
 
   sources: {
     title: 'Sources and licences',
-    lead: 'The data and resources that come with Varians, with where they come from and the licences they are used under. Each edition and transcript names its own sources and licence in its description.',
+    lead: 'The licences of Varians itself, and the data and resources that come with it, with where they come from and the licences they are used under. Each edition and transcript names its own sources and licence in its description.',
+    varians: 'Varians',
+    resources: 'Data and resources',
     use: 'Used for',
     source: 'Source',
     licence: 'Licence',
