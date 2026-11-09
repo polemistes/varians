@@ -2,33 +2,36 @@
   "$schema": "https://varians.eu/formats/2/pages.schema.json",
   "pages": [
     {
-      "id": "01M6Z6P2BYX389V1YQK4MJN8YQ",
+      "id": "01M6Z9Q3XQ7ZM1H08BDAK16040",
       "label": "12r",
       "position": 1,
       "image": {
         "kind": "upload",
-        "path": "originals/01M6Z6P2BYX389V1YQK4MJN8YQ.jpg",
-        "file": "images/12r-MJN8YQ.jpg",
+        "path": "originals/01M6Z9Q3XQ7ZM1H08BDAK16040.jpg",
+        "file": "images/12r-K16040.jpg",
         "iiif": null,
         "width": 64,
         "height": 96,
-        "tiles": null
+        "tiles": null,
+        "rights": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "attribution": "An example image, made by Varians",
+        "source": null
       },
-      "createdAt": "2026-11-09T03:47:28.255Z"
+      "createdAt": "2026-11-09T04:40:28.343Z"
     },
     {
-      "id": "01M6Z6P2BYX389V1YQK4MJN8YR",
+      "id": "01M6Z9Q3XQ7ZM1H08BDAK16041",
       "label": "12v",
       "position": 2,
       "image": null,
-      "createdAt": "2026-11-09T03:47:28.255Z"
+      "createdAt": "2026-11-09T04:40:28.343Z"
     },
     {
-      "id": "01M6Z6P2BYX389V1YQK4MJN8YS",
+      "id": "01M6Z9Q3XQ7ZM1H08BDAK16042",
       "label": "13r",
       "position": 3,
       "image": null,
-      "createdAt": "2026-11-09T03:47:28.255Z"
+      "createdAt": "2026-11-09T04:40:28.343Z"
     }
   ]
 }

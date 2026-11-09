@@ -50,6 +50,8 @@
     <a href={exports.text} data-sveltekit-reload>{r.menu.plainText}</a>
     <span class="text-ink-muted" aria-hidden="true">·</span>
     <a href={exports.tei} data-sveltekit-reload>{r.menu.tei}</a>
+    <span class="text-ink-muted" aria-hidden="true">·</span>
+    <a href={exports.package} data-sveltekit-reload>{r.menu.package}</a>
   </p>
   {#if versions.length}
     <p class="mt-1">

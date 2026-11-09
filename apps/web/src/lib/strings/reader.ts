@@ -51,6 +51,7 @@ export const reader = {
     downloads: 'Download',
     plainText: 'Plain Text with Apparatus',
     tei: 'TEI XML',
+    package: 'Package',
     versions: 'Published Versions',
     noVersions: 'Not Published Yet',
     current: 'current',

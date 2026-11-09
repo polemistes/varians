@@ -87,6 +87,7 @@
           <MenuLabel>{user.email}</MenuLabel>
           <MenuItem href="/mine">{site.nav.mine}</MenuItem>
           <MenuItem href="/account">{s.shell.account}</MenuItem>
+          <MenuItem href="/import">{s.shell.importPackage}</MenuItem>
           {#if user.role === 'administrator'}
             <MenuItem href="/admin/users">{s.shell.admin}</MenuItem>
           {/if}

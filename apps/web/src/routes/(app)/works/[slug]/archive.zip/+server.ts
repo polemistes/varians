@@ -1,15 +1,13 @@
 /**
  * GET /works/[slug]/archive.zip
- * The work's archive (PLAN 4.12) as a zip, for anyone signed in who sees the
- * work. Administrators get the server's archive itself, with its git history.
- * Everyone else gets the archive written afresh with only what they may see:
- * the server's archive holds every draft, other people's included. A route of
- * its own, because a form action cannot answer with a file.
+ * The server's own archive of the work (PLAN 4.12), its git repository with
+ * its history, for administrators. Everyone else is sent to the work's
+ * package (package.zip), which holds what they may see: the server's archive
+ * holds every draft, other people's included.
  */
 import { error, redirect } from '@sveltejs/kit';
 import { Readable } from 'node:stream';
-import { filteredArchiveZip, type ArchiveFilter } from '$lib/server/archive/archive';
-import { canEditEdition, canViewConjecture, canViewEdition, canViewTranscription, canViewWork, grantsFor, isAdministrator } from '$lib/server/authz';
+import { canViewWork, grantsFor, isAdministrator } from '$lib/server/authz';
 import { loginUrl } from '$lib/server/guards';
 import { limits } from '$lib/server/rate-limit';
 import { archiveZip, workBySlug } from '$lib/server/registry';
@@ -27,21 +25,10 @@ export const GET: RequestHandler = async ({ locals, params }) => {
   // Writing an archive is heavy work: a few downloads an hour per person.
   if (!limits.archiveByUser.take(user.id)) error(429, t.work.archiveTooOften);
 
+  if (!isAdministrator(user)) redirect(308, `/works/${encodeURIComponent(params.slug)}/package.zip`);
   let zip: Readable;
   try {
-    if (isAdministrator(user)) {
-      zip = await archiveZip(locals.db, record.work, archiveRoot(), storageRoot());
-    } else {
-      const context = { workMaintainerIds: record.maintainerIds, grants };
-      const only: ArchiveFilter = {
-        transcription: (row) => canViewTranscription(user, row, grants),
-        edition: (row) => canViewEdition(user, row, grants.collaboratingEditionIds.has(row.id) ? [user.id] : []),
-        editionWorking: (row) => canEditEdition(user, row, grants.collaboratingEditionIds.has(row.id) ? [user.id] : []),
-        conjecture: (row) => canViewConjecture(user, row, context),
-        reported: (row) => canViewConjecture(user, row, context),
-      };
-      zip = await filteredArchiveZip(locals.db, record.work, only, storageRoot());
-    }
+    zip = await archiveZip(locals.db, record.work, archiveRoot(), storageRoot());
   } catch (e) {
     console.error('archive for download failed', e);
     error(500, t.work.archiveFailed);

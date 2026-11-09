@@ -114,7 +114,7 @@ export interface ReaderData {
   basePath: string;
   /** The query links within this view keep: `?draft=1` in a preview, else empty. */
   query: string;
-  exports: { text: string; tei: string };
+  exports: { text: string; tei: string; package: string };
   links: {
     /** The edition as readers see it now. */
     current: string;

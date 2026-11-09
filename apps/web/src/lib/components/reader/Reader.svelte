@@ -95,6 +95,15 @@
     settings = loadSettings(storage());
     panelsWidth.restore();
     live = true;
+    // An address of a word (/id/<token>) arrives with ?word=<id>: the word is brought into view and marked.
+    const word = new URL(location.href).searchParams.get('word');
+    if (word) {
+      requestAnimationFrame(() => {
+        const element = document.querySelector<HTMLElement>(`[data-token="${CSS.escape(word)}"]`);
+        element?.scrollIntoView({ block: 'center' });
+        element?.classList.add('word-addressed');
+      });
+    }
   });
 
   // The panels' width on wide screens, which the divider at their edge changes.
@@ -460,7 +469,12 @@
   />
 {/if}
 
-<style>.reader-bar-root { display: none !important; } .apparatus-wrap.apparatus-hidden { display: block !important; }</style></noscript>
+<style>
+  :global(.word-addressed) {
+    outline: 2px solid var(--color-accent, currentColor);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }.reader-bar-root { display: none !important; } .apparatus-wrap.apparatus-hidden { display: block !important; }</style></noscript>
 </svelte:head>
 
 <div class="reader" style:--reader-size={sizes[settings.size]}>

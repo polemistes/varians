@@ -61,7 +61,7 @@ describe('readerLinks', () => {
     expect(readerLinks('iliad-1', { kind: 'published', number: 2, at: null }, reader, true)).toEqual({
       basePath: '/editions/iliad-1',
       query: '',
-      exports: { text: '/editions/iliad-1.txt', tei: '/editions/iliad-1.tei.xml' },
+      exports: { text: '/editions/iliad-1.txt', tei: '/editions/iliad-1.tei.xml', package: '/editions/iliad-1/package.zip' },
       links: { current: '/editions/iliad-1', preview: null, editor: null },
     });
     expect(readerLinks('iliad-1', { kind: 'version', number: 1, at: '', isCurrent: false }, editor, true)).toMatchObject({

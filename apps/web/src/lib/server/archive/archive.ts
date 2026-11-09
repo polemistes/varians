@@ -70,6 +70,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { and, asc, desc, eq, inArray, isNotNull, lte, or } from 'drizzle-orm';
 import { collateEdition } from '../collation.ts';
+import { documentAt } from '../documents/service.ts';
 import { exportHands, teiForm } from '../witness-format.ts';
 import { apparatusConventionsOf, contextAt } from '../reader.ts';
 import { siglaOrderOf } from '../../reader/sites.ts';
@@ -113,6 +114,8 @@ export interface ArchiveWriters {
   only?: ArchiveFilter;
   /** The installation's address, which the TEI's record prefixes resolve to; ORIGIN by default. */
   origin?: string;
+  /** Leave out the files for reading (edition.txt, edition.md, transcription.txt), which need the collation: for a record's JSON alone. */
+  readable?: boolean;
 }
 
 /** The address the TEI's `tok:` and other prefixes resolve to. */
@@ -128,6 +131,8 @@ export interface ArchiveFilter {
   reported(row: typeof reportedReadings.$inferSelect): boolean;
   /** Whether the person sees an edition's working state; otherwise the archive holds its published version only. */
   editionWorking(row: typeof editions.$inferSelect): boolean;
+  /** The version of a transcription to write, when not its current one: for a package of a published edition, the version its apparatus was collated against (PLAN-2 E2). */
+  transcriptionVersion?(row: typeof transcriptions.$inferSelect): number | null;
 }
 
 /** Which parts of a work's archive to write. The work's own files are always written. */
@@ -138,6 +143,8 @@ export interface ArchivePlan {
   witnesses?: Set<string>;
   transcriptions?: Set<string>;
   editions?: Set<string>;
+  /** Write only these parts: no member whose directory is missing is filled in (for a record's JSON alone). */
+  only?: boolean;
 }
 
 type WorkRow = typeof works.$inferSelect;
@@ -614,8 +621,12 @@ async function writeWitnessFiles(ctx: WorkContext, witness: WitnessRow): Promise
 }
 
 /** One transcription's directory, written afresh. */
-async function writeTranscriptionFiles(ctx: WorkContext, t: TranscriptionRow): Promise<void> {
+async function writeTranscriptionFiles(ctx: WorkContext, current: TranscriptionRow): Promise<void> {
   const { db, work, writers, userNames, labelOf } = ctx;
+  // A transcription at an earlier version: its text and history up to that version.
+  const wanted = writers.only?.transcriptionVersion?.(current) ?? null;
+  const upTo = wanted !== null && wanted < current.version ? wanted : null;
+  const t = upTo === null ? current : { ...current, version: upTo, content: await documentAt(db, 'transcription', current.id, upTo) };
   const witness = ctx.witnessRows.find((w) => w.id === t.witnessId)!;
   const tdir = path.join(ctx.dir, ctx.transcriptionPath.get(t.id)!);
   await rm(tdir, { recursive: true, force: true });
@@ -628,7 +639,7 @@ async function writeTranscriptionFiles(ctx: WorkContext, t: TranscriptionRow): P
     ownerName: userNames.get(t.ownerId) ?? null,
     visibility: t.visibility,
     version: t.version,
-    head: await headOf(db, 'transcription', t.id, null),
+    head: await headOf(db, 'transcription', t.id, upTo),
     keepsWrittenForm: t.keepsWrittenForm,
     displayAsWritten: t.displayAsWritten,
     profile: t.profile,
@@ -641,12 +652,13 @@ async function writeTranscriptionFiles(ctx: WorkContext, t: TranscriptionRow): P
     content: t.content,
   }));
   await writeJson(path.join(tdir, 'memory.json'), list('memory', 'entries', t.memory));
-  const zoneRows = await db.select().from(zones).where(eq(zones.transcriptionId, t.id)).orderBy(asc(zones.id));
+  const live = upTo === null ? null : new Set(t.content.items.map((i) => i.id));
+  const zoneRows = (await db.select().from(zones).where(eq(zones.transcriptionId, t.id)).orderBy(asc(zones.id))).filter((z) => !live || z.tokenIds.every((id) => live.has(id)));
   await writeJson(
     path.join(tdir, 'zones.json'),
     list('zones', 'zones', zoneRows.map((z) => ({ id: z.id, pageId: z.pageId, tokenIds: z.tokenIds, geometry: z.geometry, feature: z.feature, createdAt: iso(z.createdAt) }))),
   );
-  await writeText(path.join(tdir, 'transcription.txt'), toText(t.content, { form: 'read' }) + '\n');
+  if (writers.readable !== false) await writeText(path.join(tdir, 'transcription.txt'), toText(t.content, { form: 'read' }) + '\n');
   const states = await reviewStates(ctx, 'transcription', t.id);
   if (states.length) await writeJson(path.join(tdir, 'reviews.json'), record('reviews', { states }));
   if (writers.tei !== false) {
@@ -661,7 +673,7 @@ async function writeTranscriptionFiles(ctx: WorkContext, t: TranscriptionRow): P
         language: work.language,
         ...(t.sources ? { sources: t.sources } : {}),
         ...teiRights(t.licenceId, t.rightsNote),
-        contributors: await contributorsOf(ctx, 'transcription', t.id, null),
+        contributors: await contributorsOf(ctx, 'transcription', t.id, upTo),
         witness: {
           ...defined({
             siglum: witness.siglum,
@@ -692,7 +704,7 @@ async function writeTranscriptionFiles(ctx: WorkContext, t: TranscriptionRow): P
       }),
     );
   }
-  await historyFiles(ctx, tdir, 'transcription', t.id);
+  await historyFiles(ctx, tdir, 'transcription', t.id, upTo);
 }
 
 /** One edition's directory, written afresh: its working state, or for someone who does not edit it the version readers see. */
@@ -782,9 +794,15 @@ async function writeEditionFiles(ctx: WorkContext, edition: EditionRow): Promise
       states: await reviewStates(ctx, 'edition', edition.id),
     }));
   }
+  if (writers.readable === false && writers.tei === false) {
+    await historyFiles(ctx, edir, 'edition', edition.id, shownVersion);
+    return;
+  }
   const text = await editionText(db, edition.id, labelOf, shownVersion, ctx.urnOf);
-  await writeText(path.join(edir, 'edition.txt'), text.plain);
-  await writeText(path.join(edir, 'edition.md'), text.markdown);
+  if (writers.readable !== false) {
+    await writeText(path.join(edir, 'edition.txt'), text.plain);
+    await writeText(path.join(edir, 'edition.md'), text.markdown);
+  }
   if (writers.tei !== false) {
     const witnessNames = new Map(ctx.witnessRows.map((w) => [w.id, w.name] as const));
     await writeText(
@@ -815,8 +833,9 @@ async function writeEditionFiles(ctx: WorkContext, edition: EditionRow): Promise
  */
 export async function writeWorkParts(db: Database, workId: string, root: string, plan: ArchivePlan, writers: ArchiveWriters = {}): Promise<string> {
   const ctx = await loadWorkContext(db, workId, root, writers);
-  const fresh = !existsSync(path.join(ctx.dir, 'work.json'));
-  const missing = await pruneArchive(ctx);
+  const fresh = !plan.only && !existsSync(path.join(ctx.dir, 'work.json'));
+  const pruned = await pruneArchive(ctx);
+  const missing = plan.only ? { witnesses: new Set<string>(), transcriptions: new Set<string>(), editions: new Set<string>() } : pruned;
   const all = plan.all || fresh;
   const wanted = (set: Set<string> | undefined, extra: Set<string>, id: string) => all || set?.has(id) || extra.has(id);
   await writeWorkFiles(ctx);
@@ -835,6 +854,27 @@ export async function writeWorkParts(db: Database, workId: string, root: string,
 /** Write a work's whole archive directory from the database. Existing files are replaced; the `.git` directory is kept. */
 export async function writeArchive(db: Database, workId: string, root: string, writers: ArchiveWriters = {}): Promise<string> {
   return writeWorkParts(db, workId, root, { all: true }, writers);
+}
+
+/**
+ * One record of a work as the archive represents it, written for a viewer:
+ * the part of the archive that holds it is written into a temporary
+ * directory with the viewer's filter, without the files for reading, and the
+ * record's JSON file is read back. Returns the directory's contents' root,
+ * which the caller removes.
+ */
+export async function writeRecordPart(
+  db: Database,
+  workId: string,
+  part: { witnesses?: string[]; transcriptions?: string[]; editions?: string[] },
+  only: ArchiveFilter | undefined,
+): Promise<{ root: string; dir: string; paths: { witness: Map<string, string>; transcription: Map<string, string>; edition: Map<string, string> } }> {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'varians-record-'));
+  const writers: ArchiveWriters = { tei: false, readable: false, ...(only ? { only } : {}) };
+  const plan: ArchivePlan = { only: true, witnesses: new Set(part.witnesses), transcriptions: new Set(part.transcriptions), editions: new Set(part.editions) };
+  const ctx = await loadWorkContext(db, workId, root, writers);
+  const dir = await writeWorkParts(db, workId, root, plan, writers);
+  return { root, dir, paths: { witness: ctx.witnessPath, transcription: ctx.transcriptionPath, edition: ctx.editionPath } };
 }
 
 /**

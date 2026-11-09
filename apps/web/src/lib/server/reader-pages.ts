@@ -136,7 +136,7 @@ export function readerLinks(
   return {
     basePath,
     query,
-    exports: { text: `${base}.txt${exportQuery}`, tei: `${base}.tei.xml${exportQuery}` },
+    exports: { text: `${base}.txt${exportQuery}`, tei: `${base}.tei.xml${exportQuery}`, package: `${base}/package.zip` },
     links: {
       current: base,
       preview: published && rights.canEdit ? `${base}?draft=1` : null,

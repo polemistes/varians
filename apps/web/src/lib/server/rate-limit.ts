@@ -60,4 +60,6 @@ export const limits = {
   mailByAccount: new RateLimiter(3, 60 * 60_000),
   /** Archive downloads by one person. */
   archiveByUser: new RateLimiter(6, 60 * 60_000),
+  /** Records as JSON at their addresses, from one address: each writes part of an archive. */
+  recordsByAddress: new RateLimiter(300, 10 * 60_000),
 };

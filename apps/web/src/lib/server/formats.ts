@@ -24,6 +24,7 @@ const TYPES: Record<string, string> = {
   '.jpeg': 'image/jpeg',
   '.png': 'image/png',
   '.webp': 'image/webp',
+  '.zip': 'application/zip',
   '.tif': 'image/tiff',
   '.tiff': 'image/tiff',
 };

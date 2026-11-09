@@ -32,4 +32,5 @@
   {:else if data.user}
     <UsersTable users={data.users} currentUserId={data.user.id} mail={data.mail} />
   {/if}
+  <p class="mt-8 font-sans text-sm"><a href="/admin/package.zip" class="text-accent underline" data-sveltekit-reload>{s.admin.exportInstallation}</a></p>
 </PageFrame>
