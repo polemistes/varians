@@ -96,6 +96,10 @@ export const site = {
     contents: 'Contents',
   },
 
+  people: {
+    noOrcid: 'No ORCID iD is recorded.',
+  },
+
   terms: {
     title: 'Terms of contribution',
     accept: 'Accept these terms',

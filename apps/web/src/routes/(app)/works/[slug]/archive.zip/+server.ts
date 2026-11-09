@@ -9,7 +9,8 @@
 import { error, redirect } from '@sveltejs/kit';
 import { Readable } from 'node:stream';
 import { filteredArchiveZip, type ArchiveFilter } from '$lib/server/archive/archive';
-import { canEditEdition, canViewConjecture, canViewEdition, canViewTranscription, canViewWork, grantsFor, isAdministrator } from '$lib/server/authz';
+import { canViewWork, grantsFor, isAdministrator } from '$lib/server/authz';
+import { viewerFilter } from '$lib/server/archive/viewer';
 import { loginUrl } from '$lib/server/guards';
 import { limits } from '$lib/server/rate-limit';
 import { archiveZip, workBySlug } from '$lib/server/registry';
@@ -32,14 +33,7 @@ export const GET: RequestHandler = async ({ locals, params }) => {
     if (isAdministrator(user)) {
       zip = await archiveZip(locals.db, record.work, archiveRoot(), storageRoot());
     } else {
-      const context = { workMaintainerIds: record.maintainerIds, grants };
-      const only: ArchiveFilter = {
-        transcription: (row) => canViewTranscription(user, row, grants),
-        edition: (row) => canViewEdition(user, row, grants.collaboratingEditionIds.has(row.id) ? [user.id] : []),
-        editionWorking: (row) => canEditEdition(user, row, grants.collaboratingEditionIds.has(row.id) ? [user.id] : []),
-        conjecture: (row) => canViewConjecture(user, row, context),
-        reported: (row) => canViewConjecture(user, row, context),
-      };
+      const only: ArchiveFilter = await viewerFilter(locals.db, user, record.maintainerIds);
       zip = await filteredArchiveZip(locals.db, record.work, only, storageRoot());
     }
   } catch (e) {

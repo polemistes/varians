@@ -2,18 +2,18 @@
   "$schema": "https://varians.eu/formats/2/reported-readings.schema.json",
   "readings": [
     {
-      "id": "01M6Z6P2EM3XARPRR9BQ980BZA",
-      "workId": "01M6Z6P2AQHA4K665KMCTDKN5R",
-      "segmentId": "01M6Z6P2AZAJQ7TNV1Y7FB8J51",
-      "witnessId": "01M6Z6P2EGBY9AK375SNZA2N2Y",
+      "id": "01M6Z8YE67JCRMEN8EM13AYPZH",
+      "workId": "01M6Z8YE1RQFS50DH4Z939A7P0",
+      "segmentId": "01M6Z8YE23BSZ0EKRBX143HQNQ",
+      "witnessId": "01M6Z8YE63C9BQWDEHFJ42DFR4",
       "lemma": "θεὰ",
       "reading": "θεά",
       "source": "Allen's apparatus (1931)",
       "note": null,
-      "ownerId": "01M6Z6P2A4FXSZGB4TV4MGCCA1",
+      "ownerId": "01M6Z8YE0XWN8GK6XWDV4X72GF",
       "visibility": "published",
-      "createdAt": "2026-11-09T03:47:28.341Z",
-      "updatedAt": "2026-11-09T03:47:28.407Z",
+      "createdAt": "2026-11-09T04:26:59.655Z",
+      "updatedAt": "2026-11-09T04:26:59.717Z",
       "segmentLabel": "1.1"
     }
   ]

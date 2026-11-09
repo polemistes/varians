@@ -39,6 +39,18 @@
   // One workbench for the page's life: later loads (none are asked for) would not replace the text being edited.
   const wb = untrack(() => new Workbench(data));
 
+  // An address of a word (/id/<token>) arrives with ?word=<id>: once the editor is there, the word is selected and in view.
+  let wordShown = false;
+  $effect(() => {
+    const api = wb.api;
+    if (!api || wordShown) return;
+    const word = new URL(location.href).searchParams.get('word');
+    wordShown = true;
+    if (!word || !wb.stream.items.some((i) => i.id === word)) return;
+    api.selectTokens(word, word);
+    api.scrollToToken(word);
+  });
+
   let paneOpen = $state(true);
   let sideTab = $state('facsimile');
   let importOpen = $state(false);

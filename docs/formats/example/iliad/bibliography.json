@@ -2,7 +2,7 @@
   "$schema": "https://varians.eu/formats/2/bibliography.schema.json",
   "items": [
     {
-      "id": "01M6Z6P2ETNXW0AS9Y9RJ39425",
+      "id": "01M6Z8YE6C983VQ8Q2Q2485E67",
       "entryType": "book",
       "citationKey": "allen1931",
       "fields": {
@@ -12,9 +12,9 @@
         "location": "Oxford"
       },
       "label": "Allen 1931",
-      "createdBy": "01M6Z6P2A4FXSZGB4TV4MGCCA1",
-      "createdAt": "2026-11-09T03:47:28.347Z",
-      "updatedAt": "2026-11-09T03:47:28.347Z"
+      "createdBy": "01M6Z8YE0XWN8GK6XWDV4X72GF",
+      "createdAt": "2026-11-09T04:26:59.660Z",
+      "updatedAt": "2026-11-09T04:26:59.660Z"
     }
   ]
 }

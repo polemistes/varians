@@ -1,6 +1,6 @@
 {
   "$schema": "https://varians.eu/formats/2/witness.schema.json",
-  "id": "01M6Z6P2BSRC6ANWYYSW2WGTQ1",
+  "id": "01M6Z8YE37MAR9WPAN0NK468M6",
   "slug": "venetus-a",
   "siglum": "A",
   "name": "Venetus A",
@@ -20,14 +20,16 @@
   "provenance": null,
   "description": "The principal manuscript of the Iliad, with scholia.",
   "iiifManifest": null,
-  "createdBy": "01M6Z6P2A4FXSZGB4TV4MGCCA1",
-  "createdAt": "2026-11-09T03:47:28.249Z",
-  "updatedAt": "2026-11-09T03:47:28.249Z",
+  "imageRights": null,
+  "imageAttribution": null,
+  "createdBy": "01M6Z8YE0XWN8GK6XWDV4X72GF",
+  "createdAt": "2026-11-09T04:26:59.560Z",
+  "updatedAt": "2026-11-09T04:26:59.560Z",
   "maintainers": [
     {
-      "id": "01M6Z6P2A4FXSZGB4TV4MGCCA1",
+      "id": "01M6Z8YE0XWN8GK6XWDV4X72GF",
       "name": "Example Editor",
-      "since": "2026-11-09T03:47:28.251Z"
+      "since": "2026-11-09T04:26:59.563Z"
     }
   ],
   "mergedIds": []
