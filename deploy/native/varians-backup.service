@@ -1,0 +1,24 @@
+# The nightly backup of a native installation (`varians backup`), started by
+# varians-backup.timer: a database dump and a storage tarball in
+# /var/lib/varians/backups/<time>, the newest BACKUP_KEEP (default 14) kept.
+# Install beside varians.service in /etc/systemd/system/.
+
+[Unit]
+Description=Back up Varians (database and storage)
+After=postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=oneshot
+User=varians
+Group=varians
+Environment=STORAGE_DIR=/var/lib/varians/storage
+Environment=BACKUP_DIR=/var/lib/varians/backups
+EnvironmentFile=/etc/varians/varians.env
+StateDirectory=varians varians/storage varians/backups
+StateDirectoryMode=0750
+ExecStart=/opt/varians/current/bin/varians backup
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
