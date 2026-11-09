@@ -9,7 +9,7 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { archiveWork, type ArchiveWriters } from './archive.ts';
+import { folderName, archiveWork, type ArchiveWriters } from './archive.ts';
 
 const run = promisify(execFile);
 
@@ -75,7 +75,7 @@ export async function archiveChangedWorks(db: Database, root: string, reason: st
   const changed = new Set(await changedWorks(db));
   // Files the write-through changed since the last commit are committed too.
   for (const work of await db.select({ id: works.id, slug: works.slug }).from(works)) {
-    if (!changed.has(work.id) && (await hasUncommitted(path.join(root, work.slug)))) changed.add(work.id);
+    if (!changed.has(work.id) && (await hasUncommitted(path.join(root, folderName(work.slug, work.id))))) changed.add(work.id);
   }
   for (const workId of changed) {
     const hash = await archiveWork(db, workId, root, reason, writers);

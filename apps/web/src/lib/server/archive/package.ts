@@ -253,7 +253,7 @@ export async function buildPackage(db: Database, viewer: Actor | null, scopes: P
   const tmp = await mkdtemp(path.join(os.tmpdir(), 'varians-package-'));
   const cleanup = () => rm(tmp, { recursive: true, force: true });
   try {
-    const name = options.name ?? (await packageName(db, scopes));
+    const name = slug(options.name ?? (await packageName(db, scopes)));
     const bagDir = path.join(tmp, name);
     const data = path.join(bagDir, 'data');
     await mkdir(data, { recursive: true });
@@ -289,8 +289,8 @@ async function packageName(db: Database, scopes: PackageScope[]): Promise<string
   if (scopes.length !== 1) return `varians-${new Date().toISOString().slice(0, 10)}`;
   const scope = scopes[0]!;
   if (scope.kind === 'installation') return `${slug(siteName())}-${new Date().toISOString().slice(0, 10)}`;
-  if (scope.kind === 'work') return (await db.select({ slug: works.slug }).from(works).where(eq(works.id, scope.workId)))[0]?.slug ?? 'work';
-  if (scope.kind === 'edition') return (await db.select({ slug: editions.slug }).from(editions).where(eq(editions.id, scope.editionId)))[0]?.slug ?? 'edition';
+  if (scope.kind === 'work') return slug((await db.select({ slug: works.slug }).from(works).where(eq(works.id, scope.workId)))[0]?.slug ?? 'work');
+  if (scope.kind === 'edition') return slug((await db.select({ slug: editions.slug }).from(editions).where(eq(editions.id, scope.editionId)))[0]?.slug ?? 'edition');
   const [t] = await db.select({ name: transcriptions.name, id: transcriptions.id }).from(transcriptions).where(eq(transcriptions.id, scope.transcriptionId));
   return t ? `${slug(t.name)}-${t.id.slice(-6).toLowerCase()}` : 'transcription';
 }

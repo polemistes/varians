@@ -61,7 +61,7 @@ test('a new user registers, logs out and logs back in', async ({ page }) => {
   await page.getByRole('button', { name: s.shell.userMenu }).click();
   await page.getByRole('menuitem', { name: s.shell.account }).click();
   await expect(page).toHaveURL(/\/account$/);
-  await expect(page.getByRole('textbox', { name: s.auth.name })).toHaveValue(name);
+  await expect(page.getByRole('textbox', { name: s.auth.name, exact: true })).toHaveValue(name);
 });
 
 test('a visitor is sent to the login from a page that needs an account', async ({ page }) => {

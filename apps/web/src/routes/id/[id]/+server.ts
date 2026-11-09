@@ -11,6 +11,7 @@ import { pageOf, resolveId, visibilityOf } from '$lib/server/resolver';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ locals, params, request, getClientAddress }) => {
+  if (!limits.recordsByAddress.take(getClientAddress())) error(429, 'Too many requests');
   const asJson = params.id.endsWith('.json') || (request.headers.get('accept') ?? '').split(',').some((t) => t.trim().startsWith('application/json'));
   const id = params.id.replace(/\.json$/u, '');
   const resolved = await resolveId(locals.db, id);
@@ -18,7 +19,6 @@ export const GET: RequestHandler = async ({ locals, params, request, getClientAd
   const visibility = await visibilityOf(locals.db, locals.user, resolved);
   if (!visibility.visible) error(404, 'Not found');
   if (!asJson) redirect(303, await pageOf(locals.db, resolved, visibility));
-  if (!limits.recordsByAddress.take(getClientAddress())) error(429, 'Too many requests');
   const record = await recordJson(locals.db, locals.user, resolved, visibility);
   if (record === null) error(404, 'Not found');
   return json(record, {

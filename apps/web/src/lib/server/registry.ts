@@ -88,7 +88,7 @@ import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import type { Readable } from 'node:stream';
 import { promisify } from 'node:util';
-import { archiveWork } from './archive/archive.ts';
+import { archiveWork, folderName } from './archive/archive.ts';
 import {
   canDeleteTranscription,
   isAdministrator,
@@ -1470,12 +1470,13 @@ export async function archiveZip(
   root: string,
   storageRoot: string,
 ): Promise<Readable> {
-  const dir = path.join(root, work.slug);
+  const folder = folderName(work.slug, work.id);
+  const dir = path.join(root, folder);
   await ownRepository(dir);
   await archiveWork(db, work.id, root, 'download', { storageRoot });
   await git('git', ['rev-parse', '--verify', 'HEAD'], { cwd: dir, env: gitEnv() });
   // spawn rather than execFile: execFile gathers the whole output in memory, spawn streams it.
-  const child = spawn('git', ['archive', '--format=zip', `--prefix=${work.slug}/`, 'HEAD'], {
+  const child = spawn('git', ['archive', '--format=zip', `--prefix=${folder}/`, 'HEAD'], {
     cwd: dir,
     env: gitEnv(),
     stdio: ['ignore', 'pipe', 'ignore'],

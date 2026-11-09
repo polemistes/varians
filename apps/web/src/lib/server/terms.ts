@@ -38,9 +38,11 @@ export function hasAcceptedTerms(user: { termsVersion: number | null } | null | 
  * make: null when it may go on. Reading is always allowed; so are signing
  * out, the account's own settings and the terms themselves.
  */
-export function termsGate(method: string, pathname: string): 'api' | 'page' | null {
+export function termsGate(method: string, pathname: string, search = ''): 'api' | 'page' | null {
   const writes = method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS';
-  if (pathname === '/terms' || pathname.startsWith('/logout') || pathname === '/account' || pathname.startsWith('/reset') || pathname.startsWith('/verify')) return null;
+  // The account's own settings, but not taking on someone's edition through an offer.
+  const ownAccount = pathname === '/account' && !search.includes('/offer');
+  if (pathname === '/terms' || pathname.startsWith('/logout') || ownAccount || pathname.startsWith('/reset') || pathname.startsWith('/verify')) return null;
   if (writes) return pathname.startsWith('/api/') ? 'api' : 'page';
   // The editor of an edition is where publishing and editing start.
   if (/^\/editions\/[^/]+\/edit(\/|$)/u.test(pathname)) return 'page';

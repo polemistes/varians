@@ -28,7 +28,7 @@ async function remoteOf(event: Pick<RequestEvent, 'locals' | 'params'>, workId: 
 const message = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
 
 export const load: PageServerLoad = async (event) => {
-  const { record } = await maintained(event);
+  const { user, record } = await maintained(event);
   const remotes = await remotesOf(event.locals.db, record.work.id);
   return {
     crumb: { label: site.remotes.title },
@@ -37,7 +37,7 @@ export const load: PageServerLoad = async (event) => {
       id: r.id,
       origin: r.origin,
       slug: r.remoteSlug,
-      hasToken: r.token !== null,
+      hasToken: r.token !== null && r.createdBy === user.id,
       pullEveryHours: r.pullEveryHours,
       lastPulledAt: r.lastPulledAt?.toISOString() ?? null,
       lastReport: r.lastReport as { documents?: { name: string; result: string }[]; refused?: string | null } | null,
@@ -63,7 +63,7 @@ export const actions: Actions = {
     const { user, record } = await maintained(event);
     const remote = await remoteOf(event, record.work.id, String((await event.request.formData()).get('id') ?? ''));
     try {
-      const differences = await compareSync(event.locals.db, user, record.work.id, await transportOf(remote).sync());
+      const differences = await compareSync(event.locals.db, user, record.work.id, await transportOf(remote, user.id).sync());
       return { done: 'compare' as const, remoteId: remote.id, differences };
     } catch (cause) {
       return fail(502, { error: message(cause) });

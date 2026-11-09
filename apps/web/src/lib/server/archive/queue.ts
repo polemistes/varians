@@ -24,7 +24,7 @@ import {
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { eq, inArray, lte, sql } from 'drizzle-orm';
-import { withWorkLock, writeWorkParts, type ArchivePlan, type ArchiveWriters } from './archive.ts';
+import { folderName, withWorkLock, writeWorkParts, type ArchivePlan, type ArchiveWriters } from './archive.ts';
 
 type QueueEntry = typeof archiveQueue.$inferSelect;
 
@@ -151,7 +151,7 @@ export async function flushArchiveQueue(db: Database, options: FlushOptions): Pr
   const failed: string[] = [];
   for (const [workId, plan] of plans) {
     const [work] = await db.select({ slug: works.slug }).from(works).where(eq(works.id, workId));
-    if (!work || !existsSync(path.join(options.root, work.slug, '.git'))) continue;
+    if (!work || !existsSync(path.join(options.root, folderName(work.slug, workId), '.git'))) continue;
     try {
       await withWorkLock(workId, () => writeWorkParts(db, workId, options.root, plan, writers));
       written.push(workId);

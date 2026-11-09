@@ -23,6 +23,7 @@ import {
 import { and, eq, sql } from 'drizzle-orm';
 import { canEditEdition, canEditTranscription, canViewConjecture, canViewEdition, canViewTranscription, canViewWork, grantsFor, type Actor, type Grants } from './authz.ts';
 import { workBySlug } from './registry.ts';
+import { documentAt } from './documents/service.ts';
 
 export type Resolved =
   | { kind: 'work'; id: string; workId: string; slug: string }
@@ -144,7 +145,9 @@ export async function visibilityOf(db: Database, user: Actor | null, resolved: R
         const [c] = await db.select({ version: changesets.version }).from(changesets).where(and(eq(changesets.id, resolved.id)));
         return { visible: c?.version !== null && c?.version !== undefined && c.version <= e.publishedVersion, edits: false };
       }
-      return document;
+      // A word of the working text that the published version does not have is not found.
+      const published = await documentAt(db, 'edition', resolved.documentId, e.publishedVersion);
+      return published.items.some((i) => i.id === resolved.id) ? document : { visible: false, edits: false };
     }
   }
 }

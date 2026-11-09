@@ -84,8 +84,9 @@ export async function writeExample(serverUrl: string, outDir: string): Promise<s
       await publishEdition(db, sample.editionId, editor);
       // One small image on A's first page, so that the archive shows how images travel.
       const [page] = await db.select().from(pages).where(eq(pages.witnessId, sample.witnessIds.A!)).orderBy(pages.position).limit(1);
-      const imagePath = path.join('originals', `${page!.id}.jpg`);
-      await mkdir(path.join(storage, 'originals'), { recursive: true });
+      // Where uploads are kept: images/<page id>/<file>.
+      const imagePath = `images/${page!.id}/original.jpg`;
+      await mkdir(path.join(storage, 'images', page!.id), { recursive: true });
       await sharp({ create: { width: 64, height: 96, channels: 3, background: { r: 236, g: 226, b: 204 } } })
         .jpeg({ quality: 70 })
         .toFile(path.join(storage, imagePath));

@@ -11,8 +11,11 @@ import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { FORMAT_VERSION } from './archive.ts';
 import { importArchive, ImportRefused, type ImportOptions, type ImportReport } from './import.ts';
-import { openPackage, openPackageZip, PackageError } from './package.ts';
+import { openPackage, openPackageZip, PackageError, type ExtractLimits } from './package.ts';
 import { validateArchiveDir, type ValidationProblem } from './validate.ts';
+
+/** What a package sent over the web may unpack to: enough for a large work with its images, not enough to fill the disk. */
+export const WEB_LIMITS: ExtractLimits = { maxEntries: 50_000, maxBytes: 1024 * 1024 * 1024 };
 
 export interface PackageImportReport {
   /** Whether it was a bag whose checksums were verified. */
@@ -27,11 +30,11 @@ export interface PackageImportReport {
 }
 
 /** Import a package (a zip file, or a directory holding a bag or archives). */
-export async function importPackage(db: Database, source: string, userId: string, options: ImportOptions = {}): Promise<PackageImportReport> {
+export async function importPackage(db: Database, source: string, userId: string, options: ImportOptions & { limits?: ExtractLimits } = {}): Promise<PackageImportReport> {
   const isFile = existsSync(source) && statSync(source).isFile();
   let opened;
   try {
-    opened = isFile ? await openPackageZip(source) : { ...(await openPackage(source)), dir: null };
+    opened = isFile ? await openPackageZip(source, options.limits) : { ...(await openPackage(source)), dir: null };
   } catch (cause) {
     if (cause instanceof PackageError) return { bag: false, info: {}, works: [], problems: [], refused: cause.message, dryRun: options.dryRun ?? false };
     throw cause;

@@ -180,14 +180,22 @@ export function licenceRefusal(theirs: string): string | null {
 
 export type Remote = typeof workRemotes.$inferSelect;
 
-export function transportOf(remote: Remote): RemoteTransport {
-  return httpTransport(remote.origin, remote.remoteSlug, remote.token ? decryptSecret(remote.token) : null);
+/** How to reach a remote as an account: with the stored token only for the account that gave it, without one for the other maintainers. */
+export function transportOf(remote: Remote, userId: string): RemoteTransport {
+  const own = remote.token && remote.createdBy === userId;
+  return httpTransport(remote.origin, remote.remoteSlug, own ? decryptSecret(remote.token!) : null);
+}
+
+/** Whether an account may use the remote's token (to push, or to pull drafts). */
+export function usesToken(remote: Remote, userId: string): boolean {
+  return remote.token !== null && remote.createdBy === userId;
 }
 
 /** Record another installation's copy of a work, after asking it for its state. */
 export async function addRemote(db: Database, user: Actor, workId: string, address: string, token: string | null, transport?: RemoteTransport): Promise<{ remote: Remote; state: SyncState }> {
   const parsed = parseRemoteAddress(address);
   if (!parsed) throw new RemoteError('Give the address of the work on the other installation, such as https://example.org/works/iliad.');
+  if (token && parsed.origin.startsWith('http:')) throw new RemoteError('A token is sent only to an address that begins with https.');
   const reach = transport ?? httpTransport(parsed.origin, parsed.slug, token);
   const state = await reach.sync();
   const [remote] = await db
@@ -204,7 +212,7 @@ export async function pullRemote(
   remote: Remote,
   options: { policy?: ConflictPolicy; dryRun?: boolean; transport?: RemoteTransport } = {},
 ): Promise<PackageImportReport> {
-  const transport = options.transport ?? transportOf(remote);
+  const transport = options.transport ?? transportOf(remote, user.id);
   const state = await transport.sync();
   const refusal = licenceRefusal(state.licence);
   const base = { bag: false, info: {}, works: [], problems: [], dryRun: options.dryRun ?? false };
@@ -227,7 +235,7 @@ export async function pullRemote(
 
 /** Push this installation's package of the work to a remote, which imports it keeping its own text where they conflict. */
 export async function pushRemote(db: Database, user: Actor, remote: Remote, options: { transport?: RemoteTransport; storageRoot?: string; origin?: string } = {}): Promise<unknown> {
-  const transport = options.transport ?? transportOf(remote);
+  const transport = options.transport ?? transportOf(remote, user.id);
   const pkg = await buildPackage(db, user, [{ kind: 'work', workId: remote.workId }], { ...(options.storageRoot ? { storageRoot: options.storageRoot } : {}), ...(options.origin ? { origin: options.origin } : {}) });
   try {
     const report = await transport.upload(pkg.file);

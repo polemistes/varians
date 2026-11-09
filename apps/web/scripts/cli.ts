@@ -189,12 +189,12 @@ async function main(): Promise<void> {
         const remote = known ?? (await addRemote(db, user, work.id, address, token && process.env.SECRET_KEY ? token : null, transport)).remote;
         if (command === 'push') {
           if (!token && !remote.token) throw new Error('pushing needs --token, a token of an account there');
-          console.log(JSON.stringify(await pushRemote(db, user, remote, { transport: token ? transport : transportOf(remote), storageRoot: storage }), null, 2));
+          console.log(JSON.stringify(await pushRemote(db, user, remote, { transport: token ? transport : transportOf(remote, user.id), storageRoot: storage }), null, 2));
           break;
         }
         const policy = flag(args, 'on-conflict');
         if (policy !== undefined && policy !== 'keep' && policy !== 'take') throw new Error('--on-conflict is keep or take');
-        const report = await pullRemote(db, user, remote, { transport: token || !remote.token ? transport : transportOf(remote), dryRun: args.includes('--dry-run'), ...(policy ? { policy } : {}) });
+        const report = await pullRemote(db, user, remote, { transport: token || !remote.token ? transport : transportOf(remote, user.id), dryRun: args.includes('--dry-run'), ...(policy ? { policy } : {}) });
         if (report.refused) {
           console.log(`Nothing was imported: ${report.refused}`);
           process.exitCode = 1;

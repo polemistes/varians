@@ -16,6 +16,9 @@
 import { env } from '$env/dynamic/private';
 import { mkdir, rename, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { StoragePathError, safeJoin } from './safe-join.ts';
+
+export { StoragePathError, safeJoin };
 
 /** Used when STORAGE_DIR is not set: the `storage` folder at the root of the repository, which git ignores (the app runs from apps/web). */
 export const DEFAULT_STORAGE_DIR = '../../storage';
@@ -24,13 +27,6 @@ export const DEFAULT_STORAGE_DIR = '../../storage';
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 const EXT_PATTERN = /^[a-z0-9]{1,8}$/;
 
-export class StoragePathError extends Error {
-  readonly code = 'invalid-path';
-  constructor(message: string) {
-    super(message);
-    this.name = 'StoragePathError';
-  }
-}
 
 /**
  * Resolves the configured storage directory. A relative value is taken
@@ -78,35 +74,6 @@ export function dziPath(pageId: string): string {
   return `${tilesDir(pageId)}/image.dzi`;
 }
 
-/**
- * Joins a relative path onto a root and returns the absolute path, refusing
- * anything that could escape the root: absolute paths, `..` and `.` segments,
- * empty segments, backslashes and NUL bytes. The result is guaranteed to lie
- * strictly inside `root`.
- */
-export function safeJoin(root: string, relative: string): string {
-  if (typeof relative !== 'string' || relative.length === 0) {
-    throw new StoragePathError('Empty path');
-  }
-  if (relative.includes('\0') || relative.includes('\\')) {
-    throw new StoragePathError('Path contains forbidden characters');
-  }
-  if (relative.startsWith('/')) {
-    throw new StoragePathError('Absolute paths are not allowed');
-  }
-  const segments = relative.split('/');
-  for (const segment of segments) {
-    if (segment === '' || segment === '.' || segment === '..') {
-      throw new StoragePathError(`Path segment not allowed: "${segment}"`);
-    }
-  }
-  const absoluteRoot = path.resolve(root);
-  const joined = path.resolve(absoluteRoot, ...segments);
-  if (!joined.startsWith(absoluteRoot + path.sep)) {
-    throw new StoragePathError('Path leaves the storage directory');
-  }
-  return joined;
-}
 
 /** The absolute path of a storage-relative path, inside `root` (the configured storage dir by default). */
 export function absolutePath(relative: string, root = storageDir()): string {

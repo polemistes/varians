@@ -131,6 +131,7 @@ export const site = {
     expired: 'The upload is no longer here. Upload the package again.',
     noFile: 'Choose a zip file.',
     tooLarge: 'The file is too large for the web; use the command line.',
+    tooOften: 'You have imported several packages in the last hour. Try again later.',
   },
 
   remotes: {

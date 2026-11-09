@@ -60,7 +60,7 @@ import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { citationsOfWork } from './archive.ts';
 import { nameMoment, rebuildSegmentIndex, replaceContent } from '../documents/service.ts';
 import { setChosenWorks } from '../transcription-works.ts';
-import { canEditEdition, canEditTranscription, canMaintainWitness, canMaintainWork, grantsFor, isAdministrator, isSiteEditor, type Actor } from '../authz.ts';
+import { canEditEdition, canEditTranscription, canGrantOnEdition, canMaintainWitness, canMaintainWork, canViewWork, grantsFor, isAdministrator, isSiteEditor, type Actor } from '../authz.ts';
 import { dataLicence } from '../settings.ts';
 
 /** What to do with a document whose history conflicts with ours: report it and leave it, keep ours (storing theirs unapplied), or take theirs. */
@@ -143,6 +143,19 @@ function stripped<T extends Record<string, unknown>>(record: T, ...keys: string[
   return out;
 }
 
+/**
+ * Where an installation keeps a page's image, as an archive names it: kept
+ * only in the layout uploads have here (images/<page id>/<file>), for that
+ * very page, so that an archive can never name another file of the server.
+ */
+function storedPath(pageId: string, value: string | null | undefined): string | null {
+  if (typeof value !== 'string') return null;
+  const parts = value.split('/');
+  if (parts.length < 3 || parts[0] !== 'images' || parts[1] !== pageId) return null;
+  if (parts.some((part) => part === '' || part === '.' || part === '..' || part.includes('\\') || part.includes('\0'))) return null;
+  return value;
+}
+
 /** The editors of an edition as an archive gives them: a list of names, or one string in older archives. */
 function editorList(value: unknown): string[] {
   if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string' && v.trim() !== '');
@@ -159,7 +172,16 @@ async function dirs(dir: string): Promise<string[]> {
 }
 
 /** A slug that is free, or the same record's own. */
-async function freeSlug(db: Database, table: typeof works | typeof witnesses | typeof editions, wanted: string, id: string): Promise<string> {
+async function freeSlug(db: Database, table: typeof works | typeof witnesses | typeof editions, given: string, id: string): Promise<string> {
+  // A slug from an archive is made again as slugs are made here: it names folders and addresses, and is never trusted as it comes.
+  const wanted =
+    String(given ?? '')
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/gu, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/gu, '-')
+      .replace(/^-+|-+$/gu, '')
+      .slice(0, 80) || id.toLowerCase();
   let slug = wanted;
   for (let n = 2; n < 1000; n++) {
     const [row] = await db.select({ id: table.id }).from(table).where(eq(table.slug, slug));
@@ -329,16 +351,33 @@ interface Guard {
   maintainsWitness(witnessId: string): Promise<boolean>;
   editsDocument(kind: 'transcription' | 'edition', id: string): Promise<boolean>;
   ownsOrEdits(table: typeof conjectures | typeof reportedReadings | typeof bibliographyItems, id: string): Promise<boolean>;
+  /** Whether the account may change who collaborates on an edition. */
+  grantsOn(editionId: string): Promise<boolean>;
+  /** Whether the account sees a work here. */
+  seesWork(workId: string): Promise<boolean>;
+  /** The account, for a restricted import. */
+  actorId: string | null;
 }
 
 async function guardFor(db: Database, actor: Actor | undefined): Promise<Guard> {
   if (!actor || isAdministrator(actor)) {
     const yes = async () => true;
-    return { restricted: false, maintainsWork: yes, maintainsWitness: yes, editsDocument: yes, ownsOrEdits: yes };
+    return { restricted: false, maintainsWork: yes, maintainsWitness: yes, editsDocument: yes, ownsOrEdits: yes, grantsOn: yes, seesWork: yes, actorId: null };
   }
   const grants = await grantsFor(db, actor);
   return {
     restricted: true,
+    actorId: actor.id,
+    async grantsOn(editionId) {
+      const [e] = await db.select({ ownerId: editions.ownerId }).from(editions).where(eq(editions.id, editionId));
+      return !e || canGrantOnEdition(actor, e);
+    },
+    async seesWork(workId) {
+      const [w] = await db.select({ id: works.id, visibility: works.visibility, createdBy: works.createdBy }).from(works).where(eq(works.id, workId));
+      if (!w) return true;
+      const maintainers = (await db.select({ userId: workMaintainers.userId }).from(workMaintainers).where(eq(workMaintainers.workId, workId))).map((m) => m.userId);
+      return canViewWork(actor, w, maintainers, grants);
+    },
     async maintainsWork(workId) {
       const [w] = await db.select({ id: works.id, createdBy: works.createdBy }).from(works).where(eq(works.id, workId));
       if (!w) return true;
@@ -373,6 +412,8 @@ async function guardFor(db: Database, actor: Actor | undefined): Promise<Guard> 
 
 interface Context {
   guard: Guard;
+  /** Ids of the records this import wrote or may write to: what its citations may cite from. */
+  imported: Set<string>;
   db: Database;
   userId: string;
   options: ImportOptions;
@@ -413,7 +454,11 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
   const rawWork = await reader.json<{ id: string; identifier?: string | null; identifiers?: unknown }>(path.join(dir, 'work.json'));
   if (!rawWork) throw new Error(`no work.json in ${dir}`);
   const workIdentifiers = [...identifierList(rawWork.identifiers), ...(rawWork.identifier ? [{ scheme: 'cts' as const, value: rawWork.identifier }] : [])];
-  const workMatch = await resolveRegistry(db, 'work', rawWork.id, workIdentifiers);
+  const guard = await guardFor(db, options.actor);
+  let workMatch = await resolveRegistry(db, 'work', rawWork.id, workIdentifiers);
+  // A work here that the account may not see is never matched, nor written to.
+  if (workMatch.by && !(await guard.seesWork(workMatch.id))) workMatch = { id: rawWork.id };
+  if (!(await guard.seesWork(workMatch.id))) throw new ImportRefused('The package names a work that is kept here and not open to you.');
   if (workMatch.id !== rawWork.id) {
     reader.remap(rawWork.id, workMatch.id);
     matches.push({ kind: 'work', incomingId: rawWork.id, localId: workMatch.id, by: workMatch.by!, ...(workMatch.value ? { value: workMatch.value } : {}) });
@@ -475,8 +520,7 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
 
   await checkLicences(reader, dir);
   const known = new Set((await db.select({ id: users.id }).from(users)).map((u) => u.id));
-  const guard = await guardFor(db, options.actor);
-  const ctx: Context = { guard, db, userId, options, reader, warnings, known, personMap: new Map(), accountOfPerson: new Map(), segmentLabel: new Map() };
+  const ctx: Context = { guard, imported: new Set(), db, userId, options, reader, warnings, known, personMap: new Map(), accountOfPerson: new Map(), segmentLabel: new Map() };
 
   // Persons: by id, then ORCID, else new and without an account.
   const incomingPersons = (await reader.list<IncomingPerson>(path.join(dir, 'persons.json'), 'persons')) ?? (await personsOfVersion1(reader, dir));
@@ -504,6 +548,8 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
   const localPersonIds = [...new Set(ctx.personMap.values())];
   if (localPersonIds.length) {
     for (const r of await db.select({ id: persons.id, userId: persons.userId }).from(persons).where(and(inArray(persons.id, localPersonIds), isNotNull(persons.userId)))) {
+      // A restricted import links no one to an account but the account importing: authorship is kept by person, permissions are not given away.
+      if (guard.restricted && r.userId !== guard.actorId) continue;
       ctx.accountOfPerson.set(r.id, r.userId!);
     }
   }
@@ -512,7 +558,8 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
   await db
     .insert(referenceSchemes)
     .values({ id: work.scheme.id, name: work.scheme.name, levels: work.scheme.levels, createdBy: owner(ctx, work.scheme.createdBy), createdAt: when(work.scheme.createdAt) })
-    .onConflictDoUpdate({ target: referenceSchemes.id, set: { name: work.scheme.name, levels: work.scheme.levels } });
+    // A scheme is shared by the works that use it: a restricted import adds one and changes none.
+    .onConflictDoUpdate({ target: referenceSchemes.id, set: { name: work.scheme.name, levels: work.scheme.levels }, ...(guard.restricted ? { where: sql`false` } : {}) });
   const [existingWork] = await db.select({ identifiers: works.identifiers, schemeId: works.schemeId }).from(works).where(eq(works.id, work.id));
   const identifiers = mergeIdentifiers(existingWork?.identifiers ?? [], identifierList(work.identifiers));
   const slug = await freeSlug(db, works, work.slug, work.id);
@@ -573,7 +620,9 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
       createdAt: when(cell(fields, 'created_at')),
     };
     ctx.segmentLabel.set(s.id, s.label);
-    if (maintainsWork) await db.insert(segments).values(s).onConflictDoUpdate({ target: segments.id, set: { label: s.label, sortKey: s.sortKey, address: s.address } });
+    ctx.imported.add(s.id);
+    // A segment of another work under the same id is not touched.
+    if (maintainsWork) await db.insert(segments).values(s).onConflictDoUpdate({ target: segments.id, set: { label: s.label, sortKey: s.sortKey, address: s.address }, where: eq(segments.workId, work.id) });
     else await db.insert(segments).values(s).onConflictDoNothing();
   }
   for (const s of await db.select({ id: segments.id, label: segments.label }).from(segments).where(eq(segments.workId, work.id))) ctx.segmentLabel.set(s.id, s.label);
@@ -605,7 +654,7 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
       await db
         .insert(witnesses)
         .values({ ...fields, slug: wslug, createdBy: owner(ctx, w.createdBy), createdAt: when(w.createdAt) })
-        .onConflictDoUpdate({ target: witnesses.id, set: { ...fields, slug: wslug, createdBy: owner(ctx, w.createdBy) } });
+        .onConflictDoUpdate({ target: witnesses.id, set: { ...fields, slug: wslug, createdBy: guard.restricted ? sql`${witnesses.createdBy}` : owner(ctx, w.createdBy) } });
     }
     if (maintainsWitness) {
       for (const m of w.maintainers ?? []) await db.insert(witnessMaintainers).values({ witnessId: w.id, userId: owner(ctx, m.id), createdAt: when(m.since) }).onConflictDoNothing();
@@ -642,11 +691,11 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
         label: p.label,
         position: p.position,
         imageKind: p.image?.kind ?? null,
-        imagePath: p.image?.path ?? null,
+        imagePath: storedPath(p.id, p.image?.path),
         imageIiif: p.image?.iiif ?? null,
         imageWidth: p.image?.width ?? null,
         imageHeight: p.image?.height ?? null,
-        tilesPath: p.image?.tiles ?? null,
+        tilesPath: storedPath(p.id, p.image?.tiles),
         rights: normalizeRights(p.image?.rights),
         attribution: p.image?.attribution ?? null,
         imageSource: p.image?.source ?? null,
@@ -655,7 +704,10 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
       const [ours] = await db.select({ id: pages.id }).from(pages).where(eq(pages.id, p.id));
       // A page matched by label to one of ours keeps our image; a witness maintained by others keeps its pages.
       if (ours && (matchedHere || !maintainsWitness)) continue;
-      await db.insert(pages).values(values).onConflictDoUpdate({ target: pages.id, set: values });
+      // A page of another witness under the same id is not touched.
+      const { witnessId: _parent, ...update } = values;
+      void _parent;
+      await db.insert(pages).values(values).onConflictDoUpdate({ target: pages.id, set: update, where: eq(pages.witnessId, w.id) });
     }
     for (const tdir of await dirs(path.join(wdir, 'transcriptions'))) {
       const t = await reader.json<{
@@ -697,7 +749,7 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
       const outcome = await importDocument(ctx, 'transcription', t.id, t.name, tdir, t.content, async (content, version) => {
         await db
           .insert(transcriptions)
-          .values({ id: t.id, ...meta, content, version, createdAt: when(t.createdAt) })
+          .values(asNew(ctx, { id: t.id, ...meta, content, version, createdAt: when(t.createdAt) }))
           .onConflictDoUpdate({ target: transcriptions.id, set: keepOwner(ctx, meta) });
       });
       documents.push(outcome);
@@ -720,7 +772,7 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
         if (usable.length) await db.insert(zones).values(usable).onConflictDoNothing();
       } else {
         await db.delete(zones).where(eq(zones.transcriptionId, t.id));
-        if (rows.length) await db.insert(zones).values(rows);
+        if (rows.length) await db.insert(zones).values(rows).onConflictDoNothing();
       }
       await importReviewStates(ctx, tdir, 'transcription', t.id);
     }
@@ -730,13 +782,19 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
   for (const c of conjectureList) {
     const fields = stripped(c) as typeof c;
     const values = { ...fields, workId: work.id, ownerId: owner(ctx, c.ownerId), createdAt: when(c.createdAt) };
-    if (await guard.ownsOrEdits(conjectures, c.id)) await db.insert(conjectures).values(values).onConflictDoUpdate({ target: conjectures.id, set: values });
+    if (await guard.ownsOrEdits(conjectures, c.id)) {
+      await db.insert(conjectures).values(asNew(ctx, values)).onConflictDoUpdate({ target: conjectures.id, set: keepOwner(ctx, values), where: eq(conjectures.workId, work.id) });
+      ctx.imported.add(c.id);
+    }
   }
   const reportedList = (await reader.list<typeof reportedReadings.$inferSelect & { segmentLabel?: string }>(path.join(dir, 'reported-readings.json'), 'readings')) ?? [];
   for (const r of reportedList) {
     const fields = stripped(r) as typeof r;
     const values = { ...fields, workId: work.id, ownerId: owner(ctx, r.ownerId), createdAt: when(r.createdAt) };
-    if (await guard.ownsOrEdits(reportedReadings, r.id)) await db.insert(reportedReadings).values(values).onConflictDoUpdate({ target: reportedReadings.id, set: values });
+    if (await guard.ownsOrEdits(reportedReadings, r.id)) {
+      await db.insert(reportedReadings).values(asNew(ctx, values)).onConflictDoUpdate({ target: reportedReadings.id, set: keepOwner(ctx, values), where: eq(reportedReadings.workId, work.id) });
+      ctx.imported.add(r.id);
+    }
   }
 
   let editionCount = 0;
@@ -791,11 +849,12 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
     const outcome = await importDocument(ctx, 'edition', e.id, e.title, edir, e.content, async (content, version) => {
       await db
         .insert(editions)
-        .values({ id: e.id, ...meta, content, version, createdAt: when(e.createdAt) })
+        .values(asNew(ctx, { id: e.id, ...meta, content, version, createdAt: when(e.createdAt) }))
         .onConflictDoUpdate({ target: editions.id, set: keepOwner(ctx, meta) });
     });
     documents.push(outcome);
     if (!applies(outcome)) continue;
+    ctx.imported.add(e.id);
     await db.delete(editionSigla).where(eq(editionSigla.editionId, e.id));
     if (e.sigla.length) await db.insert(editionSigla).values(e.sigla.map((s, i) => ({ editionId: e.id, position: i, ...normalizeSiglum(s) })));
     await db.delete(editionAdoptions).where(eq(editionAdoptions.editionId, e.id));
@@ -806,12 +865,12 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
         .values(adoptions.map((a) => ({ editionId: e.id, conjectureId: a.conjectureId, createdAt: when(a.at) })))
         .onConflictDoNothing();
     }
-    // Collaborators are accounts: only persons who have one here are kept.
-    await db.delete(editionCollaborators).where(eq(editionCollaborators.editionId, e.id));
+    // Collaborators are accounts: only persons who have one here are kept; and only someone who may grant on the edition changes them.
+    if (await guard.grantsOn(e.id)) await db.delete(editionCollaborators).where(eq(editionCollaborators.editionId, e.id));
     const collaborators = (e.collaborators ?? [])
       .map((c) => ({ userId: account(ctx, c.personId ?? c.id), grantedBy: account(ctx, c.grantedBy), since: c.since }))
       .filter((c): c is { userId: string; grantedBy: string | null; since: string | null | undefined } => c.userId !== null);
-    if (collaborators.length) {
+    if (collaborators.length && (await guard.grantsOn(e.id))) {
       await db
         .insert(editionCollaborators)
         .values(collaborators.map((c) => ({ editionId: e.id, userId: c.userId, grantedBy: c.grantedBy, createdAt: when(c.since) })))
@@ -820,7 +879,9 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
     for (const n of e.notes ?? []) {
       const author = n.personId ?? n.authorId;
       const noteValues = { id: n.id, editionId: e.id, segmentId: n.segmentId, tokenIds: n.tokenIds, text: n.text, personId: person(ctx, author), authorId: account(ctx, author), createdAt: when(n.createdAt) };
-      await db.insert(notes).values(noteValues).onConflictDoUpdate({ target: notes.id, set: noteValues });
+      // A note of another edition under the same id is not touched.
+      await db.insert(notes).values(noteValues).onConflictDoUpdate({ target: notes.id, set: noteValues, where: eq(notes.editionId, e.id) });
+      ctx.imported.add(n.id);
     }
     await db.delete(editionSiteKinds).where(eq(editionSiteKinds.editionId, e.id));
     const kinds = (e.siteKinds ?? []).filter((k) => k.kind === 'textual' || k.kind === 'interpretative');
@@ -837,9 +898,10 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
       const usable = alignment.filter((a) => transcriptionIds.has(a.transcriptionId));
       if (usable.length < alignment.length) warnings.push(`${alignment.length - usable.length} alignment constraint(s) of ${e.slug} name a transcription this installation does not have`);
       if (usable.length) {
-        await db.insert(alignmentConstraints).values(
-          usable.map((a) => ({ id: a.id, editionId: e.id, segmentId: a.segmentId, baseTokenIds: a.baseTokenIds, transcriptionId: a.transcriptionId, witnessTokenIds: a.witnessTokenIds, createdAt: when(a.createdAt) })),
-        );
+        await db
+          .insert(alignmentConstraints)
+          .values(usable.map((a) => ({ id: a.id, editionId: e.id, segmentId: a.segmentId, baseTokenIds: a.baseTokenIds, transcriptionId: a.transcriptionId, witnessTokenIds: a.witnessTokenIds, createdAt: when(a.createdAt) })))
+          .onConflictDoNothing();
       }
     }
     const reviews = await reader.json<{ sites?: { segmentId: string; siteKey: string; personId?: string | null; reviewedBy?: string | null; reviewedAt?: string | null }[] }>(path.join(edir, 'reviews.json'));
@@ -878,6 +940,9 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
   const citationList = (await reader.list<typeof citations.$inferSelect>(path.join(dir, 'citations.json'), 'citations')) ?? [];
   for (const c of citationList) {
     const fields = stripped(c) as typeof c;
+    // A restricted import adds citations only to records it brought in or may change.
+    const targets = [fields.conjectureId, fields.reportedReadingId, fields.noteId, fields.editionId, fields.segmentId].filter((t): t is string => !!t);
+    if (guard.restricted && !targets.every((t) => ctx.imported.has(t))) continue;
     await db
       .insert(citations)
       .values({ ...fields, itemId: sameItem.get(fields.itemId) ?? fields.itemId, createdAt: when(c.createdAt) })
@@ -907,12 +972,22 @@ function licenceFields(licence: string | null | undefined, rightsNote: string | 
   return { licenceId: null, rightsNote: rightsNote ?? free };
 }
 
-/** The fields of an existing record to update: a restricted import never changes who owns it. */
-function keepOwner<T extends { ownerId: string }>(ctx: Context, meta: T): Partial<T> {
+/**
+ * The fields of an existing record to update: a restricted import never
+ * changes who owns it, whether and what is published, nor where it belongs
+ * (its work, its witness, its address); those are its owner's to change.
+ */
+function keepOwner<T extends Record<string, unknown>>(ctx: Context, meta: T): Partial<T> {
   if (!ctx.guard.restricted) return meta;
-  const { ownerId: _owner, ...rest } = meta;
-  void _owner;
+  const rest: Record<string, unknown> = { ...meta };
+  for (const key of ['ownerId', 'visibility', 'publishedVersion', 'workId', 'witnessId', 'slug', 'licenceId']) delete rest[key];
   return rest as Partial<T>;
+}
+
+/** What a restricted import brings in new is a draft: publishing is done here, through the publication. */
+function asNew<T extends Record<string, unknown>>(ctx: Context, values: T): T {
+  if (!ctx.guard.restricted) return values;
+  return { ...values, ...('visibility' in values ? { visibility: 'draft' } : {}), ...('publishedVersion' in values ? { publishedVersion: null } : {}) };
 }
 
 /** Whether a document's own records (zones, conspectus, notes and the rest) are taken from the archive: not when its text conflicts and ours is kept. */
@@ -1005,8 +1080,10 @@ async function importDocument(
   const store = async (rows: ChangesetValues[], version: (i: number) => number | null) => {
     let stored = 0;
     for (const [i, c] of rows.entries()) {
-      const [held] = await db.select({ id: changesets.id, version: changesets.version }).from(changesets).where(eq(changesets.id, c.id));
+      const [held] = await db.select({ id: changesets.id, version: changesets.version, kind: changesets.documentKind, documentId: changesets.documentId }).from(changesets).where(eq(changesets.id, c.id));
       const v = version(i);
+      // A changeset of another document under the same id is not touched.
+      if (held && (held.kind !== kind || held.documentId !== id)) continue;
       if (held) {
         // Held for its provenance, now applied here.
         if (held.version === null && v !== null) await db.update(changesets).set({ version: v }).where(eq(changesets.id, c.id));

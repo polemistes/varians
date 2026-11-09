@@ -81,7 +81,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   // An account that has not accepted the current terms of contribution reads, and changes nothing (PLAN-2 D4).
   const user = event.locals.user;
   if (user && !hasAcceptedTerms(user)) {
-    const gate = termsGate(request.method, url.pathname);
+    const gate = termsGate(request.method, url.pathname, url.search);
     if (gate === 'api') {
       return new Response(JSON.stringify({ message: site.terms.required, terms: '/terms' }), { status: 403, headers: { 'content-type': 'application/json' } });
     }

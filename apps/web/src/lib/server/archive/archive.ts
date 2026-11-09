@@ -75,6 +75,7 @@ import { exportHands, teiForm } from '../witness-format.ts';
 import { apparatusConventionsOf, contextAt } from '../reader.ts';
 import { siglaOrderOf } from '../../reader/sites.ts';
 import { chosenWorksOf } from '../transcription-works.ts';
+import { safeJoin } from '../images/safe-join.ts';
 import { dataLicence, siteName } from '../settings.ts';
 import type { Contributor } from '@varians/core';
 
@@ -186,6 +187,15 @@ function defined<T extends Record<string, string | null | undefined>>(record: T)
   return out as { [K in keyof T]?: string };
 }
 
+/**
+ * A slug as a folder name: a plain name of letters, digits, full stops,
+ * hyphens and underscores, or else the record's id. Slugs made here are
+ * always plain; one from an import is never trusted with a path.
+ */
+export function folderName(slug: string, id: string): string {
+  return /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/u.test(slug) && !slug.includes('..') ? slug : id.toLowerCase();
+}
+
 function slugify(text: string): string {
   return (
     text
@@ -281,7 +291,7 @@ async function loadWorkContext(db: Database, workId: string, root: string, write
   const witnessIds = new Set<string>([...transcriptionRows.map((t) => t.witnessId), ...siglaRows.map((s) => s.witnessId), ...reported.map((r) => r.witnessId)]);
   const witnessRows = (witnessIds.size ? await db.select().from(witnesses).where(inArray(witnesses.id, [...witnessIds])) : []).sort((a, b) => a.slug.localeCompare(b.slug));
 
-  const witnessPath = new Map(witnessRows.map((w) => [w.id, path.join('witnesses', w.slug)] as const));
+  const witnessPath = new Map(witnessRows.map((w) => [w.id, path.join('witnesses', folderName(w.slug, w.id))] as const));
   const transcriptionPath = new Map<string, string>();
   const taken = new Set<string>();
   for (const t of transcriptionRows) {
@@ -290,12 +300,12 @@ async function loadWorkContext(db: Database, workId: string, root: string, write
     taken.add(target);
     transcriptionPath.set(t.id, target);
   }
-  const editionPath = new Map(editionRows.map((e) => [e.id, path.join('editions', e.slug)] as const));
+  const editionPath = new Map(editionRows.map((e) => [e.id, path.join('editions', folderName(e.slug, e.id))] as const));
   return {
     db,
     work,
     scheme: scheme ?? null,
-    dir: path.join(root, work.slug),
+    dir: path.join(root, folderName(work.slug, work.id)),
     writers,
     userNames,
     personOfUser,
@@ -584,7 +594,13 @@ async function writeWitnessFiles(ctx: WorkContext, witness: WitnessRow): Promise
       if (p.imageKind !== 'upload' || !p.imagePath || !isCopyable(p.rights)) continue;
       const ext = path.extname(p.imagePath) || '.jpg';
       const target = path.join('images', `${slugify(p.label)}-${p.id.slice(-6)}${ext}`);
-      if (await syncFile(path.join(writers.storageRoot, p.imagePath), path.join(wdir, target))) imageFiles.set(p.id, target);
+      let source: string;
+      try {
+        source = safeJoin(writers.storageRoot, p.imagePath);
+      } catch {
+        continue;
+      }
+      if (await syncFile(source, path.join(wdir, target))) imageFiles.set(p.id, target);
     }
   }
   // Images of pages that are gone or renamed go too.
@@ -1093,7 +1109,7 @@ export async function filteredArchiveZip(db: Database, work: { id: string; slug:
   try {
     const dir = await writeArchive(db, work.id, tmp, { storageRoot, only });
     await commitArchive(dir, `export of ${work.slug}`);
-    const child = spawn('git', ['archive', '--format=zip', `--prefix=${work.slug}/`, 'HEAD'], { cwd: dir, stdio: ['ignore', 'pipe', 'ignore'] });
+    const child = spawn('git', ['archive', '--format=zip', `--prefix=${folderName(work.slug, work.id)}/`, 'HEAD'], { cwd: dir, stdio: ['ignore', 'pipe', 'ignore'] });
     child.on('close', cleanup);
     child.on('error', (e) => {
       child.stdout.destroy(e);

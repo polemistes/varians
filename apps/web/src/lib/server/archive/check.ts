@@ -8,7 +8,7 @@ import type { Database } from '@varians/db';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { writeArchive, type ArchiveWriters } from './archive.ts';
+import { folderName, writeArchive, type ArchiveWriters } from './archive.ts';
 
 export interface ArchiveDifferences {
   /** Files a full write has that the stored archive lacks. */
@@ -55,7 +55,7 @@ export async function checkArchive(db: Database, work: { id: string; slug: strin
   const tmp = await mkdtemp(path.join(os.tmpdir(), 'varians-check-'));
   try {
     const fresh = await writeArchive(db, work.id, tmp, writers);
-    return await compareArchiveDirs(fresh, path.join(root, work.slug));
+    return await compareArchiveDirs(fresh, path.join(root, folderName(work.slug, work.id)));
   } finally {
     await rm(tmp, { recursive: true, force: true });
   }
