@@ -25,18 +25,19 @@ let root: string;
 const ids = { owner: newId(), stranger: newId(), witness: newId(), other: newId() };
 const slug = `w-${ids.witness}`;
 
-const person = (id: string, name: string): CurrentUser => ({ id, email: `${id}@test`, name, role: 'member', preferences: {}, termsVersion: 1 });
+const person = (id: string, name: string): CurrentUser => ({ id, email: `${id}@test`, name, role: 'member', preferences: {} as CurrentUser['preferences'], termsVersion: 1 });
 const owner = person(ids.owner, 'Owner');
 const stranger = person(ids.stranger, 'Stranger');
 
-type Action = (event: never) => Promise<unknown>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Action = (event: any) => unknown;
 
 /** Runs a form action as `user` with these fields, as SvelteKit would. */
 function run(action: Action | undefined, user: CurrentUser | null, fields: Record<string, string | Blob>, witnessSlug = slug) {
   const body = new FormData();
   for (const [name, value] of Object.entries(fields)) body.append(name, value);
   const request = new Request('http://localhost/action', { method: 'POST', body });
-  return action!({ request, locals: { db, user }, params: { slug: witnessSlug } } as never) as Promise<{
+  return Promise.resolve(action!({ request, locals: { db, user }, params: { slug: witnessSlug } })) as Promise<{
     status?: number;
     data?: Record<string, unknown>;
     ok?: boolean;

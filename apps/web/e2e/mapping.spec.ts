@@ -99,9 +99,11 @@ test('selected words are mapped to a box drawn on the facsimile', async ({ page 
   const card = pane
     .getByRole('list', { name: p.gridLabel })
     .getByRole('article', { name: '1r', exact: true });
-  const chooser = page.waitForEvent('filechooser');
   await card.getByRole('button', { name: p.card.addImage }).click();
-  await (await chooser).setFiles(await image());
+  const imageDialog = page.getByRole('dialog', { name: p.image.addTitle('1r') });
+  await imageDialog.getByLabel(p.image.file, { exact: true }).setInputFiles(await image());
+  await imageDialog.getByLabel(p.rights.statement).selectOption({ label: 'Public Domain Mark' });
+  await imageDialog.getByRole('button', { name: p.image.submit }).click();
   await expect(card.locator('img')).toBeVisible({ timeout: 20_000 });
 
   // Its text, beginning with a break to that page, saved as the workbench saves it.
