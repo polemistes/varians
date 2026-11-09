@@ -36,13 +36,13 @@
   {/if}
 
   <div class="mb-10 grid items-start gap-4 lg:grid-cols-2">
-    <UploadImages {lastLabel} maxBytes={data.maxUploadBytes} result={uploadResult} />
+    <UploadImages {lastLabel} defaults={data.witness.imageDefaults} maxBytes={data.maxUploadBytes} result={uploadResult} />
     <AddPagesForm failure={addFailure} roll={data.witness.roll} />
   </div>
 
   {#if data.pages.length === 0}
     <EmptyState title={t.empty} description={t.emptyHint} />
   {:else}
-    <PageGrid pages={data.pages} maxUploadBytes={data.maxUploadBytes} />
+    <PageGrid pages={data.pages} defaults={data.witness.imageDefaults} maxUploadBytes={data.maxUploadBytes} />
   {/if}
 </PageFrame>

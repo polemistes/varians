@@ -42,7 +42,15 @@ export const GET: RequestHandler = async ({ locals, params, url }) => {
   const pageRows = pageIds.length ? await locals.db.select().from(pages).where(inArray(pages.id, pageIds)) : [];
   return json({
     zones: rows.map((z) => ({ id: z.id, pageId: z.pageId, geometry: z.geometry, tokenIds: z.tokenIds, feature: z.feature })),
-    pages: pageRows.map((p) => ({ id: p.id, label: p.label, width: p.imageWidth, height: p.imageHeight, source: pageSource(p) })),
+    pages: pageRows.map((p) => ({
+      id: p.id,
+      label: p.label,
+      width: p.imageWidth,
+      height: p.imageHeight,
+      source: pageSource(p),
+      rights: p.rights,
+      attribution: p.attribution,
+    })),
   });
 };
 

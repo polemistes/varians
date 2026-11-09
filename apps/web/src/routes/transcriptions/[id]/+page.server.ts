@@ -44,6 +44,8 @@ function clientPage(page: WorkbenchPageRow) {
     height: page.height,
     source: pageSource({ ...page, imageWidth: page.width, imageHeight: page.height }),
     image: pageImage(page),
+    rights: page.rights,
+    attribution: page.attribution,
   };
 }
 

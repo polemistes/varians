@@ -28,6 +28,15 @@ async function image(width: number): Promise<{ name: string; mimeType: string; b
   return { name: `scan-${width}.png`, mimeType: 'image/png', buffer };
 }
 
+/** In the dialog for one page's image: the file, when it asks for one, a rights statement and a credit line; then the upload. */
+async function uploadInDialog(page: Page, label: string, file?: { name: string; mimeType: string; buffer: Buffer }) {
+  const dialog = page.getByRole('dialog', { name: t.image.addTitle(label) });
+  if (file) await dialog.getByLabel(t.image.file, { exact: true }).setInputFiles(file);
+  await dialog.getByLabel(t.rights.statement).selectOption({ label: 'CC BY 4.0' });
+  await dialog.getByLabel(t.rights.credit).fill('Bibliotheca Testiana');
+  await dialog.getByRole('button', { name: t.image.submit }).click();
+}
+
 async function shot(page: Page, name: string) {
   if (shots) await page.screenshot({ path: `${shots}/${name}.png` });
 }
@@ -100,12 +109,12 @@ test('pages are managed from the transcription workbench', async ({ page }) => {
   await expect(pane.getByText(t.summary(4, 0))).toBeVisible();
   await shot(page, '1-pages-added');
 
-  // An image from the card of 1r.
+  // An image from the card of 1r, with its rights statement: the witness has no default, so the dialog asks.
   const card = (label: string) => grid.getByRole('article', { name: label, exact: true });
-  let chooser = page.waitForEvent('filechooser');
   await card('1r').getByRole('button', { name: t.card.addImage }).click();
-  await (await chooser).setFiles(await image(401));
+  await uploadInDialog(page, '1r', await image(401));
   await expect(card('1r').locator('img')).toBeVisible({ timeout: 20_000 });
+  await expect(card('1r').getByText('CC BY 4.0')).toBeVisible();
   await expect(pane.getByText(t.summary(4, 1))).toBeVisible();
 
   // A click on a card goes to that page; the facsimile there offers an image for it.
@@ -116,18 +125,20 @@ test('pages are managed from the transcription workbench', async ({ page }) => {
   await expect(pane.getByRole('tab', { name: w.pane.facsimile })).toHaveAttribute('data-state', 'active');
   await expect(pane.getByText(w.facsimile.noImage('1v'))).toBeVisible();
   await shot(page, '2-facsimile-no-image');
-  chooser = page.waitForEvent('filechooser');
+  let chooser = page.waitForEvent('filechooser');
   await pane.getByRole('button', { name: w.facsimile.addImage }).click();
   await (await chooser).setFiles(await image(402));
+  await uploadInDialog(page, '1v');
   await expect(pane.getByRole('toolbar', { name: w.facsimile.tools })).toBeVisible({ timeout: 20_000 });
+  // The credit line and the statement under the image.
+  await expect(pane.locator('[data-image-credit]')).toHaveText(/Bibliotheca Testiana · CC BY 4\.0/);
   await shot(page, '3-facsimile-image');
 
   // Back on the tab: 2r gets 2r's image, but on 2v by mistake; then it is moved.
   await pane.getByRole('tab', { name: w.pane.pages }).click();
   await expect(pane.getByText(t.summary(4, 2))).toBeVisible();
-  chooser = page.waitForEvent('filechooser');
   await card('2v').getByRole('button', { name: t.card.addImage }).click();
-  await (await chooser).setFiles(await image(403));
+  await uploadInDialog(page, '2v', await image(403));
   await expect(card('2v').locator('img')).toBeVisible({ timeout: 20_000 });
   expect(await widths()).toEqual([['1r', 401], ['1v', 402], ['2r', null], ['2v', 403]]);
 
@@ -176,4 +187,18 @@ test('pages are managed from the transcription workbench', async ({ page }) => {
   await page.goto(`/witnesses/${witnessSlug}/pages`);
   await expect(page.getByRole('list', { name: t.gridLabel }).getByRole('listitem')).toHaveCount(5);
   await shot(page, '7-pages-screen');
+
+  // The rights went with the images; one page's are changed from its menu.
+  const screenCard = (label: string) => page.getByRole('list', { name: t.gridLabel }).getByRole('article', { name: label, exact: true });
+  await expect(screenCard('2v').getByText('CC BY 4.0')).toBeVisible();
+  await screenCard('2v').getByRole('button', { name: t.card.menu('2v') }).click();
+  await page.getByRole('menuitem', { name: t.menu.rights }).click();
+  const rights = page.getByRole('dialog', { name: t.rights.title('2v') });
+  await expect(rights.getByLabel(t.rights.credit)).toHaveValue('Bibliotheca Testiana');
+  await rights.getByLabel(t.rights.statement).selectOption({ label: 'In Copyright' });
+  await expect(rights.getByText(t.rights.notCopyable)).toBeVisible();
+  await rights.getByRole('button', { name: t.rights.submit }).click();
+  await expect(page.getByText(t.rights.saved('2v'))).toBeVisible();
+  await expect(screenCard('2v').getByText('In Copyright')).toBeVisible();
+  await shot(page, '8-page-rights');
 });

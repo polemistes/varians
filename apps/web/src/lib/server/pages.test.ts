@@ -27,7 +27,12 @@ import {
   mergeOrder,
   moveImage,
   movePage,
+  canvasRights,
   pageSource,
+  pagesWithoutRights,
+  parseImageRights,
+  setWitnessImageDefaults,
+  updatePageRights,
   pageViewsOf,
   pagesOfWitness,
   shiftImages,
@@ -203,6 +208,10 @@ let db: Database;
 let pool: pg.Pool;
 let root: string;
 const ids = { user: newId(), witness: newId(), other: newId(), iiif: newId(), transcription: newId() };
+const CC_BY = 'https://creativecommons.org/licenses/by/4.0/';
+const PDM = 'https://creativecommons.org/publicdomain/mark/1.0/';
+const IN_COPYRIGHT = 'http://rightsstatements.org/vocab/InC/1.0/';
+const RIGHTS = { rights: CC_BY, attribution: 'Test Library', imageSource: null };
 
 async function testImage(width = 1300, height = 900): Promise<Buffer> {
   const channels = 3;
@@ -354,7 +363,7 @@ describe('the list of pages', () => {
 describe('uploaded images', () => {
   it('attaches an upload, tiles it, and detaches it again', async () => {
     const [page] = await addPages(db, ids.witness, ['4r']);
-    const attached = await attachUpload(db, page!.id, await testImage(), root);
+    const attached = await attachUpload(db, page!.id, await testImage(), RIGHTS, root);
     expect(attached).toMatchObject({
       imageKind: 'upload',
       imagePath: `images/${page!.id}/original.png`,
@@ -378,19 +387,19 @@ describe('uploaded images', () => {
     expect(await exists(path.join(root, 'images', page!.id))).toBe(false);
     expect(await exists(path.join(root, 'tiles', page!.id))).toBe(false);
 
-    await expect(attachUpload(db, page!.id, Buffer.from('not an image at all'), root)).rejects.toMatchObject({
+    await expect(attachUpload(db, page!.id, Buffer.from('not an image at all'), RIGHTS, root)).rejects.toMatchObject({
       code: 'unreadable',
     });
-    await expect(attachUpload(db, page!.id, await testImage(40, 40), root, { maxBytes: 10 })).rejects.toBeInstanceOf(UploadError);
-    expect(await attachUpload(db, 'no-such-page', await testImage(40, 40), root)).toBeNull();
+    await expect(attachUpload(db, page!.id, await testImage(40, 40), RIGHTS, root, { maxBytes: 10 })).rejects.toBeInstanceOf(UploadError);
+    expect(await attachUpload(db, 'no-such-page', await testImage(40, 40), RIGHTS, root)).toBeNull();
   });
 
   it('adds a page with its image, and none for a file that is not an image', async () => {
     const before = await labels(ids.witness);
-    const page = await addImagePage(db, ids.witness, 'IMG_0007', await testImage(600, 800), root);
+    const page = await addImagePage(db, ids.witness, 'IMG_0007', await testImage(600, 800), RIGHTS, root);
     expect(page).toMatchObject({ label: 'IMG_0007', imageKind: 'upload', imageWidth: 600, imageHeight: 800 });
     expect(await labels(ids.witness)).toEqual([...before, 'IMG_0007']);
-    await expect(addImagePage(db, ids.witness, 'broken', Buffer.from('GIF89a nonsense'), root)).rejects.toBeInstanceOf(UploadError);
+    await expect(addImagePage(db, ids.witness, 'broken', Buffer.from('GIF89a nonsense'), RIGHTS, root)).rejects.toBeInstanceOf(UploadError);
     expect(await labels(ids.witness)).toEqual([...before, 'IMG_0007']);
     const left = await readdir(path.join(root, 'images'));
     expect(left).toEqual([page.id]);
@@ -402,10 +411,117 @@ describe('uploaded images', () => {
   });
 });
 
+describe('rights of images', () => {
+  it('checks a statement, credit line and source', () => {
+    expect(parseImageRights({ rights: 'http://creativecommons.org/licenses/by/4.0/deed.de', attribution: '  Biblioteca\n Laurenziana ' })).toEqual({
+      ok: true,
+      value: { rights: CC_BY, attribution: 'Biblioteca Laurenziana', imageSource: null },
+    });
+    expect(parseImageRights({})).toMatchObject({ ok: false, field: 'rights' });
+    expect(parseImageRights({ rights: 'https://creativecommons.org/licenses/by/3.0/' })).toMatchObject({ ok: false, field: 'rights' });
+    expect(parseImageRights({ rights: CC_BY, attribution: 'x'.repeat(501) })).toMatchObject({ ok: false, field: 'attribution' });
+    expect(parseImageRights({ rights: CC_BY, imageSource: 'ftp://example.org/a.jpg' })).toMatchObject({ ok: false, field: 'imageSource' });
+    expect(parseImageRights({ rights: CC_BY, imageSource: 'https://example.org/a.jpg' })).toMatchObject({
+      ok: true,
+      value: { imageSource: 'https://example.org/a.jpg' },
+    });
+  });
+
+  it('refuses an upload without a valid statement, and stores the one given', async () => {
+    const [page] = await addPages(db, ids.witness, ['R1']);
+    for (const rights of [{}, { rights: '' }, { rights: 'https://example.org/my-licence' }]) {
+      await expect(attachUpload(db, page!.id, await testImage(40, 40), rights, root)).rejects.toMatchObject({ code: 'invalid-rights' });
+    }
+    expect(await exists(path.join(root, 'images', page!.id))).toBe(false);
+    const before = await labels(ids.witness);
+    await expect(addImagePage(db, ids.witness, 'R2', await testImage(40, 40), {}, root)).rejects.toBeInstanceOf(PageError);
+    expect(await labels(ids.witness)).toEqual(before);
+
+    const attached = await attachUpload(
+      db,
+      page!.id,
+      await testImage(40, 40),
+      { rights: 'https://rightsstatements.org/vocab/InC/1.0', attribution: 'Owner', imageSource: 'https://example.org/r1.jpg' },
+      root,
+    );
+    expect(attached).toMatchObject({ rights: IN_COPYRIGHT, attribution: 'Owner', imageSource: 'https://example.org/r1.jpg' });
+    const added = await addImagePage(db, ids.witness, 'R2', await testImage(40, 40), RIGHTS, root);
+    expect(added).toMatchObject({ rights: CC_BY, attribution: 'Test Library', imageSource: null });
+
+    // A new image replaces the rights of the old; taking the image away takes them too.
+    const replaced = await attachUpload(db, page!.id, await testImage(40, 40), { rights: PDM }, root);
+    expect(replaced).toMatchObject({ rights: PDM, attribution: null, imageSource: null });
+    const detached = await detachImage(db, page!.id, root);
+    expect(detached).toMatchObject({ rights: null, attribution: null, imageSource: null });
+    await removePage(db, page!.id, root, true);
+    await removePage(db, added.id, root, true);
+  });
+
+  it('moves the rights with the image', async () => {
+    const [a, b] = await addPages(db, ids.other, ['M1', 'M2']);
+    await attachUpload(db, a!.id, await testImage(40, 40), { rights: PDM, attribution: 'A' }, root);
+    const moved = await moveImage(db, a!.id, b!.id, root);
+    expect(moved.ok).toBe(true);
+    const [[from], [to]] = await Promise.all([
+      db.select().from(pages).where(eq(pages.id, a!.id)),
+      db.select().from(pages).where(eq(pages.id, b!.id)),
+    ]);
+    expect(from).toMatchObject({ imageKind: null, rights: null, attribution: null });
+    expect(to).toMatchObject({ imageKind: 'upload', rights: PDM, attribution: 'A' });
+    await removePage(db, a!.id, root, true);
+    await removePage(db, b!.id, root, true);
+  });
+
+  it('changes the rights of a page', async () => {
+    const [page] = await addPages(db, ids.other, ['U1']);
+    await attachUpload(db, page!.id, await testImage(40, 40), RIGHTS, root);
+    const updated = await updatePageRights(db, page!.id, { rights: IN_COPYRIGHT, attribution: 'Holder', imageSource: 'https://example.org/u1' });
+    expect(updated).toMatchObject({ rights: IN_COPYRIGHT, attribution: 'Holder', imageSource: 'https://example.org/u1' });
+    await expect(updatePageRights(db, page!.id, { rights: 'nonsense' })).rejects.toMatchObject({ code: 'invalid-rights' });
+    expect(await updatePageRights(db, 'no-such-page', RIGHTS)).toBeNull();
+    await removePage(db, page!.id, root, true);
+  });
+
+  it('stores the witness defaults and gives them to the images without a statement', async () => {
+    const witness = newId();
+    await db.insert(witnesses).values({ id: witness, slug: `w-${witness}`, siglum: 'D', name: 'Defaults' });
+    const [stated, bare, credited, imageless] = await addPages(db, witness, ['1', '2', '3', '4']);
+    await attachUpload(db, stated!.id, await testImage(40, 40), { rights: PDM, attribution: 'Own' }, root);
+    await attachUpload(db, bare!.id, await testImage(40, 40), RIGHTS, root);
+    await attachUpload(db, credited!.id, await testImage(40, 40), RIGHTS, root);
+    // As an import leaves them: images without a statement, one of them with a credit line of its own.
+    await db.update(pages).set({ rights: null, attribution: null }).where(eq(pages.id, bare!.id));
+    await db.update(pages).set({ rights: null, attribution: 'From the manifest' }).where(eq(pages.id, credited!.id));
+    expect(await pagesWithoutRights(db, witness)).toBe(2);
+
+    // Without applying, only the witness changes.
+    expect(await setWitnessImageDefaults(db, witness, { imageRights: IN_COPYRIGHT, imageAttribution: 'Library' })).toBe(0);
+    let [row] = await db.select().from(witnesses).where(eq(witnesses.id, witness));
+    expect(row).toMatchObject({ imageRights: IN_COPYRIGHT, imageAttribution: 'Library' });
+    expect(await pagesWithoutRights(db, witness)).toBe(2);
+
+    expect(await setWitnessImageDefaults(db, witness, { imageRights: 'http://rightsstatements.org/vocab/InC/1.0', imageAttribution: 'Library' }, true)).toBe(2);
+    const after = new Map((await pagesOfWitness(db, witness)).map((p) => [p.id, p]));
+    expect(after.get(stated!.id)).toMatchObject({ rights: PDM, attribution: 'Own' });
+    expect(after.get(bare!.id)).toMatchObject({ rights: IN_COPYRIGHT, attribution: 'Library' });
+    expect(after.get(credited!.id)).toMatchObject({ rights: IN_COPYRIGHT, attribution: 'From the manifest' });
+    expect(after.get(imageless!.id)).toMatchObject({ rights: null, attribution: null });
+    expect(await pagesWithoutRights(db, witness)).toBe(0);
+
+    // An empty statement clears the default; a statement not listed is refused.
+    expect(await setWitnessImageDefaults(db, witness, { imageRights: '', imageAttribution: '' }, true)).toBe(0);
+    [row] = await db.select().from(witnesses).where(eq(witnesses.id, witness));
+    expect(row).toMatchObject({ imageRights: null, imageAttribution: null });
+    await expect(setWitnessImageDefaults(db, witness, { imageRights: 'https://example.org/licence' })).rejects.toMatchObject({ code: 'invalid-rights' });
+    for (const page of await pagesOfWitness(db, witness)) await removePage(db, page.id, root, true);
+    await db.delete(witnesses).where(eq(witnesses.id, witness));
+  });
+});
+
 describe('an image moved to another page', () => {
   it('moves an upload with its files, swaps two uploads, and refuses what makes no sense', async () => {
     const [first, second, third] = await addPages(db, ids.witness, ['m1', 'm2', 'm3']);
-    await attachUpload(db, first!.id, await testImage(400, 300), root);
+    await attachUpload(db, first!.id, await testImage(400, 300), RIGHTS, root);
     const originalVersion = pageSource((await pagesOfWitness(db, ids.witness)).find((p) => p.id === first!.id)!);
 
     // To a page without an image: the files follow, the first page is left bare.
@@ -429,7 +545,7 @@ describe('an image moved to another page', () => {
     expect(pageSource(moved.to)).not.toEqual(originalVersion);
 
     // Two uploads change places, and so do their files.
-    await attachUpload(db, third!.id, await testImage(200, 500), root);
+    await attachUpload(db, third!.id, await testImage(200, 500), RIGHTS, root);
     const swapped = await moveImage(db, third!.id, second!.id, root);
     expect(swapped).toMatchObject({ ok: true, swapped: true });
     if (!swapped.ok) throw new Error('unreachable');
@@ -470,9 +586,9 @@ describe('an image moved to another page', () => {
     const list = await addPages(db, shiftId, ['s1', 's2', 's3', 's4']);
     const [p1, p2, p3, p4] = list as [typeof list[number], typeof list[number], typeof list[number], typeof list[number]];
     // Images on s1, s2 and s4 (s3 is a gap), sized so that each can be told apart.
-    await attachUpload(db, p1.id, await testImage(101, 50), root);
-    await attachUpload(db, p2.id, await testImage(102, 50), root);
-    await attachUpload(db, p4.id, await testImage(104, 50), root);
+    await attachUpload(db, p1.id, await testImage(101, 50), RIGHTS, root);
+    await attachUpload(db, p2.id, await testImage(102, 50), RIGHTS, root);
+    await attachUpload(db, p4.id, await testImage(104, 50), RIGHTS, root);
     const widths = async () => (await pagesOfWitness(db, shiftId)).map((p) => [p.label, p.imageWidth]);
 
     // Later from s2: s2 → s3, gap → s4, s4 → a new page s5.
@@ -505,7 +621,7 @@ describe('an image moved to another page', () => {
 
   it('shows the pages as the screens need them', async () => {
     const [a, b] = await addPages(db, ids.witness, ['v1', 'v2']);
-    await attachUpload(db, a!.id, await testImage(100, 100), root);
+    await attachUpload(db, a!.id, await testImage(100, 100), RIGHTS, root);
     await setBreaks([b!.id]);
     const views = await pageViewsOf(db, ids.witness);
     const viewA = views.find((v) => v.id === a!.id)!;
@@ -600,7 +716,7 @@ describe('IIIF manifests', () => {
     // Start over: a page without an image that a transcription breaks to, and an upload nothing refers to.
     for (const page of await pagesOfWitness(db, ids.iiif)) await removePage(db, page.id, root, true);
     const [blank, note] = await addPages(db, ids.iiif, ['2r', 'Note']);
-    const upload = await addImagePage(db, ids.iiif, 'scan', await testImage(64, 64), root);
+    const upload = await addImagePage(db, ids.iiif, 'scan', await testImage(64, 64), RIGHTS, root);
     await db
       .insert(transcriptions)
       .values({
@@ -629,6 +745,64 @@ describe('IIIF manifests', () => {
     const kept = stored.find((p) => p.id === blank!.id)!;
     expect(kept).toMatchObject({ label: '2r', imageKind: 'iiif', imageIiif: service(3), imageWidth: 2002 });
     expect(stored.find((p) => p.label === 'Plate')).toMatchObject({ imageKind: null, imageIiif: null });
+  });
+
+  it('takes the rights of a canvas, else of the manifest', () => {
+    const m = { rights: 'http://creativecommons.org/licenses/by/4.0/', attribution: 'Library' };
+    expect(canvasRights(m, {})).toEqual({ rights: CC_BY, attribution: 'Library', unlisted: null });
+    expect(canvasRights(m, { rights: 'http://creativecommons.org/publicdomain/mark/1.0/' })).toEqual({ rights: PDM, attribution: 'Library', unlisted: null });
+    expect(canvasRights(m, { attribution: 'Folio credit' })).toEqual({ rights: CC_BY, attribution: 'Folio credit', unlisted: null });
+    expect(canvasRights({}, { rights: 'https://library.example.org/terms' })).toEqual({
+      rights: null,
+      attribution: 'https://library.example.org/terms',
+      unlisted: 'https://library.example.org/terms',
+    });
+    expect(canvasRights({ attribution: 'Library' }, { rights: 'https://library.example.org/terms' })).toMatchObject({ rights: null, attribution: 'Library' });
+    expect(canvasRights({}, {})).toEqual({ rights: null, attribution: null, unlisted: null });
+  });
+
+  it('keeps the rights of the manifest on the pages, and says what it cannot keep', async () => {
+    const witness = newId();
+    await db.insert(witnesses).values({ id: witness, slug: `w-${witness}`, siglum: 'I', name: 'Rights from IIIF' });
+    const base = manifest(['1r', '1v', '2r']);
+    base.canvases[1]!.rights = 'http://creativecommons.org/publicdomain/mark/1.0/';
+    base.canvases[2]!.rights = 'https://library.example.org/terms';
+    mockedLoad.mockResolvedValue({ ...base, rights: 'https://creativecommons.org/licenses/by/4.0/', attribution: 'Library' });
+    const preview = await previewManifest('https://iiif.example.org/r.json', [], null);
+    expect(preview.rights).toEqual({
+      rights: CC_BY,
+      label: 'CC BY 4.0',
+      unlisted: null,
+      attribution: 'Library',
+      ownStatements: 2,
+      fallback: null,
+      fallbackLabel: null,
+    });
+    expect(preview.warnings).toEqual([expect.stringContaining('https://library.example.org/terms')]);
+
+    const summary = await importManifest(db, witness, 'https://iiif.example.org/r.json', { storageRoot: root });
+    expect(summary.warnings).toEqual([expect.stringContaining('https://library.example.org/terms')]);
+    const stored = await pagesOfWitness(db, witness);
+    expect(stored.map((p) => [p.label, p.rights, p.attribution, p.imageSource])).toEqual([
+      ['1r', CC_BY, 'Library', 'https://iiif.example.org/r.json'],
+      ['1v', PDM, 'Library', 'https://iiif.example.org/r.json'],
+      ['2r', null, 'Library', 'https://iiif.example.org/r.json'],
+    ]);
+
+    // A manifest that states nothing: the pages take the witness's defaults, a blank page taking an image too.
+    for (const page of stored) await removePage(db, page.id, root, true);
+    await setWitnessImageDefaults(db, witness, { imageRights: IN_COPYRIGHT, imageAttribution: 'Our photographs' });
+    await addPages(db, witness, ['1v']);
+    mockedLoad.mockResolvedValue(manifest(['1r', '1v']));
+    const fallback = await previewManifest('https://iiif.example.org/s.json', [], IN_COPYRIGHT);
+    expect(fallback.rights).toMatchObject({ rights: null, fallback: IN_COPYRIGHT, fallbackLabel: 'In Copyright' });
+    await importManifest(db, witness, 'https://iiif.example.org/s.json', { onlyNew: true, storageRoot: root });
+    expect((await pagesOfWitness(db, witness)).map((p) => [p.label, p.imageKind, p.rights, p.attribution])).toEqual([
+      ['1r', 'iiif', IN_COPYRIGHT, 'Our photographs'],
+      ['1v', 'iiif', IN_COPYRIGHT, 'Our photographs'],
+    ]);
+    for (const page of await pagesOfWitness(db, witness)) await removePage(db, page.id, root, true);
+    await db.delete(witnesses).where(eq(witnesses.id, witness));
   });
 
   it('passes on the errors of the manifest reader, and refuses a witness that does not exist', async () => {

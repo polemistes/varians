@@ -15,6 +15,8 @@
   import { rectOf, type Id, type Rect, type ZoneGeometry } from '@varians/core';
   import FacsimileViewer from '$lib/components/facsimile/FacsimileViewer.svelte';
   import BoxGroup from '$lib/components/facsimile/BoxGroup.svelte';
+  import ImageCredit from '$lib/components/facsimile/ImageCredit.svelte';
+  import PageImageDialog, { type ImageChoice, type ImageRequest } from '$lib/components/pages/PageImageDialog.svelte';
   import { Button, Checkbox, Dialog, EmptyState, Menu, MenuItem, MenuSeparator, Spinner, toasts } from '$lib/components/ui';
   import { failureMessage, megabytes, uploadToAction } from '$lib/components/pages/client';
   import { ACCEPT_IMAGES, isImageFile } from '$lib/components/pages/files';
@@ -498,9 +500,22 @@
     if (file) void giveImage(file);
   }
 
-  async function giveImage(file: File) {
+  /** A file for a page without an image, waiting for its rights statement when the witness has no default. */
+  let imageRequest = $state<ImageRequest | null>(null);
+
+  function giveImage(file: File) {
     const target = page;
     if (!target || !wb.canMaintainWitness) return;
+    const defaults = wb.imageDefaults;
+    if (defaults.rights) {
+      void sendImage(target.id, { file, rights: defaults.rights, attribution: defaults.attribution ?? '', imageSource: '' });
+      return;
+    }
+    imageRequest = { id: target.id, label: target.label, imageKind: null, zones: 0, rights: null, attribution: null, file };
+  }
+
+  async function sendImage(pageId: string, choice: ImageChoice) {
+    const { file } = choice;
     if (!isImageFile(file)) {
       toasts.error(pageStrings.upload.notImage);
       return;
@@ -510,8 +525,11 @@
       return;
     }
     const body = new FormData();
-    body.append('pageId', target.id);
+    body.append('pageId', pageId);
     body.append('file', file);
+    body.append('rights', choice.rights);
+    body.append('attribution', choice.attribution);
+    body.append('imageSource', choice.imageSource);
     upload = { progress: 0, processing: false };
     const result = await uploadToAction('replaceImage', body, (fraction) => (upload = { progress: fraction, processing: fraction >= 1 }), wb.pagesBase).result;
     if (result.type === 'success') {
@@ -702,8 +720,18 @@
         </FacsimileViewer>
       {/if}
     </div>
+    <ImageCredit rights={page.rights} attribution={page.attribution} class="shrink-0 truncate border-t border-line px-3 py-1" />
   {/if}
 </div>
+
+{#if wb.canMaintainWitness}
+  <PageImageDialog
+    bind:request={imageRequest}
+    defaults={wb.imageDefaults}
+    maxBytes={wb.maxUploadBytes}
+    onconfirm={(request, choice) => void sendImage(request.id, choice)}
+  />
+{/if}
 
 <Dialog bind:open={confirmAll} title={t.facsimile.delete.confirmTitle} description={t.facsimile.delete.confirmBody(wordBoxes.length, page?.label ?? '')} size="sm">
   {#snippet footer()}

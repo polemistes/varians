@@ -86,7 +86,7 @@
     {#if canMaintain && tool && pages}
       <div class="relative mb-4">
         {#if tool === 'upload'}
-          <UploadImages {lastLabel} maxBytes={wb.maxUploadBytes} base={wb.pagesBase} onchanged={load} />
+          <UploadImages {lastLabel} defaults={wb.imageDefaults} maxBytes={wb.maxUploadBytes} base={wb.pagesBase} onchanged={load} />
         {:else}
           <AddPagesForm roll={info?.roll ?? false} base={wb.pagesBase} onchanged={load} />
         {/if}
@@ -108,6 +108,7 @@
       <PageGrid
         {pages}
         maxUploadBytes={wb.maxUploadBytes}
+        defaults={wb.imageDefaults}
         readonly={!canMaintain}
         current={wb.pageId}
         base={wb.pagesBase}

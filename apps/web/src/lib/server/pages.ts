@@ -13,13 +13,15 @@
  * consistent when two maintainers work at once.
  */
 
-import { newId } from '@varians/core';
+import { newId, normalizeRights, rightsStatement } from '@varians/core';
 import {
   and,
   asc,
   count,
   eq,
   inArray,
+  isNotNull,
+  isNull,
   max,
   pages,
   sql,
@@ -68,7 +70,7 @@ export const PREVIEW_CANVASES = 12;
 /** Rows per insert statement, well under PostgreSQL's limit on parameters. */
 const INSERT_CHUNK = 500;
 
-export type PageErrorCode = 'not-found' | 'invalid-label';
+export type PageErrorCode = 'not-found' | 'invalid-label' | 'invalid-rights';
 
 export class PageError extends Error {
   constructor(
@@ -292,6 +294,148 @@ export async function removePage(
   return { ok: true, page: removed };
 }
 
+// Rights of images (PLAN-2 D5)
+
+/** The longest credit line taken. */
+export const MAX_ATTRIBUTION_LENGTH = 500;
+/** The longest source address taken. */
+export const MAX_SOURCE_LENGTH = 2000;
+
+/** What an image carries besides itself: its rights statement, the credit line asked for, and where it was obtained. */
+export interface ImageRights {
+  /** One of the listed statements (IMAGE_RIGHTS), by its address. */
+  rights: string;
+  attribution: string | null;
+  imageSource: string | null;
+}
+
+/** As a form or a caller gives them, before they are checked. */
+export interface ImageRightsInput {
+  rights?: string | null;
+  attribution?: string | null;
+  imageSource?: string | null;
+}
+
+export type ImageRightsResult =
+  | { ok: true; value: ImageRights }
+  | { ok: false; field: 'rights' | 'attribution' | 'imageSource'; error: string };
+
+function httpAddress(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/** Plain text in one line, or null when empty. */
+function oneLine(value: string | null | undefined): string | null {
+  const text = (value ?? '').replace(/\s+/gu, ' ').trim();
+  return text === '' ? null : text;
+}
+
+/**
+ * Checks a rights statement, credit line and source: the statement must be
+ * one of the listed ones (in any of the forms `normalizeRights` reads), the
+ * credit line not too long, the source empty or an http(s) address.
+ */
+export function parseImageRights(input: ImageRightsInput): ImageRightsResult {
+  const rights = normalizeRights(input.rights ?? null);
+  if (!rights) return { ok: false, field: 'rights', error: pageStrings.rights.required };
+  const attribution = oneLine(input.attribution);
+  if (attribution && attribution.length > MAX_ATTRIBUTION_LENGTH) {
+    return { ok: false, field: 'attribution', error: pageStrings.rights.creditTooLong(MAX_ATTRIBUTION_LENGTH) };
+  }
+  const imageSource = oneLine(input.imageSource);
+  if (imageSource && (imageSource.length > MAX_SOURCE_LENGTH || !httpAddress(imageSource))) {
+    return { ok: false, field: 'imageSource', error: pageStrings.rights.sourceInvalid };
+  }
+  return { ok: true, value: { rights, attribution, imageSource } };
+}
+
+/** The checked rights, or a PageError('invalid-rights') with the reason. */
+function checkedRights(input: ImageRightsInput): ImageRights {
+  const parsed = parseImageRights(input);
+  if (!parsed.ok) throw new PageError('invalid-rights', parsed.error);
+  return parsed.value;
+}
+
+/**
+ * Changes the rights statement, credit line and source of a page's image.
+ * Throws PageError('invalid-rights') for a statement that is missing or not
+ * listed. Null when the page does not exist.
+ */
+export async function updatePageRights(db: Database, pageId: string, input: ImageRightsInput): Promise<Page | null> {
+  const value = checkedRights(input);
+  const [row] = await db.update(pages).set(value).where(eq(pages.id, pageId)).returning();
+  return row ?? null;
+}
+
+export interface WitnessImageDefaults {
+  /** A listed statement, or null for none. */
+  imageRights: string | null;
+  imageAttribution: string | null;
+}
+
+export type WitnessDefaultsResult =
+  | { ok: true; value: WitnessImageDefaults }
+  | { ok: false; field: 'imageRights' | 'imageAttribution'; error: string };
+
+/** Checks a witness's defaults for its images: the statement empty or listed, the credit line not too long. */
+export function parseWitnessImageDefaults(input: { imageRights?: string | null; imageAttribution?: string | null }): WitnessDefaultsResult {
+  const given = oneLine(input.imageRights);
+  const imageRights = given ? normalizeRights(given) : null;
+  if (given && !imageRights) return { ok: false, field: 'imageRights', error: pageStrings.rights.notListed };
+  const imageAttribution = oneLine(input.imageAttribution);
+  if (imageAttribution && imageAttribution.length > MAX_ATTRIBUTION_LENGTH) {
+    return { ok: false, field: 'imageAttribution', error: pageStrings.rights.creditTooLong(MAX_ATTRIBUTION_LENGTH) };
+  }
+  return { ok: true, value: { imageRights, imageAttribution } };
+}
+
+/** How many pages of a witness have an image without a rights statement. */
+export async function pagesWithoutRights(db: Db, witnessId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(pages)
+    .where(and(eq(pages.witnessId, witnessId), isNotNull(pages.imageKind), isNull(pages.rights)));
+  return row?.n ?? 0;
+}
+
+/**
+ * Stores the defaults new images of a witness are given, and with `apply`
+ * gives them to its pages whose image has no rights statement yet (a page's
+ * own credit line is kept where it has one). Returns how many pages took
+ * them. Throws PageError('invalid-rights') for a statement not listed.
+ */
+export async function setWitnessImageDefaults(
+  db: Database,
+  witnessId: string,
+  input: { imageRights?: string | null; imageAttribution?: string | null },
+  apply = false,
+): Promise<number> {
+  const parsed = parseWitnessImageDefaults(input);
+  if (!parsed.ok) throw new PageError('invalid-rights', parsed.error);
+  const { imageRights, imageAttribution } = parsed.value;
+  return db.transaction(async (tx) => {
+    await lockWitness(tx, witnessId);
+    await tx.update(witnesses).set({ imageRights, imageAttribution }).where(eq(witnesses.id, witnessId));
+    if (!apply || !imageRights) return 0;
+    const updated = await tx
+      .update(pages)
+      .set({ rights: imageRights, attribution: sql`coalesce(${pages.attribution}, ${imageAttribution})` })
+      .where(and(eq(pages.witnessId, witnessId), isNotNull(pages.imageKind), isNull(pages.rights)))
+      .returning({ id: pages.id });
+    return updated.length;
+  });
+}
+
+/** The label of a listed statement, or null. */
+export function rightsLabel(uri: string | null | undefined): string | null {
+  return rightsStatement(uri)?.label ?? null;
+}
+
 // Images
 
 export interface UploadOptions {
@@ -302,15 +446,20 @@ export interface UploadOptions {
 /**
  * Gives a page an uploaded image: the original is stored and tiled (throws
  * UploadError when the file is not an acceptable image) and the page records
- * it, replacing whatever image it had. Null when the page does not exist.
+ * it with its rights statement, credit line and source, replacing whatever
+ * image it had. Throws PageError('invalid-rights') before anything is stored
+ * when the statement is missing or not listed. Null when the page does not
+ * exist.
  */
 export async function attachUpload(
   db: Database,
   pageId: string,
   file: File | Buffer | Uint8Array,
+  rights: ImageRightsInput,
   storageRoot: string = storageDir(),
   options: UploadOptions = {},
 ): Promise<Page | null> {
+  const checked = checkedRights(rights);
   const page = await pageById(db, pageId);
   if (!page) return null;
   const accepted = await acceptUpload(file, pageId, { root: storageRoot, maxBytes: options.maxBytes });
@@ -323,6 +472,7 @@ export async function attachUpload(
       imageIiif: null,
       imageWidth: accepted.width,
       imageHeight: accepted.height,
+      ...checked,
     })
     .where(eq(pages.id, pageId))
     .returning();
@@ -335,18 +485,21 @@ export async function attachUpload(
 }
 
 /**
- * A new page at the end of the witness with an uploaded image. The image is
- * accepted first, so that a file that is not an image makes no page.
+ * A new page at the end of the witness with an uploaded image and its
+ * rights. The rights and the image are checked first, so that a missing
+ * statement or a file that is not an image makes no page.
  */
 export async function addImagePage(
   db: Database,
   witnessId: string,
   label: string,
   file: File | Buffer | Uint8Array,
+  rights: ImageRightsInput,
   storageRoot: string = storageDir(),
   options: UploadOptions = {},
 ): Promise<Page> {
   const clean = cleanLabel(label);
+  const checked = checkedRights(rights);
   const id = newId();
   try {
     const accepted = await acceptUpload(file, id, { root: storageRoot, maxBytes: options.maxBytes });
@@ -365,6 +518,7 @@ export async function addImagePage(
           tilesPath: accepted.dziPath,
           imageWidth: accepted.width,
           imageHeight: accepted.height,
+          ...checked,
         })
         .returning();
       return row!;
@@ -375,7 +529,20 @@ export async function addImagePage(
   }
 }
 
-/** Takes the image from a page: an upload's files are deleted, a IIIF image is unlinked. */
+/** Cleared image fields, with the image's rights. */
+const NO_IMAGE = {
+  imageKind: null,
+  imageIiif: null,
+  imageWidth: null,
+  imageHeight: null,
+  imagePath: null,
+  tilesPath: null,
+  rights: null,
+  attribution: null,
+  imageSource: null,
+};
+
+/** Takes the image from a page, with its rights: an upload's files are deleted, a IIIF image is unlinked. */
 export async function detachImage(
   db: Database,
   pageId: string,
@@ -383,7 +550,7 @@ export async function detachImage(
 ): Promise<Page | null> {
   const [row] = await db
     .update(pages)
-    .set({ imageKind: null, imagePath: null, imageIiif: null, imageWidth: null, imageHeight: null, tilesPath: null })
+    .set(NO_IMAGE)
     .where(eq(pages.id, pageId))
     .returning();
   if (!row) return null;
@@ -405,6 +572,10 @@ function imageFieldsUnder(source: Page, pageId: string) {
     imageHeight: source.imageHeight,
     imagePath: source.imagePath ? `${imageDir(pageId)}/${name(source.imagePath)}` : null,
     tilesPath: source.tilesPath ? `${tilesDir(pageId)}/${name(source.tilesPath)}` : null,
+    // The rights are the image's, and go where it goes.
+    rights: source.rights,
+    attribution: source.attribution,
+    imageSource: source.imageSource,
   };
 }
 
@@ -452,9 +623,6 @@ export type ShiftDirection = 'later' | 'earlier';
 export type ShiftImagesResult =
   | { ok: true; moved: number; added: Page | null }
   | { ok: false; reason: 'not-found' | 'first-page' | 'occupied' | 'nothing' };
-
-/** Cleared image fields. */
-const NO_IMAGE = { imageKind: null, imageIiif: null, imageWidth: null, imageHeight: null, imagePath: null, tilesPath: null };
 
 /**
  * Shifts the images of a witness's pages by one, from a page to the end:
@@ -543,11 +711,57 @@ function dimension(value: number): number | null {
   return Number.isFinite(value) && value > 0 ? Math.round(value) : null;
 }
 
+export interface CanvasRights {
+  /** A listed statement, or null. */
+  rights: string | null;
+  attribution: string | null;
+  /** The address given when it is not a listed statement. */
+  unlisted: string | null;
+}
+
+/**
+ * The rights a canvas's page gets from the manifest: the canvas's own
+ * statement and credit line where it gives them, the manifest's otherwise,
+ * each on its own. A statement that is not listed is kept out, and its
+ * address becomes the credit line when there is no other.
+ */
+export function canvasRights(manifest: Pick<IiifManifest, 'rights' | 'attribution'>, canvas: Pick<IiifCanvas, 'rights' | 'attribution'>): CanvasRights {
+  const given = canvas.rights ?? manifest.rights ?? null;
+  const rights = normalizeRights(given);
+  const unlisted = given && !rights ? given : null;
+  return { rights, attribution: canvas.attribution ?? manifest.attribution ?? unlisted, unlisted };
+}
+
+/** A warning for every rights address in the manifest that is not a listed statement, once each. */
+export function manifestRightsWarnings(manifest: IiifManifest): string[] {
+  const unlisted = new Set<string>();
+  for (const canvas of manifest.canvases) {
+    const found = canvasRights(manifest, canvas).unlisted;
+    if (found) unlisted.add(found);
+  }
+  return [...unlisted].map((uri) => pageStrings.manifest.unlistedRights(uri));
+}
+
 export interface PreviewCanvas {
   label: string;
   thumbnail: string | null;
   width: number | null;
   height: number | null;
+}
+
+/** The rights of a manifest as the preview shows them. */
+export interface ManifestRights {
+  /** The manifest's statement when it is listed. */
+  rights: string | null;
+  label: string | null;
+  /** The manifest's statement when it is not listed. */
+  unlisted: string | null;
+  attribution: string | null;
+  /** Canvases whose own statement differs from the manifest's. */
+  ownStatements: number;
+  /** The witness's statement, which pages take when the manifest gives none. */
+  fallback: string | null;
+  fallbackLabel: string | null;
 }
 
 export interface ManifestPreview {
@@ -564,6 +778,7 @@ export interface ManifestPreview {
   attachable: number;
   /** The first PREVIEW_CANVASES canvases. */
   canvases: PreviewCanvas[];
+  rights: ManifestRights;
   warnings: string[];
 }
 
@@ -571,11 +786,15 @@ type ExistingPage = Pick<Page, 'label' | 'imageKind' | 'imageIiif'>;
 
 /**
  * Reads a manifest for the import dialog: its canvases with thumbnails (the
- * first few), how many there are, and, given the pages a witness has, how
- * many of them are already there. Throws ManifestError.
+ * first few), how many there are, its rights, and, given the pages a witness
+ * has, how many of them are already there. `fallback` is the witness's
+ * default statement, which pages take when the manifest gives none. Throws
+ * ManifestError.
  */
-export async function previewManifest(url: string, existing: ExistingPage[] = []): Promise<ManifestPreview> {
+export async function previewManifest(url: string, existing: ExistingPage[] = [], fallback: string | null = null): Promise<ManifestPreview> {
   const manifest = await loadManifest(url);
+  const manifestRights = normalizeRights(manifest.rights ?? null);
+  const ownStatements = manifest.canvases.filter((c) => c.rights && normalizeRights(c.rights) !== manifestRights).length;
   const services = new Set(
     existing.filter((p) => p.imageKind === 'iiif' && p.imageIiif).map((p) => normalizeServiceId(p.imageIiif!)),
   );
@@ -612,7 +831,16 @@ export async function previewManifest(url: string, existing: ExistingPage[] = []
       width: dimension(canvas.width),
       height: dimension(canvas.height),
     })),
-    warnings: manifest.warnings,
+    rights: {
+      rights: manifestRights,
+      label: rightsLabel(manifestRights),
+      unlisted: manifest.rights && !manifestRights ? manifest.rights : null,
+      attribution: manifest.attribution ?? null,
+      ownStatements,
+      fallback: normalizeRights(fallback),
+      fallbackLabel: rightsLabel(normalizeRights(fallback)),
+    },
+    warnings: [...manifest.warnings, ...manifestRightsWarnings(manifest)],
   };
 }
 
@@ -676,7 +904,10 @@ export function mergeOrder(previous: string[], sequence: string[], taken: Set<st
  * an image takes the image of the canvas with its label; the new pages are
  * placed in the manifest's order around the pages already there. With
  * `replace`, the pages nothing refers to are removed first, then the same.
- * The manifest's URL is stored on the witness. Throws ManifestError.
+ * Each page with an image keeps the rights of its canvas (canvasRights), or
+ * takes the witness's defaults when the manifest states none, and the
+ * manifest's URL as its source. The manifest's URL is stored on the
+ * witness. Throws ManifestError.
  */
 export async function importManifest(
   db: Database,
@@ -685,12 +916,27 @@ export async function importManifest(
   options: ImportOptions = {},
 ): Promise<ImportSummary> {
   const manifest: IiifManifest = await loadManifest(manifestUrl);
-  const warnings = [...manifest.warnings];
+  const warnings = [...manifest.warnings, ...manifestRightsWarnings(manifest)];
   const match = Boolean(options.replace || options.onlyNew);
   const removedIds: string[] = [];
 
   const summary = await db.transaction(async (tx) => {
     await lockWitness(tx, witnessId);
+    const [defaults] = await tx
+      .select({ rights: witnesses.imageRights, attribution: witnesses.imageAttribution })
+      .from(witnesses)
+      .where(eq(witnesses.id, witnessId));
+    const fallback = normalizeRights(defaults?.rights ?? null);
+    /** A canvas's rights, credit line and source: the manifest's, else the witness's defaults when the manifest states nothing. */
+    const rightsFor = (canvas: IiifCanvas) => {
+      const found = canvasRights(manifest, canvas);
+      const useDefault = !found.rights && !found.unlisted && fallback !== null;
+      return {
+        rights: found.rights ?? (useDefault ? fallback : null),
+        attribution: found.attribution ?? (useDefault ? (defaults?.attribution ?? null) : null),
+        imageSource: manifestUrl,
+      };
+    };
     let existing = await pagesOfWitness(tx, witnessId);
 
     if (options.replace) {
@@ -753,6 +999,7 @@ export async function importManifest(
         imageIiif: service,
         imageWidth: service ? dimension(canvas.width) : null,
         imageHeight: service ? dimension(canvas.height) : null,
+        ...(service ? rightsFor(canvas) : {}),
       });
       sequence.push(id);
     });
@@ -771,6 +1018,7 @@ export async function importManifest(
           tilesPath: null,
           imageWidth: dimension(canvas.width),
           imageHeight: dimension(canvas.height),
+          ...rightsFor(canvas),
         })
         .where(eq(pages.id, id));
     }
@@ -884,6 +1132,9 @@ export async function pageViewsOf(db: Db, witnessId: string): Promise<PageView[]
     image: pageImage(page),
     zones: references.get(page.id)?.zones ?? 0,
     transcriptions: references.get(page.id)?.transcriptions ?? 0,
+    rights: page.rights,
+    attribution: page.attribution,
+    imageSource: page.imageSource,
   }));
 }
 

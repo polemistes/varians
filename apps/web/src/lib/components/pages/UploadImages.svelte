@@ -6,7 +6,7 @@
    * into a list and sent one by one, each with its progress and its error;
    * without, the form posts them all at once.
    */
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { invalidateAll } from '$app/navigation';
   import Check from '@lucide/svelte/icons/check';
   import CircleAlert from '@lucide/svelte/icons/circle-alert';
@@ -17,6 +17,8 @@
   import { actionUrl, failureMessage, megabytes, uploadToAction, type Upload } from './client';
   import { ACCEPT_IMAGES, isImageFile } from './files';
   import { compareNames, labelFromFileName, labelsAfter, sortByName } from './labels';
+  import RightsFields from './RightsFields.svelte';
+  import type { ImageDefaults } from './types';
 
   type EntryState = 'queued' | 'uploading' | 'processing' | 'done' | 'failed';
 
@@ -40,6 +42,8 @@
   interface Props {
     /** The label of the last page, which a sequence continues. */
     lastLabel: string | null;
+    /** The witness's rights statement and credit line, which the fields start with. */
+    defaults?: ImageDefaults;
     maxBytes: number;
     /** The upload action's answer when the form was sent without script. */
     result?: NoScriptResult | null;
@@ -49,7 +53,7 @@
     onchanged?: () => Promise<void> | void;
   }
 
-  let { lastLabel, maxBytes, result = null, base = '', onchanged = invalidateAll }: Props = $props();
+  let { lastLabel, defaults = { rights: null, attribution: null }, maxBytes, result = null, base = '', onchanged = invalidateAll }: Props = $props();
 
   let scripted = $state(false);
   let entries = $state<Entry[]>([]);
@@ -62,6 +66,11 @@
   let inFlight = $state<string | null>(null);
   let stopping = false;
   let sequenceKey = 0;
+  /** The rights every image of this upload is given. */
+  let rights = $state(untrack(() => defaults.rights ?? ''));
+  let attribution = $state(untrack(() => defaults.attribution ?? ''));
+  let source = $state('');
+  let rightsError = $state<string | null>(null);
 
   onMount(() => {
     scripted = true;
@@ -147,6 +156,11 @@
       if (entries.length === 0) input?.click();
       return;
     }
+    if (!rights) {
+      rightsError = t.rights.required;
+      return;
+    }
+    rightsError = null;
     running = true;
     stopping = false;
     const sequence = mode === 'sequence' && canContinue;
@@ -166,6 +180,9 @@
       const body = new FormData();
       body.append('file', entry.file);
       body.append('label', entry.label);
+      body.append('rights', rights);
+      body.append('attribution', attribution);
+      body.append('imageSource', source);
       current = uploadToAction(
         'upload',
         body,
@@ -284,6 +301,10 @@
           <span>{t.upload.byName}</span>
         </label>
       </fieldset>
+    {/if}
+
+    {#if !scripted || entries.length > 0}
+      <RightsFields bind:rights bind:attribution bind:source required disabled={running} errors={{ rights: rightsError }} />
     {/if}
 
     {#if entries.length > 0}

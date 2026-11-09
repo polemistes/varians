@@ -1,8 +1,10 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
+  import RightsFields from '$lib/components/pages/RightsFields.svelte';
   import { PageFrame } from '$lib/components/shell';
-  import { Button, toasts } from '$lib/components/ui';
+  import { Button, Checkbox, toasts } from '$lib/components/ui';
   import {
     ConfirmDialog,
     FormSection,
@@ -29,6 +31,26 @@
   let saving = $state(false);
   let deleteOpen = $state(false);
 
+  // The defaults for images
+  const imagesFailed = $derived(form && 'form' in form && form.form === 'images' && 'errors' in form ? form : null);
+  const imageErrors = $derived((imagesFailed?.errors ?? {}) as Record<string, string[] | undefined>);
+  let imageRights = $state(untrack(() => data.images.imageRights));
+  let imageAttribution = $state(untrack(() => data.images.imageAttribution));
+  let applyToPages = $state(false);
+  let savingImages = $state(false);
+
+  const saveImages: SubmitFunction = () => {
+    savingImages = true;
+    return async ({ result, update }) => {
+      savingImages = false;
+      if (result.type === 'success' && result.data?.message) {
+        toasts.success(String(result.data.message));
+        applyToPages = false;
+      }
+      await update({ reset: false });
+    };
+  };
+
   const save: SubmitFunction = () => {
     saving = true;
     return async ({ result, update }) => {
@@ -51,6 +73,24 @@
     >
       <WitnessFields {values} {errors} />
       <div><Button type="submit" variant="primary" loading={saving}>{s.save}</Button></div>
+    </form>
+  </FormSection>
+
+  <FormSection title={s.imagesSection} hint={s.imagesHint}>
+    <form method="post" action="?/images" class="flex flex-col gap-4" novalidate use:enhance={saveImages}>
+      <RightsFields
+        bind:rights={imageRights}
+        bind:attribution={imageAttribution}
+        withSource={false}
+        names={{ rights: 'imageRights', attribution: 'imageAttribution', source: '' }}
+        rightsLabel={s.imageRights}
+        emptyLabel={s.imageRightsNone}
+        errors={imageErrors}
+      />
+      {#if data.images.withoutRights > 0}
+        <Checkbox name="apply" bind:checked={applyToPages} disabled={!imageRights}>{s.applyToPages(data.images.withoutRights)}</Checkbox>
+      {/if}
+      <div><Button type="submit" variant="primary" loading={savingImages}>{s.imagesSave}</Button></div>
     </form>
   </FormSection>
 

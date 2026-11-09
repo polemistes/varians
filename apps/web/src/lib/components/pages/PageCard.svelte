@@ -27,12 +27,14 @@
   import ImageOff from '@lucide/svelte/icons/image-off';
   import ImageUp from '@lucide/svelte/icons/image-up';
   import Pencil from '@lucide/svelte/icons/pencil';
+  import Scale from '@lucide/svelte/icons/scale';
   import Trash2 from '@lucide/svelte/icons/trash-2';
   import X from '@lucide/svelte/icons/x';
   import { Menu, MenuItem, MenuSeparator, Spinner, toasts } from '$lib/components/ui';
   import { s } from '$lib/strings';
   import { pageStrings as t } from '$lib/strings/pages';
   import { actionUrl, failureMessage } from './client';
+  import { rightsLabel } from './rights';
   import type { PageView } from './types';
 
   interface Props {
@@ -58,6 +60,8 @@
     onreplaceimage: (page: PageView) => void;
     onmoveimage: (page: PageView) => void;
     onshiftimages: (page: PageView) => void;
+    /** The rights of the page's image. */
+    onrights: (page: PageView) => void;
     onremoveimage: (page: PageView) => void;
     onremove: (page: PageView) => void;
     /** An image file was dropped on the card. */
@@ -79,6 +83,7 @@
     onreplaceimage,
     onmoveimage,
     onshiftimages,
+    onrights,
     onremoveimage,
     onremove,
     ondropimage,
@@ -102,6 +107,8 @@
     if (page.imageKind === 'iiif') parts.push(t.card.iiif);
     return parts.join(' · ');
   });
+  /** The image's rights statement, or that it has none. */
+  const rights = $derived(page.imageKind ? (rightsLabel(page.rights) ?? t.rights.missing) : null);
   const references = $derived.by(() => {
     const parts: string[] = [];
     if (page.zones > 0) parts.push(t.card.zones(page.zones));
@@ -336,6 +343,14 @@
       {#if meta}
         <p class="mt-0.5 truncate text-xs text-ink-muted tabular-nums">{meta}</p>
       {/if}
+      {#if rights}
+        <p
+          class={['mt-0.5 truncate text-xs', page.rights ? 'text-ink-muted' : 'text-warning']}
+          title={[rights, page.attribution].filter(Boolean).join(' · ')}
+        >
+          {rights}
+        </p>
+      {/if}
       {#if references}
         <p class="mt-0.5 truncate text-xs text-ink-muted" title={t.card.referencedTitle}>{references}</p>
       {/if}
@@ -378,6 +393,10 @@
           <MenuItem disabled={count < 2 || !!busy} onSelect={() => onmoveimage(page)}>
             {#snippet icon()}<ArrowRightLeft />{/snippet}
             {t.menu.moveImage}
+          </MenuItem>
+          <MenuItem disabled={!!busy} onSelect={() => onrights(page)}>
+            {#snippet icon()}<Scale />{/snippet}
+            {t.menu.rights}
           </MenuItem>
           <MenuItem disabled={!!busy} onSelect={() => onremoveimage(page)}>
             {#snippet icon()}<ImageOff />{/snippet}

@@ -254,6 +254,17 @@ export const registry = {
     maintainersSection: 'Maintainers',
     maintainersHint:
       'Maintainers edit the description, the pages and the images. Transcribing needs no permission.',
+    imagesSection: 'Images',
+    imagesHint: 'The rights statement and credit line new images of the witness are given, unless another is chosen for them.',
+    imageRights: 'Rights of images',
+    imageRightsNone: 'None',
+    imageAttribution: 'Credit line',
+    applyToPages: (n: number) =>
+      n === 1 ? 'Also give them to the image that has no rights statement' : `Also give them to the ${n} images that have no rights statement`,
+    imagesSave: 'Save',
+    imagesSaved: 'The defaults for images have been saved.',
+    imagesApplied: (n: number) =>
+      `The defaults for images have been saved and given to ${n === 1 ? '1 image' : `${n} images`}.`,
     pages: 'Pages',
     noPages: 'No pages yet.',
     managePages: 'Manage pages',

@@ -26,12 +26,14 @@ import {
   moveImage,
   movePage,
   pageOfWitness,
+  parseImageRights,
   pageViewsOf,
   pagesOfWitness,
   previewManifest,
   removePage,
   renamePage,
   shiftImages,
+  updatePageRights,
   uploadErrorMessage,
   witnessBySlug,
 } from '$lib/server/pages';
@@ -67,6 +69,11 @@ function filesOf(form: FormData, name = 'file'): File[] {
   return form.getAll(name).filter((value): value is File => value instanceof File && value.size > 0);
 }
 
+/** The rights statement, credit line and source an upload or a page's rights form sends. */
+function rightsOf(form: FormData) {
+  return parseImageRights({ rights: text(form, 'rights'), attribution: text(form, 'attribution'), imageSource: text(form, 'imageSource') });
+}
+
 function httpUrl(value: string): boolean {
   try {
     const url = new URL(value);
@@ -87,6 +94,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
       siglum: witness.siglum,
       iiifManifest: witness.iiifManifest,
       roll: witness.category === 'manuscript' && witness.format === 'roll',
+      imageDefaults: { rights: witness.imageRights, attribution: witness.imageAttribution },
     },
     pages,
     maxUploadBytes: DEFAULT_MAX_UPLOAD_BYTES,
@@ -130,6 +138,8 @@ export const actions: Actions = {
     if (files.length === 0) {
       return fail(400, { action: 'upload' as const, ok: false as const, error: t.upload.noFiles, failed: [] });
     }
+    const rights = rightsOf(form);
+    if (!rights.ok) return fail(400, { action: 'upload' as const, ok: false as const, error: rights.error, failed: [] });
     const given = form.getAll('label').map(String);
     /** Each file with its label, or null for the next label of the sequence. */
     let queue: { file: File; label: string | null }[];
@@ -151,7 +161,7 @@ export const actions: Actions = {
       // A sequence continues from the last page added, so that a file that fails leaves no gap.
       const wanted = label ?? labelsAfter(cursor, 1)?.[0] ?? labelFromFileName(file.name);
       try {
-        const page = await addImagePage(locals.db, witness.id, wanted, file, storageDir());
+        const page = await addImagePage(locals.db, witness.id, wanted, file, rights.value, storageDir());
         added.push(page.label);
         cursor = page.label;
       } catch (cause) {
@@ -188,8 +198,10 @@ export const actions: Actions = {
     if (!file) {
       return fail(400, { action: 'replaceImage' as const, ok: false as const, pageId: page.id, error: t.upload.fileRequired });
     }
+    const rights = rightsOf(form);
+    if (!rights.ok) return fail(400, { action: 'replaceImage' as const, ok: false as const, pageId: page.id, error: rights.error });
     try {
-      const updated = await attachUpload(locals.db, page.id, file, storageDir());
+      const updated = await attachUpload(locals.db, page.id, file, rights.value, storageDir());
       if (!updated) return fail(404, { action: 'replaceImage' as const, ok: false as const, error: t.errors.pageNotFound });
     } catch (cause) {
       if (!(cause instanceof UploadError)) throw cause;
@@ -205,6 +217,29 @@ export const actions: Actions = {
       ok: true as const,
       message: page.imageKind ? t.upload.replaced(page.label) : t.upload.attached(page.label),
     };
+  },
+
+  /** The rights statement, credit line and source of a page's image. */
+  rights: async ({ request, locals, params }) => {
+    const witness = await maintainedWitness(locals, params.slug);
+    const form = await readForm(request);
+    if (!form) return fail(400, { action: 'rights' as const, ok: false as const, error: t.upload.network });
+    const page = await pageOfWitness(locals.db, witness.id, text(form, 'pageId'));
+    if (!page) return fail(404, { action: 'rights' as const, ok: false as const, error: t.errors.pageNotFound });
+    if (!page.imageKind) return fail(400, { action: 'rights' as const, ok: false as const, pageId: page.id, error: t.rights.noImage(page.label) });
+    const rights = rightsOf(form);
+    if (!rights.ok) {
+      return fail(400, {
+        action: 'rights' as const,
+        ok: false as const,
+        pageId: page.id,
+        error: rights.error,
+        errors: { [rights.field]: [rights.error] },
+      });
+    }
+    const updated = await updatePageRights(locals.db, page.id, rights.value);
+    if (!updated) return fail(404, { action: 'rights' as const, ok: false as const, error: t.errors.pageNotFound });
+    return { action: 'rights' as const, ok: true as const, message: t.rights.saved(page.label) };
   },
 
   /** The image of one page to another page of the witness; the two change places when both have one. */
@@ -344,7 +379,7 @@ export const actions: Actions = {
     }
     try {
       const existing = await pagesOfWitness(locals.db, witness.id);
-      const found = await previewManifest(manifestUrl, existing);
+      const found = await previewManifest(manifestUrl, existing, witness.imageRights);
       const preview: ManifestPreviewView = {
         url: found.url,
         label: found.label,
@@ -353,6 +388,7 @@ export const actions: Actions = {
         present: found.present,
         attachable: found.attachable,
         canvases: found.canvases,
+        rights: found.rights,
         warnings: found.warnings,
       };
       return { action: 'preview' as const, ok: true as const, preview };

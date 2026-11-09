@@ -27,6 +27,7 @@ export const GET: RequestHandler = async ({ locals, params }) => {
       siglum: witness.siglum,
       iiifManifest: witness.iiifManifest,
       roll: witness.category === 'manuscript' && witness.format === 'roll',
+      imageDefaults: { rights: witness.imageRights, attribution: witness.imageAttribution },
     },
     pages,
     canMaintain: canMaintainWitness(locals.user, witness, maintainers),

@@ -18,11 +18,19 @@ export interface IiifCanvas {
   imageService: string | null;
   /** A direct image URL, when the painting body is a plain image resource. */
   imageUrl?: string;
+  /** The canvas's own rights address (v3 `rights`, v2 `license`), as given. */
+  rights?: string | null;
+  /** The canvas's own credit line (v3 `requiredStatement` value, v2 `attribution`), as plain text. */
+  attribution?: string | null;
 }
 
 export interface IiifManifest {
   label: string;
   version: 2 | 3;
+  /** The manifest's rights address, as given; canvases without their own take it. */
+  rights?: string | null;
+  /** The manifest's credit line, as plain text. */
+  attribution?: string | null;
   canvases: IiifCanvas[];
   /** Things the import could not read as expected, for the user to see. */
   warnings: string[];
@@ -113,6 +121,52 @@ function pickByLanguage(entries: { text: string; lang: string }[]): string | nul
     if (hit) return hit.text;
   }
   return entries[0].text;
+}
+
+const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+
+/** Text with markup taken out (IIIF allows a little HTML in values), entities read, in one line. */
+export function plainText(value: string | null): string | null {
+  if (!value) return null;
+  const text = value
+    .replace(/<[^>]*>/gu, ' ')
+    .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/giu, (whole, name: string) => {
+      if (name.startsWith('#x') || name.startsWith('#X')) return String.fromCodePoint(parseInt(name.slice(2), 16));
+      if (name.startsWith('#')) return String.fromCodePoint(Number(name.slice(1)));
+      return ENTITIES[name.toLowerCase()] ?? whole;
+    })
+    .replace(/\s+/gu, ' ')
+    .trim();
+  return text === '' ? null : text;
+}
+
+/**
+ * The rights address of a manifest or canvas: Presentation 3 `rights` (one
+ * URI), else Presentation 2 `license` (a URI, an object with an id, or a
+ * list of them; the first is taken).
+ */
+export function rightsOf(resource: Json): string | null {
+  const v3 = str(resource.rights);
+  if (v3) return v3;
+  for (const entry of asArray(resource.license)) {
+    const uri = isRecord(entry) ? str(entry['@id'] ?? entry.id) : str(entry);
+    if (uri) return uri;
+  }
+  return null;
+}
+
+/**
+ * The credit line of a manifest or canvas: the value of a Presentation 3
+ * `requiredStatement` (its label is left aside), else Presentation 2
+ * `attribution`, as plain text.
+ */
+export function attributionOf(resource: Json): string | null {
+  const statement = resource.requiredStatement;
+  if (isRecord(statement)) {
+    const value = plainText(labelText(statement.value));
+    if (value) return value;
+  }
+  return plainText(labelText(resource.attribution));
 }
 
 /** Resolves a possibly relative id against the manifest's URL; returns it unchanged when that fails. */
@@ -288,11 +342,15 @@ export function parseManifest(json: unknown, manifestUrl: string): IiifManifest 
       imageService,
     };
     if (imageUrl) result.imageUrl = imageUrl;
+    const rights = rightsOf(canvas);
+    if (rights) result.rights = rights;
+    const attribution = attributionOf(canvas);
+    if (attribution) result.attribution = attribution;
     return result;
   });
 
   if (canvases.length === 0) warnings.push('The manifest has no canvases.');
-  return { label, version, canvases, warnings };
+  return { label, version, rights: rightsOf(json), attribution: attributionOf(json), canvases, warnings };
 }
 
 export interface FetchManifestOptions {
