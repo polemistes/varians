@@ -6,7 +6,7 @@
 import { error, json } from '@sveltejs/kit';
 import { z } from 'zod';
 import type { RequestHandler } from './$types';
-import { archiveWork } from '$lib/server/archive/archive';
+import { commitDocument } from '$lib/server/archive/commits';
 import { loadEditionAccess } from '$lib/server/edition-access';
 import { archiveRoot, storageRoot } from '$lib/server/startup';
 import { PublishRefused, publishEdition, publishedVersions, unpublishEdition } from '$lib/server/publish';
@@ -38,7 +38,7 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
   }
   // The archive follows a publication; a failure there must not undo the publication.
   try {
-    await archiveWork(locals.db, access.edition.workId, archiveRoot(), `published version ${result.number}`, { storageRoot: storageRoot() });
+    await commitDocument(locals.db, 'edition', access.edition.id, `published version ${result.number}`, locals.user?.id ?? null, archiveRoot(), { storageRoot: storageRoot() });
   } catch (cause) {
     console.error('archive after publishing failed', cause);
   }

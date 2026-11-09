@@ -3,9 +3,26 @@
  * its last commit is written and committed again, nightly and on request.
  */
 
-import { archiveCommits, changesets, editions, editionSigla, works, type Database } from '@varians/db';
+import { archiveCommits, archiveQueue, changesets, editions, editionSigla, works, type Database } from '@varians/db';
 import { desc, eq, inArray, max } from 'drizzle-orm';
+import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { promisify } from 'node:util';
 import { archiveWork, type ArchiveWriters } from './archive.ts';
+
+const run = promisify(execFile);
+
+/** Whether an archive repository has changes not yet committed. */
+export async function hasUncommitted(dir: string): Promise<boolean> {
+  if (!existsSync(path.join(dir, '.git'))) return false;
+  try {
+    const { stdout } = await run('git', ['status', '--porcelain'], { cwd: dir, env: { ...process.env, GIT_CEILING_DIRECTORIES: path.dirname(path.resolve(dir)) } });
+    return stdout.trim() !== '';
+  } catch {
+    return false;
+  }
+}
 
 export interface SchedulerOptions {
   db: Database;
@@ -31,17 +48,38 @@ export async function lastChangeOf(db: Database, workId: string): Promise<Date |
   return row?.at ?? null;
 }
 
-/** Archive every work that changed since its last commit. Returns the ids archived. */
-export async function archiveChangedWorks(db: Database, root: string, reason: string, writers: ArchiveWriters = {}): Promise<string[]> {
-  const archived: string[] = [];
+/** The works that changed since their last archive commit. */
+export async function changedWorks(db: Database): Promise<string[]> {
+  const out: string[] = [];
   const all = await db.select({ id: works.id, updatedAt: works.updatedAt }).from(works);
   for (const work of all) {
     const [last] = await db.select({ at: archiveCommits.at }).from(archiveCommits).where(eq(archiveCommits.workId, work.id)).orderBy(desc(archiveCommits.at)).limit(1);
     const changed = await lastChangeOf(db, work.id);
     const newest = [changed, work.updatedAt].filter((d): d is Date => d !== null).sort((a, b) => b.getTime() - a.getTime())[0];
     if (last && newest && newest.getTime() <= last.at.getTime()) continue;
-    const hash = await archiveWork(db, work.id, root, reason, writers);
-    if (hash) archived.push(work.id);
+    out.push(work.id);
+  }
+  return out;
+}
+
+/** Put every work changed since its last commit on the write-through queue, whole: done at start-up, so that nothing waits for the night. */
+export async function markChangedWorks(db: Database): Promise<number> {
+  const ids = await changedWorks(db);
+  if (ids.length) await db.insert(archiveQueue).values(ids.map((recordId) => ({ kind: 'work-all' as const, recordId }))).onConflictDoNothing();
+  return ids.length;
+}
+
+/** Archive every work that changed since its last commit. Returns the ids archived. */
+export async function archiveChangedWorks(db: Database, root: string, reason: string, writers: ArchiveWriters = {}): Promise<string[]> {
+  const archived: string[] = [];
+  const changed = new Set(await changedWorks(db));
+  // Files the write-through changed since the last commit are committed too.
+  for (const work of await db.select({ id: works.id, slug: works.slug }).from(works)) {
+    if (!changed.has(work.id) && (await hasUncommitted(path.join(root, work.slug)))) changed.add(work.id);
+  }
+  for (const workId of changed) {
+    const hash = await archiveWork(db, workId, root, reason, writers);
+    if (hash) archived.push(workId);
   }
   return archived;
 }

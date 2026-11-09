@@ -17,7 +17,10 @@ import {
   type Token,
 } from '@varians/core';
 import {
+  alignmentConstraints,
+  bibliographyItems,
   conjectures,
+  editionCollaborators,
   editionSigla,
   editions,
   pages,
@@ -31,7 +34,13 @@ import {
   type Database,
 } from '@varians/db';
 import { eq } from 'drizzle-orm';
-import { replaceContent } from '../documents/service.ts';
+import { setCitations } from '../bibliography.ts';
+import { reviewSite } from '../conjectures.ts';
+import { setSiteKind } from '../collation.ts';
+import { nameMoment, replaceContent } from '../documents/service.ts';
+import { setReviewFrom } from '../history.ts';
+import { addNote } from '../notes.ts';
+import { createZones } from '../zones.ts';
 import { resolveLabels, schemeOfWork } from '../segments.ts';
 import { setChosenWorks } from '../transcription-works.ts';
 
@@ -79,8 +88,13 @@ export interface SampleResult {
   witnessIds: Record<string, string>;
 }
 
+export interface SampleOptions {
+  /** A second account, made a collaborator on the edition. */
+  collaboratorId?: string;
+}
+
 /** Seed the sample, owned by the given user. Idempotent by work slug. */
-export async function seedSample(db: Database, ownerId: string): Promise<SampleResult> {
+export async function seedSample(db: Database, ownerId: string, options: SampleOptions = {}): Promise<SampleResult> {
   const existing = await db.select({ id: works.id }).from(works).where(eq(works.slug, 'iliad'));
   if (existing.length) {
     const [edition] = await db.select({ id: editions.id, slug: editions.slug }).from(editions).where(eq(editions.workId, existing[0]!.id));
@@ -180,9 +194,10 @@ export async function seedSample(db: Database, ownerId: string): Promise<SampleR
   ]);
 
   // Conjectures: Zenodotus' δαῖτα (ancient, reported by Athenaeus) and one of the editor's own.
+  const zenodotus = newId();
   await db.insert(conjectures).values([
     {
-      id: newId(),
+      id: zenodotus,
       workId,
       segmentId: segmentIdOf('1.5'),
       kind: 'substitution',
@@ -220,6 +235,31 @@ export async function seedSample(db: Database, ownerId: string): Promise<SampleR
   });
   await db.insert(editionSigla).values({ editionId, witnessId: dId, transcriptionId: null, siglum: 'T', position: 3 });
 
+  // The record of the work on the edition, so that every kind of archived record has one (PLAN-2 A5):
+  // a citation and a note citing the literature, a zone on A's first page, an alignment constraint,
+  // a site looked at and classed, review positions, a named moment, and a collaborator when one is given.
+  const allen = await bibliographyItem(db, ownerId, {
+    entryType: 'book',
+    citationKey: 'allen1931',
+    fields: { author: 'Allen, Thomas W.', title: 'Homeri Ilias', date: '1931', location: 'Oxford' },
+    label: 'Allen 1931',
+  });
+  await setCitations(db, { conjectureId: zenodotus }, [{ itemId: allen, postnote: 'ad 1.5' }]);
+  const editionTokens = content.items.filter((i): i is Token => i.kind === 'token');
+  const firstWord = editionTokens[0]!;
+  await addNote(db, editionId, { segmentId: segmentIdOf('1.1'), tokenIds: [firstWord.id], text: 'The first word states the theme.', citations: [{ itemId: allen, prenote: 'cf.' }] }, ownerId);
+  const aTokens = aRead.items.filter((i): i is Token => i.kind === 'token');
+  await createZones(db, aTranscription, aId, [{ pageId: aPages[0]!, tokenIds: [aTokens[0]!.id], geometry: { rect: { x: 0.12, y: 0.08, w: 0.1, h: 0.03 } } }]);
+  const [bRow] = await db.select({ content: transcriptions.content }).from(transcriptions).where(eq(transcriptions.id, bTranscription));
+  const bFirst = bRow!.content.items.find((i): i is Token => i.kind === 'token')!;
+  await db.insert(alignmentConstraints).values({ id: newId(), editionId, segmentId: segmentIdOf('1.1'), baseTokenIds: [firstWord.id], transcriptionId: bTranscription, witnessTokenIds: [bFirst.id] });
+  await reviewSite(db, editionId, segmentIdOf('1.2'), `${segmentIdOf('1.2')}:0`, ownerId);
+  await setSiteKind(db, editionId, segmentIdOf('1.2'), `${segmentIdOf('1.2')}:0`, 'textual', ownerId);
+  await setReviewFrom(db, 'edition', editionId, ownerId, 1);
+  await setReviewFrom(db, 'transcription', aTranscription, ownerId, 1);
+  await nameMoment(db, 'edition', editionId, 1, 'Collated against A, B and C', ownerId);
+  if (options.collaboratorId) await db.insert(editionCollaborators).values({ editionId, userId: options.collaboratorId, grantedBy: ownerId }).onConflictDoNothing();
+
   return { workId, editionId, editionSlug: 'iliad-1-working-edition', witnessIds: { A: aId, B: bId, C: cId, T: dId } };
 }
 
@@ -231,6 +271,15 @@ async function witness(
   const id = newId();
   await db.insert(witnesses).values({ id, createdBy: ownerId, ...data });
   await db.insert(witnessMaintainers).values({ witnessId: id, userId: ownerId });
+  return id;
+}
+
+/** A bibliography entry by its key: the existing one, or a new one. */
+async function bibliographyItem(db: Database, ownerId: string, entry: { entryType: string; citationKey: string; fields: Record<string, string>; label: string }): Promise<string> {
+  const [existing] = await db.select({ id: bibliographyItems.id }).from(bibliographyItems).where(eq(bibliographyItems.citationKey, entry.citationKey));
+  if (existing) return existing.id;
+  const id = newId();
+  await db.insert(bibliographyItems).values({ id, createdBy: ownerId, ...entry });
   return id;
 }
 

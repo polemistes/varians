@@ -24,16 +24,23 @@ Varians writes everything it holds about a work into a directory of open files, 
       transcription.tei.xml      the same as TEI (lb, pb, cb, features as elements, msDesc, facsimile zones)
       zones.json                 image zones: token ids, page, geometry in fractions of the image
       memory.json                the normalization memory (confirmed written-to-read pairs)
+      reviews.json               each person's review position (server archive only; absent when there is none)
       history.ndjson             one changeset per line: version, user, time, operations, reverse operations
-      moments.json               named moments of the history
+      moments.json               named and published moments of the history, with a publication's basis
   editions/<edition-slug>/
-    edition.json                 metadata, conventions, the conspectus, adoptions, notes, and the stream with sources
+    edition.json                 metadata, conventions, the conspectus, adoptions, collaborators, notes, site kinds, and the stream with sources
+    alignment.json               the editors' constraints on the alignment: edition tokens held to witness tokens
+    reviews.json                 the sites the editors have looked at, and each person's review position
     edition.tei.xml              TEI critical apparatus, parallel segmentation
     edition.txt                  the text with the apparatus under each segment, plain text
     edition.md                   the same as Markdown
     history.ndjson, moments.json as for transcriptions
   schemas/                       JSON Schema for every .json file above, versioned
 ```
+
+## What the archive holds
+
+Every table of the database is archived, derived from archived data, or transient (the list is `apps/web/src/lib/server/archive/coverage.ts`, and a test keeps it complete). Every archived row is in these files, with its id and creation time, so that an import gives back the same rows; the derived tables (the segment index, collation results, checkpoints, the record of archive commits) are rebuilt. Accounts are not archived: records name the accounts that own and maintain them by id and name. The files are rewritten within a minute of a change; git commits mark named moments, publications and the nightly pass.
 
 ## Identifiers
 

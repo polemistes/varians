@@ -16,3 +16,4 @@ playwright-report/
 *.code-workspace
 /deploy/host
 /deploy/LOCAL.md
+/.claude/worktrees/

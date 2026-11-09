@@ -783,6 +783,25 @@ export const archiveCommits = pgTable(
   (t) => [index('archive_commits_work_idx').on(t.workId, t.at)],
 );
 
+/** What an archive queue entry names: which records' files to rewrite. */
+export const ARCHIVE_QUEUE_KINDS = ['work-all', 'work', 'work-editions', 'scheme', 'bibliography', 'witness', 'transcription', 'edition'] as const;
+
+/**
+ * Records whose archive files are out of date, filled by triggers on every
+ * archived table (migration 0012) and emptied by the archive writer once the
+ * record has been quiet for ARCHIVE_WRITE_DELAY_SECONDS. Transient.
+ */
+export const archiveQueue = pgTable(
+  'archive_queue',
+  {
+    kind: text({ enum: ARCHIVE_QUEUE_KINDS }).notNull(),
+    recordId: text().notNull(),
+    /** The last change; the entry waits until it is old enough. */
+    at: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.kind, t.recordId] }), index('archive_queue_at_idx').on(t.at)],
+);
+
 export const collationCache = pgTable(
   'collation_cache',
   {

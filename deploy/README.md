@@ -108,4 +108,39 @@ sudo -u varians rsync -a --delete /home/varians/backups/<date>/storage/ /home/va
 
 The archives in `storage/` are a second, independent copy of every work in open formats (see `docs/formats/`); `sudo -u varians -H pnpm --dir /home/varians/app --filter @varians/web cli import-archive <dir> --user <email>` reads one back.
 
+## The archives
+
+Each work's archive in `storage/archives/<work>/` is a git repository of open files. The files follow every change within a minute of its last save (`ARCHIVE_WRITE_DELAY_SECONDS`, default 60); a commit marks each named moment and publication, authored by the person, and the nightly pass commits the rest, authored by Varians.
+
+To see that an archive is current, compare it with a fresh write of the database (it prints `the same`, or the files that differ):
+
+```sh
+sudo -u varians -H pnpm --dir /home/varians/app --filter @varians/web cli check-archive
+```
+
+### Testing the archives on real data
+
+The archives are the preservation record, so test now and then that they rebuild the works. On the server, commit every archive and copy them to the development machine:
+
+```sh
+sudo -u varians -H pnpm --dir /home/varians/app --filter @varians/web cli export-all
+sudo -u varians tar -C /home/varians/storage -czf /tmp/archives.tar.gz archives
+# on the development machine:
+scp <server>:/tmp/archives.tar.gz . && ssh <server> rm /tmp/archives.tar.gz
+mkdir -p /tmp/real && tar -C /tmp/real -xzf archives.tar.gz
+```
+
+Then import them into a database of their own on the development machine, with an account to own what has no owner there, and compare:
+
+```sh
+createdb -h 127.0.0.1 -p 54329 -U varians varians_real
+DATABASE_URL=postgres://varians@127.0.0.1:54329/varians_real pnpm db:migrate
+export DATABASE_URL=postgres://varians@127.0.0.1:54329/varians_real
+# register an account in the application against this database, or copy one with psql; then:
+for dir in /tmp/real/archives/*/; do pnpm --filter @varians/web cli import-archive "$dir" --user you@example.org; done
+pnpm --filter @varians/web cli check-archive --root /tmp/real/archives
+```
+
+`check-archive` writes each imported work afresh and compares it with the copied archive. The only differences should be the owners' and maintainers' names where their accounts do not exist on the development machine; anything else is a loss in the round trip and a fault to report. Drop the database afterwards with `dropdb -h 127.0.0.1 -p 54329 -U varians varians_real`.
+
 `/home/varians` is closed to other users, so commands are run as varians with `sudo -u varians` and given the folder with `--dir`, rather than run after a `cd` into it.

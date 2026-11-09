@@ -1,11 +1,13 @@
 /**
- * Things the server starts once per process: the nightly archive pass.
+ * Things the server starts once per process: the nightly archive pass and
+ * the write-through of changed records into the archive.
  * Imported by hooks.server.ts; a no-op while building and in tests.
  */
 import { building } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import path from 'node:path';
-import { startArchiveScheduler } from './archive/schedule.ts';
+import { markChangedWorks, startArchiveScheduler } from './archive/schedule.ts';
+import { startArchiveWriter } from './archive/queue.ts';
 import { storageDir } from './images/storage.ts';
 import { db } from './db';
 
@@ -30,4 +32,9 @@ export function startBackgroundWork(): void {
     storageRoot: storageRoot(),
     intervalMs: Math.max(1, hours) * 60 * 60 * 1000,
   });
+  const delay = Number(env.ARCHIVE_WRITE_DELAY_SECONDS ?? '60');
+  const delaySeconds = Number.isFinite(delay) && delay >= 0 ? delay : 60;
+  // Changes made while the server was down, or before the queue existed, are written too.
+  void markChangedWorks(db).catch((cause) => console.error('archive: marking changed works failed', cause));
+  startArchiveWriter(db, { root: archiveRoot(), storageRoot: storageRoot(), delaySeconds });
 }

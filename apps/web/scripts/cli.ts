@@ -3,6 +3,7 @@
  *
  *   pnpm --filter @varians/web cli export-archive <work-slug> [--root DIR]
  *   pnpm --filter @varians/web cli export-all [--root DIR]
+ *   pnpm --filter @varians/web cli check-archive [<work-slug>] [--root DIR]
  *   pnpm --filter @varians/web cli import-archive <dir>  --user <email>
  *   pnpm --filter @varians/web cli seed-sample --user <email>
  *   pnpm --filter @varians/web cli make-admin <email>
@@ -17,6 +18,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { archiveChangedWorks } from '../src/lib/server/archive/schedule.ts';
 import { archiveWork } from '../src/lib/server/archive/archive.ts';
+import { checkArchive, isClean } from '../src/lib/server/archive/check.ts';
 import { importArchive } from '../src/lib/server/archive/import.ts';
 import { seedSample } from '../src/lib/server/seed/sample.ts';
 
@@ -61,6 +63,26 @@ async function main(): Promise<void> {
         console.log(`${archived.length} work(s) committed`);
         break;
       }
+      case 'check-archive': {
+        const slug = args[0] && !args[0].startsWith('--') ? args[0] : null;
+        const list = await db.select({ id: works.id, slug: works.slug }).from(works).where(slug ? eq(works.slug, slug) : undefined);
+        if (slug && list.length === 0) throw new Error(`no work with slug ${slug}`);
+        let clean = true;
+        for (const work of list) {
+          const d = await checkArchive(db, work, root, { storageRoot: storage });
+          if (isClean(d)) {
+            console.log(`${work.slug}: the same`);
+            continue;
+          }
+          clean = false;
+          console.log(`${work.slug}:`);
+          for (const f of d.missing) console.log(`  missing  ${f}`);
+          for (const f of d.extra) console.log(`  extra    ${f}`);
+          for (const f of d.changed) console.log(`  changed  ${f}`);
+        }
+        if (!clean) process.exitCode = 1;
+        break;
+      }
       case 'import-archive': {
         const dir = args[0];
         const email = flag(args, 'user');
@@ -87,7 +109,7 @@ async function main(): Promise<void> {
         break;
       }
       default:
-        console.log('commands: export-archive <slug>, export-all, import-archive <dir> --user <email>, seed-sample --user <email>, make-admin <email>');
+        console.log('commands: export-archive <slug>, export-all, check-archive [<slug>], import-archive <dir> --user <email>, seed-sample --user <email>, make-admin <email>');
     }
   } finally {
     await pool.end();
