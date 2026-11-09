@@ -9,6 +9,7 @@ import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, SESSION_COOKIE, cookieOptions
 import { resetPassword } from '$lib/server/account-mail';
 import { findEmailToken } from '$lib/server/email-tokens';
 import { mailConfigured } from '$lib/server/mail';
+import { limits } from '$lib/server/rate-limit';
 import { s } from '$lib/strings';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -29,7 +30,13 @@ export const load: PageServerLoad = async ({ params, locals, setHeaders }) => {
 };
 
 export const actions: Actions = {
-  default: async ({ params, request, locals, cookies }) => {
+  default: async ({ params, request, locals, cookies, getClientAddress }) => {
+    // Attempts count with the logins from the same address.
+    const address = getClientAddress();
+    if (!limits.loginByAddress.take(address)) {
+      const errors: ResetErrors = { form: s.auth.tooManyAttempts(Math.max(1, Math.ceil(limits.loginByAddress.retryAfter(address) / 60))) };
+      return fail(429, { errors });
+    }
     const form = await request.formData();
     const parsed = schema.safeParse({ password: String(form.get('password') ?? ''), repeat: String(form.get('repeat') ?? '') });
     if (!parsed.success) {

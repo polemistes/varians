@@ -10,7 +10,7 @@
  */
 import { and, eq, isNull, sessions, sql, users, type Database } from '@varians/db';
 import { mail } from '$lib/strings/mail';
-import { consumeEmailToken, issueEmailToken, retireEmailTokens, TOKEN_TTL_MS, type IssuedToken } from './email-tokens';
+import { consumeEmailToken, findEmailToken, issueEmailToken, retireEmailTokens, TOKEN_TTL_MS, type IssuedToken } from './email-tokens';
 import type { Mailer } from './mail';
 import { hashPassword } from './password';
 
@@ -131,6 +131,8 @@ export async function sendResetLink(db: Database, mailer: Mailer, userId: string
  * when the link cannot be used.
  */
 export async function resetPassword(db: Database, token: string, password: string, now: Date = new Date()): Promise<{ userId: string } | null> {
+  // Hashing is deliberately slow: only for a link that can be used.
+  if (!(await findEmailToken(db, token, 'reset', now))) return null;
   const passwordHash = await hashPassword(password);
   return db.transaction(async (tx) => {
     const valid = await consumeEmailToken(tx, token, 'reset', now);
