@@ -1,8 +1,9 @@
 /**
  * GET /api/registry/search?kind=work|witness&q=...
  * Search-before-create: up to eight works (title or author) or witnesses
- * (name, siglum or shelfmark) containing the query, among those the user
- * may see. Answers { kind, q, results }.
+ * (name, siglum or shelfmark) containing the query, or with the query as
+ * one of their identifiers, among those the user may see. Answers
+ * { kind, q, results }.
  */
 import { error, json } from '@sveltejs/kit';
 import { grantsFor } from '$lib/server/authz';

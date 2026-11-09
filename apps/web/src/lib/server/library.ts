@@ -24,6 +24,7 @@ import {
   type SQL,
 } from '@varians/db';
 import { isSiteEditor, type Actor, type Grants } from './authz';
+import { identifierMatches } from './identifier-search.ts';
 
 export interface EditionRow {
   id: string;
@@ -190,7 +191,7 @@ export async function searchWorks(
   const creator = alias(users, 'creator');
   const pattern = query ? likePattern(query) : null;
   const matches = pattern
-    ? or(ilike(works.title, pattern), ilike(works.author, pattern))
+    ? or(ilike(works.title, pattern), ilike(works.author, pattern), identifierMatches(works, query))
     : undefined;
   const rows = await db
     .select({
@@ -219,6 +220,7 @@ export async function searchWitnesses(db: Database, query: string): Promise<Witn
         ilike(witnesses.name, pattern),
         ilike(witnesses.siglum, pattern),
         ilike(witnesses.shelfmark, pattern),
+        identifierMatches(witnesses, query),
       )
     : undefined;
   const rows = await db

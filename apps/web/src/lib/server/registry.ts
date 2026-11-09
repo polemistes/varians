@@ -53,6 +53,7 @@ import {
   witnesses,
   workMaintainers,
   works,
+  type CanonicalIdentifier,
   type Database,
   type WitnessHand,
   type SQL,
@@ -60,6 +61,7 @@ import {
   type Witness,
   type Work,
 } from '@varians/db';
+import { identifierMatches } from './identifier-search.ts';
 import { chosenWorks, chosenWorksOf, setChosenWorks } from './transcription-works.ts';
 import { joinLevelLabels, keepsAddresses, relabel, separatorsChanged } from '$lib/registry/scheme';
 import type {
@@ -246,6 +248,8 @@ export interface NewWork {
   author?: string | null;
   language: string;
   identifier?: string | null;
+  /** Further canonical identifiers, checked by parseIdentifiers. */
+  identifiers?: CanonicalIdentifier[];
   description?: string | null;
   visibility?: 'public' | 'private';
   scheme: SchemeInput;
@@ -312,6 +316,7 @@ export async function createWork(db: Database, input: NewWork, userId: string): 
           author: clean(input.author),
           language,
           identifier: clean(input.identifier),
+          identifiers: input.identifiers ?? [],
           description: clean(input.description),
           schemeId,
           profile: defaultProfile(language),
@@ -330,6 +335,7 @@ export interface WorkUpdate {
   author?: string | null;
   language?: string;
   identifier?: string | null;
+  identifiers?: CanonicalIdentifier[];
   description?: string | null;
   /** New levels: labels and separators always; keys and types only while the work has no segments. */
   scheme?: { levels: Level[] };
@@ -369,6 +375,7 @@ export async function updateWork(db: Database, workId: string, fields: WorkUpdat
   if (fields.title !== undefined) set.title = fields.title.trim();
   if (fields.author !== undefined) set.author = clean(fields.author);
   if (fields.identifier !== undefined) set.identifier = clean(fields.identifier);
+  if (fields.identifiers !== undefined) set.identifiers = fields.identifiers;
   if (fields.description !== undefined) set.description = clean(fields.description);
   if (fields.language !== undefined && fields.language.trim() !== current.language) {
     set.language = fields.language.trim();
@@ -571,6 +578,7 @@ export interface NewWitness {
   settlement?: string | null;
   shelfmark?: string | null;
   identifier?: string | null;
+  identifiers?: CanonicalIdentifier[];
   dateText?: string | null;
   material?: string | null;
   extent?: string | null;
@@ -602,6 +610,7 @@ function witnessFields(input: Partial<NewWitness>): Partial<typeof witnesses.$in
   if (input.category !== undefined) set.category = input.category;
   if (input.format !== undefined) set.format = input.format;
   if (input.hands !== undefined) set.hands = input.hands;
+  if (input.identifiers !== undefined) set.identifiers = input.identifiers;
   for (const field of WITNESS_TEXT_FIELDS) {
     if (input[field] !== undefined) set[field] = clean(input[field]);
   }
@@ -1381,7 +1390,7 @@ export function visibleWorks(user: Actor | null | undefined, grants: Grants): SQ
   );
 }
 
-/** Up to eight entries the user may see whose title or author (name, siglum or shelfmark) contain the query. */
+/** Up to eight entries the user may see whose title or author (name, siglum or shelfmark) contain the query, or with the query as an identifier. */
 export async function searchRegistry(
   db: Database,
   kind: RegistryKind,
@@ -1399,7 +1408,11 @@ export async function searchRegistry(
       .where(
         and(
           visibleWorks(user, grants),
-          or(sql`${works.title} ilike ${pattern}`, sql`${works.author} ilike ${pattern}`),
+          or(
+            sql`${works.title} ilike ${pattern}`,
+            sql`${works.author} ilike ${pattern}`,
+            identifierMatches(works, query),
+          ),
         ),
       )
       .orderBy(asc(works.title))
@@ -1421,6 +1434,7 @@ export async function searchRegistry(
         sql`${witnesses.name} ilike ${pattern}`,
         sql`${witnesses.siglum} ilike ${pattern}`,
         sql`${witnesses.shelfmark} ilike ${pattern}`,
+        identifierMatches(witnesses, query),
       ),
     )
     .orderBy(asc(witnesses.name))

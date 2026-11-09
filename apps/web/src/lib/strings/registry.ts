@@ -433,6 +433,91 @@ export const registry = {
     invalidEmail: 'Enter an email address.',
   },
 
+  identifiers: {
+    label: 'Identifiers',
+    scheme: 'Scheme',
+    value: 'Value',
+    schemes: {
+      cts: 'CTS URN',
+      diktyon: 'Diktyon',
+      trismegistos: 'Trismegistos',
+      wikidata: 'Wikidata',
+      viaf: 'VIAF',
+      url: 'URL',
+      other: 'Other',
+    } as Record<string, string>,
+    add: 'Add identifier',
+    remove: (value: string) => (value ? `Remove the identifier ${value}` : 'Remove this identifier'),
+    schemeOf: (value: string) => (value ? `Scheme of ${value}` : 'Scheme'),
+    empty: 'Give a value.',
+    tooLong: 'this is too long.',
+    unreadable: 'The identifiers could not be read.',
+    unknownScheme: 'Choose a scheme from the list.',
+    tooMany: (n: number) => `Use at most ${n} identifiers.`,
+    problem: (value: string, error: string) => `${value}: ${error}`,
+    invalid: {
+      cts: 'not a CTS URN of a work, such as urn:cts:greekLit:tlg0012.tlg001.',
+      wikidata: 'a Wikidata item is Q followed by digits, such as Q8275.',
+      digits: (name: string) => `a ${name} number has digits only.`,
+      url: 'an address begins with http:// or https://.',
+    },
+    lookUp: (scheme: string, value: string) => `${value} in ${scheme}`,
+  },
+
+  merge: {
+    section: 'Merge into another entry',
+    workHint:
+      'The segments, conjectures, reported readings, editions and transcripts of this work go to the work it is merged into, and this entry is removed. Its address and identifiers lead to the surviving work.',
+    witnessHint:
+      'The transcripts, reported readings, sigla, pages and maintainers of this witness go to the witness it is merged into, and this entry is removed. Its address and identifiers lead to the surviving witness.',
+    action: 'Merge into\u2026',
+    title: (name: string) => `Merge ${name} into another entry`,
+    findWork: 'Find the work by title, author or identifier',
+    findWitness: 'Find the witness by name, siglum, shelfmark or identifier',
+    find: 'Find',
+    noMatches: 'No other entry matches.',
+    choose: 'Choose',
+    chooseLabel: (name: string) => `Merge into ${name}`,
+    chooseAnother: 'Choose another entry',
+    preview: (from: string, into: string) => `${from} into ${into}`,
+    survivor: 'The surviving entry',
+    survivorKeeps:
+      'It keeps its own title, description and settings. The identifiers of both entries are kept, and the merged entry is listed on its page.',
+    moves: 'What moves',
+    nothingMoves: 'Nothing but the entry itself.',
+    blocks: 'What prevents the merge',
+    transcriptions: (n: number) => (n === 1 ? '1 transcript' : `${n} transcripts`),
+    readings: (n: number) => (n === 1 ? '1 reported reading' : `${n} reported readings`),
+    conjectures: (n: number) => (n === 1 ? '1 conjecture' : `${n} conjectures`),
+    sigla: (editions: string[]) =>
+      editions.length === 1 ? `its siglum in the edition ${editions[0]}` : `its sigla in the editions ${and(editions)}`,
+    maintainers: (names: string[]) =>
+      names.length === 1 ? `${names[0]} as a maintainer` : `${and(names)} as maintainers`,
+    pages: (n: number) => (n === 1 ? '1 page, after the pages of the surviving witness' : `${n} pages, after the pages of the surviving witness`),
+    hands: (labels: string[]) => (labels.length === 1 ? `the hand ${labels[0]}` : `the hands ${and(labels)}`),
+    identifiers: (values: string[]) => (values.length === 1 ? `the identifier ${values[0]}` : `the identifiers ${and(values)}`),
+    segmentsMatched: (n: number) =>
+      n === 1 ? '1 segment joined to the segment of the same address' : `${n} segments joined to the segments of the same address`,
+    segmentsMoved: (n: number) => (n === 1 ? '1 segment the surviving work does not have' : `${n} segments the surviving work does not have`),
+    editions: (titles: string[]) => (titles.length === 1 ? `the edition ${titles[0]}` : `the editions ${and(titles)}`),
+    bothInEdition: (titles: string[]) =>
+      `The conspectus of ${titles.length === 1 ? `the edition ${titles[0]}` : `the editions ${and(titles)}`} names both witnesses. Remove one of them from it first.`,
+    pageConflict: (labels: string[]) =>
+      `Both witnesses have ${labels.length === 1 ? `a page labelled ${labels[0]}` : `pages labelled ${and(labels)}`}. Rename, move or delete those pages first.`,
+    schemeDiffers:
+      'The two works are numbered by reference schemes with different levels, so their segments cannot be matched. Only works whose schemes have the same levels can be merged.',
+    labelCollision: (labels: string[]) =>
+      `Segments of different addresses would share ${labels.length === 1 ? 'the label' : 'the labels'} ${and(labels)} in the surviving work.`,
+    irreversible: 'A merge cannot be undone.',
+    confirm: 'Merge',
+    done: (from: string, into: string) => `${from} has been merged into ${into}.`,
+    notAllowed: 'Only an administrator, or someone who maintains both entries, may merge them.',
+    same: 'An entry cannot be merged into itself.',
+    gone: 'One of the entries no longer exists.',
+    blocked: 'The merge is prevented; see above.',
+    mergedHere: 'Merged into this entry',
+  },
+
   search: {
     exists: 'exists; use it?',
     existsPrefix: 'exists;',

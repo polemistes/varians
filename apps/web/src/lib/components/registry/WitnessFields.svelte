@@ -4,6 +4,7 @@
   import { MATERIAL_OTHER, WITNESS_CATEGORIES, WITNESS_FORMATS, WITNESS_MATERIALS } from '$lib/registry/witness';
   import { registry } from '$lib/strings/registry';
   import HandsField from './HandsField.svelte';
+  import IdentifiersField from './IdentifiersField.svelte';
   import RegistrySearch from './RegistrySearch.svelte';
 
   interface Props {
@@ -119,6 +120,7 @@
     {/if}
     {@render line('extent', s.extent)}
   </div>
+  <IdentifiersField value={values.identifiers} error={errors.identifiers} />
   <HandsField value={values.hands} error={errors.hands} />
   <Field label={s.provenance} error={errors.provenance}>
     {#snippet children(control)}

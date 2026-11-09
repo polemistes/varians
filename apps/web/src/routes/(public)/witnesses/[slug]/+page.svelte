@@ -10,6 +10,8 @@
     DescriptionItem,
     DescriptionList,
     EntryHeader,
+    IdentifierList,
+    MergedEntries,
     NewTranscriptionForm,
     PageList,
     ReadingList,
@@ -70,6 +72,11 @@
           <DescriptionItem term={s.sourceAuthor} value={s.quotedIn(witness.sourceAuthor ?? '', witness.sourceWork ?? '')} />
         {/if}
         <DescriptionItem term={s.identifier} value={witness.identifier} />
+        {#if witness.identifiers.length}
+          <DescriptionItem term={t.identifiers.label}>
+            <IdentifierList identifiers={witness.identifiers} />
+          </DescriptionItem>
+        {/if}
         <DescriptionItem term={s.material} value={materialLabel(witness.material)} />
         <DescriptionItem term={s.extent} value={witness.extent} />
         {#if witness.hands.length}
@@ -84,6 +91,11 @@
           </DescriptionItem>
         {/if}
         <DescriptionItem term={s.provenance} value={witness.provenance} />
+        {#if data.merged.length}
+          <DescriptionItem term={t.merge.mergedHere}>
+            <MergedEntries items={data.merged} />
+          </DescriptionItem>
+        {/if}
         {#if witness.iiifManifest}
           <DescriptionItem term={s.iiif}>
             <a

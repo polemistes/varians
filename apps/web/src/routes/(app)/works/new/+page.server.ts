@@ -12,6 +12,7 @@ const FIELDS = [
   'language',
   'languageCode',
   'identifier',
+  'identifiers',
   'description',
   'visibility',
   'scheme',

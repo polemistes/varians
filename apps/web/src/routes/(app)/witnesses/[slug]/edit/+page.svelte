@@ -58,6 +58,12 @@
     <MaintainersEditor maintainers={data.maintainers} canManage={data.can.govern} selfId={data.user?.id ?? null} />
   </FormSection>
 
+  {#if data.can.merge}
+    <FormSection title={t.merge.section} hint={t.merge.witnessHint}>
+      <div><Button href="/witnesses/{witness.slug}/merge" variant="secondary">{t.merge.action}</Button></div>
+    </FormSection>
+  {/if}
+
   {#if data.can.delete}
     <FormSection title={s.deleteSection} hint={s.deleteHint} danger>
       <Button variant="danger" onclick={() => (deleteOpen = true)}>{s.deleteAction}</Button>

@@ -9,6 +9,7 @@ import { SCHEME_PRESETS, type Level } from '@varians/core';
 import type { WitnessHand } from '@varians/db';
 import { registry as t } from '$lib/strings/registry';
 import { CUSTOM_SCHEME, LANGUAGE_OTHER } from './constants';
+import { parseIdentifiers, type CanonicalIdentifier } from './identifiers';
 import { LANGUAGE_CODE } from './languages';
 import { parseLevels, schemeProblems } from './scheme';
 import type { Dependents } from './types';
@@ -77,7 +78,7 @@ const workSchema = z.object({
   visibility: z.enum(['public', 'private']).default('public'),
 });
 
-export type WorkForm = z.infer<typeof workSchema>;
+export type WorkForm = z.infer<typeof workSchema> & { identifiers: CanonicalIdentifier[] };
 
 const WORK_FIELDS = [
   'title',
@@ -85,15 +86,20 @@ const WORK_FIELDS = [
   'language',
   'languageCode',
   'identifier',
+  'identifiers',
   'description',
   'visibility',
 ] as const;
 
-/** Title, author, language (a listed code, or Other with a code typed), identifier, description, visibility. */
+/**
+ * Title, author, language (a listed code, or Other with a code typed), the
+ * primary identifier, the further identifiers, description, visibility.
+ */
 export function parseWorkForm(form: FormData): Parsed<WorkForm> {
   const choice = field(form, 'language');
   const language = choice === LANGUAGE_OTHER ? field(form, 'languageCode') : choice;
-  return run(
+  const identifiers = parseIdentifiers(field(form, 'identifiers'));
+  const parsed = run(
     workSchema,
     {
       title: field(form, 'title'),
@@ -105,6 +111,21 @@ export function parseWorkForm(form: FormData): Parsed<WorkForm> {
     },
     values(form, WORK_FIELDS),
   );
+  return withIdentifiers(parsed, identifiers, values(form, WORK_FIELDS));
+}
+
+/** A parsed form with the identifiers added, or their error beside the others. */
+function withIdentifiers<T>(
+  parsed: Parsed<T>,
+  identifiers: ReturnType<typeof parseIdentifiers>,
+  typed: Record<string, string>,
+): Parsed<T & { identifiers: CanonicalIdentifier[] }> {
+  if (!parsed.ok) {
+    if (!identifiers.ok) parsed.errors.identifiers = [identifiers.error];
+    return parsed;
+  }
+  if (!identifiers.ok) return { ok: false, errors: { identifiers: [identifiers.error] }, values: typed };
+  return { ok: true, data: { ...parsed.data, identifiers: identifiers.identifiers } };
 }
 
 export { CUSTOM_SCHEME, LANGUAGE_OTHER };
@@ -152,7 +173,11 @@ const witnessSchema = z.object({
   description: optional(5000, t.witness.tooLong),
 });
 
-export type WitnessForm = z.infer<typeof witnessSchema> & { category: WitnessCategory; hands: WitnessHand[] };
+export type WitnessForm = z.infer<typeof witnessSchema> & {
+  category: WitnessCategory;
+  hands: WitnessHand[];
+  identifiers: CanonicalIdentifier[];
+};
 
 export const WITNESS_FIELDS = [
   'siglum',
@@ -165,6 +190,7 @@ export const WITNESS_FIELDS = [
   'settlement',
   'shelfmark',
   'identifier',
+  'identifiers',
   'dateText',
   'material',
   'materialOther',
@@ -195,14 +221,29 @@ export function parseWitnessForm(form: FormData): Parsed<WitnessForm> {
     typed,
   );
   const hands = parseHands(typed.hands);
+  const identifiers = parseIdentifiers(typed.identifiers);
   if (!parsed.ok) {
     if (!hands.ok) parsed.errors.hands = [hands.error];
+    if (!identifiers.ok) parsed.errors.identifiers = [identifiers.error];
     return parsed;
   }
-  if (!hands.ok) return { ok: false, errors: { hands: [hands.error] }, values: typed };
-  const { materialOther: _other, ...data } = parsed.data as z.infer<typeof witnessSchema> & { materialOther?: string };
+  if (!hands.ok || !identifiers.ok) {
+    return {
+      ok: false,
+      errors: {
+        ...(hands.ok ? {} : { hands: [hands.error] }),
+        ...(identifiers.ok ? {} : { identifiers: [identifiers.error] }),
+      },
+      values: typed,
+    };
+  }
+  const { materialOther: _other, identifiers: _typed, ...data } = parsed.data as z.infer<typeof witnessSchema> & {
+    materialOther?: string;
+    identifiers?: unknown;
+  };
   void _other;
-  return { ok: true, data: { ...data, hands: hands.hands } };
+  void _typed;
+  return { ok: true, data: { ...data, hands: hands.hands, identifiers: identifiers.identifiers } };
 }
 
 const HAND_ID = /^[A-Za-z0-9_-]{1,32}$/u;

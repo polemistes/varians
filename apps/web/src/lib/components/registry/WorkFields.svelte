@@ -3,6 +3,7 @@
   import { Field, Input, Textarea } from '$lib/components/ui';
   import { LANGUAGE_OTHER } from '$lib/registry/constants';
   import { registry } from '$lib/strings/registry';
+  import IdentifiersField from './IdentifiersField.svelte';
   import LanguageField from './LanguageField.svelte';
   import RegistrySearch from './RegistrySearch.svelte';
 
@@ -68,6 +69,7 @@
       />
     {/snippet}
   </Field>
+  <IdentifiersField value={values.identifiers} error={errors.identifiers} />
   <Field label={s.description} error={errors.description}>
     {#snippet children(control)}
       <Textarea {...control} name="description" value={values.description ?? ''} rows={4} />

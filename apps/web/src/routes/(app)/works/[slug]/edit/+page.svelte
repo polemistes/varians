@@ -31,6 +31,7 @@
           author: work.author ?? '',
           language: work.language,
           identifier: work.identifier ?? '',
+          identifiers: work.identifiers,
           description: work.description ?? '',
         },
   );
@@ -112,6 +113,12 @@
   <FormSection title={t.work.maintainersSection} hint={t.work.maintainersHint}>
     <MaintainersEditor maintainers={data.maintainers} canManage={data.can.govern} selfId={data.user?.id ?? null} />
   </FormSection>
+
+  {#if data.can.merge}
+    <FormSection title={t.merge.section} hint={t.merge.workHint}>
+      <div><Button href="/works/{work.slug}/merge" variant="secondary">{t.merge.action}</Button></div>
+    </FormSection>
+  {/if}
 
   {#if data.can.delete}
     <FormSection title={t.work.deleteSection} hint={t.work.deleteHint} danger>

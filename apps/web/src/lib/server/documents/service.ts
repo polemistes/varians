@@ -156,6 +156,12 @@ function keepPastVersion(key: string, stream: Stream): void {
   if (pastVersions.size > PAST_VERSIONS_KEPT) pastVersions.delete(pastVersions.keys().next().value!);
 }
 
+/** Forgets the kept past versions of a document, after its stored history was rewritten (a merge of works moves segment ids). */
+export function forgetPastVersions(kind: DocumentKind, documentId: string): void {
+  const prefix = `${kind}:${documentId}:`;
+  for (const key of [...pastVersions.keys()]) if (key.startsWith(prefix)) pastVersions.delete(key);
+}
+
 export async function documentAt(db: Database, kind: DocumentKind, documentId: string, version: number): Promise<Stream> {
   const current = await loadDocument(db, kind, documentId);
   if (version >= current.version) return current.content;

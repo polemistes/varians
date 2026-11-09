@@ -10,6 +10,8 @@
     ConjectureList,
     EditionList,
     EntryHeader,
+    IdentifierList,
+    MergedEntries,
     ReadingList,
     ReportedReadingForm,
     Section,
@@ -190,10 +192,18 @@
           <dt class="text-ink-muted">{t.work.identifierLabel}</dt>
           <dd class="font-mono text-xs break-all text-ink">{work.identifier}</dd>
         {/if}
+        {#if work.identifiers.length}
+          <dt class="text-ink-muted">{t.identifiers.label}</dt>
+          <dd class="text-ink"><IdentifierList identifiers={work.identifiers} /></dd>
+        {/if}
         <dt class="text-ink-muted">{t.work.visibilityLabel}</dt>
         <dd><Badge tone={work.visibility === 'private' ? 'warning' : 'neutral'}>{work.visibility === 'private' ? t.work.private : t.work.public}</Badge></dd>
         <dt class="text-ink-muted">{t.work.maintainersLabel}</dt>
         <dd class="text-ink">{data.maintainers.length ? t.common.and(data.maintainers.map((m) => m.name)) : t.work.noMaintainers}</dd>
+        {#if data.merged.length}
+          <dt class="text-ink-muted">{t.merge.mergedHere}</dt>
+          <dd class="text-ink"><MergedEntries items={data.merged} /></dd>
+        {/if}
       </dl>
       {#if data.can.archive}
         <div class="mt-6 flex flex-col gap-2">

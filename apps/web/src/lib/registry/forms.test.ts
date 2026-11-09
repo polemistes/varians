@@ -50,6 +50,7 @@ describe('parseWorkForm', () => {
         author: 'Homer',
         language: 'grc',
         identifier: '',
+        identifiers: [],
         description: '',
         visibility: 'public',
       },
