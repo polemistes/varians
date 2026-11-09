@@ -1,0 +1,43 @@
+{
+  "$schema": "https://varians.eu/formats/2/conjectures.schema.json",
+  "conjectures": [
+    {
+      "id": "01M6Z5QJE0JKVXFAK1MKQ877DT",
+      "workId": "01M6Z5QJ9Y0BHYB8BH16GB3FSP",
+      "segmentId": "01M6Z5QJAHZAPNC6T5RS8DD34Y",
+      "kind": "substitution",
+      "lemma": "πᾶσι",
+      "reading": "δαῖτα",
+      "extent": null,
+      "proposer": "Zenodotus",
+      "note": "Reported as the reading of Zenodotus by Athenaeus, Deipnosophistae 1.12e; no surviving manuscript has it.",
+      "sequence": null,
+      "supplementsId": null,
+      "anchor": null,
+      "ownerId": "01M6Z5QJ9E6BQN570VYCVMHX2C",
+      "visibility": "published",
+      "createdAt": "2026-11-09T03:30:48.897Z",
+      "updatedAt": "2026-11-09T03:30:48.969Z",
+      "segmentLabel": "1.5"
+    },
+    {
+      "id": "01M6Z5QJE0JKVXFAK1MKQ877DV",
+      "workId": "01M6Z5QJ9Y0BHYB8BH16GB3FSP",
+      "segmentId": "01M6Z5QJAF1A9S0TXRJPNNGRX3",
+      "kind": "substitution",
+      "lemma": "ἑλώρια",
+      "reading": "ἑλώριον",
+      "extent": null,
+      "proposer": "Berge",
+      "note": "For the sake of the metre; not adopted.",
+      "sequence": null,
+      "supplementsId": null,
+      "anchor": null,
+      "ownerId": "01M6Z5QJ9E6BQN570VYCVMHX2C",
+      "visibility": "published",
+      "createdAt": "2026-11-09T03:30:48.897Z",
+      "updatedAt": "2026-11-09T03:30:48.969Z",
+      "segmentLabel": "1.4"
+    }
+  ]
+}

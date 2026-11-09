@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://varians.eu/formats/2/common.schema.json",
+  "title": "Common definitions",
+  "description": "Definitions shared by the schemas of the Varians Data Format, version 2.",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "A record id: an opaque string, unique across installations (Varians writes ULIDs)."
+    },
+    "idOrNull": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 in UTC with milliseconds."
+    },
+    "timeOrNull": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "account": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "since": {
+          "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "description": "An account of the installation that wrote the archive, given for reading; accounts do not travel between installations."
+    },
+    "identifier": {
+      "type": "object",
+      "properties": {
+        "scheme": {
+          "enum": [
+            "cts",
+            "diktyon",
+            "trismegistos",
+            "wikidata",
+            "viaf",
+            "url",
+            "other"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "scheme",
+        "value"
+      ]
+    },
+    "identifiers": {
+      "type": "array",
+      "items": {
+        "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/identifier"
+      }
+    },
+    "spdx": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "CC0-1.0",
+        "CC-BY-4.0",
+        "CC-BY-SA-4.0",
+        null
+      ],
+      "description": "The licence of a record, as an SPDX identifier."
+    },
+    "rights": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "A rights statement of an image: a Creative Commons or RightsStatements.org address (specification 10.3)."
+    },
+    "visibility": {
+      "enum": [
+        "draft",
+        "published"
+      ]
+    },
+    "siglumState": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "original"
+            },
+            "siglum": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "siglum"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "stage"
+            },
+            "stage": {
+              "type": "integer"
+            },
+            "siglum": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "stage",
+            "siglum"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "hand"
+            },
+            "hand": {
+              "type": "string"
+            },
+            "siglum": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "hand",
+            "siglum"
+          ]
+        }
+      ]
+    },
+    "siglum": {
+      "type": "object",
+      "properties": {
+        "siglum": {
+          "type": "string"
+        },
+        "witnessId": {
+          "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+        },
+        "transcriptionId": {
+          "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+        },
+        "states": {
+          "type": "array",
+          "items": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/siglumState"
+          }
+        },
+        "variantSiglum": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "siglum",
+        "witnessId"
+      ]
+    }
+  }
+}

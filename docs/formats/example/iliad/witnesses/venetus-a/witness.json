@@ -1,0 +1,32 @@
+{
+  "$schema": "https://varians.eu/formats/2/witness.schema.json",
+  "id": "01M6Z5QJB3CNA3YJF35EJKH54Q",
+  "slug": "venetus-a",
+  "siglum": "A",
+  "name": "Venetus A",
+  "category": "manuscript",
+  "format": null,
+  "sourceAuthor": null,
+  "sourceWork": null,
+  "repository": "Biblioteca Nazionale Marciana",
+  "settlement": "Venice",
+  "shelfmark": "Marc. gr. Z. 454 (= 822)",
+  "identifier": null,
+  "dateText": "s. X",
+  "material": "parchment",
+  "extent": null,
+  "hands": [],
+  "provenance": null,
+  "description": "The principal manuscript of the Iliad, with scholia.",
+  "iiifManifest": null,
+  "createdBy": "01M6Z5QJ9E6BQN570VYCVMHX2C",
+  "createdAt": "2026-11-09T03:30:48.804Z",
+  "updatedAt": "2026-11-09T03:30:48.804Z",
+  "maintainers": [
+    {
+      "id": "01M6Z5QJ9E6BQN570VYCVMHX2C",
+      "name": "Example Editor",
+      "since": "2026-11-09T03:30:48.806Z"
+    }
+  ]
+}

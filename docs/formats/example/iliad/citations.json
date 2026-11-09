@@ -1,0 +1,31 @@
+{
+  "$schema": "https://varians.eu/formats/2/citations.schema.json",
+  "citations": [
+    {
+      "id": "01M6Z5QJEKQBFE7MTCMD5YQ347",
+      "itemId": "01M6Z5QJEFRQWN7AK4DCGH4415",
+      "conjectureId": "01M6Z5QJE0JKVXFAK1MKQ877DT",
+      "reportedReadingId": null,
+      "noteId": null,
+      "editionId": null,
+      "segmentId": null,
+      "prenote": null,
+      "postnote": "ad 1.5",
+      "position": 0,
+      "createdAt": "2026-11-09T03:30:48.914Z"
+    },
+    {
+      "id": "01M6Z5QJEW9R30A40CR604YQEE",
+      "itemId": "01M6Z5QJEFRQWN7AK4DCGH4415",
+      "conjectureId": null,
+      "reportedReadingId": null,
+      "noteId": "01M6Z5QJEQ49FCM6XK0HEG2ZX9",
+      "editionId": "01M6Z5QJDM7TWZNEZC5WHHKE99",
+      "segmentId": null,
+      "prenote": "cf.",
+      "postnote": null,
+      "position": 0,
+      "createdAt": "2026-11-09T03:30:48.923Z"
+    }
+  ]
+}

@@ -4,6 +4,7 @@
  *   pnpm --filter @varians/web cli export-archive <work-slug> [--root DIR]
  *   pnpm --filter @varians/web cli export-all [--root DIR]
  *   pnpm --filter @varians/web cli check-archive [<work-slug>] [--root DIR]
+ *   pnpm --filter @varians/web cli write-example [--out DIR]
  *   pnpm --filter @varians/web cli import-archive <dir>  --user <email>
  *   pnpm --filter @varians/web cli seed-sample --user <email>
  *   pnpm --filter @varians/web cli make-admin <email>
@@ -19,6 +20,7 @@ import path from 'node:path';
 import { archiveChangedWorks } from '../src/lib/server/archive/schedule.ts';
 import { archiveWork } from '../src/lib/server/archive/archive.ts';
 import { checkArchive, isClean } from '../src/lib/server/archive/check.ts';
+import { writeExample } from '../src/lib/server/archive/example.ts';
 import { importArchive } from '../src/lib/server/archive/import.ts';
 import { seedSample } from '../src/lib/server/seed/sample.ts';
 
@@ -83,6 +85,13 @@ async function main(): Promise<void> {
         if (!clean) process.exitCode = 1;
         break;
       }
+      case 'write-example': {
+        // The example of the format, built in a database of its own on the same server (docs/formats/example).
+        const out = path.resolve(flag(args, 'out') ?? path.join(process.cwd(), '..', '..', 'docs', 'formats', 'example'));
+        const dir = await writeExample(url, out);
+        console.log(`wrote ${dir}`);
+        break;
+      }
       case 'import-archive': {
         const dir = args[0];
         const email = flag(args, 'user');
@@ -109,7 +118,7 @@ async function main(): Promise<void> {
         break;
       }
       default:
-        console.log('commands: export-archive <slug>, export-all, check-archive [<slug>], import-archive <dir> --user <email>, seed-sample --user <email>, make-admin <email>');
+        console.log('commands: export-archive <slug>, export-all, check-archive [<slug>], write-example, import-archive <dir> --user <email>, seed-sample --user <email>, make-admin <email>');
     }
   } finally {
     await pool.end();

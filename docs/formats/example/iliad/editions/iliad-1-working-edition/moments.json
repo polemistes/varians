@@ -1,0 +1,61 @@
+{
+  "$schema": "https://varians.eu/formats/2/moments.schema.json",
+  "moments": [
+    {
+      "id": "01M6Z5QJFRQ937A58TNEATPW3H",
+      "version": 1,
+      "name": "Collated against A, B and C",
+      "kind": "named",
+      "number": null,
+      "basis": null,
+      "createdBy": "01M6Z5QJ9E6BQN570VYCVMHX2C",
+      "at": "2026-11-09T03:30:48.952Z"
+    },
+    {
+      "id": "01M6Z5QJG4TNCDT67E8SE9RJY1",
+      "version": 1,
+      "name": "Version 1 (2026-11-09)",
+      "kind": "published",
+      "number": 1,
+      "basis": {
+        "sigla": [
+          {
+            "siglum": "A",
+            "states": [],
+            "witnessId": "01M6Z5QJB3CNA3YJF35EJKH54Q",
+            "variantSiglum": null,
+            "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+          },
+          {
+            "siglum": "B",
+            "states": [],
+            "witnessId": "01M6Z5QJCGA7FQVQQ6BHQXM4NP",
+            "variantSiglum": null,
+            "transcriptionId": "01M6Z5QJCPY0QHW9ZNCA0WG6A4"
+          },
+          {
+            "siglum": "C",
+            "states": [],
+            "witnessId": "01M6Z5QJD3WKWBXTBPM62SQ2E4",
+            "variantSiglum": null,
+            "transcriptionId": "01M6Z5QJD85NS6EF5W7PBWRPH6"
+          },
+          {
+            "siglum": "T",
+            "states": [],
+            "witnessId": "01M6Z5QJE4VQJ41ZPZ9A59K2NT",
+            "variantSiglum": null,
+            "transcriptionId": null
+          }
+        ],
+        "versions": {
+          "01M6Z5QJBG7R67B228ZQTK7ZN0": 1,
+          "01M6Z5QJCPY0QHW9ZNCA0WG6A4": 1,
+          "01M6Z5QJD85NS6EF5W7PBWRPH6": 1
+        }
+      },
+      "createdBy": "01M6Z5QJ9E6BQN570VYCVMHX2C",
+      "at": "2026-11-09T03:30:48.961Z"
+    }
+  ]
+}

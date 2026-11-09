@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://varians.eu/formats/2/conjectures.schema.json",
+  "title": "Conjectures",
+  "description": "conjectures.json: the conjectures on a work (specification 4.4).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://varians.eu/formats/2/conjectures.schema.json"
+    },
+    "conjectures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "workId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "segmentId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "segmentLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "enum": [
+              "substitution",
+              "deletion",
+              "addition",
+              "lacuna",
+              "supplement",
+              "transposition"
+            ]
+          },
+          "lemma": {
+            "type": "string"
+          },
+          "reading": {
+            "type": "string"
+          },
+          "extent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "proposer": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sequence": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+            }
+          },
+          "supplementsId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+          },
+          "anchor": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "ownerId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "visibility": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/visibility"
+          },
+          "createdAt": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+          },
+          "updatedAt": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+          }
+        },
+        "required": [
+          "id",
+          "segmentId",
+          "kind",
+          "lemma",
+          "reading"
+        ]
+      }
+    }
+  },
+  "required": [
+    "$schema",
+    "conjectures"
+  ]
+}

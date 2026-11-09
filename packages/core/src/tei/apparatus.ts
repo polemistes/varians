@@ -9,17 +9,23 @@ import { printedKind, type Attachment } from '../apparatus/render.ts';
 import type { Site } from '../collate/collate.ts';
 import type { Item, Token } from '../stream/items.ts';
 import type { Unit } from '../stream/words.ts';
-import { markupToken, paratextXml, publicationStmt, sourcesBibl } from './export.ts';
+import { encodingDesc, markupToken, paratextXml, publicationStmt, sourcesBibl } from './export.ts';
 import { escapeAttr, escapeText, ncName } from './xml.ts';
 
 export interface EditionWitness {
   siglum: string;
+  /** The witness record's id, pointed at as `wit:<id>`. */
+  id?: string;
   name?: string;
   description?: string;
 }
 
 export interface EditionSegmentExport {
   label: string;
+  /** The segment's id: the `<ab>` gets `xml:id="seg-<id>"`. */
+  id?: string;
+  /** The passage's CTS URN, written as the `<ab>`'s `corresp`. */
+  urn?: string;
   /** The edition's items of the segment, in order (tokens, breaks, objects). */
   items: Item[];
   /** The edition's collation units for the segment (as given to collate). */
@@ -42,12 +48,18 @@ export interface EditionExport {
   licence?: string;
   witnesses: EditionWitness[];
   segments: EditionSegmentExport[];
+  /** Write every word as `<w xml:id>`, with `corresp` to the witness tokens it was taken from or `source` to its conjecture. */
+  words?: boolean;
+  /** The installation's address, for the prefixes that resolve record ids. */
+  origin?: string;
 }
 
 /** How the witnesses are referred to: the base's siglum, left out of `wit`, and each siglum's xml:id. */
 interface WitnessRefs {
   baseSiglum: string;
   witId: (siglum: string) => string;
+  /** Whether words are written as `<w>` with their provenance. */
+  words: boolean;
 }
 
 /**
@@ -65,7 +77,7 @@ function witnessRefs(witnesses: readonly EditionWitness[], baseSiglum: string): 
     ids.set(siglum, id);
     taken.add(id);
   }
-  return { baseSiglum, witId: (siglum) => ids.get(siglum) ?? ncName(siglum, 'wit-') };
+  return { baseSiglum, witId: (siglum) => ids.get(siglum) ?? ncName(siglum, 'wit-'), words: false };
 }
 
 /** A complete TEI document of the edition. */
@@ -79,12 +91,13 @@ export function exportEditionTei(input: EditionExport): string {
   out.push(`      <titleStmt><title>${escapeText(input.title)}</title>${(input.editors ?? []).map((name) => `<editor>${escapeText(name)}</editor>`).join('')}</titleStmt>`);
   out.push(`      ${publicationStmt(input.licence)}`);
   out.push('      <sourceDesc>');
-  const refs = witnessRefs(input.witnesses, input.baseSiglum ?? 'ed.');
+  const refs = { ...witnessRefs(input.witnesses, input.baseSiglum ?? 'ed.'), words: input.words ?? false };
   if (input.witnesses.length > 0) {
     out.push('        <listWit>');
     for (const w of input.witnesses) {
       const text = [w.name, w.description].filter((x) => x && x.trim() !== '').join('. ');
-      out.push(`          <witness xml:id="${refs.witId(w.siglum)}" n="${escapeAttr(w.siglum)}">${escapeText(text || w.siglum)}</witness>`);
+      const corresp = w.id ? ` corresp="wit:${escapeAttr(w.id)}"` : '';
+      out.push(`          <witness xml:id="${refs.witId(w.siglum)}" n="${escapeAttr(w.siglum)}"${corresp}>${escapeText(text || w.siglum)}</witness>`);
     }
     out.push('        </listWit>');
   }
@@ -94,6 +107,8 @@ export function exportEditionTei(input: EditionExport): string {
   if (input.witnesses.length === 0 && !bibl) out.push('        <p>Edition.</p>');
   out.push('      </sourceDesc>');
   out.push('    </fileDesc>');
+  const encoding = encodingDesc(input.origin);
+  if (encoding) out.push(`    ${encoding}`);
   if (input.language) out.push(`    <profileDesc><langUsage><language ident="${escapeAttr(input.language)}"/></langUsage></profileDesc>`);
   out.push('  </teiHeader>');
   out.push(`  <text${lang}>`);
@@ -108,15 +123,26 @@ export function exportEditionTei(input: EditionExport): string {
   return out.join('\n') + '\n';
 }
 
-/** A word of the edition with its marks; a variant noted in a witness's carrier is not the edition's. */
-function tokenXml(token: Token): string {
-  return markupToken(token.form, (token.marks ?? []).filter((m) => m.kind !== 'variant'));
+/**
+ * A word of the edition with its marks; a variant noted in a witness's
+ * carrier is not the edition's. With words on, it is a `<w>` naming where it
+ * comes from: the witness tokens (`corresp="tok:…"`) or the conjecture
+ * (`source="conj:…"`); an editor's own word names nothing.
+ */
+function tokenXml(token: Token, refs?: WitnessRefs): string {
+  const inner = markupToken(token.form, (token.marks ?? []).filter((m) => m.kind !== 'variant'));
+  if (!refs?.words) return inner;
+  const source = token.source;
+  let provenance = '';
+  if (source?.kind === 'witness' && source.tokenIds.length) provenance = ` corresp="${source.tokenIds.map((id) => `tok:${escapeAttr(id)}`).join(' ')}"`;
+  else if (source?.kind === 'conjecture') provenance = ` source="conj:${escapeAttr(source.conjectureId)}"`;
+  return `<w xml:id="${ncName(token.id, 'w-')}"${provenance}>${inner}</w>`;
 }
 
-function itemXml(item: Item): string {
+function itemXml(item: Item, refs?: WitnessRefs): string {
   switch (item.kind) {
     case 'token':
-      return tokenXml(item);
+      return tokenXml(item, refs);
     case 'break':
       return item.type === 'paragraph' ? '<lb/><lb/>' : '<lb/>';
     case 'object': {
@@ -178,10 +204,10 @@ function segmentXml(segment: EditionSegmentExport, refs: WitnessRefs): string {
         push(appXml(site, covered, segment, refs));
         continue;
       }
-      push(tokenXml(item));
+      push(tokenXml(item, refs));
       continue;
     }
-    push(itemXml(item));
+    push(itemXml(item, refs));
   }
   for (const site of insertionsAtEnd) {
     if (!emitted.has(site)) {
@@ -189,14 +215,16 @@ function segmentXml(segment: EditionSegmentExport, refs: WitnessRefs): string {
       push(appXml(site, [], segment, refs));
     }
   }
-  return `        <ab n="${escapeAttr(segment.label)}">${parts.join('')}</ab>`;
+  const id = segment.id ? ` xml:id="${ncName(segment.id, 'seg-')}"` : '';
+  const corresp = segment.urn ? ` corresp="${escapeAttr(segment.urn)}"` : '';
+  return `        <ab n="${escapeAttr(segment.label)}"${id}${corresp}>${parts.join('')}</ab>`;
 }
 
 function appXml(site: Site, lemmaTokens: Token[], segment: EditionSegmentExport, refs: WitnessRefs): string {
   const base = site.readings.find((r) => r.base);
   const attachments = segment.attachments?.[site.index] ?? [];
   const adopted = attachments.find((a) => a.adopted);
-  const lemmaText = lemmaTokens.map(tokenXml).join(' ');
+  const lemmaText = lemmaTokens.map((t) => tokenXml(t, refs)).join(' ');
   const lemWit = base ? witAttr(base.sigla, refs) : '';
   const lemResp = adopted ? ` resp="${escapeAttr(adopted.name)}"` : '';
   const out: string[] = [];

@@ -104,6 +104,13 @@ export interface ArchiveWriters {
   storageRoot?: string;
   /** Only the records one person may see, for a download; the server's own archive keeps everything. */
   only?: ArchiveFilter;
+  /** The installation's address, which the TEI's record prefixes resolve to; ORIGIN by default. */
+  origin?: string;
+}
+
+/** The address the TEI's `tok:` and other prefixes resolve to. */
+function originOf(writers: ArchiveWriters): string {
+  return (writers.origin ?? process.env.ORIGIN ?? 'http://localhost').replace(/\/+$/u, '');
 }
 
 /** Which records an export takes. */
@@ -142,6 +149,8 @@ interface WorkContext {
   userNames: Map<string, string>;
   segmentRows: (typeof segments.$inferSelect)[];
   labelOf: Map<string, string>;
+  /** The passage URN of each segment, where the work has a CTS URN. */
+  urnOf: Map<string, string>;
   conjectureRows: (typeof conjectures.$inferSelect)[];
   reported: (typeof reportedReadings.$inferSelect)[];
   editionRows: EditionRow[];
@@ -227,6 +236,11 @@ async function loadWorkContext(db: Database, workId: string, root: string, write
   const userNames = new Map(userRows.map((u) => [u.id, u.name] as const));
   const segmentRows = await db.select().from(segments).where(eq(segments.workId, workId)).orderBy(segments.sortKey);
   const labelOf = new Map(segmentRows.map((s) => [s.id, s.label] as const));
+  const urnOf = new Map<string, string>();
+  for (const s of segmentRows) {
+    const urn = passageUrn(work.identifier, s.address, scheme?.levels ?? []);
+    if (urn) urnOf.set(s.id, urn);
+  }
   const conjectureRows = (await db.select().from(conjectures).where(eq(conjectures.workId, workId)).orderBy(asc(conjectures.id))).filter((c) => !only || only.conjecture(c));
   const reported = (await db.select().from(reportedReadings).where(eq(reportedReadings.workId, workId)).orderBy(asc(reportedReadings.id))).filter((r) => !only || only.reported(r));
 
@@ -268,6 +282,7 @@ async function loadWorkContext(db: Database, workId: string, root: string, write
     userNames,
     segmentRows,
     labelOf,
+    urnOf,
     conjectureRows,
     reported,
     editionRows,
@@ -397,7 +412,7 @@ async function writeWorkFiles(ctx: WorkContext): Promise<void> {
     path.join(dir, 'segments.tsv'),
     [
       'id\tlabel\tsort_key\taddress\turn\tcreated_at',
-      ...ctx.segmentRows.map((s) => [s.id, s.label, s.sortKey, JSON.stringify(s.address), passageUrn(work.identifier, s.address, scheme?.levels ?? []) ?? '', iso(s.createdAt)].join('\t')),
+      ...ctx.segmentRows.map((s) => [s.id, s.label, s.sortKey, JSON.stringify(s.address), ctx.urnOf.get(s.id) ?? '', iso(s.createdAt)].join('\t')),
     ].join('\n') + '\n',
   );
   await writeJson(
@@ -589,6 +604,7 @@ async function writeTranscriptionFiles(ctx: WorkContext, t: TranscriptionRow): P
         segmentLabels,
         words: true,
         regularizations: true,
+        origin: originOf(writers),
       }),
     );
   }
@@ -681,7 +697,7 @@ async function writeEditionFiles(ctx: WorkContext, edition: EditionRow): Promise
       states: await reviewStates(ctx, 'edition', edition.id),
     }));
   }
-  const text = await editionText(db, edition.id, labelOf, shownVersion);
+  const text = await editionText(db, edition.id, labelOf, shownVersion, ctx.urnOf);
   await writeText(path.join(edir, 'edition.txt'), text.plain);
   await writeText(path.join(edir, 'edition.md'), text.markdown);
   if (writers.tei !== false) {
@@ -696,8 +712,10 @@ async function writeEditionFiles(ctx: WorkContext, edition: EditionRow): Promise
         ...(edition.sources ? { sources: edition.sources } : {}),
         ...(edition.licence ? { licence: edition.licence } : {}),
         baseSiglum: 'ed.',
-        witnesses: sigla.map((s) => ({ siglum: s.siglum, ...(witnessNames.get(s.witnessId) ? { name: witnessNames.get(s.witnessId)! } : {}) })),
+        witnesses: sigla.map((s) => ({ siglum: s.siglum, id: s.witnessId, ...(witnessNames.get(s.witnessId) ? { name: witnessNames.get(s.witnessId)! } : {}) })),
         segments: text.segments,
+        words: true,
+        origin: originOf(writers),
       }),
     );
   }
@@ -761,6 +779,7 @@ export async function editionText(
   editionId: string,
   labelOf: Map<string, string>,
   atVersion: number | null = null,
+  urnOf: Map<string, string> = new Map(),
 ): Promise<{ plain: string; markdown: string; segments: Parameters<typeof exportEditionTei>[0]['segments'] }> {
   const { context } = await contextAt(db, editionId, atVersion);
   const [row] = await db.select({ conventions: editions.conventions }).from(editions).where(eq(editions.id, editionId));
@@ -786,7 +805,7 @@ export async function editionText(
     markdown.push(`**${label}** ${text}  `);
     for (const line of app) markdown.push(`> ${line}  `);
     const baseUnits = segmentRunsHere.flatMap((run) => units(context.edition.content, run.from, run.to));
-    segmentsOut.push({ label, items, baseUnits, sites: collation?.sites ?? [] });
+    segmentsOut.push({ label, id: segmentId, ...(urnOf.get(segmentId) ? { urn: urnOf.get(segmentId)! } : {}), items, baseUnits, sites: collation?.sites ?? [] });
   }
   return { plain: plain.join('\n') + '\n', markdown: markdown.join('\n') + '\n', segments: segmentsOut };
 }

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://varians.eu/formats/2/zones.schema.json",
+  "zones": [
+    {
+      "id": "01M6Z5QJF2ETGXQXCYJA7TQ2S2",
+      "pageId": "01M6Z5QJB950BQ8S5KT0QAC7AE",
+      "tokenIds": [
+        "01M6Z5QJBE1ZGQVAZ24FP01Q5G"
+      ],
+      "geometry": {
+        "rect": {
+          "h": 0.03,
+          "w": 0.1,
+          "x": 0.12,
+          "y": 0.08
+        }
+      },
+      "feature": null,
+      "createdAt": "2026-11-09T03:30:48.931Z"
+    }
+  ]
+}

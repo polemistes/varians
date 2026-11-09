@@ -1,0 +1,1000 @@
+{
+  "$schema": "https://varians.eu/formats/2/edition.schema.json",
+  "id": "01M6Z5QJDM7TWZNEZC5WHHKE99",
+  "slug": "iliad-1-working-edition",
+  "title": "Iliad 1, a working edition",
+  "editors": [
+    "Test User"
+  ],
+  "preface": "The opening of the Iliad, collated from three witnesses. A worked example, not a verified text.",
+  "ownerId": "01M6Z5QJ9E6BQN570VYCVMHX2C",
+  "ownerName": "Example Editor",
+  "visibility": "published",
+  "version": 1,
+  "head": "01M6Z5QJDTXXAF3MPFQHH03BVD",
+  "publishedVersion": 1,
+  "conventions": {
+    "latin": true,
+    "sigla": {
+      "crux": "†",
+      "lacuna": "***",
+      "deleted": [
+        "[",
+        "]"
+      ],
+      "supplied": [
+        "⟨",
+        "⟩"
+      ]
+    },
+    "apparatus": "positive",
+    "lineation": "verse",
+    "numberEvery": 5,
+    "speakerDisplay": "margin"
+  },
+  "copiedFrom": null,
+  "sources": null,
+  "licence": null,
+  "createdAt": "2026-11-09T03:30:48.885Z",
+  "sigla": [
+    {
+      "siglum": "A",
+      "witnessId": "01M6Z5QJB3CNA3YJF35EJKH54Q",
+      "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0",
+      "states": [],
+      "variantSiglum": null
+    },
+    {
+      "siglum": "B",
+      "witnessId": "01M6Z5QJCGA7FQVQQ6BHQXM4NP",
+      "transcriptionId": "01M6Z5QJCPY0QHW9ZNCA0WG6A4",
+      "states": [],
+      "variantSiglum": null
+    },
+    {
+      "siglum": "C",
+      "witnessId": "01M6Z5QJD3WKWBXTBPM62SQ2E4",
+      "transcriptionId": "01M6Z5QJD85NS6EF5W7PBWRPH6",
+      "states": [],
+      "variantSiglum": null
+    },
+    {
+      "siglum": "T",
+      "witnessId": "01M6Z5QJE4VQJ41ZPZ9A59K2NT",
+      "transcriptionId": null,
+      "states": [],
+      "variantSiglum": null
+    }
+  ],
+  "adoptions": [
+    {
+      "conjectureId": "01M6Z5QJE0JKVXFAK1MKQ877DT",
+      "at": "2026-11-09T03:30:48.959Z"
+    }
+  ],
+  "collaborators": [
+    {
+      "id": "01M6Z5QJ9GA2Z7HW0JNJC1W5DP",
+      "name": "Example Collaborator",
+      "grantedBy": "01M6Z5QJ9E6BQN570VYCVMHX2C",
+      "since": "2026-11-09T03:30:48.955Z"
+    }
+  ],
+  "notes": [
+    {
+      "id": "01M6Z5QJEQ49FCM6XK0HEG2ZX9",
+      "segmentId": "01M6Z5QJA6GTEJKS8T2KSNK0HD",
+      "segmentLabel": "1.1",
+      "tokenIds": [
+        "01M6Z5QJDM7TWZNEZC5WHHKE9B"
+      ],
+      "text": "The first word states the theme.",
+      "authorId": "01M6Z5QJ9E6BQN570VYCVMHX2C",
+      "createdAt": "2026-11-09T03:30:48.920Z"
+    }
+  ],
+  "siteKinds": [
+    {
+      "segmentId": "01M6Z5QJA9AK001T4HA1FARBAQ",
+      "siteKey": "01M6Z5QJA9AK001T4HA1FARBAQ:0",
+      "kind": "textual",
+      "setBy": "01M6Z5QJ9E6BQN570VYCVMHX2C",
+      "setAt": "2026-11-09T03:30:48.940Z"
+    }
+  ],
+  "content": {
+    "items": [
+      {
+        "id": "01M6Z5QJDM7TWZNEZC5WHHKE9B",
+        "form": "μῆνιν",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q5G"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        },
+        "segment": {
+          "segmentId": "01M6Z5QJA6GTEJKS8T2KSNK0HD"
+        }
+      },
+      {
+        "id": "01M6Z5QJDM7TWZNEZC5WHHKE9C",
+        "form": "ἄειδε",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q5H"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDM7TWZNEZC5WHHKE9D",
+        "form": "θεὰ",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q5J"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDM7TWZNEZC5WHHKE9E",
+        "form": "Πηληϊάδεω",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q5K"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDM7TWZNEZC5WHHKE9F",
+        "form": "Ἀχιλῆος",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q5M"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDM7TWZNEZC5WHHKE9G",
+        "kind": "break",
+        "type": "line"
+      },
+      {
+        "id": "01M6Z5QJDM7TWZNEZC5WHHKE9H",
+        "form": "οὐλομένην,",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q5P"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        },
+        "segment": {
+          "segmentId": "01M6Z5QJA9AK001T4HA1FARBAQ"
+        }
+      },
+      {
+        "id": "01M6Z5QJDM7TWZNEZC5WHHKE9J",
+        "form": "ἣ",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q5Q"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDM7TWZNEZC5WHHKE9K",
+        "form": "μυρί᾽",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q5R"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDM7TWZNEZC5WHHKE9M",
+        "form": "Ἀχαιοῖς",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q5S"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDM7TWZNEZC5WHHKE9N",
+        "form": "ἄλγε᾽",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q5T"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDM7TWZNEZC5WHHKE9P",
+        "form": "ἔθηκε,",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q5V"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDM7TWZNEZC5WHHKE9Q",
+        "kind": "break",
+        "type": "line"
+      },
+      {
+        "id": "01M6Z5QJDM7TWZNEZC5WHHKE9R",
+        "form": "πολλὰς",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q5X"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        },
+        "segment": {
+          "segmentId": "01M6Z5QJACX11H7YCFA6M98M3T"
+        }
+      },
+      {
+        "id": "01M6Z5QJDM7TWZNEZC5WHHKE9S",
+        "form": "δ᾽",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q5Y"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDM7TWZNEZC5WHHKE9T",
+        "form": "ἰφθίμους",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q5Z"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDM7TWZNEZC5WHHKE9V",
+        "form": "ψυχὰς",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q60"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y66",
+        "form": "Ἄϊδι",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q61"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y67",
+        "form": "προΐαψεν",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q62"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y68",
+        "kind": "break",
+        "type": "line"
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y69",
+        "form": "ἡρώων,",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q64"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        },
+        "segment": {
+          "segmentId": "01M6Z5QJAF1A9S0TXRJPNNGRX3"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6A",
+        "form": "αὐτοὺς",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q65"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6B",
+        "form": "δὲ",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q66"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6C",
+        "form": "ἑλώρια",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q67"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6D",
+        "form": "τεῦχε",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q68"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6E",
+        "form": "κύνεσσιν",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q69"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6F",
+        "kind": "break",
+        "type": "line"
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6G",
+        "form": "οἰωνοῖσί",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q6B"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        },
+        "segment": {
+          "segmentId": "01M6Z5QJAHZAPNC6T5RS8DD34Y"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6H",
+        "form": "τε",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q6C"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6J",
+        "form": "πᾶσι,",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q6D"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6K",
+        "form": "Διὸς",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q6E"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6M",
+        "form": "δ᾽",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q6F"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6N",
+        "form": "ἐτελείετο",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q6G"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6P",
+        "form": "βουλή,",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q6H"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6Q",
+        "kind": "break",
+        "type": "line"
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6R",
+        "form": "ἐξ",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q6K"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        },
+        "segment": {
+          "segmentId": "01M6Z5QJAM6KYJK6KQ6QDKQ3RP"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6S",
+        "form": "οὗ",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q6M"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6T",
+        "form": "δὴ",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q6N"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6V",
+        "form": "τὰ",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q6P"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6W",
+        "form": "πρῶτα",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q6Q"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6X",
+        "form": "διαστήτην",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q6R"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6Y",
+        "form": "ἐρίσαντε",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q6S"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y6Z",
+        "kind": "break",
+        "type": "line"
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y70",
+        "form": "Ἀτρεΐδης",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q6V"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        },
+        "segment": {
+          "segmentId": "01M6Z5QJAPTPZ6RDWW9QYNC7P9"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y71",
+        "form": "τε",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q6W"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y72",
+        "form": "ἄναξ",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q6X"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y73",
+        "form": "ἀνδρῶν",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q6Y"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y74",
+        "form": "καὶ",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q6Z"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y75",
+        "form": "δῖος",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q70"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y76",
+        "form": "Ἀχιλλεύς.",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q71"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y77",
+        "kind": "break",
+        "type": "line"
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y78",
+        "form": "τίς",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q73"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        },
+        "segment": {
+          "segmentId": "01M6Z5QJATPGGNYZQB6KPDJM8R"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y79",
+        "form": "τ᾽",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q74"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7A",
+        "form": "ἄρ",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q75"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7B",
+        "form": "σφωε",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q76"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7C",
+        "form": "θεῶν",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q77"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7D",
+        "form": "ἔριδι",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q78"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7E",
+        "form": "ξυνέηκε",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q79"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7F",
+        "form": "μάχεσθαι;",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q7A"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7G",
+        "kind": "break",
+        "type": "line"
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7H",
+        "form": "Λητοῦς",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q7C"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        },
+        "segment": {
+          "segmentId": "01M6Z5QJAXJE2F8J2ZAH110Q1R"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7J",
+        "form": "καὶ",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q7D"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7K",
+        "form": "Διὸς",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q7E"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7M",
+        "form": "υἱός·",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q7F"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7N",
+        "form": "ὁ",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q7G"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7P",
+        "form": "γὰρ",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q7H"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7Q",
+        "form": "βασιλῆϊ",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q7J"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7R",
+        "form": "χολωθεὶς",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q7K"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7S",
+        "kind": "break",
+        "type": "line"
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7T",
+        "form": "νοῦσον",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q7N"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        },
+        "segment": {
+          "segmentId": "01M6Z5QJB0XDG04RSQT32P8PKT"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7V",
+        "form": "ἀνὰ",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q7P"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7W",
+        "form": "στρατὸν",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q7Q"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7X",
+        "form": "ὄρσε",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q7R"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7Y",
+        "form": "κακήν,",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q7S"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y7Z",
+        "form": "ὀλέκοντο",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q7T"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y80",
+        "form": "δὲ",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q7V"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      },
+      {
+        "id": "01M6Z5QJDNSJ8RJ73DJVRX8Y81",
+        "form": "λαοί,",
+        "kind": "token",
+        "source": {
+          "kind": "witness",
+          "tokenIds": [
+            "01M6Z5QJBE1ZGQVAZ24FP01Q7W"
+          ],
+          "transcriptionId": "01M6Z5QJBG7R67B228ZQTK7ZN0"
+        }
+      }
+    ]
+  }
+}

@@ -9,7 +9,7 @@ import pg from 'pg';
 import { seedSample } from '../seed/sample.ts';
 import { publishEdition } from '../publish.ts';
 import { writeArchive } from './archive.ts';
-import { validateArchiveDir } from './validate.ts';
+import { hasXmllint, validateArchiveDir, validateTeiFiles } from './validate.ts';
 
 const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329/varians_test';
 let db: Database;
@@ -48,6 +48,13 @@ describe('archive validation', () => {
     await publishEdition(db, sample.editionId, userId);
     const dir = await writeArchive(db, sample.workId, root);
     expect(await validateArchiveDir(dir)).toEqual([]);
+    // Every TEI file is valid against the RelaxNG of the ODD.
+    if (hasXmllint()) expect(await validateTeiFiles(dir)).toEqual([]);
+    else console.warn('xmllint is not installed: the archive TEI is NOT validated against docs/formats/varians.rng.');
+    const tei = await readFile(path.join(dir, 'editions', sample.editionSlug, 'edition.tei.xml'), 'utf8');
+    expect(tei).toContain('<listPrefixDef>');
+    expect(tei).toMatch(/<ab n="1\.1" xml:id="seg-[0-9A-Z]+" corresp="urn:cts:greekLit:tlg0012\.tlg001:1\.1">/);
+    expect(tei).toMatch(/<w xml:id="w-[0-9A-Z]+" corresp="tok:[0-9A-Z]+">/);
     // The first member of every JSON file is its schema's address.
     const work = await readFile(path.join(dir, 'work.json'), 'utf8');
     expect(work).toMatch(/^\{\n {2}"\$schema": "https:\/\/varians\.eu\/formats\/2\/work\.schema\.json",/);

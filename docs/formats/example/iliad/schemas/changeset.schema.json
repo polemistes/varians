@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://varians.eu/formats/2/changeset.schema.json",
+  "title": "Changeset",
+  "description": "One line of history.ndjson: a change to a document's text (specification 5.1). Lines carry no $schema.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+    },
+    "parentId": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+    },
+    "merged": {
+      "type": "array",
+      "items": {
+        "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+      }
+    },
+    "version": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "personId": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+    },
+    "at": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/time"
+    },
+    "ops": {
+      "type": "array",
+      "items": {
+        "$ref": "https://varians.eu/formats/2/stream.schema.json#/$defs/op"
+      }
+    },
+    "reverse": {
+      "type": "array",
+      "items": {
+        "$ref": "https://varians.eu/formats/2/stream.schema.json#/$defs/op"
+      }
+    },
+    "message": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "at",
+    "ops",
+    "reverse"
+  ]
+}

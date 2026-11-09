@@ -5,6 +5,7 @@
  */
 
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
+import { spawnSync } from 'node:child_process';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { FORMAT_BASE, formatsDir } from './archive.ts';
@@ -91,6 +92,38 @@ export async function validateArchiveDir(dir: string): Promise<ValidationProblem
       continue;
     }
     if (!validate(data)) problems.push({ file, message: describe(validate) });
+  }
+  return problems;
+}
+
+/** Whether xmllint is on this machine; without it the TEI is not checked. */
+export function hasXmllint(): boolean {
+  return spawnSync('xmllint', ['--version']).error === undefined;
+}
+
+/**
+ * Validate every TEI file of an archive directory against the RelaxNG schema
+ * generated from the ODD (docs/formats/varians.rng). Returns null when
+ * xmllint or the schema is missing, so that callers can say the TEI went
+ * unchecked.
+ */
+export async function validateTeiFiles(dir: string): Promise<ValidationProblem[] | null> {
+  const formats = formatsDir();
+  const rng = formats ? path.join(formats, 'varians.rng') : null;
+  if (!rng || !hasXmllint()) return null;
+  try {
+    await readFile(rng);
+  } catch {
+    return null;
+  }
+  const files = (await filesUnder(dir)).filter((f) => f.endsWith('.tei.xml'));
+  const problems: ValidationProblem[] = [];
+  for (const file of files) {
+    const run = spawnSync('xmllint', ['--noout', '--relaxng', rng, path.join(dir, file)], { encoding: 'utf8' });
+    if (run.status !== 0) {
+      const lines = run.stderr.split('\n').filter((l) => l.trim() !== '' && !l.endsWith('fails to validate'));
+      problems.push({ file, message: lines.slice(0, 5).join('; ') || 'is not valid TEI' });
+    }
   }
   return problems;
 }

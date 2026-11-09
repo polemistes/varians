@@ -286,6 +286,37 @@ describe.skipIf(!xmllint)('edition TEI is valid', slow, () => {
   });
 });
 
+describe.skipIf(!xmllint)('the record pointers the exporters write', slow, () => {
+  it('in an edition: the prefixes, every word as <w> with its provenance, segments with ids and passage URNs, witnesses pointing at their records', () => {
+    const input = editionInput();
+    const [first, ...rest] = input.segments;
+    const tokens = first!.items.filter((i) => i.kind === 'token');
+    tokens[0]!.source = { kind: 'witness', transcriptionId: 'T1', tokenIds: ['01JTOKEN0000000000000000A1', '01JTOKEN0000000000000000A2'] };
+    tokens[1]!.source = { kind: 'conjecture', conjectureId: '01JCONJECTURE000000000001' };
+    tokens[2]!.source = { kind: 'editor' };
+    const xml = exportEditionTei({
+      ...input,
+      words: true,
+      origin: 'https://varians.example/',
+      witnesses: input.witnesses.map((w, i) => ({ ...w, id: `01JWITNESS00000000000000${String(i).padStart(2, '0')}` })),
+      segments: [{ ...first!, id: '01JSEGMENT000000000000001', urn: 'urn:cts:greekLit:tlg0012.tlg001:1.1' }, ...rest],
+    });
+    expect(xml).toContain('<prefixDef ident="tok" matchPattern="([0-9A-HJKMNP-TV-Z]{26})" replacementPattern="https://varians.example/id/$1"/>');
+    expect(xml).toContain('<ab n="1.1" xml:id="seg-01JSEGMENT000000000000001" corresp="urn:cts:greekLit:tlg0012.tlg001:1.1">');
+    expect(xml).toContain('corresp="tok:01JTOKEN0000000000000000A1 tok:01JTOKEN0000000000000000A2">the</w>');
+    expect(xml).toContain('source="conj:01JCONJECTURE000000000001">quick</w>');
+    expect(xml).toMatch(/<w xml:id="w-[^"]+">brown<\/w>/);
+    expect(xml).toContain('corresp="wit:01JWITNESS0000000000000000"');
+    expect(errors(xml)).toEqual([]);
+  });
+
+  it('in a transcription: the prefixes', () => {
+    const xml = exportTranscriptionTei({ ...exportInput(), origin: 'https://varians.example' });
+    expect(xml).toContain('<encodingDesc><listPrefixDef>');
+    expect(errors(xml)).toEqual([]);
+  });
+});
+
 describe.skipIf(!xmllint)('what milestone B5 adds is valid', slow, () => {
   const header = (extra: string) => `<teiHeader>
     <fileDesc>

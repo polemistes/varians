@@ -1,0 +1,17 @@
+{
+  "$schema": "https://varians.eu/formats/2/alignment.schema.json",
+  "constraints": [
+    {
+      "id": "01M6Z5QJF6EV721NW5J6C3N9VX",
+      "segmentId": "01M6Z5QJA6GTEJKS8T2KSNK0HD",
+      "baseTokenIds": [
+        "01M6Z5QJDM7TWZNEZC5WHHKE9B"
+      ],
+      "transcriptionId": "01M6Z5QJCPY0QHW9ZNCA0WG6A4",
+      "witnessTokenIds": [
+        "01M6Z5QJCNR4HVEJ2KC1Q3NZ4F"
+      ],
+      "createdAt": "2026-11-09T03:30:48.934Z"
+    }
+  ]
+}

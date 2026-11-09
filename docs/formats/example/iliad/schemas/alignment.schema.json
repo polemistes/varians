@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://varians.eu/formats/2/alignment.schema.json",
+  "title": "Alignment constraints",
+  "description": "alignment.json: edition tokens an editor holds to witness tokens (specification 4.11).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://varians.eu/formats/2/alignment.schema.json"
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "segmentId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "baseTokenIds": {
+            "type": "array",
+            "items": {
+              "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+            }
+          },
+          "transcriptionId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "witnessTokenIds": {
+            "type": "array",
+            "items": {
+              "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+            }
+          },
+          "createdAt": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+          }
+        },
+        "required": [
+          "id",
+          "segmentId",
+          "baseTokenIds",
+          "transcriptionId",
+          "witnessTokenIds"
+        ]
+      }
+    }
+  },
+  "required": [
+    "$schema",
+    "constraints"
+  ]
+}

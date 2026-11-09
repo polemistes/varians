@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://varians.eu/formats/2/reported-readings.schema.json",
+  "title": "Reported readings",
+  "description": "reported-readings.json: readings reported for witnesses (specification 4.4).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://varians.eu/formats/2/reported-readings.schema.json"
+    },
+    "readings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "workId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "segmentId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "segmentLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "witnessId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "lemma": {
+            "type": "string"
+          },
+          "reading": {
+            "type": "string"
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ownerId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "visibility": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/visibility"
+          },
+          "createdAt": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+          },
+          "updatedAt": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+          }
+        },
+        "required": [
+          "id",
+          "segmentId",
+          "witnessId",
+          "lemma",
+          "reading"
+        ]
+      }
+    }
+  },
+  "required": [
+    "$schema",
+    "readings"
+  ]
+}

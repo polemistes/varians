@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://varians.eu/formats/2/work.schema.json",
+  "title": "Work",
+  "description": "work.json: the work, its reference scheme and normalization profile (specification 4.1).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://varians.eu/formats/2/work.schema.json"
+    },
+    "formatVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "id": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "title": {
+      "type": "string"
+    },
+    "author": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "language": {
+      "type": "string"
+    },
+    "identifier": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "identifiers": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/identifiers"
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "visibility": {
+      "enum": [
+        "public",
+        "private"
+      ]
+    },
+    "scheme": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+        },
+        "name": {
+          "type": "string"
+        },
+        "levels": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "separator": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "label",
+              "type"
+            ]
+          }
+        },
+        "createdBy": {
+          "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+        },
+        "createdAt": {
+          "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "levels"
+      ]
+    },
+    "profile": {
+      "type": "object",
+      "properties": {
+        "language": {
+          "type": "string"
+        },
+        "fold": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "language",
+        "fold"
+      ]
+    },
+    "maintainers": {
+      "type": "array",
+      "items": {
+        "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/account"
+      }
+    },
+    "licence": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/spdx"
+    },
+    "createdBy": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+    },
+    "createdAt": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+    }
+  },
+  "required": [
+    "$schema",
+    "formatVersion",
+    "id",
+    "slug",
+    "title",
+    "language",
+    "scheme",
+    "profile"
+  ]
+}

@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://varians.eu/formats/2/witness.schema.json",
+  "title": "Witness",
+  "description": "witness.json: a witness of the text (specification 4.6).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://varians.eu/formats/2/witness.schema.json"
+    },
+    "id": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+    },
+    "slug": {
+      "type": "string"
+    },
+    "siglum": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "category": {
+      "enum": [
+        "manuscript",
+        "inscription",
+        "edition",
+        "indirect",
+        "other"
+      ]
+    },
+    "format": {
+      "enum": [
+        "codex",
+        "roll",
+        "sheet",
+        "unknown",
+        null
+      ]
+    },
+    "sourceAuthor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sourceWork": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repository": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "settlement": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "shelfmark": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "identifier": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "identifiers": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/identifiers"
+    },
+    "dateText": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "material": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "extent": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "hands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "main": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ]
+      }
+    },
+    "provenance": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "iiifManifest": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "imageRights": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/rights"
+    },
+    "imageAttribution": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "maintainers": {
+      "type": "array",
+      "items": {
+        "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/account"
+      }
+    },
+    "createdBy": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+    },
+    "createdAt": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+    },
+    "updatedAt": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+    }
+  },
+  "required": [
+    "$schema",
+    "id",
+    "slug",
+    "siglum",
+    "name",
+    "category"
+  ]
+}

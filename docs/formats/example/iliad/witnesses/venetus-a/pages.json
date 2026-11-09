@@ -1,0 +1,34 @@
+{
+  "$schema": "https://varians.eu/formats/2/pages.schema.json",
+  "pages": [
+    {
+      "id": "01M6Z5QJB950BQ8S5KT0QAC7AE",
+      "label": "12r",
+      "position": 1,
+      "image": {
+        "kind": "upload",
+        "path": "originals/01M6Z5QJB950BQ8S5KT0QAC7AE.jpg",
+        "file": "images/12r-QAC7AE.jpg",
+        "iiif": null,
+        "width": 64,
+        "height": 96,
+        "tiles": null
+      },
+      "createdAt": "2026-11-09T03:30:48.810Z"
+    },
+    {
+      "id": "01M6Z5QJB950BQ8S5KT0QAC7AF",
+      "label": "12v",
+      "position": 2,
+      "image": null,
+      "createdAt": "2026-11-09T03:30:48.810Z"
+    },
+    {
+      "id": "01M6Z5QJB950BQ8S5KT0QAC7AG",
+      "label": "13r",
+      "position": 3,
+      "image": null,
+      "createdAt": "2026-11-09T03:30:48.810Z"
+    }
+  ]
+}

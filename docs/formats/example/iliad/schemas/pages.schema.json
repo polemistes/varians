@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://varians.eu/formats/2/pages.schema.json",
+  "title": "Pages",
+  "description": "pages.json: the pages of a witness in order, with their images (specification 4.7).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://varians.eu/formats/2/pages.schema.json"
+    },
+    "pages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "label": {
+            "type": "string"
+          },
+          "position": {
+            "type": "number"
+          },
+          "image": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "upload",
+                  "iiif"
+                ]
+              },
+              "path": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "file": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "iiif": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "width": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "height": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "tiles": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "rights": {
+                "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/rights"
+              },
+              "attribution": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "source": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "createdAt": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "position"
+        ]
+      }
+    }
+  },
+  "required": [
+    "$schema",
+    "pages"
+  ]
+}

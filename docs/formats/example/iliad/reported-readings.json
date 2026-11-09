@@ -1,0 +1,20 @@
+{
+  "$schema": "https://varians.eu/formats/2/reported-readings.schema.json",
+  "readings": [
+    {
+      "id": "01M6Z5QJE9RYQQ7YMW2XC5NQRN",
+      "workId": "01M6Z5QJ9Y0BHYB8BH16GB3FSP",
+      "segmentId": "01M6Z5QJA6GTEJKS8T2KSNK0HD",
+      "witnessId": "01M6Z5QJE4VQJ41ZPZ9A59K2NT",
+      "lemma": "θεὰ",
+      "reading": "θεά",
+      "source": "Allen's apparatus (1931)",
+      "note": null,
+      "ownerId": "01M6Z5QJ9E6BQN570VYCVMHX2C",
+      "visibility": "published",
+      "createdAt": "2026-11-09T03:30:48.905Z",
+      "updatedAt": "2026-11-09T03:30:48.969Z",
+      "segmentLabel": "1.1"
+    }
+  ]
+}

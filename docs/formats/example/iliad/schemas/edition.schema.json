@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://varians.eu/formats/2/edition.schema.json",
+  "title": "Edition",
+  "description": "edition.json: an edition, its conspectus, adoptions, notes and text (specification 4.10).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://varians.eu/formats/2/edition.schema.json"
+    },
+    "id": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+    },
+    "slug": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "editors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "preface": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ownerId": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+    },
+    "ownerName": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "visibility": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/visibility"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "head": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+    },
+    "publishedVersion": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "conventions": {
+      "type": "object"
+    },
+    "copiedFrom": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "sources": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "licence": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "rightsNote": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "createdAt": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+    },
+    "sigla": {
+      "type": "array",
+      "items": {
+        "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/siglum"
+      }
+    },
+    "adoptions": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "conjectureId": {
+                "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+              },
+              "at": {
+                "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+              }
+            },
+            "required": [
+              "conjectureId"
+            ]
+          }
+        ]
+      }
+    },
+    "collaborators": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "personId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "grantedBy": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+          },
+          "since": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "segmentId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "segmentLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tokenIds": {
+            "type": "array",
+            "items": {
+              "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+            }
+          },
+          "text": {
+            "type": "string"
+          },
+          "personId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+          },
+          "createdAt": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+          }
+        },
+        "required": [
+          "id",
+          "segmentId",
+          "tokenIds",
+          "text"
+        ]
+      }
+    },
+    "siteKinds": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "segmentId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "siteKey": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "textual",
+              "interpretative"
+            ]
+          },
+          "personId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+          },
+          "setAt": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+          }
+        },
+        "required": [
+          "segmentId",
+          "siteKey",
+          "kind"
+        ]
+      }
+    },
+    "content": {
+      "$ref": "https://varians.eu/formats/2/stream.schema.json"
+    }
+  },
+  "required": [
+    "$schema",
+    "id",
+    "slug",
+    "title",
+    "version",
+    "conventions",
+    "sigla",
+    "content"
+  ]
+}

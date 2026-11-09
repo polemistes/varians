@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://varians.eu/formats/2/transcription.schema.json",
+  "title": "Transcription",
+  "description": "transcription.json: a transcription of a witness, with its text (specification 4.8).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://varians.eu/formats/2/transcription.schema.json"
+    },
+    "id": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+    },
+    "name": {
+      "type": "string"
+    },
+    "witnessId": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+    },
+    "ownerId": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+    },
+    "ownerName": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "visibility": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/visibility"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "head": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+    },
+    "keepsWrittenForm": {
+      "type": "boolean"
+    },
+    "displayAsWritten": {
+      "type": "boolean"
+    },
+    "profile": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sources": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "licence": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "rightsNote": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "workIds": {
+      "type": "array",
+      "items": {
+        "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+      }
+    },
+    "createdAt": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+    },
+    "content": {
+      "$ref": "https://varians.eu/formats/2/stream.schema.json"
+    }
+  },
+  "required": [
+    "$schema",
+    "id",
+    "name",
+    "witnessId",
+    "version",
+    "content"
+  ]
+}

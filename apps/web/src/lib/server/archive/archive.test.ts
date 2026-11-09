@@ -56,8 +56,8 @@ describe('archive', () => {
     expect(text).toContain('1.1  μῆνιν ἄειδε θεὰ Πηληϊάδεω Ἀχιλῆος');
     expect(text).toContain('1.2 μυρί᾽ A C : μυρία B');
     const tei = await readFile(path.join(dir, 'editions', sample.editionSlug, 'edition.tei.xml'), 'utf8');
-    expect(tei).toContain('<witness xml:id="wit-A" n="A">Venetus A</witness>');
-    expect(tei).toContain('<app><lem wit="#wit-A #wit-C">μυρί᾽</lem><rdg wit="#wit-B">μυρία</rdg></app>');
+    expect(tei).toMatch(/<witness xml:id="wit-A" n="A" corresp="wit:[0-9A-Z]+">Venetus A<\/witness>/);
+    expect(tei).toMatch(/<app><lem wit="#wit-A #wit-C"><w xml:id="w-[0-9A-Z]+" corresp="tok:[0-9A-Z]+">μυρί᾽<\/w><\/lem><rdg wit="#wit-B">μυρία<\/rdg><\/app>/);
     const transcriptionTei = await readFile(path.join(dir, 'witnesses', 'venetus-a', 'transcriptions', 'iliad-1', 'transcription.tei.xml'), 'utf8');
     expect(transcriptionTei).toContain('<msIdentifier>');
     expect(transcriptionTei).toContain('<milestone unit="segment" n="1.1"/>');

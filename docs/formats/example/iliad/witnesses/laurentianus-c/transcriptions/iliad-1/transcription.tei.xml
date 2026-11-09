@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader>
+    <fileDesc>
+      <titleStmt>
+        <title>Iliad: Codex Laurentianus, Iliad 1</title>
+      </titleStmt>
+      <publicationStmt><p>Exported from Varians.</p></publicationStmt>
+      <sourceDesc>
+        <msDesc>
+          <msIdentifier>
+            <msName>Codex Laurentianus</msName>
+            <altIdentifier type="siglum"><idno>C</idno></altIdentifier>
+          </msIdentifier>
+          <head>Codex Laurentianus</head>
+          <history><origin><origDate>s. XII</origDate></origin></history>
+        </msDesc>
+      </sourceDesc>
+    </fileDesc>
+    <encodingDesc><listPrefixDef><prefixDef ident="tok" matchPattern="([0-9A-HJKMNP-TV-Z]{26})" replacementPattern="https://varians.eu/id/$1"/><prefixDef ident="seg" matchPattern="([0-9A-HJKMNP-TV-Z]{26})" replacementPattern="https://varians.eu/id/$1"/><prefixDef ident="wit" matchPattern="([0-9A-HJKMNP-TV-Z]{26})" replacementPattern="https://varians.eu/id/$1"/><prefixDef ident="conj" matchPattern="([0-9A-HJKMNP-TV-Z]{26})" replacementPattern="https://varians.eu/id/$1"/><prefixDef ident="person" matchPattern="([0-9A-HJKMNP-TV-Z]{26})" replacementPattern="https://varians.eu/id/$1"/></listPrefixDef></encodingDesc>
+    <profileDesc>
+      <langUsage>
+        <language ident="grc">grc</language>
+      </langUsage>
+    </profileDesc>
+  </teiHeader>
+  <text xml:lang="grc">
+    <body>
+      <ab><milestone unit="segment" n="1.1"/><w xml:id="w-01M6Z5QJD7EMAGTNQ3M8RP68VJ">μῆνιν</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPF8">ἄειδε</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPF9">θεὰ</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPFA">Πηληϊάδεω</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPFB">Ἀχιλῆος</w>
+      <lb/><milestone unit="segment" n="1.2"/><w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPFD">οὐλομένην,</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPFE">ἣ</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPFF">μυρί᾽</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPFG">Ἀχαιοῖς</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPFH">ἄλγε᾽</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPFJ">ἔθηκε,</w>
+      <lb/><milestone unit="segment" n="1.4"/><w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPFM">ἡρώων,</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPFN">αὐτοὺς</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPFP">δὲ</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPFQ">ἑλώρια</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPFR">τεῦχε</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPFS">κύνεσσιν</w>
+      <lb/><milestone unit="segment" n="1.5"/><w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPFV">οἰωνοῖσί</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPFW">τε</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPFX">πᾶσι,</w> <gap unit="character" reason="lost" quantity="6"/> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPG0">ἐτελείετο</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPG1">βουλή,</w>
+      <lb/><milestone unit="segment" n="1.7"/><w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPG3">Ἀτρεΐδης</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPG4">τε</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPG5">ἄναξ</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPG6">ἀνδρῶν</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPG7">καὶ</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPG8">δῖος</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPG9">Ἀχιλλεύς.</w>
+      <lb/><milestone unit="segment" n="1.8"/><w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPGB">τίς</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPGC">τ᾽</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPGD">ἄρ</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPGE">σφωε</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPGF">θεῶν</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPGG">ἔριδι</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPGH">ξυνέηκε</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPGJ">μάχεσθαι;</w>
+      <lb/><milestone unit="segment" n="1.9"/><w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPGM">Λητοῦς</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPGN">καὶ</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPGP">Διὸς</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPGQ">υἱός·</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPGR">ὁ</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPGS">γὰρ</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPGT">βασιλῆϊ</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPGV">χολωθεὶς</w>
+      <lb/><milestone unit="segment" n="1.10"/><w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPGX">νοῦσον</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPGY">ἀνὰ</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPGZ">στρατὸν</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPH0">ὄρσε</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPH1">κακά,</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPH2">ὀλέκοντο</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPH3">δὲ</w> <w xml:id="w-01M6Z5QJD85NS6EF5W7PBWRPH4">λαοί,</w></ab>
+    </body>
+  </text>
+</TEI>

@@ -80,6 +80,21 @@ export interface TranscriptionExport {
   sources?: string;
   /** The licence the transcription is published under. */
   licence?: string;
+  /** The installation's address, for the prefixes that resolve record ids (`tok:` and the rest). */
+  origin?: string;
+}
+
+/** The prefixes by which a document's pointers name records of the installation (tok:, seg:, wit:, conj:, person:), resolved at its /id/ addresses. */
+export const RECORD_PREFIXES = ['tok', 'seg', 'wit', 'conj', 'person'] as const;
+
+/** The encoding description declaring the record prefixes for an installation's origin, or nothing without one. */
+export function encodingDesc(origin: string | undefined): string | null {
+  if (!origin) return null;
+  const base = origin.replace(/\/+$/u, '');
+  const defs = RECORD_PREFIXES.map(
+    (ident) => `<prefixDef ident="${ident}" matchPattern="([0-9A-HJKMNP-TV-Z]{26})" replacementPattern="${escapeAttr(base)}/id/$1"/>`,
+  ).join('');
+  return `<encodingDesc><listPrefixDef>${defs}</listPrefixDef></encodingDesc>`;
 }
 
 /** The publication statement: by Varians, under the licence when one is given. */
@@ -152,6 +167,8 @@ function header(input: TranscriptionExport): string[] {
   if (!input.witness && !bibl) lines.push(...indent(4, '<p>Transcription.</p>'));
   lines.push(...indent(3, '</sourceDesc>'));
   lines.push(...indent(2, '</fileDesc>'));
+  const encoding = encodingDesc(input.origin);
+  if (encoding) lines.push(...indent(2, encoding));
   if (input.language !== undefined) {
     lines.push(...indent(2, '<profileDesc>'), ...indent(3, '<langUsage>'));
     lines.push(...indent(4, elementXml('language', { ident: input.language }, input.language)));

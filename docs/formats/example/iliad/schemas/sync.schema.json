@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://varians.eu/formats/2/sync.schema.json",
+  "title": "Sync state",
+  "description": "sync.json: what an installation holds of a work, for another to compare with (specification 11).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://varians.eu/formats/2/sync.schema.json"
+    },
+    "formatVersion": {
+      "type": "integer"
+    },
+    "origin": {
+      "type": "string"
+    },
+    "workId": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+    },
+    "licence": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/spdx"
+    },
+    "documents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "kind": {
+            "enum": [
+              "transcription",
+              "edition"
+            ]
+          },
+          "head": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "head",
+          "version"
+        ]
+      }
+    }
+  },
+  "required": [
+    "$schema",
+    "formatVersion",
+    "origin",
+    "workId",
+    "documents"
+  ]
+}
