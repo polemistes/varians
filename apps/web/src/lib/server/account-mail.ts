@@ -55,7 +55,7 @@ export async function sendVerification(db: Database, mailer: Mailer, account: Ac
   await mailer.send({
     to: account.email,
     subject: mail.verify.subject(site.name),
-    text: mail.verify.text({ name: account.name, site: site.name, link, origin: site.origin }),
+    text: mail.verify.text({ site: site.name, link, origin: site.origin }),
   });
 }
 
@@ -88,7 +88,7 @@ export async function requestPasswordReset(db: Database, mailer: Mailer, email: 
   await mailer.send({
     to: account.email,
     subject: mail.reset.subject(site.name),
-    text: mail.reset.text({ name: account.name, site: site.name, link: linkTo(site, 'reset', token), origin: site.origin }),
+    text: mail.reset.text({ site: site.name, link: linkTo(site, 'reset', token), origin: site.origin }),
   });
 }
 
@@ -118,7 +118,7 @@ export async function sendResetLink(db: Database, mailer: Mailer, userId: string
   await mailer.send({
     to: made.account.email,
     subject: mail.resetByAdministrator.subject(site.name),
-    text: mail.resetByAdministrator.text({ name: made.account.name, site: site.name, link: made.link, origin: site.origin }),
+    text: mail.resetByAdministrator.text({ site: site.name, link: made.link, origin: site.origin }),
   });
   return made.account;
 }

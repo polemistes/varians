@@ -9,7 +9,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { env } from '$env/dynamic/private';
 import { newId } from '@varians/core';
-import { and, count, eq, ne, sessions, sql, users, type Database, type User } from '@varians/db';
+import { and, count, emailTokens, eq, isNull, ne, sessions, sql, users, type Database, type User } from '@varians/db';
 import { normalizePreferences } from '$lib/preferences';
 import type { CurrentUser, Preferences } from '$lib/types';
 import { db } from './db';
@@ -249,6 +249,11 @@ export async function changePassword(
   await db
     .delete(sessions)
     .where(keepToken ? and(eq(sessions.userId, userId), ne(sessions.id, hashToken(keepToken))) : eq(sessions.userId, userId));
+  // A link to set a new password, asked for before the change, no longer works after it.
+  await db
+    .update(emailTokens)
+    .set({ usedAt: new Date() })
+    .where(and(eq(emailTokens.userId, userId), eq(emailTokens.purpose, 'reset'), isNull(emailTokens.usedAt)));
   return { ok: true };
 }
 

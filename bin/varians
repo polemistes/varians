@@ -146,6 +146,17 @@ restore() {
     die "no storage.tar.gz or storage/ in $src."
   fi
   pg_restore --list "$src/varians.dump" > /dev/null || die "$src/varians.dump is not a dump pg_restore can read."
+  if [ "$storage_kind" = tar ]; then
+    # Every member must stay inside the storage: no absolute names, no "..".
+    members=$(tar -tzf "$src/storage.tar.gz") || die "$src/storage.tar.gz cannot be read."
+    if printf '%s\n' "$members" | grep -Eq '^/|(^|/)\.\.(/|$)'; then
+      die "$src/storage.tar.gz holds names outside the storage; nothing was changed."
+    fi
+    # Nor links, which could point outside it.
+    if tar -tvzf "$src/storage.tar.gz" | grep -q '^[lh]'; then
+      die "$src/storage.tar.gz holds links; nothing was changed."
+    fi
+  fi
 
   if [ "$confirmed" != "--yes" ]; then
     if [ -t 0 ]; then

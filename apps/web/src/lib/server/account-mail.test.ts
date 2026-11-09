@@ -67,7 +67,7 @@ describe('asking for a new password', () => {
     const [message] = outbox.messages;
     expect(message!.to).toBe(email);
     expect(message!.subject).toBe('A new password for Varians Test');
-    expect(message!.text).toContain('Ada Reader,');
+    expect(message!.text).not.toContain('Ada Reader');
     expect(message!.text).toContain('valid for an hour');
     expect(outbox.token('reset')).toHaveLength(43);
   });

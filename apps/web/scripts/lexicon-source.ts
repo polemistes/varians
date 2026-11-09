@@ -47,6 +47,10 @@ export async function lexiconSource(
     try {
       const response = await (options.fetch ?? fetch)(given, { redirect: 'follow' });
       if (!response.ok || !response.body) throw new LexiconSourceError(`The download failed: ${response.status} ${response.statusText}`);
+      // Without a checksum, only https vouches for the file: a redirect may not leave it.
+      if (!expected && response.url && !/^https:\/\//iu.test(response.url)) {
+        throw new LexiconSourceError(`The download was redirected to ${response.url}; give --sha256 to accept a file not served over https.`);
+      }
       await pipeline(Readable.fromWeb(response.body as ReadableStream), createWriteStream(file));
     } catch (error) {
       await cleanup();

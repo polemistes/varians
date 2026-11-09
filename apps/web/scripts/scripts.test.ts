@@ -83,4 +83,12 @@ describe('the source of a lexicon', () => {
     await expect(lexiconSource('http://example.org/lexicon.sqlite')).rejects.toThrow(/https/u);
     await expect(lexiconSource('file:///etc/passwd')).rejects.toThrow(/https/u);
   });
+
+  it('refuses a redirect away from https unless a checksum vouches for the file', async () => {
+    const redirected = (async () => ({ ok: true, status: 200, statusText: 'OK', url: 'http://mirror.example.org/lexicon.sqlite', body: new Response('abc').body })) as unknown as typeof fetch;
+    await expect(lexiconSource('https://example.org/lexicon.sqlite', { fetch: redirected })).rejects.toThrow(/redirected/u);
+    const source = await lexiconSource('https://example.org/lexicon.sqlite', { fetch: redirected, sha256: 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad' });
+    expect(existsSync(source.file)).toBe(true);
+    await source.cleanup();
+  });
 });
