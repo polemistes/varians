@@ -75,4 +75,21 @@ describe('exportEditionTei', () => {
     const xml = exportEditionTei({ title: 't', witnesses: [{ siglum: 'A' }], segments: [{ label: '1', items: edition.items, baseUnits, sites: c.sites }] });
     expect(xml).toContain('<app type="interpretative"><lem>ἦ</lem><rdg wit="#wit-A">ἢ</rdg></app>');
   });
+
+  it('writes speakers, headings and marginal notes as typed labels, leaves out variants noted in a carrier, and has no empty witness list', () => {
+    const edition = fromText('a b', { ids: sequentialIds('e') });
+    edition.items.unshift(
+      { kind: 'object', id: 's', type: 'paratext', attrs: { type: 'speaker' }, text: 'ΧΟ.' },
+      { kind: 'object', id: 'h', type: 'paratext', attrs: { type: 'head' }, text: 'Α' },
+      { kind: 'object', id: 'm', type: 'paratext', attrs: { type: 'margin' }, text: '5' },
+      { kind: 'object', id: 'st', type: 'paratext', attrs: { type: 'stage' }, text: 'exit' },
+    );
+    const last = edition.items[edition.items.length - 1]!;
+    if (last.kind === 'token') last.marks = [{ kind: 'variant', attrs: { group: 'g', reading: 'c', place: 'margin' } }];
+    const baseUnits = units(edition, 0, edition.items.length);
+    const xml = exportEditionTei({ title: 't', witnesses: [], segments: [{ label: '1', items: edition.items, baseUnits, sites: [] }] });
+    expect(xml).toContain('<ab n="1"><label type="speaker">ΧΟ.</label> <label type="head">Α</label> <label type="margin">5</label> <stage>exit</stage> a b</ab>');
+    expect(xml).not.toContain('<listWit>');
+    expect(xml).toContain('<sourceDesc>\n        <p>Edition.</p>\n      </sourceDesc>');
+  });
 });

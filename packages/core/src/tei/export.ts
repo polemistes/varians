@@ -94,25 +94,13 @@ export function sourcesBibl(sources: string | undefined): string | null {
 }
 
 const TEI_NS = 'http://www.tei-c.org/ns/1.0';
-/** Paratext types with an element of their own; anything else is written as a label. */
-const PARATEXT_NAMES = new Set([
-  'head',
-  'speaker',
-  'stage',
-  'label',
-  'trailer',
-  'fw',
-  'byline',
-  'dateline',
-  'opener',
-  'closer',
-  'salute',
-  'signed',
-  'docAuthor',
-  'docTitle',
-  'argument',
-  'epigraph',
-]);
+/**
+ * Paratext with an element TEI allows inside a line, written as itself. The
+ * text of a transcription or an edition is a flat run inside `<ab>` or `<p>`,
+ * where `<head>`, `<speaker>`, `<trailer>` and the like may not stand; those
+ * are written as `<label type="head">` and so on (see varians.odd).
+ */
+const INLINE_PARATEXT = new Set(['label', 'stage', 'fw']);
 /** Mark kinds that are empty elements standing at a point. */
 const POINT_KINDS = new Set(['gap', 'space', 'handShift']);
 /** Mark kinds with no TEI element of their own; written as `<seg type>`. */
@@ -580,16 +568,27 @@ function objectXml(obj: Obj): string {
       return elementXml('note', attrs, text);
     case 'mark':
       return elementXml('metamark', attrs, text);
-    default: {
-      const type = attrs?.type;
-      const name = typeof type === 'string' && PARATEXT_NAMES.has(type) ? type : 'label';
-      const rest: Record<string, AttrValue> = { ...attrs };
-      delete rest.type;
-      if (rest.subtype !== undefined) {
-        rest.type = rest.subtype;
-        delete rest.subtype;
-      }
-      return elementXml(name, rest, text);
-    }
+    default:
+      return paratextXml(attrs, text);
   }
+}
+
+/**
+ * A paratext object: label, stage and fw as themselves with the object's
+ * subtype as `type`; any other kind (head, speaker, trailer, margin, …) as a
+ * label whose `type` is the kind and whose `subtype` is the object's subtype.
+ * An untyped paratext is a label.
+ */
+export function paratextXml(attrs: Obj['attrs'], text: string): string {
+  const kind = typeof attrs?.type === 'string' && attrs.type !== '' ? attrs.type : 'label';
+  const rest: Record<string, AttrValue> = { ...attrs };
+  delete rest.type;
+  if (INLINE_PARATEXT.has(kind)) {
+    if (rest.subtype !== undefined) {
+      rest.type = rest.subtype;
+      delete rest.subtype;
+    }
+    return elementXml(kind, rest, text);
+  }
+  return elementXml('label', { type: kind, ...rest }, text);
 }

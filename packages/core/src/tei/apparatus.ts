@@ -9,7 +9,7 @@ import { printedKind, type Attachment } from '../apparatus/render.ts';
 import type { Site } from '../collate/collate.ts';
 import type { Item, Token } from '../stream/items.ts';
 import type { Unit } from '../stream/words.ts';
-import { markupToken, publicationStmt, sourcesBibl } from './export.ts';
+import { markupToken, paratextXml, publicationStmt, sourcesBibl } from './export.ts';
 import { escapeAttr, escapeText, ncName } from './xml.ts';
 
 export interface EditionWitness {
@@ -57,14 +57,18 @@ export function exportEditionTei(input: EditionExport): string {
   out.push(`      <titleStmt><title>${escapeText(input.title)}</title>${(input.editors ?? []).map((name) => `<editor>${escapeText(name)}</editor>`).join('')}</titleStmt>`);
   out.push(`      ${publicationStmt(input.licence)}`);
   out.push('      <sourceDesc>');
-  out.push('        <listWit>');
-  for (const w of input.witnesses) {
-    const text = [w.name, w.description].filter((x) => x && x.trim() !== '').join('. ');
-    out.push(`          <witness xml:id="${witId(w.siglum)}" n="${escapeAttr(w.siglum)}">${escapeText(text || w.siglum)}</witness>`);
+  if (input.witnesses.length > 0) {
+    out.push('        <listWit>');
+    for (const w of input.witnesses) {
+      const text = [w.name, w.description].filter((x) => x && x.trim() !== '').join('. ');
+      out.push(`          <witness xml:id="${witId(w.siglum)}" n="${escapeAttr(w.siglum)}">${escapeText(text || w.siglum)}</witness>`);
+    }
+    out.push('        </listWit>');
   }
-  out.push('        </listWit>');
   const bibl = sourcesBibl(input.sources);
   if (bibl) out.push(`        ${bibl}`);
+  // A source description must say something: an edition with no witnesses yet and no sources.
+  if (input.witnesses.length === 0 && !bibl) out.push('        <p>Edition.</p>');
   out.push('      </sourceDesc>');
   out.push('    </fileDesc>');
   if (input.language) out.push(`    <profileDesc><langUsage><language ident="${escapeAttr(input.language)}"/></langUsage></profileDesc>`);
@@ -81,8 +85,9 @@ export function exportEditionTei(input: EditionExport): string {
   return out.join('\n') + '\n';
 }
 
+/** A word of the edition with its marks; a variant noted in a witness's carrier is not the edition's. */
 function tokenXml(token: Token): string {
-  return markupToken(token.form, token.marks ?? []);
+  return markupToken(token.form, (token.marks ?? []).filter((m) => m.kind !== 'variant'));
 }
 
 function itemXml(item: Item): string {
@@ -99,11 +104,7 @@ function itemXml(item: Item): string {
         if (typeof attrs.extent === 'string') parts.push(`extent="${escapeAttr(attrs.extent)}"`);
         return `<gap ${parts.join(' ')}/>`;
       }
-      if (item.type === 'paratext') {
-        const type = typeof attrs.type === 'string' ? attrs.type : 'paratext';
-        const element = type === 'speaker' ? 'speaker' : type === 'head' ? 'head' : type === 'stage' ? 'stage' : 'label';
-        return `<${element}>${escapeText(item.text ?? '')}</${element}>`;
-      }
+      if (item.type === 'paratext') return paratextXml(typeof attrs.type === 'string' ? { type: attrs.type } : undefined, item.text ?? '');
       if (item.type === 'note') return `<note>${escapeText(item.text ?? '')}</note>`;
       if (item.type === 'space') return '<space/>';
       return item.text ? `<seg type="${escapeAttr(item.type)}">${escapeText(item.text)}</seg>` : '';

@@ -2,114 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { sequentialIds } from '../ids.ts';
 import { isBreak, isToken, type Item, type Mark, type Stream } from '../stream/items.ts';
 import { exportTranscriptionTei } from './export.ts';
+import { richPages, richSegmentLabels, richStream, richZones, variantStream } from './fixtures.ts';
 import { importTei } from './import.ts';
 
-const ids = sequentialIds('a');
-const id = () => ids();
-
-/** A transcription with pages, columns, paragraphs, every kind of mark, gaps, a joined word and segment starts. */
-const original: Stream = {
-  items: [
-    { kind: 'break', id: id(), type: 'page', pageId: 'p1' },
-    { kind: 'object', id: id(), type: 'paratext', attrs: { type: 'head' }, text: 'Ἰλιάδος Α' },
-    {
-      kind: 'token',
-      id: id(),
-      form: 'ΜΗΝΗΝ',
-      norm: 'μῆνιν',
-      segment: { segmentId: 's1' },
-      marks: [{ kind: 'unclear' }],
-    },
-    {
-      kind: 'token',
-      id: id(),
-      form: 'ΑΕΙΔΕ',
-      marks: [{ kind: 'supplied', attrs: { reason: 'lost' }, from: 0, to: 2 }],
-    },
-    { kind: 'token', id: id(), form: 'ΘΑ', marks: [{ kind: 'abbr', attrs: { expan: 'ΘΕΑ' } }] },
-    { kind: 'break', id: id(), type: 'line' },
-    {
-      kind: 'token',
-      id: id(),
-      form: 'ΠΗΛΗΙ',
-      marks: [
-        { kind: 'del', attrs: { rend: 'strikethrough' } },
-        { kind: 'hi', attrs: { rend: 'rubric' }, from: 0, to: 1 },
-      ],
-    },
-    {
-      kind: 'token',
-      id: id(),
-      form: 'ΠΗΛΗΙΑ',
-      joinNext: true,
-      marks: [{ kind: 'add', attrs: { place: 'above' } }],
-    },
-    { kind: 'break', id: id(), type: 'line' },
-    { kind: 'token', id: id(), form: 'ΔΕΩ', marks: [{ kind: 'add', attrs: { place: 'above' } }] },
-    {
-      kind: 'object',
-      id: id(),
-      type: 'gap',
-      attrs: { reason: 'lost', quantity: 3, unit: 'character' },
-    },
-    {
-      kind: 'token',
-      id: id(),
-      form: 'ΑΧΙ',
-      segment: { segmentId: 's2' },
-      marks: [
-        { kind: 'handShift', attrs: { new: '#h2' } },
-        {
-          kind: 'gap',
-          attrs: { reason: 'illegible', quantity: 1, unit: 'character' },
-          from: 2,
-          to: 2,
-        },
-      ],
-    },
-    {
-      kind: 'token',
-      id: id(),
-      form: 'θεος,',
-      marks: [{ kind: 'corr', attrs: { corr: 'θεὸς' }, from: 0, to: 4 }],
-    },
-    { kind: 'object', id: id(), type: 'note', attrs: { place: 'margin' }, text: 'σχόλιον' },
-    { kind: 'break', id: id(), type: 'column', label: 'b' },
-    {
-      kind: 'token',
-      id: id(),
-      form: 'abcde',
-      marks: [
-        { kind: 'unclear', from: 0, to: 3 },
-        { kind: 'damage', attrs: { agent: 'water' }, from: 2, to: 5 },
-      ],
-    },
-    { kind: 'object', id: id(), type: 'space', attrs: { quantity: 2, unit: 'character' } },
-    { kind: 'object', id: id(), type: 'figure', text: 'a drawing' },
-    { kind: 'break', id: id(), type: 'paragraph' },
-    {
-      kind: 'token',
-      id: id(),
-      form: 'a&b',
-      segment: { segmentId: null },
-      marks: [{ kind: 'sic' }, { kind: 'surplus', from: 1, to: 2 }],
-    },
-    { kind: 'token', id: id(), form: 'ΚΑΓΩ', norm: 'καὶ ἐγώ' },
-  ],
-};
-
-const pages = [
-  { id: 'p1', label: '12r', imageUrl: 'https://images.example/12r.jpg', width: 2000, height: 3000 },
-];
-const zones = [
-  {
-    id: 'z1',
-    pageId: 'p1',
-    tokenIds: ['a3', 'a4'],
-    geometry: { rect: { x: 0.1, y: 0.1, w: 0.5, h: 0.05 } },
-  },
-];
-const segmentLabels = { s1: '1.1', s2: '1.2' };
+const original: Stream = richStream();
+const pages = richPages;
+const zones = richZones;
+const segmentLabels = richSegmentLabels;
 
 function sortedMarks(marks: Mark[] | undefined): Mark[] | undefined {
   if (!marks) return undefined;
@@ -220,22 +119,7 @@ describe('TEI round trip', () => {
 });
 
 describe('TEI round trip of variants noted in the carrier', () => {
-  const variant = (group: string, reading: string, place: string, hand?: string): Mark => ({
-    kind: 'variant',
-    attrs: hand === undefined ? { group, reading, place } : { group, reading, place, hand },
-  });
-  const ids = sequentialIds('v');
-  const stream: Stream = {
-    items: [
-      { kind: 'token', id: ids(), form: 'μῆνιν' },
-      { kind: 'token', id: ids(), form: 'ἄειδε', marks: [variant('g1', 'ἔννεπε μοι', 'margin', 'm2')] },
-      { kind: 'token', id: ids(), form: 'θεὰ', marks: [{ kind: 'unclear' }, variant('g1', 'ἔννεπε μοι', 'margin', 'm2')] },
-      { kind: 'break', id: ids(), type: 'line' },
-      { kind: 'token', id: ids(), form: 'Πηληϊάδεω', marks: [variant('g1', 'ἔννεπε μοι', 'margin', 'm2')] },
-      { kind: 'token', id: ids(), form: 'Ἀχιλῆος', marks: [variant('g2', '', 'interlinear')] },
-      { kind: 'token', id: ids(), form: 'οὐλομένην', marks: [variant('g3', 'οὐλομένη', 'other')] },
-    ],
-  };
+  const stream: Stream = variantStream();
 
   /** Group ids are made anew on import: compare them by order of first appearance. */
   function renumbered(items: Item[]): unknown[] {
@@ -271,5 +155,31 @@ describe('TEI round trip of variants noted in the carrier', () => {
       expect(result.warnings).toEqual([]);
       expect(renumbered(result.stream.items)).toEqual(renumbered(stream.items));
     }
+  });
+});
+
+describe('TEI round trip of paratext', () => {
+  it('writes paratext that TEI allows in no line as a typed label, and reads every kind back with its subtype', () => {
+    const ids = sequentialIds('x');
+    const kinds = ['head', 'speaker', 'stage', 'label', 'trailer', 'fw', 'byline', 'dateline', 'opener', 'closer', 'salute', 'signed', 'docAuthor', 'docTitle', 'argument', 'epigraph'];
+    const items: Item[] = [];
+    for (const type of kinds) {
+      items.push({ kind: 'object', id: ids(), type: 'paratext', attrs: { type }, text: `the ${type}` });
+      items.push({ kind: 'break', id: ids(), type: 'line' });
+    }
+    items.push({ kind: 'object', id: ids(), type: 'paratext', attrs: { type: 'head', subtype: 'chapter' }, text: 'Α' });
+    items.push({ kind: 'break', id: ids(), type: 'line' });
+    items.push({ kind: 'object', id: ids(), type: 'paratext', attrs: { type: 'label', subtype: 'number' }, text: '3' });
+    const xml = exportTranscriptionTei({ stream: { items }, title: 'T' });
+    expect(xml).toContain('<label type="head">the head</label>');
+    expect(xml).toContain('<label type="speaker">the speaker</label>');
+    expect(xml).toContain('<stage>the stage</stage>');
+    expect(xml).toContain('<fw>the fw</fw>');
+    expect(xml).toContain('<label type="head" subtype="chapter">Α</label>');
+    expect(xml).toContain('<label type="number">3</label>');
+    expect(xml).not.toMatch(/<(head|speaker|trailer)\b/u);
+    const result = importTei(xml, { ids: sequentialIds() });
+    expect(result.warnings).toEqual([]);
+    expect(essence(result.stream.items)).toEqual(essence(items));
   });
 });
