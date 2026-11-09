@@ -43,6 +43,27 @@ export const s = {
     passwordTooLong: 'Use at most 200 characters.',
     nameRequired: 'Enter a name.',
     nameTooLong: 'Use at most 120 characters.',
+    forgotPassword: 'Forgotten your password?',
+    // Confirming the address.
+    confirmTitle: 'Confirm your address',
+    confirmSent: (email: string) => `A link to confirm the address has been sent to ${email}. It is valid for a day; once the address is confirmed, you can log in.`,
+    confirmNotSent: 'The account has been made, but the message to confirm its address could not be sent. Ask the administrator of this installation.',
+    unconfirmedSent: 'This address has not been confirmed yet. A new link to confirm it has been sent to it.',
+    unconfirmed: 'This address has not been confirmed yet. Open the link in the message sent to it.',
+    confirmedTitle: 'Address confirmed',
+    confirmed: 'The address is confirmed.',
+    confirmInvalid: 'This link is no longer valid: a link can be used once, and for a day. Log in to have a new one sent.',
+    // Setting a new password.
+    resetTitle: 'New password',
+    resetAction: 'Send link',
+    resetSent: 'If an account has this address, a link to set a new password has been sent to it. The link is valid for an hour.',
+    resetWithoutMail: 'This installation does not send mail. Ask its administrator for a link to set a new password.',
+    newPassword: 'New password',
+    repeatPassword: 'Repeat the new password',
+    passwordsDiffer: 'The two passwords differ.',
+    setPassword: 'Set password',
+    resetInvalid: 'This link is no longer valid: a link can be used once, and only for a limited time.',
+    resetAgain: 'Ask for a new link',
   },
 
   account: {
@@ -98,6 +119,12 @@ export const s = {
     userNotFound: 'That user no longer exists.',
     roleChanged: (name: string, role: string) => `${name} is now ${role.toLowerCase()}.`,
     noUsers: 'No users yet.',
+    password: 'Password',
+    sendResetLink: 'Send reset link',
+    makeResetLink: 'Make reset link',
+    resetLinkSent: (name: string) => `A link to set a new password has been sent to ${name}.`,
+    resetLinkMade: (name: string) => `A link to set a new password for ${name}, valid for a day and for one use. Give it to them by a means you trust.`,
+    resetLinkNotSent: 'The message could not be sent.',
   },
 
   common: {

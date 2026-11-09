@@ -3,6 +3,11 @@ import type { Database } from '@varians/db';
 import type { Crumb, CurrentUser } from '$lib/types';
 
 declare global {
+  /** The version in package.json, fixed at build (vite.config.ts). */
+  const __VARIANS_VERSION__: string;
+  /** The commit built from, or an empty string (vite.config.ts). */
+  const __VARIANS_COMMIT__: string;
+
   namespace App {
     interface Error {
       message: string;

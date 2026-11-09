@@ -48,10 +48,11 @@
   </main>
   {#if !fullHeight}
     <footer class="border-t border-line px-6 py-4 font-sans text-xs text-ink-muted sm:px-8">
-      <div class="mx-auto flex w-full max-w-page gap-4">
-        <span>{s.app.name}</span>
+      <div class="mx-auto flex w-full max-w-page flex-wrap gap-x-4 gap-y-1">
+        <span>{s.app.name} {data.release.version}</span>
         <a href="/guide" class="hover:text-ink">{site.guide.title}</a>
         <a href="/sources" class="hover:text-ink">{site.sources.footer}</a>
+        <a href={data.release.source} class="hover:text-ink" rel="external">{site.footer.source}</a>
       </div>
     </footer>
   {/if}

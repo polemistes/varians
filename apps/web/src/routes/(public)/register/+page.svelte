@@ -1,13 +1,20 @@
 <script lang="ts">
   import AuthForm from '$lib/components/auth/AuthForm.svelte';
   import { PageFrame } from '$lib/components/shell';
-  import { Field, Input } from '$lib/components/ui';
+  import { Field, Input, Notice } from '$lib/components/ui';
   import { s } from '$lib/strings';
   import type { PageProps } from './$types';
 
   let { form }: PageProps = $props();
 </script>
 
+{#if form?.confirm}
+  <PageFrame title={s.auth.confirmTitle} width="narrow">
+    <Notice kind={form.confirm.sent ? 'info' : 'error'}>
+      {form.confirm.sent ? s.auth.confirmSent(form.confirm.email) : s.auth.confirmNotSent}
+    </Notice>
+  </PageFrame>
+{:else}
 <PageFrame title={s.auth.registerTitle} width="narrow">
   <AuthForm submitLabel={s.auth.registerAction}>
     <Field label={s.auth.name} error={form?.errors?.name}>
@@ -31,3 +38,4 @@
     {/snippet}
   </AuthForm>
 </PageFrame>
+{/if}

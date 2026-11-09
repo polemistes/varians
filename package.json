@@ -1,9 +1,9 @@
 {
   "name": "varians",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "license": "AGPL-3.0-or-later",
   "description": "Digital scholarly editions of ancient texts",
-  "license": "UNLICENSED",
   "type": "module",
   "packageManager": "pnpm@11.26.0",
   "engines": {
@@ -28,5 +28,9 @@
     "prettier-plugin-svelte": "^4.1.0",
     "prettier-plugin-tailwindcss": "^0.6.11",
     "typescript": "^5.9.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/polemistes/varians.git"
   }
 }

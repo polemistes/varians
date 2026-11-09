@@ -1,0 +1,71 @@
+# Varians with Docker Compose. See docs/install.md.
+#
+#   cp .env.example .env        then edit it
+#   docker compose up -d                   Varians and its database; your own proxy in front
+#   docker compose --profile tls up -d     the same, with Caddy in front obtaining the certificate
+#
+# Upgrade: docker compose pull && docker compose up -d
+# Backup:  docker compose exec varians varians backup
+
+name: varians
+
+services:
+  varians:
+    image: ghcr.io/polemistes/varians:${VARIANS_VERSION:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://varians:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/varians
+      STORAGE_DIR: /data/storage
+      BACKUP_DIR: /data/backups
+    volumes:
+      - storage:/data/storage
+      - backups:/data/backups
+    ports:
+      # Only on this machine: a proxy in front (yours, or Caddy below) serves the public.
+      - "127.0.0.1:${VARIANS_PORT:-3000}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: varians
+      POSTGRES_DB: varians
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C.UTF-8 --data-checksums
+    volumes:
+      # PostgreSQL 18's image keeps its data in a directory named for the major version under this path.
+      - db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U varians -d varians"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  caddy:
+    image: caddy:2-alpine
+    profiles: [tls]
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:-}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - varians
+
+volumes:
+  storage:
+  backups:
+  db:
+  caddy-data:
+  caddy-config:

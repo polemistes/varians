@@ -1,0 +1,60 @@
+# Varians from a release tarball (docs/install.md, the native path): one
+# Node process listening only on this machine, with a proxy (nginx, Apache)
+# in front. `varians serve` applies the migrations, then starts the server.
+#
+# Install: cp to /etc/systemd/system/varians.service, then
+# systemctl daemon-reload && systemctl enable --now varians.
+#
+# systemd takes only absolute paths, so the unit cannot name files relative
+# to the release it came in. It names instead the link
+# /opt/varians/current, which points at the release in use, so that an
+# upgrade or a step back is a change of the link and a restart. The data
+# lives where systemd keeps state (StateDirectory, /var/lib/varians) and the
+# settings where it keeps configuration (/etc/varians). Installed elsewhere,
+# change ExecStart and EnvironmentFile with `systemctl edit varians`.
+
+[Unit]
+Description=Varians (digital scholarly editions)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=varians
+Group=varians
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=3000
+Environment=STORAGE_DIR=/var/lib/varians/storage
+Environment=BACKUP_DIR=/var/lib/varians/backups
+# The format specification in the release, which the archives carry and /formats serves.
+Environment=VARIANS_FORMATS_DIR=/opt/varians/current/docs/formats
+# Uploads of up to 100 MB (images, archives).
+Environment=BODY_SIZE_LIMIT=104857600
+# The proxy adds the visitor's address to X-Forwarded-For; the limits on logins count by it.
+Environment=ADDRESS_HEADER=X-Forwarded-For
+Environment=XFF_DEPTH=1
+# The settings file overrides any of the above.
+EnvironmentFile=/etc/varians/varians.env
+StateDirectory=varians varians/storage varians/backups
+StateDirectoryMode=0750
+WorkingDirectory=/var/lib/varians
+ExecStart=/opt/varians/current/bin/varians serve
+Restart=on-failure
+RestartSec=3
+
+# A fence round the process: the system is read-only to it (except its state
+# directory), the homes are hidden, and it cannot gain privileges.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

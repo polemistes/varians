@@ -54,6 +54,10 @@ export const limits = {
   loginByAccount: new RateLimiter(10, 15 * 60_000),
   /** New accounts from one address. */
   registerByAddress: new RateLimiter(30, 60 * 60_000),
+  /** Requests for a new password from one address. */
+  resetByAddress: new RateLimiter(20, 60 * 60_000),
+  /** Messages to one account (new passwords, confirmations), however asked for. */
+  mailByAccount: new RateLimiter(3, 60 * 60_000),
   /** Archive downloads by one person. */
   archiveByUser: new RateLimiter(6, 60 * 60_000),
 };

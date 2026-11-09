@@ -23,6 +23,36 @@ export const OFL = { licence: 'SIL Open Font Licence 1.1', licenceUrl: 'https://
 const CC_BY_SA_4 = { licence: 'CC BY-SA 4.0', licenceUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' };
 const CC_BY_SA_3_US = { licence: 'CC BY-SA 3.0 US', licenceUrl: 'https://creativecommons.org/licenses/by-sa/3.0/us/' };
 
+const REPOSITORY = 'https://github.com/polemistes/varians';
+
+/** The licences of Varians itself: the code, its domain package, and the specification of its formats. */
+export const VARIANS_LICENCES: UsedSource[] = [
+  {
+    title: 'The application',
+    use: 'The site, its editors, its server and its database schema (apps/web, packages/db).',
+    source: 'The authors of Varians.',
+    url: REPOSITORY,
+    licence: 'GNU Affero General Public License, version 3 or later',
+    licenceUrl: 'https://www.gnu.org/licenses/agpl-3.0.html',
+  },
+  {
+    title: 'The domain package',
+    use: 'Token streams, normalization, collation, the apparatus, TEI and the history, usable without the application (packages/core).',
+    source: 'The authors of Varians.',
+    url: `${REPOSITORY}/tree/main/packages/core`,
+    licence: 'Apache License 2.0',
+    licenceUrl: 'https://www.apache.org/licenses/LICENSE-2.0',
+  },
+  {
+    title: 'The Varians data format',
+    use: 'The specification of the archive and of the TEI subset (docs/formats).',
+    source: 'The authors of Varians.',
+    url: `${REPOSITORY}/tree/main/docs/formats`,
+    licence: 'CC BY 4.0 for the text; BSD 2-Clause for the schemas',
+    licenceUrl: `${REPOSITORY}/blob/main/docs/formats/LICENSE`,
+  },
+];
+
 export const USED_SOURCES: UsedSource[] = [
   {
     title: 'A Greek-English Lexicon (Liddell, Scott, Jones, 1940)',

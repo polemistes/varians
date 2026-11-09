@@ -8,33 +8,28 @@
  *   pnpm --filter @varians/web cli import-archive <dir>  --user <email>
  *   pnpm --filter @varians/web cli seed-sample --user <email>
  *   pnpm --filter @varians/web cli make-admin <email>
+ *   pnpm --filter @varians/web cli reset-password <email>
+ *   pnpm --filter @varians/web cli confirm-email <email>
+ *   pnpm --filter @varians/web cli version
  *
- * Reads DATABASE_URL and STORAGE_DIR from the environment (apps/web/.env is
- * loaded when present).
+ * In a release the same commands are `bin/varians cli <command> ...`.
+ *
+ * Reads DATABASE_URL, STORAGE_DIR and ORIGIN from the environment (then from
+ * the file VARIANS_ENV_FILE names, then from apps/web/.env; see env.ts).
  */
 
-import { createDatabase, users, works } from '@varians/db';
+import { createDatabase, sql, users, works } from '@varians/db';
 import { eq } from 'drizzle-orm';
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { archiveChangedWorks } from '../src/lib/server/archive/schedule.ts';
 import { archiveWork } from '../src/lib/server/archive/archive.ts';
 import { checkArchive, isClean } from '../src/lib/server/archive/check.ts';
 import { writeExample } from '../src/lib/server/archive/example.ts';
 import { importArchive } from '../src/lib/server/archive/import.ts';
+import { confirmEmailDirectly, makeResetLinkFor } from '../src/lib/server/account-mail.ts';
 import { seedSample } from '../src/lib/server/seed/sample.ts';
-
-async function loadEnv(): Promise<void> {
-  try {
-    const text = await readFile(new URL('../.env', import.meta.url), 'utf8');
-    for (const line of text.split('\n')) {
-      const match = /^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)\s*$/u.exec(line);
-      if (match && process.env[match[1]!] === undefined) process.env[match[1]!] = match[2]!.replace(/^"(.*)"$/u, '$1');
-    }
-  } catch {
-    // No .env: the environment must carry the settings.
-  }
-}
+import { formatVersion } from '../src/lib/version-format.ts';
+import { loadEnv } from './env.ts';
 
 function flag(args: string[], name: string): string | undefined {
   const index = args.indexOf(`--${name}`);
@@ -42,8 +37,15 @@ function flag(args: string[], name: string): string | undefined {
 }
 
 async function main(): Promise<void> {
-  await loadEnv();
+  loadEnv();
   const [command, ...args] = process.argv.slice(2);
+  if (command === 'version') {
+    // Fixed by the bundling of the scripts (vite.scripts.config.ts); from source, the package's version alone.
+    const version = typeof __VARIANS_VERSION__ === 'string' ? __VARIANS_VERSION__ : process.env.npm_package_version ?? 'unknown';
+    const commit = typeof __VARIANS_COMMIT__ === 'string' ? __VARIANS_COMMIT__ : '';
+    console.log(formatVersion(version, commit));
+    return;
+  }
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error('DATABASE_URL is not set');
   const storage = path.resolve(process.cwd(), process.env.STORAGE_DIR ?? '../../storage');
@@ -117,8 +119,29 @@ async function main(): Promise<void> {
         console.log(`${email} is now an administrator`);
         break;
       }
+      case 'reset-password': {
+        // For an installation without mail: a link to hand to the person, by a means the operator trusts.
+        const email = args[0];
+        if (!email) throw new Error('usage: reset-password <email>');
+        const origin = process.env.ORIGIN?.trim();
+        if (!origin) throw new Error('ORIGIN is not set; the link is made from it');
+        const made = await makeResetLinkFor(db, email, { name: process.env.SITE_NAME?.trim() || 'Varians', origin: origin.replace(/\/+$/u, '') });
+        if (!made) throw new Error(`no user ${email}`);
+        console.log(`A link to set a new password for ${made.account.name}, valid until ${made.expiresAt.toISOString()} and for one use:`);
+        console.log(made.link);
+        break;
+      }
+      case 'confirm-email': {
+        const email = args[0];
+        if (!email) throw new Error('usage: confirm-email <email>');
+        if (!(await confirmEmailDirectly(db, email))) throw new Error(`no user ${email}`);
+        console.log(`The address ${email} is confirmed`);
+        break;
+      }
       default:
-        console.log('commands: export-archive <slug>, export-all, check-archive [<slug>], write-example, import-archive <dir> --user <email>, seed-sample --user <email>, make-admin <email>');
+        console.log(
+          'commands: export-archive <slug>, export-all, check-archive [<slug>], write-example, import-archive <dir> --user <email> [--on-conflict keep|take] [--dry-run], seed-sample --user <email>, make-admin <email>, reset-password <email>, confirm-email <email>, version',
+        );
     }
   } finally {
     await pool.end();
@@ -126,7 +149,8 @@ async function main(): Promise<void> {
 }
 
 async function userByEmail(db: ReturnType<typeof createDatabase>['db'], email: string) {
-  const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
+  // Addresses are kept as typed and compared without regard to case, as at login.
+  const [user] = await db.select().from(users).where(eq(sql`lower(${users.email})`, email.trim().toLowerCase()));
   if (!user) throw new Error(`no user ${email}`);
   return user;
 }

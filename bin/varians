@@ -1,0 +1,227 @@
+#!/bin/sh
+# The operator's command for a Varians installation.
+#
+#   varians serve              run the migrations, then the server (the container's entrypoint)
+#   varians migrate            bring the database up to this release
+#   varians backup [DIR]       dump the database and pack the storage into DIR
+#                              (default: $BACKUP_DIR/<date-time>, BACKUP_DIR=/data/backups)
+#   varians restore DIR [--yes]
+#                              replace the database and the storage with a backup
+#   varians cli ARGS...        the command line of the application (make-admin,
+#                              reset-password, export-all, import-archive, ...)
+#   varians lexicon PATH|URL [--sha256 HEX]
+#                              load the Greek forms and dictionaries
+#   varians version            the version of this release
+#
+# Works from a release (bin/ beside app/, as in the container and the native
+# tarball) and from a checkout of the repository (bin/ beside apps/web, after
+# `pnpm --filter @varians/web build`). Settings come from the environment; when
+# DATABASE_URL is not set, from the file VARIANS_ENV_FILE names, or else from
+# /etc/varians/varians.env if it exists. Needs node, and for backup and restore
+# pg_dump, pg_restore and psql of the server's major version, and tar.
+set -eu
+
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
+if [ -f "$ROOT/app/build/index.js" ]; then
+  APP="$ROOT/app"
+elif [ -d "$ROOT/apps/web" ]; then
+  APP="$ROOT/apps/web"
+else
+  echo "varians: no application beside $ROOT/bin (expected app/ or apps/web/)." >&2
+  exit 1
+fi
+# The format specification that the archives carry and /formats serves:
+# docs/formats beside bin/, in a release as in a checkout.
+if [ -z "${VARIANS_FORMATS_DIR:-}" ] && [ -f "$ROOT/docs/formats/README.md" ]; then
+  VARIANS_FORMATS_DIR="$ROOT/docs/formats"
+  export VARIANS_FORMATS_DIR
+fi
+
+say() { printf '%s\n' "$*"; }
+die() { printf 'varians: %s\n' "$*" >&2; exit 1; }
+
+load_env() {
+  file=${VARIANS_ENV_FILE:-}
+  if [ -z "${DATABASE_URL:-}" ] && [ -z "$file" ] && [ -r /etc/varians/varians.env ]; then
+    file=/etc/varians/varians.env
+  fi
+  if [ -n "$file" ]; then
+    [ -r "$file" ] || die "cannot read the settings file $file."
+    set -a
+    # shellcheck disable=SC1090
+    . "$file"
+    set +a
+  fi
+}
+
+need_database() {
+  [ -n "${DATABASE_URL:-}" ] || die "DATABASE_URL is not set."
+}
+
+need_storage() {
+  [ -n "${STORAGE_DIR:-}" ] || die "STORAGE_DIR is not set."
+  case "$STORAGE_DIR" in /*) ;; *) die "STORAGE_DIR must be an absolute path for backup and restore." ;; esac
+}
+
+need_built() {
+  [ -f "$APP/build/index.js" ] || die "the application is not built: run pnpm --filter @varians/web build."
+}
+
+version() {
+  if [ -f "$APP/build/scripts/cli.js" ]; then
+    node "$APP/build/scripts/cli.js" version
+  else
+    node -e 'process.stdout.write(require(process.argv[1]).version + "\n")' "$APP/package.json"
+  fi
+}
+
+migrate() {
+  need_database
+  need_built
+  node "$APP/build/scripts/migrate.js"
+}
+
+serve() {
+  need_database
+  need_built
+  migrate
+  say "Starting Varians $(version) on ${HOST:-0.0.0.0}:${PORT:-3000}."
+  cd "$APP"
+  exec node build/index.js
+}
+
+backup() {
+  need_database
+  need_storage
+  stamp=$(date -u +%Y-%m-%dT%H%M%SZ)
+  if [ $# -ge 1 ]; then
+    dest=$1
+  else
+    dest="${BACKUP_DIR:-/data/backups}/$stamp"
+  fi
+  [ ! -e "$dest/varians.dump" ] || die "$dest already holds a backup."
+  umask 077
+  mkdir -p "$dest"
+  say "Dumping the database to $dest/varians.dump"
+  pg_dump --dbname="$DATABASE_URL" --format=custom --no-owner --no-privileges --file="$dest/varians.dump.part"
+  mv "$dest/varians.dump.part" "$dest/varians.dump"
+  say "Packing the storage to $dest/storage.tar.gz"
+  if [ -d "$STORAGE_DIR" ]; then
+    tar -C "$STORAGE_DIR" -czf "$dest/storage.tar.gz.part" .
+  else
+    tar -czf "$dest/storage.tar.gz.part" -T /dev/null
+  fi
+  mv "$dest/storage.tar.gz.part" "$dest/storage.tar.gz"
+  {
+    say "Varians backup"
+    say "version: $(version)"
+    say "made: $stamp"
+  } > "$dest/backup.txt"
+  # Without a directory given, keep the newest BACKUP_KEEP backups (default 14) in BACKUP_DIR.
+  if [ $# -eq 0 ]; then
+    keep=${BACKUP_KEEP:-14}
+    case "$keep" in '' | *[!0-9]*) die "BACKUP_KEEP must be a number." ;; esac
+    if [ "$keep" -gt 0 ]; then
+      # The names are UTC time stamps, so their order is their age.
+      ls -1d "${BACKUP_DIR:-/data/backups}"/????-??-??T??????Z 2>/dev/null | sort -r | tail -n +"$((keep + 1))" | while read -r old; do
+        [ -f "$old/backup.txt" ] && rm -rf -- "$old"
+      done
+    fi
+  fi
+  say "Backup written to $dest"
+}
+
+restore() {
+  [ $# -ge 1 ] || die "usage: varians restore DIR [--yes]"
+  src=$1
+  confirmed=${2:-}
+  need_database
+  need_storage
+  [ -f "$src/varians.dump" ] || die "no varians.dump in $src."
+  if [ -f "$src/storage.tar.gz" ]; then
+    storage_kind=tar
+  elif [ -d "$src/storage" ]; then
+    storage_kind=dir # a backup made by deploy/backup.sh
+  else
+    die "no storage.tar.gz or storage/ in $src."
+  fi
+  pg_restore --list "$src/varians.dump" > /dev/null || die "$src/varians.dump is not a dump pg_restore can read."
+  if [ "$storage_kind" = tar ]; then
+    # Every member must stay inside the storage: no absolute names, no "..".
+    members=$(tar -tzf "$src/storage.tar.gz") || die "$src/storage.tar.gz cannot be read."
+    if printf '%s\n' "$members" | grep -Eq '^/|(^|/)\.\.(/|$)'; then
+      die "$src/storage.tar.gz holds names outside the storage; nothing was changed."
+    fi
+    # Nor links, which could point outside it.
+    if tar -tvzf "$src/storage.tar.gz" | grep -q '^[lh]'; then
+      die "$src/storage.tar.gz holds links; nothing was changed."
+    fi
+  fi
+
+  if [ "$confirmed" != "--yes" ]; then
+    if [ -t 0 ]; then
+      say "This replaces the whole database and everything in $STORAGE_DIR with the backup in $src."
+      say "Stop the server first. Type yes to go on:"
+      read -r answer
+      [ "$answer" = "yes" ] || die "nothing was changed."
+    else
+      die "restoring replaces the database and the storage; add --yes to confirm."
+    fi
+  fi
+
+  # Unpack the storage beside the old first, so that a damaged archive changes nothing.
+  mkdir -p "$STORAGE_DIR"
+  staging="$STORAGE_DIR/.restoring"
+  rm -rf -- "$staging"
+  mkdir "$staging"
+  if [ "$storage_kind" = tar ]; then
+    tar -C "$staging" -xzf "$src/storage.tar.gz" || { rm -rf -- "$staging"; die "the storage archive could not be unpacked; nothing was changed."; }
+  else
+    cp -a "$src/storage/." "$staging/" || { rm -rf -- "$staging"; die "the storage could not be copied; nothing was changed."; }
+  fi
+
+  # The database in one transaction: emptied and filled, or left as it was.
+  # The commit is sent only after pg_restore has written everything; without
+  # it psql ends with the transaction open, and the server rolls it back.
+  say "Restoring the database"
+  failed="$staging.failed"
+  rm -f -- "$failed"
+  if ! {
+    say "begin;"
+    say "drop schema if exists drizzle cascade;"
+    say "drop schema public cascade;"
+    say "create schema public;"
+    if pg_restore --no-owner --no-privileges --file=- "$src/varians.dump"; then
+      say "commit;"
+    else
+      : > "$failed"
+    fi
+  } | PGOPTIONS="-c client_min_messages=warning" psql --dbname="$DATABASE_URL" --quiet --no-psqlrc --set=ON_ERROR_STOP=1 > /dev/null || [ -e "$failed" ]; then
+    rm -rf -- "$staging" "$failed"
+    die "the database could not be restored; it is as it was, and so is the storage."
+  fi
+
+  say "Restoring the storage"
+  find "$STORAGE_DIR" -mindepth 1 -maxdepth 1 ! -name .restoring -exec rm -rf -- {} +
+  find "$staging" -mindepth 1 -maxdepth 1 -exec mv -- {} "$STORAGE_DIR/" \;
+  rmdir "$staging"
+
+  # A backup from an earlier release is brought up to this one.
+  migrate
+  say "Restored from $src. Start the server again."
+}
+
+command=${1:-help}
+[ $# -gt 0 ] && shift
+
+case "$command" in
+  serve) load_env; serve ;;
+  migrate) load_env; migrate ;;
+  backup) load_env; backup "$@" ;;
+  restore) load_env; restore "$@" ;;
+  cli) load_env; need_built; exec node "$APP/build/scripts/cli.js" "$@" ;;
+  lexicon) load_env; need_built; exec node "$APP/build/scripts/import-lexicon.js" "$@" ;;
+  version) say "$(version)" ;;
+  help | -h | --help) sed -n '2,/^# Works from/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
+  *) die "unknown command $command (see varians help)." ;;
+esac

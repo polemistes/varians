@@ -1,7 +1,8 @@
 {
   "name": "@varians/core",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "license": "Apache-2.0",
   "type": "module",
   "description": "The domain of Varians: token streams, operations, normalization, collation, apparatus, reference schemes, TEI.",
   "exports": {
@@ -19,5 +20,10 @@
   "devDependencies": {
     "typescript": "^6.0.3",
     "vitest": "^5.0.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/polemistes/varians.git",
+    "directory": "packages/core"
   }
 }

@@ -119,6 +119,34 @@ export const sessions = pgTable(
   (t) => [index('sessions_user_idx').on(t.userId)],
 );
 
+/** What a mailed link is for: confirming an address, or setting a new password. */
+export const EMAIL_TOKEN_PURPOSES = ['verify', 'reset'] as const;
+export type EmailTokenPurpose = (typeof EMAIL_TOKEN_PURPOSES)[number];
+
+/**
+ * The links sent by mail (or printed for an administrator). Like sessions,
+ * only the SHA-256 of the token is kept. A token is good for one use, until
+ * it expires, and only while the account still has the address it was made
+ * for. Transient: not archived.
+ */
+export const emailTokens = pgTable(
+  'email_tokens',
+  {
+    /** SHA-256 of the token. */
+    id: text().primaryKey(),
+    userId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    purpose: text({ enum: EMAIL_TOKEN_PURPOSES }).notNull(),
+    /** The address the link was made for. */
+    email: text().notNull(),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    usedAt: timestamp({ withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index('email_tokens_user_idx').on(t.userId, t.purpose)],
+);
+
 // The shared registry
 
 export const referenceSchemes = pgTable('reference_schemes', {

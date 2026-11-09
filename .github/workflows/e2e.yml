@@ -1,0 +1,64 @@
+# The browser tests (Playwright), nightly and on demand: they take long and
+# run alone, apart from the unit tests.
+name: Browser tests
+
+on:
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: varians
+          POSTGRES_DB: varians_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 54329:5432
+        options: >-
+          --health-cmd "pg_isready -U varians -d varians_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://varians@127.0.0.1:54329/varians_test
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Settings of the test server
+        run: |
+          {
+            echo "DATABASE_URL=postgres://varians@127.0.0.1:54329/varians_test"
+            echo "STORAGE_DIR=../../storage-test"
+            echo "ORIGIN=http://localhost:4173"
+            echo "ARCHIVE_SCHEDULER=off"
+          } > apps/web/.env.test
+      - name: Migrations
+        run: pnpm db:migrate
+      - name: Browser
+        run: pnpm --filter @varians/web exec playwright install --with-deps chromium
+      - name: Browser tests
+        run: pnpm --filter @varians/web test:e2e
+      - name: Report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          retention-days: 14

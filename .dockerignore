@@ -1,0 +1,22 @@
+# What the image build does not need (see Dockerfile).
+.git
+.github
+.claude
+**/node_modules
+**/build
+**/.svelte-kit
+**/test-results
+**/playwright-report
+**/coverage
+storage
+storage-test
+backups
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+deploy/host
+deploy/LOCAL.md
+*.log
