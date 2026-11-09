@@ -43,6 +43,8 @@ pnpm --filter @varians/web deploy --prod "$STAGE/app"
 rm -f "$STAGE/app/pnpm-lock.yaml" "$STAGE/app/pnpm-workspace.yaml"
 
 cp -R bin docs "$STAGE/"
+# The format specification is read at run time (the archives carry it, /formats serves it).
+test -f "$STAGE/docs/formats/README.md"
 cp -R deploy "$STAGE/deploy"
 # Never ship what is particular to one machine.
 rm -f "$STAGE/deploy/host" "$STAGE/deploy/LOCAL.md"

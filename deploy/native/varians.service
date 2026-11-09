@@ -27,6 +27,8 @@ Environment=HOST=127.0.0.1
 Environment=PORT=3000
 Environment=STORAGE_DIR=/var/lib/varians/storage
 Environment=BACKUP_DIR=/var/lib/varians/backups
+# The format specification in the release, which the archives carry and /formats serves.
+Environment=VARIANS_FORMATS_DIR=/opt/varians/current/docs/formats
 # Uploads of up to 100 MB (images, archives).
 Environment=BODY_SIZE_LIMIT=104857600
 # The proxy adds the visitor's address to X-Forwarded-For; the limits on logins count by it.

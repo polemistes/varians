@@ -30,6 +30,12 @@ else
   echo "varians: no application beside $ROOT/bin (expected app/ or apps/web/)." >&2
   exit 1
 fi
+# The format specification that the archives carry and /formats serves:
+# docs/formats beside bin/, in a release as in a checkout.
+if [ -z "${VARIANS_FORMATS_DIR:-}" ] && [ -f "$ROOT/docs/formats/README.md" ]; then
+  VARIANS_FORMATS_DIR="$ROOT/docs/formats"
+  export VARIANS_FORMATS_DIR
+fi
 
 say() { printf '%s\n' "$*"; }
 die() { printf 'varians: %s\n' "$*" >&2; exit 1; }

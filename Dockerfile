@@ -6,7 +6,8 @@
 #   docker build --build-arg VARIANS_COMMIT=$(git rev-parse --short HEAD) -t varians .
 #
 # The image holds the same release layout as the native tarball, under
-# /opt/varians: app/ (the deployed application), bin/varians, docs/. It runs
+# /opt/varians: app/ (the deployed application), bin/varians, docs/ (with
+# docs/formats, the format specification the archives carry). It runs
 # as the unprivileged user node, keeps its files in /data/storage, writes
 # backups to /data/backups, and starts with `varians serve`, which applies
 # the migrations and then starts the server on port 3000.
@@ -51,12 +52,14 @@ ENV NODE_ENV=production \
     PORT=3000 \
     STORAGE_DIR=/data/storage \
     BACKUP_DIR=/data/backups \
+    VARIANS_FORMATS_DIR=/opt/varians/docs/formats \
     PATH=/opt/varians/bin:$PATH
 
 WORKDIR /opt/varians
 COPY --from=build /out/app ./app
 COPY --from=build /src/bin ./bin
 COPY --from=build /src/docs ./docs
+RUN test -f docs/formats/README.md
 COPY --from=build /src/LICENSE /src/README.md /src/SECURITY.md /src/CHANGELOG.md ./
 RUN chmod 0755 bin/varians \
  && mkdir -p /data/storage /data/backups \

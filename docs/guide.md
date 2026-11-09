@@ -20,6 +20,12 @@ The header leads everywhere else: **Your Work** (all your editions and transcrip
 
 **Make Edition** asks which work, then leads to the new edition's form. **Transcribe Witness** asks which witness, then opens its form for a new transcript.
 
+## Your account
+
+**Register** in the header makes an account. Where the installation sends mail, a link to confirm the address is sent first, valid for a day, and the account can be used once the address is confirmed; logging in before then sends a new link. **Forgotten your password?** on the login page sends a link to set a new one, valid for an hour; where the installation sends no mail, its administrator gives you such a link. Setting a new password ends every other session of the account.
+
+The footer of every page names the version of Varians that runs the site and links its source code.
+
 ## A work
 
 Choose **New work** on the **Works** page, or **Register Work** on the front page. As you type the title, works with a similar title or author are shown; if yours is among them, open it instead of making a second one.
