@@ -101,7 +101,7 @@ test('selected words are mapped to a box drawn on the facsimile', async ({ page 
     .getByRole('article', { name: '1r', exact: true });
   await card.getByRole('button', { name: p.card.addImage }).click();
   const imageDialog = page.getByRole('dialog', { name: p.image.addTitle('1r') });
-  await imageDialog.getByLabel(p.image.file, { exact: true }).setInputFiles(await image());
+  await imageDialog.locator('input[type=file]').setInputFiles(await image());
   await imageDialog.getByLabel(p.rights.statement).selectOption({ label: 'Public Domain Mark' });
   await imageDialog.getByRole('button', { name: p.image.submit }).click();
   await expect(card.locator('img')).toBeVisible({ timeout: 20_000 });

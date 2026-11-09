@@ -31,7 +31,7 @@ async function image(width: number): Promise<{ name: string; mimeType: string; b
 /** In the dialog for one page's image: the file, when it asks for one, a rights statement and a credit line; then the upload. */
 async function uploadInDialog(page: Page, label: string, file?: { name: string; mimeType: string; buffer: Buffer }) {
   const dialog = page.getByRole('dialog', { name: t.image.addTitle(label) });
-  if (file) await dialog.getByLabel(t.image.file, { exact: true }).setInputFiles(file);
+  if (file) await dialog.locator('input[type=file]').setInputFiles(file);
   await dialog.getByLabel(t.rights.statement).selectOption({ label: 'CC BY 4.0' });
   await dialog.getByLabel(t.rights.credit).fill('Bibliotheca Testiana');
   await dialog.getByRole('button', { name: t.image.submit }).click();
@@ -185,6 +185,8 @@ test('pages are managed from the transcription workbench', async ({ page }) => {
 
   // The witness's own pages screen offers the same.
   await page.goto(`/witnesses/${witnessSlug}/pages`);
+  // The menus work once the page has hydrated.
+  await page.waitForLoadState('networkidle');
   await expect(page.getByRole('list', { name: t.gridLabel }).getByRole('listitem')).toHaveCount(5);
   await shot(page, '7-pages-screen');
 

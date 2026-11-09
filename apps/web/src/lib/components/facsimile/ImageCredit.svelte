@@ -19,7 +19,7 @@
 
 {#if statement || attribution}
   <p class={['font-sans text-xs text-ink-soft', className]} data-image-credit>
-    {#if attribution}<span>{attribution}</span>{/if}{#if attribution && statement}<span aria-hidden="true"> · </span>{/if}{#if statement}<a
+    {#if attribution}<span>{attribution}</span>{/if}{#if attribution && statement}{' '}<span aria-hidden="true">·</span>{' '}{/if}{#if statement}<a
         href={statement.uri}
         rel="license noopener"
         target="_blank"
