@@ -16,8 +16,10 @@ export default defineConfig({
     alias: { $lib: fileURLToPath(new URL('./src/lib', import.meta.url)) },
   },
   ssr: {
-    // The workspace packages ship TypeScript source: bundle them. Everything else stays a dependency.
-    noExternal: ['@varians/core', '@varians/db'],
+    // The workspace packages ship TypeScript source: bundle them. @sveltejs/kit is a development dependency
+    // (the server bundle includes what it needs); the error helpers some server modules use are bundled too.
+    // Everything else stays a dependency.
+    noExternal: ['@varians/core', '@varians/db', '@sveltejs/kit'],
   },
   build: {
     ssr: true,
