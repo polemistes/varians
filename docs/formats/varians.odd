@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-model href="https://www.tei-c.org/release/xml/tei/custom/schema/relaxng/tei_odds.rng" type="application/xml" schematypens="http://relaxng.org/ns/structure/1.0"?>
+<!--
+  The TEI customization of Varians: the subset of TEI P5 that Varians writes
+  in transcription.tei.xml and edition.tei.xml. This file is normative;
+  tei-subset.md beside it is the readable account. varians.rng is generated
+  from it by build-rng.sh (see BUILD.md) and committed.
+
+  The customization is a pure restriction of TEI P5: every document valid
+  against varians.rng is valid against tei_all. It restricts in two ways:
+  elements, by naming in every moduleRef only the elements Varians writes
+  (moduleRef/@include), and the values of a few attributes Varians gives a
+  fixed meaning (elementSpec mode="change" below). Attributes are otherwise
+  left as TEI defines them: a transcription imported from other TEI keeps
+  the attributes of its features, and writes them back.
+
+  Licence: BSD-2-Clause (see publicationStmt).
+-->
+<TEI xmlns="http://www.tei-c.org/ns/1.0" xmlns:rng="http://relaxng.org/ns/structure/1.0" xml:lang="en">
+  <teiHeader>
+    <fileDesc>
+      <titleStmt>
+        <title>Varians: the TEI customization of the Varians Data Format</title>
+        <author>Robert Emil Berge</author>
+      </titleStmt>
+      <editionStmt>
+        <edition>For format version 2</edition>
+      </editionStmt>
+      <publicationStmt>
+        <publisher>Varians</publisher>
+        <availability status="free">
+          <licence target="https://opensource.org/license/bsd-2-clause">Distributed under the BSD 2-Clause licence. Redistribution and use in source and binary forms, with or without modification, are permitted provided that the copyright notice, this condition and the disclaimer are retained. The software is provided as is, without warranty of any kind.</licence>
+        </availability>
+      </publicationStmt>
+      <sourceDesc>
+        <p>Written for Varians from docs/formats/tei-subset.md and the TEI writers in packages/core/src/tei/.</p>
+      </sourceDesc>
+    </fileDesc>
+  </teiHeader>
+  <text>
+    <body>
+      <head>The Varians TEI customization</head>
+
+      <div xml:id="intro">
+        <head>Scope</head>
+        <p>Varians keeps its data in JSON files and writes TEI P5 beside them for other tools and
+          for reading (see the Varians Data Format specification). Two kinds of TEI document are
+          written: a transcription of one witness (<ident>transcription.tei.xml</ident>), with
+          the witness as a manuscript description, the pages and image zones as a facsimile, and
+          the text with its breaks, features and words; and an edition
+          (<ident>edition.tei.xml</ident>), the critical text with its apparatus encoded by the
+          parallel-segmentation method. This customization is the schema both conform to.</p>
+        <p>It is a restriction of TEI P5: only the elements listed below are available, and a
+          few attributes whose values have a fixed meaning in Varians take only those values.
+          Every other attribute is left as TEI defines it, because a transcription imported from
+          other TEI keeps the attributes of its features and writes them back.</p>
+      </div>
+
+      <div xml:id="restrictions">
+        <head>Restrictions</head>
+        <list type="gloss">
+          <label>Paratext</label>
+          <item>A transcription and an edition are written as a flat run of text inside
+            <gi>ab</gi> or <gi>p</gi>, where TEI allows no <gi>head</gi>, <gi>speaker</gi>,
+            <gi>trailer</gi> or similar block. Paratext of those kinds is written as
+            <tag>label type="head"</tag>, <tag>label type="speaker"</tag> and so on (the
+            label's <att>type</att> is the kind, its <att>subtype</att> the paratext's own
+            type); <gi>stage</gi>, <gi>fw</gi> and <gi>label</gi> stand as themselves.</item>
+          <label>Segments</label>
+          <item>The only milestone written is <tag>milestone unit="segment" n="…"</tag>,
+            the start of a segment of the work's reference scheme in a transcription.</item>
+          <label>Apparatus</label>
+          <item><gi>app</gi> is typed only as <val>interpretative</val> (the same letters read
+            otherwise); <gi>rdg</gi> only by the place of a variant noted in the carrier
+            (<val>margin</val>, <val>interlinear</val>, <val>other</val>), or as
+            <val>conjecture</val> or <val>reported</val> in an edition.</item>
+          <label>Manuscript description</label>
+          <item><gi>objectDesc</gi> has the forms <val>codex</val>, <val>scroll</val> and
+            <val>leaf</val>; <gi>altIdentifier</gi> carries the siglum only.</item>
+          <label>Prefixes</label>
+          <item><gi>prefixDef</gi> declares the prefixes <val>tok</val> (a token of a
+            transcription), <val>seg</val> (a segment), <val>wit</val> (a witness),
+            <val>conj</val> (a conjecture) and <val>person</val> (a person), each resolving to the
+            installation's <ident>/id/</ident> address of the record.</item>
+        </list>
+      </div>
+
+      <schemaSpec ident="varians" start="TEI" prefix="tei_" targetLang="en" docLang="en">
+
+        <!-- The infrastructure: classes, macros and datatypes, no elements. -->
+        <moduleRef key="tei"/>
+
+        <!-- The document and its text. front holds an edition's preface. -->
+        <moduleRef key="textstructure" include="TEI text front body div"/>
+
+        <!-- The header: title and contributors, the licence, the source
+             (witness or witness list), the language, and the prefixes that
+             make tok:ID and the like resolvable. -->
+        <moduleRef key="header"
+          include="teiHeader fileDesc titleStmt publicationStmt authority availability licence
+                   sourceDesc idno extent handNote profileDesc langUsage language
+                   encodingDesc listPrefixDef prefixDef"/>
+
+        <!-- Core: header parts, breaks, the editorial and transcriptional
+             features, notes and the paratext that may stand inside a line.
+             head is used in msDesc only. Not included: lists, names other
+             than persName (namesdates), quotation, bibliographic structure
+             beyond a plain bibl. -->
+        <moduleRef key="core"
+          include="title editor respStmt resp p bibl head graphic
+                   milestone lb cb pb
+                   choice orig reg abbr expan sic corr unclear del add hi gap note
+                   label stage"/>
+
+        <!-- persName for contributors, settlement in the manuscript identifier. -->
+        <moduleRef key="namesdates" include="persName settlement"/>
+
+        <!-- The witness of a transcription. -->
+        <moduleRef key="msdescription"
+          include="msDesc msIdentifier repository altIdentifier msContents summary physDesc
+                   objectDesc supportDesc support material handDesc history origin origDate"/>
+
+        <!-- The facsimile and the transcriptional features beyond core. am and
+             ex are not written: an expansion is written as choice/abbr/expan. -->
+        <moduleRef key="transcr"
+          include="facsimile surface zone supplied subst damage surplus handShift space
+                   metamark fw restore retrace mod redo undo secl"/>
+
+        <!-- Words. -->
+        <moduleRef key="analysis" include="w"/>
+
+        <!-- ab for the blocks of a transcription and the segments of an
+             edition, seg for a crux and for features with no element of their
+             own; the module also gives every element corresp. -->
+        <moduleRef key="linking" include="ab seg"/>
+
+        <!-- Figures in the carrier, with their description. -->
+        <moduleRef key="figures" include="figure figDesc"/>
+
+        <!-- The apparatus by parallel segmentation, and the witness list. -->
+        <moduleRef key="textcrit" include="app lem rdg listWit witness"/>
+
+        <!-- Restricted values. -->
+
+        <elementSpec ident="milestone" mode="change">
+          <attList>
+            <attDef ident="unit" mode="change">
+              <desc versionDate="2026-11-09" xml:lang="en">The only unit written is the
+                segment of the work's reference scheme, whose label is <att>n</att>.</desc>
+              <valList type="closed" mode="replace">
+                <valItem ident="segment">
+                  <desc versionDate="2026-11-09" xml:lang="en">a segment of the work begins here</desc>
+                </valItem>
+              </valList>
+            </attDef>
+          </attList>
+        </elementSpec>
+
+        <elementSpec ident="app" mode="change">
+          <attList>
+            <attDef ident="type" mode="change">
+              <valList type="closed" mode="replace">
+                <valItem ident="interpretative">
+                  <desc versionDate="2026-11-09" xml:lang="en">the witnesses have the same
+                    letters, read otherwise (accent, breathing, word division)</desc>
+                </valItem>
+              </valList>
+            </attDef>
+          </attList>
+        </elementSpec>
+
+        <elementSpec ident="rdg" mode="change">
+          <attList>
+            <attDef ident="type" mode="change">
+              <valList type="closed" mode="replace">
+                <valItem ident="margin">
+                  <desc versionDate="2026-11-09" xml:lang="en">a variant noted in the margin of the carrier</desc>
+                </valItem>
+                <valItem ident="interlinear">
+                  <desc versionDate="2026-11-09" xml:lang="en">a variant noted between the lines</desc>
+                </valItem>
+                <valItem ident="other">
+                  <desc versionDate="2026-11-09" xml:lang="en">a variant noted elsewhere on the page</desc>
+                </valItem>
+                <valItem ident="conjecture">
+                  <desc versionDate="2026-11-09" xml:lang="en">a conjecture, in an edition</desc>
+                </valItem>
+                <valItem ident="reported">
+                  <desc versionDate="2026-11-09" xml:lang="en">a reading reported for a witness
+                    that is not transcribed, in an edition</desc>
+                </valItem>
+              </valList>
+            </attDef>
+          </attList>
+        </elementSpec>
+
+        <elementSpec ident="objectDesc" mode="change">
+          <attList>
+            <attDef ident="form" mode="change">
+              <valList type="closed" mode="replace">
+                <valItem ident="codex"/>
+                <valItem ident="scroll"><desc versionDate="2026-11-09" xml:lang="en">a roll</desc></valItem>
+                <valItem ident="leaf"><desc versionDate="2026-11-09" xml:lang="en">a single sheet</desc></valItem>
+              </valList>
+            </attDef>
+          </attList>
+        </elementSpec>
+
+        <elementSpec ident="altIdentifier" mode="change">
+          <attList>
+            <attDef ident="type" mode="change">
+              <valList type="closed" mode="replace">
+                <valItem ident="siglum">
+                  <desc versionDate="2026-11-09" xml:lang="en">the witness's siglum</desc>
+                </valItem>
+              </valList>
+            </attDef>
+          </attList>
+        </elementSpec>
+
+        <elementSpec ident="prefixDef" mode="change">
+          <attList>
+            <attDef ident="ident" mode="change">
+              <!-- semi: the expected prefixes, documented; others stay valid. -->
+              <valList type="semi" mode="replace">
+                <valItem ident="tok"><desc versionDate="2026-11-09" xml:lang="en">a token of a transcription</desc></valItem>
+                <valItem ident="seg"><desc versionDate="2026-11-09" xml:lang="en">a segment of a work</desc></valItem>
+                <valItem ident="wit"><desc versionDate="2026-11-09" xml:lang="en">a witness</desc></valItem>
+                <valItem ident="conj"><desc versionDate="2026-11-09" xml:lang="en">a conjecture</desc></valItem>
+                <valItem ident="person"><desc versionDate="2026-11-09" xml:lang="en">a person</desc></valItem>
+              </valList>
+            </attDef>
+          </attList>
+        </elementSpec>
+
+      </schemaSpec>
+    </body>
+  </text>
+</TEI>
