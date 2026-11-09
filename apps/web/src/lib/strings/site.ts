@@ -89,6 +89,15 @@ export const site = {
     contents: 'Contents',
   },
 
+  formats: {
+    title: 'Data format',
+    files: 'Files',
+    schemas: 'JSON Schemas',
+    tei: 'TEI customization (ODD) and RelaxNG schema',
+    changelog: 'Changes',
+    example: 'Example archive',
+  },
+
   search: {
     title: 'Search',
     action: 'Search',

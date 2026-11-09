@@ -1,76 +1,220 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://varians.no/schemas/edition.schema.json",
+  "$id": "https://varians.eu/formats/2/edition.schema.json",
   "title": "Edition",
+  "description": "edition.json: an edition, its conspectus, adoptions, notes and text (specification 4.10).",
   "type": "object",
-  "required": ["id", "slug", "title", "version", "conventions", "sigla", "content"],
   "properties": {
-    "id": { "type": "string" },
-    "slug": { "type": "string" },
-    "title": { "type": "string" },
-    "editors": { "type": "array", "items": { "type": "string" }, "description": "The editors' names, as printed." },
-    "preface": { "type": ["string", "null"] },
-    "ownerId": { "type": "string" },
-    "ownerName": { "type": ["string", "null"] },
-    "visibility": { "enum": ["draft", "published"] },
-    "version": { "type": "integer" },
-    "publishedVersion": { "type": ["integer", "null"] },
-    "conventions": {
-      "type": "object",
-      "properties": {
-        "apparatus": { "enum": ["positive", "negative"] },
-        "orthographica": { "type": "boolean" },
-        "latin": { "type": "boolean" },
-        "lineation": { "enum": ["verse", "prose"] },
-        "numberEvery": { "type": "integer" },
-        "speakerDisplay": { "enum": ["inline", "margin", "own-line"] },
-        "sources": { "type": ["string", "null"], "description": "What it rests on or was made from, as its maker states it." },
-    "licence": { "type": ["string", "null"], "description": "The licence it is published under." },
-    "copiedFrom": {
-      "type": ["object", "null"],
-      "description": "The edition this one was copied from, as it was then.",
-      "properties": {
-        "editionId": { "type": "string" },
-        "title": { "type": "string" },
-        "editors": { "type": "array", "items": { "type": "string" } },
-        "version": { "type": "integer", "description": "The document version copied." },
-        "published": { "type": "boolean", "description": "Whether a published version was copied, rather than the draft by one of its editors." },
-        "number": { "type": ["integer", "null"], "description": "The published version's number, as readers cite it." }
+    "$schema": {
+      "const": "https://varians.eu/formats/2/edition.schema.json"
+    },
+    "id": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+    },
+    "slug": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "editors": {
+      "type": "array",
+      "items": {
+        "type": "string"
       }
     },
-    "sigla": { "type": "object" }
-      }
+    "preface": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ownerId": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+    },
+    "ownerName": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "visibility": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/visibility"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "head": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+    },
+    "publishedVersion": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "conventions": {
+      "type": "object"
+    },
+    "copiedFrom": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "sources": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "licence": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "rightsNote": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "createdAt": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
     },
     "sigla": {
       "type": "array",
-      "description": "The conspectus, in order.",
+      "items": {
+        "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/siglum"
+      }
+    },
+    "adoptions": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "conjectureId": {
+                "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+              },
+              "at": {
+                "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+              }
+            },
+            "required": [
+              "conjectureId"
+            ]
+          }
+        ]
+      }
+    },
+    "collaborators": {
+      "type": "array",
       "items": {
         "type": "object",
-        "required": ["siglum", "witnessId"],
         "properties": {
-          "siglum": { "type": "string" },
-          "witnessId": { "type": "string" },
-          "transcriptionId": { "type": ["string", "null"] },
-          "states": {
-            "type": "array",
-            "description": "Further states of the witness collated under sigla of their own. Archives written before 8 November 2026 have originalSiglum instead, the siglum of the state before correction.",
-            "items": {
-              "type": "object",
-              "required": ["kind", "siglum"],
-              "properties": {
-                "kind": { "enum": ["original", "stage", "hand"] },
-                "siglum": { "type": "string" },
-                "stage": { "type": "integer", "description": "For kind stage: the corrections of stages 1 to this one are applied." },
-                "hand": { "type": "string", "description": "For kind hand: the hand whose corrections are applied, as the marks name it (a hand id, scribe or other)." }
-              }
-            }
+          "personId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
           },
-          "variantSiglum": { "type": ["string", "null"] }
+          "grantedBy": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+          },
+          "since": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+          }
         }
       }
     },
-    "adoptions": { "type": "array", "items": { "type": "string" }, "description": "Ids of adopted conjectures." },
-    "notes": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "segmentId": { "type": "string" }, "segmentLabel": { "type": ["string", "null"] }, "tokenIds": { "type": "array", "items": { "type": "string" } }, "text": { "type": "string" }, "authorId": { "type": ["string", "null"] } } } },
-    "content": { "$ref": "stream.schema.json" }
-  }
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "segmentId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "segmentLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tokenIds": {
+            "type": "array",
+            "items": {
+              "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+            }
+          },
+          "text": {
+            "type": "string"
+          },
+          "personId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+          },
+          "createdAt": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+          }
+        },
+        "required": [
+          "id",
+          "segmentId",
+          "tokenIds",
+          "text"
+        ]
+      }
+    },
+    "siteKinds": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "segmentId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "siteKey": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "textual",
+              "interpretative"
+            ]
+          },
+          "personId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+          },
+          "setAt": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+          }
+        },
+        "required": [
+          "segmentId",
+          "siteKey",
+          "kind"
+        ]
+      }
+    },
+    "content": {
+      "$ref": "https://varians.eu/formats/2/stream.schema.json"
+    }
+  },
+  "required": [
+    "$schema",
+    "id",
+    "slug",
+    "title",
+    "version",
+    "conventions",
+    "sigla",
+    "content"
+  ]
 }

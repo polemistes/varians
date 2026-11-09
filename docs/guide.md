@@ -310,14 +310,16 @@ Conjectures, reported readings and notes cite entries under **References**: sear
 
 Varians keeps a copy of every work outside its database, in open formats, so that the work outlives the program. For each work the server keeps a git repository with:
 
-- the work, its reference scheme, its segments and its witnesses as JSON, with the segments also as a table;
+- the work, its reference scheme, its segments and its witnesses as JSON, with the segments also as a table, each with its CTS URN where the work has one;
 - every transcript as TEI XML, with the facsimile zones;
 - every edition as TEI XML with a critical apparatus, and as plain text and Markdown for reading without any tools;
-- the token streams, adoptions, reviews and the full history of changes as JSON, for what TEI cannot carry exactly;
+- the token streams, adoptions, notes, the editors' alignment constraints, the sites looked at, and the full history of changes as JSON, for what TEI cannot carry exactly;
 - the bibliography as `.bib`, and the images as their original files;
-- a README describing all of this.
+- a README saying where the format is specified.
 
-The archive is brought up to date every night, and whenever a version is published. Anyone signed in who can see the work downloads it from the work's page as a zip, a few times an hour, holding what that person may see: an edition they do not edit comes as its published version. An administrator gets the server's repository itself, with its history. The formats are documented in [docs/formats/](formats/README.md), and `pnpm --filter @varians/web cli import-archive <folder> --user <email>` reads an archive back into an installation, which is also how a work moves from one installation to another.
+Every record of the work is in the archive, so that the work can be rebuilt from it alone. A change is in the archive's files within a minute of the last save. A commit marks every named moment and every publication, in the name of the person who made it, and the rest is committed every night. Anyone signed in who can see the work downloads it from the work's page as a zip, a few times an hour, holding what that person may see: an edition they do not edit comes as its published version, and no one's review positions are included. An administrator gets the server's repository itself, with its history.
+
+The files follow the **Varians Data Format**, whose specification, JSON Schemas and TEI customization every installation serves at [/formats](/formats). `pnpm --filter @varians/web cli import-archive <folder> --user <email>` reads an archive back into an installation, which is also how a work moves from one installation to another.
 
 ## Keyboard
 

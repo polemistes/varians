@@ -4,7 +4,7 @@ import { getTableName, is } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import { ARCHIVED_TABLES, DERIVED_TABLES, TRANSIENT_TABLES } from './coverage.ts';
 
-const tables = Object.values(schema)
+const tables = (Object.values(schema) as unknown[])
   .filter((value): value is PgTable => is(value, PgTable))
   .map((table) => getTableName(table))
   .sort();

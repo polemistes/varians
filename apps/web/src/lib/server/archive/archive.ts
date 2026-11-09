@@ -18,6 +18,7 @@ import {
   exportTranscriptionTei,
   formatApparatus,
   newId,
+  passageUrn,
   segmentRuns,
   serializeBiblatex,
   toText,
@@ -62,7 +63,7 @@ import { fileURLToPath } from 'node:url';
 import { copyFile, mkdir, mkdtemp, open, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { and, asc, eq, inArray, isNotNull, lte, or } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, lte, or } from 'drizzle-orm';
 import { collateEdition } from '../collation.ts';
 import { exportHands, teiForm } from '../witness-format.ts';
 import { apparatusConventionsOf, contextAt } from '../reader.ts';
@@ -70,6 +71,31 @@ import { siglaOrderOf } from '../../reader/sites.ts';
 import { chosenWorksOf } from '../transcription-works.ts';
 
 const run = promisify(execFile);
+
+/** The format the archive is written in, and where its schemas live (docs/formats/specification.md). */
+export const FORMAT_VERSION = 2;
+export const FORMAT_BASE = `https://varians.eu/formats/${FORMAT_VERSION}/`;
+
+/** A record file's contents, its schema's address first. */
+function record(schema: string, data: Record<string, unknown>): Record<string, unknown> {
+  return { $schema: `${FORMAT_BASE}${schema}.schema.json`, ...data };
+}
+
+/** A list file's contents: the schema's address, then the list under its name. */
+function list(schema: string, key: string, items: unknown[]): Record<string, unknown> {
+  return record(schema, { [key]: items });
+}
+
+/** The id of a document's last applied changeset, up to a version. */
+async function headOf(db: Database, kind: 'transcription' | 'edition', documentId: string, upTo: number | null): Promise<string | null> {
+  const [row] = await db
+    .select({ id: changesets.id })
+    .from(changesets)
+    .where(and(eq(changesets.documentKind, kind), eq(changesets.documentId, documentId), upTo !== null ? lte(changesets.version, upTo) : undefined))
+    .orderBy(desc(changesets.version))
+    .limit(1);
+  return row?.id ?? null;
+}
 
 /** Options of an export; the archive uses the core exporters by default. */
 export interface ArchiveWriters {
@@ -322,7 +348,7 @@ async function historyFiles(ctx: WorkContext, dir: string, kind: 'transcription'
     .orderBy(asc(moments.version), asc(moments.at), asc(moments.id));
   await writeJson(
     path.join(dir, 'moments.json'),
-    named.map((m) => ({
+    list('moments', 'moments', named.map((m) => ({
       id: m.id,
       version: m.version,
       name: m.name,
@@ -331,7 +357,7 @@ async function historyFiles(ctx: WorkContext, dir: string, kind: 'transcription'
       basis: m.basis,
       createdBy: m.createdBy,
       at: m.at.toISOString(),
-    })),
+    }))),
   );
 }
 
@@ -351,7 +377,8 @@ async function writeWorkFiles(ctx: WorkContext): Promise<void> {
   const { db, work, scheme, dir, userNames, labelOf, conjectureRows, reported } = ctx;
   await mkdir(dir, { recursive: true });
   const maintainerRows = await db.select().from(workMaintainers).where(eq(workMaintainers.workId, work.id)).orderBy(asc(workMaintainers.userId));
-  await writeJson(path.join(dir, 'work.json'), {
+  await writeJson(path.join(dir, 'work.json'), record('work', {
+    formatVersion: FORMAT_VERSION,
     id: work.id,
     slug: work.slug,
     title: work.title,
@@ -365,19 +392,21 @@ async function writeWorkFiles(ctx: WorkContext): Promise<void> {
     maintainers: maintainerRows.map((m) => ({ id: m.userId, name: userNames.get(m.userId) ?? null, since: iso(m.createdAt) })),
     createdBy: work.createdBy,
     createdAt: iso(work.createdAt),
-    formatVersion: 1,
-  });
+  }));
   await writeText(
     path.join(dir, 'segments.tsv'),
-    ['id\tlabel\tsort_key\taddress\tcreated_at', ...ctx.segmentRows.map((s) => `${s.id}\t${s.label}\t${s.sortKey}\t${JSON.stringify(s.address)}\t${iso(s.createdAt)}`)].join('\n') + '\n',
+    [
+      'id\tlabel\tsort_key\taddress\turn\tcreated_at',
+      ...ctx.segmentRows.map((s) => [s.id, s.label, s.sortKey, JSON.stringify(s.address), passageUrn(work.identifier, s.address, scheme?.levels ?? []) ?? '', iso(s.createdAt)].join('\t')),
+    ].join('\n') + '\n',
   );
   await writeJson(
     path.join(dir, 'conjectures.json'),
-    conjectureRows.map((c) => ({ ...c, segmentLabel: labelOf.get(c.segmentId) ?? null, createdAt: iso(c.createdAt), updatedAt: iso(c.updatedAt) })),
+    list('conjectures', 'conjectures', conjectureRows.map((c) => ({ ...c, segmentLabel: labelOf.get(c.segmentId) ?? null, createdAt: iso(c.createdAt), updatedAt: iso(c.updatedAt) }))),
   );
   await writeJson(
     path.join(dir, 'reported-readings.json'),
-    reported.map((r) => ({ ...r, segmentLabel: labelOf.get(r.segmentId) ?? null, createdAt: iso(r.createdAt), updatedAt: iso(r.updatedAt) })),
+    list('reported-readings', 'readings', reported.map((r) => ({ ...r, segmentLabel: labelOf.get(r.segmentId) ?? null, createdAt: iso(r.createdAt), updatedAt: iso(r.updatedAt) }))),
   );
 
   const all = await citationsOfWork(db, work.id);
@@ -398,11 +427,11 @@ async function writeWorkFiles(ctx: WorkContext): Promise<void> {
   await writeText(path.join(dir, 'bibliography.bib'), serializeBiblatex(items.map((r) => ({ type: r.entryType, key: r.citationKey, fields: r.fields }))));
   await writeJson(
     path.join(dir, 'bibliography.json'),
-    items.map((i) => ({ ...i, createdAt: iso(i.createdAt), updatedAt: iso(i.updatedAt) })),
+    list('bibliography', 'items', items.map((i) => ({ ...i, createdAt: iso(i.createdAt), updatedAt: iso(i.updatedAt) }))),
   );
   await writeJson(
     path.join(dir, 'citations.json'),
-    citationRows.map((c) => ({ ...c, createdAt: iso(c.createdAt) })),
+    list('citations', 'citations', citationRows.map((c) => ({ ...c, createdAt: iso(c.createdAt) }))),
   );
   await writeFormatNotes(dir);
 }
@@ -448,12 +477,12 @@ async function writeWitnessFiles(ctx: WorkContext, witness: WitnessRow): Promise
   const { db, writers, userNames } = ctx;
   const wdir = path.join(ctx.dir, ctx.witnessPath.get(witness.id)!);
   const maintainerRows = await db.select().from(witnessMaintainers).where(eq(witnessMaintainers.witnessId, witness.id)).orderBy(asc(witnessMaintainers.userId));
-  await writeJson(path.join(wdir, 'witness.json'), {
+  await writeJson(path.join(wdir, 'witness.json'), record('witness', {
     ...witness,
     maintainers: maintainerRows.map((m) => ({ id: m.userId, name: userNames.get(m.userId) ?? null, since: iso(m.createdAt) })),
     createdAt: iso(witness.createdAt),
     updatedAt: iso(witness.updatedAt),
-  });
+  }));
   const pageRows = await db.select().from(pages).where(eq(pages.witnessId, witness.id)).orderBy(pages.position, pages.id);
   const imageFiles = new Map<string, string>();
   const imagesDir = path.join(wdir, 'images');
@@ -475,7 +504,7 @@ async function writeWitnessFiles(ctx: WorkContext, witness: WitnessRow): Promise
   }
   await writeJson(
     path.join(wdir, 'pages.json'),
-    pageRows.map((p) => ({
+    list('pages', 'pages', pageRows.map((p) => ({
       id: p.id,
       label: p.label,
       position: p.position,
@@ -483,7 +512,7 @@ async function writeWitnessFiles(ctx: WorkContext, witness: WitnessRow): Promise
         ? { kind: p.imageKind, path: p.imagePath, file: imageFiles.get(p.id) ?? null, iiif: p.imageIiif, width: p.imageWidth, height: p.imageHeight, tiles: p.tilesPath }
         : null,
       createdAt: iso(p.createdAt),
-    })),
+    }))),
   );
 }
 
@@ -494,7 +523,7 @@ async function writeTranscriptionFiles(ctx: WorkContext, t: TranscriptionRow): P
   const tdir = path.join(ctx.dir, ctx.transcriptionPath.get(t.id)!);
   await rm(tdir, { recursive: true, force: true });
   const chosen = await chosenWorksOf(db, [t.id]);
-  await writeJson(path.join(tdir, 'transcription.json'), {
+  await writeJson(path.join(tdir, 'transcription.json'), record('transcription', {
     id: t.id,
     name: t.name,
     witnessId: t.witnessId,
@@ -502,6 +531,7 @@ async function writeTranscriptionFiles(ctx: WorkContext, t: TranscriptionRow): P
     ownerName: userNames.get(t.ownerId) ?? null,
     visibility: t.visibility,
     version: t.version,
+    head: await headOf(db, 'transcription', t.id, null),
     keepsWrittenForm: t.keepsWrittenForm,
     displayAsWritten: t.displayAsWritten,
     profile: t.profile,
@@ -511,16 +541,16 @@ async function writeTranscriptionFiles(ctx: WorkContext, t: TranscriptionRow): P
     workIds: chosen.get(t.id) ?? [],
     createdAt: iso(t.createdAt),
     content: t.content,
-  });
-  await writeJson(path.join(tdir, 'memory.json'), t.memory);
+  }));
+  await writeJson(path.join(tdir, 'memory.json'), list('memory', 'entries', t.memory));
   const zoneRows = await db.select().from(zones).where(eq(zones.transcriptionId, t.id)).orderBy(asc(zones.id));
   await writeJson(
     path.join(tdir, 'zones.json'),
-    zoneRows.map((z) => ({ id: z.id, pageId: z.pageId, tokenIds: z.tokenIds, geometry: z.geometry, feature: z.feature, createdAt: iso(z.createdAt) })),
+    list('zones', 'zones', zoneRows.map((z) => ({ id: z.id, pageId: z.pageId, tokenIds: z.tokenIds, geometry: z.geometry, feature: z.feature, createdAt: iso(z.createdAt) }))),
   );
   await writeText(path.join(tdir, 'transcription.txt'), toText(t.content, { form: 'read' }) + '\n');
   const states = await reviewStates(ctx, 'transcription', t.id);
-  if (states.length) await writeJson(path.join(tdir, 'reviews.json'), { states });
+  if (states.length) await writeJson(path.join(tdir, 'reviews.json'), record('reviews', { states }));
   if (writers.tei !== false) {
     const pageRows = await db.select().from(pages).where(eq(pages.witnessId, witness.id)).orderBy(pages.position, pages.id);
     const segmentLabels: Record<string, string> = {};
@@ -596,7 +626,7 @@ async function writeEditionFiles(ctx: WorkContext, edition: EditionRow): Promise
   const collaboratorRows = working
     ? await db.select().from(editionCollaborators).where(eq(editionCollaborators.editionId, edition.id)).orderBy(asc(editionCollaborators.userId))
     : [];
-  await writeJson(path.join(edir, 'edition.json'), {
+  await writeJson(path.join(edir, 'edition.json'), record('edition', {
     id: edition.id,
     slug: edition.slug,
     title: edition.title,
@@ -606,6 +636,7 @@ async function writeEditionFiles(ctx: WorkContext, edition: EditionRow): Promise
     ownerName: userNames.get(edition.ownerId) ?? null,
     visibility: edition.visibility,
     version: shown.edition.version,
+    head: await headOf(db, 'edition', edition.id, shownVersion),
     publishedVersion: edition.publishedVersion,
     conventions: edition.conventions,
     copiedFrom: edition.copiedFrom,
@@ -626,29 +657,29 @@ async function writeEditionFiles(ctx: WorkContext, edition: EditionRow): Promise
     })),
     siteKinds: kindRows,
     content: shown.edition.content,
-  });
+  }));
   if (working) {
     const constraints = await db.select().from(alignmentConstraints).where(eq(alignmentConstraints.editionId, edition.id)).orderBy(asc(alignmentConstraints.id));
     await writeJson(
       path.join(edir, 'alignment.json'),
-      constraints.map((c) => ({
+      list('alignment', 'constraints', constraints.map((c) => ({
         id: c.id,
         segmentId: c.segmentId,
         baseTokenIds: c.baseTokenIds,
         transcriptionId: c.transcriptionId,
         witnessTokenIds: c.witnessTokenIds,
         createdAt: iso(c.createdAt),
-      })),
+      }))),
     );
     const sites = await db
       .select()
       .from(editionSiteReviews)
       .where(eq(editionSiteReviews.editionId, edition.id))
       .orderBy(asc(editionSiteReviews.segmentId), asc(editionSiteReviews.siteKey));
-    await writeJson(path.join(edir, 'reviews.json'), {
+    await writeJson(path.join(edir, 'reviews.json'), record('reviews', {
       sites: sites.map((s) => ({ segmentId: s.segmentId, siteKey: s.siteKey, reviewedBy: s.reviewedBy, reviewedAt: iso(s.reviewedAt) })),
       states: await reviewStates(ctx, 'edition', edition.id),
-    });
+    }));
   }
   const text = await editionText(db, edition.id, labelOf, shownVersion);
   await writeText(path.join(edir, 'edition.txt'), text.plain);

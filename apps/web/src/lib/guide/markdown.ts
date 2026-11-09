@@ -1,8 +1,10 @@
 /**
  * The guide's Markdown as HTML: the small subset docs/guide.md uses.
  * Headings (with ids, for a table of contents), paragraphs, bulleted lists
- * one level deep, tables, and inline bold, italic, code and links. Links
- * into the repository, which the site does not serve, become plain text.
+ * one level deep, tables, fenced code blocks, and inline bold, italic, code
+ * and links. Links into the repository, which the site does not serve,
+ * become plain text, unless a base is given that serves them (the format
+ * specification at /formats).
  */
 
 export interface Heading {
@@ -27,8 +29,17 @@ function escape(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+export interface RenderOptions {
+  /** Where relative links point: they become links under this address rather than plain text. */
+  linkBase?: string;
+}
+
 /** Bold, italic, code and links within one run of text. */
-export function inline(text: string): string {
+export function inline(text: string, options: RenderOptions = {}): string {
+  return inlineWith(text, options);
+}
+
+function inlineWith(text: string, options: RenderOptions): string {
   return text
     .split(/(`[^`]*`)/)
     .map((part, i) => {
@@ -36,9 +47,12 @@ export function inline(text: string): string {
       let s = escape(part);
       s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
       s = s.replace(/(^|[^\w*])\*([^*\n]+?)\*(?!\w)/g, '$1<em>$2</em>');
-      s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, label: string, href: string) =>
-        /^(https?:\/\/|#)/.test(href) ? `<a href="${href}">${label}</a>` : label,
-      );
+      s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, label: string, href: string) => {
+        if (/^(https?:\/\/|#|\/(?!\/))/.test(href)) return `<a href="${href}">${label}</a>`;
+        if (options.linkBase && /^[\w./-]+(#[\w-]*)?$/.test(href) && !href.includes('..')) return `<a href="${options.linkBase}${href}">${label}</a>`;
+        return label;
+      });
+      s = s.replace(/&lt;(https?:\/\/[^\s&]+)&gt;/g, '<a href="$1">$1</a>');
       return s;
     })
     .join('');
@@ -49,7 +63,8 @@ function plain(text: string): string {
   return text.replace(/\*\*|`|\*/g, '');
 }
 
-export function render(markdown: string): Rendered {
+export function render(markdown: string, options: RenderOptions = {}): Rendered {
+  const inline = (text: string) => inlineWith(text, options);
   const lines = markdown.replace(/\r\n/g, '\n').split('\n');
   const out: string[] = [];
   const headings: Heading[] = [];
@@ -95,7 +110,22 @@ export function render(markdown: string): Rendered {
     flushTable();
   };
 
+  let fence: string[] | null = null;
   for (const line of lines) {
+    if (/^```/.test(line)) {
+      if (fence === null) {
+        flushAll();
+        fence = [];
+      } else {
+        out.push(`<pre><code>${escape(fence.join('\n'))}</code></pre>`);
+        fence = null;
+      }
+      continue;
+    }
+    if (fence !== null) {
+      fence.push(line);
+      continue;
+    }
     const heading = /^(#{1,3}) (.+)$/.exec(line);
     if (heading) {
       flushAll();

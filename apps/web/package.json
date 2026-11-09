@@ -25,6 +25,7 @@
     "@node-rs/argon2": "^2.2.1",
     "@varians/core": "workspace:*",
     "@varians/db": "workspace:*",
+    "ajv": "^8.20.0",
     "bits-ui": "^2.19.4",
     "drizzle-orm": "^0.45.3",
     "fast-xml-parser": "^5.11.2",

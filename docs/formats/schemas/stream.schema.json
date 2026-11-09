@@ -1,80 +1,408 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://varians.no/schemas/stream.schema.json",
+  "$id": "https://varians.eu/formats/2/stream.schema.json",
   "title": "Stream",
-  "description": "The text of a transcription or an edition: an ordered list of tokens, breaks and objects. Every item has a permanent id.",
+  "description": "The text of a transcription or an edition: an ordered list of tokens, breaks and objects, each with a permanent id (specification 4.8). Also the operations that change it (5.2).",
   "type": "object",
-  "required": ["items"],
+  "required": [
+    "items"
+  ],
   "properties": {
-    "items": { "type": "array", "items": { "$ref": "#/$defs/item" } }
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "https://varians.eu/formats/2/stream.schema.json#/$defs/item"
+      }
+    }
   },
   "$defs": {
-    "id": { "type": "string", "minLength": 1 },
     "segmentStart": {
       "type": "object",
-      "required": ["segmentId"],
       "properties": {
-        "segmentId": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }], "description": "The segment a run of which begins here; null begins unassigned text." },
-        "part": { "type": "integer", "minimum": 1, "description": "Content order of this run among the segment's runs in the stream." }
-      }
+        "segmentId": {
+          "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+        },
+        "part": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "segmentId"
+      ]
     },
     "mark": {
       "type": "object",
-      "required": ["kind"],
       "properties": {
-        "kind": { "type": "string", "description": "A TEI element name: unclear, supplied, del, add, subst, abbr, hi, sic, corr, damage, surplus, handShift, space, gap, crux, note." },
-        "attrs": { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean", "null"] } },
-        "from": { "type": "integer", "minimum": 0, "description": "Start, in code points of the written form; absent for a whole-token mark." },
-        "to": { "type": "integer", "minimum": 0 }
-      }
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "attrs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "from": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "to": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "kind"
+      ]
     },
     "source": {
       "oneOf": [
-        { "type": "object", "required": ["kind", "transcriptionId", "tokenIds"], "properties": { "kind": { "const": "witness" }, "transcriptionId": { "$ref": "#/$defs/id" }, "tokenIds": { "type": "array", "items": { "$ref": "#/$defs/id" } } } },
-        { "type": "object", "required": ["kind", "conjectureId"], "properties": { "kind": { "const": "conjecture" }, "conjectureId": { "$ref": "#/$defs/id" } } },
-        { "type": "object", "required": ["kind"], "properties": { "kind": { "const": "editor" } } }
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "witness"
+            },
+            "transcriptionId": {
+              "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+            },
+            "tokenIds": {
+              "type": "array",
+              "items": {
+                "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "transcriptionId",
+            "tokenIds"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "conjecture"
+            },
+            "conjectureId": {
+              "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+            }
+          },
+          "required": [
+            "kind",
+            "conjectureId"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "editor"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        }
       ]
     },
     "token": {
       "type": "object",
-      "required": ["kind", "id", "form"],
       "properties": {
-        "kind": { "const": "token" },
-        "id": { "$ref": "#/$defs/id" },
-        "form": { "type": "string", "description": "The written form." },
-        "norm": { "type": "string", "description": "The read form where it differs; spaces divide it into several words for collation." },
-        "unchecked": { "type": "boolean" },
-        "joinNext": { "type": "boolean", "description": "This token and the next are one word." },
-        "sep": { "enum": ["space", "none", "interpunct", "other"] },
-        "segment": { "$ref": "#/$defs/segmentStart" },
-        "marks": { "type": "array", "items": { "$ref": "#/$defs/mark" } },
-        "source": { "$ref": "#/$defs/source" }
-      }
+        "kind": {
+          "const": "token"
+        },
+        "id": {
+          "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+        },
+        "form": {
+          "type": "string"
+        },
+        "norm": {
+          "type": "string"
+        },
+        "unchecked": {
+          "type": "boolean"
+        },
+        "joinNext": {
+          "type": "boolean"
+        },
+        "sep": {
+          "enum": [
+            "space",
+            "none",
+            "interpunct",
+            "other"
+          ]
+        },
+        "segment": {
+          "$ref": "https://varians.eu/formats/2/stream.schema.json#/$defs/segmentStart"
+        },
+        "marks": {
+          "type": "array",
+          "items": {
+            "$ref": "https://varians.eu/formats/2/stream.schema.json#/$defs/mark"
+          }
+        },
+        "source": {
+          "$ref": "https://varians.eu/formats/2/stream.schema.json#/$defs/source"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "form"
+      ]
     },
     "break": {
       "type": "object",
-      "required": ["kind", "id", "type"],
       "properties": {
-        "kind": { "const": "break" },
-        "id": { "$ref": "#/$defs/id" },
-        "type": { "enum": ["line", "column", "page", "paragraph"] },
-        "pageId": { "$ref": "#/$defs/id" },
-        "label": { "type": "string" },
-        "rend": { "type": "string" }
-      }
+        "kind": {
+          "const": "break"
+        },
+        "id": {
+          "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+        },
+        "type": {
+          "enum": [
+            "line",
+            "column",
+            "page",
+            "paragraph"
+          ]
+        },
+        "pageId": {
+          "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+        },
+        "label": {
+          "type": "string"
+        },
+        "rend": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "type"
+      ]
     },
     "object": {
       "type": "object",
-      "required": ["kind", "id", "type"],
       "properties": {
-        "kind": { "const": "object" },
-        "id": { "$ref": "#/$defs/id" },
-        "type": { "enum": ["gap", "figure", "mark", "note", "lacuna", "paratext", "space"] },
-        "attrs": { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean", "null"] } },
-        "text": { "type": "string" },
-        "segment": { "$ref": "#/$defs/segmentStart" }
-      }
+        "kind": {
+          "const": "object"
+        },
+        "id": {
+          "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+        },
+        "type": {
+          "enum": [
+            "gap",
+            "figure",
+            "mark",
+            "note",
+            "lacuna",
+            "paratext",
+            "space"
+          ]
+        },
+        "attrs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "text": {
+          "type": "string"
+        },
+        "segment": {
+          "$ref": "https://varians.eu/formats/2/stream.schema.json#/$defs/segmentStart"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "type"
+      ]
     },
-    "item": { "oneOf": [{ "$ref": "#/$defs/token" }, { "$ref": "#/$defs/break" }, { "$ref": "#/$defs/object" }] }
+    "item": {
+      "oneOf": [
+        {
+          "$ref": "https://varians.eu/formats/2/stream.schema.json#/$defs/token"
+        },
+        {
+          "$ref": "https://varians.eu/formats/2/stream.schema.json#/$defs/break"
+        },
+        {
+          "$ref": "https://varians.eu/formats/2/stream.schema.json#/$defs/object"
+        }
+      ]
+    },
+    "op": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "t": {
+              "const": "insert"
+            },
+            "after": {
+              "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "https://varians.eu/formats/2/stream.schema.json#/$defs/item"
+              }
+            }
+          },
+          "required": [
+            "t",
+            "after",
+            "items"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "t": {
+              "const": "delete"
+            },
+            "ids": {
+              "type": "array",
+              "items": {
+                "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+              }
+            }
+          },
+          "required": [
+            "t",
+            "ids"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "t": {
+              "const": "set"
+            },
+            "id": {
+              "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+            },
+            "fields": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "t",
+            "id",
+            "fields"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "t": {
+              "const": "move"
+            },
+            "ids": {
+              "type": "array",
+              "items": {
+                "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+              }
+            },
+            "after": {
+              "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+            }
+          },
+          "required": [
+            "t",
+            "ids",
+            "after"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "t": {
+              "const": "split"
+            },
+            "id": {
+              "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+            },
+            "at": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "newId": {
+              "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+            },
+            "join": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "t",
+            "id",
+            "at",
+            "newId"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "t": {
+              "const": "join"
+            },
+            "id": {
+              "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+            }
+          },
+          "required": [
+            "t",
+            "id"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "t": {
+              "const": "replace"
+            },
+            "ids": {
+              "type": "array",
+              "items": {
+                "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+              }
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "https://varians.eu/formats/2/stream.schema.json#/$defs/item"
+              }
+            }
+          },
+          "required": [
+            "t",
+            "ids",
+            "items"
+          ]
+        }
+      ]
+    }
   }
 }

@@ -96,7 +96,7 @@ describe('archive', () => {
       editionWorking: () => true,
     };
     const dir = await writeArchive(db, sample.workId, root, { only });
-    const written = JSON.parse(await readFile(path.join(dir, 'conjectures.json'), 'utf8')) as { id: string }[];
+    const written = (JSON.parse(await readFile(path.join(dir, 'conjectures.json'), 'utf8')) as { conjectures: { id: string }[] }).conjectures;
     expect(written.map((c) => c.id)).not.toContain(first!.id);
     expect(written.length).toBeGreaterThan(0);
     expect(existsSync(path.join(dir, 'editions'))).toBe(false);

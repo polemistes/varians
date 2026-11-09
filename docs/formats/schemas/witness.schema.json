@@ -1,31 +1,176 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://varians.no/schemas/witness.schema.json",
+  "$id": "https://varians.eu/formats/2/witness.schema.json",
   "title": "Witness",
+  "description": "witness.json: a witness of the text (specification 4.6).",
   "type": "object",
-  "required": ["id", "slug", "siglum", "name"],
   "properties": {
-    "id": { "type": "string" },
-    "slug": { "type": "string" },
-    "siglum": { "type": "string", "description": "The siglum proposed for a conspectus; an edition may use another." },
-    "name": { "type": "string" },
-    "category": {
-      "enum": ["manuscript", "inscription", "edition", "indirect", "other"],
-      "description": "What the carrier is. A papyrus is a manuscript with papyrus as its material; archives written before 3 October 2026 may have \"papyrus\" here."
+    "$schema": {
+      "const": "https://varians.eu/formats/2/witness.schema.json"
     },
-    "format": { "enum": ["codex", "roll", "sheet", "unknown", null], "description": "A manuscript's format; null for other categories." },
-    "sourceAuthor": { "type": ["string", "null"], "description": "For an indirect source: the author who quotes or reports the text." },
-    "sourceWork": { "type": ["string", "null"], "description": "For an indirect source: the work in which the text is quoted." },
-    "repository": { "type": ["string", "null"] },
-    "settlement": { "type": ["string", "null"] },
-    "shelfmark": { "type": ["string", "null"] },
-    "identifier": { "type": ["string", "null"] },
-    "dateText": { "type": ["string", "null"] },
-    "material": { "type": ["string", "null"], "description": "One of papyrus, parchment, paper, palm-leaf, birch-bark, leather, wood, wax-tablet, ostracon, clay, stone, metal, bone, textile, plaster; or a free text for another material." },
-    "extent": { "type": ["string", "null"] },
-    "hands": { "type": "array", "description": "The hands of the witness; corrections in its transcripts name them by id.", "items": { "type": "object", "required": ["id", "label", "main"], "properties": { "id": { "type": "string" }, "label": { "type": "string" }, "description": { "type": ["string", "null"] }, "main": { "type": "boolean", "description": "The scribe of the text." } } } },
-    "provenance": { "type": ["string", "null"] },
-    "description": { "type": ["string", "null"] },
-    "iiifManifest": { "type": ["string", "null"] }
-  }
+    "id": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+    },
+    "slug": {
+      "type": "string"
+    },
+    "siglum": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "category": {
+      "enum": [
+        "manuscript",
+        "inscription",
+        "edition",
+        "indirect",
+        "other"
+      ]
+    },
+    "format": {
+      "enum": [
+        "codex",
+        "roll",
+        "sheet",
+        "unknown",
+        null
+      ]
+    },
+    "sourceAuthor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sourceWork": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repository": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "settlement": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "shelfmark": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "identifier": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "identifiers": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/identifiers"
+    },
+    "dateText": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "material": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "extent": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "hands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "main": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ]
+      }
+    },
+    "provenance": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "iiifManifest": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "imageRights": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/rights"
+    },
+    "imageAttribution": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "maintainers": {
+      "type": "array",
+      "items": {
+        "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/account"
+      }
+    },
+    "createdBy": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+    },
+    "createdAt": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+    },
+    "updatedAt": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+    }
+  },
+  "required": [
+    "$schema",
+    "id",
+    "slug",
+    "siglum",
+    "name",
+    "category"
+  ]
 }

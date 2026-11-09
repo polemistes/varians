@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://varians.eu/formats/2/reviews.schema.json",
+  "title": "Reviews",
+  "description": "reviews.json: the sites of an edition looked at, and each person's review position (specification 4.9).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://varians.eu/formats/2/reviews.schema.json"
+    },
+    "sites": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "segmentId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "siteKey": {
+            "type": "string"
+          },
+          "personId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+          },
+          "reviewedAt": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+          }
+        },
+        "required": [
+          "segmentId",
+          "siteKey"
+        ]
+      }
+    },
+    "states": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "personId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "fromVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "accepted": {
+            "type": "array",
+            "items": {
+              "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+            }
+          }
+        },
+        "required": [
+          "fromVersion",
+          "accepted"
+        ]
+      }
+    }
+  },
+  "required": [
+    "$schema"
+  ]
+}

@@ -1,24 +1,96 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://varians.no/schemas/transcription.schema.json",
+  "$id": "https://varians.eu/formats/2/transcription.schema.json",
   "title": "Transcription",
+  "description": "transcription.json: a transcription of a witness, with its text (specification 4.8).",
   "type": "object",
-  "required": ["id", "name", "witnessId", "version", "content"],
   "properties": {
-    "id": { "type": "string" },
-    "name": { "type": "string" },
-    "witnessId": { "type": "string" },
-    "ownerId": { "type": "string" },
-    "ownerName": { "type": ["string", "null"] },
-    "visibility": { "enum": ["draft", "published"] },
-    "version": { "type": "integer", "description": "The number of changesets applied; history.ndjson has one line per version." },
-    "keepsWrittenForm": { "type": "boolean" },
-    "displayAsWritten": { "type": "boolean" },
-    "profile": { "type": ["object", "null"], "description": "Overrides of the work's normalization profile." },
-    "description": { "type": ["string", "null"] },
-    "sources": { "type": ["string", "null"], "description": "What it rests on or was made from, as its maker states it." },
-    "licence": { "type": ["string", "null"], "description": "The licence it is published under." },
-    "workIds": { "type": "array", "items": { "type": "string" }, "description": "The works the transcription is for, in order. The works its text is assigned to are named by the segments in its content." },
-    "content": { "$ref": "stream.schema.json" }
-  }
+    "$schema": {
+      "const": "https://varians.eu/formats/2/transcription.schema.json"
+    },
+    "id": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+    },
+    "name": {
+      "type": "string"
+    },
+    "witnessId": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+    },
+    "ownerId": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+    },
+    "ownerName": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "visibility": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/visibility"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "head": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+    },
+    "keepsWrittenForm": {
+      "type": "boolean"
+    },
+    "displayAsWritten": {
+      "type": "boolean"
+    },
+    "profile": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sources": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "licence": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "rightsNote": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "workIds": {
+      "type": "array",
+      "items": {
+        "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+      }
+    },
+    "createdAt": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+    },
+    "content": {
+      "$ref": "https://varians.eu/formats/2/stream.schema.json"
+    }
+  },
+  "required": [
+    "$schema",
+    "id",
+    "name",
+    "witnessId",
+    "version",
+    "content"
+  ]
 }

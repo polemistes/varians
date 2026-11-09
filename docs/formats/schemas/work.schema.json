@@ -1,48 +1,143 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://varians.no/schemas/work.schema.json",
+  "$id": "https://varians.eu/formats/2/work.schema.json",
   "title": "Work",
+  "description": "work.json: the work, its reference scheme and normalization profile (specification 4.1).",
   "type": "object",
-  "required": ["id", "slug", "title", "language", "scheme", "profile", "formatVersion"],
   "properties": {
-    "id": { "type": "string" },
-    "slug": { "type": "string" },
-    "title": { "type": "string" },
-    "author": { "type": ["string", "null"] },
-    "language": { "type": "string", "description": "A language code: grc, la, he, ar, sa." },
-    "identifier": { "type": ["string", "null"], "description": "A canonical identifier such as a CTS URN." },
-    "description": { "type": ["string", "null"] },
-    "visibility": { "enum": ["public", "private"] },
+    "$schema": {
+      "const": "https://varians.eu/formats/2/work.schema.json"
+    },
+    "formatVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "id": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "title": {
+      "type": "string"
+    },
+    "author": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "language": {
+      "type": "string"
+    },
+    "identifier": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "identifiers": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/identifiers"
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "visibility": {
+      "enum": [
+        "public",
+        "private"
+      ]
+    },
     "scheme": {
       "type": "object",
-      "required": ["id", "name", "levels"],
       "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
+        "id": {
+          "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+        },
+        "name": {
+          "type": "string"
+        },
         "levels": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["key", "label", "type", "separator"],
-            "properties": { "key": { "type": "string" }, "label": { "type": "string" }, "type": { "enum": ["number", "text"] }, "separator": { "type": "string" } }
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "separator": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "label",
+              "type"
+            ]
           }
+        },
+        "createdBy": {
+          "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+        },
+        "createdAt": {
+          "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
         }
-      }
+      },
+      "required": [
+        "id",
+        "name",
+        "levels"
+      ]
     },
     "profile": {
       "type": "object",
-      "description": "The normalization profile (PLAN 4.4).",
       "properties": {
-        "language": { "type": "string" },
-        "fold": { "type": "object", "properties": { "caseFold": { "type": "boolean" }, "stripPunctuation": { "type": "boolean" }, "stripDiacritics": { "type": "boolean" }, "latinUV": { "type": "boolean" } } },
-        "lowercaseCapitals": { "type": "boolean" },
-        "finalSigma": { "type": "boolean" },
-        "expandAbbreviations": { "type": "boolean" },
-        "latinUV": { "type": "boolean" }
+        "language": {
+          "type": "string"
+        },
+        "fold": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "language",
+        "fold"
+      ]
+    },
+    "maintainers": {
+      "type": "array",
+      "items": {
+        "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/account"
       }
     },
-    "maintainers": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": ["string", "null"] } } } },
-    "createdAt": { "type": "string", "format": "date-time" },
-    "formatVersion": { "type": "integer" }
-  }
+    "licence": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/spdx"
+    },
+    "createdBy": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+    },
+    "createdAt": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+    }
+  },
+  "required": [
+    "$schema",
+    "formatVersion",
+    "id",
+    "slug",
+    "title",
+    "language",
+    "scheme",
+    "profile"
+  ]
 }

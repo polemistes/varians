@@ -1,25 +1,100 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://varians.no/schemas/zones.schema.json",
+  "$id": "https://varians.eu/formats/2/zones.schema.json",
   "title": "Zones",
-  "description": "Regions of page images linked to tokens. Coordinates are fractions of the image's width and height.",
-  "type": "array",
-  "items": {
-    "type": "object",
-    "required": ["id", "pageId", "tokenIds", "geometry"],
-    "properties": {
-      "id": { "type": "string" },
-      "pageId": { "type": "string" },
-      "tokenIds": { "type": "array", "items": { "type": "string" } },
-      "geometry": {
+  "description": "zones.json: areas of page images and the tokens they show (specification 4.9).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://varians.eu/formats/2/zones.schema.json"
+    },
+    "zones": {
+      "type": "array",
+      "items": {
         "type": "object",
         "properties": {
-          "rect": { "type": "object", "required": ["x", "y", "w", "h"], "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "w": { "type": "number" }, "h": { "type": "number" } } },
-          "polygon": { "type": "array", "items": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 } },
-          "rotate": { "type": "number", "description": "Degrees clockwise the rectangle is turned about its centre, in pixels of the image (TEI zone@rotate)." }
-        }
-      },
-      "feature": { "type": ["object", "null"], "properties": { "kind": { "type": "string" }, "description": { "type": "string" } } }
+          "id": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "pageId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "tokenIds": {
+            "type": "array",
+            "items": {
+              "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+            }
+          },
+          "geometry": {
+            "type": "object",
+            "properties": {
+              "rect": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "w": {
+                    "type": "number"
+                  },
+                  "h": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "w",
+                  "h"
+                ]
+              },
+              "polygon": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y"
+                  ]
+                }
+              },
+              "rotate": {
+                "type": "number"
+              }
+            }
+          },
+          "feature": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
+          }
+        },
+        "required": [
+          "id",
+          "pageId",
+          "tokenIds",
+          "geometry"
+        ]
+      }
     }
-  }
+  },
+  "required": [
+    "$schema",
+    "zones"
+  ]
 }

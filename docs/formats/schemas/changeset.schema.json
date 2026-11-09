@@ -1,31 +1,57 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://varians.no/schemas/changeset.schema.json",
+  "$id": "https://varians.eu/formats/2/changeset.schema.json",
   "title": "Changeset",
-  "description": "One line of history.ndjson: one save, with the operations and their reverse.",
+  "description": "One line of history.ndjson: a change to a document's text (specification 5.1). Lines carry no $schema.",
   "type": "object",
-  "required": ["id", "version", "at", "ops", "reverse"],
   "properties": {
-    "id": { "type": "string" },
-    "version": { "type": "integer" },
-    "userId": { "type": ["string", "null"] },
-    "userName": { "type": ["string", "null"] },
-    "at": { "type": "string", "format": "date-time" },
-    "message": { "type": ["string", "null"] },
-    "ops": { "type": "array", "items": { "$ref": "#/$defs/op" } },
-    "reverse": { "type": "array", "items": { "$ref": "#/$defs/op" } }
-  },
-  "$defs": {
-    "op": {
-      "oneOf": [
-        { "type": "object", "required": ["t", "after", "items"], "properties": { "t": { "const": "insert" }, "after": { "type": ["string", "null"] }, "items": { "type": "array", "items": { "$ref": "stream.schema.json#/$defs/item" } } } },
-        { "type": "object", "required": ["t", "ids"], "properties": { "t": { "const": "delete" }, "ids": { "type": "array", "items": { "type": "string" } } } },
-        { "type": "object", "required": ["t", "id", "fields"], "properties": { "t": { "const": "set" }, "id": { "type": "string" }, "fields": { "type": "object" } } },
-        { "type": "object", "required": ["t", "ids", "after"], "properties": { "t": { "const": "move" }, "ids": { "type": "array", "items": { "type": "string" } }, "after": { "type": ["string", "null"] } } },
-        { "type": "object", "required": ["t", "id", "at", "newId"], "properties": { "t": { "const": "split" }, "id": { "type": "string" }, "at": { "type": "integer" }, "newId": { "type": "string" }, "join": { "type": "boolean" } } },
-        { "type": "object", "required": ["t", "id"], "properties": { "t": { "const": "join" }, "id": { "type": "string" } } },
-        { "type": "object", "required": ["t", "ids", "items"], "properties": { "t": { "const": "replace" }, "ids": { "type": "array", "items": { "type": "string" } }, "items": { "type": "array", "items": { "$ref": "stream.schema.json#/$defs/item" } } } }
+    "id": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+    },
+    "parentId": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+    },
+    "merged": {
+      "type": "array",
+      "items": {
+        "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+      }
+    },
+    "version": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "personId": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+    },
+    "at": {
+      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/time"
+    },
+    "ops": {
+      "type": "array",
+      "items": {
+        "$ref": "https://varians.eu/formats/2/stream.schema.json#/$defs/op"
+      }
+    },
+    "reverse": {
+      "type": "array",
+      "items": {
+        "$ref": "https://varians.eu/formats/2/stream.schema.json#/$defs/op"
+      }
+    },
+    "message": {
+      "type": [
+        "string",
+        "null"
       ]
     }
-  }
+  },
+  "required": [
+    "id",
+    "at",
+    "ops",
+    "reverse"
+  ]
 }

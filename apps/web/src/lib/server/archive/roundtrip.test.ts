@@ -29,7 +29,7 @@ const SLUGS = ['venetus-a', 'venetus-b', 'laurentianus-c', 'townleianus-t'];
 const VOLATILE = new Set(['updatedAt']);
 
 const tableByName = new Map(
-  Object.values(schema)
+  (Object.values(schema) as unknown[])
     .filter((value): value is PgTable => is(value, PgTable))
     .map((table) => [getTableName(table), table] as const),
 );

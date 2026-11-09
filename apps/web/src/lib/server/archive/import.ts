@@ -75,6 +75,15 @@ function stripped<T extends Record<string, unknown>>(record: T, ...keys: string[
   return out;
 }
 
+/** A list from a file: a version 2 file names its list (`{ "$schema", "<key>": [...] }`), a version 1 file is the list itself. */
+async function readList<T>(file: string, key: string): Promise<T[] | null> {
+  const data = await readJson<unknown>(file);
+  if (data === null) return null;
+  if (Array.isArray(data)) return data as T[];
+  const value = (data as Record<string, unknown>)[key];
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
 async function readJson<T>(file: string): Promise<T | null> {
   try {
     return JSON.parse(await readFile(file, 'utf8')) as T;
@@ -171,13 +180,22 @@ export async function importArchive(db: Database, dir: string, userId: string): 
   await db.insert(workMaintainers).values({ workId: work.id, userId }).onConflictDoNothing();
 
   const tsv = await readFile(path.join(dir, 'segments.tsv'), 'utf8').catch(() => '');
-  const segmentRows = tsv
-    .split('\n')
-    .slice(1)
+  // Columns by the header's names: version 1 has id, label, sort_key, address; version 2 adds urn and created_at.
+  const [header = '', ...lines] = tsv.split('\n');
+  const column = new Map(header.split('\t').map((name, i) => [name.trim(), i] as const));
+  const cell = (fields: string[], name: string) => (column.has(name) ? fields[column.get(name)!] : undefined);
+  const segmentRows = lines
     .filter((l) => l.trim() !== '')
     .map((line) => {
-      const [id, label, sortKey, address, createdAt] = line.split('\t');
-      return { id: id!, workId: work.id, label: label!, sortKey: sortKey!, address: JSON.parse(address ?? '{}') as Record<string, string>, createdAt: when(createdAt) };
+      const fields = line.split('\t');
+      return {
+        id: cell(fields, 'id')!,
+        workId: work.id,
+        label: cell(fields, 'label')!,
+        sortKey: cell(fields, 'sort_key')!,
+        address: JSON.parse(cell(fields, 'address') || '{}') as Record<string, string>,
+        createdAt: when(cell(fields, 'created_at')),
+      };
     });
   for (const s of segmentRows) {
     await db
@@ -195,7 +213,8 @@ export async function importArchive(db: Database, dir: string, userId: string): 
     witnessCount++;
     const wslug = await freeSlug(db, witnesses, w.slug, w.id);
     // The fragments flag of archives written before 8 November 2026 is dropped.
-    const { createdAt: _c, updatedAt: _u, fragmentary: _f, maintainers: _m, ...read } = w as typeof w & { fragmentary?: boolean };
+    const { createdAt: _c, updatedAt: _u, fragmentary: _f, maintainers: _m, $schema: _s, ...read } = w as typeof w & { fragmentary?: boolean; $schema?: string };
+    void _s;
     void _c;
     void _u;
     void _f;
@@ -210,15 +229,13 @@ export async function importArchive(db: Database, dir: string, userId: string): 
     for (const m of w.maintainers ?? []) await db.insert(witnessMaintainers).values({ witnessId: w.id, userId: owner(m.id), createdAt: when(m.since) }).onConflictDoNothing();
     await db.insert(witnessMaintainers).values({ witnessId: w.id, userId }).onConflictDoNothing();
     const pageList =
-      (await readJson<
-        {
-          id: string;
-          label: string;
-          position: number;
-          image: { kind: 'upload' | 'iiif'; path: string | null; iiif: string | null; width: number | null; height: number | null; tiles?: string | null } | null;
-          createdAt?: string;
-        }[]
-      >(path.join(wdir, 'pages.json'))) ?? [];
+      (await readList<{
+        id: string;
+        label: string;
+        position: number;
+        image: { kind: 'upload' | 'iiif'; path: string | null; iiif: string | null; width: number | null; height: number | null; tiles?: string | null } | null;
+        createdAt?: string;
+      }>(path.join(wdir, 'pages.json'), 'pages')) ?? [];
     for (const p of pageList) {
       const values = {
         id: p.id,
@@ -256,7 +273,7 @@ export async function importArchive(db: Database, dir: string, userId: string): 
       }>(path.join(tdir, 'transcription.json'));
       if (!t) continue;
       transcriptionCount++;
-      const memory = (await readJson<{ form: string; norm: string; count: number }[]>(path.join(tdir, 'memory.json'))) ?? [];
+      const memory = (await readList<{ form: string; norm: string; count: number }>(path.join(tdir, 'memory.json'), 'entries')) ?? [];
       const values = {
         id: t.id,
         witnessId: w.id,
@@ -281,8 +298,9 @@ export async function importArchive(db: Database, dir: string, userId: string): 
       await setChosenWorks(db, t.id, named.filter((w) => known.has(w)));
       await rebuildSegmentIndex(db, t.id, t.content);
       const zoneList =
-        (await readJson<{ id: string; pageId: string; tokenIds: string[]; geometry: ZoneGeometry; feature: { kind: string; description?: string } | null; createdAt?: string }[]>(
+        (await readList<{ id: string; pageId: string; tokenIds: string[]; geometry: ZoneGeometry; feature: { kind: string; description?: string } | null; createdAt?: string }>(
           path.join(tdir, 'zones.json'),
+          'zones',
         )) ?? [];
       await db.delete(zones).where(eq(zones.transcriptionId, t.id));
       if (zoneList.length) await db.insert(zones).values(zoneList.map((z) => ({ id: z.id, pageId: z.pageId, tokenIds: z.tokenIds, geometry: z.geometry, feature: z.feature, createdAt: when(z.createdAt), transcriptionId: t.id })));
@@ -291,13 +309,13 @@ export async function importArchive(db: Database, dir: string, userId: string): 
     }
   }
 
-  const conjectureList = (await readJson<(typeof conjectures.$inferSelect & { segmentLabel?: string })[]>(path.join(dir, 'conjectures.json'))) ?? [];
+  const conjectureList = (await readList<typeof conjectures.$inferSelect & { segmentLabel?: string }>(path.join(dir, 'conjectures.json'), 'conjectures')) ?? [];
   for (const c of conjectureList) {
     const fields = stripped(c) as typeof c;
     const values = { ...fields, workId: work.id, ownerId: owner(c.ownerId), createdAt: when(c.createdAt) };
     await db.insert(conjectures).values(values).onConflictDoUpdate({ target: conjectures.id, set: values });
   }
-  const reportedList = (await readJson<(typeof reportedReadings.$inferSelect & { segmentLabel?: string })[]>(path.join(dir, 'reported-readings.json'))) ?? [];
+  const reportedList = (await readList<typeof reportedReadings.$inferSelect & { segmentLabel?: string }>(path.join(dir, 'reported-readings.json'), 'readings')) ?? [];
   for (const r of reportedList) {
     const fields = stripped(r) as typeof r;
     const values = { ...fields, workId: work.id, ownerId: owner(r.ownerId), createdAt: when(r.createdAt) };
@@ -388,7 +406,7 @@ export async function importArchive(db: Database, dir: string, userId: string): 
         .values(kinds.map((k) => ({ editionId: e.id, segmentId: k.segmentId, siteKey: k.siteKey, kind: k.kind, setBy: knownOrNull(k.setBy), setAt: when(k.setAt) })))
         .onConflictDoNothing();
     }
-    const alignment = await readJson<{ id: string; segmentId: string; baseTokenIds: string[]; transcriptionId: string; witnessTokenIds: string[]; createdAt?: string }[]>(path.join(edir, 'alignment.json'));
+    const alignment = await readList<{ id: string; segmentId: string; baseTokenIds: string[]; transcriptionId: string; witnessTokenIds: string[]; createdAt?: string }>(path.join(edir, 'alignment.json'), 'constraints');
     if (alignment) {
       await db.delete(alignmentConstraints).where(eq(alignmentConstraints.editionId, e.id));
       const transcriptionIds = new Set((alignment.length ? await db.select({ id: transcriptions.id }).from(transcriptions).where(inArray(transcriptions.id, alignment.map((a) => a.transcriptionId))) : []).map((t) => t.id));
@@ -415,8 +433,9 @@ export async function importArchive(db: Database, dir: string, userId: string): 
   }
 
   const items =
-    (await readJson<{ id: string; entryType: string; citationKey: string; fields: Record<string, string>; label: string; createdBy?: string | null; createdAt?: string }[]>(
+    (await readList<{ id: string; entryType: string; citationKey: string; fields: Record<string, string>; label: string; createdBy?: string | null; createdAt?: string }>(
       path.join(dir, 'bibliography.json'),
+      'items',
     )) ?? [];
   // An entry whose key this installation already has under another id: the citations go to that entry.
   const sameItem = new Map<string, string>();
@@ -432,7 +451,7 @@ export async function importArchive(db: Database, dir: string, userId: string): 
       .values({ id: item.id, entryType: item.entryType, citationKey: item.citationKey, fields: item.fields, label: item.label, createdBy: item.createdBy === undefined ? userId : owner(item.createdBy), createdAt: when(item.createdAt) })
       .onConflictDoUpdate({ target: bibliographyItems.id, set: { entryType: item.entryType, citationKey: item.citationKey, fields: item.fields, label: item.label } });
   }
-  const citationList = (await readJson<(typeof citations.$inferSelect)[]>(path.join(dir, 'citations.json'))) ?? [];
+  const citationList = (await readList<typeof citations.$inferSelect>(path.join(dir, 'citations.json'), 'citations')) ?? [];
   for (const c of citationList) {
     const fields = stripped(c) as typeof c;
     await db
@@ -479,8 +498,9 @@ async function importHistory(
     count++;
   }
   const momentList =
-    (await readJson<{ id: string; version: number; name: string; kind: 'named' | 'published'; number: number | null; basis?: MomentBasis | null; createdBy?: string | null; at: string }[]>(
+    (await readList<{ id: string; version: number; name: string; kind: 'named' | 'published'; number: number | null; basis?: MomentBasis | null; createdBy?: string | null; at: string }>(
       path.join(dir, 'moments.json'),
+      'moments',
     )) ?? [];
   for (const m of momentList) {
     await db
