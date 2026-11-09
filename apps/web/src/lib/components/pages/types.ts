@@ -26,6 +26,16 @@ export interface PageView {
   zones: number;
   /** Transcriptions whose page breaks name it. */
   transcriptions: number;
+  /** The image's rights statement (a listed address), credit line and source; null where not given. */
+  rights: string | null;
+  attribution: string | null;
+  imageSource: string | null;
+}
+
+/** What new images of a witness are given unless another statement is chosen. */
+export interface ImageDefaults {
+  rights: string | null;
+  attribution: string | null;
 }
 
 /** What GET /api/witnesses/[id]/pages answers: the pages as the screen shows them, and what may be done with them. */
@@ -38,6 +48,7 @@ export interface WitnessPagesData {
     iiifManifest: string | null;
     /** A roll: its pages are columns. */
     roll: boolean;
+    imageDefaults: ImageDefaults;
   };
   pages: PageView[];
   /** The user maintains the witness and may change its pages. */
@@ -60,6 +71,14 @@ export interface ManifestPreviewView {
   present: number;
   attachable: number;
   canvases: ManifestCanvasView[];
+  rights: {
+    rights: string | null;
+    label: string | null;
+    attribution: string | null;
+    ownStatements: number;
+    fallback: string | null;
+    fallbackLabel: string | null;
+  };
   warnings: string[];
 }
 

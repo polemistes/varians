@@ -53,6 +53,7 @@ export const pageStrings = {
     removeImage: 'Remove Image',
     moveImage: 'Move Image to Another Page…',
     shiftImages: 'Shift Images from Here…',
+    rights: 'Rights of the Image…',
     remove: 'Remove Page',
   },
 
@@ -135,6 +136,34 @@ export const pageStrings = {
       bytes < 1024 * 1024
         ? `${Math.max(1, Math.round(bytes / 1024))} KB`
         : `${(bytes / (1024 * 1024)).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`,
+  },
+
+  /** The rights statement, credit line and source of an image (PLAN-2 D5). */
+  rights: {
+    statement: 'Rights statement',
+    choose: 'Choose a statement',
+    credit: 'Credit line',
+    creditHint: 'As the holder of the rights asks it to be given.',
+    source: 'Source',
+    sourceHint: 'The address the image was obtained from.',
+    notCopyable: 'An image under this statement is shown here but not copied into archives or downloads.',
+    required: 'Choose the rights statement of the image.',
+    notListed: 'Choose a statement from the list.',
+    creditTooLong: (max: number) => `A credit line may have at most ${max} characters.`,
+    sourceInvalid: 'Enter a full address beginning with http:// or https://, or leave the source empty.',
+    missing: 'No rights statement',
+    title: (label: string) => `Rights of the image of ${label}`,
+    submit: 'Save',
+    saved: (label: string) => `The rights of the image of ${label} have been saved.`,
+    noImage: (label: string) => `${label} has no image.`,
+  },
+
+  /** Giving one page an image, with its rights. */
+  image: {
+    addTitle: (label: string) => `An image for ${label}`,
+    replaceTitle: (label: string) => `Replace the image of ${label}`,
+    file: 'Image',
+    submit: 'Upload',
   },
 
   rename: {
@@ -262,6 +291,13 @@ export const pageStrings = {
     },
     plainImage: (label: string) =>
       `Canvas "${label}" has a plain image without a IIIF image service; its page was made without an image.`,
+    rights: 'Rights',
+    credit: 'Credit line',
+    noRights: 'The manifest gives no rights statement; the pages are imported without one.',
+    fallbackRights: (label: string) => `The manifest gives no rights statement; the pages take the witness’s, ${label}.`,
+    ownStatements: (n: number) => (n === 1 ? '1 canvas has a statement of its own.' : `${n} canvases have a statement of their own.`),
+    unlistedRights: (uri: string) =>
+      `The rights statement ${uri} is not among those Varians lists; the pages it covers are imported without a statement, and with the address as their credit line where the manifest gives none.`,
     errors: {
       invalid: 'This is not a IIIF manifest that can be read.',
       unsupported: 'This is not a IIIF Presentation manifest of version 2 or 3.',

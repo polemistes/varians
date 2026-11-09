@@ -9,6 +9,7 @@ import {
   loadManifest,
   normalizeServiceId,
   parseManifest,
+  plainText,
   thumbnailUrl,
 } from './iiif';
 
@@ -142,6 +143,74 @@ describe('parseManifest, Presentation API 3', () => {
   it('warns about a canvas without an image', () => {
     expect(result.canvases[3].imageService).toBeNull();
     expect(result.warnings).toContain('Canvas "f. 2v" has no image.');
+  });
+});
+
+describe('rights in manifests', () => {
+  const image = (n: number) => ({ '@id': `https://example.org/img/${n}`, '@type': 'dctypes:Image', service: { '@id': `https://example.org/iiif/${n}`, profile: 'http://iiif.io/api/image/2/level1.json' } });
+
+  it('reads Presentation 2 license and attribution, at canvas level where given', () => {
+    const manifest = {
+      '@context': 'http://iiif.io/api/presentation/2/context.json',
+      '@type': 'sc:Manifest',
+      label: 'Codex',
+      license: 'https://creativecommons.org/licenses/by-nc/4.0/',
+      attribution: [{ '@value': 'Bibliothèque nationale de France', '@language': 'fr' }, { '@value': '<span>Courtesy of the <b>Library</b> &amp; friends</span>', '@language': 'en' }],
+      sequences: [
+        {
+          canvases: [
+            { '@id': 'c1', label: '1r', width: 10, height: 10, images: [{ resource: image(1) }] },
+            { '@id': 'c2', label: '1v', width: 10, height: 10, license: ['http://creativecommons.org/publicdomain/mark/1.0/'], attribution: 'Folio credit', images: [{ resource: image(2) }] },
+          ],
+        },
+      ],
+    };
+    const result = parseManifest(manifest, 'https://example.org/m2');
+    expect(result.rights).toBe('https://creativecommons.org/licenses/by-nc/4.0/');
+    expect(result.attribution).toBe('Courtesy of the Library & friends');
+    expect(result.canvases[0]!.rights).toBeUndefined();
+    expect(result.canvases[0]!.attribution).toBeUndefined();
+    expect(result.canvases[1]).toMatchObject({ rights: 'http://creativecommons.org/publicdomain/mark/1.0/', attribution: 'Folio credit' });
+  });
+
+  it('reads Presentation 3 rights and the value of requiredStatement, at canvas level where given', () => {
+    const canvas = (id: string, extra: Record<string, unknown> = {}) => ({
+      id,
+      type: 'Canvas',
+      label: { none: [id] },
+      width: 10,
+      height: 10,
+      items: [{ type: 'AnnotationPage', items: [{ type: 'Annotation', motivation: 'painting', body: { id: `${id}.jpg`, type: 'Image', service: [{ id: `https://example.org/iiif3/${id}`, type: 'ImageService3' }] } }] }],
+      ...extra,
+    });
+    const manifest = {
+      '@context': 'http://iiif.io/api/presentation/3/context.json',
+      id: 'https://example.org/m3',
+      type: 'Manifest',
+      label: { en: ['Codex'] },
+      rights: 'http://rightsstatements.org/vocab/NoC-NC/1.0/',
+      requiredStatement: { label: { en: ['Attribution'] }, value: { de: ['Staatsbibliothek'], en: ['State Library'] } },
+      items: [
+        canvas('p1'),
+        canvas('p2', { rights: 'https://creativecommons.org/licenses/by/4.0/', requiredStatement: { label: { en: ['Credit'] }, value: { none: ['Photo: A. Photographer'] } } }),
+      ],
+    };
+    const result = parseManifest(manifest, 'https://example.org/m3');
+    expect(result.rights).toBe('http://rightsstatements.org/vocab/NoC-NC/1.0/');
+    expect(result.attribution).toBe('State Library');
+    expect(result.canvases[0]!.rights).toBeUndefined();
+    expect(result.canvases[1]).toMatchObject({ rights: 'https://creativecommons.org/licenses/by/4.0/', attribution: 'Photo: A. Photographer' });
+  });
+
+  it('gives no rights where the manifest states none', () => {
+    const result = parseManifest(v3, 'https://example.org/iiif/3/ms-2/manifest');
+    expect(result.rights).toBeNull();
+    expect(result.attribution).toBeNull();
+  });
+
+  it('takes markup out of values', () => {
+    expect(plainText('<a href="x">Library</a>&nbsp;&#246;&#x41;')).toBe('Library öA');
+    expect(plainText('<p></p>')).toBeNull();
   });
 });
 
