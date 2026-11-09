@@ -68,6 +68,14 @@ describe('exportTranscriptionTei', () => {
     expect(xml).not.toContain('s2');
   });
 
+  it('identifies a witness without place, library or shelfmark by its name, as TEI requires', () => {
+    expect(exportTranscriptionTei({ stream, title: 'T', witness: { siglum: 'P', name: 'P.Oxy. 3.412' } })).toContain(
+      '<msIdentifier>\n            <msName>P.Oxy. 3.412</msName>\n            <altIdentifier type="siglum"><idno>P</idno></altIdentifier>\n          </msIdentifier>',
+    );
+    expect(exportTranscriptionTei({ stream, title: 'T', witness: { siglum: 'P' } })).toContain('<msName>P</msName>');
+    expect(xml).not.toContain('<msName>');
+  });
+
   it('writes plain text without w elements or regularizations when not asked for them', () => {
     const plain = exportTranscriptionTei({ stream, title: 'T' });
     expect(plain).not.toContain('<w ');

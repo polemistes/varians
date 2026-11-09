@@ -4667,6 +4667,7 @@ Sample values include: 1] binding; 2] endband; 3] slipcase; 4] support; 5] tie</
             </group>
             <zeroOrMore>
                <choice>
+                  <ref name="tei_msName"/>
                   <ref name="tei_altIdentifier"/>
                </choice>
             </zeroOrMore>
@@ -4721,6 +4722,20 @@ Sample values include: 1] binding; 2] endband; 3] slipcase; 4] support; 5] tie</
                </choice>
             </attribute>
          </optional>
+         <empty/>
+      </element>
+   </define>
+   <define name="tei_msName">
+      <element name="msName">
+         <a:documentation xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0">(manuscript name) contains a proper noun or noun phrase used for a manuscript, or other object, as opposed to a formal identification number or classmark. [11.4. The Manuscript Identifier]</a:documentation>
+         <zeroOrMore>
+            <choice>
+               <text/>
+               <ref name="tei_model.gLike"/>
+            </choice>
+         </zeroOrMore>
+         <ref name="tei_att.global.attributes"/>
+         <ref name="tei_att.typed.attributes"/>
          <empty/>
       </element>
    </define>

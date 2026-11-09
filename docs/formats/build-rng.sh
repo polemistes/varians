@@ -18,6 +18,11 @@ STYLESHEETS_SHA256=1a6cd1043af5adb3c5a8c1b2ec0b6abb7d0f241cd8725e233d691b3ca2f31
 P5_VERSION=4.12.0
 P5_URL="https://www.tei-c.org/Vault/P5/${P5_VERSION}/xml/tei/odd/p5subset.xml"
 P5_SHA256=5b89720edc6f3821ab3d0aa242aa5dc922bfbafabfb103d2de9d211001c33e26
+# tei_all of the same release, not used for the build: the tests also
+# validate against it when TEI_ALL_RNG names it, to show that the
+# customization is a pure restriction of TEI.
+TEI_ALL_URL="https://www.tei-c.org/Vault/P5/${P5_VERSION}/xml/tei/custom/schema/relaxng/tei_all.rng"
+TEI_ALL_SHA256=b0f115095ead2ccc6933aa3365c6f4a82cba3b2ec7eee7f76bb616d7a63b7e48
 
 SAXON_VERSION=12.9
 SAXON_URL="https://repo1.maven.org/maven2/net/sf/saxon/Saxon-HE/${SAXON_VERSION}/Saxon-HE-${SAXON_VERSION}.jar"
@@ -54,6 +59,7 @@ command -v java >/dev/null || { echo "java is required" >&2; exit 1; }
 
 fetch "$TOOLS/stylesheets-$STYLESHEETS_VERSION" "$STYLESHEETS_URL" "$STYLESHEETS_SHA256"
 fetch "$TOOLS/p5-$P5_VERSION" "$P5_URL" "$P5_SHA256"
+fetch "$TOOLS/tei-all-$P5_VERSION" "$TEI_ALL_URL" "$TEI_ALL_SHA256"
 fetch "$TOOLS/saxon-$SAXON_VERSION" "$SAXON_URL" "$SAXON_SHA256"
 fetch "$TOOLS/xmlresolver-$RESOLVER_VERSION" "$RESOLVER_URL" "$RESOLVER_SHA256"
 

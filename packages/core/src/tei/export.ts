@@ -171,6 +171,12 @@ function msDesc(witness: ExportWitness, level: number): string[] {
   for (const [name, value] of identifier) {
     if (value !== undefined) lines.push(...indent(level + 2, elementXml(name, undefined, value)));
   }
+  // TEI's rule msId_minimal: an identifier without a place or library must not be empty or begin with
+  // the siglum; the witness is then identified by its name (the siglum when it has none).
+  if (witness.settlement === undefined && witness.repository === undefined && witness.idno === undefined) {
+    const name = witness.name ?? witness.siglum ?? 'Unidentified witness';
+    lines.push(...indent(level + 2, elementXml('msName', undefined, name)));
+  }
   if (witness.siglum !== undefined) {
     lines.push(
       ...indent(

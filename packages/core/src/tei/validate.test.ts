@@ -2,7 +2,10 @@
 /**
  * Every kind of TEI the core writes is valid against the RelaxNG schema
  * generated from the ODD (docs/formats/varians.rng), checked with xmllint.
- * Without xmllint the tests are skipped with a warning.
+ * Without xmllint the tests are skipped with a warning. When TEI_ALL_RNG
+ * names tei_all.rng of the same TEI release (build-rng.sh fetches it into
+ * tools/tei/), every document is also checked against it, which shows that
+ * the customization is a pure restriction of TEI.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -40,11 +43,15 @@ afterAll(() => {
 });
 let count = 0;
 
-/** The schema errors of a document, empty when it is valid. */
-function errors(xml: string): string[] {
+const TEI_ALL = process.env.TEI_ALL_RNG;
+/** tei_all is large: xmllint takes seconds to compile it for every document. */
+const slow = { timeout: TEI_ALL ? 600_000 : 20_000 };
+
+/** The errors of a document against a schema, empty when it is valid. */
+function schemaErrors(xml: string, schema: string): string[] {
   const file = join(dir, `doc-${++count}.xml`);
   writeFileSync(file, xml);
-  const run = spawnSync('xmllint', ['--noout', '--relaxng', RNG, file], { encoding: 'utf8' });
+  const run = spawnSync('xmllint', ['--noout', '--relaxng', schema, file], { encoding: 'utf8' });
   if (run.status === 0) return [];
   return run.stderr
     .split('\n')
@@ -52,23 +59,44 @@ function errors(xml: string): string[] {
     .map((line) => line.replace(`${file}:`, 'line '));
 }
 
+/**
+ * The Schematron rules of TEI that xmllint does not check and that the
+ * writers could break (see BUILD.md): msId_minimal and subtypeTyped.
+ */
+function ruleErrors(xml: string): string[] {
+  const out: string[] = [];
+  if (/<msIdentifier>\s*(<altIdentifier|<\/msIdentifier>)/u.test(xml)) out.push('msId_minimal: an msIdentifier is empty or begins with altIdentifier');
+  for (const tag of xml.match(/<[A-Za-z][^>]*>/gu) ?? []) {
+    if (/\ssubtype="/u.test(tag) && !/\stype="/u.test(tag)) out.push(`subtypeTyped: ${tag}`);
+  }
+  return out;
+}
+
+/** The errors of a document against varians.rng and TEI's rules, and against tei_all when it is given. */
+function errors(xml: string): string[] {
+  const own = [...schemaErrors(xml, RNG), ...ruleErrors(xml)];
+  if (!TEI_ALL) return own;
+  return [...own, ...schemaErrors(xml, TEI_ALL).map((line) => `tei_all: ${line}`)];
+}
+
 function transcription(input: Partial<TranscriptionExport> & { stream: Stream }): string {
   return exportTranscriptionTei({ title: 'T', ...input });
 }
 
-describe.skipIf(!xmllint)('the RelaxNG schema of the ODD', () => {
+describe.skipIf(!xmllint)('the RelaxNG schema of the ODD', slow, () => {
   it('rejects what it should: a head inside a block, an element not in the subset, a closed value outside its list', () => {
     const doc = (body: string) =>
       `<TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader><fileDesc><titleStmt><title>t</title></titleStmt><publicationStmt><p>p</p></publicationStmt><sourceDesc><p>s</p></sourceDesc></fileDesc></teiHeader><text><body>${body}</body></text></TEI>`;
-    expect(errors(doc('<ab>a</ab>'))).toEqual([]);
-    expect(errors(doc('<ab><head>a</head></ab>'))).not.toEqual([]);
-    expect(errors(doc('<ab><persName>a</persName> <quote>b</quote></ab>'))).not.toEqual([]);
-    expect(errors(doc('<ab><milestone unit="page" n="1"/>a</ab>'))).not.toEqual([]);
-    expect(errors(doc('<ab><app type="major"><lem>a</lem></app></ab>'))).not.toEqual([]);
+    expect(schemaErrors(doc('<ab>a</ab>'), RNG)).toEqual([]);
+    expect(schemaErrors(doc('<ab><head>a</head></ab>'), RNG)).not.toEqual([]);
+    expect(schemaErrors(doc('<ab><quote>b</quote></ab>'), RNG)).not.toEqual([]);
+    expect(schemaErrors(doc('<ab><name>b</name></ab>'), RNG)).not.toEqual([]);
+    expect(schemaErrors(doc('<ab><milestone unit="page" n="1"/>a</ab>'), RNG)).not.toEqual([]);
+    expect(schemaErrors(doc('<ab><app type="major"><lem>a</lem></app></ab>'), RNG)).not.toEqual([]);
   });
 });
 
-describe.skipIf(!xmllint)('transcription TEI is valid', () => {
+describe.skipIf(!xmllint)('transcription TEI is valid', slow, () => {
   it('with words, regularizations, the witness described in full, the facsimile with zones, licence and sources', () => {
     const xml = exportTranscriptionTei({
       ...exportInput(),
@@ -213,7 +241,7 @@ describe.skipIf(!xmllint)('transcription TEI is valid', () => {
   });
 });
 
-describe.skipIf(!xmllint)('edition TEI is valid', () => {
+describe.skipIf(!xmllint)('edition TEI is valid', slow, () => {
   it('with the apparatus by parallel segmentation: substitution, omission, addition, lacuna, conjectures and reported readings', () => {
     const xml = exportEditionTei({ ...editionInput(), licence: 'CC BY-SA 4.0', sources: 'Allen 1931.', preface: 'A preface.' });
     expect(errors(xml)).toEqual([]);
@@ -246,7 +274,7 @@ describe.skipIf(!xmllint)('edition TEI is valid', () => {
   });
 });
 
-describe.skipIf(!xmllint)('what milestone B5 adds is valid', () => {
+describe.skipIf(!xmllint)('what milestone B5 adds is valid', slow, () => {
   const header = (extra: string) => `<teiHeader>
     <fileDesc>
       <titleStmt>
@@ -289,7 +317,7 @@ describe.skipIf(!xmllint)('what milestone B5 adds is valid', () => {
   it('in a transcription: the prefixes, the licence and the contributors beside the witness', () => {
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <TEI xmlns="http://www.tei-c.org/ns/1.0">
-  ${header('<msDesc><msIdentifier><altIdentifier type="siglum"><idno>A</idno></altIdentifier></msIdentifier></msDesc>')}
+  ${header('<msDesc><msIdentifier><settlement>Venice</settlement><repository>Biblioteca Nazionale Marciana</repository><idno>Gr. Z. 454</idno><altIdentifier type="siglum"><idno>A</idno></altIdentifier></msIdentifier><head>Venetus A</head></msDesc>')}
   <text xml:lang="grc"><body><ab><milestone unit="segment" n="1.1"/><w xml:id="w-01JTOKEN0000000000000000A1">ΜΗΝΙΝ</w></ab></body></text>
 </TEI>
 `;

@@ -117,7 +117,7 @@
 
         <!-- The witness of a transcription. -->
         <moduleRef key="msdescription"
-          include="msDesc msIdentifier repository altIdentifier msContents summary physDesc
+          include="msDesc msIdentifier repository msName altIdentifier msContents summary physDesc
                    objectDesc supportDesc support material handDesc history origin origDate"/>
 
         <!-- The facsimile and the transcriptional features beyond core. am and
