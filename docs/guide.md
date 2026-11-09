@@ -70,11 +70,13 @@ A witness registered twice is merged into the other under **Edit**, **Merge into
 
 The pages of a witness are managed in two places, with the same means: on the **Pages** tab of the side pane while transcribing (see below), and under **Manage pages** on the witness's page. Both are for the maintainers of the witness; everyone else sees the pages.
 
-- **Add images** takes several image files at once, one page per file, in the order of the file names. The labels come from the file names, or continue the sequence of the last page (12r, 12v, 13r). Large files show their progress; the image is tiled for fast zooming.
+- **Add images** takes several image files at once, one page per file, in the order of the file names. The labels come from the file names, or continue the sequence of the last page (12r, 12v, 13r). Large files show their progress; the image is tiled for fast zooming. Every image needs a **rights statement** (see *Licences and rights*); the upload is refused without one. The statement, the **credit line** and the **source** (the address the images were obtained from, if you want to record it) chosen here are given to every file of the upload.
 - **Add pages** makes pages without images from a range such as 1r-12v, 1-20, p. 1-20 or col. i-iv, or from a list. Images can be added to them later.
-- **Import IIIF manifest** takes the pages of a manuscript published by a library, with their images, which stay on the library's server. A preview shows what will be imported. Import only the pages not yet there, or replace the pages nothing refers to. The manifest's address is kept on the witness and shown on its page.
+- **Import IIIF manifest** takes the pages of a manuscript published by a library, with their images, which stay on the library's server. A preview shows what will be imported, with the manifest's rights statement and credit line. Import only the pages not yet there, or replace the pages nothing refers to. The manifest's address is kept on the witness and shown on its page, and on each page as the source of its image. Each page keeps the rights statement and credit line of its canvas, or of the manifest where the canvas gives none; where the manifest states no rights at all, the pages take the witness's defaults. A statement that is not among those Varians lists is not kept: the preview says so, and its address becomes the pages' credit line where the manifest gives none.
 
-Every page is a card with its image, its label and its number. A page without an image says so, and **Add an image** on the card takes one. An image file dropped on any card becomes that page's image, in place of the one it had. The card's menu (**⋯**) renames the page, moves it up, down or to a position, adds, replaces or removes its image, and removes the page. The menus of Varians use capitals as English menus do (**Move Up**, **Remove Page**); buttons and labels do not. Click the label to rename it in place.
+The witness's **Edit** page has a section **Images**: the **Rights of images** and the **Credit line** that new images of the witness are given, so that an upload starts with them and an image dropped on a page goes up with them at once. Saving them can also give them to the images of the witness that have no rights statement yet, such as those imported from a manifest that stated none.
+
+Every page is a card with its image, its label, its number and the rights statement of its image, or *No rights statement* where it has none. A page without an image says so, and **Add an image** on the card takes one, with its rights statement, credit line and source. An image file dropped on any card becomes that page's image, in place of the one it had: with the witness's rights statement when the witness has one, and otherwise after asking for it. The card's menu (**⋯**) renames the page, moves it up, down or to a position, adds, replaces or removes its image, changes the **Rights of the Image…**, and removes the page. The rights belong to the image: they move with it to another page, and go when it is removed. The menus of Varians use capitals as English menus do (**Move Up**, **Remove Page**); buttons and labels do not. Click the label to rename it in place.
 
 **Move Image to Another Page…** in the menu is for an image that was given to the wrong page: choose the page it belongs to, and the image goes there; when that page has an image of its own, the two change places. The next page is proposed, which is where an image most often belongs when the pages were counted wrong. Mapped words (zones) stay with their page, as they do when an image is replaced, and show on whatever image the page then has.
 
@@ -190,7 +192,7 @@ Undo in the text brings back the very words it removed, with their boxes, featur
 
 ### Settings, export and deleting
 
-**Settings…** changes the name, whether the transcript is diplomatic and normalized, the works the transcript is for, and its **Sources** and **Licence**: what it rests on, where that matters, and the licence it may be used under. Both go into its TEI export. **Download TEI** gives the transcript as TEI XML with its pages, zones and segment labels. **Delete…** removes it, which is refused while an edition compares it. A published transcript is open to readers at its address, read only.
+**Settings…** changes the name, whether the transcript is diplomatic and normalized, the works the transcript is for, and its **Sources** and **Note on rights**: what it rests on, where that matters, and anything about its rights that the licence does not say, such as the rights in the text it started from. The licence itself is not chosen here: the hint under the note names it, the installation's licence that publishing will give, or the licence it was first published under (see *Licences and rights*). Sources, note and licence go into its TEI export. **Download TEI** gives the transcript as TEI XML with its pages, zones and segment labels. **Delete…** removes it, which is refused while an edition compares it. A published transcript is open to readers at its address, read only.
 
 ## The edition
 
@@ -257,9 +259,9 @@ Publishing an edition also publishes what it rests on, as far as it is yours: yo
 
 Readers only ever see published versions. The working state of your edition, its history and its notes as they stand now are for you and your collaborators.
 
-### Sources and licence
+### Sources and rights
 
-**Edition Settings…** has fields for the edition's **Sources** (what it rests on beyond its witnesses: an earlier edition, a commentary) and its **Licence** (such as CC BY 4.0). Readers find them under *About this edition*, followed by a link to **Sources and licences**, the page that lists the data and resources Varians itself uses (typefaces, dictionaries) with their licences. The page is linked from the foot of every page too. A copied edition keeps the original's sources and licence until you change them.
+**Edition Settings…** has fields for the edition's **Sources** (what it rests on beyond its witnesses: an earlier edition, a commentary) and a **Note on rights**, for what the licence does not say. The licence is not a field: the hint under the note names the installation's licence, which the first publication fixes for the edition (see *Licences and rights*), or the licence it was published under. Readers find the sources, the licence, the note and the citation under *About this edition*, followed by a link to **Sources and licences**, the page that lists the data and resources Varians itself uses (typefaces, dictionaries) with their licences. The page is linked from the foot of every page too. A copied edition keeps the original's sources and note until you change them, and takes its own licence when it is first published.
 
 ### Copying an edition
 
@@ -278,11 +280,12 @@ A published edition has a public page at `/editions/` followed by its address, s
 - **Variants**, in the bar above the text, opens a panel that explains every place on the lines in view, in the same plain way, so that a whole page can be followed. Pointing at a place lights its words in the text; clicking it goes there.
 - **Reading settings** (the gear) change the text size. They can also show the apparatus as in print, below or beside the text, in its concise form with sigla, and put the interpretative variants with the others, in a list of their own, or out of sight, whatever the edition does. The settings are remembered in your browser. Printing always gives the print apparatus.
 - On a wide screen the panels stand beside the text; drag their left edge to make them wider or narrower.
-- **Witnesses** opens the conspectus siglorum and the text of any witness beside the edition, with the words of the open entry lit. Where the witness's transcript is diplomatic as well as normalized, a switch shows its **Diplomatic** text: how the witness writes the words the apparatus counts. **Facsimile** shows the page of the manuscript where those words stand, when the words are mapped to an image.
+- **Witnesses** opens the conspectus siglorum and the text of any witness beside the edition, with the words of the open entry lit. Where the witness's transcript is diplomatic as well as normalized, a switch shows its **Diplomatic** text: how the witness writes the words the apparatus counts. **Facsimile** shows the page of the manuscript where those words stand, when the words are mapped to an image, with the image's credit line and rights statement under it.
 - **Dictionary** (in Greek editions) looks up any word you click while it is open, or one you type: its possible lemmas and grammar, from the treebanks and the Morpheus analyses, and the entries of the lemma in Liddell, Scott and Jones and in the Middle Liddell, each marked with its dictionary and licence. A word with variants opens its variants as well.
 - **Search** finds words regardless of accents and steps through the matches.
 - The menu offers the edition as plain text with its apparatus and as TEI XML, and lists the published versions. Each version keeps its address, `/editions/iliad-1/v/2`, and reads exactly as it was published: its apparatus does not change when a witness is corrected later. A passage has its own address too, such as `/editions/iliad-1/1.5`.
 - Printing gives the text with its print apparatus, without the controls.
+- *About this edition*, at the foot of the page, gives the edition's sources, its licence, its editors' note on rights, and **How to cite** the version shown (see *Licences and rights*).
 
 ## History
 
@@ -339,6 +342,30 @@ Varians keeps a copy of every work outside its database, in open formats, so tha
 Every record of the work is in the archive, so that the work can be rebuilt from it alone. A change is in the archive's files within a minute of the last save. A commit marks every named moment and every publication, in the name of the person who made it, and the rest is committed every night. Anyone signed in who can see the work downloads it from the work's page as a zip, a few times an hour, holding what that person may see: an edition they do not edit comes as its published version, and no one's review positions are included. An administrator gets the server's repository itself, with its history.
 
 The files follow the **Varians Data Format**, whose specification, JSON Schemas and TEI customization every installation serves at [/formats](/formats). `pnpm --filter @varians/web cli import-archive <folder> --user <email>` reads an archive back into an installation, which is also how a work moves from one installation to another. A work already here is brought up to date, never overwritten: a transcript or edition changed only on the other side takes those changes; one changed on both sides in different places takes both, as one change that names what it brings in; one changed on both sides in the same words is left as it is and reported with its segments, and imported again with `--on-conflict keep` (yours stays, theirs is kept in the history unapplied) or `--on-conflict take` (theirs replaces yours, and your state is kept as a moment called "Before import"). `--dry-run` shows what would happen and changes nothing. People are recognized by their ORCID iD; those unknown here are recorded under their names, without an account.
+
+## Licences and rights
+
+### Publishing
+
+Publishing an edition or a transcript licenses it under the data licence of the installation: CC BY-SA 4.0 on varians.eu, or CC0 1.0 or CC BY 4.0 where an installation has chosen so. The licence is fixed at the first publication and stays with the record: unpublishing and publishing again, later versions, or a later change of the installation's licence do not change it. Conjectures, reported readings and notes published with a work fall under the same licence. The reader names the licence, linked to its text, and the TEI and the archive carry it with every published record. What you write in the **Note on rights** of a transcript or an edition is shown beside the licence: the rights in a text you started from, say, or a request about how the work is to be credited. It adds to the licence and cannot take anything from it.
+
+You keep the rights you have in what you contribute; the licence is non-exclusive. The **terms of contribution**, at [/terms](/terms), say this and the rest in full: what publishing licenses, that a text you start from must be in the public domain or openly licensed (its history is published with your work), and what you promise about images. They are accepted at registration, and again before you next edit or publish when a new version of them comes into force.
+
+### The registry
+
+Works, witnesses, segments, reference schemes and bibliography entries are dedicated to the public domain under CC0 1.0, whoever registers them, so that the descriptions of manuscripts and works can be used, corrected and copied without conditions, here and elsewhere.
+
+### Images
+
+Every page image carries its own **rights statement**, chosen from a fixed list: the Public Domain Mark, the CC0 dedication, the six Creative Commons 4.0 licences (CC BY, CC BY-SA, CC BY-ND, CC BY-NC, CC BY-NC-SA, CC BY-NC-ND), and the statements of RightsStatements.org (No Copyright, Non-Commercial Use Only; No Copyright, Other Known Legal Restrictions; In Copyright; In Copyright, Educational Use Permitted; In Copyright, Non-Commercial Use Permitted; Copyright Not Evaluated; Copyright Undetermined; No Known Copyright). With it go the **credit line** the holder of the rights asks for, and the **source**, the address the image came from. Give the statement the holder gives: a library's manifest usually states it, and the IIIF import keeps it (see *Pages and images*).
+
+The statement decides whether the image travels with the work. Images under the Public Domain Mark, CC0, a Creative Commons licence or one of the two No Copyright statements are copied into the archive and into every download of the work. Images under any other statement (In Copyright and its variants, Copyright Not Evaluated, Copyright Undetermined, No Known Copyright), and images without a statement, are shown here but not copied: the archive names their source instead, and the zones drawn on them are kept all the same, so that the mapping of words to the page survives and the image can be fetched again from its holder. The form says so when such a statement is chosen.
+
+Wherever a page image is shown, in the facsimile pane, the reader, the editor's witness pane and the page viewer, its credit line and its rights statement stand under it, the statement linked to its text.
+
+### How to cite an edition
+
+*About this edition*, at the foot of the reader, gives a citation of the published version shown, under **How to cite**: the editors as listed on the edition, the title, the version and the date of its publication, its lasting address (`/editions/iliad-1/v/2`, which always reads as that version was published), and the licence. Cite that address rather than the edition's plain address, which shows the latest published version. A passage is cited by the version's address followed by the passage, such as `/editions/iliad-1/v/2/1.5`.
 
 ## Keyboard
 
