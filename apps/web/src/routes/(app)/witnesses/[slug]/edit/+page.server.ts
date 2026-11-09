@@ -49,6 +49,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
       settlement: witness.settlement,
       shelfmark: witness.shelfmark,
       identifier: witness.identifier,
+      identifiers: JSON.stringify(witness.identifiers),
       dateText: witness.dateText,
       ...materialFormValues(witness.material),
       extent: witness.extent,

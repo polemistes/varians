@@ -8,6 +8,8 @@ export { default as EditionList } from './EditionList.svelte';
 export { default as EntryHeader } from './EntryHeader.svelte';
 export { default as FormSection } from './FormSection.svelte';
 export { default as HandsField } from './HandsField.svelte';
+export { default as IdentifierList } from './IdentifierList.svelte';
+export { default as IdentifiersField } from './IdentifiersField.svelte';
 export { default as LanguageField } from './LanguageField.svelte';
 export { default as LevelRow } from './LevelRow.svelte';
 export { default as MaintainersEditor } from './MaintainersEditor.svelte';

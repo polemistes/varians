@@ -107,6 +107,22 @@ export function canMaintainWitness(
 }
 
 /**
+ * Merging one registry entry into another (PLAN-2 C8): administrators, and
+ * whoever maintains both entries (as creator or maintainer). A site editor's
+ * right to edit anything does not reach this: a merge removes an entry.
+ */
+export function canMergeEntries(
+  user: Maybe<Actor>,
+  from: { createdBy: string | null; maintainerIds: Iterable<string> },
+  into: { createdBy: string | null; maintainerIds: Iterable<string> },
+): boolean {
+  if (!user) return false;
+  if (isAdministrator(user)) return true;
+  const maintains = (entry: typeof from) => entry.createdBy === user.id || has(entry.maintainerIds, user.id);
+  return maintains(from) && maintains(into);
+}
+
+/**
  * A public work is visible to everyone. A private work is visible to its
  * creator, its maintainers, site editors, and the owners and collaborators
  * of editions of it.

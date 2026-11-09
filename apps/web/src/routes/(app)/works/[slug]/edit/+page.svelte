@@ -31,6 +31,7 @@
           author: work.author ?? '',
           language: work.language,
           identifier: work.identifier ?? '',
+          identifiers: work.identifiers,
           description: work.description ?? '',
         },
   );

@@ -49,6 +49,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
       author: work.author,
       language: work.language,
       identifier: work.identifier,
+      identifiers: JSON.stringify(work.identifiers),
       description: work.description,
       visibility: work.visibility,
     },
@@ -67,8 +68,8 @@ export const actions: Actions = {
     const parsed = parseWorkForm(form);
     if (!parsed.ok)
       return fail(400, { form: 'details' as const, errors: parsed.errors, values: parsed.values });
-    const { title, author, language, identifier, description } = parsed.data;
-    await updateWork(locals.db, work.id, { title, author, language, identifier, description });
+    const { title, author, language, identifier, identifiers, description } = parsed.data;
+    await updateWork(locals.db, work.id, { title, author, language, identifier, identifiers, description });
     return { form: 'details' as const, message: t.work.saved };
   },
 
