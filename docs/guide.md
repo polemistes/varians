@@ -64,9 +64,11 @@ Whether a witness has all of a text or only part of it is a matter of the work, 
 
 The witness's page shows its pages, its transcripts and the works they belong to. **New transcript** asks for a name, the work it is for, whether to keep a diplomatic form beside the normalized one, and optionally another transcript to start from.
 
+**Delete Witness…**, in the **⋯** menu beside **Edit** on the witness's page, deletes the witness with its pages, their images and your own transcripts of it. Only the person who registered the witness and administrators may delete it, and it is refused while an edition's conspectus names the witness or while someone else's transcript or reported reading depends on it: the menu item is then greyed, and says what stands in the way.
+
 ### Merging two witnesses
 
-A witness registered twice is merged into the other under **Edit**, **Merge into…**, as works are. Its transcripts, reported readings, sigla in the conspectus of editions, maintainers and pages go to the surviving witness, the pages after the survivor's own, with the hands and identifiers the survivor lacks. Two things prevent the merge until they are resolved: an edition whose conspectus names both witnesses (remove one of them from it), and a page label both witnesses have (rename, move or delete one of the pages). The survivor keeps its description and siglum; its page lists the witnesses merged into it, and the merged witness's address leads to it. Administrators and those who maintain both witnesses may merge them, and a merge cannot be undone.
+A witness registered twice is merged into the other with **Merge Into…** in the **⋯** menu on the witness's page (or under **Edit**), as works are. Its transcripts, reported readings, sigla in the conspectus of editions, maintainers and pages go to the surviving witness, the pages after the survivor's own, with the hands and identifiers the survivor lacks. Two things prevent the merge until they are resolved: an edition whose conspectus names both witnesses (remove one of them from it), and a page label both witnesses have (rename, move or delete one of the pages). The survivor keeps its description and siglum; its page lists the witnesses merged into it, and the merged witness's address leads to it. Administrators and those who maintain both witnesses may merge them, and a merge cannot be undone.
 
 ### Pages and images
 
@@ -89,7 +91,7 @@ Every page is a card with its image, its label, its number and the rights statem
 
 Pages without an image within the run keep their place in it, so a gap moves along with the images. Zones stay with their pages here too.
 
-A page that a transcript or a mapped word refers to is not removed without asking.
+A page's text belongs to the transcripts, not to the page. Removing a page never deletes text: the text on it goes to **Not on a page** in every transcript of the witness, other people's too, as a change in each transcript's history made by you and saying which page was removed. The dialog says how many words in how many transcripts that is. The image and the boxes drawn on the page go with it. Moving a page to another position moves its text with it in every transcript, since a transcript's text follows the order of the pages.
 
 ## Transcribing
 
@@ -97,7 +99,13 @@ A transcript is a stretch of a witness as you transcribe it: usually one work's 
 
 A transcript is **for** one or more works, chosen when you make it and changed under **Settings…**. The first of them gives the defaults: which work's segment labels are offered, and which spelling rules propose normalized forms for text not yet assigned to a work. Text you assign to a work's segments belongs to that work whether it is chosen here or not, and each stretch is read by its own work's spelling rules, so a Greek text and a Latin one in the same manuscript are each treated right. A transcript is listed on the page of every work it is for or has text of. One with text of a private work is seen only by those who may see that work.
 
-A transcript opens in the workbench: the text on the left, one page at a time, and on the right the facsimile of that page, the other form of the text, its history, or the pages of the witness. The status line at the foot says whether your work is saved, how many lines the page has, how many words are not yet mapped to the image, and how many words have a normalized form still to check.
+A transcript opens in the workbench: the text one page at a time, and beside it the facsimile of that page, the other form of the text, its history, or the pages of the witness. The side pane stands on the right; **Facsimile on the Left** in the **⋯** menu puts it on the left, and your browser remembers the choice and the pane's width.
+
+Above the text is the bar you work with: the page shown, with arrows to the page before and after, **Diplomatic** and **Normalized** where the transcript keeps both forms, **Insert** and **Tools**. The header above holds what concerns the whole transcript: the button that shows or hides the side pane, and the **⋯** menu (**Import…**, **Number Lines from Here…**, **Settings…**, **Download TEI**, **Open the Witness**, **Make a Copy…**, **Delete…**).
+
+A transcript opens on the page you last had open in this browser. The first time, it opens on the first page that has text; when no page has text yet, on the text that is not on a page; and when there is no text at all, on the first page, empty, with its facsimile beside it, ready to be typed. A transcript of a witness without pages, such as a printed edition, opens on its text; one whose witness has neither pages nor text opens with the **Pages** tab showing, since a manuscript's transcription begins with its pages.
+
+The status line at the foot says whether your work is saved, which page is shown and how many lines it has, how many words are not on a page, how many words are not yet mapped to the image, and how many words have a normalized form still to check.
 
 ### Bringing a text in
 
@@ -108,7 +116,7 @@ Often there is already a text to start from: an earlier edition, a text from the
 - **Leiden** conventions, as epigraphers and papyrologists write them.
 - **PAGE or ALTO**, the formats of text recognition programs, with the position of every word on the image.
 
-An import into an empty transcript becomes its text; otherwise it is added after the last line, or replaces the whole text if you ask. Either way it is one change in the history. Most imports are only a starting point for transcribing the witness, and then their source does not matter; where it does, give it under **Source to record**, and it is added to the transcript's sources.
+An import into an empty transcript becomes its text; otherwise it is added to what is there, or replaces the whole text if you ask. Either way it is one change in the history. **Place** says where text goes that the file does not put on pages: **Not on a page**, or the page shown. A TEI file whose page breaks (`<pb n="12r"/>`) carry the labels of the witness's pages puts each page's text on that page, after any text the page has; text under a page break that names no page of the witness goes to Not on a page, and the summary says how many words went there. If you maintain the witness, the pages the file names and the witness lacks are added to it, as they are for PAGE and ALTO. Most imports are only a starting point for transcribing the witness, and then their source does not matter; where it does, give it under **Source to record**, and it is added to the transcript's sources.
 
 Another transcript can also be the starting point: choose it under **Start from another transcript** when you make a new one, and correct the copy against your witness.
 
@@ -116,19 +124,27 @@ Another transcript can also be the starting point: choose it under **Start from 
 
 ### Typing
 
-Type as in any editor. Enter starts a new line. The arrows beside the page label move between pages, and **Whole text** shows every page at once.
+Type as in any editor. Enter starts a new line. The arrows beside the page label, or Alt+Page Down and Alt+Page Up, move between the pages; the list under the label goes to any of them.
 
-**Pages…** in the same list, or the **Pages** tab of the side pane, shows every page of the witness as a card with its image, the page shown marked; click a card to go to that page. If you maintain the witness, this is also where its pages are managed while you transcribe: add images and pages, import a manifest, and use each card's menu, as described under [Pages and images](#pages-and-images). When the page shown has no image yet, the **Facsimile** pane offers **Add an image…**, and an image file can be dropped there.
-
-### Pages, columns and paragraphs
-
-Put the caret anywhere in the line that begins the new page, column or paragraph; nothing needs to be selected. Open **Insert** at the top and choose **Page break**, **Column break** or **Paragraph break**. The break always goes before the caret's line, wherever in the line the caret stands. While the menu is open, a dashed rule in the text shows where it will go, and each choice says what it does ("Line 4 will begin 13v"). Ctrl+Shift+P makes a page break the same way without the menu.
-
-A new page break takes the next page of the witness that has no break yet, and shows as a rule with that page's label. To choose another page, use **Begin … with the caret's line** in the page list. To begin a page in the middle of a line, press Enter there first, then make the break on the new line. A line that already begins a page keeps its page break. Ctrl+Z takes a break away again.
-
-**Insert** also puts a gap, a blank space, a figure or a note at the caret.
+**Insert** puts a column break or a paragraph break before the caret's line, wherever in the line the caret stands, and a gap, a blank space, a figure or a note at the caret. While the menu is open, a dashed rule shows where a break would go. A roll's columns can also be registered as its pages.
 
 A word divided at the end of a line is joined across the line break: type a hyphen and Enter where the scribe divided it, and Varians keeps the two parts as one word.
+
+**Pages…** in the page list, or the **Pages** tab of the side pane, shows every page of the witness as a card with its image and, for this transcript, how many lines of text it has; the page shown is marked, and a click on a card goes to that page. If you maintain the witness, this is also where its pages are managed while you transcribe: add images and pages, import a manifest, and use each card's menu, as described under [Pages and images](#pages-and-images). When the page shown has no image yet, the **Facsimile** pane offers **Add an image…**, and an image file can be dropped there.
+
+### Pages
+
+Each page of the witness has its own text in a transcript, and you type a page's text on that page: there is no page break to make, and nothing marks where a page begins. A page that has no text yet is simply empty. The page list marks the pages that have text.
+
+Text that stands on no page has a place of its own, **Not on a page**, first in the page list. It is where imported text arrives when the file does not say its pages, where the text of a removed page goes, and where you can type what you cannot yet place. It is the transcript's text like any other: it is segmented, collated, exported and published. The text of a transcript reads in the order of the pages, Not on a page first; reordering the pages reorders the text, so misbound leaves are listed in the order the text reads.
+
+Text is put on its page by moving it. Select it, and the toolbar under the selection offers **Move to 12r**, proposing a page, with a list beside it of the other pages and Not on a page. The words go to the end of that page's text, on a line of their own, with their features, their segment and their place in the history; Ctrl+Z takes the move back. The page shown stays, and the status line says where the words went, with **Show** to go there. Words that leave a page leave their boxes on its image behind.
+
+In Not on a page, the **Facsimile** pane shows a page chosen above the image, by default the first page without text, and **Move to** proposes that page. So the work goes: look at the image, select the passage that stands on it, move it, and the facsimile goes on to the next page without text. Choose another page above the image when the text runs otherwise.
+
+Cut and paste also move words: cut a passage, put the caret where it belongs (on another page too), and paste, and the words are the same words, with their features and their segments; their boxes stay behind when they leave their page. Copy and paste makes new words, as in any editor, and is not how text is placed: a copy left behind would be collated as well, and the witness would read the passage twice.
+
+**Whole text**, at the end of the page list, shows the whole transcript at once, read only, each page's text under its label and the text not on a page under its own heading. Double-click a word to open its page with the word selected.
 
 ### Diplomatic and normalized
 
@@ -167,11 +183,13 @@ A reading the manuscript itself offers as an alternative, written in the margin 
 
 ### Segments
 
-The gutter at the left shows where segments begin: the work's labels, such as 1.5. Click a line's gutter, or press Ctrl+Shift+L, to set the label of the segment that begins there; the next label is proposed. A segment can begin in the middle of a line, and a text can leave the work for a while: **Unassigned from here**. **Number Lines from Here…** labels every following line of the page at once, as verse needs.
+The gutter at the left shows where segments begin: the work's labels, such as 1.5. Click a line's gutter, press Ctrl+Shift+L, or choose **Segment…** in the toolbar under a selection, to set the label of the segment that begins there; the next label is proposed. A segment can begin in the middle of a line, and a text can leave the work for a while: **Unassigned from here**. **Number Lines from Here…** labels every following line of the page at once, as verse needs.
+
+Segments are independent of pages. A segment runs on wherever its text runs: from one page to the next, or from Not on a page into a page. Moving text never changes the segment its words belong to, so a text can be segmented while it is all on no page and placed page by page afterwards: a line that ends one page and goes on overleaf is one segment in two parts, which come into their order as the pages fill. Where a page's first line continues the segment of the page before, the gutter shows that segment's label in grey; click it to give the line a segment of its own.
 
 ### Mapping words to the image
 
-The line between the text and the side pane can be dragged, to give the image or the text more room. In the **Facsimile** pane, the words you select or point at in the text light up on the image (the caret alone lights nothing), and pointing at a mapped region shows its box and lights its words in the text. Other boxes are not drawn, so the page stays readable; **Show all boxes** draws them all, and your browser remembers the choice.
+Words are mapped on their own page: in Not on a page and in the whole text the mapping tools are greyed. The line between the text and the side pane can be dragged, to give the image or the text more room. In the **Facsimile** pane, the words you select or point at in the text light up on the image (the caret alone lights nothing), and pointing at a mapped region shows its box and lights its words in the text. Other boxes are not drawn, so the page stays readable; **Show all boxes** draws them all, and your browser remembers the choice.
 
 - **Map lines**: select several whole lines in the text, then draw one box around them on the image. Varians finds the lines in the box and divides each into word boxes by the length of the words; correct them as described below.
 - **Map selection**: select words, then draw a rectangle or polygon around them.
@@ -218,7 +236,7 @@ The editor has three parts. Drag the lines between them to give one more room; t
 
 - **The text** in the middle. Type in it as in any editor; your changes are saved by themselves a moment after you stop. The status beside the title says **Saved**, **Saving…** or how many changes are waiting.
 - **The apparatus band** at the foot. It shows the places where the witnesses differ from your text, segment by segment, for the part of the text around the caret. The words of such a place are dotted in the text.
-- **The side pane** on the right, with two tabs. **Witnesses** shows one witness at a time, as text (normalized, or diplomatic where the transcript has it) or as the image of its page, following the caret. **History** shows the history of the edition.
+- **The side pane** on the right, with two tabs. **Witnesses** shows one witness at a time, as text (normalized, or diplomatic where the transcript has it) or as the image of the page where its words stand, following the caret, whether the words are mapped to the image or not; the mapped words of the place are lit. The arrows under the image browse the witness's pages, and moving to another place returns to following the words. **History** shows the history of the edition.
 
 ### Adopting readings
 
@@ -226,6 +244,7 @@ Each place in the apparatus band lists the readings: your text first, then what 
 
 - Click a reading to **adopt** it: the words in your text are replaced by the witness's words. The adoption is recorded, and **Undo adoption** takes it back.
 - An omission is a reading like any other: adopting it removes the words from your text, and the apparatus then reports them as the reading of the other witnesses. To keep words in the text but mark them as spurious, register a conjecture of the kind deletion and adopt it: the words are printed in the edition's deletion brackets.
+- A witness that lacks a whole passage within the stretch its transcript covers has a place of its own over the passage, beside the passage's other places: "1.6 ἐξ … ἐρίσαντε A : om. B C", the passage named by its first and last words when it is longer than three. Where the transcript marks a gap or a lacuna there, the witness has lost the passage and the place says **deest in** ("absent in" in English). A witness whose transcript does not reach the passage at all, beginning after it or ending before it, is in no place: the band notes it in grey, and the reader's conspectus says which passages its transcript does not reach.
 - **Keep the text** marks a place as reviewed without changing anything. The counter at the left of the band says how many places are left to review, and **Next to review** goes to the next one.
 - In the witness pane, clicking a word adopts that witness's reading at that place.
 - Each place says whether it is **textual** or **interpretative** (see *Diplomatic and normalized*). Click the word to call the place the other kind; it is then marked with an asterisk, and a second click goes back to what the letters say. A conjecture with other letters makes a place textual whatever the witnesses have.
@@ -282,7 +301,7 @@ A published edition has a public page at `/editions/` followed by its address, s
 - **Variants**, in the bar above the text, opens a panel that explains every place on the lines in view, in the same plain way, so that a whole page can be followed. Pointing at a place lights its words in the text; clicking it goes there.
 - **Reading settings** (the gear) change the text size. They can also show the apparatus as in print, below or beside the text, in its concise form with sigla, and put the interpretative variants with the others, in a list of their own, or out of sight, whatever the edition does. The settings are remembered in your browser. Printing always gives the print apparatus.
 - On a wide screen the panels stand beside the text; drag their left edge to make them wider or narrower.
-- **Witnesses** opens the conspectus siglorum and the text of any witness beside the edition, with the words of the open entry lit. Where the witness's transcript is diplomatic as well as normalized, a switch shows its **Diplomatic** text: how the witness writes the words the apparatus counts. **Facsimile** shows the page of the manuscript where those words stand, when the words are mapped to an image, with the image's credit line and rights statement under it.
+- **Witnesses** opens the conspectus siglorum and the text of any witness beside the edition, with the words of the open entry lit. Where the witness's transcript is diplomatic as well as normalized, a switch shows its **Diplomatic** text: how the witness writes the words the apparatus counts. **Facsimile** shows the page of the manuscript where those words stand, whether or not they are mapped to the image (the mapped ones are lit), with the image's credit line and rights statement under it.
 - **Dictionary** (in Greek editions) looks up any word you click while it is open, or one you type: its possible lemmas and grammar, from the treebanks and the Morpheus analyses, and the entries of the lemma in Liddell, Scott and Jones and in the Middle Liddell, each marked with its dictionary and licence. A word with variants opens its variants as well.
 - **Search** finds words regardless of accents and steps through the matches.
 - The menu offers the edition as plain text with its apparatus and as TEI XML, and lists the published versions. Each version keeps its address, `/editions/iliad-1/v/2`, and reads exactly as it was published: its apparatus does not change when a witness is corrected later. A passage has its own address too, such as `/editions/iliad-1/1.5`.
@@ -405,5 +424,6 @@ In the workbench:
 | Ctrl+Shift+B | abbreviation |
 | Ctrl+Shift+G | gap |
 | Ctrl+Shift+L | segment label at the caret |
-| Ctrl+Shift+P | page break before the caret's line |
+| Alt+Page Down, Alt+Page Up | next or previous page, Not on a page first |
+| Ctrl+X, then Ctrl+V | move the selected words to the caret |
 | Enter | new line |

@@ -200,7 +200,7 @@ export const reader = {
     close: (name: string) => `Close ${name.toLowerCase()}`,
     conspectus: 'Conspectus siglorum',
     conspectusEmpty: 'The edition names no witnesses.',
-    absentFrom: 'absent from',
+    absentFrom: 'not transcribed for',
     reportedOnly: 'Enters through reported readings only.',
     witness: 'Witness',
     chooseWitness: 'Witness',
