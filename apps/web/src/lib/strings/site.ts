@@ -84,6 +84,11 @@ export const site = {
     footer: 'Sources and licences',
   },
 
+  footer: {
+    /** The link to the source of the running version. */
+    source: 'Source code',
+  },
+
   guide: {
     title: 'Guide',
     contents: 'Contents',

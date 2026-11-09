@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
+    "build": "vite build && vite build -c vite.scripts.config.ts",
     "preview": "vite preview",
     "prepare": "svelte-kit sync || echo ''",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
@@ -55,5 +55,9 @@
     "type": "git",
     "url": "git+https://github.com/polemistes/varians.git",
     "directory": "apps/web"
-  }
+  },
+  "files": [
+    "build",
+    "LICENSE"
+  ]
 }

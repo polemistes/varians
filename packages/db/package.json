@@ -7,7 +7,8 @@
   "description": "The PostgreSQL schema of Varians, with Drizzle.",
   "exports": {
     ".": "./src/index.ts",
-    "./schema": "./src/schema.ts"
+    "./schema": "./src/schema.ts",
+    "./journal": "./drizzle/meta/_journal.json"
   },
   "scripts": {
     "generate": "drizzle-kit generate",
@@ -29,5 +30,10 @@
     "type": "git",
     "url": "git+https://github.com/polemistes/varians.git",
     "directory": "packages/db"
-  }
+  },
+  "files": [
+    "src",
+    "drizzle",
+    "LICENSE"
+  ]
 }

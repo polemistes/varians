@@ -4,29 +4,41 @@
  * Everything already loaded is replaced. The data is CC BY-SA: its sources
  * and licences are listed on the page Sources and licences.
  *
- * Run: pnpm --filter @varians/web lexicon:import /path/to/lexicon.sqlite
- * (DATABASE_URL from the environment or apps/web/.env).
+ * Run: pnpm --filter @varians/web lexicon:import <path or address> [--sha256 <hex>]
+ * or, from a release, bin/varians lexicon <path or address> [--sha256 <hex>]
+ * (DATABASE_URL from the environment, VARIANS_ENV_FILE or apps/web/.env).
+ * An address is downloaded to a temporary file first (lexicon-source.ts).
  */
 import { DatabaseSync } from 'node:sqlite';
-import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { createDatabase, greekForms, lexiconEntries, lexicons } from '@varians/db';
+import { loadEnv } from './env.ts';
+import { LexiconSourceError, lexiconSource } from './lexicon-source.ts';
 
-const file = process.argv[2];
-if (!file || !existsSync(file)) {
-  console.error('Give the path of a lexicon.sqlite.');
+const args = process.argv.slice(2);
+const shaAt = args.indexOf('--sha256');
+const sha256 = shaAt >= 0 ? args.splice(shaAt, 2)[1] ?? '' : undefined;
+const given = args[0];
+if (!given) {
+  console.error('Give the path or the https address of a lexicon.sqlite.');
+  process.exit(1);
+}
+loadEnv();
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  console.error('DATABASE_URL is not set.');
   process.exit(1);
 }
 
-function databaseUrl(): string {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
-  const env = new URL('../.env', import.meta.url);
-  if (existsSync(env)) {
-    const line = readFileSync(env, 'utf8').split('\n').find((l) => l.startsWith('DATABASE_URL='));
-    if (line) return line.slice('DATABASE_URL='.length).trim();
-  }
-  throw new Error('DATABASE_URL is not set');
+let input: Awaited<ReturnType<typeof lexiconSource>>;
+try {
+  if (/^https?:\/\//iu.test(given)) console.log(`downloading ${given}`);
+  input = await lexiconSource(given, { sha256 });
+} catch (error) {
+  console.error(error instanceof LexiconSourceError ? error.message : `The download failed: ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
 }
+const file = input.file;
 
 /** The packed fields are zlib-compressed text, or text already. */
 function text(value: unknown): string {
@@ -40,7 +52,7 @@ function text(value: unknown): string {
 }
 
 const source = new DatabaseSync(file, { readOnly: true });
-const { db, pool } = createDatabase(databaseUrl());
+const { db, pool } = createDatabase(databaseUrl);
 const BATCH = 2000;
 
 async function inBatches<T>(rows: Iterable<T>, write: (batch: T[]) => Promise<unknown>): Promise<number> {
@@ -106,4 +118,5 @@ try {
 } finally {
   source.close();
   await pool.end();
+  await input.cleanup();
 }

@@ -2,8 +2,10 @@ import adapter from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vitest/config';
+import { buildDefines } from './build-info.ts';
 
 export default defineConfig({
+  define: buildDefines(),
   plugins: [
     tailwindcss(),
     sveltekit({
@@ -22,7 +24,7 @@ export default defineConfig({
     noExternal: ['@varians/core', '@varians/db'],
   },
   test: {
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'scripts/**/*.test.ts'],
     environment: 'node',
     // Server tests share one test database and seed the same sample; run files one at a time.
     fileParallelism: false,
