@@ -10,6 +10,7 @@
  */
 import { env } from '$env/dynamic/private';
 import nodemailer from 'nodemailer';
+import { siteName as settingsSiteName } from './settings.ts';
 
 export interface MailMessage {
   to: string;
@@ -23,7 +24,7 @@ export interface Mailer {
 
 /** The installation's name, for mail and citations (SITE_NAME, default Varians). */
 export function siteName(): string {
-  return env.SITE_NAME?.trim() || 'Varians';
+  return settingsSiteName(env.SITE_NAME);
 }
 
 /**

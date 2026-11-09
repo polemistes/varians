@@ -6,8 +6,9 @@
  */
 
 import { conjectures, editionSigla, editions, moments, reportedReadings, transcriptions, witnesses, type Database, type MomentBasis } from '@varians/db';
-import { and, desc, eq, inArray, ne } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { nameMoment } from './documents/service.ts';
+import { dataLicence } from './settings.ts';
 
 export interface PublishResult {
   version: number;
@@ -67,14 +68,19 @@ export async function publishEdition(db: Database, editionId: string, userId: st
       : {};
     const basis: MomentBasis = { sigla: conspectus, versions };
     await tx.update(moments).set({ basis }).where(eq(moments.id, momentId));
-    await tx.update(editions).set({ visibility: 'published', publishedVersion: edition.version }).where(eq(editions.id, editionId));
+    // The licence is fixed at the first publication, from the installation's data licence, and never changes after (PLAN-2 D3).
+    const licence = dataLicence();
+    await tx
+      .update(editions)
+      .set({ visibility: 'published', publishedVersion: edition.version, licenceId: sql`coalesce(${editions.licenceId}, ${licence})` })
+      .where(eq(editions.id, editionId));
     // What the edition rests on becomes public with it.
     const sigla = await tx.select({ transcriptionId: editionSigla.transcriptionId }).from(editionSigla).where(eq(editionSigla.editionId, editionId));
     const transcriptionIds = sigla.map((s) => s.transcriptionId).filter((id): id is string => id !== null);
     if (transcriptionIds.length) {
       await tx
         .update(transcriptions)
-        .set({ visibility: 'published' })
+        .set({ visibility: 'published', licenceId: sql`coalesce(${transcriptions.licenceId}, ${licence})` })
         .where(and(inArray(transcriptions.id, transcriptionIds), eq(transcriptions.ownerId, edition.ownerId)));
     }
     // The owner's conjectures and reported readings on the work, adopted or not, as the apparatus reports them and the catalogue is a commons.

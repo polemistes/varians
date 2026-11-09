@@ -84,9 +84,11 @@ export interface ReaderData {
     title: string;
     editors: string[];
     preface: string | null;
-    /** What the edition rests on, and its licence, as its editors state them. */
+    /** What the edition rests on, as its editors state it, and their note on rights. */
     sources: string | null;
-    licence: string | null;
+    rightsNote: string | null;
+    /** The licence fixed at its first publication; null before. */
+    licence: { id: string; name: string; url: string } | null;
     version: number;
     conventions: EditionConventions;
   };

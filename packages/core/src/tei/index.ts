@@ -13,6 +13,8 @@ export {
 export {
   exportTranscriptionTei,
   markupToken,
+  respStmts,
+  type Contributor,
   type TranscriptionExport,
   type ExportHand,
   type ExportWitness,

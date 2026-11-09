@@ -25,7 +25,7 @@
   let displayAsWritten = $state(false);
   let works = $state<ChosenWork[]>([]);
   let sources = $state('');
-  let licence = $state('');
+  let rightsNote = $state('');
   let error = $state<string | null>(null);
   let busy = $state(false);
 
@@ -36,7 +36,7 @@
     displayAsWritten = wb.displayAsWritten;
     works = wb.workIds.map((id) => ({ id, title: wb.works.find((w) => w.id === id)?.title ?? id }));
     sources = wb.sources ?? '';
-    licence = wb.licence ?? '';
+    rightsNote = wb.rightsNote ?? '';
     error = null;
   });
 
@@ -54,7 +54,7 @@
     return async ({ result }) => {
       busy = false;
       if (result.type === 'success') {
-        const settings = (result.data as { settings: { name: string; keepsWrittenForm: boolean; displayAsWritten: boolean; workIds: string[]; sources: string | null; licence: string | null; version: number; content: Stream | null } }).settings;
+        const settings = (result.data as { settings: { name: string; keepsWrittenForm: boolean; displayAsWritten: boolean; workIds: string[]; sources: string | null; rightsNote: string | null; version: number; content: Stream | null } }).settings;
         if (settings.content) wb.replaceDocument({ version: settings.version, content: settings.content });
         wb.applySettings(settings);
         toasts.success(t.settings.saved);
@@ -90,9 +90,9 @@
         <Textarea {...control} name="sources" bind:value={sources} rows={3} maxlength={5000} />
       {/snippet}
     </Field>
-    <Field label={t.settings.licence}>
+    <Field label={t.settings.rightsNote} hint={wb.licence ? t.settings.licenceFixed(wb.licence) : wb.installationLicence ? t.settings.licenceToCome(wb.installationLicence) : undefined}>
       {#snippet children(control)}
-        <Input {...control} name="licence" bind:value={licence} maxlength={300} />
+        <Input {...control} name="rightsNote" bind:value={rightsNote} maxlength={300} />
       {/snippet}
     </Field>
     {#if error}<Notice kind="error">{error}</Notice>{/if}

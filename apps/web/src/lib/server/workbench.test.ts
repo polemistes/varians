@@ -285,17 +285,17 @@ describe('settings and deletion', () => {
     expect(row).toMatchObject({ name: 'Renamed', keepsWrittenForm: false, displayAsWritten: true });
   });
 
-  it('keeps its sources and licence, and adds a named source of an import on a line of its own', async () => {
+  it('keeps its sources and note on rights, and adds a named source of an import on a line of its own', async () => {
     const now = await version(ids.draft);
-    const saved = await saveSettings(db, ids.draft, { name: 'Renamed', keepsWrittenForm: false, displayAsWritten: true, sources: 'Collated from the microfilm.', licence: 'CC BY 4.0', fromVersion: now, userId: ids.owner });
-    expect(saved).toMatchObject({ sources: 'Collated from the microfilm.', licence: 'CC BY 4.0' });
+    const saved = await saveSettings(db, ids.draft, { name: 'Renamed', keepsWrittenForm: false, displayAsWritten: true, sources: 'Collated from the microfilm.', rightsNote: 'By courtesy of the library.', fromVersion: now, userId: ids.owner });
+    expect(saved).toMatchObject({ sources: 'Collated from the microfilm.', rightsNote: 'By courtesy of the library.' });
     await appendSources(db, ids.draft, 'T. W. Allen, Homeri Ilias (Oxford 1931)');
     await appendSources(db, ids.draft, 'T. W. Allen, Homeri Ilias (Oxford 1931)');
     const [row] = await db.select().from(transcriptions).where(eq(transcriptions.id, ids.draft));
     expect(row!.sources).toBe('Collated from the microfilm.\nT. W. Allen, Homeri Ilias (Oxford 1931)');
     // Settings saved without the fields leave them as they are.
     const again = await saveSettings(db, ids.draft, { name: 'Renamed', keepsWrittenForm: false, displayAsWritten: true, fromVersion: now, userId: ids.owner });
-    expect(again.licence).toBe('CC BY 4.0');
+    expect(again.rightsNote).toBe('By courtesy of the library.');
   });
 
   it('deletes a transcription with its zones and history', async () => {

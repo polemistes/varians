@@ -99,7 +99,9 @@ export interface WorkbenchInput {
     memory: MemoryEntry[];
     visibility: string;
     sources: string | null;
-    licence: string | null;
+    rightsNote: string | null;
+    licence?: string | null;
+    installationLicence?: string;
     workIds: string[];
     profile: Partial<NormalizationProfile> | null;
   };
@@ -140,9 +142,12 @@ export class Workbench {
 
   // What the server knows
   name = $state('');
-  /** What the transcription rests on, and its licence, as its maker states them. */
+  /** What the transcription rests on, and its rightsNote, as its maker states them. */
   sources = $state<string | null>(null);
+  rightsNote = $state<string | null>(null);
+  /** The licence fixed at publication, and the installation's. */
   licence = $state<string | null>(null);
+  installationLicence = $state('');
   keepsWrittenForm = $state(false);
   displayAsWritten = $state(false);
   pages = $state.raw<WorkbenchPage[]>([]);
@@ -208,7 +213,9 @@ export class Workbench {
     this.workId = input.transcription.workIds[0] ?? input.works[0]?.id ?? null;
     this.profileOverrides = input.transcription.profile;
     this.sources = input.transcription.sources;
-    this.licence = input.transcription.licence;
+    this.rightsNote = input.transcription.rightsNote;
+    this.licence = input.transcription.licence ?? null;
+    this.installationLicence = input.transcription.installationLicence ?? '';
     this.name = input.transcription.name;
     this.keepsWrittenForm = input.transcription.keepsWrittenForm;
     this.displayAsWritten = input.transcription.displayAsWritten;
@@ -761,11 +768,11 @@ export class Workbench {
 
   // Settings and imports
 
-  applySettings(settings: { name: string; keepsWrittenForm: boolean; displayAsWritten: boolean; sources?: string | null; licence?: string | null }): void {
+  applySettings(settings: { name: string; keepsWrittenForm: boolean; displayAsWritten: boolean; sources?: string | null; rightsNote?: string | null }): void {
     const turnedOn = settings.keepsWrittenForm && !this.keepsWrittenForm;
     this.name = settings.name;
     if (settings.sources !== undefined) this.sources = settings.sources;
-    if (settings.licence !== undefined) this.licence = settings.licence;
+    if (settings.rightsNote !== undefined) this.rightsNote = settings.rightsNote;
     this.keepsWrittenForm = settings.keepsWrittenForm;
     this.displayAsWritten = settings.displayAsWritten;
     if (turnedOn) this.form = 'written';

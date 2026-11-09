@@ -86,7 +86,17 @@ export async function writeExample(serverUrl: string, outDir: string): Promise<s
       await sharp({ create: { width: 64, height: 96, channels: 3, background: { r: 236, g: 226, b: 204 } } })
         .jpeg({ quality: 70 })
         .toFile(path.join(storage, imagePath));
-      await db.update(pages).set({ imageKind: 'upload', imagePath, imageWidth: 64, imageHeight: 96 }).where(eq(pages.id, page!.id));
+      await db
+        .update(pages)
+        .set({
+          imageKind: 'upload',
+          imagePath,
+          imageWidth: 64,
+          imageHeight: 96,
+          rights: 'https://creativecommons.org/publicdomain/zero/1.0/',
+          attribution: 'An example image, made by Varians',
+        })
+        .where(eq(pages.id, page!.id));
 
       await rm(outDir, { recursive: true, force: true });
       await mkdir(outDir, { recursive: true });

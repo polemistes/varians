@@ -184,7 +184,7 @@ export const actions: Actions = {
         fromVersion: Number(text(form, 'fromVersion')) || 0,
         userId: user.id,
         sources: text(form, 'sources').trim().slice(0, 5000) || null,
-        licence: text(form, 'licence').trim().slice(0, 300) || null,
+        rightsNote: text(form, 'rightsNote').trim().slice(0, 300) || null,
       });
       return { settings };
     } catch (cause) {

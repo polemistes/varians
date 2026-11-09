@@ -310,6 +310,26 @@ describe.skipIf(!xmllint)('the record pointers the exporters write', slow, () =>
     expect(errors(xml)).toEqual([]);
   });
 
+  it('the licence with its address, the note on rights, and the persons responsible', () => {
+    const xml = exportEditionTei({
+      ...editionInput(),
+      licence: 'CC BY-SA 4.0',
+      licenceUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
+      rightsNote: 'The text of witness A by courtesy of the library.',
+      authority: 'Varians at an example',
+      contributors: [
+        { name: 'Josiah Carberry', resp: 'edition', orcid: '0000-0002-1825-0097' },
+        { name: 'A. N. Other', resp: 'notes', personId: '01JPERSON0000000000000000A' },
+      ],
+    });
+    expect(xml).toContain('<availability><licence target="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</licence><licence>The text of witness A by courtesy of the library.</licence></availability>');
+    expect(xml).toContain('<respStmt><resp>edition</resp><persName ref="https://orcid.org/0000-0002-1825-0097">Josiah Carberry</persName></respStmt>');
+    expect(xml).toContain('<persName ref="person:01JPERSON0000000000000000A">');
+    expect(errors(xml)).toEqual([]);
+    const transcription = exportTranscriptionTei({ ...exportInput(), licence: 'CC0 1.0', licenceUrl: 'https://creativecommons.org/publicdomain/zero/1.0/', contributors: [{ name: 'Josiah Carberry', resp: 'transcription' }] });
+    expect(errors(transcription)).toEqual([]);
+  });
+
   it('in a transcription: the prefixes', () => {
     const xml = exportTranscriptionTei({ ...exportInput(), origin: 'https://varians.example' });
     expect(xml).toContain('<encodingDesc><listPrefixDef>');

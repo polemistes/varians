@@ -18,7 +18,7 @@
  */
 
 import { normalizeSiglum } from '../sigla.ts';
-import { newId, reconcile, ReconcileError, type Level, type NormalizationProfile, type Op, type Stream, type ZoneGeometry } from '@varians/core';
+import { isDataLicence, newId, normalizeRights, reconcile, ReconcileError, type Level, type NormalizationProfile, type Op, type Stream, type ZoneGeometry } from '@varians/core';
 import {
   alignmentConstraints,
   bibliographyItems,
@@ -541,7 +541,17 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
         id: string;
         label: string;
         position: number;
-        image: { kind: 'upload' | 'iiif'; path: string | null; iiif: string | null; width: number | null; height: number | null; tiles?: string | null } | null;
+        image: {
+          kind: 'upload' | 'iiif';
+          path: string | null;
+          iiif: string | null;
+          width: number | null;
+          height: number | null;
+          tiles?: string | null;
+          rights?: string | null;
+          attribution?: string | null;
+          source?: string | null;
+        } | null;
         createdAt?: string;
       }>(path.join(wdir, 'pages.json'), 'pages')) ?? [];
     for (const p of pageList) {
@@ -556,6 +566,9 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
         imageWidth: p.image?.width ?? null,
         imageHeight: p.image?.height ?? null,
         tilesPath: p.image?.tiles ?? null,
+        rights: normalizeRights(p.image?.rights),
+        attribution: p.image?.attribution ?? null,
+        imageSource: p.image?.source ?? null,
         createdAt: when(p.createdAt),
       };
       const [ours] = await db.select({ id: pages.id }).from(pages).where(eq(pages.id, p.id));
@@ -578,7 +591,9 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
         /** The works it is for; absent in archives written before transcriptions had several. */
         workIds?: string[];
         sources?: string | null;
+        /** An SPDX identifier since format 2; free text before. */
         licence?: string | null;
+        rightsNote?: string | null;
         createdAt?: string;
         content: Stream;
       }>(path.join(tdir, 'transcription.json'));
@@ -596,7 +611,7 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
         memory,
         description: t.description,
         sources: t.sources ?? null,
-        licence: t.licence ?? null,
+        ...licenceFields(t.licence, t.rightsNote),
       };
       const outcome = await importDocument(ctx, 'transcription', t.id, t.name, tdir, t.content, async (content, version) => {
         await db
@@ -660,7 +675,9 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
       /** Absent in archives written before editions could be copied. */
       copiedFrom?: typeof editions.$inferSelect.copiedFrom;
       sources?: string | null;
+      /** An SPDX identifier since format 2; free text before. */
       licence?: string | null;
+      rightsNote?: string | null;
       /** Archives written before 8 November 2026 name the state before correction as originalSiglum. */
       sigla: { siglum: string; witnessId: string; transcriptionId: string | null; states?: SiglumState[]; originalSiglum?: string | null; variantSiglum?: string | null }[];
       /** Conjecture ids; objects with the time of adoption since format 2. */
@@ -688,7 +705,7 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
       conventions: e.conventions,
       copiedFrom: e.copiedFrom ? { ...e.copiedFrom, editors: editorList((e.copiedFrom as { editors?: unknown }).editors) } : null,
       sources: e.sources ?? null,
-      licence: e.licence ?? null,
+      ...licenceFields(e.licence, e.rightsNote),
     };
     const outcome = await importDocument(ctx, 'edition', e.id, e.title, edir, e.content, async (content, version) => {
       await db
@@ -799,6 +816,13 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
     warnings,
     dryRun: options.dryRun ?? false,
   };
+}
+
+/** A record's licence as an archive gives it: an SPDX identifier (format 2) is the licence; free text (format 1) is a note on rights. */
+function licenceFields(licence: string | null | undefined, rightsNote: string | null | undefined): { licenceId: string | null; rightsNote: string | null } {
+  if (isDataLicence(licence)) return { licenceId: licence, rightsNote: rightsNote ?? null };
+  const free = typeof licence === 'string' && licence.trim() !== '' ? licence.trim() : null;
+  return { licenceId: null, rightsNote: rightsNote ?? free };
 }
 
 /** Whether a document's own records (zones, conspectus, notes and the rest) are taken from the archive: not when its text conflicts and ours is kept. */

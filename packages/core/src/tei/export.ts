@@ -78,10 +78,38 @@ export interface TranscriptionExport {
   regularizations?: boolean;
   /** What the transcription rests on or was made from, as its maker states it. */
   sources?: string;
-  /** The licence the transcription is published under. */
+  /** The licence the transcription is published under: its name, or a free statement. */
   licence?: string;
+  /** The licence's address. */
+  licenceUrl?: string;
+  /** A note on rights its maker adds. */
+  rightsNote?: string;
+  /** Who is responsible for the text, from its history. */
+  contributors?: Contributor[];
+  /** Who publishes it: the installation's name. */
+  authority?: string;
   /** The installation's address, for the prefixes that resolve record ids (`tok:` and the rest). */
   origin?: string;
+}
+
+/** A person responsible for a text, for the header's `<respStmt>`. */
+export interface Contributor {
+  name: string;
+  /** What they did: transcription, edition, notes. */
+  resp: string;
+  orcid?: string;
+  /** Their record id, pointed at as `person:<id>` when there is no ORCID iD. */
+  personId?: string;
+}
+
+/** A `<respStmt>` for each contributor, the ORCID iD as the name's `ref` where known. */
+export function respStmts(contributors: readonly Contributor[] | undefined): string {
+  return (contributors ?? [])
+    .map((c) => {
+      const ref = c.orcid ? ` ref="https://orcid.org/${escapeAttr(c.orcid)}"` : c.personId ? ` ref="person:${escapeAttr(c.personId)}"` : '';
+      return `<respStmt><resp>${escapeText(c.resp)}</resp><persName${ref}>${escapeText(c.name)}</persName></respStmt>`;
+    })
+    .join('');
 }
 
 /** The prefixes by which a document's pointers name records of the installation (tok:, seg:, wit:, conj:, person:), resolved at its /id/ addresses. */
@@ -97,10 +125,21 @@ export function encodingDesc(origin: string | undefined): string | null {
   return `<encodingDesc><listPrefixDef>${defs}</listPrefixDef></encodingDesc>`;
 }
 
-/** The publication statement: by Varians, under the licence when one is given. */
-export function publicationStmt(licence: string | undefined): string {
-  if (!licence || licence.trim() === '') return '<publicationStmt><p>Exported from Varians.</p></publicationStmt>';
-  return `<publicationStmt><authority>Varians</authority><availability><licence>${escapeText(licence.trim())}</licence></availability></publicationStmt>`;
+/**
+ * The publication statement: by the installation, under the licence when one
+ * is given (with its address as `target`), and the note on rights as a
+ * statement of its own.
+ */
+export function publicationStmt(licence: string | undefined, options: { licenceUrl?: string | undefined; rightsNote?: string | undefined; authority?: string | undefined } = {}): string {
+  const statements: string[] = [];
+  if (licence && licence.trim() !== '') {
+    const target = options.licenceUrl ? ` target="${escapeAttr(options.licenceUrl)}"` : '';
+    statements.push(`<licence${target}>${escapeText(licence.trim())}</licence>`);
+  }
+  if (options.rightsNote && options.rightsNote.trim() !== '') statements.push(`<licence>${escapeText(options.rightsNote.trim())}</licence>`);
+  const authority = escapeText((options.authority ?? 'Varians').trim() || 'Varians');
+  if (statements.length === 0) return `<publicationStmt><p>Exported from ${authority}.</p></publicationStmt>`;
+  return `<publicationStmt><authority>${authority}</authority><availability>${statements.join('')}</availability></publicationStmt>`;
 }
 
 /** The sources a text states, as a bibliographic note in the source description; nothing when none. */
@@ -157,9 +196,10 @@ function header(input: TranscriptionExport): string[] {
   lines.push(
     ...indent(3, '<titleStmt>'),
     ...indent(4, elementXml('title', undefined, input.title)),
+    ...(input.contributors?.length ? indent(4, respStmts(input.contributors)) : []),
     ...indent(3, '</titleStmt>'),
   );
-  lines.push(...indent(3, publicationStmt(input.licence)));
+  lines.push(...indent(3, publicationStmt(input.licence, { licenceUrl: input.licenceUrl, rightsNote: input.rightsNote, authority: input.authority })));
   lines.push(...indent(3, '<sourceDesc>'));
   const bibl = sourcesBibl(input.sources);
   if (input.witness) lines.push(...msDesc(input.witness, 4));

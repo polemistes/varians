@@ -532,7 +532,7 @@
           {/each}
         </article>
 
-        <ReaderColophon exports={data.exports} versions={data.versions} origin={data.origin} sources={data.edition.sources} licence={data.edition.licence} />
+        <ReaderColophon exports={data.exports} versions={data.versions} origin={data.origin} sources={data.edition.sources} licence={data.edition.licence} rightsNote={data.edition.rightsNote} cite={{ title: data.edition.title, editors: data.edition.editors, slug: data.edition.slug, mode: data.mode }} />
       </PageFrame>
     </div>
 

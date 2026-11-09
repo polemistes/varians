@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newId } from '@varians/core';
-import { conjectures, createDatabase, referenceSchemes, users, witnesses, works, type Database } from '@varians/db';
+import { conjectures, createDatabase, pages, referenceSchemes, users, witnesses, works, type Database } from '@varians/db';
 import { eq, inArray } from 'drizzle-orm';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
@@ -107,4 +107,32 @@ describe('archive', () => {
     expect(bytes.subarray(0, 2).toString()).toBe('PK');
     expect(bytes.length).toBeGreaterThan(1000);
   });
+
+  it('copies an image only when its rights statement allows it, and names its rights in any case', async () => {
+    await db.delete(works).where(eq(works.slug, 'iliad'));
+    await db.delete(witnesses).where(inArray(witnesses.slug, SLUGS));
+    const sample = await seedSample(db, userId);
+    const storage = await mkdtemp(path.join(os.tmpdir(), 'varians-images-'));
+    try {
+      const [page] = await db.select().from(pages).where(eq(pages.witnessId, sample.witnessIds.A!)).orderBy(pages.position).limit(1);
+      await mkdir(path.join(storage, 'originals'), { recursive: true });
+      await writeFile(path.join(storage, 'originals', 'a.jpg'), 'not really an image');
+      await db.update(pages).set({ imageKind: 'upload', imagePath: 'originals/a.jpg', rights: 'http://rightsstatements.org/vocab/InC/1.0/', attribution: 'By courtesy of the library' }).where(eq(pages.id, page!.id));
+      const dir = await writeArchive(db, sample.workId, root, { storageRoot: storage });
+      const read = async () => (JSON.parse(await readFile(path.join(dir, 'witnesses', 'venetus-a', 'pages.json'), 'utf8')) as { pages: { id: string; image: { file: string | null; rights: string; attribution: string } | null }[] }).pages.find((p) => p.id === page!.id)!;
+      const closed = await read();
+      expect(closed.image).toMatchObject({ file: null, rights: 'http://rightsstatements.org/vocab/InC/1.0/', attribution: 'By courtesy of the library' });
+      expect(existsSync(path.join(dir, 'witnesses', 'venetus-a', 'images'))).toBe(false);
+      await db.update(pages).set({ rights: 'https://creativecommons.org/licenses/by/4.0/' }).where(eq(pages.id, page!.id));
+      await writeArchive(db, sample.workId, root, { storageRoot: storage });
+      const open = await read();
+      expect(open.image!.file).toMatch(/^images\/12r-/);
+      expect(existsSync(path.join(dir, 'witnesses', 'venetus-a', open.image!.file!))).toBe(true);
+      const licences = await readFile(path.join(dir, 'LICENSE.md'), 'utf8');
+      expect(licences).toContain('CC0 1.0');
+    } finally {
+      await rm(storage, { recursive: true, force: true });
+    }
+  });
 });
+

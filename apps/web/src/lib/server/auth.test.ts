@@ -91,6 +91,8 @@ describe('emails and users', () => {
       passwordHash: 'secret',
       role: 'member',
       emailVerifiedAt: null,
+      termsVersion: null,
+      termsAcceptedAt: null,
       preferences: { font: 'cardo' },
       createdAt: now,
       updatedAt: now,

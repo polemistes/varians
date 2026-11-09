@@ -77,7 +77,7 @@ export async function copyEdition(db: Database, user: Actor, sourceId: string, t
     editors: asEditor ? source.editors : [],
     preface: source.preface,
     sources: source.sources,
-    licence: source.licence,
+    rightsNote: source.rightsNote,
     ownerId: user.id,
     conventions: source.conventions,
     copiedFrom: origin,

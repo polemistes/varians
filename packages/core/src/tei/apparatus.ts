@@ -9,7 +9,7 @@ import { printedKind, type Attachment } from '../apparatus/render.ts';
 import type { Site } from '../collate/collate.ts';
 import type { Item, Token } from '../stream/items.ts';
 import type { Unit } from '../stream/words.ts';
-import { encodingDesc, markupToken, paratextXml, publicationStmt, sourcesBibl } from './export.ts';
+import { encodingDesc, markupToken, paratextXml, publicationStmt, respStmts, sourcesBibl, type Contributor } from './export.ts';
 import { escapeAttr, escapeText, ncName } from './xml.ts';
 
 export interface EditionWitness {
@@ -44,8 +44,15 @@ export interface EditionExport {
   baseSiglum?: string;
   /** What the edition rests on, as its editors state it. */
   sources?: string;
-  /** The licence the edition is published under. */
+  /** The licence the edition is published under: its name, or a free statement. */
   licence?: string;
+  licenceUrl?: string;
+  /** A note on rights its editors add. */
+  rightsNote?: string;
+  /** Who is responsible for the edition, from its history. */
+  contributors?: Contributor[];
+  /** Who publishes it: the installation's name. */
+  authority?: string;
   witnesses: EditionWitness[];
   segments: EditionSegmentExport[];
   /** Write every word as `<w xml:id>`, with `corresp` to the witness tokens it was taken from or `source` to its conjecture. */
@@ -88,8 +95,8 @@ export function exportEditionTei(input: EditionExport): string {
   out.push('<TEI xmlns="http://www.tei-c.org/ns/1.0">');
   out.push('  <teiHeader>');
   out.push('    <fileDesc>');
-  out.push(`      <titleStmt><title>${escapeText(input.title)}</title>${(input.editors ?? []).map((name) => `<editor>${escapeText(name)}</editor>`).join('')}</titleStmt>`);
-  out.push(`      ${publicationStmt(input.licence)}`);
+  out.push(`      <titleStmt><title>${escapeText(input.title)}</title>${(input.editors ?? []).map((name) => `<editor>${escapeText(name)}</editor>`).join('')}${respStmts(input.contributors)}</titleStmt>`);
+  out.push(`      ${publicationStmt(input.licence, { licenceUrl: input.licenceUrl, rightsNote: input.rightsNote, authority: input.authority })}`);
   out.push('      <sourceDesc>');
   const refs = { ...witnessRefs(input.witnesses, input.baseSiglum ?? 'ed.'), words: input.words ?? false };
   if (input.witnesses.length > 0) {

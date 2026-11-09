@@ -16,6 +16,8 @@ import { publishedVersions } from '$lib/server/publish';
 import { editionView, type SegmentView } from '$lib/server/reader';
 import { edition as s } from '$lib/strings/edition';
 import type { Actions, PageServerLoad } from './$types';
+import { licenceInfo } from '@varians/core';
+import { dataLicence } from '$lib/server/settings';
 
 /** Collation columns are server-side only. */
 function lighten(views: Record<string, SegmentView>): Record<string, SegmentView> {
@@ -63,7 +65,9 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
       editors: edition.editors,
       preface: edition.preface,
       sources: edition.sources,
-      licence: edition.licence,
+      rightsNote: edition.rightsNote,
+      licence: licenceInfo(edition.licenceId)?.name ?? null,
+      installationLicence: licenceInfo(dataLicence())!.name,
       visibility: edition.visibility,
       publishedVersion: edition.publishedVersion,
       conventions: edition.conventions,
@@ -89,7 +93,7 @@ const settingsSchema = z.object({
   editors: z.array(z.string().max(200, s.errors.editorTooLong)).max(20, s.errors.editorsTooMany),
   preface: z.string().max(50000),
   sources: z.string().max(5000),
-  licence: z.string().trim().max(300),
+  rightsNote: z.string().trim().max(300),
   lineation: z.enum(['verse', 'prose']),
   numberEvery: z.coerce.number().int().min(1).max(100),
   apparatus: z.enum(['positive', 'negative']),
@@ -134,7 +138,7 @@ export const actions: Actions = {
       editors: editorNames(form.getAll('editors')),
       preface: text('preface'),
       sources: text('sources'),
-      licence: text('licence'),
+      rightsNote: text('rightsNote'),
       lineation: text('lineation') || 'verse',
       numberEvery: text('numberEvery') || '5',
       apparatus: text('apparatus') || 'positive',
@@ -158,7 +162,7 @@ export const actions: Actions = {
       editors: data.editors,
       preface: data.preface.trim() || null,
       sources: data.sources.trim() || null,
-      licence: data.licence || null,
+      rightsNote: data.rightsNote || null,
       conventions,
     });
     return { form: 'settings' as const, ok: true };

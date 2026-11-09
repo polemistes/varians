@@ -714,7 +714,7 @@ export async function createTranscription(
       profile: source?.profile ?? null,
       memory: source?.memory ?? [],
       sources: source?.sources ?? null,
-      licence: source?.licence ?? null,
+      rightsNote: source?.rightsNote ?? null,
       description: source ? t.transcription.startedFrom(source.witnessName, source.name) : null,
     })
     .returning();

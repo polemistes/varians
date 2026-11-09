@@ -67,6 +67,8 @@ import { candidateWitnesses, editionsOfWork } from './editions.ts';
 import { loadEditionAccess } from './edition-access.ts';
 import { zonesOf } from './zones.ts';
 import { exportHands, teiForm } from './witness-format.ts';
+import { licenceInfo } from '@varians/core';
+import { dataLicence } from './settings.ts';
 
 // Loading
 
@@ -103,7 +105,10 @@ export interface WorkbenchData {
     memory: MemoryEntry[];
     visibility: Visibility;
     sources: string | null;
+    rightsNote: string | null;
+    /** The licence fixed at publication, by name, and the installation's, which publication would give. */
     licence: string | null;
+    installationLicence: string;
     /** The works the transcription is for, in order; the works its text is assigned to are in `works`. */
     workIds: string[];
     profile: Partial<NormalizationProfile> | null;
@@ -160,7 +165,9 @@ export async function loadWorkbench(db: Database, user: Actor | null, id: string
       memory: transcription.memory,
       visibility: transcription.visibility,
       sources: transcription.sources,
-      licence: transcription.licence,
+      rightsNote: transcription.rightsNote,
+      licence: licenceInfo(transcription.licenceId)?.name ?? null,
+      installationLicence: licenceInfo(dataLicence())!.name,
       workIds: chosen,
       profile: transcription.profile,
     },
@@ -666,7 +673,7 @@ export async function exportTei(db: Database, transcriptionId: string, origin: s
     words: zoneRows.some((z) => z.tokenIds.length > 0),
     regularizations: row.keepsWrittenForm,
     ...(row.sources ? { sources: row.sources } : {}),
-    ...(row.licence ? { licence: row.licence } : {}),
+    ...(row.rightsNote ? { rightsNote: row.rightsNote } : {}),
   });
   return { xml, name: row.name };
 }
@@ -686,9 +693,9 @@ export interface SettingsInput {
   displayAsWritten: boolean;
   /** The works it is for, in order; left as they are when absent. */
   workIds?: string[];
-  /** What it rests on and its licence; left as they are when absent. */
+  /** What it rests on and its rightsNote; left as they are when absent. */
   sources?: string | null;
-  licence?: string | null;
+  rightsNote?: string | null;
   fromVersion: number;
   userId: string | null;
 }
@@ -699,7 +706,7 @@ export interface SettingsOutcome {
   displayAsWritten: boolean;
   workIds: string[];
   sources: string | null;
-  licence: string | null;
+  rightsNote: string | null;
   version: number;
   /** The content when switching the written form changed it. */
   content: Stream | null;
@@ -731,13 +738,13 @@ export async function saveSettings(db: Database, transcriptionId: string, input:
         keepsWrittenForm: input.keepsWrittenForm,
         displayAsWritten: input.displayAsWritten,
         ...(input.sources !== undefined ? { sources: input.sources } : {}),
-        ...(input.licence !== undefined ? { licence: input.licence } : {}),
+        ...(input.rightsNote !== undefined ? { rightsNote: input.rightsNote } : {}),
       })
       .where(eq(transcriptions.id, transcriptionId));
     if (input.workIds) await setChosenWorks(tx, transcriptionId, input.workIds);
     const workIds = await chosenWorks(tx, transcriptionId);
-    const [after] = await tx.select({ sources: transcriptions.sources, licence: transcriptions.licence }).from(transcriptions).where(eq(transcriptions.id, transcriptionId));
-    return { name: input.name, keepsWrittenForm: input.keepsWrittenForm, displayAsWritten: input.displayAsWritten, workIds, sources: after?.sources ?? null, licence: after?.licence ?? null, version, content };
+    const [after] = await tx.select({ sources: transcriptions.sources, rightsNote: transcriptions.rightsNote }).from(transcriptions).where(eq(transcriptions.id, transcriptionId));
+    return { name: input.name, keepsWrittenForm: input.keepsWrittenForm, displayAsWritten: input.displayAsWritten, workIds, sources: after?.sources ?? null, rightsNote: after?.rightsNote ?? null, version, content };
   });
 }
 

@@ -238,6 +238,10 @@ export const reader = {
     title: 'About this edition',
     sources: 'Sources',
     licence: 'Licence',
+    rightsNote: 'Rights',
+    cite: 'How to cite',
+    citation: (editors: string, title: string, version: string, date: string, address: string, licence: string | null) =>
+      `${editors ? `${editors}, ` : ''}${title}, ${version} (${date}), ${address}.${licence ? ` ${licence}.` : ''}`,
     usedByVarians: 'Sources and licences of the data Varians uses',
     copiedFrom: 'Based on',
     copiedVersion: (n: number) => `version ${n}`,

@@ -140,7 +140,7 @@ export async function candidateWitnesses(db: Database, workId: string, viewer: M
 export async function updateEditionMeta(
   db: Database,
   editionId: string,
-  fields: Partial<Pick<Edition, 'title' | 'editors' | 'preface' | 'sources' | 'licence' | 'conventions'>>,
+  fields: Partial<Pick<Edition, 'title' | 'editors' | 'preface' | 'sources' | 'rightsNote' | 'conventions'>>,
 ): Promise<void> {
   await db.update(editions).set(fields).where(eq(editions.id, editionId));
 }

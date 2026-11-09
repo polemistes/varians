@@ -12,7 +12,7 @@
 
   interface Props {
     open: boolean;
-    edition: { title: string; editors: string[]; preface: string | null; sources?: string | null; licence?: string | null; conventions: EditionConventions };
+    edition: { title: string; editors: string[]; preface: string | null; sources?: string | null; rightsNote?: string | null; licence?: string | null; installationLicence?: string; conventions: EditionConventions };
     onsaved?: () => void;
   }
 
@@ -58,8 +58,8 @@
       <Field label={t.sources} hint={t.sourcesHint} error={errors.sources}>
         {#snippet children(control)}<Textarea {...control} name="sources" value={edition.sources ?? ''} rows={3} />{/snippet}
       </Field>
-      <Field label={t.licence} error={errors.licence}>
-        {#snippet children(control)}<Input {...control} name="licence" value={edition.licence ?? ''} maxlength={300} />{/snippet}
+      <Field label={t.rightsNote} error={errors.rightsNote} hint={edition.licence ? t.licenceFixed(edition.licence) : edition.installationLicence ? t.licenceToCome(edition.installationLicence) : undefined}>
+        {#snippet children(control)}<Input {...control} name="rightsNote" value={edition.rightsNote ?? ''} maxlength={300} />{/snippet}
       </Field>
     </div>
     <div class="grid gap-4 sm:grid-cols-2">

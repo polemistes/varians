@@ -24,6 +24,7 @@ import {
   units,
   variantRelation,
   looseKey,
+  licenceInfo,
 } from '@varians/core';
 import {
   conjectures,
@@ -201,7 +202,7 @@ export function orderStatements(context: EditionContext): OrderStatement[] {
 }
 
 export interface EditionView {
-  edition: { id: string; slug: string; title: string; editors: string[]; preface: string | null; sources: string | null; licence: string | null; version: number; conventions: EditionConventions };
+  edition: { id: string; slug: string; title: string; editors: string[]; preface: string | null; sources: string | null; rightsNote: string | null; licence: { id: string; name: string; url: string } | null; version: number; conventions: EditionConventions };
   apparatus: ApparatusConventions;
   work: { id: string; title: string; author: string | null; language: string };
   content: Stream;
@@ -254,7 +255,7 @@ export async function editionView(db: Database, editionId: string, atVersion: nu
   const views = await buildSegmentViews(db, context, row, collations, labelOf, witnessById, asOf, audience);
   const lineation = row.conventions.lineation === 'prose' ? 1 : Number(row.conventions.numberEvery ?? 5);
   return {
-    edition: { id: row.id, slug: row.slug, title: row.title, editors: row.editors, preface: row.preface, sources: row.sources, licence: row.licence, version: context.edition.version, conventions: row.conventions },
+    edition: { id: row.id, slug: row.slug, title: row.title, editors: row.editors, preface: row.preface, sources: row.sources, rightsNote: row.rightsNote, licence: licenceInfo(row.licenceId), version: context.edition.version, conventions: row.conventions },
     apparatus: apparatusConventionsOf(row.conventions),
     work: { id: row.workId, title: work?.title ?? '', author: work?.author ?? null, language: work?.language ?? 'grc' },
     content: context.edition.content,

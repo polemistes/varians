@@ -68,6 +68,9 @@ export const users = pgTable(
     passwordHash: text().notNull(),
     role: text({ enum: ROLES }).notNull().default('member'),
     emailVerifiedAt: timestamp({ withTimezone: true }),
+    /** The version of the terms of contribution the person accepted, and when (PLAN-2 D4). */
+    termsVersion: integer(),
+    termsAcceptedAt: timestamp({ withTimezone: true }),
     preferences: jsonb().$type<{ font?: string; theme?: 'light' | 'dark' | 'system' }>().notNull().default({}),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -250,6 +253,9 @@ export const witnesses = pgTable(
     description: text(),
     /** The IIIF manifest the pages were imported from, when they were. */
     iiifManifest: text(),
+    /** The rights statement and credit line new pages of the witness get (PLAN-2 D5). */
+    imageRights: text(),
+    imageAttribution: text(),
     createdBy: text().references(() => users.id, { onDelete: 'set null' }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -291,6 +297,12 @@ export const pages = pgTable(
     imageHeight: integer(),
     /** Path of the Deep Zoom descriptor for an uploaded image, once tiled. */
     tilesPath: text(),
+    /** The image's rights statement: a Creative Commons or RightsStatements.org address (PLAN-2 D5). */
+    rights: text(),
+    /** The credit line the rights holder asks for. */
+    attribution: text(),
+    /** Where the image was obtained. */
+    imageSource: text(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -339,8 +351,10 @@ export const transcriptions = pgTable(
     description: text(),
     /** What the transcription rests on or was made from, as its maker states it; printed with the other sources. */
     sources: text(),
-    /** The licence it is published under. */
-    licence: text(),
+    /** The data licence fixed at publication, an SPDX identifier (PLAN-2 D3); never edited. */
+    licenceId: text(),
+    /** A note on rights the maker adds, shown with the licence. */
+    rightsNote: text(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -567,8 +581,10 @@ export const editions = pgTable(
     copiedFrom: jsonb().$type<EditionOrigin>(),
     /** What the edition rests on, as its editors state it; printed with the other sources. */
     sources: text(),
-    /** The licence it is published under. */
-    licence: text(),
+    /** The data licence fixed at publication, an SPDX identifier (PLAN-2 D3); never edited. */
+    licenceId: text(),
+    /** A note on rights the maker adds, shown with the licence. */
+    rightsNote: text(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

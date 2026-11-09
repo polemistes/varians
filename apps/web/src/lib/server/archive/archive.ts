@@ -17,8 +17,11 @@ import {
   exportEditionTei,
   exportTranscriptionTei,
   formatApparatus,
+  isCopyable,
+  licenceInfo,
   newId,
   passageUrn,
+  REGISTRY_LICENCE,
   segmentRuns,
   serializeBiblatex,
   toText,
@@ -71,6 +74,8 @@ import { exportHands, teiForm } from '../witness-format.ts';
 import { apparatusConventionsOf, contextAt } from '../reader.ts';
 import { siglaOrderOf } from '../../reader/sites.ts';
 import { chosenWorksOf } from '../transcription-works.ts';
+import { dataLicence, siteName } from '../settings.ts';
+import type { Contributor } from '@varians/core';
 
 const run = promisify(execFile);
 
@@ -413,6 +418,7 @@ async function writeWorkFiles(ctx: WorkContext): Promise<void> {
     visibility: work.visibility,
     scheme: scheme ? { id: scheme.id, name: scheme.name, levels: scheme.levels, createdBy: scheme.createdBy, createdAt: iso(scheme.createdAt) } : null,
     profile: work.profile,
+    licence: dataLicence(),
     maintainers: maintainerRows.map((m) => ({ id: m.userId, name: userNames.get(m.userId) ?? null, since: iso(m.createdAt) })),
     mergedIds: await mergedIdsOf(db, work.id),
     createdBy: work.createdBy,
@@ -460,6 +466,58 @@ async function writeWorkFiles(ctx: WorkContext): Promise<void> {
     list('citations', 'citations', citationRows.map((c) => ({ ...c, createdAt: iso(c.createdAt) }))),
   );
   await writeFormatNotes(dir);
+  await writeText(path.join(dir, 'LICENSE.md'), licenceNotes(ctx));
+}
+
+/** The TEI's licence statement: the licence by name with its address, and the note on rights. */
+function teiRights(licenceId: string | null, rightsNote: string | null): { licence?: string; licenceUrl?: string; rightsNote?: string; authority: string } {
+  const info = licenceInfo(licenceId);
+  return { ...(info ? { licence: info.name, licenceUrl: info.url } : {}), ...(rightsNote ? { rightsNote } : {}), authority: siteName() };
+}
+
+/**
+ * The persons responsible for a document, for its TEI header (PLAN-2 D6):
+ * those whose changesets made its text, and those who wrote its notes.
+ */
+async function contributorsOf(ctx: WorkContext, kind: 'transcription' | 'edition', documentId: string, upTo: number | null): Promise<Contributor[]> {
+  const { db } = ctx;
+  const authors = await db
+    .selectDistinct({ id: persons.id, name: persons.name, orcid: persons.orcid })
+    .from(changesets)
+    .innerJoin(persons, eq(persons.id, changesets.personId))
+    .where(and(eq(changesets.documentKind, kind), eq(changesets.documentId, documentId), isNotNull(changesets.version), upTo !== null ? lte(changesets.version, upTo) : undefined))
+    .orderBy(asc(persons.name), asc(persons.id));
+  const out: Contributor[] = authors.map((p) => ({ name: p.name, resp: kind, personId: p.id, ...(p.orcid ? { orcid: p.orcid } : {}) }));
+  if (kind === 'edition') {
+    const noteAuthors = await db
+      .selectDistinct({ id: persons.id, name: persons.name, orcid: persons.orcid })
+      .from(notes)
+      .innerJoin(persons, eq(persons.id, notes.personId))
+      .where(eq(notes.editionId, documentId))
+      .orderBy(asc(persons.name), asc(persons.id));
+    out.push(...noteAuthors.map((p) => ({ name: p.name, resp: 'notes', personId: p.id, ...(p.orcid ? { orcid: p.orcid } : {}) })));
+  }
+  return out;
+}
+
+/** LICENSE.md: the licence of each kind of file in the archive (Data Format 2, 10.1). */
+function licenceNotes(ctx: WorkContext): string {
+  const work = licenceInfo(dataLicence())!;
+  const used = new Set([...ctx.transcriptionRows.map((t) => t.licenceId), ...ctx.editionRows.map((e) => e.licenceId)].filter((id): id is string => !!id));
+  const named = [...used].map((id) => licenceInfo(id)).filter((l): l is NonNullable<typeof l> => l !== null);
+  const registry = licenceInfo(REGISTRY_LICENCE)!;
+  return [
+    `# Licences of the files in this archive`,
+    '',
+    `Written by ${siteName()}. The records are licensed by the people who made them, on the terms of contribution of the installation that published them.`,
+    '',
+    `- **Transcriptions and editions** (transcription.json, edition.json and the files beside them): the licence each names in \`licence\`, fixed when it was first published${named.length ? `: ${named.map((l) => `${l.name} (<${l.url}>)`).join(', ')}` : ''}. One whose \`licence\` is null has not been published under a licence; \`rightsNote\` adds what its maker says about rights.`,
+    `- **Conjectures, reported readings and notes**: ${work.name} (<${work.url}>), the licence of the installation's records, named in \`licence\` in work.json.`,
+    `- **The registry** (work.json, segments.tsv, witness.json, pages.json, persons.json, bibliography.json, bibliography.bib, citations.json): ${registry.name} (<${registry.url}>).`,
+    `- **Images** (witnesses/*/images): each under the rights statement \`rights\` in pages.json, with the credit line \`attribution\` where the rights holder asks for one. Only images whose statement allows copying are in the archive; the others are named by their source.`,
+    `- **The format's documents** (README.md, tei-subset.md): CC BY 4.0; **the schemas** (schemas/): BSD-2-Clause. See <https://varians.eu/formats/2/>.`,
+    '',
+  ].join('\n');
 }
 
 /** The archive's README, the TEI notes and the schemas, from docs/formats. */
@@ -515,7 +573,8 @@ async function writeWitnessFiles(ctx: WorkContext, witness: WitnessRow): Promise
   const imagesDir = path.join(wdir, 'images');
   if (writers.storageRoot) {
     for (const p of pageRows) {
-      if (p.imageKind !== 'upload' || !p.imagePath) continue;
+      // Only an image whose rights statement allows copying goes into the archive (PLAN-2 D5).
+      if (p.imageKind !== 'upload' || !p.imagePath || !isCopyable(p.rights)) continue;
       const ext = path.extname(p.imagePath) || '.jpg';
       const target = path.join('images', `${slugify(p.label)}-${p.id.slice(-6)}${ext}`);
       if (await syncFile(path.join(writers.storageRoot, p.imagePath), path.join(wdir, target))) imageFiles.set(p.id, target);
@@ -536,7 +595,18 @@ async function writeWitnessFiles(ctx: WorkContext, witness: WitnessRow): Promise
       label: p.label,
       position: p.position,
       image: p.imageKind
-        ? { kind: p.imageKind, path: p.imagePath, file: imageFiles.get(p.id) ?? null, iiif: p.imageIiif, width: p.imageWidth, height: p.imageHeight, tiles: p.tilesPath }
+        ? {
+            kind: p.imageKind,
+            path: p.imagePath,
+            file: imageFiles.get(p.id) ?? null,
+            iiif: p.imageIiif,
+            width: p.imageWidth,
+            height: p.imageHeight,
+            tiles: p.tilesPath,
+            rights: p.rights,
+            attribution: p.attribution,
+            source: p.imageSource,
+          }
         : null,
       createdAt: iso(p.createdAt),
     }))),
@@ -564,7 +634,8 @@ async function writeTranscriptionFiles(ctx: WorkContext, t: TranscriptionRow): P
     profile: t.profile,
     description: t.description,
     sources: t.sources,
-    licence: t.licence,
+    licence: t.licenceId,
+    rightsNote: t.rightsNote,
     workIds: chosen.get(t.id) ?? [],
     createdAt: iso(t.createdAt),
     content: t.content,
@@ -589,7 +660,8 @@ async function writeTranscriptionFiles(ctx: WorkContext, t: TranscriptionRow): P
         title: `${work.title}: ${witness.name}, ${t.name}`,
         language: work.language,
         ...(t.sources ? { sources: t.sources } : {}),
-        ...(t.licence ? { licence: t.licence } : {}),
+        ...teiRights(t.licenceId, t.rightsNote),
+        contributors: await contributorsOf(ctx, 'transcription', t.id, null),
         witness: {
           ...defined({
             siglum: witness.siglum,
@@ -669,7 +741,8 @@ async function writeEditionFiles(ctx: WorkContext, edition: EditionRow): Promise
     conventions: edition.conventions,
     copiedFrom: edition.copiedFrom,
     sources: edition.sources,
-    licence: edition.licence,
+    licence: edition.licenceId,
+    rightsNote: edition.rightsNote,
     createdAt: iso(edition.createdAt),
     sigla: sigla.map((s) => ({ siglum: s.siglum, witnessId: s.witnessId, transcriptionId: s.transcriptionId, states: s.states, variantSiglum: s.variantSiglum })),
     adoptions: adoptions.map((a) => ({ conjectureId: a.conjectureId, at: iso(a.createdAt) })),
@@ -722,7 +795,8 @@ async function writeEditionFiles(ctx: WorkContext, edition: EditionRow): Promise
         language: work.language,
         ...(edition.preface ? { preface: edition.preface } : {}),
         ...(edition.sources ? { sources: edition.sources } : {}),
-        ...(edition.licence ? { licence: edition.licence } : {}),
+        ...teiRights(edition.licenceId, edition.rightsNote),
+        contributors: await contributorsOf(ctx, 'edition', edition.id, shownVersion),
         baseSiglum: 'ed.',
         witnesses: sigla.map((s) => ({ siglum: s.siglum, id: s.witnessId, ...(witnessNames.get(s.witnessId) ? { name: witnessNames.get(s.witnessId)! } : {}) })),
         segments: text.segments,
