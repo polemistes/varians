@@ -86,4 +86,13 @@ export class WitnessTexts {
     }
     return null;
   }
+
+  /** Whether a token is among the loaded runs of a transcription. */
+  holds(transcriptionId: string, tokenId: string): boolean {
+    const prefix = `${transcriptionId}|`;
+    for (const [key, segment] of Object.entries(this.segments)) {
+      if (key.startsWith(prefix) && segment.runs.some((run) => run.items.some((item) => item.id === tokenId))) return true;
+    }
+    return false;
+  }
 }

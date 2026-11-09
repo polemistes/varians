@@ -215,6 +215,8 @@ export const reader = {
     facsimileLoading: 'Loading the image',
     noImage: 'There is no image of this passage.',
     noImageOfPage: (page: string) => `There is no image of page ${page}.`,
+    /** The words stand on no page of the witness in its transcript. */
+    unplaced: 'These words are not on a page of the witness.',
     facsimileFailed: 'The image could not be found.',
     facsimileHint: 'Open a word with variants to see it on the page.',
     variants: 'Variants',

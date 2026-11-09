@@ -5,8 +5,11 @@
  * database for a user registered here.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { createDatabase, referenceSchemes, users, witnesses, works } from '@varians/db';
+import sharp from 'sharp';
+import { createDatabase, referenceSchemes, transcriptions, users, witnesses, works, zones } from '@varians/db';
 import { eq, inArray } from 'drizzle-orm';
+import { editor as ed } from '../src/lib/strings/editor';
+import { pageStrings as t } from '../src/lib/strings/pages';
 import { seedSample } from '../src/lib/server/seed/sample.ts';
 import { s } from '../src/lib/strings/en';
 
@@ -111,4 +114,35 @@ test('moves a line with its label and reports the order of the witnesses', async
   await page.keyboard.press('Alt+Shift+ArrowDown');
   await saved(page);
   await expect(page.locator('.apparatus-band')).not.toContainText('has it after');
+});
+
+test('shows the page where a witness’s words stand, mapped to the image or not', async ({ page }) => {
+  // A's words lose their boxes; its first page gets an image.
+  const { db, pool } = createDatabase(DATABASE_URL);
+  const [a] = await db.select({ id: witnesses.id }).from(witnesses).where(eq(witnesses.slug, 'venetus-a'));
+  const rows = await db.select({ id: transcriptions.id }).from(transcriptions).where(eq(transcriptions.witnessId, a!.id));
+  await db.delete(zones).where(inArray(zones.transcriptionId, rows.map((r) => r.id)));
+  await pool.end();
+  await signIn(page);
+  await page.goto('/witnesses/venetus-a/pages');
+  await page.waitForLoadState('networkidle');
+  const card = page.getByRole('list', { name: t.gridLabel }).getByRole('article', { name: '12r', exact: true });
+  await card.getByRole('button', { name: t.card.addImage }).click();
+  const dialog = page.getByRole('dialog', { name: t.image.addTitle('12r') });
+  const png = await sharp({ create: { width: 400, height: 300, channels: 3, background: { r: 230, g: 220, b: 190 } } }).png().toBuffer();
+  await dialog.locator('input[type=file]').setInputFiles({ name: 'venetus-12r.png', mimeType: 'image/png', buffer: png });
+  await dialog.getByLabel(t.rights.statement).selectOption({ label: 'Public Domain Mark' });
+  await dialog.getByRole('button', { name: t.image.submit }).click();
+  await expect(card.locator('img')).toBeVisible({ timeout: 20_000 });
+
+  await page.setViewportSize({ width: 1500, height: 950 });
+  await page.goto('/editions/iliad-1-working-edition/edit');
+  await expect(page.locator('.cm-content')).toBeVisible();
+  const pane = page.locator('.witness-pane');
+  await pane.getByRole('tab', { name: ed.witness.image }).click();
+  await expect(pane.getByText('12r', { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(pane.getByText(ed.witness.noImage)).toHaveCount(0);
+  // The arrows browse the witness's pages: 12v has no image.
+  await pane.getByRole('button', { name: ed.witness.nextPage }).click();
+  await expect(pane.getByText(ed.witness.noImageOf('12v'))).toBeVisible();
 });

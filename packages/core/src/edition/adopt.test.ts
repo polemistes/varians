@@ -55,6 +55,19 @@ describe('adopting', () => {
     expect((stream.items[0] as { segment?: unknown }).segment).toEqual({ segmentId: 's1' });
   });
 
+  it('adopts the omission of a whole segment without taking the next segment', () => {
+    const edition = fromText('the quick fox\njumps over', { ids: sequentialIds('e') });
+    (edition.items[0] as { segment?: unknown }).segment = { segmentId: 's1' };
+    (edition.items[4] as { segment?: unknown }).segment = { segmentId: 's2' };
+    const baseUnits = units(edition, 0, 3);
+    const c = collate({ id: 'E', siglum: 'ed', units: baseUnits }, [{ id: 'B', siglum: 'B', units: [], present: true }]);
+    const site = c.sites.find((x) => x.wanting)!;
+    const omission = site.readings.find((r) => r.omission)!;
+    const { stream } = applyOps(edition, adoptReading(edition, site, baseUnits, omission, 'B'));
+    expect(toText(stream)).toBe('\njumps over');
+    expect((stream.items[1] as { segment?: unknown }).segment).toEqual({ segmentId: 's2' });
+  });
+
   it('adopts an addition by inserting after the preceding word', () => {
     const edition = fromText('the quick fox', { ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);

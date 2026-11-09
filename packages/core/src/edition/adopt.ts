@@ -91,7 +91,8 @@ export function replaceAtSite(stream: Stream, site: Site, baseUnits: Unit[], ite
       const lastIndex = stream.items.findIndex((i) => i.id === ids[ids.length - 1]);
       const next = stream.items.slice(lastIndex + 1).find((i) => i.kind === 'token' || i.kind === 'object');
       const ops: Op[] = [{ t: 'delete', ids }];
-      if (next) ops.push({ t: 'set', id: next.id, fields: { segment: carried } });
+      // Not onto the start of the next segment: an omission of the whole segment leaves the segment without words.
+      if (next && (next.kind === 'token' || next.kind === 'object') && !next.segment) ops.push({ t: 'set', id: next.id, fields: { segment: carried } });
       return ops;
     }
     return [{ t: 'delete', ids }];

@@ -2,8 +2,9 @@
   /**
    * The facsimile beside the text: the page of the chosen witness that holds
    * the first lit word (the open entry's reading in that witness, else the
-   * first word of the witness on screen), found through the zones API, with
-   * the zones of the lit words lit. A plain notice where there is no image.
+   * first word of the witness on screen), mapped to it or not, with the
+   * zones of the lit words lit. A plain notice where there is no image, or
+   * where the words stand on no page of the witness.
    */
   import X from '@lucide/svelte/icons/x';
   import type { ZoneGeometry } from '@varians/core';
@@ -45,6 +46,7 @@
     | { kind: 'idle' }
     | { kind: 'loading' }
     | { kind: 'none' }
+    | { kind: 'unplaced' }
     | { kind: 'failed' }
     | { kind: 'no-image'; label: string | null }
     | { kind: 'image'; pageId: string; label: string; source: FacsimileSource; zones: FacsimileZone[]; rights: string | null; attribution: string | null };
@@ -86,11 +88,12 @@
     (async () => {
       try {
         const base = `/api/transcriptions/${encodeURIComponent(tid)}/zones`;
-        const byToken = await json<{ zones: ZoneRow[]; pages: PageRow[] }>(`${base}?tokens=${encodeURIComponent(token)}`);
-        const pageId = byToken.zones[0]?.pageId ?? texts.pageOf(tid, token);
+        // The page the word stands on; for a word not loaded yet, the page of its box.
+        const standing = texts.holds(tid, token) ? texts.pageOf(tid, token) : undefined;
+        const pageId = standing === undefined ? (await json<{ zones: ZoneRow[] }>(`${base}?tokens=${encodeURIComponent(token)}`)).zones[0]?.pageId : standing;
         if (cancelled) return;
         if (!pageId) {
-          view = { kind: 'none' };
+          view = { kind: standing === null ? 'unplaced' : 'none' };
           shownFor = '';
           return;
         }
@@ -174,6 +177,8 @@
       <p class="notice">{r.panels.facsimileHint}</p>
     {:else if view.kind === 'none'}
       <p class="notice">{r.panels.noImage}</p>
+    {:else if view.kind === 'unplaced'}
+      <p class="notice">{r.panels.unplaced}</p>
     {:else if view.kind === 'failed'}
       <p class="notice">{r.panels.facsimileFailed}</p>
     {:else if view.kind === 'no-image'}

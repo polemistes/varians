@@ -3,10 +3,13 @@
    * The witness pane of the edition editor: one witness's text, or its
    * facsimile, for the segments on screen, with the words of the current
    * site lit. Clicking a word adopts that witness at the site covering it.
+   * The image is the page the words stand on, mapped to it or not.
    */
+  import ChevronLeft from '@lucide/svelte/icons/chevron-left';
+  import ChevronRight from '@lucide/svelte/icons/chevron-right';
   import type { Item, ZoneGeometry } from '@varians/core';
   import ImageCredit from '$lib/components/facsimile/ImageCredit.svelte';
-  import { Select, Spinner, Tabs, type Tab } from '$lib/components/ui';
+  import { IconButton, Select, Spinner, Tabs, type Tab } from '$lib/components/ui';
   import type { FacsimileSource, FacsimileZone } from '$lib/facsimile/types';
   import type { SiglumClient, WitnessSegment } from '$lib/edition/types';
   import { editor as s } from '$lib/strings/editor';
@@ -70,58 +73,120 @@
 
   const lit = $derived(new Set(highlightTokenIds));
 
-  // Facsimile: the page of the first lit token (else of the first segment), its zones, and the source.
-  let image = $state<{ source: FacsimileSource; zones: FacsimileZone[]; pageLabel: string; rights: string | null; attribution: string | null } | null>(null);
+  // Facsimile (PLAN-3 D1): the page the words stand on, mapped or not: the page of the run holding the
+  // first lit word, else of the first run on screen. The arrows browse the witness's pages; a new site
+  // returns the pane to following the words.
+  type Shown =
+    | { kind: 'none' }
+    | { kind: 'unplaced' }
+    | { kind: 'no-image'; pageId: string; label: string }
+    | { kind: 'image'; pageId: string; label: string; source: FacsimileSource; zones: FacsimileZone[]; rights: string | null; attribution: string | null };
+  let image = $state<Shown>({ kind: 'none' });
   let imageLoading = $state(false);
   let imageFor = $state('');
+  /** A page chosen with the arrows, until the words move on. */
+  let browsed = $state<string | null>(null);
+  let witnessPages = $state<{ id: string; label: string }[]>([]);
+  let pagesFor = '';
+
+  $effect(() => {
+    void highlightTokenIds.join(',');
+    browsed = null;
+  });
+
+  // The witness's pages, for the arrows.
+  $effect(() => {
+    const witnessId = current?.witnessId;
+    if (mode !== 'image' || !witnessId || witnessId === pagesFor) return;
+    pagesFor = witnessId;
+    fetch(`/api/witnesses/${encodeURIComponent(witnessId)}/pages`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.statusText))))
+      .then((data: { pages: { id: string; label: string }[] }) => {
+        witnessPages = data.pages.map((p) => ({ id: p.id, label: p.label }));
+      })
+      .catch(() => {
+        witnessPages = [];
+      });
+  });
+
+  /** The page the words stand on: undefined when no word of the witness is on screen, null when they are on no page. */
+  const followed = $derived.by((): string | null | undefined => {
+    const runs = segmentIds.flatMap((id) => segments[id]?.runs ?? []);
+    for (const token of highlightTokenIds) {
+      const run = runs.find((r) => r.items.some((i) => i.id === token));
+      if (run) return pageWithin(run, token);
+    }
+    const first = runs.find((r) => r.items.some((i) => i.kind === 'token'));
+    return first ? first.pageId : undefined;
+  });
+
+  /** The page a word stands on within a run: the run's page, or a page break inside the run before it. */
+  function pageWithin(run: WitnessSegment['runs'][number], token: string): string | null {
+    let page = run.pageId;
+    for (const item of run.items) {
+      if (item.kind === 'break' && item.type === 'page') page = item.pageId ?? page;
+      if (item.id === token) break;
+    }
+    return page;
+  }
+
+  const shownPage = $derived(browsed ?? followed);
+
   $effect(() => {
     if (mode !== 'image' || !current?.transcriptionId) return;
     const transcriptionId = current.transcriptionId;
-    const first = highlightTokenIds[0] ?? firstTokenOf(segments[segmentIds[0] ?? ''] ?? null);
-    if (!first) {
-      image = null;
+    const pageId = shownPage;
+    if (pageId === undefined) {
+      image = { kind: 'none' };
+      imageFor = '';
       return;
     }
-    const key = `${transcriptionId}|${first}`;
+    if (pageId === null) {
+      image = { kind: 'unplaced' };
+      imageFor = '';
+      return;
+    }
+    const key = `${transcriptionId}|${pageId}`;
     if (key === imageFor) return;
     imageLoading = true;
-    fetch(`/api/transcriptions/${transcriptionId}/zones?tokens=${encodeURIComponent(first)}`)
+    fetch(`/api/transcriptions/${transcriptionId}/zones?page=${encodeURIComponent(pageId)}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.statusText))))
-      .then(async (data: { zones: { pageId: string }[]; pages: { id: string; label: string; source: FacsimileSource | null; rights?: string | null; attribution?: string | null }[] }) => {
-        const pageId = data.zones[0]?.pageId;
+      .then((data: { zones: { id: string; geometry: ZoneGeometry; tokenIds: string[]; feature: unknown }[]; pages: { id: string; label: string; source: FacsimileSource | null; rights?: string | null; attribution?: string | null }[] }) => {
         const page = data.pages.find((p) => p.id === pageId);
-        if (!page || !page.source) {
-          image = null;
-          imageFor = key;
+        imageFor = key;
+        if (!page) {
+          image = { kind: 'none' };
           return;
         }
-        const all = (await fetch(`/api/transcriptions/${transcriptionId}/zones?page=${page.id}`).then((r) => r.json())) as {
-          zones: { id: string; geometry: ZoneGeometry; tokenIds: string[]; feature: unknown }[];
-        };
+        if (!page.source) {
+          image = { kind: 'no-image', pageId, label: page.label };
+          return;
+        }
         image = {
+          kind: 'image',
+          pageId,
           source: page.source,
-          pageLabel: page.label,
+          label: page.label,
           rights: page.rights ?? null,
           attribution: page.attribution ?? null,
-          zones: all.zones.map((z) => ({ id: z.id, geometry: z.geometry, tokenIds: z.tokenIds, kind: z.feature ? 'feature' : z.tokenIds.length > 1 ? 'line' : 'word' })),
+          zones: data.zones.map((z) => ({ id: z.id, geometry: z.geometry, tokenIds: z.tokenIds, kind: z.feature ? 'feature' : z.tokenIds.length > 1 ? 'line' : 'word' })),
         };
-        imageFor = key;
       })
       .catch(() => {
-        image = null;
+        image = { kind: 'none' };
       })
       .finally(() => {
         imageLoading = false;
       });
   });
 
-  const litZoneIds = $derived(image ? image.zones.filter((z) => z.tokenIds.some((id) => lit.has(id))).map((z) => z.id) : []);
+  /** The witness's pages before and after the one shown (from Not on a page, the first). */
+  const step = $derived.by(() => {
+    const at = shownPage ? witnessPages.findIndex((p) => p.id === shownPage) : -1;
+    return { previous: at > 0 ? witnessPages[at - 1]!.id : null, next: at + 1 < witnessPages.length ? witnessPages[at + 1]!.id : null };
+  });
 
-  function firstTokenOf(segment: WitnessSegment | null): string | null {
-    if (!segment) return null;
-    for (const run of segment.runs) for (const item of run.items) if (item.kind === 'token') return item.id;
-    return null;
-  }
+  const litZoneIds = $derived(image.kind === 'image' ? image.zones.filter((z) => z.tokenIds.some((id) => lit.has(id))).map((z) => z.id) : []);
 
   function shown(item: Item): string {
     if (item.kind === 'token') return form === 'read' ? (item.norm ?? item.form) : item.form;
@@ -204,16 +269,30 @@
     <div class="relative flex-1">
       {#if imageLoading}
         <div class="absolute inset-0 grid place-items-center"><Spinner /></div>
-      {:else if !image}
+      {:else if image.kind === 'unplaced'}
+        <p class="px-3 py-4 text-ink-muted">{s.witness.unplaced}</p>
+      {:else if image.kind === 'no-image'}
+        <p class="px-3 py-4 text-ink-muted">{s.witness.noImageOf(image.label)}</p>
+      {:else if image.kind === 'none'}
         <p class="px-3 py-4 text-ink-muted">{s.witness.noImage}</p>
       {:else if FacsimileViewer}
         <FacsimileViewer source={image.source} zones={image.zones} highlighted={litZoneIds} mode="pan" editable={false} class="h-full" />
-        <span class="absolute top-2 right-2 rounded bg-surface/80 px-1.5 py-0.5 text-xs text-ink-soft">{image.pageLabel}</span>
+        <span class="absolute top-2 right-2 rounded bg-surface/80 px-1.5 py-0.5 text-xs text-ink-soft">{image.label}</span>
       {:else}
         <div class="absolute inset-0 grid place-items-center"><Spinner /></div>
       {/if}
+      {#if witnessPages.length > 1}
+        <div class="absolute bottom-2 left-2 flex gap-1">
+          <IconButton label={s.witness.previousPage} size="sm" class="bg-surface/90" disabled={step.previous === null} onclick={() => (browsed = step.previous)}>
+            <ChevronLeft aria-hidden="true" />
+          </IconButton>
+          <IconButton label={s.witness.nextPage} size="sm" class="bg-surface/90" disabled={step.next === null} onclick={() => (browsed = step.next)}>
+            <ChevronRight aria-hidden="true" />
+          </IconButton>
+        </div>
+      {/if}
     </div>
-    {#if image && !imageLoading}
+    {#if image.kind === 'image' && !imageLoading}
       <ImageCredit rights={image.rights} attribution={image.attribution} class="shrink-0 truncate border-t border-line px-3 py-1" />
     {/if}
   {/if}
