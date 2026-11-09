@@ -1,14 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newId } from '@varians/core';
-import { createDatabase, referenceSchemes, users, witnesses, works, type Database } from '@varians/db';
+import { changesets, createDatabase, referenceSchemes, users, witnesses, works, type Database } from '@varians/db';
 import { eq, inArray } from 'drizzle-orm';
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import pg from 'pg';
 import { formatsDir } from './archive.ts';
 import { exampleWorks } from './example.ts';
-import { importArchive } from './import.ts';
+import { importArchive, removeWorkCompletely } from './import.ts';
 import { hasXmllint, validateArchiveDir, validateTeiFiles } from './validate.ts';
 
 const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329/varians_test';
@@ -19,6 +19,7 @@ const SLUGS = ['venetus-a', 'venetus-b', 'laurentianus-c', 'townleianus-t'];
 const example = path.join(formatsDir()!, 'example');
 
 async function clean(): Promise<void> {
+  for (const w of await db.select({ id: works.id }).from(works).where(eq(works.slug, 'iliad'))) await removeWorkCompletely(db, w.id);
   await db.delete(works).where(eq(works.slug, 'iliad'));
   await db.delete(witnesses).where(inArray(witnesses.slug, SLUGS));
 }
@@ -26,6 +27,10 @@ async function clean(): Promise<void> {
 beforeAll(async () => {
   ({ db, pool } = createDatabase(url));
   await clean();
+  // Changesets have no foreign key: those of an earlier run of this test are removed by the ids the example names.
+  const [dir] = await exampleWorks(example);
+  const ids = await documentIds(dir!);
+  if (ids.length) await db.delete(changesets).where(inArray(changesets.documentId, ids));
   await db.insert(users).values({ id: importer, email: `${importer}@test`, name: 'Importer', passwordHash: 'x' });
 });
 
@@ -35,6 +40,18 @@ afterAll(async () => {
   await db.delete(users).where(eq(users.id, importer));
   await pool.end();
 });
+
+/** The ids of the example's transcriptions and editions. */
+async function documentIds(dir: string): Promise<string[]> {
+  const out: string[] = [];
+  for (const w of await readdir(path.join(dir, 'witnesses'))) {
+    for (const t of await readdir(path.join(dir, 'witnesses', w, 'transcriptions')).catch(() => [] as string[])) {
+      out.push(JSON.parse(await readFile(path.join(dir, 'witnesses', w, 'transcriptions', t, 'transcription.json'), 'utf8')).id);
+    }
+  }
+  for (const e of await readdir(path.join(dir, 'editions'))) out.push(JSON.parse(await readFile(path.join(dir, 'editions', e, 'edition.json'), 'utf8')).id);
+  return out;
+}
 
 describe('the example archive of the format', () => {
   it('is valid: every JSON file against its schema, every TEI file against the RelaxNG', async () => {
@@ -55,6 +72,7 @@ describe('the example archive of the format', () => {
     expect(report.transcriptions).toBe(3);
     expect(report.editions).toBe(1);
     expect(report.changesets).toBeGreaterThan(3);
+    expect(report.documents.map((d) => d.result)).toEqual(['created', 'created', 'created', 'created']);
     await clean();
   }, 120_000);
 });

@@ -40,7 +40,9 @@ import {
   moments,
   notes,
   pages,
+  persons,
   referenceSchemes,
+  registryMerges,
   reportedReadings,
   reviewState,
   segments,
@@ -147,6 +149,8 @@ interface WorkContext {
   dir: string;
   writers: ArchiveWriters;
   userNames: Map<string, string>;
+  /** The person of each account (the same id, unless the account has none). */
+  personOfUser: Map<string, string>;
   segmentRows: (typeof segments.$inferSelect)[];
   labelOf: Map<string, string>;
   /** The passage URN of each segment, where the work has a CTS URN. */
@@ -234,6 +238,8 @@ async function loadWorkContext(db: Database, workId: string, root: string, write
   const only = writers.only;
   const userRows = await db.select({ id: users.id, name: users.name }).from(users);
   const userNames = new Map(userRows.map((u) => [u.id, u.name] as const));
+  const accountPersons = await db.select({ id: persons.id, userId: persons.userId }).from(persons).where(isNotNull(persons.userId));
+  const personOfUser = new Map(accountPersons.map((p) => [p.userId!, p.id] as const));
   const segmentRows = await db.select().from(segments).where(eq(segments.workId, workId)).orderBy(segments.sortKey);
   const labelOf = new Map(segmentRows.map((s) => [s.id, s.label] as const));
   const urnOf = new Map<string, string>();
@@ -280,6 +286,7 @@ async function loadWorkContext(db: Database, workId: string, root: string, write
     dir: path.join(root, work.slug),
     writers,
     userNames,
+    personOfUser,
     segmentRows,
     labelOf,
     urnOf,
@@ -342,13 +349,15 @@ async function historyFiles(ctx: WorkContext, dir: string, kind: 'transcription'
     .select()
     .from(changesets)
     .where(and(eq(changesets.documentKind, kind), eq(changesets.documentId, documentId), upTo !== null ? lte(changesets.version, upTo) : undefined))
-    .orderBy(asc(changesets.version));
+    .orderBy(asc(changesets.version), asc(changesets.at), asc(changesets.id));
+  void userNames;
   const lines = rows.map((c) =>
     JSON.stringify({
       id: c.id,
+      parentId: c.parentId,
+      ...(c.merged ? { merged: c.merged } : {}),
       version: c.version,
-      userId: c.userId,
-      userName: c.userId ? userNames.get(c.userId) ?? null : null,
+      personId: c.personId,
       at: c.at.toISOString(),
       ops: c.ops,
       reverse: c.reverse,
@@ -370,7 +379,7 @@ async function historyFiles(ctx: WorkContext, dir: string, kind: 'transcription'
       kind: m.kind,
       number: m.number,
       basis: m.basis,
-      createdBy: m.createdBy,
+      personId: m.personId,
       at: m.at.toISOString(),
     }))),
   );
@@ -384,7 +393,7 @@ async function reviewStates(ctx: WorkContext, kind: 'transcription' | 'edition',
     .from(reviewState)
     .where(and(eq(reviewState.documentKind, kind), eq(reviewState.documentId, documentId)))
     .orderBy(asc(reviewState.userId));
-  return rows.map((r) => ({ userId: r.userId, fromVersion: r.fromVersion, accepted: r.accepted }));
+  return rows.map((r) => ({ personId: personOf(ctx, r.userId), fromVersion: r.fromVersion, accepted: r.accepted }));
 }
 
 /** The work's own files: work.json, segments, conjectures, reported readings, bibliography, citations, and the format notes. */
@@ -405,9 +414,11 @@ async function writeWorkFiles(ctx: WorkContext): Promise<void> {
     scheme: scheme ? { id: scheme.id, name: scheme.name, levels: scheme.levels, createdBy: scheme.createdBy, createdAt: iso(scheme.createdAt) } : null,
     profile: work.profile,
     maintainers: maintainerRows.map((m) => ({ id: m.userId, name: userNames.get(m.userId) ?? null, since: iso(m.createdAt) })),
+    mergedIds: await mergedIdsOf(db, work.id),
     createdBy: work.createdBy,
     createdAt: iso(work.createdAt),
   }));
+  await writeJson(path.join(dir, 'persons.json'), list('persons', 'persons', await personsOfWork(ctx)));
   await writeText(
     path.join(dir, 'segments.tsv'),
     [
@@ -495,6 +506,7 @@ async function writeWitnessFiles(ctx: WorkContext, witness: WitnessRow): Promise
   await writeJson(path.join(wdir, 'witness.json'), record('witness', {
     ...witness,
     maintainers: maintainerRows.map((m) => ({ id: m.userId, name: userNames.get(m.userId) ?? null, since: iso(m.createdAt) })),
+    mergedIds: await mergedIdsOf(db, witness.id),
     createdAt: iso(witness.createdAt),
     updatedAt: iso(witness.updatedAt),
   }));
@@ -634,10 +646,10 @@ async function writeEditionFiles(ctx: WorkContext, edition: EditionRow): Promise
         segmentId: k.segmentId,
         siteKey: k.siteKey,
         kind: k.kind,
-        setBy: k.setBy,
+        personId: personOf(ctx, k.setBy),
         setAt: iso(k.setAt),
       }))
-    : [...shown.siteKinds].flatMap(([segmentId, bySite]) => [...bySite].map(([siteKey, k]) => ({ segmentId, siteKey, kind: k.kind, setBy: null, setAt: iso(k.setAt) })));
+    : [...shown.siteKinds].flatMap(([segmentId, bySite]) => [...bySite].map(([siteKey, k]) => ({ segmentId, siteKey, kind: k.kind, personId: null, setAt: iso(k.setAt) })));
   kindRows.sort((a, b) => a.segmentId.localeCompare(b.segmentId) || a.siteKey.localeCompare(b.siteKey));
   const collaboratorRows = working
     ? await db.select().from(editionCollaborators).where(eq(editionCollaborators.editionId, edition.id)).orderBy(asc(editionCollaborators.userId))
@@ -661,14 +673,14 @@ async function writeEditionFiles(ctx: WorkContext, edition: EditionRow): Promise
     createdAt: iso(edition.createdAt),
     sigla: sigla.map((s) => ({ siglum: s.siglum, witnessId: s.witnessId, transcriptionId: s.transcriptionId, states: s.states, variantSiglum: s.variantSiglum })),
     adoptions: adoptions.map((a) => ({ conjectureId: a.conjectureId, at: iso(a.createdAt) })),
-    collaborators: collaboratorRows.map((c) => ({ id: c.userId, name: userNames.get(c.userId) ?? null, grantedBy: c.grantedBy, since: iso(c.createdAt) })),
+    collaborators: collaboratorRows.map((c) => ({ personId: personOf(ctx, c.userId), grantedBy: personOf(ctx, c.grantedBy), since: iso(c.createdAt) })),
     notes: noteRows.map((n) => ({
       id: n.id,
       segmentId: n.segmentId,
       segmentLabel: labelOf.get(n.segmentId) ?? null,
       tokenIds: n.tokenIds,
       text: n.text,
-      authorId: n.authorId,
+      personId: n.personId,
       createdAt: iso(n.createdAt),
     })),
     siteKinds: kindRows,
@@ -693,7 +705,7 @@ async function writeEditionFiles(ctx: WorkContext, edition: EditionRow): Promise
       .where(eq(editionSiteReviews.editionId, edition.id))
       .orderBy(asc(editionSiteReviews.segmentId), asc(editionSiteReviews.siteKey));
     await writeJson(path.join(edir, 'reviews.json'), record('reviews', {
-      sites: sites.map((s) => ({ segmentId: s.segmentId, siteKey: s.siteKey, reviewedBy: s.reviewedBy, reviewedAt: iso(s.reviewedAt) })),
+      sites: sites.map((s) => ({ segmentId: s.segmentId, siteKey: s.siteKey, personId: personOf(ctx, s.reviewedBy), reviewedAt: iso(s.reviewedAt) })),
       states: await reviewStates(ctx, 'edition', edition.id),
     }));
   }
@@ -871,6 +883,57 @@ export async function commitArchive(dir: string, message: string, author: Archiv
   await git('-c', `user.name=${author.name}`, '-c', `user.email=${author.email}`, 'commit', '-q', '-m', message);
   const hash = await git('rev-parse', 'HEAD');
   return hash.stdout.trim();
+}
+
+/** The person of an account, for the archive's references to people. */
+function personOf(ctx: WorkContext, userId: string | null | undefined): string | null {
+  return userId ? ctx.personOfUser.get(userId) ?? null : null;
+}
+
+/**
+ * Every person the work's files refer to (Data Format 2, 4.2): the authors of
+ * the changesets and moments written, the notes' authors, the collaborators,
+ * who reviewed or classed a site, and (in the server's archive) who holds a
+ * review position.
+ */
+async function personsOfWork(ctx: WorkContext): Promise<{ id: string; name: string; orcid: string | null }[]> {
+  const { db } = ctx;
+  const ids = new Set<string>();
+  const add = (id: string | null | undefined) => {
+    if (id) ids.add(id);
+  };
+  const documents: { kind: 'transcription' | 'edition'; id: string; upTo: number | null }[] = [
+    ...ctx.transcriptionRows.map((t) => ({ kind: 'transcription' as const, id: t.id, upTo: null })),
+    ...ctx.editionRows.map((e) => ({ kind: 'edition' as const, id: e.id, upTo: !ctx.writers.only || ctx.writers.only.editionWorking(e) ? null : e.publishedVersion })),
+  ];
+  for (const d of documents) {
+    const range = and(eq(changesets.documentKind, d.kind), eq(changesets.documentId, d.id), d.upTo !== null ? lte(changesets.version, d.upTo) : undefined);
+    for (const r of await db.selectDistinct({ id: changesets.personId }).from(changesets).where(range)) add(r.id);
+    const momentRange = and(eq(moments.documentKind, d.kind), eq(moments.documentId, d.id), d.upTo !== null ? lte(moments.version, d.upTo) : undefined);
+    for (const r of await db.selectDistinct({ id: moments.personId }).from(moments).where(momentRange)) add(r.id);
+    if (!ctx.writers.only) for (const r of await db.select({ userId: reviewState.userId }).from(reviewState).where(and(eq(reviewState.documentKind, d.kind), eq(reviewState.documentId, d.id)))) add(personOf(ctx, r.userId));
+  }
+  const editionIds = ctx.editionRows.map((e) => e.id);
+  if (editionIds.length) {
+    for (const r of await db.selectDistinct({ id: notes.personId }).from(notes).where(inArray(notes.editionId, editionIds))) add(r.id);
+    const working = ctx.editionRows.filter((e) => !ctx.writers.only || ctx.writers.only.editionWorking(e)).map((e) => e.id);
+    if (working.length) {
+      for (const r of await db.select({ a: editionCollaborators.userId, b: editionCollaborators.grantedBy }).from(editionCollaborators).where(inArray(editionCollaborators.editionId, working))) {
+        add(personOf(ctx, r.a));
+        add(personOf(ctx, r.b));
+      }
+      for (const r of await db.selectDistinct({ u: editionSiteReviews.reviewedBy }).from(editionSiteReviews).where(inArray(editionSiteReviews.editionId, working))) add(personOf(ctx, r.u));
+      for (const r of await db.selectDistinct({ u: editionSiteKinds.setBy }).from(editionSiteKinds).where(inArray(editionSiteKinds.editionId, working))) add(personOf(ctx, r.u));
+    }
+  }
+  if (ids.size === 0) return [];
+  return db.select({ id: persons.id, name: persons.name, orcid: persons.orcid }).from(persons).where(inArray(persons.id, [...ids])).orderBy(asc(persons.id));
+}
+
+/** The ids merged into a registry entry, so that they keep resolving after an import elsewhere. */
+async function mergedIdsOf(db: Database, survivorId: string) {
+  const rows = await db.select().from(registryMerges).where(eq(registryMerges.survivorId, survivorId)).orderBy(asc(registryMerges.oldId));
+  return rows.map((r) => ({ id: r.oldId, label: r.label, mergedBy: r.mergedBy, mergedAt: iso(r.mergedAt) }));
 }
 
 /** One writer at a time per work directory, within this process: the write-through and a commit must not interleave. */

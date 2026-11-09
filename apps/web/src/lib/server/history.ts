@@ -31,6 +31,7 @@ import {
   desc,
   eq,
   gt,
+  isNotNull,
   inArray,
   lte,
   moments,
@@ -91,7 +92,8 @@ function toCore(row: ChangesetRow): Changeset {
   return {
     id: row.id,
     documentId: row.documentId,
-    version: row.version,
+    version: row.version ?? 0,
+    parentId: row.parentId,
     userId: row.userId ?? '',
     at: row.at.toISOString(),
     ops: row.ops,
@@ -368,7 +370,8 @@ export async function undoChangeset(
   const [row] = await db
     .select()
     .from(changesets)
-    .where(and(eq(changesets.id, changesetId), eq(changesets.documentKind, kind), eq(changesets.documentId, documentId)));
+    // A changeset kept for its provenance and never applied here cannot be undone.
+    .where(and(eq(changesets.id, changesetId), eq(changesets.documentKind, kind), eq(changesets.documentId, documentId), isNotNull(changesets.version)));
   if (!row) throw new HistoryError(404, 'No such change');
   const target = toCore(row);
   const message = options.reviewed ? `rejected version ${target.version}` : `undid version ${target.version}`;

@@ -2,7 +2,7 @@
   "$schema": "https://varians.eu/formats/2/reviews.schema.json",
   "states": [
     {
-      "userId": "01M6Z5QJ9E6BQN570VYCVMHX2C",
+      "personId": "01M6Z6P2A4FXSZGB4TV4MGCCA1",
       "fromVersion": 1,
       "accepted": []
     }

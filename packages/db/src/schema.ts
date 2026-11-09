@@ -75,6 +75,36 @@ export const users = pgTable(
   (t) => [uniqueIndex('users_email_idx').on(sql`lower(${t.email})`)],
 );
 
+/**
+ * A person who made or did something recorded here (PLAN-2 C1): authorship
+ * points at persons, who may have an ORCID and need not have an account.
+ * Every account has a person whose id is the account's id (made by a trigger,
+ * migration 0013); persons from imports may have none.
+ */
+export const persons = pgTable(
+  'persons',
+  {
+    id: id(),
+    name: text().notNull(),
+    /** The 19-character form, checked by its ISO 7064 MOD 11-2 digit. */
+    orcid: text(),
+    userId: text().references(() => users.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('persons_orcid_idx').on(t.orcid).where(sql`${t.orcid} is not null`),
+    uniqueIndex('persons_user_idx').on(t.userId).where(sql`${t.userId} is not null`),
+  ],
+);
+
+/** A canonical identifier of a work or witness (PLAN-2 C7). */
+export const IDENTIFIER_SCHEMES = ['cts', 'diktyon', 'trismegistos', 'wikidata', 'viaf', 'url', 'other'] as const;
+export type IdentifierScheme = (typeof IDENTIFIER_SCHEMES)[number];
+export interface CanonicalIdentifier {
+  scheme: IdentifierScheme;
+  value: string;
+}
+
 export const sessions = pgTable(
   'sessions',
   {
@@ -107,8 +137,10 @@ export const works = pgTable(
     title: text().notNull(),
     author: text(),
     language: text().notNull().default('grc'),
-    /** A canonical identifier where one exists, such as a CTS URN. */
+    /** The primary canonical identifier, a CTS URN, where one exists. */
     identifier: text(),
+    /** Further canonical identifiers, typed. */
+    identifiers: jsonb().$type<CanonicalIdentifier[]>().notNull().default([]),
     description: text(),
     schemeId: text()
       .notNull()
@@ -179,6 +211,8 @@ export const witnesses = pgTable(
     shelfmark: text(),
     /** A catalogue number or other identifier. */
     identifier: text(),
+    /** Canonical identifiers, typed: Diktyon, Trismegistos, Wikidata and the like. */
+    identifiers: jsonb().$type<CanonicalIdentifier[]>().notNull().default([]),
     dateText: text(),
     material: text(),
     extent: text(),
@@ -623,7 +657,9 @@ export const notes = pgTable(
     /** The edition tokens the note is about; empty for the whole segment. */
     tokenIds: jsonb().$type<string[]>().notNull().default([]),
     text: text().notNull(),
+    /** The account that wrote it, for the permission checks; authorship is personId. */
     authorId: text().references(() => users.id, { onDelete: 'set null' }),
+    personId: text().references(() => persons.id, { onDelete: 'set null' }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -694,14 +730,21 @@ export const changesets = pgTable(
     id: id(),
     documentKind: text({ enum: DOCUMENT_KINDS }).notNull(),
     documentId: text().notNull(),
-    version: integer().notNull(),
+    /** This installation's applied order; null for a changeset kept for its provenance and never applied here. */
+    version: integer(),
+    /** The changeset this one was made on; null for a document's first. */
+    parentId: text(),
+    /** For a merge: the incoming changesets it brings in. */
+    merged: jsonb().$type<string[]>(),
+    /** The account that saved it, for the permission checks; authorship is personId. */
     userId: text().references(() => users.id, { onDelete: 'set null' }),
+    personId: text().references(() => persons.id, { onDelete: 'set null' }),
     at: timestamp({ withTimezone: true }).notNull().defaultNow(),
     ops: jsonb().$type<Op[]>().notNull(),
     reverse: jsonb().$type<Op[]>().notNull(),
     message: text(),
   },
-  (t) => [uniqueIndex('changesets_document_version_idx').on(t.documentKind, t.documentId, t.version)],
+  (t) => [uniqueIndex('changesets_document_version_idx').on(t.documentKind, t.documentId, t.version), index('changesets_parent_idx').on(t.parentId)],
 );
 
 export const checkpoints = pgTable(
@@ -747,6 +790,7 @@ export const moments = pgTable(
     /** For a published edition: what its apparatus was collated against, so that the version stays as it was published. */
     basis: jsonb().$type<MomentBasis>(),
     createdBy: text().references(() => users.id, { onDelete: 'set null' }),
+    personId: text().references(() => persons.id, { onDelete: 'set null' }),
     at: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('moments_document_idx').on(t.documentKind, t.documentId, t.version)],
@@ -784,7 +828,22 @@ export const archiveCommits = pgTable(
 );
 
 /** What an archive queue entry names: which records' files to rewrite. */
-export const ARCHIVE_QUEUE_KINDS = ['work-all', 'work', 'work-editions', 'scheme', 'bibliography', 'witness', 'transcription', 'edition'] as const;
+export const ARCHIVE_QUEUE_KINDS = ['work-all', 'work', 'work-editions', 'scheme', 'bibliography', 'witness', 'transcription', 'edition', 'person'] as const;
+
+/** A registry entry merged into another (PLAN-2 C8): its id still resolves, and imports naming it land on the survivor. */
+export const registryMerges = pgTable(
+  'registry_merges',
+  {
+    oldId: text().primaryKey(),
+    kind: text({ enum: ['work', 'witness'] }).notNull(),
+    survivorId: text().notNull(),
+    /** What the merged entry was called, for the record. */
+    label: text().notNull(),
+    mergedBy: text().references(() => users.id, { onDelete: 'set null' }),
+    mergedAt: createdAt(),
+  },
+  (t) => [index('registry_merges_survivor_idx').on(t.survivorId)],
+);
 
 /**
  * Records whose archive files are out of date, filled by triggers on every
@@ -939,6 +998,7 @@ export const bibliographyItemsRelations = relations(bibliographyItems, ({ many }
 // Row types
 
 export type User = typeof users.$inferSelect;
+export type Person = typeof persons.$inferSelect;
 export type Work = typeof works.$inferSelect;
 export type Segment = typeof segments.$inferSelect;
 export type Witness = typeof witnesses.$inferSelect;

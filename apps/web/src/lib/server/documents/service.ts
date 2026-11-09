@@ -85,7 +85,8 @@ export async function saveOps(
         since.map((c) => ({
           id: c.id,
           documentId: c.documentId,
-          version: c.version,
+          version: c.version ?? 0,
+          parentId: c.parentId,
           userId: c.userId ?? '',
           at: c.at.toISOString(),
           ops: c.ops,
@@ -215,7 +216,8 @@ export async function history(db: Database, kind: DocumentKind, documentId: stri
   return rows.map((c) => ({
     id: c.id,
     documentId: c.documentId,
-    version: c.version,
+    version: c.version ?? 0,
+    parentId: c.parentId,
     userId: c.userId ?? '',
     at: c.at.toISOString(),
     ops: c.ops,

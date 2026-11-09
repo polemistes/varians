@@ -2,15 +2,15 @@
   "$schema": "https://varians.eu/formats/2/reviews.schema.json",
   "sites": [
     {
-      "segmentId": "01M6Z5QJA9AK001T4HA1FARBAQ",
-      "siteKey": "01M6Z5QJA9AK001T4HA1FARBAQ:0",
-      "reviewedBy": "01M6Z5QJ9E6BQN570VYCVMHX2C",
-      "reviewedAt": "2026-11-09T03:30:48.938Z"
+      "segmentId": "01M6Z6P2B3M6N7F5SHBR45M9JV",
+      "siteKey": "01M6Z6P2B3M6N7F5SHBR45M9JV:0",
+      "personId": "01M6Z6P2A4FXSZGB4TV4MGCCA1",
+      "reviewedAt": "2026-11-09T03:47:28.372Z"
     }
   ],
   "states": [
     {
-      "userId": "01M6Z5QJ9E6BQN570VYCVMHX2C",
+      "personId": "01M6Z6P2A4FXSZGB4TV4MGCCA1",
       "fromVersion": 1,
       "accepted": []
     }

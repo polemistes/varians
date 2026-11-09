@@ -30,6 +30,8 @@ export const ARCHIVED_TABLES = [
   'changesets',
   'moments',
   'review_state',
+  'persons',
+  'registry_merges',
 ] as const;
 
 /** Tables rebuilt from archived data. */

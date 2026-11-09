@@ -11,7 +11,7 @@ import pg from 'pg';
 import { seedSample } from '../seed/sample.ts';
 import { adoptConjecture } from '../conjectures.ts';
 import { publishEdition } from '../publish.ts';
-import { conjectures } from '@varians/db';
+import { conjectures, registryMerges } from '@varians/db';
 import { writeArchive } from './archive.ts';
 import { ARCHIVED_TABLES } from './coverage.ts';
 import { importArchive, removeWorkCompletely } from './import.ts';
@@ -107,6 +107,8 @@ describe('archive round trip', () => {
     const [conjecture] = await db.select().from(conjectures).where(eq(conjectures.workId, sample.workId)).limit(1);
     await adoptConjecture(db, sample.editionId, conjecture!.id);
     await publishEdition(db, sample.editionId, userId);
+    // A witness that was merged into A here: the merged id travels with A.
+    await db.insert(registryMerges).values({ oldId: newId(), kind: 'witness', survivorId: sample.witnessIds.A!, label: 'Venetus A (registered twice)', mergedBy: userId });
 
     const original = await snapshot();
     for (const name of ARCHIVED_TABLES) {
@@ -117,7 +119,8 @@ describe('archive round trip', () => {
     const removed = await snapshot();
     // The removal took the work's rows out of every table (entries and schemes others share may stay), so the import has to bring each back.
     for (const name of ARCHIVED_TABLES) {
-      if (name === 'bibliography_items' || name === 'reference_schemes') continue;
+      // Persons outlive a work: they are matched by id on the way back.
+      if (name === 'bibliography_items' || name === 'reference_schemes' || name === 'persons') continue;
       expect(removed[name]!.length, `nothing of the work was removed from ${name}`).toBeLessThan(original[name]!.length);
     }
 

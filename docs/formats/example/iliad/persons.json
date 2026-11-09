@@ -1,0 +1,15 @@
+{
+  "$schema": "https://varians.eu/formats/2/persons.schema.json",
+  "persons": [
+    {
+      "id": "01M6Z6P2A4FXSZGB4TV4MGCCA1",
+      "name": "Example Editor",
+      "orcid": null
+    },
+    {
+      "id": "01M6Z6P2A6DEYPNASR7JXNQ6K7",
+      "name": "Example Collaborator",
+      "orcid": null
+    }
+  ]
+}
