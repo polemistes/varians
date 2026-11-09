@@ -11,6 +11,7 @@ import {
 import { requireUser } from '$lib/server/guards';
 import { answerOffer, offersOf } from '$lib/server/ownership';
 import { personOfAccount, setOrcid } from '$lib/server/persons';
+import { createToken, revokeToken, tokensOf } from '$lib/server/tokens';
 import { s } from '$lib/strings';
 import { FONTS, THEMES } from '$lib/types';
 import type { Actions, PageServerLoad } from './$types';
@@ -40,7 +41,8 @@ const text = (form: FormData, name: string) => String(form.get(name) ?? '');
 export const load: PageServerLoad = async ({ locals }) => {
   const user = requireUser(locals);
   const person = await personOfAccount(locals.db, user.id, user.name);
-  return { crumb: { label: s.account.title }, offers: await offersOf(locals.db, user.id), orcid: person.orcid };
+  const tokens = (await tokensOf(locals.db, user.id)).map((t) => ({ id: t.id, name: t.name, createdAt: t.createdAt.toISOString(), lastUsedAt: t.lastUsedAt?.toISOString() ?? null }));
+  return { crumb: { label: s.account.title }, offers: await offersOf(locals.db, user.id), orcid: person.orcid, tokens };
 };
 
 export const actions: Actions = {
@@ -72,6 +74,20 @@ export const actions: Actions = {
       });
     }
     return { form: 'orcid' as const, ok: true, claimed: result.claimed, cleared: result.orcid === null };
+  },
+
+  token: async ({ request, locals }) => {
+    const user = requireUser(locals);
+    const form = await request.formData();
+    const made = await createToken(locals.db, user.id, text(form, 'name'));
+    return { form: 'token' as const, ok: true, token: made.token };
+  },
+
+  revoke: async ({ request, locals }) => {
+    const user = requireUser(locals);
+    const form = await request.formData();
+    if (!(await revokeToken(locals.db, user.id, text(form, 'id')))) return fail(404, { form: 'revoke' as const });
+    return { form: 'revoke' as const, ok: true };
   },
 
   password: async ({ request, locals, cookies }) => {

@@ -5,6 +5,7 @@
 import type { Handle } from '@sveltejs/kit';
 import { SESSION_COOKIE, cookieOptions, getSessionUser } from '$lib/server/auth';
 import { hasAcceptedTerms, termsGate } from '$lib/server/terms';
+import { acceptsBearer, userForToken } from '$lib/server/tokens';
 import { site } from '$lib/strings/site';
 import { db } from '$lib/server/db';
 import { startBackgroundWork } from '$lib/server/startup';
@@ -22,6 +23,7 @@ const LARGE_BODIES: [RegExp, number][] = [
   [/^\/api\/documents\/[^/]+\/[^/]+\/ops$/u, 25 * 1024 * 1024], // a large first save or paste
   [/^\/bibliography$/u, 6 * 1024 * 1024], // a .bib file
   [/^\/import$/u, 200 * 1024 * 1024], // a package
+  [/^\/api\/import$/u, 500 * 1024 * 1024], // a package pushed by another installation
 ];
 
 function bodyLimit(pathname: string): number {
@@ -45,13 +47,26 @@ export const handle: Handle = async ({ event, resolve }) => {
     if (url.pathname.startsWith('/api/')) {
       const origin = request.headers.get('origin');
       if (origin && origin !== url.origin) return new Response('Cross-site requests are not allowed.', { status: 403, headers: { 'content-type': 'text/plain' } });
-      if (!(request.headers.get('content-type') ?? '').toLowerCase().startsWith('application/json')) {
-        return new Response('Send JSON.', { status: 415, headers: { 'content-type': 'text/plain' } });
+      // The one endpoint other installations send to takes a package, and only with a token (below).
+      const wanted = url.pathname === '/api/import' ? 'application/zip' : 'application/json';
+      if (!(request.headers.get('content-type') ?? '').toLowerCase().startsWith(wanted)) {
+        return new Response(wanted === 'application/zip' ? 'Send a package.' : 'Send JSON.', { status: 415, headers: { 'content-type': 'text/plain' } });
+      }
+      if (url.pathname === '/api/import' && !(request.headers.get('authorization') ?? '').startsWith('Bearer ')) {
+        return new Response('A token is needed.', { status: 401, headers: { 'content-type': 'text/plain' } });
       }
     }
   }
 
-  const token = event.cookies.get(SESSION_COOKIE);
+  // Another installation or a script, with a token: on the sync and import endpoints only (PLAN-2 G2).
+  const bearer = /^Bearer\s+(\S+)$/u.exec(request.headers.get('authorization') ?? '')?.[1];
+  if (bearer && acceptsBearer(request.method, url.pathname)) {
+    const user = await userForToken(db, bearer);
+    if (!user) return new Response('The token is not valid.', { status: 401, headers: { 'content-type': 'text/plain' } });
+    event.locals.user = user;
+  }
+
+  const token = event.locals.user ? undefined : event.cookies.get(SESSION_COOKIE);
   if (token) {
     const session = await getSessionUser(token);
     if (session) {

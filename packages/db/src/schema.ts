@@ -871,6 +871,50 @@ export const archiveCommits = pgTable(
   (t) => [index('archive_commits_work_idx').on(t.workId, t.at)],
 );
 
+/** A token for another installation or a script to act as an account (PLAN-2 G2): accepted by the sync and import endpoints only. */
+export const apiTokens = pgTable(
+  'api_tokens',
+  {
+    id: id(),
+    /** SHA-256 of the token; the token itself is shown once. */
+    tokenHash: text().notNull(),
+    userId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text().notNull(),
+    createdAt: createdAt(),
+    lastUsedAt: timestamp({ withTimezone: true }),
+    expiresAt: timestamp({ withTimezone: true }),
+  },
+  (t) => [uniqueIndex('api_tokens_hash_idx').on(t.tokenHash), index('api_tokens_user_idx').on(t.userId)],
+);
+
+/** Another installation's copy of a work, to pull from and push to (PLAN-2 G3). */
+export const workRemotes = pgTable(
+  'work_remotes',
+  {
+    id: id(),
+    workId: text()
+      .notNull()
+      .references(() => works.id, { onDelete: 'cascade' }),
+    /** The other installation's address (https://example.org), and the work's id there. */
+    origin: text().notNull(),
+    remoteWorkId: text().notNull(),
+    /** The work's slug there, for its addresses. */
+    remoteSlug: text().notNull(),
+    /** A token of an account there, encrypted with SECRET_KEY (AES-256-GCM); null for a public work pulled without one. */
+    token: text(),
+    /** Pull every so many hours; null for by hand only. */
+    pullEveryHours: integer(),
+    lastPulledAt: timestamp({ withTimezone: true }),
+    /** What the last pull or push did, as shown to the maintainers. */
+    lastReport: jsonb().$type<unknown>(),
+    createdBy: text().references(() => users.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+  },
+  (t) => [index('work_remotes_work_idx').on(t.workId)],
+);
+
 /** What an archive queue entry names: which records' files to rewrite. */
 export const ARCHIVE_QUEUE_KINDS = ['work-all', 'work', 'work-editions', 'scheme', 'bibliography', 'witness', 'transcription', 'edition', 'person'] as const;
 

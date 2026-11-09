@@ -120,6 +120,13 @@
       "when": 1794196862049,
       "tag": "0016_drop_free_licence",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794199474252,
+      "tag": "0017_sync",
+      "breakpoints": true
     }
   ]
 }

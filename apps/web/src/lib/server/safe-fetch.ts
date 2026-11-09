@@ -13,7 +13,7 @@ import { Readable } from 'node:stream';
 
 export class SafeFetchError extends Error {
   constructor(
-    readonly code: 'protocol' | 'address' | 'redirects',
+    readonly code: 'protocol' | 'address' | 'redirects' | 'redirect',
     message: string,
   ) {
     super(message);
@@ -80,6 +80,9 @@ function guardedLookup(allow: (address: string) => boolean) {
 export interface SafeFetchInit {
   signal?: AbortSignal;
   headers?: Record<string, string>;
+  /** POST with a body: redirects are then not followed. GET by default. */
+  method?: 'GET' | 'POST';
+  body?: Buffer;
   /** Which addresses may be reached; the public internet by default. For tests. */
   allow?: (address: string) => boolean;
 }
@@ -90,15 +93,15 @@ function requestOnce(url: URL, init: SafeFetchInit, allow: (address: string) => 
     const request = client.request(
       url,
       {
-        method: 'GET',
-        headers: { 'user-agent': 'Varians', ...(init.headers ?? {}), 'accept-encoding': 'identity' },
+        method: init.method ?? 'GET',
+        headers: { 'user-agent': 'Varians', ...(init.headers ?? {}), 'accept-encoding': 'identity', ...(init.body ? { 'content-length': String(init.body.length) } : {}) },
         lookup: guardedLookup(allow) as unknown as typeof dns.lookup,
         ...(init.signal ? { signal: init.signal } : {}),
       },
       resolve,
     );
     request.on('error', (error) => reject(error instanceof SafeFetchError ? error : (error as { cause?: unknown }).cause instanceof SafeFetchError ? (error as { cause: SafeFetchError }).cause : error));
-    request.end();
+    request.end(init.body);
   });
 }
 
@@ -116,7 +119,16 @@ export async function safeFetch(input: string | URL, init: SafeFetchInit = {}): 
     const location = response.headers.location;
     if (status >= 300 && status < 400 && location) {
       response.resume();
-      url = new URL(location, url);
+      if (init.method === 'POST') throw new SafeFetchError('redirect', 'The other installation answered with a redirect.');
+      const next = new URL(location, url);
+      // Credentials are for the origin they were given for, not for where it sends us.
+      if (next.origin !== url.origin && init.headers) {
+        const { authorization: _a, Authorization: _b, ...rest } = init.headers;
+        void _a;
+        void _b;
+        init = { ...init, headers: rest };
+      }
+      url = next;
       continue;
     }
     const headers = new Headers();

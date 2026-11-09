@@ -1,5 +1,5 @@
 /** What the account actions return; each form shows only its own result. */
-export type AccountFormName = 'name' | 'orcid' | 'password' | 'preferences' | 'offer';
+export type AccountFormName = 'name' | 'orcid' | 'token' | 'revoke' | 'password' | 'preferences' | 'offer';
 
 export interface AccountActionResult {
   form: AccountFormName;
@@ -9,4 +9,6 @@ export interface AccountActionResult {
   /** For the ORCID form: whose work was claimed, and whether the iD was removed. */
   claimed?: string | null;
   cleared?: boolean;
+  /** A token just made, shown once. */
+  token?: string;
 }
