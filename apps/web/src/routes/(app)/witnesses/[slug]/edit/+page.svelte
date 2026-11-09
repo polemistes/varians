@@ -6,7 +6,6 @@
   import { PageFrame } from '$lib/components/shell';
   import { Button, Checkbox, toasts } from '$lib/components/ui';
   import {
-    ConfirmDialog,
     FormSection,
     MaintainersEditor,
     WitnessFields,
@@ -29,7 +28,6 @@
   );
 
   let saving = $state(false);
-  let deleteOpen = $state(false);
 
   // The defaults for images
   const imagesFailed = $derived(form && 'form' in form && form.form === 'images' && 'errors' in form ? form : null);
@@ -104,17 +102,4 @@
     </FormSection>
   {/if}
 
-  {#if data.can.delete}
-    <FormSection title={s.deleteSection} hint={s.deleteHint} danger>
-      <Button variant="danger" onclick={() => (deleteOpen = true)}>{s.deleteAction}</Button>
-    </FormSection>
-  {/if}
 </PageFrame>
-
-<ConfirmDialog
-  bind:open={deleteOpen}
-  title={s.deleteTitle}
-  description={s.deleteConfirm(witness.name)}
-  action="?/delete"
-  done={s.deleted(witness.name)}
-/>

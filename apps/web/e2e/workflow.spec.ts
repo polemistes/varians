@@ -12,6 +12,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { s } from '../src/lib/strings/en';
 import { pageStrings as t } from '../src/lib/strings/pages';
 import { workbench as w } from '../src/lib/strings/workbench';
+import { registry as reg } from '../src/lib/strings/registry';
 
 const DATABASE_URL = 'postgres://varians@127.0.0.1:54329/varians_test';
 const stamp = Date.now().toString(36);
@@ -241,4 +242,12 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   const copySlug = new URL(page.url()).pathname.split('/')[2]!;
   await page.goto(`/editions/${copySlug}`);
   await expect(page.locator('footer.colophon')).toContainText(`Based on Aeneis 1, ${stamp}`);
+
+  // A witness an edition names cannot be deleted: its page says so in the menu.
+  await page.goto(`/witnesses/${witnessSlugs[0]}`);
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: reg.witness.menu }).click();
+  const remove = page.getByRole('menuitem', { name: new RegExp(reg.witness.menuDelete) });
+  await expect(remove).toHaveAttribute('data-disabled', '');
+  await expect(remove).toContainText(`Aeneis 1, ${stamp}`);
 });

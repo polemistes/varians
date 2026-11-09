@@ -15,6 +15,7 @@ import { requireUser } from '$lib/server/guards';
 import {
   createTranscription,
   deleteTranscription,
+  governs,
   maintainersOf,
   pagesOfWitness,
   readingsOfWitness,
@@ -23,11 +24,12 @@ import {
   transcriptionsOfWitness,
   viewableTranscriptions,
   witnessBySlug,
+  witnessDependents,
   workOptions,
   worksOfWitness,
 } from '$lib/server/registry';
 import { mergesInto } from '$lib/server/registry-merge';
-import { field, parseName, parseTranscriptionForm } from '$lib/registry/forms';
+import { describeDependents, field, parseName, parseTranscriptionForm } from '$lib/registry/forms';
 import type { WorkRef } from '$lib/registry/types';
 import { registry as t } from '$lib/strings/registry';
 import type { Actions, PageServerLoad } from './$types';
@@ -118,10 +120,21 @@ export const load: PageServerLoad = async ({ locals, params }) => {
     sources,
     can: {
       maintain: canMaintainWitness(user, witness, maintainerIds),
+      merge: canMaintainWitness(user, witness, maintainerIds),
+      govern: !!user && governs(user, witness),
       newTranscription: !!user,
     },
+    /** Whether the witness may be deleted now, and why not (E1); null for those who do not govern it. */
+    deletion: user && governs(user, witness) ? await deletionOf(locals, witness.id, user) : null,
   };
 };
+
+/** The checks deleteWitness makes, made in advance so that the menu can say why it is refused. */
+async function deletionOf(locals: App.Locals, witnessId: string, user: Actor): Promise<{ allowed: boolean; reason: string | null }> {
+  const dependents = await witnessDependents(locals.db, witnessId, user.id);
+  const blocked = dependents.editions.length > 0 || dependents.transcriptions > 0 || dependents.records > 0;
+  return { allowed: !blocked, reason: blocked ? t.witness.inUse(describeDependents(dependents, 'readings')) : null };
+}
 
 export const actions: Actions = {
   newTranscription: async ({ locals, params, request }) => {

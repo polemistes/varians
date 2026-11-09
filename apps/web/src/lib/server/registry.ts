@@ -851,7 +851,35 @@ export type DeleteEntryResult =
   | { ok: false; error: 'in-use'; dependents: Dependents };
 
 function mayDeleteEntry(user: Actor | null, entry: { createdBy: string | null }): user is Actor {
-  return !!user && (entry.createdBy === user.id || isAdministrator(user));
+  return !!user && governs(user, entry);
+}
+
+/** Who governs an entry: its creator and administrators. They decide who maintains it, and may delete it. */
+export function governs(user: Actor, entry: { createdBy: string | null }): boolean {
+  return entry.createdBy === user.id || isAdministrator(user);
+}
+
+/** What of others depends on a witness and refuses its deletion by `userId`: editions naming it, others' transcripts and reported readings. */
+export async function witnessDependents(db: Database, witnessId: string, userId: string): Promise<Dependents> {
+  const naming = await db
+    .selectDistinct({ slug: editions.slug, title: editions.title, ownerName: users.name })
+    .from(editionSigla)
+    .innerJoin(editions, eq(editions.id, editionSigla.editionId))
+    .innerJoin(users, eq(users.id, editions.ownerId))
+    .where(eq(editionSigla.witnessId, witnessId));
+  const [othersTranscriptions] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(transcriptions)
+    .where(and(eq(transcriptions.witnessId, witnessId), ne(transcriptions.ownerId, userId)));
+  const [othersReadings] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(reportedReadings)
+    .where(and(eq(reportedReadings.witnessId, witnessId), ne(reportedReadings.ownerId, userId)));
+  return {
+    editions: naming.sort((a, b) => a.title.localeCompare(b.title)),
+    transcriptions: Number(othersTranscriptions?.n ?? 0),
+    records: Number(othersReadings?.n ?? 0),
+  };
 }
 
 /**
@@ -938,25 +966,7 @@ export async function deleteWitness(
   if (!witness) return { ok: false, error: 'not-found' };
   if (!mayDeleteEntry(user, witness)) return { ok: false, error: 'forbidden' };
 
-  const naming = await db
-    .selectDistinct({ slug: editions.slug, title: editions.title, ownerName: users.name })
-    .from(editionSigla)
-    .innerJoin(editions, eq(editions.id, editionSigla.editionId))
-    .innerJoin(users, eq(users.id, editions.ownerId))
-    .where(eq(editionSigla.witnessId, witnessId));
-  const [othersTranscriptions] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(transcriptions)
-    .where(and(eq(transcriptions.witnessId, witnessId), ne(transcriptions.ownerId, user.id)));
-  const [othersReadings] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(reportedReadings)
-    .where(and(eq(reportedReadings.witnessId, witnessId), ne(reportedReadings.ownerId, user.id)));
-  const dependents: Dependents = {
-    editions: naming.sort((a, b) => a.title.localeCompare(b.title)),
-    transcriptions: Number(othersTranscriptions?.n ?? 0),
-    records: Number(othersReadings?.n ?? 0),
-  };
+  const dependents = await witnessDependents(db, witnessId, user.id);
   if (dependents.editions.length || dependents.transcriptions || dependents.records) {
     return { ok: false, error: 'in-use', dependents };
   }

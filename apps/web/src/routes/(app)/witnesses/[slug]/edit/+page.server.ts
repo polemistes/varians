@@ -6,6 +6,7 @@ import { PageError, pagesWithoutRights, parseWitnessImageDefaults, setWitnessIma
 import {
   addMaintainer,
   deleteWitness,
+  governs,
   maintainersOf,
   removeMaintainer,
   updateWitness,
@@ -18,11 +19,6 @@ import { registry as t } from '$lib/strings/registry';
 import type { Actions, PageServerLoad } from './$types';
 
 /** The witness for one of its maintainers; others are refused. */
-/** Who decides who maintains the witness: its creator and administrators. */
-function governs(user: Actor, witness: { createdBy: string | null }): boolean {
-  return witness.createdBy === user.id || isAdministrator(user);
-}
-
 async function maintained(locals: App.Locals, slug: string, user: Actor) {
   const record = await witnessBySlug(locals.db, slug);
   if (!record) error(404, t.witness.notFound);
@@ -65,7 +61,6 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     },
     maintainers,
     can: {
-      delete: governs(user, witness),
       govern: governs(user, witness),
       merge: isAdministrator(user) || witness.createdBy === user.id || maintainerIds.includes(user.id),
     },
@@ -139,6 +134,7 @@ export const actions: Actions = {
     return { form: 'maintainers' as const, name: result.name };
   },
 
+  /** Deleting the witness; asked for on the witness's page. */
   delete: async ({ locals, params }) => {
     const user = requireUser(locals);
     const { witness } = await maintained(locals, params.slug, user);

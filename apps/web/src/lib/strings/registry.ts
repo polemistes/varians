@@ -287,6 +287,10 @@ export const registry = {
     deleteHint:
       'The witness goes with its pages, its images and your transcripts of it. Refused while an edition names it or anything of someone else depends on it.',
     deleteAction: 'Delete this witness',
+    /** The witness page's menu beside Edit. */
+    menu: 'More actions',
+    menuMerge: 'Merge Into…',
+    menuDelete: 'Delete Witness…',
     deleteTitle: 'Delete this witness?',
     deleteConfirm: (name: string) =>
       `${name} will be deleted with its pages, its images and your transcripts of it. This cannot be undone.`,

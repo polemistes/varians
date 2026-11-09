@@ -11,6 +11,7 @@ import { createDatabase, referenceSchemes, transcriptions, users, witnesses, wor
 import { eq } from 'drizzle-orm';
 import { s } from '../src/lib/strings/en';
 import { pageStrings as t } from '../src/lib/strings/pages';
+import { registry as reg } from '../src/lib/strings/registry';
 import { workbench as w } from '../src/lib/strings/workbench';
 
 const DATABASE_URL = 'postgres://varians@127.0.0.1:54329/varians_test';
@@ -252,4 +253,18 @@ test('text on no page is placed page by page, and goes back when its page is rem
   expect(segmentsOf(after, labelOf)).toEqual(before);
   await page.getByRole('button', { name: w.pages.choose }).click();
   await expect(page.getByRole('menuitem', { name: new RegExp(`${w.pages.unplaced}.*${w.pages.unplacedWords(6)}`) })).toBeVisible();
+
+  // The witness is deleted from its own page, with its pages and the transcript of its creator.
+  await page.goto(`/witnesses/${witnessSlug}`);
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: reg.witness.menu }).click();
+  await page.getByRole('menuitem', { name: reg.witness.menuDelete }).click();
+  const confirm = page.getByRole('dialog', { name: reg.witness.deleteTitle });
+  await expect(confirm).toContainText(reg.witness.deleteConfirm(`Codex Paginatus ${stamp}`));
+  await confirm.getByRole('button', { name: reg.common.confirmDelete }).click();
+  await page.waitForURL((url) => url.pathname === '/');
+  const { db: db3, pool: pool3 } = createDatabase(DATABASE_URL);
+  expect(await db3.select().from(witnesses).where(eq(witnesses.slug, witnessSlug))).toEqual([]);
+  expect(await db3.select().from(transcriptions).where(eq(transcriptions.id, transcriptionId))).toEqual([]);
+  await pool3.end();
 });
