@@ -26,6 +26,8 @@ The header leads everywhere else: **Your Work** (all your editions and transcrip
 
 The footer of every page names the version of Varians that runs the site and links its source code.
 
+Your name and your **ORCID iD** on the account page go with your work: the history of every text names you, and the TEI, the citation of an edition and the archive give your ORCID iD where you have given one. If work was brought in from another installation under your ORCID iD before you had an account here, giving the same iD here makes that work yours.
+
 ## A work
 
 Choose **New work** on the **Works** page, or **Register Work** on the front page. As you type the title, works with a similar title or author are shown; if yours is among them, open it instead of making a second one.
@@ -325,7 +327,7 @@ Varians keeps a copy of every work outside its database, in open formats, so tha
 
 Every record of the work is in the archive, so that the work can be rebuilt from it alone. A change is in the archive's files within a minute of the last save. A commit marks every named moment and every publication, in the name of the person who made it, and the rest is committed every night. Anyone signed in who can see the work downloads it from the work's page as a zip, a few times an hour, holding what that person may see: an edition they do not edit comes as its published version, and no one's review positions are included. An administrator gets the server's repository itself, with its history.
 
-The files follow the **Varians Data Format**, whose specification, JSON Schemas and TEI customization every installation serves at [/formats](/formats). `pnpm --filter @varians/web cli import-archive <folder> --user <email>` reads an archive back into an installation, which is also how a work moves from one installation to another.
+The files follow the **Varians Data Format**, whose specification, JSON Schemas and TEI customization every installation serves at [/formats](/formats). `pnpm --filter @varians/web cli import-archive <folder> --user <email>` reads an archive back into an installation, which is also how a work moves from one installation to another. A work already here is brought up to date, never overwritten: a transcript or edition changed only on the other side takes those changes; one changed on both sides in different places takes both, as one change that names what it brings in; one changed on both sides in the same words is left as it is and reported with its segments, and imported again with `--on-conflict keep` (yours stays, theirs is kept in the history unapplied) or `--on-conflict take` (theirs replaces yours, and your state is kept as a moment called "Before import"). `--dry-run` shows what would happen and changes nothing. People are recognized by their ORCID iD; those unknown here are recorded under their names, without an account.
 
 ## Keyboard
 

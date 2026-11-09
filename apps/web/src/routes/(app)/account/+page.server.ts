@@ -10,6 +10,7 @@ import {
 } from '$lib/server/auth';
 import { requireUser } from '$lib/server/guards';
 import { answerOffer, offersOf } from '$lib/server/ownership';
+import { personOfAccount, setOrcid } from '$lib/server/persons';
 import { s } from '$lib/strings';
 import { FONTS, THEMES } from '$lib/types';
 import type { Actions, PageServerLoad } from './$types';
@@ -38,7 +39,8 @@ const text = (form: FormData, name: string) => String(form.get(name) ?? '');
 
 export const load: PageServerLoad = async ({ locals }) => {
   const user = requireUser(locals);
-  return { crumb: { label: s.account.title }, offers: await offersOf(locals.db, user.id) };
+  const person = await personOfAccount(locals.db, user.id, user.name);
+  return { crumb: { label: s.account.title }, offers: await offersOf(locals.db, user.id), orcid: person.orcid };
 };
 
 export const actions: Actions = {
@@ -55,6 +57,21 @@ export const actions: Actions = {
     }
     await updateName(user.id, parsed.data.name);
     return { form: 'name' as const, ok: true };
+  },
+
+  orcid: async ({ request, locals }) => {
+    const user = requireUser(locals);
+    const form = await request.formData();
+    const input = text(form, 'orcid').slice(0, 100);
+    const result = await setOrcid(locals.db, user.id, input);
+    if (!result.ok) {
+      return fail(400, {
+        form: 'orcid' as const,
+        errors: { orcid: [result.error === 'invalid' ? s.account.orcidInvalid : s.account.orcidTaken] },
+        values: { orcid: input },
+      });
+    }
+    return { form: 'orcid' as const, ok: true, claimed: result.claimed, cleared: result.orcid === null };
   },
 
   password: async ({ request, locals, cookies }) => {

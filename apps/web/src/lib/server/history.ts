@@ -35,6 +35,7 @@ import {
   inArray,
   lte,
   moments,
+  persons,
   reviewState,
   segments,
   sql,
@@ -94,7 +95,8 @@ function toCore(row: ChangesetRow): Changeset {
     documentId: row.documentId,
     version: row.version ?? 0,
     parentId: row.parentId,
-    userId: row.userId ?? '',
+    // An author without an account here (an imported change) is named by their person.
+    userId: row.userId ?? row.personId ?? '',
     at: row.at.toISOString(),
     ops: row.ops,
     reverse: row.reverse,
@@ -105,8 +107,12 @@ function toCore(row: ChangesetRow): Changeset {
 async function namesOf(db: Database, ids: Iterable<string | null | undefined>): Promise<Record<string, string>> {
   const list = [...new Set([...ids].filter((id): id is string => !!id))];
   if (list.length === 0) return {};
+  // Accounts and their persons share ids; persons without an account are named too.
   const rows = await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, list));
-  return Object.fromEntries(rows.map((r) => [r.id, r.name]));
+  const found = Object.fromEntries(rows.map((r) => [r.id, r.name]));
+  const rest = list.filter((id) => !(id in found));
+  if (rest.length) for (const p of await db.select({ id: persons.id, name: persons.name }).from(persons).where(inArray(persons.id, rest))) found[p.id] = p.name;
+  return found;
 }
 
 async function labelsOf(db: Database, ids: Iterable<string | null | undefined>): Promise<Record<string, string>> {
@@ -133,8 +139,8 @@ function toMoment(row: Moment, people: Record<string, string>): HistoryMoment {
     name: row.name,
     kind: row.kind,
     number: row.number,
-    createdBy: row.createdBy,
-    createdByName: row.createdBy ? personName(people, row.createdBy) : null,
+    createdBy: row.createdBy ?? row.personId,
+    createdByName: (row.createdBy ?? row.personId) ? personName(people, (row.createdBy ?? row.personId)!) : null,
     at: row.at.toISOString(),
   };
 }
@@ -150,7 +156,7 @@ async function momentRows(db: Database, kind: DocumentKind, documentId: string):
 /** The named moments of a document, newest first. */
 export async function momentsOf(db: Database, kind: DocumentKind, documentId: string): Promise<HistoryMoment[]> {
   const rows = await momentRows(db, kind, documentId);
-  const people = await namesOf(db, rows.map((r) => r.createdBy));
+  const people = await namesOf(db, rows.map((r) => r.createdBy ?? r.personId));
   return rows.map((r) => toMoment(r, people));
 }
 
@@ -195,7 +201,7 @@ export async function historyOf(db: Database, kind: DocumentKind, documentId: st
   });
 
   const momentList = await momentRows(db, kind, documentId);
-  const people = await namesOf(db, [...log.map((c) => c.userId), ...momentList.map((m) => m.createdBy)]);
+  const people = await namesOf(db, [...log.map((c) => c.userId), ...momentList.map((m) => m.createdBy ?? m.personId)]);
   const countsOf = (c: Changeset) => perChangeset.get(c.id) ?? countOps(c.ops);
 
   const sessionList: HistorySession[] = grouped

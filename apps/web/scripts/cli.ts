@@ -5,7 +5,7 @@
  *   pnpm --filter @varians/web cli export-all [--root DIR]
  *   pnpm --filter @varians/web cli check-archive [<work-slug>] [--root DIR]
  *   pnpm --filter @varians/web cli write-example [--out DIR]
- *   pnpm --filter @varians/web cli import-archive <dir>  --user <email>
+ *   pnpm --filter @varians/web cli import-archive <dir> --user <email> [--on-conflict keep|take] [--dry-run]
  *   pnpm --filter @varians/web cli seed-sample --user <email>
  *   pnpm --filter @varians/web cli make-admin <email>
  *   pnpm --filter @varians/web cli reset-password <email>
@@ -97,10 +97,28 @@ async function main(): Promise<void> {
       case 'import-archive': {
         const dir = args[0];
         const email = flag(args, 'user');
-        if (!dir || !email) throw new Error('usage: import-archive <dir> --user <email>');
+        if (!dir || !email) throw new Error('usage: import-archive <dir> --user <email> [--on-conflict keep|take] [--dry-run]');
+        const policy = flag(args, 'on-conflict');
+        if (policy !== undefined && policy !== 'keep' && policy !== 'take') throw new Error('--on-conflict is keep or take');
         const user = await userByEmail(db, email);
-        const report = await importArchive(db, path.resolve(dir), user.id);
-        console.log(JSON.stringify(report, null, 2));
+        const report = await importArchive(db, path.resolve(dir), user.id, {
+          ...(policy ? { onConflict: policy } : {}),
+          dryRun: args.includes('--dry-run'),
+          source: path.basename(path.resolve(dir)),
+        });
+        if (report.dryRun) console.log('A preview: nothing was changed.');
+        for (const d of report.documents) {
+          const where = d.segments.length ? ` (segments ${d.segments.join(', ')})` : '';
+          console.log(`  ${d.result.padEnd(12)} ${d.kind} ${d.name}${where}`);
+        }
+        for (const m of report.matches) console.log(`  matched      ${m.kind} ${m.incomingId} to ${m.localId} by ${m.by}${m.value ? ` ${m.value}` : ''}`);
+        for (const w of report.possibleDuplicates) console.log(`  duplicate?   witness ${w.name} may be ${w.localName} (${w.localId})`);
+        if (report.persons.created) console.log(`  persons new here: ${report.persons.createdNames.join(', ')}`);
+        for (const w of report.warnings) console.log(`  warning: ${w}`);
+        if (report.documents.some((d) => d.result === 'conflict')) {
+          console.log('Conflicting documents were left as they are: import again with --on-conflict keep or --on-conflict take.');
+          process.exitCode = 2;
+        }
         break;
       }
       case 'seed-sample': {

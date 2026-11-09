@@ -13,6 +13,7 @@ export * from './edition/adopt.ts';
 export * from './edition/derive.ts';
 export * from './scheme/mapping.ts';
 export * from './scheme/urn.ts';
+export * from './people/orcid.ts';
 export * from './edition/layout.ts';
 export * from './tei/index.ts';
 export * from './tei/apparatus.ts';

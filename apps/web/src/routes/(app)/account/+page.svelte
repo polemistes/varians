@@ -1,5 +1,6 @@
 <script lang="ts">
   import NameForm from '$lib/components/account/NameForm.svelte';
+  import OrcidForm from '$lib/components/account/OrcidForm.svelte';
   import PasswordForm from '$lib/components/account/PasswordForm.svelte';
   import PreferencesForm from '$lib/components/account/PreferencesForm.svelte';
   import SettingsSection from '$lib/components/account/SettingsSection.svelte';
@@ -42,6 +43,9 @@
     {/if}
     <SettingsSection title={s.account.nameSection} hint={s.account.nameHint}>
       <NameForm name={data.user.name} result={form} />
+    </SettingsSection>
+    <SettingsSection title={s.account.orcidSection} hint={s.account.orcidHint}>
+      <OrcidForm orcid={data.orcid} result={form} />
     </SettingsSection>
     <SettingsSection title={s.account.passwordSection}>
       <PasswordForm result={form} />
