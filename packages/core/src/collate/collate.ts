@@ -97,6 +97,12 @@ export interface Site {
   kind: SiteKind;
   /** The editor set the kind, over what the letters say. */
   kindByEditor?: boolean;
+  /**
+   * The site over the whole segment that some witness lacks entirely
+   * (omits it, or has lost it): it stands beside the segment's other sites,
+   * which are found without those witnesses, and overlaps them.
+   */
+  wanting?: boolean;
 }
 
 export type SiteKind = 'textual' | 'interpretative';
@@ -146,8 +152,13 @@ export function collate(base: CollationText, witnesses: CollationText[], options
   let columns: Column[] = base.units.map((_, i) => ({ cells: new Map([[base.id, { unitIndex: i }]]) }));
   const absent: Id[] = [];
   const transpositions: { textId: Id; insertedColumn: number; omittedColumn: number }[] = [];
+  // Witnesses that lack the whole segment: present without words, or with nothing but a gap.
+  const omitting = witnesses.filter((w) => w.present && w.units.length === 0);
+  const lost = witnesses.filter((w) => w.units.length > 0 && w.units.every((u) => u.gap));
+  const wanting = new Set([...omitting, ...lost].map((w) => w.id));
 
   for (const witness of witnesses) {
+    if (wanting.has(witness.id)) continue;
     if (witness.units.length === 0) {
       if (!witness.present) absent.push(witness.id);
       continue;
@@ -159,14 +170,63 @@ export function collate(base: CollationText, witnesses: CollationText[], options
   }
 
   // A text without the segment at all is absent, not omitting: it stands in no site.
-  // A text present without units stands in no column, and omits every one.
+  // A text that lacks the whole segment stands in one site of its own over all of it.
   const absentSet = new Set(absent);
-  const present = texts.filter((t) => !absentSet.has(t.id));
+  const present = texts.filter((t) => !absentSet.has(t.id) && !wanting.has(t.id));
   const anchors = anchorColumns(columns, base.id, keys, present.map((t) => t.id));
   const sites = buildSites(columns, anchors, base, present, keys, bare, transpositions, reach);
+  if (wanting.size > 0 && base.units.some((u) => !u.gap)) sites.push(wantingSite(sites.length, columns.length, base, present, keys, omitting, lost));
   const sigla: Record<Id, string> = {};
   for (const text of texts) sigla[text.id] = text.siglum;
   return { columns, sites, anchors, baseId: base.id, absent, sigla };
+}
+
+/**
+ * The site over the whole segment for the witnesses that lack it: the base
+ * with every witness that has the passage (whatever its words there, which
+ * the other sites report), against an omission and a loss.
+ */
+function wantingSite(
+  index: number,
+  columnCount: number,
+  base: CollationText,
+  present: CollationText[],
+  keys: Map<Id, string[]>,
+  omitting: CollationText[],
+  lost: CollationText[],
+): Site {
+  const words = base.units.filter((u) => !u.gap);
+  const having: Reading = {
+    text: words.map((u) => u.text).join(' '),
+    fold: base.units.map((u, i) => (u.gap ? '' : keyOf(keys, base.id, i))).filter((k) => k !== '').join(' '),
+    textIds: present.map((t) => t.id),
+    sigla: present.map((t) => t.siglum),
+    units: Object.fromEntries(present.map((t) => [t.id, t.units.filter((u) => !u.gap)] as const)),
+    omission: false,
+    lacunose: false,
+    base: true,
+  };
+  const lacking = (texts: CollationText[], lacunose: boolean): Reading => ({
+    text: '',
+    fold: '',
+    textIds: texts.map((t) => t.id),
+    sigla: texts.map((t) => t.siglum),
+    units: Object.fromEntries(texts.map((t) => [t.id, []] as const)),
+    omission: !lacunose,
+    lacunose,
+    base: false,
+  });
+  const readings = [having, ...(omitting.length ? [lacking(omitting, false)] : []), ...(lost.length ? [lacking(lost, true)] : [])];
+  return {
+    index,
+    columnFrom: 0,
+    columnTo: columnCount,
+    baseFrom: 0,
+    baseTo: base.units.length,
+    readings,
+    kind: 'textual',
+    wanting: true,
+  };
 }
 
 function keyOf(keys: Map<Id, string[]>, textId: Id, unitIndex: number): string {
@@ -606,7 +666,8 @@ export function siteKey(site: Site, baseUnits: Unit[]): string {
   if (site.baseTo > site.baseFrom) {
     const ids = new Set<string>();
     for (let i = site.baseFrom; i < site.baseTo; i++) for (const id of baseUnits[i]?.tokenIds ?? []) ids.add(id);
-    return [...ids].join(',');
+    // The site of the witnesses lacking the segment may cover the same words as another: it is told apart.
+    return (site.wanting ? 'wanting:' : '') + [...ids].join(',');
   }
   const before = baseUnits[site.baseFrom - 1]?.tokenIds.join(',') ?? '^';
   const after = baseUnits[site.baseFrom]?.tokenIds.join(',') ?? '$';

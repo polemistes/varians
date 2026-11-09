@@ -63,6 +63,18 @@ describe('sites and selections', () => {
     expect([start.baseFrom, start.baseTo]).toEqual([0, 0]);
   });
 
+  it('keeps a conjecture on one word apart from the site of a witness lacking the segment', () => {
+    const stream = fromText('the quick brown fox', { ids: sequentialIds('w1e') });
+    (stream.items[0] as Token).segment = { segmentId: 'w1' };
+    const baseUnits = units(stream, 0, stream.items.length);
+    const collation = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [{ id: 'B', siglum: 'B', units: [], present: true }]);
+    const lacking: SegmentViewClient = { segmentId: 'w1', label: 'w1', collation, baseUnits, entries: [], attachments: {}, unplaced: [], absent: [], notes: [] };
+    expect(collation.sites.map((x) => x.wanting ?? false)).toEqual([true]);
+    const one = siteForTokens(lacking, ['w1e2'])!;
+    expect([one.index, one.baseFrom, one.baseTo]).toEqual([-1, 1, 2]);
+    expect(siteForTokens(lacking, ['w1e1', 'w1e2', 'w1e3', 'w1e4'])!.wanting).toBe(true);
+  });
+
   it('indexes witness words and finds the words of a witness at a site', () => {
     const index = witnessIndex([segment]);
     expect(index.get('s1B2')?.textId).toBe('B');

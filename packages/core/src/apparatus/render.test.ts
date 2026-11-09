@@ -118,8 +118,8 @@ describe('a whole segment a witness lacks', () => {
     expect(formatApparatus(apparatusEntries(collate(text('E', 'ed', 'a b c d'), [within]), '4', {}))).toEqual(['4 b c : lac. B']);
   });
 
-  it('prints the whole lemma when another witness has words of its own there', () => {
+  it('prints the other variants of the segment as entries of their own', () => {
     const c = collate(text('E', 'ed', 'a b c d'), [text('A', 'A', 'a x c d'), { ...text('B', 'B', ''), present: true }]);
-    expect(formatApparatus(apparatusEntries(c, '5', {}))).toEqual(['5 a b c d : a x c d A : om. B']);
+    expect(formatApparatus(apparatusEntries(c, '5', {}))).toEqual(['5 b : x A', '5 a … d A : om. B']);
   });
 });

@@ -140,7 +140,7 @@ describe('witnesses that lack a whole segment', () => {
     const empty = { ...text('B', 'B', ''), present: true };
     const c = collate(text('E', 'ed', 'μῆνιν ἄειδε θεὰ'), [text('A', 'A', 'μῆνιν ἄειδε θεὰ'), empty, text('C', 'C', '')]);
     expect(c.absent).toEqual(['C']);
-    expect(c.anchors).toEqual([]);
+    expect(c.anchors).toEqual([0, 1, 2]);
     expect(summary(c)).toEqual(['μῆνιν ἄειδε θεὰ edA : om. B']);
   });
 
@@ -149,11 +149,13 @@ describe('witnesses that lack a whole segment', () => {
     expect(summary(c)).toEqual(['μῆνιν ἄειδε θεὰ edA : lac. B']);
   });
 
-  it('keeps the words of a second witness beside the lacking one', () => {
+  it('keeps the variants of a second witness in sites of their own beside the lacking one', () => {
     const empty = { ...text('B', 'B', ''), present: true };
     const c = collate(text('E', 'ed', 'μῆνιν ἄειδε θεὰ'), [text('A', 'A', 'μῆνιν ἄειδε θεός'), empty]);
-    expect(c.sites).toHaveLength(1);
-    expect(c.sites[0]!.readings.map((r) => r.sigla.join(''))).toEqual(['ed', 'A', 'B']);
-    expect(c.sites[0]!.readings[2]!.omission).toBe(true);
+    expect(summary(c)).toEqual(['θεὰ ed : θεός A', 'μῆνιν ἄειδε θεὰ edA : om. B']);
+    expect(c.anchors).toEqual([0, 1]);
+    const whole = c.sites[1]!;
+    expect(whole).toMatchObject({ wanting: true, baseFrom: 0, baseTo: 3, columnFrom: 0, columnTo: 3 });
+    expect(whole.readings[1]!.omission).toBe(true);
   });
 });

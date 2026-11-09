@@ -67,10 +67,15 @@ function unitRange(segment: SegmentViewClient, tokenIds: Id[]): { from: number; 
   return from < 0 ? null : { from, to };
 }
 
-/** A site over a free selection of the edition's words, for registering and adopting a conjecture there. */
+/**
+ * A site over a free selection of the edition's words, for registering and
+ * adopting a conjecture there. The site of witnesses lacking the whole
+ * segment is taken only for a selection of the whole segment.
+ */
 export function siteForTokens(segment: SegmentViewClient, tokenIds: Id[]): Site | null {
   const covering = segment.collation.sites.find((site) => {
     const ids = new Set(siteTokenIds(site, segment.baseUnits));
+    if (site.wanting && ids.size !== new Set(tokenIds).size) return false;
     return tokenIds.length > 0 && tokenIds.every((id) => ids.has(id));
   });
   if (covering) return covering;
@@ -170,6 +175,8 @@ export function activeSiteFor(segments: Iterable<SegmentViewClient>, tokenIds: I
   for (const segment of segments) {
     for (const site of segment.collation.sites) {
       const ids = new Set(siteTokenIds(site, segment.baseUnits));
+      // The site of a witness lacking the segment is the caret's only when the whole segment is selected.
+      if (site.wanting && !(tokenIds.length > 0 && [...ids].every((id) => tokenIds.includes(id)))) continue;
       if (wanted.some((id) => ids.has(id))) return { segmentId: segment.segmentId, siteIndex: site.index };
     }
   }
