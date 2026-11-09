@@ -24,8 +24,10 @@ export interface PageView {
   image: { kind: 'file' | 'iiif'; url: string } | null;
   /** Zones drawn on it. */
   zones: number;
-  /** Transcriptions whose page breaks name it. */
+  /** Transcripts with text on it. */
   transcriptions: number;
+  /** Words on it, in all transcripts. */
+  words: number;
   /** The image's rights statement (a listed address), credit line and source; null where not given. */
   rights: string | null;
   attribution: string | null;

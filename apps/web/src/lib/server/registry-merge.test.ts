@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { SCHEME_PRESETS, fromText, newId, type Item, type Stream, type Token } from '@varians/core';
+import { SCHEME_PRESETS, conformPages, fromText, newId, type Item, type Stream, type Token } from '@varians/core';
 import {
   alignmentConstraints,
   changesets,
@@ -249,13 +249,24 @@ describe('merging witnesses', () => {
       identifiers: [{ scheme: 'viaf', value: '42' }],
     });
     await addMaintainer(db, 'witness', from.id, carol.email);
+    const page3r = newId();
+    const page3v = newId();
     await db.insert(pages).values([
       { id: newId(), witnessId: into.id, label: '1r', position: 1 },
       { id: newId(), witnessId: into.id, label: '1v', position: 2 },
-      { id: newId(), witnessId: from.id, label: '3v', position: 7 },
-      { id: newId(), witnessId: from.id, label: '3r', position: 5 },
+      { id: page3v, witnessId: from.id, label: '3v', position: 7 },
+      { id: page3r, witnessId: from.id, label: '3r', position: 5 },
     ]);
     const tr = await createTranscription(db, { witnessId: from.id, workIds: [w.id], name: 'T' }, bob.id);
+    const paged: Stream = {
+      items: [
+        { kind: 'break', id: newId(), type: 'page', pageId: page3r },
+        { kind: 'token', id: newId(), form: 'a' },
+        { kind: 'break', id: newId(), type: 'page', pageId: page3v },
+        { kind: 'token', id: newId(), form: 'b' },
+      ],
+    };
+    await db.update(transcriptions).set({ content: paged }).where(eq(transcriptions.id, tr.id));
     const segment = await segmentId(w.id, '1.1');
     const [reading] = await db
       .insert(reportedReadings)
@@ -288,6 +299,9 @@ describe('merging witnesses', () => {
     expect((await db.select().from(moments).where(eq(moments.id, momentId)))[0]!.basis!.sigla[0]!.witnessId).toBe(into.id);
     const pageRows = await db.select().from(pages).where(eq(pages.witnessId, into.id)).orderBy(pages.position);
     expect(pageRows.map((p) => p.label)).toEqual(['1r', '1v', '3r', '3v']);
+    // The merged transcript's page breaks keep their order among the survivor's pages: nothing to conform.
+    const [moved] = await db.select({ content: transcriptions.content }).from(transcriptions).where(eq(transcriptions.id, tr.id));
+    expect(conformPages(moved!.content, pageRows.map((p) => p.id))).toEqual([]);
     const maintainerIds = (await db.select().from(witnessMaintainers).where(eq(witnessMaintainers.witnessId, into.id))).map((m) => m.userId);
     expect(maintainerIds.sort()).toEqual([alice.id, carol.id].sort());
     const [survivor] = await db.select().from(witnesses).where(eq(witnesses.id, into.id));

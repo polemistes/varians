@@ -51,10 +51,10 @@ describe('seedSample', () => {
     expect(lines).toContain('1.2 ἄλγε᾽ ἔθηκε A C : ἄλγεα θῆκε B');
     expect(lines.some((l) => l.startsWith('1.9 Λητοῦς καὶ Διὸς A C : Διὸς καὶ Λητοῦς B'))).toBe(true);
     expect(lines.some((l) => l.startsWith('1.5') && l.includes('lac. C'))).toBe(true);
-    // Line 6 is absent from B and C, so it has no sites at all.
+    // B and C lack line 6 within the stretch they cover: one site over the whole line, which they omit.
     const six = [...collations.entries()].find(([id]) => labelOf.get(id) === '1.6')![1];
-    expect(six.absent.length).toBe(2);
-    expect(six.sites).toEqual([]);
+    expect(six.absent).toEqual([]);
+    expect(lines).toContain('1.6 ἐξ … ἐρίσαντε A : om. B C');
     // The cache answers the second time.
     const again = await collateEdition(db, context);
     expect(again.size).toBe(10);

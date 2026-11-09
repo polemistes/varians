@@ -335,33 +335,27 @@ export const actions: Actions = {
     if (!Number.isInteger(to) || to < 1 || to > count) {
       return fail(400, { action: 'move' as const, ok: false as const, pageId: page.id, error: t.move.invalid(count) });
     }
-    const list = await movePage(locals.db, page.id, to - 1);
+    const list = await movePage(locals.db, page.id, to - 1, locals.user?.id ?? null);
     if (!list) return fail(404, { action: 'move' as const, ok: false as const, error: t.errors.pageNotFound });
     const position = list.findIndex((p) => p.id === page.id) + 1;
     return { action: 'move' as const, ok: true as const, message: t.move.moved(page.label, position) };
   },
 
-  /** Refused with the reason when something refers to the page, unless `force` is 1. */
+  /** The page's text goes to Not on a page in every transcript; its image and zones go with it. */
   remove: async ({ request, locals, params }) => {
     const witness = await maintainedWitness(locals, params.slug);
     const form = await readForm(request);
     if (!form) return fail(400, { action: 'remove' as const, ok: false as const, error: t.upload.network });
     const page = await pageOfWitness(locals.db, witness.id, text(form, 'pageId'));
     if (!page) return fail(404, { action: 'remove' as const, ok: false as const, error: t.errors.pageNotFound });
-    const result = await removePage(locals.db, page.id, storageDir(), text(form, 'force') === '1');
-    if (!result.ok) {
-      if (result.reason === 'not-found') {
-        return fail(404, { action: 'remove' as const, ok: false as const, error: t.errors.pageNotFound });
-      }
-      return fail(409, {
-        action: 'remove' as const,
-        ok: false as const,
-        pageId: page.id,
-        refused: true as const,
-        error: result.message,
-      });
-    }
-    return { action: 'remove' as const, ok: true as const, message: t.remove.removed(page.label) };
+    const result = await removePage(locals.db, page.id, storageDir(), locals.user?.id ?? null);
+    if (!result.ok) return fail(404, { action: 'remove' as const, ok: false as const, error: t.errors.pageNotFound });
+    const { words, transcriptions } = result.moved;
+    return {
+      action: 'remove' as const,
+      ok: true as const,
+      message: words > 0 ? t.remove.moved(page.label, words, transcriptions) : t.remove.removed(page.label),
+    };
   },
 
   preview: async ({ request, locals, params }) => {
@@ -423,6 +417,7 @@ export const actions: Actions = {
         replace,
         onlyNew: !replace,
         storageRoot: storageDir(),
+        actor: locals.user?.id ?? null,
       });
       const summary: ImportSummaryView = { ...found };
       return { action: 'import' as const, ok: true as const, message: t.manifest.imported(summary), summary };

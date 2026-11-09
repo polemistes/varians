@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { sequentialIds } from '../ids.ts';
 import type { Break, Item, Stream, Token } from './items.ts';
-import { conformPages, moveRun, moveToPage, pageBreakPlace, repairSegmentStarts } from './move.ts';
+import { conformPages, insertIntoPage, moveRun, moveToPage, pageBreakPlace, repairSegmentStarts, repairSegmentStartsFrom } from './move.ts';
 import { applyOps, type Op } from './ops.ts';
 import { runsOfSegment, segmentAt, segmentUnits } from './words.ts';
 
@@ -242,5 +242,29 @@ describe('repairSegmentStarts', () => {
   it('changes nothing when no word has a new neighbour', () => {
     const s = build('a@s1 b / c');
     expect(repairSegmentStarts(s, s)).toEqual([]);
+  });
+});
+
+describe('insertIntoPage', () => {
+  it('appends to a page with text after a line break, and creates a missing page in its place', () => {
+    const s = build('u #p1 a #p3 c');
+    const items = build('x y').items;
+    const onP1 = applyOps(s, insertIntoPage(s, items, 'p1', { pageOrder: ['p1', 'p2', 'p3'], ids: sequentialIds('n') })).stream;
+    expect(show(onP1)).toBe('u #p1 a / x y #p3 c');
+    const onP2 = applyOps(s, insertIntoPage(s, build('x y').items, 'p2', { pageOrder: ['p1', 'p2', 'p3'], ids: sequentialIds('n') })).stream;
+    expect(show(onP2)).toBe('u #p1 a #p2 x y #p3 c');
+    const unplaced = applyOps(build('#p1 a'), insertIntoPage(build('#p1 a'), build('x').items, null, { pageOrder: ['p1'] })).stream;
+    expect(show(unplaced)).toBe('x #p1 a');
+  });
+});
+
+describe('repairSegmentStartsFrom', () => {
+  it('keeps the segments an imported text gave its words, wherever they are placed', () => {
+    const current = build('a@s1 b #p1 c');
+    const imported = build('x y@s2 z');
+    // x has no segment in the import; placed after b it would join s1 by flow.
+    const placed = { items: [...current.items.slice(0, 2), ...imported.items, ...current.items.slice(2)] };
+    const after = applyOps(placed, repairSegmentStartsFrom([current, imported], placed)).stream;
+    expect(show(after)).toBe('a@s1.1 b x@- y@s2 z #p1 c@s1.2');
   });
 });

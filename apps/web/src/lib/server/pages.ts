@@ -6,8 +6,9 @@
  * the pages screen (PLAN 4.10, 6.1).
  *
  * Other records refer to pages by id: zones are drawn on them, and the page
- * breaks of a transcription name the page they begin. Removing a referenced
- * page is refused unless forced.
+ * breaks of a transcription name the page they begin. Removing a page moves
+ * its text to Not on a page in every transcript; reordering pages reorders
+ * the transcripts' text (PLAN-3 B1, B2).
  *
  * Mutations of a witness's list lock the witness row, so that positions stay
  * consistent when two maintainers work at once.
@@ -56,6 +57,7 @@ import { dziPath, imageDir, removePageFiles, storageDir, swapPageFiles, tilesDir
 import { pageImage } from '$lib/server/page-source';
 import { DEFAULT_MAX_UPLOAD_BYTES, TILE_SIZE, UploadError, acceptUpload } from '$lib/server/images/tiles';
 import { pageStrings } from '$lib/strings/pages';
+import { conformTranscription, wordsOnPage, type ConformOutcome } from '$lib/server/conform';
 
 export { expandLabels };
 
@@ -156,18 +158,15 @@ export async function pageById(db: Db, pageId: string): Promise<Page | null> {
 
 export interface PageReferences {
   zones: number;
-  /** Transcriptions whose page breaks name the page. */
-  transcriptions: { id: string; name: string; owner: string | null }[];
+  /** Transcriptions whose page breaks name the page, with the number of words on it in each. */
+  transcriptions: { id: string; name: string; owner: string | null; words: number }[];
 }
-
-/** The JSONPath of the pages a transcription's page breaks name. */
-const PAGE_BREAK_IDS = '$.items[*] ? (@.kind == "break" && @.type == "page").pageId';
 
 /** What refers to one page: zones drawn on it and transcriptions whose page breaks name it. */
 export async function referencesOf(db: Db, page: Pick<Page, 'id' | 'witnessId'>): Promise<PageReferences> {
   const [zoneCount] = await db.select({ n: count() }).from(zones).where(eq(zones.pageId, page.id));
   const breaking = await db
-    .select({ id: transcriptions.id, name: transcriptions.name, owner: users.name })
+    .select({ id: transcriptions.id, name: transcriptions.name, owner: users.name, content: transcriptions.content })
     .from(transcriptions)
     .leftJoin(users, eq(users.id, transcriptions.ownerId))
     .where(
@@ -177,20 +176,26 @@ export async function referencesOf(db: Db, page: Pick<Page, 'id' | 'witnessId'>)
       ),
     )
     .orderBy(asc(transcriptions.name));
-  return { zones: zoneCount?.n ?? 0, transcriptions: breaking };
+  return {
+    zones: zoneCount?.n ?? 0,
+    transcriptions: breaking.map(({ content, ...rest }) => ({ ...rest, words: wordsOnPage(content, page.id) })),
+  };
 }
 
 export interface ReferenceCount {
   zones: number;
+  /** Transcripts with text on the page. */
   transcriptions: number;
+  /** Words on the page, in all transcripts. */
+  words: number;
 }
 
-/** For every referenced page of a witness: how many zones are on it and how many transcriptions break to it. */
+/** For every referenced page of a witness (zones drawn on it, or a transcript's page break naming it): its zones, and the transcripts and words on it. */
 export async function referenceCounts(db: Db, witnessId: string): Promise<Map<string, ReferenceCount>> {
   const counts = new Map<string, ReferenceCount>();
   const entry = (id: string) => {
     let found = counts.get(id);
-    if (!found) counts.set(id, (found = { zones: 0, transcriptions: 0 }));
+    if (!found) counts.set(id, (found = { zones: 0, transcriptions: 0, words: 0 }));
     return found;
   };
   const zoneRows = await db
@@ -200,13 +205,25 @@ export async function referenceCounts(db: Db, witnessId: string): Promise<Map<st
     .where(eq(pages.witnessId, witnessId))
     .groupBy(zones.pageId);
   for (const row of zoneRows) entry(row.pageId).zones = row.n;
-  const breakRows = await db.execute<{ page_id: string | null; n: number }>(sql`
-    select b.page_id #>> '{}' as page_id, count(distinct t.id)::int as n
-    from transcriptions t, jsonb_path_query(t.content, ${PAGE_BREAK_IDS}::jsonpath) as b(page_id)
-    where t.witness_id = ${witnessId}
-    group by 1
-  `);
-  for (const row of breakRows.rows) if (row.page_id) entry(row.page_id).transcriptions = Number(row.n);
+  const texts = await db.select({ content: transcriptions.content }).from(transcriptions).where(eq(transcriptions.witnessId, witnessId));
+  for (const { content } of texts) {
+    let current: ReferenceCount | null = null;
+    let words = 0;
+    const close = () => {
+      if (current && words > 0) {
+        current.transcriptions++;
+        current.words += words;
+      }
+      words = 0;
+    };
+    for (const item of content.items) {
+      if (item.kind === 'break' && item.type === 'page') {
+        close();
+        current = item.pageId ? entry(item.pageId) : null;
+      } else if (item.kind === 'token' && current) words++;
+    }
+    close();
+  }
   return counts;
 }
 
@@ -239,10 +256,12 @@ export async function renamePage(db: Database, pageId: string, label: string): P
 
 /**
  * Moves a page to an index of its witness's list (0 is the first; values
- * outside the list go to its ends) and renumbers the list 1..n. Returns the
+ * outside the list go to its ends) and renumbers the list 1..n. The
+ * transcripts of the witness follow: their pages' texts are put in the new
+ * order, as a change in each one's history made by `actor`. Returns the
  * list in its new order, or null when the page does not exist.
  */
-export async function movePage(db: Database, pageId: string, toIndex: number): Promise<Page[] | null> {
+export async function movePage(db: Database, pageId: string, toIndex: number, actor: string | null = null): Promise<Page[] | null> {
   const page = await pageById(db, pageId);
   if (!page) return null;
   return db.transaction(async (tx) => {
@@ -253,45 +272,78 @@ export async function movePage(db: Database, pageId: string, toIndex: number): P
     const to = Math.min(Math.max(Math.trunc(Number.isFinite(toIndex) ? toIndex : 0), 0), list.length - 1);
     const [moved] = list.splice(from, 1);
     list.splice(to, 0, moved!);
-    await renumber(tx, list.map((p) => p.id));
+    const order = list.map((p) => p.id);
+    await renumber(tx, order);
+    await conformTranscriptsOf(tx, page.witnessId, order, actor, pageStrings.history.reordered, 2);
     return list.map((p, i) => ({ ...p, position: i + 1 }));
   });
 }
 
+/**
+ * Conform the transcripts of a witness to a page order, inside the caller's
+ * transaction. `minBreaks`: only transcripts with at least this many page
+ * breaks can be out of shape (2 for a reordering, 1 for a removal).
+ */
+async function conformTranscriptsOf(
+  tx: Database,
+  witnessId: string,
+  order: readonly string[],
+  actor: string | null,
+  message: string,
+  minBreaks: number,
+): Promise<ConformOutcome[]> {
+  const rows = await tx
+    .select({ id: transcriptions.id, content: transcriptions.content })
+    .from(transcriptions)
+    .where(eq(transcriptions.witnessId, witnessId))
+    .orderBy(asc(transcriptions.id));
+  const out: ConformOutcome[] = [];
+  for (const row of rows) {
+    const breaks = row.content.items.filter((item) => item.kind === 'break' && item.type === 'page').length;
+    if (breaks < minBreaks) continue;
+    const outcome = await conformTranscription(tx, row.id, order, actor, message);
+    if (outcome) out.push(outcome);
+  }
+  return out;
+}
+
 export type RemovePageResult =
-  | { ok: true; page: Page }
-  | { ok: false; reason: 'not-found' }
-  | { ok: false; reason: 'referenced'; references: PageReferences; message: string };
+  | { ok: true; page: Page; moved: { words: number; transcriptions: number } }
+  | { ok: false; reason: 'not-found' };
 
 /**
- * Removes a page and its image files. Refused, with a message saying why,
- * when zones or a transcription's page breaks refer to it, unless `force`:
- * then the zones go with the page and the page breaks are left without one.
+ * Removes a page, its zones and its image files. Text is never deleted:
+ * the text on the page goes to Not on a page in every transcript of the
+ * witness, as a change in each one's history made by `actor`. Returns how
+ * many words of how many transcripts moved.
  */
 export async function removePage(
   db: Database,
   pageId: string,
   storageRoot: string = storageDir(),
-  force = false,
+  actor: string | null = null,
 ): Promise<RemovePageResult> {
   const page = await pageById(db, pageId);
   if (!page) return { ok: false, reason: 'not-found' };
-  if (!force) {
-    const references = await referencesOf(db, page);
-    if (references.zones > 0 || references.transcriptions.length > 0) {
-      const names = references.transcriptions.map((t) => pageStrings.remove.transcription(t.name, t.owner));
-      return {
-        ok: false,
-        reason: 'referenced',
-        references,
-        message: pageStrings.remove.refused(page.label, references.zones, names),
-      };
-    }
-  }
-  const [removed] = await db.delete(pages).where(eq(pages.id, pageId)).returning();
-  if (!removed) return { ok: false, reason: 'not-found' };
+  const result = await db.transaction(async (tx) => {
+    await lockWitness(tx, page.witnessId);
+    const before = await tx
+      .select({ id: transcriptions.id, content: transcriptions.content })
+      .from(transcriptions)
+      .where(eq(transcriptions.witnessId, page.witnessId));
+    const counts = before.map((row) => wordsOnPage(row.content, pageId));
+    const [removed] = await tx.delete(pages).where(eq(pages.id, pageId)).returning();
+    if (!removed) return null;
+    const order = (await pagesOfWitness(tx, page.witnessId)).map((p) => p.id);
+    await conformTranscriptsOf(tx, page.witnessId, order, actor, pageStrings.history.removed(page.label), 1);
+    return {
+      page: removed,
+      moved: { words: counts.reduce((a, b) => a + b, 0), transcriptions: counts.filter((n) => n > 0).length },
+    };
+  });
+  if (!result) return { ok: false, reason: 'not-found' };
   await removePageFiles(pageId, storageRoot);
-  return { ok: true, page: removed };
+  return { ok: true, ...result };
 }
 
 // Rights of images (PLAN-2 D5)
@@ -845,6 +897,8 @@ export async function previewManifest(url: string, existing: ExistingPage[] = []
 }
 
 export interface ImportOptions {
+  /** Who imports: the transcripts conformed to a new order of the pages record the change as theirs. */
+  actor?: string | null;
   /** First remove the pages nothing refers to; the manifest then makes the list. */
   replace?: boolean;
   /** Skip canvases whose image a page already shows. */
@@ -1023,6 +1077,8 @@ export async function importManifest(
         .where(eq(pages.id, id));
     }
     await renumber(tx, order);
+    // Matching may put pages already there in the manifest's order; the transcripts follow.
+    if (match) await conformTranscriptsOf(tx, witnessId, order, options.actor ?? null, pageStrings.history.reordered, 2);
     await tx.update(witnesses).set({ iiifManifest: manifestUrl }).where(eq(witnesses.id, witnessId));
 
     return {
@@ -1132,6 +1188,7 @@ export async function pageViewsOf(db: Db, witnessId: string): Promise<PageView[]
     image: pageImage(page),
     zones: references.get(page.id)?.zones ?? 0,
     transcriptions: references.get(page.id)?.transcriptions ?? 0,
+    words: references.get(page.id)?.words ?? 0,
     rights: page.rights,
     attribution: page.attribution,
     imageSource: page.imageSource,

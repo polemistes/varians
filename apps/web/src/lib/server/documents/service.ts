@@ -33,6 +33,7 @@ import {
   type DocumentKind,
 } from '@varians/db';
 import { and, desc, eq, gt, inArray, lte, sql } from 'drizzle-orm';
+import { conformed, transcriptionPageOrder } from '../conform.ts';
 
 export const CHECKPOINT_EVERY = 50;
 
@@ -117,7 +118,7 @@ export async function saveOps(
   });
 }
 
-/** Replace a document's whole content (an import), as one changeset. */
+/** Replace a document's whole content (an import), as one changeset. A transcript's content is conformed to its witness's pages first. */
 export async function replaceContent(
   db: Database,
   kind: DocumentKind,
@@ -128,6 +129,7 @@ export async function replaceContent(
   message = 'import',
 ): Promise<SaveResult> {
   const current = await loadDocument(db, kind, documentId);
+  if (kind === 'transcription') content = conformed(content, await transcriptionPageOrder(db, documentId));
   const ops: Op[] = [];
   if (current.content.items.length > 0) ops.push({ t: 'delete', ids: current.content.items.map((i) => i.id) });
   if (content.items.length > 0) ops.push({ t: 'insert', after: null, items: content.items });

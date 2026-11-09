@@ -8,7 +8,9 @@
 
 import { materialLabel } from '$lib/registry/witness';
 import {
+  applyOps,
   applyStarts,
+  conformPages,
   detectStructure,
   exportTranscriptionTei,
   fromLeiden,
@@ -16,13 +18,16 @@ import {
   importPageXml,
   importPlainText,
   importTei,
+  insertIntoPage,
   isBreak,
   isToken,
   newId,
+  repairSegmentStartsFrom,
   nextLabel,
   resolveStarts,
   segmentIds,
   type ImportedZone,
+  type Item,
   type Level,
   type MemoryEntry,
   type NormalizationProfile,
@@ -322,23 +327,66 @@ export function namePageBreaks(stream: Stream, pageIds: (string | null)[]): Stre
 
 // Placing an import
 
+/** Where imported text without pages of its own goes: Not on a page, or a page of the witness. */
+export type Placement = { to: 'unplaced' } | { to: 'page'; pageId: string };
+
+export interface PlacedImport {
+  /** The operations on the current content (for an import added to it). */
+  ops: Op[];
+  /** The whole content after the import. */
+  content: Stream;
+  /** Words that went to Not on a page. */
+  unplaced: number;
+}
+
 /**
- * The operations that put an imported stream into a transcription: the
- * whole content replaced when it is empty or `replace` is asked for, else
- * the import appended after the last item, on a line of its own.
+ * Put an imported stream into a transcription (PLAN-3 B4). The import's
+ * page breaks that name a page of the witness (matched or created) send
+ * their text to that page, appended to what it has; a page break naming no
+ * page is dropped and its text goes to Not on a page, in the order of the
+ * file. Text before the first page break, and all the text of an import
+ * without pages, goes to `placement`. Each stretch is appended after a line
+ * break when the text it joins does not end with one. The imported words
+ * keep the segments the file gave them, the existing words theirs, and the
+ * result keeps the page invariants. With `replace` the current content is
+ * not kept.
  */
-export function placeImport(current: Stream, imported: Stream, replace: boolean): Op[] {
-  if (imported.items.length === 0) return [];
-  if (replace || current.items.length === 0) {
-    const ops: Op[] = [];
-    if (current.items.length > 0) ops.push({ t: 'delete', ids: current.items.map((i) => i.id) });
-    ops.push({ t: 'insert', after: null, items: imported.items });
-    return ops;
+export function placeImport(
+  current: Stream,
+  imported: Stream,
+  options: { replace: boolean; placement?: Placement; pageOrder: readonly string[]; ids?: () => string },
+): PlacedImport {
+  const base: Stream = options.replace ? { items: [] } : current;
+  const settings = { pageOrder: options.pageOrder, ids: options.ids ?? newId };
+  const known = new Set(options.pageOrder);
+  const lead: Item[] = [];
+  const blocks: { pageId: string | null; items: Item[] }[] = [];
+  for (const item of imported.items) {
+    if (isBreak(item) && item.type === 'page') blocks.push({ pageId: item.pageId && known.has(item.pageId) ? item.pageId : null, items: [] });
+    else if (blocks.length) blocks[blocks.length - 1]!.items.push(item);
+    else lead.push(item);
   }
-  const last = current.items[current.items.length - 1]!;
-  const items = [...imported.items];
-  if (!isBreak(last) && !isBreak(items[0])) items.unshift({ kind: 'break', id: newId(), type: 'line' });
-  return [{ t: 'insert', after: last.id, items }];
+  let stream = base;
+  const ops: Op[] = [];
+  let unplaced = 0;
+  const add = (items: Item[], target: string | null) => {
+    const more = insertIntoPage(stream, items, target, settings);
+    if (more.length === 0) return;
+    stream = applyOps(stream, more).stream;
+    ops.push(...more);
+    if (target === null) unplaced += items.filter(isToken).length;
+  };
+  const placement = options.placement ?? { to: 'unplaced' };
+  add(lead, placement.to === 'page' && known.has(placement.pageId) ? placement.pageId : null);
+  for (const block of blocks) add(block.items, block.pageId);
+  const finish = (more: Op[]) => {
+    if (more.length === 0) return;
+    stream = applyOps(stream, more).stream;
+    ops.push(...more);
+  };
+  finish(repairSegmentStartsFrom([base, imported], stream));
+  finish(conformPages(stream, options.pageOrder, settings.ids));
+  return { ops, content: stream, unplaced };
 }
 
 export interface ImportOutcome {
@@ -351,6 +399,8 @@ export interface ImportOutcome {
   pagesMatched: number;
   pagesCreated: number;
   zones: number;
+  /** Words that went to Not on a page. */
+  unplaced: number;
   warnings: string[];
 }
 
@@ -362,6 +412,8 @@ interface Target {
   replace: boolean;
   /** May create witness pages that the import names and the witness lacks. */
   createPages: boolean;
+  /** Where text without pages of its own goes; Not on a page when absent. */
+  placement?: Placement;
 }
 
 /** One transaction: the content saved as one changeset (pages and zones beside it). */
@@ -369,12 +421,15 @@ async function inTransaction<T>(db: Database, run: (tx: Database) => Promise<T>)
   return db.transaction(async (tx) => run(tx as unknown as Database));
 }
 
-async function save(db: Database, target: Target, imported: Stream, message: string): Promise<SaveResult> {
+async function save(db: Database, target: Target, imported: Stream, message: string): Promise<SaveResult & { unplaced: number }> {
   const current = await loadDocument(db, 'transcription', target.transcriptionId);
-  if (target.replace || current.content.items.length === 0) {
-    return replaceContent(db, 'transcription', target.transcriptionId, target.userId, target.fromVersion, imported, message);
-  }
-  return saveOps(db, 'transcription', target.transcriptionId, target.userId, target.fromVersion, placeImport(current.content, imported, false), message);
+  const pageOrder = (await witnessPages(db, target.witnessId)).map((p) => p.id);
+  const replace = target.replace || current.content.items.length === 0;
+  const placed = placeImport(current.content, imported, { replace, pageOrder, ...(target.placement ? { placement: target.placement } : {}) });
+  const saved = replace
+    ? await replaceContent(db, 'transcription', target.transcriptionId, target.userId, target.fromVersion, placed.content, message)
+    : await saveOps(db, 'transcription', target.transcriptionId, target.userId, target.fromVersion, placed.ops, message);
+  return { ...saved, unplaced: placed.unplaced };
 }
 
 /** Resolve labels through a work's scheme and put the segment starts on the stream. */
@@ -431,7 +486,7 @@ export async function importLeidenInto(db: Database, target: Target, text: strin
 }
 
 function outcome(
-  saved: SaveResult,
+  saved: SaveResult & { unplaced?: number },
   labelled: { set: number; unresolved: string[] },
   warnings: string[],
   extra: Partial<Pick<ImportOutcome, 'pagesMatched' | 'pagesCreated' | 'zones'>> = {},
@@ -449,6 +504,7 @@ function outcome(
     pagesMatched: extra.pagesMatched ?? 0,
     pagesCreated: extra.pagesCreated ?? 0,
     zones: extra.zones ?? 0,
+    unplaced: saved.unplaced ?? 0,
     warnings: notes,
   };
 }

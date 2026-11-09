@@ -67,6 +67,7 @@ import { revertOps, salvageOps, wordsOf } from '../history/undo.ts';
 import { historyStrings } from '../strings/history.ts';
 import { isDocumentKind, loadDocumentAccess, type DocumentAccess } from './document-access.ts';
 import { VersionConflict, documentAt, history as changesetLog, loadDocument, nameMoment, saveOps } from './documents/service.ts';
+import { conformed, transcriptionPageOrder } from './conform.ts';
 
 /** A pause longer than this ends a session. */
 export const SESSION_PAUSE_MS = 20 * 60 * 1000;
@@ -339,7 +340,9 @@ export async function revertTo(
       throw new HistoryError(409, 'The document changed meanwhile', { currentVersion: doc.version });
     }
     if (!Number.isInteger(version) || version < 0 || version > doc.version) throw new HistoryError(404, 'No such version');
-    const target = version === doc.version ? doc.content : await documentAt(db, kind, documentId, version);
+    const at = version === doc.version ? doc.content : await documentAt(db, kind, documentId, version);
+    // A version from before a page was removed or the pages reordered comes back in the pages' present shape.
+    const target = kind === 'transcription' ? conformed(at, await transcriptionPageOrder(db, documentId)) : at;
     if (deepEqual(target.items, doc.content.items)) return { version: doc.version, changesetId: null, unchanged: true };
     try {
       const saved = await saveOps(db, kind, documentId, userId, doc.version, revertOps(doc.content, target), `brought back as of version ${version}`);

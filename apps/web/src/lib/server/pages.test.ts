@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import pg from 'pg';
 import { newId, type Item } from '@varians/core';
-import { createDatabase, eq, pages, transcriptions, users, witnesses, zones, type Database } from '@varians/db';
+import { changesets, createDatabase, desc, eq, pages, transcriptions, users, witnesses, zones, type Database } from '@varians/db';
 import {
   followingLabel,
   labelFromFileName,
@@ -318,7 +318,7 @@ describe('the list of pages', () => {
     expect(await movePage(db, 'no-such-page', 1)).toBeNull();
   });
 
-  it('refuses to remove a page that zones or page breaks refer to, unless forced', async () => {
+  it('removes a page with its zones, and moves its text to Not on a page in every transcript', async () => {
     const [p1r, p1v, p2r, p2v] = await pagesOfWitness(db, ids.witness);
     await db.insert(zones).values({
       id: newId(),
@@ -327,35 +327,58 @@ describe('the list of pages', () => {
       geometry: { rect: { x: 0.1, y: 0.1, w: 0.2, h: 0.05 } },
       tokenIds: ['t1'],
     });
-    await setBreaks([p1v!.id, p2r!.id]);
+    const content: Item[] = [
+      { kind: 'token', id: 'u0', form: 'ἄνδρα' },
+      { kind: 'break', id: 'b1', type: 'page', pageId: p1v!.id },
+      { kind: 'token', id: 't1', form: 'μῆνιν' },
+      { kind: 'token', id: 't2', form: 'ἄειδε' },
+      { kind: 'break', id: 'b2', type: 'page', pageId: p2r!.id },
+      { kind: 'token', id: 't3', form: 'θεὰ' },
+    ];
+    await db.update(transcriptions).set({ content: { items: content } }).where(eq(transcriptions.id, ids.transcription));
 
     const counts = await referenceCounts(db, ids.witness);
-    expect(counts.get(p1r!.id)).toEqual({ zones: 1, transcriptions: 0 });
-    expect(counts.get(p1v!.id)).toEqual({ zones: 0, transcriptions: 1 });
+    expect(counts.get(p1r!.id)).toEqual({ zones: 1, transcriptions: 0, words: 0 });
+    expect(counts.get(p1v!.id)).toEqual({ zones: 0, transcriptions: 1, words: 2 });
     expect(counts.has(p2v!.id)).toBe(false);
-    expect((await referencesOf(db, p2r!)).transcriptions.map((t) => t.name)).toEqual(['Iliad 1']);
+    expect((await referencesOf(db, p1v!)).transcriptions.map((t) => [t.name, t.words])).toEqual([['Iliad 1', 2]]);
 
-    const zoned = await removePage(db, p1r!.id, root);
-    expect(zoned.ok).toBe(false);
-    if (!zoned.ok && zoned.reason === 'referenced') {
-      expect(zoned.references.zones).toBe(1);
-      expect(zoned.message).toMatch(/^1r is referred to by 1 zone\. Removing it deletes the zone\./);
-    } else throw new Error('expected a refusal');
-
-    const broken = await removePage(db, p1v!.id, root);
-    if (!broken.ok && broken.reason === 'referenced') {
-      expect(broken.message).toMatch(/page breaks of the transcript Iliad 1 \(Pages Tester\)/);
-      expect(broken.message).toMatch(/leaves the page breaks without a page/);
-    } else throw new Error('expected a refusal');
-
-    const forced = await removePage(db, p1r!.id, root, true);
-    expect(forced.ok).toBe(true);
+    const zoned = await removePage(db, p1r!.id, root, ids.user);
+    expect(zoned).toMatchObject({ ok: true, moved: { words: 0, transcriptions: 0 } });
     expect(await db.select().from(zones).where(eq(zones.pageId, p1r!.id))).toEqual([]);
 
-    const free = await removePage(db, p2v!.id, root);
+    const removed = await removePage(db, p1v!.id, root, ids.user);
+    expect(removed).toMatchObject({ ok: true, moved: { words: 2, transcriptions: 1 } });
+    const [row] = await db.select({ content: transcriptions.content, version: transcriptions.version }).from(transcriptions).where(eq(transcriptions.id, ids.transcription));
+    const shape = row!.content.items.map((i) => (i.kind === 'break' ? `#${i.type === 'page' ? i.pageId : i.type}` : i.id));
+    expect(shape).toEqual(['u0', '#line', 't1', 't2', `#${p2r!.id}`, 't3']);
+    const [log] = await db.select().from(changesets).where(eq(changesets.documentId, ids.transcription)).orderBy(desc(changesets.version)).limit(1);
+    expect(log!.message).toBe('Page 1v removed from the witness; its text is not on a page');
+    expect(log!.userId).toBe(ids.user);
+
+    const free = await removePage(db, p2v!.id, root, ids.user);
     expect(free.ok).toBe(true);
-    expect(await labels(ids.witness)).toEqual(['1v', '2r', '3r']);
+    expect(await labels(ids.witness)).toEqual(['2r', '3r']);
     expect(await removePage(db, p2v!.id, root)).toEqual({ ok: false, reason: 'not-found' });
+    await setBreaks([]);
+  });
+
+  it('puts the text of the transcripts in the new order of the pages', async () => {
+    const list = await pagesOfWitness(db, ids.witness);
+    const [first, second] = list;
+    const content: Item[] = [
+      { kind: 'break', id: 'b1', type: 'page', pageId: first!.id },
+      { kind: 'token', id: 'a', form: 'a' },
+      { kind: 'break', id: 'b2', type: 'page', pageId: second!.id },
+      { kind: 'token', id: 'b', form: 'b' },
+    ];
+    await db.update(transcriptions).set({ content: { items: content } }).where(eq(transcriptions.id, ids.transcription));
+    await movePage(db, second!.id, 0, ids.user);
+    const [row] = await db.select({ content: transcriptions.content }).from(transcriptions).where(eq(transcriptions.id, ids.transcription));
+    expect(row!.content.items.map((i) => i.id)).toEqual(['b2', 'b', 'b1', 'a']);
+    const [log] = await db.select().from(changesets).where(eq(changesets.documentId, ids.transcription)).orderBy(desc(changesets.version)).limit(1);
+    expect(log!.message).toBe('Pages reordered');
+    await movePage(db, second!.id, 1, ids.user);
     await setBreaks([]);
   });
 });
@@ -453,8 +476,8 @@ describe('rights of images', () => {
     expect(replaced).toMatchObject({ rights: PDM, attribution: null, imageSource: null });
     const detached = await detachImage(db, page!.id, root);
     expect(detached).toMatchObject({ rights: null, attribution: null, imageSource: null });
-    await removePage(db, page!.id, root, true);
-    await removePage(db, added.id, root, true);
+    await removePage(db, page!.id, root);
+    await removePage(db, added.id, root);
   });
 
   it('moves the rights with the image', async () => {
@@ -468,8 +491,8 @@ describe('rights of images', () => {
     ]);
     expect(from).toMatchObject({ imageKind: null, rights: null, attribution: null });
     expect(to).toMatchObject({ imageKind: 'upload', rights: PDM, attribution: 'A' });
-    await removePage(db, a!.id, root, true);
-    await removePage(db, b!.id, root, true);
+    await removePage(db, a!.id, root);
+    await removePage(db, b!.id, root);
   });
 
   it('changes the rights of a page', async () => {
@@ -479,7 +502,7 @@ describe('rights of images', () => {
     expect(updated).toMatchObject({ rights: IN_COPYRIGHT, attribution: 'Holder', imageSource: 'https://example.org/u1' });
     await expect(updatePageRights(db, page!.id, { rights: 'nonsense' })).rejects.toMatchObject({ code: 'invalid-rights' });
     expect(await updatePageRights(db, 'no-such-page', RIGHTS)).toBeNull();
-    await removePage(db, page!.id, root, true);
+    await removePage(db, page!.id, root);
   });
 
   it('stores the witness defaults and gives them to the images without a statement', async () => {
@@ -513,7 +536,7 @@ describe('rights of images', () => {
     [row] = await db.select().from(witnesses).where(eq(witnesses.id, witness));
     expect(row).toMatchObject({ imageRights: null, imageAttribution: null });
     await expect(setWitnessImageDefaults(db, witness, { imageRights: 'https://example.org/licence' })).rejects.toMatchObject({ code: 'invalid-rights' });
-    for (const page of await pagesOfWitness(db, witness)) await removePage(db, page.id, root, true);
+    for (const page of await pagesOfWitness(db, witness)) await removePage(db, page.id, root);
     await db.delete(witnesses).where(eq(witnesses.id, witness));
   });
 });
@@ -622,7 +645,10 @@ describe('an image moved to another page', () => {
   it('shows the pages as the screens need them', async () => {
     const [a, b] = await addPages(db, ids.witness, ['v1', 'v2']);
     await attachUpload(db, a!.id, await testImage(100, 100), RIGHTS, root);
-    await setBreaks([b!.id]);
+    await db
+      .update(transcriptions)
+      .set({ content: { items: [{ kind: 'break', id: 'b0', type: 'page', pageId: b!.id }, { kind: 'token', id: 'w1', form: 'a' }, { kind: 'token', id: 'w2', form: 'b' }] } })
+      .where(eq(transcriptions.id, ids.transcription));
     const views = await pageViewsOf(db, ids.witness);
     const viewA = views.find((v) => v.id === a!.id)!;
     const viewB = views.find((v) => v.id === b!.id)!;
@@ -637,7 +663,7 @@ describe('an image moved to another page', () => {
     });
     expect(viewA.thumbnail).toMatch(/^\/media\/tiles\//);
     expect(viewA.source).toMatchObject({ kind: 'dzi' });
-    expect(viewB).toMatchObject({ label: 'v2', imageKind: null, thumbnail: null, source: null, image: null, transcriptions: 1 });
+    expect(viewB).toMatchObject({ label: 'v2', imageKind: null, thumbnail: null, source: null, image: null, transcriptions: 1, words: 2 });
     expect(views.map((v) => v.index)).toEqual(views.map((_, i) => i + 1));
     await setBreaks([]);
     for (const page of [a!, b!]) await removePage(db, page.id, root);
@@ -714,7 +740,7 @@ describe('IIIF manifests', () => {
 
   it('replaces the pages nothing refers to, gives blank pages their images and keeps the order of the manifest', async () => {
     // Start over: a page without an image that a transcription breaks to, and an upload nothing refers to.
-    for (const page of await pagesOfWitness(db, ids.iiif)) await removePage(db, page.id, root, true);
+    for (const page of await pagesOfWitness(db, ids.iiif)) await removePage(db, page.id, root);
     const [blank, note] = await addPages(db, ids.iiif, ['2r', 'Note']);
     const upload = await addImagePage(db, ids.iiif, 'scan', await testImage(64, 64), RIGHTS, root);
     await db
@@ -790,7 +816,7 @@ describe('IIIF manifests', () => {
     ]);
 
     // A manifest that states nothing: the pages take the witness's defaults, a blank page taking an image too.
-    for (const page of stored) await removePage(db, page.id, root, true);
+    for (const page of stored) await removePage(db, page.id, root);
     await setWitnessImageDefaults(db, witness, { imageRights: IN_COPYRIGHT, imageAttribution: 'Our photographs' });
     await addPages(db, witness, ['1v']);
     mockedLoad.mockResolvedValue(manifest(['1r', '1v']));
@@ -801,7 +827,7 @@ describe('IIIF manifests', () => {
       ['1r', 'iiif', IN_COPYRIGHT, 'Our photographs'],
       ['1v', 'iiif', IN_COPYRIGHT, 'Our photographs'],
     ]);
-    for (const page of await pagesOfWitness(db, witness)) await removePage(db, page.id, root, true);
+    for (const page of await pagesOfWitness(db, witness)) await removePage(db, page.id, root);
     await db.delete(witnesses).where(eq(witnesses.id, witness));
   });
 

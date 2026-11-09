@@ -10,7 +10,10 @@ import {
   applySiteKinds,
   collate,
   fold,
+  isObj,
+  isToken,
   runsOfSegment,
+  segmentRuns,
   segmentIds,
   units,
   type Collation,
@@ -48,6 +51,60 @@ export interface EditionContext {
   transcriptions: Map<string, { id: string; content: Stream; version: number; witnessId: string }>;
   /** The editor's word on the kind of some sites: by segment, by site key. */
   siteKinds: Map<string, Map<string, { kind: SiteKind; setAt: Date }>>;
+  /** The sort key of every segment of the work, by id. */
+  segmentKeys?: Map<string, string>;
+  /** How much of the work each transcription covers, by transcription id (B5). */
+  coverage?: Map<string, Coverage>;
+}
+
+/**
+ * The stretch of a work a transcription covers: from the first to the last
+ * segment it has (by sort key), less the segments lost in it, those whose
+ * keys lie between two segments the text has with a gap or a lacuna marked
+ * between them.
+ */
+export interface Coverage {
+  first: string;
+  last: string;
+  lost: Set<string>;
+}
+
+/** A transcription's coverage of a work whose segments have these sort keys; null when it has none of them. */
+export function coverageOf(content: Stream, segmentKeys: ReadonlyMap<string, string>): Coverage | null {
+  let first: string | null = null;
+  let last: string | null = null;
+  const lost = new Set<string>();
+  // The segment of the last word seen, and whether a gap or lacuna stands after it.
+  let previous: string | null = null;
+  let gapSince = false;
+  const sorted = [...segmentKeys.entries()].sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0));
+  for (const run of segmentRuns(content)) {
+    for (let i = run.from; i < run.to; i++) {
+      const item = content.items[i]!;
+      if (isObj(item) && (item.type === 'gap' || item.type === 'lacuna')) {
+        gapSince = true;
+        continue;
+      }
+      if (!isToken(item) || run.segmentId === null) continue;
+      const key = segmentKeys.get(run.segmentId);
+      if (key === undefined) continue;
+      if (first === null || key < first) first = key;
+      if (last === null || key > last) last = key;
+      if (previous !== null && previous !== run.segmentId && gapSince) {
+        const a = segmentKeys.get(previous)!;
+        const [low, high] = a < key ? [a, key] : [key, a];
+        for (const [id, k] of sorted) if (k > low && k < high) lost.add(id);
+      }
+      if (previous !== run.segmentId || gapSince) gapSince = false;
+      previous = run.segmentId;
+    }
+  }
+  return first !== null && last !== null ? { first, last, lost } : null;
+}
+
+/** A unit standing for a passage lost in a witness. */
+function lostUnit(segmentId: string): Unit {
+  return { text: '', tokenIds: [], gap: { kind: 'object', id: `lost:${segmentId}`, type: 'gap' } };
 }
 
 /** Load everything a collation of an edition needs, once. */
@@ -83,9 +140,18 @@ export async function loadEditionContext(db: Database, editionId: string): Promi
         .from(transcriptions)
         .where(inArray(transcriptions.id, transcriptionIds))
     : [];
+  const keyRows = await db.select({ id: segments.id, sortKey: segments.sortKey }).from(segments).where(eq(segments.workId, row.workId));
+  const segmentKeys = new Map(keyRows.map((r) => [r.id, r.sortKey] as const));
+  const coverage = new Map<string, Coverage>();
+  for (const r of rows) {
+    const found = coverageOf(r.content, segmentKeys);
+    if (found) coverage.set(r.id, found);
+  }
   return {
     edition: { id: row.id, workId: row.workId, content: row.content, version: row.version },
     profile: row.profile,
+    segmentKeys,
+    coverage,
     sigla: sigla.map(normalizeSiglum),
     witnessHands: await loadWitnessHands(db, sigla.map((s) => s.witnessId)),
     transcriptions: new Map(rows.map((r) => [r.id, r] as const)),
@@ -147,7 +213,18 @@ export function inputsFor(context: EditionContext, segmentId: string): { base: C
     const runs = runsOfSegment(transcription.content, segmentId);
     const words: Unit[] = [];
     for (const run of runs) words.push(...units(transcription.content, run.from, run.to, 'corrected'));
-    witnessTexts.push({ id: transcription.id, siglum: s.siglum, units: words });
+    if (runs.length > 0) {
+      witnessTexts.push({ id: transcription.id, siglum: s.siglum, units: words, present: true });
+    } else {
+      // Without the segment: within the stretch it covers the witness omits it, or has lost it; outside, it is absent.
+      const key = context.segmentKeys?.get(segmentId);
+      const covered = context.coverage?.get(transcription.id);
+      if (key !== undefined && covered && key > covered.first && key < covered.last) {
+        if (covered.lost.has(segmentId)) witnessTexts.push({ id: transcription.id, siglum: s.siglum, units: [lostUnit(segmentId)] });
+        else witnessTexts.push({ id: transcription.id, siglum: s.siglum, units: [], present: true });
+      } else witnessTexts.push({ id: transcription.id, siglum: s.siglum, units: [] });
+      continue;
+    }
     // A second state of the witness is only worth a siglum of its own where it differs from the corrected text.
     const differs = (other: Unit[]) => other.length !== words.length || other.some((u, i) => u.text !== words[i]!.text);
     const hands = context.witnessHands.get(s.witnessId) ?? [];
@@ -171,9 +248,9 @@ export function inputsFor(context: EditionContext, segmentId: string): { base: C
 export function inputHash(context: EditionContext, base: CollationText, witnesses: CollationText[]): string {
   const hash = createHash('sha256');
   // The shape of the cached result: bump when the collation's output changes.
-  hash.update('collation-v8');
+  hash.update('collation-v9');
   hash.update(JSON.stringify(context.profile.fold));
-  const describe = (t: CollationText) => `${t.id}|${t.siglum}|${t.units.map((u) => (u.gap ? '[gap]' : `${u.text}#${u.tokenIds.join(',')}`)).join(' ')}`;
+  const describe = (t: CollationText) => `${t.id}|${t.siglum}|${t.present ? 'p' : ''}|${t.units.map((u) => (u.gap ? '[gap]' : `${u.text}#${u.tokenIds.join(',')}`)).join(' ')}`;
   hash.update(describe(base));
   for (const w of witnesses) hash.update('\n' + describe(w));
   return hash.digest('hex').slice(0, 32);

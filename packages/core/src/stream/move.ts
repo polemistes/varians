@@ -88,8 +88,32 @@ function sameStart(a: unknown, b: unknown): boolean {
  * stretch that follows assigned text begins with `{ segmentId: null }`.
  */
 export function repairSegmentStarts(before: Stream, after: Stream): Op[] {
-  const { segment: memberOf, rank } = membership(before);
-  const previousBefore = predecessors(before);
+  return repairSegmentStartsFrom([before], after);
+}
+
+/**
+ * The same repair where the items of `after` come from several streams:
+ * each word keeps the segment it had in its own stream, and its preceding
+ * word there. Used for an import, whose words keep the segments the file
+ * gave them wherever they are placed. For a segment in more than one of
+ * them, the earlier stream's runs come first in content order.
+ */
+export function repairSegmentStartsFrom(references: Stream[], after: Stream): Op[] {
+  const memberOf = new Map<Id, Id | null>();
+  const rank = new Map<Id, number>();
+  const previousBefore = new Map<Id, Id | null>();
+  let offset = 0;
+  for (const reference of references) {
+    const found = membership(reference);
+    for (const [id, seg] of found.segment) memberOf.set(id, seg);
+    let most = 0;
+    for (const [id, r] of found.rank) {
+      rank.set(id, r + offset);
+      most = Math.max(most, r + 1);
+    }
+    offset += most;
+    for (const [id, previous] of predecessors(reference)) previousBefore.set(id, previous);
+  }
   const previousAfter = predecessors(after);
   const touched = new Set<Id>();
   for (const [id, previous] of previousAfter) {
@@ -282,6 +306,35 @@ export function moveToPage(stream: Stream, ids: Id[], target: Id | null, options
     push([{ t: 'delete', ids: [prev!.id] }]);
   }
   return [...ops, ...repairSegmentStarts(stream, current)];
+}
+
+/**
+ * Insert new items at the end of a page's text (`target` a page id) or of
+ * the text on no page (`target` null), after a line break when that text is
+ * not empty and does not end with a break, creating the page's break in the
+ * witness order where it has none. The items' own segment starts stand as
+ * they are; the caller repairs membership when it must.
+ */
+export function insertIntoPage(stream: Stream, items: Item[], target: Id | null, options: MoveToPageOptions): Op[] {
+  if (items.length === 0) return [];
+  const makeId = options.ids ?? newId;
+  const ops: Op[] = [];
+  let current = stream;
+  const push = (op: Op) => {
+    current = applyOp(current, op).stream;
+    ops.push(op);
+  };
+  if (target !== null && pageBreakIndex(current, target) < 0) {
+    if (!options.pageOrder.includes(target)) throw new StreamError(`no page ${target}`, 'missing', [target]);
+    const brk: Break = { kind: 'break', id: makeId(), type: 'page', pageId: target };
+    push({ t: 'insert', after: pageBreakPlace(current, target, options.pageOrder), items: [brk] });
+  }
+  const bounds = stretchBounds(current, target)!;
+  const last = stretchEnd(current, bounds.opener, bounds.end);
+  const after: Id | null = last ? last.id : bounds.opener >= 0 ? current.items[bounds.opener]!.id : null;
+  const adding = last && !isBreak(last) && !isBreak(items[0]) ? [{ kind: 'break', id: makeId(), type: 'line' } as Break, ...items] : items;
+  push({ t: 'insert', after, items: adding });
+  return ops;
 }
 
 /** The page ids named by page breaks, in stream order. */

@@ -170,7 +170,8 @@ export const reader = {
     otherOrder: { one: '{who} has these words in another order: {words}.', many: '{who} have these words in another order: {words}.' },
     otherOrderPlain: { one: '{who} has these words in another order.', many: '{who} have these words in another order.' },
     otherPlace: { one: '{who} has these words in another place.', many: '{who} have these words in another place.' },
-    absent: { one: '{who} does not have this passage.', many: '{who} do not have this passage.' },
+    /** Witnesses whose transcripts begin after this passage or end before it. */
+    absent: { one: '{who} is not transcribed for this passage.', many: '{who} are not transcribed for this passage.' },
     /** Spelling only. */
     /** Readings reported by others, and conjectures. */
     reportedReads: '{who} is reported to read {words}.',

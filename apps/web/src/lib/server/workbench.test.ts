@@ -3,7 +3,7 @@
  * or the default below, migrated). Every record made here is removed again.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { defaultProfile, detectNumbering, fromText, isBreak, isToken, newId, sequentialIds, toText, type Break, type Stream, type Token } from '@varians/core';
+import { applyOps, defaultProfile, detectNumbering, fromText, isBreak, isToken, newId, sequentialIds, toText, type Break, type Stream, type Token } from '@varians/core';
 import {
   changesets,
   createDatabase,
@@ -140,16 +140,45 @@ describe('matching pages', () => {
 });
 
 describe('placeImport', () => {
-  it('replaces an empty text and appends to one with words, on a new line', () => {
+  const shape = (stream: Stream) => stream.items.map((i) => (i.kind === 'break' ? (i.type === 'page' ? `#${i.pageId ?? '?'}` : '/') : i.kind === 'token' ? i.form : i.id)).join(' ');
+
+  it('puts text without pages on no page, after a line break, or on the page asked for', () => {
+    const current: Stream = { items: [{ kind: 'token', id: 'u', form: 'u' }, { kind: 'break', id: 'pb1', type: 'page', pageId: 'p1' }, { kind: 'token', id: 'a', form: 'a' }] };
     const imported = fromText('c d', { ids: sequentialIds('n') });
-    expect(placeImport({ items: [] }, imported, false)).toEqual([{ t: 'insert', after: null, items: imported.items }]);
-    const current = fromText('a b', { ids: sequentialIds() });
-    const [append] = placeImport(current, imported, false);
-    expect(append).toMatchObject({ t: 'insert', after: 't2' });
-    const items = (append as { items: Stream['items'] }).items;
-    expect(items[0]).toMatchObject({ kind: 'break', type: 'line' });
-    expect(items.slice(1)).toEqual(imported.items);
-    expect(placeImport(current, imported, true)[0]).toEqual({ t: 'delete', ids: ['t1', 't2'] });
+    const unplaced = placeImport(current, imported, { replace: false, pageOrder: ['p1', 'p2'], ids: sequentialIds('x') });
+    expect(shape(unplaced.content)).toBe('u / c d #p1 a');
+    expect(unplaced.unplaced).toBe(2);
+    const onPage = placeImport(current, fromText('c d', { ids: sequentialIds('n') }), { replace: false, placement: { to: 'page', pageId: 'p2' }, pageOrder: ['p1', 'p2'], ids: sequentialIds('x') });
+    expect(shape(onPage.content)).toBe('u #p1 a #p2 c d');
+    expect(onPage.unplaced).toBe(0);
+    expect(shape(applyOps(current, onPage.ops).stream)).toBe(shape(onPage.content));
+  });
+
+  it('sends the text of matched page breaks to their pages and the rest to no page, in the order of the file', () => {
+    const current: Stream = { items: [{ kind: 'break', id: 'pb1', type: 'page', pageId: 'p1' }, { kind: 'token', id: 'a', form: 'a' }] };
+    const imported: Stream = {
+      items: [
+        { kind: 'token', id: 'i0', form: 'lead' },
+        { kind: 'break', id: 'i1', type: 'page', pageId: 'p2' },
+        { kind: 'token', id: 'i2', form: 'two' },
+        { kind: 'break', id: 'i3', type: 'page', label: 'xx' },
+        { kind: 'token', id: 'i4', form: 'lost' },
+        { kind: 'break', id: 'i5', type: 'page', pageId: 'p1' },
+        { kind: 'token', id: 'i6', form: 'one' },
+      ],
+    };
+    const placed = placeImport(current, imported, { replace: false, pageOrder: ['p1', 'p2'], ids: sequentialIds('x') });
+    expect(shape(placed.content)).toBe('lead / lost #p1 a / one #p2 two');
+    expect(placed.unplaced).toBe(2);
+    const replaced = placeImport(current, imported, { replace: true, pageOrder: ['p1', 'p2'], ids: sequentialIds('x') });
+    expect(shape(replaced.content)).toBe('lead / lost #p1 one #p2 two');
+  });
+
+  it('keeps the segments the file gave its words', () => {
+    const current: Stream = { items: [{ kind: 'token', id: 'a', form: 'a', segment: { segmentId: 's1' } }, { kind: 'break', id: 'pb1', type: 'page', pageId: 'p1' }] };
+    const imported: Stream = { items: [{ kind: 'token', id: 'x', form: 'x' }, { kind: 'token', id: 'y', form: 'y', segment: { segmentId: 's2' } }] };
+    const placed = placeImport(current, imported, { replace: false, pageOrder: ['p1'], ids: sequentialIds('x') });
+    expect(placed.content.items.find((i) => i.id === 'x')).toMatchObject({ segment: { segmentId: null } });
   });
 });
 

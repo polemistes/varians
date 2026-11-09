@@ -59,6 +59,8 @@ import path from 'node:path';
 import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { citationsOfWork } from './archive.ts';
 import { nameMoment, rebuildSegmentIndex, replaceContent } from '../documents/service.ts';
+import { conformStored } from '../conform.ts';
+import { pageStrings } from '../../strings/pages.ts';
 import { setChosenWorks } from '../transcription-works.ts';
 import { canEditEdition, canEditTranscription, canGrantOnEdition, canMaintainWitness, canMaintainWork, canViewWork, grantsFor, isAdministrator, isSiteEditor, type Actor } from '../authz.ts';
 import { dataLicence } from '../settings.ts';
@@ -754,6 +756,8 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
       });
       documents.push(outcome);
       if (!applies(outcome)) continue;
+      // Its page breaks name pages of the witness here, once each, in their order (PLAN-3 3.4).
+      await conformStored(db, t.id, ctx.userId, pageStrings.history.reorganized);
       // Its works, as far as this installation knows them.
       const named = t.workIds ?? [];
       const knownWorks = named.length ? new Set((await db.select({ id: works.id }).from(works).where(inArray(works.id, named))).map((x) => x.id)) : new Set<string>();

@@ -52,7 +52,9 @@ describe('editionView', () => {
     expect(lines.some((l) => l.includes('lac. C'))).toBe(true);
     const one = byLabel['1.1']!;
     expect(one.entries.some((e) => e.variants.some((v) => v.attachment?.kind === 'reported' && v.sigla[0]!.startsWith('T')))).toBe(true);
-    expect(byLabel['1.6']!.absent).toEqual(['B', 'C']);
+    // B and C lack line 1.6 within the stretch their transcripts cover: they omit it, and are not merely absent.
+    expect(byLabel['1.6']!.absent).toEqual([]);
+    expect(byLabel['1.6']!.entries.map((e) => formatEntry(e, view.apparatus))).toEqual(['1.6 ἐξ … ἐρίσαντε A : om. B C']);
     expect(byLabel['1.4']!.entries.some((e) => e.variants.some((v) => v.attachment?.name === 'Berge'))).toBe(true);
     // B has no line 1.6 but every other line in the edition's order; nobody reorders whole lines.
     expect(view.order).toEqual([]);

@@ -214,7 +214,7 @@ describe('explainSite: the alternatives', () => {
 
   it('names the witnesses without the passage', () => {
     const seg = segment([{ index: 0, baseFrom: 2, baseTo: 3, readings: [reading('θεὰ', ['ed', 'ta']), reading('θεοί', ['tb'])] }], { absent: ['C'] });
-    expect(plainSentence(explain(seg).absent!.sentence)).toBe('Codex Laurentianus does not have this passage.');
+    expect(plainSentence(explain(seg).absent!.sentence)).toBe('Codex Laurentianus is not transcribed for this passage.');
   });
 
   it('never uses Latin abbreviations or bare sigla', () => {
@@ -300,7 +300,7 @@ describe('explainSite: states of a witness collated under sub-sigla', () => {
 
   it('finds a sub-siglum given as a siglum', () => {
     const seg = segment([{ index: 0, baseFrom: 2, baseTo: 3, readings: [reading('θεὰ', ['ed', 'ta']), reading('θεοί', ['tb'])] }], { absent: ['A v.l.'] });
-    expect(plainSentence(explain(seg, 0, withSub).absent!.sentence)).toBe('A variant noted in Venetus A does not have this passage.');
+    expect(plainSentence(explain(seg, 0, withSub).absent!.sentence)).toBe('A variant noted in Venetus A is not transcribed for this passage.');
   });
 });
 

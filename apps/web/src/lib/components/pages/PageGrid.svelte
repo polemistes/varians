@@ -9,7 +9,7 @@
    */
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
-  import { Button, Dialog, Field, Input, Notice, Select, toasts } from '$lib/components/ui';
+  import { Button, Dialog, Field, Input, Select, toasts } from '$lib/components/ui';
   import { s } from '$lib/strings';
   import { pageStrings as t } from '$lib/strings/pages';
   import { followingLabel } from './labels';
@@ -223,12 +223,10 @@
   // Removing
 
   let removing = $state<PageView | null>(null);
-  let refusal = $state<string | null>(null);
   let removeSubmitting = $state(false);
 
   function openRemove(page: PageView) {
     removing = page;
-    refusal = null;
   }
 </script>
 
@@ -554,7 +552,7 @@
       }
     }
     title={removing ? t.remove.title(removing.label) : ''}
-    description={refusal ? undefined : t.remove.description}
+    description={removing ? t.remove.description(removing.label, removing.words, removing.transcriptions, removing.zones, removing.imageKind !== null) : undefined}
     size="md"
   >
     {#if removing}
@@ -571,8 +569,6 @@
               removing = null;
               await onchanged();
               succeeded(result.data);
-            } else if (result.type === 'failure' && (result.data as { refused?: boolean } | undefined)?.refused) {
-              refusal = failureMessage(result);
             } else {
               removing = null;
               toasts.error(failureMessage(result));
@@ -581,16 +577,12 @@
         }}
       >
         <input type="hidden" name="pageId" value={page.id} />
-        <input type="hidden" name="force" value={refusal ? '1' : '0'} />
-        {#if refusal}
-          <Notice kind="warning">{refusal}</Notice>
-        {/if}
       </form>
     {/if}
     {#snippet footer()}
       <Button onclick={() => (removing = null)}>{s.common.cancel}</Button>
       <Button type="submit" form="remove-form" variant="danger" loading={removeSubmitting}>
-        {refusal ? t.remove.anyway : t.remove.submit}
+        {t.remove.submit}
       </Button>
     {/snippet}
   </Dialog>

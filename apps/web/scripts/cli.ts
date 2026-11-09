@@ -14,6 +14,7 @@
  *   pnpm --filter @varians/web cli make-admin <email>
  *   pnpm --filter @varians/web cli reset-password <email>
  *   pnpm --filter @varians/web cli confirm-email <email>
+ *   pnpm --filter @varians/web cli conform-pages
  *   pnpm --filter @varians/web cli version
  *
  * In a release the same commands are `bin/varians cli <command> ...`.
@@ -35,6 +36,8 @@ import { buildPackage, type PackageScope } from '../src/lib/server/archive/packa
 import { addRemote, httpTransport, parseRemoteAddress, pullRemote, pushRemote, remotesOf, transportOf } from '../src/lib/server/sync.ts';
 import { confirmEmailDirectly, makeResetLinkFor } from '../src/lib/server/account-mail.ts';
 import { seedSample } from '../src/lib/server/seed/sample.ts';
+import { conformAll, formatConformance } from '../src/lib/server/conform.ts';
+import { pageStrings } from '../src/lib/strings/pages.ts';
 import { formatVersion } from '../src/lib/version-format.ts';
 import { loadEnv } from './env.ts';
 
@@ -239,9 +242,15 @@ async function main(): Promise<void> {
         console.log(`The address ${email} is confirmed`);
         break;
       }
+      case 'conform-pages': {
+        // Once after the deploy of PLAN-3: every transcript's page breaks name its witness's pages, once, in order. A second run does nothing.
+        const outcomes = await conformAll(db, pageStrings.history.reorganized);
+        for (const outcome of outcomes) console.log(formatConformance(outcome));
+        break;
+      }
       default:
         console.log(
-          'commands: pull <slug> <address> --user <email>, push <slug> <address> --user <email> --token <t>, export-archive <slug>, export-all [--package <file>], export-package --work|--edition|--transcription|--all --out <file>, check-archive [<slug>], write-example, import-archive <dir> --user <email> [--on-conflict keep|take] [--dry-run], seed-sample --user <email>, make-admin <email>, reset-password <email>, confirm-email <email>, version',
+          'commands: pull <slug> <address> --user <email>, push <slug> <address> --user <email> --token <t>, export-archive <slug>, export-all [--package <file>], export-package --work|--edition|--transcription|--all --out <file>, check-archive [<slug>], write-example, import-archive <dir> --user <email> [--on-conflict keep|take] [--dry-run], seed-sample --user <email>, make-admin <email>, reset-password <email>, confirm-email <email>, conform-pages, version',
         );
     }
   } finally {

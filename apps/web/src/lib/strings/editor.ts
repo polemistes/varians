@@ -26,7 +26,8 @@ export const editor = {
   added: 'added',
   lacuna: 'lacuna',
   nothing: '⟨nothing⟩',
-  absent: (sigla: string) => `Not in ${sigla}`,
+  /** Witnesses whose transcripts begin after this segment or end before it. */
+  absent: (sigla: string) => `Not transcribed here: ${sigla}`,
   noSites: 'The witnesses agree with the text here.',
   saving: 'saving…',
   order: 'order',

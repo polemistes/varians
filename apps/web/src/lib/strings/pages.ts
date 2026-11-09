@@ -34,9 +34,9 @@ export const pageStrings = {
     rename: (label: string) => `Rename ${label}`,
     renameField: 'Label',
     menu: (label: string) => `Actions for ${label}`,
-    zones: (n: number) => plural(n, 'zone', 'zones'),
-    breaks: (n: number) => (n === 1 ? 'in 1 transcript' : `in ${n} transcripts`),
-    referencedTitle: 'Referred to by zones or transcripts',
+    zones: (n: number) => plural(n, 'box', 'boxes'),
+    breaks: (n: number) => (n === 1 ? 'text in 1 transcript' : `text in ${n} transcripts`),
+    referencedTitle: 'Boxes drawn on it, or text on it in transcripts',
     working: 'Working',
     uploading: (percent: number) => `Uploading ${percent}%`,
     processing: 'Making tiles',
@@ -229,23 +229,31 @@ export const pageStrings = {
 
   remove: {
     title: (label: string) => `Remove ${label}?`,
-    description: 'The page and its image are removed. This cannot be undone.',
-    submit: 'Remove page',
-    anyway: 'Remove anyway',
-    removed: (label: string) => `${label} has been removed.`,
-    refused: (label: string, zones: number, transcriptions: string[]) => {
+    /** What the removal does, from the words on the page and the boxes drawn on it. */
+    description: (label: string, words: number, transcripts: number, boxes: number, image: boolean) => {
       const parts: string[] = [];
-      if (zones > 0) parts.push(plural(zones, 'zone', 'zones'));
-      if (transcriptions.length > 0) {
-        const names = transcriptions.join(', ');
-        parts.push(`the page breaks of ${transcriptions.length === 1 ? 'the transcript' : 'the transcripts'} ${names}`);
+      if (words > 0) {
+        parts.push(`The ${plural(words, 'word', 'words')} on ${label} in ${plural(transcripts, 'transcript', 'transcripts')} ${words === 1 ? 'goes' : 'go'} to Not on a page.`);
       }
-      const consequences: string[] = [];
-      if (zones > 0) consequences.push(zones === 1 ? 'deletes the zone' : 'deletes the zones');
-      if (transcriptions.length > 0) consequences.push('leaves the page breaks without a page');
-      return `${label} is referred to by ${parts.join(' and by ')}. Removing it ${consequences.join(' and ')}.`;
+      if (image && boxes > 0) parts.push(`The image and its ${plural(boxes, 'box', 'boxes')} are removed.`);
+      else if (image) parts.push('The image is removed.');
+      else if (boxes > 0) parts.push(`Its ${plural(boxes, 'box', 'boxes')} are removed.`);
+      parts.push('This cannot be undone.');
+      return parts.join(' ');
     },
+    submit: 'Remove page',
+    removed: (label: string) => `${label} has been removed.`,
+    /** After the removal, when text moved. */
+    moved: (label: string, words: number, transcripts: number) =>
+      `${label} has been removed; ${plural(words, 'word', 'words')} of ${plural(transcripts, 'transcript', 'transcripts')} ${words === 1 ? 'is' : 'are'} now not on a page.`,
     transcription: (name: string, owner: string | null) => (owner ? `${name} (${owner})` : name),
+  },
+
+  /** The messages of the changes made to transcripts when the witness's pages change, as the history shows them. */
+  history: {
+    removed: (label: string) => `Page ${label} removed from the witness; its text is not on a page`,
+    reordered: 'Pages reordered',
+    reorganized: 'Pages reorganized',
   },
 
   manifest: {
