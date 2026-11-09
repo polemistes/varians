@@ -486,7 +486,6 @@ export const registry = {
     moves: 'What moves',
     nothingMoves: 'Nothing but the entry itself.',
     blocks: 'What prevents the merge',
-    count: (n: number, one: string, many: string) => (n === 1 ? `1 ${one}` : `${n} ${many}`),
     transcriptions: (n: number) => (n === 1 ? '1 transcript' : `${n} transcripts`),
     readings: (n: number) => (n === 1 ? '1 reported reading' : `${n} reported readings`),
     conjectures: (n: number) => (n === 1 ? '1 conjecture' : `${n} conjectures`),
@@ -517,7 +516,6 @@ export const registry = {
     gone: 'One of the entries no longer exists.',
     blocked: 'The merge is prevented; see above.',
     mergedHere: 'Merged into this entry',
-    mergedItem: (label: string, date: string) => `${label}, ${date}`,
   },
 
   search: {

@@ -35,7 +35,7 @@ async function maintained(locals: App.Locals, slug: string, user: Actor) {
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
   const user = requireUser(locals, url.pathname + url.search);
-  const { work, scheme } = await maintained(locals, params.slug, user);
+  const { work, scheme, maintainerIds } = await maintained(locals, params.slug, user);
   const [maintainers, segments] = await Promise.all([
     maintainersOf(locals.db, 'work', work.id),
     segmentsOfWork(locals.db, work.id),
@@ -56,7 +56,11 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     scheme,
     locked: segments.length > 0,
     maintainers,
-    can: { delete: governs(user, work), govern: governs(user, work) },
+    can: {
+      delete: governs(user, work),
+      govern: governs(user, work),
+      merge: isAdministrator(user) || work.createdBy === user.id || maintainerIds.includes(user.id),
+    },
   };
 };
 

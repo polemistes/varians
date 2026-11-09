@@ -13,6 +13,8 @@ export { default as IdentifiersField } from './IdentifiersField.svelte';
 export { default as LanguageField } from './LanguageField.svelte';
 export { default as LevelRow } from './LevelRow.svelte';
 export { default as MaintainersEditor } from './MaintainersEditor.svelte';
+export { default as MergePanel } from './MergePanel.svelte';
+export { default as MergedEntries } from './MergedEntries.svelte';
 export { default as NewTranscriptionForm } from './NewTranscriptionForm.svelte';
 export { default as PageList } from './PageList.svelte';
 export { default as ReadingList } from './ReadingList.svelte';

@@ -26,6 +26,7 @@ import {
   workOptions,
   worksOfWitness,
 } from '$lib/server/registry';
+import { mergesInto } from '$lib/server/registry-merge';
 import { field, parseName, parseTranscriptionForm } from '$lib/registry/forms';
 import type { WorkRef } from '$lib/registry/types';
 import { registry as t } from '$lib/strings/registry';
@@ -49,7 +50,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   const db = locals.db;
   const grants = await grantsFor(db, user);
   const sees = seesWork(user, grants);
-  const [maintainers, pageRows, transcriptionRows, workRows, readingRows, workChoices, sources] =
+  const [maintainers, pageRows, transcriptionRows, workRows, readingRows, workChoices, sources, merged] =
     await Promise.all([
       maintainersOf(db, 'witness', witness.id),
       pagesOfWitness(db, witness.id),
@@ -58,6 +59,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       readingsOfWitness(db, witness.id),
       user ? workOptions(db, user, grants) : Promise.resolve([]),
       user ? viewableTranscriptions(db, user, grants) : Promise.resolve([]),
+      mergesInto(db, 'witness', witness.id),
     ]);
   const context = { workMaintainerIds: [] as string[], grants };
   const readings = readingRows.filter((r) => sees(r.work) && canViewConjecture(user, r, context));
@@ -81,6 +83,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       settlement: witness.settlement,
       shelfmark: witness.shelfmark,
       identifier: witness.identifier,
+      identifiers: witness.identifiers,
       dateText: witness.dateText,
       material: witness.material,
       extent: witness.extent,
@@ -90,6 +93,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       iiifManifest: witness.iiifManifest,
     },
     maintainers: maintainers.map((m) => ({ id: m.id, name: m.name })),
+    merged,
     pages: pageRows,
     transcriptions: transcriptionRows
       .filter((r) => canViewTranscription(user, r, grants))

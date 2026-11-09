@@ -61,6 +61,7 @@ import {
   type Witness,
   type Work,
 } from '@varians/db';
+import { identifierMatches } from './identifier-search.ts';
 import { chosenWorks, chosenWorksOf, setChosenWorks } from './transcription-works.ts';
 import { joinLevelLabels, keepsAddresses, relabel, separatorsChanged } from '$lib/registry/scheme';
 import type {
@@ -1389,7 +1390,7 @@ export function visibleWorks(user: Actor | null | undefined, grants: Grants): SQ
   );
 }
 
-/** Up to eight entries the user may see whose title or author (name, siglum or shelfmark) contain the query. */
+/** Up to eight entries the user may see whose title or author (name, siglum or shelfmark) contain the query, or with the query as an identifier. */
 export async function searchRegistry(
   db: Database,
   kind: RegistryKind,
@@ -1407,7 +1408,11 @@ export async function searchRegistry(
       .where(
         and(
           visibleWorks(user, grants),
-          or(sql`${works.title} ilike ${pattern}`, sql`${works.author} ilike ${pattern}`),
+          or(
+            sql`${works.title} ilike ${pattern}`,
+            sql`${works.author} ilike ${pattern}`,
+            identifierMatches(works, query),
+          ),
         ),
       )
       .orderBy(asc(works.title))
@@ -1429,6 +1434,7 @@ export async function searchRegistry(
         sql`${witnesses.name} ilike ${pattern}`,
         sql`${witnesses.siglum} ilike ${pattern}`,
         sql`${witnesses.shelfmark} ilike ${pattern}`,
+        identifierMatches(witnesses, query),
       ),
     )
     .orderBy(asc(witnesses.name))

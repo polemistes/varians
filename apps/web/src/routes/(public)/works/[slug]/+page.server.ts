@@ -36,6 +36,7 @@ import {
   witnessOptions,
   workBySlug,
 } from '$lib/server/registry';
+import { mergesInto } from '$lib/server/registry-merge';
 import { resolveSegment, segmentsOfWork } from '$lib/server/segments';
 import {
   checked,
@@ -101,6 +102,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     readingRows,
     segmentRows,
     witnessList,
+    merged,
   ] = await Promise.all([
     maintainersOf(db, 'work', work.id),
     editionRowsOfWork(db, work.id),
@@ -109,6 +111,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     readingsOfWork(db, work.id),
     segmentsOfWork(db, work.id),
     user ? witnessOptions(db) : Promise.resolve([]),
+    mergesInto(db, 'work', work.id),
   ]);
 
   // Back from registering a witness for this work: the picker opens with it.
@@ -155,9 +158,11 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
       language: work.language,
       languageName: languageName(work.language),
       identifier: work.identifier,
+      identifiers: work.identifiers,
       description: work.description,
       visibility: work.visibility,
     },
+    merged,
     scheme,
     schemeSentence: schemeSentence(scheme),
     example: segmentRows[0]?.label ?? exampleLabel(scheme),

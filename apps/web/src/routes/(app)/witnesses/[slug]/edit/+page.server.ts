@@ -32,7 +32,7 @@ async function maintained(locals: App.Locals, slug: string, user: Actor) {
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
   const user = requireUser(locals, url.pathname + url.search);
-  const { witness } = await maintained(locals, params.slug, user);
+  const { witness, maintainerIds } = await maintained(locals, params.slug, user);
   const maintainers = await maintainersOf(locals.db, 'witness', witness.id);
   return {
     crumb: { label: witness.name, href: `/witnesses/${witness.slug}` },
@@ -58,7 +58,11 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
       description: witness.description,
     },
     maintainers,
-    can: { delete: governs(user, witness), govern: governs(user, witness) },
+    can: {
+      delete: governs(user, witness),
+      govern: governs(user, witness),
+      merge: isAdministrator(user) || witness.createdBy === user.id || maintainerIds.includes(user.id),
+    },
   };
 };
 
