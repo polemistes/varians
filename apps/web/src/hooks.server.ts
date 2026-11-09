@@ -21,6 +21,7 @@ const LARGE_BODIES: [RegExp, number][] = [
   [/^\/transcriptions\/[^/]+$/u, 25 * 1024 * 1024], // imports
   [/^\/api\/documents\/[^/]+\/[^/]+\/ops$/u, 25 * 1024 * 1024], // a large first save or paste
   [/^\/bibliography$/u, 6 * 1024 * 1024], // a .bib file
+  [/^\/import$/u, 200 * 1024 * 1024], // a package
 ];
 
 function bodyLimit(pathname: string): number {

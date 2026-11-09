@@ -18,7 +18,7 @@
  */
 
 import { normalizeSiglum } from '../sigla.ts';
-import { isDataLicence, newId, normalizeRights, reconcile, ReconcileError, type Level, type NormalizationProfile, type Op, type Stream, type ZoneGeometry } from '@varians/core';
+import { isDataLicence, licenceCompatible, licenceInfo, newId, normalizeRights, reconcile, ReconcileError, type DataLicence, type Level, type NormalizationProfile, type Op, type Stream, type ZoneGeometry } from '@varians/core';
 import {
   alignmentConstraints,
   bibliographyItems,
@@ -60,19 +60,28 @@ import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { citationsOfWork } from './archive.ts';
 import { nameMoment, rebuildSegmentIndex, replaceContent } from '../documents/service.ts';
 import { setChosenWorks } from '../transcription-works.ts';
+import { canEditEdition, canEditTranscription, canMaintainWitness, canMaintainWork, grantsFor, isAdministrator, isSiteEditor, type Actor } from '../authz.ts';
+import { dataLicence } from '../settings.ts';
 
 /** What to do with a document whose history conflicts with ours: report it and leave it, keep ours (storing theirs unapplied), or take theirs. */
 export type ConflictPolicy = 'report' | 'keep' | 'take';
 
 export interface ImportOptions {
   onConflict?: ConflictPolicy;
+  /**
+   * The account importing, when it is not the installation's operator (the
+   * import page): records it may not edit here are left as they are, the
+   * registry entries it does not maintain only gain what is missing, and
+   * what it brings in is its own.
+   */
+  actor?: Actor;
   /** Work everything out and roll it back: the preview. */
   dryRun?: boolean;
   /** Where the archive came from, for the message of a merge changeset. */
   source?: string;
 }
 
-export type DocumentResult = 'created' | 'unchanged' | 'fast-forward' | 'merged' | 'conflict' | 'kept' | 'taken';
+export type DocumentResult = 'created' | 'unchanged' | 'fast-forward' | 'merged' | 'conflict' | 'kept' | 'taken' | 'refused';
 
 export interface DocumentOutcome {
   kind: 'transcription' | 'edition';
@@ -111,6 +120,14 @@ export interface ImportReport {
 }
 
 class Rollback extends Error {}
+
+/** An import that may not be made: licences that do not go together. Nothing has been written. */
+export class ImportRefused extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ImportRefused';
+  }
+}
 
 /** A time as the archive writes it, or undefined so that the database's default applies. */
 function when(value: unknown): Date | undefined {
@@ -305,7 +322,57 @@ function mergeIdentifiers(a: CanonicalIdentifier[], b: CanonicalIdentifier[]): C
   });
 }
 
+/** What a restricted import may touch (ImportOptions.actor). */
+interface Guard {
+  restricted: boolean;
+  maintainsWork(workId: string): Promise<boolean>;
+  maintainsWitness(witnessId: string): Promise<boolean>;
+  editsDocument(kind: 'transcription' | 'edition', id: string): Promise<boolean>;
+  ownsOrEdits(table: typeof conjectures | typeof reportedReadings | typeof bibliographyItems, id: string): Promise<boolean>;
+}
+
+async function guardFor(db: Database, actor: Actor | undefined): Promise<Guard> {
+  if (!actor || isAdministrator(actor)) {
+    const yes = async () => true;
+    return { restricted: false, maintainsWork: yes, maintainsWitness: yes, editsDocument: yes, ownsOrEdits: yes };
+  }
+  const grants = await grantsFor(db, actor);
+  return {
+    restricted: true,
+    async maintainsWork(workId) {
+      const [w] = await db.select({ id: works.id, createdBy: works.createdBy }).from(works).where(eq(works.id, workId));
+      if (!w) return true;
+      const maintainers = (await db.select({ userId: workMaintainers.userId }).from(workMaintainers).where(eq(workMaintainers.workId, workId))).map((m) => m.userId);
+      return canMaintainWork(actor, w, maintainers);
+    },
+    async maintainsWitness(witnessId) {
+      const [w] = await db.select({ id: witnesses.id, createdBy: witnesses.createdBy }).from(witnesses).where(eq(witnesses.id, witnessId));
+      if (!w) return true;
+      const maintainers = (await db.select({ userId: witnessMaintainers.userId }).from(witnessMaintainers).where(eq(witnessMaintainers.witnessId, witnessId))).map((m) => m.userId);
+      return canMaintainWitness(actor, w, maintainers);
+    },
+    async editsDocument(kind, id) {
+      if (kind === 'transcription') {
+        const [t] = await db.select({ id: transcriptions.id, ownerId: transcriptions.ownerId }).from(transcriptions).where(eq(transcriptions.id, id));
+        return !t || canEditTranscription(actor, t, grants);
+      }
+      const [e] = await db.select({ id: editions.id, ownerId: editions.ownerId }).from(editions).where(eq(editions.id, id));
+      return !e || canEditEdition(actor, e, grants.collaboratingEditionIds.has(e.id) ? [actor.id] : []);
+    },
+    async ownsOrEdits(table, id) {
+      if (table === bibliographyItems) {
+        const [b] = await db.select({ createdBy: bibliographyItems.createdBy }).from(bibliographyItems).where(eq(bibliographyItems.id, id));
+        return !b || b.createdBy === actor.id || isSiteEditor(actor);
+      }
+      const t = table as typeof conjectures;
+      const [r] = await db.select({ ownerId: t.ownerId }).from(t).where(eq(t.id, id));
+      return !r || r.ownerId === actor.id || isSiteEditor(actor);
+    },
+  };
+}
+
 interface Context {
+  guard: Guard;
   db: Database;
   userId: string;
   options: ImportOptions;
@@ -320,9 +387,9 @@ interface Context {
   segmentLabel: Map<string, string>;
 }
 
-/** An owner or maintainer: the account, or the person importing when it has none here. */
+/** An owner or maintainer: the account, or the person importing when it has none here (and always, in a restricted import). */
 function owner(ctx: Context, id: string | null | undefined): string {
-  return id && ctx.known.has(id) ? id : ctx.userId;
+  return !ctx.guard.restricted && id && ctx.known.has(id) ? id : ctx.userId;
 }
 
 /** The person here of a person the archive names. */
@@ -406,8 +473,10 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
   if (!work) throw new Error(`no work.json in ${dir}`);
   const formatVersion = typeof work.formatVersion === 'number' ? work.formatVersion : 1;
 
+  await checkLicences(reader, dir);
   const known = new Set((await db.select({ id: users.id }).from(users)).map((u) => u.id));
-  const ctx: Context = { db, userId, options, reader, warnings, known, personMap: new Map(), accountOfPerson: new Map(), segmentLabel: new Map() };
+  const guard = await guardFor(db, options.actor);
+  const ctx: Context = { guard, db, userId, options, reader, warnings, known, personMap: new Map(), accountOfPerson: new Map(), segmentLabel: new Map() };
 
   // Persons: by id, then ORCID, else new and without an account.
   const incomingPersons = (await reader.list<IncomingPerson>(path.join(dir, 'persons.json'), 'persons')) ?? (await personsOfVersion1(reader, dir));
@@ -447,7 +516,11 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
   const [existingWork] = await db.select({ identifiers: works.identifiers, schemeId: works.schemeId }).from(works).where(eq(works.id, work.id));
   const identifiers = mergeIdentifiers(existingWork?.identifiers ?? [], identifierList(work.identifiers));
   const slug = await freeSlug(db, works, work.slug, work.id);
-  if (existingWork && workMatch.by) {
+  const maintainsWork = await guard.maintainsWork(work.id);
+  if (existingWork && !maintainsWork) {
+    // A work this account does not maintain is left as it is; what is missing (segments) is added below.
+    warnings.push(`the work ${work.title} is maintained by others here: its details were left as they are`);
+  } else if (existingWork && workMatch.by) {
     // A work matched by identifier or merge keeps its own details; only the identifiers are joined.
     await db.update(works).set({ identifiers }).where(eq(works.id, work.id));
   } else {
@@ -473,9 +546,11 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
         set: { slug, title: work.title, author: work.author, language: work.language, identifier: work.identifier, identifiers, description: work.description, schemeId: work.scheme.id, profile: work.profile, visibility: work.visibility },
       });
   }
-  for (const m of work.maintainers ?? []) await db.insert(workMaintainers).values({ workId: work.id, userId: owner(ctx, m.id), createdAt: when(m.since) }).onConflictDoNothing();
-  await db.insert(workMaintainers).values({ workId: work.id, userId }).onConflictDoNothing();
-  for (const m of work.mergedIds ?? []) {
+  if (maintainsWork) {
+    for (const m of work.maintainers ?? []) await db.insert(workMaintainers).values({ workId: work.id, userId: owner(ctx, m.id), createdAt: when(m.since) }).onConflictDoNothing();
+    await db.insert(workMaintainers).values({ workId: work.id, userId }).onConflictDoNothing();
+  }
+  for (const m of guard.restricted ? [] : work.mergedIds ?? []) {
     await db
       .insert(registryMerges)
       .values({ oldId: m.id, kind: 'work', survivorId: work.id, label: m.label, mergedBy: m.mergedBy && known.has(m.mergedBy) ? m.mergedBy : null, mergedAt: when(m.mergedAt) })
@@ -498,7 +573,8 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
       createdAt: when(cell(fields, 'created_at')),
     };
     ctx.segmentLabel.set(s.id, s.label);
-    await db.insert(segments).values(s).onConflictDoUpdate({ target: segments.id, set: { label: s.label, sortKey: s.sortKey, address: s.address } });
+    if (maintainsWork) await db.insert(segments).values(s).onConflictDoUpdate({ target: segments.id, set: { label: s.label, sortKey: s.sortKey, address: s.address } });
+    else await db.insert(segments).values(s).onConflictDoNothing();
   }
   for (const s of await db.select({ id: segments.id, label: segments.label }).from(segments).where(eq(segments.workId, work.id))) ctx.segmentLabel.set(s.id, s.label);
 
@@ -513,8 +589,11 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
     witnessCount++;
     const [existing] = await db.select({ identifiers: witnesses.identifiers }).from(witnesses).where(eq(witnesses.id, w.id));
     const matchedHere = matches.some((m) => m.kind === 'witness' && m.localId === w.id);
+    const maintainsWitness = await guard.maintainsWitness(w.id);
     const witnessIdentifiers = mergeIdentifiers(existing?.identifiers ?? [], identifierList(w.identifiers));
-    if (existing && matchedHere) {
+    if (existing && !maintainsWitness) {
+      // Left as it is; missing pages are added below.
+    } else if (existing && matchedHere) {
       await db.update(witnesses).set({ identifiers: witnessIdentifiers }).where(eq(witnesses.id, w.id));
     } else {
       const wslug = await freeSlug(db, witnesses, w.slug, w.id);
@@ -528,9 +607,11 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
         .values({ ...fields, slug: wslug, createdBy: owner(ctx, w.createdBy), createdAt: when(w.createdAt) })
         .onConflictDoUpdate({ target: witnesses.id, set: { ...fields, slug: wslug, createdBy: owner(ctx, w.createdBy) } });
     }
-    for (const m of w.maintainers ?? []) await db.insert(witnessMaintainers).values({ witnessId: w.id, userId: owner(ctx, m.id), createdAt: when(m.since) }).onConflictDoNothing();
-    await db.insert(witnessMaintainers).values({ witnessId: w.id, userId }).onConflictDoNothing();
-    for (const m of w.mergedIds ?? []) {
+    if (maintainsWitness) {
+      for (const m of w.maintainers ?? []) await db.insert(witnessMaintainers).values({ witnessId: w.id, userId: owner(ctx, m.id), createdAt: when(m.since) }).onConflictDoNothing();
+      await db.insert(witnessMaintainers).values({ witnessId: w.id, userId }).onConflictDoNothing();
+    }
+    for (const m of guard.restricted ? [] : w.mergedIds ?? []) {
       await db
         .insert(registryMerges)
         .values({ oldId: m.id, kind: 'witness', survivorId: w.id, label: m.label, mergedBy: m.mergedBy && known.has(m.mergedBy) ? m.mergedBy : null, mergedAt: when(m.mergedAt) })
@@ -572,8 +653,8 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
         createdAt: when(p.createdAt),
       };
       const [ours] = await db.select({ id: pages.id }).from(pages).where(eq(pages.id, p.id));
-      // A page matched by label to one of ours keeps our image.
-      if (ours && matchedHere) continue;
+      // A page matched by label to one of ours keeps our image; a witness maintained by others keeps its pages.
+      if (ours && (matchedHere || !maintainsWitness)) continue;
       await db.insert(pages).values(values).onConflictDoUpdate({ target: pages.id, set: values });
     }
     for (const tdir of await dirs(path.join(wdir, 'transcriptions'))) {
@@ -617,7 +698,7 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
         await db
           .insert(transcriptions)
           .values({ id: t.id, ...meta, content, version, createdAt: when(t.createdAt) })
-          .onConflictDoUpdate({ target: transcriptions.id, set: meta });
+          .onConflictDoUpdate({ target: transcriptions.id, set: keepOwner(ctx, meta) });
       });
       documents.push(outcome);
       if (!applies(outcome)) continue;
@@ -649,13 +730,13 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
   for (const c of conjectureList) {
     const fields = stripped(c) as typeof c;
     const values = { ...fields, workId: work.id, ownerId: owner(ctx, c.ownerId), createdAt: when(c.createdAt) };
-    await db.insert(conjectures).values(values).onConflictDoUpdate({ target: conjectures.id, set: values });
+    if (await guard.ownsOrEdits(conjectures, c.id)) await db.insert(conjectures).values(values).onConflictDoUpdate({ target: conjectures.id, set: values });
   }
   const reportedList = (await reader.list<typeof reportedReadings.$inferSelect & { segmentLabel?: string }>(path.join(dir, 'reported-readings.json'), 'readings')) ?? [];
   for (const r of reportedList) {
     const fields = stripped(r) as typeof r;
     const values = { ...fields, workId: work.id, ownerId: owner(ctx, r.ownerId), createdAt: when(r.createdAt) };
-    await db.insert(reportedReadings).values(values).onConflictDoUpdate({ target: reportedReadings.id, set: values });
+    if (await guard.ownsOrEdits(reportedReadings, r.id)) await db.insert(reportedReadings).values(values).onConflictDoUpdate({ target: reportedReadings.id, set: values });
   }
 
   let editionCount = 0;
@@ -711,7 +792,7 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
       await db
         .insert(editions)
         .values({ id: e.id, ...meta, content, version, createdAt: when(e.createdAt) })
-        .onConflictDoUpdate({ target: editions.id, set: meta });
+        .onConflictDoUpdate({ target: editions.id, set: keepOwner(ctx, meta) });
     });
     documents.push(outcome);
     if (!applies(outcome)) continue;
@@ -788,6 +869,7 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
       warnings.push(`bibliography key ${item.citationKey} already exists with another id; its citations now cite the existing entry`);
       continue;
     }
+    if (!(await guard.ownsOrEdits(bibliographyItems, item.id))) continue;
     await db
       .insert(bibliographyItems)
       .values({ id: item.id, entryType: item.entryType, citationKey: item.citationKey, fields: item.fields, label: item.label, createdBy: item.createdBy === undefined ? userId : owner(ctx, item.createdBy), createdAt: when(item.createdAt) })
@@ -825,9 +907,46 @@ function licenceFields(licence: string | null | undefined, rightsNote: string | 
   return { licenceId: null, rightsNote: rightsNote ?? free };
 }
 
+/** The fields of an existing record to update: a restricted import never changes who owns it. */
+function keepOwner<T extends { ownerId: string }>(ctx: Context, meta: T): Partial<T> {
+  if (!ctx.guard.restricted) return meta;
+  const { ownerId: _owner, ...rest } = meta;
+  void _owner;
+  return rest as Partial<T>;
+}
+
 /** Whether a document's own records (zones, conspectus, notes and the rest) are taken from the archive: not when its text conflicts and ours is kept. */
 function applies(outcome: DocumentOutcome): boolean {
-  return outcome.result !== 'conflict' && outcome.result !== 'kept';
+  return outcome.result !== 'conflict' && outcome.result !== 'kept' && outcome.result !== 'refused';
+}
+
+/**
+ * Whether the archive's records may be published here (Data Format 2,
+ * 10.2): CC0 anywhere, CC BY into CC BY and CC BY-SA, CC BY-SA into CC BY-SA
+ * only. Refused before anything is written, naming both licences.
+ */
+async function checkLicences(reader: ArchiveReader, dir: string): Promise<void> {
+  const target = dataLicence();
+  const found = new Set<DataLicence>();
+  const work = await reader.json<{ licence?: unknown }>(path.join(dir, 'work.json'));
+  if (isDataLicence(work?.licence)) found.add(work.licence);
+  for (const wdir of await dirs(path.join(dir, 'witnesses'))) {
+    for (const tdir of await dirs(path.join(wdir, 'transcriptions'))) {
+      const t = await reader.json<{ licence?: unknown }>(path.join(tdir, 'transcription.json'));
+      if (isDataLicence(t?.licence)) found.add(t.licence);
+    }
+  }
+  for (const edir of await dirs(path.join(dir, 'editions'))) {
+    const e = await reader.json<{ licence?: unknown }>(path.join(edir, 'edition.json'));
+    if (isDataLicence(e?.licence)) found.add(e.licence);
+  }
+  for (const licence of found) {
+    if (!licenceCompatible(licence, target)) {
+      throw new ImportRefused(
+        `Records licensed under ${licenceInfo(licence)!.name} cannot be published under ${licenceInfo(target)!.name}, the licence of this installation.`,
+      );
+    }
+  }
 }
 
 /** The archive's history of a document as changesets: persons here, accounts here, parents (derived from the order in version 1 archives). */
@@ -882,6 +1001,7 @@ async function importDocument(
   const history = await readHistory(ctx, dir);
   const [local] = await db.select({ version: table.version, content: table.content }).from(table).where(eq(table.id, id));
   const outcome = (result: DocumentResult, stored: number, extra: Partial<DocumentOutcome> = {}): DocumentOutcome => ({ kind, id, name, result, changesets: stored, segments: [], ...extra });
+  if (local && !(await ctx.guard.editsDocument(kind, id))) return outcome('refused', 0, { reason: 'you may not edit it here' });
   const store = async (rows: ChangesetValues[], version: (i: number) => number | null) => {
     let stored = 0;
     for (const [i, c] of rows.entries()) {

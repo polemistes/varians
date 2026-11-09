@@ -100,8 +100,9 @@ export const registry = {
       'No segment yet. Segments come into being when text is assigned to them or a conjecture names them.',
     archive: 'Archive',
     archiveHint:
-      'Everything in this work as open files: TEI, JSON with schemas, plain text, the bibliography and the images. Kept current by the server in a git repository; the zip holds what you may see.',
-    download: 'Download archive',
+      'Everything in this work as open files: TEI, JSON with schemas, plain text, the bibliography and the images whose rights allow it, in a package with checksums and a description of its contents. The package holds what you may see.',
+    download: 'Download package',
+    downloadRepository: 'The server’s archive, with its history',
     // Complete or partial is a matter of the work: the same codex may hold all of one text and part of another.
     coverage: (n: number, total: number) => (total > 0 && n >= total ? `Complete, ${n} of ${total}` : `Partial, ${n} of ${total}`),
     coverageLabel: (n: number, total: number) =>

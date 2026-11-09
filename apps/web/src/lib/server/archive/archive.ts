@@ -70,6 +70,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { and, asc, desc, eq, inArray, isNotNull, lte, or } from 'drizzle-orm';
 import { collateEdition } from '../collation.ts';
+import { documentAt } from '../documents/service.ts';
 import { exportHands, teiForm } from '../witness-format.ts';
 import { apparatusConventionsOf, contextAt } from '../reader.ts';
 import { siglaOrderOf } from '../../reader/sites.ts';
@@ -130,6 +131,8 @@ export interface ArchiveFilter {
   reported(row: typeof reportedReadings.$inferSelect): boolean;
   /** Whether the person sees an edition's working state; otherwise the archive holds its published version only. */
   editionWorking(row: typeof editions.$inferSelect): boolean;
+  /** The version of a transcription to write, when not its current one: for a package of a published edition, the version its apparatus was collated against (PLAN-2 E2). */
+  transcriptionVersion?(row: typeof transcriptions.$inferSelect): number | null;
 }
 
 /** Which parts of a work's archive to write. The work's own files are always written. */
@@ -618,8 +621,12 @@ async function writeWitnessFiles(ctx: WorkContext, witness: WitnessRow): Promise
 }
 
 /** One transcription's directory, written afresh. */
-async function writeTranscriptionFiles(ctx: WorkContext, t: TranscriptionRow): Promise<void> {
+async function writeTranscriptionFiles(ctx: WorkContext, current: TranscriptionRow): Promise<void> {
   const { db, work, writers, userNames, labelOf } = ctx;
+  // A transcription at an earlier version: its text and history up to that version.
+  const wanted = writers.only?.transcriptionVersion?.(current) ?? null;
+  const upTo = wanted !== null && wanted < current.version ? wanted : null;
+  const t = upTo === null ? current : { ...current, version: upTo, content: await documentAt(db, 'transcription', current.id, upTo) };
   const witness = ctx.witnessRows.find((w) => w.id === t.witnessId)!;
   const tdir = path.join(ctx.dir, ctx.transcriptionPath.get(t.id)!);
   await rm(tdir, { recursive: true, force: true });
@@ -632,7 +639,7 @@ async function writeTranscriptionFiles(ctx: WorkContext, t: TranscriptionRow): P
     ownerName: userNames.get(t.ownerId) ?? null,
     visibility: t.visibility,
     version: t.version,
-    head: await headOf(db, 'transcription', t.id, null),
+    head: await headOf(db, 'transcription', t.id, upTo),
     keepsWrittenForm: t.keepsWrittenForm,
     displayAsWritten: t.displayAsWritten,
     profile: t.profile,
@@ -645,7 +652,8 @@ async function writeTranscriptionFiles(ctx: WorkContext, t: TranscriptionRow): P
     content: t.content,
   }));
   await writeJson(path.join(tdir, 'memory.json'), list('memory', 'entries', t.memory));
-  const zoneRows = await db.select().from(zones).where(eq(zones.transcriptionId, t.id)).orderBy(asc(zones.id));
+  const live = upTo === null ? null : new Set(t.content.items.map((i) => i.id));
+  const zoneRows = (await db.select().from(zones).where(eq(zones.transcriptionId, t.id)).orderBy(asc(zones.id))).filter((z) => !live || z.tokenIds.every((id) => live.has(id)));
   await writeJson(
     path.join(tdir, 'zones.json'),
     list('zones', 'zones', zoneRows.map((z) => ({ id: z.id, pageId: z.pageId, tokenIds: z.tokenIds, geometry: z.geometry, feature: z.feature, createdAt: iso(z.createdAt) }))),
@@ -665,7 +673,7 @@ async function writeTranscriptionFiles(ctx: WorkContext, t: TranscriptionRow): P
         language: work.language,
         ...(t.sources ? { sources: t.sources } : {}),
         ...teiRights(t.licenceId, t.rightsNote),
-        contributors: await contributorsOf(ctx, 'transcription', t.id, null),
+        contributors: await contributorsOf(ctx, 'transcription', t.id, upTo),
         witness: {
           ...defined({
             siglum: witness.siglum,
@@ -696,7 +704,7 @@ async function writeTranscriptionFiles(ctx: WorkContext, t: TranscriptionRow): P
       }),
     );
   }
-  await historyFiles(ctx, tdir, 'transcription', t.id);
+  await historyFiles(ctx, tdir, 'transcription', t.id, upTo);
 }
 
 /** One edition's directory, written afresh: its working state, or for someone who does not edit it the version readers see. */

@@ -209,10 +209,13 @@
         <div class="mt-6 flex flex-col gap-2">
           <p class="max-w-reading font-sans text-sm text-ink-soft">{t.work.archiveHint}</p>
           <div>
-            <a href="/works/{work.slug}/archive.zip" download="{work.slug}-archive.zip" class={buttonClasses('secondary', 'sm')}>
+            <a href="/works/{work.slug}/package.zip" download="{work.slug}.zip" class={buttonClasses('secondary', 'sm')}>
               <Download class="size-4" aria-hidden="true" />
               {t.work.download}
             </a>
+            {#if data.user?.role === 'administrator'}
+              <a href="/works/{work.slug}/archive.zip" download="{work.slug}-archive.zip" class="ml-3 font-sans text-sm text-ink-soft underline">{t.work.downloadRepository}</a>
+            {/if}
           </div>
         </div>
       {/if}

@@ -5,6 +5,8 @@
  *   pnpm --filter @varians/web cli export-all [--root DIR]
  *   pnpm --filter @varians/web cli check-archive [<work-slug>] [--root DIR]
  *   pnpm --filter @varians/web cli write-example [--out DIR]
+ *   pnpm --filter @varians/web cli export-package (--work <slug> | --edition <slug> | --transcription <id> | --all) --out <file.zip>
+ *   pnpm --filter @varians/web cli export-all --package <file.zip>
  *   pnpm --filter @varians/web cli import-archive <dir> --user <email> [--on-conflict keep|take] [--dry-run]
  *   pnpm --filter @varians/web cli seed-sample --user <email>
  *   pnpm --filter @varians/web cli make-admin <email>
@@ -18,14 +20,16 @@
  * the file VARIANS_ENV_FILE names, then from apps/web/.env; see env.ts).
  */
 
-import { createDatabase, sql, users, works } from '@varians/db';
+import { createDatabase, editions, sql, users, works } from '@varians/db';
 import { eq } from 'drizzle-orm';
+import { copyFile } from 'node:fs/promises';
 import path from 'node:path';
 import { archiveChangedWorks } from '../src/lib/server/archive/schedule.ts';
 import { archiveWork } from '../src/lib/server/archive/archive.ts';
 import { checkArchive, isClean } from '../src/lib/server/archive/check.ts';
 import { writeExample } from '../src/lib/server/archive/example.ts';
-import { importArchive } from '../src/lib/server/archive/import.ts';
+import { importPackage } from '../src/lib/server/archive/import-package.ts';
+import { buildPackage, type PackageScope } from '../src/lib/server/archive/package.ts';
 import { confirmEmailDirectly, makeResetLinkFor } from '../src/lib/server/account-mail.ts';
 import { seedSample } from '../src/lib/server/seed/sample.ts';
 import { formatVersion } from '../src/lib/version-format.ts';
@@ -36,14 +40,18 @@ function flag(args: string[], name: string): string | undefined {
   return index >= 0 ? args[index + 1] : undefined;
 }
 
+/** The version of this Varians: fixed by the bundling of the scripts (vite.scripts.config.ts); from source, the package's version alone. */
+function cliVersion(): string {
+  const version = typeof __VARIANS_VERSION__ === 'string' ? __VARIANS_VERSION__ : process.env.npm_package_version ?? 'unknown';
+  const commit = typeof __VARIANS_COMMIT__ === 'string' ? __VARIANS_COMMIT__ : '';
+  return formatVersion(version, commit);
+}
+
 async function main(): Promise<void> {
   loadEnv();
   const [command, ...args] = process.argv.slice(2);
   if (command === 'version') {
-    // Fixed by the bundling of the scripts (vite.scripts.config.ts); from source, the package's version alone.
-    const version = typeof __VARIANS_VERSION__ === 'string' ? __VARIANS_VERSION__ : process.env.npm_package_version ?? 'unknown';
-    const commit = typeof __VARIANS_COMMIT__ === 'string' ? __VARIANS_COMMIT__ : '';
-    console.log(formatVersion(version, commit));
+    console.log(cliVersion());
     return;
   }
   const url = process.env.DATABASE_URL;
@@ -65,6 +73,33 @@ async function main(): Promise<void> {
       case 'export-all': {
         const archived = await archiveChangedWorks(db, root, 'manual export', { storageRoot: storage });
         console.log(`${archived.length} work(s) committed`);
+        // With --package, the whole installation as a package as well (PLAN-2 E3).
+        const out = flag(args, 'package');
+        if (out) await writePackage(db, [{ kind: 'installation' }], out, storage);
+        break;
+      }
+      case 'export-package': {
+        // export-package (--work <slug> | --edition <slug> | --transcription <id> | --all) --out <file.zip>
+        const out = flag(args, 'out');
+        if (!out) throw new Error('usage: export-package (--work <slug> | --edition <slug> | --transcription <id> | --all) --out <file.zip>');
+        const scopes: PackageScope[] = [];
+        const workSlug = flag(args, 'work');
+        if (workSlug) {
+          const [w] = await db.select({ id: works.id }).from(works).where(eq(works.slug, workSlug));
+          if (!w) throw new Error(`no work with slug ${workSlug}`);
+          scopes.push({ kind: 'work', workId: w.id });
+        }
+        const editionSlug = flag(args, 'edition');
+        if (editionSlug) {
+          const [e] = await db.select({ id: editions.id }).from(editions).where(eq(editions.slug, editionSlug));
+          if (!e) throw new Error(`no edition with slug ${editionSlug}`);
+          scopes.push({ kind: 'edition', editionId: e.id });
+        }
+        const transcriptionId = flag(args, 'transcription');
+        if (transcriptionId) scopes.push({ kind: 'transcription', transcriptionId });
+        if (args.includes('--all')) scopes.push({ kind: 'installation' });
+        if (scopes.length === 0) throw new Error('name what to package: --work, --edition, --transcription or --all');
+        await writePackage(db, scopes, out, storage);
         break;
       }
       case 'check-archive': {
@@ -101,12 +136,22 @@ async function main(): Promise<void> {
         const policy = flag(args, 'on-conflict');
         if (policy !== undefined && policy !== 'keep' && policy !== 'take') throw new Error('--on-conflict is keep or take');
         const user = await userByEmail(db, email);
-        const report = await importArchive(db, path.resolve(dir), user.id, {
+        // A package (zip or bag), a zipped archive, or an archive directory.
+        const result = await importPackage(db, path.resolve(dir), user.id, {
           ...(policy ? { onConflict: policy } : {}),
           dryRun: args.includes('--dry-run'),
           source: path.basename(path.resolve(dir)),
         });
-        if (report.dryRun) console.log('A preview: nothing was changed.');
+        if (result.refused) {
+          console.log(`Nothing was imported: ${result.refused}`);
+          for (const p of result.problems) console.log(`  ${p.file}: ${p.message}`);
+          process.exitCode = 1;
+          break;
+        }
+        if (result.bag) console.log('The checksums of the package are right.');
+        if (result.dryRun) console.log('A preview: nothing was changed.');
+        for (const report of result.works) {
+        console.log(`work ${report.workId}`);
         for (const d of report.documents) {
           const where = d.segments.length ? ` (segments ${d.segments.join(', ')})` : '';
           console.log(`  ${d.result.padEnd(12)} ${d.kind} ${d.name}${where}`);
@@ -118,6 +163,7 @@ async function main(): Promise<void> {
         if (report.documents.some((d) => d.result === 'conflict')) {
           console.log('Conflicting documents were left as they are: import again with --on-conflict keep or --on-conflict take.');
           process.exitCode = 2;
+        }
         }
         break;
       }
@@ -158,11 +204,22 @@ async function main(): Promise<void> {
       }
       default:
         console.log(
-          'commands: export-archive <slug>, export-all, check-archive [<slug>], write-example, import-archive <dir> --user <email> [--on-conflict keep|take] [--dry-run], seed-sample --user <email>, make-admin <email>, reset-password <email>, confirm-email <email>, version',
+          'commands: export-archive <slug>, export-all [--package <file>], export-package --work|--edition|--transcription|--all --out <file>, check-archive [<slug>], write-example, import-archive <dir> --user <email> [--on-conflict keep|take] [--dry-run], seed-sample --user <email>, make-admin <email>, reset-password <email>, confirm-email <email>, version',
         );
     }
   } finally {
     await pool.end();
+  }
+}
+
+/** Write a package for the operator: everything, drafts included, as an administrator sees it; review positions stay out. */
+async function writePackage(db: ReturnType<typeof createDatabase>['db'], scopes: PackageScope[], out: string, storage: string): Promise<void> {
+  const pkg = await buildPackage(db, { id: 'operator', role: 'administrator' }, scopes, { storageRoot: storage, ...(process.env.ORIGIN ? { origin: process.env.ORIGIN } : {}), agent: `Varians ${cliVersion()}` });
+  try {
+    await copyFile(pkg.file, path.resolve(out));
+    console.log(`wrote ${path.resolve(out)}`);
+  } finally {
+    await pkg.cleanup();
   }
 }
 

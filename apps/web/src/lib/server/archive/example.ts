@@ -13,7 +13,7 @@ import { conjectures, createDatabase, pages, users } from '@varians/db';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { eq } from 'drizzle-orm';
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -24,6 +24,7 @@ import { adoptConjecture } from '../conjectures.ts';
 import { publishEdition } from '../publish.ts';
 import { seedSample } from '../seed/sample.ts';
 import { writeArchive } from './archive.ts';
+import { buildPackage } from './package.ts';
 
 /** The address the example's TEI prefixes resolve to: the reference installation. */
 export const EXAMPLE_ORIGIN = 'https://varians.eu';
@@ -31,6 +32,8 @@ export const EXAMPLE_ORIGIN = 'https://varians.eu';
 const EXAMPLE_README = `# The example archive
 
 \`iliad/\` is a complete archive in the Varians Data Format, version 2: the opening of Iliad 1 in three transcribed witnesses and one known from a reported reading, an edition with its apparatus, a conjecture adopted and one not, a note citing the literature, a zone on a page with a small image, an alignment constraint, sites looked at and classed, review positions, a named and a published moment, and a collaborator.
+
+\`iliad.zip\` is the same work as a package: a BagIt bag with RO-Crate metadata, as one installation sends a work to another.
 
 It is the conformance target for other implementations: every JSON file in it is valid against its schema, every TEI file against varians.rng, and Varians reads it back. It is written by \`pnpm --filter @varians/web cli write-example\` from the application's sample, so its ids and times change each time it is written. The words, readings and image are examples, not a verified text.
 `;
@@ -101,7 +104,15 @@ export async function writeExample(serverUrl: string, outDir: string): Promise<s
       await rm(outDir, { recursive: true, force: true });
       await mkdir(outDir, { recursive: true });
       await writeFile(path.join(outDir, 'README.md'), EXAMPLE_README, 'utf8');
-      return await writeArchive(db, sample.workId, outDir, { storageRoot: storage, origin: EXAMPLE_ORIGIN });
+      const dir = await writeArchive(db, sample.workId, outDir, { storageRoot: storage, origin: EXAMPLE_ORIGIN });
+      // The same work as a package, as another installation would receive it.
+      const pkg = await buildPackage(db, { id: editor, role: 'administrator' }, [{ kind: 'work', workId: sample.workId }], { storageRoot: storage, origin: EXAMPLE_ORIGIN, name: 'iliad', agent: 'Varians (example)' });
+      try {
+        await copyFile(pkg.file, path.join(outDir, 'iliad.zip'));
+      } finally {
+        await pkg.cleanup();
+      }
+      return dir;
     } finally {
       await pool.end();
     }

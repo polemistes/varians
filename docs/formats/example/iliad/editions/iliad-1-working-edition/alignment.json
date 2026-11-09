@@ -2,16 +2,16 @@
   "$schema": "https://varians.eu/formats/2/alignment.schema.json",
   "constraints": [
     {
-      "id": "01M6Z8YE6Y4MJM76N3WE14GAYJ",
-      "segmentId": "01M6Z8YE23BSZ0EKRBX143HQNQ",
+      "id": "01M6Z9Q41KVVSEVZ0MK4QRZ28T",
+      "segmentId": "01M6Z9Q3WRSYBM3EXADNPYNMBZ",
       "baseTokenIds": [
-        "01M6Z8YE5MKT4BM40RMN354GBG"
+        "01M6Z9Q4001SHAV5TQKAHQGB8N"
       ],
-      "transcriptionId": "01M6Z8YE4QCYVDVJ0K93X91EBR",
+      "transcriptionId": "01M6Z9Q3YXM4XXFHA1CPM60HHX",
       "witnessTokenIds": [
-        "01M6Z8YE4QCYVDVJ0K93X91E9K"
+        "01M6Z9Q3YXM4XXFHA1CPM60HFR"
       ],
-      "createdAt": "2026-11-09T04:26:59.679Z"
+      "createdAt": "2026-11-09T04:40:28.467Z"
     }
   ]
 }

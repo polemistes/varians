@@ -3,11 +3,12 @@ import { newId } from '@varians/core';
 import { changesets, createDatabase, referenceSchemes, users, witnesses, works, type Database } from '@varians/db';
 import { eq, inArray } from 'drizzle-orm';
 import { existsSync } from 'node:fs';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import pg from 'pg';
 import { formatsDir } from './archive.ts';
 import { exampleWorks } from './example.ts';
+import { openPackageZip } from './package.ts';
 import { importArchive, removeWorkCompletely } from './import.ts';
 import { hasXmllint, validateArchiveDir, validateTeiFiles } from './validate.ts';
 
@@ -75,4 +76,17 @@ describe('the example archive of the format', () => {
     expect(report.documents.map((d) => d.result)).toEqual(['created', 'created', 'created', 'created']);
     await clean();
   }, 120_000);
+
+  it('holds the same work as a package, whose checksums are right', async () => {
+    const opened = await openPackageZip(path.join(example, 'iliad.zip'));
+    try {
+      expect(opened.bag).toBe(true);
+      expect(opened.info['Varians-Format-Version']).toBe('2');
+      expect(opened.workDirs.map((d) => path.basename(d))).toEqual(['iliad']);
+      expect(await validateArchiveDir(opened.workDirs[0]!)).toEqual([]);
+    } finally {
+      await rm(opened.dir, { recursive: true, force: true });
+    }
+  });
 });
+
