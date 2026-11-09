@@ -196,11 +196,20 @@ export function isXmlName(name: string): boolean {
   return NAME.test(name);
 }
 
-/** An xml:id from any id: characters outside the NCName set become underscores, and a leading digit gets a prefix. */
+/** The characters that may begin an XML name (XML 1.0, fifth edition), without the colon. */
+const NAME_START = 'A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD\\u{10000}-\\u{EFFFF}';
+const NOT_NAME_CHAR = new RegExp(`[^${NAME_START}\\-.0-9\\u00B7\\u0300-\\u036F\\u203F\\u2040]`, 'gu');
+const NAME_START_CHAR = new RegExp(`^[${NAME_START}]`, 'u');
+
+/**
+ * An xml:id from any id: characters outside the NCName set (which includes
+ * Greek and other letters) become underscores, and a start that may not
+ * begin a name gets one. Different ids can give the same name (A¹ and A²
+ * both give A_); callers that need distinct names make them so.
+ */
 export function ncName(id: string, prefix = ''): string {
-  const safe = id.replace(/[^A-Za-z0-9_.-]/gu, '_');
-  const prefixed = `${prefix}${safe}`;
-  return /^[A-Za-z_]/u.test(prefixed) ? prefixed : `_${prefixed}`;
+  const prefixed = `${prefix}${id.replace(NOT_NAME_CHAR, '_')}`;
+  return NAME_START_CHAR.test(prefixed) ? prefixed : `_${prefixed}`;
 }
 
 export type AttrValue = string | number | boolean | null | undefined;

@@ -44,7 +44,29 @@ export interface EditionExport {
   segments: EditionSegmentExport[];
 }
 
-const witId = (siglum: string): string => ncName(siglum, 'wit-');
+/** How the witnesses are referred to: the base's siglum, left out of `wit`, and each siglum's xml:id. */
+interface WitnessRefs {
+  baseSiglum: string;
+  witId: (siglum: string) => string;
+}
+
+/**
+ * Distinct xml:ids for the witnesses, `wit-` and the siglum as a name; sigla
+ * that give the same name (A¹ and A²) are told apart by a number.
+ */
+function witnessRefs(witnesses: readonly EditionWitness[], baseSiglum: string): WitnessRefs {
+  const ids = new Map<string, string>();
+  const taken = new Set<string>();
+  for (const { siglum } of witnesses) {
+    if (ids.has(siglum)) continue;
+    const name = ncName(siglum, 'wit-');
+    let id = name;
+    for (let n = 2; taken.has(id); n++) id = `${name}-${n}`;
+    ids.set(siglum, id);
+    taken.add(id);
+  }
+  return { baseSiglum, witId: (siglum) => ids.get(siglum) ?? ncName(siglum, 'wit-') };
+}
 
 /** A complete TEI document of the edition. */
 export function exportEditionTei(input: EditionExport): string {
@@ -57,11 +79,12 @@ export function exportEditionTei(input: EditionExport): string {
   out.push(`      <titleStmt><title>${escapeText(input.title)}</title>${(input.editors ?? []).map((name) => `<editor>${escapeText(name)}</editor>`).join('')}</titleStmt>`);
   out.push(`      ${publicationStmt(input.licence)}`);
   out.push('      <sourceDesc>');
+  const refs = witnessRefs(input.witnesses, input.baseSiglum ?? 'ed.');
   if (input.witnesses.length > 0) {
     out.push('        <listWit>');
     for (const w of input.witnesses) {
       const text = [w.name, w.description].filter((x) => x && x.trim() !== '').join('. ');
-      out.push(`          <witness xml:id="${witId(w.siglum)}" n="${escapeAttr(w.siglum)}">${escapeText(text || w.siglum)}</witness>`);
+      out.push(`          <witness xml:id="${refs.witId(w.siglum)}" n="${escapeAttr(w.siglum)}">${escapeText(text || w.siglum)}</witness>`);
     }
     out.push('        </listWit>');
   }
@@ -77,7 +100,7 @@ export function exportEditionTei(input: EditionExport): string {
   if (input.preface) out.push(`    <front><div type="preface"><p>${escapeText(input.preface)}</p></div></front>`);
   out.push('    <body>');
   out.push('      <div type="edition">');
-  for (const segment of input.segments) out.push(segmentXml(segment, input.baseSiglum ?? 'ed.'));
+  for (const segment of input.segments) out.push(segmentXml(segment, refs));
   out.push('      </div>');
   out.push('    </body>');
   out.push('  </text>');
@@ -112,12 +135,12 @@ function itemXml(item: Item): string {
   }
 }
 
-function witAttr(sigla: string[], baseSiglum: string): string {
-  const ids = sigla.filter((s) => s !== baseSiglum).map(witId);
+function witAttr(sigla: string[], refs: WitnessRefs): string {
+  const ids = sigla.filter((s) => s !== refs.baseSiglum).map(refs.witId);
   return ids.length ? ` wit="${ids.map((id) => `#${id}`).join(' ')}"` : '';
 }
 
-function segmentXml(segment: EditionSegmentExport, baseSiglum: string): string {
+function segmentXml(segment: EditionSegmentExport, refs: WitnessRefs): string {
   // Which tokens each site covers, and where insertion sites stand.
   const siteOfToken = new Map<string, Site>();
   const insertionBefore = new Map<string, Site[]>();
@@ -144,7 +167,7 @@ function segmentXml(segment: EditionSegmentExport, baseSiglum: string): string {
       for (const site of insertionBefore.get(item.id) ?? []) {
         if (!emitted.has(site)) {
           emitted.add(site);
-          push(appXml(site, [], segment, baseSiglum));
+          push(appXml(site, [], segment, refs));
         }
       }
       const site = siteOfToken.get(item.id);
@@ -152,7 +175,7 @@ function segmentXml(segment: EditionSegmentExport, baseSiglum: string): string {
         if (emitted.has(site)) continue;
         emitted.add(site);
         const covered = segment.items.filter((i): i is Token => i.kind === 'token' && siteOfToken.get(i.id) === site);
-        push(appXml(site, covered, segment, baseSiglum));
+        push(appXml(site, covered, segment, refs));
         continue;
       }
       push(tokenXml(item));
@@ -163,24 +186,24 @@ function segmentXml(segment: EditionSegmentExport, baseSiglum: string): string {
   for (const site of insertionsAtEnd) {
     if (!emitted.has(site)) {
       emitted.add(site);
-      push(appXml(site, [], segment, baseSiglum));
+      push(appXml(site, [], segment, refs));
     }
   }
   return `        <ab n="${escapeAttr(segment.label)}">${parts.join('')}</ab>`;
 }
 
-function appXml(site: Site, lemmaTokens: Token[], segment: EditionSegmentExport, baseSiglum: string): string {
+function appXml(site: Site, lemmaTokens: Token[], segment: EditionSegmentExport, refs: WitnessRefs): string {
   const base = site.readings.find((r) => r.base);
   const attachments = segment.attachments?.[site.index] ?? [];
   const adopted = attachments.find((a) => a.adopted);
   const lemmaText = lemmaTokens.map(tokenXml).join(' ');
-  const lemWit = base ? witAttr(base.sigla, baseSiglum) : '';
+  const lemWit = base ? witAttr(base.sigla, refs) : '';
   const lemResp = adopted ? ` resp="${escapeAttr(adopted.name)}"` : '';
   const out: string[] = [];
   out.push(lemmaText === '' ? `<lem${lemWit}${lemResp}/>` : `<lem${lemWit}${lemResp}>${lemmaText}</lem>`);
   for (const reading of site.readings) {
     if (reading.base) continue;
-    const wit = witAttr(reading.sigla, baseSiglum);
+    const wit = witAttr(reading.sigla, refs);
     if (reading.lacunose && reading.text === '') out.push(`<rdg${wit}><gap reason="lost"/></rdg>`);
     else if (reading.omission) out.push(`<rdg${wit}/>`);
     else out.push(`<rdg${wit}>${escapeText(reading.text)}${reading.lacunose ? '<gap reason="lost"/>' : ''}</rdg>`);

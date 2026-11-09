@@ -269,6 +269,17 @@ describe.skipIf(!xmllint)('edition TEI is valid', slow, () => {
     expect(errors(xml)).toEqual([]);
   });
 
+  it('with Greek sigla, sigla that differ only by a superscript, and a sub-siglum for the variants of a carrier', () => {
+    const sigla = ['Π', 'Σ', 'A¹', 'A²', 'A v.l.', 'a', '1'];
+    const witnesses = sigla.map((siglum, i) => collationText(`W${i}`, siglum, i % 2 ? 'the slow fox' : 'the quick fox'));
+    const xml = exportEditionTei({ title: 't', witnesses: sigla.map((siglum) => ({ siglum })), segments: [editionSegment('1', 'the quick fox', witnesses)] });
+    expect(xml).toContain('<witness xml:id="wit-Π" n="Π">');
+    expect(xml).toContain('<witness xml:id="wit-A_" n="A¹">');
+    expect(xml).toContain('<witness xml:id="wit-A_-2" n="A²">');
+    expect(xml).toContain('<rdg wit="#wit-Σ #wit-A_-2 #wit-a">slow</rdg>');
+    expect(errors(xml)).toEqual([]);
+  });
+
   it('with no witnesses and no segments', () => {
     expect(errors(exportEditionTei({ title: 'Empty', witnesses: [], segments: [] }))).toEqual([]);
   });
