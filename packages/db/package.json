@@ -1,7 +1,8 @@
 {
   "name": "@varians/db",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "description": "The PostgreSQL schema of Varians, with Drizzle.",
   "exports": {
@@ -23,5 +24,10 @@
     "drizzle-kit": "^0.31.11",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/polemistes/varians.git",
+    "directory": "packages/db"
   }
 }
