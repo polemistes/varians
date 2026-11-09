@@ -1,6 +1,6 @@
 # @varians/web
 
-The SvelteKit application of Varians: the pages, the editors, the API routes and the reader. Read [../../PLAN.md](../../PLAN.md) and [../../docs/web-conventions.md](../../docs/web-conventions.md) first.
+The SvelteKit application of Varians: the pages, the editors, the API routes and the reader. Read [../../docs/web-conventions.md](../../docs/web-conventions.md) first.
 
 ## Setup
 
@@ -56,7 +56,7 @@ src/
   hooks.server.ts           session cookie → locals.user, locals.db; theme attributes on <html>
   lib/
     server/                 everything that touches the database (never imported by the browser)
-      auth.ts, authz.ts     accounts and sessions; who may see or edit what (PLAN 4.10)
+      auth.ts, authz.ts     accounts and sessions; who may see or edit what
       documents/service.ts  the save protocol: operations, changesets, checkpoints, versions
       ops-schema.ts         the shape of operations a client may send
       collation.ts          an edition's collation context and the collation cache

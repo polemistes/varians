@@ -1,6 +1,6 @@
 # Using Varians
 
-This guide is for editors: the people who transcribe witnesses, collate them and make editions in Varians. It follows the work in the order it is usually done. [PLAN.md](../PLAN.md) explains why things are as they are; this guide only says how to use them.
+This guide is for editors: the people who transcribe witnesses, collate them and make editions in Varians. It follows the work in the order it is usually done. It says how to use them.
 
 ## The parts of Varians
 

@@ -1,6 +1,6 @@
 # Conventions for apps/web
 
-Read [../PLAN.md](../PLAN.md) first. This file is for everyone writing code in `apps/web`.
+This file is for everyone writing code in `apps/web`.
 
 ## Stack
 
@@ -17,7 +17,7 @@ src/
     server/
       db.ts                 the Drizzle client from DATABASE_URL (one per process)
       auth.ts               passwords (argon2), sessions, cookies
-      authz.ts              who may see or edit what (PLAN 4.10)
+      authz.ts              who may see or edit what
       <feature>/            server-only logic per feature (documents, images, archive, ...)
     components/
       ui/                   primitives: Button, Field, Input, Select, Dialog, Menu, Popover, Toast, Tabs
@@ -34,7 +34,7 @@ src/
 ## Rules
 
 - **Server does authorization.** Every load function and action checks `authz` helpers. Pages never decide; they show or hide by `can` flags the server returns.
-- **Loads return plain data**; mutations go through form actions for ordinary pages and JSON endpoints under `/api` for the editors (which send operations with a document version, see PLAN 7.3).
+- **Loads return plain data**; mutations go through form actions for ordinary pages and JSON endpoints under `/api` for the editors (which send operations with a document version).
 - **Strings live in `src/lib/strings/`.** `en.ts` holds the shell and the common screens (imported as `s` from '$lib/strings'); each larger screen has its own module (editor, edition, registry, pages, workbench, reader, history, bibliography). No user-facing text inline in components.
 - **Components are small.** A route's `+page.svelte` composes feature components; feature components own their state with runes (`$state`, `$derived`, `$effect`) and take plain props.
 - **Styling** uses Tailwind utilities and the tokens in `app.css`: colours `--color-*`, fonts `--font-serif` (text) and `--font-sans` (interface). No inline hex colours. Light and dark mode through `prefers-color-scheme` and a `data-theme` attribute on `<html>`.

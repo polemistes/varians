@@ -20,3 +20,10 @@ playwright-report/
 
 # TEI Stylesheets, P5 source and Saxon for docs/formats/build-rng.sh
 /tools/
+
+# The owner's correspondence with Claude: the plans and the brief stay on this machine
+/PLAN.md
+/PLAN-2.md
+/PLAN-*.md
+/docs/brief.md
+/docs/notes/

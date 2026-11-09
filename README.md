@@ -4,9 +4,6 @@ A platform for making and reading digital scholarly editions of ancient texts: t
 
 - [docs/guide.md](docs/guide.md) is how to use it, for editors.
 - [docs/install.md](docs/install.md) is how to install and run it, for operators.
-- [PLAN.md](PLAN.md) is the design, and the record of the decisions taken.
-- [PLAN-2.md](PLAN-2.md) is the plan for the data formats as a specification, the archive, sharing between installations, licences and installation (November 2026).
-- [docs/brief.md](docs/brief.md) is what was asked for, in the owner's words.
 - [docs/formats/](docs/formats/) specifies the archive and the TEI subset.
 - [docs/web-conventions.md](docs/web-conventions.md) is how code in the web app is written.
 - [deploy/](deploy/) holds the systemd units, proxy snippets and scripts of the native installation, and how varians.eu itself is deployed.
