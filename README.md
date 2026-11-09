@@ -3,12 +3,29 @@
 A platform for making and reading digital scholarly editions of ancient texts: transcriptions of witnesses with their facsimiles, automatic collation, a critical text edited like any text with its apparatus derived from the witnesses, a reader, a full history of every change, and an archive of open files that outlives the application.
 
 - [docs/guide.md](docs/guide.md) is how to use it, for editors.
+- [docs/install.md](docs/install.md) is how to install and run it, for operators.
 - [PLAN.md](PLAN.md) is the design, and the record of the decisions taken.
 - [PLAN-2.md](PLAN-2.md) is the plan for the data formats as a specification, the archive, sharing between installations, licences and installation (November 2026).
 - [docs/brief.md](docs/brief.md) is what was asked for, in the owner's words.
 - [docs/formats/](docs/formats/) specifies the archive and the TEI subset.
 - [docs/web-conventions.md](docs/web-conventions.md) is how code in the web app is written.
-- [deploy/](deploy/) is how it runs on a server.
+- [deploy/](deploy/) holds the systemd units, proxy snippets and scripts of the native installation, and how varians.eu itself is deployed.
+- [CHANGELOG.md](CHANGELOG.md) is what changed in each release; [SECURITY.md](SECURITY.md) is how to report a vulnerability.
+
+## Installing
+
+Releases are published at [github.com/polemistes/varians/releases](https://github.com/polemistes/varians/releases): a container image, `ghcr.io/polemistes/varians`, and a tarball for Linux on x64 and arm64. The quickest way to run one is Docker Compose:
+
+```sh
+mkdir varians && cd varians
+for f in compose.yaml Caddyfile .env.example; do
+  curl -fsSLO "https://raw.githubusercontent.com/polemistes/varians/v0.2.0/$f"
+done
+cp .env.example .env      # then set ORIGIN, DOMAIN and POSTGRES_PASSWORD
+docker compose --profile tls up -d
+```
+
+[docs/install.md](docs/install.md), the operators' guide, describes this and the native installation, the proxies, every setting, mail, backups, upgrades and the dictionaries.
 
 ## Layout
 
@@ -57,3 +74,7 @@ pnpm --filter @varians/web cli seed-sample --user you@example.org
 pnpm --filter @varians/web cli export-archive iliad
 pnpm --filter @varians/web cli import-archive /path/to/archive --user you@example.org
 ```
+
+## Licences
+
+Varians is free software. The application is licensed under the GNU Affero General Public License, version 3 or later ([LICENSE](LICENSE)); the domain package `packages/core` under the Apache License 2.0 ([packages/core/LICENSE](packages/core/LICENSE)); the format specification in `docs/formats` under CC BY 4.0, with its schemas under the BSD 2-Clause licence ([docs/formats/LICENSE](docs/formats/LICENSE)). The data and fonts that come with it are listed with their licences on the page Sources and licences of every installation.

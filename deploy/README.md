@@ -1,5 +1,7 @@
 # Running Varians on the server
 
+This is how varians.eu itself runs: built from a checkout of the repository, pushed with `push.sh`. To install Varians elsewhere, from a release, follow [docs/install.md](../docs/install.md); its native installation uses the units in `native/` and the proxy snippets in `nginx/` and `apache/`.
+
 Varians runs on an Arch Linux server, possibly alongside other sites. Apache holds ports 80 and 443 for all of them and passes the requests for varians.eu on to Varians, a Node process that listens only on the server itself (127.0.0.1:3000). PostgreSQL holds the data; the uploaded images and the archives are files.
 
 ```
