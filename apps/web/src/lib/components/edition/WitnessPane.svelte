@@ -5,6 +5,7 @@
    * site lit. Clicking a word adopts that witness at the site covering it.
    */
   import type { Item, ZoneGeometry } from '@varians/core';
+  import ImageCredit from '$lib/components/facsimile/ImageCredit.svelte';
   import { Select, Spinner, Tabs, type Tab } from '$lib/components/ui';
   import type { FacsimileSource, FacsimileZone } from '$lib/facsimile/types';
   import type { SiglumClient, WitnessSegment } from '$lib/edition/types';
@@ -70,7 +71,7 @@
   const lit = $derived(new Set(highlightTokenIds));
 
   // Facsimile: the page of the first lit token (else of the first segment), its zones, and the source.
-  let image = $state<{ source: FacsimileSource; zones: FacsimileZone[]; pageLabel: string } | null>(null);
+  let image = $state<{ source: FacsimileSource; zones: FacsimileZone[]; pageLabel: string; rights: string | null; attribution: string | null } | null>(null);
   let imageLoading = $state(false);
   let imageFor = $state('');
   $effect(() => {
@@ -86,7 +87,7 @@
     imageLoading = true;
     fetch(`/api/transcriptions/${transcriptionId}/zones?tokens=${encodeURIComponent(first)}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.statusText))))
-      .then(async (data: { zones: { pageId: string }[]; pages: { id: string; label: string; source: FacsimileSource | null }[] }) => {
+      .then(async (data: { zones: { pageId: string }[]; pages: { id: string; label: string; source: FacsimileSource | null; rights?: string | null; attribution?: string | null }[] }) => {
         const pageId = data.zones[0]?.pageId;
         const page = data.pages.find((p) => p.id === pageId);
         if (!page || !page.source) {
@@ -100,6 +101,8 @@
         image = {
           source: page.source,
           pageLabel: page.label,
+          rights: page.rights ?? null,
+          attribution: page.attribution ?? null,
           zones: all.zones.map((z) => ({ id: z.id, geometry: z.geometry, tokenIds: z.tokenIds, kind: z.feature ? 'feature' : z.tokenIds.length > 1 ? 'line' : 'word' })),
         };
         imageFor = key;
@@ -210,5 +213,8 @@
         <div class="absolute inset-0 grid place-items-center"><Spinner /></div>
       {/if}
     </div>
+    {#if image && !imageLoading}
+      <ImageCredit rights={image.rights} attribution={image.attribution} class="shrink-0 truncate border-t border-line px-3 py-1" />
+    {/if}
   {/if}
 </div>

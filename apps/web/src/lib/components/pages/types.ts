@@ -74,6 +74,8 @@ export interface ManifestPreviewView {
   rights: {
     rights: string | null;
     label: string | null;
+    /** The manifest's statement when it is not listed. */
+    unlisted: string | null;
     attribution: string | null;
     ownStatements: number;
     fallback: string | null;

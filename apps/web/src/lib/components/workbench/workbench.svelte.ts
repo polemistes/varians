@@ -27,7 +27,7 @@ import {
   type ZoneGeometry,
 } from '@varians/core';
 import { DEFAULT_MAX_UPLOAD_BYTES } from '$lib/components/pages/files';
-import type { PageView, WitnessPagesData } from '$lib/components/pages/types';
+import type { ImageDefaults, PageView, WitnessPagesData } from '$lib/components/pages/types';
 import type { EditorApi } from '$lib/editor/editor';
 import { pageView } from '$lib/editor/page';
 import {
@@ -77,6 +77,9 @@ export interface WorkbenchPage extends WitnessPage {
   source: FacsimileSource | null;
   /** An image to read lines from: the uploaded file, or a IIIF image service. */
   image: { kind: 'file' | 'iiif'; url: string } | null;
+  /** The image's rights statement and credit line, shown under it. */
+  rights?: string | null;
+  attribution?: string | null;
 }
 
 export interface WorkbenchWork {
@@ -105,7 +108,7 @@ export interface WorkbenchInput {
     workIds: string[];
     profile: Partial<NormalizationProfile> | null;
   };
-  witness: { id: string; slug: string; siglum: string; name: string; hands: WitnessHand[] };
+  witness: { id: string; slug: string; siglum: string; name: string; hands: WitnessHand[]; imageDefaults?: ImageDefaults };
   pages: WorkbenchPage[];
   works: WorkbenchWork[];
   segments: Record<string, SegmentInfo>;
@@ -153,6 +156,8 @@ export class Workbench {
   pages = $state.raw<WorkbenchPage[]>([]);
   /** The pages as the Pages tab shows them, with thumbnails and what refers to them; loaded when the tab asks. */
   pageViews = $state.raw<PageView[] | null>(null);
+  /** The rights statement and credit line new images of the witness are given. */
+  imageDefaults = $state.raw<ImageDefaults>({ rights: null, attribution: null });
   works = $state.raw<WorkbenchWork[]>([]);
   segments = $state.raw<Record<string, SegmentInfo>>({});
 
@@ -220,6 +225,7 @@ export class Workbench {
     this.keepsWrittenForm = input.transcription.keepsWrittenForm;
     this.displayAsWritten = input.transcription.displayAsWritten;
     this.pages = input.pages;
+    this.imageDefaults = input.witness.imageDefaults ?? { rights: null, attribution: null };
     this.works = input.works;
     this.segments = input.segments;
     this.stream = input.transcription.content;
@@ -644,7 +650,17 @@ export class Workbench {
       return null;
     }
     this.pageViews = data.pages;
-    this.pages = data.pages.map((p) => ({ id: p.id, label: p.label, width: p.width, height: p.height, source: p.source, image: p.image }));
+    this.pages = data.pages.map((p) => ({
+      id: p.id,
+      label: p.label,
+      width: p.width,
+      height: p.height,
+      source: p.source,
+      image: p.image,
+      rights: p.rights,
+      attribution: p.attribution,
+    }));
+    this.imageDefaults = data.witness.imageDefaults;
     return data;
   }
 

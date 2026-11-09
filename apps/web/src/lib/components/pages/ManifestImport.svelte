@@ -144,6 +144,25 @@
           </div>
         {/if}
 
+        <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm">
+          {#if preview.rights.rights && preview.rights.label}
+            <dt class="text-ink-soft">{t.manifest.rights}</dt>
+            <dd><a href={preview.rights.rights} rel="license noopener" target="_blank" class="text-accent underline">{preview.rights.label}</a></dd>
+          {/if}
+          {#if preview.rights.attribution}
+            <dt class="text-ink-soft">{t.manifest.credit}</dt>
+            <dd class="break-words">{preview.rights.attribution}</dd>
+          {/if}
+        </dl>
+        {#if !preview.rights.rights && !preview.rights.unlisted}
+          <p class="text-sm text-ink-soft">
+            {preview.rights.fallbackLabel ? t.manifest.fallbackRights(preview.rights.fallbackLabel) : t.manifest.noRights}
+          </p>
+        {/if}
+        {#if preview.rights.ownStatements > 0}
+          <p class="text-sm text-ink-soft">{t.manifest.ownStatements(preview.rights.ownStatements)}</p>
+        {/if}
+
         {#if preview.warnings.length > 0}
           <Notice kind="warning" title={t.manifest.warnings}>
             <ul class="list-disc pl-4">

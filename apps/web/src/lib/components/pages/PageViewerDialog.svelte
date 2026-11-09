@@ -8,6 +8,7 @@
   import ChevronLeft from '@lucide/svelte/icons/chevron-left';
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
   import X from '@lucide/svelte/icons/x';
+  import ImageCredit from '$lib/components/facsimile/ImageCredit.svelte';
   import { IconButton, Spinner } from '$lib/components/ui';
   import { s } from '$lib/strings';
   import { pageStrings as t } from '$lib/strings/pages';
@@ -99,6 +100,9 @@
           </div>
         {/if}
       </div>
+      {#if page}
+        <ImageCredit rights={page.rights} attribution={page.attribution} class="shrink-0 border-t border-line px-4 py-1.5" />
+      {/if}
     </Dialog.Content>
   </Dialog.Portal>
 </Dialog.Root>

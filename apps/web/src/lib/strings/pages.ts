@@ -143,7 +143,6 @@ export const pageStrings = {
     statement: 'Rights statement',
     choose: 'Choose a statement',
     credit: 'Credit line',
-    creditHint: 'As the holder of the rights asks it to be given.',
     source: 'Source',
     sourceHint: 'The address the image was obtained from.',
     notCopyable: 'An image under this statement is shown here but not copied into archives or downloads.',
@@ -181,11 +180,8 @@ export const pageStrings = {
   },
 
   replaceImage: {
-    title: (label: string) => `Replace the image of ${label}?`,
     zones: (n: number) =>
       `${n === 1 ? 'A zone is' : `${n} zones are`} drawn on it, as parts of the image. On a new image they keep their places, which fit only if it shows the page as the old one did.`,
-    choose: 'Choose an image',
-    useDropped: 'Use the dropped image',
   },
 
   moveImage: {

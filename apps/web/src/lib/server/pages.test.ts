@@ -769,7 +769,15 @@ describe('IIIF manifests', () => {
     base.canvases[2]!.rights = 'https://library.example.org/terms';
     mockedLoad.mockResolvedValue({ ...base, rights: 'https://creativecommons.org/licenses/by/4.0/', attribution: 'Library' });
     const preview = await previewManifest('https://iiif.example.org/r.json', [], null);
-    expect(preview.rights).toEqual({ rights: CC_BY, label: 'CC BY 4.0', attribution: 'Library', ownStatements: 2, fallback: null, fallbackLabel: null });
+    expect(preview.rights).toEqual({
+      rights: CC_BY,
+      label: 'CC BY 4.0',
+      unlisted: null,
+      attribution: 'Library',
+      ownStatements: 2,
+      fallback: null,
+      fallbackLabel: null,
+    });
     expect(preview.warnings).toEqual([expect.stringContaining('https://library.example.org/terms')]);
 
     const summary = await importManifest(db, witness, 'https://iiif.example.org/r.json', { storageRoot: root });

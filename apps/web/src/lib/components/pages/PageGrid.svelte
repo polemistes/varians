@@ -14,14 +14,18 @@
   import { pageStrings as t } from '$lib/strings/pages';
   import { followingLabel } from './labels';
   import { actionUrl, failureMessage, megabytes, postAction, uploadToAction } from './client';
-  import { ACCEPT_IMAGES, isImageFile } from './files';
+  import { isImageFile } from './files';
   import PageCard, { type CardBusy } from './PageCard.svelte';
+  import PageImageDialog, { type ImageChoice, type ImageRequest } from './PageImageDialog.svelte';
   import PageViewerDialog from './PageViewerDialog.svelte';
-  import type { PageView } from './types';
+  import RightsFields from './RightsFields.svelte';
+  import type { ImageDefaults, PageView } from './types';
 
   interface Props {
     pages: PageView[];
     maxUploadBytes: number;
+    /** The witness's rights statement and credit line for new images. */
+    defaults?: ImageDefaults;
     /** Nothing may be changed. */
     readonly?: boolean;
     /** The id of the page shown in the text, marked on its card. */
@@ -37,7 +41,7 @@
     onopen?: (page: PageView) => void;
   }
 
-  let { pages, maxUploadBytes, readonly = false, current = null, base = '', onchanged = invalidateAll, onopen }: Props = $props();
+  let { pages, maxUploadBytes, defaults = { rights: null, attribution: null }, readonly = false, current = null, base = '', onchanged = invalidateAll, onopen }: Props = $props();
 
   const viewable = $derived(pages.filter((p) => p.source));
   let viewing = $state<string | null>(null);
@@ -87,46 +91,32 @@
 
   // Images
 
-  let fileInput = $state<HTMLInputElement | null>(null);
-  /** The page a chosen file is for. */
-  let replacing: PageView | null = null;
-  /** A page whose image has zones on it, waiting for the replacement to be confirmed, and the dropped file if there was one. */
-  let confirmingReplace = $state<PageView | null>(null);
-  let confirmingFile = $state<File | null>(null);
+  /** A page waiting for its image to be chosen, or its rights. */
+  let imageRequest = $state<ImageRequest | null>(null);
 
-  /** Give a page an image: the file dropped on it, or one to be chosen. A page whose image carries zones asks first. */
+  /**
+   * Give a page an image. A file dropped on it goes straight up with the
+   * witness's rights statement when the witness has one and no zones are at
+   * stake; otherwise the dialog asks for the file, the rights or both.
+   */
   function requestImage(page: PageView, file: File | null) {
-    if (page.imageKind && page.zones > 0) {
-      confirmingReplace = page;
-      confirmingFile = file;
+    if (file && defaults.rights && !(page.imageKind && page.zones > 0)) {
+      void sendImage(page, { file, rights: defaults.rights, attribution: defaults.attribution ?? '', imageSource: '' });
       return;
     }
-    if (file) void sendImage(page, file);
-    else {
-      replacing = page;
-      fileInput?.click();
-    }
+    imageRequest = {
+      id: page.id,
+      label: page.label,
+      imageKind: page.imageKind,
+      zones: page.zones,
+      rights: page.rights,
+      attribution: page.attribution,
+      file,
+    };
   }
 
-  function confirmReplace() {
-    const page = confirmingReplace;
-    const file = confirmingFile;
-    confirmingReplace = null;
-    confirmingFile = null;
-    if (!page) return;
-    requestImage({ ...page, zones: 0 }, file);
-  }
-
-  function chosen(event: Event) {
-    const target = event.currentTarget as HTMLInputElement;
-    const file = target.files?.[0];
-    const page = replacing;
-    target.value = '';
-    replacing = null;
-    if (file && page) void sendImage(page, file);
-  }
-
-  async function sendImage(page: PageView, file: File) {
+  async function sendImage(page: Pick<PageView, 'id'>, choice: ImageChoice) {
+    const { file } = choice;
     if (!isImageFile(file)) {
       toasts.error(t.upload.notImage);
       return;
@@ -138,6 +128,9 @@
     const body = new FormData();
     body.append('pageId', page.id);
     body.append('file', file);
+    body.append('rights', choice.rights);
+    body.append('attribution', choice.attribution);
+    body.append('imageSource', choice.imageSource);
     busy[page.id] = { kind: 'uploading', progress: 0 };
     const upload = uploadToAction(
       'replaceImage',
@@ -205,6 +198,23 @@
     shiftDirection = before && !before.imageKind && page.imageKind ? 'earlier' : 'later';
   }
 
+  // The rights of a page's image
+
+  let rightsOf = $state<PageView | null>(null);
+  let rightsDraft = $state('');
+  let attributionDraft = $state('');
+  let sourceDraft = $state('');
+  let rightsErrors = $state<Record<string, string[] | undefined>>({});
+  let rightsSubmitting = $state(false);
+
+  function openRights(page: PageView) {
+    rightsOf = page;
+    rightsDraft = page.rights ?? '';
+    attributionDraft = page.attribution ?? '';
+    sourceDraft = page.imageSource ?? '';
+    rightsErrors = {};
+  }
+
   // Taking an image away
 
   let unimaging = $state<PageView | null>(null);
@@ -240,6 +250,7 @@
         onreplaceimage={(p) => requestImage(p, null)}
         onmoveimage={openMoveImage}
         onshiftimages={openShift}
+        onrights={openRights}
         onremoveimage={(p) => (unimaging = p)}
         onremove={openRemove}
         ondropimage={requestImage}
@@ -251,7 +262,61 @@
 <PageViewerDialog pages={viewable} bind:current={viewing} />
 
 {#if !readonly}
-  <input bind:this={fileInput} type="file" accept={ACCEPT_IMAGES} class="hidden" tabindex="-1" aria-hidden="true" onchange={chosen} />
+  <PageImageDialog
+    bind:request={imageRequest}
+    {defaults}
+    maxBytes={maxUploadBytes}
+    onconfirm={(request, choice) => void sendImage(request, choice)}
+  />
+
+  <Dialog
+    bind:open={
+      () => rightsOf !== null,
+      (open) => {
+        if (!open) rightsOf = null;
+      }
+    }
+    title={rightsOf ? t.rights.title(rightsOf.label) : ''}
+    size="md"
+  >
+    {#if rightsOf}
+      {@const page = rightsOf}
+      <form
+        id="rights-form"
+        method="post"
+        action={actionUrl('rights', base)}
+        novalidate
+        use:enhance={({ cancel }) => {
+          if (!rightsDraft) {
+            rightsErrors = { rights: [t.rights.required] };
+            cancel();
+            return;
+          }
+          rightsSubmitting = true;
+          return async ({ result }) => {
+            rightsSubmitting = false;
+            if (result.type === 'success') {
+              rightsOf = null;
+              await onchanged();
+              succeeded(result.data);
+            } else if (result.type === 'failure' && (result.data as { errors?: Record<string, string[]> } | undefined)?.errors) {
+              rightsErrors = (result.data as { errors: Record<string, string[]> }).errors;
+            } else {
+              rightsOf = null;
+              toasts.error(failureMessage(result));
+            }
+          };
+        }}
+      >
+        <input type="hidden" name="pageId" value={page.id} />
+        <RightsFields bind:rights={rightsDraft} bind:attribution={attributionDraft} bind:source={sourceDraft} required errors={rightsErrors} />
+      </form>
+    {/if}
+    {#snippet footer()}
+      <Button onclick={() => (rightsOf = null)}>{s.common.cancel}</Button>
+      <Button type="submit" form="rights-form" variant="primary" loading={rightsSubmitting}>{t.rights.submit}</Button>
+    {/snippet}
+  </Dialog>
 
   <Dialog
     bind:open={
@@ -302,26 +367,6 @@
     {#snippet footer()}
       <Button onclick={() => (moving = null)}>{s.common.cancel}</Button>
       <Button type="submit" form="move-form" variant="primary" loading={moveSubmitting}>{t.move.submit}</Button>
-    {/snippet}
-  </Dialog>
-
-  <Dialog
-    bind:open={
-      () => confirmingReplace !== null,
-      (open) => {
-        if (!open) {
-          confirmingReplace = null;
-          confirmingFile = null;
-        }
-      }
-    }
-    title={confirmingReplace ? t.replaceImage.title(confirmingReplace.label) : ''}
-    description={confirmingReplace ? t.replaceImage.zones(confirmingReplace.zones) : undefined}
-    size="sm"
-  >
-    {#snippet footer()}
-      <Button onclick={() => (confirmingReplace = null)}>{s.common.cancel}</Button>
-      <Button variant="primary" onclick={confirmReplace}>{confirmingFile ? t.replaceImage.useDropped : t.replaceImage.choose}</Button>
     {/snippet}
   </Dialog>
 

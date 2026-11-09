@@ -7,6 +7,7 @@
    */
   import X from '@lucide/svelte/icons/x';
   import type { ZoneGeometry } from '@varians/core';
+  import ImageCredit from '$lib/components/facsimile/ImageCredit.svelte';
   import { Select, Spinner } from '$lib/components/ui';
   import type { FacsimileApi, FacsimileSource, FacsimileZone } from '$lib/facsimile/types';
   import type { ReaderSiglum } from '$lib/reader/types';
@@ -31,14 +32,22 @@
   const transcriptionId = $derived(current?.transcriptionId ?? null);
 
   type ZoneRow = { id: string; pageId: string; geometry: ZoneGeometry; tokenIds: string[]; feature: unknown };
-  type PageRow = { id: string; label: string; width: number | null; height: number | null; source: FacsimileSource | null };
+  type PageRow = {
+    id: string;
+    label: string;
+    width: number | null;
+    height: number | null;
+    source: FacsimileSource | null;
+    rights?: string | null;
+    attribution?: string | null;
+  };
   type State =
     | { kind: 'idle' }
     | { kind: 'loading' }
     | { kind: 'none' }
     | { kind: 'failed' }
     | { kind: 'no-image'; label: string | null }
-    | { kind: 'image'; pageId: string; label: string; source: FacsimileSource; zones: FacsimileZone[] };
+    | { kind: 'image'; pageId: string; label: string; source: FacsimileSource; zones: FacsimileZone[]; rights: string | null; attribution: string | null };
 
   let view = $state<State>({ kind: 'idle' });
   /** The page shown, so that moving within one page fetches nothing. */
@@ -101,6 +110,8 @@
           pageId,
           label: row.label,
           source: row.source,
+          rights: row.rights ?? null,
+          attribution: row.attribution ?? null,
           zones: page.zones.map((z) => ({
             id: z.id,
             geometry: z.geometry,
@@ -188,6 +199,7 @@
         {/if}
         <span class="page-label">{r.panels.page(view.label)}</span>
       </div>
+      <ImageCredit rights={view.rights} attribution={view.attribution} class="border-t border-line px-3 py-1.5" />
     {/if}
   </div>
 </section>

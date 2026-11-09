@@ -92,6 +92,9 @@ export interface WorkbenchPageRow {
   width: number | null;
   height: number | null;
   updatedAt: Date;
+  /** The image's rights statement and credit line. */
+  rights: string | null;
+  attribution: string | null;
 }
 
 export interface WorkbenchData {
@@ -113,7 +116,15 @@ export interface WorkbenchData {
     workIds: string[];
     profile: Partial<NormalizationProfile> | null;
   };
-  witness: { id: string; slug: string; siglum: string; name: string; hands: WitnessHand[] };
+  witness: {
+    id: string;
+    slug: string;
+    siglum: string;
+    name: string;
+    hands: WitnessHand[];
+    /** The rights statement and credit line new images of the witness are given. */
+    imageDefaults: { rights: string | null; attribution: string | null };
+  };
   pages: WorkbenchPageRow[];
   /** The works the transcription is for first, then the other works its text is assigned to. */
   works: WorkbenchWork[];
@@ -171,7 +182,14 @@ export async function loadWorkbench(db: Database, user: Actor | null, id: string
       workIds: chosen,
       profile: transcription.profile,
     },
-    witness: { id: witness.id, slug: witness.slug, siglum: witness.siglum, name: witness.name, hands: witness.hands },
+    witness: {
+      id: witness.id,
+      slug: witness.slug,
+      siglum: witness.siglum,
+      name: witness.name,
+      hands: witness.hands,
+      imageDefaults: { rights: witness.imageRights, attribution: witness.imageAttribution },
+    },
     pages: pageRows,
     works: workRows,
     segments: Object.fromEntries(segmentRows.map((s) => [s.id, { label: s.label, workId: s.workId }])),
@@ -194,6 +212,8 @@ async function witnessPages(db: Database, witnessId: string): Promise<WorkbenchP
       width: pages.imageWidth,
       height: pages.imageHeight,
       updatedAt: pages.updatedAt,
+      rights: pages.rights,
+      attribution: pages.attribution,
     })
     .from(pages)
     .where(eq(pages.witnessId, witnessId))

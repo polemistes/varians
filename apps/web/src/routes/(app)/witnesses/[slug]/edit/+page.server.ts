@@ -2,6 +2,7 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { canMaintainWitness, isAdministrator, type Actor } from '$lib/server/authz';
 import { requireUser } from '$lib/server/guards';
 import { removePageFiles } from '$lib/server/images/storage';
+import { PageError, pagesWithoutRights, parseWitnessImageDefaults, setWitnessImageDefaults } from '$lib/server/pages';
 import {
   addMaintainer,
   deleteWitness,
@@ -11,7 +12,7 @@ import {
   witnessBySlug,
 } from '$lib/server/registry';
 import { storageRoot } from '$lib/server/startup';
-import { describeDependents, field, parseEmail, parseWitnessForm } from '$lib/registry/forms';
+import { checked, describeDependents, field, parseEmail, parseWitnessForm } from '$lib/registry/forms';
 import { materialFormValues } from '$lib/registry/witness';
 import { registry as t } from '$lib/strings/registry';
 import type { Actions, PageServerLoad } from './$types';
@@ -57,6 +58,11 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
       provenance: witness.provenance,
       description: witness.description,
     },
+    images: {
+      imageRights: witness.imageRights ?? '',
+      imageAttribution: witness.imageAttribution ?? '',
+      withoutRights: await pagesWithoutRights(locals.db, witness.id),
+    },
     maintainers,
     can: {
       delete: governs(user, witness),
@@ -75,6 +81,25 @@ export const actions: Actions = {
       return fail(400, { form: 'details' as const, errors: parsed.errors, values: parsed.values });
     await updateWitness(locals.db, witness.id, parsed.data);
     return { form: 'details' as const, message: t.witness.saved };
+  },
+
+  /** The rights statement and credit line new images are given, and, if asked, the images without a statement. */
+  images: async ({ locals, params, request }) => {
+    const user = requireUser(locals);
+    const { witness } = await maintained(locals, params.slug, user);
+    const form = await request.formData();
+    const input = { imageRights: field(form, 'imageRights'), imageAttribution: field(form, 'imageAttribution') };
+    const parsed = parseWitnessImageDefaults(input);
+    if (!parsed.ok) {
+      return fail(400, { form: 'images' as const, errors: { [parsed.field]: [parsed.error] }, values: input });
+    }
+    try {
+      const applied = await setWitnessImageDefaults(locals.db, witness.id, input, checked(form, 'apply'));
+      return { form: 'images' as const, message: applied > 0 ? t.witness.imagesApplied(applied) : t.witness.imagesSaved };
+    } catch (cause) {
+      if (!(cause instanceof PageError)) throw cause;
+      return fail(400, { form: 'images' as const, errors: { imageRights: [cause.message] }, values: input });
+    }
   },
 
   addMaintainer: async ({ locals, params, request }) => {

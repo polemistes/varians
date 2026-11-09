@@ -754,6 +754,8 @@ export interface ManifestRights {
   /** The manifest's statement when it is listed. */
   rights: string | null;
   label: string | null;
+  /** The manifest's statement when it is not listed. */
+  unlisted: string | null;
   attribution: string | null;
   /** Canvases whose own statement differs from the manifest's. */
   ownStatements: number;
@@ -832,6 +834,7 @@ export async function previewManifest(url: string, existing: ExistingPage[] = []
     rights: {
       rights: manifestRights,
       label: rightsLabel(manifestRights),
+      unlisted: manifest.rights && !manifestRights ? manifest.rights : null,
       attribution: manifest.attribution ?? null,
       ownStatements,
       fallback: normalizeRights(fallback),
