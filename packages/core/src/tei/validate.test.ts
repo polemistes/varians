@@ -33,9 +33,8 @@ import { importTei } from './import.ts';
 
 const RNG = fileURLToPath(new URL('../../../../docs/formats/varians.rng', import.meta.url));
 const xmllint = spawnSync('xmllint', ['--version']).error === undefined;
-if (!xmllint) {
-  console.warn('xmllint is not installed: the TEI exports are NOT validated against docs/formats/varians.rng.');
-}
+const UNCHECKED = 'xmllint is not installed: the TEI exports are NOT validated against docs/formats/varians.rng.';
+if (!xmllint) console.warn(UNCHECKED);
 
 const dir = xmllint ? mkdtempSync(join(tmpdir(), 'varians-tei-')) : '';
 afterAll(() => {
