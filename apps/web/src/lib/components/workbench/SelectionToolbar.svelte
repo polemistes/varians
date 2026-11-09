@@ -1,12 +1,16 @@
 <script lang="ts">
   /**
-   * The toolbar under a selection (PLAN 6.2): the marks of the editor's
-   * toolbar, with the workbench's own actions beside them: map the words,
-   * confirm their read forms, note a variant the manuscript gives for them.
-   * Shown only while text is selected. Breaks and objects are made at the
-   * caret, from the Insert menu, not here.
+   * The toolbar under a selection (PLAN 6.2, PLAN-3 C5, C7): the marks of
+   * the editor's toolbar, with the workbench's own actions beside them: move
+   * the words to a page, set their segment, map them, confirm their read
+   * forms, note a variant the manuscript gives for them. Shown only while
+   * text is selected. Breaks and objects are made at the caret, from the
+   * Insert menu, not here.
    */
+  import { DropdownMenu } from 'bits-ui';
+  import ChevronDown from '@lucide/svelte/icons/chevron-down';
   import EditorToolbar from '$lib/components/editor/EditorToolbar.svelte';
+  import { UNPLACED } from '$lib/workbench/pages';
   import { floatingPosition } from '$lib/workbench/view';
   import { uncheckedIn } from '$lib/workbench/normalization';
   import { workbench as t } from '$lib/strings/workbench';
@@ -25,9 +29,20 @@
     onvariant: () => void;
     /** Give the deletions and additions of the selected words a hand and a stage. */
     oncorrection: () => void;
+    /** Set the segment that begins at the first selected word. */
+    onsegment: () => void;
   }
 
-  let { wb, container, tick, hidden = false, onmap, onvariant, oncorrection }: Props = $props();
+  let { wb, container, tick, hidden = false, onmap, onvariant, oncorrection, onsegment }: Props = $props();
+
+  /** The places the words can go, besides the proposed page: Not on a page and every other page. */
+  const targets = $derived([
+    ...(wb.view !== UNPLACED ? [{ id: null as string | null, label: t.pages.unplaced, text: wb.unplacedWords > 0 }] : []),
+    ...wb.pages.filter((p) => p.id !== wb.view).map((p) => ({ id: p.id as string | null, label: p.label, text: wb.textOnPages.has(p.id) })),
+  ]);
+
+  const menuItem =
+    'flex w-full cursor-default items-center gap-2 rounded px-2 py-1 text-left text-ink outline-none select-none data-highlighted:bg-sunken';
 
   let width = $state(0);
   let height = $state(0);
@@ -101,7 +116,46 @@
       role="toolbar"
       aria-label={t.toolbar.actions}
     >
-      <button type="button" class="wb-tool" title={t.toolbar.mapTitle} onpointerdown={keepFocus} onclick={onmap}>{t.toolbar.map}</button>
+      {#if wb.pages.length > 0}
+        <div class="flex items-stretch">
+          {#if wb.proposedPage}
+            {@const proposed = wb.proposedPage}
+            <button type="button" class="wb-tool flex-1 text-left" title={t.move.toTitle} onpointerdown={keepFocus} onclick={() => wb.moveSelection(proposed)}>
+              {t.move.to(wb.viewLabel(proposed))}
+            </button>
+          {/if}
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger class="inline-flex items-center gap-0.5 rounded-[0.3rem] px-1.5 py-[0.2rem] leading-[1.3] text-ink hover:bg-sunken" title={t.move.otherTitle} aria-label={t.move.other}>
+              {#if !wb.proposedPage}{t.move.other}{/if}
+              <ChevronDown class="size-3 text-ink-muted" aria-hidden="true" />
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                align="start"
+                sideOffset={4}
+                class="z-50 max-h-[60vh] min-w-44 overflow-y-auto rounded-md border border-line bg-surface p-1 font-sans text-sm shadow-pop outline-none"
+                onCloseAutoFocus={(event) => event.preventDefault()}
+              >
+                {#each targets as target (target.id ?? UNPLACED)}
+                  <DropdownMenu.Item class={menuItem} onSelect={() => wb.moveSelection(target.id)}>
+                    <span class="flex-1">{target.label}</span>
+                    {#if target.text}<span class="text-xs text-ink-muted" title={t.pages.hasText} aria-label={t.pages.hasText}>●</span>{/if}
+                  </DropdownMenu.Item>
+                {/each}
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
+        </div>
+      {/if}
+      <button type="button" class="wb-tool" title={t.toolbar.segmentTitle} onpointerdown={keepFocus} onclick={onsegment}>{t.toolbar.segment}</button>
+      <button
+        type="button"
+        class="wb-tool disabled:opacity-50"
+        title={wb.onPage ? t.toolbar.mapTitle : t.move.notMappable}
+        disabled={!wb.onPage}
+        onpointerdown={keepFocus}
+        onclick={onmap}>{t.toolbar.map}</button
+      >
       {#if unchecked > 0}
         <button
           type="button"
@@ -127,7 +181,7 @@
         </button>
       {/if}
     </div>
-    <EditorToolbar api={wb.api} inserts={false} class="pointer-events-auto min-w-0 flex-1 shadow-pop" />
+    <EditorToolbar api={wb.api} inserts={false} segments={false} class="pointer-events-auto min-w-0 flex-1 shadow-pop" />
   </div>
 {/if}
 

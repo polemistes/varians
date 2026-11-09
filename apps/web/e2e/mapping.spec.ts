@@ -89,10 +89,9 @@ test('selected words are mapped to a box drawn on the facsimile', async ({ page 
   transcriptionId = new URL(page.url()).pathname.split('/').pop()!;
   await page.waitForLoadState('networkidle');
 
-  // One page, with an image.
-  await page.getByRole('button', { name: w.pages.choose }).click();
-  await page.getByRole('menuitem', { name: w.pages.manage }).click();
+  // One page, with an image, added on the Pages tab a new transcript of a witness without pages opens on.
   const pane = page.getByRole('complementary', { name: w.pane.label });
+  await expect(pane.getByRole('tab', { name: w.pane.pages })).toHaveAttribute('data-state', 'active');
   await pane.getByRole('button', { name: p.panel.addPages }).click();
   await pane.getByLabel(p.add.labels).fill('1r');
   await pane.getByRole('button', { name: p.add.submit(1), exact: true }).click();

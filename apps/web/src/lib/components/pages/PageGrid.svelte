@@ -39,9 +39,11 @@
      * viewer and a page without one asks for an image.
      */
     onopen?: (page: PageView) => void;
+    /** In the workbench: what each card says of the page's text in the transcript shown, in place of what refers to it. */
+    textOf?: (page: PageView) => string;
   }
 
-  let { pages, maxUploadBytes, defaults = { rights: null, attribution: null }, readonly = false, current = null, base = '', onchanged = invalidateAll, onopen }: Props = $props();
+  let { pages, maxUploadBytes, defaults = { rights: null, attribution: null }, readonly = false, current = null, base = '', onchanged = invalidateAll, onopen, textOf }: Props = $props();
 
   const viewable = $derived(pages.filter((p) => p.source));
   let viewing = $state<string | null>(null);
@@ -236,6 +238,7 @@
       <PageCard
         {page}
         count={pages.length}
+        text={textOf ? textOf(page) : null}
         busy={busy[page.id] ?? null}
         current={page.id === current}
         {readonly}

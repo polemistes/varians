@@ -5,7 +5,9 @@
    * For the maintainers of the witness the pages are managed here as on the
    * witness's pages screen: images added, pages added by their labels, a
    * IIIF manifest imported, and each card's menu. The changes go to that
-   * screen's form actions, and the list is read again after each.
+   * screen's form actions; after each the list is read again, and the text
+   * too, since a page removed or moved moves text (PLAN-3 C9). Each card
+   * says whether the page has text in this transcript, and how many lines.
    */
   import { onMount, tick } from 'svelte';
   import X from '@lucide/svelte/icons/x';
@@ -47,6 +49,18 @@
     info = data.witness;
   }
 
+  /** After a change: the text first (the server may have moved it), then the pages, so that no page break outlives its page's label. */
+  async function changed(): Promise<void> {
+    await wb.reload();
+    await load();
+  }
+
+  /** What a card says of the page's text in this transcript. */
+  function textOf(page: PageView): string {
+    const text = wb.textOnPages.get(page.id);
+    return text ? t.card.lines(text.lines) : t.card.noText;
+  }
+
   onMount(() => {
     void load();
   });
@@ -78,7 +92,7 @@
       <Button size="sm" variant={tool === 'add' ? 'primary' : 'secondary'} aria-pressed={tool === 'add'} onclick={() => toggle('add')}>
         {t.panel.addPages}
       </Button>
-      <ManifestImport manifestUrl={info?.iiifManifest ?? null} hasPages={pages.length > 0} base={wb.pagesBase} onchanged={load} size="sm" />
+      <ManifestImport manifestUrl={info?.iiifManifest ?? null} hasPages={pages.length > 0} base={wb.pagesBase} onchanged={changed} size="sm" />
     {/if}
   </div>
 
@@ -86,9 +100,9 @@
     {#if canMaintain && tool && pages}
       <div class="relative mb-4">
         {#if tool === 'upload'}
-          <UploadImages {lastLabel} defaults={wb.imageDefaults} maxBytes={wb.maxUploadBytes} base={wb.pagesBase} onchanged={load} />
+          <UploadImages {lastLabel} defaults={wb.imageDefaults} maxBytes={wb.maxUploadBytes} base={wb.pagesBase} onchanged={changed} />
         {:else}
-          <AddPagesForm roll={info?.roll ?? false} base={wb.pagesBase} onchanged={load} />
+          <AddPagesForm roll={info?.roll ?? false} base={wb.pagesBase} onchanged={changed} />
         {/if}
         <IconButton label={t.panel.close} size="sm" class="absolute top-2.5 right-2.5" onclick={() => (tool = null)}>
           <X aria-hidden="true" />
@@ -112,8 +126,9 @@
         readonly={!canMaintain}
         current={wb.pageId}
         base={wb.pagesBase}
-        onchanged={load}
+        onchanged={changed}
         onopen={(page) => wb.goTo(page.id)}
+        {textOf}
       />
       {#if !canMaintain}
         <p class="mt-4 text-xs text-ink-muted">{t.panel.readOnly}</p>

@@ -13,6 +13,7 @@ import {
   history,
   historyKeymap,
   insertNewline,
+  isolateHistory,
   redo as redoCommand,
   undo as undoCommand,
 } from '@codemirror/commands';
@@ -79,7 +80,7 @@ import { setTokenClasses, tokenClassField, type TokenClasses } from './highlight
 import { buildModel, type Model, type ModelOptions } from './model.ts';
 import { breakAt, breakPreview, setBreakPreview, type BreakPreview } from './preview.ts';
 import { planInsertion, selectionTokens, tokenAt, tokenSpanAt } from './selection.ts';
-import { editIntent, modelEdit, modelExtensions, modelField, setModel } from './state.ts';
+import { editIntent, modelEdit, modelExtensions, modelField, setModel, wholeEdit } from './state.ts';
 
 export type Direction = 'auto' | 'ltr' | 'rtl';
 
@@ -108,6 +109,24 @@ export interface EditorCallbacks {
   ontokenhover?: (tokenId: Id | null) => void;
   /** The user asked to set or change the segment that begins at this token; `current` is the label shown there. */
   onrequestsegment?: (tokenId: Id, current: string | null) => void;
+  /** Text is about to be cut: what it takes. The cut itself goes on as usual. */
+  oncut?: (cut: CutRecord) => void;
+  /** Text was copied. */
+  oncopy?: () => void;
+  /** Text is about to be pasted: true when the parent put it in itself, and the editor's own paste is not made. */
+  onpaste?: (text: string) => boolean;
+  /** A word was double-clicked in a read-only text. */
+  onworddblclick?: (tokenId: Id) => void;
+}
+
+/** What a cut takes from the text shown. */
+export interface CutRecord {
+  /** The items the selection touches, in order, as they stand before the cut. */
+  items: Item[];
+  /** The text the clipboard will hold. */
+  text: string;
+  /** The selection covers whole items only: no word is divided by it. */
+  whole: boolean;
 }
 
 export interface EditorApi {
@@ -142,6 +161,18 @@ export interface EditorApi {
   setJoinAtCaret(): boolean;
   /** Ask the parent for the segment that begins at the word under the caret. */
   requestSegmentAtCaret(): boolean;
+  /**
+   * Apply operations to the whole stream, not only the text shown (text
+   * moved to another page or brought from one), as one step the undo
+   * history takes back.
+   */
+  applyWhole(ops: Op[]): boolean;
+  /**
+   * Where items put at the caret go in the whole stream: after the word the
+   * caret stands in, else after the item before the caret (null: the very
+   * start); `page` when the page shown has no break yet.
+   */
+  caretPlace(): { after: Id | null } | { page: string } | null;
   scrollToToken(id: Id): void;
   selectToken(id: Id): void;
   /** Put the caret at the start of a token, and bring it into view. */
@@ -399,6 +430,32 @@ export class VariansEditor implements EditorApi {
       keymap.of([...historyKeymap, ...defaultKeymap]),
       EditorView.updateListener.of((update) => this.onUpdate(update)),
       EditorView.domEventHandlers({
+        cut: () => {
+          const record = this.cutRecord();
+          if (record) this.callbacks.oncut?.(record);
+          return false;
+        },
+        copy: () => {
+          this.callbacks.oncopy?.();
+          return false;
+        },
+        paste: (event) => {
+          if (this.props.readonly) return false;
+          const text = event.clipboardData?.getData('text/plain');
+          if (text && this.callbacks.onpaste?.(text)) {
+            event.preventDefault();
+            return true;
+          }
+          return false;
+        },
+        dblclick: (event, view) => {
+          if (!this.props.readonly || !this.callbacks.onworddblclick) return false;
+          const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+          const token = pos === null ? undefined : tokenAt(this.model.ledger, this.model.byId, pos);
+          if (!token) return false;
+          this.callbacks.onworddblclick(token.id);
+          return true;
+        },
         mousemove: (event) => {
           this.onMouseMove(event);
           return false;
@@ -544,14 +601,19 @@ export class VariansEditor implements EditorApi {
 
   private onUpdate(update: ViewUpdate): void {
     let modelChanged = false;
+    let rebuild = false;
     for (const tr of update.transactions) {
       const before = tr.startState.field(modelField, false);
       const after = tr.state.field(modelField, false);
       if (!before || !after || before === after) continue;
       modelChanged = true;
       if (after.ops.length) this.emit(after.ops);
+      if (after.whole?.length) {
+        this.emit(after.whole);
+        rebuild = true;
+      }
     }
-    if (update.state.field(modelField).model.misaligned) this.resync();
+    if (rebuild || update.state.field(modelField).model.misaligned) this.resync();
     if (update.selectionSet || update.docChanged || modelChanged) this.emitSelection();
   }
 
@@ -952,6 +1014,55 @@ export class VariansEditor implements EditorApi {
 
   focus(): void {
     this.view.focus();
+  }
+
+  applyWhole(ops: Op[]): boolean {
+    if (this.props.readonly || ops.length === 0 || this.destroyed) return false;
+    let applied: ReturnType<typeof applyOps>;
+    try {
+      applied = applyOps(this.whole, ops);
+    } catch (error) {
+      console.error('[editor] the operations do not apply to the stream', error);
+      return false;
+    }
+    const canonical = buildModel(applied.stream, this.modelOptions());
+    const change = minimalChange(this.view.state.doc.toString(), canonical.ledger.text);
+    this.view.dispatch({
+      changes: change ?? undefined,
+      effects: wholeEdit.of({ ops, reverse: applied.reverse }),
+      annotations: [Transaction.userEvent.of('move'), isolateHistory.of('full')],
+    });
+    return true;
+  }
+
+  caretPlace(): { after: Id | null } | { page: string } | null {
+    if (this.props.readonly) return null;
+    const model = this.model;
+    if (model.misaligned) return null;
+    if (model.view.missing) return { page: model.view.missing.pageId };
+    const pos = this.view.state.selection.main.head;
+    let after: Id | null = model.view.anchor ? model.view.anchor.id : null;
+    for (const span of model.ledger.spans) {
+      if (span.to <= pos) after = span.id;
+      else {
+        // Inside a word: after the whole word.
+        if (span.from < pos && span.kind === 'token') after = span.id;
+        break;
+      }
+    }
+    return { after };
+  }
+
+  /** What a cut of the selection would take. */
+  private cutRecord(): CutRecord | null {
+    const main = this.view.state.selection.main;
+    if (main.empty) return null;
+    const model = this.model;
+    const spans = model.ledger.spans.filter((s) => s.from < main.to && s.to > main.from);
+    const items = spans.map((s) => model.byId.get(s.id)).filter((item): item is Item => item !== undefined);
+    if (items.length === 0) return null;
+    const whole = spans.every((s) => s.from >= main.from && s.to <= main.to);
+    return { items: structuredClone(items), text: this.view.state.sliceDoc(main.from, main.to), whole };
   }
 
   tokenAtCaret(): Id | null {

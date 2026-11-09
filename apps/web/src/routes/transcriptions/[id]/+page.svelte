@@ -1,11 +1,12 @@
 <script lang="ts">
   /**
-   * The transcription workbench (PLAN 6.2): the text one page at a time with
-   * its segment gutter, the facsimile or the other form or the history
-   * beside it, the toolbar under a selection, and the status line. Edits are
-   * saved by the workbench's session as they are made.
+   * The transcription workbench (PLAN 6.2, PLAN-3 C): the text one page at
+   * a time with its segment gutter and the bar above it, the facsimile or
+   * the other form or the history or the pages beside it, on the side the
+   * editor chooses, the toolbar under a selection, and the status line.
+   * Edits are saved by the workbench's session as they are made.
    */
-  import { onMount, untrack } from 'svelte';
+  import { onMount, tick as nextTick, untrack } from 'svelte';
   import { beforeNavigate } from '$app/navigation';
   import type { Id, Token } from '@varians/core';
   import TextEditor from '$lib/components/editor/TextEditor.svelte';
@@ -26,7 +27,9 @@
   import VariantDialog from '$lib/components/workbench/VariantDialog.svelte';
   import SidePane from '$lib/components/workbench/SidePane.svelte';
   import StatusLine from '$lib/components/workbench/StatusLine.svelte';
+  import TextBar from '$lib/components/workbench/TextBar.svelte';
   import WorkbenchHeader from '$lib/components/workbench/WorkbenchHeader.svelte';
+  import { pageOf, UNPLACED, WHOLE } from '$lib/workbench/pages';
   import { Workbench } from '$lib/components/workbench/workbench.svelte';
   import { uncheckedIn } from '$lib/workbench/normalization';
   import type { CorrectionAttrs, CorrectionFound, VariantAttrs } from '$lib/editor/marks';
@@ -52,7 +55,8 @@
   });
 
   let paneOpen = $state(true);
-  let sideTab = $state('facsimile');
+  // A witness with neither pages nor text opens on its pages: that is where its transcription begins.
+  let sideTab = $state(untrack(() => (wb.pages.length === 0 && wb.stream.items.length === 0 ? 'pages' : 'facsimile')));
   let importOpen = $state(false);
   let settingsOpen = $state(false);
   let deleteOpen = $state(false);
@@ -74,10 +78,42 @@
   let selecting = $state(false);
   let dismissed = $state(false);
 
+  /** The view is remembered once the one remembered from before has been taken. */
+  let viewRestored = $state(false);
+
   onMount(() => {
+    wb.restoreView();
+    viewRestored = true;
     wb.start();
     return () => wb.stop();
   });
+
+  $effect(() => {
+    void wb.view;
+    if (viewRestored) untrack(() => wb.rememberView());
+  });
+
+  /** In the whole text, a double-click opens the word's page with the word selected. */
+  async function openWord(tokenId: Id) {
+    const at = pageOf(wb.stream, tokenId);
+    if (!at) return;
+    wb.goTo(at === UNPLACED ? UNPLACED : at);
+    await nextTick();
+    requestAnimationFrame(() => {
+      wb.api?.selectTokens(tokenId, tokenId);
+      wb.api?.scrollToToken(tokenId);
+      wb.api?.focus();
+    });
+  }
+
+  /** The selection toolbar's Segment…: the segment that begins at the first selected word. */
+  function segmentOfSelection() {
+    const first = wb.selection.ids[0] ?? wb.selection.caret;
+    if (!first) return;
+    const item = wb.stream.items.find((i) => i.id === first);
+    const start = item && item.kind !== 'break' ? item.segment : undefined;
+    requestSegment(first, start ? (start.segmentId === null ? null : (wb.segmentLabels[start.segmentId] ?? null)) : null);
+  }
 
   // The zones of the page shown, for the facsimile and the unmapped count.
   $effect(() => {
@@ -129,7 +165,7 @@
   }
 
   function requestSegment(tokenId: Id, current: string | null) {
-    if (!wb.canEdit) return;
+    if (!wb.canEdit || wb.view === WHOLE) return;
     segmentRequest = { tokenId, current };
   }
 
@@ -216,6 +252,26 @@
   let splitArea = $state<HTMLElement | null>(null);
   const sidePane = new PaneSize('workbench.side', { min: 300, max: 1800, fallback: 560, initial: () => window.innerWidth * 0.44 });
   onMount(() => sidePane.restore());
+
+  // Which side the pane stands on (C4), remembered in the browser beside its width.
+  const PLACEMENT_KEY = 'varians.pane.workbench.placement';
+  let paneLeft = $state(false);
+  onMount(() => {
+    try {
+      paneLeft = window.localStorage.getItem(PLACEMENT_KEY) === 'left';
+    } catch {
+      // The right, as by default.
+    }
+  });
+
+  function placePane(left: boolean) {
+    paneLeft = left;
+    try {
+      window.localStorage.setItem(PLACEMENT_KEY, left ? 'left' : 'right');
+    } catch {
+      // Not remembered.
+    }
+  }
 </script>
 
 <svelte:window onkeydown={keydown} onbeforeunload={beforeunload} onresize={remeasure} onpointerup={pointerup} />
@@ -230,7 +286,8 @@
     ondelete={() => (deleteOpen = true)}
     onnumber={() => (numberOpen = true)}
     oncopy={data.user ? () => (copyOpen = true) : undefined}
-    onpages={showPages}
+    {paneLeft}
+    onpaneleft={placePane}
   />
   {#if wb.setAside}
     <ConflictNotice ops={wb.setAside} ondismiss={() => (wb.setAside = null)} />
@@ -238,13 +295,19 @@
   <div
     class={[
       'grid min-h-0 flex-1',
-      paneOpen ? 'grid-rows-[minmax(0,1fr)_minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_auto_min(var(--wb-pane),70%)] lg:grid-rows-1' : 'grid-cols-1',
+      paneOpen
+        ? paneLeft
+          ? 'grid-rows-[minmax(0,1fr)_minmax(0,1fr)] lg:grid-cols-[min(var(--wb-pane),70%)_auto_minmax(0,1fr)] lg:grid-rows-1'
+          : 'grid-rows-[minmax(0,1fr)_minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_auto_min(var(--wb-pane),70%)] lg:grid-rows-1'
+        : 'grid-cols-1',
     ]}
     bind:this={splitArea}
     style:--wb-pane="{sidePane.value}px"
   >
+    <div class={['flex min-h-0 flex-col bg-surface', paneOpen && paneLeft && 'lg:order-3']}>
+    <TextBar {wb} onpages={showPages} />
     <div
-      class="relative min-h-0 bg-surface"
+      class="relative min-h-0 flex-1 bg-surface"
       bind:this={editorArea}
       onkeyup={keyup}
       onpointerdowncapture={pointerdown}
@@ -255,8 +318,9 @@
       <TextEditor
         stream={wb.stream}
         form={wb.editorForm}
-        readonly={!wb.canEdit}
+        readonly={!wb.canEdit || wb.view === WHOLE}
         page={wb.page}
+        pageOrder={wb.pageOrder}
         segmentLabels={wb.segmentLabels}
         pageLabels={wb.pageLabels}
         {tokenClasses}
@@ -266,17 +330,22 @@
         onselection={selection}
         ontokenhover={(id) => (wb.hoveredToken = id)}
         onrequestsegment={requestSegment}
+        oncut={(cut) => wb.editorCut(cut)}
+        oncopy={() => wb.editorCopy()}
+        onpaste={(text) => wb.editorPaste(text)}
+        onworddblclick={(id) => void openWord(id)}
       />
       {/key}
-      {#if wb.canEdit}
-        <SelectionToolbar {wb} container={editorArea} {tick} hidden={selecting || dismissed || variantOpen || correctionOpen} onmap={map} onvariant={openVariant} oncorrection={openCorrection} />
+      {#if wb.canEdit && wb.view !== WHOLE}
+        <SelectionToolbar {wb} container={editorArea} {tick} hidden={selecting || dismissed || variantOpen || correctionOpen} onmap={map} onvariant={openVariant} oncorrection={openCorrection} onsegment={segmentOfSelection} />
         <SegmentPopover {wb} request={segmentRequest} root={editorArea} onclose={() => (segmentRequest = null)} />
         <DiacriticChooser {wb} root={editorArea} />
       {/if}
     </div>
+    </div>
     {#if paneOpen}
-      <Splitter class="hidden lg:block" pane={sidePane} axis="x" side="after" container={splitArea} label={t.pane.resize} />
-      <aside class="min-h-0 border-t border-line lg:border-t-0" aria-label={t.pane.label}>
+      <Splitter class={paneLeft ? 'hidden lg:order-2 lg:block' : 'hidden lg:block'} pane={sidePane} axis="x" side={paneLeft ? 'before' : 'after'} container={splitArea} label={t.pane.resize} />
+      <aside class={['min-h-0 border-t border-line lg:border-t-0', paneLeft && 'lg:order-1']} aria-label={t.pane.label}>
         <SidePane {wb} bind:tab={sideTab} />
       </aside>
     {/if}

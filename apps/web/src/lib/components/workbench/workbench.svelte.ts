@@ -9,6 +9,12 @@ import { untrack } from 'svelte';
 import type { WitnessHand } from '@varians/db';
 import {
   applyOps,
+  insertIntoPage,
+  moveToPage,
+  repairSegmentStartsFrom,
+  segmentAt,
+  type Item,
+  type SegmentStart,
   type Unit,
   segmentUnits,
   segmentRuns,
@@ -28,7 +34,7 @@ import {
 } from '@varians/core';
 import { DEFAULT_MAX_UPLOAD_BYTES } from '$lib/components/pages/files';
 import type { ImageDefaults, PageView, WitnessPagesData } from '$lib/components/pages/types';
-import type { EditorApi } from '$lib/editor/editor';
+import type { CutRecord, EditorApi } from '$lib/editor/editor';
 import { pageView } from '$lib/editor/page';
 import {
   caseOps,
@@ -56,15 +62,17 @@ import {
   type FormPair,
 } from '$lib/workbench/normalization';
 import {
-  hasLeadingText,
+  hasUnplacedText,
+  initialView,
   neighbours,
-  nextUnplacedPage,
-  initialPage,
-  pageIdOfKey,
-  pageKeyOf,
-  settlePage,
-  streamPages,
-  unplacedPages,
+  nextPageWithoutText,
+  pageOf,
+  pagesWithText,
+  settleView,
+  UNPLACED,
+  viewOrder,
+  WHOLE,
+  wordsUnplaced,
   type WitnessPage,
 } from '$lib/workbench/pages';
 import type { SegmentInfo } from '$lib/workbench/segments';
@@ -129,6 +137,27 @@ export type Form = 'written' | 'read';
 /** How long after the last keystroke the workbench does its own follow-up (memory, check marks). */
 const IDLE_MS = 1500;
 
+/** Where the browser remembers the view last shown of a transcript (C2). */
+export const viewKey = (id: string) => `varians.workbench.view.${id}`;
+
+/** What a cut took, kept so that pasting it again moves the words instead of making new ones (C6). */
+interface CutWords {
+  items: Item[];
+  text: string;
+  /** The segment the first word belonged to by flow, which a start of its own may not say. */
+  firstSegment: SegmentStart | null;
+  /** The page the words stood on. */
+  page: string | null;
+}
+
+/** A passing message of the status line, with the view it can show. */
+export interface WorkbenchNotice {
+  text: string;
+  view: string | null;
+}
+
+const sameText = (a: string, b: string) => a.replace(/\r\n?/gu, '\n') === b.replace(/\r\n?/gu, '\n');
+
 export class Workbench {
   readonly id: string;
   readonly witness: WorkbenchInput['witness'];
@@ -178,8 +207,12 @@ export class Workbench {
 
   // The view
   form = $state<Form>('read');
-  /** The page asked for: a page key, a witness page without a break, or null for the whole text. */
-  requestedPage = $state<string | null>(null);
+  /** The view asked for: `'unplaced'`, a page id, or `'whole'`. */
+  requestedView = $state<string | null>(null);
+  /** In Not on a page: the page the facsimile shows, chosen in its own chooser; null for the proposed page. */
+  facsimileChoice = $state<string | null>(null);
+  /** A passing message of the status line. */
+  notice = $state.raw<WorkbenchNotice | null>(null);
   selection = $state.raw<{ ids: Id[]; caret: Id | null }>({ ids: [], caret: null });
   api = $state.raw<EditorApi | null>(null);
   hoveredToken = $state<Id | null>(null);
@@ -205,6 +238,10 @@ export class Workbench {
   private typedTimer: ReturnType<typeof setTimeout> | null = null;
   private recheck = new Set<Id>();
   private zoneLoads = new Map<string, Promise<void>>();
+  /** The labels of every page seen, so that a page removed meanwhile still has its label while the text catches up. */
+  private seenLabels = $state.raw<Record<string, string>>({});
+  private cutWords: CutWords | null = null;
+  private noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(input: WorkbenchInput) {
     this.id = input.transcription.id;
@@ -232,37 +269,80 @@ export class Workbench {
     this.version = input.transcription.version;
     this.memory = new NormalizationMemory(input.transcription.memory);
     this.form = input.transcription.keepsWrittenForm ? 'written' : 'read';
-    const pages = streamPages(this.stream, this.pageLabels, t.pages.fallback);
-    this.requestedPage = initialPage(this.stream, pages, this.pages);
+    this.requestedView = initialView(this.stream, this.pages);
+  }
+
+  /** The view last shown of this transcript in this browser, when it still exists (C2). */
+  restoreView(): void {
+    let remembered: string | null = null;
+    try {
+      remembered = localStorage.getItem(viewKey(this.id));
+    } catch {
+      return;
+    }
+    if (!remembered || settleView(remembered, this.stream, this.pages) !== remembered) return;
+    // Not on a page left empty since, while pages have text: the text has been placed, and the transcript opens where it is.
+    if (remembered === UNPLACED && !hasUnplacedText(this.stream) && pagesWithText(this.stream).size > 0) return;
+    this.requestedView = remembered;
+  }
+
+  /** Remember the view shown, for the next opening; a witness without pages has only its text to show. */
+  rememberView(): void {
+    if (this.pages.length === 0) return;
+    try {
+      localStorage.setItem(viewKey(this.id), this.view);
+    } catch {
+      // The browser keeps nothing; the next opening starts from the text.
+    }
   }
 
   // Derived
 
-  readonly pageLabels = $derived(Object.fromEntries(this.pages.map((p) => [p.id, p.label])));
+  readonly pageLabels = $derived({ ...this.seenLabels, ...Object.fromEntries(this.pages.map((p) => [p.id, p.label])) });
+  readonly pageOrder = $derived(this.pages.map((p) => p.id));
   readonly segmentLabels = $derived(Object.fromEntries(Object.entries(this.segments).map(([id, s]) => [id, s.label])));
-  readonly streamPages = $derived(streamPages(this.stream, this.pageLabels, t.pages.fallback));
-  readonly unplaced = $derived(unplacedPages(this.pages, this.stream));
-  /** The page shown: the requested one when it is still valid. */
-  readonly page = $derived(settlePage(this.requestedPage, this.stream, this.streamPages, this.pages));
-  /** The witness page behind the page shown, else the page the caret stands on in the whole text. */
+  /** The pages of the witness with text in this transcript, with their words and lines. */
+  readonly textOnPages = $derived(pagesWithText(this.stream));
+  /** Words on no page. */
+  readonly unplacedWords = $derived(wordsUnplaced(this.stream));
+  /** The view shown: the requested one when it is still valid. */
+  readonly view = $derived(settleView(this.requestedView, this.stream, this.pages));
+  /** What the editor shows: a page id, `'unplaced'`, or null for the whole text. */
+  readonly page = $derived(this.view === WHOLE ? null : this.view);
+  /** Words can be mapped to the image in a page's own view only. */
+  readonly onPage = $derived(this.view !== WHOLE && this.view !== UNPLACED);
+  /**
+   * The page Move to Page… proposes (C5): in Not on a page, the page the
+   * facsimile shows (chosen, else the first page without text); on a page,
+   * the first other page without text.
+   */
+  readonly proposedPage = $derived.by(() => {
+    if (this.view === WHOLE) return null;
+    if (this.view === UNPLACED) {
+      const chosen = this.facsimileChoice;
+      if (chosen && this.pages.some((p) => p.id === chosen)) return chosen;
+      return nextPageWithoutText(this.pages, this.stream) ?? this.pages[0]?.id ?? null;
+    }
+    return this.pages.find((p) => p.id !== this.view && !this.textOnPages.has(p.id))?.id ?? null;
+  });
+  /** The witness page the facsimile shows: the page shown, in Not on a page the proposed one, in the whole text the caret's. */
   readonly pageId = $derived.by(() => {
-    if (this.page !== null) return pageIdOfKey(this.page, this.streamPages, this.pages);
-    const caret = this.selection.caret;
-    const key = caret ? pageKeyOf(this.stream, caret, this.streamPages) : null;
-    return pageIdOfKey(key, this.streamPages, this.pages);
+    if (this.view === UNPLACED) return this.proposedPage;
+    if (this.view === WHOLE) {
+      const caret = this.selection.caret;
+      const at = caret ? pageOf(this.stream, caret) : null;
+      return at && at !== UNPLACED ? at : null;
+    }
+    return this.view;
   });
   readonly witnessPage = $derived(this.pages.find((p) => p.id === this.pageId) ?? null);
   readonly pageLabel = $derived(
-    this.page === null
-      ? t.status.wholeText
-      : (this.streamPages.find((p) => p.key === this.page)?.label ?? this.pages.find((p) => p.id === this.page)?.label ?? ''),
+    this.view === WHOLE ? t.pages.whole : this.view === UNPLACED ? t.pages.unplaced : (this.pages.find((p) => p.id === this.view)?.label ?? ''),
   );
-  readonly pageStream = $derived(pageView(this.stream, this.page).stream);
-  /** The page the facsimile shows: its items, also in the whole text. */
-  readonly facsimileStream = $derived(
-    this.page === null && this.pageId ? pageView(this.stream, this.streamPages.find((p) => p.pageId === this.pageId)?.key ?? this.pageId).stream : this.pageStream,
-  );
-  readonly neighbours = $derived(neighbours(this.page, this.stream, this.streamPages, this.pages));
+  readonly pageStream = $derived(pageView(this.stream, this.page, this.pageOrder).stream);
+  /** The text of the page the facsimile shows. */
+  readonly facsimileStream = $derived(this.onPage ? this.pageStream : this.pageId ? pageView(this.stream, this.pageId, this.pageOrder).stream : { items: [] });
+  readonly neighbours = $derived(neighbours(this.view, viewOrder(this.pages)));
   readonly editorForm = $derived<Form>(this.keepsWrittenForm ? this.form : 'written');
   readonly otherForm = $derived<Form>(this.editorForm === 'written' ? 'read' : 'written');
   readonly lines = $derived(lineCount(this.pageStream));
@@ -396,7 +476,6 @@ export class Workbench {
       for (const op of ops) if (op.t === 'set' && 'form' in op.fields) this.recheck.add(op.id);
     }
     this.scheduleIdle();
-    this.namePageBreaks(ops);
   }
 
   editorSelection(ids: Id[], caret: Id | null): void {
@@ -430,31 +509,6 @@ export class Workbench {
     const ids = [...this.recheck];
     this.recheck.clear();
     this.apply(autoConfirmOps(this.stream, ids, this.profile));
-  }
-
-  /**
-   * A page break made with the page break command names no page: it gets the
-   * next witness page without a break, and the view goes to it.
-   */
-  private namePageBreaks(ops: Op[]): void {
-    // A page break inserted, or a line break the command turned into one.
-    const touched = new Set<Id>();
-    for (const op of ops) {
-      if (op.t === 'insert') for (const item of op.items) touched.add(item.id);
-      else if (op.t === 'set' && op.fields.type === 'page') touched.add(op.id);
-    }
-    if (touched.size === 0) return;
-    const made = this.stream.items.filter((item) => touched.has(item.id) && isBreak(item) && item.type === 'page' && !item.pageId).map((item) => item.id);
-    if (made.length === 0) return;
-    queueMicrotask(() => {
-      let last: string | null = null;
-      for (const id of made) {
-        const next = nextUnplacedPage(this.stream, this.streamPages, this.pages);
-        if (next && this.apply([{ t: 'set', id, fields: { pageId: next.id } }])) last = next.id;
-        else last = id;
-      }
-      if (last && this.page !== null) this.requestedPage = last;
-    });
   }
 
   // Normalization
@@ -626,8 +680,154 @@ export class Workbench {
 
   // Pages
 
-  goTo(page: string | null): void {
-    this.requestedPage = page;
+  /** Show a view: `'unplaced'`, a page id, or `'whole'`. */
+  goTo(view: string | null): void {
+    if (view !== null) this.requestedView = view;
+  }
+
+  /** In Not on a page: show another page in the facsimile, which Move to Page… then proposes. */
+  chooseFacsimilePage(pageId: string | null): void {
+    this.facsimileChoice = pageId;
+  }
+
+  /** Say something in the status line for a while. */
+  say(text: string, view: string | null = null): void {
+    this.notice = { text, view };
+    if (this.noticeTimer) clearTimeout(this.noticeTimer);
+    this.noticeTimer = setTimeout(() => (this.notice = null), 8000);
+  }
+
+  /** The label of a view, for messages. */
+  viewLabel(view: string | null): string {
+    if (view === null || view === UNPLACED) return t.pages.unplaced;
+    if (view === WHOLE) return t.pages.whole;
+    return this.pageLabels[view] ?? '';
+  }
+
+  // Moving text (C5, C6)
+
+  /** The run of items the selection takes: its words whole, with what stands between the first and the last. */
+  private selectedRun(): Id[] | null {
+    const ids = this.api?.selectedTokens() ?? [];
+    if (ids.length === 0) return null;
+    const wanted = new Set(ids);
+    const indexes = this.stream.items.flatMap((item, i) => (wanted.has(item.id) ? [i] : []));
+    if (indexes.length === 0) return null;
+    const run = this.stream.items.slice(indexes[0], indexes[indexes.length - 1]! + 1);
+    if (run.some((item) => isBreak(item) && item.type === 'page')) return null;
+    return run.map((item) => item.id);
+  }
+
+  /**
+   * Move the selected words to the end of a page's text (`target` a page id)
+   * or of the text on no page (`target` null), as one step the undo takes
+   * back. Their boxes on the page they leave go. The view stays; when the
+   * target was the proposed page, the proposal goes on to the next page
+   * without text.
+   */
+  moveSelection(target: string | null): boolean {
+    const api = this.api;
+    if (!api || !this.canEdit || this.view === WHOLE) return false;
+    const run = this.selectedRun();
+    if (!run) return false;
+    const source = pageOf(this.stream, run[0]!);
+    const ops = moveToPage(this.stream, run, target, { pageOrder: this.pageOrder });
+    if (ops.length === 0) return false;
+    const proposed = this.proposedPage;
+    if (!api.applyWhole(ops)) return false;
+    const to = target ?? UNPLACED;
+    if (source && source !== to && source !== UNPLACED) void this.detachZones(source, run);
+    if (target !== null && target === proposed && this.view === UNPLACED) {
+      this.facsimileChoice = nextPageWithoutText(this.pages, this.stream, target);
+    }
+    this.say(t.move.moved(this.viewLabel(to)), to);
+    return true;
+  }
+
+  /** The words left a page: their boxes there lose them, and a box left with no word and no feature goes. */
+  private async detachZones(pageId: string, ids: Id[]): Promise<void> {
+    await this.loadZones(pageId);
+    const gone = new Set(ids);
+    const zones = this.zones[pageId] ?? [];
+    const empty: string[] = [];
+    for (const zone of zones) {
+      if (!zone.tokenIds.some((id) => gone.has(id))) continue;
+      const left = zone.tokenIds.filter((id) => !gone.has(id));
+      if (left.length === 0 && !zone.feature) empty.push(zone.id);
+      else void this.updateZoneTokens(pageId, zone.id, left);
+    }
+    if (empty.length) await this.deleteZones(pageId, empty);
+  }
+
+  private async updateZoneTokens(pageId: string, id: string, tokenIds: Id[]): Promise<boolean> {
+    const before = this.zones[pageId] ?? [];
+    this.setZones(pageId, before.map((z) => (z.id === id ? { ...z, tokenIds } : z)));
+    const response = await fetch(`/api/transcriptions/${this.id}/zones`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id, tokenIds }),
+    }).catch(() => null);
+    if (!response?.ok) this.setZones(pageId, before);
+    return !!response?.ok;
+  }
+
+  /** The editor is about to cut: what it takes is kept, so that pasting it moves the words (C6). */
+  editorCut(record: CutRecord): void {
+    this.cutWords = null;
+    if (!this.canEdit || !record.whole || record.items.length === 0) return;
+    const first = record.items.find((item) => item.kind !== 'break');
+    const index = first ? this.stream.items.findIndex((item) => item.id === first.id) : -1;
+    this.cutWords = {
+      items: record.items,
+      text: record.text,
+      firstSegment: index >= 0 ? (segmentAt(this.stream, index) ?? null) : null,
+      page: pageOf(this.stream, record.items[0]!.id),
+    };
+  }
+
+  editorCopy(): void {
+    this.cutWords = null;
+  }
+
+  /**
+   * The editor is about to paste `text`: when it is what the last cut took
+   * and those words are nowhere in the text, they are put back at the caret
+   * with their ids, features and segments, and true is returned; otherwise
+   * the editor's own paste makes new words.
+   */
+  editorPaste(text: string): boolean {
+    const cut = this.cutWords;
+    const api = this.api;
+    if (!cut || !api || !this.canEdit || !sameText(text, cut.text)) return false;
+    const present = new Set(this.stream.items.map((item) => item.id));
+    if (cut.items.some((item) => present.has(item.id))) return false;
+    const place = api.caretPlace();
+    if (!place) return false;
+    const ops: Op[] =
+      'page' in place
+        ? insertIntoPage(this.stream, cut.items, place.page, { pageOrder: this.pageOrder })
+        : [{ t: 'insert', after: place.after, items: cut.items }];
+    let placed: Stream;
+    try {
+      placed = applyOps(this.stream, ops).stream;
+    } catch {
+      return false;
+    }
+    // The cut words as they belonged: the first with the segment it had by flow.
+    let given = false;
+    const reference: Stream = {
+      items: cut.items.map((item) => {
+        if (given || item.kind === 'break') return item;
+        given = true;
+        return item.segment ? item : { ...item, segment: cut.firstSegment ?? { segmentId: null } };
+      }),
+    };
+    ops.push(...repairSegmentStartsFrom([this.stream, reference], placed));
+    if (!api.applyWhole(ops)) return false;
+    const to = pageOf(this.stream, cut.items[0]!.id);
+    if (cut.page && cut.page !== UNPLACED && cut.page !== to) void this.detachZones(cut.page, cut.items.map((item) => item.id));
+    this.cutWords = null;
+    return true;
   }
 
   /** The pages screen of the witness, whose form actions change its pages. */
@@ -661,13 +861,8 @@ export class Workbench {
       attribution: p.attribution,
     }));
     this.imageDefaults = data.witness.imageDefaults;
+    this.seenLabels = { ...this.seenLabels, ...Object.fromEntries(data.pages.map((p) => [p.id, p.label])) };
     return data;
-  }
-
-  /** Show a witness page; its text is typed or moved there. */
-  placePage(pageId: string): boolean {
-    this.requestedPage = pageId;
-    return true;
   }
 
   // Zones
@@ -801,9 +996,8 @@ export class Workbench {
     this.segments = result.segments;
     this.zones = {};
     this.replaceDocument(result.outcome);
-    // Stay on a page of the text; from an empty page (or the whole text) go where the text now begins.
-    const pages = streamPages(this.stream, this.pageLabels, t.pages.fallback);
-    const current = this.requestedPage;
-    this.requestedPage = current !== null && pages.some((p) => p.key === current) ? current : initialPage(this.stream, pages, this.pages);
+    // Stay where the text was shown when it is still there; else go where the text now is.
+    const current = this.requestedView;
+    this.requestedView = current !== null && settleView(current, this.stream, this.pages) === current ? current : initialView(this.stream, this.pages);
   }
 }

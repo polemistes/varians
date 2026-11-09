@@ -8,6 +8,9 @@
    * edit the boxes of the selected words together (move them, stretch
    * them, resize one and let the rest of its line follow, move the boundary
    * between two words), undo such edits, mark a feature, delete a zone.
+   * Words are mapped on their own page only: in Not on a page the pane
+   * shows a page chosen in a chooser of its own (by default the page Move
+   * to Page… proposes), with the mapping tools disabled (PLAN-3 C5).
    */
   import { onMount, tick, untrack } from 'svelte';
   import ChevronDown from '@lucide/svelte/icons/chevron-down';
@@ -17,7 +20,8 @@
   import BoxGroup from '$lib/components/facsimile/BoxGroup.svelte';
   import ImageCredit from '$lib/components/facsimile/ImageCredit.svelte';
   import PageImageDialog, { type ImageChoice, type ImageRequest } from '$lib/components/pages/PageImageDialog.svelte';
-  import { Button, Checkbox, Dialog, EmptyState, Menu, MenuItem, MenuSeparator, Spinner, toasts } from '$lib/components/ui';
+  import { Button, Checkbox, Dialog, EmptyState, Menu, MenuItem, MenuSeparator, Select, Spinner, toasts } from '$lib/components/ui';
+  import { UNPLACED } from '$lib/workbench/pages';
   import { failureMessage, megabytes, uploadToAction } from '$lib/components/pages/client';
   import { ACCEPT_IMAGES, isImageFile } from '$lib/components/pages/files';
   import { pageStrings } from '$lib/strings/pages';
@@ -79,6 +83,10 @@
   }
 
   const page = $derived(wb.witnessPage);
+  /** Words can be mapped here: an editor, on a page's own view. */
+  const mapping = $derived(wb.canEdit && wb.onPage);
+  const unmappableTitle = $derived(wb.view === UNPLACED ? t.move.notMappable : t.move.notMappableWhole);
+  const facsimileOptions = $derived(wb.pages.map((p) => ({ value: p.id, label: wb.textOnPages.has(p.id) ? `${p.label} ●` : p.label })));
   const zones = $derived<Zone[]>(wb.pageZones ?? []);
   /** The boxes of a group as a drag has them, before they are saved. */
   let preview = $state.raw<Map<string, ZoneGeometry> | null>(null);
@@ -286,7 +294,7 @@
   $effect(() => {
     if (!wb.mapRequested) return;
     wb.mapRequested = false;
-    untrack(() => arm(selectedWords.length ? 'selection' : 'lines'));
+    if (untrack(() => mapping)) untrack(() => arm(selectedWords.length ? 'selection' : 'lines'));
   });
 
   function arm(next: Intent) {
@@ -442,7 +450,7 @@
    * image or its tools; in the text they keep their meaning there.
    */
   function keydown(event: KeyboardEvent) {
-    if (!wb.canEdit) return;
+    if (!mapping) return;
     const target = event.target instanceof Element ? event.target : null;
     if (!target?.closest('[data-facsimile-pane]') || editing(target)) return;
     const mod = event.ctrlKey || event.metaKey;
@@ -552,6 +560,12 @@
 <svelte:window onkeydown={keydown} />
 
 <div class="flex h-full min-h-0 flex-col" data-facsimile-pane bind:this={pane}>
+  {#if wb.view === UNPLACED && wb.pages.length > 0}
+    <label class="flex shrink-0 items-center gap-2 border-b border-line px-3 py-1.5 font-sans text-xs text-ink-soft">
+      <span>{t.move.facsimilePage}</span>
+      <Select class="h-7 w-auto py-0 text-sm" value={wb.pageId ?? ''} options={facsimileOptions} onchange={(event) => wb.chooseFacsimilePage((event.currentTarget as HTMLSelectElement).value)} />
+    </label>
+  {/if}
   {#if !page}
     <div class="p-4">
       <EmptyState description={t.facsimile.noPage}>
@@ -588,6 +602,7 @@
     </div>
   {:else}
     {#if wb.canEdit}
+      <fieldset class="contents" disabled={!mapping} title={mapping ? undefined : unmappableTitle}>
       <div class="flex flex-wrap items-center gap-1 border-b border-line px-2 py-1.5 font-sans" role="toolbar" aria-label={t.facsimile.tools}>
         <div class="inline-flex rounded-md border border-line p-0.5" role="group" aria-label={t.facsimile.shape}>
           <button type="button" aria-pressed={shape === 'rect'} class={toolClass(shape === 'rect')} onclick={() => (shape = 'rect')}>
@@ -680,6 +695,7 @@
           <Checkbox class="text-xs" bind:checked={wb.showUnmapped}>{t.facsimile.showUnmapped}</Checkbox>
         </div>
       </div>
+      </fieldset>
     {/if}
     {#if message}
       <p class="border-b border-line bg-sunken px-3 py-1 font-sans text-xs text-ink-soft" role="status">{message}</p>
@@ -695,7 +711,7 @@
           {highlighted}
           selected={group ? null : selectedZone}
           {mode}
-          editable={wb.canEdit}
+          editable={mapping}
           {outlines}
           labels={t.facsimile.controls}
           onzonecreate={created}

@@ -41,6 +41,8 @@
     page: PageView;
     /** How many pages the witness has, to know the last. */
     count: number;
+    /** What the card says of the page's text in the transcript shown, in place of what refers to it. */
+    text?: string | null;
     busy?: CardBusy | null;
     /** The page shown in the text: marked. */
     current?: boolean;
@@ -71,6 +73,7 @@
   let {
     page,
     count,
+    text = null,
     busy = null,
     current = false,
     readonly = false,
@@ -351,7 +354,9 @@
           {rights}
         </p>
       {/if}
-      {#if references}
+      {#if text}
+        <p class="mt-0.5 truncate text-xs text-ink-muted">{text}</p>
+      {:else if references}
         <p class="mt-0.5 truncate text-xs text-ink-muted" title={t.card.referencedTitle}>{references}</p>
       {/if}
     </div>

@@ -10,6 +10,8 @@ import { fromText, newId, type Item, type Token } from '@varians/core';
 import { createDatabase, editions, referenceSchemes, transcriptions, users, witnesses, works } from '@varians/db';
 import { eq, inArray } from 'drizzle-orm';
 import { s } from '../src/lib/strings/en';
+import { pageStrings as t } from '../src/lib/strings/pages';
+import { workbench as w } from '../src/lib/strings/workbench';
 
 const DATABASE_URL = 'postgres://varians@127.0.0.1:54329/varians_test';
 const stamp = Date.now().toString(36);
@@ -187,19 +189,26 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   expect(archive.headers()['content-type']).toBe('application/zip');
   expect((await archive.body()).subarray(0, 2).toString()).toBe('PK');
 
-  // A page break from the Insert menu, nothing selected, the caret inside a line: the line begins the page, whole.
+  // Pages for the second witness, added in the workbench; the second line is moved onto the first of them.
   await page.goto(`/transcriptions/${transcriptionIds[1]}`);
   await page.waitForLoadState('networkidle');
+  const pane = page.getByRole('complementary', { name: w.pane.label });
+  await pane.getByRole('tab', { name: w.pane.pages }).click();
+  await pane.getByRole('button', { name: t.panel.addPages }).click();
+  await pane.getByLabel(t.add.labels).fill('1r-1v');
+  await pane.getByRole('button', { name: t.add.submit(2) }).click();
+  await expect(pane.getByRole('list', { name: t.gridLabel }).getByRole('listitem')).toHaveCount(2);
+  await expect(page.getByRole('button', { name: w.pages.choose })).toHaveText(w.pages.unplaced);
   const line = page.locator('.cm-content .cm-line').nth(1);
   const words = (await line.textContent())!;
-  const box = (await line.boundingBox())!;
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  await page.getByRole('button', { name: 'Insert' }).click();
-  await expect(page.getByRole('menu')).toContainText('Line 2 will begin a new page');
-  await expect(page.locator('.cm-break-preview')).toHaveCount(1);
-  await page.getByRole('menuitem', { name: /Page break/ }).click();
-  await expect(page.locator('.cm-break-preview')).toHaveCount(0);
-  await expect(page.locator('.cm-line.cm-page-start')).toHaveText(words);
+  await line.click();
+  await page.keyboard.press('Home');
+  await page.keyboard.press('Shift+End');
+  await page.getByRole('button', { name: w.move.to('1r') }).click();
+  await expect(page.getByText(w.move.moved('1r'))).toBeVisible();
+  await page.getByRole('button', { name: w.move.show, exact: true }).click();
+  await expect(page.getByRole('button', { name: w.pages.choose })).toHaveText('1r');
+  await expect(page.locator('.cm-content .cm-line')).toHaveText([words]);
   await expect(page.getByRole('status').filter({ hasText: /^Saved/ })).toBeVisible({ timeout: 15_000 });
 
   // A copy of the transcription, from the workbench's menu: a draft of one's own with the same text.
@@ -209,7 +218,8 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   await page.getByRole('dialog').getByRole('button', { name: 'Make the copy' }).click();
   await page.waitForURL((url) => /^\/transcriptions\/[^/]+$/.test(url.pathname) && !url.pathname.endsWith(transcriptionIds[1]!));
   await expect(page.locator('h1')).toHaveText('Copy of Liber 1');
-  await expect(page.locator('.cm-content .cm-line').nth(1)).toHaveText(words);
+  // The copy opens on the first page with text, as the transcript does.
+  await expect(page.locator('.cm-content .cm-line').nth(0)).toHaveText(words);
   // The copy is for the same work; Settings shows it as the first of its works.
   await page.waitForLoadState('networkidle');
   await page.getByRole('button', { name: 'More actions' }).click();

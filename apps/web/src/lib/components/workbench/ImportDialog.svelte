@@ -8,6 +8,8 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import { enhance } from '$app/forms';
   import { detectNumbering } from '@varians/core';
+  import { untrack } from 'svelte';
+  import { UNPLACED } from '$lib/workbench/pages';
   import { Button, buttonClasses, Checkbox, Dialog, Field, Input, Notice, Select, Spinner, TabPanel, Tabs, Textarea, toasts } from '$lib/components/ui';
   import { workbench as t } from '$lib/strings/workbench';
   import type { Workbench } from './workbench.svelte';
@@ -33,6 +35,15 @@
 
   let tab = $state('tei');
   let replace = $state(false);
+  /** Where text without pages of its own goes: Not on a page, or the page shown. */
+  let placement = $state<string>(untrack(() => (wb.onPage && wb.page ? wb.page : UNPLACED)));
+  const placements = $derived([
+    { value: UNPLACED, label: t.importer.placementUnplaced },
+    ...(wb.onPage && wb.page ? [{ value: wb.page, label: t.importer.placementPage(wb.pageLabel) }] : []),
+  ]);
+  $effect(() => {
+    if (!placements.some((p) => p.value === placement)) placement = UNPLACED;
+  });
   /** The source of the text, to be recorded with the transcription's sources; empty when it is only a starting point. */
   let source = $state('');
   let workId = $state('');
@@ -110,6 +121,7 @@
     formData.set('fromVersion', String(wb.version));
     formData.set('workId', workId);
     formData.set('replace', replace && !empty ? 'true' : 'false');
+    formData.set('placement', placement);
     if (!isPreview) formData.set('source', source);
     // Before the first reading the server proposes the mapping; afterwards it is the one chosen here.
     if ((action.search.includes('Tei') || isPreview) && preview) formData.set('mapping', JSON.stringify(mapping));
@@ -117,7 +129,7 @@
     return async ({ result }) => {
       busy = false;
       if (result.type === 'success') {
-        const data = result.data as { teiPreview?: TeiPreviewData; imported?: Parameters<Workbench['applyImport']>[0] & { outcome: { segments: number; pagesMatched: number; pagesCreated: number; zones: number; warnings: string[] } } };
+        const data = result.data as { teiPreview?: TeiPreviewData; imported?: Parameters<Workbench['applyImport']>[0] & { outcome: { segments: number; pagesMatched: number; pagesCreated: number; zones: number; unplaced: number; warnings: string[] } } };
         if (data.teiPreview) {
           preview = data.teiPreview;
           mapping = { ...data.teiPreview.mapping };
@@ -163,6 +175,13 @@
     <Field label={t.importer.work}>
       {#snippet children(control)}
         <Select {...control} bind:value={workId} options={[...wb.works.map((w) => ({ value: w.id, label: w.title })), { value: '', label: t.importer.noWork }]} />
+      {/snippet}
+    </Field>
+  {/if}
+  {#if wb.pages.length > 0 && tab !== 'layout'}
+    <Field label={t.importer.placement} hint={tab === 'tei' ? t.importer.placementTei : undefined}>
+      {#snippet children(control)}
+        <Select {...control} bind:value={placement} options={placements} />
       {/snippet}
     </Field>
   {/if}

@@ -27,18 +27,29 @@ export const workbench = {
     previous: 'Previous page',
     next: 'Next page',
     choose: 'Choose a page',
+    /** The text on no page of the witness. */
+    unplaced: 'Not on a page',
+    unplacedWords: (n: number) => plural(n, 'word', 'words'),
     whole: 'Whole text',
-    wholeHint: 'Every page in one view',
-    inText: 'Pages in the text',
-    notPlaced: 'Pages without a page break',
-    placeAtCaret: (label: string) => `Begin ${label} with the caret's line`,
-    placeHint: 'The page break goes before the line the caret is in',
-    none: 'No pages',
-    fallback: (n: number) => `Page ${n}`,
-    newPage: (label: string) => `${label} (new)`,
-    leading: 'Words before the first page break are shown in the whole text.',
+    wholeHint: 'Every page in one view, read only; double-click a word to open its page',
+    /** The title of the mark beside a page with text in this transcript. */
+    hasText: 'Has text in this transcript',
     manage: 'Pages…',
     manageHint: 'Every page of the witness, with its image, in the side pane',
+  },
+
+  /** Moving text between pages (PLAN-3 C5). */
+  move: {
+    to: (label: string) => `Move to ${label}`,
+    toTitle: 'Move the selected words to the end of this page’s text',
+    other: 'Move to…',
+    otherTitle: 'Move the selected words to another page, or to Not on a page',
+    moved: (label: string) => `Moved to ${label}`,
+    show: 'Show',
+    /** The facsimile's own page chooser in Not on a page. */
+    facsimilePage: 'Page shown beside the text',
+    notMappable: 'Words not on a page cannot be mapped',
+    notMappableWhole: 'Open the page to map its words',
   },
 
   tools: {
@@ -130,6 +141,8 @@ export const workbench = {
     copy: 'Make a Copy…',
     witness: 'Open the Witness',
     togglePane: 'Show or hide the side pane',
+    /** A checked item: the side pane stands left of the text. */
+    paneLeft: 'Facsimile on the Left',
   },
 
   pane: {
@@ -155,6 +168,8 @@ export const workbench = {
     unchecked: (n: number) => `${plural(n, 'word', 'words')} to check`,
     proposals: (n: number) => `Normalized forms proposed (${n})`,
     wholeText: 'whole text',
+    /** Words on no page, in the status line of a page or the whole text. */
+    unplaced: (n: number) => `${plural(n, 'word', 'words')} not on a page`,
     readOnly: 'Read only',
     leaveWarning: 'Changes are still being saved. Leave anyway?',
   },
@@ -186,6 +201,8 @@ export const workbench = {
     removeVariantTitle: 'Remove the variant noted on these words',
     correction: 'Correction…',
     correctionTitle: 'Say which hand made the selected deletion or addition, and at which stage',
+    segment: 'Segment…',
+    segmentTitle: 'Set the segment that begins at the first selected word',
   },
 
   /** The hand of a correction or a noted variant. */
@@ -377,10 +394,14 @@ export const workbench = {
 
   importer: {
     title: 'Import',
-    description: 'The import is one change in the history. An empty transcript is replaced; otherwise the text is added after the last line.',
+    description: 'The import is one change in the history. Text is added at the end of the place chosen, or of the pages of the witness the file names; an empty transcript is replaced.',
     tabs: { tei: 'TEI', text: 'Plain text', leiden: 'Leiden', layout: 'PAGE or ALTO' },
     replace: 'Replace the whole text',
-    replaceHint: 'Instead of adding after the last line. The history keeps the old text.',
+    replaceHint: 'Instead of adding to what is there. The history keeps the old text.',
+    placement: 'Place',
+    placementUnplaced: 'Not on a page',
+    placementPage: (label: string) => `On ${label}`,
+    placementTei: 'The text of page breaks that name pages of the witness goes to those pages; the rest goes here.',
     source: 'Source to record (optional)',
     sourceHint: 'Added to the transcript\'s sources.',
     work: 'Work',
@@ -435,12 +456,13 @@ export const workbench = {
     running: 'Importing…',
     cancel: 'Cancel',
     done: 'Imported.',
-    summary: (o: { segments: number; pagesMatched: number; pagesCreated: number; zones: number }) =>
+    summary: (o: { segments: number; pagesMatched: number; pagesCreated: number; zones: number; unplaced?: number }) =>
       [
         o.segments ? plural(o.segments, 'segment start', 'segment starts') : null,
         o.pagesMatched ? `${plural(o.pagesMatched, 'page', 'pages')} matched` : null,
         o.pagesCreated ? `${plural(o.pagesCreated, 'page', 'pages')} added to the witness` : null,
-        o.zones ? plural(o.zones, 'zone', 'zones') : null,
+        o.zones ? plural(o.zones, 'box', 'boxes') : null,
+        o.unplaced ? `${plural(o.unplaced, 'word', 'words')} not on a page` : null,
       ]
         .filter(Boolean)
         .join(', '),
@@ -449,7 +471,7 @@ export const workbench = {
       unresolvedLabels: (n: number, shown: string, more: boolean) =>
         `${n === 1 ? '1 label' : `${n} labels`} not in the work's numbering: ${shown}${more ? ', …' : ''}`,
       unresolvedPlaces: (n: number) => `${n === 1 ? '1 numbered place' : `${n} numbered places`} could not be read as labels of the work.`,
-      teiPagesUnplaced: (n: number) => `${n === 1 ? '1 page' : `${n} pages`} of the text are not pages of the witness; they keep their labels.`,
+      teiPagesUnplaced: (n: number) => (n === 1 ? '1 page of the file is not a page of the witness; its text is not on a page.' : `${n} pages of the file are not pages of the witness; their text is not on a page.`),
       layoutPagesUnplaced: (n: number) => `${n === 1 ? '1 page' : `${n} pages`} of the file are not pages of the witness; their words have no zones.`,
       badSource: 'Give an http or https URL, or a CTS URN.',
       sourceStatus: (status: number, text: string) => `The URL answered ${status} ${text}.`,

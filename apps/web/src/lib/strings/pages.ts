@@ -36,6 +36,9 @@ export const pageStrings = {
     menu: (label: string) => `Actions for ${label}`,
     zones: (n: number) => plural(n, 'box', 'boxes'),
     breaks: (n: number) => (n === 1 ? 'text in 1 transcript' : `text in ${n} transcripts`),
+    /** In the workbench: the page's text in the transcript shown. */
+    lines: (n: number) => plural(n, 'line', 'lines'),
+    noText: 'No text',
     referencedTitle: 'Boxes drawn on it, or text on it in transcripts',
     working: 'Working',
     uploading: (percent: number) => `Uploading ${percent}%`,

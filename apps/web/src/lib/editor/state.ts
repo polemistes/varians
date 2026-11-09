@@ -25,6 +25,13 @@ export interface ModelEdit {
 
 export const setModel = StateEffect.define<Model>();
 export const modelEdit = StateEffect.define<ModelEdit>();
+/**
+ * Operations on the whole stream, not only the items shown: text moved to
+ * another page, or brought back from one. The transaction carries the text
+ * change that shows them; the editor applies the operations to its whole
+ * stream and rebuilds the model. The history inverts them like model edits.
+ */
+export const wholeEdit = StateEffect.define<ModelEdit>();
 export const editIntent = Annotation.define<Intent>();
 
 export interface ModelState {
@@ -33,6 +40,8 @@ export interface ModelState {
   ops: Op[];
   /** For typed text: the edit on the shown items and its reverse, which the history keeps. */
   typed?: ModelEdit;
+  /** Operations on the whole stream the editor is still to apply (a whole edit). */
+  whole?: Op[];
 }
 
 export const modelField = StateField.define<ModelState>({
@@ -42,6 +51,11 @@ export const modelField = StateField.define<ModelState>({
   update(value, tr) {
     for (const effect of tr.effects) {
       if (effect.is(setModel)) return { model: effect.value, ops: [] };
+    }
+    const wholeEdits = tr.effects.filter((e) => e.is(wholeEdit));
+    if (wholeEdits.length) {
+      // The model no longer matches the document; the editor rebuilds it from the whole stream at once.
+      return { model: { ...value.model, misaligned: true }, ops: [], whole: wholeEdits.flatMap((e) => e.value.ops) };
     }
     const edits = tr.effects.filter((e) => e.is(modelEdit));
     if (edits.length) {
@@ -101,6 +115,8 @@ export const decorationField = StateField.define<DecorationSet>({
  * whose undo then brings back the very items it removed, ids and all.
  */
 export const modelHistory = invertedEffects.of((tr) => {
+  const wholes = tr.effects.filter((e) => e.is(wholeEdit));
+  if (wholes.length) return wholes.reverse().map((e) => wholeEdit.of({ ops: e.value.reverse, reverse: e.value.ops }));
   const edits = tr.effects.filter((e) => e.is(modelEdit));
   if (edits.length) return edits.reverse().map((e) => modelEdit.of({ ops: e.value.reverse, reverse: e.value.ops }));
   const typed = tr.docChanged ? tr.state.field(modelField, false)?.typed : undefined;

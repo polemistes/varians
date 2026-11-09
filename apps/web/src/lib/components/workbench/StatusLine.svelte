@@ -1,5 +1,6 @@
 <script lang="ts">
-  /** The status line (PLAN 6.2): saving, the page, its lines, words unmapped and to check, read forms proposed. */
+  /** The status line (PLAN 6.2): saving, a passing message, the page, its lines, words not on a page, unmapped and to check, read forms proposed. */
+  import { UNPLACED } from '$lib/workbench/pages';
   import { Spinner } from '$lib/components/ui';
   import { workbench as t } from '$lib/strings/workbench';
   import type { Workbench } from './workbench.svelte';
@@ -41,10 +42,24 @@
   {:else}
     <span>{t.status.saved}</span>
   {/if}
-  <span class={dot} aria-hidden="true">·</span>
-  <span>{wb.pageLabel}</span>
+  {#if wb.notice}
+    {@const notice = wb.notice}
+    <span class={dot} aria-hidden="true">·</span>
+    <span class="text-ink">{notice.text}</span>
+    {#if notice.view !== null && notice.view !== wb.view}
+      <button type="button" class="text-accent underline-offset-2 hover:underline" onclick={() => wb.goTo(notice.view)}>{t.move.show}</button>
+    {/if}
+  {/if}
+  {#if wb.pages.length > 0}
+    <span class={dot} aria-hidden="true">·</span>
+    <span>{wb.pageLabel}</span>
+  {/if}
   <span class={dot} aria-hidden="true">·</span>
   <span>{t.status.lines(wb.lines)}</span>
+  {#if wb.pages.length > 0 && wb.view !== UNPLACED && wb.unplacedWords > 0}
+    <span class={dot} aria-hidden="true">·</span>
+    <button type="button" class="hover:text-ink hover:underline" onclick={() => wb.goTo(UNPLACED)}>{t.status.unplaced(wb.unplacedWords)}</button>
+  {/if}
   {#if wb.witnessPage?.source && wb.pageZones}
     <span class={dot} aria-hidden="true">·</span>
     <span>{t.status.unmapped(wb.unmapped.length)}</span>

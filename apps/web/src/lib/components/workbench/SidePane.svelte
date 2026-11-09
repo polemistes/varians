@@ -94,6 +94,7 @@
             form={wb.otherForm}
             readonly
             page={wb.page}
+            pageOrder={wb.pageOrder}
             segmentLabels={wb.segmentLabels}
             pageLabels={wb.pageLabels}
             tokenClasses={caretClasses}

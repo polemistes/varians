@@ -7,7 +7,7 @@
   import { onMount, untrack } from 'svelte';
   import type { Id, Op, Stream } from '@varians/core';
   import type { Form } from '$lib/editor/bridge';
-  import { VariansEditor, type Direction, type EditorApi } from '$lib/editor/editor';
+  import { VariansEditor, type CutRecord, type Direction, type EditorApi } from '$lib/editor/editor';
   import type { TokenClasses } from '$lib/editor/highlight';
 
   interface Props {
@@ -30,6 +30,11 @@
     onselection?: (tokenIds: Id[], caretTokenId: Id | null) => void;
     ontokenhover?: (tokenId: Id | null) => void;
     onrequestsegment?: (tokenId: Id, current: string | null) => void;
+    oncut?: (cut: CutRecord) => void;
+    oncopy?: () => void;
+    /** True when the parent put the pasted text in itself. */
+    onpaste?: (text: string) => boolean;
+    onworddblclick?: (tokenId: Id) => void;
     onready?: (api: EditorApi) => void;
     /** The editor's commands, available once mounted. */
     api?: EditorApi | null;
@@ -52,6 +57,10 @@
     onselection,
     ontokenhover,
     onrequestsegment,
+    oncut,
+    oncopy,
+    onpaste,
+    onworddblclick,
     onready,
     api = $bindable(null),
     class: className = '',
@@ -69,6 +78,10 @@
         onselection: (ids, caret) => onselection?.(ids, caret),
         ontokenhover: (id) => ontokenhover?.(id),
         onrequestsegment: (id, current) => onrequestsegment?.(id, current),
+        oncut: (cut) => oncut?.(cut),
+        oncopy: () => oncopy?.(),
+        onpaste: (text) => onpaste?.(text) ?? false,
+        onworddblclick: (id) => onworddblclick?.(id),
       },
     );
     api = editor;

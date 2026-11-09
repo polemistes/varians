@@ -11,10 +11,12 @@
     visible?: boolean;
     /** Show the objects and breaks, made at the caret. Off where a menu of its own offers them. */
     inserts?: boolean;
+    /** Show "Segment here". Off where the host offers Segment… itself. */
+    segments?: boolean;
     class?: string;
   }
 
-  let { api, visible = true, inserts = true, class: className = '' }: Props = $props();
+  let { api, visible = true, inserts = true, segments = true, class: className = '' }: Props = $props();
 
   const markKinds = ['unclear', 'supplied', 'del', 'add', 'abbr', 'hi', 'sic', 'damage', 'surplus'];
 
@@ -80,14 +82,16 @@
       >
         {t.join}
       </button>
-      <button
-        type="button"
-        title={title(t.segmentTitle, t.shortcuts.segment)}
-        onpointerdown={keepFocus}
-        onclick={() => api?.requestSegmentAtCaret()}
-      >
-        {t.segment}
-      </button>
+      {#if segments}
+        <button
+          type="button"
+          title={title(t.segmentTitle, t.shortcuts.segment)}
+          onpointerdown={keepFocus}
+          onclick={() => api?.requestSegmentAtCaret()}
+        >
+          {t.segment}
+        </button>
+      {/if}
     </div>
   </div>
 {/if}

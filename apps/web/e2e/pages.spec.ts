@@ -93,11 +93,10 @@ test('pages are managed from the transcription workbench', async ({ page }) => {
   await page.waitForURL(/\/transcriptions\/[^/]+$/);
   await page.waitForLoadState('networkidle');
 
-  // The Pages tab, reached from the page chooser.
-  await page.getByRole('button', { name: w.pages.choose }).click();
-  await page.getByRole('menuitem', { name: w.pages.manage }).click();
+  // A witness with neither pages nor text: the transcript opens on the Pages tab, with no page chooser.
   const pane = page.getByRole('complementary', { name: w.pane.label });
   await expect(pane.getByRole('tab', { name: w.pane.pages })).toHaveAttribute('data-state', 'active');
+  await expect(page.getByRole('button', { name: w.pages.choose })).toHaveCount(0);
   await expect(pane.getByText(t.panel.empty)).toBeVisible();
 
   // Pages by their labels.
