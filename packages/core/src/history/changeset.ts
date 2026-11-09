@@ -1,6 +1,11 @@
 /**
  * Changesets: the unit of a document's history. Every save is one; the
  * server stores the operations and their reverse. Everything here is pure.
+ *
+ * The history is a graph (PLAN-2 decision 5): every changeset names the
+ * changeset it was made on, its parent, and a merge changeset also names the
+ * incoming changesets it folds in. The version number is only this
+ * installation's order of application.
  */
 
 import type { Id } from '../stream/items.ts';
@@ -9,8 +14,16 @@ import { touchedIds, type Op } from '../stream/ops.ts';
 export interface Changeset {
   id: Id;
   documentId: Id;
-  /** The document version this changeset produced. */
+  /** The document version this changeset produced: this installation's order of application. */
   version: number;
+  /**
+   * The changeset this one was made on: the document's head when it was
+   * saved; null only for a document's first changeset. Optional until every
+   * caller sets it; `reconcile` requires it.
+   */
+  parentId?: Id | null;
+  /** For a merge changeset: the ids of the incoming changesets whose operations it applies here. */
+  merged?: Id[];
   userId: Id;
   /** ISO 8601 time. */
   at: string;
@@ -86,7 +99,11 @@ export interface ThinningRules {
  * Thin a history: merge the changesets of one person within one hour (then
  * one day) into one, once they are old enough, never merging across a kept
  * version. The result is a shorter list of changesets covering the same
- * changes; each merged changeset takes the version and time of its last member.
+ * changes; each merged changeset takes the id, version and time of its last
+ * member, the parent of its first, and the merged ids of all its members, so
+ * the parent links still form a chain. Thinning drops ids another
+ * installation may hold, so a thinned document no longer reconciles with
+ * copies made before the thinning.
  */
 export function thin(changesets: Changeset[], rules: ThinningRules): Changeset[] {
   const sorted = [...changesets].sort((a, b) => a.version - b.version);
@@ -99,7 +116,12 @@ export function thin(changesets: Changeset[], rules: ThinningRules): Changeset[]
     else {
       const last = bucket[bucket.length - 1]!;
       const composed = compose(bucket);
-      out.push({ ...last, ops: composed.ops, reverse: composed.reverse });
+      const merged = bucket.flatMap((c) => c.merged ?? []);
+      const thinned: Changeset = { ...last, ops: composed.ops, reverse: composed.reverse };
+      if (bucket[0]!.parentId !== undefined) thinned.parentId = bucket[0]!.parentId;
+      if (merged.length) thinned.merged = merged;
+      else delete thinned.merged;
+      out.push(thinned);
     }
     bucket = [];
   };

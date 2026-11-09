@@ -22,5 +22,6 @@ export * from './import/page.ts';
 export * from './bib/biblatex.ts';
 export * from './apparatus/attach.ts';
 export * from './history/diff.ts';
+export * from './history/reconcile.ts';
 export * from './normalize/proposals.ts';
 export * from './greek/forms.ts';

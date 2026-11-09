@@ -6,6 +6,7 @@ function cs(version: number, userId: string, at: string, ids: string[]): Changes
     id: `c${version}`,
     documentId: 'd',
     version,
+    parentId: version === 1 ? null : `c${version - 1}`,
     userId,
     at,
     ops: ids.map((id) => ({ t: 'set', id, fields: { form: 'x' } })),
@@ -68,5 +69,12 @@ describe('thin', () => {
     expect(thinned.map((c) => c.version)).toEqual([2, 3, 4, 5]);
     expect(thinned[0]!.ops).toHaveLength(2);
     expect(thinned[0]!.reverse.map((o) => (o as { id: string }).id)).toEqual(['t2', 't1']);
+    // The parent links still form a chain: the merged changeset takes its first member's parent.
+    expect(thinned.map((c) => [c.id, c.parentId])).toEqual([
+      ['c2', null],
+      ['c3', 'c2'],
+      ['c4', 'c3'],
+      ['c5', 'c4'],
+    ]);
   });
 });
