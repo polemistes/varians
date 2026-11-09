@@ -1,0 +1,11 @@
+# Caddy in front of Varians, for `docker compose --profile tls up -d`.
+# It answers for DOMAIN (from .env), obtains and renews the certificate by
+# itself (ports 80 and 443 must reach this machine, and DOMAIN must point at
+# it), sends http on to https, and passes every request on to Varians.
+# Caddy adds X-Forwarded-For, which Varians reads with ADDRESS_HEADER and
+# XFF_DEPTH=1 (see .env.example).
+
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy varians:3000
+}

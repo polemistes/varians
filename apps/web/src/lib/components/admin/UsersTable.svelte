@@ -15,12 +15,15 @@
   interface Props {
     users: UserRow[];
     currentUserId: string;
+    /** Whether the installation sends mail: the reset link is then sent, otherwise shown. */
+    mail: boolean;
   }
 
-  let { users, currentUserId }: Props = $props();
+  let { users, currentUserId, mail }: Props = $props();
 
   const roleOptions = ROLES.map((role) => ({ value: role, label: s.admin.roles[role] ?? role }));
   let pending = $state<string | null>(null);
+  let resetting = $state<string | null>(null);
 </script>
 
 <div class="overflow-x-auto rounded-md border border-line bg-surface">
@@ -31,6 +34,7 @@
         <th scope="col" class="px-4 py-2.5 font-medium">{s.admin.email}</th>
         <th scope="col" class="px-4 py-2.5 font-medium">{s.admin.joined}</th>
         <th scope="col" class="px-4 py-2.5 font-medium">{s.admin.role}</th>
+        <th scope="col" class="px-4 py-2.5 font-medium">{s.admin.password}</th>
       </tr>
     </thead>
     <tbody class="divide-y divide-line">
@@ -59,6 +63,24 @@
               <label class="sr-only" for="role-{user.id}">{s.admin.role}</label>
               <Select id="role-{user.id}" name="role" options={roleOptions} value={user.role} class="w-44" />
               <Button type="submit" variant="secondary" size="sm" loading={pending === user.id}>{s.admin.change}</Button>
+            </form>
+          </td>
+          <td class="px-4 py-2">
+            <form
+              method="post"
+              action="?/reset"
+              use:enhance={() => {
+                resetting = user.id;
+                return async ({ update }) => {
+                  resetting = null;
+                  await update({ reset: false });
+                };
+              }}
+            >
+              <input type="hidden" name="userId" value={user.id} />
+              <Button type="submit" variant="secondary" size="sm" loading={resetting === user.id}>
+                {mail ? s.admin.sendResetLink : s.admin.makeResetLink}
+              </Button>
             </form>
           </td>
         </tr>

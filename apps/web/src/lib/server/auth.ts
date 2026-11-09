@@ -155,13 +155,18 @@ export async function logoutEverywhere(userId: string): Promise<void> {
 // Accounts
 
 export type RegisterResult =
-  { ok: true; user: CurrentUser; token: string } | { ok: false; error: 'email-taken' };
+  { ok: true; user: CurrentUser; token: string | null } | { ok: false; error: 'email-taken' };
 
-/** Creates an account and a session. The first account on an installation is its administrator. */
+/**
+ * Creates an account, and a session unless `session` is false (when the
+ * address must be confirmed first). The first account on an installation is
+ * its administrator.
+ */
 export async function register(
   email: string,
   name: string,
   password: string,
+  options: { session?: boolean } = {},
 ): Promise<RegisterResult> {
   const passwordHash = await hashPassword(password);
   const normalized = normalizeEmail(email);
@@ -181,13 +186,16 @@ export async function register(
       .values({ id: newId(), email: email.trim(), name: name.trim(), passwordHash, role })
       .returning();
     if (!user) throw new Error('insert returned no row');
-    const token = await createSession(user.id, tx);
+    const token = options.session === false ? null : await createSession(user.id, tx);
     return { ok: true, user: toCurrentUser(user), token } as const;
   });
 }
 
 export type LoginResult =
-  { ok: true; user: CurrentUser; token: string } | { ok: false; error: 'invalid-credentials' };
+  | { ok: true; user: CurrentUser; token: string }
+  | { ok: false; error: 'invalid-credentials' }
+  /** The password is right, but the address has not been confirmed. */
+  | { ok: false; error: 'unconfirmed'; user: CurrentUser };
 
 let decoyHash: Promise<string> | undefined;
 /** A hash to verify against when no account matches, so that timing does not reveal which emails exist. */
@@ -196,7 +204,8 @@ function decoy(): Promise<string> {
   return decoyHash;
 }
 
-export async function login(email: string, password: string): Promise<LoginResult> {
+/** Checks the password and makes a session; with `requireConfirmed`, only for an account whose address is confirmed. */
+export async function login(email: string, password: string, options: { requireConfirmed?: boolean } = {}): Promise<LoginResult> {
   const [user] = await db
     .select()
     .from(users)
@@ -206,6 +215,7 @@ export async function login(email: string, password: string): Promise<LoginResul
     ? await verifyPassword(user.passwordHash, password)
     : (await verifyPassword(await decoy(), password), false);
   if (!user || !valid) return { ok: false, error: 'invalid-credentials' };
+  if (options.requireConfirmed && !user.emailVerifiedAt) return { ok: false, error: 'unconfirmed', user: toCurrentUser(user) };
   const token = await createSession(user.id);
   return { ok: true, user: toCurrentUser(user), token };
 }

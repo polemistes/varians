@@ -6,9 +6,14 @@
  *   pnpm --filter @varians/web cli import-archive <dir>  --user <email>
  *   pnpm --filter @varians/web cli seed-sample --user <email>
  *   pnpm --filter @varians/web cli make-admin <email>
+ *   pnpm --filter @varians/web cli reset-password <email>
+ *   pnpm --filter @varians/web cli confirm-email <email>
+ *   pnpm --filter @varians/web cli version
  *
- * Reads DATABASE_URL and STORAGE_DIR from the environment (apps/web/.env is
- * loaded when present).
+ * In a release the same commands are `bin/varians cli <command> ...`.
+ *
+ * Reads DATABASE_URL, STORAGE_DIR and ORIGIN from the environment (then from
+ * the file VARIANS_ENV_FILE names, then from apps/web/.env; see env.ts).
  */
 
 import { createDatabase, sql, users, works } from '@varians/db';
@@ -17,6 +22,7 @@ import path from 'node:path';
 import { archiveChangedWorks } from '../src/lib/server/archive/schedule.ts';
 import { archiveWork } from '../src/lib/server/archive/archive.ts';
 import { importArchive } from '../src/lib/server/archive/import.ts';
+import { confirmEmailDirectly, makeResetLinkFor } from '../src/lib/server/account-mail.ts';
 import { seedSample } from '../src/lib/server/seed/sample.ts';
 import { formatVersion } from '../src/lib/version-format.ts';
 import { loadEnv } from './env.ts';
@@ -82,8 +88,29 @@ async function main(): Promise<void> {
         console.log(`${email} is now an administrator`);
         break;
       }
+      case 'reset-password': {
+        // For an installation without mail: a link to hand to the person, by a means the operator trusts.
+        const email = args[0];
+        if (!email) throw new Error('usage: reset-password <email>');
+        const origin = process.env.ORIGIN?.trim();
+        if (!origin) throw new Error('ORIGIN is not set; the link is made from it');
+        const made = await makeResetLinkFor(db, email, { name: process.env.SITE_NAME?.trim() || 'Varians', origin: origin.replace(/\/+$/u, '') });
+        if (!made) throw new Error(`no user ${email}`);
+        console.log(`A link to set a new password for ${made.account.name}, valid until ${made.expiresAt.toISOString()} and for one use:`);
+        console.log(made.link);
+        break;
+      }
+      case 'confirm-email': {
+        const email = args[0];
+        if (!email) throw new Error('usage: confirm-email <email>');
+        if (!(await confirmEmailDirectly(db, email))) throw new Error(`no user ${email}`);
+        console.log(`The address ${email} is confirmed`);
+        break;
+      }
       default:
-        console.log('commands: export-archive <slug>, export-all, import-archive <dir> --user <email>, seed-sample --user <email>, make-admin <email>');
+        console.log(
+          'commands: export-archive <slug>, export-all, import-archive <dir> --user <email>, seed-sample --user <email>, make-admin <email>, reset-password <email>, confirm-email <email>, version',
+        );
     }
   } finally {
     await pool.end();
