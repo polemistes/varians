@@ -103,6 +103,7 @@ describe('emails and users', () => {
       name: 'Test User',
       role: 'member',
       preferences: { font: 'cardo', theme: 'system' },
+      termsVersion: null,
     });
     expect('passwordHash' in current).toBe(false);
   });

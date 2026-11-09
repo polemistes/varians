@@ -67,6 +67,7 @@ test('selected words are mapped to a box drawn on the facsimile', async ({ page 
   await page.getByLabel(s.auth.name).fill('Mapping Tester');
   await page.getByLabel(s.auth.email).fill(email);
   await page.getByLabel(s.auth.password, { exact: true }).fill(password);
+  await page.getByRole('checkbox', { name: new RegExp(s.auth.termsLink) }).check();
   await page.getByRole('button', { name: s.auth.registerAction }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/register'));
 

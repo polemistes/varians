@@ -52,6 +52,8 @@
         <span>{s.app.name} {data.release.version}</span>
         <a href="/guide" class="hover:text-ink">{site.guide.title}</a>
         <a href="/sources" class="hover:text-ink">{site.sources.footer}</a>
+        <a href="/terms" class="hover:text-ink">{site.terms.footer}</a>
+        <a href="/formats" class="hover:text-ink">{site.formats.title}</a>
         <a href={data.release.source} class="hover:text-ink" rel="external">{site.footer.source}</a>
       </div>
     </footer>

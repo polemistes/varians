@@ -96,6 +96,16 @@ export const site = {
     contents: 'Contents',
   },
 
+  terms: {
+    title: 'Terms of contribution',
+    accept: 'Accept these terms',
+    acceptedOn: (version: number) => `You accepted version ${version} of these terms`,
+    changed: 'The terms of contribution have changed since you last accepted them. Accept them to go on editing and publishing; reading needs nothing.',
+    first: 'Accept the terms of contribution to edit and publish here; reading needs nothing.',
+    required: 'Accept the terms of contribution (at /terms) before you edit or publish.',
+    footer: 'Terms',
+  },
+
   formats: {
     title: 'Data format',
     files: 'Files',

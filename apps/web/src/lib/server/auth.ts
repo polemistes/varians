@@ -92,6 +92,7 @@ export function toCurrentUser(user: User): CurrentUser {
     name: user.name,
     role: user.role,
     preferences: normalizePreferences(user.preferences),
+    termsVersion: user.termsVersion ?? null,
   };
 }
 
@@ -166,7 +167,7 @@ export async function register(
   email: string,
   name: string,
   password: string,
-  options: { session?: boolean } = {},
+  options: { session?: boolean; termsVersion?: number } = {},
 ): Promise<RegisterResult> {
   const passwordHash = await hashPassword(password);
   const normalized = normalizeEmail(email);
@@ -183,7 +184,14 @@ export async function register(
     const role = total === 0 ? 'administrator' : 'member';
     const [user] = await tx
       .insert(users)
-      .values({ id: newId(), email: email.trim(), name: name.trim(), passwordHash, role })
+      .values({
+        id: newId(),
+        email: email.trim(),
+        name: name.trim(),
+        passwordHash,
+        role,
+        ...(options.termsVersion !== undefined ? { termsVersion: options.termsVersion, termsAcceptedAt: new Date() } : {}),
+      })
       .returning();
     if (!user) throw new Error('insert returned no row');
     const token = options.session === false ? null : await createSession(user.id, tx);

@@ -25,6 +25,7 @@ test('a new user registers, logs out and logs back in', async ({ page }) => {
   await page.getByLabel(s.auth.name).fill(name);
   await page.getByLabel(s.auth.email).fill(email);
   await page.getByLabel(s.auth.password, { exact: true }).fill(password);
+  await page.getByRole('checkbox', { name: new RegExp(s.auth.termsLink) }).check();
   await page.getByRole('button', { name: s.auth.registerAction }).click();
 
   // The front page as a new user: the ways to start, and nothing to continue yet.

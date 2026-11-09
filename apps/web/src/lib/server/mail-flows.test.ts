@@ -227,7 +227,7 @@ describe('setting the password with the link', () => {
 
 describe('confirming the address', () => {
   it('at registration with mail: no session, a link to confirm instead', async () => {
-    const outcome = await act(register.actions.default as AnyAction, { name: 'New Reader', email: registered[0]!, password: 'long enough' }, { address: '198.51.100.60' });
+    const outcome = await act(register.actions.default as AnyAction, { name: 'New Reader', email: registered[0]!, password: 'long enough', terms: 'accepted' }, { address: '198.51.100.60' });
     expect(data(outcome)).toEqual({ confirm: { email: registered[0], sent: true } });
     expect(outcome.jar.jar.size).toBe(0);
     expect(state.sent[0]!.to).toBe(registered[0]);
@@ -236,7 +236,7 @@ describe('confirming the address', () => {
 
   it('at registration without mail: signed in at once', async () => {
     withoutMail();
-    const outcome = await act(register.actions.default as AnyAction, { name: 'Plain Reader', email: registered[1]!, password: 'long enough' }, { address: '198.51.100.61' });
+    const outcome = await act(register.actions.default as AnyAction, { name: 'Plain Reader', email: registered[1]!, password: 'long enough', terms: 'accepted' }, { address: '198.51.100.61' });
     expect((outcome.thrown as { status: number }).status).toBe(303);
     expect(outcome.jar.jar.get('varians_session')).toBeTruthy();
     expect(state.sent).toHaveLength(0);

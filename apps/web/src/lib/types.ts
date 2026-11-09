@@ -27,6 +27,8 @@ export interface CurrentUser {
   name: string;
   role: Role;
   preferences: Preferences;
+  /** The version of the terms of contribution the person accepted, or null. */
+  termsVersion: number | null;
 }
 
 /** What the header shows after the wordmark: the current screen. */

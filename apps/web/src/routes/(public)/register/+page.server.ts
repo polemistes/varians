@@ -10,6 +10,7 @@ import {
 import { sendVerification } from '$lib/server/account-mail';
 import { mailer, siteOf } from '$lib/server/mail';
 import { limits } from '$lib/server/rate-limit';
+import { TERMS_VERSION } from '$lib/server/terms';
 import { s } from '$lib/strings';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -22,7 +23,7 @@ const schema = z.object({
     .max(PASSWORD_MAX_LENGTH, s.auth.passwordTooLong),
 });
 
-type RegisterErrors = { name?: string[]; email?: string[]; password?: string[]; form?: string };
+type RegisterErrors = { name?: string[]; email?: string[]; password?: string[]; terms?: string[]; form?: string };
 
 export const load: PageServerLoad = ({ locals }) => {
   if (locals.user) redirect(303, '/');
@@ -39,8 +40,10 @@ export const actions: Actions = {
     };
     const values = { name: raw.name, email: raw.email };
     const parsed = schema.safeParse(raw);
-    if (!parsed.success) {
-      const errors: RegisterErrors = z.flattenError(parsed.error).fieldErrors;
+    const accepted = form.get('terms') === 'accepted';
+    if (!parsed.success || !accepted) {
+      const errors: RegisterErrors = parsed.success ? {} : z.flattenError(parsed.error).fieldErrors;
+      if (!accepted) errors.terms = [s.auth.termsRequired];
       return fail(400, { values, errors });
     }
     const address = getClientAddress();
@@ -50,7 +53,7 @@ export const actions: Actions = {
     }
     // With mail, the address is confirmed before the account can be used; without, the account is ready at once.
     const send = mailer();
-    const result = await register(parsed.data.email, parsed.data.name, parsed.data.password, { session: !send });
+    const result = await register(parsed.data.email, parsed.data.name, parsed.data.password, { session: !send, termsVersion: TERMS_VERSION });
     if (!result.ok) {
       const errors: RegisterErrors = { email: [s.auth.emailTaken] };
       return fail(400, { values, errors });

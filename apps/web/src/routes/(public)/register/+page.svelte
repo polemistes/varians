@@ -1,7 +1,7 @@
 <script lang="ts">
   import AuthForm from '$lib/components/auth/AuthForm.svelte';
   import { PageFrame } from '$lib/components/shell';
-  import { Field, Input, Notice } from '$lib/components/ui';
+  import { Checkbox, Field, Input, Notice } from '$lib/components/ui';
   import { s } from '$lib/strings';
   import type { PageProps } from './$types';
 
@@ -30,6 +30,11 @@
     <Field label={s.auth.password} hint={s.auth.passwordHint} error={form?.errors?.password}>
       {#snippet children(control)}
         <Input {...control} name="password" type="password" autocomplete="new-password" required />
+      {/snippet}
+    </Field>
+    <Field label="" error={form?.errors?.terms}>
+      {#snippet children()}
+        <Checkbox name="terms" value="accepted" required>{s.auth.acceptTerms} <a href="/terms" target="_blank" class="text-accent underline">{s.auth.termsLink}</a></Checkbox>
       {/snippet}
     </Field>
     {#snippet aside()}

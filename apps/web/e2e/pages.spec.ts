@@ -65,6 +65,7 @@ test('pages are managed from the transcription workbench', async ({ page }) => {
   await page.getByLabel(s.auth.name).fill('Pages Tester');
   await page.getByLabel(s.auth.email).fill(email);
   await page.getByLabel(s.auth.password, { exact: true }).fill(password);
+  await page.getByRole('checkbox', { name: new RegExp(s.auth.termsLink) }).check();
   await page.getByRole('button', { name: s.auth.registerAction }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/register'));
 

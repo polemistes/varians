@@ -4,6 +4,8 @@
  */
 import type { Handle } from '@sveltejs/kit';
 import { SESSION_COOKIE, cookieOptions, getSessionUser } from '$lib/server/auth';
+import { hasAcceptedTerms, termsGate } from '$lib/server/terms';
+import { site } from '$lib/strings/site';
 import { db } from '$lib/server/db';
 import { startBackgroundWork } from '$lib/server/startup';
 import { htmlAttributeString } from '$lib/preferences';
@@ -56,6 +58,33 @@ export const handle: Handle = async ({ event, resolve }) => {
       if (session.refreshed) event.cookies.set(SESSION_COOKIE, token, cookieOptions());
     } else {
       event.cookies.delete(SESSION_COOKIE, { path: '/' });
+    }
+  }
+
+  // An account that has not accepted the current terms of contribution reads, and changes nothing (PLAN-2 D4).
+  const user = event.locals.user;
+  if (user && !hasAcceptedTerms(user)) {
+    const gate = termsGate(request.method, url.pathname);
+    if (gate === 'api') {
+      return new Response(JSON.stringify({ message: site.terms.required, terms: '/terms' }), { status: 403, headers: { 'content-type': 'application/json' } });
+    }
+    if (gate === 'page') {
+      let back = url.pathname + url.search;
+      if (request.method !== 'GET') {
+        // A form sent from a page goes back to that page once the terms are accepted.
+        try {
+          const referer = new URL(request.headers.get('referer') ?? '');
+          back = referer.origin === url.origin ? referer.pathname + referer.search : '/';
+        } catch {
+          back = '/';
+        }
+      }
+      const location = `/terms?next=${encodeURIComponent(back)}`;
+      // A form sent by the page's script expects an action result; anything else a plain redirect.
+      if (request.headers.get('x-sveltekit-action') === 'true') {
+        return new Response(JSON.stringify({ type: 'redirect', status: 303, location }), { headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(null, { status: 303, headers: { location } });
     }
   }
 
