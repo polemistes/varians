@@ -52,11 +52,6 @@
     log = [];
   }
 
-  function insertPage() {
-    const label = window.prompt('New page label', '');
-    if (!label) return;
-    activeApi?.insertBreak('page', `p-${label}`, label);
-  }
 </script>
 
 <svelte:head>
@@ -90,7 +85,6 @@
     </label>
     <label><input type="checkbox" bind:checked={lineNumbers} /> line numbers</label>
     <label><input type="checkbox" bind:checked={readonly} /> read only</label>
-    <button type="button" onclick={insertPage}>page break with label</button>
     <button type="button" onclick={reset}>reset</button>
     <span class="status">
       toolbar acts on: <strong>{active}</strong>

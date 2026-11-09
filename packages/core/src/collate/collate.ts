@@ -32,6 +32,12 @@ export interface CollationText {
   /** The siglum printed for it; the base's is used only when it is a witness. */
   siglum: string;
   units: Unit[];
+  /**
+   * The text reaches this segment even when it has no units for it: it
+   * lacks the passage, and is reported as omitting it, where a text with no
+   * units and without this flag is absent and stands in no site.
+   */
+  present?: boolean;
 }
 
 export interface CollationOptions {
@@ -143,7 +149,7 @@ export function collate(base: CollationText, witnesses: CollationText[], options
 
   for (const witness of witnesses) {
     if (witness.units.length === 0) {
-      absent.push(witness.id);
+      if (!witness.present) absent.push(witness.id);
       continue;
     }
     const result = alignWitness(columns, witness, bare, near);
@@ -152,10 +158,11 @@ export function collate(base: CollationText, witnesses: CollationText[], options
     for (const link of findTranspositions(columns, witness.id, base.id, bare)) transpositions.push(link);
   }
 
-  const anchors = anchorColumns(columns, base.id, keys);
   // A text without the segment at all is absent, not omitting: it stands in no site.
+  // A text present without units stands in no column, and omits every one.
   const absentSet = new Set(absent);
   const present = texts.filter((t) => !absentSet.has(t.id));
+  const anchors = anchorColumns(columns, base.id, keys, present.map((t) => t.id));
   const sites = buildSites(columns, anchors, base, present, keys, bare, transpositions, reach);
   const sigla: Record<Id, string> = {};
   for (const text of texts) sigla[text.id] = text.siglum;
@@ -329,10 +336,9 @@ function findTranspositions(
   return out;
 }
 
-function anchorColumns(columns: Column[], baseId: Id, keys: Map<Id, string[]>): number[] {
+function anchorColumns(columns: Column[], baseId: Id, keys: Map<Id, string[]>, presentIds: Id[]): number[] {
   const anchors: number[] = [];
-  const present = new Set<Id>();
-  for (const column of columns) for (const textId of column.cells.keys()) present.add(textId);
+  const present = new Set<Id>(presentIds);
   columns.forEach((column, index) => {
     const baseCell = column.cells.get(baseId);
     if (!baseCell) return;
@@ -365,8 +371,7 @@ function buildSites(
   const anchorSet = new Set(anchors);
   // The texts that disagree with the base in a column: absent, lacunose or
   // reading otherwise; in a column without the base, everyone present adds.
-  const present = new Set<Id>();
-  for (const column of columns) for (const textId of column.cells.keys()) present.add(textId);
+  const present = new Set<Id>(texts.map((t) => t.id));
   const disagreeing = (column: Column): Set<Id> => {
     const out = new Set<Id>();
     const baseCell = column.cells.get(base.id);

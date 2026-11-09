@@ -94,3 +94,32 @@ describe('interpretative variants', () => {
     expect(apparatusEntries(set, '1', {})[0]!.kind).toBe('textual');
   });
 });
+
+describe('a whole segment a witness lacks', () => {
+  const gap = (id: string): CollationText => ({ id, siglum: id, units: [{ text: '', tokenIds: [], gap: { kind: 'object', id: `${id}-gap`, type: 'gap' } }] });
+
+  it('prints "om." with the first and last word for a long segment, the whole lemma for a short one', () => {
+    const long = collate(text('E', 'ed', 'μῆνιν ἄειδε θεὰ Πηληϊάδεω Ἀχιλῆος'), [
+      text('A', 'A', 'μῆνιν ἄειδε θεὰ Πηληϊάδεω Ἀχιλῆος'),
+      { ...text('B', 'B', ''), present: true },
+      text('C', 'C', 'μῆνιν ἄειδε θεὰ Πηληϊάδεω Ἀχιλῆος'),
+    ]);
+    expect(formatApparatus(apparatusEntries(long, '1.1', {}))).toEqual(['1.1 μῆνιν … Ἀχιλῆος A C : om. B']);
+    const short = collate(text('E', 'ed', 'a b c'), [{ ...text('B', 'B', ''), present: true }]);
+    expect(formatApparatus(apparatusEntries(short, '2', {}))).toEqual(['2 a b c : om. B']);
+  });
+
+  it('prints "deest in" for a lost passage and keeps "lac." within one', () => {
+    const lost = collate(text('E', 'ed', 'a b c d'), [text('A', 'A', 'a b c d'), gap('B')]);
+    expect(formatApparatus(apparatusEntries(lost, '3', {}))).toEqual(['3 a … d A : deest in B']);
+    const english = { form: 'positive' as const, latin: false, interpretative: 'separate' as const };
+    expect(formatApparatus(apparatusEntries(lost, '3', {}, english), english)).toEqual(['3 a … d A : absent in B']);
+    const within: CollationText = { id: 'B', siglum: 'B', units: [{ text: 'a', tokenIds: ['x'] }, ...gap('B').units, { text: 'd', tokenIds: ['y'] }] };
+    expect(formatApparatus(apparatusEntries(collate(text('E', 'ed', 'a b c d'), [within]), '4', {}))).toEqual(['4 b c : lac. B']);
+  });
+
+  it('prints the whole lemma when another witness has words of its own there', () => {
+    const c = collate(text('E', 'ed', 'a b c d'), [text('A', 'A', 'a x c d'), { ...text('B', 'B', ''), present: true }]);
+    expect(formatApparatus(apparatusEntries(c, '5', {}))).toEqual(['5 a b c d : a x c d A : om. B']);
+  });
+});

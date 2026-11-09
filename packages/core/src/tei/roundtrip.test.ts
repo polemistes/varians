@@ -183,3 +183,32 @@ describe('TEI round trip of paratext', () => {
     expect(essence(result.stream.items)).toEqual(essence(items));
   });
 });
+
+describe('TEI round trip of text on no page', () => {
+  it('writes the text before the first page break before the first <pb/> and reads it back there', () => {
+    const stream: Stream = {
+      items: [
+        { kind: 'token', id: 'u1', form: 'ἄνδρα' },
+        { kind: 'token', id: 'u2', form: 'μοι' },
+        { kind: 'break', id: 'pb1', type: 'page', pageId: 'p1' },
+        { kind: 'token', id: 'a1', form: 'μῆνιν' },
+        { kind: 'break', id: 'lb1', type: 'line' },
+        { kind: 'token', id: 'a2', form: 'ἄειδε' },
+        { kind: 'break', id: 'pb2', type: 'page', pageId: 'p2' },
+        { kind: 'token', id: 'b1', form: 'θεὰ' },
+      ],
+    };
+    const pagesHere = [
+      { id: 'p1', label: '12r' },
+      { id: 'p2', label: '12v' },
+    ];
+    const xml = exportTranscriptionTei({ stream, title: 'T', pages: pagesHere, words: true });
+    expect(xml.indexOf('ἄνδρα')).toBeLessThan(xml.indexOf('<pb n="12r"'));
+    const result = importTei(xml, { ids: sequentialIds() });
+    expect(essence(result.stream.items)).toEqual(essence(stream.items));
+    expect(result.pages.map((p) => [p.label, p.itemIndex])).toEqual([
+      ['12r', 2],
+      ['12v', 6],
+    ]);
+  });
+});

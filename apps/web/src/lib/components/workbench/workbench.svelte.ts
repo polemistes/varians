@@ -664,14 +664,10 @@ export class Workbench {
     return data;
   }
 
-  /** Begin a witness page at the caret, and show it. */
+  /** Show a witness page; its text is typed or moved there. */
   placePage(pageId: string): boolean {
-    const api = this.api;
-    if (!api || !this.canEdit) return false;
-    const done = api.insertBreak('page', pageId);
-    // Show the page placed, unless words before the first page break are seen only in the whole text.
-    if (done && (this.page !== null || !hasLeadingText(this.stream))) this.requestedPage = pageId;
-    return done;
+    this.requestedPage = pageId;
+    return true;
   }
 
   // Zones

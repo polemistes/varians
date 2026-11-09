@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ChangeSet } from '@codemirror/state';
 import { applyOps, fromText, sequentialIds, toText, type Break, type Stream } from '@varians/core';
 import { reconcile, render } from './bridge.ts';
-import { liftOps, liftToWhole, pageBreaks, pageView } from './page.ts';
+import { liftOps, liftToWhole, pageBreaks, pageView, UNPLACED } from './page.ts';
 
 /** Two pages: `a b` on p1, `c d` and `e` on p2, with text before the first page break. */
 function twoPages(): Stream {
@@ -35,25 +35,25 @@ describe('pageView', () => {
     expect(pageBreaks(s).map((b) => b.pageId)).toEqual(['p1', 'p2']);
   });
 
-  it('reaches a page break by its own id, also one that names no page', () => {
+  it('shows the text on no page: the items before the first page break', () => {
     const s = twoPages();
-    // t8 is a line break; make it a page break without a page of the witness.
-    (s.items[7] as Break).type = 'page';
-    const byId = pageView(s, 't8');
-    expect(toText(byId.stream)).toBe('e');
-    expect(byId.anchor?.id).toBe('t8');
-    expect(byId.missing).toBeNull();
-    expect(toText(pageView(s, 'p2').stream)).toBe('c d');
-    // A page break that names a page is reached by its id as well.
-    expect(toText(pageView(s, 't5').stream)).toBe('c d');
+    const view = pageView(s, UNPLACED);
+    expect(toText(view.stream)).toBe('x');
+    expect(view.anchor).toBeNull();
+    expect(view.missing).toBeNull();
+    expect(toText(pageView(fromText('a b\nc', { ids: sequentialIds() }), UNPLACED).stream)).toBe('a b\nc');
   });
 
-  it('shows nothing for a page that has no break yet, remembering where its break goes', () => {
+  it('shows nothing for a page that has no break yet, remembering where the witness order puts its break', () => {
     const s = twoPages();
-    const view = pageView(s, 'p3');
+    expect(pageView(s, 'p3', ['p1', 'p2', 'p3']).missing).toEqual({ pageId: 'p3', after: 't9' });
+    // A page between p1 and p2 goes after p1's text, not at the end.
+    expect(pageView(s, 'p1a', ['p1', 'p1a', 'p2']).missing).toEqual({ pageId: 'p1a', after: 't4' });
+    // A page before every other goes after the text on no page.
+    expect(pageView(s, 'p0', ['p0', 'p1', 'p2']).missing).toEqual({ pageId: 'p0', after: 't1' });
+    const view = pageView(s, 'p3', ['p1', 'p2', 'p3']);
     expect(view.stream.items).toEqual([]);
     expect(view.anchor).toBeNull();
-    expect(view.missing).toEqual({ pageId: 'p3', after: 't9' });
   });
 });
 
@@ -125,7 +125,7 @@ describe('editing one page through the bridge', () => {
 
   it('creates the page break on the first edit of a page without one', () => {
     const whole = twoPages();
-    const view = pageView(whole, 'p3');
+    const view = pageView(whole, 'p3', ['p1', 'p2', 'p3']);
     const ledger = render(view.stream, 'written');
     const r = reconcile(
       view.stream,
@@ -157,6 +157,22 @@ describe('editing one page through the bridge', () => {
     const next = applyOps(whole, lifted.ops).stream;
     expect(toText(next)).toBe('x\na b\nc d\ne\nf g');
     expect(pageView(next, 'p3').stream).toEqual(r.stream);
+  });
+
+  it('creates the break of a page between two others in its place', () => {
+    const whole = twoPages();
+    const view = pageView(whole, 'p1a', ['p1', 'p1a', 'p2']);
+    const lifted = liftToWhole([{ t: 'insert', after: null, items: [{ kind: 'token', id: 'n1', form: 'f' }] }], view, sequentialIds('b'));
+    const next = applyOps(whole, lifted.ops).stream;
+    expect(toText(next)).toBe('x\na b\nf\nc d\ne');
+    expect(pageBreaks(next).map((b) => b.pageId)).toEqual(['p1', 'p1a', 'p2']);
+  });
+
+  it('lifts edits of the text on no page as they are', () => {
+    const whole = twoPages();
+    const view = pageView(whole, UNPLACED);
+    const ops = [{ t: 'insert' as const, after: null, items: [{ kind: 'token' as const, id: 'n1', form: 'w' }] }];
+    expect(liftToWhole(ops, view, sequentialIds('b')).ops).toEqual(ops);
   });
 
   it('does not create a break when nothing was inserted', () => {

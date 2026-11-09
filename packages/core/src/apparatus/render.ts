@@ -95,6 +95,7 @@ export function apparatusEntries(
   siglaOrder: string[] = [],
 ): ApparatusEntry[] {
   const entries: ApparatusEntry[] = [];
+  const baseCount = collation.columns.filter((c) => (c.cells.get(collation.baseId)?.unitIndex ?? -1) >= 0).length;
   for (const site of collation.sites) {
     const base = site.readings.find((r) => r.base);
     const others = site.readings.filter((r) => !r.base);
@@ -104,7 +105,9 @@ export function apparatusEntries(
     if (kind === 'interpretative' && conventions.interpretative === 'none') continue;
     const printable = others;
     const adopted = attached.find((a) => a.adopted);
-    const variants: ApparatusVariant[] = printable.map((reading) => renderReading(reading, base, conventions, siglaOrder));
+    // A site over the whole segment: what a witness lacks there it lacks entirely.
+    const whole = base !== undefined && baseCount > 0 && site.baseFrom === 0 && site.baseTo === baseCount;
+    const variants: ApparatusVariant[] = printable.map((reading) => renderReading(reading, base, conventions, siglaOrder, whole));
     for (const attachment of attached) {
       if (attachment.adopted) continue;
       variants.push(renderAttachment(attachment, conventions));
@@ -112,7 +115,7 @@ export function apparatusEntries(
     const entry: ApparatusEntry = {
       siteIndex: site.index,
       label,
-      lemma: base ? trimPunctuation(base.text) : '',
+      lemma: base ? lemmaOf(base, whole && others.every((r) => r.text === '' && (r.omission || r.lacunose))) : '',
       // The edition's own siglum comes first and is not printed.
       lemmaSigla: base ? sortSigla(printedSigla(base).slice(1), siglaOrder) : [],
       variants,
@@ -154,11 +157,25 @@ export function splitEntries(entries: ApparatusEntry[], conventions: Pick<Appara
   return { main, interpretative };
 }
 
+/**
+ * The lemma: the base's words; for a site over a whole segment of more than
+ * three words where every witness lacks it, its first and last words with
+ * an ellipsis between.
+ */
+function lemmaOf(base: Reading, abridge: boolean): string {
+  const text = trimPunctuation(base.text);
+  if (!abridge) return text;
+  const parts = text.split(/\s+/u).filter((p) => p !== '');
+  if (parts.length <= 3) return text;
+  return `${trimPunctuation(parts[0]!)} … ${trimPunctuation(parts[parts.length - 1]!)}`;
+}
+
 function renderReading(
   reading: Reading,
   base: Reading | undefined,
   conventions: ApparatusConventions,
   siglaOrder: string[],
+  whole = false,
 ): ApparatusVariant {
   const sigla = sortSigla(printedSigla(reading), siglaOrder);
   const variant: ApparatusVariant = {
@@ -166,7 +183,7 @@ function renderReading(
     sigla,
     lacunose: reading.lacunose,
   };
-  if (reading.lacunose && reading.text === '') variant.note = word('lac', conventions.latin);
+  if (reading.lacunose && reading.text === '') variant.note = word(whole ? 'deest' : 'lac', conventions.latin);
   else if (reading.omission) variant.note = word('om', conventions.latin);
   else if (base && base.text === '') variant.note = word('add', conventions.latin);
   return variant;

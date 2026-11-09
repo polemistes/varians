@@ -47,31 +47,24 @@ describe('breakTarget', () => {
   const brk = (type: Break['type'], extra: Partial<Break> = {}): Break => ({ kind: 'break', id: 'b', type, ...extra });
 
   it('turns the line break before the line into the new break', () => {
-    for (const type of ['page', 'column', 'paragraph'] as const) {
-      expect(breakTarget(brk('line'), true, type)).toEqual({ t: 'set', id: 'b' });
+    for (const type of ['column', 'paragraph'] as const) {
+      expect(breakTarget(brk('line'), type)).toEqual({ t: 'set', id: 'b' });
     }
   });
 
   it('inserts a break before the first line of the text', () => {
-    expect(breakTarget(null, true, 'page')).toEqual({ t: 'insert' });
-    expect(breakTarget(null, true, 'paragraph')).toEqual({ t: 'insert' });
+    expect(breakTarget(null, 'column')).toEqual({ t: 'insert' });
+    expect(breakTarget(null, 'paragraph')).toEqual({ t: 'insert' });
   });
 
   it('keeps the page break of a line that begins a page', () => {
-    expect(breakTarget(brk('page', { pageId: 'p1' }), true, 'page')).toEqual({ t: 'none', reason: 'same' });
-    expect(breakTarget(brk('page'), true, 'column')).toEqual({ t: 'none', reason: 'page' });
-    expect(breakTarget(brk('page'), true, 'paragraph')).toEqual({ t: 'none', reason: 'page' });
-  });
-
-  it('names a page break that names no page yet, unless it stands outside the text shown', () => {
-    expect(breakTarget(brk('page'), true, 'page', 'p2')).toEqual({ t: 'set', id: 'b' });
-    expect(breakTarget(brk('page', { pageId: 'p1' }), true, 'page', 'p2')).toEqual({ t: 'none', reason: 'same' });
-    expect(breakTarget(brk('page'), false, 'page', 'p2')).toEqual({ t: 'none', reason: 'same' });
+    expect(breakTarget(brk('page', { pageId: 'p1' }), 'column')).toEqual({ t: 'none', reason: 'page' });
+    expect(breakTarget(brk('page'), 'paragraph')).toEqual({ t: 'none', reason: 'page' });
   });
 
   it('changes a column or paragraph break into another kind, and leaves the same kind alone', () => {
-    expect(breakTarget(brk('column'), true, 'page')).toEqual({ t: 'set', id: 'b' });
-    expect(breakTarget(brk('paragraph'), true, 'column')).toEqual({ t: 'set', id: 'b' });
-    expect(breakTarget(brk('column'), true, 'column')).toEqual({ t: 'none', reason: 'same' });
+    expect(breakTarget(brk('paragraph'), 'column')).toEqual({ t: 'set', id: 'b' });
+    expect(breakTarget(brk('column'), 'paragraph')).toEqual({ t: 'set', id: 'b' });
+    expect(breakTarget(brk('column'), 'column')).toEqual({ t: 'none', reason: 'same' });
   });
 });

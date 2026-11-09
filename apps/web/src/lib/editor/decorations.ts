@@ -7,7 +7,7 @@
 
 import type { Range } from '@codemirror/state';
 import { Decoration, WidgetType, type DecorationSet } from '@codemirror/view';
-import { isToken, variantGroup, type Break, type Id, type Item, type Mark, type Obj, type SegmentStart } from '@varians/core';
+import { isBreak, isToken, variantGroup, type Break, type Id, type Item, type Mark, type Obj, type SegmentStart } from '@varians/core';
 import { breakLabels, editorStrings, objectLabels } from './labels.ts';
 import { lineIndex, type LineInfo } from './lines.ts';
 import type { Model } from './model.ts';
@@ -33,10 +33,25 @@ export function segmentLabel(model: Model, segment: SegmentStart): string {
   return model.segmentLabels[segment.segmentId] ?? segment.segmentId;
 }
 
+/** A page break names no page whose label the editor was given: the stream was not conformed, or the labels are stale. */
+export class MissingPageLabel extends Error {
+  constructor(readonly pageId: string | undefined) {
+    super(`page break names no page with a label: ${pageId ?? '(none)'}`);
+    this.name = 'MissingPageLabel';
+  }
+}
+
+/**
+ * The label of the page a page break names. Every page break names a page
+ * of the witness (the stream is conformed on every write), so a missing
+ * label is a programming error: in development and tests it throws; in
+ * production the word "page" stands in, never the page's id.
+ */
 export function pageLabel(model: Model, brk: Break): string {
-  return (
-    (brk.pageId && model.pageLabels[brk.pageId]) || brk.label || brk.pageId || breakLabels.page
-  );
+  const label = brk.pageId ? model.pageLabels[brk.pageId] : undefined;
+  if (label !== undefined) return label;
+  if (import.meta.env?.DEV !== false) throw new MissingPageLabel(brk.pageId);
+  return breakLabels.page!;
 }
 
 export function gapLabel(obj: Obj): string {
@@ -154,6 +169,16 @@ class BreakWidget extends WidgetType {
   }
 }
 
+/** Whether the stream shown has text before its first page break and a page break after it. */
+function leadsUnplaced(model: Model): boolean {
+  let content = false;
+  for (const item of model.view.stream.items) {
+    if (isBreak(item) && item.type === 'page') return content;
+    if (!isBreak(item)) content = true;
+  }
+  return false;
+}
+
 /** The tokens that end the words of a variant noted in the carrier: its indicator stands after them. */
 export function variantEnds(items: readonly Item[]): Set<Id> {
   const ends = new Set<Id>();
@@ -195,11 +220,19 @@ export function buildDecorations(model: Model, perLineDirection: boolean): Decor
       : line.from === 0
         ? model.view.anchor
         : undefined;
+    if (line.from === 0 && model.page === null && !opener && leadsUnplaced(model)) {
+      // The text on no page, in the whole text of a transcript with pages.
+      const widget = new BreakWidget('page', editorStrings.notOnAPage);
+      ranges.push(Decoration.widget({ widget, block: true, side: -1 }).range(line.from));
+    }
     if (opener && opener.kind === 'break') {
       if (opener.type === 'page') {
+        // A page shown alone has no heading in its text; the whole text puts each page under its label.
         classes.push('cm-page-start');
-        const widget = new BreakWidget('page', pageLabel(model, opener));
-        ranges.push(Decoration.widget({ widget, block: true, side: -1 }).range(line.from));
+        if (model.page === null) {
+          const widget = new BreakWidget('page', pageLabel(model, opener));
+          ranges.push(Decoration.widget({ widget, block: true, side: -1 }).range(line.from));
+        }
       } else if (opener.type === 'column') {
         classes.push('cm-column-start');
         const widget = new BreakWidget('column', opener.label ?? breakLabels.column!);

@@ -74,30 +74,24 @@ export function lineAt(lines: LineInfo[], pos: number): LineInfo | undefined {
   return undefined;
 }
 
-export type BreakType = 'page' | 'column' | 'paragraph';
+/** The breaks the editor makes on a line. Pages are not made in the text: a page's text is shown on its own. */
+export type BreakType = 'column' | 'paragraph';
 
 /**
- * What a page, column or paragraph break made for a line does. A break
- * always goes before the line: the line break that opens it takes the new
- * type (`set`), or, on the first line of the text, a new break goes before
- * it (`insert`). A line that begins a page keeps its page break (`none`,
- * `page`), unless the break names no page yet and the command names one;
- * a line that already begins what was asked for is left alone (`none`, `same`).
+ * What a column or paragraph break made for a line does. A break always
+ * goes before the line: the line break that opens it takes the new type
+ * (`set`), or, on the first line of the text, a new break goes before it
+ * (`insert`). A line that begins a page keeps its page break (`none`,
+ * `page`); a line that already begins what was asked for is left alone
+ * (`none`, `same`).
  */
 export type BreakTarget = { t: 'set'; id: Id } | { t: 'insert' } | { t: 'none'; reason: 'page' | 'same' };
 
-/**
- * `opener` is the break that opens the line, null on the first line of the
- * text; `shown` is false when it is the page break of the page shown, which
- * stands outside the editor's text.
- */
-export function breakTarget(opener: Break | null, shown: boolean, type: BreakType, pageId?: string): BreakTarget {
+/** `opener` is the break that opens the line (the page's own break on a page's first line), null on the first line of the text. */
+export function breakTarget(opener: Break | null, type: BreakType): BreakTarget {
   if (!opener) return { t: 'insert' };
   if (opener.type === 'line') return { t: 'set', id: opener.id };
-  if (opener.type === 'page') {
-    if (type === 'page' && pageId && !opener.pageId && shown) return { t: 'set', id: opener.id };
-    return { t: 'none', reason: type === 'page' ? 'same' : 'page' };
-  }
+  if (opener.type === 'page') return { t: 'none', reason: 'page' };
   if (opener.type === type) return { t: 'none', reason: 'same' };
   return { t: 'set', id: opener.id };
 }

@@ -14,8 +14,10 @@
     stream: Stream;
     form: Form;
     readonly?: boolean;
-    /** Show one page: the items after the page break with this id. Null shows the whole stream. */
+    /** Show one page by its id, the text on no page (`'unplaced'`), or the whole stream (null). */
     page?: string | null;
+    /** The witness's pages in order. */
+    pageOrder?: readonly string[];
     direction?: Direction;
     lineNumbers?: boolean;
     segmentLabels?: Record<string, string>;
@@ -39,6 +41,7 @@
     form,
     readonly = false,
     page = null,
+    pageOrder = [],
     direction = 'auto',
     lineNumbers = true,
     segmentLabels = {},
@@ -60,7 +63,7 @@
   onMount(() => {
     editor = new VariansEditor(
       host,
-      { stream, form, readonly, page, direction, lineNumbers, segmentLabels, pageLabels, tokenClasses, handLabel },
+      { stream, form, readonly, page, pageOrder, direction, lineNumbers, segmentLabels, pageLabels, tokenClasses, handLabel },
       {
         onops: (ops, next) => onops?.(ops, next),
         onselection: (ids, caret) => onselection?.(ids, caret),
@@ -83,6 +86,7 @@
       form,
       readonly,
       page,
+      pageOrder,
       direction,
       lineNumbers,
       segmentLabels,
@@ -173,6 +177,13 @@
   .varians-editor :global(.cm-segment-label) {
     font-weight: 500;
     color: var(--_text);
+  }
+
+  /* The segment a page's first line continues from the page before. */
+  .varians-editor :global(.cm-segment-label.cm-segment-running) {
+    font-weight: 400;
+    font-style: italic;
+    color: var(--_muted);
   }
 
   .varians-editor :global(.cm-lineNumbers .cm-gutterElement) {
@@ -321,6 +332,20 @@
     display: block;
     border-top: 1px solid var(--_rule);
     padding-top: 0.35rem;
+  }
+
+  /* In the whole text, a page's text stands under its label. */
+  .varians-editor :global(.cm-break-page) {
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--_text);
+    padding-top: 1.1rem;
+  }
+
+  .varians-editor :global(.cm-break-page .cm-break-label) {
+    border-top: none;
+    padding-top: 0;
   }
 
   .varians-editor :global(.cm-break-column) {

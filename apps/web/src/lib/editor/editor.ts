@@ -87,8 +87,10 @@ export interface EditorProps {
   stream: Stream;
   form: Form;
   readonly?: boolean;
-  /** Show one page: the items after the page break with this id. Null: the whole stream. */
+  /** Show one page by its id, the text on no page (`'unplaced'`), or the whole stream (null). */
   page?: string | null;
+  /** The witness's pages in order, so that a page's break is made in its place. */
+  pageOrder?: readonly string[];
   direction?: Direction;
   lineNumbers?: boolean;
   segmentLabels?: Record<string, string>;
@@ -128,10 +130,10 @@ export interface EditorApi {
   /** Insert an object at the caret: after the word the caret stands in, or dividing it. */
   insertObject(type: ObjectType, attrs?: MarkAttrs, text?: string): boolean;
   /**
-   * Begin a page, column or paragraph with the caret's line: the break goes
+   * Begin a column or paragraph with the caret's line: the break goes
    * before the line, wherever in it the caret stands. A line break is Enter.
    */
-  insertBreak(type: BreakType, pageId?: string, label?: string): boolean;
+  insertBreak(type: BreakType): boolean;
   /** The caret's line, and what each kind of break would do there; null when no break can be made. */
   breakChoices(): BreakChoices | null;
   /** Show where a break would go (`any`: any kind), or stop showing it (null). */
@@ -160,9 +162,6 @@ export interface EditorApi {
 export interface BreakChoices {
   /** The caret's line, numbered as in the gutter. */
   line: number;
-  /** The page the line begins already, by its label. */
-  begins: string | null;
-  page: BreakTarget;
   column: BreakTarget;
   paragraph: BreakTarget;
 }
@@ -172,6 +171,7 @@ interface Settled {
   form: Form;
   readonly: boolean;
   page: string | null;
+  pageOrder: readonly string[];
   direction: Direction;
   lineNumbers: boolean;
   segmentLabels: Record<string, string>;
@@ -181,6 +181,7 @@ interface Settled {
 }
 
 const NO_CLASSES: TokenClasses = {};
+const NO_PAGES: readonly string[] = [];
 
 function settle(props: EditorProps): Settled {
   return {
@@ -188,6 +189,7 @@ function settle(props: EditorProps): Settled {
     form: props.form,
     readonly: props.readonly ?? false,
     page: props.page ?? null,
+    pageOrder: props.pageOrder ?? NO_PAGES,
     direction: props.direction ?? 'auto',
     lineNumbers: props.lineNumbers ?? true,
     segmentLabels: props.segmentLabels ?? {},
@@ -210,30 +212,39 @@ class LabelMarker extends GutterMarker {
   constructor(
     readonly label: string,
     readonly tokenId: Id,
+    readonly running: boolean,
   ) {
     super();
   }
 
   override eq(other: LabelMarker): boolean {
-    return other.label === this.label && other.tokenId === this.tokenId;
+    return other.label === this.label && other.tokenId === this.tokenId && other.running === this.running;
   }
 
   override toDOM(): Node {
     const span = document.createElement('span');
-    span.className = 'cm-segment-label';
+    span.className = this.running ? 'cm-segment-label cm-segment-running' : 'cm-segment-label';
     span.textContent = this.label;
-    span.title = editorStrings.setSegment;
+    span.title = this.running ? editorStrings.runningSegment : editorStrings.setSegment;
     return span;
   }
 }
 
-/** The segment run that gives a line its gutter label: at its first item, else the first run beginning on it. */
-function lineLabel(model: Model, line: BlockInfo): { tokenId: Id; label: string } | null {
+/**
+ * The segment run that gives a line its gutter label: at its first item,
+ * else, on a page's first line, the segment running into the page (muted),
+ * else the first run beginning on the line.
+ */
+export function lineLabel(model: Model, line: { from: number }): { tokenId: Id; label: string; running: boolean } | null {
   const info = lineAt(linesOf(model), line.from);
   if (!info) return null;
-  const start = info.starts.find((s) => s.span === info.first) ?? info.starts[0];
+  const own = info.starts.find((s) => s.span === info.first);
+  if (!own && info.from === 0 && model.inherited && info.first) {
+    return { tokenId: info.first.id, label: segmentLabel(model, model.inherited), running: true };
+  }
+  const start = own ?? info.starts[0];
   if (!start) return null;
-  return { tokenId: start.span.id, label: segmentLabel(model, start.segment) };
+  return { tokenId: start.span.id, label: segmentLabel(model, start.segment), running: false };
 }
 
 function attrsText(attrs: MarkAttrs | undefined): string {
@@ -364,6 +375,7 @@ export class VariansEditor implements EditorApi {
     return {
       form: this.props.form,
       page: this.props.page,
+      pageOrder: this.props.pageOrder,
       segmentLabels: this.props.segmentLabels,
       pageLabels: this.props.pageLabels,
     };
@@ -413,7 +425,7 @@ export class VariansEditor implements EditorApi {
       renderEmptyElements: true,
       lineMarker: (view, line) => {
         const label = lineLabel(view.state.field(modelField).model, line);
-        return label ? new LabelMarker(label.label, label.tokenId) : null;
+        return label ? new LabelMarker(label.label, label.tokenId, label.running) : null;
       },
       lineMarkerChange: (update) =>
         update.startState.field(modelField) !== update.state.field(modelField),
@@ -452,7 +464,6 @@ export class VariansEditor implements EditorApi {
       bind('Mod-Shift-b', () => this.toggleMark('abbr')),
       bind('Mod-Shift-g', () => this.insertObject('gap', { reason: 'lost' })),
       bind('Mod-Shift-l', () => this.requestSegmentAtCaret()),
-      bind('Mod-Shift-p', () => this.insertBreak('page')),
     ];
   }
 
@@ -479,6 +490,7 @@ export class VariansEditor implements EditorApi {
       streamChanged ||
       next.form !== previous.form ||
       next.page !== previous.page ||
+      next.pageOrder !== previous.pageOrder ||
       next.segmentLabels !== previous.segmentLabels ||
       next.pageLabels !== previous.pageLabels;
     if (streamChanged) this.whole = next.stream;
@@ -827,43 +839,31 @@ export class VariansEditor implements EditorApi {
     return this.edit(ops, plan.change, plan.caret);
   }
 
-  insertBreak(type: BreakType, pageId?: string, label?: string): boolean {
+  insertBreak(type: BreakType): boolean {
     if (this.props.readonly) return false;
     const model = this.model;
-    const at = breakAt(model, this.view.state.selection.main.head, type, pageId);
+    const at = breakAt(model, this.view.state.selection.main.head, type);
     if (!at || at.target.t === 'none') return false;
-    let done: boolean;
     if (at.target.t === 'set') {
       // The break before the line takes the new type: it ends the line above as well.
       const fields: Record<string, unknown> = { type };
-      if (pageId) fields.pageId = pageId;
-      if (label) fields.label = label;
-      else if (at.opener?.label && at.opener.type !== type) fields.label = null;
-      done = this.edit([{ t: 'set', id: at.target.id, fields }]);
-    } else {
-      const plan = planInsertion(model.ledger, model.byId, model.form, at.line.from, 'break');
-      const brk: Break = { kind: 'break', id: this.ids(), type };
-      if (pageId) brk.pageId = pageId;
-      if (label) brk.label = label;
-      done = this.edit([{ t: 'insert', after: plan.after, items: [brk] }], plan.change, plan.caret);
+      if (at.opener?.label && at.opener.type !== type) fields.label = null;
+      return this.edit([{ t: 'set', id: at.target.id, fields }]);
     }
-    // A new page break ends the page shown: what follows it belongs to the next page.
-    if (done && type === 'page' && this.props.page !== null) this.resync();
-    return done;
+    const plan = planInsertion(model.ledger, model.byId, model.form, at.line.from, 'break');
+    const brk: Break = { kind: 'break', id: this.ids(), type };
+    return this.edit([{ t: 'insert', after: plan.after, items: [brk] }], plan.change, plan.caret);
   }
 
   breakChoices(): BreakChoices | null {
     if (this.props.readonly) return null;
     const model = this.model;
     const head = this.view.state.selection.main.head;
-    const page = breakAt(model, head, 'page');
     const column = breakAt(model, head, 'column');
     const paragraph = breakAt(model, head, 'paragraph');
-    if (!page || !column || !paragraph) return null;
+    if (!column || !paragraph) return null;
     return {
-      line: page.line.numberInPage,
-      begins: page.opener?.type === 'page' ? pageLabel(model, page.opener) : null,
-      page: page.target,
+      line: column.line.numberInPage,
       column: column.target,
       paragraph: paragraph.target,
     };

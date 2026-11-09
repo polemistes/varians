@@ -139,7 +139,7 @@ describe('reconcileModel', () => {
 
   it('creates the page break for a page without one on the first edit', () => {
     const whole = paged();
-    const model = buildModel(whole, { form: 'written', page: 'p3' });
+    const model = buildModel(whole, { form: 'written', page: 'p3', pageOrder: ['p1', 'p2', 'p3'] });
     expect(model.ledger.text).toBe('');
     const typed = change(model, 0, 0, 'e');
     const r = reconcileModel(model, typed.changes, typed.docText, undefined, sequentialIds('n'));
@@ -260,5 +260,40 @@ describe('withForm', () => {
     const read = withForm(written, 'read');
     expect(read.ledger.text).toBe('ONE two\nthree');
     expect(read.view).toBe(written.view);
+  });
+});
+
+describe('the segment running into a page', () => {
+  function segmented(): Stream {
+    const s = paged();
+    // x | p1: a b | p2: c d; segment s1 begins at a, s2 at d.
+    (s.items[2] as { segment?: unknown }).segment = { segmentId: 's1' };
+    (s.items[6] as { segment?: unknown }).segment = { segmentId: 's2' };
+    return s;
+  }
+
+  it('is the segment of the text before the page, for a page shown alone', () => {
+    const whole = segmented();
+    expect(buildModel(whole, { form: 'written', page: 'p2' }).inherited).toEqual({ segmentId: 's1' });
+    expect(buildModel(whole, { form: 'written', page: 'p1' }).inherited).toBeNull();
+    expect(buildModel(whole, { form: 'written', page: 'unplaced' }).inherited).toBeNull();
+    expect(buildModel(whole, { form: 'written' }).inherited).toBeNull();
+  });
+
+  it('is shown muted in the gutter of the first line when its first word begins nothing', async () => {
+    const { lineLabel } = await import('./editor.ts');
+    const model = buildModel(segmented(), { form: 'written', page: 'p2', segmentLabels: { s1: '1.1', s2: '1.2' } });
+    expect(lineLabel(model, { from: 0 })).toEqual({ tokenId: 't6', label: '1.1', running: true });
+    const own = buildModel(segmented(), { form: 'written', page: 'p1', segmentLabels: { s1: '1.1' } });
+    expect(lineLabel(own, { from: 0 })).toEqual({ tokenId: 't3', label: '1.1', running: false });
+  });
+});
+
+describe('page labels', () => {
+  it('treats a page break without a label as a programming error', async () => {
+    const { pageLabel, MissingPageLabel } = await import('./decorations.ts');
+    const model = buildModel(paged(), { form: 'written', pageLabels: { p1: '12r' } });
+    expect(pageLabel(model, { kind: 'break', id: 'b', type: 'page', pageId: 'p1' })).toBe('12r');
+    expect(() => pageLabel(model, { kind: 'break', id: 'b', type: 'page', pageId: 'gone' })).toThrow(MissingPageLabel);
   });
 });

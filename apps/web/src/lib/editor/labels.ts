@@ -60,11 +60,14 @@ export const editorStrings = {
   setSegment: 'Set the segment that begins at this line',
   /** What the rule says where a break would go, before it is made. */
   breakPreview: {
-    page: 'A new page begins here',
     column: 'A new column begins here',
     paragraph: 'A new paragraph begins here',
     any: 'A break goes before this line',
-  } as Record<'page' | 'column' | 'paragraph' | 'any', string>,
+  } as Record<'column' | 'paragraph' | 'any', string>,
+  /** The heading of the text on no page in the whole text. */
+  notOnAPage: 'Not on a page',
+  /** The title of a gutter label a page's first line inherits from the page before. */
+  runningSegment: 'The segment continues from before; click to set the segment of this word',
   editor: 'Transcription text',
   /** A variant noted in the carrier, by where it stands. */
   variantPlaces: { margin: 'in the margin', interlinear: 'between the lines', other: 'elsewhere' } as Record<string, string>,
@@ -89,7 +92,6 @@ export const toolbarStrings = {
   space: 'Space',
   figure: 'Figure',
   note: 'Note',
-  pageBreak: 'Page break',
   columnBreak: 'Column break',
   paragraph: 'Paragraph',
   join: 'Join with next line',
@@ -104,7 +106,6 @@ export const toolbarStrings = {
     abbr: 'Mod-Shift-B',
     gap: 'Mod-Shift-G',
     segment: 'Mod-Shift-L',
-    pageBreak: 'Mod-Shift-P',
   } as Record<string, string>,
 };
 

@@ -97,17 +97,15 @@ export const workbench = {
     label: 'Insert',
     title: 'Insert a break or an object where the caret is',
     breaksHeading: (line: number) => `Before line ${line}`,
-    page: 'Page break',
     column: 'Column break',
     paragraph: 'Paragraph break',
     /** What a break would do, shown under it. */
     begins: {
-      page: (line: number, page: string | null) => (page ? `Line ${line} will begin ${page}` : `Line ${line} will begin a new page`),
       column: (line: number) => `Line ${line} will begin a new column`,
       paragraph: (line: number) => `Line ${line} will begin a new paragraph`,
     },
     /** Why a break cannot be made there. */
-    beginsPage: (line: number, page: string) => `Line ${line} begins ${page}`,
+    pageStart: (line: number) => `Line ${line} is the first of the page`,
     already: {
       column: (line: number) => `Line ${line} begins a column already`,
       paragraph: (line: number) => `Line ${line} begins a paragraph already`,
@@ -120,7 +118,6 @@ export const workbench = {
     figure: 'Figure',
     note: 'Note',
     noCaret: 'Click in the text to choose where.',
-    footnote: 'A break goes before the line the caret is in, wherever in the line it stands. To begin a page in the middle of a line, press Enter there first.',
   },
 
   menu: {

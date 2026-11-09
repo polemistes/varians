@@ -134,3 +134,26 @@ describe('collate', () => {
     expect(summary(d)).toEqual(['b c d ed : om. B']);
   });
 });
+
+describe('witnesses that lack a whole segment', () => {
+  it('reports a present witness without units as omitting, and an absent one nowhere', () => {
+    const empty = { ...text('B', 'B', ''), present: true };
+    const c = collate(text('E', 'ed', 'μῆνιν ἄειδε θεὰ'), [text('A', 'A', 'μῆνιν ἄειδε θεὰ'), empty, text('C', 'C', '')]);
+    expect(c.absent).toEqual(['C']);
+    expect(c.anchors).toEqual([]);
+    expect(summary(c)).toEqual(['μῆνιν ἄειδε θεὰ edA : om. B']);
+  });
+
+  it('reports a witness with only a gap as lacunose over the segment', () => {
+    const c = collate(text('E', 'ed', 'μῆνιν ἄειδε θεὰ'), [text('A', 'A', 'μῆνιν ἄειδε θεὰ'), text('B', 'B', '[gap]')]);
+    expect(summary(c)).toEqual(['μῆνιν ἄειδε θεὰ edA : lac. B']);
+  });
+
+  it('keeps the words of a second witness beside the lacking one', () => {
+    const empty = { ...text('B', 'B', ''), present: true };
+    const c = collate(text('E', 'ed', 'μῆνιν ἄειδε θεὰ'), [text('A', 'A', 'μῆνιν ἄειδε θεός'), empty]);
+    expect(c.sites).toHaveLength(1);
+    expect(c.sites[0]!.readings.map((r) => r.sigla.join(''))).toEqual(['ed', 'A', 'B']);
+    expect(c.sites[0]!.readings[2]!.omission).toBe(true);
+  });
+});

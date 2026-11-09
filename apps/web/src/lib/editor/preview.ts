@@ -1,5 +1,5 @@
 /**
- * Where a page, column or paragraph break goes, shown before it is made:
+ * Where a column or paragraph break goes, shown before it is made:
  * while the breaks are offered, the line a break would begin carries a
  * dashed rule and says what would begin there.
  */
@@ -22,14 +22,14 @@ export interface BreakAt {
 }
 
 /** What a break of this type, made with the caret at `pos`, would do. */
-export function breakAt(model: Model, pos: number, type: BreakType, pageId?: string): BreakAt | null {
+export function breakAt(model: Model, pos: number, type: BreakType): BreakAt | null {
   if (model.misaligned) return null;
   const line = lineAt(linesOf(model), pos);
   if (!line) return null;
   // On the first line of a page shown alone, the page's own break opens it.
   const item = line.opener ? model.byId.get(line.opener.id) : line.from === 0 ? model.view.anchor : null;
   const opener = item && item.kind === 'break' ? item : null;
-  return { line, opener, target: breakTarget(opener, line.opener !== null, type, pageId) };
+  return { line, opener, target: breakTarget(opener, type) };
 }
 
 /** The break shown in advance: one type, `any` for wherever a break could go, null for none. */
@@ -50,7 +50,7 @@ const previewDecorations = EditorView.decorations.compute([previewField, 'select
   if (!preview) return Decoration.none;
   const model = state.field(modelField).model;
   const pos = state.selection.main.head;
-  const types: BreakType[] = preview === 'any' ? ['page', 'column', 'paragraph'] : [preview];
+  const types: BreakType[] = preview === 'any' ? ['column', 'paragraph'] : [preview];
   const found = types.map((type) => breakAt(model, pos, type)).find((at) => at && at.target.t !== 'none');
   if (!found) return Decoration.none;
   return Decoration.set([

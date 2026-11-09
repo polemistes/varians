@@ -63,14 +63,6 @@
         >
       </div>
       <div class="group" role="group" aria-label={t.breaks}>
-        <button
-          type="button"
-          title={title(t.pageBreak, t.shortcuts.pageBreak)}
-          onpointerdown={keepFocus}
-          onclick={() => api?.insertBreak('page')}
-        >
-          {t.pageBreak}
-        </button>
         <button type="button" onpointerdown={keepFocus} onclick={() => api?.insertBreak('column')}
           >{t.columnBreak}</button
         >

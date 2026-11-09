@@ -14,21 +14,29 @@ import {
   applyOps,
   isToken,
   newId,
+  segmentAt,
   type Id,
   type Item,
   type Op,
+  type SegmentStart,
   type Stream,
   type Token,
 } from '@varians/core';
 import { alignLedger } from './align.ts';
 import { reconcile, render, setJoin, type Form, type Ledger } from './bridge.ts';
-import { liftToWhole, pageView, type PageView } from './page.ts';
+import { liftToWhole, pageView, UNPLACED, type PageView } from './page.ts';
 
 export interface Model {
   form: Form;
   page: string | null;
   /** The items shown, with the page break that opens them where one page is shown. */
   view: PageView;
+  /**
+   * The segment the text before a page leaves running into it, when the
+   * page is shown alone: its first word belongs to it unless it begins a
+   * segment of its own. Edits on the page do not change it.
+   */
+  inherited: SegmentStart | null;
   /** Where each shown item stands in the document text. */
   ledger: Ledger;
   byId: Map<Id, Item>;
@@ -41,6 +49,8 @@ export interface Model {
 export interface ModelOptions {
   form: Form;
   page?: string | null;
+  /** The witness's pages in order, for where a page's break is made. */
+  pageOrder?: readonly string[];
   segmentLabels?: Record<string, string>;
   pageLabels?: Record<string, string>;
 }
@@ -89,15 +99,28 @@ function finish(
 /** The model of a stream (or one of its pages); aligned to `docText` when the document already exists. */
 export function buildModel(whole: Stream, options: ModelOptions, docText?: string): Model {
   const page = options.page ?? null;
-  const view = pageView(whole, page);
+  const view = pageView(whole, page, options.pageOrder);
   const base = {
     form: options.form,
     page,
     view,
+    inherited: inheritedSegment(whole, view, page),
     segmentLabels: options.segmentLabels ?? {},
     pageLabels: options.pageLabels ?? {},
   };
   return finish(base, render(view.stream, options.form), docText);
+}
+
+/** The segment running into a page from the text before it; null for the whole stream, the text on no page, or unassigned text. */
+function inheritedSegment(whole: Stream, view: PageView, page: string | null): SegmentStart | null {
+  if (page === null || page === UNPLACED) return null;
+  const before = view.anchor
+    ? whole.items.indexOf(view.anchor)
+    : view.missing?.after
+      ? whole.items.findIndex((item) => item.id === view.missing!.after)
+      : -1;
+  const start = before >= 0 ? segmentAt(whole, before) : undefined;
+  return start && start.segmentId !== null ? start : null;
 }
 
 /** The canonical text of the shown items. */
