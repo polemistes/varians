@@ -1150,7 +1150,11 @@ function lineItems(
       const restores = words.length === text.length && words[i] !== text[i];
       const reading = restores ? text[i]! : substituteFor(words[i]!, words, rng);
       const added: WordItem = { kind: 'word', ...writtenWord(reading, c.style, rng) };
-      del(wordAt(i));
+      const deleted = wordAt(i);
+      // A substitution standing as a word: the deleted and the added, each marked as part of it, so that the witness reads before and after.
+      deleted.marks = [...(deleted.marks ?? []), { kind: 'subst' }];
+      added.marks = [{ kind: 'subst' }];
+      del(deleted);
       add(added);
       out.splice(i + 1, 0, added);
     } else if (kind < 0.85) {
@@ -1245,7 +1249,7 @@ function decorate(
       attrs: { quantity: rng.range(2, 6), unit: 'character' },
     });
   if (rng.chance(SPRINKLES.paragraphos))
-    items.push({ kind: 'object', type: 'mark', attrs: { type: 'paragraphos' } });
+    items.push({ kind: 'object', type: 'mark', attrs: { rend: 'paragraphos', unit: 'undefined' } });
   if (rng.chance(SPRINKLES.note))
     items.push({
       kind: 'object',

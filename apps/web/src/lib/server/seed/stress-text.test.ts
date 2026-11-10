@@ -278,7 +278,7 @@ describe('the stress text at the default size', () => {
     );
     expect(
       objects.some(
-        (i) => i.kind === 'object' && i.type === 'mark' && i.attrs?.type === 'paragraphos',
+        (i) => i.kind === 'object' && i.type === 'mark' && i.attrs?.rend === 'paragraphos',
       ),
     ).toBe(true);
     expect(objects.some((i) => i.kind === 'object' && i.type === 'space')).toBe(true);
