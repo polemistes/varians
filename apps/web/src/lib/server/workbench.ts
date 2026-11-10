@@ -15,17 +15,20 @@ import {
   exportTranscriptionTei,
   fromLeiden,
   importAltoXml,
+  importLeidenPlus,
   importPageXml,
   importPlainText,
   importTei,
   insertIntoPage,
   isBreak,
+  isLeidenPlus,
   isToken,
   newId,
   repairSegmentStartsFrom,
   nextLabel,
   resolveStarts,
   segmentIds,
+  toLeidenPlus,
   type ImportedZone,
   type Item,
   type Level,
@@ -47,6 +50,7 @@ import {
   transcriptionSegments,
   transcriptions,
   witnessMaintainers,
+  witnesses,
   works,
   zones,
   type Database,
@@ -550,13 +554,30 @@ export async function importPlainTextInto(
   });
 }
 
-/** Leiden notation read into words, marks and gaps. */
+/**
+ * What an import keeps of what the source's editor supplied or struck out
+ * (docs/design.md, section 3.7): nothing for the transcript of a carrier,
+ * which holds only what the carrier has; all of it for a printed edition
+ * used as a witness, whose own text it is.
+ */
+export async function supplementsFor(db: Database, witnessId: string): Promise<'drop' | 'keep'> {
+  const [witness] = await db
+    .select({ category: witnesses.category })
+    .from(witnesses)
+    .where(eq(witnesses.id, witnessId));
+  return witness?.category === 'edition' ? 'keep' : 'drop';
+}
+
+/** Leiden notation read into words, marks and gaps: Leiden+ as papyri.info writes it, or the conventions as they are printed. */
 export async function importLeidenInto(
   db: Database,
   target: Target,
   text: string,
 ): Promise<ImportOutcome> {
-  const result = fromLeiden(text);
+  const supplements = await supplementsFor(db, target.witnessId);
+  const result = isLeidenPlus(text)
+    ? importLeidenPlus(text, { supplements })
+    : fromLeiden(text, { supplements });
   return inTransaction(db, async (tx) => {
     const saved = await save(tx, target, result.stream, 'Leiden import');
     return outcome(saved, { set: 0, unresolved: [] }, result.warnings);
@@ -608,7 +629,9 @@ export async function importTeiInto(
   target: Target,
   input: TeiInput,
 ): Promise<ImportOutcome> {
-  const result = importTei(input.xml);
+  const result = importTei(input.xml, {
+    supplements: await supplementsFor(db, target.witnessId),
+  });
   return inTransaction(db, async (tx) => {
     let starts: { itemIndex: number; label: string }[] = [];
     let unresolvedHints = 0;
@@ -822,6 +845,30 @@ export async function importLayoutInto(
       zones: rows.length,
     });
   });
+}
+
+// Leiden+ export
+
+/** The transcription as Leiden+, its pages as divisions under their labels. */
+export async function exportLeidenPlus(
+  db: Database,
+  transcriptionId: string,
+): Promise<{ text: string; name: string } | null> {
+  const [row] = await db
+    .select()
+    .from(transcriptions)
+    .where(eq(transcriptions.id, transcriptionId));
+  if (!row) return null;
+  const [firstWork] = await worksOfTranscription(db, transcriptionId);
+  const work = firstWork
+    ? await db.query.works.findFirst({ where: (w, { eq }) => eq(w.id, firstWork) })
+    : undefined;
+  const pageRows = await witnessPages(db, row.witnessId);
+  const text = toLeidenPlus(row.content, {
+    ...(work ? { language: work.language } : {}),
+    pageLabels: Object.fromEntries(pageRows.map((page) => [page.id, page.label])),
+  });
+  return { text, name: row.name };
 }
 
 // TEI export

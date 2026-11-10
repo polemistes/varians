@@ -20,6 +20,8 @@ export * from './tei/index.ts';
 export * from './tei/apparatus.ts';
 export * from './import/plaintext.ts';
 export * from './import/leiden.ts';
+export * from './import/leidenplus.ts';
+export * from './import/leidenplus-write.ts';
 export * from './import/page.ts';
 export * from './bib/biblatex.ts';
 export * from './apparatus/attach.ts';

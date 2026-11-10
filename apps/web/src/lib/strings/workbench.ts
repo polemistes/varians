@@ -150,6 +150,7 @@ export const workbench = {
     settings: 'Settings…',
     numberLines: 'Number Lines from Here…',
     downloadTei: 'Download TEI',
+    downloadLeiden: 'Download Leiden+',
     delete: 'Delete…',
     copy: 'Make a Copy…',
     witness: 'Open the Witness',
@@ -476,7 +477,7 @@ export const workbench = {
     },
     leiden: {
       text: 'Text in Leiden notation',
-      hint: '[ ] supplied, [...] gaps, ( ) abbreviations, ⟦ ⟧ deleted, \\ / added, dots under letters unclear.',
+      hint: 'Leiden+ as papyri.info writes it, or the conventions as printed. What its editor supplied in [ ] or < > is not the witness’s: a gap is left where letters are lost. A witness registered as an edition keeps it.',
     },
     layout: {
       file: 'PAGE XML or ALTO file',

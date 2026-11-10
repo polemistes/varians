@@ -103,14 +103,17 @@
 
         <!-- Core: header parts, breaks, the editorial and transcriptional
              features, notes and the paratext that may stand inside a line.
-             head is used in msDesc only. Not included: lists, names other
-             than persName (namesdates), quotation, bibliographic structure
-             beyond a plain bibl. -->
+             head is used in msDesc only. num, foreign and q are what a
+             papyrus edition marks in its text (a numeral with its value,
+             words in another language, a quotation); desc is what is said
+             of a gap. Not included: lists, names
+             other than persName (namesdates), bibliographic structure beyond
+             a plain bibl. -->
         <moduleRef key="core"
           include="title editor respStmt resp p bibl head graphic
                    milestone lb cb pb
                    choice orig reg abbr expan sic corr unclear del add hi gap note
-                   label stage"/>
+                   label stage num foreign q desc"/>
 
         <!-- persName for contributors, settlement in the manuscript identifier. -->
         <moduleRef key="namesdates" include="persName settlement"/>
@@ -124,7 +127,7 @@
              ex are not written: an expansion is written as choice/abbr/expan. -->
         <moduleRef key="transcr"
           include="facsimile surface zone supplied subst damage surplus handShift space
-                   metamark fw restore retrace mod redo undo secl"/>
+                   metamark fw restore retrace mod redo undo secl ex"/>
 
         <!-- Words. -->
         <moduleRef key="analysis" include="w"/>
@@ -137,6 +140,9 @@
         <!-- Figures in the carrier, with their description. -->
         <moduleRef key="figures" include="figure figDesc"/>
 
+        <!-- Signs of the carrier that are not letters, by the names EpiDoc gives them. -->
+        <moduleRef key="gaiji" include="g"/>
+
         <!-- The apparatus by parallel segmentation, and the witness list. -->
         <moduleRef key="textcrit" include="app lem rdg listWit witness"/>
 
@@ -145,11 +151,17 @@
         <elementSpec ident="milestone" mode="change">
           <attList>
             <attDef ident="unit" mode="change">
-              <desc versionDate="2026-11-09" xml:lang="en">The only unit written is the
-                segment of the work's reference scheme, whose label is <att>n</att>.</desc>
+              <desc versionDate="2026-11-10" xml:lang="en">A milestone marks a segment of the
+                work's reference scheme, whose label is <att>n</att>, or is a sign drawn on the
+                carrier (a paragraphos, a rule, a coronis), named by <att>rend</att>, which
+                divides nothing.</desc>
               <valList type="closed" mode="replace">
                 <valItem ident="segment">
                   <desc versionDate="2026-11-09" xml:lang="en">a segment of the work begins here</desc>
+                </valItem>
+                <valItem ident="undefined">
+                  <desc versionDate="2026-11-10" xml:lang="en">a sign on the carrier, as EpiDoc
+                    writes a paragraphos and the like</desc>
                 </valItem>
               </valList>
             </attDef>

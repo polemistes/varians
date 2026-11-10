@@ -268,6 +268,24 @@ function beginsVariant(stream: Stream, index: number, group: string): boolean {
   return !before || variantGroup(before) !== group;
 }
 
+/**
+ * The gap that breaks a word: one of its tokens has a gap as a point mark,
+ * where letters of the word are lost or illegible. Given as the gap object
+ * it stands for, under the token's id.
+ */
+export function brokenByGap(tokens: readonly Token[]): Obj | undefined {
+  for (const token of tokens) {
+    const mark = token.marks?.find(
+      (m) => m.kind === 'gap' && m.from !== undefined && m.from === m.to,
+    );
+    if (!mark) continue;
+    const gap: Obj = { kind: 'object', id: token.id, type: 'gap' };
+    if (mark.attrs) gap.attrs = mark.attrs;
+    return gap;
+  }
+  return undefined;
+}
+
 /** A unit collation aligns on: a word's read form divided at its spaces, or a gap. */
 export interface Unit {
   /** The normalized form. */
@@ -330,6 +348,12 @@ export function units(
       }
     }
     if (excludedInState(word.tokens, state)) continue;
+    // A word that a gap breaks is not read: what is left of it counts with the gap.
+    const broken = brokenByGap(word.tokens);
+    if (broken) {
+      if (!out[out.length - 1]?.gap) out.push({ text: '', tokenIds: [], gap: broken });
+      continue;
+    }
     const tokenIds = word.tokens.map((t) => t.id);
     const parts = word.norm.split(/\s+/u).filter((p) => p.length > 0);
     if (parts.length === 0) continue;

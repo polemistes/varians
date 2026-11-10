@@ -518,15 +518,24 @@ function tokenXml(
   options: MarkWriteOptions = {},
 ): string {
   // A variant noted in the carrier is written around the words as an <app>, not as an element of the token.
-  const marks = (token.marks ?? []).filter((m) => m.kind !== 'variant');
-  let inner = markupToken(token.form, marks, options);
+  const all = (token.marks ?? []).filter((m) => m.kind !== 'variant');
+  // TEI has no number or foreign phrase inside a <w>: over a whole word they stand around it.
+  const around = words
+    ? all.filter((m) => AROUND_WORD.has(m.kind) && m.from === undefined && m.to === undefined)
+    : [];
+  const marks = all.filter((m) => !around.includes(m));
+  let inner = markupToken(token.form, marks, words ? { ...options, inWord: true } : options);
   if (regularizations && token.norm !== undefined && token.norm !== token.form) {
     inner = `<choice><orig>${inner}</orig><reg>${escapeText(token.norm)}</reg></choice>`;
   }
   if (!words) return inner;
   const facs = zones.length > 0 ? ` facs="${zones.map((z) => `#${z}`).join(' ')}"` : '';
-  return `<w xml:id="${ncName(token.id, 'w-')}"${facs}>${inner}</w>`;
+  const word = `<w xml:id="${ncName(token.id, 'w-')}"${facs}>${inner}</w>`;
+  return around.reduceRight((xml, mark) => openTag(mark, options) + xml + closeTag(mark), word);
 }
+
+/** Marks whose TEI elements may not stand inside a `<w>`. */
+const AROUND_WORD = new Set(['num', 'foreign']);
 
 interface RangeMark {
   mark: Mark;
@@ -543,6 +552,8 @@ interface RangeMark {
 /** How marks are written: `handRef` turns a mark's `hand` into the value of the attribute, or drops it. */
 export interface MarkWriteOptions {
   handRef?: (value: string) => string | undefined;
+  /** The marks are written inside a `<w>`, where a number or a foreign phrase over part of the word can only be a `<seg>`. */
+  inWord?: boolean;
 }
 
 /** A mark's attributes as written, with the hand resolved to a reference. */
@@ -610,7 +621,7 @@ export function markupToken(
     let common = 0;
     while (common < open.length && common < active.length && open[common] === active[common])
       common++;
-    for (let j = open.length - 1; j >= common; j--) out += closeTag(open[j]!.mark);
+    for (let j = open.length - 1; j >= common; j--) out += closeTag(open[j]!.mark, options);
     open.length = common;
     for (let j = common; j < active.length; j++) {
       out += openTag(active[j]!.mark, options);
@@ -622,7 +633,7 @@ export function markupToken(
       .join('');
     out += escapeText(chars.slice(a, b).join(''));
   }
-  for (let j = open.length - 1; j >= 0; j--) out += closeTag(open[j]!.mark);
+  for (let j = open.length - 1; j >= 0; j--) out += closeTag(open[j]!.mark, options);
   out += points
     .filter((p) => (p.from ?? 0) >= length)
     .map((p) => emptyElement(p, options))
@@ -636,6 +647,11 @@ function elementName(mark: Mark): string {
 
 function openTag(mark: Mark, options: MarkWriteOptions = {}): string {
   const attrs = writtenAttrs(mark, options);
+  if (options.inWord && AROUND_WORD.has(mark.kind))
+    return `<seg type="${escapeAttr(mark.kind)}"${attrsXml({ lang: attrs?.lang })}>`;
+  // A symbol that stands for a whole word: nothing was written but what the expansion gives.
+  if (mark.kind === 'abbr' && attrs?.symbol === true)
+    return `<expan><ex${attrsXml(attrs, ['expan', 'symbol'])}>`;
   if (mark.kind === 'abbr' && typeof attrs?.expan === 'string')
     return `<choice><abbr${attrsXml(attrs, ['expan'])}>`;
   if (mark.kind === 'corr' && typeof attrs?.corr === 'string')
@@ -645,8 +661,10 @@ function openTag(mark: Mark, options: MarkWriteOptions = {}): string {
   return `<${name}${type}${attrsXml(attrs, ['type'])}>`;
 }
 
-function closeTag(mark: Mark): string {
+function closeTag(mark: Mark, options: MarkWriteOptions = {}): string {
   const attrs = mark.attrs;
+  if (options.inWord && AROUND_WORD.has(mark.kind)) return '</seg>';
+  if (mark.kind === 'abbr' && attrs?.symbol === true) return '</ex></expan>';
   if (mark.kind === 'abbr' && typeof attrs?.expan === 'string')
     return `</abbr>${elementXml('expan', undefined, attrs.expan)}</choice>`;
   if (mark.kind === 'corr' && typeof attrs?.corr === 'string')
@@ -662,7 +680,32 @@ function emptyElement(mark: Mark, options: MarkWriteOptions = {}): string {
   }
   if (!isXmlName(mark.kind))
     return `<seg type="${escapeAttr(mark.kind)}"${attrsXml(attrs, ['type'])}/>`;
+  if (mark.kind === 'gap') return gapXml(attrs);
   return elementXml(mark.kind, attrs);
+}
+
+/** A gap, with what is said of it (vestiges, another language, not transcribed) as its `<desc>`. */
+function gapXml(attrs: Mark['attrs']): string {
+  const desc = attrs?.desc;
+  if (typeof desc !== 'string' || desc === '') return elementXml('gap', attrs);
+  return `<gap${attrsXml(attrs, ['desc'])}>${elementXml('desc', undefined, desc)}</gap>`;
+}
+
+/**
+ * A sign of the carrier that is not a letter: a glyph by its name (EpiDoc's
+ * `<g>`), a rule or paragraphos (a `<milestone>` that numbers nothing), or
+ * any other mark of the scribe's (`<metamark>`).
+ */
+function signXml(attrs: Obj['attrs'], text: string): string {
+  if (typeof attrs?.g === 'string') {
+    const written: Record<string, AttrValue> = { type: attrs.g };
+    if (typeof attrs.rend === 'string') written.rend = attrs.rend;
+    const glyph = elementXml('g', written, text === '' ? undefined : text);
+    return attrs.unclear === true ? `<unclear>${glyph}</unclear>` : glyph;
+  }
+  if (typeof attrs?.unit === 'string' && typeof attrs.rend === 'string' && text === '')
+    return elementXml('milestone', { rend: attrs.rend, unit: attrs.unit });
+  return elementXml('metamark', attrs, text);
 }
 
 function objectXml(obj: Obj): string {
@@ -670,7 +713,7 @@ function objectXml(obj: Obj): string {
   const text = obj.text ?? '';
   switch (obj.type) {
     case 'gap':
-      return elementXml('gap', attrs);
+      return gapXml(attrs);
     case 'lacuna':
       return elementXml('gap', { reason: 'lost', ...attrs });
     case 'space':
@@ -684,7 +727,7 @@ function objectXml(obj: Obj): string {
     case 'note':
       return elementXml('note', attrs, text);
     case 'mark':
-      return elementXml('metamark', attrs, text);
+      return signXml(attrs, text);
     default:
       return paratextXml(attrs, text);
   }

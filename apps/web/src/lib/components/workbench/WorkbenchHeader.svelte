@@ -100,6 +100,13 @@
             >
           {/snippet}
         </DropdownMenu.Item>
+        <DropdownMenu.Item class={itemClass}>
+          {#snippet child({ props })}
+            <a {...props} href="/transcriptions/{wb.id}/leiden" download data-sveltekit-reload
+              >{t.menu.downloadLeiden}</a
+            >
+          {/snippet}
+        </DropdownMenu.Item>
         <MenuItem href="/witnesses/{wb.witness.slug}">{t.menu.witness}</MenuItem>
         <DropdownMenu.CheckboxItem
           class={itemClass}

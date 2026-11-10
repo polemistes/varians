@@ -5,8 +5,8 @@ import { detectStructure, importTei } from './import.ts';
 
 const TEI = 'xmlns="http://www.tei-c.org/ns/1.0"';
 
-function read(xml: string) {
-  return importTei(xml, { ids: sequentialIds() });
+function read(xml: string, supplements: 'drop' | 'keep' = 'drop') {
+  return importTei(xml, { ids: sequentialIds(), supplements });
 }
 
 /** Items as short comparable records: forms with their marks and joins, break types, object types. */
@@ -28,6 +28,11 @@ function sketch(items: Item[]): unknown[] {
     if (item.text !== undefined) out.text = item.text;
     return out;
   });
+}
+
+/** The warnings of an import, without the one every bare fragment gets. */
+function notices(result: { warnings: string[] }): string[] {
+  return result.warnings.filter((warning) => !warning.startsWith('No <body>'));
 }
 
 function forms(items: Item[]): string[] {
@@ -221,7 +226,8 @@ describe('importTei: an EpiDoc inscription', () => {
     expect(sketch(result.stream.items)).toEqual([
       { form: 'ὁ' },
       { form: 'δῆμος' },
-      { form: 'τὸν', marks: [{ kind: 'supplied', attrs: { reason: 'lost' } }] },
+      // What its editor supplied where the stone is lost is not the stone's: the gap is.
+      { object: 'gap', attrs: { reason: 'lost', unit: 'character', quantity: 3 } },
       { form: 'δεῖνα' },
       { form: 'ἄ', join: true },
       { break: 'line', label: '2' },
@@ -230,7 +236,17 @@ describe('importTei: an EpiDoc inscription', () => {
       { form: 'ἀρετῆς', marks: [{ kind: 'unclear', from: 3, to: 4 }] },
       { break: 'line', label: '3' },
       { form: 'Ἀπολ', marks: [{ kind: 'abbr', attrs: { expan: 'Ἀπολλωνίου' } }] },
-      { form: 'ἀνδρα', marks: [{ kind: 'supplied', attrs: { reason: 'lost' }, from: 2, to: 3 }] },
+      {
+        form: 'ἀνρα',
+        marks: [
+          {
+            kind: 'gap',
+            attrs: { reason: 'lost', unit: 'character', quantity: 1 },
+            from: 2,
+            to: 2,
+          },
+        ],
+      },
       {
         form: 'κας',
         marks: [
@@ -317,6 +333,7 @@ describe('importTei: tokens and marks', () => {
   it('merges adjacent pieces of one mark', () => {
     const result = read(
       `<ab><unclear>ab<supplied>c</supplied></unclear><supplied>de</supplied></ab>`,
+      'keep',
     );
     const marks = (result.stream.items[0] as { marks: Mark[] }).marks;
     expect(marks).toEqual([
@@ -337,12 +354,12 @@ describe('importTei: tokens and marks', () => {
     ]);
   });
 
-  it('reads sic/corr as a corr mark, a regularization inside a word, and a space between words', () => {
+  it('reads a correction and a regularization as the read form, and a space between words', () => {
     const result = read(
       `<ab><choice><sic>θεος</sic><corr>θεὸς</corr></choice> πρ<choice><orig>ο</orig><reg>ω</reg></choice>τος <space quantity="2" unit="character"/> x</ab>`,
     );
     expect(sketch(result.stream.items)).toEqual([
-      { form: 'θεος', marks: [{ kind: 'corr', attrs: { corr: 'θεὸς' } }] },
+      { form: 'θεος', norm: 'θεὸς' },
       { form: 'προτος', norm: 'πρωτος' },
       { object: 'space', attrs: { quantity: 2, unit: 'character' } },
       { form: 'x' },
@@ -354,6 +371,176 @@ describe('importTei: tokens and marks', () => {
     expect(sketch(result.stream.items)).toEqual([
       { form: 'a', norm: 'c' },
       { form: 'b', norm: 'd' },
+    ]);
+  });
+});
+
+describe('importTei: what its editor added to a carrier', () => {
+  const lost = (quantity: number) => ({ reason: 'lost', unit: 'character', quantity });
+  const gapAt = (at: number, quantity: number) => ({
+    kind: 'gap',
+    attrs: lost(quantity),
+    from: at,
+    to: at,
+  });
+
+  it('leaves the gap where words were supplied, one gap for a run of them, and a point in a word the gap breaks', () => {
+    const result = read(
+      `<ab><supplied reason="lost">μῆνιν ἄει</supplied>δε θεὰ <supplied reason="lost">Πηληϊάδεω Ἀχιλῆος</supplied> οὐλο<supplied reason="lost">μένην</supplied></ab>`,
+    );
+    expect(sketch(result.stream.items)).toEqual([
+      { object: 'gap', attrs: lost(5) },
+      { form: 'δε', marks: [gapAt(0, 3)] },
+      { form: 'θεὰ' },
+      { object: 'gap', attrs: lost(16) },
+      { form: 'οὐλο', marks: [gapAt(4, 5)] },
+    ]);
+    expect(notices(result)).toEqual([]);
+  });
+
+  it('keeps a supplement that runs over a line end as a gap on either line', () => {
+    const result = read(
+      `<ab><lb n="1"/>ἄλγε᾽ <supplied reason="lost">ἔθηκε <lb n="2"/>πολλὰς</supplied> δ᾽</ab>`,
+    );
+    expect(sketch(result.stream.items)).toEqual([
+      { form: 'ἄλγε᾽' },
+      { object: 'gap', attrs: lost(5) },
+      { break: 'line', label: '2' },
+      { object: 'gap', attrs: lost(6) },
+      { form: 'δ᾽' },
+    ]);
+  });
+
+  it('counts a gap inside a supplement with it, and makes the whole unknown when the gap is', () => {
+    const known = read(
+      `<ab><supplied reason="lost">ἀπο<gap reason="lost" quantity="2" unit="character"/></supplied>ψαμένην</ab>`,
+    );
+    expect(sketch(known.stream.items)).toEqual([{ form: 'ψαμένην', marks: [gapAt(0, 5)] }]);
+    const unknown = read(
+      `<ab>α <supplied reason="lost">βγ <gap reason="lost" extent="unknown" unit="character"/></supplied> δ</ab>`,
+    );
+    expect(sketch(unknown.stream.items)).toEqual([
+      { form: 'α' },
+      { object: 'gap', attrs: { reason: 'lost', unit: 'character', extent: 'unknown' } },
+      { form: 'δ' },
+    ]);
+  });
+
+  it('reads a gap that touches letters as a point of their word, and one that touches none as an object', () => {
+    const gap = `<gap reason="lost" quantity="3" unit="character"/>`;
+    const result = read(`<ab>${gap}δε θε${gap} ${gap} ἄλ${gap}γε</ab>`);
+    expect(sketch(result.stream.items)).toEqual([
+      { form: 'δε', marks: [gapAt(0, 3)] },
+      { form: 'θε', marks: [gapAt(2, 3)] },
+      { object: 'gap', attrs: lost(3) },
+      { form: 'ἄλγε', marks: [gapAt(2, 3)] },
+    ]);
+  });
+
+  it('takes letters the editor adds or brackets inside a word as its read form, to be confirmed', () => {
+    const result = read(
+      `<ab>ἀπ<supplied reason="omitted">ε</supplied>γραψάμην ὁμο<surplus>μο</surplus>λογῶ</ab>`,
+    );
+    expect(result.stream.items).toMatchObject([
+      { form: 'ἀπγραψάμην', norm: 'ἀπεγραψάμην', unchecked: true },
+      { form: 'ὁμομολογῶ', norm: 'ὁμολογῶ', unchecked: true },
+    ]);
+    expect(result.stream.items.every((item) => !('marks' in item))).toBe(true);
+  });
+
+  it('leaves out a whole word the editor adds, and keeps a whole word the editor brackets, unmarked', () => {
+    const result = read(
+      `<ab>τοῦ <supplied reason="omitted">καὶ</supplied> τοῦ <surplus>ὀνόματος</surplus> τοῦ</ab>`,
+    );
+    expect(sketch(result.stream.items)).toEqual([
+      { form: 'τοῦ' },
+      { form: 'τοῦ' },
+      { form: 'ὀνόματος' },
+      { form: 'τοῦ' },
+    ]);
+  });
+
+  it('reads a correction as the read form, to be confirmed, and a regularization without what was supplied in it', () => {
+    const result = read(
+      `<ab><choice><corr>τιμὴν</corr><sic>τμμὴν</sic></choice> <choice><reg>φρόντι<supplied reason="lost">σ</supplied>ον</reg><orig>φρόνδει<supplied reason="lost">σ</supplied><unclear>ο</unclear>ν</orig></choice></ab>`,
+    );
+    expect(result.stream.items).toMatchObject([
+      { form: 'τμμὴν', norm: 'τιμὴν', unchecked: true },
+      {
+        form: 'φρόνδειον',
+        norm: 'φρόντιον',
+        marks: [{ kind: 'unclear', from: 7, to: 8 }, gapAt(7, 1)],
+      },
+    ]);
+    expect((result.stream.items[1] as { unchecked?: boolean }).unchecked).toBeUndefined();
+  });
+
+  it('takes the reading its editor chose where others are given, without a warning', () => {
+    const result = read(
+      `<ab><app type="editorial"><lem resp="BL 9.17">αἱ τοῦ</lem><rdg>Θίτου</rdg></app> <app type="alternative"><lem>Ὀχυρυγχίτου</lem><rdg>Ὀξυρυγχίτου νομοῦ</rdg></app></ab>`,
+    );
+    expect(sketch(result.stream.items)).toEqual([
+      { form: 'αἱ' },
+      { form: 'τοῦ' },
+      { form: 'Ὀχυρυγχίτου' },
+    ]);
+    expect(notices(result)).toEqual([]);
+  });
+
+  it('keeps all of it for a printed edition used as a witness, whose text it is', () => {
+    const result = read(
+      `<ab><supplied reason="lost">μῆνιν</supplied> ὁμο<surplus>μο</surplus>λογῶ <choice><corr>τιμὴν</corr><sic>τμμὴν</sic></choice></ab>`,
+      'keep',
+    );
+    expect(sketch(result.stream.items)).toEqual([
+      { form: 'μῆνιν', marks: [{ kind: 'supplied', attrs: { reason: 'lost' } }] },
+      { form: 'ὁμομολογῶ', marks: [{ kind: 'surplus', from: 3, to: 5 }] },
+      { form: 'τμμὴν', marks: [{ kind: 'corr', attrs: { corr: 'τιμὴν' } }] },
+    ]);
+  });
+});
+
+describe('importTei: the signs of a papyrus', () => {
+  it('reads numbers, another language, a quotation and a doubt as marks', () => {
+    const result = read(
+      `<ab><num value="16">ιϛ</num> <num value="4"/> <foreign xml:lang="la">comes</foreign> <q>ὁ γὰρ</q> <add place="above">ὅλων<certainty match=".." locus="name"/></add></ab>`,
+    );
+    expect(sketch(result.stream.items)).toEqual([
+      { form: 'ιϛ', marks: [{ kind: 'num', attrs: { value: '16' } }] },
+      { form: 'comes', marks: [{ kind: 'foreign', attrs: { lang: 'la' } }] },
+      { form: 'ὁ', marks: [{ kind: 'q' }] },
+      { form: 'γὰρ', marks: [{ kind: 'q' }] },
+      { form: 'ὅλων', marks: [{ kind: 'add', attrs: { place: 'above', cert: 'low' } }] },
+    ]);
+    expect(notices(result)).toEqual([]);
+  });
+
+  it('reads signs that are not letters as mark objects, and what is said of a gap', () => {
+    const result = read(
+      `<ab>α <g type="stauros"/> <unclear><g type="check"/></unclear> <g type="chirho">☧</g> <milestone rend="paragraphos" unit="undefined"/> β <gap reason="illegible" quantity="15" unit="line"><desc>vestiges</desc></gap> <gap reason="lost" extent="unknown" unit="line"><certainty match=".." locus="name"/></gap></ab>`,
+    );
+    expect(sketch(result.stream.items)).toEqual([
+      { form: 'α' },
+      { object: 'mark', attrs: { g: 'stauros' } },
+      { object: 'mark', attrs: { g: 'check', unclear: true } },
+      { object: 'mark', attrs: { g: 'chirho' }, text: '☧' },
+      { object: 'mark', attrs: { rend: 'paragraphos', unit: 'undefined' } },
+      { form: 'β' },
+      {
+        object: 'gap',
+        attrs: { reason: 'illegible', quantity: 15, unit: 'line', desc: 'vestiges' },
+      },
+      { object: 'gap', attrs: { reason: 'lost', extent: 'unknown', unit: 'line', cert: 'low' } },
+    ]);
+  });
+
+  it('takes the expansion as the form of a word a symbol stands for', () => {
+    const result = read(
+      `<ab><expan><ex>ἔτους</ex></expan> <expan>Καρ<ex cert="low">ανίδι</ex></expan></ab>`,
+    );
+    expect(sketch(result.stream.items)).toEqual([
+      { form: 'ἔτους', marks: [{ kind: 'abbr', attrs: { expan: 'ἔτους', symbol: true } }] },
+      { form: 'Καρ', marks: [{ kind: 'abbr', attrs: { expan: 'Καρανίδι', cert: 'low' } }] },
     ]);
   });
 });
@@ -427,7 +614,7 @@ describe('importTei: structure', () => {
     );
     expect(forms(result.stream.items)).toEqual(['«a', '&', 'b<c', 'α']);
     expect(result.header.language).toBe('la');
-    expect(result.warnings).toEqual([]);
+    expect(notices(result)).toEqual([]);
   });
 
   it('reads every text of a group', () => {

@@ -10,6 +10,17 @@
  * cover part of one. Empty elements that stand inside a word (a gap, a space,
  * a hand shift) become point marks (from equal to to) at that character;
  * between words a gap or a space is an object.
+ *
+ * A transcript holds its witness and nothing an editor added to it
+ * (docs/design.md, section 3.7). So, unless the witness is itself a printed
+ * edition, what the source's editor supplied or struck out is not read as
+ * the witness's text: letters supplied where the carrier is lost become the
+ * gap they fill; letters the editor adds as left out by the scribe, or
+ * brackets as written in error, are normalization within a word and are
+ * otherwise ignored (a whole word added is left out, a whole word bracketed
+ * stays); a correction of the scribe's spelling is the word's normalized
+ * form. A word that a gap breaks keeps the letters that are there, with the
+ * gap as a point mark in it.
  */
 
 import { newId } from '../ids.ts';
@@ -32,6 +43,13 @@ import {
 export interface TeiImportOptions {
   /** Source of item ids; defaults to new ULIDs. */
   ids?: () => string;
+  /**
+   * What the source's editor supplied or struck out (`<supplied>`,
+   * `<surplus>`, the `<corr>` of a `<sic>`): `drop`, the default, for the
+   * transcript of a carrier, which holds only what the carrier has; `keep`
+   * for a printed edition used as a witness, whose own text they are.
+   */
+  supplements?: 'drop' | 'keep';
 }
 
 /** One component of an address found in the TEI structure: a div's subtype or type with its n, a line's n, a milestone's unit and n. */
@@ -179,7 +197,6 @@ const TRANSPARENT_ELEMENTS = new Set([
   'floatingText',
   'sp',
   'seg',
-  'foreign',
   'name',
   'persName',
   'placeName',
@@ -198,7 +215,6 @@ const TRANSPARENT_ELEMENTS = new Set([
   'emph',
   'term',
   'rs',
-  'num',
   'date',
   'time',
   'measure',
@@ -208,14 +224,12 @@ const TRANSPARENT_ELEMENTS = new Set([
   'ref',
   'bibl',
   'cit',
-  'q',
   's',
   'cl',
   'phr',
   'm',
   'c',
   'pc',
-  'g',
   'am',
   'ex',
   'reg',
@@ -289,9 +303,27 @@ interface RegFrame {
   /** One word of the regularization per word of the original, when the counts agree. */
   words: string[] | null;
   used: boolean;
+  /** The source's editor corrected the scribe, where a regularization only respells: the read form waits for confirmation. */
+  check?: boolean;
 }
 
-type Frame = MarkFrame | RegFrame;
+/**
+ * Letters as the source's editor judged them, in the transcript of a
+ * carrier: `lost` (supplied where the carrier is lost: not there), `added`
+ * (left out by the scribe, as the editor holds: not there, but read),
+ * `surplus` (written in error: there, but not read).
+ */
+type LetterStatus = 'lost' | 'added' | 'surplus';
+
+interface EditFrame {
+  mode: 'edit';
+  status: LetterStatus;
+}
+
+type Frame = MarkFrame | RegFrame | EditFrame;
+
+/** A placeholder for one letter of a gap that stands inside a supplement: it is counted and never written. */
+const LOST_LETTER = '\uFFFC';
 
 interface Range {
   frame: Frame;
@@ -311,6 +343,8 @@ class TokenBuilder {
   readonly ranges: Range[] = [];
   readonly points: Point[] = [];
   readonly after: Obj[] = [];
+  /** A gap of unknown extent stood inside a supplement of this word: so is the gap it leaves. */
+  lostUnknown = false;
 
   get length(): number {
     return this.chars.length;
@@ -343,6 +377,12 @@ function attrsOf(element: XmlElement, numeric: readonly string[] = []): Attrs | 
     any = true;
   }
   return any ? out : undefined;
+}
+
+/** The attributes with `cert: 'low'` when the element holds a `<certainty>`, EpiDoc's way of saying its editor is not sure. */
+function certain(element: XmlElement, attrs: Attrs | undefined): Attrs | undefined {
+  if (!childElements(element).some((child) => child.name === 'certainty')) return attrs;
+  return { ...attrs, cert: 'low' };
 }
 
 function sameAttrs(a: Attrs | undefined, b: Attrs | undefined): boolean {
@@ -406,10 +446,16 @@ class Importer {
   private wordDepth = 0;
   private expanDepth = 0;
   private afterWord = false;
+  /** Inside what the source's editor supplied, in the transcript of a carrier: objects met there are the editor's too. */
+  private suppliedDepth = 0;
+  /** The gap last made from supplied words, which the next supplied word joins. */
+  private lastLostGap: Obj | null = null;
 
   constructor(
     private readonly ids: () => string,
     private readonly surfaces: ReadonlyMap<string, string>,
+    /** A printed edition used as a witness: its supplements and deletions are its text. */
+    private readonly keep: boolean,
   ) {}
 
   walk(nodes: XmlNode[]): void {
@@ -448,6 +494,15 @@ class Importer {
       return;
     }
     if (DIV_ELEMENTS.has(name)) return this.div(element);
+    if (!this.keep && name === 'supplied') return this.supplied(element);
+    if (!this.keep && name === 'surplus') {
+      return this.withFrame({ mode: 'edit', status: 'surplus' }, () => this.walk(element.children));
+    }
+    if (name === 'unclear') {
+      const kids = element.children.filter((c) => isElement(c) || c.text.trim() !== '');
+      const only = kids.length === 1 ? kids[0] : undefined;
+      if (only && isElement(only) && only.name === 'g') return this.glyph(only, true);
+    }
     if (LINE_ITEMS.has(name)) {
       this.lineBreak();
       return this.walk(element.children);
@@ -493,6 +548,17 @@ class Importer {
         return this.object('note', attrsOf(element), textContent(element));
       case 'metamark':
         return this.object('mark', attrsOf(element), textContent(element));
+      case 'subst':
+        return this.subst(element);
+      case 'g':
+        return this.glyph(element, false);
+      case 'num':
+        // A number without letters gives the value of a number spelt out: its editor's reading, not the carrier's.
+        if (textContent(element) === '' && childElements(element).length === 0) return;
+        return this.mark(element, 'num');
+      case 'foreign':
+      case 'q':
+        return this.mark(element, name);
       case 'figure':
         return this.figure(element);
       case 'seg':
@@ -564,7 +630,13 @@ class Importer {
   /** A milestone's n is remembered per unit; units met after it in the document are reset, as lower levels of a hierarchy. */
   private milestone(element: XmlElement): void {
     const n = attr(element, 'n');
-    if (n === undefined) return;
+    if (n === undefined) {
+      // Without a number it divides nothing: a sign on the carrier (a paragraphos, a rule, a coronis).
+      const rend = attr(element, 'rend');
+      if (rend !== undefined)
+        this.object('mark', { rend, unit: attr(element, 'unit') ?? 'undefined' }, undefined);
+      return;
+    }
     const key = attr(element, 'unit') ?? '';
     const keys = [...this.milestones.keys()];
     const at = keys.indexOf(key);
@@ -597,10 +669,11 @@ class Importer {
     const reg = find('reg');
     if (abbr && expan) {
       return this.withFrame(
-        { mode: 'mark', kind: 'abbr', attrs: { expan: textContent(expan, AM) } },
+        { mode: 'mark', kind: 'abbr', attrs: { ...attrsOf(abbr), expan: textContent(expan, AM) } },
         () => this.walk(abbr.children),
       );
     }
+    if (sic && corr && !this.keep) return this.regularization(sic, corr, true);
     if (sic && corr) {
       return this.withFrame(
         { mode: 'mark', kind: 'corr', attrs: { corr: textContent(corr) } },
@@ -617,8 +690,26 @@ class Importer {
     this.walk(first.children);
   }
 
-  private regularization(orig: XmlElement, reg: XmlElement): void {
-    const regText = textContent(reg);
+  /** The text of a regularization, without the letters its editor supplied where the carrier is lost. */
+  private regularized(reg: XmlElement): string {
+    if (this.keep) return textContent(reg);
+    const lost = (e: XmlElement): boolean =>
+      e.name === 'supplied' && attr(e, 'reason') !== 'omitted';
+    const read = (nodes: XmlNode[]): string =>
+      nodes
+        .map((node) =>
+          isText(node)
+            ? node.text
+            : lost(node) || SKIPPED_ELEMENTS.has(node.name)
+              ? ''
+              : read(node.children),
+        )
+        .join('');
+    return collapseWhitespace(read(reg.children));
+  }
+
+  private regularization(orig: XmlElement, reg: XmlElement, check = false): void {
+    const regText = this.regularized(reg);
     const origWords = textContent(orig)
       .split(' ')
       .filter((w) => w.length > 0);
@@ -630,23 +721,38 @@ class Importer {
         'A regularization of several words could not be divided among them; the whole reading was put on the first word.',
       );
     }
-    this.withFrame({ mode: 'reg', reg: regText, words, used: false }, () =>
-      this.walk(orig.children),
-    );
+    const frame: RegFrame = { mode: 'reg', reg: regText, words, used: false };
+    if (check) frame.check = true;
+    this.withFrame(frame, () => this.walk(orig.children));
   }
 
   /** An EpiDoc expansion: the letters written (outside `<ex>`) with a mark carrying the full expansion. */
   private expan(element: XmlElement): void {
     const expan = textContent(element, AM);
+    const attrs: Attrs = { expan };
+    if (findDescendants(element, 'ex').some((ex) => attr(ex, 'cert') === 'low')) attrs.cert = 'low';
     this.expanDepth++;
-    this.withFrame({ mode: 'mark', kind: 'abbr', attrs: { expan } }, () =>
-      this.walk(element.children),
-    );
+    this.withFrame({ mode: 'mark', kind: 'abbr', attrs }, () => {
+      const before = this.builder.length;
+      this.walk(element.children);
+      // Nothing but the expansion: a symbol stands for the word, which is then its form.
+      if (this.builder.length === before && expan !== '') {
+        attrs.symbol = true;
+        this.builder.chars.push(...expan.replace(/\s+/gu, ''));
+      }
+    });
     this.expanDepth--;
   }
 
   private app(element: XmlElement): void {
     if (this.variant(element)) return;
+    const type = attr(element, 'type');
+    // An editor's choice between readings of the carrier: the reading chosen is the transcript's.
+    if (type === 'editorial' || type === 'alternative') {
+      const chosen = firstChild(element, 'lem');
+      if (chosen) this.walk(chosen.children);
+      return;
+    }
     const lem =
       firstChild(element, 'lem') ??
       findDescendants(element, 'lem')[0] ??
@@ -680,7 +786,7 @@ class Importer {
   }
 
   private mark(element: XmlElement, kind: string, exclude: readonly string[] = []): void {
-    const attrs = attrsOf(element, ['seq']);
+    const attrs = certain(element, attrsOf(element, ['seq']));
     for (const key of exclude) delete attrs?.[key];
     if (attrs && typeof attrs.hand === 'string') attrs.hand = handValueOf(attrs.hand);
     const frame: MarkFrame = { mode: 'mark', kind };
@@ -697,18 +803,77 @@ class Importer {
     if (open) open.to = this.builder.length;
   }
 
-  /** A gap or space: an object between words, a point mark inside one. */
+  /**
+   * What the source's editor supplied, in the transcript of a carrier: the
+   * letters are read with their status and taken out when the word is
+   * finished (see `flush`), leaving the gap where the carrier is lost.
+   */
+  private supplied(element: XmlElement): void {
+    const status: LetterStatus = attr(element, 'reason') === 'omitted' ? 'added' : 'lost';
+    this.suppliedDepth++;
+    this.withFrame({ mode: 'edit', status }, () => this.walk(element.children));
+    this.suppliedDepth--;
+  }
+
+  /**
+   * The scribe's own correction: what was added in place of what was
+   * deleted. Where it stands as a word of its own, the two are two words,
+   * one added and one deleted, so that the witness can be read before and
+   * after the correction; inside a word they are parts of that word.
+   */
+  private subst(element: XmlElement): void {
+    const whole = this.builder.length === 0;
+    this.withFrame({ mode: 'mark', kind: 'subst' }, () => {
+      for (const child of element.children) {
+        if (isText(child)) this.text(child.text);
+        else {
+          this.element(child);
+          if (whole && (child.name === 'add' || child.name === 'del')) this.flush(false);
+        }
+      }
+    });
+  }
+
+  /** A sign that is not a letter (EpiDoc's `<g>`): a mark object named by its type, with the character given for it, if any. */
+  private glyph(element: XmlElement, unclear: boolean): void {
+    if (this.suppliedDepth > 0) return;
+    const attrs: Attrs = { g: attr(element, 'type') ?? 'glyph' };
+    const rend = attr(element, 'rend');
+    if (rend !== undefined) attrs.rend = rend;
+    if (unclear) attrs.unclear = true;
+    this.object('mark', attrs, textContent(element));
+  }
+
+  /**
+   * A gap or a space. A space is an object between words and a point mark
+   * inside one. A gap is a point of the word it touches, before or inside
+   * it, and an object when no letters touch it (decided in `flush`).
+   */
   private pointObject(element: XmlElement, kind: 'gap' | 'space'): void {
-    const attrs = attrsOf(element, NUMERIC_ATTRS);
-    if (this.builder.length === 0) return this.push(this.makeObject(kind, attrs));
+    if (this.suppliedDepth > 0) {
+      // A gap inside a supplement is part of what is lost there.
+      if (kind !== 'gap') return;
+      const quantity = Number(attr(element, 'quantity'));
+      if (Number.isInteger(quantity) && quantity > 0 && attr(element, 'unit') === 'character')
+        this.builder.chars.push(...LOST_LETTER.repeat(quantity));
+      else this.builder.lostUnknown = true;
+      return;
+    }
+    const attrs = certain(element, attrsOf(element, NUMERIC_ATTRS)) ?? {};
+    const desc = firstChild(element, 'desc');
+    if (desc && textContent(desc) !== '') attrs.desc = textContent(desc);
+    const given = Object.keys(attrs).length > 0 ? attrs : undefined;
+    if (kind === 'space' && this.builder.length === 0)
+      return this.push(this.makeObject(kind, given));
     const point: Point = { kind, at: this.builder.length };
-    if (attrs) point.attrs = attrs;
+    if (given) point.attrs = given;
     this.builder.points.push(point);
   }
 
   /** A hand shift marks the token it stands before, or the character it stands at inside a word. */
   private handShift(element: XmlElement): void {
-    const attrs = attrsOf(element);
+    if (this.suppliedDepth > 0) return;
+    const attrs = certain(element, attrsOf(element));
     if (this.builder.length === 0) {
       const mark: Mark = { kind: 'handShift' };
       if (attrs) mark.attrs = attrs;
@@ -742,6 +907,7 @@ class Importer {
 
   /** An object between words is emitted at once; one met inside a word follows that word. */
   private object(type: ObjectType, attrs: Attrs | undefined, text: string | undefined): void {
+    if (this.suppliedDepth > 0) return;
     const obj = this.makeObject(type, attrs, text);
     if (this.builder.length === 0) this.push(obj);
     else this.builder.after.push(obj);
@@ -777,34 +943,63 @@ class Importer {
     this.items.push({ kind: 'break', id: this.ids(), type: 'paragraph' });
   }
 
-  /** Emit the token being built, if any, with its marks and read form, then the objects that waited for it. */
+  /**
+   * Emit the token being built, if any, with its marks and read form, then
+   * the objects that waited for it. Letters the source's editor supplied are
+   * taken out here: those lost on the carrier leave a gap, which is a point
+   * mark of the word when other letters of it are there and an object when
+   * none are; those the editor added or bracketed make the read form.
+   */
   private flush(join: boolean): void {
     const builder = this.builder;
     const length = builder.length;
     this.afterWord = false;
-    if (length === 0) {
-      if (join) this.joinLastToken();
+    const chars = builder.chars;
+    const status = letterStatus(builder, length);
+    const kept: number[] = [];
+    for (let i = 0; i < length; i++)
+      if (status[i] !== 'lost' && status[i] !== 'added') kept.push(i);
+    /** Where a place among the letters read falls among the letters kept. */
+    const at = (place: number): number => {
+      let n = 0;
+      while (n < kept.length && kept[n]! < place) n++;
+      return n;
+    };
+    const gaps = builder.points.filter((point) => point.kind === 'gap');
+    if (kept.length === 0) {
+      if (join && length === 0) this.joinLastToken();
+      const lost = status.filter((s) => s === 'lost').length;
+      if (lost > 0 || builder.lostUnknown) this.lostGap(lost, builder.lostUnknown);
+      // A gap that no letters touch stands between the words.
+      for (const point of gaps) this.push(this.makeObject('gap', point.attrs));
       for (const obj of builder.after) this.push(obj);
       this.resetBuilder();
       return;
     }
-    const token: Token = { kind: 'token', id: this.ids(), form: builder.chars.join('') };
+    const token: Token = {
+      kind: 'token',
+      id: this.ids(),
+      form: kept.map((i) => chars[i]).join(''),
+    };
     const marks: Mark[] = this.pendingMarks;
     this.pendingMarks = [];
     const regs: { from: number; to: number; frame: RegFrame }[] = [];
     for (const range of builder.ranges) {
       const to = range.to ?? length;
-      if (to <= range.from) continue;
+      if (to <= range.from || range.frame.mode === 'edit') continue;
       if (range.frame.mode === 'reg') {
         regs.push({ from: range.from, to, frame: range.frame });
         continue;
       }
+      const from = at(range.from);
+      const until = at(to);
+      if (until <= from) continue;
       const mark: Mark = { kind: range.frame.kind };
       if (range.frame.attrs) mark.attrs = { ...range.frame.attrs };
       // A variant concerns whole words.
-      if (!(range.from === 0 && to === length) && range.frame.kind !== 'variant') {
-        mark.from = range.from;
-        mark.to = to;
+      if (!(from === 0 && until === kept.length) && range.frame.kind !== 'variant') {
+        mark.from = from;
+        mark.to = until;
       }
       marks.push(mark);
     }
@@ -812,24 +1007,66 @@ class Importer {
     for (const point of builder.points) {
       const mark: Mark = { kind: point.kind };
       if (point.attrs) mark.attrs = { ...point.attrs };
-      if (point.at < length) {
-        mark.from = point.at;
-        mark.to = point.at;
+      if (point.at < length || point.kind === 'gap') {
+        mark.from = at(point.at);
+        mark.to = mark.from;
         marks.push(mark);
-      } else if (point.kind === 'gap' || point.kind === 'space') {
+      } else if (point.kind === 'space') {
         afterObjects.push(this.makeObject(point.kind, point.attrs));
       } else {
         this.pendingMarks.push(mark);
       }
     }
-    if (marks.length > 0) token.marks = normalizeMarks(marks, length);
-    const norm = readFormOf(builder.chars, regs);
-    if (norm !== undefined) token.norm = norm;
+    // What is lost within the word: a gap where each run of supplied letters stood.
+    for (let i = 0; i < length; i++) {
+      if (status[i] !== 'lost' || status[i - 1] === 'lost') continue;
+      let run = 0;
+      while (status[i + run] === 'lost') run++;
+      const place = at(i);
+      marks.push({
+        kind: 'gap',
+        from: place,
+        to: place,
+        attrs: builder.lostUnknown
+          ? { reason: 'lost', unit: 'character', extent: 'unknown' }
+          : { reason: 'lost', unit: 'character', quantity: run },
+      });
+    }
+    token.marks = normalizeMarks(mergeGaps(marks), kept.length);
+    if (token.marks.length === 0) delete token.marks;
+    const norm = readFormOf(chars, status, regs);
+    if (norm !== undefined && (regs.length > 0 || (norm !== '' && norm !== token.form))) {
+      token.norm = norm;
+      const judged = status.some((s) => s === 'added' || s === 'surplus');
+      if (norm !== token.form && (judged || regs.some((r) => r.frame.check)))
+        token.unchecked = true;
+    }
     if (join) token.joinNext = true;
     this.push(token);
     for (const obj of afterObjects) this.push(obj);
     for (const obj of builder.after) this.push(obj);
     this.resetBuilder();
+  }
+
+  /** The gap that words supplied where the carrier is lost leave: one gap for a run of such words, as long as their letters. */
+  private lostGap(letters: number, unknown: boolean): void {
+    const last = this.lastLostGap;
+    if (last && this.items.at(-1) === last) {
+      const attrs = last.attrs ?? {};
+      if (unknown || attrs.extent === 'unknown') {
+        delete attrs.quantity;
+        attrs.extent = 'unknown';
+      } else attrs.quantity = Number(attrs.quantity ?? 0) + letters;
+      return;
+    }
+    const gap = this.makeObject(
+      'gap',
+      unknown
+        ? { reason: 'lost', unit: 'character', extent: 'unknown' }
+        : { reason: 'lost', unit: 'character', quantity: letters },
+    );
+    this.push(gap);
+    this.lastLostGap = gap;
   }
 
   private resetBuilder(): void {
@@ -869,17 +1106,73 @@ class Importer {
   }
 }
 
-/** The read form from orig/reg choices over a token, or undefined when there were none. */
+/** How the source's editor judged each letter read into a word; undefined for a letter simply there. */
+function letterStatus(builder: TokenBuilder, length: number): (LetterStatus | undefined)[] {
+  const rank: Record<LetterStatus, number> = { surplus: 1, added: 2, lost: 3 };
+  const status: (LetterStatus | undefined)[] = new Array<LetterStatus | undefined>(length).fill(
+    undefined,
+  );
+  for (const range of builder.ranges) {
+    if (range.frame.mode !== 'edit') continue;
+    const to = range.to ?? length;
+    for (let i = range.from; i < to; i++) {
+      const now = status[i];
+      if (now === undefined || rank[range.frame.status] > rank[now]) status[i] = range.frame.status;
+    }
+  }
+  return status;
+}
+
+/** Gaps at one place of a word are one gap: their letters together, of unknown extent when one of them is. */
+function mergeGaps(marks: Mark[]): Mark[] {
+  const out: Mark[] = [];
+  for (const mark of marks) {
+    const isGap = mark.kind === 'gap' && mark.from !== undefined && mark.from === mark.to;
+    const same = isGap
+      ? out.find((m) => m.kind === 'gap' && m.from === mark.from && m.to === mark.to)
+      : undefined;
+    if (!same) {
+      out.push(mark);
+      continue;
+    }
+    const a = same.attrs ?? {};
+    const b = mark.attrs ?? {};
+    if (typeof a.quantity === 'number' && typeof b.quantity === 'number' && a.unit === b.unit) {
+      same.attrs = { ...a, quantity: a.quantity + b.quantity };
+    } else {
+      const { quantity: _quantity, atLeast: _least, atMost: _most, ...rest } = a;
+      same.attrs = { ...rest, extent: 'unknown' };
+    }
+  }
+  return out;
+}
+
+/**
+ * The read form of a word: its letters without those lost on the carrier or
+ * bracketed as written in error, with those the editor added, and the
+ * regularization in place of what it regularizes. Undefined when nothing
+ * was regularized, added or bracketed.
+ */
 function readFormOf(
   chars: readonly string[],
+  status: readonly (LetterStatus | undefined)[],
   regs: { from: number; to: number; frame: RegFrame }[],
 ): string | undefined {
-  if (regs.length === 0) return undefined;
-  let pieces: string[] = [...chars];
-  for (const range of [...regs].sort((a, b) => b.from - a.from)) {
-    pieces = [...pieces.slice(0, range.from), regText(range.frame), ...pieces.slice(range.to)];
+  if (regs.length === 0 && !status.some((s) => s === 'added' || s === 'surplus')) return undefined;
+  const ordered = [...regs].sort((a, b) => a.from - b.from || b.to - a.to);
+  let out = '';
+  let i = 0;
+  while (i < chars.length) {
+    const reg = ordered.find((r) => r.from === i);
+    if (reg) {
+      out += regText(reg.frame);
+      i = reg.to;
+      continue;
+    }
+    if (status[i] !== 'lost' && status[i] !== 'surplus') out += chars[i];
+    i++;
   }
-  return pieces.join('');
+  return out;
 }
 
 function regText(frame: RegFrame): string {
@@ -1009,7 +1302,11 @@ function readWitness(root: XmlElement): ImportedWitness | undefined {
  */
 export function importTei(xml: string, options: TeiImportOptions = {}): TeiImport {
   const root = parseXml(xml);
-  const importer = new Importer(options.ids ?? newId, surfaceImages(root));
+  const importer = new Importer(
+    options.ids ?? newId,
+    surfaceImages(root),
+    options.supplements === 'keep',
+  );
   const found = bodies(root);
   if (found.length === 0) {
     importer.warnings.push('No <body> element was found; the whole document was read as text.');

@@ -67,7 +67,7 @@ A **word** is the unit of normalization and collation: one token, several joined
 
 Edits travel as small operations on items (insert, delete, set, move, split, join, replace), applied identically by the client and the server through the core.
 
-A transcript is for an ordered list of works, and its text may be assigned to segments of any of them. A witness may have any number of transcripts, of the same work or others; an edition's conspectus names which one stands behind each siglum.
+A transcript is for an ordered list of works, and its text may be assigned to segments of any of them. Scholia are a work of their own: a transcript that is to be complete includes them, assigned to the segments of that work, not of the text they comment on. A witness may have any number of transcripts, of the same work or others; an edition's conspectus names which one stands behind each siglum.
 
 ### 3.4 Pages are containers of text
 
@@ -110,11 +110,32 @@ Word division is the editor's analysis. What the manuscript has between two word
 
 ### 3.7 Features, corrections, states
 
-A **feature** is a typed annotation on tokens, on characters within one token, on a range, at a point, or on a box. Its kinds are a curated subset of TEI, so every feature has an exact TEI rendering. Features never affect the text string, and the editor never shows markup. Leiden conventions are accepted as fast entry and converted.
+A **feature** is a typed annotation on tokens, on characters within one token, on a range, at a point, or on a box. Its kinds are those of EpiDoc, the TEI of papyri and inscriptions, with what manuscripts need beside them, so every feature has an exact TEI rendering. "Full TEI" is not a vocabulary an application can have: it lets one thing be said in several ways, and EpiDoc is the choice already made for this material. Features never affect the text string, and the editor never shows markup.
+
+**Leiden+** is the notation of papyri.info, defined as another way of writing EpiDoc: every construct of it stands for one element. Varians reads it by writing that EpiDoc and reading the EpiDoc, and writes a transcript out as Leiden+. It is a way in and out, and the conventions a transcript may be shown and typed in; it is never what is stored, since boxes, segments, an edition's sources and the history point at words by identity, which a string of notation does not keep.
+
+**A transcript holds its witness and nothing an editor added to it.** There are no conjectures in a transcript. When a text is read in from TEI, EpiDoc or Leiden notation into the transcript of a carrier:
+
+- Letters supplied where the carrier is lost are left out, and the gap they fill is kept: an object between words, a point mark in a word that the gap breaks. The brackets are the gap.
+- A regularization or correction of the scribe's spelling is the word's normalized form. A correction waits unchecked for the editor's confirmation; a regularization does not.
+- Letters the source's editor adds as left out, or brackets as written in error, are normalization inside a word, and wait unchecked. A whole word added is left out; a whole word bracketed stays, unmarked, since the witness has it.
+- Where the source gives several readings of the carrier (an alternative, a reading corrected since the edition), the one it prints is taken.
+- None of what is left out is offered as a conjecture.
+
+**A printed edition used as a witness is the exception**: its supplements and deletions are its own text, and are kept as marks. Which rule applies follows from the witness's category.
 
 A deletion or an addition is a **correction** and may name its **hand** (one of the witness's hands, the scribe, or another) and its **stage**. An edition's conspectus can give a witness several **states**, each under a siglum of its own: the original, a stage, a hand. Collation reads the transcript in the state asked for, so the recording differs per witness without a different model per witness.
 
-Collation reads words, not features. Text in a gap is not attested: a gap absorbs what the others have there, and the apparatus says the witness is lacunose, not that it omits.
+Collation reads words, not features, and each kind of feature has its rule:
+
+| Features                                                                        | What the apparatus reads                                                       |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| unclear, damage, highlighting, glyphs, numbers                                  | the word as read                                                               |
+| regularization, correction, abbreviation with its expansion                     | the normalized form                                                            |
+| gap, illegible                                                                  | nothing: the witness is lacunose there, and a gap absorbs what the others have |
+| deletion, addition, the scribe's correction of a word, hands, marginal variants | the state asked for                                                            |
+
+A word that a gap breaks is not read: what is left of it counts with the gap. The scribe's own correction of a word is two words, one added and one deleted, so that the witness reads the one after correction and the other before it.
 
 A reading the manuscript itself offers as an alternative is entered as a variant on the words it concerns.
 
@@ -126,7 +147,7 @@ A **reported reading** is what a witness is reported to have at a place without 
 
 ### 3.9 The edition
 
-An edition's text is a stream of the same shape as a transcript's, with the edition's own lineation and objects (speaker labels, headings, lacuna marks, marginal notes). Every word carries its **source**: the witness tokens it was taken from, the conjecture it realizes, or the edition itself. Adopted conjectures are also listed on the edition, so that deletions, lacunae and transpositions are attributed.
+An edition's text is a stream of the same shape as a transcript's, with the edition's own lineation and objects (speaker labels, headings, lacuna marks, marginal notes). In an ancient text the assignment of speakers is interpretation, not text: it is an annotation of the edition and never part of a transcript's words. In a modern play, where the speakers are text, they are written as text. Every word carries its **source**: the witness tokens it was taken from, the conjecture it realizes, or the edition itself. Adopted conjectures are also listed on the edition, so that deletions, lacunae and transpositions are attributed.
 
 - An edition starts by copying a witness's text for a range of segments. From then on it is independent; where a source transcript is corrected later, the word is marked and the current reading offered.
 - Adopting a reading replaces the edition's words at the site with that reading's words and their source. A word the editor retypes becomes the edition's own, so that no witness is credited with an emendation.
@@ -243,6 +264,8 @@ Designed or wanted, and not there:
 - Thinning of old history (the core has the function; nothing applies it).
 - Comments on other people's records; typeset PDF export (the reader prints through the browser); virtualized long lists; re-encoding of uploads.
 - Works are still deleted from their Edit page, not from their own page as witnesses are.
+- Showing a transcript in Leiden sigla and typing features with them, and offering the full set of features in the workbench, which today offers a few. The workbench still lets a supplement be marked in a transcript, which the model no longer wants.
+- Distinguishing kinds of text in an edition by their styling (the speakers and stage directions of a modern play).
 
 Known gaps in what is built:
 

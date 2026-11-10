@@ -65,7 +65,7 @@ describe('TEI round trip', () => {
       words: true,
       regularizations: true,
     });
-    const result = importTei(xml, { ids: sequentialIds() });
+    const result = importTei(xml, { ids: sequentialIds(), supplements: 'keep' });
     expect(result.warnings).toEqual([]);
     expect(essence(result.stream.items)).toEqual(essence(original.items));
     expect(result.stream.items.map((i) => i.id)).not.toEqual(original.items.map((i) => i.id));
@@ -89,7 +89,7 @@ describe('TEI round trip', () => {
       segmentLabels,
       regularizations: true,
     });
-    const result = importTei(xml, { ids: sequentialIds() });
+    const result = importTei(xml, { ids: sequentialIds(), supplements: 'keep' });
     expect(result.warnings).toEqual([]);
     expect(essence(result.stream.items)).toEqual(essence(original.items));
   });
@@ -103,7 +103,7 @@ describe('TEI round trip', () => {
         words: true,
         regularizations: true,
       }),
-      { ids: sequentialIds() },
+      { ids: sequentialIds(), supplements: 'keep' },
     );
     const twice = importTei(
       exportTranscriptionTei({
@@ -112,7 +112,7 @@ describe('TEI round trip', () => {
         words: true,
         regularizations: true,
       }),
-      { ids: sequentialIds() },
+      { ids: sequentialIds(), supplements: 'keep' },
     );
     expect(essence(twice.stream.items)).toEqual(essence(once.stream.items));
   });
@@ -151,7 +151,7 @@ describe('TEI round trip of variants noted in the carrier', () => {
   it('reads the same variants back, with words and as plain text', () => {
     for (const words of [true, false]) {
       const xml = exportTranscriptionTei({ stream, title: 'T', words });
-      const result = importTei(xml, { ids: sequentialIds() });
+      const result = importTei(xml, { ids: sequentialIds(), supplements: 'keep' });
       expect(result.warnings).toEqual([]);
       expect(renumbered(result.stream.items)).toEqual(renumbered(stream.items));
     }
@@ -213,7 +213,7 @@ describe('TEI round trip of paratext', () => {
     expect(xml).toContain('<label type="head" subtype="chapter">Α</label>');
     expect(xml).toContain('<label type="number">3</label>');
     expect(xml).not.toMatch(/<(head|speaker|trailer)\b/u);
-    const result = importTei(xml, { ids: sequentialIds() });
+    const result = importTei(xml, { ids: sequentialIds(), supplements: 'keep' });
     expect(result.warnings).toEqual([]);
     expect(essence(result.stream.items)).toEqual(essence(items));
   });
@@ -239,7 +239,7 @@ describe('TEI round trip of text on no page', () => {
     ];
     const xml = exportTranscriptionTei({ stream, title: 'T', pages: pagesHere, words: true });
     expect(xml.indexOf('ἄνδρα')).toBeLessThan(xml.indexOf('<pb n="12r"'));
-    const result = importTei(xml, { ids: sequentialIds() });
+    const result = importTei(xml, { ids: sequentialIds(), supplements: 'keep' });
     expect(essence(result.stream.items)).toEqual(essence(stream.items));
     expect(result.pages.map((p) => [p.label, p.itemIndex])).toEqual([
       ['12r', 2],

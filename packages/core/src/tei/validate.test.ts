@@ -113,6 +113,19 @@ describe.skipIf(!xmllint)('transcription TEI is valid', slow, () => {
     expect(errors(transcription({ stream: exportInput().stream }))).toEqual([]);
   });
 
+  it('with the signs of a papyrus: numbers, glyphs, rules, another language, quotations, symbols, what is said of a gap', () => {
+    const epidoc = `<TEI xmlns="http://www.tei-c.org/ns/1.0"><text><body><ab><lb n="1"/><num value="16">ιϛ</num> <num value="1/32" rend="tick">λβ</num> <foreign xml:lang="la">comes</foreign> <q>ὁ γὰρ</q> <g type="stauros"/> <unclear><g type="check"/></unclear> <g type="chirho">☧</g> <expan><ex>ἔτους</ex></expan> <expan>Καρ<ex cert="low">ανίδι</ex></expan> <milestone rend="paragraphos" unit="undefined"/> <lb n="2"/><gap reason="illegible" quantity="15" unit="line"><desc>vestiges</desc></gap> <add place="above">ὅλων<certainty match=".." locus="name"/></add> κα<gap reason="illegible" quantity="2" unit="character"><desc>vestiges</desc></gap>ς <hi rend="diaeresis">ἱ</hi>οῦ <handShift new="m2" cert="low"/>τοῦ <del rend="slashes">τῆς</del></ab></body></text></TEI>`;
+    const read = importTei(epidoc, { ids: sequentialIds() });
+    expect(read.warnings).toEqual([]);
+    for (const words of [true, false]) {
+      const xml = transcription({ stream: read.stream, words, regularizations: true });
+      expect(errors(xml)).toEqual([]);
+      // And it reads back as it was.
+      const again = importTei(xml, { ids: sequentialIds() });
+      expect(again.stream).toEqual(read.stream);
+    }
+  });
+
   it('with every kind of mark, paragraphs, columns, notes, figures, spaces and segment milestones', () => {
     for (const words of [true, false]) {
       const xml = transcription({

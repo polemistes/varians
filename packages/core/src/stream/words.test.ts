@@ -138,6 +138,28 @@ describe('units', () => {
     expect(u.map((x) => x.text)).toEqual(['a', '', 'c']);
     expect(u[1]!.gap?.id).toBe('g1');
   });
+
+  it('counts a word that a gap breaks with the gap, and reads nothing of it', () => {
+    const s = fromText('a bc d e', { ids: sequentialIds() });
+    const tokens = s.items.filter((i) => i.kind === 'token');
+    const lost = { reason: 'lost', unit: 'character', quantity: 2 };
+    (tokens[1] as { marks?: unknown }).marks = [{ kind: 'gap', from: 0, to: 0, attrs: lost }];
+    // A gap as a range would be a mark over letters, which no gap is: only the point breaks the word.
+    (tokens[3] as { marks?: unknown }).marks = [{ kind: 'unclear', from: 0, to: 1 }];
+    const u = units(s, 0, s.items.length);
+    expect(u.map((x) => x.text)).toEqual(['a', '', 'd', 'e']);
+    expect(u[1]!.gap).toMatchObject({ type: 'gap', attrs: lost });
+    // Beside a gap that stands between the words it is one gap, not two.
+    s.items.splice(s.items.indexOf(tokens[1]!), 0, {
+      kind: 'object',
+      id: 'g1',
+      type: 'gap',
+      attrs: { reason: 'lost', quantity: 5 },
+    });
+    const beside = units(s, 0, s.items.length);
+    expect(beside.map((x) => x.text)).toEqual(['a', '', 'd', 'e']);
+    expect(beside[1]!.gap?.id).toBe('g1');
+  });
 });
 
 describe('lines', () => {

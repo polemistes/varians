@@ -13,7 +13,7 @@ import {
   type Stream,
   type UnitMapping,
 } from '@varians/core';
-import type { Database } from '@varians/db';
+import { eq, transcriptions, witnesses, type Database } from '@varians/db';
 import { replaceContent } from '../documents/service.ts';
 import { resolveLabels, schemeOfWork } from '../segments.ts';
 
@@ -79,7 +79,15 @@ export async function importTeiIntoTranscription(
   },
 ): Promise<TeiImportResult> {
   const work = await schemeOfWork(db, input.workId);
-  const result = importTei(input.xml);
+  // A printed edition used as a witness keeps what its editor supplied; a carrier's transcript does not.
+  const [of] = await db
+    .select({ category: witnesses.category })
+    .from(transcriptions)
+    .innerJoin(witnesses, eq(witnesses.id, transcriptions.witnessId))
+    .where(eq(transcriptions.id, input.transcriptionId));
+  const result = importTei(input.xml, {
+    supplements: of?.category === 'edition' ? 'keep' : 'drop',
+  });
   const { resolved, unresolved } = resolveStarts(result.segmentStarts, input.mapping, work.scheme);
   const labels = await resolveLabels(
     db,

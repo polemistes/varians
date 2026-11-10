@@ -330,10 +330,34 @@ describe('imports', () => {
         .sort(),
     ).toEqual(['1.1', '1.2']);
 
+    // A carrier's transcript does not take in what the editor supplied: the gap is kept.
     const leiden = await importLeidenInto(db, target(first.version), 'πολλὰς [δ᾽] ἰφθίμους');
     expect(leiden.version).toBe(first.version + 1);
-    expect(toText(leiden.content)).toBe(`${text}\nπολλὰς δ᾽ ἰφθίμους`);
-    const supplied = leiden.content.items.find((i) => isToken(i) && i.form === 'δ᾽') as Token;
+    const tail = leiden.content.items.slice(-3);
+    expect(tail).toMatchObject([
+      { kind: 'token', form: 'πολλὰς' },
+      { kind: 'object', type: 'gap', attrs: { reason: 'lost', unit: 'character', quantity: 2 } },
+      { kind: 'token', form: 'ἰφθίμους' },
+    ]);
+
+    // Leiden+ goes in by the same door, with its line numbers and its own way of writing a gap.
+    const plus = await importLeidenInto(
+      db,
+      target(leiden.version),
+      '<S=.grc<=1. [ψυχὰς] Ἄϊδι <:προΐαψεν|reg|προιαψεν:> [.3]=>',
+    );
+    expect(plus.content.items.slice(-4)).toMatchObject([
+      { kind: 'object', type: 'gap', attrs: { reason: 'lost', quantity: 5 } },
+      { kind: 'token', form: 'Ἄϊδι' },
+      { kind: 'token', form: 'προιαψεν', norm: 'προΐαψεν' },
+      { kind: 'object', type: 'gap', attrs: { reason: 'lost', quantity: 3 } },
+    ]);
+
+    // A printed edition used as a witness keeps what its editor supplied: it is that edition's text.
+    await db.update(witnesses).set({ category: 'edition' }).where(eq(witnesses.id, ids.witness));
+    const edition = await importLeidenInto(db, target(plus.version), 'ἡρώων [αὐτοὺς]');
+    await db.update(witnesses).set({ category: 'manuscript' }).where(eq(witnesses.id, ids.witness));
+    const supplied = edition.content.items.find((i) => isToken(i) && i.form === 'αὐτοὺς') as Token;
     expect(supplied.marks?.[0]?.kind).toBe('supplied');
   });
 

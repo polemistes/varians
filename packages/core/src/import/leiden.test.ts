@@ -5,8 +5,9 @@ import { toText } from '../stream/text.ts';
 import { words } from '../stream/words.ts';
 import { fromLeiden, toLeiden } from './leiden.ts';
 
+/** As a printed edition is read, with its brackets kept as marks: these tests are of the notation. */
 function read(text: string) {
-  return fromLeiden(text, { ids: sequentialIds() });
+  return fromLeiden(text, { ids: sequentialIds(), supplements: 'keep' });
 }
 
 function tokens(text: string): Token[] {
@@ -200,5 +201,29 @@ describe('toLeiden', () => {
       ],
     };
     expect(toLeiden(stream)).toBe('ΚΣ(Κύριος) (ο)ς <δέ>');
+  });
+});
+
+describe('fromLeiden, into the transcript of a carrier', () => {
+  const carrier = (text: string) => fromLeiden(text, { ids: sequentialIds() }).stream.items;
+  const lost = (quantity: number) => ({ reason: 'lost', unit: 'character', quantity });
+
+  it('leaves the gap where its editor supplied letters, as an object between words and a point in a word', () => {
+    expect(carrier('[καὶ τοῦ] δή[μου] ἐψη[φί]σατο')).toMatchObject([
+      { kind: 'object', type: 'gap', attrs: lost(6) },
+      { form: 'δή', marks: [{ kind: 'gap', from: 2, to: 2, attrs: lost(3) }] },
+      { form: 'ἐψησατο', marks: [{ kind: 'gap', from: 3, to: 3, attrs: lost(2) }] },
+    ]);
+  });
+
+  it('reads letters added or bracketed inside a word as its read form, and whole words as there or not', () => {
+    const items = carrier('ἀπ<ε>γραψάμην ὁμο{μο}λογῶ <καὶ> {ὀνόματος}');
+    expect(items).toMatchObject([
+      { form: 'ἀπγραψάμην', norm: 'ἀπεγραψάμην', unchecked: true },
+      { form: 'ὁμομολογῶ', norm: 'ὁμολογῶ', unchecked: true },
+      { form: 'ὀνόματος' },
+    ]);
+    expect(items).toHaveLength(3);
+    expect(items.every((item) => !('marks' in item))).toBe(true);
   });
 });

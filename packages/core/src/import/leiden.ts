@@ -10,6 +10,13 @@
  *   |       line end (|| is read as a line end, with a warning)
  *   -       at a line end: the word continues on the next line
  *   vac.    a blank left by the scribe   ...    standalone dots: illegible
+ *
+ * As everywhere a text is read into the transcript of a carrier
+ * (docs/design.md, section 3.7), what its editor supplied or struck out is
+ * not kept as the carrier's: letters supplied in [ ] become the gap they
+ * fill, letters added in < > or bracketed in { } inside a word make its
+ * read form, a whole word added is left out and a whole word bracketed
+ * stays. A printed edition used as a witness keeps them all.
  */
 
 import { newId } from '../ids.ts';
@@ -26,6 +33,8 @@ import {
 
 export interface LeidenOptions {
   ids?: () => string;
+  /** What the editor supplied or struck out: `drop` (the default) for the transcript of a carrier, `keep` for a printed edition used as a witness. */
+  supplements?: 'drop' | 'keep';
 }
 
 export interface LeidenImport {
@@ -79,6 +88,10 @@ interface Context {
   warnings: string[];
   depth: Record<RangeKind, number>;
   building: Building | null;
+  /** A printed edition used as a witness: its supplements and deletions are its text. */
+  keep: boolean;
+  /** The gap last made from supplied words, which the next supplied word joins. */
+  lastLostGap: Obj | null;
 }
 
 /** Read Leiden notation into a stream. Unbalanced brackets are kept as text and reported. */
@@ -92,6 +105,8 @@ export function fromLeiden(text: string, options: LeidenOptions = {}): LeidenImp
     warnings: [],
     depth: { supplied: 0, surplus: 0, del: 0, add: 0, corr: 0, unclear: 0 },
     building: null,
+    keep: options.supplements === 'keep',
+    lastLostGap: null,
   };
   for (const i of [...matching.unmatched].sort((a, b) => a - b)) {
     ctx.warnings.push(`Unbalanced "${chars[i]}" on line ${lineOf(chars, i)}, kept as text.`);
@@ -363,10 +378,90 @@ function endLine(ctx: Context): void {
 
 const BARE_VACAT = /^vac(?:at|\.)$/iu;
 
+const lettersOf = (unit: Unit): number => Array.from(unit.text.normalize('NFC')).length;
+
+/**
+ * A word of a carrier without what its editor supplied: the letters that
+ * are there, the gaps where supplied letters stood, and the read form the
+ * editor's additions and brackets give. Null when no letter of it is there;
+ * the gap its supplied letters leave is then put between the words.
+ */
+function carried(
+  ctx: Context,
+  units: Unit[],
+): { units: Unit[]; gaps: Mark[]; norm?: string } | null {
+  const kept: Unit[] = [];
+  const gaps: Mark[] = [];
+  let place = 0;
+  let run = 0;
+  let lost = 0;
+  let judged = false;
+  let read = '';
+  const closeRun = (): void => {
+    if (run === 0) return;
+    gaps.push({
+      kind: 'gap',
+      from: place,
+      to: place,
+      attrs: { reason: 'lost', unit: 'character', quantity: run },
+    });
+    run = 0;
+  };
+  for (const unit of units) {
+    if (unit.kinds.includes('supplied')) {
+      run += lettersOf(unit);
+      lost += lettersOf(unit);
+      continue;
+    }
+    closeRun();
+    if (unit.kinds.includes('corr')) {
+      read += unit.text;
+      judged = true;
+      continue;
+    }
+    if (unit.kinds.includes('surplus')) judged = true;
+    else read += unit.text;
+    kept.push({ text: unit.text, kinds: unit.kinds.filter((kind) => kind !== 'surplus') });
+    place += lettersOf(unit);
+  }
+  closeRun();
+  if (kept.length === 0) {
+    if (lost === 0) return null;
+    const last = ctx.lastLostGap;
+    if (last && ctx.items[ctx.items.length - 1] === last) {
+      last.attrs = { ...last.attrs, quantity: Number(last.attrs?.quantity ?? 0) + lost };
+    } else {
+      const gap: Obj = {
+        kind: 'object',
+        id: ctx.ids(),
+        type: 'gap',
+        attrs: { reason: 'lost', unit: 'character', quantity: lost },
+      };
+      ctx.items.push(gap);
+      ctx.lastLostGap = gap;
+    }
+    return null;
+  }
+  const form = kept.map((unit) => unit.text).join('');
+  const norm = read.normalize('NFC');
+  return judged && norm !== '' && norm !== form.normalize('NFC')
+    ? { units: kept, gaps, norm }
+    : { units: kept, gaps };
+}
+
 function flushToken(ctx: Context): void {
   const building = ctx.building;
   ctx.building = null;
   if (!building || (building.units.length === 0 && !building.abbr)) return;
+  let gaps: Mark[] = [];
+  let norm: string | undefined;
+  if (!ctx.keep && building.units.length > 0) {
+    const word = carried(ctx, building.units);
+    if (!word) return;
+    building.units = word.units;
+    gaps = word.gaps;
+    norm = word.norm;
+  }
   const unmarked = building.units.every((unit) => unit.kinds.length === 0);
   let form = building.units.map((unit) => unit.text.normalize('NFC')).join('');
   if (!building.abbr && unmarked && BARE_VACAT.test(form)) {
@@ -393,9 +488,13 @@ function flushToken(ctx: Context): void {
   }
   const token: Token = { kind: 'token', id: ctx.ids(), form };
   if (building.joinNext) token.joinNext = true;
-  const marks = marksOf(building.units);
+  const marks = [...marksOf(building.units), ...gaps].sort((a, b) => (a.from ?? 0) - (b.from ?? 0));
   if (building.abbr) marks.push({ kind: 'abbr', attrs: { expan: building.expansion } });
   if (marks.length > 0) token.marks = marks;
+  if (norm !== undefined) {
+    token.norm = norm;
+    token.unchecked = true;
+  }
   ctx.items.push(token);
 }
 
