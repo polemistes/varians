@@ -855,7 +855,7 @@ export interface TextsOptions {
   /** How far witnesses stay close to the base (mutations of it), or are drawn freely. */
   free?: boolean;
   /** Smallest and largest number of witnesses. */
-  witnesses?: [number, number];
+  witnesses?: readonly [number, number];
   /** Words: pool to draw from. */
   words?: readonly string[];
   /** Largest base length (default 3 + 2 * size). */
