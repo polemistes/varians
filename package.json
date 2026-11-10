@@ -16,6 +16,7 @@
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
     "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "db:start": "pg_ctl -D $HOME/.local/share/varians/pgdata -o \"-p 54329 -k $HOME/.local/share/varians/run -c listen_addresses=127.0.0.1\" -l $HOME/.local/share/varians/pg.log start",
     "db:stop": "pg_ctl -D $HOME/.local/share/varians/pgdata stop",
     "db:migrate": "pnpm --filter @varians/db migrate",
