@@ -1,7 +1,8 @@
 /**
  * The guide's Markdown as HTML: the small subset docs/guide.md uses.
  * Headings (with ids, for a table of contents), paragraphs, bulleted lists
- * one level deep, tables, fenced code blocks, and inline bold, italic, code
+ * one level deep, tables, fenced code blocks, and inline bold, italic
+ * (with asterisks or underscores, since Prettier writes underscores), code
  * and links. Links into the repository, which the site does not serve,
  * become plain text, unless a base is given that serves them (the format
  * specification at /formats).
@@ -26,7 +27,11 @@ export function slug(text: string): string {
 }
 
 function escape(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 export interface RenderOptions {
@@ -47,9 +52,11 @@ function inlineWith(text: string, options: RenderOptions): string {
       let s = escape(part);
       s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
       s = s.replace(/(^|[^\w*])\*([^*\n]+?)\*(?!\w)/g, '$1<em>$2</em>');
+      s = s.replace(/(^|[^\w])_([^_\n]+?)_(?!\w)/g, '$1<em>$2</em>');
       s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, label: string, href: string) => {
         if (/^(https?:\/\/|#|\/(?!\/))/.test(href)) return `<a href="${href}">${label}</a>`;
-        if (options.linkBase && /^[\w./-]+(#[\w-]*)?$/.test(href) && !href.includes('..')) return `<a href="${options.linkBase}${href}">${label}</a>`;
+        if (options.linkBase && /^[\w./-]+(#[\w-]*)?$/.test(href) && !href.includes('..'))
+          return `<a href="${options.linkBase}${href}">${label}</a>`;
         return label;
       });
       s = s.replace(/&lt;(https?:\/\/[^\s&]+)&gt;/g, '<a href="$1">$1</a>');
@@ -60,7 +67,7 @@ function inlineWith(text: string, options: RenderOptions): string {
 
 /** The text of a heading without its marks, for the table of contents. */
 function plain(text: string): string {
-  return text.replace(/\*\*|`|\*/g, '');
+  return text.replace(/\*\*|`|\*/g, '').replace(/(^|[^\w])_([^_]+)_(?!\w)/g, '$1$2');
 }
 
 export function render(markdown: string, options: RenderOptions = {}): Rendered {
@@ -96,9 +103,15 @@ export function render(markdown: string, options: RenderOptions = {}): Rendered 
   };
   const flushTable = () => {
     if (!table.length) return;
-    const rows = table.map((row) => row.replace(/^\||\|$/g, '').split('|').map((cell) => cell.trim()));
+    const rows = table.map((row) =>
+      row
+        .replace(/^\||\|$/g, '')
+        .split('|')
+        .map((cell) => cell.trim()),
+    );
     const [head, , ...body] = rows;
-    const cells = (row: string[], tag: string) => row.map((cell) => `<${tag}>${inline(cell)}</${tag}>`).join('');
+    const cells = (row: string[], tag: string) =>
+      row.map((cell) => `<${tag}>${inline(cell)}</${tag}>`).join('');
     out.push(
       `<table><thead><tr>${cells(head ?? [], 'th')}</tr></thead><tbody>${body.map((row) => `<tr>${cells(row, 'td')}</tr>`).join('')}</tbody></table>`,
     );
