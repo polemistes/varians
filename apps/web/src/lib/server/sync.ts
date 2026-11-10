@@ -7,8 +7,24 @@
  * two conflict. No live replication.
  */
 
-import { licenceCompatible, licenceInfo, newId, isDataLicence, type DataLicence } from '@varians/core';
-import { changesets, editionSigla, editions, transcriptionSegments, transcriptionWorks, transcriptions, users, workRemotes, type Database } from '@varians/db';
+import {
+  licenceCompatible,
+  licenceInfo,
+  newId,
+  isDataLicence,
+  type DataLicence,
+} from '@varians/core';
+import {
+  changesets,
+  editionSigla,
+  editions,
+  transcriptionSegments,
+  transcriptionWorks,
+  transcriptions,
+  users,
+  workRemotes,
+  type Database,
+} from '@varians/db';
 import { and, desc, eq, inArray, isNotNull, lte } from 'drizzle-orm';
 import { createWriteStream } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -41,11 +57,23 @@ export interface SyncState {
   documents: SyncDocument[];
 }
 
-async function headAt(db: Database, kind: 'transcription' | 'edition', id: string, upTo: number | null): Promise<string | null> {
+async function headAt(
+  db: Database,
+  kind: 'transcription' | 'edition',
+  id: string,
+  upTo: number | null,
+): Promise<string | null> {
   const [row] = await db
     .select({ id: changesets.id })
     .from(changesets)
-    .where(and(eq(changesets.documentKind, kind), eq(changesets.documentId, id), isNotNull(changesets.version), upTo !== null ? lte(changesets.version, upTo) : undefined))
+    .where(
+      and(
+        eq(changesets.documentKind, kind),
+        eq(changesets.documentId, id),
+        isNotNull(changesets.version),
+        upTo !== null ? lte(changesets.version, upTo) : undefined,
+      ),
+    )
     .orderBy(desc(changesets.version))
     .limit(1);
   return row?.id ?? null;
@@ -54,31 +82,71 @@ async function headAt(db: Database, kind: 'transcription' | 'edition', id: strin
 /** The transcriptions in a work's archive: chosen for it, assigning text to it, or named by a conspectus of one of its editions. */
 async function connectedTranscriptions(db: Database, workId: string) {
   const ids = new Set<string>();
-  for (const r of await db.selectDistinct({ id: transcriptionSegments.transcriptionId }).from(transcriptionSegments).where(eq(transcriptionSegments.workId, workId))) ids.add(r.id);
-  for (const r of await db.select({ id: transcriptionWorks.transcriptionId }).from(transcriptionWorks).where(eq(transcriptionWorks.workId, workId))) ids.add(r.id);
-  for (const r of await db.select({ id: editionSigla.transcriptionId }).from(editionSigla).innerJoin(editions, eq(editions.id, editionSigla.editionId)).where(eq(editions.workId, workId))) if (r.id) ids.add(r.id);
-  return ids.size ? db.select().from(transcriptions).where(inArray(transcriptions.id, [...ids])) : [];
+  for (const r of await db
+    .selectDistinct({ id: transcriptionSegments.transcriptionId })
+    .from(transcriptionSegments)
+    .where(eq(transcriptionSegments.workId, workId)))
+    ids.add(r.id);
+  for (const r of await db
+    .select({ id: transcriptionWorks.transcriptionId })
+    .from(transcriptionWorks)
+    .where(eq(transcriptionWorks.workId, workId)))
+    ids.add(r.id);
+  for (const r of await db
+    .select({ id: editionSigla.transcriptionId })
+    .from(editionSigla)
+    .innerJoin(editions, eq(editions.id, editionSigla.editionId))
+    .where(eq(editions.workId, workId)))
+    if (r.id) ids.add(r.id);
+  return ids.size
+    ? db
+        .select()
+        .from(transcriptions)
+        .where(inArray(transcriptions.id, [...ids]))
+    : [];
 }
 
 /** What this installation holds of a work, as a viewer may see it: the documents with their heads. Null when the viewer sees nothing of it. */
-export async function syncState(db: Database, viewer: Actor | null, workId: string, origin: string): Promise<SyncState | null> {
+export async function syncState(
+  db: Database,
+  viewer: Actor | null,
+  workId: string,
+  origin: string,
+): Promise<SyncState | null> {
   const filters = await scopeFilters(db, viewer, [{ kind: 'work', workId }]);
   const only = filters.get(workId);
   if (!only) return null;
   const documents: SyncDocument[] = [];
   for (const t of await connectedTranscriptions(db, workId)) {
     if (!only.transcription(t)) continue;
-    documents.push({ id: t.id, kind: 'transcription', head: await headAt(db, 'transcription', t.id, null), version: t.version });
+    documents.push({
+      id: t.id,
+      kind: 'transcription',
+      head: await headAt(db, 'transcription', t.id, null),
+      version: t.version,
+    });
   }
   for (const e of await db.select().from(editions).where(eq(editions.workId, workId))) {
     if (!only.edition(e)) continue;
     const working = only.editionWorking(e);
     if (!working && e.publishedVersion === null) continue;
     const version = working ? e.version : e.publishedVersion!;
-    documents.push({ id: e.id, kind: 'edition', head: await headAt(db, 'edition', e.id, working ? null : version), version });
+    documents.push({
+      id: e.id,
+      kind: 'edition',
+      head: await headAt(db, 'edition', e.id, working ? null : version),
+      version,
+    });
   }
   documents.sort((a, b) => a.id.localeCompare(b.id));
-  return { $schema: `${FORMAT_BASE}sync.schema.json`, formatVersion: FORMAT_VERSION, origin, workId, licence: dataLicence(), documents };
+  return {
+    $schema: `${FORMAT_BASE}sync.schema.json`,
+    formatVersion: FORMAT_VERSION,
+    origin,
+    workId,
+    licence: dataLicence(),
+    documents,
+  };
 }
 
 /** How another installation is reached: over HTTP, or directly in the tests. */
@@ -114,25 +182,42 @@ export function parseRemoteAddress(address: string): { origin: string; slug: str
 const MAX_PACKAGE = 2 * 1024 * 1024 * 1024;
 
 /** Another installation over HTTP, through the guarded fetch (public addresses only). */
-export function httpTransport(origin: string, slug: string, token: string | null, allow?: (address: string) => boolean): RemoteTransport {
+export function httpTransport(
+  origin: string,
+  slug: string,
+  token: string | null,
+  allow?: (address: string) => boolean,
+): RemoteTransport {
   const base = `${origin.replace(/\/+$/u, '')}/works/${encodeURIComponent(slug)}`;
   const auth: Record<string, string> = token ? { authorization: `Bearer ${token}` } : {};
   const opts = allow ? { allow } : {};
   return {
     async sync() {
-      const response = await safeFetch(`${base}/sync.json`, { headers: { accept: 'application/json', ...auth }, ...opts });
-      if (!response.ok) throw new RemoteError(`The other installation answered ${response.status} for the work's state.`);
+      const response = await safeFetch(`${base}/sync.json`, {
+        headers: { accept: 'application/json', ...auth },
+        ...opts,
+      });
+      if (!response.ok)
+        throw new RemoteError(
+          `The other installation answered ${response.status} for the work's state.`,
+        );
       const state = JSON.parse(await readTextCapped(response, 5 * 1024 * 1024)) as SyncState;
-      if (typeof state.workId !== 'string' || !Array.isArray(state.documents)) throw new RemoteError('The other installation did not answer with the state of a work.');
+      if (typeof state.workId !== 'string' || !Array.isArray(state.documents))
+        throw new RemoteError('The other installation did not answer with the state of a work.');
       return state;
     },
     async download() {
       const response = await safeFetch(`${base}/package.zip`, { headers: auth, ...opts });
-      if (!response.ok || !response.body) throw new RemoteError(`The other installation answered ${response.status} for the package.`);
+      if (!response.ok || !response.body)
+        throw new RemoteError(
+          `The other installation answered ${response.status} for the package.`,
+        );
       const dir = await mkdtemp(path.join(os.tmpdir(), 'varians-pull-'));
       const file = path.join(dir, 'package.zip');
       let bytes = 0;
-      const counted = Readable.fromWeb(response.body as import('node:stream/web').ReadableStream).on('data', (chunk: Buffer) => {
+      const counted = Readable.fromWeb(
+        response.body as import('node:stream/web').ReadableStream,
+      ).on('data', (chunk: Buffer) => {
         bytes += chunk.length;
         if (bytes > MAX_PACKAGE) counted.destroy(new RemoteError('The package is too large.'));
       });
@@ -145,10 +230,19 @@ export function httpTransport(origin: string, slug: string, token: string | null
       return { file, cleanup: () => rm(dir, { recursive: true, force: true }) };
     },
     async upload(file) {
-      if (!token) throw new RemoteError('Pushing needs a token of an account on the other installation.');
-      const response = await safeFetch(`${origin.replace(/\/+$/u, '')}/api/import`, { method: 'POST', body: await readFile(file), headers: { 'content-type': 'application/zip', accept: 'application/json', ...auth }, ...opts });
+      if (!token)
+        throw new RemoteError('Pushing needs a token of an account on the other installation.');
+      const response = await safeFetch(`${origin.replace(/\/+$/u, '')}/api/import`, {
+        method: 'POST',
+        body: await readFile(file),
+        headers: { 'content-type': 'application/zip', accept: 'application/json', ...auth },
+        ...opts,
+      });
       const text = await readTextCapped(response, 5 * 1024 * 1024);
-      if (!response.ok) throw new RemoteError(`The other installation refused the package (${response.status}): ${text.slice(0, 300)}`);
+      if (!response.ok)
+        throw new RemoteError(
+          `The other installation refused the package (${response.status}): ${text.slice(0, 300)}`,
+        );
       return JSON.parse(text) as unknown;
     },
   };
@@ -157,13 +251,22 @@ export function httpTransport(origin: string, slug: string, token: string | null
 export type DocumentDifference = 'same' | 'differs' | 'only-there' | 'only-here';
 
 /** Which documents differ between this installation and another's state. */
-export async function compareSync(db: Database, viewer: Actor | null, workId: string, theirs: SyncState): Promise<{ id: string; kind: string; difference: DocumentDifference }[]> {
+export async function compareSync(
+  db: Database,
+  viewer: Actor | null,
+  workId: string,
+  theirs: SyncState,
+): Promise<{ id: string; kind: string; difference: DocumentDifference }[]> {
   const ours = await syncState(db, viewer, workId, '');
   const mine = new Map((ours?.documents ?? []).map((d) => [d.id, d] as const));
   const out: { id: string; kind: string; difference: DocumentDifference }[] = [];
   for (const d of theirs.documents) {
     const here = mine.get(d.id);
-    out.push({ id: d.id, kind: d.kind, difference: !here ? 'only-there' : here.head === d.head ? 'same' : 'differs' });
+    out.push({
+      id: d.id,
+      kind: d.kind,
+      difference: !here ? 'only-there' : here.head === d.head ? 'same' : 'differs',
+    });
     mine.delete(d.id);
   }
   for (const d of mine.values()) out.push({ id: d.id, kind: d.kind, difference: 'only-here' });
@@ -173,7 +276,8 @@ export async function compareSync(db: Database, viewer: Actor | null, workId: st
 /** Whether records under a remote's licence may come here; a plain refusal naming both otherwise. */
 export function licenceRefusal(theirs: string): string | null {
   const ours = dataLicence();
-  if (!isDataLicence(theirs)) return `The other installation names no licence this installation knows (${theirs}).`;
+  if (!isDataLicence(theirs))
+    return `The other installation names no licence this installation knows (${theirs}).`;
   if (licenceCompatible(theirs as DataLicence, ours)) return null;
   return `Records licensed under ${licenceInfo(theirs)!.name} cannot be published under ${licenceInfo(ours)!.name}, the licence of this installation.`;
 }
@@ -192,15 +296,34 @@ export function usesToken(remote: Remote, userId: string): boolean {
 }
 
 /** Record another installation's copy of a work, after asking it for its state. */
-export async function addRemote(db: Database, user: Actor, workId: string, address: string, token: string | null, transport?: RemoteTransport): Promise<{ remote: Remote; state: SyncState }> {
+export async function addRemote(
+  db: Database,
+  user: Actor,
+  workId: string,
+  address: string,
+  token: string | null,
+  transport?: RemoteTransport,
+): Promise<{ remote: Remote; state: SyncState }> {
   const parsed = parseRemoteAddress(address);
-  if (!parsed) throw new RemoteError('Give the address of the work on the other installation, such as https://example.org/works/iliad.');
-  if (token && parsed.origin.startsWith('http:')) throw new RemoteError('A token is sent only to an address that begins with https.');
+  if (!parsed)
+    throw new RemoteError(
+      'Give the address of the work on the other installation, such as https://example.org/works/iliad.',
+    );
+  if (token && parsed.origin.startsWith('http:'))
+    throw new RemoteError('A token is sent only to an address that begins with https.');
   const reach = transport ?? httpTransport(parsed.origin, parsed.slug, token);
   const state = await reach.sync();
   const [remote] = await db
     .insert(workRemotes)
-    .values({ id: newId(), workId, origin: parsed.origin, remoteWorkId: state.workId, remoteSlug: parsed.slug, token: token ? encryptSecret(token) : null, createdBy: user.id })
+    .values({
+      id: newId(),
+      workId,
+      origin: parsed.origin,
+      remoteWorkId: state.workId,
+      remoteSlug: parsed.slug,
+      token: token ? encryptSecret(token) : null,
+      createdBy: user.id,
+    })
     .returning();
   return { remote: remote!, state };
 }
@@ -217,7 +340,11 @@ export async function pullRemote(
   const refusal = licenceRefusal(state.licence);
   const base = { bag: false, info: {}, works: [], problems: [], dryRun: options.dryRun ?? false };
   if (refusal) return { ...base, refused: refusal };
-  if (state.workId !== remote.remoteWorkId) return { ...base, refused: 'The other installation now answers with another work at this address.' };
+  if (state.workId !== remote.remoteWorkId)
+    return {
+      ...base,
+      refused: 'The other installation now answers with another work at this address.',
+    };
   const pkg = await transport.download();
   try {
     const report = await importPackage(db, pkg.file, user.id, {
@@ -226,7 +353,11 @@ export async function pullRemote(
       dryRun: options.dryRun ?? false,
       source: remote.origin,
     });
-    if (!options.dryRun) await db.update(workRemotes).set({ lastPulledAt: new Date(), lastReport: summary(report) }).where(eq(workRemotes.id, remote.id));
+    if (!options.dryRun)
+      await db
+        .update(workRemotes)
+        .set({ lastPulledAt: new Date(), lastReport: summary(report) })
+        .where(eq(workRemotes.id, remote.id));
     return report;
   } finally {
     await pkg.cleanup();
@@ -234,12 +365,23 @@ export async function pullRemote(
 }
 
 /** Push this installation's package of the work to a remote, which imports it keeping its own text where they conflict. */
-export async function pushRemote(db: Database, user: Actor, remote: Remote, options: { transport?: RemoteTransport; storageRoot?: string; origin?: string } = {}): Promise<unknown> {
+export async function pushRemote(
+  db: Database,
+  user: Actor,
+  remote: Remote,
+  options: { transport?: RemoteTransport; storageRoot?: string; origin?: string } = {},
+): Promise<unknown> {
   const transport = options.transport ?? transportOf(remote, user.id);
-  const pkg = await buildPackage(db, user, [{ kind: 'work', workId: remote.workId }], { ...(options.storageRoot ? { storageRoot: options.storageRoot } : {}), ...(options.origin ? { origin: options.origin } : {}) });
+  const pkg = await buildPackage(db, user, [{ kind: 'work', workId: remote.workId }], {
+    ...(options.storageRoot ? { storageRoot: options.storageRoot } : {}),
+    ...(options.origin ? { origin: options.origin } : {}),
+  });
   try {
     const report = await transport.upload(pkg.file);
-    await db.update(workRemotes).set({ lastReport: { pushed: new Date().toISOString(), report } }).where(eq(workRemotes.id, remote.id));
+    await db
+      .update(workRemotes)
+      .set({ lastReport: { pushed: new Date().toISOString(), report } })
+      .where(eq(workRemotes.id, remote.id));
     return report;
   } finally {
     await pkg.cleanup();
@@ -251,30 +393,53 @@ export function summary(report: PackageImportReport): unknown {
   return {
     at: new Date().toISOString(),
     refused: report.refused,
-    documents: report.works.flatMap((w) => w.documents.map((d) => ({ name: d.name, kind: d.kind, result: d.result, segments: d.segments }))),
+    documents: report.works.flatMap((w) =>
+      w.documents.map((d) => ({
+        name: d.name,
+        kind: d.kind,
+        result: d.result,
+        segments: d.segments,
+      })),
+    ),
   };
 }
 
 /** The remotes of a work. */
 export async function remotesOf(db: Database, workId: string): Promise<Remote[]> {
-  return db.select().from(workRemotes).where(eq(workRemotes.workId, workId)).orderBy(workRemotes.createdAt);
+  return db
+    .select()
+    .from(workRemotes)
+    .where(eq(workRemotes.workId, workId))
+    .orderBy(workRemotes.createdAt);
 }
 
 /** Pull every remote whose interval has passed, conflicts reported and left; for the scheduler. */
-export async function pullDueRemotes(db: Database, log: (m: string) => void = console.log): Promise<number> {
+export async function pullDueRemotes(
+  db: Database,
+  log: (m: string) => void = console.log,
+): Promise<number> {
   let pulled = 0;
-  for (const remote of await db.select().from(workRemotes).where(isNotNull(workRemotes.pullEveryHours))) {
-    const due = !remote.lastPulledAt || Date.now() - remote.lastPulledAt.getTime() >= remote.pullEveryHours! * 3600_000;
+  for (const remote of await db
+    .select()
+    .from(workRemotes)
+    .where(isNotNull(workRemotes.pullEveryHours))) {
+    const due =
+      !remote.lastPulledAt ||
+      Date.now() - remote.lastPulledAt.getTime() >= remote.pullEveryHours! * 3600_000;
     if (!due || !remote.createdBy) continue;
-    const [account] = await db.select({ id: users.id, role: users.role }).from(users).where(eq(users.id, remote.createdBy));
+    const [account] = await db
+      .select({ id: users.id, role: users.role })
+      .from(users)
+      .where(eq(users.id, remote.createdBy));
     if (!account) continue;
     try {
       await pullRemote(db, account, remote, { policy: 'report' });
       pulled++;
     } catch (error) {
-      log(`sync: pulling ${remote.origin} failed: ${error instanceof Error ? error.message : String(error)}`);
+      log(
+        `sync: pulling ${remote.origin} failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
   return pulled;
 }
-

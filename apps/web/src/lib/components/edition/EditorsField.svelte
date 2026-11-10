@@ -24,12 +24,26 @@
   }
 </script>
 
-<fieldset class="flex flex-col gap-2 font-sans" aria-describedby={message ? `editors-${uid}-error` : undefined}>
+<fieldset
+  class="flex flex-col gap-2 font-sans"
+  aria-describedby={message ? `editors-${uid}-error` : undefined}
+>
   <legend class="mb-1.5 text-sm font-medium text-ink">{s.editors}</legend>
   {#each list as _, k (k)}
     <div class="flex items-center gap-2">
-      <Input name="editors" bind:value={list[k]} aria-label={s.editorName(k + 1)} autocomplete="off" maxlength={200} class="font-serif text-base" />
-      <IconButton label={s.removeEditor(list[k] ?? '')} onclick={() => remove(k)} disabled={list.length === 1 && !list[0]}>
+      <Input
+        name="editors"
+        bind:value={list[k]}
+        aria-label={s.editorName(k + 1)}
+        autocomplete="off"
+        maxlength={200}
+        class="font-serif text-base"
+      />
+      <IconButton
+        label={s.removeEditor(list[k] ?? '')}
+        onclick={() => remove(k)}
+        disabled={list.length === 1 && !list[0]}
+      >
         <X aria-hidden="true" />
       </IconButton>
     </div>
@@ -40,5 +54,7 @@
       {s.addEditor}
     </Button>
   </div>
-  {#if message}<p id="editors-{uid}-error" class="text-xs text-danger" role="alert">{message}</p>{/if}
+  {#if message}<p id="editors-{uid}-error" class="text-xs text-danger" role="alert">
+      {message}
+    </p>{/if}
 </fieldset>

@@ -15,9 +15,17 @@ import type { RequestHandler } from './$types';
 export const GET: RequestHandler = async ({ locals, params, url, getClientAddress }) => {
   const access = await loadEditionAccess(locals.db, locals.user, params.slug);
   if (!access || !access.canView) error(404, 'Not found');
-  if (!limits.archiveByUser.take(locals.user?.id ?? `address:${getClientAddress()}`)) error(429, t.work.archiveTooOften);
+  if (!limits.archiveByUser.take(locals.user?.id ?? `address:${getClientAddress()}`))
+    error(429, t.work.archiveTooOften);
   try {
-    return packageResponse(await buildPackage(locals.db, locals.user, [{ kind: 'edition', editionId: access.edition.id }], { storageRoot: storageRoot(), origin: packageOrigin(url.origin), agent: PACKAGE_AGENT }));
+    return packageResponse(
+      await buildPackage(
+        locals.db,
+        locals.user,
+        [{ kind: 'edition', editionId: access.edition.id }],
+        { storageRoot: storageRoot(), origin: packageOrigin(url.origin), agent: PACKAGE_AGENT },
+      ),
+    );
   } catch (e) {
     console.error('package for download failed', e);
     error(500, t.work.archiveFailed);

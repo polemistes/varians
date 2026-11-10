@@ -104,13 +104,17 @@ export const registry = {
     download: 'Download package',
     downloadRepository: 'The server’s archive, with its history',
     // Complete or partial is a matter of the work: the same codex may hold all of one text and part of another.
-    coverage: (n: number, total: number) => (total > 0 && n >= total ? `Complete, ${n} of ${total}` : `Partial, ${n} of ${total}`),
+    coverage: (n: number, total: number) =>
+      total > 0 && n >= total ? `Complete, ${n} of ${total}` : `Partial, ${n} of ${total}`,
     coverageLabel: (n: number, total: number) =>
-      total > 0 && n >= total ? `Complete: all ${total} passages known here` : `Partial: ${n} of ${total} passages known here`,
+      total > 0 && n >= total
+        ? `Complete: all ${total} passages known here`
+        : `Partial: ${n} of ${total} passages known here`,
     coverageTitle: 'Segments transcribed',
     witnessPage: 'About the witness',
     notMaintainer: 'Only the maintainers of this work may edit it.',
-    notGoverning: 'Only the creator of the work, or an administrator, may change its visibility and maintainers.',
+    notGoverning:
+      'Only the creator of the work, or an administrator, may change its visibility and maintainers.',
     schemeLockedError: 'The work has segments, so the keys and types of its levels cannot change.',
     labelCollision: (labels: string) =>
       `Two segments would share a label (${labels}). Choose other separators.`,
@@ -129,7 +133,8 @@ export const registry = {
     editionBy: (name: string) => `owned by ${name}`,
     segmentLabels: 'Labels of the segments',
     archiveFailed: 'The archive could not be written. Try again later.',
-    archiveTooOften: 'The archive has been downloaded several times in the last hour. Try again later.',
+    archiveTooOften:
+      'The archive has been downloaded several times in the last hour. Try again later.',
     transcribeSignedIn: 'Log in to transcribe a witness of this work.',
   },
 
@@ -229,7 +234,8 @@ export const registry = {
     handDescription: 'Description',
     handMain: 'Scribe',
     handMainShort: 'the scribe',
-    handMainOf: (label: string) => (label ? `${label} is the scribe of the text` : 'This hand is the scribe of the text'),
+    handMainOf: (label: string) =>
+      label ? `${label} is the scribe of the text` : 'This hand is the scribe of the text',
     addHand: 'Add hand',
     removeHand: (label: string) => (label ? `Remove the hand ${label}` : 'Remove this hand'),
     handLabelRequired: 'Give every hand a label.',
@@ -255,12 +261,15 @@ export const registry = {
     maintainersHint:
       'Maintainers edit the description, the pages and the images. Transcribing needs no permission.',
     imagesSection: 'Images',
-    imagesHint: 'The rights statement and credit line new images of the witness are given, unless another is chosen for them.',
+    imagesHint:
+      'The rights statement and credit line new images of the witness are given, unless another is chosen for them.',
     imageRights: 'Rights of images',
     imageRightsNone: 'None',
     imageAttribution: 'Credit line',
     applyToPages: (n: number) =>
-      n === 1 ? 'Also give them to the image that has no rights statement' : `Also give them to the ${n} images that have no rights statement`,
+      n === 1
+        ? 'Also give them to the image that has no rights statement'
+        : `Also give them to the ${n} images that have no rights statement`,
     imagesSave: 'Save',
     imagesSaved: 'The defaults for images have been saved.',
     imagesApplied: (n: number) =>
@@ -280,7 +289,8 @@ export const registry = {
     readings: 'Reported readings',
     noReadings: 'No reading of this witness has been reported.',
     notMaintainer: 'Only the maintainers of this witness may edit it.',
-    notGoverning: 'Only the creator of the witness, or an administrator, may change its maintainers.',
+    notGoverning:
+      'Only the creator of the witness, or an administrator, may change its maintainers.',
     removedSelf: 'You no longer maintain this witness.',
     siglumShort: (siglum: string) => `siglum ${siglum}`,
     deleteSection: 'Delete the witness',
@@ -463,7 +473,8 @@ export const registry = {
       other: 'Other',
     } as Record<string, string>,
     add: 'Add identifier',
-    remove: (value: string) => (value ? `Remove the identifier ${value}` : 'Remove this identifier'),
+    remove: (value: string) =>
+      value ? `Remove the identifier ${value}` : 'Remove this identifier',
     schemeOf: (value: string) => (value ? `Scheme of ${value}` : 'Scheme'),
     empty: 'Give a value.',
     tooLong: 'this is too long.',
@@ -506,16 +517,29 @@ export const registry = {
     readings: (n: number) => (n === 1 ? '1 reported reading' : `${n} reported readings`),
     conjectures: (n: number) => (n === 1 ? '1 conjecture' : `${n} conjectures`),
     sigla: (editions: string[]) =>
-      editions.length === 1 ? `its siglum in the edition ${editions[0]}` : `its sigla in the editions ${and(editions)}`,
+      editions.length === 1
+        ? `its siglum in the edition ${editions[0]}`
+        : `its sigla in the editions ${and(editions)}`,
     maintainers: (names: string[]) =>
       names.length === 1 ? `${names[0]} as a maintainer` : `${and(names)} as maintainers`,
-    pages: (n: number) => (n === 1 ? '1 page, after the pages of the surviving witness' : `${n} pages, after the pages of the surviving witness`),
-    hands: (labels: string[]) => (labels.length === 1 ? `the hand ${labels[0]}` : `the hands ${and(labels)}`),
-    identifiers: (values: string[]) => (values.length === 1 ? `the identifier ${values[0]}` : `the identifiers ${and(values)}`),
+    pages: (n: number) =>
+      n === 1
+        ? '1 page, after the pages of the surviving witness'
+        : `${n} pages, after the pages of the surviving witness`,
+    hands: (labels: string[]) =>
+      labels.length === 1 ? `the hand ${labels[0]}` : `the hands ${and(labels)}`,
+    identifiers: (values: string[]) =>
+      values.length === 1 ? `the identifier ${values[0]}` : `the identifiers ${and(values)}`,
     segmentsMatched: (n: number) =>
-      n === 1 ? '1 segment joined to the segment of the same address' : `${n} segments joined to the segments of the same address`,
-    segmentsMoved: (n: number) => (n === 1 ? '1 segment the surviving work does not have' : `${n} segments the surviving work does not have`),
-    editions: (titles: string[]) => (titles.length === 1 ? `the edition ${titles[0]}` : `the editions ${and(titles)}`),
+      n === 1
+        ? '1 segment joined to the segment of the same address'
+        : `${n} segments joined to the segments of the same address`,
+    segmentsMoved: (n: number) =>
+      n === 1
+        ? '1 segment the surviving work does not have'
+        : `${n} segments the surviving work does not have`,
+    editions: (titles: string[]) =>
+      titles.length === 1 ? `the edition ${titles[0]}` : `the editions ${and(titles)}`,
     bothInEdition: (titles: string[]) =>
       `The conspectus of ${titles.length === 1 ? `the edition ${titles[0]}` : `the editions ${and(titles)}`} names both witnesses. Remove one of them from it first.`,
     pageConflict: (labels: string[]) =>
@@ -571,9 +595,7 @@ export const registry = {
       if (d.editions.length === 1) parts.push(`the edition ${d.editions[0]}`);
       else if (d.editions.length > 1) parts.push(`the editions ${and(d.editions)}`);
       if (d.transcriptions)
-        parts.push(
-          d.transcriptions === 1 ? 'a transcript' : `${d.transcriptions} transcripts`,
-        );
+        parts.push(d.transcriptions === 1 ? 'a transcript' : `${d.transcriptions} transcripts`);
       if (d.records) {
         const noun =
           d.recordsName === 'conjectures' ? 'conjecture or reported reading' : 'reported reading';

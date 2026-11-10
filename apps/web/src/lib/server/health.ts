@@ -20,24 +20,37 @@ export interface Health {
 }
 
 /** The time stamp of the newest migration this release carries. */
-export const EXPECTED_MIGRATION: number = Math.max(0, ...journal.entries.map((entry) => entry.when));
+export const EXPECTED_MIGRATION: number = Math.max(
+  0,
+  ...journal.entries.map((entry) => entry.when),
+);
 
 /** Compares the newest applied migration with the newest known one. Pure. */
-export function migrationState(applied: number | null, expected = EXPECTED_MIGRATION): Exclude<DatabaseState, 'unreachable'> {
+export function migrationState(
+  applied: number | null,
+  expected = EXPECTED_MIGRATION,
+): Exclude<DatabaseState, 'unreachable'> {
   if (applied === null || applied < expected) return 'behind';
   return applied > expected ? 'ahead' : 'ok';
 }
 
 /** The answer of /health from the database's state. Pure. */
 export function healthOf(database: DatabaseState, version = VERSION): Health {
-  return { status: database === 'ok' || database === 'ahead' ? 'ok' : 'unavailable', version, database };
+  return {
+    status: database === 'ok' || database === 'ahead' ? 'ok' : 'unavailable',
+    version,
+    database,
+  };
 }
 
 /** How long the database may take to answer before it counts as unreachable. */
 export const HEALTH_TIMEOUT_MS = 3000;
 
 /** Asks the database for its newest applied migration; never throws. */
-export async function databaseState(db: Pick<Database, 'execute'>, timeoutMs = HEALTH_TIMEOUT_MS): Promise<DatabaseState> {
+export async function databaseState(
+  db: Pick<Database, 'execute'>,
+  timeoutMs = HEALTH_TIMEOUT_MS,
+): Promise<DatabaseState> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<'timeout'>((resolve) => {
     timer = setTimeout(() => resolve('timeout'), timeoutMs);
@@ -55,7 +68,9 @@ export async function databaseState(db: Pick<Database, 'execute'>, timeoutMs = H
     return state === 'timeout' ? 'unreachable' : state;
   } catch (error) {
     // The table is missing when no migration has run yet.
-    const code = (error as { code?: string; cause?: { code?: string } }).code ?? (error as { cause?: { code?: string } }).cause?.code;
+    const code =
+      (error as { code?: string; cause?: { code?: string } }).code ??
+      (error as { cause?: { code?: string } }).cause?.code;
     if (code === '42P01') return 'behind';
     return 'unreachable';
   } finally {

@@ -48,7 +48,9 @@ function printedLines(items: Item[], sigla: EditionSigla): string[] {
     if (item.kind === 'break') lines.push([]);
     else lines[lines.length - 1]!.push(item);
   }
-  return lines.map((line) => plainLine(printLine(line, sigla))).filter((line) => line.trim() !== '');
+  return lines
+    .map((line) => plainLine(printLine(line, sigla)))
+    .filter((line) => line.trim() !== '');
 }
 
 export interface PlainTextInput {
@@ -82,17 +84,29 @@ export function plainText(input: PlainTextInput): string {
     lines.forEach((line, i) => out.push(i === 0 ? `${label}  ${line}` : `${indent}${line}`));
     if (lines.length === 0) out.push(label);
     if (!segment) continue;
-    const entries = apparatusEntries(segment.collation as Collation, label, segment.attachments, input.conventions, input.siglaOrder);
+    const entries = apparatusEntries(
+      segment.collation as Collation,
+      label,
+      segment.attachments,
+      input.conventions,
+      input.siglaOrder,
+    );
     const { main, interpretative } = splitEntries(entries, input.conventions);
     for (const line of formatApparatus(main, input.conventions)) out.push(`    ${line}`);
-    for (const line of formatApparatus(interpretative, input.conventions)) out.push(`    ${input.interpretativeWord}: ${line}`);
-    for (const note of segment.notes ?? []) out.push(`    ${input.noteWord}: ${note.text}${note.author ? ` (${note.author})` : ''}`);
+    for (const line of formatApparatus(interpretative, input.conventions))
+      out.push(`    ${input.interpretativeWord}: ${line}`);
+    for (const note of segment.notes ?? [])
+      out.push(`    ${input.noteWord}: ${note.text}${note.author ? ` (${note.author})` : ''}`);
   }
   return out.join('\n') + '\n';
 }
 
 /** The segments of the TEI export: items, the units collation saw, the sites and what is attached to them. */
-export function teiSegments(content: Stream, segments: Record<string, ExportSegment>, labelOf: Record<string, string>): EditionSegmentExport[] {
+export function teiSegments(
+  content: Stream,
+  segments: Record<string, ExportSegment>,
+  labelOf: Record<string, string>,
+): EditionSegmentExport[] {
   return segmentItems(content).map(({ segmentId, items }) => {
     const segment = segments[segmentId];
     const sites: Site[] = segment?.collation.sites ?? [];

@@ -46,14 +46,25 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
   const refused = await refusedSegments(locals, access.workId, segmentIdsIn(ops.ops));
   if (refused) return json({ message: refused }, { status: 400 });
   try {
-    const saved = await saveOps(locals.db, params.kind, access.id, locals.user.id, parsed.data.fromVersion, ops.ops, parsed.data.message);
+    const saved = await saveOps(
+      locals.db,
+      params.kind,
+      access.id,
+      locals.user.id,
+      parsed.data.fromVersion,
+      ops.ops,
+      parsed.data.message,
+    );
     return json({ version: saved.version, changesetId: saved.changesetId });
   } catch (cause) {
     if (cause instanceof VersionConflict) {
       return json({ current: cause.current, since: cause.since }, { status: 409 });
     }
     if (cause instanceof StreamError) {
-      return json({ message: cause.message, reason: cause.reason, ids: cause.ids }, { status: 400 });
+      return json(
+        { message: cause.message, reason: cause.reason, ids: cause.ids },
+        { status: 400 },
+      );
     }
     throw cause;
   }
@@ -64,22 +75,49 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
  * work, a transcription's of works the user may see, so that text is never
  * assigned to a private work by someone outside it.
  */
-async function refusedSegments(locals: App.Locals, editionWorkId: string | null, ids: string[]): Promise<string | null> {
+async function refusedSegments(
+  locals: App.Locals,
+  editionWorkId: string | null,
+  ids: string[],
+): Promise<string | null> {
   if (ids.length === 0) return null;
   const rows = await locals.db
-    .select({ id: segments.id, workId: works.id, visibility: works.visibility, createdBy: works.createdBy })
+    .select({
+      id: segments.id,
+      workId: works.id,
+      visibility: works.visibility,
+      createdBy: works.createdBy,
+    })
     .from(segments)
     .innerJoin(works, eq(works.id, segments.workId))
     .where(inArray(segments.id, ids));
   if (rows.length !== ids.length) return 'A segment named is unknown.';
-  if (editionWorkId !== null) return rows.every((r) => r.workId === editionWorkId) ? null : 'A segment named is not of this work.';
-  const privateWorks = [...new Set(rows.filter((r) => r.visibility !== 'public').map((r) => r.workId))];
+  if (editionWorkId !== null)
+    return rows.every((r) => r.workId === editionWorkId)
+      ? null
+      : 'A segment named is not of this work.';
+  const privateWorks = [
+    ...new Set(rows.filter((r) => r.visibility !== 'public').map((r) => r.workId)),
+  ];
   if (privateWorks.length === 0) return null;
   const grants = await grantsFor(locals.db, locals.user);
   for (const workId of privateWorks) {
     const row = rows.find((r) => r.workId === workId)!;
-    const maintainerIds = (await locals.db.select({ id: workMaintainers.userId }).from(workMaintainers).where(eq(workMaintainers.workId, workId))).map((m) => m.id);
-    if (!canViewWork(locals.user, { id: workId, visibility: row.visibility, createdBy: row.createdBy }, maintainerIds, grants)) return 'A segment named is not of a work you may see.';
+    const maintainerIds = (
+      await locals.db
+        .select({ id: workMaintainers.userId })
+        .from(workMaintainers)
+        .where(eq(workMaintainers.workId, workId))
+    ).map((m) => m.id);
+    if (
+      !canViewWork(
+        locals.user,
+        { id: workId, visibility: row.visibility, createdBy: row.createdBy },
+        maintainerIds,
+        grants,
+      )
+    )
+      return 'A segment named is not of a work you may see.';
   }
   return null;
 }

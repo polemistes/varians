@@ -20,7 +20,9 @@ export const editor = {
     (kind === 'textual'
       ? 'Textual: the witnesses have different letters here.'
       : 'Interpretative: the same letters, read otherwise (accents, breathings, punctuation, word division).') +
-    (byEditor ? ' Set by an editor; click to go back to what the letters say.' : ` Click to call it ${kind === 'textual' ? 'interpretative' : 'textual'}.`),
+    (byEditor
+      ? ' Set by an editor; click to go back to what the letters say.'
+      : ` Click to call it ${kind === 'textual' ? 'interpretative' : 'textual'}.`),
   register: 'Conjecture…',
   omitted: 'omitted',
   added: 'added',
@@ -39,7 +41,9 @@ export const editor = {
   noteSave: 'Add note',
   noSegments: 'Nothing on screen yet.',
   drift: (form: string, siglum: string, now: string) =>
-    now ? `${form}: taken from ${siglum}, which now reads ${now}` : `${form}: taken from ${siglum}, which no longer has it`,
+    now
+      ? `${form}: taken from ${siglum}, which now reads ${now}`
+      : `${form}: taken from ${siglum}, which no longer has it`,
   takeCurrent: (siglum: string) => `Take ${siglum}'s reading`,
   takeAllCurrent: (siglum: string, n: number) => `Take ${siglum}'s ${n} readings in this segment`,
   toReview: (n: number) => (n === 1 ? '1 site to review' : `${n} sites to review`),
@@ -69,7 +73,8 @@ export const editor = {
     draft: 'Draft',
     collaborators: {
       title: 'Collaborators',
-      description: "Collaborators edit the edition, its witnesses' transcripts and your conjectures on the work. Only you publish, invite and delete.",
+      description:
+        "Collaborators edit the edition, its witnesses' transcripts and your conjectures on the work. Only you publish, invite and delete.",
       remove: 'Remove',
       nobody: 'Nobody yet.',
       invite: 'Invite by email',
@@ -79,7 +84,8 @@ export const editor = {
     ownership: {
       menu: 'Offer Ownership…',
       title: 'Offer ownership',
-      description: 'The person named becomes the owner when they accept on their account page. You stay on as a collaborator.',
+      description:
+        'The person named becomes the owner when they accept on their account page. You stay on as a collaborator.',
       email: 'Email',
       offer: 'Offer',
       notOffered: 'Not offered.',
@@ -93,7 +99,8 @@ export const editor = {
       sourcesHint: 'Printed under About this edition.',
       rightsNote: 'Note on rights',
       licenceFixed: (name: string) => `Published under ${name}, fixed when it was first published.`,
-      licenceToCome: (name: string) => `Publishing puts it under ${name}, the licence of this installation.`,
+      licenceToCome: (name: string) =>
+        `Publishing puts it under ${name}, the licence of this installation.`,
       verse: 'Verse',
       prose: 'Prose',
       positive: 'Positive',
@@ -109,15 +116,21 @@ export const editor = {
       siglum: 'Siglum',
       witness: 'Witness',
       states: 'States',
-      statesHint: 'Further states of the witness, each collated under a siglum of its own: as first written, after a stage of correction, or with the corrections of one hand',
+      statesHint:
+        'Further states of the witness, each collated under a siglum of its own: as first written, after a stage of correction, or with the corrections of one hand',
       addState: 'Add state',
       removeState: 'Remove this state',
-      stateKinds: { original: 'Before correction', stage: 'After stage', hand: 'Corrections by' } as Record<string, string>,
+      stateKinds: {
+        original: 'Before correction',
+        stage: 'After stage',
+        hand: 'Corrections by',
+      } as Record<string, string>,
       stateStage: 'Stage',
       stateHand: 'Hand',
       stateSiglum: 'Siglum',
       variants: 'Variants noted in the manuscript',
-      variantsHint: 'Collate the variants the manuscript notes in its margins or between its lines as a siglum of their own (A v.l.)',
+      variantsHint:
+        'Collate the variants the manuscript notes in its margins or between its lines as a siglum of their own (A v.l.)',
       variantsLabel: 'Collate the variants noted in the manuscript',
       order: 'Order',
       include: (name: string) => `Include ${name}`,
@@ -168,7 +181,8 @@ export const editor = {
     publish: 'Publish',
     publishing: 'Publishing…',
     published: (n: number) => `Published as version ${n}.`,
-    publishConfirm: 'Publish the edition as it stands now? Readers will see this version, and it stays citable when you go on editing.',
+    publishConfirm:
+      'Publish the edition as it stands now? Readers will see this version, and it stays citable when you go on editing.',
     unpublish: 'Unpublish',
     settings: 'Edition Settings…',
     witnessList: 'Witnesses and Sigla…',
@@ -177,7 +191,8 @@ export const editor = {
     downloadTei: 'TEI (.xml)',
     deleteEdition: 'Delete Edition…',
     copyEdition: 'Make a Copy…',
-    deleteConfirm: 'Delete this edition? Its text, notes and history go with it. The witnesses and conjectures stay.',
+    deleteConfirm:
+      'Delete this edition? Its text, notes and history go with it. The witnesses and conjectures stay.',
     colourBySource: 'Colour words by source',
     toReview: (left: number, all: number) => `${left} of ${all} sites to review`,
     nextUnreviewed: 'Next to review',
@@ -190,7 +205,8 @@ export const editor = {
     savingText: 'Saving…',
     unsaved: (n: number) => `${n} unsaved`,
     saveError: (message: string) => `Not saved: ${message}`,
-    conflict: 'Someone else changed the edition; the changes that overlapped yours were kept and yours set aside.',
+    conflict:
+      'Someone else changed the edition; the changes that overlapped yours were kept and yours set aside.',
     agrees: 'This witness agrees with the edition here.',
     stillSaving: 'Still saving the last change; try again in a moment.',
     adoptFailed: 'That reading could not be adopted here; the text changed under it.',

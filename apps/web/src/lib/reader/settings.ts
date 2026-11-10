@@ -42,7 +42,9 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
 export const SETTINGS_KEY = 'varians.reader';
 
 function oneOf<T extends string>(value: unknown, options: readonly T[], fallback: T): T {
-  return typeof value === 'string' && (options as readonly string[]).includes(value) ? (value as T) : fallback;
+  return typeof value === 'string' && (options as readonly string[]).includes(value)
+    ? (value as T)
+    : fallback;
 }
 
 /** Settings from what storage holds: a JSON string, an object, or nothing. */
@@ -55,12 +57,19 @@ export function parseSettings(raw: unknown): ReaderSettings {
       source = null;
     }
   }
-  const s = (source && typeof source === 'object' && !Array.isArray(source) ? source : {}) as Record<string, unknown>;
+  const s = (
+    source && typeof source === 'object' && !Array.isArray(source) ? source : {}
+  ) as Record<string, unknown>;
   return {
     size: oneOf(s.size, TEXT_SIZES, DEFAULT_SETTINGS.size),
     apparatus: oneOf(s.apparatus, APPARATUS_PLACEMENTS, DEFAULT_SETTINGS.apparatus),
     form: s.form === 'positive' || s.form === 'negative' ? s.form : null,
-    interpretative: s.interpretative === 'apparatus' || s.interpretative === 'separate' || s.interpretative === 'none' ? s.interpretative : null,
+    interpretative:
+      s.interpretative === 'apparatus' ||
+      s.interpretative === 'separate' ||
+      s.interpretative === 'none'
+        ? s.interpretative
+        : null,
     labels: oneOf(s.labels, ['edition', 'every'] as const, DEFAULT_SETTINGS.labels),
     underline: typeof s.underline === 'boolean' ? s.underline : DEFAULT_SETTINGS.underline,
   };
@@ -70,7 +79,8 @@ export function parseSettings(raw: unknown): ReaderSettings {
 export function serializeSettings(settings: ReaderSettings): string {
   const out: Partial<ReaderSettings> = {};
   for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof ReaderSettings)[]) {
-    if (settings[key] !== DEFAULT_SETTINGS[key]) (out as Record<string, unknown>)[key] = settings[key];
+    if (settings[key] !== DEFAULT_SETTINGS[key])
+      (out as Record<string, unknown>)[key] = settings[key];
   }
   return JSON.stringify(out);
 }
@@ -80,7 +90,10 @@ export function isDefault(settings: ReaderSettings): boolean {
 }
 
 /** The apparatus conventions in force: the edition's, with the reader's choices over them. */
-export function effectiveConventions(edition: ApparatusConventions, settings: ReaderSettings): ApparatusConventions {
+export function effectiveConventions(
+  edition: ApparatusConventions,
+  settings: ReaderSettings,
+): ApparatusConventions {
   return {
     form: settings.form ?? edition.form,
     latin: edition.latin,
@@ -97,7 +110,10 @@ export function loadSettings(storage: Pick<Storage, 'getItem'> | undefined): Rea
   }
 }
 
-export function saveSettings(storage: Pick<Storage, 'setItem' | 'removeItem'> | undefined, settings: ReaderSettings): void {
+export function saveSettings(
+  storage: Pick<Storage, 'setItem' | 'removeItem'> | undefined,
+  settings: ReaderSettings,
+): void {
   try {
     if (isDefault(settings)) storage?.removeItem(SETTINGS_KEY);
     else storage?.setItem(SETTINGS_KEY, serializeSettings(settings));

@@ -1,6 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newId, type Token } from '@varians/core';
-import { createDatabase, referenceSchemes, transcriptions, users, witnesses, works, type Database } from '@varians/db';
+import {
+  createDatabase,
+  referenceSchemes,
+  transcriptions,
+  users,
+  witnesses,
+  works,
+  type Database,
+} from '@varians/db';
 import { eq, inArray } from 'drizzle-orm';
 import { ZipArchive } from 'archiver';
 import { createWriteStream, existsSync } from 'node:fs';
@@ -26,7 +34,8 @@ const SLUGS = ['venetus-a', 'venetus-b', 'laurentianus-c', 'townleianus-t'];
 const operator = { id: owner, role: 'administrator' as const };
 
 async function clean(): Promise<void> {
-  for (const w of await db.select({ id: works.id }).from(works).where(eq(works.slug, 'iliad'))) await removeWorkCompletely(db, w.id);
+  for (const w of await db.select({ id: works.id }).from(works).where(eq(works.slug, 'iliad')))
+    await removeWorkCompletely(db, w.id);
   await db.delete(witnesses).where(inArray(witnesses.slug, SLUGS));
 }
 
@@ -68,29 +77,49 @@ describe('packages', () => {
   it('carry a work as a bag with RO-Crate metadata that names every file, and come back by import', async () => {
     await clean();
     const sample = await seedSample(db, owner);
-    const pkg = await buildPackage(db, operator, [{ kind: 'work', workId: sample.workId }], { origin: 'https://varians.example' });
+    const pkg = await buildPackage(db, operator, [{ kind: 'work', workId: sample.workId }], {
+      origin: 'https://varians.example',
+    });
     try {
       const dir = await unpack(pkg.file);
       const opened = await openPackage(dir);
       expect(opened.bag).toBe(true);
       expect(opened.info['Varians-Format-Version']).toBe('2');
-      expect(opened.info['External-Identifier']).toBe(`https://varians.example/id/${sample.workId}`);
+      expect(opened.info['External-Identifier']).toBe(
+        `https://varians.example/id/${sample.workId}`,
+      );
       expect(opened.workDirs.map((d) => path.basename(d))).toEqual(['iliad']);
       const data = path.join(dir, 'iliad', 'data');
-      const crate = JSON.parse(await readFile(path.join(data, 'ro-crate-metadata.json'), 'utf8')) as { '@context': string; '@graph': { '@id': string; hasPart?: { '@id': string }[]; conformsTo?: { '@id': string } }[] };
+      const crate = JSON.parse(
+        await readFile(path.join(data, 'ro-crate-metadata.json'), 'utf8'),
+      ) as {
+        '@context': string;
+        '@graph': {
+          '@id': string;
+          hasPart?: { '@id': string }[];
+          conformsTo?: { '@id': string };
+        }[];
+      };
       expect(crate['@context']).toBe('https://w3id.org/ro/crate/1.2/context');
       const root = crate['@graph'].find((e) => e['@id'] === './')!;
       expect(root.conformsTo).toEqual({ '@id': 'https://varians.eu/formats/2/package' });
       const named = new Set(root.hasPart!.map((p) => p['@id']));
       const files = (await filesUnder(data)).filter((f) => f !== 'ro-crate-metadata.json');
       expect(files.filter((f) => !named.has(f))).toEqual([]);
-      expect(crate['@graph'].find((e) => e['@id'] === 'iliad/work.json')!.conformsTo).toEqual({ '@id': 'https://varians.eu/formats/2/work.schema.json' });
+      expect(crate['@graph'].find((e) => e['@id'] === 'iliad/work.json')!.conformsTo).toEqual({
+        '@id': 'https://varians.eu/formats/2/work.schema.json',
+      });
 
       await removeWorkCompletely(db, sample.workId);
       const report = await importPackage(db, pkg.file, owner);
       expect(report.refused).toBeNull();
       expect(report.bag).toBe(true);
-      expect(report.works[0]!.documents.map((d) => d.result)).toEqual(['created', 'created', 'created', 'created']);
+      expect(report.works[0]!.documents.map((d) => d.result)).toEqual([
+        'created',
+        'created',
+        'created',
+        'created',
+      ]);
     } finally {
       await pkg.cleanup();
     }
@@ -100,19 +129,38 @@ describe('packages', () => {
     await clean();
     const sample = await seedSample(db, owner);
     await publishEdition(db, sample.editionId, owner);
-    const [b] = await db.select().from(transcriptions).where(eq(transcriptions.witnessId, sample.witnessIds.B!));
+    const [b] = await db
+      .select()
+      .from(transcriptions)
+      .where(eq(transcriptions.witnessId, sample.witnessIds.B!));
     const word = b!.content.items.find((i): i is Token => i.kind === 'token')!;
-    await saveOps(db, 'transcription', b!.id, owner, b!.version, [{ t: 'set', id: word.id, fields: { form: 'later' } }]);
+    await saveOps(db, 'transcription', b!.id, owner, b!.version, [
+      { t: 'set', id: word.id, fields: { form: 'later' } },
+    ]);
     const pkg = await buildPackage(db, null, [{ kind: 'edition', editionId: sample.editionId }]);
     try {
       const dir = await unpack(pkg.file);
       const data = path.join(dir, 'iliad-1-working-edition', 'data', 'iliad');
-      const bJson = JSON.parse(await readFile(path.join(data, 'witnesses', 'venetus-b', 'transcriptions', 'iliad-1', 'transcription.json'), 'utf8')) as { version: number; content: { items: Token[] } };
+      const bJson = JSON.parse(
+        await readFile(
+          path.join(
+            data,
+            'witnesses',
+            'venetus-b',
+            'transcriptions',
+            'iliad-1',
+            'transcription.json',
+          ),
+          'utf8',
+        ),
+      ) as { version: number; content: { items: Token[] } };
       expect(bJson.version).toBe(b!.version);
       expect(bJson.content.items.find((i) => i.id === word.id)!.form).toBe(word.form);
       expect(await readdir(path.join(data, 'editions'))).toEqual(['iliad-1-working-edition']);
       // Review positions stay with the installation.
-      expect(existsSync(path.join(data, 'editions', 'iliad-1-working-edition', 'reviews.json'))).toBe(false);
+      expect(
+        existsSync(path.join(data, 'editions', 'iliad-1-working-edition', 'reviews.json')),
+      ).toBe(false);
     } finally {
       await pkg.cleanup();
     }
@@ -121,14 +169,25 @@ describe('packages', () => {
   it('carry a transcription with its work, witness and pages, and nothing else', async () => {
     await clean();
     const sample = await seedSample(db, owner);
-    const [a] = await db.select().from(transcriptions).where(eq(transcriptions.witnessId, sample.witnessIds.A!));
-    const pkg = await buildPackage(db, operator, [{ kind: 'transcription', transcriptionId: a!.id }]);
+    const [a] = await db
+      .select()
+      .from(transcriptions)
+      .where(eq(transcriptions.witnessId, sample.witnessIds.A!));
+    const pkg = await buildPackage(db, operator, [
+      { kind: 'transcription', transcriptionId: a!.id },
+    ]);
     try {
       const dir = await unpack(pkg.file);
       const data = path.join(dir, pkg.name, 'data', 'iliad');
       expect(await readdir(path.join(data, 'witnesses'))).toEqual(['venetus-a']);
       expect(existsSync(path.join(data, 'editions'))).toBe(false);
-      expect((JSON.parse(await readFile(path.join(data, 'conjectures.json'), 'utf8')) as { conjectures: unknown[] }).conjectures).toEqual([]);
+      expect(
+        (
+          JSON.parse(await readFile(path.join(data, 'conjectures.json'), 'utf8')) as {
+            conjectures: unknown[];
+          }
+        ).conjectures,
+      ).toEqual([]);
     } finally {
       await pkg.cleanup();
     }
@@ -155,8 +214,16 @@ describe('packages', () => {
     await archive.finalize();
     await done;
     const bytes = await readFile(evil);
-    await writeFile(evil, Buffer.from(bytes.toString('latin1').split('__/escaped.txt').join('../escaped.txt'), 'latin1'));
-    await expect(extractZip(evil, await mkdtemp(path.join(tmp, 'evil-')))).rejects.toBeInstanceOf(PackageError);
+    await writeFile(
+      evil,
+      Buffer.from(
+        bytes.toString('latin1').split('__/escaped.txt').join('../escaped.txt'),
+        'latin1',
+      ),
+    );
+    await expect(extractZip(evil, await mkdtemp(path.join(tmp, 'evil-')))).rejects.toBeInstanceOf(
+      PackageError,
+    );
     expect(existsSync(path.join(tmp, 'escaped.txt'))).toBe(false);
   }, 120_000);
 
@@ -164,26 +231,41 @@ describe('packages', () => {
     await clean();
     const sample = await seedSample(db, owner);
     await publishEdition(db, sample.editionId, owner);
-    const [b] = await db.select().from(transcriptions).where(eq(transcriptions.witnessId, sample.witnessIds.B!));
+    const [b] = await db
+      .select()
+      .from(transcriptions)
+      .where(eq(transcriptions.witnessId, sample.witnessIds.B!));
     const word = b!.content.items.find((i): i is Token => i.kind === 'token')!;
-    await saveOps(db, 'transcription', b!.id, owner, b!.version, [{ t: 'set', id: word.id, fields: { form: 'mine' } }]);
+    await saveOps(db, 'transcription', b!.id, owner, b!.version, [
+      { t: 'set', id: word.id, fields: { form: 'mine' } },
+    ]);
     const pkg = await buildPackage(db, operator, [{ kind: 'work', workId: sample.workId }]);
     try {
       // The owner's text moves on; a stranger then imports the package made before: nothing of the owner's changes.
-      const after = (await db.select().from(transcriptions).where(eq(transcriptions.id, b!.id)))[0]!;
-      await saveOps(db, 'transcription', b!.id, owner, after.version, [{ t: 'set', id: word.id, fields: { form: 'mine again' } }]);
-      const report = await importPackage(db, pkg.file, stranger, { actor: { id: stranger, role: 'member' } });
+      const after = (
+        await db.select().from(transcriptions).where(eq(transcriptions.id, b!.id))
+      )[0]!;
+      await saveOps(db, 'transcription', b!.id, owner, after.version, [
+        { t: 'set', id: word.id, fields: { form: 'mine again' } },
+      ]);
+      const report = await importPackage(db, pkg.file, stranger, {
+        actor: { id: stranger, role: 'member' },
+      });
       expect(report.refused).toBeNull();
       expect(report.works[0]!.documents.find((d) => d.id === b!.id)!.result).toBe('refused');
       const [still] = await db.select().from(transcriptions).where(eq(transcriptions.id, b!.id));
-      expect(still!.content.items.find((i) => i.id === word.id) as Token).toMatchObject({ form: 'mine again' });
+      expect(still!.content.items.find((i) => i.id === word.id) as Token).toMatchObject({
+        form: 'mine again',
+      });
       expect(still!.ownerId).toBe(owner);
 
       const before = process.env.DATA_LICENCE;
       process.env.DATA_LICENCE = 'CC-BY-4.0';
       try {
         const refused = await importPackage(db, pkg.file, owner);
-        expect(refused.refused).toBe('Records licensed under CC BY-SA 4.0 cannot be published under CC BY 4.0, the licence of this installation.');
+        expect(refused.refused).toBe(
+          'Records licensed under CC BY-SA 4.0 cannot be published under CC BY 4.0, the licence of this installation.',
+        );
       } finally {
         if (before === undefined) delete process.env.DATA_LICENCE;
         else process.env.DATA_LICENCE = before;

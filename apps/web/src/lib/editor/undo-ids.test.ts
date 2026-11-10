@@ -18,7 +18,8 @@ function editorState(text: string) {
   });
 }
 
-const ids = (state: EditorState) => state.field(modelField).model.view.stream.items.map((i) => i.id);
+const ids = (state: EditorState) =>
+  state.field(modelField).model.view.stream.items.map((i) => i.id);
 
 function run(state: EditorState, command: typeof undo): EditorState {
   let next = state;

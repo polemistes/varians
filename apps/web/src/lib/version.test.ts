@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { PACKAGE_VERSION, REPOSITORY_URL, VERSION, formatVersion, shortCommit, sourceUrl } from './version';
+import {
+  PACKAGE_VERSION,
+  REPOSITORY_URL,
+  VERSION,
+  formatVersion,
+  shortCommit,
+  sourceUrl,
+} from './version';
 
 describe('the version', () => {
   it('is the package version with the short commit as build metadata', () => {
@@ -23,7 +30,9 @@ describe('the version', () => {
   });
 
   it('is fixed at build from apps/web/package.json', () => {
-    const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string };
+    const pkg = JSON.parse(
+      readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
+    ) as { version: string };
     expect(PACKAGE_VERSION).toBe(pkg.version);
     expect(VERSION.startsWith(pkg.version)).toBe(true);
     expect(VERSION).toMatch(/^\d+\.\d+\.\d+(\+[0-9a-f]{7})?$/u);
@@ -37,7 +46,9 @@ describe('the source of the running version', () => {
   });
 
   it('is the installation’s own repository when SOURCE_URL names one', () => {
-    expect(sourceUrl('1a2b3c4', 'https://example.org/our-varians')).toBe('https://example.org/our-varians');
+    expect(sourceUrl('1a2b3c4', 'https://example.org/our-varians')).toBe(
+      'https://example.org/our-varians',
+    );
   });
 
   it('ignores a SOURCE_URL that is not a web address', () => {

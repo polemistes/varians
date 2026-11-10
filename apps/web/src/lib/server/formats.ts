@@ -30,7 +30,16 @@ const TYPES: Record<string, string> = {
 };
 
 /** Files at the top of docs/formats that are served; everything else there is the build's business. */
-const TOP_FILES = new Set(['specification.md', 'CHANGELOG.md', 'tei-subset.md', 'varians.odd', 'varians.rng', 'BUILD.md', 'LICENSE', 'README.md']);
+const TOP_FILES = new Set([
+  'specification.md',
+  'CHANGELOG.md',
+  'tei-subset.md',
+  'varians.odd',
+  'varians.rng',
+  'BUILD.md',
+  'LICENSE',
+  'README.md',
+]);
 
 export function isCurrentVersion(version: string): boolean {
   return version === String(FORMAT_VERSION);
@@ -44,7 +53,11 @@ export function isCurrentVersion(version: string): boolean {
 export function resolveFormatFile(relative: string): string | null {
   const root = formatsDir();
   if (!root) return null;
-  if (relative.includes('\0') || relative.split('/').some((part) => part === '..' || part.startsWith('.'))) return null;
+  if (
+    relative.includes('\0') ||
+    relative.split('/').some((part) => part === '..' || part.startsWith('.'))
+  )
+    return null;
   let target: string;
   if (/^[a-z0-9-]+\.schema\.json$/u.test(relative)) target = path.join(root, 'schemas', relative);
   else if (TOP_FILES.has(relative)) target = path.join(root, relative);
@@ -68,11 +81,23 @@ export async function readFormatFile(file: string): Promise<{ body: Buffer; type
 }
 
 /** The specification's Markdown and the schemas' names, for the page at /formats/<version>. */
-export async function specification(): Promise<{ markdown: string; schemas: string[]; hasOdd: boolean; hasExample: boolean } | null> {
+export async function specification(): Promise<{
+  markdown: string;
+  schemas: string[];
+  hasOdd: boolean;
+  hasExample: boolean;
+} | null> {
   const root = formatsDir();
   if (!root) return null;
   const markdown = await readFile(path.join(root, 'specification.md'), 'utf8').catch(() => null);
   if (markdown === null) return null;
-  const schemas = (await readdir(path.join(root, 'schemas')).catch(() => [] as string[])).filter((n) => n.endsWith('.schema.json')).sort();
-  return { markdown, schemas, hasOdd: existsSync(path.join(root, 'varians.odd')), hasExample: existsSync(path.join(root, 'example')) };
+  const schemas = (await readdir(path.join(root, 'schemas')).catch(() => [] as string[]))
+    .filter((n) => n.endsWith('.schema.json'))
+    .sort();
+  return {
+    markdown,
+    schemas,
+    hasOdd: existsSync(path.join(root, 'varians.odd')),
+    hasExample: existsSync(path.join(root, 'example')),
+  };
 }

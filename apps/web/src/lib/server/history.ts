@@ -49,7 +49,13 @@ import { applyWithAuthors } from '../history/authors.ts';
 import { deepEqual, diffStates } from '../history/diff.ts';
 import { positionIn, slimLine, touchedLines } from '../history/review.ts';
 import { walkBack } from '../history/states.ts';
-import { addCounts, countChanges, countOps, describeCounts, emptyCounts } from '../history/summary.ts';
+import {
+  addCounts,
+  countChanges,
+  countOps,
+  describeCounts,
+  emptyCounts,
+} from '../history/summary.ts';
 import {
   serializeDiff,
   type ChangeCounts,
@@ -66,7 +72,14 @@ import {
 import { revertOps, salvageOps, wordsOf } from '../history/undo.ts';
 import { historyStrings } from '../strings/history.ts';
 import { isDocumentKind, loadDocumentAccess, type DocumentAccess } from './document-access.ts';
-import { VersionConflict, documentAt, history as changesetLog, loadDocument, nameMoment, saveOps } from './documents/service.ts';
+import {
+  VersionConflict,
+  documentAt,
+  history as changesetLog,
+  loadDocument,
+  nameMoment,
+  saveOps,
+} from './documents/service.ts';
 import { conformed, transcriptionPageOrder } from './conform.ts';
 
 /** A pause longer than this ends a session. */
@@ -105,27 +118,45 @@ function toCore(row: ChangesetRow): Changeset {
   };
 }
 
-async function namesOf(db: Database, ids: Iterable<string | null | undefined>): Promise<Record<string, string>> {
+async function namesOf(
+  db: Database,
+  ids: Iterable<string | null | undefined>,
+): Promise<Record<string, string>> {
   const list = [...new Set([...ids].filter((id): id is string => !!id))];
   if (list.length === 0) return {};
   // Accounts and their persons share ids; persons without an account are named too.
-  const rows = await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, list));
+  const rows = await db
+    .select({ id: users.id, name: users.name })
+    .from(users)
+    .where(inArray(users.id, list));
   const found = Object.fromEntries(rows.map((r) => [r.id, r.name]));
   const rest = list.filter((id) => !(id in found));
-  if (rest.length) for (const p of await db.select({ id: persons.id, name: persons.name }).from(persons).where(inArray(persons.id, rest))) found[p.id] = p.name;
+  if (rest.length)
+    for (const p of await db
+      .select({ id: persons.id, name: persons.name })
+      .from(persons)
+      .where(inArray(persons.id, rest)))
+      found[p.id] = p.name;
   return found;
 }
 
-async function labelsOf(db: Database, ids: Iterable<string | null | undefined>): Promise<Record<string, string>> {
+async function labelsOf(
+  db: Database,
+  ids: Iterable<string | null | undefined>,
+): Promise<Record<string, string>> {
   const list = [...new Set([...ids].filter((id): id is string => !!id))];
   if (list.length === 0) return {};
-  const rows = await db.select({ id: segments.id, label: segments.label }).from(segments).where(inArray(segments.id, list));
+  const rows = await db
+    .select({ id: segments.id, label: segments.label })
+    .from(segments)
+    .where(inArray(segments.id, list));
   return Object.fromEntries(rows.map((r) => [r.id, r.label]));
 }
 
 function segmentIdsOf(items: Iterable<Item>): string[] {
   const out: string[] = [];
-  for (const item of items) if (item.kind !== 'break' && item.segment?.segmentId) out.push(item.segment.segmentId);
+  for (const item of items)
+    if (item.kind !== 'break' && item.segment?.segmentId) out.push(item.segment.segmentId);
   return out;
 }
 
@@ -141,7 +172,8 @@ function toMoment(row: Moment, people: Record<string, string>): HistoryMoment {
     kind: row.kind,
     number: row.number,
     createdBy: row.createdBy ?? row.personId,
-    createdByName: (row.createdBy ?? row.personId) ? personName(people, (row.createdBy ?? row.personId)!) : null,
+    createdByName:
+      (row.createdBy ?? row.personId) ? personName(people, (row.createdBy ?? row.personId)!) : null,
     at: row.at.toISOString(),
   };
 }
@@ -155,9 +187,16 @@ async function momentRows(db: Database, kind: DocumentKind, documentId: string):
 }
 
 /** The named moments of a document, newest first. */
-export async function momentsOf(db: Database, kind: DocumentKind, documentId: string): Promise<HistoryMoment[]> {
+export async function momentsOf(
+  db: Database,
+  kind: DocumentKind,
+  documentId: string,
+): Promise<HistoryMoment[]> {
   const rows = await momentRows(db, kind, documentId);
-  const people = await namesOf(db, rows.map((r) => r.createdBy ?? r.personId));
+  const people = await namesOf(
+    db,
+    rows.map((r) => r.createdBy ?? r.personId),
+  );
   return rows.map((r) => toMoment(r, people));
 }
 
@@ -174,7 +213,12 @@ export interface HistoryOptions {
  * counted from the difference between the text before and after it; the
  * named moments; the current version. Newest first.
  */
-export async function historyOf(db: Database, kind: DocumentKind, documentId: string, options: HistoryOptions = {}): Promise<DocumentHistory> {
+export async function historyOf(
+  db: Database,
+  kind: DocumentKind,
+  documentId: string,
+  options: HistoryOptions = {},
+): Promise<DocumentHistory> {
   const limit = options.limit ?? HISTORY_LIMIT;
   const doc = await loadDocument(db, kind, documentId);
   const rows = await changesetLog(db, kind, documentId, 0, limit + 1);
@@ -202,12 +246,17 @@ export async function historyOf(db: Database, kind: DocumentKind, documentId: st
   });
 
   const momentList = await momentRows(db, kind, documentId);
-  const people = await namesOf(db, [...log.map((c) => c.userId), ...momentList.map((m) => m.createdBy ?? m.personId)]);
+  const people = await namesOf(db, [
+    ...log.map((c) => c.userId),
+    ...momentList.map((m) => m.createdBy ?? m.personId),
+  ]);
   const countsOf = (c: Changeset) => perChangeset.get(c.id) ?? countOps(c.ops);
 
   const sessionList: HistorySession[] = grouped
     .map((s) => {
-      const counts = perSession.get(s.fromVersion) ?? s.changesets.reduce((sum, c) => addCounts(sum, countsOf(c)), emptyCounts());
+      const counts =
+        perSession.get(s.fromVersion) ??
+        s.changesets.reduce((sum, c) => addCounts(sum, countsOf(c)), emptyCounts());
       return {
         key: `s${s.fromVersion}`,
         userId: s.userId,
@@ -217,7 +266,14 @@ export async function historyOf(db: Database, kind: DocumentKind, documentId: st
         fromVersion: s.fromVersion,
         toVersion: s.toVersion,
         changesets: s.changesets
-          .map((c) => ({ id: c.id, version: c.version, at: c.at, userId: c.userId, ...(c.message ? { message: c.message } : {}), counts: countsOf(c) }))
+          .map((c) => ({
+            id: c.id,
+            version: c.version,
+            at: c.at,
+            userId: c.userId,
+            ...(c.message ? { message: c.message } : {}),
+            counts: countsOf(c),
+          }))
           .reverse(),
         counts,
         summary: describeCounts(counts, historyStrings),
@@ -249,7 +305,8 @@ export async function documentWithChanges(
   since?: number,
 ): Promise<DocumentAtVersion> {
   const doc = await loadDocument(db, kind, documentId);
-  if (!Number.isInteger(version) || version < 0 || version > doc.version) throw new HistoryError(404, 'No such version');
+  if (!Number.isInteger(version) || version < 0 || version > doc.version)
+    throw new HistoryError(404, 'No such version');
   const from = Math.min(Math.max(0, since ?? version - 1), version);
   const before = from === doc.version ? doc.content : await documentAt(db, kind, documentId, from);
   const rows =
@@ -257,11 +314,19 @@ export async function documentWithChanges(
       ? await db
           .select()
           .from(changesets)
-          .where(and(eq(changesets.documentKind, kind), eq(changesets.documentId, documentId), gt(changesets.version, from), lte(changesets.version, version)))
+          .where(
+            and(
+              eq(changesets.documentKind, kind),
+              eq(changesets.documentId, documentId),
+              gt(changesets.version, from),
+              lte(changesets.version, version),
+            ),
+          )
           .orderBy(asc(changesets.version))
       : [];
   const forward = rows.map(toCore);
-  const complete = forward.length === version - from && forward.every((c, i) => c.version === from + 1 + i);
+  const complete =
+    forward.length === version - from && forward.every((c, i) => c.version === from + 1 + i);
 
   let stream: Stream;
   let authors: Map<Id, string>;
@@ -271,7 +336,8 @@ export async function documentWithChanges(
     // A gap in the log: rebuild the state another way and name authors by the ids their operations touched.
     stream = await documentAt(db, kind, documentId, version);
     authors = new Map();
-    for (const c of forward) for (const op of c.ops) for (const id of touchedIds(op)) authors.set(id, c.userId);
+    for (const c of forward)
+      for (const op of c.ops) for (const id of touchedIds(op)) authors.set(id, c.userId);
   }
 
   const diff = diffStates(before, stream);
@@ -295,7 +361,16 @@ export async function documentWithChanges(
     namesOf(db, Object.values(authorOf)),
     labelsOf(db, segmentIdsOf([...stream.items, ...changedItems])),
   ]);
-  return { version, since: from, currentVersion: doc.version, stream, diff: serializeDiff(diff), authors: authorOf, people, labels };
+  return {
+    version,
+    since: from,
+    currentVersion: doc.version,
+    stream,
+    diff: serializeDiff(diff),
+    authors: authorOf,
+    people,
+    labels,
+  };
 }
 
 /** Give a version of a document a name. */
@@ -308,7 +383,8 @@ export async function addMoment(
   name: string,
 ): Promise<HistoryMoment> {
   const doc = await loadDocument(db, kind, documentId);
-  if (!Number.isInteger(version) || version < 0 || version > doc.version) throw new HistoryError(400, 'No such version');
+  if (!Number.isInteger(version) || version < 0 || version > doc.version)
+    throw new HistoryError(400, 'No such version');
   const trimmed = name.trim();
   if (!trimmed) throw new HistoryError(400, 'A moment needs a name');
   const id = await nameMoment(db, kind, documentId, version, trimmed, userId, 'named');
@@ -337,20 +413,36 @@ export async function revertTo(
   for (let attempt = 1; ; attempt++) {
     const doc = await loadDocument(db, kind, documentId);
     if (options.expectedVersion !== undefined && doc.version !== options.expectedVersion) {
-      throw new HistoryError(409, 'The document changed meanwhile', { currentVersion: doc.version });
+      throw new HistoryError(409, 'The document changed meanwhile', {
+        currentVersion: doc.version,
+      });
     }
-    if (!Number.isInteger(version) || version < 0 || version > doc.version) throw new HistoryError(404, 'No such version');
-    const at = version === doc.version ? doc.content : await documentAt(db, kind, documentId, version);
+    if (!Number.isInteger(version) || version < 0 || version > doc.version)
+      throw new HistoryError(404, 'No such version');
+    const at =
+      version === doc.version ? doc.content : await documentAt(db, kind, documentId, version);
     // A version from before a page was removed or the pages reordered comes back in the pages' present shape.
-    const target = kind === 'transcription' ? conformed(at, await transcriptionPageOrder(db, documentId)) : at;
-    if (deepEqual(target.items, doc.content.items)) return { version: doc.version, changesetId: null, unchanged: true };
+    const target =
+      kind === 'transcription' ? conformed(at, await transcriptionPageOrder(db, documentId)) : at;
+    if (deepEqual(target.items, doc.content.items))
+      return { version: doc.version, changesetId: null, unchanged: true };
     try {
-      const saved = await saveOps(db, kind, documentId, userId, doc.version, revertOps(doc.content, target), `brought back as of version ${version}`);
+      const saved = await saveOps(
+        db,
+        kind,
+        documentId,
+        userId,
+        doc.version,
+        revertOps(doc.content, target),
+        `brought back as of version ${version}`,
+      );
       return { version: saved.version, changesetId: saved.changesetId, unchanged: false };
     } catch (cause) {
       if (!(cause instanceof VersionConflict)) throw cause;
       if (options.expectedVersion !== undefined || attempt >= ATTEMPTS) {
-        throw new HistoryError(409, 'The document changed meanwhile', { currentVersion: cause.current.version });
+        throw new HistoryError(409, 'The document changed meanwhile', {
+          currentVersion: cause.current.version,
+        });
       }
     }
   }
@@ -380,12 +472,22 @@ export async function undoChangeset(
     .select()
     .from(changesets)
     // A changeset kept for its provenance and never applied here cannot be undone.
-    .where(and(eq(changesets.id, changesetId), eq(changesets.documentKind, kind), eq(changesets.documentId, documentId), isNotNull(changesets.version)));
+    .where(
+      and(
+        eq(changesets.id, changesetId),
+        eq(changesets.documentKind, kind),
+        eq(changesets.documentId, documentId),
+        isNotNull(changesets.version),
+      ),
+    );
   if (!row) throw new HistoryError(404, 'No such change');
   const target = toCore(row);
-  const message = options.reviewed ? `rejected version ${target.version}` : `undid version ${target.version}`;
+  const message = options.reviewed
+    ? `rejected version ${target.version}`
+    : `undid version ${target.version}`;
   const markReviewed = async () => {
-    if (options.reviewed && userId) await acceptChangesets(db, kind, documentId, userId, [target.id]);
+    if (options.reviewed && userId)
+      await acceptChangesets(db, kind, documentId, userId, [target.id]);
   };
 
   for (let attempt = 1; ; attempt++) {
@@ -394,15 +496,29 @@ export async function undoChangeset(
       await db
         .select()
         .from(changesets)
-        .where(and(eq(changesets.documentKind, kind), eq(changesets.documentId, documentId), gt(changesets.version, target.version)))
+        .where(
+          and(
+            eq(changesets.documentKind, kind),
+            eq(changesets.documentId, documentId),
+            gt(changesets.version, target.version),
+          ),
+        )
         .orderBy(asc(changesets.version))
     ).map(toCore);
-    const carried = [...target.ops, ...target.reverse, ...later.flatMap((c) => [...c.ops, ...c.reverse])];
+    const carried = [
+      ...target.ops,
+      ...target.reverse,
+      ...later.flatMap((c) => [...c.ops, ...c.reverse]),
+    ];
     const conflicts = undoConflicts(target, later);
-    if (conflicts.length && !force) return { ok: false, conflicts, words: wordsOf(conflicts, [doc.content], carried) };
+    if (conflicts.length && !force)
+      return { ok: false, conflicts, words: wordsOf(conflicts, [doc.content], carried) };
 
     const salvage = async () => {
-      const references = await Promise.all([documentAt(db, kind, documentId, target.version - 1), documentAt(db, kind, documentId, target.version)]);
+      const references = await Promise.all([
+        documentAt(db, kind, documentId, target.version - 1),
+        documentAt(db, kind, documentId, target.version),
+      ]);
       return salvageOps(doc.content, target.reverse, references);
     };
     let plan: { ops: typeof target.reverse; skipped: number } = { ops: target.reverse, skipped: 0 };
@@ -412,7 +528,12 @@ export async function undoChangeset(
         applyOps(doc.content, plan.ops);
       } catch (cause) {
         if (!(cause instanceof StreamError)) throw cause;
-        if (!force) return { ok: false, conflicts: cause.ids, words: wordsOf(cause.ids, [doc.content], carried) };
+        if (!force)
+          return {
+            ok: false,
+            conflicts: cause.ids,
+            words: wordsOf(cause.ids, [doc.content], carried),
+          };
         plan = await salvage();
       }
     }
@@ -424,10 +545,18 @@ export async function undoChangeset(
     try {
       const saved = await saveOps(db, kind, documentId, userId, doc.version, plan.ops, message);
       await markReviewed();
-      return { ok: true, version: saved.version, changesetId: saved.changesetId, skipped: plan.skipped };
+      return {
+        ok: true,
+        version: saved.version,
+        changesetId: saved.changesetId,
+        skipped: plan.skipped,
+      };
     } catch (cause) {
       if (!(cause instanceof VersionConflict)) throw cause;
-      if (attempt >= ATTEMPTS) throw new HistoryError(409, 'The document changed meanwhile', { currentVersion: cause.current.version });
+      if (attempt >= ATTEMPTS)
+        throw new HistoryError(409, 'The document changed meanwhile', {
+          currentVersion: cause.current.version,
+        });
     }
   }
 }
@@ -435,19 +564,40 @@ export async function undoChangeset(
 // Review
 
 function reviewKey(kind: DocumentKind, documentId: string, userId: string) {
-  return and(eq(reviewState.documentKind, kind), eq(reviewState.documentId, documentId), eq(reviewState.userId, userId));
+  return and(
+    eq(reviewState.documentKind, kind),
+    eq(reviewState.documentId, documentId),
+    eq(reviewState.userId, userId),
+  );
 }
 
 /** Where a person reviews a document from, and what they accepted since; the beginning when they never reviewed it. */
-export async function getReviewState(db: Database, kind: DocumentKind, documentId: string, userId: string): Promise<ReviewState> {
-  const [row] = await db.select().from(reviewState).where(reviewKey(kind, documentId, userId));
-  return row ? { fromVersion: row.fromVersion, accepted: row.accepted } : { fromVersion: 0, accepted: [] };
+export async function getReviewState(
+  db: Database,
+  kind: DocumentKind,
+  documentId: string,
+  userId: string,
+): Promise<ReviewState> {
+  const [row] = await db
+    .select()
+    .from(reviewState)
+    .where(reviewKey(kind, documentId, userId));
+  return row
+    ? { fromVersion: row.fromVersion, accepted: row.accepted }
+    : { fromVersion: 0, accepted: [] };
 }
 
 /** Review from another version: what was accepted at or before it no longer needs keeping. */
-export async function setReviewFrom(db: Database, kind: DocumentKind, documentId: string, userId: string, version: number): Promise<ReviewState> {
+export async function setReviewFrom(
+  db: Database,
+  kind: DocumentKind,
+  documentId: string,
+  userId: string,
+  version: number,
+): Promise<ReviewState> {
   const doc = await loadDocument(db, kind, documentId);
-  if (!Number.isInteger(version) || version < 0 || version > doc.version) throw new HistoryError(400, 'No such version');
+  if (!Number.isInteger(version) || version < 0 || version > doc.version)
+    throw new HistoryError(400, 'No such version');
   const current = await getReviewState(db, kind, documentId, userId);
   const kept = current.accepted.length
     ? (
@@ -487,7 +637,13 @@ export async function acceptChangesets(
         await db
           .select({ id: changesets.id })
           .from(changesets)
-          .where(and(eq(changesets.documentKind, kind), eq(changesets.documentId, documentId), inArray(changesets.id, changesetIds)))
+          .where(
+            and(
+              eq(changesets.documentKind, kind),
+              eq(changesets.documentId, documentId),
+              inArray(changesets.id, changesetIds),
+            ),
+          )
       ).map((r) => r.id)
     : [];
   if (valid.length) {
@@ -511,7 +667,12 @@ export async function acceptChangesets(
  * text: each with its author, what it added, removed and changed, the lines
  * it touched as they were and as they became, and whether it was accepted.
  */
-export async function reviewChanges(db: Database, kind: DocumentKind, documentId: string, userId: string): Promise<ReviewChanges> {
+export async function reviewChanges(
+  db: Database,
+  kind: DocumentKind,
+  documentId: string,
+  userId: string,
+): Promise<ReviewChanges> {
   const state = await getReviewState(db, kind, documentId, userId);
   const doc = await loadDocument(db, kind, documentId);
   const rows = await changesetLog(db, kind, documentId, state.fromVersion, REVIEW_LIMIT + 1);
@@ -566,9 +727,19 @@ export async function reviewChanges(db: Database, kind: DocumentKind, documentId
   }
 
   const segmentIds = found.flatMap((f) => [...f.before, ...f.after].map((l) => l.segmentId));
-  const [people, labels] = await Promise.all([namesOf(db, found.map((f) => f.userId)), labelsOf(db, segmentIds)]);
+  const [people, labels] = await Promise.all([
+    namesOf(
+      db,
+      found.map((f) => f.userId),
+    ),
+    labelsOf(db, segmentIds),
+  ]);
   const items: ReviewItem[] = found
-    .map((f) => ({ ...f, userName: personName(people, f.userId), summary: describeCounts(f.counts, historyStrings) }))
+    .map((f) => ({
+      ...f,
+      userName: personName(people, f.userId),
+      summary: describeCounts(f.counts, historyStrings),
+    }))
     .sort((a, b) => a.position - b.position || a.version - b.version);
   return {
     fromVersion: state.fromVersion,
@@ -597,12 +768,14 @@ export async function requireDocument(
   if (!isDocumentKind(kind)) error(404, 'No such document');
   const access = await loadDocumentAccess(locals.db, locals.user, kind, params.id ?? '');
   if (!access || !access.canView) error(404, 'No such document');
-  if (need === 'edit' && (!access.canEdit || !locals.user)) error(403, 'You may not edit this document');
+  if (need === 'edit' && (!access.canEdit || !locals.user))
+    error(403, 'You may not edit this document');
   return access;
 }
 
 /** A HistoryError as a JSON answer with its status; anything else is thrown on. */
 export function historyErrorResponse(cause: unknown): Response {
-  if (cause instanceof HistoryError) return json({ message: cause.message, ...cause.details }, { status: cause.status });
+  if (cause instanceof HistoryError)
+    return json({ message: cause.message, ...cause.details }, { status: cause.status });
   throw cause;
 }

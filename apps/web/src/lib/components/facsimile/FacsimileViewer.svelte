@@ -476,7 +476,11 @@
   });
 </script>
 
-<div class={`facsimile ${className}`} bind:this={root} onpointerdowncapture={(event) => (shiftHeld = event.shiftKey)}>
+<div
+  class={`facsimile ${className}`}
+  bind:this={root}
+  onpointerdowncapture={(event) => (shiftHeld = event.shiftKey)}
+>
   <div class="facsimile-stage" bind:this={stage}></div>
   {#if api && children}
     <div class="facsimile-layer">{@render children(api)}</div>

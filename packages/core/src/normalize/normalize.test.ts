@@ -15,7 +15,9 @@ describe('fold', () => {
 
   it('keeps accents unless told to strip them', () => {
     expect(fold('σφωε')).not.toBe(fold('σφῶε'));
-    expect(fold('σφωε', { ...greek.fold, stripDiacritics: true })).toBe(fold('σφῶε', { ...greek.fold, stripDiacritics: true }));
+    expect(fold('σφωε', { ...greek.fold, stripDiacritics: true })).toBe(
+      fold('σφῶε', { ...greek.fold, stripDiacritics: true }),
+    );
   });
 
   it('compares composed and decomposed Greek as equal', () => {
@@ -50,8 +52,12 @@ describe('proposeReadForm', () => {
   });
 
   it('expands an abbreviation', () => {
-    expect(proposeReadForm('ΚΣ', [{ kind: 'abbr', attrs: { expan: 'Κύριος' } }], greek)).toBe('Κύριος');
-    expect(proposeReadForm('ΙΗΣ', [{ kind: 'abbr', attrs: { expan: 'ΙΗΣΟΥΣ' }, from: 0, to: 3 }], greek)).toBe('ιησους');
+    expect(proposeReadForm('ΚΣ', [{ kind: 'abbr', attrs: { expan: 'Κύριος' } }], greek)).toBe(
+      'Κύριος',
+    );
+    expect(
+      proposeReadForm('ΙΗΣ', [{ kind: 'abbr', attrs: { expan: 'ΙΗΣΟΥΣ' }, from: 0, to: 3 }], greek),
+    ).toBe('ιησους');
   });
 
   it('reads Latin v and j as u and i', () => {

@@ -35,7 +35,11 @@
 
 <DropdownMenu.Root bind:open>
   <DropdownMenu.Trigger
-    class={[buttonClasses(triggerVariant, triggerSize), 'data-[state=open]:bg-sunken', triggerClass]}
+    class={[
+      buttonClasses(triggerVariant, triggerSize),
+      'data-[state=open]:bg-sunken',
+      triggerClass,
+    ]}
     aria-label={label}
   >
     {@render trigger()}

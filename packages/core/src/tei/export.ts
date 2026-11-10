@@ -106,7 +106,11 @@ export interface Contributor {
 export function respStmts(contributors: readonly Contributor[] | undefined): string {
   return (contributors ?? [])
     .map((c) => {
-      const ref = c.orcid ? ` ref="https://orcid.org/${escapeAttr(c.orcid)}"` : c.personId ? ` ref="person:${escapeAttr(c.personId)}"` : '';
+      const ref = c.orcid
+        ? ` ref="https://orcid.org/${escapeAttr(c.orcid)}"`
+        : c.personId
+          ? ` ref="person:${escapeAttr(c.personId)}"`
+          : '';
       return `<respStmt><resp>${escapeText(c.resp)}</resp><persName${ref}>${escapeText(c.name)}</persName></respStmt>`;
     })
     .join('');
@@ -120,7 +124,8 @@ export function encodingDesc(origin: string | undefined): string | null {
   if (!origin) return null;
   const base = origin.replace(/\/+$/u, '');
   const defs = RECORD_PREFIXES.map(
-    (ident) => `<prefixDef ident="${ident}" matchPattern="([0-9A-HJKMNP-TV-Z]{26})" replacementPattern="${escapeAttr(base)}/id/$1"/>`,
+    (ident) =>
+      `<prefixDef ident="${ident}" matchPattern="([0-9A-HJKMNP-TV-Z]{26})" replacementPattern="${escapeAttr(base)}/id/$1"/>`,
   ).join('');
   return `<encodingDesc><listPrefixDef>${defs}</listPrefixDef></encodingDesc>`;
 }
@@ -130,21 +135,32 @@ export function encodingDesc(origin: string | undefined): string | null {
  * is given (with its address as `target`), and the note on rights as a
  * statement of its own.
  */
-export function publicationStmt(licence: string | undefined, options: { licenceUrl?: string | undefined; rightsNote?: string | undefined; authority?: string | undefined } = {}): string {
+export function publicationStmt(
+  licence: string | undefined,
+  options: {
+    licenceUrl?: string | undefined;
+    rightsNote?: string | undefined;
+    authority?: string | undefined;
+  } = {},
+): string {
   const statements: string[] = [];
   if (licence && licence.trim() !== '') {
     const target = options.licenceUrl ? ` target="${escapeAttr(options.licenceUrl)}"` : '';
     statements.push(`<licence${target}>${escapeText(licence.trim())}</licence>`);
   }
-  if (options.rightsNote && options.rightsNote.trim() !== '') statements.push(`<licence>${escapeText(options.rightsNote.trim())}</licence>`);
+  if (options.rightsNote && options.rightsNote.trim() !== '')
+    statements.push(`<licence>${escapeText(options.rightsNote.trim())}</licence>`);
   const authority = escapeText((options.authority ?? 'Varians').trim() || 'Varians');
-  if (statements.length === 0) return `<publicationStmt><p>Exported from ${authority}.</p></publicationStmt>`;
+  if (statements.length === 0)
+    return `<publicationStmt><p>Exported from ${authority}.</p></publicationStmt>`;
   return `<publicationStmt><authority>${authority}</authority><availability>${statements.join('')}</availability></publicationStmt>`;
 }
 
 /** The sources a text states, as a bibliographic note in the source description; nothing when none. */
 export function sourcesBibl(sources: string | undefined): string | null {
-  return sources && sources.trim() !== '' ? `<bibl type="sources">${escapeText(sources.trim())}</bibl>` : null;
+  return sources && sources.trim() !== ''
+    ? `<bibl type="sources">${escapeText(sources.trim())}</bibl>`
+    : null;
 }
 
 const TEI_NS = 'http://www.tei-c.org/ns/1.0';
@@ -199,7 +215,16 @@ function header(input: TranscriptionExport): string[] {
     ...(input.contributors?.length ? indent(4, respStmts(input.contributors)) : []),
     ...indent(3, '</titleStmt>'),
   );
-  lines.push(...indent(3, publicationStmt(input.licence, { licenceUrl: input.licenceUrl, rightsNote: input.rightsNote, authority: input.authority })));
+  lines.push(
+    ...indent(
+      3,
+      publicationStmt(input.licence, {
+        licenceUrl: input.licenceUrl,
+        rightsNote: input.rightsNote,
+        authority: input.authority,
+      }),
+    ),
+  );
   lines.push(...indent(3, '<sourceDesc>'));
   const bibl = sourcesBibl(input.sources);
   if (input.witness) lines.push(...msDesc(input.witness, 4));
@@ -230,7 +255,11 @@ function msDesc(witness: ExportWitness, level: number): string[] {
   }
   // TEI's rule msId_minimal: an identifier without a place or library must not be empty or begin with
   // the siglum; the witness is then identified by its name (the siglum when it has none).
-  if (witness.settlement === undefined && witness.repository === undefined && witness.idno === undefined) {
+  if (
+    witness.settlement === undefined &&
+    witness.repository === undefined &&
+    witness.idno === undefined
+  ) {
     const name = witness.name ?? witness.siglum ?? 'Unidentified witness';
     lines.push(...indent(level + 2, elementXml('msName', undefined, name)));
   }
@@ -253,12 +282,19 @@ function msDesc(witness: ExportWitness, level: number): string[] {
       ),
     );
   }
-  const described = witness.material !== undefined || witness.extent !== undefined || witness.form !== undefined;
+  const described =
+    witness.material !== undefined || witness.extent !== undefined || witness.form !== undefined;
   const hands = witness.hands ?? [];
   if (described || hands.length > 0) {
     lines.push(...indent(level + 1, '<physDesc>'));
     if (described) {
-      lines.push(...indent(level + 2, witness.form ? `<objectDesc form="${witness.form}">` : '<objectDesc>', '  <supportDesc>'));
+      lines.push(
+        ...indent(
+          level + 2,
+          witness.form ? `<objectDesc form="${witness.form}">` : '<objectDesc>',
+          '  <supportDesc>',
+        ),
+      );
       if (witness.material !== undefined) {
         lines.push(
           ...indent(
@@ -276,7 +312,12 @@ function msDesc(witness: ExportWitness, level: number): string[] {
       for (const hand of hands) {
         const scope = hand.main ? (hands.length === 1 ? 'sole' : 'major') : 'minor';
         // xml:id is written by hand: the attribute writer takes plain names only.
-        lines.push(...indent(level + 3, `<handNote xml:id="${handXmlId(hand.id)}" n="${escapeAttr(hand.label)}" scope="${scope}">${escapeText(hand.description ?? '')}</handNote>`));
+        lines.push(
+          ...indent(
+            level + 3,
+            `<handNote xml:id="${handXmlId(hand.id)}" n="${escapeAttr(hand.label)}" scope="${scope}">${escapeText(hand.description ?? '')}</handNote>`,
+          ),
+        );
       }
       lines.push(...indent(level + 2, '</handDesc>'));
     }
@@ -469,7 +510,13 @@ function readingXml(mark: Mark, options: MarkWriteOptions = {}): string {
   return elementXml('rdg', attrs, typeof reading === 'string' ? reading : '');
 }
 
-function tokenXml(token: Token, words: boolean, regularizations: boolean, zones: string[], options: MarkWriteOptions = {}): string {
+function tokenXml(
+  token: Token,
+  words: boolean,
+  regularizations: boolean,
+  zones: string[],
+  options: MarkWriteOptions = {},
+): string {
   // A variant noted in the carrier is written around the words as an <app>, not as an element of the token.
   const marks = (token.marks ?? []).filter((m) => m.kind !== 'variant');
   let inner = markupToken(token.form, marks, options);
@@ -516,7 +563,9 @@ function writtenAttrs(mark: Mark, options: MarkWriteOptions): Mark['attrs'] {
  * handNote, the scribe at the main hand's, an unidentified other hand is
  * left unsaid, and a value as imported is written as it came.
  */
-export function handRefFor(hands: readonly ExportHand[] | undefined): (value: string) => string | undefined {
+export function handRefFor(
+  hands: readonly ExportHand[] | undefined,
+): (value: string) => string | undefined {
   const main = hands?.find((h) => h.main);
   return (value) => {
     if (value === 'scribe') return main ? `#${handXmlId(main.id)}` : undefined;
@@ -526,7 +575,11 @@ export function handRefFor(hands: readonly ExportHand[] | undefined): (value: st
   };
 }
 
-export function markupToken(form: string, marks: readonly Mark[], options: MarkWriteOptions = {}): string {
+export function markupToken(
+  form: string,
+  marks: readonly Mark[],
+  options: MarkWriteOptions = {},
+): string {
   const chars = Array.from(form);
   const length = chars.length;
   const before: string[] = [];
@@ -535,7 +588,8 @@ export function markupToken(form: string, marks: readonly Mark[], options: MarkW
   marks.forEach((mark, order) => {
     if (mark.from !== undefined && mark.to !== undefined && mark.from === mark.to)
       points.push(mark);
-    else if (POINT_KINDS.has(mark.kind) && mark.from === undefined) before.push(emptyElement(mark, options));
+    else if (POINT_KINDS.has(mark.kind) && mark.from === undefined)
+      before.push(emptyElement(mark, options));
     else {
       const from = Math.max(0, mark.from ?? 0);
       const to = Math.min(length, mark.to ?? length);

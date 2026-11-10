@@ -3,7 +3,14 @@
  * version the visitor may see, trimmed for the browser. Only types here, so
  * that components never import server modules.
  */
-import type { ApparatusConventions, Attachment, Collation, LayoutLine, Unit, VariantRelation } from '@varians/core';
+import type {
+  ApparatusConventions,
+  Attachment,
+  Collation,
+  LayoutLine,
+  Unit,
+  VariantRelation,
+} from '@varians/core';
 import type { EditionConventions } from '@varians/db';
 
 export interface ReaderSegment {

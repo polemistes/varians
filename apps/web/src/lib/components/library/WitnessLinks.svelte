@@ -26,7 +26,9 @@
 
   function detail(w: Item): string {
     const place = [w.settlement, w.repository].filter(Boolean).join(', ');
-    return [registry.witness.categories[w.category] ?? w.category, place, w.shelfmark].filter(Boolean).join(' · ');
+    return [registry.witness.categories[w.category] ?? w.category, place, w.shelfmark]
+      .filter(Boolean)
+      .join(' · ');
   }
 </script>
 
@@ -40,7 +42,9 @@
           <span class="block font-sans text-xs text-ink-muted">{detail(witness)}</span>
         </span>
         {#if action}
-          <span class="flex shrink-0 items-center gap-1 font-sans text-sm text-ink-soft group-hover:text-accent">
+          <span
+            class="flex shrink-0 items-center gap-1 font-sans text-sm text-ink-soft group-hover:text-accent"
+          >
             {action}<ArrowRight class="size-4" aria-hidden="true" />
           </span>
         {/if}

@@ -21,7 +21,13 @@
  * recomputed whenever a text changes and cached by a hash of its inputs.
  */
 
-import { agreementFold, archetypeLetters, fold as foldText, type FoldOptions, DEFAULT_FOLD } from '../normalize/fold.ts';
+import {
+  agreementFold,
+  archetypeLetters,
+  fold as foldText,
+  type FoldOptions,
+  DEFAULT_FOLD,
+} from '../normalize/fold.ts';
 import type { Id } from '../stream/items.ts';
 import type { Unit } from '../stream/words.ts';
 import { similarity } from './similarity.ts';
@@ -136,7 +142,11 @@ const GAP_UNIT = 0;
 const MISMATCH = -2;
 const INDEL = -1;
 
-export function collate(base: CollationText, witnesses: CollationText[], options: CollationOptions = {}): Collation {
+export function collate(
+  base: CollationText,
+  witnesses: CollationText[],
+  options: CollationOptions = {},
+): Collation {
   const fold = options.fold ?? DEFAULT_FOLD;
   const near = options.nearThreshold ?? 0.6;
   const reach = options.transpositionReach ?? 3;
@@ -145,11 +155,19 @@ export function collate(base: CollationText, witnesses: CollationText[], options
   const keys = new Map<Id, string[]>();
   const texts = [base, ...witnesses];
   for (const text of texts) {
-    bare.set(text.id, text.units.map((u) => (u.gap ? '' : foldText(u.text, { ...fold, stripDiacritics: true }))));
-    keys.set(text.id, text.units.map((u) => (u.gap ? '' : agreementFold(u.text, fold))));
+    bare.set(
+      text.id,
+      text.units.map((u) => (u.gap ? '' : foldText(u.text, { ...fold, stripDiacritics: true }))),
+    );
+    keys.set(
+      text.id,
+      text.units.map((u) => (u.gap ? '' : agreementFold(u.text, fold))),
+    );
   }
 
-  let columns: Column[] = base.units.map((_, i) => ({ cells: new Map([[base.id, { unitIndex: i }]]) }));
+  let columns: Column[] = base.units.map((_, i) => ({
+    cells: new Map([[base.id, { unitIndex: i }]]),
+  }));
   const absent: Id[] = [];
   const transpositions: { textId: Id; insertedColumn: number; omittedColumn: number }[] = [];
   // Witnesses that lack the whole segment: present without words, or with nothing but a gap.
@@ -166,16 +184,23 @@ export function collate(base: CollationText, witnesses: CollationText[], options
     const result = alignWitness(columns, witness, bare, near);
     columns = result.columns;
     markLacunae(columns, witness.id, witness.units);
-    for (const link of findTranspositions(columns, witness.id, base.id, bare)) transpositions.push(link);
+    for (const link of findTranspositions(columns, witness.id, base.id, bare))
+      transpositions.push(link);
   }
 
   // A text without the segment at all is absent, not omitting: it stands in no site.
   // A text that lacks the whole segment stands in one site of its own over all of it.
   const absentSet = new Set(absent);
   const present = texts.filter((t) => !absentSet.has(t.id) && !wanting.has(t.id));
-  const anchors = anchorColumns(columns, base.id, keys, present.map((t) => t.id));
+  const anchors = anchorColumns(
+    columns,
+    base.id,
+    keys,
+    present.map((t) => t.id),
+  );
   const sites = buildSites(columns, anchors, base, present, keys, bare, transpositions, reach);
-  if (wanting.size > 0 && base.units.some((u) => !u.gap)) sites.push(wantingSite(sites.length, columns.length, base, present, keys, omitting, lost));
+  if (wanting.size > 0 && base.units.some((u) => !u.gap))
+    sites.push(wantingSite(sites.length, columns.length, base, present, keys, omitting, lost));
   const sigla: Record<Id, string> = {};
   for (const text of texts) sigla[text.id] = text.siglum;
   return { columns, sites, anchors, baseId: base.id, absent, sigla };
@@ -198,7 +223,10 @@ function wantingSite(
   const words = base.units.filter((u) => !u.gap);
   const having: Reading = {
     text: words.map((u) => u.text).join(' '),
-    fold: base.units.map((u, i) => (u.gap ? '' : keyOf(keys, base.id, i))).filter((k) => k !== '').join(' '),
+    fold: base.units
+      .map((u, i) => (u.gap ? '' : keyOf(keys, base.id, i)))
+      .filter((k) => k !== '')
+      .join(' '),
     textIds: present.map((t) => t.id),
     sigla: present.map((t) => t.siglum),
     units: Object.fromEntries(present.map((t) => [t.id, t.units.filter((u) => !u.gap)] as const)),
@@ -216,7 +244,11 @@ function wantingSite(
     lacunose,
     base: false,
   });
-  const readings = [having, ...(omitting.length ? [lacking(omitting, false)] : []), ...(lost.length ? [lacking(lost, true)] : [])];
+  const readings = [
+    having,
+    ...(omitting.length ? [lacking(omitting, false)] : []),
+    ...(lost.length ? [lacking(lost, true)] : []),
+  ];
   return {
     index,
     columnFrom: 0,
@@ -396,7 +428,12 @@ function findTranspositions(
   return out;
 }
 
-function anchorColumns(columns: Column[], baseId: Id, keys: Map<Id, string[]>, presentIds: Id[]): number[] {
+function anchorColumns(
+  columns: Column[],
+  baseId: Id,
+  keys: Map<Id, string[]>,
+  presentIds: Id[],
+): number[] {
   const anchors: number[] = [];
   const present = new Set<Id>(presentIds);
   columns.forEach((column, index) => {
@@ -443,7 +480,8 @@ function buildSites(
     for (const textId of present) {
       if (textId === base.id) continue;
       const cell = column.cells.get(textId);
-      if (!cell || cell.lacunose || keyOf(keys, textId, cell.unitIndex) !== baseKey) out.add(textId);
+      if (!cell || cell.lacunose || keyOf(keys, textId, cell.unitIndex) !== baseKey)
+        out.add(textId);
     }
     return out;
   };
@@ -621,15 +659,25 @@ function buildSites(
       columnFrom: from,
       columnTo: to,
       baseFrom: baseIndexes.length ? baseIndexes[0]! : baseInsertionPoint(columns, from, base.id),
-      baseTo: baseIndexes.length ? baseIndexes[baseIndexes.length - 1]! + 1 : baseInsertionPoint(columns, from, base.id),
+      baseTo: baseIndexes.length
+        ? baseIndexes[baseIndexes.length - 1]! + 1
+        : baseInsertionPoint(columns, from, base.id),
       readings,
       kind: siteKindOf(readings),
     };
     const link = linked.get(siteIndex);
     if (link && link.size > 0) {
       // Find the site holding the other half, if the halves were not merged.
-      const other = transpositions.find((t) => link.has(t.textId) && (runOf(t.insertedColumn) === siteIndex || runOf(t.omittedColumn) === siteIndex));
-      const otherSite = other ? (runOf(other.insertedColumn) === siteIndex ? runOf(other.omittedColumn) : runOf(other.insertedColumn)) : siteIndex;
+      const other = transpositions.find(
+        (t) =>
+          link.has(t.textId) &&
+          (runOf(t.insertedColumn) === siteIndex || runOf(t.omittedColumn) === siteIndex),
+      );
+      const otherSite = other
+        ? runOf(other.insertedColumn) === siteIndex
+          ? runOf(other.omittedColumn)
+          : runOf(other.insertedColumn)
+        : siteIndex;
       site.transposition = { withSite: otherSite, textIds: [...link] };
     }
     sites.push(site);
@@ -650,7 +698,11 @@ function baseInsertionPoint(columns: Column[], column: number, baseId: Id): numb
  * The editor's word on the kind of some sites, by site key, put over the
  * classification by letters. A key that no longer names a site is ignored.
  */
-export function applySiteKinds(collation: Collation, baseUnits: Unit[], kinds: ReadonlyMap<string, SiteKind> | undefined): Collation {
+export function applySiteKinds(
+  collation: Collation,
+  baseUnits: Unit[],
+  kinds: ReadonlyMap<string, SiteKind> | undefined,
+): Collation {
   if (!kinds || kinds.size === 0) return collation;
   return {
     ...collation,
@@ -665,7 +717,8 @@ export function applySiteKinds(collation: Collation, baseUnits: Unit[], kinds: R
 export function siteKey(site: Site, baseUnits: Unit[]): string {
   if (site.baseTo > site.baseFrom) {
     const ids = new Set<string>();
-    for (let i = site.baseFrom; i < site.baseTo; i++) for (const id of baseUnits[i]?.tokenIds ?? []) ids.add(id);
+    for (let i = site.baseFrom; i < site.baseTo; i++)
+      for (const id of baseUnits[i]?.tokenIds ?? []) ids.add(id);
     // The site of the witnesses lacking the segment may cover the same words as another: it is told apart.
     return (site.wanting ? 'wanting:' : '') + [...ids].join(',');
   }

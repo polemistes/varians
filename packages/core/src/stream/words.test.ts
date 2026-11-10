@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { sequentialIds } from '../ids.ts';
 import type { Stream } from './items.ts';
 import { fromText } from './text.ts';
-import { lines, runsOfSegment, segmentIds, segmentRuns, segmentUnits, units, words } from './words.ts';
+import {
+  lines,
+  runsOfSegment,
+  segmentIds,
+  segmentRuns,
+  segmentUnits,
+  units,
+  words,
+} from './words.ts';
 
 function withSegments(): Stream {
   const s = fromText('μῆνιν ἄειδε θεὰ\nοὐλομένην ἣ\nπολλὰς δ᾽', { ids: sequentialIds() });
@@ -74,7 +82,10 @@ describe('units', () => {
 
   it('reads the variants noted in the carrier in place of the words they concern', () => {
     const s = fromText('a b c d e', { ids: sequentialIds() });
-    const variant = (group: string, reading: string) => ({ kind: 'variant', attrs: { group, reading, place: 'margin' } });
+    const variant = (group: string, reading: string) => ({
+      kind: 'variant',
+      attrs: { group, reading, place: 'margin' },
+    });
     (s.items[1] as { marks?: unknown }).marks = [variant('g1', 'x y z')];
     (s.items[2] as { marks?: unknown }).marks = [variant('g1', 'x y z')];
     (s.items[4] as { marks?: unknown }).marks = [{ kind: 'del' }];
@@ -83,13 +94,23 @@ describe('units', () => {
     expect(u[1]!.tokenIds).toEqual(['t2', 't3']);
     // The other states do not see the variant.
     expect(units(s, 0, s.items.length).map((x) => x.text)).toEqual(['a', 'b', 'c', 'd']);
-    expect(units(s, 0, s.items.length, 'original').map((x) => x.text)).toEqual(['a', 'b', 'c', 'd', 'e']);
+    expect(units(s, 0, s.items.length, 'original').map((x) => x.text)).toEqual([
+      'a',
+      'b',
+      'c',
+      'd',
+      'e',
+    ]);
   });
 
   it('reads nothing for a variant that leaves the words out, and keeps neighbouring variants apart', () => {
     const s = fromText('a b c d', { ids: sequentialIds() });
-    (s.items[1] as { marks?: unknown }).marks = [{ kind: 'variant', attrs: { group: 'g1', reading: '', place: 'interlinear' } }];
-    (s.items[2] as { marks?: unknown }).marks = [{ kind: 'variant', attrs: { group: 'g2', reading: 'q', place: 'margin' } }];
+    (s.items[1] as { marks?: unknown }).marks = [
+      { kind: 'variant', attrs: { group: 'g1', reading: '', place: 'interlinear' } },
+    ];
+    (s.items[2] as { marks?: unknown }).marks = [
+      { kind: 'variant', attrs: { group: 'g2', reading: 'q', place: 'margin' } },
+    ];
     expect(units(s, 0, s.items.length, 'variant').map((x) => x.text)).toEqual(['a', 'q', 'd']);
   });
 
@@ -107,7 +128,12 @@ describe('units', () => {
 
   it('keeps a gap as a unit of its own', () => {
     const s = fromText('a c', { ids: sequentialIds() });
-    s.items.splice(1, 0, { kind: 'object', id: 'g1', type: 'gap', attrs: { reason: 'lost', quantity: 3 } });
+    s.items.splice(1, 0, {
+      kind: 'object',
+      id: 'g1',
+      type: 'gap',
+      attrs: { reason: 'lost', quantity: 3 },
+    });
     const u = units(s, 0, 3);
     expect(u.map((x) => x.text)).toEqual(['a', '', 'c']);
     expect(u[1]!.gap?.id).toBe('g1');
@@ -134,7 +160,10 @@ describe('units: states by stage and by hand', () => {
     (s.items[1] as { marks?: unknown }).marks = [{ kind: 'add', attrs: { hand: 'h2', seq: 2 } }];
     (s.items[2] as { marks?: unknown }).marks = [{ kind: 'del', attrs: { hand: 'h1', seq: 1 } }];
     (s.items[3] as { marks?: unknown }).marks = [{ kind: 'del' }];
-    const text = (state: Parameters<typeof units>[3]) => units(s, 0, s.items.length, state).map((u) => u.text).join(' ');
+    const text = (state: Parameters<typeof units>[3]) =>
+      units(s, 0, s.items.length, state)
+        .map((u) => u.text)
+        .join(' ');
     expect(text('corrected')).toBe('a b');
     expect(text('original')).toBe('a c d');
     expect(text({ kind: 'stage', upTo: 1 })).toBe('a d');

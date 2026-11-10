@@ -20,7 +20,8 @@
   function worksOf(item: Item) {
     const list = item.assigned.map((w) => ({ slug: w.slug, title: w.title, n: w.segmentCount }));
     for (const work of [...item.works].reverse()) {
-      if (!list.some((w) => w.slug === work.slug)) list.unshift({ slug: work.slug, title: work.title, n: 0 });
+      if (!list.some((w) => w.slug === work.slug))
+        list.unshift({ slug: work.slug, title: work.title, n: 0 });
     }
     return list;
   }

@@ -113,11 +113,7 @@
 
 <div class="flex flex-col gap-4">
   {#if mode === 'create'}
-    <Field
-      label={registry.work.scheme}
-      error={error && !custom ? error : undefined}
-      required
-    >
+    <Field label={registry.work.scheme} error={error && !custom ? error : undefined} required>
       {#snippet children(control)}
         <Select
           {...control}

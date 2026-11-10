@@ -3,7 +3,11 @@ import { buildTimeline, compareOptions } from './timeline.ts';
 import type { HistoryMoment, HistorySession } from './types.ts';
 import { emptyCounts } from './summary.ts';
 
-const session = (fromVersion: number, toVersion: number, to = '2026-10-02T10:00:00Z'): HistorySession => ({
+const session = (
+  fromVersion: number,
+  toVersion: number,
+  to = '2026-10-02T10:00:00Z',
+): HistorySession => ({
   key: `s${fromVersion}`,
   userId: 'u',
   userName: 'U',
@@ -28,7 +32,10 @@ const moment = (id: string, version: number, at = '2026-10-02T11:00:00Z'): Histo
 });
 
 describe('buildTimeline', () => {
-  const timeline = buildTimeline([session(6, 9), session(4, 5), session(1, 3)], [moment('draft', 5), moment('start', 3)]);
+  const timeline = buildTimeline(
+    [session(6, 9), session(4, 5), session(1, 3)],
+    [moment('draft', 5), moment('start', 3)],
+  );
 
   it('lists sessions and moments newest first, a moment above the session it closes', () => {
     expect(timeline.map((e) => e.key)).toEqual(['s6', 'mdraft', 's4', 'mstart', 's1']);

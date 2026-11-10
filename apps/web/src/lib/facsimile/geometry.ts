@@ -55,7 +55,9 @@ export function geometryToSelector(geometry: ZoneGeometry, size: ImageSize): Sha
     const w = r.w * W;
     const h = r.h * H;
     const rot = ((geometry.rotate ?? 0) * Math.PI) / 180;
-    const bounds = rot ? boundsOf(rotatedCorners(x, y, w, h, rot)) : { minX: x, minY: y, maxX: x + w, maxY: y + h };
+    const bounds = rot
+      ? boundsOf(rotatedCorners(x, y, w, h, rot))
+      : { minX: x, minY: y, maxX: x + w, maxY: y + h };
     return {
       type: 'RECTANGLE' as ShapeType.RECTANGLE,
       geometry: rot ? { x, y, w, h, rot, bounds } : { x, y, w, h, bounds },
@@ -120,7 +122,12 @@ export function selectorToGeometry(selector: Shape, size: ImageSize): ZoneGeomet
       const h = g.h as number;
       if (!(w > 0 && h > 0)) return null;
       const rot = (g.rot as number | undefined) ?? 0;
-      const rect = { x: round(x / size.width), y: round(y / size.height), w: round(w / size.width), h: round(h / size.height) };
+      const rect = {
+        x: round(x / size.width),
+        y: round(y / size.height),
+        w: round(w / size.width),
+        h: round(h / size.height),
+      };
       // A turned rectangle stays a rectangle, with its turn in degrees clockwise.
       if (Math.abs(rot) > 1e-6) return { rect, rotate: normalDegrees((rot * 180) / Math.PI) };
       return { rect: rectFromBounds({ minX: x, minY: y, maxX: x + w, maxY: y + h }, size) };

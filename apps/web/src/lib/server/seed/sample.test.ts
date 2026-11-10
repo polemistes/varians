@@ -1,6 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newId, toText } from '@varians/core';
-import { createDatabase, referenceSchemes, users, witnesses, works, type Database } from '@varians/db';
+import {
+  createDatabase,
+  referenceSchemes,
+  users,
+  witnesses,
+  works,
+  type Database,
+} from '@varians/db';
 import { eq, inArray } from 'drizzle-orm';
 import pg from 'pg';
 import { collateEdition, loadEditionContext } from '../collation.ts';
@@ -22,7 +29,9 @@ async function cleanup() {
 beforeAll(async () => {
   ({ db, pool } = createDatabase(url));
   await cleanup();
-  await db.insert(users).values({ id: userId, email: `${userId}@test`, name: 'Seeder', passwordHash: 'x' });
+  await db
+    .insert(users)
+    .values({ id: userId, email: `${userId}@test`, name: 'Seeder', passwordHash: 'x' });
 });
 
 afterAll(async () => {
@@ -38,18 +47,28 @@ describe('seedSample', () => {
     expect(result.editionId).not.toBe('');
     const context = await loadEditionContext(db, result.editionId);
     expect(context.sigla.map((s) => s.siglum)).toEqual(['A', 'B', 'C', 'T']);
-    expect(toText(context.edition.content).startsWith('μῆνιν ἄειδε θεὰ Πηληϊάδεω Ἀχιλῆος')).toBe(true);
+    expect(toText(context.edition.content).startsWith('μῆνιν ἄειδε θεὰ Πηληϊάδεω Ἀχιλῆος')).toBe(
+      true,
+    );
     const collations = await collateEdition(db, context);
     expect(collations.size).toBe(10);
-    const labels = await db.query.segments.findMany({ where: (t, { eq }) => eq(t.workId, result.workId) });
+    const labels = await db.query.segments.findMany({
+      where: (t, { eq }) => eq(t.workId, result.workId),
+    });
     const labelOf = new Map(labels.map((s) => [s.id, s.label]));
     const lines: string[] = [];
     for (const [segmentId, collation] of collations) {
-      lines.push(...formatApparatus(apparatusEntries(collation, labelOf.get(segmentId)!, {}, undefined, ['A', 'B', 'C'])));
+      lines.push(
+        ...formatApparatus(
+          apparatusEntries(collation, labelOf.get(segmentId)!, {}, undefined, ['A', 'B', 'C']),
+        ),
+      );
     }
     expect(lines).toContain('1.2 μυρί᾽ A C : μυρία B');
     expect(lines).toContain('1.2 ἄλγε᾽ ἔθηκε A C : ἄλγεα θῆκε B');
-    expect(lines.some((l) => l.startsWith('1.9 Λητοῦς καὶ Διὸς A C : Διὸς καὶ Λητοῦς B'))).toBe(true);
+    expect(lines.some((l) => l.startsWith('1.9 Λητοῦς καὶ Διὸς A C : Διὸς καὶ Λητοῦς B'))).toBe(
+      true,
+    );
     expect(lines.some((l) => l.startsWith('1.5') && l.includes('lac. C'))).toBe(true);
     // B and C lack line 6 within the stretch they cover: one site over the whole line, which they omit.
     const six = [...collations.entries()].find(([id]) => labelOf.get(id) === '1.6')![1];

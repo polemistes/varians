@@ -12,7 +12,11 @@ import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ locals, params, request, getClientAddress }) => {
   if (!limits.recordsByAddress.take(getClientAddress())) error(429, 'Too many requests');
-  const asJson = params.id.endsWith('.json') || (request.headers.get('accept') ?? '').split(',').some((t) => t.trim().startsWith('application/json'));
+  const asJson =
+    params.id.endsWith('.json') ||
+    (request.headers.get('accept') ?? '')
+      .split(',')
+      .some((t) => t.trim().startsWith('application/json'));
   const id = params.id.replace(/\.json$/u, '');
   const resolved = await resolveId(locals.db, id);
   if (!resolved) error(404, 'Not found');

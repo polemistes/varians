@@ -25,7 +25,8 @@ export const GET: RequestHandler = async ({ locals, params }) => {
   // Writing an archive is heavy work: a few downloads an hour per person.
   if (!limits.archiveByUser.take(user.id)) error(429, t.work.archiveTooOften);
 
-  if (!isAdministrator(user)) redirect(308, `/works/${encodeURIComponent(params.slug)}/package.zip`);
+  if (!isAdministrator(user))
+    redirect(308, `/works/${encodeURIComponent(params.slug)}/package.zip`);
   let zip: Readable;
   try {
     zip = await archiveZip(locals.db, record.work, archiveRoot(), storageRoot());

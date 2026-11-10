@@ -62,7 +62,10 @@ export function rotatedCorners(rect: Rect, rotate: number, aspect: number): Poin
   const cy = (rect.y + rect.h / 2) * aspect;
   const hw = rect.w / 2;
   const hh = (rect.h * aspect) / 2;
-  const corner = (dx: number, dy: number): Point => [cx + dx * cos - dy * sin, (cy + dx * sin + dy * cos) / aspect];
+  const corner = (dx: number, dy: number): Point => [
+    cx + dx * cos - dy * sin,
+    (cy + dx * sin + dy * cos) / aspect,
+  ];
   return [corner(-hw, -hh), corner(hw, -hh), corner(hw, hh), corner(-hw, hh)];
 }
 

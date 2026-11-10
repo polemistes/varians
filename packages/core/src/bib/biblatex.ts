@@ -102,9 +102,17 @@ export function parseBiblatex(text: string): BiblatexParse {
     const key = readWhile(cursor, (c) => c !== ',' && c !== close && !/\s/u.test(c));
     skipSpace(cursor);
     if (text[cursor.pos] === ',') cursor.pos++;
-    const fields = readFields(cursor, close, macros, warnings, key === '' ? `@${name}` : `"${key}"`);
+    const fields = readFields(
+      cursor,
+      close,
+      macros,
+      warnings,
+      key === '' ? `@${name}` : `"${key}"`,
+    );
     if (fields === null) {
-      warnings.push(`An unclosed @${name} entry${key === '' ? '' : ` "${key}"`} at the end of the file was ignored.`);
+      warnings.push(
+        `An unclosed @${name} entry${key === '' ? '' : ` "${key}"`} at the end of the file was ignored.`,
+      );
       break;
     }
     if (key === '') {
@@ -121,7 +129,8 @@ export function parseBiblatex(text: string): BiblatexParse {
       const lower = rawName.toLowerCase();
       const fieldName = FIELD_ALIASES[lower] ?? lower;
       if (value.trim() === '') continue;
-      if (record[fieldName] !== undefined) warnings.push(`"${key}": the field ${fieldName} is given twice; the last value is kept.`);
+      if (record[fieldName] !== undefined)
+        warnings.push(`"${key}": the field ${fieldName} is given twice; the last value is kept.`);
       record[fieldName] = value.trim();
     }
     if (typeField !== null && record.type === undefined) record.type = typeField;
@@ -177,7 +186,9 @@ function readFields(
     const name = readWhile(cursor, (c) => !/[\s=,{}()"#]/u.test(c));
     skipSpace(cursor);
     if (name === '' || cursor.text[cursor.pos] !== '=') {
-      warnings.push(`${where}: unreadable text before "${cursor.text.slice(cursor.pos, cursor.pos + 20).trim()}" was skipped.`);
+      warnings.push(
+        `${where}: unreadable text before "${cursor.text.slice(cursor.pos, cursor.pos + 20).trim()}" was skipped.`,
+      );
       if (!skipToComma(cursor, close)) return null;
       continue;
     }
@@ -208,7 +219,13 @@ function skipToComma(cursor: Cursor, close: string): boolean {
 }
 
 /** A value: braced, quoted or bare, or several of those joined with `#`. Whitespace inside is collapsed. */
-function readValue(cursor: Cursor, close: string, macros: Map<string, string>, warnings: string[], where: string): string {
+function readValue(
+  cursor: Cursor,
+  close: string,
+  macros: Map<string, string>,
+  warnings: string[],
+  where: string,
+): string {
   const parts: string[] = [];
   while (true) {
     skipSpace(cursor);
@@ -227,7 +244,10 @@ function readValue(cursor: Cursor, close: string, macros: Map<string, string>, w
         parts.push(bare);
       } else {
         const macro = macros.get(bare.toLowerCase());
-        if (macro === undefined) warnings.push(`${where}: the macro ${bare} is not defined; its name is used as the value.`);
+        if (macro === undefined)
+          warnings.push(
+            `${where}: the macro ${bare} is not defined; its name is used as the value.`,
+          );
         parts.push(macro ?? bare);
       }
     }
@@ -387,7 +407,9 @@ function titleWords(fields: Record<string, string>): string {
   if (short !== undefined && short.trim() !== '') return latexToUnicode(short);
   const title = fields.title;
   if (title === undefined || title.trim() === '') return '';
-  const head = latexToUnicode(title).split(/[:.;?!]/u)[0]!.trim();
+  const head = latexToUnicode(title)
+    .split(/[:.;?!]/u)[0]!
+    .trim();
   const words = head.split(/\s+/u).filter((w) => w !== '');
   return (words.length <= 4 ? words : words.slice(0, 3)).join(' ');
 }
@@ -433,7 +455,9 @@ export function parseNames(value: string): Name[] {
       names.push({ family: unbrace(item), given: '' });
       continue;
     }
-    let vonStart = words.findIndex((word, i) => i < words.length - 1 && /^\p{Ll}/u.test(unbrace(word)));
+    let vonStart = words.findIndex(
+      (word, i) => i < words.length - 1 && /^\p{Ll}/u.test(unbrace(word)),
+    );
     if (vonStart < 0) vonStart = words.length - 1;
     names.push({
       family: unbrace(words.slice(vonStart).join(' ')),
@@ -520,11 +544,17 @@ const LETTERS: Record<string, string> = {
 /** LaTeX accents and special letters as Unicode, braces removed: `M{\"u}ller` becomes `Müller`. For display only. */
 export function latexToUnicode(text: string): string {
   const accented = text
-    .replace(/\\([`'^~=."Hrvcdkbu])\{?(\\?[ij]|\p{L})\}?/gu, (_, accent: string, letter: string) => {
-      const base = letter === '\\i' ? 'i' : letter === '\\j' ? 'j' : letter;
-      return (base + (ACCENTS[accent] ?? '')).normalize('NFC');
-    })
-    .replace(/\\(ss|ae|AE|oe|OE|aa|AA|dh|DH|th|TH|[oOlLij])(?![A-Za-z])\s?/gu, (_, name: string) => LETTERS[name] ?? name)
+    .replace(
+      /\\([`'^~=."Hrvcdkbu])\{?(\\?[ij]|\p{L})\}?/gu,
+      (_, accent: string, letter: string) => {
+        const base = letter === '\\i' ? 'i' : letter === '\\j' ? 'j' : letter;
+        return (base + (ACCENTS[accent] ?? '')).normalize('NFC');
+      },
+    )
+    .replace(
+      /\\(ss|ae|AE|oe|OE|aa|AA|dh|DH|th|TH|[oOlLij])(?![A-Za-z])\s?/gu,
+      (_, name: string) => LETTERS[name] ?? name,
+    )
     .replace(/\\&/gu, '&')
     .replace(/~/gu, ' ')
     .replace(/\\emph|\\textit|\\textbf/gu, '');

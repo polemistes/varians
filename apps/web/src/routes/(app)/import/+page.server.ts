@@ -6,7 +6,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { importPackage, WEB_LIMITS, type PackageImportReport } from '$lib/server/archive/import-package';
+import {
+  importPackage,
+  WEB_LIMITS,
+  type PackageImportReport,
+} from '$lib/server/archive/import-package';
 import { limits } from '$lib/server/rate-limit';
 import type { ConflictPolicy } from '$lib/server/archive/import';
 import { requireUser } from '$lib/server/guards';
@@ -42,7 +46,12 @@ function view(report: PackageImportReport) {
     dryRun: report.dryRun,
     works: report.works.map((w) => ({
       workId: w.workId,
-      documents: w.documents.map((d) => ({ kind: d.kind, name: d.name, result: d.result, segments: d.segments })),
+      documents: w.documents.map((d) => ({
+        kind: d.kind,
+        name: d.name,
+        result: d.result,
+        segments: d.segments,
+      })),
       matches: w.matches,
       possibleDuplicates: w.possibleDuplicates,
       createdPersons: w.persons.createdNames,
@@ -67,10 +76,24 @@ export const actions: Actions = {
     await mkdir(UPLOADS, { recursive: true, mode: 0o700 });
     const token = randomBytes(16).toString('hex');
     const target = uploadPath(user.id, token)!;
-    await pipeline(Readable.fromWeb(file.stream() as import('node:stream/web').ReadableStream), createWriteStream(target, { mode: 0o600 }));
-    const report = await importPackage(locals.db, target, user.id, { dryRun: true, actor: user, onConflict: 'report', source: file.name, limits: WEB_LIMITS });
+    await pipeline(
+      Readable.fromWeb(file.stream() as import('node:stream/web').ReadableStream),
+      createWriteStream(target, { mode: 0o600 }),
+    );
+    const report = await importPackage(locals.db, target, user.id, {
+      dryRun: true,
+      actor: user,
+      onConflict: 'report',
+      source: file.name,
+      limits: WEB_LIMITS,
+    });
     if (report.refused) await rm(target, { force: true });
-    return { stage: 'preview' as const, token: report.refused ? null : token, name: file.name, report: view(report) };
+    return {
+      stage: 'preview' as const,
+      token: report.refused ? null : token,
+      name: file.name,
+      report: view(report),
+    };
   },
 
   run: async ({ request, locals }) => {
@@ -82,8 +105,18 @@ export const actions: Actions = {
     const policy: ConflictPolicy = chosen === 'keep' || chosen === 'take' ? chosen : 'report';
     if (!limits.importsByUser.take(user.id)) return fail(429, { error: site.import.tooOften });
     try {
-      const report = await importPackage(locals.db, target, user.id, { actor: user, onConflict: policy, source: String(form.get('name') ?? 'a package'), limits: WEB_LIMITS });
-      return { stage: 'done' as const, token: null, name: String(form.get('name') ?? ''), report: view(report) };
+      const report = await importPackage(locals.db, target, user.id, {
+        actor: user,
+        onConflict: policy,
+        source: String(form.get('name') ?? 'a package'),
+        limits: WEB_LIMITS,
+      });
+      return {
+        stage: 'done' as const,
+        token: null,
+        name: String(form.get('name') ?? ''),
+        report: view(report),
+      };
     } finally {
       await rm(target, { force: true });
     }

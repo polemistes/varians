@@ -33,7 +33,10 @@ function pct(v: number): string {
 }
 
 /** The pixels of a region of the page (fractions of the image), at most MAX_SIDE on its longer side. */
-export async function regionPixels(image: { kind: 'file' | 'iiif'; url: string }, region: Rect): Promise<ImageData | null> {
+export async function regionPixels(
+  image: { kind: 'file' | 'iiif'; url: string },
+  region: Rect,
+): Promise<ImageData | null> {
   try {
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d', { willReadFrequently: true });
@@ -62,10 +65,18 @@ export async function regionPixels(image: { kind: 'file' | 'iiif'; url: string }
 }
 
 /** The text lines inside a box of the page, as fractions of the whole image; null when the image cannot be read. */
-export async function linesInBox(image: { kind: 'file' | 'iiif'; url: string } | null, box: Rect): Promise<Rect[] | null> {
+export async function linesInBox(
+  image: { kind: 'file' | 'iiif'; url: string } | null,
+  box: Rect,
+): Promise<Rect[] | null> {
   if (!image) return null;
   const pixels = await regionPixels(image, box);
   if (!pixels) return null;
   const found = detectLines(pixels);
-  return found.map((r) => ({ x: box.x + r.x * box.w, y: box.y + r.y * box.h, w: r.w * box.w, h: r.h * box.h }));
+  return found.map((r) => ({
+    x: box.x + r.x * box.w,
+    y: box.y + r.y * box.h,
+    w: r.w * box.w,
+    h: r.h * box.h,
+  }));
 }

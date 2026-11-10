@@ -59,13 +59,20 @@ const ALIASES: Record<string, string> = {
   'AGPL-3.0+': 'AGPL-3.0-or-later',
 };
 
-type Node = { op: 'or' | 'and'; left: Node; right: Node } | { op: 'id'; id: string; exception?: string };
+type Node =
+  | { op: 'or' | 'and'; left: Node; right: Node }
+  | { op: 'id'; id: string; exception?: string };
 
 class ParseError extends Error {}
 
 /** Parses an SPDX licence expression: identifiers, WITH, AND, OR and parentheses. */
 export function parseExpression(expression: string): Node {
-  const tokens = expression.replace(/\(/gu, ' ( ').replace(/\)/gu, ' ) ').trim().split(/\s+/u).filter(Boolean);
+  const tokens = expression
+    .replace(/\(/gu, ' ( ')
+    .replace(/\)/gu, ' ) ')
+    .trim()
+    .split(/\s+/u)
+    .filter(Boolean);
   let at = 0;
   const peek = () => tokens[at];
   const next = () => tokens[at++];
@@ -113,7 +120,9 @@ function allowedNode(node: Node): boolean {
   if (node.op === 'or') return allowedNode(node.left) || allowedNode(node.right);
   if (node.op === 'and') return allowedNode(node.left) && allowedNode(node.right);
   const id = ALIASES[node.id] ?? node.id;
-  return ALLOWED.has(id) && (node.exception === undefined || ALLOWED_EXCEPTIONS.has(node.exception));
+  return (
+    ALLOWED.has(id) && (node.exception === undefined || ALLOWED_EXCEPTIONS.has(node.exception))
+  );
 }
 
 /** Whether a licence statement allows use in Varians. Unknown or unparseable statements do not. */
@@ -150,7 +159,11 @@ export function licenceProblems(report: LicenceReport): Problem[] {
     for (const pkg of packages) {
       const licence = pkg.license ?? group;
       if (PACKAGE_EXCEPTIONS[pkg.name] || licenceAllowed(licence)) continue;
-      problems.push({ name: pkg.name, versions: pkg.versions ?? [], licence: licence || 'Unknown' });
+      problems.push({
+        name: pkg.name,
+        versions: pkg.versions ?? [],
+        licence: licence || 'Unknown',
+      });
     }
   }
   return problems.sort((a, b) => a.name.localeCompare(b.name));
@@ -161,7 +174,11 @@ function main(): void {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
   const text = given
     ? readFileSync(given, 'utf8')
-    : execFileSync('pnpm', ['licenses', 'list', '--json', '--prod'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    : execFileSync('pnpm', ['licenses', 'list', '--json', '--prod'], {
+        cwd: root,
+        encoding: 'utf8',
+        maxBuffer: 64 * 1024 * 1024,
+      });
   const report = JSON.parse(text) as LicenceReport;
   const count = Object.values(report).reduce((n, list) => n + list.length, 0);
   const problems = licenceProblems(report);
@@ -169,12 +186,18 @@ function main(): void {
     console.log(`${licence}: ${packages.length}`);
   }
   if (problems.length > 0) {
-    console.error(`\n${problems.length} production ${problems.length === 1 ? 'dependency has' : 'dependencies have'} a licence not known to be compatible with AGPL-3.0-or-later:`);
+    console.error(
+      `\n${problems.length} production ${problems.length === 1 ? 'dependency has' : 'dependencies have'} a licence not known to be compatible with AGPL-3.0-or-later:`,
+    );
     for (const p of problems) console.error(`  ${p.name}@${p.versions.join(', ')}: ${p.licence}`);
-    console.error('\nReplace the dependency, or, after checking its licence, add the licence to ALLOWED or the package to PACKAGE_EXCEPTIONS in apps/web/scripts/check-licences.ts.');
+    console.error(
+      '\nReplace the dependency, or, after checking its licence, add the licence to ALLOWED or the package to PACKAGE_EXCEPTIONS in apps/web/scripts/check-licences.ts.',
+    );
     process.exit(1);
   }
-  console.log(`\nAll ${count} production dependencies have licences compatible with AGPL-3.0-or-later.`);
+  console.log(
+    `\nAll ${count} production dependencies have licences compatible with AGPL-3.0-or-later.`,
+  );
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

@@ -28,14 +28,19 @@
     onclose: () => void;
   }
 
-  let { sigla, order, siglum, texts, segmentIds, labelOf, lit, onselect, onclose }: Props = $props();
+  let { sigla, order, siglum, texts, segmentIds, labelOf, lit, onselect, onclose }: Props =
+    $props();
 
   const current = $derived(sigla.find((x) => x.siglum === siglum) ?? null);
   const transcriptionId = $derived(current?.transcriptionId ?? null);
-  const absences = $derived(new Map(sigla.map((x) => [x.siglum, formatRanges(absentRanges(order, x.siglum))] as const)));
+  const absences = $derived(
+    new Map(sigla.map((x) => [x.siglum, formatRanges(absentRanges(order, x.siglum))] as const)),
+  );
 
   let form = $state<'read' | 'written'>('read');
-  const writtenAvailable = $derived(transcriptionId ? texts.keepsWrittenForm[transcriptionId] === true : false);
+  const writtenAvailable = $derived(
+    transcriptionId ? texts.keepsWrittenForm[transcriptionId] === true : false,
+  );
   const shownForm = $derived(writtenAvailable ? form : 'read');
 
   $effect(() => {
@@ -46,19 +51,32 @@
   function printRun(items: Item[]): { pieces: Printed[]; brk: 'line' | 'page' | null }[] {
     const lines: { items: Item[]; brk: 'line' | 'page' | null }[] = [{ items: [], brk: null }];
     for (const item of items) {
-      if (item.kind === 'break') lines.push({ items: [], brk: item.type === 'page' || item.type === 'column' ? 'page' : 'line' });
+      if (item.kind === 'break')
+        lines.push({
+          items: [],
+          brk: item.type === 'page' || item.type === 'column' ? 'page' : 'line',
+        });
       else lines[lines.length - 1]!.items.push(item);
     }
     // A run ends where the next segment begins: the break before it belongs to neither.
     while (lines.length > 1 && lines[lines.length - 1]!.items.length === 0) lines.pop();
-    return lines.map((line) => ({ pieces: printLine(line.items, LEIDEN_SIGLA, shownForm), brk: line.brk }));
+    return lines.map((line) => ({
+      pieces: printLine(line.items, LEIDEN_SIGLA, shownForm),
+      brk: line.brk,
+    }));
   }
 </script>
 
 <section class="panel" aria-labelledby="witness-panel-title">
   <header class="panel-header">
     <h2 id="witness-panel-title" class="panel-title">{r.panels.conspectus}</h2>
-    <button type="button" class="panel-close" aria-label={r.panels.close(r.toolbar.witnesses)} title={r.panels.close(r.toolbar.witnesses)} onclick={onclose}>
+    <button
+      type="button"
+      class="panel-close"
+      aria-label={r.panels.close(r.toolbar.witnesses)}
+      title={r.panels.close(r.toolbar.witnesses)}
+      onclick={onclose}
+    >
       <X class="size-4" aria-hidden="true" />
     </button>
   </header>
@@ -78,9 +96,15 @@
             <span class="siglum">{entry.siglum}</span>
             <span class="min-w-0 flex-1">
               <span class="block text-sm text-ink">{entry.witnessName}</span>
-              {#if entry.description}<span class="block text-xs text-ink-soft">{entry.description}</span>{/if}
-              {#if absences.get(entry.siglum)}<span class="block text-xs text-ink-muted">{r.panels.absentFrom} {absences.get(entry.siglum)}</span>{/if}
-              {#if !entry.transcriptionId}<span class="block text-xs text-ink-muted italic">{r.panels.reportedOnly}</span>{/if}
+              {#if entry.description}<span class="block text-xs text-ink-soft"
+                  >{entry.description}</span
+                >{/if}
+              {#if absences.get(entry.siglum)}<span class="block text-xs text-ink-muted"
+                  >{r.panels.absentFrom} {absences.get(entry.siglum)}</span
+                >{/if}
+              {#if !entry.transcriptionId}<span class="block text-xs text-ink-muted italic"
+                  >{r.panels.reportedOnly}</span
+                >{/if}
             </span>
           </button>
         </li>
@@ -99,9 +123,29 @@
         options={sigla.map((x) => ({ value: x.siglum, label: `${x.siglum}  ${x.witnessName}` }))}
       />
       {#if writtenAvailable}
-        <div class="ml-auto flex rounded-md border border-line bg-sunken p-0.5 text-xs" role="group" aria-label={r.panels.formLabel}>
-          <button type="button" class={['rounded px-1.5 py-0.5', form === 'read' ? 'bg-surface text-ink shadow-sm' : 'text-ink-soft']} aria-pressed={form === 'read'} onclick={() => (form = 'read')}>{r.panels.readForm}</button>
-          <button type="button" class={['rounded px-1.5 py-0.5', form === 'written' ? 'bg-surface text-ink shadow-sm' : 'text-ink-soft']} aria-pressed={form === 'written'} onclick={() => (form = 'written')}>{r.panels.writtenForm}</button>
+        <div
+          class="ml-auto flex rounded-md border border-line bg-sunken p-0.5 text-xs"
+          role="group"
+          aria-label={r.panels.formLabel}
+        >
+          <button
+            type="button"
+            class={[
+              'rounded px-1.5 py-0.5',
+              form === 'read' ? 'bg-surface text-ink shadow-sm' : 'text-ink-soft',
+            ]}
+            aria-pressed={form === 'read'}
+            onclick={() => (form = 'read')}>{r.panels.readForm}</button
+          >
+          <button
+            type="button"
+            class={[
+              'rounded px-1.5 py-0.5',
+              form === 'written' ? 'bg-surface text-ink shadow-sm' : 'text-ink-soft',
+            ]}
+            aria-pressed={form === 'written'}
+            onclick={() => (form = 'written')}>{r.panels.writtenForm}</button
+          >
         </div>
       {/if}
     </div>
@@ -125,7 +169,27 @@
               {:else if segment.runs.length === 0}
                 <span class="font-sans text-xs text-ink-muted italic">{r.panels.absent}</span>
               {:else}
-                {#each segment.runs as run, k (k)}{#if k > 0}<span class="sep"> … </span>{/if}{#each printRun(run.items) as line, l (l)}{#if line.brk === 'line' && l > 0}<span class="sep" aria-hidden="true"> | </span>{:else if line.brk === 'page'}<span class="sep" aria-hidden="true"> ‖ </span>{/if}{#each line.pieces as piece (piece.id)}{#if piece.space}{' '}{/if}{#if piece.kind === 'token'}{piece.before}<span class={['ww', lit.has(piece.id) && 'lit']} data-witness-token={piece.id}>{#each piece.parts as part, p (p)}{#if part.struck}<s>{part.text}</s>{:else}{part.text}{/if}{/each}</span>{piece.after}{:else if piece.kind === 'gap'}<span class="text-ink-muted">{GAP_TEXT}</span>{:else if piece.kind === 'paratext'}<span class="text-ink-soft italic">{piece.text}</span>{:else if piece.kind === 'lacuna'}<span class="text-ink-muted">{piece.text}</span>{/if}{/each}{/each}{/each}
+                {#each segment.runs as run, k (k)}{#if k > 0}<span class="sep">
+                      …
+                    </span>{/if}{#each printRun(run.items) as line, l (l)}{#if line.brk === 'line' && l > 0}<span
+                        class="sep"
+                        aria-hidden="true"
+                      >
+                        |
+                      </span>{:else if line.brk === 'page'}<span class="sep" aria-hidden="true">
+                        ‖
+                      </span>{/if}{#each line.pieces as piece (piece.id)}{#if piece.space}{' '}{/if}{#if piece.kind === 'token'}{piece.before}<span
+                          class={['ww', lit.has(piece.id) && 'lit']}
+                          data-witness-token={piece.id}
+                          >{#each piece.parts as part, p (p)}{#if part.struck}<s>{part.text}</s
+                              >{:else}{part.text}{/if}{/each}</span
+                        >{piece.after}{:else if piece.kind === 'gap'}<span class="text-ink-muted"
+                          >{GAP_TEXT}</span
+                        >{:else if piece.kind === 'paratext'}<span class="text-ink-soft italic"
+                          >{piece.text}</span
+                        >{:else if piece.kind === 'lacuna'}<span class="text-ink-muted"
+                          >{piece.text}</span
+                        >{/if}{/each}{/each}{/each}
               {/if}
             </div>
           </div>

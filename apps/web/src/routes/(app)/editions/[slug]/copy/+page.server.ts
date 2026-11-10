@@ -17,7 +17,9 @@ export const actions: Actions = {
     const user = locals.user;
     if (!user) return fail(401, { copyError: registry.copy.signIn });
     const form = await request.formData();
-    const title = String(form.get('name') ?? '').trim().slice(0, 200);
+    const title = String(form.get('name') ?? '')
+      .trim()
+      .slice(0, 200);
     if (!title) return fail(400, { copyError: registry.copy.titleRequired });
     const made = await copyEdition(locals.db, user, params.slug, title);
     if (made === 'not-found') error(404, 'No such edition');

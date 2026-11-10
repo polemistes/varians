@@ -8,7 +8,8 @@
 export const DEFAULT_MAX_UPLOAD_BYTES = 60 * 1024 * 1024;
 
 /** For the accept attribute of file inputs: the formats an upload may have. */
-export const ACCEPT_IMAGES = 'image/jpeg,image/png,image/tiff,image/webp,.jpg,.jpeg,.png,.tif,.tiff,.webp';
+export const ACCEPT_IMAGES =
+  'image/jpeg,image/png,image/tiff,image/webp,.jpg,.jpeg,.png,.tif,.tiff,.webp';
 
 const TYPES = new Set(['image/jpeg', 'image/png', 'image/tiff', 'image/webp']);
 const EXTENSIONS = /\.(jpe?g|png|tiff?|webp)$/iu;

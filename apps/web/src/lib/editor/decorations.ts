@@ -7,7 +7,17 @@
 
 import type { Range } from '@codemirror/state';
 import { Decoration, WidgetType, type DecorationSet } from '@codemirror/view';
-import { isBreak, isToken, variantGroup, type Break, type Id, type Item, type Mark, type Obj, type SegmentStart } from '@varians/core';
+import {
+  isBreak,
+  isToken,
+  variantGroup,
+  type Break,
+  type Id,
+  type Item,
+  type Mark,
+  type Obj,
+  type SegmentStart,
+} from '@varians/core';
 import { breakLabels, editorStrings, objectLabels } from './labels.ts';
 import { lineIndex, type LineInfo } from './lines.ts';
 import type { Model } from './model.ts';
@@ -202,7 +212,9 @@ export function variantEnds(items: readonly Item[]): Set<Id> {
 
 function variantTitle(mark: Mark): string {
   const reading = typeof mark.attrs?.reading === 'string' ? mark.attrs.reading : '';
-  const place = editorStrings.variantPlaces[String(mark.attrs?.place ?? 'other')] ?? editorStrings.variantPlaces.other!;
+  const place =
+    editorStrings.variantPlaces[String(mark.attrs?.place ?? 'other')] ??
+    editorStrings.variantPlaces.other!;
   return editorStrings.variantTitle(reading, place);
 }
 
@@ -284,7 +296,10 @@ export function buildDecorations(model: Model, perLineDirection: boolean): Decor
         // Always the whole word; the indicator stands after the last word of the variant.
         const cls = `cm-mark cm-mark-variant${ends.has(item.id) ? ' cm-mark-variant-end' : ''}`;
         ranges.push(
-          Decoration.mark({ class: cls, attributes: { 'data-kind': 'variant', title: variantTitle(mark) } }).range(span.from, span.to),
+          Decoration.mark({
+            class: cls,
+            attributes: { 'data-kind': 'variant', title: variantTitle(mark) },
+          }).range(span.from, span.to),
         );
         continue;
       }

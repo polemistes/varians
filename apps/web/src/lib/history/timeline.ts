@@ -30,7 +30,10 @@ export type TimelineEntry =
  * what changed since the named moment before it (or since the beginning).
  * At one version a moment stands above the session it closes.
  */
-export function buildTimeline(sessions: HistorySession[], moments: HistoryMoment[]): TimelineEntry[] {
+export function buildTimeline(
+  sessions: HistorySession[],
+  moments: HistoryMoment[],
+): TimelineEntry[] {
   const momentVersions = [...new Set(moments.map((m) => m.version))].sort((a, b) => a - b);
   const previousMoment = (version: number): number => {
     let found = 0;
@@ -60,7 +63,8 @@ export function buildTimeline(sessions: HistorySession[], moments: HistoryMoment
       }),
     ),
   ];
-  const at = (e: TimelineEntry) => (e.type === 'moment' ? Date.parse(e.moment.at) : Date.parse(e.session.to));
+  const at = (e: TimelineEntry) =>
+    e.type === 'moment' ? Date.parse(e.moment.at) : Date.parse(e.session.to);
   return entries.sort((a, b) => {
     if (a.version !== b.version) return b.version - a.version;
     if (a.type !== b.type) return a.type === 'moment' ? -1 : 1;

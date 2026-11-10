@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { hasAcceptedTerms, parseTerms, safeNext, terms, termsGate, TERMS_VERSION } from './terms.ts';
+import {
+  hasAcceptedTerms,
+  parseTerms,
+  safeNext,
+  terms,
+  termsGate,
+  TERMS_VERSION,
+} from './terms.ts';
 
 describe('the terms of contribution', () => {
   it('read their version from the front matter of docs/terms.md', () => {
     expect(TERMS_VERSION).toBeGreaterThanOrEqual(1);
-    expect(terms.rendered.html).toContain('<h1 id="terms-of-contribution">Terms of contribution</h1>');
+    expect(terms.rendered.html).toContain(
+      '<h1 id="terms-of-contribution">Terms of contribution</h1>',
+    );
     expect(parseTerms('---\nversion: 3\n---\n# T\n')).toEqual({ version: 3, body: '# T\n' });
     expect(() => parseTerms('# No version\n')).toThrow();
   });

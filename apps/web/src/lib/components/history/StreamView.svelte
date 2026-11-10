@@ -40,17 +40,25 @@
     label,
   }: Props = $props();
 
-  const lines = $derived(renderLines(stream, diff, (id) => labelOf[id] ?? '', { numberEvery }, authors));
+  const lines = $derived(
+    renderLines(stream, diff, (id) => labelOf[id] ?? '', { numberEvery }, authors),
+  );
   const empty = $derived(lines.every((line) => line.cells.length === 0 && !line.opener));
 </script>
 
-<div class="author-palette font-serif text-[0.9375rem] leading-[1.7] text-ink" role={label ? 'region' : undefined} aria-label={label}>
+<div
+  class="author-palette font-serif text-[0.9375rem] leading-[1.7] text-ink"
+  role={label ? 'region' : undefined}
+  aria-label={label}
+>
   {#if empty}
     <p class="font-sans text-sm text-ink-muted">{t.emptyText}</p>
   {:else}
     {#each lines as line (line.key)}
       <div class={['grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-2', line.paragraph && 'mt-2.5']}>
-        <span class="pt-[0.3em] text-right font-sans text-[0.6875rem] leading-normal text-ink-muted tabular-nums select-none">
+        <span
+          class="pt-[0.3em] text-right font-sans text-[0.6875rem] leading-normal text-ink-muted tabular-nums select-none"
+        >
           {line.label ?? ''}
         </span>
         <p class={['min-w-0 break-words', line.ghost && 'opacity-90']} dir="auto">
@@ -60,8 +68,8 @@
               class={line.opener.added ? 'break-added' : 'break-moved'}
               style:--c={tint}
               title={`${line.opener.added ? t.addedBreak : t.movedTitle}. ${(line.opener.added ? t.addedBy : t.movedBy)(nameOf(line.opener.author))}`}
-              ><span class="sr-only">{line.opener.added ? t.addedBreak : t.markMoved}</span><span aria-hidden="true"
-                >{line.opener.added ? '¶' : '↷'}</span
+              ><span class="sr-only">{line.opener.added ? t.addedBreak : t.markMoved}</span><span
+                aria-hidden="true">{line.opener.added ? '¶' : '↷'}</span
               ></span
             >{' '}
           {/if}

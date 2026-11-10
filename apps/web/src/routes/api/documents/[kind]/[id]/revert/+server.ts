@@ -22,9 +22,16 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
   const parsed = body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) error(400, 'version is required');
   try {
-    const result = await revertTo(locals.db, access.kind, access.id, locals.user?.id ?? null, parsed.data.version, {
-      expectedVersion: parsed.data.currentVersion,
-    });
+    const result = await revertTo(
+      locals.db,
+      access.kind,
+      access.id,
+      locals.user?.id ?? null,
+      parsed.data.version,
+      {
+        expectedVersion: parsed.data.currentVersion,
+      },
+    );
     return json(result);
   } catch (cause) {
     return historyErrorResponse(cause);

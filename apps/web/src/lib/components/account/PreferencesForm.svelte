@@ -49,9 +49,16 @@
     <legend class="mb-2 font-sans text-sm font-medium text-ink">{s.account.font}</legend>
     {#each fonts as font (font.value)}
       <label class={option}>
-        <input type="radio" name="font" value={font.value} checked={preferences.font === font.value} />
+        <input
+          type="radio"
+          name="font"
+          value={font.value}
+          checked={preferences.font === font.value}
+        />
         <span class="w-28 shrink-0">{font.label}</span>
-        <span class="truncate text-lg text-ink-soft" style="font-family: {font.family}" lang="grc">{s.account.sample}</span>
+        <span class="truncate text-lg text-ink-soft" style="font-family: {font.family}" lang="grc"
+          >{s.account.sample}</span
+        >
       </label>
     {/each}
   </fieldset>
@@ -60,7 +67,12 @@
     <legend class="mb-2 font-sans text-sm font-medium text-ink">{s.account.theme}</legend>
     {#each themes as theme (theme.value)}
       <label class={option}>
-        <input type="radio" name="theme" value={theme.value} checked={preferences.theme === theme.value} />
+        <input
+          type="radio"
+          name="theme"
+          value={theme.value}
+          checked={preferences.theme === theme.value}
+        />
         <span>{theme.label}</span>
       </label>
     {/each}

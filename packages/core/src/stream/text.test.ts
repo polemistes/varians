@@ -10,7 +10,9 @@ describe('fromText and toText', () => {
 
   it('makes a paragraph break of a blank line when asked', () => {
     const s = fromText('a b\n\nc', { ids: sequentialIds(), paragraphs: true });
-    expect(s.items.filter((i) => i.kind === 'break').map((b) => (b as { type: string }).type)).toEqual(['paragraph']);
+    expect(
+      s.items.filter((i) => i.kind === 'break').map((b) => (b as { type: string }).type),
+    ).toEqual(['paragraph']);
     expect(toText(s)).toBe('a b\n\nc');
   });
 
@@ -35,7 +37,12 @@ describe('fromText and toText', () => {
 
   it('prints gaps as bracketed dots', () => {
     const s = fromText('a c', { ids: sequentialIds() });
-    s.items.splice(1, 0, { kind: 'object', id: 'g1', type: 'gap', attrs: { reason: 'lost', quantity: 3 } });
+    s.items.splice(1, 0, {
+      kind: 'object',
+      id: 'g1',
+      type: 'gap',
+      attrs: { reason: 'lost', quantity: 3 },
+    });
     expect(toText(s)).toBe('a [...] c');
   });
 });

@@ -44,27 +44,53 @@ describe('importPageXml', () => {
   it('gives pages, lines, words and zones in reading order', () => {
     const result = importPageXml(page, { ids: sequentialIds() });
     expect(result.warnings).toEqual([]);
-    expect(result.pages).toEqual([{ label: 'folio_12r', imageFilename: 'folio_12r.jpg', width: 1000, height: 2000 }]);
-    expect(result.stream.items[0]).toMatchObject({ kind: 'break', type: 'page', label: 'folio_12r' });
+    expect(result.pages).toEqual([
+      { label: 'folio_12r', imageFilename: 'folio_12r.jpg', width: 1000, height: 2000 },
+    ]);
+    expect(result.stream.items[0]).toMatchObject({
+      kind: 'break',
+      type: 'page',
+      label: 'folio_12r',
+    });
     expect(toText(result.stream)).toBe('\nμῆνιν ἄειδε θεὰ\nΠηληϊάδεω Ἀχιλῆος\nπολλὰς δ᾽ ἀλγε᾽');
 
     const wordZones = result.zones.filter((z) => z.tokenIds.length > 0);
-    expect(wordZones.map((z) => z.text)).toEqual(['μῆνιν', 'ἄειδε', 'θεὰ', 'Πηληϊάδεω', 'Ἀχιλῆος', 'πολλὰς', 'δ᾽', 'ἀλγε᾽']);
+    expect(wordZones.map((z) => z.text)).toEqual([
+      'μῆνιν',
+      'ἄειδε',
+      'θεὰ',
+      'Πηληϊάδεω',
+      'Ἀχιλῆος',
+      'πολλὰς',
+      'δ᾽',
+      'ἀλγε᾽',
+    ]);
     expect(wordZones[0]).toMatchObject({
       tokenIds: ['t2'],
       lineIndex: 1,
-      geometry: { polygon: [[0.1, 0.05], [0.3, 0.05], [0.3, 0.1], [0.1, 0.1]] },
+      geometry: {
+        polygon: [
+          [0.1, 0.05],
+          [0.3, 0.05],
+          [0.3, 0.1],
+          [0.1, 0.1],
+        ],
+      },
     });
     for (const zone of wordZones) {
       const line = lines(result.stream)[zone.lineIndex!]!;
-      const token = result.stream.items.slice(line.from, line.to).find((i) => isToken(i) && i.id === zone.tokenIds[0]);
+      const token = result.stream.items
+        .slice(line.from, line.to)
+        .find((i) => isToken(i) && i.id === zone.tokenIds[0]);
       expect(token).toBeDefined();
     }
   });
 
   it('divides a line without word coordinates in proportion to letter counts', () => {
     const result = importPageXml(page);
-    const [first, second] = result.zones.filter((z) => z.text === 'Πηληϊάδεω' || z.text === 'Ἀχιλῆος');
+    const [first, second] = result.zones.filter(
+      (z) => z.text === 'Πηληϊάδεω' || z.text === 'Ἀχιλῆος',
+    );
     // 9 and 7 letters plus one space: 17 parts across 800 of 1000 pixels, from x = 100.
     expect(first?.geometry.rect?.x).toBeCloseTo(0.1, 5);
     expect(first?.geometry.rect?.w).toBeCloseTo((800 * 9) / 17 / 1000, 5);
@@ -100,13 +126,17 @@ describe('importPageXml', () => {
     const result = importPageXml(xml);
     expect(result.stream.items.filter(isToken).map((t) => t.form)).toEqual(['καὶ', 'τοῦ']);
     expect(result.zones).toEqual([]);
-    expect(result.warnings).toEqual(['Page x: no image size (imageWidth, imageHeight), so its zones are left out.']);
+    expect(result.warnings).toEqual([
+      'Page x: no image size (imageWidth, imageHeight), so its zones are left out.',
+    ]);
   });
 
   it('warns about words without coordinates and about broken XML', () => {
     const xml = `<PcGts><Page imageFilename="y.jpg" imageWidth="10" imageHeight="10"><TextRegion><TextLine>
       <TextEquiv><Unicode>καὶ τοῦ</Unicode></TextEquiv></TextLine></TextRegion></Page></PcGts>`;
-    expect(importPageXml(xml).warnings).toEqual(['Page y: 2 words without coordinates, imported without a zone.']);
+    expect(importPageXml(xml).warnings).toEqual([
+      'Page y: 2 words without coordinates, imported without a zone.',
+    ]);
     expect(importPageXml('<PcGts><Page></PcGts>').warnings[0]).toMatch(/not well formed/u);
     expect(importPageXml('').warnings).toContain('No XML document found.');
   });
@@ -146,9 +176,17 @@ describe('importAltoXml', () => {
   it('gives pages, lines, words and zones, joining hyphenated words', () => {
     const result = importAltoXml(alto, { ids: sequentialIds() });
     expect(result.warnings).toEqual([]);
-    expect(result.pages).toEqual([{ label: 'page_007', imageFilename: 'page_007.tif', width: 2100, height: 2970 }]);
+    expect(result.pages).toEqual([
+      { label: 'page_007', imageFilename: 'page_007.tif', width: 2100, height: 2970 },
+    ]);
     expect(toText(result.stream)).toBe('\nἄνδρα μοι ἔννε\nπε Μοῦσα πολύτροπον');
-    expect(words(result.stream).map((w) => w.form)).toEqual(['ἄνδρα', 'μοι', 'ἔννεπε', 'Μοῦσα', 'πολύτροπον']);
+    expect(words(result.stream).map((w) => w.form)).toEqual([
+      'ἄνδρα',
+      'μοι',
+      'ἔννεπε',
+      'Μοῦσα',
+      'πολύτροπον',
+    ]);
   });
 
   it('converts boxes and polygons to fractions of the page in the same unit', () => {
@@ -165,7 +203,9 @@ describe('importAltoXml', () => {
 
   it('divides a String holding several words', () => {
     const result = importAltoXml(alto);
-    const [mousa, polytropon] = result.zones.filter((z) => z.text === 'Μοῦσα' || z.text === 'πολύτροπον');
+    const [mousa, polytropon] = result.zones.filter(
+      (z) => z.text === 'Μοῦσα' || z.text === 'πολύτροπον',
+    );
     // 5 and 10 letters plus one space: 16 parts across 1050 of 2100 units, from x = 420.
     expect(mousa?.geometry.rect?.x).toBeCloseTo(0.2, 5);
     expect(mousa?.geometry.rect?.w).toBeCloseTo((1050 * 5) / 16 / 2100, 5);
@@ -182,7 +222,9 @@ describe('importAltoXml', () => {
     const result = importAltoXml(xml);
     expect(result.pages.map((p) => p.label)).toEqual(['3', 'p2']);
     expect(result.zones).toHaveLength(1);
-    expect(result.warnings).toEqual(['Page p2: no page size (WIDTH, HEIGHT), so its zones are left out.']);
+    expect(result.warnings).toEqual([
+      'Page p2: no page size (WIDTH, HEIGHT), so its zones are left out.',
+    ]);
   });
 });
 

@@ -75,10 +75,18 @@ export type Side = 'left' | 'right' | 'top' | 'bottom';
  * `value`: every box keeps its place and size relative to the whole, so a
  * line stretches or squeezes evenly. The opposite side stays.
  */
-export function scaleBoxes(rects: Rect[], side: Side, value: number, limits: Limits = IMAGE): Rect[] {
+export function scaleBoxes(
+  rects: Rect[],
+  side: Side,
+  value: number,
+  limits: Limits = IMAGE,
+): Rect[] {
   const from = boundsOf(rects);
   const to = { ...from };
-  const v = side === 'left' || side === 'right' ? Math.min(limits.x1, Math.max(limits.x0, value)) : Math.min(limits.y1, Math.max(limits.y0, value));
+  const v =
+    side === 'left' || side === 'right'
+      ? Math.min(limits.x1, Math.max(limits.x0, value))
+      : Math.min(limits.y1, Math.max(limits.y0, value));
   const minW = MIN_WORD_WIDTH * rects.length;
   const minH = MIN_BOX_HEIGHT;
   if (side === 'right') to.w = Math.max(minW, v - from.x);
@@ -113,7 +121,13 @@ export function trailingEdge(rect: Rect, direction: Direction): number {
  * Boxes before it, and on other lines, stay. Nothing is pushed off the image.
  * Returns the new rectangles of the boxes that changed, by id.
  */
-export function rippleResize(boxes: GroupBox[], id: string, edge: number, minWidth = MIN_WORD_WIDTH, limits: Limits = IMAGE): Map<string, Rect> {
+export function rippleResize(
+  boxes: GroupBox[],
+  id: string,
+  edge: number,
+  minWidth = MIN_WORD_WIDTH,
+  limits: Limits = IMAGE,
+): Map<string, Rect> {
   const out = new Map<string, Rect>();
   const box = boxes.find((b) => b.id === id);
   if (!box) return out;
@@ -156,7 +170,12 @@ export function boundaryPairs(boxes: GroupBox[]): [GroupBox, GroupBox][] {
  * there and the second begins there, each keeping some width. Nothing else
  * changes.
  */
-export function moveBoundary(a: GroupBox, b: GroupBox, x: number, minWidth = MIN_WORD_WIDTH): Map<string, Rect> {
+export function moveBoundary(
+  a: GroupBox,
+  b: GroupBox,
+  x: number,
+  minWidth = MIN_WORD_WIDTH,
+): Map<string, Rect> {
   const at = clampBoundary(x, a.rect, b.rect, a.direction, minWidth);
   const [ra, rb] = applyBoundary(a.rect, b.rect, at, a.direction);
   return new Map([
@@ -194,7 +213,10 @@ export function frameOf(boxes: GroupBox[], aspect: number): Frame {
   const centres = boxes.map((b) => centre(b.rect, aspect));
   const xs = centres.map((c) => c[0]);
   const ys = centres.map((c) => c[1]);
-  const pivot: Point = [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+  const pivot: Point = [
+    (Math.min(...xs) + Math.max(...xs)) / 2,
+    (Math.min(...ys) + Math.max(...ys)) / 2,
+  ];
   return { aspect, angle: Math.abs(angle) < 1e-9 ? 0 : angle, pivot };
 }
 
@@ -235,7 +257,11 @@ export function boxesInFrame(boxes: GroupBox[], frame: Frame): GroupBox[] {
 }
 
 /** New rectangles in the frame as the zones' geometry, each box keeping its turn. */
-export function geometriesFromFrame(boxes: GroupBox[], rects: Map<string, Rect>, frame: Frame): Map<string, ZoneGeometry> {
+export function geometriesFromFrame(
+  boxes: GroupBox[],
+  rects: Map<string, Rect>,
+  frame: Frame,
+): Map<string, ZoneGeometry> {
   const out = new Map<string, ZoneGeometry>();
   for (const b of boxes) {
     const r = rects.get(b.id);
@@ -247,7 +273,11 @@ export function geometriesFromFrame(boxes: GroupBox[], rects: Map<string, Rect>,
 }
 
 /** Every box turned by `degrees` clockwise about the frame's pivot: the lines turn as one, and each box with them. */
-export function turnBoxes(boxes: GroupBox[], frame: Frame, degrees: number): Map<string, ZoneGeometry> {
+export function turnBoxes(
+  boxes: GroupBox[],
+  frame: Frame,
+  degrees: number,
+): Map<string, ZoneGeometry> {
   const out = new Map<string, ZoneGeometry>();
   for (const b of boxes) {
     const [cx, cy] = centre(b.rect, frame.aspect);

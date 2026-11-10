@@ -33,7 +33,11 @@
   function wordsOf(place: SiteExplanation): string {
     if (place.words) return place.words;
     if (!place.place) return '';
-    return plainSentence(fill(place.place.side === 'after' ? r.explain.after : r.explain.before, { words: [{ kind: 'words', text: place.place.word }] }));
+    return plainSentence(
+      fill(place.place.side === 'after' ? r.explain.after : r.explain.before, {
+        words: [{ kind: 'words', text: place.place.word }],
+      }),
+    );
   }
 
   function open(event: MouseEvent, key: string) {
@@ -47,7 +51,13 @@
 <section class="panel" aria-labelledby="variants-panel-title">
   <header class="panel-header">
     <h2 id="variants-panel-title" class="panel-title">{r.panels.variants}</h2>
-    <button type="button" class="panel-close" aria-label={r.panels.close(r.toolbar.variants)} title={r.panels.close(r.toolbar.variants)} onclick={onclose}>
+    <button
+      type="button"
+      class="panel-close"
+      aria-label={r.panels.close(r.toolbar.variants)}
+      title={r.panels.close(r.toolbar.variants)}
+      onclick={onclose}
+    >
       <X class="size-4" aria-hidden="true" />
     </button>
   </header>
@@ -88,7 +98,14 @@
             {#if group.unplaced.length}
               <ul class="unplaced">
                 {#each group.unplaced as line, k (k)}
-                  <li><ExplainSentence sentence={line.sentence} {lang} />{#if line.references.length}{' '}<span class="refs">{line.references.join('; ')}</span>{/if}</li>
+                  <li>
+                    <ExplainSentence
+                      sentence={line.sentence}
+                      {lang}
+                    />{#if line.references.length}{' '}<span class="refs"
+                        >{line.references.join('; ')}</span
+                      >{/if}
+                  </li>
                 {/each}
               </ul>
             {/if}

@@ -18,7 +18,9 @@ describe('compareOrder', () => {
   });
 
   it('ignores segments only one side has', () => {
-    expect(compareOrder(['1', '2', '3'], ['3', '1'])).toEqual([{ moved: ['1'], after: '3', afterInReference: null }]);
+    expect(compareOrder(['1', '2', '3'], ['3', '1'])).toEqual([
+      { moved: ['1'], after: '3', afterInReference: null },
+    ]);
   });
 
   it('computes the longest common subsequence', () => {

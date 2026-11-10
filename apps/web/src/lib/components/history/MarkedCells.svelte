@@ -39,9 +39,16 @@
   }
 
   function title(cell: Cell): string {
-    if (cell.removed) return cell.item.kind === 'break' ? `${t.removedBreak}. ${t.removedBy(who(cell))}` : t.removedBy(who(cell));
-    if (cell.added) return cell.item.kind === 'break' ? `${t.addedBreak}. ${t.addedBy(who(cell))}` : t.addedBy(who(cell));
-    if (cell.changed) return cell.moved ? `${t.movedTitle}. ${changedTitle(cell)}` : changedTitle(cell);
+    if (cell.removed)
+      return cell.item.kind === 'break'
+        ? `${t.removedBreak}. ${t.removedBy(who(cell))}`
+        : t.removedBy(who(cell));
+    if (cell.added)
+      return cell.item.kind === 'break'
+        ? `${t.addedBreak}. ${t.addedBy(who(cell))}`
+        : t.addedBy(who(cell));
+    if (cell.changed)
+      return cell.moved ? `${t.movedTitle}. ${changedTitle(cell)}` : changedTitle(cell);
     return t.movedBy(who(cell));
   }
 </script>
@@ -66,9 +73,11 @@
       >
     {:else if cell.changed || cell.moved}
       <span class={cell.changed ? 'mark-changed' : undefined} style:--c={tint} title={title(cell)}
-        >{#if cell.moved}<span class="mark-arrow" aria-hidden="true">↷</span><span class="sr-only">{t.markMoved}: </span>{/if}{#if cell.changed}<span
-            class="sr-only">{t.markChanged}: </span
-          >{/if}{text}</span
+        >{#if cell.moved}<span class="mark-arrow" aria-hidden="true">↷</span><span class="sr-only"
+            >{t.markMoved}:
+          </span>{/if}{#if cell.changed}<span class="sr-only"
+            >{t.markChanged}:
+          </span>{/if}{text}</span
       >
     {:else}
       <span class={cell.item.kind === 'token' ? undefined : 'text-ink-soft'}>{text}</span>

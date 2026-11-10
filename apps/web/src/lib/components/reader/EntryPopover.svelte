@@ -40,7 +40,16 @@
     onclosed?: () => void;
   }
 
-  let { open = $bindable(false), anchor, entries, lang, witnesses, onwitness, onfacsimile, onclosed }: Props = $props();
+  let {
+    open = $bindable(false),
+    anchor,
+    entries,
+    lang,
+    witnesses,
+    onwitness,
+    onfacsimile,
+    onclosed,
+  }: Props = $props();
 
   const title = $derived(entries[0] ? r.entry.title(entries[0].label) : '');
 </script>
@@ -58,7 +67,8 @@
       onInteractOutside={(event) => {
         // Another word with variants, or a place in the list of variants, moves the popover rather than closing it.
         const target = event.target instanceof Element ? event.target : null;
-        if (target?.closest('[data-sites][role="button"], [data-variant-place]')) event.preventDefault();
+        if (target?.closest('[data-sites][role="button"], [data-variant-place]'))
+          event.preventDefault();
       }}
       onCloseAutoFocus={(event) => {
         event.preventDefault();
@@ -69,7 +79,9 @@
       {#each entries as item, k (item.key)}
         <section class={[k > 0 && 'mt-4 border-t border-line pt-3']}>
           <header class="mb-2 flex items-center gap-2">
-            <h2 class="text-xs font-semibold tracking-wide text-ink-muted tabular-nums">{item.label}</h2>
+            <h2 class="text-xs font-semibold tracking-wide text-ink-muted tabular-nums">
+              {item.label}
+            </h2>
             {#if item.permalink}
               <a
                 href={item.permalink}
@@ -90,7 +102,9 @@
               </Popover.Close>
             {/if}
           </header>
-          <p class="mb-2.5 text-[1.3rem] leading-snug"><PlaceWords explanation={item.explanation} {lang} /></p>
+          <p class="mb-2.5 text-[1.3rem] leading-snug">
+            <PlaceWords explanation={item.explanation} {lang} />
+          </p>
           <VariantExplanation explanation={item.explanation} {lang} />
         </section>
       {/each}

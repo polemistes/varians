@@ -124,7 +124,11 @@ describe('DocumentSession', () => {
 describe('wireOp', () => {
   it('sends a removed field as null', async () => {
     const { wireOp } = await import('./session.ts');
-    expect(JSON.parse(JSON.stringify(wireOp({ t: 'set', id: 'a', fields: { norm: undefined, form: 'x' } })))).toEqual({ t: 'set', id: 'a', fields: { norm: null, form: 'x' } });
+    expect(
+      JSON.parse(
+        JSON.stringify(wireOp({ t: 'set', id: 'a', fields: { norm: undefined, form: 'x' } })),
+      ),
+    ).toEqual({ t: 'set', id: 'a', fields: { norm: null, form: 'x' } });
     expect(wireOp({ t: 'delete', ids: ['a'] })).toEqual({ t: 'delete', ids: ['a'] });
   });
 });

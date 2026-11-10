@@ -20,7 +20,11 @@ export interface DeriveOptions {
  * segment starts, gaps and paratext objects are kept; marks are not (the
  * edition's own sigla are its own).
  */
-export function deriveEdition(stream: Stream, transcriptionId: Id, options: DeriveOptions = {}): Stream {
+export function deriveEdition(
+  stream: Stream,
+  transcriptionId: Id,
+  options: DeriveOptions = {},
+): Stream {
   const ids = options.ids ?? newId;
   const items: Item[] = [];
   let include = options.segmentIds === undefined;

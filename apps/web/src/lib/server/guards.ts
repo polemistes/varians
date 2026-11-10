@@ -10,7 +10,9 @@ import { isAdministrator } from './authz';
 /** Where to send a visitor so that they come back after logging in. */
 export function loginUrl(returnTo?: string): string {
   const local = returnTo ? safeRedirect(returnTo) : '/';
-  return local !== '/' || returnTo === '/' ? `/login?redirectTo=${encodeURIComponent(local)}` : '/login';
+  return local !== '/' || returnTo === '/'
+    ? `/login?redirectTo=${encodeURIComponent(local)}`
+    : '/login';
 }
 
 const LOCAL = 'http://varians.invalid';

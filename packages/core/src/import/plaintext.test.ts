@@ -28,7 +28,8 @@ describe('detectNumbering', () => {
   });
 
   it('finds bracketed numbers anywhere', () => {
-    const text = '[1] Ἐπειδὴ πάντες ἄνθρωποι [2] σημεῖον δ᾽ ἡ τῶν αἰσθήσεων\n[3] καὶ γὰρ χωρὶς τῆς χρείας';
+    const text =
+      '[1] Ἐπειδὴ πάντες ἄνθρωποι [2] σημεῖον δ᾽ ἡ τῶν αἰσθήσεων\n[3] καὶ γὰρ χωρὶς τῆς χρείας';
     const [first] = detectNumbering(text);
     expect(first).toMatchObject({ kind: 'bracketed', matches: 3, sample: '1' });
   });
@@ -47,15 +48,23 @@ describe('detectNumbering', () => {
   });
 
   it('reads Bekker and Stephanus labels', () => {
-    expect(detectNumbering('1094a1 Πᾶσα τέχνη καὶ πᾶσα μέθοδος\n1094a2 ὁμοίως δὲ πρᾶξις τε καὶ προαίρεσις')[0]).toMatchObject({
+    expect(
+      detectNumbering(
+        '1094a1 Πᾶσα τέχνη καὶ πᾶσα μέθοδος\n1094a2 ὁμοίως δὲ πρᾶξις τε καὶ προαίρεσις',
+      )[0],
+    ).toMatchObject({
       kind: 'line-start-number',
       sample: '1094a1',
     });
-    expect(detectNumbering('17a. Ἀκήκοα μὲν ἔγωγε\n17b. ὥστε καὶ αὐτός')[0]).toMatchObject({ kind: 'line-start-number', sample: '17a' });
+    expect(detectNumbering('17a. Ἀκήκοα μὲν ἔγωγε\n17b. ὥστε καὶ αὐτός')[0]).toMatchObject({
+      kind: 'line-start-number',
+      sample: '17a',
+    });
   });
 
   it('finds nothing in unnumbered prose with long lines', () => {
-    const line = 'Ἐπειδὴ πάντες ἄνθρωποι τοῦ εἰδέναι ὀρέγονται φύσει. σημεῖον δ᾽ ἡ τῶν αἰσθήσεων ἀγάπησις καὶ γὰρ χωρὶς τῆς χρείας ἀγαπῶνται δι᾽ αὑτάς.';
+    const line =
+      'Ἐπειδὴ πάντες ἄνθρωποι τοῦ εἰδέναι ὀρέγονται φύσει. σημεῖον δ᾽ ἡ τῶν αἰσθήσεων ἀγάπησις καὶ γὰρ χωρὶς τῆς χρείας ἀγαπῶνται δι᾽ αὑτάς.';
     expect(detectNumbering(`${line}\n${line}`)).toEqual([]);
     expect(detectNumbering('')).toEqual([]);
   });
@@ -90,11 +99,17 @@ describe('importPlainText', () => {
     const text = 'μῆνιν ἄειδε θεὰ\nοὐλομένην ἣ\n\nπολλὰς δ᾽';
     const [pattern] = detectNumbering(text);
     expect(pattern?.kind).toBe('every-line');
-    const result = importPlainText(text, { pattern, ids: sequentialIds(), startLabel: '1.1', paragraphs: true });
-    expect(result.stream.items.filter((i) => i.kind === 'break').map((b) => (b as { type: string }).type)).toEqual([
-      'line',
-      'paragraph',
-    ]);
+    const result = importPlainText(text, {
+      pattern,
+      ids: sequentialIds(),
+      startLabel: '1.1',
+      paragraphs: true,
+    });
+    expect(
+      result.stream.items
+        .filter((i) => i.kind === 'break')
+        .map((b) => (b as { type: string }).type),
+    ).toEqual(['line', 'paragraph']);
     expect(result.segmentStarts).toEqual([
       { itemIndex: 0, label: '1.1' },
       { itemIndex: 4, label: '1.2' },
@@ -103,7 +118,9 @@ describe('importPlainText', () => {
   });
 
   it('needs a start label to number every line', () => {
-    const result = importPlainText('a\nb', { pattern: { kind: 'every-line', regex: '^.+$', matches: 2, sample: 'a' } });
+    const result = importPlainText('a\nb', {
+      pattern: { kind: 'every-line', regex: '^.+$', matches: 2, sample: 'a' },
+    });
     expect(result.segmentStarts).toEqual([]);
     expect(result.warnings).toEqual(['Numbering every line needs a start label.']);
   });
@@ -113,16 +130,33 @@ describe('importPlainText', () => {
     const [pattern] = detectNumbering(text);
     const result = importPlainText(text, { pattern, ids: sequentialIds(), startLabel: '1' });
     expect(toText(result.stream)).toBe(verse.join('\n'));
-    expect(result.segmentStarts.map((s) => s.label)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
+    expect(result.segmentStarts.map((s) => s.label)).toEqual([
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+      '6',
+      '7',
+      '8',
+      '9',
+      '10',
+    ]);
     const firstTokens = result.stream.items
       .map((item, index) => ({ item, index }))
-      .filter(({ item, index }) => item.kind === 'token' && (index === 0 || result.stream.items[index - 1]!.kind === 'break'))
+      .filter(
+        ({ item, index }) =>
+          item.kind === 'token' &&
+          (index === 0 || result.stream.items[index - 1]!.kind === 'break'),
+      )
       .map(({ index }) => index);
     expect(result.segmentStarts.map((s) => s.itemIndex)).toEqual(firstTokens);
     expect(result.warnings).toEqual([]);
 
     const wrong = importPlainText(text.replace(/ 10$/u, ' 11'), { pattern, startLabel: '1' });
-    expect(wrong.warnings).toEqual(['Line 10 is numbered 11, but counting from the previous number gives 10.']);
+    expect(wrong.warnings).toEqual([
+      'Line 10 is numbered 11, but counting from the previous number gives 10.',
+    ]);
     expect(wrong.segmentStarts[9]?.label).toBe('11');
   });
 
@@ -132,7 +166,9 @@ describe('importPlainText', () => {
     expect(pattern?.kind).toBe('margin-every-n');
     const result = importPlainText(text, { pattern });
     expect(result.segmentStarts.map((s) => s.label)).toEqual(['5', '6', '7', '8', '9', '10']);
-    expect(result.warnings).toEqual(['4 lines before the first number have no label; give a start label to count them.']);
+    expect(result.warnings).toEqual([
+      '4 lines before the first number have no label; give a start label to count them.',
+    ]);
   });
 
   it('uses the caller’s label sequence and stops when it ends', () => {
@@ -179,7 +215,9 @@ describe('importPlainText', () => {
   });
 
   it('reports an unusable regular expression', () => {
-    const result = importPlainText('1 a', { pattern: { kind: 'line-start-number', regex: '(', matches: 1, sample: '1' } });
+    const result = importPlainText('1 a', {
+      pattern: { kind: 'line-start-number', regex: '(', matches: 1, sample: '1' },
+    });
     expect(result.warnings[0]).toMatch(/not a valid regular expression/u);
     expect(toText(result.stream)).toBe('1 a');
   });

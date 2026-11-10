@@ -1,6 +1,17 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { defaultProfile, newId } from '@varians/core';
-import { bibliographyItems, conjectures, createDatabase, editions, notes, referenceSchemes, segments, users, works, type Database } from '@varians/db';
+import {
+  bibliographyItems,
+  conjectures,
+  createDatabase,
+  editions,
+  notes,
+  referenceSchemes,
+  segments,
+  users,
+  works,
+  type Database,
+} from '@varians/db';
 import { eq, inArray, like } from 'drizzle-orm';
 import pg from 'pg';
 import {
@@ -21,7 +32,15 @@ let db: Database;
 let pool: pg.Pool;
 const tag = newId().slice(-8).toLowerCase();
 const key = (k: string) => `${k}-${tag}`;
-const ids = { owner: newId(), other: newId(), editor: newId(), scheme: newId(), work: newId(), segment: newId(), edition: newId() };
+const ids = {
+  owner: newId(),
+  other: newId(),
+  editor: newId(),
+  scheme: newId(),
+  work: newId(),
+  segment: newId(),
+  edition: newId(),
+};
 const owner = { id: ids.owner, role: 'member' as const };
 const other = { id: ids.other, role: 'member' as const };
 const siteEditor = { id: ids.editor, role: 'editor' as const };
@@ -31,12 +50,41 @@ beforeAll(async () => {
   await db.insert(users).values([
     { id: ids.owner, email: `${ids.owner}@test`, name: 'Owner', passwordHash: 'x' },
     { id: ids.other, email: `${ids.other}@test`, name: 'Other', passwordHash: 'x' },
-    { id: ids.editor, email: `${ids.editor}@test`, name: 'Editor', passwordHash: 'x', role: 'editor' },
+    {
+      id: ids.editor,
+      email: `${ids.editor}@test`,
+      name: 'Editor',
+      passwordHash: 'x',
+      role: 'editor',
+    },
   ]);
-  await db.insert(referenceSchemes).values({ id: ids.scheme, name: 'l', levels: [{ key: 'line', label: 'Line', type: 'number', separator: '' }] });
-  await db.insert(works).values({ id: ids.work, slug: `w-${ids.work}`, title: 'W', schemeId: ids.scheme, profile: defaultProfile('grc') });
-  await db.insert(segments).values({ id: ids.segment, workId: ids.work, address: { line: '1' }, label: '1', sortKey: '00001' });
-  await db.insert(editions).values({ id: ids.edition, workId: ids.work, slug: `e-${ids.edition}`, title: 'E', ownerId: ids.owner, conventions: DEFAULT_CONVENTIONS });
+  await db.insert(referenceSchemes).values({
+    id: ids.scheme,
+    name: 'l',
+    levels: [{ key: 'line', label: 'Line', type: 'number', separator: '' }],
+  });
+  await db.insert(works).values({
+    id: ids.work,
+    slug: `w-${ids.work}`,
+    title: 'W',
+    schemeId: ids.scheme,
+    profile: defaultProfile('grc'),
+  });
+  await db.insert(segments).values({
+    id: ids.segment,
+    workId: ids.work,
+    address: { line: '1' },
+    label: '1',
+    sortKey: '00001',
+  });
+  await db.insert(editions).values({
+    id: ids.edition,
+    workId: ids.work,
+    slug: `e-${ids.edition}`,
+    title: 'E',
+    ownerId: ids.owner,
+    conventions: DEFAULT_CONVENTIONS,
+  });
 });
 
 afterAll(async () => {
@@ -77,39 +125,92 @@ describe('the bibliography', () => {
   });
 
   it('saves one entry at a time and refuses taken keys and others’ entries', async () => {
-    const created = await saveEntry(db, null, `@book{${key('allen1931')}, author = {Allen, T. W.}, title = {Homeri Ilias}, year = {1931}}`, other);
+    const created = await saveEntry(
+      db,
+      null,
+      `@book{${key('allen1931')}, author = {Allen, T. W.}, title = {Homeri Ilias}, year = {1931}}`,
+      other,
+    );
     expect(created.ok).toBe(true);
     const item = created.ok ? created.item : null;
-    expect((await saveEntry(db, null, `@book{${key('allen1931')}, title = {X}}`, owner)).ok).toBe(false);
-    expect((await saveEntry(db, null, `@book{a, title={x}} @book{b, title={y}}`, owner)).ok).toBe(false);
+    expect((await saveEntry(db, null, `@book{${key('allen1931')}, title = {X}}`, owner)).ok).toBe(
+      false,
+    );
+    expect((await saveEntry(db, null, `@book{a, title={x}} @book{b, title={y}}`, owner)).ok).toBe(
+      false,
+    );
     expect((await saveEntry(db, null, 'not biblatex', owner)).ok).toBe(false);
-    const forbidden = await saveEntry(db, item!.id, `@book{${key('allen1931')}, title = {Y}}`, owner);
+    const forbidden = await saveEntry(
+      db,
+      item!.id,
+      `@book{${key('allen1931')}, title = {Y}}`,
+      owner,
+    );
     expect(forbidden.ok ? '' : forbidden.error).toBe('forbidden');
-    const edited = await saveEntry(db, item!.id, `@book{${key('allen1931')}, author = {Allen, Thomas W.}, title = {Homeri Ilias}, year = {1931}}`, siteEditor);
+    const edited = await saveEntry(
+      db,
+      item!.id,
+      `@book{${key('allen1931')}, author = {Allen, Thomas W.}, title = {Homeri Ilias}, year = {1931}}`,
+      siteEditor,
+    );
     expect(edited.ok).toBe(true);
     expect(await bibText(db, [item!.id])).toContain('Allen, Thomas W.');
   });
 
   it('cites from conjectures and notes, gathers an edition’s works cited, and protects cited entries', async () => {
-    const [west] = await db.select().from(bibliographyItems).where(eq(bibliographyItems.citationKey, key('west1998')));
-    const [westb] = await db.select().from(bibliographyItems).where(eq(bibliographyItems.citationKey, key('west1998b')));
+    const [west] = await db
+      .select()
+      .from(bibliographyItems)
+      .where(eq(bibliographyItems.citationKey, key('west1998')));
+    const [westb] = await db
+      .select()
+      .from(bibliographyItems)
+      .where(eq(bibliographyItems.citationKey, key('west1998b')));
     const conjectureId = newId();
-    await db.insert(conjectures).values({ id: conjectureId, workId: ids.work, segmentId: ids.segment, lemma: 'a', reading: 'b', proposer: 'West', ownerId: ids.owner });
-    await setCitations(db, { conjectureId }, [{ itemId: west!.id, postnote: ' 45 ' }, { itemId: 'nothing' }]);
+    await db.insert(conjectures).values({
+      id: conjectureId,
+      workId: ids.work,
+      segmentId: ids.segment,
+      lemma: 'a',
+      reading: 'b',
+      proposer: 'West',
+      ownerId: ids.owner,
+    });
+    await setCitations(db, { conjectureId }, [
+      { itemId: west!.id, postnote: ' 45 ' },
+      { itemId: 'nothing' },
+    ]);
     expect((await citationsOf(db, { conjectureId })).map((c) => c.text)).toEqual(['West 1998, 45']);
     const noteId = newId();
-    await db.insert(notes).values({ id: noteId, editionId: ids.edition, segmentId: ids.segment, text: 'n', authorId: ids.owner });
-    await setCitations(db, { noteId, editionId: ids.edition }, [{ itemId: westb!.id, prenote: 'cf.' }]);
-    expect((await citationsByRecord(db, 'note', [noteId])).get(noteId)?.[0]?.text).toBe('cf. West 1998');
+    await db.insert(notes).values({
+      id: noteId,
+      editionId: ids.edition,
+      segmentId: ids.segment,
+      text: 'n',
+      authorId: ids.owner,
+    });
+    await setCitations(db, { noteId, editionId: ids.edition }, [
+      { itemId: westb!.id, prenote: 'cf.' },
+    ]);
+    expect((await citationsByRecord(db, 'note', [noteId])).get(noteId)?.[0]?.text).toBe(
+      'cf. West 1998',
+    );
     const asOwner = { kind: 'editor' as const, viewer: owner };
     const cited = await editionWorksCited(db, ids.edition, asOwner);
     expect(cited.map((c) => c.label)).toEqual(['West 1998a', 'West 1998b']);
     expect(cited[0]!.reference).toContain('Homeri Ilias');
     // Readers see the published record only: the owner's draft conjecture, and what it cites, is not theirs to see.
-    expect((await editionWorksCited(db, ids.edition)).map((c) => c.key)).toEqual([key('west1998b')]);
+    expect((await editionWorksCited(db, ids.edition)).map((c) => c.key)).toEqual([
+      key('west1998b'),
+    ]);
     // A stranger's draft conjecture is not printed by this edition, so what it cites is not listed.
-    await db.update(conjectures).set({ ownerId: ids.other }).where(eq(conjectures.id, conjectureId));
-    expect((await editionWorksCited(db, ids.edition, asOwner)).map((c) => c.key)).toEqual([key('west1998b')]);
+    await db
+      .update(conjectures)
+      .set({ ownerId: ids.other })
+      .where(eq(conjectures.id, conjectureId));
+    expect((await editionWorksCited(db, ids.edition, asOwner)).map((c) => c.key)).toEqual([
+      key('west1998b'),
+    ]);
     const refused = await deleteEntry(db, west!.id, owner);
     expect(refused).toEqual({ ok: false, error: 'cited', cited: 1 });
     await setCitations(db, { conjectureId }, []);

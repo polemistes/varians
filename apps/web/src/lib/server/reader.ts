@@ -46,7 +46,14 @@ import {
 import { and, desc, eq, inArray, lte } from 'drizzle-orm';
 import { MAX_REFRESH, PUBLIC, recordFilter, type Audience } from './audience.ts';
 import { citationsByRecord } from './bibliography.ts';
-import { collateEdition, collateSegment, editionUnits, loadEditionContext, loadWitnessHands, type EditionContext } from './collation.ts';
+import {
+  collateEdition,
+  collateSegment,
+  editionUnits,
+  loadEditionContext,
+  loadWitnessHands,
+  type EditionContext,
+} from './collation.ts';
 import { collationStateOf, normalizeSiglum, type ConspectusEntry } from './sigla.ts';
 import { handLabel } from '../registry/witness.ts';
 import type { ReaderSiglumState } from '../reader/types.ts';
@@ -103,15 +110,30 @@ export function driftOf(context: EditionContext, segmentTokenIds: string[]): Dri
     const siglum = context.sigla.find((x) => x.transcriptionId === source.transcriptionId);
     const index = wordIndexOf(context, source.transcriptionId);
     if (!siglum || !index) continue;
-    const words = [...new Set(source.tokenIds.map((t) => index.corrected.get(t)).filter((w): w is string => w !== undefined))];
+    const words = [
+      ...new Set(
+        source.tokenIds
+          .map((t) => index.corrected.get(t))
+          .filter((w): w is string => w !== undefined),
+      ),
+    ];
     const now = words.join(' ').normalize('NFC');
     const parts = now.split(/\s+/u).filter(Boolean);
     const form = token.form.normalize('NFC');
     if (parts.includes(form) || now === form) continue;
     // A word the edition took from another state of the witness is not adrift while that state still has it.
-    if (index.states.some((state) => source.tokenIds.map((t) => state.get(t)).some((w) => w !== undefined && w.normalize('NFC').split(/\s+/u).includes(form)))) continue;
+    if (
+      index.states.some((state) =>
+        source.tokenIds
+          .map((t) => state.get(t))
+          .some((w) => w !== undefined && w.normalize('NFC').split(/\s+/u).includes(form)),
+      )
+    )
+      continue;
     if (siglum.variantSiglum) {
-      const noted = source.tokenIds.map((t) => index.variant.get(t)).filter((w): w is string => w !== undefined);
+      const noted = source.tokenIds
+        .map((t) => index.variant.get(t))
+        .filter((w): w is string => w !== undefined);
       if (noted.some((w) => w.normalize('NFC').split(/\s+/u).includes(form))) continue;
     }
     out.push({ tokenId: id, siglum: siglum.siglum, transcriptionId: source.transcriptionId, now });
@@ -129,7 +151,11 @@ function editionIndex(context: EditionContext): Map<string, Item> {
   return index;
 }
 
-type WordIndex = { corrected: Map<string, string>; variant: Map<string, string>; states: Map<string, string>[] };
+type WordIndex = {
+  corrected: Map<string, string>;
+  variant: Map<string, string>;
+  states: Map<string, string>[];
+};
 const wordIndexes = new WeakMap<EditionContext, Map<string, WordIndex>>();
 /** For one transcription of the conspectus: each token's word, as read now, in each state. */
 function wordIndexOf(context: EditionContext, transcriptionId: string): WordIndex | null {
@@ -146,7 +172,8 @@ function wordIndexOf(context: EditionContext, transcriptionId: string): WordInde
     const wordsIn = (state: Parameters<typeof units>[3]) => {
       const map = new Map<string, string>();
       for (const unit of units(content, 0, content.items.length, state)) {
-        for (const t of unit.tokenIds) map.set(t, map.has(t) ? `${map.get(t)} ${unit.text}` : unit.text);
+        for (const t of unit.tokenIds)
+          map.set(t, map.has(t) ? `${map.get(t)} ${unit.text}` : unit.text);
       }
       return map;
     };
@@ -163,16 +190,33 @@ function wordIndexOf(context: EditionContext, transcriptionId: string): WordInde
 }
 
 /** A state of a witness as the reader names it: a hand by its label. */
-function readerState(state: ConspectusEntry['states'][number], hands: WitnessHand[]): ReaderSiglumState {
+function readerState(
+  state: ConspectusEntry['states'][number],
+  hands: WitnessHand[],
+): ReaderSiglumState {
   if (state.kind === 'hand') {
-    return { kind: 'hand', siglum: state.siglum, hand: handLabel(state.hand, hands, { scribe: r.explain.theScribe, other: r.explain.anotherHand }) ?? state.hand };
+    return {
+      kind: 'hand',
+      siglum: state.siglum,
+      hand:
+        handLabel(state.hand, hands, {
+          scribe: r.explain.theScribe,
+          other: r.explain.anotherHand,
+        }) ?? state.hand,
+    };
   }
-  return state.kind === 'stage' ? { kind: 'stage', siglum: state.siglum, stage: state.stage } : { kind: 'original', siglum: state.siglum };
+  return state.kind === 'stage'
+    ? { kind: 'stage', siglum: state.siglum, stage: state.stage }
+    : { kind: 'original', siglum: state.siglum };
 }
 
 /** The apparatus renderer's conventions from an edition's stored conventions. */
 export function apparatusConventionsOf(conventions: EditionConventions): ApparatusConventions {
-  return { form: conventions.apparatus, latin: conventions.latin, interpretative: conventions.interpretative ?? 'separate' };
+  return {
+    form: conventions.apparatus,
+    latin: conventions.latin,
+    interpretative: conventions.interpretative ?? 'separate',
+  };
 }
 
 /** Where a witness orders whole segments otherwise than the edition prints them. */
@@ -202,7 +246,18 @@ export function orderStatements(context: EditionContext): OrderStatement[] {
 }
 
 export interface EditionView {
-  edition: { id: string; slug: string; title: string; editors: string[]; preface: string | null; sources: string | null; rightsNote: string | null; licence: { id: string; name: string; url: string } | null; version: number; conventions: EditionConventions };
+  edition: {
+    id: string;
+    slug: string;
+    title: string;
+    editors: string[];
+    preface: string | null;
+    sources: string | null;
+    rightsNote: string | null;
+    licence: { id: string; name: string; url: string } | null;
+    version: number;
+    conventions: EditionConventions;
+  };
   apparatus: ApparatusConventions;
   work: { id: string; title: string; author: string | null; language: string };
   content: Stream;
@@ -230,7 +285,12 @@ export interface EditionView {
  * stood when it was published, with the conjectures, reported readings and
  * notes there were then, so that it reads the same for as long as it is cited.
  */
-export async function editionView(db: Database, editionId: string, atVersion: number | null = null, audience: Audience = PUBLIC): Promise<EditionView> {
+export async function editionView(
+  db: Database,
+  editionId: string,
+  atVersion: number | null = null,
+  audience: Audience = PUBLIC,
+): Promise<EditionView> {
   const { context, asOf } = await contextAt(db, editionId, atVersion);
   const [row] = await db.select().from(editions).where(eq(editions.id, editionId));
   if (!row) throw new Error(`no edition ${editionId}`);
@@ -239,7 +299,15 @@ export async function editionView(db: Database, editionId: string, atVersion: nu
   const labelOf: Record<string, string> = {};
   for (const s of segmentRows) labelOf[s.id] = s.label;
   const witnessRows = context.sigla.length
-    ? await db.select().from(witnesses).where(inArray(witnesses.id, context.sigla.map((s) => s.witnessId)))
+    ? await db
+        .select()
+        .from(witnesses)
+        .where(
+          inArray(
+            witnesses.id,
+            context.sigla.map((s) => s.witnessId),
+          ),
+        )
     : [];
   const witnessById = new Map(witnessRows.map((w) => [w.id, w] as const));
   const sigla = context.sigla.map((s) => ({
@@ -252,14 +320,42 @@ export async function editionView(db: Database, editionId: string, atVersion: nu
     variantSiglum: s.variantSiglum,
   }));
   const collations = await collateEdition(db, context);
-  const views = await buildSegmentViews(db, context, row, collations, labelOf, witnessById, asOf, audience);
-  const lineation = row.conventions.lineation === 'prose' ? 1 : Number(row.conventions.numberEvery ?? 5);
+  const views = await buildSegmentViews(
+    db,
+    context,
+    row,
+    collations,
+    labelOf,
+    witnessById,
+    asOf,
+    audience,
+  );
+  const lineation =
+    row.conventions.lineation === 'prose' ? 1 : Number(row.conventions.numberEvery ?? 5);
   return {
-    edition: { id: row.id, slug: row.slug, title: row.title, editors: row.editors, preface: row.preface, sources: row.sources, rightsNote: row.rightsNote, licence: licenceInfo(row.licenceId), version: context.edition.version, conventions: row.conventions },
+    edition: {
+      id: row.id,
+      slug: row.slug,
+      title: row.title,
+      editors: row.editors,
+      preface: row.preface,
+      sources: row.sources,
+      rightsNote: row.rightsNote,
+      licence: licenceInfo(row.licenceId),
+      version: context.edition.version,
+      conventions: row.conventions,
+    },
     apparatus: apparatusConventionsOf(row.conventions),
-    work: { id: row.workId, title: work?.title ?? '', author: work?.author ?? null, language: work?.language ?? 'grc' },
+    work: {
+      id: row.workId,
+      title: work?.title ?? '',
+      author: work?.author ?? null,
+      language: work?.language ?? 'grc',
+    },
     content: context.edition.content,
-    lines: layoutLines(context.edition.content, (id) => labelOf[id] ?? id, { numberEvery: lineation }),
+    lines: layoutLines(context.edition.content, (id) => labelOf[id] ?? id, {
+      numberEvery: lineation,
+    }),
     sigla,
     segments: views,
     labelOf,
@@ -274,17 +370,32 @@ export async function editionView(db: Database, editionId: string, atVersion: nu
  * transcription versions it was published with, and the time after which
  * records are left out (`asOf`).
  */
-export async function contextAt(db: Database, editionId: string, atVersion: number | null): Promise<{ context: EditionContext; asOf: Date | null }> {
+export async function contextAt(
+  db: Database,
+  editionId: string,
+  atVersion: number | null,
+): Promise<{ context: EditionContext; asOf: Date | null }> {
   const context = await loadEditionContext(db, editionId);
   if (atVersion !== null && atVersion !== context.edition.version) {
-    context.edition = { ...context.edition, content: await documentAt(db, 'edition', editionId, atVersion), version: atVersion };
+    context.edition = {
+      ...context.edition,
+      content: await documentAt(db, 'edition', editionId, atVersion),
+      version: atVersion,
+    };
   }
   let asOf: Date | null = null;
   if (atVersion !== null) {
     const [published] = await db
       .select({ basis: moments.basis, at: moments.at })
       .from(moments)
-      .where(and(eq(moments.documentKind, 'edition'), eq(moments.documentId, editionId), eq(moments.kind, 'published'), eq(moments.version, atVersion)))
+      .where(
+        and(
+          eq(moments.documentKind, 'edition'),
+          eq(moments.documentId, editionId),
+          eq(moments.kind, 'published'),
+          eq(moments.version, atVersion),
+        ),
+      )
       .orderBy(desc(moments.at))
       .limit(1);
     if (published?.basis) {
@@ -301,26 +412,56 @@ export async function contextAt(db: Database, editionId: string, atVersion: numb
 }
 
 /** Put a publication's conspectus and transcription versions in place of the current ones. */
-async function applyBasis(db: Database, context: EditionContext, basis: MomentBasis): Promise<void> {
+async function applyBasis(
+  db: Database,
+  context: EditionContext,
+  basis: MomentBasis,
+): Promise<void> {
   // Bases published before variants could be collated have no variant siglum; those before states name the state before correction alone.
   context.sigla = basis.sigla.map(normalizeSiglum);
-  context.witnessHands = await loadWitnessHands(db, context.sigla.map((s) => s.witnessId));
+  context.witnessHands = await loadWitnessHands(
+    db,
+    context.sigla.map((s) => s.witnessId),
+  );
   const ids = basis.sigla.map((s) => s.transcriptionId).filter((id): id is string => id !== null);
   const rows = ids.length
-    ? await db.select({ id: transcriptions.id, content: transcriptions.content, version: transcriptions.version, witnessId: transcriptions.witnessId }).from(transcriptions).where(inArray(transcriptions.id, ids))
+    ? await db
+        .select({
+          id: transcriptions.id,
+          content: transcriptions.content,
+          version: transcriptions.version,
+          witnessId: transcriptions.witnessId,
+        })
+        .from(transcriptions)
+        .where(inArray(transcriptions.id, ids))
     : [];
-  const loaded = new Map<string, { id: string; content: Stream; version: number; witnessId: string }>();
+  const loaded = new Map<
+    string,
+    { id: string; content: Stream; version: number; witnessId: string }
+  >();
   for (const row of rows) {
     const version = basis.versions[row.id] ?? row.version;
-    loaded.set(row.id, version >= row.version ? row : { ...row, content: await documentAt(db, 'transcription', row.id, version), version });
+    loaded.set(
+      row.id,
+      version >= row.version
+        ? row
+        : { ...row, content: await documentAt(db, 'transcription', row.id, version), version },
+    );
   }
   // A transcription deleted since is simply absent from the apparatus.
-  context.sigla = context.sigla.filter((s) => s.transcriptionId === null || loaded.has(s.transcriptionId));
+  context.sigla = context.sigla.filter(
+    (s) => s.transcriptionId === null || loaded.has(s.transcriptionId),
+  );
   context.transcriptions = loaded;
 }
 
 /** The views of some segments only, for the editor after a change: collated from the current content. */
-export async function segmentViewsFor(db: Database, editionId: string, segmentIds: string[], audience: Audience = PUBLIC): Promise<Record<string, SegmentView>> {
+export async function segmentViewsFor(
+  db: Database,
+  editionId: string,
+  segmentIds: string[],
+  audience: Audience = PUBLIC,
+): Promise<Record<string, SegmentView>> {
   return (await refreshView(db, editionId, segmentIds, audience)).segments;
 }
 
@@ -336,17 +477,42 @@ export async function refreshView(
   if (!row) throw new Error(`no edition ${editionId}`);
   // Segments of this work only, and a bounded number of them: the editor asks for those it has on screen.
   const asked = [...new Set(segmentIds)].slice(0, MAX_REFRESH);
-  const segmentRows = asked.length ? await db.select().from(segments).where(and(inArray(segments.id, asked), eq(segments.workId, row.workId))) : [];
+  const segmentRows = asked.length
+    ? await db
+        .select()
+        .from(segments)
+        .where(and(inArray(segments.id, asked), eq(segments.workId, row.workId)))
+    : [];
   const wanted = segmentRows.map((s) => s.id);
   const labelOf: Record<string, string> = {};
   for (const s of segmentRows) labelOf[s.id] = s.label;
   const witnessRows = context.sigla.length
-    ? await db.select().from(witnesses).where(inArray(witnesses.id, context.sigla.map((s) => s.witnessId)))
+    ? await db
+        .select()
+        .from(witnesses)
+        .where(
+          inArray(
+            witnesses.id,
+            context.sigla.map((s) => s.witnessId),
+          ),
+        )
     : [];
   const witnessById = new Map(witnessRows.map((w) => [w.id, w] as const));
   const collations = new Map<string, Collation>();
   for (const id of wanted) collations.set(id, await collateSegment(db, context, id));
-  return { segments: await buildSegmentViews(db, context, row, collations, labelOf, witnessById, null, audience), order: orderStatements(context) };
+  return {
+    segments: await buildSegmentViews(
+      db,
+      context,
+      row,
+      collations,
+      labelOf,
+      witnessById,
+      null,
+      audience,
+    ),
+    order: orderStatements(context),
+  };
 }
 
 async function buildSegmentViews(
@@ -363,7 +529,11 @@ async function buildSegmentViews(
   const siglumOfWitness = new Map(context.sigla.map((s) => [s.witnessId, s.siglum] as const));
   const conventions = apparatusConventionsOf(row.conventions);
   const segmentIds = [...collations.keys()];
-  const adopted = new Set((await db.select().from(editionAdoptions).where(eq(editionAdoptions.editionId, editionId))).map((a) => a.conjectureId));
+  const adopted = new Set(
+    (await db.select().from(editionAdoptions).where(eq(editionAdoptions.editionId, editionId))).map(
+      (a) => a.conjectureId,
+    ),
+  );
   // The work's published records are a commons every reader sees; drafts only those who may see them, in the editor.
   const sees = await recordFilter(db, row.workId, audience);
   const conjectureRows = segmentIds.length
@@ -371,7 +541,13 @@ async function buildSegmentViews(
         await db
           .select()
           .from(conjectures)
-          .where(and(eq(conjectures.workId, row.workId), inArray(conjectures.segmentId, segmentIds), asOf ? lte(conjectures.createdAt, asOf) : undefined))
+          .where(
+            and(
+              eq(conjectures.workId, row.workId),
+              inArray(conjectures.segmentId, segmentIds),
+              asOf ? lte(conjectures.createdAt, asOf) : undefined,
+            ),
+          )
       ).filter(sees)
     : [];
   const reportedRows = segmentIds.length
@@ -379,19 +555,50 @@ async function buildSegmentViews(
         await db
           .select()
           .from(reportedReadings)
-          .where(and(eq(reportedReadings.workId, row.workId), inArray(reportedReadings.segmentId, segmentIds), asOf ? lte(reportedReadings.createdAt, asOf) : undefined))
+          .where(
+            and(
+              eq(reportedReadings.workId, row.workId),
+              inArray(reportedReadings.segmentId, segmentIds),
+              asOf ? lte(reportedReadings.createdAt, asOf) : undefined,
+            ),
+          )
       ).filter(sees)
     : [];
   const noteRows = await db
-    .select({ id: notes.id, segmentId: notes.segmentId, tokenIds: notes.tokenIds, text: notes.text, author: users.name })
+    .select({
+      id: notes.id,
+      segmentId: notes.segmentId,
+      tokenIds: notes.tokenIds,
+      text: notes.text,
+      author: users.name,
+    })
     .from(notes)
     .leftJoin(users, eq(users.id, notes.authorId))
     .where(and(eq(notes.editionId, editionId), asOf ? lte(notes.createdAt, asOf) : undefined));
-  const texts = (map: Map<string, { text: string }[]>) => new Map([...map].map(([id, list]) => [id, list.map((c) => c.text)] as const));
-  const noteCites = texts(await citationsByRecord(db, 'note', noteRows.map((n) => n.id)));
+  const texts = (map: Map<string, { text: string }[]>) =>
+    new Map([...map].map(([id, list]) => [id, list.map((c) => c.text)] as const));
+  const noteCites = texts(
+    await citationsByRecord(
+      db,
+      'note',
+      noteRows.map((n) => n.id),
+    ),
+  );
   const recordCites = new Map([
-    ...texts(await citationsByRecord(db, 'conjecture', conjectureRows.map((c) => c.id))),
-    ...texts(await citationsByRecord(db, 'reported', reportedRows.map((r) => r.id))),
+    ...texts(
+      await citationsByRecord(
+        db,
+        'conjecture',
+        conjectureRows.map((c) => c.id),
+      ),
+    ),
+    ...texts(
+      await citationsByRecord(
+        db,
+        'reported',
+        reportedRows.map((r) => r.id),
+      ),
+    ),
   ]);
   const views: Record<string, SegmentView> = {};
   for (const [segmentId, collation] of collations) {
@@ -428,49 +635,86 @@ async function buildSegmentViews(
     ];
     const attached = attachToSites(collation, baseUnits, candidates, context.profile.fold);
     // The places a conjecture or reported reading makes take the editor's kind too.
-    const kinds = new Map([...(context.siteKinds.get(segmentId) ?? [])].map(([key, k]) => [key, k.kind] as const));
+    const kinds = new Map(
+      [...(context.siteKinds.get(segmentId) ?? [])].map(([key, k]) => [key, k.kind] as const),
+    );
     attached.collation = applySiteKinds(attached.collation, baseUnits, kinds);
     const label = labelOf[segmentId] ?? segmentId;
     const siglaOrder = siglaOrderOf(context.sigla);
-    const absent = collation.absent.map((id) => context.sigla.find((s) => s.transcriptionId === id)?.siglum ?? id);
+    const absent = collation.absent.map(
+      (id) => context.sigla.find((s) => s.transcriptionId === id)?.siglum ?? id,
+    );
     views[segmentId] = {
       segmentId,
       label,
       collation: attached.collation,
       baseUnits,
-      entries: apparatusEntries(attached.collation, label, attached.bySite, conventions, siglaOrder),
+      entries: apparatusEntries(
+        attached.collation,
+        label,
+        attached.bySite,
+        conventions,
+        siglaOrder,
+      ),
       attachments: attached.bySite,
       unplaced: attached.unplaced,
       absent,
       notes: noteRows
         .filter((n) => n.segmentId === segmentId)
-        .map((n) => ({ id: n.id, tokenIds: n.tokenIds, text: n.text, author: n.author, cites: noteCites.get(n.id) ?? [] })),
-      drift: driftOf(context, baseUnits.flatMap((u) => u.tokenIds)),
+        .map((n) => ({
+          id: n.id,
+          tokenIds: n.tokenIds,
+          text: n.text,
+          author: n.author,
+          cites: noteCites.get(n.id) ?? [],
+        })),
+      drift: driftOf(
+        context,
+        baseUnits.flatMap((u) => u.tokenIds),
+      ),
       cites: Object.fromEntries(
-        [...conjectureRows.filter((c) => c.segmentId === segmentId), ...reportedRows.filter((r) => r.segmentId === segmentId)]
+        [
+          ...conjectureRows.filter((c) => c.segmentId === segmentId),
+          ...reportedRows.filter((r) => r.segmentId === segmentId),
+        ]
           .filter((r) => recordCites.has(r.id))
           .map((r) => [r.id, recordCites.get(r.id)!] as const),
       ),
     };
   }
-  const [work] = await db.select({ language: works.language }).from(works).where(eq(works.id, row.workId));
+  const [work] = await db
+    .select({ language: works.language })
+    .from(works)
+    .where(eq(works.id, row.workId));
   if (work?.language === 'grc') await relateReadings(db, Object.values(views));
   return views;
 }
 
 /** The relations of the readings of textual places to the edition's words, from the analyser of Greek forms. */
 async function relateReadings(db: Database, views: SegmentView[]): Promise<void> {
-  const textual = views.flatMap((view) => view.collation.sites.filter((site) => site.kind === 'textual' && site.readings.length > 1).map((site) => ({ view, site })));
+  const textual = views.flatMap((view) =>
+    view.collation.sites
+      .filter((site) => site.kind === 'textual' && site.readings.length > 1)
+      .map((site) => ({ view, site })),
+  );
   const words = new Set<string>();
-  for (const { site } of textual) for (const reading of site.readings) for (const w of reading.text.split(/\s+/u)) if (w) words.add(w);
+  for (const { site } of textual)
+    for (const reading of site.readings)
+      for (const w of reading.text.split(/\s+/u)) if (w) words.add(w);
   if (words.size === 0) return;
   const analysed = await analyseWords(db, [...words]);
   // Lemmas compared by their letters: the treebanks and Morpheus spell some differently, and number homographs.
-  const lemmas = new Map(Object.entries(analysed).map(([w, list]) => [w, new Set(list.map((a) => looseKey(a.lemma)))] as const));
+  const lemmas = new Map(
+    Object.entries(analysed).map(
+      ([w, list]) => [w, new Set(list.map((a) => looseKey(a.lemma)))] as const,
+    ),
+  );
   for (const { view, site } of textual) {
     const base = site.readings.find((r) => r.base);
     if (!base) continue;
-    const list = site.readings.map((reading) => (reading.base ? null : variantRelation(base.text, reading.text, (w) => lemmas.get(w))));
+    const list = site.readings.map((reading) =>
+      reading.base ? null : variantRelation(base.text, reading.text, (w) => lemmas.get(w)),
+    );
     if (list.some((x) => x !== null)) (view.relations ??= {})[site.index] = list;
   }
 }

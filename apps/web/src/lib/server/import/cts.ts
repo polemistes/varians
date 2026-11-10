@@ -24,8 +24,12 @@ export async function fetchCtsPassage(urn: string, options: CtsOptions = {}): Pr
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 30000);
   try {
-    const response = await fetch(url, { signal: controller.signal, headers: { accept: 'application/xml, text/xml' } });
-    if (!response.ok) throw new Error(`CTS request failed: ${response.status} ${response.statusText}`);
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: { accept: 'application/xml, text/xml' },
+    });
+    if (!response.ok)
+      throw new Error(`CTS request failed: ${response.status} ${response.statusText}`);
     return await response.text();
   } finally {
     clearTimeout(timer);
@@ -52,5 +56,9 @@ export function teiFromCtsReply(reply: string, urn: string): string {
 }
 
 function escapeXml(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }

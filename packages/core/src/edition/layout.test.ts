@@ -9,7 +9,8 @@ function verse(): ReturnType<typeof fromText> {
   const s = fromText(lines.join('\n'), { ids: sequentialIds() });
   let n = 1;
   for (const item of s.items) {
-    if (item.kind === 'token' && item.form.startsWith('word')) (item as Token).segment = { segmentId: `s${n++}` };
+    if (item.kind === 'token' && item.form.startsWith('word'))
+      (item as Token).segment = { segmentId: `s${n++}` };
   }
   return s;
 }
@@ -18,7 +19,20 @@ describe('layoutLines', () => {
   it('prints every fifth label and the first', () => {
     const lines = layoutLines(verse(), (id) => `1.${id.slice(1)}`, { numberEvery: 5 });
     expect(lines).toHaveLength(12);
-    expect(lines.map((l) => l.label)).toEqual(['1.1', null, null, null, '1.5', null, null, null, null, '1.10', null, null]);
+    expect(lines.map((l) => l.label)).toEqual([
+      '1.1',
+      null,
+      null,
+      null,
+      '1.5',
+      null,
+      null,
+      null,
+      null,
+      '1.10',
+      null,
+      null,
+    ]);
     expect(lines[4]!.starts[0]!.segmentId).toBe('s5');
   });
 

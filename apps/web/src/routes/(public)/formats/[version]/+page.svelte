@@ -8,32 +8,62 @@
 
 <PageFrame width="page">
   <div class="flex flex-col gap-10 lg:flex-row lg:items-start lg:gap-16">
-    <nav aria-label={site.guide.contents} class="font-sans text-sm lg:sticky lg:top-6 lg:w-56 lg:shrink-0">
+    <nav
+      aria-label={site.guide.contents}
+      class="font-sans text-sm lg:sticky lg:top-6 lg:w-56 lg:shrink-0"
+    >
       <p class="mb-2 font-semibold text-ink">{site.guide.contents}</p>
       <ul class="flex flex-col gap-1.5">
         {#each data.contents as heading (heading.id)}
-          <li><a href="#{heading.id}" class="text-ink-soft hover:text-ink hover:underline">{heading.text}</a></li>
+          <li>
+            <a href="#{heading.id}" class="text-ink-soft hover:text-ink hover:underline"
+              >{heading.text}</a
+            >
+          </li>
         {/each}
       </ul>
       <p class="mt-6 mb-2 font-semibold text-ink">{site.formats.files}</p>
       <ul class="flex flex-col gap-1.5">
         {#if data.hasOdd}
-          <li><a href="{data.base}varians.odd" class="text-ink-soft hover:text-ink hover:underline">varians.odd</a>, <a href="{data.base}varians.rng" class="text-ink-soft hover:text-ink hover:underline">varians.rng</a></li>
+          <li>
+            <a href="{data.base}varians.odd" class="text-ink-soft hover:text-ink hover:underline"
+              >varians.odd</a
+            >,
+            <a href="{data.base}varians.rng" class="text-ink-soft hover:text-ink hover:underline"
+              >varians.rng</a
+            >
+          </li>
         {/if}
-        <li><a href="{data.base}CHANGELOG.md" class="text-ink-soft hover:text-ink hover:underline">{site.formats.changelog}</a></li>
+        <li>
+          <a href="{data.base}CHANGELOG.md" class="text-ink-soft hover:text-ink hover:underline"
+            >{site.formats.changelog}</a
+          >
+        </li>
         {#if data.hasExample}
-          <li><a href="{data.base}example/README.md" class="text-ink-soft hover:text-ink hover:underline">{site.formats.example}</a></li>
+          <li>
+            <a
+              href="{data.base}example/README.md"
+              class="text-ink-soft hover:text-ink hover:underline">{site.formats.example}</a
+            >
+          </li>
         {/if}
       </ul>
       <p class="mt-6 mb-2 font-semibold text-ink">{site.formats.schemas}</p>
       <ul class="flex flex-col gap-1">
         {#each data.schemas as name (name)}
-          <li><a href="{data.base}{name}" class="font-mono text-xs text-ink-soft hover:text-ink hover:underline">{name}</a></li>
+          <li>
+            <a
+              href="{data.base}{name}"
+              class="font-mono text-xs text-ink-soft hover:text-ink hover:underline">{name}</a
+            >
+          </li>
         {/each}
       </ul>
     </nav>
     <!-- eslint-disable-next-line svelte/no-at-html-tags -- the specification is the repository's own Markdown, rendered by $lib/guide/markdown. -->
-    <article class="guide min-w-0 max-w-reading font-serif text-reading text-ink">{@html data.html}</article>
+    <article class="guide min-w-0 max-w-reading font-serif text-reading text-ink">
+      {@html data.html}
+    </article>
   </div>
 </PageFrame>
 

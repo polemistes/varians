@@ -16,7 +16,16 @@
  */
 
 import { newId } from '../ids.ts';
-import { isBreak, isObj, isToken, StreamError, type Break, type Id, type Item, type Stream } from './items.ts';
+import {
+  isBreak,
+  isObj,
+  isToken,
+  StreamError,
+  type Break,
+  type Id,
+  type Item,
+  type Stream,
+} from './items.ts';
 import { applyOp, applyOps, type Op } from './ops.ts';
 import { segmentRuns, segmentStartOf } from './words.ts';
 
@@ -160,7 +169,9 @@ export function repairSegmentStartsFrom(references: Stream[], after: Stream): Op
       partOf.set(list[0]!.first.id, undefined);
       continue;
     }
-    const ordered = [...list].sort((a, b) => (rank.get(a.first.id) ?? 0) - (rank.get(b.first.id) ?? 0));
+    const ordered = [...list].sort(
+      (a, b) => (rank.get(a.first.id) ?? 0) - (rank.get(b.first.id) ?? 0),
+    );
     ordered.forEach((stretch, k) => partOf.set(stretch.first.id, k + 1));
   }
 
@@ -174,7 +185,10 @@ export function repairSegmentStartsFrom(references: Stream[], after: Stream): Op
     if (stretch) {
       if (stretch.segmentId !== null && concerned.has(stretch.segmentId)) {
         const part = partOf.get(item.id);
-        wanted = part === undefined ? { segmentId: stretch.segmentId } : { segmentId: stretch.segmentId, part };
+        wanted =
+          part === undefined
+            ? { segmentId: stretch.segmentId }
+            : { segmentId: stretch.segmentId, part };
       } else if (stretch.segmentId === null) {
         if (stretch.hasPredecessor) wanted = { segmentId: null };
         else if (touched.has(item.id)) wanted = undefined;
@@ -182,7 +196,8 @@ export function repairSegmentStartsFrom(references: Stream[], after: Stream): Op
     } else if (touched.has(item.id)) {
       wanted = undefined;
     }
-    if (!sameStart(existing, wanted)) ops.push({ t: 'set', id: item.id, fields: { segment: wanted ?? null } });
+    if (!sameStart(existing, wanted))
+      ops.push({ t: 'set', id: item.id, fields: { segment: wanted ?? null } });
   }
   return ops;
 }
@@ -199,8 +214,10 @@ export function moveRun(stream: Stream, ids: Id[], after: Id | null): Op[] {
   if (first < 0) throw new StreamError(`no item ${ids[0]}`, 'missing', [ids[0]!]);
   for (let k = 0; k < ids.length; k++) {
     const item = stream.items[first + k];
-    if (!item || item.id !== ids[k]) throw new StreamError('moved items must be a contiguous run', 'invalid', ids);
-    if (isPageBreakItem(item)) throw new StreamError('a page break cannot be moved with text', 'invalid', [item.id]);
+    if (!item || item.id !== ids[k])
+      throw new StreamError('moved items must be a contiguous run', 'invalid', ids);
+    if (isPageBreakItem(item))
+      throw new StreamError('a page break cannot be moved with text', 'invalid', [item.id]);
   }
   if (after !== null && moving.has(after)) {
     throw new StreamError('cannot move a run after one of its own items', 'invalid', ids);
@@ -262,7 +279,12 @@ export interface MoveToPageOptions {
  * old place (at the start or end of a page's text, or doubled) is removed.
  * Every word keeps its segment.
  */
-export function moveToPage(stream: Stream, ids: Id[], target: Id | null, options: MoveToPageOptions): Op[] {
+export function moveToPage(
+  stream: Stream,
+  ids: Id[],
+  target: Id | null,
+  options: MoveToPageOptions,
+): Op[] {
   if (ids.length === 0) return [];
   const makeId = options.ids ?? newId;
   const moving = new Set(ids);
@@ -278,14 +300,21 @@ export function moveToPage(stream: Stream, ids: Id[], target: Id | null, options
   const oldPrevious = first > 0 ? current.items[first - 1]!.id : null;
 
   if (target !== null && pageBreakIndex(current, target) < 0) {
-    if (!options.pageOrder.includes(target)) throw new StreamError(`no page ${target}`, 'missing', [target]);
+    if (!options.pageOrder.includes(target))
+      throw new StreamError(`no page ${target}`, 'missing', [target]);
     const brk: Break = { kind: 'break', id: makeId(), type: 'page', pageId: target };
-    push([{ t: 'insert', after: pageBreakPlace(current, target, options.pageOrder), items: [brk] }]);
+    push([
+      { t: 'insert', after: pageBreakPlace(current, target, options.pageOrder), items: [brk] },
+    ]);
   }
   const bounds = stretchBounds(current, target)!;
   const last = stretchEnd(current, bounds.opener, bounds.end);
   if (last && moving.has(last.id)) return ops; // Already at the end of the target.
-  let after: Id | null = last ? last.id : bounds.opener >= 0 ? current.items[bounds.opener]!.id : null;
+  let after: Id | null = last
+    ? last.id
+    : bounds.opener >= 0
+      ? current.items[bounds.opener]!.id
+      : null;
   if (last && !isBreak(last)) {
     const brk: Break = { kind: 'break', id: makeId(), type: 'line' };
     push([{ t: 'insert', after: last.id, items: [brk] }]);
@@ -299,7 +328,8 @@ export function moveToPage(stream: Stream, ids: Id[], target: Id | null, options
   const prevIndex = oldPrevious === null ? -1 : items.findIndex((item) => item.id === oldPrevious);
   const prev = prevIndex >= 0 ? items[prevIndex] : undefined;
   const next = items[prevIndex + 1];
-  const plainLine = (item: Item | undefined) => isBreak(item) && item.type === 'line' && !moving.has(item.id);
+  const plainLine = (item: Item | undefined) =>
+    isBreak(item) && item.type === 'line' && !moving.has(item.id);
   if ((prev === undefined || isBreak(prev)) && plainLine(next) && !(next as Break).rend) {
     push([{ t: 'delete', ids: [next!.id] }]);
   } else if (plainLine(prev) && (next === undefined || isPageBreakItem(next))) {
@@ -315,7 +345,12 @@ export function moveToPage(stream: Stream, ids: Id[], target: Id | null, options
  * witness order where it has none. The items' own segment starts stand as
  * they are; the caller repairs membership when it must.
  */
-export function insertIntoPage(stream: Stream, items: Item[], target: Id | null, options: MoveToPageOptions): Op[] {
+export function insertIntoPage(
+  stream: Stream,
+  items: Item[],
+  target: Id | null,
+  options: MoveToPageOptions,
+): Op[] {
   if (items.length === 0) return [];
   const makeId = options.ids ?? newId;
   const ops: Op[] = [];
@@ -325,14 +360,22 @@ export function insertIntoPage(stream: Stream, items: Item[], target: Id | null,
     ops.push(op);
   };
   if (target !== null && pageBreakIndex(current, target) < 0) {
-    if (!options.pageOrder.includes(target)) throw new StreamError(`no page ${target}`, 'missing', [target]);
+    if (!options.pageOrder.includes(target))
+      throw new StreamError(`no page ${target}`, 'missing', [target]);
     const brk: Break = { kind: 'break', id: makeId(), type: 'page', pageId: target };
     push({ t: 'insert', after: pageBreakPlace(current, target, options.pageOrder), items: [brk] });
   }
   const bounds = stretchBounds(current, target)!;
   const last = stretchEnd(current, bounds.opener, bounds.end);
-  const after: Id | null = last ? last.id : bounds.opener >= 0 ? current.items[bounds.opener]!.id : null;
-  const adding = last && !isBreak(last) && !isBreak(items[0]) ? [{ kind: 'break', id: makeId(), type: 'line' } as Break, ...items] : items;
+  const after: Id | null = last
+    ? last.id
+    : bounds.opener >= 0
+      ? current.items[bounds.opener]!.id
+      : null;
+  const adding =
+    last && !isBreak(last) && !isBreak(items[0])
+      ? [{ kind: 'break', id: makeId(), type: 'line' } as Break, ...items]
+      : items;
   push({ t: 'insert', after, items: adding });
   return ops;
 }
@@ -351,8 +394,13 @@ function reorderOps(stream: Stream, target: Id[]): { ops: Op[]; stream: Stream }
     if (cur[i] === target[i]) continue;
     const j = cur.indexOf(target[i]!, i);
     let len = 1;
-    while (j + len < cur.length && i + len < target.length && cur[j + len] === target[i + len]) len++;
-    const op: Op = { t: 'move', ids: cur.slice(j, j + len), after: i === 0 ? null : target[i - 1]! };
+    while (j + len < cur.length && i + len < target.length && cur[j + len] === target[i + len])
+      len++;
+    const op: Op = {
+      t: 'move',
+      ids: cur.slice(j, j + len),
+      after: i === 0 ? null : target[i - 1]!,
+    };
     s = applyOp(s, op).stream;
     cur = s.items.map((item) => item.id);
     ops.push(op);
@@ -374,7 +422,11 @@ function reorderOps(stream: Stream, target: Id[]): { ops: Op[]; stream: Stream }
  * Text appended to a non-empty stretch that does not end with a break is
  * preceded by a new line break. Every word keeps its segment.
  */
-export function conformPages(stream: Stream, pageOrder: readonly Id[], ids: () => Id = newId): Op[] {
+export function conformPages(
+  stream: Stream,
+  pageOrder: readonly Id[],
+  ids: () => Id = newId,
+): Op[] {
   const known = new Set(pageOrder);
   const unplaced: Item[] = [];
   interface Block {
@@ -434,7 +486,8 @@ export function conformPages(stream: Stream, pageOrder: readonly Id[], ids: () =
   };
   if (removed.length > 0) push({ t: 'delete', ids: removed });
   for (const block of kept.values()) {
-    if (block.brk.label !== undefined) push({ t: 'set', id: block.brk.id, fields: { label: null } });
+    if (block.brk.label !== undefined)
+      push({ t: 'set', id: block.brk.id, fields: { label: null } });
   }
   for (const { brk, after } of created) push({ t: 'insert', after, items: [brk] });
   const reordered = reorderOps(

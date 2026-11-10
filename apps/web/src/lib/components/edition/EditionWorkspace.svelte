@@ -23,7 +23,16 @@
   import TextEditor from '$lib/components/editor/TextEditor.svelte';
   import type { EditorApi } from '$lib/editor/editor';
   import { DocumentSession, fetchTransport } from '$lib/editor/session';
-  import { Button, Checkbox, Menu, MenuItem, Tabs, toasts, type Tab, Splitter } from '$lib/components/ui';
+  import {
+    Button,
+    Checkbox,
+    Menu,
+    MenuItem,
+    Tabs,
+    toasts,
+    type Tab,
+    Splitter,
+  } from '$lib/components/ui';
   import ApparatusBand, { type Choice } from './ApparatusBand.svelte';
   import ConjectureDialog, { type ConjectureDraft } from './ConjectureDialog.svelte';
   import NoteDialog from './NoteDialog.svelte';
@@ -33,7 +42,12 @@
   import ObjectDialog, { type InsertKind } from './ObjectDialog.svelte';
   import SegmentDialog from './SegmentDialog.svelte';
   import WitnessPane from './WitnessPane.svelte';
-  import { countUnreviewed, keyOfSite, opsForAttachment, opsForReading } from '$lib/edition/adopt-client';
+  import {
+    countUnreviewed,
+    keyOfSite,
+    opsForAttachment,
+    opsForReading,
+  } from '$lib/edition/adopt-client';
   import {
     activeSiteFor,
     insertedIds,
@@ -76,7 +90,14 @@
     onstatus?: (status: WorkspaceStatus) => void;
   }
 
-  let { view, reviewed: initialReviewed, canEdit, userName, controller = $bindable(null), onstatus }: Props = $props();
+  let {
+    view,
+    reviewed: initialReviewed,
+    canEdit,
+    userName,
+    controller = $bindable(null),
+    onstatus,
+  }: Props = $props();
 
   const editionId = untrack(() => view.edition.id);
   const workId = untrack(() => view.work.id);
@@ -93,7 +114,9 @@
   let stale = $state.raw<Set<Id>>(new Set());
   let order = $state.raw<EditionViewClient['order']>(untrack(() => view.order ?? []));
   let api = $state<EditorApi | null>(null);
-  let witnessSiglum = $state<string | null>(untrack(() => view.sigla.find((x) => x.transcriptionId)?.siglum ?? null));
+  let witnessSiglum = $state<string | null>(
+    untrack(() => view.sigla.find((x) => x.transcriptionId)?.siglum ?? null),
+  );
   let witnessMode = $state<'text' | 'image'>('text');
   let side = $state('witnesses');
   let colourBySource = $state(false);
@@ -109,7 +132,12 @@
     fetchTransport(`/api/documents/edition/${editionId}/ops`),
     {
       onChange: (state) => {
-        onstatus?.({ pending: state.pending, saving: state.saving, error: state.error, version: state.version });
+        onstatus?.({
+          pending: state.pending,
+          saving: state.saving,
+          error: state.error,
+          version: state.version,
+        });
         if (state.version !== lastVersion) {
           lastVersion = state.version;
           if (state.pending === 0 && !state.saving) void refreshStale();
@@ -173,9 +201,14 @@
     if (ids.length === 0) return;
     refreshing = true;
     try {
-      const response = await fetch(`/api/editions/${editionId}/view?segments=${encodeURIComponent(ids.join(','))}`);
+      const response = await fetch(
+        `/api/editions/${editionId}/view?segments=${encodeURIComponent(ids.join(','))}`,
+      );
       if (!response.ok) throw new Error(response.statusText);
-      const data = (await response.json()) as { segments: Record<Id, SegmentViewClient>; order?: EditionViewClient['order'] };
+      const data = (await response.json()) as {
+        segments: Record<Id, SegmentViewClient>;
+        order?: EditionViewClient['order'];
+      };
       if (data.order) order = data.order;
       const nextViews = { ...views };
       const nextLabels = { ...labelOf };
@@ -230,13 +263,20 @@
   }
 
   /** The site an adoption left: the one holding the new words, or the gap where removed words stood. */
-  function siteAfterAdoption(segment: SegmentViewClient, ids: Id[], before: Id | null): Site | null {
+  function siteAfterAdoption(
+    segment: SegmentViewClient,
+    ids: Id[],
+    before: Id | null,
+  ): Site | null {
     const wanted = new Set(ids);
     for (const site of segment.collation.sites) {
       if (siteTokenIds(site, segment.baseUnits).some((id) => wanted.has(id))) return site;
     }
-    const at = before === null ? 0 : segment.baseUnits.findIndex((u) => u.tokenIds.includes(before)) + 1;
-    return segment.collation.sites.find((site) => site.baseFrom === at && site.baseTo === at) ?? null;
+    const at =
+      before === null ? 0 : segment.baseUnits.findIndex((u) => u.tokenIds.includes(before)) + 1;
+    return (
+      segment.collation.sites.find((site) => site.baseFrom === at && site.baseTo === at) ?? null
+    );
   }
 
   // What is on show
@@ -246,22 +286,37 @@
   const orderNotes = $derived.by(() => {
     const notes: Record<Id, string[]> = {};
     for (const statement of order) {
-      const text = statement.after ? s.orderAfter(statement.siglum, labelOf[statement.after] ?? statement.after) : s.orderFirst(statement.siglum);
+      const text = statement.after
+        ? s.orderAfter(statement.siglum, labelOf[statement.after] ?? statement.after)
+        : s.orderFirst(statement.siglum);
       for (const id of statement.moved) (notes[id] ??= []).push(text);
     }
     return notes;
   });
-  const windowSegments = $derived(windowIds.map((id) => views[id]).filter((v): v is SegmentViewClient => v !== undefined));
+  const windowSegments = $derived(
+    windowIds.map((id) => views[id]).filter((v): v is SegmentViewClient => v !== undefined),
+  );
   const allViews = $derived(Object.values(views));
   const tokenClasses = $derived(tokenClassesFor(allViews, { active, colourBySource, stream }));
-  const reviewedMap = $derived(new Map(Object.entries(reviewed).map(([id, keys]) => [id, new Set(keys)] as const)));
+  const reviewedMap = $derived(
+    new Map(Object.entries(reviewed).map(([id, keys]) => [id, new Set(keys)] as const)),
+  );
   const allSites = $derived(sitesInOrder(sequence, views).length);
-  const unreviewed = $derived(countUnreviewed(sequence.map((id) => views[id]).filter((v): v is SegmentViewClient => v !== undefined), reviewedMap));
+  const unreviewed = $derived(
+    countUnreviewed(
+      sequence.map((id) => views[id]).filter((v): v is SegmentViewClient => v !== undefined),
+      reviewedMap,
+    ),
+  );
   const witnessIdx = $derived(witnessIndex(allViews));
-  const witnessTextId = $derived(sigla.find((x) => x.siglum === witnessSiglum)?.transcriptionId ?? null);
+  const witnessTextId = $derived(
+    sigla.find((x) => x.siglum === witnessSiglum)?.transcriptionId ?? null,
+  );
   const witnessHighlight = $derived.by(() => {
     if (!active || !witnessTextId) return [] as Id[];
-    const site = views[active.segmentId]?.collation.sites.find((x) => x.index === active!.siteIndex);
+    const site = views[active.segmentId]?.collation.sites.find(
+      (x) => x.index === active!.siteIndex,
+    );
     return site ? witnessTokensAt(site, witnessTextId) : [];
   });
 
@@ -307,12 +362,17 @@
       return before?.[before.length - 1] ?? null;
     }
     const index = stream.items.findIndex((item) => item.id === ids[0]);
-    for (let i = index - 1; i >= 0; i--) if (stream.items[i]!.kind === 'token') return stream.items[i]!.id;
+    for (let i = index - 1; i >= 0; i--)
+      if (stream.items[i]!.kind === 'token') return stream.items[i]!.id;
     return null;
   }
 
   async function postAdoption(conjectureId: Id, adopted: boolean) {
-    await fetch(`/api/editions/${editionId}/adoptions`, { method: 'POST', headers: json, body: JSON.stringify({ conjectureId, adopted }) });
+    await fetch(`/api/editions/${editionId}/adoptions`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ conjectureId, adopted }),
+    });
   }
 
   async function adopt(segmentId: Id, site: Site, choice: Choice, textId?: Id) {
@@ -330,7 +390,13 @@
     try {
       ops =
         choice.kind === 'reading'
-          ? opsForReading(before, segment, site, choice.reading, textId ?? choice.reading.textIds[0]!)
+          ? opsForReading(
+              before,
+              segment,
+              site,
+              choice.reading,
+              textId ?? choice.reading.textIds[0]!,
+            )
           : opsForAttachment(before, segment, site, choice.attachment);
       if (ops.length === 0) return;
       const applied = applyOps(before, ops);
@@ -347,8 +413,17 @@
       if (choice.kind === 'attachment' && choice.attachment.id === attachment.id) continue;
       await postAdoption(attachment.id, false);
     }
-    if (choice.kind === 'attachment' && choice.attachment.kind === 'conjecture') await postAdoption(choice.attachment.id, true);
-    reviewAfter.push({ segmentId, ids: insertedIds(ops).concat(choice.kind === 'attachment' && choice.attachment.conjectureKind === 'deletion' ? siteIds : []), before: tokenBefore(siteIds, segment, site) });
+    if (choice.kind === 'attachment' && choice.attachment.kind === 'conjecture')
+      await postAdoption(choice.attachment.id, true);
+    reviewAfter.push({
+      segmentId,
+      ids: insertedIds(ops).concat(
+        choice.kind === 'attachment' && choice.attachment.conjectureKind === 'deletion'
+          ? siteIds
+          : [],
+      ),
+      before: tokenBefore(siteIds, segment, site),
+    });
     commit(ops, next, before);
     lastAdoption = { reverse, label: segment.label };
     await session.flush();
@@ -393,7 +468,10 @@
     if (!segment || !site) return;
     const readings = site.readings.filter((r) => !r.base);
     const attachments = (segment.attachments[site.index] ?? []).filter((a) => !a.adopted);
-    const options: Choice[] = [...readings.map((reading) => ({ kind: 'reading' as const, reading })), ...attachments.map((attachment) => ({ kind: 'attachment' as const, attachment }))];
+    const options: Choice[] = [
+      ...readings.map((reading) => ({ kind: 'reading' as const, reading })),
+      ...attachments.map((attachment) => ({ kind: 'attachment' as const, attachment })),
+    ];
     const choice = options[n - 1];
     if (choice) void adopt(segment.segmentId, site, choice);
   }
@@ -413,7 +491,11 @@
     const segment = views[segmentId];
     if (!segment) return;
     const key = keyOfSite(segment, site);
-    const response = await fetch(`/api/editions/${editionId}/reviews`, { method: 'POST', headers: json, body: JSON.stringify({ segmentId, siteKey: key, reviewed: flag }) });
+    const response = await fetch(`/api/editions/${editionId}/reviews`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ segmentId, siteKey: key, reviewed: flag }),
+    });
     if (!response.ok) return;
     const keys = new Set(reviewed[segmentId] ?? []);
     if (flag) keys.add(key);
@@ -429,12 +511,18 @@
     const response = await fetch(`/api/editions/${editionId}/site-kinds`, {
       method: 'POST',
       headers: json,
-      body: JSON.stringify({ segmentId, siteKey: keyOfSite(segment, site), kind: site.kindByEditor ? null : kind }),
+      body: JSON.stringify({
+        segmentId,
+        siteKey: keyOfSite(segment, site),
+        kind: site.kindByEditor ? null : kind,
+      }),
     });
     if (!response.ok) return;
     const current = views[segmentId];
     if (!current) return;
-    const sites = current.collation.sites.map((x) => (x.index === site.index ? { ...x, kind, kindByEditor: !site.kindByEditor } : x));
+    const sites = current.collation.sites.map((x) =>
+      x.index === site.index ? { ...x, kind, kindByEditor: !site.kindByEditor } : x,
+    );
     views = { ...views, [segmentId]: { ...current, collation: { ...current.collation, sites } } };
   }
 
@@ -459,7 +547,10 @@
       const anchor = selection.caret ?? selection.ids[0] ?? null;
       const id = anchor ? segmentOfItem(stream, anchor) : caretSegment;
       segment = id ? views[id] : undefined;
-      if (segment) target = selection.ids.length ? siteForTokens(segment, selection.ids) : insertionSite(segment, selection.caret);
+      if (segment)
+        target = selection.ids.length
+          ? siteForTokens(segment, selection.ids)
+          : insertionSite(segment, selection.caret);
     }
     if (!segment || !target) return;
     if (stale.has(segment.segmentId)) {
@@ -474,17 +565,28 @@
     const anchor = siteTokenIds(target, segment.baseUnits);
     // Words the editor typed are an emendation already in the text: register it as what it is,
     // a reading proposed against what the witnesses have.
-    const typed = anchor.length > 0 && anchor.every((id) => {
-      const item = stream.items.find((i) => i.id === id);
-      return item?.kind === 'token' && (!item.source || item.source.kind === 'editor');
-    });
+    const typed =
+      anchor.length > 0 &&
+      anchor.every((id) => {
+        const item = stream.items.find((i) => i.id === id);
+        return item?.kind === 'token' && (!item.source || item.source.kind === 'editor');
+      });
     if (typed) {
       const witnessed = target.readings.find((r) => !r.base && !r.omission && r.text !== '');
       reading = lemma;
       lemma = witnessed?.text ?? lemma;
     }
     conjectureTarget = { segmentId: segment.segmentId, site: target, anchor };
-    conjectureDraft = { segmentLabel: segment.label, lemma, kind: lemma ? 'substitution' : 'addition', reading, proposer: userName, note: '', extent: '', citations: [] };
+    conjectureDraft = {
+      segmentLabel: segment.label,
+      lemma,
+      kind: lemma ? 'substitution' : 'addition',
+      reading,
+      proposer: userName,
+      note: '',
+      extent: '',
+      citations: [],
+    };
     conjectureOpen = true;
   }
 
@@ -505,7 +607,11 @@
           note: draft.note || null,
           extent: draft.extent || null,
           anchorTokenIds: target.anchor,
-          citations: draft.citations.map((c) => ({ itemId: c.itemId, prenote: c.prenote || null, postnote: c.postnote || null })),
+          citations: draft.citations.map((c) => ({
+            itemId: c.itemId,
+            prenote: c.prenote || null,
+            postnote: c.postnote || null,
+          })),
           adopt: adoptIt,
         }),
       });
@@ -516,12 +622,25 @@
       const segment = views[target.segmentId];
       if (adoptIt && segment) {
         // A lacuna is posited after the words, not instead of them.
-        const site = draft.kind === 'lacuna' && target.anchor.length ? insertionSite(segment, target.anchor[target.anchor.length - 1]!) : target.site;
-        const attachment: Attachment = { kind: 'conjecture', id: conjecture.id, text: draft.reading, name: draft.proposer || userName, conjectureKind: draft.kind };
+        const site =
+          draft.kind === 'lacuna' && target.anchor.length
+            ? insertionSite(segment, target.anchor[target.anchor.length - 1]!)
+            : target.site;
+        const attachment: Attachment = {
+          kind: 'conjecture',
+          id: conjecture.id,
+          text: draft.reading,
+          name: draft.proposer || userName,
+          conjectureKind: draft.kind,
+        };
         const before = stream;
         const ops = opsForAttachment(before, segment, site, attachment);
         const applied = applyOps(before, ops);
-        reviewAfter.push({ segmentId: target.segmentId, ids: insertedIds(ops).concat(draft.kind === 'deletion' ? target.anchor : []), before: tokenBefore(target.anchor, segment, site) });
+        reviewAfter.push({
+          segmentId: target.segmentId,
+          ids: insertedIds(ops).concat(draft.kind === 'deletion' ? target.anchor : []),
+          before: tokenBefore(target.anchor, segment, site),
+        });
         commit(ops, applied.stream, before);
         lastAdoption = { reverse: applied.reverse, label: segment.label };
         await session.flush();
@@ -581,9 +700,15 @@
     segmentBusy = true;
     segmentError = null;
     try {
-      const response = await fetch(`/api/works/${workId}/segments`, { method: 'POST', headers: json, body: JSON.stringify({ label }) });
+      const response = await fetch(`/api/works/${workId}/segments`, {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ label }),
+      });
       if (!response.ok) {
-        segmentError = ((await response.json().catch(() => ({}))) as { message?: string }).message ?? response.statusText;
+        segmentError =
+          ((await response.json().catch(() => ({}))) as { message?: string }).message ??
+          response.statusText;
         return;
       }
       const { segments } = (await response.json()) as { segments: { id: Id; label: string }[] };
@@ -622,13 +747,25 @@
     noteBusy = true;
     try {
       const tokenIds = selection.ids.filter((id) => segmentOfItem(stream, id) === segmentId);
-      const cited = citations.map((c) => ({ itemId: c.itemId, prenote: c.prenote || null, postnote: c.postnote || null }));
-      const response = await fetch(`/api/editions/${editionId}/notes`, { method: 'POST', headers: json, body: JSON.stringify({ segmentId, tokenIds, text, citations: cited }) });
+      const cited = citations.map((c) => ({
+        itemId: c.itemId,
+        prenote: c.prenote || null,
+        postnote: c.postnote || null,
+      }));
+      const response = await fetch(`/api/editions/${editionId}/notes`, {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ segmentId, tokenIds, text, citations: cited }),
+      });
       if (!response.ok) throw new Error(response.statusText);
       const { note } = (await response.json()) as { note: SegmentViewClient['notes'][number] };
       const cites = citations.map((c) => formatCitation(c.label, c.prenote, c.postnote));
       const segment = views[segmentId];
-      if (segment) views = { ...views, [segmentId]: { ...segment, notes: [...segment.notes, { ...note, cites }] } };
+      if (segment)
+        views = {
+          ...views,
+          [segmentId]: { ...segment, notes: [...segment.notes, { ...note, cites }] },
+        };
       noteOpen = false;
     } catch {
       toasts.error(s.workspace.saveError(''));
@@ -638,10 +775,18 @@
   }
 
   async function deleteNote(segmentId: Id, noteId: Id) {
-    const response = await fetch(`/api/editions/${editionId}/notes`, { method: 'DELETE', headers: json, body: JSON.stringify({ id: noteId }) });
+    const response = await fetch(`/api/editions/${editionId}/notes`, {
+      method: 'DELETE',
+      headers: json,
+      body: JSON.stringify({ id: noteId }),
+    });
     if (!response.ok) return;
     const segment = views[segmentId];
-    if (segment) views = { ...views, [segmentId]: { ...segment, notes: segment.notes.filter((n) => n.id !== noteId) } };
+    if (segment)
+      views = {
+        ...views,
+        [segmentId]: { ...segment, notes: segment.notes.filter((n) => n.id !== noteId) },
+      };
   }
 
   // Inserting objects at the caret
@@ -683,7 +828,9 @@
     else if (event.code === 'KeyN') step(1, true);
     else if (canEdit && /^Digit[1-9]$/.test(event.code)) adoptNth(Number(event.code.slice(5)));
     else if (canEdit && event.code === 'KeyK' && active) {
-      const site = views[active.segmentId]?.collation.sites.find((x) => x.index === active!.siteIndex);
+      const site = views[active.segmentId]?.collation.sites.find(
+        (x) => x.index === active!.siteIndex,
+      );
       if (site) void setReviewed(active.segmentId, site, true);
     } else if (canEdit && event.code === 'KeyC') openConjecture();
     else if (canEdit && event.code === 'KeyI') openInsert('speaker');
@@ -712,7 +859,12 @@
   let workspaceEl = $state<HTMLElement | null>(null);
   let upperEl = $state<HTMLElement | null>(null);
   const sidePane = new PaneSize('edition.side', { min: 260, max: 1000, fallback: 384 });
-  const band = new PaneSize('edition.band', { min: 96, max: 2000, fallback: 300, initial: () => window.innerHeight * 0.34 });
+  const band = new PaneSize('edition.band', {
+    min: 96,
+    max: 2000,
+    fallback: 300,
+    initial: () => window.innerHeight * 0.34,
+  });
   onMount(() => {
     sidePane.restore();
     band.restore();
@@ -726,11 +878,24 @@
   const toolbarAt = $derived.by(() => {
     void selection;
     void selectionTick;
-    if (!canEdit || !api || selection.ids.length === 0 || !editorColumn || conjectureOpen || noteOpen || segmentOpen || objectOpen) return null;
+    if (
+      !canEdit ||
+      !api ||
+      selection.ids.length === 0 ||
+      !editorColumn ||
+      conjectureOpen ||
+      noteOpen ||
+      segmentOpen ||
+      objectOpen
+    )
+      return null;
     const rect = api.selectionRect();
     if (!rect) return null;
     const box = editorColumn.getBoundingClientRect();
-    return { top: rect.bottom - box.top + 6, left: Math.max(8, Math.min(rect.left - box.left, box.width - 360)) };
+    return {
+      top: rect.bottom - box.top + 6,
+      left: Math.max(8, Math.min(rect.left - box.left, box.width - 360)),
+    };
   });
 
   function mark(kind: string) {
@@ -739,7 +904,9 @@
 
   // The side pane: witnesses, and the history, whose panel loads when first opened.
 
-  let HistoryPanel = $state<typeof import('$lib/components/history/HistoryPanel.svelte').default | null>(null);
+  let HistoryPanel = $state<
+    typeof import('$lib/components/history/HistoryPanel.svelte').default | null
+  >(null);
   $effect(() => {
     if (side === 'history' && !HistoryPanel) {
       import('$lib/components/history/HistoryPanel.svelte').then((module) => {
@@ -765,7 +932,10 @@
   style:--side-pane="{sidePane.value}px"
   style:--band="{band.value}px"
 >
-  <div class="grid min-h-0 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto_min(var(--side-pane),60%)]" bind:this={upperEl}>
+  <div
+    class="grid min-h-0 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto_min(var(--side-pane),60%)]"
+    bind:this={upperEl}
+  >
     <div
       class="relative min-h-0"
       bind:this={editorColumn}
@@ -806,14 +976,46 @@
           role="toolbar"
           aria-label={s.dialogs.insert.marks}
         >
-          <button type="button" class="rounded px-2 py-1 hover:bg-sunken" onpointerdown={(e) => e.preventDefault()} onclick={() => mark('supplied')}>{s.workspace.supplied}</button>
-          <button type="button" class="rounded px-2 py-1 hover:bg-sunken" onpointerdown={(e) => e.preventDefault()} onclick={() => mark('surplus')}>{s.workspace.deleted}</button>
-          <button type="button" class="rounded px-2 py-1 hover:bg-sunken" onpointerdown={(e) => e.preventDefault()} onclick={() => mark('crux')}>{s.workspace.crux}</button>
+          <button
+            type="button"
+            class="rounded px-2 py-1 hover:bg-sunken"
+            onpointerdown={(e) => e.preventDefault()}
+            onclick={() => mark('supplied')}>{s.workspace.supplied}</button
+          >
+          <button
+            type="button"
+            class="rounded px-2 py-1 hover:bg-sunken"
+            onpointerdown={(e) => e.preventDefault()}
+            onclick={() => mark('surplus')}>{s.workspace.deleted}</button
+          >
+          <button
+            type="button"
+            class="rounded px-2 py-1 hover:bg-sunken"
+            onpointerdown={(e) => e.preventDefault()}
+            onclick={() => mark('crux')}>{s.workspace.crux}</button
+          >
           <span class="mx-1 h-4 w-px bg-line"></span>
-          <button type="button" class="rounded px-2 py-1 hover:bg-sunken" title="Alt+Shift+↑" onpointerdown={(e) => e.preventDefault()} onclick={() => void moveLines(-1)}>{s.workspace.lineUp}</button>
-          <button type="button" class="rounded px-2 py-1 hover:bg-sunken" title="Alt+Shift+↓" onpointerdown={(e) => e.preventDefault()} onclick={() => void moveLines(1)}>{s.workspace.lineDown}</button>
+          <button
+            type="button"
+            class="rounded px-2 py-1 hover:bg-sunken"
+            title="Alt+Shift+↑"
+            onpointerdown={(e) => e.preventDefault()}
+            onclick={() => void moveLines(-1)}>{s.workspace.lineUp}</button
+          >
+          <button
+            type="button"
+            class="rounded px-2 py-1 hover:bg-sunken"
+            title="Alt+Shift+↓"
+            onpointerdown={(e) => e.preventDefault()}
+            onclick={() => void moveLines(1)}>{s.workspace.lineDown}</button
+          >
           <span class="mx-1 h-4 w-px bg-line"></span>
-          <button type="button" class="rounded px-2 py-1 hover:bg-sunken" onpointerdown={(e) => e.preventDefault()} onclick={() => openConjecture()}>{s.register}</button>
+          <button
+            type="button"
+            class="rounded px-2 py-1 hover:bg-sunken"
+            onpointerdown={(e) => e.preventDefault()}
+            onclick={() => openConjecture()}>{s.register}</button
+          >
           <button
             type="button"
             class="rounded px-2 py-1 hover:bg-sunken"
@@ -830,14 +1032,31 @@
       {/if}
     </div>
 
-    <Splitter class="hidden lg:block" pane={sidePane} axis="x" side="after" container={upperEl} label={s.workspace.resizeSide} />
+    <Splitter
+      class="hidden lg:block"
+      pane={sidePane}
+      axis="x"
+      side="after"
+      container={upperEl}
+      label={s.workspace.resizeSide}
+    />
     <aside class="hidden min-h-0 flex-col lg:flex">
       {#if sideTabs.length > 1}
-        <div class="border-b border-line px-3 pt-2"><Tabs tabs={sideTabs} bind:value={side} label={s.workspace.witnesses} /></div>
+        <div class="border-b border-line px-3 pt-2">
+          <Tabs tabs={sideTabs} bind:value={side} label={s.workspace.witnesses} />
+        </div>
       {/if}
       <div class="min-h-0 flex-1">
         {#if side === 'history' && HistoryPanel}
-          <HistoryPanel kind="edition" documentId={editionId} currentVersion={lastVersion} {labelOf} {canEdit} onchanged={onHistoryChanged} numberEvery={view.edition.conventions.numberEvery} />
+          <HistoryPanel
+            kind="edition"
+            documentId={editionId}
+            currentVersion={lastVersion}
+            {labelOf}
+            {canEdit}
+            onchanged={onHistoryChanged}
+            numberEvery={view.edition.conventions.numberEvery}
+          />
         {:else}
           <WitnessPane
             {sigla}
@@ -853,18 +1072,43 @@
     </aside>
   </div>
 
-  <Splitter pane={band} axis="y" side="after" container={workspaceEl} label={s.workspace.resizeBand} />
+  <Splitter
+    pane={band}
+    axis="y"
+    side="after"
+    container={workspaceEl}
+    label={s.workspace.resizeBand}
+  />
   <section class="flex min-h-0 flex-col bg-surface" style:height="var(--band)">
-    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-4 py-1.5 font-sans text-xs text-ink-soft">
+    <div
+      class="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-4 py-1.5 font-sans text-xs text-ink-soft"
+    >
       <span class="font-semibold text-ink">{s.apparatus}</span>
       <span>{unreviewed === 0 ? s.allReviewed : s.workspace.toReview(unreviewed, allSites)}</span>
       <span class="flex items-center gap-1">
-        <Button size="sm" variant="ghost" onclick={() => step(-1, false)} title={s.workspace.previousSite}>‹</Button>
-        <Button size="sm" variant="ghost" onclick={() => step(1, false)} title={s.workspace.nextSite}>›</Button>
-        <Button size="sm" variant="secondary" disabled={unreviewed === 0} onclick={() => step(1, true)}>{s.workspace.nextUnreviewed}</Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onclick={() => step(-1, false)}
+          title={s.workspace.previousSite}>‹</Button
+        >
+        <Button
+          size="sm"
+          variant="ghost"
+          onclick={() => step(1, false)}
+          title={s.workspace.nextSite}>›</Button
+        >
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={unreviewed === 0}
+          onclick={() => step(1, true)}>{s.workspace.nextUnreviewed}</Button
+        >
       </span>
       {#if lastAdoption}
-        <Button size="sm" variant="ghost" onclick={undoAdoption}>Undo adoption at {lastAdoption.label}</Button>
+        <Button size="sm" variant="ghost" onclick={undoAdoption}
+          >Undo adoption at {lastAdoption.label}</Button
+        >
       {/if}
       <span class="ml-auto flex items-center gap-4">
         <Checkbox bind:checked={colourBySource}>{s.workspace.colourBySource}</Checkbox>
@@ -891,11 +1135,19 @@
         ontakecurrent={takeCurrent}
       />
     </div>
-    <p class="border-t border-line px-4 py-1 font-sans text-[0.7rem] text-ink-muted">{s.workspace.keys}</p>
+    <p class="border-t border-line px-4 py-1 font-sans text-[0.7rem] text-ink-muted">
+      {s.workspace.keys}
+    </p>
   </section>
 </div>
 
-<ConjectureDialog bind:open={conjectureOpen} draft={conjectureDraft} busy={conjectureBusy} onsubmit={(draft, adoptIt) => void submitConjecture(draft, adoptIt)} oncancel={() => (conjectureOpen = false)} />
+<ConjectureDialog
+  bind:open={conjectureOpen}
+  draft={conjectureDraft}
+  busy={conjectureBusy}
+  onsubmit={(draft, adoptIt) => void submitConjecture(draft, adoptIt)}
+  oncancel={() => (conjectureOpen = false)}
+/>
 <SegmentDialog
   bind:open={segmentOpen}
   initial={segmentInitial}
@@ -906,8 +1158,19 @@
   onremove={() => void removeSegmentStart()}
   oncancel={() => (segmentOpen = false)}
 />
-<ObjectDialog bind:open={objectOpen} bind:kind={objectKind} oninsert={insertObject} oncancel={() => (objectOpen = false)} />
-<NoteDialog bind:open={noteOpen} segmentLabel={noteSegment ? (labelOf[noteSegment] ?? '') : ''} busy={noteBusy} onsubmit={(text, citations) => void submitNote(text, citations)} oncancel={() => (noteOpen = false)} />
+<ObjectDialog
+  bind:open={objectOpen}
+  bind:kind={objectKind}
+  oninsert={insertObject}
+  oncancel={() => (objectOpen = false)}
+/>
+<NoteDialog
+  bind:open={noteOpen}
+  segmentLabel={noteSegment ? (labelOf[noteSegment] ?? '') : ''}
+  busy={noteBusy}
+  onsubmit={(text, citations) => void submitNote(text, citations)}
+  oncancel={() => (noteOpen = false)}
+/>
 
 <style>
   .workspace :global(.vs-site) {

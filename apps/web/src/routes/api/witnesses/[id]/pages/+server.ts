@@ -18,7 +18,10 @@ import type { RequestHandler } from './$types';
 export const GET: RequestHandler = async ({ locals, params }) => {
   const [witness] = await locals.db.select().from(witnesses).where(eq(witnesses.id, params.id));
   if (!witness) throw error(404, pageStrings.errors.witnessNotFound);
-  const [maintainers, pages] = await Promise.all([maintainerIdsOf(locals.db, witness.id), pageViewsOf(locals.db, witness.id)]);
+  const [maintainers, pages] = await Promise.all([
+    maintainerIdsOf(locals.db, witness.id),
+    pageViewsOf(locals.db, witness.id),
+  ]);
   const data: WitnessPagesData = {
     witness: {
       id: witness.id,

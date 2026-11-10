@@ -228,7 +228,11 @@ export function reconcileModel(
     canonical = undefined;
   }
   const reverse = ops.length ? applyOps(model.view.stream, ops).reverse : [];
-  return { ...commit(model, sub, ops, docText, ids, canonical), reverse, typed: ops.length ? { ops, reverse } : undefined };
+  return {
+    ...commit(model, sub, ops, docText, ids, canonical),
+    reverse,
+    typed: ops.length ? { ops, reverse } : undefined,
+  };
 }
 
 /**

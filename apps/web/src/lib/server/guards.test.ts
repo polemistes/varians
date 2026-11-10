@@ -8,7 +8,20 @@ describe('safeRedirect', () => {
   });
 
   it('refuses anything a browser would take to another site', () => {
-    for (const target of ['//evil.example', '/\\evil.example', '/\t/evil.example', '/\n/evil.example', '/\r//evil.example', '/%09/evil.example', 'https://evil.example', 'evil', '', null, undefined, '/ /evil.example']) {
+    for (const target of [
+      '//evil.example',
+      '/\\evil.example',
+      '/\t/evil.example',
+      '/\n/evil.example',
+      '/\r//evil.example',
+      '/%09/evil.example',
+      'https://evil.example',
+      'evil',
+      '',
+      null,
+      undefined,
+      '/ /evil.example',
+    ]) {
       const out = safeRedirect(target as string | null | undefined);
       expect(new URL(out, 'http://varians.invalid').origin).toBe('http://varians.invalid');
     }

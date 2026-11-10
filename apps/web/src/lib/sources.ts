@@ -18,10 +18,19 @@ export interface UsedSource {
   licenceUrl?: string;
 }
 
-export const OFL = { licence: 'SIL Open Font Licence 1.1', licenceUrl: 'https://openfontlicense.org' };
+export const OFL = {
+  licence: 'SIL Open Font Licence 1.1',
+  licenceUrl: 'https://openfontlicense.org',
+};
 
-const CC_BY_SA_4 = { licence: 'CC BY-SA 4.0', licenceUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' };
-const CC_BY_SA_3_US = { licence: 'CC BY-SA 3.0 US', licenceUrl: 'https://creativecommons.org/licenses/by-sa/3.0/us/' };
+const CC_BY_SA_4 = {
+  licence: 'CC BY-SA 4.0',
+  licenceUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
+};
+const CC_BY_SA_3_US = {
+  licence: 'CC BY-SA 3.0 US',
+  licenceUrl: 'https://creativecommons.org/licenses/by-sa/3.0/us/',
+};
 
 const REPOSITORY = 'https://github.com/polemistes/varians';
 
@@ -64,7 +73,8 @@ export const USED_SOURCES: UsedSource[] = [
   {
     title: 'An Intermediate Greek-English Lexicon (Liddell and Scott, 1889)',
     use: 'Dictionary entries in the reader and in the workbench, built from the TEI by varians lexicon.',
-    source: 'Perseus Digital Library, Tufts University; its XML as mirrored, with a few typographical corrections, at blinskey/middle-liddell.',
+    source:
+      'Perseus Digital Library, Tufts University; its XML as mirrored, with a few typographical corrections, at blinskey/middle-liddell.',
     url: 'https://github.com/blinskey/middle-liddell',
     ...CC_BY_SA_3_US,
   },

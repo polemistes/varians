@@ -47,7 +47,11 @@ export function mailConfigured(): boolean {
 }
 
 /** The sender: MAIL_FROM, or the site's name at noreply@ the host of ORIGIN. Pure. */
-export function senderOf(mailFrom: string | undefined, origin: string | undefined, name: string): string {
+export function senderOf(
+  mailFrom: string | undefined,
+  origin: string | undefined,
+  name: string,
+): string {
   if (mailFrom?.trim()) return mailFrom.trim();
   let host = 'localhost';
   try {

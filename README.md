@@ -27,11 +27,11 @@ docker compose --profile tls up -d
 
 ## Layout
 
-| | |
-|---|---|
+|                 |                                                                                                                                                                                                                       |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `packages/core` | The domain, with no dependency on the browser or the database: token streams and operations, reference schemes, normalization, collation, the apparatus, adoption, TEI and other formats, history. Fully unit tested. |
-| `packages/db` | The PostgreSQL schema (Drizzle) and migrations. |
-| `apps/web` | The SvelteKit application: pages, editors, reader, API, server logic. |
+| `packages/db`   | The PostgreSQL schema (Drizzle) and migrations.                                                                                                                                                                       |
+| `apps/web`      | The SvelteKit application: pages, editors, reader, API, server logic.                                                                                                                                                 |
 
 ## Running it locally
 

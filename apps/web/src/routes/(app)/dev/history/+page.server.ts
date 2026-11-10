@@ -16,7 +16,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const user = requireUser(locals, url.pathname + url.search);
   const db = locals.db;
   const [edition] = await db
-    .select({ id: editions.id, title: editions.title, workId: editions.workId, conventions: editions.conventions })
+    .select({
+      id: editions.id,
+      title: editions.title,
+      workId: editions.workId,
+      conventions: editions.conventions,
+    })
     .from(editions)
     .where(eq(editions.slug, SAMPLE));
   if (!edition) error(404, `No edition "${SAMPLE}": seed the database first.`);
@@ -30,7 +35,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     .orderBy(asc(editionSigla.position));
   const documents = [
     { kind: 'edition' as const, id: edition.id, label: t.dev.edition(edition.title) },
-    ...sigla.map((s) => ({ kind: 'transcription' as const, id: s.id, label: t.dev.transcription(s.siglum, s.name) })),
+    ...sigla.map((s) => ({
+      kind: 'transcription' as const,
+      id: s.id,
+      label: t.dev.transcription(s.siglum, s.name),
+    })),
   ];
 
   const kindParam = url.searchParams.get('kind') ?? 'edition';
@@ -40,7 +49,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   if (!access || !access.canView) error(404, 'No such document');
 
   const labels = Object.fromEntries(
-    (await db.select({ id: segments.id, label: segments.label }).from(segments).where(eq(segments.workId, edition.workId))).map((s) => [s.id, s.label]),
+    (
+      await db
+        .select({ id: segments.id, label: segments.label })
+        .from(segments)
+        .where(eq(segments.workId, edition.workId))
+    ).map((s) => [s.id, s.label]),
   );
   return {
     documents,

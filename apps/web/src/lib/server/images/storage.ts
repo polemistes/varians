@@ -27,7 +27,6 @@ export const DEFAULT_STORAGE_DIR = '../../storage';
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 const EXT_PATTERN = /^[a-z0-9]{1,8}$/;
 
-
 /**
  * Resolves the configured storage directory. A relative value is taken
  * relative to the working directory of the process (apps/web in development,
@@ -73,7 +72,6 @@ export function tilesDir(pageId: string): string {
 export function dziPath(pageId: string): string {
   return `${tilesDir(pageId)}/image.dzi`;
 }
-
 
 /** The absolute path of a storage-relative path, inside `root` (the configured storage dir by default). */
 export function absolutePath(relative: string, root = storageDir()): string {

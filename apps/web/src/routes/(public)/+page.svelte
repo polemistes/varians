@@ -37,7 +37,9 @@
       <section aria-labelledby="continue" class="flex flex-col gap-3">
         <div class="flex items-baseline justify-between gap-4">
           <h2 id="continue" class="font-sans text-sm font-semibold text-ink">{t.continue}</h2>
-          <a href="/mine" class="font-sans text-sm text-ink-soft hover:text-ink hover:underline">{t.allYourWork(data.recent.total)}</a>
+          <a href="/mine" class="font-sans text-sm text-ink-soft hover:text-ink hover:underline"
+            >{t.allYourWork(data.recent.total)}</a
+          >
         </div>
         <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {#each data.recent.items as item (item.kind + item.id)}
@@ -60,7 +62,11 @@
     <section aria-labelledby="recent" class="flex flex-col gap-3">
       <div class="flex items-baseline justify-between gap-4">
         <h2 id="recent" class="font-sans text-sm font-semibold text-ink">{t.recent}</h2>
-        {#if data.published.length}<a href="/editions" class="font-sans text-sm text-ink-soft hover:text-ink hover:underline">{t.allEditions}</a>{/if}
+        {#if data.published.length}<a
+            href="/editions"
+            class="font-sans text-sm text-ink-soft hover:text-ink hover:underline"
+            >{t.allEditions}</a
+          >{/if}
       </div>
       {#if data.published.length}
         <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

@@ -5,13 +5,23 @@ import { newId, type ZoneGeometry } from '@varians/core';
 import { pages, zones, type Database, type Zone } from '@varians/db';
 import { and, eq, inArray } from 'drizzle-orm';
 
-export async function zonesOf(db: Database, transcriptionId: string, pageId?: string): Promise<Zone[]> {
-  const where = pageId ? and(eq(zones.transcriptionId, transcriptionId), eq(zones.pageId, pageId)) : eq(zones.transcriptionId, transcriptionId);
+export async function zonesOf(
+  db: Database,
+  transcriptionId: string,
+  pageId?: string,
+): Promise<Zone[]> {
+  const where = pageId
+    ? and(eq(zones.transcriptionId, transcriptionId), eq(zones.pageId, pageId))
+    : eq(zones.transcriptionId, transcriptionId);
   return db.select().from(zones).where(where);
 }
 
 /** Zones of the given tokens, with the page each stands on. */
-export async function zonesOfTokens(db: Database, transcriptionId: string, tokenIds: string[]): Promise<Zone[]> {
+export async function zonesOfTokens(
+  db: Database,
+  transcriptionId: string,
+  tokenIds: string[],
+): Promise<Zone[]> {
   if (tokenIds.length === 0) return [];
   const all = await db.select().from(zones).where(eq(zones.transcriptionId, transcriptionId));
   const wanted = new Set(tokenIds);
@@ -28,22 +38,51 @@ export interface NewZone {
 }
 
 /** Create zones; the page must belong to the transcription's witness. An id already taken fails the whole call. */
-export async function createZones(db: Database, transcriptionId: string, witnessId: string, inputs: NewZone[]): Promise<Zone[]> {
+export async function createZones(
+  db: Database,
+  transcriptionId: string,
+  witnessId: string,
+  inputs: NewZone[],
+): Promise<Zone[]> {
   if (inputs.length === 0) return [];
   const pageIds = [...new Set(inputs.map((z) => z.pageId))];
-  const known = await db.select({ id: pages.id }).from(pages).where(and(inArray(pages.id, pageIds), eq(pages.witnessId, witnessId)));
+  const known = await db
+    .select({ id: pages.id })
+    .from(pages)
+    .where(and(inArray(pages.id, pageIds), eq(pages.witnessId, witnessId)));
   const allowed = new Set(known.map((p) => p.id));
-  for (const z of inputs) if (!allowed.has(z.pageId)) throw new Error('page does not belong to this witness');
-  const rows = inputs.map((z) => ({ id: z.id ?? newId(), transcriptionId, pageId: z.pageId, geometry: z.geometry, tokenIds: z.tokenIds, feature: z.feature ?? null }));
+  for (const z of inputs)
+    if (!allowed.has(z.pageId)) throw new Error('page does not belong to this witness');
+  const rows = inputs.map((z) => ({
+    id: z.id ?? newId(),
+    transcriptionId,
+    pageId: z.pageId,
+    geometry: z.geometry,
+    tokenIds: z.tokenIds,
+    feature: z.feature ?? null,
+  }));
   return db.insert(zones).values(rows).returning();
 }
 
-export async function updateZone(db: Database, transcriptionId: string, zoneId: string, fields: Partial<Pick<NewZone, 'geometry' | 'tokenIds' | 'feature'>>): Promise<Zone | null> {
+export async function updateZone(
+  db: Database,
+  transcriptionId: string,
+  zoneId: string,
+  fields: Partial<Pick<NewZone, 'geometry' | 'tokenIds' | 'feature'>>,
+): Promise<Zone | null> {
   const set: Record<string, unknown> = {};
   if (fields.geometry) set.geometry = fields.geometry;
   if (fields.tokenIds) set.tokenIds = fields.tokenIds;
   if (fields.feature !== undefined) set.feature = fields.feature;
-  if (Object.keys(set).length === 0) return (await db.select().from(zones).where(and(eq(zones.id, zoneId), eq(zones.transcriptionId, transcriptionId))))[0] ?? null;
+  if (Object.keys(set).length === 0)
+    return (
+      (
+        await db
+          .select()
+          .from(zones)
+          .where(and(eq(zones.id, zoneId), eq(zones.transcriptionId, transcriptionId)))
+      )[0] ?? null
+    );
   const [row] = await db
     .update(zones)
     .set(set)
@@ -57,7 +96,11 @@ export async function updateZone(db: Database, transcriptionId: string, zoneId: 
  * boxes moved or resized together. Returns the zones changed; ids not of
  * this transcription change nothing.
  */
-export async function updateZoneGeometries(db: Database, transcriptionId: string, changes: { id: string; geometry: ZoneGeometry }[]): Promise<Zone[]> {
+export async function updateZoneGeometries(
+  db: Database,
+  transcriptionId: string,
+  changes: { id: string; geometry: ZoneGeometry }[],
+): Promise<Zone[]> {
   if (changes.length === 0) return [];
   return db.transaction(async (tx) => {
     const out: Zone[] = [];
@@ -73,7 +116,11 @@ export async function updateZoneGeometries(db: Database, transcriptionId: string
   });
 }
 
-export async function deleteZones(db: Database, transcriptionId: string, zoneIds: string[]): Promise<number> {
+export async function deleteZones(
+  db: Database,
+  transcriptionId: string,
+  zoneIds: string[],
+): Promise<number> {
   if (zoneIds.length === 0) return 0;
   const rows = await db
     .delete(zones)
@@ -83,7 +130,11 @@ export async function deleteZones(db: Database, transcriptionId: string, zoneIds
 }
 
 /** Drop token ids that no longer exist in the stream from every zone; remove zones left without tokens and without a feature. */
-export async function pruneZones(db: Database, transcriptionId: string, liveTokenIds: Set<string>): Promise<{ updated: number; removed: number }> {
+export async function pruneZones(
+  db: Database,
+  transcriptionId: string,
+  liveTokenIds: Set<string>,
+): Promise<{ updated: number; removed: number }> {
   const all = await db.select().from(zones).where(eq(zones.transcriptionId, transcriptionId));
   let updated = 0;
   let removed = 0;

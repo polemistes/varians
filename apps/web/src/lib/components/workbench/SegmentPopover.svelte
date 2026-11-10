@@ -32,16 +32,28 @@
   let anchor = $state<HTMLElement | { getBoundingClientRect: () => DOMRect } | null>(null);
 
   const open = $derived(request !== null);
-  const token = $derived(request ? wb.stream.items.find((i) => i.id === request.tokenId) : undefined);
+  const token = $derived(
+    request ? wb.stream.items.find((i) => i.id === request.tokenId) : undefined,
+  );
   const hasStart = $derived(token ? Boolean(segmentStartOf(token)) : false);
   const works = $derived(wb.works);
   const scheme = $derived(workId ? wb.schemeOf(workId) : undefined);
-  const example = $derived(scheme ? scheme.levels.map((l, i) => (i === 0 ? '' : l.separator) + (l.type === 'number' ? '1' : 'a')).join('') : '');
+  const example = $derived(
+    scheme
+      ? scheme.levels
+          .map((l, i) => (i === 0 ? '' : l.separator) + (l.type === 'number' ? '1' : 'a'))
+          .join('')
+      : '',
+  );
   /** The segment the label names, when the workbench knows it already: for the part number. */
   const known = $derived(
-    Object.entries(wb.segments).find(([, s]) => s.workId === workId && s.label === label.trim())?.[0] ?? null,
+    Object.entries(wb.segments).find(
+      ([, s]) => s.workId === workId && s.label === label.trim(),
+    )?.[0] ?? null,
   );
-  const elsewhere = $derived(known && request ? otherRuns(wb.stream, known, request.tokenId).length > 0 : false);
+  const elsewhere = $derived(
+    known && request ? otherRuns(wb.stream, known, request.tokenId).length > 0 : false,
+  );
 
   // Fill the form when a word is asked about (and only then: later edits leave what is typed alone).
   $effect(() => {
@@ -59,14 +71,19 @@
   });
 
   $effect(() => {
-    if (known && request && elsewhere && part === null) part = partFor(wb.stream, known, request.tokenId) ?? null;
+    if (known && request && elsewhere && part === null)
+      part = partFor(wb.stream, known, request.tokenId) ?? null;
   });
 
   function findAnchor(tokenId: Id) {
     const element = root?.querySelector<HTMLElement>(`[data-token="${CSS.escape(tokenId)}"]`);
     if (element) return element;
     const rect = wb.api?.selectionRect();
-    if (rect) return { getBoundingClientRect: () => new DOMRect(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top) };
+    if (rect)
+      return {
+        getBoundingClientRect: () =>
+          new DOMRect(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top),
+      };
     return root ?? null;
   }
 
@@ -92,7 +109,8 @@
       return;
     }
     const segmentId = resolved.ids[0]!;
-    const number = elsewhere && part !== null ? part : partFor(wb.stream, segmentId, request.tokenId);
+    const number =
+      elsewhere && part !== null ? part : partFor(wb.stream, segmentId, request.tokenId);
     wb.apply([segmentOp(request.tokenId, segmentId, number)]);
     close();
   }
@@ -130,15 +148,29 @@
         {#if works.length === 0}
           <p class="text-ink-soft">{t.segment.noWork}</p>
         {:else}
-          <Field label={t.segment.label} hint={example ? t.segment.hint(example) : undefined} error={error}>
+          <Field
+            label={t.segment.label}
+            hint={example ? t.segment.hint(example) : undefined}
+            {error}
+          >
             {#snippet children(control)}
-              <Input {...control} bind:value={label} autocomplete="off" spellcheck="false" class="font-serif" />
+              <Input
+                {...control}
+                bind:value={label}
+                autocomplete="off"
+                spellcheck="false"
+                class="font-serif"
+              />
             {/snippet}
           </Field>
           {#if works.length > 1}
             <Field label={t.segment.work}>
               {#snippet children(control)}
-                <Select {...control} bind:value={workId} options={works.map((w) => ({ value: w.id, label: w.title }))} />
+                <Select
+                  {...control}
+                  bind:value={workId}
+                  options={works.map((w) => ({ value: w.id, label: w.title }))}
+                />
               {/snippet}
             </Field>
           {/if}
@@ -152,7 +184,13 @@
         {/if}
         <div class="flex flex-wrap items-center gap-2">
           {#if works.length > 0}
-            <Button type="submit" variant="primary" size="sm" loading={busy} disabled={!label.trim()}>{t.segment.set}</Button>
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              loading={busy}
+              disabled={!label.trim()}>{t.segment.set}</Button
+            >
           {/if}
           <Button size="sm" variant="ghost" onclick={close}>{t.segment.cancel}</Button>
         </div>
@@ -161,7 +199,9 @@
             {t.segment.unassign}
           </button>
           {#if hasStart}
-            <button type="button" class="text-danger hover:underline" onclick={remove}>{t.segment.remove}</button>
+            <button type="button" class="text-danger hover:underline" onclick={remove}
+              >{t.segment.remove}</button
+            >
           {/if}
         </div>
       </form>

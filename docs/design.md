@@ -24,18 +24,18 @@ It does not repeat what is specified elsewhere:
 
 TypeScript throughout. SvelteKit 2 with Svelte 5 for the application and its server, CodeMirror 6 for the editors, OpenSeadragon with tiles made by sharp for facsimiles, PostgreSQL through Drizzle, Tailwind CSS 4 with Bits UI, Vitest and Playwright, pnpm in one repository.
 
-| | |
-|---|---|
+|                 |                                                                                                                                                                                                                                    |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `packages/core` | The domain: streams and operations, moves, reference schemes, normalization and fold, collation, the apparatus, adoption, history and reconciliation, TEI, the other import formats, licences and rights. No browser, no database. |
-| `packages/db` | The schema and the migrations. |
-| `apps/web` | The pages, the editors, the reader, the API, the server logic, the command line. |
-| `docs/formats` | The specification of the data format, served by every installation at `/formats/2/`. |
+| `packages/db`   | The schema and the migrations.                                                                                                                                                                                                     |
+| `apps/web`      | The pages, the editors, the reader, the API, the server logic, the command line.                                                                                                                                                   |
+| `docs/formats`  | The specification of the data format, served by every installation at `/formats/2/`.                                                                                                                                               |
 
 The editors are client applications that hold the model; the server stores and authorizes. The reader is rendered on the server. Collation runs in the browser for what is on screen and on the server for the reader, by the same function.
 
 ## 3. The model
 
-The data says *transcription* where the interface says *transcript*; they are the same thing. This document uses the interface's word.
+The data says _transcription_ where the interface says _transcript_; they are the same thing. This document uses the interface's word.
 
 ### 3.1 Work, reference scheme, segment
 
@@ -104,7 +104,7 @@ A token belongs to the segment whose start last preceded it in the stream, acros
 
 The profile proposes a normalized form only where that is mechanical. Nothing adds accents or breathings automatically. A normalization memory per transcript remembers confirmed pairs. A normalized form that differs from its diplomatic form by more than the profile's rules is unchecked until confirmed.
 
-Every place of variation has a **kind**: *textual* where the readings have different letters, *interpretative* where they have the same letters read otherwise (accents, breathings, punctuation, word division). The kind is computed, and the editor can override it per place. The edition chooses how interpretative variants are printed; the reader may choose otherwise. In Greek works a textual reading is further labelled by the analyser of forms as a help, never as a filter. The apparatus has no layer of orthographic variants: how a witness writes is its diplomatic text.
+Every place of variation has a **kind**: _textual_ where the readings have different letters, _interpretative_ where they have the same letters read otherwise (accents, breathings, punctuation, word division). The kind is computed, and the editor can override it per place. The edition chooses how interpretative variants are printed; the reader may choose otherwise. In Greek works a textual reading is further labelled by the analyser of forms as a help, never as a filter. The apparatus has no layer of orthographic variants: how a witness writes is its diplomatic text.
 
 Word division is the editor's analysis. What the manuscript has between two words is recorded separately and can be shown as written.
 
@@ -142,7 +142,7 @@ Per segment: the edition's words form the initial graph; each witness is aligned
 
 **Coverage.** A transcript covers the span from its first to its last segment of the work. Within that span, a segment it has no words for is an omission, and one lying across a gap or lacuna object is lost. Outside the span the witness is not transcribed, and the apparatus is silent.
 
-**A witness lacking a whole segment** is left out of that segment's alignment, and the segment gets one further site of its own, flagged *wanting*, covering the whole segment: "om. B", or "deest in B" where lost. It overlaps the segment's other sites and is taken as the active site only when the whole segment is selected, so a conjecture on one word stays on that word. Its lemma is abridged to the first and last word when the segment has more than three.
+**A witness lacking a whole segment** is left out of that segment's alignment, and the segment gets one further site of its own, flagged _wanting_, covering the whole segment: "om. B", or "deest in B" where lost. It overlaps the segment's other sites and is taken as the active site only when the whole segment is selected, so a conjecture on one word stays on that word. Its lemma is abridged to the first and last word when the segment has more than three.
 
 Alignment constraints (these witness words correspond to these edition words) are stored and archived as data that names tokens.
 

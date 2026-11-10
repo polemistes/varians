@@ -124,7 +124,8 @@ function withIdentifiers<T>(
     if (!identifiers.ok) parsed.errors.identifiers = [identifiers.error];
     return parsed;
   }
-  if (!identifiers.ok) return { ok: false, errors: { identifiers: [identifiers.error] }, values: typed };
+  if (!identifiers.ok)
+    return { ok: false, errors: { identifiers: [identifiers.error] }, values: typed };
   return { ok: true, data: { ...parsed.data, identifiers: identifiers.identifiers } };
 }
 
@@ -237,7 +238,11 @@ export function parseWitnessForm(form: FormData): Parsed<WitnessForm> {
       values: typed,
     };
   }
-  const { materialOther: _other, identifiers: _typed, ...data } = parsed.data as z.infer<typeof witnessSchema> & {
+  const {
+    materialOther: _other,
+    identifiers: _typed,
+    ...data
+  } = parsed.data as z.infer<typeof witnessSchema> & {
     materialOther?: string;
     identifiers?: unknown;
   };
@@ -259,7 +264,9 @@ function newHandId(): string {
  * the corrections in transcripts that name them stay attached; new ones get
  * an id here. Exactly one hand is the main hand when there are any.
  */
-export function parseHands(raw: string): { ok: true; hands: WitnessHand[] } | { ok: false; error: string } {
+export function parseHands(
+  raw: string,
+): { ok: true; hands: WitnessHand[] } | { ok: false; error: string } {
   if (!raw.trim()) return { ok: true, hands: [] };
   let parsed: unknown;
   try {
@@ -278,7 +285,8 @@ export function parseHands(raw: string): { ok: true; hands: WitnessHand[] } | { 
       if (!description) continue;
       return { ok: false, error: t.witness.handLabelRequired };
     }
-    if (label.length > 40 || (description?.length ?? 0) > 500) return { ok: false, error: t.witness.tooLong };
+    if (label.length > 40 || (description?.length ?? 0) > 500)
+      return { ok: false, error: t.witness.tooLong };
     let id = HAND_ID.test(entry.id) && !seen.has(entry.id) ? entry.id : newHandId();
     while (seen.has(id)) id = newHandId();
     seen.add(id);

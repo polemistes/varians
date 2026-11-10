@@ -25,7 +25,12 @@ export const actions: Actions = {
     requireAdministrator(locals);
     const form = await request.formData();
     const parsed = roleSchema.safeParse({ userId: form.get('userId'), role: form.get('role') });
-    if (!parsed.success) return fail(400, { action: 'role' as const, ok: false as const, error: s.common.invalidForm });
+    if (!parsed.success)
+      return fail(400, {
+        action: 'role' as const,
+        ok: false as const,
+        error: s.common.invalidForm,
+      });
     const result = await setRole(parsed.data.userId, parsed.data.role);
     if (!result.ok) {
       return fail(400, {
@@ -35,7 +40,12 @@ export const actions: Actions = {
           result.error === 'last-administrator' ? s.admin.lastAdministrator : s.admin.userNotFound,
       });
     }
-    return { action: 'role' as const, ok: true as const, name: result.name, role: parsed.data.role };
+    return {
+      action: 'role' as const,
+      ok: true as const,
+      name: result.name,
+      role: parsed.data.role,
+    };
   },
 
   /**
@@ -47,21 +57,48 @@ export const actions: Actions = {
     requireAdministrator(locals);
     const form = await request.formData();
     const parsed = userSchema.safeParse({ userId: form.get('userId') });
-    if (!parsed.success) return fail(400, { action: 'reset' as const, ok: false as const, error: s.common.invalidForm });
+    if (!parsed.success)
+      return fail(400, {
+        action: 'reset' as const,
+        ok: false as const,
+        error: s.common.invalidForm,
+      });
     const site = siteOf(url.origin);
     const send = mailer();
     if (send) {
       try {
         const sent = await sendResetLink(locals.db, send, parsed.data.userId, site);
-        if (!sent) return fail(404, { action: 'reset' as const, ok: false as const, error: s.admin.userNotFound });
+        if (!sent)
+          return fail(404, {
+            action: 'reset' as const,
+            ok: false as const,
+            error: s.admin.userNotFound,
+          });
         return { action: 'reset' as const, ok: true as const, name: sent.name, link: null };
       } catch (error) {
-        console.error('A reset link could not be sent:', error instanceof Error ? error.message : error);
-        return fail(502, { action: 'reset' as const, ok: false as const, error: s.admin.resetLinkNotSent });
+        console.error(
+          'A reset link could not be sent:',
+          error instanceof Error ? error.message : error,
+        );
+        return fail(502, {
+          action: 'reset' as const,
+          ok: false as const,
+          error: s.admin.resetLinkNotSent,
+        });
       }
     }
     const made = await makeResetLink(locals.db, parsed.data.userId, site);
-    if (!made) return fail(404, { action: 'reset' as const, ok: false as const, error: s.admin.userNotFound });
-    return { action: 'reset' as const, ok: true as const, name: made.account.name, link: made.link };
+    if (!made)
+      return fail(404, {
+        action: 'reset' as const,
+        ok: false as const,
+        error: s.admin.userNotFound,
+      });
+    return {
+      action: 'reset' as const,
+      ok: true as const,
+      name: made.account.name,
+      link: made.link,
+    };
   },
 };

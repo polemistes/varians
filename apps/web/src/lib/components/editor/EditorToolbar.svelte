@@ -16,7 +16,13 @@
     class?: string;
   }
 
-  let { api, visible = true, inserts = true, segments = true, class: className = '' }: Props = $props();
+  let {
+    api,
+    visible = true,
+    inserts = true,
+    segments = true,
+    class: className = '',
+  }: Props = $props();
 
   const markKinds = ['unclear', 'supplied', 'del', 'add', 'abbr', 'hi', 'sic', 'damage', 'surplus'];
 
@@ -68,8 +74,10 @@
         <button type="button" onpointerdown={keepFocus} onclick={() => api?.insertBreak('column')}
           >{t.columnBreak}</button
         >
-        <button type="button" onpointerdown={keepFocus} onclick={() => api?.insertBreak('paragraph')}
-          >{t.paragraph}</button
+        <button
+          type="button"
+          onpointerdown={keepFocus}
+          onclick={() => api?.insertBreak('paragraph')}>{t.paragraph}</button
         >
       </div>
     {/if}

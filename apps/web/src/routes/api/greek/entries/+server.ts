@@ -8,5 +8,8 @@ import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ locals, url }) => {
   const lemma = (url.searchParams.get('lemma') ?? '').slice(0, 80);
-  return json({ entries: await entriesFor(locals.db, lemma) }, { headers: { 'cache-control': 'public, max-age=3600' } });
+  return json(
+    { entries: await entriesFor(locals.db, lemma) },
+    { headers: { 'cache-control': 'public, max-age=3600' } },
+  );
 };

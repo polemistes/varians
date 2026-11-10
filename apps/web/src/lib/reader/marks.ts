@@ -23,10 +23,20 @@ export interface EditionSigla {
   crux: string;
 }
 
-export const DEFAULT_SIGLA: EditionSigla = { supplied: ['⟨', '⟩'], deleted: ['[', ']'], lacuna: '***', crux: '†' };
+export const DEFAULT_SIGLA: EditionSigla = {
+  supplied: ['⟨', '⟩'],
+  deleted: ['[', ']'],
+  lacuna: '***',
+  crux: '†',
+};
 
 /** A transcription's marks in the Leiden conventions: [supplied], {surplus}. */
-export const LEIDEN_SIGLA: EditionSigla = { supplied: ['[', ']'], deleted: ['{', '}'], lacuna: '[…]', crux: '†' };
+export const LEIDEN_SIGLA: EditionSigla = {
+  supplied: ['[', ']'],
+  deleted: ['{', '}'],
+  lacuna: '[…]',
+  crux: '†',
+};
 
 export interface TextPart {
   text: string;
@@ -77,7 +87,11 @@ function closing(kind: RunKind, sigla: EditionSigla): string {
 }
 
 /** The letters of one token, with brackets for marks on part of it, dots under unclear letters, and struck deletions. */
-export function tokenParts(token: Token, sigla: EditionSigla = DEFAULT_SIGLA, form: PrintForm = 'read'): TextPart[] {
+export function tokenParts(
+  token: Token,
+  sigla: EditionSigla = DEFAULT_SIGLA,
+  form: PrintForm = 'read',
+): TextPart[] {
   const text = printedForm(token, form);
   const chars = Array.from(text);
   const n = chars.length;
@@ -126,16 +140,25 @@ export function tokenParts(token: Token, sigla: EditionSigla = DEFAULT_SIGLA, fo
   return parts;
 }
 
-function attr(item: { attrs?: Record<string, string | number | boolean | null> }, key: string): string | number | boolean | null | undefined {
+function attr(
+  item: { attrs?: Record<string, string | number | boolean | null> },
+  key: string,
+): string | number | boolean | null | undefined {
   return item.attrs?.[key];
 }
 
 /** One line's items as printed pieces, with the runs of bracketing marks resolved. */
-export function printLine(items: Item[], sigla: EditionSigla = DEFAULT_SIGLA, form: PrintForm = 'read'): Printed[] {
+export function printLine(
+  items: Item[],
+  sigla: EditionSigla = DEFAULT_SIGLA,
+  form: PrintForm = 'read',
+): Printed[] {
   const out: Printed[] = [];
   // Whole-word marks of each item, for finding where runs begin and end.
   const whole = items.map((item) =>
-    item.kind === 'token' ? new Set(RUN_KINDS.filter((kind) => wholeTokenMark(item, kind))) : new Set<RunKind>(),
+    item.kind === 'token'
+      ? new Set(RUN_KINDS.filter((kind) => wholeTokenMark(item, kind)))
+      : new Set<RunKind>(),
   );
   // The length of the run of each kind that ends at an item, for the closing crux.
   const runLength = new Map<RunKind, number>();
@@ -160,7 +183,14 @@ export function printLine(items: Item[], sigla: EditionSigla = DEFAULT_SIGLA, fo
         if (!whole[i]!.has(kind) || next.has(kind)) continue;
         if (kind !== 'crux' || (runLength.get(kind) ?? 1) > 1) after += closing(kind, sigla);
       }
-      out.push({ kind: 'token', id: item.id, space, before, parts: tokenParts(item, sigla, form), after });
+      out.push({
+        kind: 'token',
+        id: item.id,
+        space,
+        before,
+        parts: tokenParts(item, sigla, form),
+        after,
+      });
       joinNext = item.joinNext === true;
       return;
     }
@@ -168,18 +198,36 @@ export function printLine(items: Item[], sigla: EditionSigla = DEFAULT_SIGLA, fo
     switch (item.type) {
       case 'lacuna': {
         const extent = attr(item, 'extent');
-        out.push({ kind: 'lacuna', id: item.id, space, text: sigla.lacuna, extent: typeof extent === 'string' && extent !== '' ? extent : null });
+        out.push({
+          kind: 'lacuna',
+          id: item.id,
+          space,
+          text: sigla.lacuna,
+          extent: typeof extent === 'string' && extent !== '' ? extent : null,
+        });
         return;
       }
       case 'gap': {
         const quantity = attr(item, 'quantity');
         const unit = attr(item, 'unit');
-        out.push({ kind: 'gap', id: item.id, space, quantity: typeof quantity === 'number' ? quantity : null, unit: typeof unit === 'string' ? unit : null });
+        out.push({
+          kind: 'gap',
+          id: item.id,
+          space,
+          quantity: typeof quantity === 'number' ? quantity : null,
+          unit: typeof unit === 'string' ? unit : null,
+        });
         return;
       }
       case 'paratext': {
         const type = attr(item, 'type');
-        out.push({ kind: 'paratext', id: item.id, space, type: typeof type === 'string' ? type : 'paratext', text: item.text ?? '' });
+        out.push({
+          kind: 'paratext',
+          id: item.id,
+          space,
+          type: typeof type === 'string' ? type : 'paratext',
+          text: item.text ?? '',
+        });
         return;
       }
       case 'space':

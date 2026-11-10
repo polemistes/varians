@@ -14,9 +14,18 @@ import { canViewWork, grantsFor } from '$lib/server/authz';
 import { resolveLabels, schemeOfWork, segmentsOfWork } from '$lib/server/segments';
 
 async function loadWork(db: App.Locals['db'], user: App.Locals['user'], idOrSlug: string) {
-  const [work] = await db.select().from(works).where(or(eq(works.id, idOrSlug), eq(works.slug, idOrSlug))).limit(1);
+  const [work] = await db
+    .select()
+    .from(works)
+    .where(or(eq(works.id, idOrSlug), eq(works.slug, idOrSlug)))
+    .limit(1);
   if (!work) return null;
-  const maintainerIds = (await db.select({ userId: workMaintainers.userId }).from(workMaintainers).where(eq(workMaintainers.workId, work.id))).map((m) => m.userId);
+  const maintainerIds = (
+    await db
+      .select({ userId: workMaintainers.userId })
+      .from(workMaintainers)
+      .where(eq(workMaintainers.workId, work.id))
+  ).map((m) => m.userId);
   const grants = await grantsFor(db, user);
   return canViewWork(user, work, maintainerIds, grants) ? work : null;
 }
@@ -29,7 +38,10 @@ export const GET: RequestHandler = async ({ locals, params }) => {
   if (!work) throw error(404, 'No such work');
   const rows = await segmentsOfWork(locals.db, work.id);
   const scheme = await schemeOfWork(locals.db, work.id);
-  return json({ scheme: scheme.scheme, segments: rows.map((s) => ({ id: s.id, label: s.label, sortKey: s.sortKey })) });
+  return json({
+    scheme: scheme.scheme,
+    segments: rows.map((s) => ({ id: s.id, label: s.label, sortKey: s.sortKey })),
+  });
 };
 
 export const POST: RequestHandler = async ({ locals, params, request }) => {
@@ -46,7 +58,12 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
   return json({
     segments: labels.map((label) => {
       const seg = resolved.get(label)!;
-      return { id: seg.id, label: seg.label, sortKey: seg.sortKey, next: nextLabel(scheme.scheme, seg.label) };
+      return {
+        id: seg.id,
+        label: seg.label,
+        sortKey: seg.sortKey,
+        next: nextLabel(scheme.scheme, seg.label),
+      };
     }),
   });
 };

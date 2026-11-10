@@ -12,9 +12,18 @@
 
 <PageFrame title={t.edition.title} width="reading">
   <div class="flex flex-col gap-6">
-    <SearchForm action="/start/edition" query={data.q} label={site.works.search} placeholder={site.works.placeholder} />
+    <SearchForm
+      action="/start/edition"
+      query={data.q}
+      label={site.works.search}
+      placeholder={site.works.placeholder}
+    />
     {#if data.works.length}
-      <WorkLinks items={data.works} href={(work) => `/editions/new?work=${work.slug}`} action={t.edition.choose} />
+      <WorkLinks
+        items={data.works}
+        href={(work) => `/editions/new?work=${work.slug}`}
+        action={t.edition.choose}
+      />
     {:else}
       <p class="font-sans text-sm text-ink-soft">{data.q ? t.noneFor(data.q) : t.none}</p>
     {/if}

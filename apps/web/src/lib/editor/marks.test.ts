@@ -155,42 +155,113 @@ describe('variants noted in the carrier', () => {
   };
   const index = (stream: Stream) => new Map<Id, Item>(stream.items.map((i) => [i.id, i]));
   const marksOf = (stream: Stream) =>
-    stream.items.map((i) => (i.kind === 'token' ? (i.marks ?? []).map((m) => `${m.kind}:${m.attrs?.group ?? ''}:${m.attrs?.reading ?? ''}`).join(',') : '|'));
+    stream.items.map((i) =>
+      i.kind === 'token'
+        ? (i.marks ?? [])
+            .map((m) => `${m.kind}:${m.attrs?.group ?? ''}:${m.attrs?.reading ?? ''}`)
+            .join(',')
+        : '|',
+    );
 
   it('notes a variant over whole words with one group, from a selection that cuts into words', () => {
     const { stream, ledger, byId } = setup('the quick brown fox');
     const targets = markTargets(ledger, byId, 'written', 5, 12);
-    const ops = setVariantOps(byId, targets, { reading: ' swift  red ', place: 'margin', hand: ' m2 ' }, groups());
+    const ops = setVariantOps(
+      byId,
+      targets,
+      { reading: ' swift  red ', place: 'margin', hand: ' m2 ' },
+      groups(),
+    );
     const next = applyOps(stream, ops).stream;
-    expect(next.items[1]).toMatchObject({ marks: [{ kind: 'variant', attrs: { group: 'g1', reading: 'swift red', place: 'margin', hand: 'm2' } }] });
-    expect(next.items[2]).toMatchObject({ marks: [{ kind: 'variant', attrs: { group: 'g1', reading: 'swift red', place: 'margin', hand: 'm2' } }] });
+    expect(next.items[1]).toMatchObject({
+      marks: [
+        {
+          kind: 'variant',
+          attrs: { group: 'g1', reading: 'swift red', place: 'margin', hand: 'm2' },
+        },
+      ],
+    });
+    expect(next.items[2]).toMatchObject({
+      marks: [
+        {
+          kind: 'variant',
+          attrs: { group: 'g1', reading: 'swift red', place: 'margin', hand: 'm2' },
+        },
+      ],
+    });
     expect(marksOf(next)).toEqual(['', 'variant:g1:swift red', 'variant:g1:swift red', '']);
   });
 
   it('keeps the other marks of a word, and changes a variant in place when its words are selected again', () => {
     const { stream, byId } = setup('the quick brown fox');
     (stream.items[1] as Token).marks = [{ kind: 'unclear' }];
-    const once = applyOps(stream, setVariantOps(byId, [{ tokenId: 't2' }, { tokenId: 't3' }], { reading: 'x', place: 'margin' }, groups())).stream;
+    const once = applyOps(
+      stream,
+      setVariantOps(
+        byId,
+        [{ tokenId: 't2' }, { tokenId: 't3' }],
+        { reading: 'x', place: 'margin' },
+        groups(),
+      ),
+    ).stream;
     expect(marksOf(once)).toEqual(['', 'unclear::,variant:g1:x', 'variant:g1:x', '']);
     const ids = index(once);
-    expect(variantSpanned(ids, [{ tokenId: 't2' }, { tokenId: 't3' }])).toEqual({ group: 'g1', reading: 'x', place: 'margin' });
+    expect(variantSpanned(ids, [{ tokenId: 't2' }, { tokenId: 't3' }])).toEqual({
+      group: 'g1',
+      reading: 'x',
+      place: 'margin',
+    });
     expect(variantSpanned(ids, [{ tokenId: 't2' }])).toBeNull();
-    const twice = applyOps(once, setVariantOps(ids, [{ tokenId: 't2' }, { tokenId: 't3' }], { reading: '', place: 'interlinear' }, () => 'new')).stream;
+    const twice = applyOps(
+      once,
+      setVariantOps(
+        ids,
+        [{ tokenId: 't2' }, { tokenId: 't3' }],
+        { reading: '', place: 'interlinear' },
+        () => 'new',
+      ),
+    ).stream;
     expect(marksOf(twice)).toEqual(['', 'unclear::,variant:g1:', 'variant:g1:', '']);
   });
 
   it('replaces a variant the new one overlaps, on all its words', () => {
     const { stream, byId } = setup('the quick brown fox');
-    const once = applyOps(stream, setVariantOps(byId, [{ tokenId: 't2' }, { tokenId: 't3' }], { reading: 'x', place: 'margin' }, groups())).stream;
-    const twice = applyOps(once, setVariantOps(index(once), [{ tokenId: 't3' }, { tokenId: 't4' }], { reading: 'y', place: 'other' }, () => 'g2')).stream;
+    const once = applyOps(
+      stream,
+      setVariantOps(
+        byId,
+        [{ tokenId: 't2' }, { tokenId: 't3' }],
+        { reading: 'x', place: 'margin' },
+        groups(),
+      ),
+    ).stream;
+    const twice = applyOps(
+      once,
+      setVariantOps(
+        index(once),
+        [{ tokenId: 't3' }, { tokenId: 't4' }],
+        { reading: 'y', place: 'other' },
+        () => 'g2',
+      ),
+    ).stream;
     expect(marksOf(twice)).toEqual(['', '', 'variant:g2:y', 'variant:g2:y']);
   });
 
   it('finds the variants a selection touches and removes them from all their words', () => {
     const { stream, byId } = setup('the quick brown fox');
-    const once = applyOps(stream, setVariantOps(byId, [{ tokenId: 't2' }, { tokenId: 't3' }], { reading: 'x', place: 'margin' }, groups())).stream;
+    const once = applyOps(
+      stream,
+      setVariantOps(
+        byId,
+        [{ tokenId: 't2' }, { tokenId: 't3' }],
+        { reading: 'x', place: 'margin' },
+        groups(),
+      ),
+    ).stream;
     const ids = index(once);
-    expect(variantsIn(ids, [{ tokenId: 't3' }, { tokenId: 't4' }]).map((v) => v.group)).toEqual(['g1']);
+    expect(variantsIn(ids, [{ tokenId: 't3' }, { tokenId: 't4' }]).map((v) => v.group)).toEqual([
+      'g1',
+    ]);
     expect(variantsIn(ids, [{ tokenId: 't1' }])).toEqual([]);
     const ops = removeVariantOps(ids, [{ tokenId: 't3' }]);
     expect(ops).toEqual([
@@ -204,8 +275,24 @@ describe('variants noted in the carrier', () => {
   it('finds the last word of each variant, across a line and between neighbouring variants', () => {
     const { stream, byId } = setup('a b\nc d e');
     const tokens = stream.items.filter((i) => i.kind === 'token').map((t) => t.id);
-    let next = applyOps(stream, setVariantOps(byId, [{ tokenId: tokens[1]! }, { tokenId: tokens[2]! }], { reading: 'x', place: 'margin' }, () => 'g1')).stream;
-    next = applyOps(next, setVariantOps(index(next), [{ tokenId: tokens[3]! }], { reading: 'y', place: 'margin' }, () => 'g2')).stream;
+    let next = applyOps(
+      stream,
+      setVariantOps(
+        byId,
+        [{ tokenId: tokens[1]! }, { tokenId: tokens[2]! }],
+        { reading: 'x', place: 'margin' },
+        () => 'g1',
+      ),
+    ).stream;
+    next = applyOps(
+      next,
+      setVariantOps(
+        index(next),
+        [{ tokenId: tokens[3]! }],
+        { reading: 'y', place: 'margin' },
+        () => 'g2',
+      ),
+    ).stream;
     expect([...variantEnds(next.items)]).toEqual([tokens[2], tokens[3]]);
   });
 });
@@ -222,7 +309,9 @@ describe('corrections: hand and stage', () => {
     const ops = setCorrectionOps(byId2, beta, { hand: 'h2', seq: 2 });
     const corrected = applyOps(marked, ops).stream;
     const byId3 = new Map<Id, Item>(corrected.items.map((i) => [i.id, i]));
-    expect((corrected.items[1] as Token).marks).toEqual([{ kind: 'del', attrs: { hand: 'h2', seq: 2 } }]);
+    expect((corrected.items[1] as Token).marks).toEqual([
+      { kind: 'del', attrs: { hand: 'h2', seq: 2 } },
+    ]);
     expect(correctionIn(byId3, all)).toEqual({ kinds: ['del'], hand: 'h2', seq: 2 });
     // Taking the stage away keeps the hand; nothing to change is no operation.
     const again = applyOps(corrected, setCorrectionOps(byId3, beta, { hand: 'h2' })).stream;

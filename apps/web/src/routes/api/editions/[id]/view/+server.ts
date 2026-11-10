@@ -13,7 +13,8 @@ import { editionView, refreshView, type SegmentView } from '$lib/server/reader';
 /** Collation columns hold Maps, which JSON cannot carry, and no client needs them. */
 function forJson(views: Record<string, SegmentView>): Record<string, SegmentView> {
   const out: Record<string, SegmentView> = {};
-  for (const [id, view] of Object.entries(views)) out[id] = { ...view, collation: { ...view.collation, columns: [] } };
+  for (const [id, view] of Object.entries(views))
+    out[id] = { ...view, collation: { ...view.collation, columns: [] } };
   return out;
 }
 

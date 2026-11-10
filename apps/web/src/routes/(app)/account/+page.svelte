@@ -20,21 +20,33 @@
         <ul class="flex flex-col gap-3 font-sans text-sm">
           {#each data.offers.incoming as offer (offer.id)}
             <li class="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span class="text-ink"><a class="font-serif hover:underline" href={offer.href}>{offer.title}</a> {s.account.offerFrom(offer.fromName)}</span>
+              <span class="text-ink"
+                ><a class="font-serif hover:underline" href={offer.href}>{offer.title}</a>
+                {s.account.offerFrom(offer.fromName)}</span
+              >
               <span class="text-xs text-ink-muted"><LocalDate date={offer.createdAt} /></span>
               <form method="POST" action="?/offer" use:enhance class="ml-auto flex gap-2">
                 <input type="hidden" name="offerId" value={offer.id} />
-                <Button size="sm" variant="primary" type="submit" name="answer" value="accept">{s.account.accept}</Button>
-                <Button size="sm" variant="ghost" type="submit" name="answer" value="decline">{s.account.decline}</Button>
+                <Button size="sm" variant="primary" type="submit" name="answer" value="accept"
+                  >{s.account.accept}</Button
+                >
+                <Button size="sm" variant="ghost" type="submit" name="answer" value="decline"
+                  >{s.account.decline}</Button
+                >
               </form>
             </li>
           {/each}
           {#each data.offers.outgoing as offer (offer.id)}
             <li class="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span class="text-ink-soft"><span class="font-serif text-ink">{offer.title}</span> {s.account.offeredTo(offer.toName)}</span>
+              <span class="text-ink-soft"
+                ><span class="font-serif text-ink">{offer.title}</span>
+                {s.account.offeredTo(offer.toName)}</span
+              >
               <form method="POST" action="?/offer" use:enhance class="ml-auto">
                 <input type="hidden" name="offerId" value={offer.id} />
-                <Button size="sm" variant="ghost" type="submit" name="answer" value="withdraw">{s.account.withdraw}</Button>
+                <Button size="sm" variant="ghost" type="submit" name="answer" value="withdraw"
+                  >{s.account.withdraw}</Button
+                >
               </form>
             </li>
           {/each}
@@ -49,14 +61,21 @@
     </SettingsSection>
     <SettingsSection title={s.account.tokensSection} hint={s.account.tokensHint}>
       {#if form?.form === 'token' && form.token}
-        <Notice class="mb-3"><p>{s.account.tokenMade}</p><code class="mt-1 block break-all font-mono text-xs select-all">{form.token}</code></Notice>
+        <Notice class="mb-3"
+          ><p>{s.account.tokenMade}</p>
+          <code class="mt-1 block break-all font-mono text-xs select-all">{form.token}</code
+          ></Notice
+        >
       {/if}
       {#if data.tokens.length}
         <ul class="mb-4 flex flex-col gap-2 font-sans text-sm">
           {#each data.tokens as token (token.id)}
             <li class="flex flex-wrap items-center gap-x-3">
               <span class="text-ink">{token.name}</span>
-              <span class="text-xs text-ink-muted"><LocalDate date={token.createdAt} />, {#if token.lastUsedAt}{s.account.lastUsed} <LocalDate date={token.lastUsedAt} />{:else}{s.account.neverUsed}{/if}</span>
+              <span class="text-xs text-ink-muted"
+                ><LocalDate date={token.createdAt} />, {#if token.lastUsedAt}{s.account.lastUsed}
+                  <LocalDate date={token.lastUsedAt} />{:else}{s.account.neverUsed}{/if}</span
+              >
               <form method="POST" action="?/revoke" use:enhance class="ml-auto">
                 <input type="hidden" name="id" value={token.id} />
                 <Button size="sm" variant="ghost" type="submit">{s.account.revoke}</Button>
@@ -66,7 +85,13 @@
         </ul>
       {/if}
       <form method="POST" action="?/token" use:enhance class="flex flex-wrap items-end gap-3">
-        <label class="flex flex-col gap-1 font-sans text-sm"><span>{s.account.tokenName}</span><input name="name" maxlength="100" class="rounded border border-line px-2 py-1" /></label>
+        <label class="flex flex-col gap-1 font-sans text-sm"
+          ><span>{s.account.tokenName}</span><input
+            name="name"
+            maxlength="100"
+            class="rounded border border-line px-2 py-1"
+          /></label
+        >
         <Button type="submit" variant="secondary">{s.account.makeToken}</Button>
       </form>
     </SettingsSection>

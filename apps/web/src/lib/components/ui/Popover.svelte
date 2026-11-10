@@ -33,7 +33,11 @@
 
 <Popover.Root bind:open>
   <Popover.Trigger
-    class={[buttonClasses(triggerVariant, triggerSize), 'data-[state=open]:bg-sunken', triggerClass]}
+    class={[
+      buttonClasses(triggerVariant, triggerSize),
+      'data-[state=open]:bg-sunken',
+      triggerClass,
+    ]}
     aria-label={label}
   >
     {@render trigger()}

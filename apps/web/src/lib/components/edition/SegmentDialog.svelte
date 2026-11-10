@@ -16,7 +16,16 @@
     oncancel: () => void;
   }
 
-  let { open = $bindable(), initial, hasStart, error = null, busy = false, onsubmit, onremove, oncancel }: Props = $props();
+  let {
+    open = $bindable(),
+    initial,
+    hasStart,
+    error = null,
+    busy = false,
+    onsubmit,
+    onremove,
+    oncancel,
+  }: Props = $props();
 
   let label = $state('');
   let filledFor = '';
@@ -28,22 +37,39 @@
   });
 </script>
 
-<Dialog bind:open title={s.workspace.segmentTitle} size="sm" onOpenChange={(value) => { if (!value) oncancel(); }}>
+<Dialog
+  bind:open
+  title={s.workspace.segmentTitle}
+  size="sm"
+  onOpenChange={(value) => {
+    if (!value) oncancel();
+  }}
+>
   <form
     onsubmit={(event) => {
       event.preventDefault();
       if (label.trim()) onsubmit(label.trim());
     }}
   >
-    <Field label={s.workspace.segmentLabel} hint={s.workspace.segmentHint(initial || '1.1')} {error}>
+    <Field
+      label={s.workspace.segmentLabel}
+      hint={s.workspace.segmentHint(initial || '1.1')}
+      {error}
+    >
       {#snippet children(control)}
         <Input {...control} bind:value={label} class="font-serif" autofocus />
       {/snippet}
     </Field>
   </form>
   {#snippet footer()}
-    {#if hasStart}<Button variant="danger" onclick={onremove}>{s.workspace.segmentRemove}</Button>{/if}
+    {#if hasStart}<Button variant="danger" onclick={onremove}>{s.workspace.segmentRemove}</Button
+      >{/if}
     <Button variant="ghost" onclick={oncancel}>{s.conjecture.cancel}</Button>
-    <Button variant="primary" loading={busy} disabled={!label.trim()} onclick={() => label.trim() && onsubmit(label.trim())}>{s.workspace.segmentSet}</Button>
+    <Button
+      variant="primary"
+      loading={busy}
+      disabled={!label.trim()}
+      onclick={() => label.trim() && onsubmit(label.trim())}>{s.workspace.segmentSet}</Button
+    >
   {/snippet}
 </Dialog>

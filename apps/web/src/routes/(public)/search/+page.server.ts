@@ -10,7 +10,15 @@ const BIBLIOGRAPHY_LIMIT = 10;
 export const load: PageServerLoad = async ({ locals, url }) => {
   const q = (url.searchParams.get('q') ?? '').trim().slice(0, 200);
   const crumb = { label: site.search.title };
-  if (!q) return { crumb, q, editions: [], works: [], witnesses: [], bibliography: { items: [], total: 0 } };
+  if (!q)
+    return {
+      crumb,
+      q,
+      editions: [],
+      works: [],
+      witnesses: [],
+      bibliography: { items: [], total: 0 },
+    };
   const [editions, works, witnesses, bibliography] = await Promise.all([
     searchPublishedEditions(locals.db, locals.user, q),
     searchWorks(locals.db, locals.user, q),
@@ -25,7 +33,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     witnesses,
     bibliography: {
       total: bibliography.total,
-      items: bibliography.items.map((item) => ({ id: item.id, key: item.citationKey, label: item.label, pieces: referencePieces(entryOf(item)) })),
+      items: bibliography.items.map((item) => ({
+        id: item.id,
+        key: item.citationKey,
+        label: item.label,
+        pieces: referencePieces(entryOf(item)),
+      })),
     },
   };
 };

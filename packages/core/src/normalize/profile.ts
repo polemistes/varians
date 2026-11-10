@@ -37,7 +37,11 @@ export function defaultProfile(language: string): NormalizationProfile {
  * the written form stands as it is. Only mechanical steps: it never adds
  * accents, breathings or punctuation.
  */
-export function proposeReadForm(form: string, marks: Mark[] | undefined, profile: NormalizationProfile): string | undefined {
+export function proposeReadForm(
+  form: string,
+  marks: Mark[] | undefined,
+  profile: NormalizationProfile,
+): string | undefined {
   let out = form.normalize('NFC');
   if (profile.expandAbbreviations && marks) {
     const expansion = marks.find((m) => m.kind === 'abbr' && typeof m.attrs?.expan === 'string');
@@ -45,19 +49,26 @@ export function proposeReadForm(form: string, marks: Mark[] | undefined, profile
       out = String(expansion.attrs!.expan);
     } else if (expansion) {
       const chars = Array.from(out);
-      out = chars.slice(0, expansion.from).join('') + String(expansion.attrs!.expan) + chars.slice(expansion.to).join('');
+      out =
+        chars.slice(0, expansion.from).join('') +
+        String(expansion.attrs!.expan) +
+        chars.slice(expansion.to).join('');
     }
   }
   if (profile.lowercaseCapitals && isAllCaps(out)) {
     out = profile.finalSigma ? greekLower(out) : out.toLowerCase();
   }
-  if (profile.latinUV) out = out.replace(/v/g, 'u').replace(/j/g, 'i').replace(/V/g, 'U').replace(/J/g, 'I');
+  if (profile.latinUV)
+    out = out.replace(/v/g, 'u').replace(/j/g, 'i').replace(/V/g, 'U').replace(/J/g, 'I');
   return out === form ? undefined : out;
 }
 
 /** Whether a written form and a read form agree once folded: the pair needs no checking. */
 export function agreeUnderFold(form: string, norm: string, profile: NormalizationProfile): boolean {
-  return fold(form, { ...profile.fold, stripDiacritics: true }) === fold(norm, { ...profile.fold, stripDiacritics: true });
+  return (
+    fold(form, { ...profile.fold, stripDiacritics: true }) ===
+    fold(norm, { ...profile.fold, stripDiacritics: true })
+  );
 }
 
 /** A remembered written-to-read pair confirmed by an editor. */

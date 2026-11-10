@@ -27,7 +27,12 @@
   import { describeCounts } from '$lib/history/summary';
   import { formatMoment, formatSpan, formatTime } from '$lib/history/time';
   import { buildTimeline, type TimelineEntry } from '$lib/history/timeline';
-  import type { DocumentHistory, DocumentKind, HistoryChangeset, ReviewItem } from '$lib/history/types';
+  import type {
+    DocumentHistory,
+    DocumentKind,
+    HistoryChangeset,
+    ReviewItem,
+  } from '$lib/history/types';
   import { historyStrings as t } from '$lib/strings/history';
   import { HistoryRequestError, historyApi } from './api';
   import MomentView from './MomentView.svelte';
@@ -49,7 +54,15 @@
     numberEvery?: number;
   }
 
-  let { kind, documentId, currentVersion, labelOf, canEdit, onchanged, numberEvery = 1 }: Props = $props();
+  let {
+    kind,
+    documentId,
+    currentVersion,
+    labelOf,
+    canEdit,
+    onchanged,
+    numberEvery = 1,
+  }: Props = $props();
 
   const uid = $props.id();
   const api = $derived(historyApi(kind, documentId));
@@ -79,7 +92,8 @@
       const result = await api.history();
       if (mine === request) history = result;
     } catch (cause) {
-      if (mine === request) failure = cause instanceof HistoryRequestError && cause.status === 0 ? t.offline : t.failed;
+      if (mine === request)
+        failure = cause instanceof HistoryRequestError && cause.status === 0 ? t.offline : t.failed;
     } finally {
       if (mine === request) loading = false;
     }
@@ -135,17 +149,30 @@
       key: entry.key,
       version: entry.version,
       since: entry.since,
-      title: entry.type === 'session' ? `${entry.session.userName}, ${formatSpan(entry.session.from, entry.session.to, t)}` : entry.moment.name,
+      title:
+        entry.type === 'session'
+          ? `${entry.session.userName}, ${formatSpan(entry.session.from, entry.session.to, t)}`
+          : entry.moment.name,
     });
   }
 
   function openChangeset(changeset: HistoryChangeset) {
-    open({ key: `c${changeset.id}`, version: changeset.version, since: changeset.version - 1, title: `${nameOf(changeset.userId)}, ${formatMoment(changeset.at, t)}` });
+    open({
+      key: `c${changeset.id}`,
+      version: changeset.version,
+      since: changeset.version - 1,
+      title: `${nameOf(changeset.userId)}, ${formatMoment(changeset.at, t)}`,
+    });
   }
 
   function showInText(item: ReviewItem) {
     tab = 'moments';
-    open({ key: `c${item.id}`, version: item.version, since: item.version - 1, title: `${item.userName}, ${formatMoment(item.at, t)}` });
+    open({
+      key: `c${item.id}`,
+      version: item.version,
+      since: item.version - 1,
+      title: `${item.userName}, ${formatMoment(item.at, t)}`,
+    });
   }
 
   async function back() {
@@ -195,7 +222,10 @@
     try {
       const result = await api.undo(changeset.id, { force });
       if (!result.ok) {
-        refused = { id: changeset.id, words: result.conflicts.map((id) => result.words[id]).filter((w): w is string => !!w) };
+        refused = {
+          id: changeset.id,
+          words: result.conflicts.map((id) => result.words[id]).filter((w): w is string => !!w),
+        };
         return;
       }
       refused = null;
@@ -251,7 +281,11 @@
     {#if failure}
       <p class="mb-2 flex items-center gap-2 text-xs text-danger" role="alert">
         {failure}
-        <button type="button" class="rounded text-ink-soft underline underline-offset-2 hover:text-ink" onclick={load}>{t.retry}</button>
+        <button
+          type="button"
+          class="rounded text-ink-soft underline underline-offset-2 hover:text-ink"
+          onclick={load}>{t.retry}</button
+        >
       </p>
     {/if}
     <p class="mb-2 text-xs text-ink-muted">{t.nowVersion(history.currentVersion)}</p>
@@ -276,10 +310,15 @@
                 {/if}
                 <span class="min-w-0 flex-1">
                   <span class="block font-medium break-words text-ink">
-                    {#if moment.kind !== 'published'}<span class="sr-only">{t.namedMoment}: </span>{/if}{moment.name}
+                    {#if moment.kind !== 'published'}<span class="sr-only"
+                        >{t.namedMoment}:
+                      </span>{/if}{moment.name}
                   </span>
                   <span class="block text-xs text-ink-muted">
-                    {#if moment.kind === 'published'}<span class="text-accent">{t.publishedMoment}</span> ·{' '}{/if}{formatMoment(moment.at, t)}
+                    {#if moment.kind === 'published'}<span class="text-accent"
+                        >{t.publishedMoment}</span
+                      >
+                      ·{' '}{/if}{formatMoment(moment.at, t)}
                     · {t.version(moment.version)}{#if moment.createdByName}{' '}· {moment.createdByName}{/if}
                   </span>
                 </span>
@@ -294,11 +333,15 @@
                   class="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-sunken"
                   onclick={() => openEntry(entry)}
                 >
-                  <span class="mt-[0.4rem] size-2 shrink-0 rounded-full" style:background-color={colorOf(session.userId || null)} aria-hidden="true"
+                  <span
+                    class="mt-[0.4rem] size-2 shrink-0 rounded-full"
+                    style:background-color={colorOf(session.userId || null)}
+                    aria-hidden="true"
                   ></span>
                   <span class="min-w-0 flex-1">
                     <span class="block text-ink">
-                      <span class="font-medium">{session.userName}</span>, <span class="text-ink-soft">{formatSpan(session.from, session.to, t)}</span>
+                      <span class="font-medium">{session.userName}</span>,
+                      <span class="text-ink-soft">{formatSpan(session.from, session.to, t)}</span>
                     </span>
                     <span class="block text-xs text-ink-muted">{session.summary}</span>
                   </span>
@@ -310,11 +353,18 @@
                   aria-controls={`${uid}-${session.key}`}
                   onclick={() => (expanded[session.key] = !isOpen)}
                 >
-                  <ChevronRight class={['size-3 transition-transform', isOpen && 'rotate-90']} aria-hidden="true" />
+                  <ChevronRight
+                    class={['size-3 transition-transform', isOpen && 'rotate-90']}
+                    aria-hidden="true"
+                  />
                   {isOpen ? t.hideChanges : t.showChanges(session.changesets.length)}
                 </button>
                 {#if isOpen}
-                  <ul id={`${uid}-${session.key}`} class="mt-1 mb-1.5 ml-6 space-y-1" aria-label={t.changesOf}>
+                  <ul
+                    id={`${uid}-${session.key}`}
+                    class="mt-1 mb-1.5 ml-6 space-y-1"
+                    aria-label={t.changesOf}
+                  >
                     {#each session.changesets as changeset (changeset.id)}
                       <li class="rounded-md border border-line bg-surface px-2 py-1.5">
                         <div class="flex items-start gap-1.5">
@@ -325,8 +375,14 @@
                             title={t.openChangeset(changeset.version)}
                             onclick={() => openChangeset(changeset)}
                           >
-                            <span class="text-ink-muted tabular-nums">{t.versionShort(changeset.version)} · {formatTime(changeset.at)}</span>
-                            <span class="block text-ink-soft">{changeset.message ?? describeCounts(changeset.counts, t)}</span>
+                            <span class="text-ink-muted tabular-nums"
+                              >{t.versionShort(changeset.version)} · {formatTime(
+                                changeset.at,
+                              )}</span
+                            >
+                            <span class="block text-ink-soft"
+                              >{changeset.message ?? describeCounts(changeset.counts, t)}</span
+                            >
                           </button>
                           {#if canEdit}
                             <Button
@@ -344,10 +400,19 @@
                         </div>
                         {#if refused?.id === changeset.id}
                           <Notice kind="warning" title={t.undoConflict} class="mt-1.5">
-                            {#if refused.words.length}<span class="font-serif text-ink">{refused.words.join(', ')}</span>{/if}
+                            {#if refused.words.length}<span class="font-serif text-ink"
+                                >{refused.words.join(', ')}</span
+                              >{/if}
                             <div class="mt-2 flex gap-2">
-                              <Button size="sm" variant="danger" loading={undoing === changeset.id} onclick={() => undo(changeset, true)}>{t.undoAnyway}</Button>
-                              <Button size="sm" variant="ghost" onclick={() => (refused = null)}>{t.cancel}</Button>
+                              <Button
+                                size="sm"
+                                variant="danger"
+                                loading={undoing === changeset.id}
+                                onclick={() => undo(changeset, true)}>{t.undoAnyway}</Button
+                              >
+                              <Button size="sm" variant="ghost" onclick={() => (refused = null)}
+                                >{t.cancel}</Button
+                              >
                             </div>
                           </Notice>
                         {/if}
@@ -359,7 +424,9 @@
             {/if}
           </li>
         {/each}
-        <li class="px-2 py-1.5 text-xs text-ink-muted">{history.truncated ? t.olderHidden : t.beginning}</li>
+        <li class="px-2 py-1.5 text-xs text-ink-muted">
+          {history.truncated ? t.olderHidden : t.beginning}
+        </li>
       </ol>
     {/if}
   {/if}
@@ -391,7 +458,9 @@
             onshow={showInText}
           />
         {:else if reviewOpened}
-          <p class="flex items-center gap-2 text-xs text-ink-muted"><Spinner size="sm" />{t.loadingReview}</p>
+          <p class="flex items-center gap-2 text-xs text-ink-muted">
+            <Spinner size="sm" />{t.loadingReview}
+          </p>
         {/if}
       </TabPanel>
     </Tabs>

@@ -68,7 +68,9 @@ export async function writeExample(serverUrl: string, outDir: string): Promise<s
   try {
     const url = withDatabase(serverUrl, name);
     const migrator = new pg.Pool({ connectionString: url });
-    await migrate(drizzle(migrator, { casing: 'snake_case' }), { migrationsFolder: migrationsFolder() });
+    await migrate(drizzle(migrator, { casing: 'snake_case' }), {
+      migrationsFolder: migrationsFolder(),
+    });
     await migrator.end();
     const { db, pool } = createDatabase(url);
     try {
@@ -76,18 +78,34 @@ export async function writeExample(serverUrl: string, outDir: string): Promise<s
       const collaborator = newId();
       await db.insert(users).values([
         { id: editor, email: 'editor@example.org', name: 'Example Editor', passwordHash: 'x' },
-        { id: collaborator, email: 'collaborator@example.org', name: 'Example Collaborator', passwordHash: 'x' },
+        {
+          id: collaborator,
+          email: 'collaborator@example.org',
+          name: 'Example Collaborator',
+          passwordHash: 'x',
+        },
       ]);
       const sample = await seedSample(db, editor, { collaboratorId: collaborator });
-      const [conjecture] = await db.select().from(conjectures).where(eq(conjectures.workId, sample.workId)).limit(1);
+      const [conjecture] = await db
+        .select()
+        .from(conjectures)
+        .where(eq(conjectures.workId, sample.workId))
+        .limit(1);
       await adoptConjecture(db, sample.editionId, conjecture!.id);
       await publishEdition(db, sample.editionId, editor);
       // One small image on A's first page, so that the archive shows how images travel.
-      const [page] = await db.select().from(pages).where(eq(pages.witnessId, sample.witnessIds.A!)).orderBy(pages.position).limit(1);
+      const [page] = await db
+        .select()
+        .from(pages)
+        .where(eq(pages.witnessId, sample.witnessIds.A!))
+        .orderBy(pages.position)
+        .limit(1);
       // Where uploads are kept: images/<page id>/<file>.
       const imagePath = `images/${page!.id}/original.jpg`;
       await mkdir(path.join(storage, 'images', page!.id), { recursive: true });
-      await sharp({ create: { width: 64, height: 96, channels: 3, background: { r: 236, g: 226, b: 204 } } })
+      await sharp({
+        create: { width: 64, height: 96, channels: 3, background: { r: 236, g: 226, b: 204 } },
+      })
         .jpeg({ quality: 70 })
         .toFile(path.join(storage, imagePath));
       await db
@@ -105,9 +123,17 @@ export async function writeExample(serverUrl: string, outDir: string): Promise<s
       await rm(outDir, { recursive: true, force: true });
       await mkdir(outDir, { recursive: true });
       await writeFile(path.join(outDir, 'README.md'), EXAMPLE_README, 'utf8');
-      const dir = await writeArchive(db, sample.workId, outDir, { storageRoot: storage, origin: EXAMPLE_ORIGIN });
+      const dir = await writeArchive(db, sample.workId, outDir, {
+        storageRoot: storage,
+        origin: EXAMPLE_ORIGIN,
+      });
       // The same work as a package, as another installation would receive it.
-      const pkg = await buildPackage(db, { id: editor, role: 'administrator' }, [{ kind: 'work', workId: sample.workId }], { storageRoot: storage, origin: EXAMPLE_ORIGIN, name: 'iliad', agent: 'Varians (example)' });
+      const pkg = await buildPackage(
+        db,
+        { id: editor, role: 'administrator' },
+        [{ kind: 'work', workId: sample.workId }],
+        { storageRoot: storage, origin: EXAMPLE_ORIGIN, name: 'iliad', agent: 'Varians (example)' },
+      );
       try {
         await copyFile(pkg.file, path.join(outDir, 'iliad.zip'));
       } finally {
@@ -126,5 +152,7 @@ export async function writeExample(serverUrl: string, outDir: string): Promise<s
 
 /** The work directories of the example. */
 export async function exampleWorks(exampleDir: string): Promise<string[]> {
-  return (await readdir(exampleDir, { withFileTypes: true })).filter((e) => e.isDirectory()).map((e) => path.join(exampleDir, e.name));
+  return (await readdir(exampleDir, { withFileTypes: true }))
+    .filter((e) => e.isDirectory())
+    .map((e) => path.join(exampleDir, e.name));
 }

@@ -48,10 +48,16 @@ export class WitnessTexts {
       for (const id of chunk) this.#pending.add(`${transcriptionId}|${id}`);
       this.loading++;
       try {
-        const response = await fetch(`/api/transcriptions/${encodeURIComponent(transcriptionId)}/segments?ids=${encodeURIComponent(chunk.join(','))}`);
+        const response = await fetch(
+          `/api/transcriptions/${encodeURIComponent(transcriptionId)}/segments?ids=${encodeURIComponent(chunk.join(','))}`,
+        );
         if (!response.ok) throw new Error(response.statusText);
-        const data = (await response.json()) as { segments: Record<string, WitnessSegment>; keepsWrittenForm: boolean };
-        for (const id of chunk) this.segments[`${transcriptionId}|${id}`] = data.segments[id] ?? { runs: [], units: [] };
+        const data = (await response.json()) as {
+          segments: Record<string, WitnessSegment>;
+          keepsWrittenForm: boolean;
+        };
+        for (const id of chunk)
+          this.segments[`${transcriptionId}|${id}`] = data.segments[id] ?? { runs: [], units: [] };
         this.keepsWrittenForm[transcriptionId] = data.keepsWrittenForm;
         this.failed = false;
       } catch {
@@ -91,7 +97,11 @@ export class WitnessTexts {
   holds(transcriptionId: string, tokenId: string): boolean {
     const prefix = `${transcriptionId}|`;
     for (const [key, segment] of Object.entries(this.segments)) {
-      if (key.startsWith(prefix) && segment.runs.some((run) => run.items.some((item) => item.id === tokenId))) return true;
+      if (
+        key.startsWith(prefix) &&
+        segment.runs.some((run) => run.items.some((item) => item.id === tokenId))
+      )
+        return true;
     }
     return false;
   }

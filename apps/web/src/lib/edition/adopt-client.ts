@@ -28,11 +28,14 @@ export interface SegmentForAdoption {
 }
 
 /** A map from token id to the site that covers it, over several segments. */
-export function sitesByToken(segments: Iterable<SegmentForAdoption>): Map<Id, { segmentId: Id; site: Site }> {
+export function sitesByToken(
+  segments: Iterable<SegmentForAdoption>,
+): Map<Id, { segmentId: Id; site: Site }> {
   const out = new Map<Id, { segmentId: Id; site: Site }>();
   for (const segment of segments) {
     for (const site of segment.collation.sites) {
-      for (const id of siteTokenIds(site, segment.baseUnits)) out.set(id, { segmentId: segment.segmentId, site });
+      for (const id of siteTokenIds(site, segment.baseUnits))
+        out.set(id, { segmentId: segment.segmentId, site });
     }
   }
   return out;
@@ -46,7 +49,13 @@ export function insertionSitesAfter(segment: SegmentForAdoption, tokenId: Id): S
 }
 
 /** Operations adopting a witness reading of a site. */
-export function opsForReading(stream: Stream, segment: SegmentForAdoption, site: Site, reading: Reading, textId: Id): Op[] {
+export function opsForReading(
+  stream: Stream,
+  segment: SegmentForAdoption,
+  site: Site,
+  reading: Reading,
+  textId: Id,
+): Op[] {
   return adoptReading(stream, site, segment.baseUnits, reading, textId);
 }
 
@@ -54,19 +63,33 @@ export function opsForReading(stream: Stream, segment: SegmentForAdoption, site:
  * An editorial deletion keeps the words and marks them, so that the edition
  * prints them in its deletion brackets (`surplus`, as TEI calls it).
  */
-export function opsForDeletion(stream: Stream, segment: SegmentForAdoption, site: Site, conjectureId: Id): Op[] {
+export function opsForDeletion(
+  stream: Stream,
+  segment: SegmentForAdoption,
+  site: Site,
+  conjectureId: Id,
+): Op[] {
   const ops: Op[] = [];
   for (const id of siteTokenIds(site, segment.baseUnits)) {
     const token = stream.items.find((item) => item.id === id);
     if (!token || token.kind !== 'token') continue;
     const kept = (token.marks ?? []).filter((m) => !(m.kind === 'surplus' && m.from === undefined));
-    ops.push({ t: 'set', id, fields: { marks: [...kept, { kind: 'surplus', attrs: { resp: conjectureId } }] } });
+    ops.push({
+      t: 'set',
+      id,
+      fields: { marks: [...kept, { kind: 'surplus', attrs: { resp: conjectureId } }] },
+    });
   }
   return ops;
 }
 
 /** Operations adopting a conjecture or reported reading attached to a site. */
-export function opsForAttachment(stream: Stream, segment: SegmentForAdoption, site: Site, attachment: Attachment): Op[] {
+export function opsForAttachment(
+  stream: Stream,
+  segment: SegmentForAdoption,
+  site: Site,
+  attachment: Attachment,
+): Op[] {
   if (attachment.kind === 'conjecture' && attachment.conjectureKind === 'deletion') {
     return opsForDeletion(stream, segment, site, attachment.id);
   }
@@ -74,10 +97,19 @@ export function opsForAttachment(stream: Stream, segment: SegmentForAdoption, si
     const tokens = attachment.text
       .split(/\s+/u)
       .filter((w) => w)
-      .map((form) => ({ kind: 'token' as const, id: newId(), form, source: { kind: 'editor' as const } }));
+      .map((form) => ({
+        kind: 'token' as const,
+        id: newId(),
+        form,
+        source: { kind: 'editor' as const },
+      }));
     return replaceAtSite(stream, site, segment.baseUnits, tokens);
   }
-  return adoptConjecture(stream, site, segment.baseUnits, { id: attachment.id, reading: attachment.text, kind: attachment.conjectureKind ?? 'substitution' });
+  return adoptConjecture(stream, site, segment.baseUnits, {
+    id: attachment.id,
+    reading: attachment.text,
+    kind: attachment.conjectureKind ?? 'substitution',
+  });
 }
 
 /** The review key of a site, from the edition's tokens it covers. */
@@ -86,7 +118,11 @@ export function keyOfSite(segment: SegmentForAdoption, site: Site): string {
 }
 
 /** Whether a site needs the editor's attention: a non-base reading that is not merely lost, or an attachment that is not adopted. */
-export function needsReview(segment: SegmentForAdoption, site: Site, reviewed: Set<string>): boolean {
+export function needsReview(
+  segment: SegmentForAdoption,
+  site: Site,
+  reviewed: Set<string>,
+): boolean {
   if (reviewed.has(keyOfSite(segment, site))) return false;
   const substantive = site.readings.some((r) => !r.base && !(r.lacunose && r.text === ''));
   const pending = (segment.attachments[site.index] ?? []).some((a) => !a.adopted);
@@ -94,7 +130,10 @@ export function needsReview(segment: SegmentForAdoption, site: Site, reviewed: S
 }
 
 /** How many sites of the given segments still need attention. */
-export function countUnreviewed(segments: Iterable<SegmentForAdoption>, reviewed: Map<Id, Set<string>>): number {
+export function countUnreviewed(
+  segments: Iterable<SegmentForAdoption>,
+  reviewed: Map<Id, Set<string>>,
+): number {
   let n = 0;
   for (const segment of segments) {
     const set = reviewed.get(segment.segmentId) ?? new Set<string>();

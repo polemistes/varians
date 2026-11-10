@@ -40,17 +40,32 @@ describe('persons', () => {
 
   it('refuses an iD that is not one, and takes the forms people type', async () => {
     expect(await setOrcid(db, a, '0000-0002-1825-0098')).toEqual({ ok: false, error: 'invalid' });
-    expect(await setOrcid(db, a, `https://orcid.org/${ORCID}`)).toEqual({ ok: true, orcid: ORCID, claimed: null });
+    expect(await setOrcid(db, a, `https://orcid.org/${ORCID}`)).toEqual({
+      ok: true,
+      orcid: ORCID,
+      claimed: null,
+    });
     expect(await setOrcid(db, b, ORCID)).toEqual({ ok: false, error: 'taken' });
     expect(await setOrcid(db, a, '')).toEqual({ ok: true, orcid: null, claimed: null });
   });
 
   it('claims a person without an account who has the iD: their changesets become the account’s', async () => {
     await db.insert(persons).values({ id: stranger, name: 'A. Smith', orcid: ORCID });
-    await db.insert(changesets).values({ id: newId(), documentKind: 'transcription', documentId: `doc-${a}`, version: 1, personId: stranger, ops: [], reverse: [] });
+    await db.insert(changesets).values({
+      id: newId(),
+      documentKind: 'transcription',
+      documentId: `doc-${a}`,
+      version: 1,
+      personId: stranger,
+      ops: [],
+      reverse: [],
+    });
     const result = await setOrcid(db, a, ORCID);
     expect(result).toEqual({ ok: true, orcid: ORCID, claimed: 'A. Smith' });
-    const [c] = await db.select().from(changesets).where(eq(changesets.documentId, `doc-${a}`));
+    const [c] = await db
+      .select()
+      .from(changesets)
+      .where(eq(changesets.documentId, `doc-${a}`));
     expect(c!.personId).toBe(a);
     expect(await db.select().from(persons).where(eq(persons.id, stranger))).toEqual([]);
     await setOrcid(db, a, '');

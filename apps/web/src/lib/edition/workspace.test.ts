@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { applyOps, collate, fromText, sequentialIds, units, type Stream, type Token } from '@varians/core';
+import {
+  applyOps,
+  collate,
+  fromText,
+  sequentialIds,
+  units,
+  type Stream,
+  type Token,
+} from '@varians/core';
 import type { SegmentViewClient } from './types.ts';
 import {
   activeSiteFor,
@@ -17,7 +25,11 @@ import {
   takeCurrentOps,
 } from './workspace.ts';
 
-function view(segmentId: string, editionText: string, witnesses: Record<string, string>): { stream: Stream; segment: SegmentViewClient } {
+function view(
+  segmentId: string,
+  editionText: string,
+  witnesses: Record<string, string>,
+): { stream: Stream; segment: SegmentViewClient } {
   const stream = fromText(editionText, { ids: sequentialIds(`${segmentId}e`) });
   (stream.items[0] as Token).segment = { segmentId };
   const baseUnits = units(stream, 0, stream.items.length);
@@ -28,7 +40,17 @@ function view(segmentId: string, editionText: string, witnesses: Record<string, 
   const collation = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, texts);
   return {
     stream,
-    segment: { segmentId, label: segmentId, collation, baseUnits, entries: [], attachments: {}, unplaced: [], absent: [], notes: [] },
+    segment: {
+      segmentId,
+      label: segmentId,
+      collation,
+      baseUnits,
+      entries: [],
+      attachments: {},
+      unplaced: [],
+      absent: [],
+      notes: [],
+    },
   };
 }
 
@@ -44,7 +66,10 @@ describe('segmentWindow', () => {
 });
 
 describe('sites and selections', () => {
-  const { stream, segment } = view('s1', 'the quick brown fox', { B: 'the slow fox', C: 'the quick brown fox jumps' });
+  const { stream, segment } = view('s1', 'the quick brown fox', {
+    B: 'the slow fox',
+    C: 'the quick brown fox jumps',
+  });
 
   it('finds the active site from the caret', () => {
     expect(activeSiteFor([segment], [], 's1e2')).toEqual({ segmentId: 's1', siteIndex: 0 });
@@ -67,8 +92,20 @@ describe('sites and selections', () => {
     const stream = fromText('the quick brown fox', { ids: sequentialIds('w1e') });
     (stream.items[0] as Token).segment = { segmentId: 'w1' };
     const baseUnits = units(stream, 0, stream.items.length);
-    const collation = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [{ id: 'B', siglum: 'B', units: [], present: true }]);
-    const lacking: SegmentViewClient = { segmentId: 'w1', label: 'w1', collation, baseUnits, entries: [], attachments: {}, unplaced: [], absent: [], notes: [] };
+    const collation = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [
+      { id: 'B', siglum: 'B', units: [], present: true },
+    ]);
+    const lacking: SegmentViewClient = {
+      segmentId: 'w1',
+      label: 'w1',
+      collation,
+      baseUnits,
+      entries: [],
+      attachments: {},
+      unplaced: [],
+      absent: [],
+      notes: [],
+    };
     expect(collation.sites.map((x) => x.wanting ?? false)).toEqual([true]);
     const one = siteForTokens(lacking, ['w1e2'])!;
     expect([one.index, one.baseFrom, one.baseTo]).toEqual([-1, 1, 2]);
@@ -97,7 +134,13 @@ describe('sites and selections', () => {
     const views = { s1: segment };
     const first = stepSite(['s1'], views, null, 1, {});
     expect(first?.site.baseFrom).toBe(1);
-    const second = stepSite(['s1'], views, { segmentId: 's1', siteIndex: first!.site.index }, 1, {});
+    const second = stepSite(
+      ['s1'],
+      views,
+      { segmentId: 's1', siteIndex: first!.site.index },
+      1,
+      {},
+    );
     expect(second?.site.index).not.toBe(first!.site.index);
   });
 
@@ -105,13 +148,20 @@ describe('sites and selections', () => {
     const ops = [{ t: 'set' as const, id: 's1e2', fields: { form: 'slow' } }];
     const after = applyOps(stream, ops).stream;
     expect(segmentsTouched(stream, after, ops)).toEqual(['s1']);
-    expect(insertedIds([{ t: 'insert', after: null, items: [{ kind: 'token', id: 'n', form: 'x' }] }])).toEqual(['n']);
+    expect(
+      insertedIds([{ t: 'insert', after: null, items: [{ kind: 'token', id: 'n', form: 'x' }] }]),
+    ).toEqual(['n']);
   });
 });
 
 describe('moveLinesOps', () => {
   it('moves a line up and down keeping ids, segment starts and breaks', async () => {
-    const { applyOps: apply, fromText: text, sequentialIds: ids, toText: show } = await import('@varians/core');
+    const {
+      applyOps: apply,
+      fromText: text,
+      sequentialIds: ids,
+      toText: show,
+    } = await import('@varians/core');
     const s = text('a b\nc d\ne f', { ids: ids() });
     (s.items[3] as Token).segment = { segmentId: 'seg2' };
     // t1 t2 | t3(br) | t4 t5 | t6(br) | t7 t8
@@ -132,7 +182,12 @@ describe('moveLinesOps', () => {
 describe('claimTypedWords', () => {
   const stream: Stream = {
     items: [
-      { kind: 'token', id: 'a', form: 'μῆνιν', source: { kind: 'witness', transcriptionId: 'A', tokenIds: ['x'] } },
+      {
+        kind: 'token',
+        id: 'a',
+        form: 'μῆνιν',
+        source: { kind: 'witness', transcriptionId: 'A', tokenIds: ['x'] },
+      },
       { kind: 'token', id: 'b', form: 'ἄειδε', source: { kind: 'conjecture', conjectureId: 'c' } },
       { kind: 'token', id: 'c', form: 'θεά', source: { kind: 'editor' } },
       { kind: 'token', id: 'd', form: 'Πηληϊάδεω' },
@@ -151,34 +206,70 @@ describe('claimTypedWords', () => {
   });
 
   it('leaves marks, word division and adoptions alone', () => {
-    expect(claimTypedWords(stream, [{ t: 'set', id: 'a', fields: { marks: [{ kind: 'crux' }] } }])).toEqual([]);
+    expect(
+      claimTypedWords(stream, [{ t: 'set', id: 'a', fields: { marks: [{ kind: 'crux' }] } }]),
+    ).toEqual([]);
     expect(claimTypedWords(stream, [{ t: 'split', id: 'a', at: 2, newId: 'n' }])).toEqual([]);
-    expect(claimTypedWords(stream, [{ t: 'set', id: 'a', fields: { form: 'x', source: { kind: 'witness', transcriptionId: 'B', tokenIds: [] } } }])).toEqual([]);
+    expect(
+      claimTypedWords(stream, [
+        {
+          t: 'set',
+          id: 'a',
+          fields: { form: 'x', source: { kind: 'witness', transcriptionId: 'B', tokenIds: [] } },
+        },
+      ]),
+    ).toEqual([]);
   });
 });
 
 describe('takeCurrentOps', () => {
   const stream: Stream = {
     items: [
-      { kind: 'token', id: 'a', form: 'μῆνιν', segment: { segmentId: 's' }, source: { kind: 'witness', transcriptionId: 'A', tokenIds: ['x'] } },
-      { kind: 'token', id: 'b', form: 'ἄειδε', source: { kind: 'witness', transcriptionId: 'A', tokenIds: ['y'] } },
+      {
+        kind: 'token',
+        id: 'a',
+        form: 'μῆνιν',
+        segment: { segmentId: 's' },
+        source: { kind: 'witness', transcriptionId: 'A', tokenIds: ['x'] },
+      },
+      {
+        kind: 'token',
+        id: 'b',
+        form: 'ἄειδε',
+        source: { kind: 'witness', transcriptionId: 'A', tokenIds: ['y'] },
+      },
     ],
   };
 
   it('gives a word the witness’s present reading, as one word or several', () => {
-    expect(takeCurrentOps(stream, { tokenId: 'b', now: 'ἄειδεν' })).toEqual([{ t: 'set', id: 'b', fields: { form: 'ἄειδεν' } }]);
+    expect(takeCurrentOps(stream, { tokenId: 'b', now: 'ἄειδεν' })).toEqual([
+      { t: 'set', id: 'b', fields: { form: 'ἄειδεν' } },
+    ]);
     const split = takeCurrentOps(stream, { tokenId: 'a', now: 'μῆν ἵν' }, () => 'n');
     expect(split).toEqual([
       {
         t: 'replace',
         ids: ['a'],
         items: [
-          { kind: 'token', id: 'a', form: 'μῆν', source: { kind: 'witness', transcriptionId: 'A', tokenIds: ['x'] }, segment: { segmentId: 's' } },
-          { kind: 'token', id: 'n', form: 'ἵν', source: { kind: 'witness', transcriptionId: 'A', tokenIds: ['x'] } },
+          {
+            kind: 'token',
+            id: 'a',
+            form: 'μῆν',
+            source: { kind: 'witness', transcriptionId: 'A', tokenIds: ['x'] },
+            segment: { segmentId: 's' },
+          },
+          {
+            kind: 'token',
+            id: 'n',
+            form: 'ἵν',
+            source: { kind: 'witness', transcriptionId: 'A', tokenIds: ['x'] },
+          },
         ],
       },
     ]);
-    expect(applyOps(stream, split).stream.items.map((i) => (i.kind === 'token' ? i.form : ''))).toEqual(['μῆν', 'ἵν', 'ἄειδε']);
+    expect(
+      applyOps(stream, split).stream.items.map((i) => (i.kind === 'token' ? i.form : '')),
+    ).toEqual(['μῆν', 'ἵν', 'ἄειδε']);
   });
 
   it('does nothing when the witness no longer has the word or already agrees', () => {

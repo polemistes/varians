@@ -18,7 +18,8 @@ export function parseTerms(text: string): { version: number; body: string } {
   const match = /^---\n([\s\S]*?)\n---\n?/u.exec(text);
   const front = match ? match[1]! : '';
   const version = Number(/^version:\s*(\d+)\s*$/mu.exec(front)?.[1] ?? NaN);
-  if (!Number.isInteger(version) || version < 1) throw new Error('docs/terms.md names no version in its front matter');
+  if (!Number.isInteger(version) || version < 1)
+    throw new Error('docs/terms.md names no version in its front matter');
   return { version, body: match ? text.slice(match[0].length) : text };
 }
 
@@ -29,7 +30,9 @@ export const terms: Terms = { version: parsed.version, rendered: render(parsed.b
 export const TERMS_VERSION = terms.version;
 
 /** Whether an account has accepted the current terms. */
-export function hasAcceptedTerms(user: { termsVersion: number | null } | null | undefined): boolean {
+export function hasAcceptedTerms(
+  user: { termsVersion: number | null } | null | undefined,
+): boolean {
   return !!user && user.termsVersion === TERMS_VERSION;
 }
 
@@ -42,7 +45,14 @@ export function termsGate(method: string, pathname: string, search = ''): 'api' 
   const writes = method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS';
   // The account's own settings, but not taking on someone's edition through an offer.
   const ownAccount = pathname === '/account' && !search.includes('/offer');
-  if (pathname === '/terms' || pathname.startsWith('/logout') || ownAccount || pathname.startsWith('/reset') || pathname.startsWith('/verify')) return null;
+  if (
+    pathname === '/terms' ||
+    pathname.startsWith('/logout') ||
+    ownAccount ||
+    pathname.startsWith('/reset') ||
+    pathname.startsWith('/verify')
+  )
+    return null;
   if (writes) return pathname.startsWith('/api/') ? 'api' : 'page';
   // The editor of an edition is where publishing and editing start.
   if (/^\/editions\/[^/]+\/edit(\/|$)/u.test(pathname)) return 'page';

@@ -83,11 +83,23 @@
           <span class="flex-1 truncate font-serif">{work.title}</span>
           {#if i === 0}<span class="text-xs text-ink-muted">{s.first}</span>{/if}
           {#if i > 0}
-            <button type="button" class="rounded p-1 text-ink-muted hover:bg-sunken hover:text-ink" title={s.raise} aria-label={s.raiseLabel(work.title)} onclick={() => raise(i)}>
+            <button
+              type="button"
+              class="rounded p-1 text-ink-muted hover:bg-sunken hover:text-ink"
+              title={s.raise}
+              aria-label={s.raiseLabel(work.title)}
+              onclick={() => raise(i)}
+            >
               <ArrowUp class="size-3.5" aria-hidden="true" />
             </button>
           {/if}
-          <button type="button" class="rounded p-1 text-ink-muted hover:bg-sunken hover:text-ink" title={s.remove} aria-label={s.removeLabel(work.title)} onclick={() => remove(work.id)}>
+          <button
+            type="button"
+            class="rounded p-1 text-ink-muted hover:bg-sunken hover:text-ink"
+            title={s.remove}
+            aria-label={s.removeLabel(work.title)}
+            onclick={() => remove(work.id)}
+          >
             <X class="size-3.5" aria-hidden="true" />
           </button>
         </li>
@@ -101,7 +113,11 @@
     <ul class="flex flex-col rounded-md border border-line bg-surface">
       {#each offered as hit (hit.id)}
         <li>
-          <button type="button" class="flex w-full items-baseline gap-2 px-3 py-1.5 text-left text-sm hover:bg-sunken" onclick={() => add(hit)}>
+          <button
+            type="button"
+            class="flex w-full items-baseline gap-2 px-3 py-1.5 text-left text-sm hover:bg-sunken"
+            onclick={() => add(hit)}
+          >
             <span class="font-serif">{hit.title}</span>
             {#if hit.author}<span class="text-xs text-ink-muted">{hit.author}</span>{/if}
             <span class="ml-auto text-xs text-accent">{s.add}</span>

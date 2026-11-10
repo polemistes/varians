@@ -15,7 +15,16 @@
     class?: string;
   }
 
-  let { href, file = false, onSelect, disabled = false, danger = false, icon, children, class: className }: Props = $props();
+  let {
+    href,
+    file = false,
+    onSelect,
+    disabled = false,
+    danger = false,
+    icon,
+    children,
+    class: className,
+  }: Props = $props();
 
   const classes = $derived([
     'flex w-full cursor-default items-center gap-2 rounded px-2 py-1.5 text-left outline-none select-none transition-colors data-highlighted:bg-sunken data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:size-4 [&_svg]:text-ink-muted',

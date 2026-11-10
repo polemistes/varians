@@ -20,7 +20,9 @@ export function walkBack(
   step: (changeset: Changeset, before: Stream, after: Stream) => void,
   stopAt = 0,
 ): number {
-  const sorted = log.filter((c) => c.version <= currentVersion && c.version > stopAt).sort((a, b) => b.version - a.version);
+  const sorted = log
+    .filter((c) => c.version <= currentVersion && c.version > stopAt)
+    .sort((a, b) => b.version - a.version);
   let stream = current;
   let version = currentVersion;
   for (const c of sorted) {

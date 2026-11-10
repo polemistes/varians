@@ -1,7 +1,12 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { Field, Input, Select, Textarea } from '$lib/components/ui';
-  import { MATERIAL_OTHER, WITNESS_CATEGORIES, WITNESS_FORMATS, WITNESS_MATERIALS } from '$lib/registry/witness';
+  import {
+    MATERIAL_OTHER,
+    WITNESS_CATEGORIES,
+    WITNESS_FORMATS,
+    WITNESS_MATERIALS,
+  } from '$lib/registry/witness';
   import { registry } from '$lib/strings/registry';
   import HandsField from './HandsField.svelte';
   import IdentifiersField from './IdentifiersField.svelte';
@@ -90,7 +95,12 @@
     {#if category === 'manuscript'}
       <Field label={s.format} error={errors.format}>
         {#snippet children(control)}
-          <Select {...control} name="format" value={text('format') || 'unknown'} options={formatOptions} />
+          <Select
+            {...control}
+            name="format"
+            value={text('format') || 'unknown'}
+            options={formatOptions}
+          />
         {/snippet}
       </Field>
     {/if}

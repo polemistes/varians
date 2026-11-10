@@ -30,7 +30,10 @@ export function changedIds(stream: Stream, op: Op): Id[] {
 }
 
 /** Apply changesets in order from `start`, noting for each item the user who last changed it. */
-export function applyWithAuthors(start: Stream, changesets: Changeset[]): { stream: Stream; authors: Map<Id, string> } {
+export function applyWithAuthors(
+  start: Stream,
+  changesets: Changeset[],
+): { stream: Stream; authors: Map<Id, string> } {
   const authors = new Map<Id, string>();
   let stream = start;
   for (const c of [...changesets].sort((a, b) => a.version - b.version)) {

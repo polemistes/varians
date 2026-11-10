@@ -20,7 +20,14 @@
     class?: string;
   }
 
-  let { tabs, value = $bindable(tabs[0]?.value ?? ''), onValueChange, label, children, class: className }: Props = $props();
+  let {
+    tabs,
+    value = $bindable(tabs[0]?.value ?? ''),
+    onValueChange,
+    label,
+    children,
+    class: className,
+  }: Props = $props();
 </script>
 
 <Tabs.Root bind:value {onValueChange} class={className}>

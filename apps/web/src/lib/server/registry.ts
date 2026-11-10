@@ -747,7 +747,8 @@ export async function createTranscription(
       });
       throw error;
     }
-    if (source!.witnessId === input.witnessId) await copyZones(db, source!.id, id, source!.content, derived);
+    if (source!.witnessId === input.witnessId)
+      await copyZones(db, source!.id, id, source!.content, derived);
     const [fresh] = await db.select().from(transcriptions).where(eq(transcriptions.id, id));
     return fresh!;
   }
@@ -759,7 +760,13 @@ export async function createTranscription(
  * stand one for one in the order of the source's, so each box names the
  * copied words. Boxes left without words are dropped; features stay.
  */
-async function copyZones(db: Database, fromId: string, toId: string, from: Stream, to: Stream): Promise<void> {
+async function copyZones(
+  db: Database,
+  fromId: string,
+  toId: string,
+  from: Stream,
+  to: Stream,
+): Promise<void> {
   const map = new Map<string, string>();
   from.items.forEach((item, i) => {
     const copy = to.items[i];
@@ -767,9 +774,19 @@ async function copyZones(db: Database, fromId: string, toId: string, from: Strea
   });
   const rows = await db.select().from(zones).where(eq(zones.transcriptionId, fromId));
   const copies = rows
-    .map((z) => ({ ...z, tokenIds: z.tokenIds.map((tid) => map.get(tid)).filter((tid): tid is string => !!tid) }))
+    .map((z) => ({
+      ...z,
+      tokenIds: z.tokenIds.map((tid) => map.get(tid)).filter((tid): tid is string => !!tid),
+    }))
     .filter((z) => z.feature || z.tokenIds.length > 0)
-    .map((z) => ({ id: newId(), transcriptionId: toId, pageId: z.pageId, geometry: z.geometry, tokenIds: z.tokenIds, feature: z.feature }));
+    .map((z) => ({
+      id: newId(),
+      transcriptionId: toId,
+      pageId: z.pageId,
+      geometry: z.geometry,
+      tokenIds: z.tokenIds,
+      feature: z.feature,
+    }));
   if (copies.length) await db.insert(zones).values(copies);
 }
 
@@ -860,7 +877,11 @@ export function governs(user: Actor, entry: { createdBy: string | null }): boole
 }
 
 /** What of others depends on a witness and refuses its deletion by `userId`: editions naming it, others' transcripts and reported readings. */
-export async function witnessDependents(db: Database, witnessId: string, userId: string): Promise<Dependents> {
+export async function witnessDependents(
+  db: Database,
+  witnessId: string,
+  userId: string,
+): Promise<Dependents> {
   const naming = await db
     .selectDistinct({ slug: editions.slug, title: editions.title, ownerName: users.name })
     .from(editionSigla)
@@ -1027,7 +1048,13 @@ export async function transcriptionsOfWork(
     .innerJoin(users, eq(users.id, transcriptions.ownerId))
     .where(
       or(
-        inArray(transcriptions.id, db.select({ id: transcriptionWorks.transcriptionId }).from(transcriptionWorks).where(eq(transcriptionWorks.workId, workId))),
+        inArray(
+          transcriptions.id,
+          db
+            .select({ id: transcriptionWorks.transcriptionId })
+            .from(transcriptionWorks)
+            .where(eq(transcriptionWorks.workId, workId)),
+        ),
         ...(ids.length ? [inArray(transcriptions.id, ids)] : []),
       ),
     )
@@ -1072,7 +1099,10 @@ export async function transcriptionsOfWitness(
       ),
     )
     .groupBy(transcriptionSegments.transcriptionId, transcriptionSegments.workId);
-  const chosen = await chosenWorksOf(db, rows.map((r) => r.id));
+  const chosen = await chosenWorksOf(
+    db,
+    rows.map((r) => r.id),
+  );
   const workIds = [...new Set([...[...chosen.values()].flat(), ...counts.map((c) => c.workId)])];
   const workRows = workIds.length
     ? await db
@@ -1094,7 +1124,9 @@ export async function transcriptionsOfWitness(
     ownerName: r.ownerName,
     visibility: r.visibility,
     updatedAt: iso(r.updatedAt),
-    works: (chosen.get(r.id) ?? []).map((w) => workById.get(w)).filter((w): w is NonNullable<typeof w> => !!w),
+    works: (chosen.get(r.id) ?? [])
+      .map((w) => workById.get(w))
+      .filter((w): w is NonNullable<typeof w> => !!w),
     assigned: counts
       .filter((c) => c.transcriptionId === r.id && workById.has(c.workId))
       .map((c) => ({ ...workById.get(c.workId)!, segmentCount: Number(c.n) }))
@@ -1115,7 +1147,10 @@ export async function worksOfWitness(db: Database, witnessId: string): Promise<W
     .where(eq(transcriptions.witnessId, witnessId))
     .groupBy(transcriptionSegments.workId, transcriptionSegments.transcriptionId);
   const declared = await db
-    .select({ workId: transcriptionWorks.workId, transcriptionId: transcriptionWorks.transcriptionId })
+    .select({
+      workId: transcriptionWorks.workId,
+      transcriptionId: transcriptionWorks.transcriptionId,
+    })
     .from(transcriptionWorks)
     .innerJoin(transcriptions, eq(transcriptions.id, transcriptionWorks.transcriptionId))
     .where(eq(transcriptions.witnessId, witnessId));
@@ -1494,4 +1529,3 @@ export async function archiveZip(
   child.on('error', (e) => child.stdout.destroy(e));
   return child.stdout;
 }
-

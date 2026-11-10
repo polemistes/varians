@@ -40,13 +40,21 @@
       busy = true;
       return async ({ result, update }) => {
         busy = false;
-        message = result.type === 'failure' ? ((result.data as { message?: string } | undefined)?.message ?? t.notAdded) : null;
+        message =
+          result.type === 'failure'
+            ? ((result.data as { message?: string } | undefined)?.message ?? t.notAdded)
+            : null;
         await update();
       };
     }}
   >
     <Field label={t.invite} class="flex-1">
-      {#snippet children(control)}<Input {...control} name="email" type="email" required />{/snippet}
+      {#snippet children(control)}<Input
+          {...control}
+          name="email"
+          type="email"
+          required
+        />{/snippet}
     </Field>
     <Button type="submit" variant="secondary" loading={busy}>{t.inviteAction}</Button>
   </form>

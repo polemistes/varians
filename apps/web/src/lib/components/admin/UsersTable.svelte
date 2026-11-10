@@ -61,8 +61,16 @@
             >
               <input type="hidden" name="userId" value={user.id} />
               <label class="sr-only" for="role-{user.id}">{s.admin.role}</label>
-              <Select id="role-{user.id}" name="role" options={roleOptions} value={user.role} class="w-44" />
-              <Button type="submit" variant="secondary" size="sm" loading={pending === user.id}>{s.admin.change}</Button>
+              <Select
+                id="role-{user.id}"
+                name="role"
+                options={roleOptions}
+                value={user.role}
+                class="w-44"
+              />
+              <Button type="submit" variant="secondary" size="sm" loading={pending === user.id}
+                >{s.admin.change}</Button
+              >
             </form>
           </td>
           <td class="px-4 py-2">

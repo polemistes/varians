@@ -13,7 +13,13 @@
     invalid?: boolean;
   }
 
-  let { value = $bindable(), invalid = false, class: className, type = 'text', ...rest }: Props = $props();
+  let {
+    value = $bindable(),
+    invalid = false,
+    class: className,
+    type = 'text',
+    ...rest
+  }: Props = $props();
 </script>
 
 <input

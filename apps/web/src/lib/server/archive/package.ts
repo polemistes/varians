@@ -8,7 +8,15 @@
  */
 
 import { licenceInfo, orcidUrl } from '@varians/core';
-import { editionSigla, editions, moments, transcriptions, works, type Database, type MomentBasis } from '@varians/db';
+import {
+  editionSigla,
+  editions,
+  moments,
+  transcriptions,
+  works,
+  type Database,
+  type MomentBasis,
+} from '@varians/db';
 import { ZipArchive } from 'archiver';
 import yauzl from 'yauzl';
 import { createHash } from 'node:crypto';
@@ -62,9 +70,14 @@ function union(a: ArchiveFilter, b: ArchiveFilter): ArchiveFilter {
 const NOTHING = () => false;
 
 /** The filters of a set of scopes, one per work, for a viewer. */
-export async function scopeFilters(db: Database, viewer: Actor | null, scopes: PackageScope[]): Promise<Map<string, ArchiveFilter>> {
+export async function scopeFilters(
+  db: Database,
+  viewer: Actor | null,
+  scopes: PackageScope[],
+): Promise<Map<string, ArchiveFilter>> {
   const out = new Map<string, ArchiveFilter>();
-  const add = (workId: string, filter: ArchiveFilter) => out.set(workId, out.has(workId) ? union(out.get(workId)!, filter) : filter);
+  const add = (workId: string, filter: ArchiveFilter) =>
+    out.set(workId, out.has(workId) ? union(out.get(workId)!, filter) : filter);
   const grants = await grantsFor(db, viewer);
   const visibleWork = async (workId: string) => {
     const [row] = await db.select({ slug: works.slug }).from(works).where(eq(works.id, workId));
@@ -74,7 +87,10 @@ export async function scopeFilters(db: Database, viewer: Actor | null, scopes: P
   };
   for (const scope of scopes) {
     if (scope.kind === 'work' || scope.kind === 'installation') {
-      const ids = scope.kind === 'work' ? [scope.workId] : (await db.select({ id: works.id }).from(works)).map((w) => w.id);
+      const ids =
+        scope.kind === 'work'
+          ? [scope.workId]
+          : (await db.select({ id: works.id }).from(works)).map((w) => w.id);
       for (const workId of ids) {
         const record = await visibleWork(workId);
         if (record) add(workId, await viewerFilter(db, viewer, record.maintainerIds));
@@ -93,16 +109,34 @@ export async function scopeFilters(db: Database, viewer: Actor | null, scopes: P
       let named: Set<string>;
       let versions: Record<string, number> = {};
       if (working || edition.publishedVersion === null) {
-        named = new Set((await db.select({ id: editionSigla.transcriptionId }).from(editionSigla).where(eq(editionSigla.editionId, edition.id))).map((s) => s.id).filter((id): id is string => id !== null));
+        named = new Set(
+          (
+            await db
+              .select({ id: editionSigla.transcriptionId })
+              .from(editionSigla)
+              .where(eq(editionSigla.editionId, edition.id))
+          )
+            .map((s) => s.id)
+            .filter((id): id is string => id !== null),
+        );
       } else {
         const [published] = await db
           .select({ basis: moments.basis })
           .from(moments)
-          .where(and(eq(moments.documentKind, 'edition'), eq(moments.documentId, edition.id), eq(moments.kind, 'published'), eq(moments.version, edition.publishedVersion)))
+          .where(
+            and(
+              eq(moments.documentKind, 'edition'),
+              eq(moments.documentId, edition.id),
+              eq(moments.kind, 'published'),
+              eq(moments.version, edition.publishedVersion),
+            ),
+          )
           .orderBy(desc(moments.at))
           .limit(1);
         const basis = published?.basis as MomentBasis | null | undefined;
-        named = new Set((basis?.sigla ?? []).map((s) => s.transcriptionId).filter((id): id is string => !!id));
+        named = new Set(
+          (basis?.sigla ?? []).map((s) => s.transcriptionId).filter((id): id is string => !!id),
+        );
         versions = basis?.versions ?? {};
       }
       add(edition.workId, {
@@ -111,19 +145,28 @@ export async function scopeFilters(db: Database, viewer: Actor | null, scopes: P
         editionWorking: base.editionWorking,
         conjecture: base.conjecture,
         reported: base.reported,
-        transcriptionVersion: (r) => (working ? null : versions[r.id] ?? null),
+        transcriptionVersion: (r) => (working ? null : (versions[r.id] ?? null)),
       });
       continue;
     }
     // A transcription, with its works' own files, its witness and pages.
-    const [t] = await db.select().from(transcriptions).where(eq(transcriptions.id, scope.transcriptionId));
+    const [t] = await db
+      .select()
+      .from(transcriptions)
+      .where(eq(transcriptions.id, scope.transcriptionId));
     if (!t) continue;
     for (const workId of await worksOfDocument(db, 'transcription', t.id)) {
       const record = await visibleWork(workId);
       if (!record) continue;
       const base = await viewerFilter(db, viewer, record.maintainerIds);
       if (!base.transcription(t)) continue;
-      add(workId, { transcription: (r) => r.id === t.id && base.transcription(r), edition: NOTHING, editionWorking: NOTHING, conjecture: NOTHING, reported: NOTHING });
+      add(workId, {
+        transcription: (r) => r.id === t.id && base.transcription(r),
+        edition: NOTHING,
+        editionWorking: NOTHING,
+        conjecture: NOTHING,
+        reported: NOTHING,
+      });
     }
   }
   return out;
@@ -162,26 +205,52 @@ const FORMATS: Record<string, string> = {
 };
 
 /** The RO-Crate 1.2 metadata of the payload (Data Format 2, 9.2). */
-async function roCrate(dataDir: string, name: string, origin: string | undefined): Promise<unknown> {
+async function roCrate(
+  dataDir: string,
+  name: string,
+  origin: string | undefined,
+): Promise<unknown> {
   const files = (await filesUnder(dataDir)).filter((f) => f !== 'ro-crate-metadata.json');
   const parts: Record<string, unknown>[] = [];
   const people = new Map<string, Record<string, unknown>>();
   const extra: Record<string, unknown>[] = [];
   for (const file of files) {
-    const entity: Record<string, unknown> = { '@id': file, '@type': 'File', encodingFormat: FORMATS[path.extname(file).toLowerCase()] ?? 'application/octet-stream' };
+    const entity: Record<string, unknown> = {
+      '@id': file,
+      '@type': 'File',
+      encodingFormat: FORMATS[path.extname(file).toLowerCase()] ?? 'application/octet-stream',
+    };
     if (file.endsWith('.json')) {
       try {
-        const data = JSON.parse(await readFile(path.join(dataDir, file), 'utf8')) as Record<string, unknown>;
+        const data = JSON.parse(await readFile(path.join(dataDir, file), 'utf8')) as Record<
+          string,
+          unknown
+        >;
         if (typeof data.$schema === 'string') entity.conformsTo = { '@id': data.$schema };
         if (file.endsWith('/persons.json')) {
-          for (const p of (data.persons as { id: string; name: string; orcid: string | null }[]) ?? []) {
-            const id = p.orcid ? orcidUrl(p.orcid) : origin ? `${origin}/id/${p.id}` : `#person-${p.id}`;
+          for (const p of (data.persons as { id: string; name: string; orcid: string | null }[]) ??
+            []) {
+            const id = p.orcid
+              ? orcidUrl(p.orcid)
+              : origin
+                ? `${origin}/id/${p.id}`
+                : `#person-${p.id}`;
             people.set(id, { '@id': id, '@type': 'Person', name: p.name });
           }
         }
         if (file.endsWith('/pages.json')) {
           // Images not included are named by their source, with their rights.
-          for (const p of (data.pages as { id: string; image: { file: string | null; iiif: string | null; rights: string | null; attribution: string | null; source: string | null; kind: string } | null }[]) ?? []) {
+          for (const p of (data.pages as {
+            id: string;
+            image: {
+              file: string | null;
+              iiif: string | null;
+              rights: string | null;
+              attribution: string | null;
+              source: string | null;
+              kind: string;
+            } | null;
+          }[]) ?? []) {
             if (!p.image || p.image.file) continue;
             const source = p.image.iiif ? `${p.image.iiif}/full/max/0/default.jpg` : p.image.source;
             extra.push({
@@ -203,7 +272,12 @@ async function roCrate(dataDir: string, name: string, origin: string | undefined
   return {
     '@context': 'https://w3id.org/ro/crate/1.2/context',
     '@graph': [
-      { '@id': 'ro-crate-metadata.json', '@type': 'CreativeWork', conformsTo: { '@id': 'https://w3id.org/ro/crate/1.2' }, about: { '@id': './' } },
+      {
+        '@id': 'ro-crate-metadata.json',
+        '@type': 'CreativeWork',
+        conformsTo: { '@id': 'https://w3id.org/ro/crate/1.2' },
+        about: { '@id': './' },
+      },
       {
         '@id': './',
         '@type': 'Dataset',
@@ -233,21 +307,43 @@ async function writeBag(bagDir: string, info: Record<string, string>): Promise<v
     manifest.push(`${await sha256(path.join(data, file))}  data/${file}`);
     bytes += (await stat(path.join(data, file))).size;
   }
-  await writeFile(path.join(bagDir, 'bagit.txt'), 'BagIt-Version: 1.0\nTag-File-Character-Encoding: UTF-8\n', 'utf8');
+  await writeFile(
+    path.join(bagDir, 'bagit.txt'),
+    'BagIt-Version: 1.0\nTag-File-Character-Encoding: UTF-8\n',
+    'utf8',
+  );
   const fields = { ...info, 'Payload-Oxum': `${bytes}.${payload.length}` };
-  await writeFile(path.join(bagDir, 'bag-info.txt'), Object.entries(fields).map(([k, v]) => `${k}: ${v.replace(/\s*\n\s*/g, ' ')}`).join('\n') + '\n', 'utf8');
+  await writeFile(
+    path.join(bagDir, 'bag-info.txt'),
+    Object.entries(fields)
+      .map(([k, v]) => `${k}: ${v.replace(/\s*\n\s*/g, ' ')}`)
+      .join('\n') + '\n',
+    'utf8',
+  );
   await writeFile(path.join(bagDir, 'manifest-sha256.txt'), manifest.join('\n') + '\n', 'utf8');
   const tags: string[] = [];
-  for (const tag of ['bagit.txt', 'bag-info.txt', 'manifest-sha256.txt']) tags.push(`${await sha256(path.join(bagDir, tag))}  ${tag}`);
+  for (const tag of ['bagit.txt', 'bag-info.txt', 'manifest-sha256.txt'])
+    tags.push(`${await sha256(path.join(bagDir, tag))}  ${tag}`);
   await writeFile(path.join(bagDir, 'tagmanifest-sha256.txt'), tags.join('\n') + '\n', 'utf8');
 }
 
 function slug(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'package';
+  return (
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60) || 'package'
+  );
 }
 
 /** A package of the scopes as the viewer may see them, as a zip file in a temporary directory. Throws when the viewer may see none of it. */
-export async function buildPackage(db: Database, viewer: Actor | null, scopes: PackageScope[], options: PackageOptions = {}): Promise<BuiltPackage> {
+export async function buildPackage(
+  db: Database,
+  viewer: Actor | null,
+  scopes: PackageScope[],
+  options: PackageOptions = {},
+): Promise<BuiltPackage> {
   const filters = await scopeFilters(db, viewer, scopes);
   if (filters.size === 0) throw new Error('nothing to package');
   const tmp = await mkdtemp(path.join(os.tmpdir(), 'varians-package-'));
@@ -258,15 +354,36 @@ export async function buildPackage(db: Database, viewer: Actor | null, scopes: P
     const data = path.join(bagDir, 'data');
     await mkdir(data, { recursive: true });
     for (const [workId, only] of filters) {
-      await writeArchive(db, workId, data, { only, ...(options.storageRoot ? { storageRoot: options.storageRoot } : {}), ...(options.origin ? { origin: options.origin } : {}) });
+      await writeArchive(db, workId, data, {
+        only,
+        ...(options.storageRoot ? { storageRoot: options.storageRoot } : {}),
+        ...(options.origin ? { origin: options.origin } : {}),
+      });
     }
-    await writeFile(path.join(data, 'ro-crate-metadata.json'), JSON.stringify(await roCrate(data, name, options.origin), null, 2) + '\n', 'utf8');
+    await writeFile(
+      path.join(data, 'ro-crate-metadata.json'),
+      JSON.stringify(await roCrate(data, name, options.origin), null, 2) + '\n',
+      'utf8',
+    );
     const single = scopes.length === 1 ? scopes[0]! : null;
-    const recordId = single?.kind === 'work' ? single.workId : single?.kind === 'edition' ? single.editionId : single?.kind === 'transcription' ? single.transcriptionId : null;
+    const recordId =
+      single?.kind === 'work'
+        ? single.workId
+        : single?.kind === 'edition'
+          ? single.editionId
+          : single?.kind === 'transcription'
+            ? single.transcriptionId
+            : null;
     await writeBag(bagDir, {
       'Source-Organization': siteName(),
       'Bagging-Date': new Date().toISOString().slice(0, 10),
-      ...(recordId ? { 'External-Identifier': options.origin ? `${options.origin.replace(/\/+$/u, '')}/id/${recordId}` : recordId } : {}),
+      ...(recordId
+        ? {
+            'External-Identifier': options.origin
+              ? `${options.origin.replace(/\/+$/u, '')}/id/${recordId}`
+              : recordId,
+          }
+        : {}),
       'Bag-Software-Agent': options.agent ?? 'Varians',
       'Varians-Format-Version': String(FORMAT_VERSION),
     });
@@ -288,10 +405,26 @@ export async function buildPackage(db: Database, viewer: Actor | null, scopes: P
 async function packageName(db: Database, scopes: PackageScope[]): Promise<string> {
   if (scopes.length !== 1) return `varians-${new Date().toISOString().slice(0, 10)}`;
   const scope = scopes[0]!;
-  if (scope.kind === 'installation') return `${slug(siteName())}-${new Date().toISOString().slice(0, 10)}`;
-  if (scope.kind === 'work') return slug((await db.select({ slug: works.slug }).from(works).where(eq(works.id, scope.workId)))[0]?.slug ?? 'work');
-  if (scope.kind === 'edition') return slug((await db.select({ slug: editions.slug }).from(editions).where(eq(editions.id, scope.editionId)))[0]?.slug ?? 'edition');
-  const [t] = await db.select({ name: transcriptions.name, id: transcriptions.id }).from(transcriptions).where(eq(transcriptions.id, scope.transcriptionId));
+  if (scope.kind === 'installation')
+    return `${slug(siteName())}-${new Date().toISOString().slice(0, 10)}`;
+  if (scope.kind === 'work')
+    return slug(
+      (await db.select({ slug: works.slug }).from(works).where(eq(works.id, scope.workId)))[0]
+        ?.slug ?? 'work',
+    );
+  if (scope.kind === 'edition')
+    return slug(
+      (
+        await db
+          .select({ slug: editions.slug })
+          .from(editions)
+          .where(eq(editions.id, scope.editionId))
+      )[0]?.slug ?? 'edition',
+    );
+  const [t] = await db
+    .select({ name: transcriptions.name, id: transcriptions.id })
+    .from(transcriptions)
+    .where(eq(transcriptions.id, scope.transcriptionId));
   return t ? `${slug(t.name)}-${t.id.slice(-6).toLowerCase()}` : 'transcription';
 }
 
@@ -315,10 +448,19 @@ const DEFAULT_LIMITS: ExtractLimits = { maxEntries: 200_000, maxBytes: 4 * 1024 
  * Unpack a zip into a directory, refusing what could escape it: absolute
  * names, `..`, links, and more entries or bytes than the limits allow.
  */
-export async function extractZip(zipFile: string, dest: string, limits: ExtractLimits = DEFAULT_LIMITS): Promise<void> {
-  const unreadable = (e: unknown) => new PackageError(`the package cannot be read: ${e instanceof Error ? e.message : String(e)}`);
+export async function extractZip(
+  zipFile: string,
+  dest: string,
+  limits: ExtractLimits = DEFAULT_LIMITS,
+): Promise<void> {
+  const unreadable = (e: unknown) =>
+    new PackageError(`the package cannot be read: ${e instanceof Error ? e.message : String(e)}`);
   const zip = await new Promise<yauzl.ZipFile>((resolve, reject) =>
-    yauzl.open(zipFile, { lazyEntries: true, autoClose: true, strictFileNames: false, validateEntrySizes: true }, (e, z) => (e || !z ? reject(unreadable(e ?? 'not a zip')) : resolve(z))),
+    yauzl.open(
+      zipFile,
+      { lazyEntries: true, autoClose: true, strictFileNames: false, validateEntrySizes: true },
+      (e, z) => (e || !z ? reject(unreadable(e ?? 'not a zip')) : resolve(z)),
+    ),
   );
   const root = path.resolve(dest);
   let entries = 0;
@@ -334,12 +476,14 @@ export async function extractZip(zipFile: string, dest: string, limits: ExtractL
       entries++;
       if (entries > limits.maxEntries) return fail('the package has too many files');
       const name = entry.fileName.replace(/\\/g, '/');
-      if (name.startsWith('/') || /^[a-zA-Z]:/.test(name) || name.split('/').includes('..')) return fail(`the package names a file outside itself: ${name}`);
+      if (name.startsWith('/') || /^[a-zA-Z]:/.test(name) || name.split('/').includes('..'))
+        return fail(`the package names a file outside itself: ${name}`);
       // Unix mode in the upper half of the external attributes: links are refused.
       const mode = (entry.externalFileAttributes >>> 16) & 0o170000;
       if (mode === 0o120000) return fail(`the package holds a link: ${name}`);
       const target = path.resolve(root, name);
-      if (target !== root && !target.startsWith(root + path.sep)) return fail(`the package names a file outside itself: ${name}`);
+      if (target !== root && !target.startsWith(root + path.sep))
+        return fail(`the package names a file outside itself: ${name}`);
       if (name.endsWith('/')) {
         void mkdir(target, { recursive: true }).then(() => zip.readEntry(), reject);
         return;
@@ -385,11 +529,14 @@ async function verifyBag(bagDir: string): Promise<void> {
     if (m) listed.set(m[2]!.replace(/^\*/, ''), m[1]!.toLowerCase());
   }
   const payload = (await filesUnder(path.join(bagDir, 'data'))).map((f) => `data/${f}`);
-  for (const file of payload) if (!listed.has(file)) throw new PackageError(`${file} is not in the manifest`);
+  for (const file of payload)
+    if (!listed.has(file)) throw new PackageError(`${file} is not in the manifest`);
   for (const [file, hash] of listed) {
     const full = path.join(bagDir, file);
-    if (!full.startsWith(path.join(bagDir, 'data') + path.sep) || !existsSync(full)) throw new PackageError(`${file} is in the manifest but not in the package`);
-    if ((await sha256(full)) !== hash) throw new PackageError(`${file} does not match its checksum`);
+    if (!full.startsWith(path.join(bagDir, 'data') + path.sep) || !existsSync(full))
+      throw new PackageError(`${file} is in the manifest but not in the package`);
+    if ((await sha256(full)) !== hash)
+      throw new PackageError(`${file} does not match its checksum`);
   }
   const tagManifest = path.join(bagDir, 'tagmanifest-sha256.txt');
   if (existsSync(tagManifest)) {
@@ -397,7 +544,12 @@ async function verifyBag(bagDir: string): Promise<void> {
       const m = /^([0-9a-f]{64})\s+(.+)$/iu.exec(line.trim());
       if (!m) continue;
       const file = path.join(bagDir, m[2]!);
-      if (!file.startsWith(bagDir + path.sep) || !existsSync(file) || (await sha256(file)) !== m[1]!.toLowerCase()) throw new PackageError(`${m[2]} does not match its checksum`);
+      if (
+        !file.startsWith(bagDir + path.sep) ||
+        !existsSync(file) ||
+        (await sha256(file)) !== m[1]!.toLowerCase()
+      )
+        throw new PackageError(`${m[2]} does not match its checksum`);
     }
   }
 }
@@ -406,7 +558,8 @@ async function workDirsIn(dir: string): Promise<string[]> {
   if (existsSync(path.join(dir, 'work.json'))) return [dir];
   const out: string[] = [];
   for (const entry of await readdir(dir, { withFileTypes: true })) {
-    if (entry.isDirectory() && existsSync(path.join(dir, entry.name, 'work.json'))) out.push(path.join(dir, entry.name));
+    if (entry.isDirectory() && existsSync(path.join(dir, entry.name, 'work.json')))
+      out.push(path.join(dir, entry.name));
   }
   return out.sort();
 }
@@ -417,18 +570,31 @@ async function workDirsIn(dir: string): Promise<string[]> {
  */
 export async function openPackage(dir: string): Promise<OpenedPackage> {
   let root = dir;
-  const entries = (await readdir(dir, { withFileTypes: true })).filter((e) => !e.name.startsWith('.') && e.name !== '__MACOSX');
-  if (entries.length === 1 && entries[0]!.isDirectory() && !existsSync(path.join(dir, 'work.json')) && !existsSync(path.join(dir, 'bagit.txt'))) root = path.join(dir, entries[0]!.name);
+  const entries = (await readdir(dir, { withFileTypes: true })).filter(
+    (e) => !e.name.startsWith('.') && e.name !== '__MACOSX',
+  );
+  if (
+    entries.length === 1 &&
+    entries[0]!.isDirectory() &&
+    !existsSync(path.join(dir, 'work.json')) &&
+    !existsSync(path.join(dir, 'bagit.txt'))
+  )
+    root = path.join(dir, entries[0]!.name);
   if (existsSync(path.join(root, 'bagit.txt'))) {
     await verifyBag(root);
-    const info = existsSync(path.join(root, 'bag-info.txt')) ? parseTagFile(await readFile(path.join(root, 'bag-info.txt'), 'utf8')) : {};
+    const info = existsSync(path.join(root, 'bag-info.txt'))
+      ? parseTagFile(await readFile(path.join(root, 'bag-info.txt'), 'utf8'))
+      : {};
     return { workDirs: await workDirsIn(path.join(root, 'data')), bag: true, info };
   }
   return { workDirs: await workDirsIn(root), bag: false, info: {} };
 }
 
 /** Unpack a zip into a new temporary directory and open what it holds; the caller removes `dir`. */
-export async function openPackageZip(zipFile: string, limits?: ExtractLimits): Promise<OpenedPackage & { dir: string }> {
+export async function openPackageZip(
+  zipFile: string,
+  limits?: ExtractLimits,
+): Promise<OpenedPackage & { dir: string }> {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'varians-import-'));
   try {
     await extractZip(zipFile, dir, limits);

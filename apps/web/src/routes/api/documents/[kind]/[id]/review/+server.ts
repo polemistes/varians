@@ -11,7 +11,13 @@
 import { error, json } from '@sveltejs/kit';
 import { z } from 'zod';
 import type { RequestHandler } from './$types';
-import { acceptChangesets, historyErrorResponse, requireDocument, reviewChanges, setReviewFrom } from '$lib/server/history';
+import {
+  acceptChangesets,
+  historyErrorResponse,
+  requireDocument,
+  reviewChanges,
+  setReviewFrom,
+} from '$lib/server/history';
 
 const body = z.union([
   z.object({ accept: z.array(z.string().min(1).max(100)).min(1).max(1000) }),

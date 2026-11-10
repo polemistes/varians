@@ -63,7 +63,11 @@
         <p class="max-w-reading font-serif text-reading text-ink">{work.description}</p>
       {/if}
       {#if data.can.newEdition || data.can.transcribe || data.can.maintain}
-        <div class="flex flex-wrap items-center gap-2 font-sans" role="group" aria-label={t.work.workOn}>
+        <div
+          class="flex flex-wrap items-center gap-2 font-sans"
+          role="group"
+          aria-label={t.work.workOn}
+        >
           {#if data.can.newEdition}
             <Button href="/editions/new?work={work.slug}" variant="primary" size="sm">
               <Plus class="size-4" aria-hidden="true" />
@@ -81,7 +85,9 @@
               <Pencil class="size-4" aria-hidden="true" />
               {t.work.editDetails}
             </Button>
-            <Button href="/works/{work.slug}/remotes" variant="ghost" size="sm">{site.remotes.title}</Button>
+            <Button href="/works/{work.slug}/remotes" variant="ghost" size="sm"
+              >{site.remotes.title}</Button
+            >
           {/if}
         </div>
       {/if}
@@ -199,9 +205,17 @@
           <dd class="text-ink"><IdentifierList identifiers={work.identifiers} /></dd>
         {/if}
         <dt class="text-ink-muted">{t.work.visibilityLabel}</dt>
-        <dd><Badge tone={work.visibility === 'private' ? 'warning' : 'neutral'}>{work.visibility === 'private' ? t.work.private : t.work.public}</Badge></dd>
+        <dd>
+          <Badge tone={work.visibility === 'private' ? 'warning' : 'neutral'}
+            >{work.visibility === 'private' ? t.work.private : t.work.public}</Badge
+          >
+        </dd>
         <dt class="text-ink-muted">{t.work.maintainersLabel}</dt>
-        <dd class="text-ink">{data.maintainers.length ? t.common.and(data.maintainers.map((m) => m.name)) : t.work.noMaintainers}</dd>
+        <dd class="text-ink">
+          {data.maintainers.length
+            ? t.common.and(data.maintainers.map((m) => m.name))
+            : t.work.noMaintainers}
+        </dd>
         {#if data.merged.length}
           <dt class="text-ink-muted">{t.merge.mergedHere}</dt>
           <dd class="text-ink"><MergedEntries items={data.merged} /></dd>
@@ -211,12 +225,21 @@
         <div class="mt-6 flex flex-col gap-2">
           <p class="max-w-reading font-sans text-sm text-ink-soft">{t.work.archiveHint}</p>
           <div>
-            <a href="/works/{work.slug}/package.zip" download="{work.slug}.zip" class={buttonClasses('secondary', 'sm')}>
+            <a
+              href="/works/{work.slug}/package.zip"
+              download="{work.slug}.zip"
+              class={buttonClasses('secondary', 'sm')}
+            >
               <Download class="size-4" aria-hidden="true" />
               {t.work.download}
             </a>
             {#if data.user?.role === 'administrator'}
-              <a href="/works/{work.slug}/archive.zip" download="{work.slug}-archive.zip" class="ml-3 font-sans text-sm text-ink-soft underline">{t.work.downloadRepository}</a>
+              <a
+                href="/works/{work.slug}/archive.zip"
+                download="{work.slug}-archive.zip"
+                class="ml-3 font-sans text-sm text-ink-soft underline"
+                >{t.work.downloadRepository}</a
+              >
             {/if}
           </div>
         </div>

@@ -22,9 +22,15 @@
 
   const t = workbench.tools.choose;
 
-  const id = $derived<Id | null>(!wb.hasRange && wb.selection.caret && wb.diacriticChoices.has(wb.selection.caret) ? wb.selection.caret : null);
+  const id = $derived<Id | null>(
+    !wb.hasRange && wb.selection.caret && wb.diacriticChoices.has(wb.selection.caret)
+      ? wb.selection.caret
+      : null,
+  );
   const choice = $derived(id ? wb.diacriticChoices.get(id)! : null);
-  const anchor = $derived(id && root ? root.querySelector<HTMLElement>(`[data-token="${CSS.escape(id)}"]`) : null);
+  const anchor = $derived(
+    id && root ? root.querySelector<HTMLElement>(`[data-token="${CSS.escape(id)}"]`) : null,
+  );
 
   function take(value: string) {
     if (!id) return;
@@ -67,17 +73,29 @@
         aria-label={t.label}
       >
         <p class="px-1 pb-1 text-xs text-ink-muted">
-          {choice.reason === 'unknown' ? t.unknown : choice.reason === 'disagrees' ? t.disagrees : t.several}
+          {choice.reason === 'unknown'
+            ? t.unknown
+            : choice.reason === 'disagrees'
+              ? t.disagrees
+              : t.several}
         </p>
         <ul class="flex flex-col">
           {#each choice.options as option, k (option.form)}
             <li>
-              <button type="button" class="flex w-full items-baseline gap-2 rounded px-1 py-1 text-left hover:bg-sunken" onclick={() => take(option.form)}>
+              <button
+                type="button"
+                class="flex w-full items-baseline gap-2 rounded px-1 py-1 text-left hover:bg-sunken"
+                onclick={() => take(option.form)}
+              >
                 {#if k < 9}<kbd class="w-4 shrink-0 text-xs text-ink-muted">{k + 1}</kbd>{/if}
                 <span class="font-serif text-base text-ink" lang="grc">{option.form}</span>
                 <span class="flex min-w-0 flex-col text-xs text-ink-soft">
                   {#each option.readings as reading (reading.lemma)}
-                    <span><span lang="grc">{reading.lemma}</span>{reading.descriptions.length ? ` · ${reading.descriptions.join('; ')}` : ''}</span>
+                    <span
+                      ><span lang="grc">{reading.lemma}</span>{reading.descriptions.length
+                        ? ` · ${reading.descriptions.join('; ')}`
+                        : ''}</span
+                    >
                   {/each}
                 </span>
               </button>
@@ -85,11 +103,30 @@
           {/each}
         </ul>
         <div class="mt-1 flex items-center gap-1 border-t border-line pt-1">
-          <button type="button" class="rounded px-1.5 py-0.5 text-xs text-ink-soft hover:bg-sunken hover:text-ink" onclick={() => { if (id) wb.dismissChoice(id); go(1); }}>{t.keep}</button>
-          <button type="button" class="ml-auto rounded p-1 text-ink-muted hover:bg-sunken hover:text-ink" title={t.previous} aria-label={t.previous} onclick={() => go(-1)}>
+          <button
+            type="button"
+            class="rounded px-1.5 py-0.5 text-xs text-ink-soft hover:bg-sunken hover:text-ink"
+            onclick={() => {
+              if (id) wb.dismissChoice(id);
+              go(1);
+            }}>{t.keep}</button
+          >
+          <button
+            type="button"
+            class="ml-auto rounded p-1 text-ink-muted hover:bg-sunken hover:text-ink"
+            title={t.previous}
+            aria-label={t.previous}
+            onclick={() => go(-1)}
+          >
             <ChevronLeft class="size-4" aria-hidden="true" />
           </button>
-          <button type="button" class="rounded p-1 text-ink-muted hover:bg-sunken hover:text-ink" title={t.next} aria-label={t.next} onclick={() => go(1)}>
+          <button
+            type="button"
+            class="rounded p-1 text-ink-muted hover:bg-sunken hover:text-ink"
+            title={t.next}
+            aria-label={t.next}
+            onclick={() => go(1)}
+          >
             <ChevronRight class="size-4" aria-hidden="true" />
           </button>
         </div>

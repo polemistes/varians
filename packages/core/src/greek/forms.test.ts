@@ -31,7 +31,9 @@ describe('analyses', () => {
   });
 
   it('spells out a tag', () => {
-    expect(describePostag('v3siia---')).toBe('verb, 3rd person singular imperfect indicative active');
+    expect(describePostag('v3siia---')).toBe(
+      'verb, 3rd person singular imperfect indicative active',
+    );
     expect(describePostag('n-s---mn-')).toBe('noun, singular masculine nominative');
     expect(describePostag('c--------')).toBe('conjunction');
   });

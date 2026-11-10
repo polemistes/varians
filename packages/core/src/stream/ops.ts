@@ -178,7 +178,10 @@ function move(stream: Stream, ids: Id[], after: Id | null): Applied {
 }
 
 /** Marks of a token divided at `at`: ranged marks are cut, whole-token marks go to both halves. */
-function divideMarks(marks: Mark[] | undefined, at: number): [Mark[] | undefined, Mark[] | undefined] {
+function divideMarks(
+  marks: Mark[] | undefined,
+  at: number,
+): [Mark[] | undefined, Mark[] | undefined] {
   if (!marks || marks.length === 0) return [undefined, undefined];
   const left: Mark[] = [];
   const right: Mark[] = [];
@@ -283,11 +286,16 @@ function replace(stream: Stream, ids: Id[], items: Item[]): Applied {
   const removed = new Set(ids);
   const present = new Set(stream.items.filter((i) => !removed.has(i.id)).map((i) => i.id));
   for (const item of items) {
-    if (present.has(item.id)) throw new StreamError(`item ${item.id} already present`, 'duplicate', [item.id]);
+    if (present.has(item.id))
+      throw new StreamError(`item ${item.id} already present`, 'duplicate', [item.id]);
     present.add(item.id);
   }
   const old = stream.items.slice(first, first + ids.length);
-  const next = [...stream.items.slice(0, first), ...items, ...stream.items.slice(first + ids.length)];
+  const next = [
+    ...stream.items.slice(0, first),
+    ...items,
+    ...stream.items.slice(first + ids.length),
+  ];
   return {
     stream: { items: next },
     reverse: [{ t: 'replace', ids: items.map((i) => i.id), items: old }],

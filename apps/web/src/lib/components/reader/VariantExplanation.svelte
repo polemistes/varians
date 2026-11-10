@@ -22,13 +22,24 @@
 
 <div class={['explanation', compact && 'compact']}>
   {#each explanation.authority as sentence, k (k)}
-    <p class="authority"><ExplainSentence {sentence} {lang} />{#if k === explanation.authority.length - 1 && explanation.authorityReferences.length}{' '}<span class="refs">{explanation.authorityReferences.join('; ')}</span>{/if}</p>
+    <p class="authority">
+      <ExplainSentence
+        {sentence}
+        {lang}
+      />{#if k === explanation.authority.length - 1 && explanation.authorityReferences.length}{' '}<span
+          class="refs">{explanation.authorityReferences.join('; ')}</span
+        >{/if}
+    </p>
   {/each}
 
   {#if explanation.lines.length}
     <ul class="lines">
       {#each explanation.lines as line, k (k)}
-        <li><ExplainSentence sentence={line.sentence} {lang} />{#if line.references.length}{' '}<span class="refs">{line.references.join('; ')}</span>{/if}</li>
+        <li>
+          <ExplainSentence sentence={line.sentence} {lang} />{#if line.references.length}{' '}<span
+              class="refs">{line.references.join('; ')}</span
+            >{/if}
+        </li>
       {/each}
     </ul>
   {/if}
@@ -73,7 +84,6 @@
     color: var(--color-ink-muted);
     white-space: nowrap;
   }
-
 
   .absent {
     font-size: 0.92em;

@@ -64,10 +64,17 @@
             {/if}
             {#if data.deletion}
               {@const deletion = data.deletion}
-              <MenuItem danger disabled={!deletion.allowed} onSelect={() => (deleteWitnessOpen = true)}>
+              <MenuItem
+                danger
+                disabled={!deletion.allowed}
+                onSelect={() => (deleteWitnessOpen = true)}
+              >
                 <span class="flex flex-col" title={deletion.reason ?? undefined}>
                   <span>{s.menuDelete}</span>
-                  {#if deletion.reason}<span class="max-w-72 text-xs whitespace-normal text-ink-muted">{deletion.reason}</span>{/if}
+                  {#if deletion.reason}<span
+                      class="max-w-72 text-xs whitespace-normal text-ink-muted"
+                      >{deletion.reason}</span
+                    >{/if}
                 </span>
               </MenuItem>
             {/if}
@@ -90,7 +97,10 @@
       {/snippet}
       <DescriptionList class="max-w-reading">
         {#if witness.category === 'indirect' && (witness.sourceAuthor || witness.sourceWork)}
-          <DescriptionItem term={s.sourceAuthor} value={s.quotedIn(witness.sourceAuthor ?? '', witness.sourceWork ?? '')} />
+          <DescriptionItem
+            term={s.sourceAuthor}
+            value={s.quotedIn(witness.sourceAuthor ?? '', witness.sourceWork ?? '')}
+          />
         {/if}
         <DescriptionItem term={s.identifier} value={witness.identifier} />
         {#if witness.identifiers.length}
@@ -105,7 +115,12 @@
             <ul class="flex flex-col gap-0.5">
               {#each witness.hands as hand (hand.id)}
                 <li>
-                  <span class="font-serif text-base text-ink">{hand.label}</span>{#if hand.main}<span class="text-ink-soft"> ({s.handMainShort})</span>{/if}{#if hand.description}<span class="text-ink-soft">: {hand.description}</span>{/if}
+                  <span class="font-serif text-base text-ink">{hand.label}</span
+                  >{#if hand.main}<span class="text-ink-soft">
+                      ({s.handMainShort})</span
+                    >{/if}{#if hand.description}<span class="text-ink-soft"
+                      >: {hand.description}</span
+                    >{/if}
                 </li>
               {/each}
             </ul>
@@ -229,11 +244,7 @@
 </PageFrame>
 
 {#if data.can.newTranscription}
-  <NewTranscriptionForm
-    bind:open={creating}
-    works={data.workOptions}
-    sources={data.sources}
-  />
+  <NewTranscriptionForm bind:open={creating} works={data.workOptions} sources={data.sources} />
 {/if}
 <RenameDialog bind:open={renameOpen} transcription={renaming} />
 <ConfirmDialog

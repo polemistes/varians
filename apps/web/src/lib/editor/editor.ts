@@ -54,7 +54,13 @@ import {
 } from '@varians/core';
 import { minimalChange } from './align.ts';
 import { setJoin, spanOf, type Form } from './bridge.ts';
-import { linesOf, objectLabel, pageLabel, SEGMENT_CLICK_EVENT, segmentLabel } from './decorations.ts';
+import {
+  linesOf,
+  objectLabel,
+  pageLabel,
+  SEGMENT_CLICK_EVENT,
+  segmentLabel,
+} from './decorations.ts';
 import { backspaceUnjoin, hyphenEnter, joinLinesEdit, spanContaining } from './hyphen.ts';
 import { editorStrings, markLabels, objectLabels } from './labels.ts';
 import { lineAt, type BreakTarget, type BreakType } from './lines.ts';
@@ -80,7 +86,14 @@ import { setTokenClasses, tokenClassField, type TokenClasses } from './highlight
 import { buildModel, type Model, type ModelOptions } from './model.ts';
 import { breakAt, breakPreview, setBreakPreview, type BreakPreview } from './preview.ts';
 import { planInsertion, selectionTokens, tokenAt, tokenSpanAt } from './selection.ts';
-import { editIntent, modelEdit, modelExtensions, modelField, setModel, wholeEdit } from './state.ts';
+import {
+  editIntent,
+  modelEdit,
+  modelExtensions,
+  modelField,
+  setModel,
+  wholeEdit,
+} from './state.ts';
 
 export type Direction = 'auto' | 'ltr' | 'rtl';
 
@@ -249,7 +262,9 @@ class LabelMarker extends GutterMarker {
   }
 
   override eq(other: LabelMarker): boolean {
-    return other.label === this.label && other.tokenId === this.tokenId && other.running === this.running;
+    return (
+      other.label === this.label && other.tokenId === this.tokenId && other.running === this.running
+    );
   }
 
   override toDOM(): Node {
@@ -266,7 +281,10 @@ class LabelMarker extends GutterMarker {
  * else, on a page's first line, the segment running into the page (muted),
  * else the first run beginning on the line.
  */
-export function lineLabel(model: Model, line: { from: number }): { tokenId: Id; label: string; running: boolean } | null {
+export function lineLabel(
+  model: Model,
+  line: { from: number },
+): { tokenId: Id; label: string; running: boolean } | null {
   const info = lineAt(linesOf(model), line.from);
   if (!info) return null;
   const own = info.starts.find((s) => s.span === info.first);
@@ -287,18 +305,33 @@ function attrsText(attrs: MarkAttrs | undefined): string {
 }
 
 /** A variant noted in the carrier as a tooltip row: where it stands, and what it reads. */
-function variantRow(attrs: MarkAttrs | undefined, handLabel?: (value: string) => string): [string, string] {
-  const place = editorStrings.variantPlaces[String(attrs?.place ?? 'other')] ?? editorStrings.variantPlaces.other!;
+function variantRow(
+  attrs: MarkAttrs | undefined,
+  handLabel?: (value: string) => string,
+): [string, string] {
+  const place =
+    editorStrings.variantPlaces[String(attrs?.place ?? 'other')] ??
+    editorStrings.variantPlaces.other!;
   const reading = typeof attrs?.reading === 'string' ? attrs.reading : '';
-  const hand = typeof attrs?.hand === 'string' && attrs.hand !== '' ? `; ${editorStrings.variantHand(handLabel ? handLabel(attrs.hand) : attrs.hand)}` : '';
-  return [`${markLabels.variant} ${place}`, `${reading === '' ? editorStrings.variantOmits : reading}${hand}`];
+  const hand =
+    typeof attrs?.hand === 'string' && attrs.hand !== ''
+      ? `; ${editorStrings.variantHand(handLabel ? handLabel(attrs.hand) : attrs.hand)}`
+      : '';
+  return [
+    `${markLabels.variant} ${place}`,
+    `${reading === '' ? editorStrings.variantOmits : reading}${hand}`,
+  ];
 }
 
 /** The hand and stage of a deletion or an addition, then its other attributes. */
-function correctionText(attrs: MarkAttrs | undefined, handLabel?: (value: string) => string): string {
+function correctionText(
+  attrs: MarkAttrs | undefined,
+  handLabel?: (value: string) => string,
+): string {
   if (!attrs) return '';
   const parts: string[] = [];
-  if (typeof attrs.hand === 'string' && attrs.hand !== '') parts.push(editorStrings.correctionHand(handLabel ? handLabel(attrs.hand) : attrs.hand));
+  if (typeof attrs.hand === 'string' && attrs.hand !== '')
+    parts.push(editorStrings.correctionHand(handLabel ? handLabel(attrs.hand) : attrs.hand));
   if (typeof attrs.seq === 'number') parts.push(editorStrings.correctionStage(attrs.seq));
   const { hand: _h, seq: _s, ...rest } = attrs;
   void _h;
@@ -309,7 +342,11 @@ function correctionText(attrs: MarkAttrs | undefined, handLabel?: (value: string
 }
 
 /** The rows of a tooltip about an item: label and detail. */
-export function tooltipRows(model: Model, item: Item, handLabel?: (value: string) => string): [string, string][] {
+export function tooltipRows(
+  model: Model,
+  item: Item,
+  handLabel?: (value: string) => string,
+): [string, string][] {
   const rows: [string, string][] = [];
   if (isToken(item)) {
     for (const mark of item.marks ?? []) {
@@ -319,7 +356,10 @@ export function tooltipRows(model: Model, item: Item, handLabel?: (value: string
       }
       const where =
         mark.from !== undefined && mark.to !== undefined ? ` ${mark.from}–${mark.to}` : '';
-      const detail = mark.kind === 'del' || mark.kind === 'add' ? correctionText(mark.attrs, handLabel) : attrsText(mark.attrs);
+      const detail =
+        mark.kind === 'del' || mark.kind === 'add'
+          ? correctionText(mark.attrs, handLabel)
+          : attrsText(mark.attrs);
       rows.push([`${markLabels[mark.kind] ?? mark.kind}${where}`, detail]);
     }
     if (item.norm !== undefined) {
@@ -540,7 +580,8 @@ export class VariansEditor implements EditorApi {
     if (previous.lineNumbers !== next.lineNumbers) {
       effects.push(this.numbers.reconfigure(next.lineNumbers ? this.lineNumberGutter() : []));
     }
-    if (previous.tokenClasses !== next.tokenClasses) effects.push(setTokenClasses.of(next.tokenClasses));
+    if (previous.tokenClasses !== next.tokenClasses)
+      effects.push(setTokenClasses.of(next.tokenClasses));
     if (effects.length) this.view.dispatch({ effects });
     const streamChanged = next.stream !== this.whole;
     const modelChanged =
@@ -866,7 +907,9 @@ export class VariansEditor implements EditorApi {
 
   setVariant(variant: VariantAttrs): boolean {
     // A short id: it only has to tell the variants of one transcription apart.
-    return this.edit(setVariantOps(this.model.byId, this.targets(), variant, () => this.ids().slice(-8)));
+    return this.edit(
+      setVariantOps(this.model.byId, this.targets(), variant, () => this.ids().slice(-8)),
+    );
   }
 
   removeVariant(): boolean {
@@ -1059,10 +1102,16 @@ export class VariansEditor implements EditorApi {
     if (main.empty) return null;
     const model = this.model;
     const spans = model.ledger.spans.filter((s) => s.from < main.to && s.to > main.from);
-    const items = spans.map((s) => model.byId.get(s.id)).filter((item): item is Item => item !== undefined);
+    const items = spans
+      .map((s) => model.byId.get(s.id))
+      .filter((item): item is Item => item !== undefined);
     if (items.length === 0) return null;
     const whole = spans.every((s) => s.from >= main.from && s.to <= main.to);
-    return { items: structuredClone(items), text: this.view.state.sliceDoc(main.from, main.to), whole };
+    return {
+      items: structuredClone(items),
+      text: this.view.state.sliceDoc(main.from, main.to),
+      whole,
+    };
   }
 
   tokenAtCaret(): Id | null {

@@ -53,9 +53,21 @@ import {
   type IiifCanvas,
   type IiifManifest,
 } from '$lib/server/images/iiif';
-import { dziPath, imageDir, removePageFiles, storageDir, swapPageFiles, tilesDir } from '$lib/server/images/storage';
+import {
+  dziPath,
+  imageDir,
+  removePageFiles,
+  storageDir,
+  swapPageFiles,
+  tilesDir,
+} from '$lib/server/images/storage';
 import { pageImage } from '$lib/server/page-source';
-import { DEFAULT_MAX_UPLOAD_BYTES, TILE_SIZE, UploadError, acceptUpload } from '$lib/server/images/tiles';
+import {
+  DEFAULT_MAX_UPLOAD_BYTES,
+  TILE_SIZE,
+  UploadError,
+  acceptUpload,
+} from '$lib/server/images/tiles';
 import { pageStrings } from '$lib/strings/pages';
 import { conformTranscription, wordsOnPage, type ConformOutcome } from '$lib/server/conform';
 
@@ -113,12 +125,19 @@ export async function maintainerIdsOf(db: Db, witnessId: string): Promise<string
 
 /** Locks the witness row for the rest of the transaction; throws when there is no such witness. */
 async function lockWitness(tx: Tx, witnessId: string): Promise<void> {
-  const [row] = await tx.select({ id: witnesses.id }).from(witnesses).where(eq(witnesses.id, witnessId)).for('update');
+  const [row] = await tx
+    .select({ id: witnesses.id })
+    .from(witnesses)
+    .where(eq(witnesses.id, witnessId))
+    .for('update');
   if (!row) throw new PageError('not-found', pageStrings.errors.witnessNotFound);
 }
 
 async function lastPosition(db: Db, witnessId: string): Promise<number> {
-  const [row] = await db.select({ last: max(pages.position) }).from(pages).where(eq(pages.witnessId, witnessId));
+  const [row] = await db
+    .select({ last: max(pages.position) })
+    .from(pages)
+    .where(eq(pages.witnessId, witnessId));
   return row?.last ?? 0;
 }
 
@@ -137,11 +156,19 @@ async function renumber(db: Db, ids: string[]): Promise<void> {
 
 /** The pages of a witness in order. */
 export async function pagesOfWitness(db: Db, witnessId: string): Promise<Page[]> {
-  return db.select().from(pages).where(eq(pages.witnessId, witnessId)).orderBy(asc(pages.position), asc(pages.id));
+  return db
+    .select()
+    .from(pages)
+    .where(eq(pages.witnessId, witnessId))
+    .orderBy(asc(pages.position), asc(pages.id));
 }
 
 /** A page, when it belongs to the witness. */
-export async function pageOfWitness(db: Db, witnessId: string, pageId: string): Promise<Page | null> {
+export async function pageOfWitness(
+  db: Db,
+  witnessId: string,
+  pageId: string,
+): Promise<Page | null> {
   const [row] = await db
     .select()
     .from(pages)
@@ -163,10 +190,18 @@ export interface PageReferences {
 }
 
 /** What refers to one page: zones drawn on it and transcriptions whose page breaks name it. */
-export async function referencesOf(db: Db, page: Pick<Page, 'id' | 'witnessId'>): Promise<PageReferences> {
+export async function referencesOf(
+  db: Db,
+  page: Pick<Page, 'id' | 'witnessId'>,
+): Promise<PageReferences> {
   const [zoneCount] = await db.select({ n: count() }).from(zones).where(eq(zones.pageId, page.id));
   const breaking = await db
-    .select({ id: transcriptions.id, name: transcriptions.name, owner: users.name, content: transcriptions.content })
+    .select({
+      id: transcriptions.id,
+      name: transcriptions.name,
+      owner: users.name,
+      content: transcriptions.content,
+    })
     .from(transcriptions)
     .leftJoin(users, eq(users.id, transcriptions.ownerId))
     .where(
@@ -178,7 +213,10 @@ export async function referencesOf(db: Db, page: Pick<Page, 'id' | 'witnessId'>)
     .orderBy(asc(transcriptions.name));
   return {
     zones: zoneCount?.n ?? 0,
-    transcriptions: breaking.map(({ content, ...rest }) => ({ ...rest, words: wordsOnPage(content, page.id) })),
+    transcriptions: breaking.map(({ content, ...rest }) => ({
+      ...rest,
+      words: wordsOnPage(content, page.id),
+    })),
   };
 }
 
@@ -191,7 +229,10 @@ export interface ReferenceCount {
 }
 
 /** For every referenced page of a witness (zones drawn on it, or a transcript's page break naming it): its zones, and the transcripts and words on it. */
-export async function referenceCounts(db: Db, witnessId: string): Promise<Map<string, ReferenceCount>> {
+export async function referenceCounts(
+  db: Db,
+  witnessId: string,
+): Promise<Map<string, ReferenceCount>> {
   const counts = new Map<string, ReferenceCount>();
   const entry = (id: string) => {
     let found = counts.get(id);
@@ -205,7 +246,10 @@ export async function referenceCounts(db: Db, witnessId: string): Promise<Map<st
     .where(eq(pages.witnessId, witnessId))
     .groupBy(zones.pageId);
   for (const row of zoneRows) entry(row.pageId).zones = row.n;
-  const texts = await db.select({ content: transcriptions.content }).from(transcriptions).where(eq(transcriptions.witnessId, witnessId));
+  const texts = await db
+    .select({ content: transcriptions.content })
+    .from(transcriptions)
+    .where(eq(transcriptions.witnessId, witnessId));
   for (const { content } of texts) {
     let current: ReferenceCount | null = null;
     let words = 0;
@@ -241,16 +285,30 @@ export async function addPages(db: Database, witnessId: string, labels: string[]
   return db.transaction(async (tx) => {
     await lockWitness(tx, witnessId);
     const last = await lastPosition(tx, witnessId);
-    const rows = clean.map((label, i) => ({ id: newId(), witnessId, label, position: last + i + 1 }));
+    const rows = clean.map((label, i) => ({
+      id: newId(),
+      witnessId,
+      label,
+      position: last + i + 1,
+    }));
     const inserted: Page[] = [];
-    for (const chunk of chunks(rows, INSERT_CHUNK)) inserted.push(...(await tx.insert(pages).values(chunk).returning()));
+    for (const chunk of chunks(rows, INSERT_CHUNK))
+      inserted.push(...(await tx.insert(pages).values(chunk).returning()));
     return inserted.sort((a, b) => a.position - b.position);
   });
 }
 
-export async function renamePage(db: Database, pageId: string, label: string): Promise<Page | null> {
+export async function renamePage(
+  db: Database,
+  pageId: string,
+  label: string,
+): Promise<Page | null> {
   const clean = cleanLabel(label);
-  const [row] = await db.update(pages).set({ label: clean }).where(eq(pages.id, pageId)).returning();
+  const [row] = await db
+    .update(pages)
+    .set({ label: clean })
+    .where(eq(pages.id, pageId))
+    .returning();
   return row ?? null;
 }
 
@@ -261,7 +319,12 @@ export async function renamePage(db: Database, pageId: string, label: string): P
  * order, as a change in each one's history made by `actor`. Returns the
  * list in its new order, or null when the page does not exist.
  */
-export async function movePage(db: Database, pageId: string, toIndex: number, actor: string | null = null): Promise<Page[] | null> {
+export async function movePage(
+  db: Database,
+  pageId: string,
+  toIndex: number,
+  actor: string | null = null,
+): Promise<Page[] | null> {
   const page = await pageById(db, pageId);
   if (!page) return null;
   return db.transaction(async (tx) => {
@@ -269,7 +332,10 @@ export async function movePage(db: Database, pageId: string, toIndex: number, ac
     const list = await pagesOfWitness(tx, page.witnessId);
     const from = list.findIndex((p) => p.id === pageId);
     if (from < 0) return null;
-    const to = Math.min(Math.max(Math.trunc(Number.isFinite(toIndex) ? toIndex : 0), 0), list.length - 1);
+    const to = Math.min(
+      Math.max(Math.trunc(Number.isFinite(toIndex) ? toIndex : 0), 0),
+      list.length - 1,
+    );
     const [moved] = list.splice(from, 1);
     list.splice(to, 0, moved!);
     const order = list.map((p) => p.id);
@@ -299,7 +365,9 @@ async function conformTranscriptsOf(
     .orderBy(asc(transcriptions.id));
   const out: ConformOutcome[] = [];
   for (const row of rows) {
-    const breaks = row.content.items.filter((item) => item.kind === 'break' && item.type === 'page').length;
+    const breaks = row.content.items.filter(
+      (item) => item.kind === 'break' && item.type === 'page',
+    ).length;
     if (breaks < minBreaks) continue;
     const outcome = await conformTranscription(tx, row.id, order, actor, message);
     if (outcome) out.push(outcome);
@@ -335,10 +403,20 @@ export async function removePage(
     const [removed] = await tx.delete(pages).where(eq(pages.id, pageId)).returning();
     if (!removed) return null;
     const order = (await pagesOfWitness(tx, page.witnessId)).map((p) => p.id);
-    await conformTranscriptsOf(tx, page.witnessId, order, actor, pageStrings.history.removed(page.label), 1);
+    await conformTranscriptsOf(
+      tx,
+      page.witnessId,
+      order,
+      actor,
+      pageStrings.history.removed(page.label),
+      1,
+    );
     return {
       page: removed,
-      moved: { words: counts.reduce((a, b) => a + b, 0), transcriptions: counts.filter((n) => n > 0).length },
+      moved: {
+        words: counts.reduce((a, b) => a + b, 0),
+        transcriptions: counts.filter((n) => n > 0).length,
+      },
     };
   });
   if (!result) return { ok: false, reason: 'not-found' };
@@ -397,7 +475,11 @@ export function parseImageRights(input: ImageRightsInput): ImageRightsResult {
   if (!rights) return { ok: false, field: 'rights', error: pageStrings.rights.required };
   const attribution = oneLine(input.attribution);
   if (attribution && attribution.length > MAX_ATTRIBUTION_LENGTH) {
-    return { ok: false, field: 'attribution', error: pageStrings.rights.creditTooLong(MAX_ATTRIBUTION_LENGTH) };
+    return {
+      ok: false,
+      field: 'attribution',
+      error: pageStrings.rights.creditTooLong(MAX_ATTRIBUTION_LENGTH),
+    };
   }
   const imageSource = oneLine(input.imageSource);
   if (imageSource && (imageSource.length > MAX_SOURCE_LENGTH || !httpAddress(imageSource))) {
@@ -418,7 +500,11 @@ function checkedRights(input: ImageRightsInput): ImageRights {
  * Throws PageError('invalid-rights') for a statement that is missing or not
  * listed. Null when the page does not exist.
  */
-export async function updatePageRights(db: Database, pageId: string, input: ImageRightsInput): Promise<Page | null> {
+export async function updatePageRights(
+  db: Database,
+  pageId: string,
+  input: ImageRightsInput,
+): Promise<Page | null> {
   const value = checkedRights(input);
   const [row] = await db.update(pages).set(value).where(eq(pages.id, pageId)).returning();
   return row ?? null;
@@ -435,13 +521,21 @@ export type WitnessDefaultsResult =
   | { ok: false; field: 'imageRights' | 'imageAttribution'; error: string };
 
 /** Checks a witness's defaults for its images: the statement empty or listed, the credit line not too long. */
-export function parseWitnessImageDefaults(input: { imageRights?: string | null; imageAttribution?: string | null }): WitnessDefaultsResult {
+export function parseWitnessImageDefaults(input: {
+  imageRights?: string | null;
+  imageAttribution?: string | null;
+}): WitnessDefaultsResult {
   const given = oneLine(input.imageRights);
   const imageRights = given ? normalizeRights(given) : null;
-  if (given && !imageRights) return { ok: false, field: 'imageRights', error: pageStrings.rights.notListed };
+  if (given && !imageRights)
+    return { ok: false, field: 'imageRights', error: pageStrings.rights.notListed };
   const imageAttribution = oneLine(input.imageAttribution);
   if (imageAttribution && imageAttribution.length > MAX_ATTRIBUTION_LENGTH) {
-    return { ok: false, field: 'imageAttribution', error: pageStrings.rights.creditTooLong(MAX_ATTRIBUTION_LENGTH) };
+    return {
+      ok: false,
+      field: 'imageAttribution',
+      error: pageStrings.rights.creditTooLong(MAX_ATTRIBUTION_LENGTH),
+    };
   }
   return { ok: true, value: { imageRights, imageAttribution } };
 }
@@ -472,11 +566,17 @@ export async function setWitnessImageDefaults(
   const { imageRights, imageAttribution } = parsed.value;
   return db.transaction(async (tx) => {
     await lockWitness(tx, witnessId);
-    await tx.update(witnesses).set({ imageRights, imageAttribution }).where(eq(witnesses.id, witnessId));
+    await tx
+      .update(witnesses)
+      .set({ imageRights, imageAttribution })
+      .where(eq(witnesses.id, witnessId));
     if (!apply || !imageRights) return 0;
     const updated = await tx
       .update(pages)
-      .set({ rights: imageRights, attribution: sql`coalesce(${pages.attribution}, ${imageAttribution})` })
+      .set({
+        rights: imageRights,
+        attribution: sql`coalesce(${pages.attribution}, ${imageAttribution})`,
+      })
       .where(and(eq(pages.witnessId, witnessId), isNotNull(pages.imageKind), isNull(pages.rights)))
       .returning({ id: pages.id });
     return updated.length;
@@ -514,7 +614,10 @@ export async function attachUpload(
   const checked = checkedRights(rights);
   const page = await pageById(db, pageId);
   if (!page) return null;
-  const accepted = await acceptUpload(file, pageId, { root: storageRoot, maxBytes: options.maxBytes });
+  const accepted = await acceptUpload(file, pageId, {
+    root: storageRoot,
+    maxBytes: options.maxBytes,
+  });
   const [row] = await db
     .update(pages)
     .set({
@@ -554,7 +657,10 @@ export async function addImagePage(
   const checked = checkedRights(rights);
   const id = newId();
   try {
-    const accepted = await acceptUpload(file, id, { root: storageRoot, maxBytes: options.maxBytes });
+    const accepted = await acceptUpload(file, id, {
+      root: storageRoot,
+      maxBytes: options.maxBytes,
+    });
     return await db.transaction(async (tx) => {
       await lockWitness(tx, witnessId);
       const position = (await lastPosition(tx, witnessId)) + 1;
@@ -600,11 +706,7 @@ export async function detachImage(
   pageId: string,
   storageRoot: string = storageDir(),
 ): Promise<Page | null> {
-  const [row] = await db
-    .update(pages)
-    .set(NO_IMAGE)
-    .where(eq(pages.id, pageId))
-    .returning();
+  const [row] = await db.update(pages).set(NO_IMAGE).where(eq(pages.id, pageId)).returning();
   if (!row) return null;
   await removePageFiles(pageId, storageRoot);
   return row;
@@ -658,14 +760,23 @@ export async function moveImage(
       const [a] = await tx.select().from(pages).where(eq(pages.id, fromId));
       const [b] = await tx.select().from(pages).where(eq(pages.id, toId));
       if (!a || !b) throw new PageError('not-found', pageStrings.errors.pageNotFound);
-      const [movedTo] = await tx.update(pages).set(imageFieldsUnder(a, toId)).where(eq(pages.id, toId)).returning();
-      const [movedFrom] = await tx.update(pages).set(imageFieldsUnder(b, fromId)).where(eq(pages.id, fromId)).returning();
+      const [movedTo] = await tx
+        .update(pages)
+        .set(imageFieldsUnder(a, toId))
+        .where(eq(pages.id, toId))
+        .returning();
+      const [movedFrom] = await tx
+        .update(pages)
+        .set(imageFieldsUnder(b, fromId))
+        .where(eq(pages.id, fromId))
+        .returning();
       return { ok: true, from: movedFrom!, to: movedTo!, swapped: b.imageKind !== null };
     });
   } catch (cause) {
     // Put the files back where the rows still say they are.
     await swapPageFiles(fromId, toId, storageRoot);
-    if (cause instanceof PageError && cause.code === 'not-found') return { ok: false, reason: 'not-found' };
+    if (cause instanceof PageError && cause.code === 'not-found')
+      return { ok: false, reason: 'not-found' };
     throw cause;
   }
 }
@@ -733,8 +844,10 @@ export async function shiftImages(
     await db.transaction(async (tx) => {
       await lockWitness(tx, page.witnessId);
       // Clear first, then fill: a page may give its image away and receive another.
-      for (const { from } of moves) await tx.update(pages).set(NO_IMAGE).where(eq(pages.id, from.id));
-      for (const { from, to } of moves) await tx.update(pages).set(imageFieldsUnder(from, to.id)).where(eq(pages.id, to.id));
+      for (const { from } of moves)
+        await tx.update(pages).set(NO_IMAGE).where(eq(pages.id, from.id));
+      for (const { from, to } of moves)
+        await tx.update(pages).set(imageFieldsUnder(from, to.id)).where(eq(pages.id, to.id));
     });
   } catch (cause) {
     for (const move of done.reverse()) await swapPageFiles(move.from.id, move.to.id, storageRoot);
@@ -745,9 +858,13 @@ export async function shiftImages(
 }
 
 /** The message for an UploadError, in the words of the pages screen. */
-export function uploadErrorMessage(error: UploadError, maxBytes = DEFAULT_MAX_UPLOAD_BYTES): string {
+export function uploadErrorMessage(
+  error: UploadError,
+  maxBytes = DEFAULT_MAX_UPLOAD_BYTES,
+): string {
   const messages = pageStrings.upload.errors;
-  if (error.code === 'too-large') return messages['too-large'](Math.round(maxBytes / (1024 * 1024)));
+  if (error.code === 'too-large')
+    return messages['too-large'](Math.round(maxBytes / (1024 * 1024)));
   return messages[error.code] ?? pageStrings.upload.failed;
 }
 
@@ -777,7 +894,10 @@ export interface CanvasRights {
  * each on its own. A statement that is not listed is kept out, and its
  * address becomes the credit line when there is no other.
  */
-export function canvasRights(manifest: Pick<IiifManifest, 'rights' | 'attribution'>, canvas: Pick<IiifCanvas, 'rights' | 'attribution'>): CanvasRights {
+export function canvasRights(
+  manifest: Pick<IiifManifest, 'rights' | 'attribution'>,
+  canvas: Pick<IiifCanvas, 'rights' | 'attribution'>,
+): CanvasRights {
   const given = canvas.rights ?? manifest.rights ?? null;
   const rights = normalizeRights(given);
   const unlisted = given && !rights ? given : null;
@@ -843,12 +963,20 @@ type ExistingPage = Pick<Page, 'label' | 'imageKind' | 'imageIiif'>;
  * default statement, which pages take when the manifest gives none. Throws
  * ManifestError.
  */
-export async function previewManifest(url: string, existing: ExistingPage[] = [], fallback: string | null = null): Promise<ManifestPreview> {
+export async function previewManifest(
+  url: string,
+  existing: ExistingPage[] = [],
+  fallback: string | null = null,
+): Promise<ManifestPreview> {
   const manifest = await loadManifest(url);
   const manifestRights = normalizeRights(manifest.rights ?? null);
-  const ownStatements = manifest.canvases.filter((c) => c.rights && normalizeRights(c.rights) !== manifestRights).length;
+  const ownStatements = manifest.canvases.filter(
+    (c) => c.rights && normalizeRights(c.rights) !== manifestRights,
+  ).length;
   const services = new Set(
-    existing.filter((p) => p.imageKind === 'iiif' && p.imageIiif).map((p) => normalizeServiceId(p.imageIiif!)),
+    existing
+      .filter((p) => p.imageKind === 'iiif' && p.imageIiif)
+      .map((p) => normalizeServiceId(p.imageIiif!)),
   );
   const blank = new Map<string, number>();
   for (const p of existing) if (!p.imageKind) blank.set(p.label, (blank.get(p.label) ?? 0) + 1);
@@ -996,7 +1124,8 @@ export async function importManifest(
     if (options.replace) {
       const referenced = await referencedPageIds(tx, witnessId);
       const doomed = existing.filter((p) => !referenced.has(p.id)).map((p) => p.id);
-      for (const chunk of chunks(doomed, INSERT_CHUNK)) await tx.delete(pages).where(inArray(pages.id, chunk));
+      for (const chunk of chunks(doomed, INSERT_CHUNK))
+        await tx.delete(pages).where(inArray(pages.id, chunk));
       removedIds.push(...doomed);
       existing = existing.filter((p) => referenced.has(p.id));
     }
@@ -1058,7 +1187,13 @@ export async function importManifest(
       sequence.push(id);
     });
 
-    const order = match ? mergeOrder(existing.map((p) => p.id), sequence, taken) : [...existing.map((p) => p.id), ...sequence];
+    const order = match
+      ? mergeOrder(
+          existing.map((p) => p.id),
+          sequence,
+          taken,
+        )
+      : [...existing.map((p) => p.id), ...sequence];
     const positionOf = new Map(order.map((id, i) => [id, i + 1]));
     for (const row of inserts) row.position = positionOf.get(row.id)!;
     for (const chunk of chunks(inserts, INSERT_CHUNK)) await tx.insert(pages).values(chunk);
@@ -1078,8 +1213,19 @@ export async function importManifest(
     }
     await renumber(tx, order);
     // Matching may put pages already there in the manifest's order; the transcripts follow.
-    if (match) await conformTranscriptsOf(tx, witnessId, order, options.actor ?? null, pageStrings.history.reordered, 2);
-    await tx.update(witnesses).set({ iiifManifest: manifestUrl }).where(eq(witnesses.id, witnessId));
+    if (match)
+      await conformTranscriptsOf(
+        tx,
+        witnessId,
+        order,
+        options.actor ?? null,
+        pageStrings.history.reordered,
+        2,
+      );
+    await tx
+      .update(witnesses)
+      .set({ iiifManifest: manifestUrl })
+      .where(eq(witnesses.id, witnessId));
 
     return {
       label: manifest.label,
@@ -1121,7 +1267,8 @@ export function manifestErrorMessage(error: ManifestError): string {
 
 /** Changes whenever the page changes, so that a replaced image is not served from a cache. */
 export function mediaVersion(page: Pick<Page, 'updatedAt'>): string {
-  const time = page.updatedAt instanceof Date ? page.updatedAt.getTime() : new Date(page.updatedAt).getTime();
+  const time =
+    page.updatedAt instanceof Date ? page.updatedAt.getTime() : new Date(page.updatedAt).getTime();
   return Number.isFinite(time) ? time.toString(36) : '0';
 }
 
@@ -1142,14 +1289,28 @@ export function dziThumbnailLevel(width: number, height: number, tileSize = TILE
   return level;
 }
 
-type ImageFields = Pick<Page, 'id' | 'imageKind' | 'imagePath' | 'imageIiif' | 'imageWidth' | 'imageHeight' | 'tilesPath' | 'updatedAt'>;
+type ImageFields = Pick<
+  Page,
+  | 'id'
+  | 'imageKind'
+  | 'imagePath'
+  | 'imageIiif'
+  | 'imageWidth'
+  | 'imageHeight'
+  | 'tilesPath'
+  | 'updatedAt'
+>;
 
 /** The viewer's source for a page's image, or null when it has none. */
 export function pageSource(page: ImageFields): FacsimileSource | null {
   if (page.imageKind === 'upload') {
-    return { kind: 'dzi', url: `/media/${page.tilesPath ?? dziPath(page.id)}?v=${mediaVersion(page)}` };
+    return {
+      kind: 'dzi',
+      url: `/media/${page.tilesPath ?? dziPath(page.id)}?v=${mediaVersion(page)}`,
+    };
   }
-  if (page.imageKind === 'iiif' && page.imageIiif) return { kind: 'iiif', infoUrl: imageInfoUrl(page.imageIiif) };
+  if (page.imageKind === 'iiif' && page.imageIiif)
+    return { kind: 'iiif', infoUrl: imageInfoUrl(page.imageIiif) };
   return null;
 }
 
@@ -1169,13 +1330,17 @@ export function thumbnailOf(page: ImageFields): string | null {
     }
     return page.imagePath ? `/media/${page.imagePath}?v=${version}` : null;
   }
-  if (page.imageKind === 'iiif' && page.imageIiif) return thumbnailUrl(page.imageIiif, THUMBNAIL_WIDTH);
+  if (page.imageKind === 'iiif' && page.imageIiif)
+    return thumbnailUrl(page.imageIiif, THUMBNAIL_WIDTH);
   return null;
 }
 
 /** The pages of a witness as the screens show them: in order, with thumbnails, viewer sources and what refers to them. */
 export async function pageViewsOf(db: Db, witnessId: string): Promise<PageView[]> {
-  const [rows, references] = await Promise.all([pagesOfWitness(db, witnessId), referenceCounts(db, witnessId)]);
+  const [rows, references] = await Promise.all([
+    pagesOfWitness(db, witnessId),
+    referenceCounts(db, witnessId),
+  ]);
   return rows.map((page, i) => ({
     id: page.id,
     label: page.label,

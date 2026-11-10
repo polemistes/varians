@@ -13,12 +13,20 @@ export const pageStrings = {
     const count = plural(pages, 'page', 'pages');
     if (pages === 0) return 'No pages yet.';
     const images =
-      withImage === 0 ? 'none with an image yet' : withImage === pages ? (pages === 1 ? 'with an image' : 'all with images') : `${withImage} with an image`;
+      withImage === 0
+        ? 'none with an image yet'
+        : withImage === pages
+          ? pages === 1
+            ? 'with an image'
+            : 'all with images'
+          : `${withImage} with an image`;
     return `${count}, ${images}.`;
   },
-  lead: (siglum: string, pages: number, withImage: number) => `Siglum ${siglum}. ${pageStrings.summary(pages, withImage)}`,
+  lead: (siglum: string, pages: number, withImage: number) =>
+    `Siglum ${siglum}. ${pageStrings.summary(pages, withImage)}`,
   empty: 'No pages yet',
-  emptyHint: 'Add images, one page per file; add pages by their labels and give them images later; or import the pages of a IIIF manifest.',
+  emptyHint:
+    'Add images, one page per file; add pages by their labels and give them images later; or import the pages of a IIIF manifest.',
   gridLabel: 'Pages in order',
 
   card: {
@@ -70,7 +78,8 @@ export const pageStrings = {
     close: 'Close',
     readOnly: 'Only the maintainers of the witness may change its pages.',
     empty: 'This witness has no pages yet.',
-    emptyHint: 'Add images, one page per file; add pages by their labels; or import a IIIF manifest.',
+    emptyHint:
+      'Add images, one page per file; add pages by their labels; or import a IIIF manifest.',
     emptyReadOnly: 'Its maintainers can add some.',
   },
 
@@ -90,7 +99,8 @@ export const pageStrings = {
   labels: {
     required: 'Enter at least one label.',
     tooLong: (max: number) => `A label may have at most ${max} characters.`,
-    tooMany: (count: number, max: number) => `That makes ${count} pages; at most ${max} can be added at once.`,
+    tooMany: (count: number, max: number) =>
+      `That makes ${count} pages; at most ${max} can be added at once.`,
     backwards: (range: string) => `The range ${range} runs backwards.`,
     mixed: (range: string) => `The two ends of ${range} are not of the same kind.`,
     prefixes: (range: string) => `The two ends of ${range} have different prefixes.`,
@@ -99,7 +109,8 @@ export const pageStrings = {
 
   upload: {
     title: 'Add images',
-    hint: (maxMb: number) => `JPEG, PNG, TIFF or WebP, up to ${maxMb} MB each. One page per file, in the order of the file names.`,
+    hint: (maxMb: number) =>
+      `JPEG, PNG, TIFF or WebP, up to ${maxMb} MB each. One page per file, in the order of the file names.`,
     drop: 'Drop images here',
     dropOr: 'Drop images here, or',
     choose: 'Choose files',
@@ -107,7 +118,8 @@ export const pageStrings = {
     labelsFrom: 'Labels',
     byName: 'From the file names, without their extensions',
     bySequence: (next: string) => `Continuing the pages: ${next}, …`,
-    submit: (count: number) => (count === 0 ? 'Upload' : count === 1 ? 'Upload 1 image' : `Upload ${count} images`),
+    submit: (count: number) =>
+      count === 0 ? 'Upload' : count === 1 ? 'Upload 1 image' : `Upload ${count} images`,
     stop: 'Stop',
     clear: 'Clear the list',
     remove: (name: string) => `Leave out ${name}`,
@@ -122,7 +134,8 @@ export const pageStrings = {
     failed: 'The upload failed. Try again.',
     network: 'The connection was lost. Try again.',
     tooLargeForServer: 'The server refused a file this large.',
-    added: (count: number) => (count === 1 ? 'Added 1 page with its image.' : `Added ${count} pages with their images.`),
+    added: (count: number) =>
+      count === 1 ? 'Added 1 page with its image.' : `Added ${count} pages with their images.`,
     addedSome: (added: number, failed: number) =>
       `Added ${plural(added, 'page', 'pages')}; ${plural(failed, 'file', 'files')} could not be added.`,
     allFailed: 'None of the files could be added.',
@@ -148,11 +161,13 @@ export const pageStrings = {
     credit: 'Credit line',
     source: 'Source',
     sourceHint: 'The address the image was obtained from.',
-    notCopyable: 'An image under this statement is shown here but not copied into archives or downloads.',
+    notCopyable:
+      'An image under this statement is shown here but not copied into archives or downloads.',
     required: 'Choose the rights statement of the image.',
     notListed: 'Choose a statement from the list.',
     creditTooLong: (max: number) => `A credit line may have at most ${max} characters.`,
-    sourceInvalid: 'Enter a full address beginning with http:// or https://, or leave the source empty.',
+    sourceInvalid:
+      'Enter a full address beginning with http:// or https://, or leave the source empty.',
     missing: 'No rights statement',
     title: (label: string) => `Rights of the image of ${label}`,
     submit: 'Save',
@@ -189,7 +204,8 @@ export const pageStrings = {
 
   moveImage: {
     title: (label: string) => `Move the image of ${label}`,
-    description: 'The image goes to the page chosen. If that page has an image, the two change places.',
+    description:
+      'The image goes to the page chosen. If that page has an image, the two change places.',
     target: 'To the page',
     withImage: (label: string) => `${label} (has an image)`,
     swaps: (label: string) => `${label} has an image: the two images change places.`,
@@ -206,24 +222,31 @@ export const pageStrings = {
 
   shiftImages: {
     title: (label: string) => `Shift the images from ${label} on`,
-    description: 'For a run of images that began one page too early or too late: every image from this page to the end moves one page.',
+    description:
+      'For a run of images that began one page too early or too late: every image from this page to the end moves one page.',
     later: 'One page later',
-    laterHint: (label: string) => `${label} and every page after it take the image of the page before them.`,
-    laterAdds: (last: string, next: string) => `A new page ${next} is added at the end for the image of ${last}.`,
+    laterHint: (label: string) =>
+      `${label} and every page after it take the image of the page before them.`,
+    laterAdds: (last: string, next: string) =>
+      `A new page ${next} is added at the end for the image of ${last}.`,
     earlier: 'One page earlier',
-    earlierHint: (before: string, label: string) => `${before} takes the image of ${label}, and so on to the end.`,
+    earlierHint: (before: string, label: string) =>
+      `${before} takes the image of ${label}, and so on to the end.`,
     firstPage: 'There is no page before this one.',
     occupied: (before: string) => `${before} has an image of its own; remove or move it first.`,
     nothing: 'No page from here on has an image.',
     zones: 'Zones stay with their pages and will be shown on the images that come to them.',
     submit: 'Shift images',
     shifted: (n: number, added: string | null) =>
-      added ? `${plural(n, 'image', 'images')} moved one page; ${added} was added at the end.` : `${plural(n, 'image', 'images')} moved one page.`,
+      added
+        ? `${plural(n, 'image', 'images')} moved one page; ${added} was added at the end.`
+        : `${plural(n, 'image', 'images')} moved one page.`,
   },
 
   removeImage: {
     title: (label: string) => `Remove the image of ${label}?`,
-    description: 'The page stays, without an image. An uploaded image is deleted; a IIIF image is only unlinked.',
+    description:
+      'The page stays, without an image. An uploaded image is deleted; a IIIF image is only unlinked.',
     zones: (n: number) =>
       `${n === 1 ? 'The zone drawn on it stays' : `The ${n} zones drawn on it stay`} and will be shown on any image that takes its place.`,
     submit: 'Remove image',
@@ -233,12 +256,21 @@ export const pageStrings = {
   remove: {
     title: (label: string) => `Remove ${label}?`,
     /** What the removal does, from the words on the page and the boxes drawn on it. */
-    description: (label: string, words: number, transcripts: number, boxes: number, image: boolean) => {
+    description: (
+      label: string,
+      words: number,
+      transcripts: number,
+      boxes: number,
+      image: boolean,
+    ) => {
       const parts: string[] = [];
       if (words > 0) {
-        parts.push(`The ${plural(words, 'word', 'words')} on ${label} in ${plural(transcripts, 'transcript', 'transcripts')} ${words === 1 ? 'goes' : 'go'} to Not on a page.`);
+        parts.push(
+          `The ${plural(words, 'word', 'words')} on ${label} in ${plural(transcripts, 'transcript', 'transcripts')} ${words === 1 ? 'goes' : 'go'} to Not on a page.`,
+        );
       }
-      if (image && boxes > 0) parts.push(`The image and its ${plural(boxes, 'box', 'boxes')} are removed.`);
+      if (image && boxes > 0)
+        parts.push(`The image and its ${plural(boxes, 'box', 'boxes')} are removed.`);
       else if (image) parts.push('The image is removed.');
       else if (boxes > 0) parts.push(`Its ${plural(boxes, 'box', 'boxes')} are removed.`);
       parts.push('This cannot be undone.');
@@ -262,7 +294,8 @@ export const pageStrings = {
   manifest: {
     open: 'Import IIIF manifest',
     title: 'Import a IIIF manifest',
-    description: 'Each canvas of the manifest becomes a page with its label, its image shown from the library’s IIIF server.',
+    description:
+      'Each canvas of the manifest becomes a page with its label, its image shown from the library’s IIIF server.',
     url: 'Manifest URL',
     urlHint: 'The address of a IIIF Presentation manifest, version 2 or 3.',
     urlInvalid: 'Enter a full URL beginning with http:// or https://.',
@@ -273,27 +306,40 @@ export const pageStrings = {
       withImage === total
         ? `${plural(total, 'canvas', 'canvases')}, ${total === 1 ? 'with an image' : 'all with images'}.`
         : `${plural(total, 'canvas', 'canvases')}, ${withImage} with an image.`,
-    present: (n: number) => (n === 1 ? '1 of them is already here.' : `${n} of them are already here.`),
+    present: (n: number) =>
+      n === 1 ? '1 of them is already here.' : `${n} of them are already here.`,
     attachable: (n: number) =>
       n === 1
         ? '1 page without an image has the label of a canvas and takes its image.'
         : `${n} pages without an image have the label of a canvas and take its image.`,
-    firstCanvases: (shown: number, total: number) => (shown < total ? `The first ${shown}` : 'The canvases'),
+    firstCanvases: (shown: number, total: number) =>
+      shown < total ? `The first ${shown}` : 'The canvases',
     noImage: 'No image',
     warnings: 'The manifest has some problems',
     moreWarnings: (n: number) => `and ${n} more`,
     mode: 'Pages already here',
     modeNew: 'Keep them, and add the canvases that are not here yet',
-    modeNewHint: 'A canvas whose image a page already shows is skipped; a page without an image takes the image of the canvas with its label.',
+    modeNewHint:
+      'A canvas whose image a page already shows is skipped; a page without an image takes the image of the canvas with its label.',
     modeReplace: 'Replace them with the canvases',
-    modeReplaceHint: 'Pages that no zone or transcript refers to are removed first, with their uploaded images.',
+    modeReplaceHint:
+      'Pages that no zone or transcript refers to are removed first, with their uploaded images.',
     import: (n: number) => (n === 1 ? 'Import 1 canvas' : `Import ${n} canvases`),
-    imported: (summary: { added: number; attached: number; skipped: number; removed: number; kept: number }) => {
+    imported: (summary: {
+      added: number;
+      attached: number;
+      skipped: number;
+      removed: number;
+      kept: number;
+    }) => {
       const parts = [`Added ${plural(summary.added, 'page', 'pages')}`];
-      if (summary.attached > 0) parts.push(`gave ${plural(summary.attached, 'page', 'pages')} an image`);
-      if (summary.skipped > 0) parts.push(`skipped ${plural(summary.skipped, 'canvas', 'canvases')} already here`);
+      if (summary.attached > 0)
+        parts.push(`gave ${plural(summary.attached, 'page', 'pages')} an image`);
+      if (summary.skipped > 0)
+        parts.push(`skipped ${plural(summary.skipped, 'canvas', 'canvases')} already here`);
       if (summary.removed > 0) parts.push(`removed ${plural(summary.removed, 'page', 'pages')}`);
-      if (summary.kept > 0) parts.push(`kept ${plural(summary.kept, 'page', 'pages')} that are referred to`);
+      if (summary.kept > 0)
+        parts.push(`kept ${plural(summary.kept, 'page', 'pages')} that are referred to`);
       return `${parts.join(', ')}.`;
     },
     plainImage: (label: string) =>
@@ -301,8 +347,12 @@ export const pageStrings = {
     rights: 'Rights',
     credit: 'Credit line',
     noRights: 'The manifest gives no rights statement; the pages are imported without one.',
-    fallbackRights: (label: string) => `The manifest gives no rights statement; the pages take the witness’s, ${label}.`,
-    ownStatements: (n: number) => (n === 1 ? '1 canvas has a statement of its own.' : `${n} canvases have a statement of their own.`),
+    fallbackRights: (label: string) =>
+      `The manifest gives no rights statement; the pages take the witness’s, ${label}.`,
+    ownStatements: (n: number) =>
+      n === 1
+        ? '1 canvas has a statement of its own.'
+        : `${n} canvases have a statement of their own.`,
     unlistedRights: (uri: string) =>
       `The rights statement ${uri} is not among those Varians lists; the pages it covers are imported without a statement, and with the address as their credit line where the manifest gives none.`,
     errors: {

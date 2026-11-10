@@ -41,20 +41,36 @@ export const handle: Handle = async ({ event, resolve }) => {
   if (CHANGES.has(request.method)) {
     const length = Number(request.headers.get('content-length'));
     if (Number.isFinite(length) && length > bodyLimit(url.pathname)) {
-      return new Response('The request is too large.', { status: 413, headers: { 'content-type': 'text/plain' } });
+      return new Response('The request is too large.', {
+        status: 413,
+        headers: { 'content-type': 'text/plain' },
+      });
     }
     // The JSON endpoints change things for the signed-in user: only this site may call them, and only with JSON
     // (SvelteKit checks the origin of form posts itself; a body without a type would slip past that check).
     if (url.pathname.startsWith('/api/')) {
       const origin = request.headers.get('origin');
-      if (origin && origin !== url.origin) return new Response('Cross-site requests are not allowed.', { status: 403, headers: { 'content-type': 'text/plain' } });
+      if (origin && origin !== url.origin)
+        return new Response('Cross-site requests are not allowed.', {
+          status: 403,
+          headers: { 'content-type': 'text/plain' },
+        });
       // The one endpoint other installations send to takes a package, and only with a token (below).
       const wanted = url.pathname === '/api/import' ? 'application/zip' : 'application/json';
       if (!(request.headers.get('content-type') ?? '').toLowerCase().startsWith(wanted)) {
-        return new Response(wanted === 'application/zip' ? 'Send a package.' : 'Send JSON.', { status: 415, headers: { 'content-type': 'text/plain' } });
+        return new Response(wanted === 'application/zip' ? 'Send a package.' : 'Send JSON.', {
+          status: 415,
+          headers: { 'content-type': 'text/plain' },
+        });
       }
-      if (url.pathname === '/api/import' && !(request.headers.get('authorization') ?? '').startsWith('Bearer ')) {
-        return new Response('A token is needed.', { status: 401, headers: { 'content-type': 'text/plain' } });
+      if (
+        url.pathname === '/api/import' &&
+        !(request.headers.get('authorization') ?? '').startsWith('Bearer ')
+      ) {
+        return new Response('A token is needed.', {
+          status: 401,
+          headers: { 'content-type': 'text/plain' },
+        });
       }
     }
   }
@@ -63,7 +79,11 @@ export const handle: Handle = async ({ event, resolve }) => {
   const bearer = /^Bearer\s+(\S+)$/u.exec(request.headers.get('authorization') ?? '')?.[1];
   if (bearer && acceptsBearer(request.method, url.pathname)) {
     const user = await userForToken(db, bearer);
-    if (!user) return new Response('The token is not valid.', { status: 401, headers: { 'content-type': 'text/plain' } });
+    if (!user)
+      return new Response('The token is not valid.', {
+        status: 401,
+        headers: { 'content-type': 'text/plain' },
+      });
     event.locals.user = user;
   }
 
@@ -83,7 +103,10 @@ export const handle: Handle = async ({ event, resolve }) => {
   if (user && !hasAcceptedTerms(user)) {
     const gate = termsGate(request.method, url.pathname, url.search);
     if (gate === 'api') {
-      return new Response(JSON.stringify({ message: site.terms.required, terms: '/terms' }), { status: 403, headers: { 'content-type': 'application/json' } });
+      return new Response(JSON.stringify({ message: site.terms.required, terms: '/terms' }), {
+        status: 403,
+        headers: { 'content-type': 'application/json' },
+      });
     }
     if (gate === 'page') {
       let back = url.pathname + url.search;
@@ -99,7 +122,9 @@ export const handle: Handle = async ({ event, resolve }) => {
       const location = `/terms?next=${encodeURIComponent(back)}`;
       // A form sent by the page's script expects an action result; anything else a plain redirect.
       if (request.headers.get('x-sveltekit-action') === 'true') {
-        return new Response(JSON.stringify({ type: 'redirect', status: 303, location }), { headers: { 'content-type': 'application/json' } });
+        return new Response(JSON.stringify({ type: 'redirect', status: 303, location }), {
+          headers: { 'content-type': 'application/json' },
+        });
       }
       return new Response(null, { status: 303, headers: { location } });
     }
@@ -113,7 +138,8 @@ export const handle: Handle = async ({ event, resolve }) => {
   try {
     response.headers.set('x-content-type-options', 'nosniff');
     response.headers.set('referrer-policy', 'strict-origin-when-cross-origin');
-    if (!response.headers.has('content-security-policy')) response.headers.set('content-security-policy', "frame-ancestors 'self'");
+    if (!response.headers.has('content-security-policy'))
+      response.headers.set('content-security-policy', "frame-ancestors 'self'");
   } catch {
     // A response with immutable headers keeps them as they are.
   }

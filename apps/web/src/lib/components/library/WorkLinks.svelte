@@ -28,12 +28,16 @@
     <li>
       <a href={href(work)} class="group flex items-center gap-4 px-5 py-3 hover:bg-sunken/40">
         <span class="min-w-0 flex-1">
-          <span class="block font-sans text-xs text-ink-muted">{work.author ?? site.works.unknownAuthor}</span>
+          <span class="block font-sans text-xs text-ink-muted"
+            >{work.author ?? site.works.unknownAuthor}</span
+          >
           <span class="font-serif text-lg text-ink group-hover:text-accent">{work.title}</span>
         </span>
         {#if work.visibility === 'private'}<Badge>{site.works.private}</Badge>{/if}
         {#if action}
-          <span class="flex shrink-0 items-center gap-1 font-sans text-sm text-ink-soft group-hover:text-accent">
+          <span
+            class="flex shrink-0 items-center gap-1 font-sans text-sm text-ink-soft group-hover:text-accent"
+          >
             {action}<ArrowRight class="size-4" aria-hidden="true" />
           </span>
         {/if}

@@ -5,7 +5,15 @@
  * the text. Pure.
  */
 
-import { lines as carrierLines, segmentAt, type Id, type Item, type Stream, type StreamDiff, type Token } from '@varians/core';
+import {
+  lines as carrierLines,
+  segmentAt,
+  type Id,
+  type Item,
+  type Stream,
+  type StreamDiff,
+  type Token,
+} from '@varians/core';
 import { indexDiff, markedCell, plainCell } from './placement.ts';
 import type { Cell, CompactLine, SerializedDiff } from './types.ts';
 
@@ -51,7 +59,8 @@ export function clipCells(cells: Cell[], context: number): (Cell | null)[] {
   const keep = cells.map(() => false);
   marked.forEach((m, i) => {
     if (!m) return;
-    for (let k = Math.max(0, i - context); k <= Math.min(cells.length - 1, i + context); k++) keep[k] = true;
+    for (let k = Math.max(0, i - context); k <= Math.min(cells.length - 1, i + context); k++)
+      keep[k] = true;
   });
   // An ellipsis for one word saves nothing: keep the word.
   keep.forEach((kept, i) => {
@@ -66,7 +75,12 @@ export function clipCells(cells: Cell[], context: number): (Cell | null)[] {
 }
 
 /** The lines a change touched, before and after it, with what changed marked. */
-export function touchedLines(before: Stream, after: Stream, diff: StreamDiff | Pick<SerializedDiff, 'changes'>, options: TouchedOptions = {}): TouchedLines {
+export function touchedLines(
+  before: Stream,
+  after: Stream,
+  diff: StreamDiff | Pick<SerializedDiff, 'changes'>,
+  options: TouchedOptions = {},
+): TouchedLines {
   const max = options.max ?? 3;
   const context = options.context ?? 4;
   const marks = indexDiff(diff);
@@ -85,7 +99,8 @@ export function touchedLines(before: Stream, after: Stream, diff: StreamDiff | P
     const now = afterLineOf.get(id);
     if (now !== undefined) touchedAfter.add(now);
   }
-  for (const r of marks.removed) touchedAfter.add(r.after === null ? 0 : (afterLineOf.get(r.after) ?? 0));
+  for (const r of marks.removed)
+    touchedAfter.add(r.after === null ? 0 : (afterLineOf.get(r.after) ?? 0));
   // An addition shows in the old text at the line of the nearest earlier item that was already there.
   after.items.forEach((item, i) => {
     if (!marks.added.has(item.id)) return;
@@ -110,7 +125,11 @@ export function touchedLines(before: Stream, after: Stream, diff: StreamDiff | P
     for (let i = line.from; i <= line.to && i < before.items.length; i++) {
       const item = before.items[i]!;
       // The break that closes the line shows only when the change touched it.
-      if (i === line.to && !(removedIds.has(item.id) || marks.changed.has(item.id) || marks.moved.has(item.id))) continue;
+      if (
+        i === line.to &&
+        !(removedIds.has(item.id) || marks.changed.has(item.id) || marks.moved.has(item.id))
+      )
+        continue;
       const cell = plainCell(item, i);
       if (removedIds.has(item.id)) cell.removed = true;
       if (marks.moved.has(item.id)) cell.away = true;
@@ -128,27 +147,42 @@ export function touchedLines(before: Stream, after: Stream, diff: StreamDiff | P
     if (!line) return [];
     const cells: Cell[] = [];
     const opener = line.from > 0 ? after.items[line.from - 1] : undefined;
-    if (opener && (marks.added.has(opener.id) || marks.moved.has(opener.id) || marks.changed.has(opener.id))) {
+    if (
+      opener &&
+      (marks.added.has(opener.id) || marks.moved.has(opener.id) || marks.changed.has(opener.id))
+    ) {
       cells.push(markedCell(opener, line.from - 1, marks, {}));
     }
     for (let i = line.from; i < line.to; i++) cells.push(markedCell(after.items[i]!, i, marks, {}));
     return cells;
   };
 
-  const build = (stream: Stream, indexes: Set<number>, cellsOf: (i: number) => Cell[], lineList: { from: number }[], prefix: string): CompactLine[] =>
+  const build = (
+    stream: Stream,
+    indexes: Set<number>,
+    cellsOf: (i: number) => Cell[],
+    lineList: { from: number }[],
+    prefix: string,
+  ): CompactLine[] =>
     [...indexes]
       .sort((a, b) => a - b)
       .slice(0, max)
       .map((i) => ({
         key: `${prefix}${i}`,
-        segmentId: lineList[i] && lineList[i]!.from < stream.items.length ? (segmentAt(stream, lineList[i]!.from)?.segmentId ?? null) : null,
+        segmentId:
+          lineList[i] && lineList[i]!.from < stream.items.length
+            ? (segmentAt(stream, lineList[i]!.from)?.segmentId ?? null)
+            : null,
         cells: clipCells(cellsOf(i), context),
       }));
 
   return {
     before: before.items.length ? build(before, touchedBefore, beforeCells, beforeLines, 'b') : [],
     after: after.items.length ? build(after, touchedAfter, afterCells, afterLines, 'a') : [],
-    total: Math.max(before.items.length ? touchedBefore.size : 0, after.items.length ? touchedAfter.size : 0),
+    total: Math.max(
+      before.items.length ? touchedBefore.size : 0,
+      after.items.length ? touchedAfter.size : 0,
+    ),
   };
 }
 
@@ -159,7 +193,11 @@ export function touchedLines(before: Stream, after: Stream, diff: StreamDiff | P
  * after the nearest earlier item of `after` (the text the change made) that
  * still stands. A change nothing of which can be placed sorts last.
  */
-export function positionIn(current: Map<Id, number>, diff: StreamDiff | Pick<SerializedDiff, 'changes'>, after?: Stream): number {
+export function positionIn(
+  current: Map<Id, number>,
+  diff: StreamDiff | Pick<SerializedDiff, 'changes'>,
+  after?: Stream,
+): number {
   let afterIndex: Map<Id, number> | null = null;
   const place = (id: Id): number | undefined => {
     const at = current.get(id);
@@ -200,6 +238,10 @@ export function slimItem<T extends Item>(item: T): T {
 export function slimLine(line: CompactLine): CompactLine {
   return {
     ...line,
-    cells: line.cells.map((cell) => (cell ? { ...cell, item: slimItem(cell.item), was: cell.was ? slimItem(cell.was) : null } : null)),
+    cells: line.cells.map((cell) =>
+      cell
+        ? { ...cell, item: slimItem(cell.item), was: cell.was ? slimItem(cell.was) : null }
+        : null,
+    ),
   };
 }

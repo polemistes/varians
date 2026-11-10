@@ -167,7 +167,11 @@ function variantOf(token: Item | undefined): VariantFound | null {
   const attrs = mark?.attrs;
   if (!attrs || typeof attrs.group !== 'string') return null;
   const place = attrs.place === 'margin' || attrs.place === 'interlinear' ? attrs.place : 'other';
-  const found: VariantFound = { group: attrs.group, reading: typeof attrs.reading === 'string' ? attrs.reading : '', place };
+  const found: VariantFound = {
+    group: attrs.group,
+    reading: typeof attrs.reading === 'string' ? attrs.reading : '',
+    place,
+  };
   if (typeof attrs.hand === 'string' && attrs.hand !== '') found.hand = attrs.hand;
   return found;
 }
@@ -196,7 +200,11 @@ export function variantSpanned(byId: Map<Id, Item>, targets: MarkTarget[]): Vari
 }
 
 function variantMarkOf(group: string, variant: VariantAttrs): Mark {
-  const attrs: MarkAttrs = { group, reading: variant.reading.trim().replace(/\s+/gu, ' '), place: variant.place };
+  const attrs: MarkAttrs = {
+    group,
+    reading: variant.reading.trim().replace(/\s+/gu, ' '),
+    place: variant.place,
+  };
   const hand = variant.hand?.trim();
   if (hand) attrs.hand = hand;
   return { kind: 'variant', attrs };
@@ -209,7 +217,12 @@ function variantMarkOf(group: string, variant: VariantAttrs): Mark {
  * so that no variant is left covering part of its words. When the targets
  * are exactly one variant's span, that variant is changed and keeps its group.
  */
-export function setVariantOps(byId: Map<Id, Item>, targets: MarkTarget[], variant: VariantAttrs, newGroup: () => string): Op[] {
+export function setVariantOps(
+  byId: Map<Id, Item>,
+  targets: MarkTarget[],
+  variant: VariantAttrs,
+  newGroup: () => string,
+): Op[] {
   const targeted = new Set(targets.map((t) => t.tokenId).filter((id) => isToken(byId.get(id))));
   if (targeted.size === 0) return [];
   const overlapped = new Set(variantsIn(byId, targets).map((v) => v.group));
@@ -272,16 +285,25 @@ export function correctionIn(byId: Map<Id, Item>, targets: MarkTarget[]): Correc
     for (const mark of token.marks ?? []) {
       if (!isCorrection(mark)) continue;
       kinds.add(mark.kind);
-      if (hand === undefined && typeof mark.attrs?.hand === 'string' && mark.attrs.hand !== '') hand = mark.attrs.hand;
+      if (hand === undefined && typeof mark.attrs?.hand === 'string' && mark.attrs.hand !== '')
+        hand = mark.attrs.hand;
       if (seq === undefined && typeof mark.attrs?.seq === 'number') seq = mark.attrs.seq;
     }
   }
   if (kinds.size === 0) return null;
-  return { kinds: [...kinds], ...(hand !== undefined ? { hand } : {}), ...(seq !== undefined ? { seq } : {}) };
+  return {
+    kinds: [...kinds],
+    ...(hand !== undefined ? { hand } : {}),
+    ...(seq !== undefined ? { seq } : {}),
+  };
 }
 
 /** Operations giving every deletion and addition on the targets' tokens the hand and stage; a missing hand or stage takes it away. */
-export function setCorrectionOps(byId: Map<Id, Item>, targets: MarkTarget[], attrs: CorrectionAttrs): Op[] {
+export function setCorrectionOps(
+  byId: Map<Id, Item>,
+  targets: MarkTarget[],
+  attrs: CorrectionAttrs,
+): Op[] {
   const ops: Op[] = [];
   const done = new Set<Id>();
   for (const target of targets) {

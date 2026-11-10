@@ -54,7 +54,10 @@ export function segmentsTouched(before: Stream, after: Stream, ops: Op[]): Id[] 
 }
 
 /** Unit indexes of the segment's base units that carry any of the tokens. */
-function unitRange(segment: SegmentViewClient, tokenIds: Id[]): { from: number; to: number } | null {
+function unitRange(
+  segment: SegmentViewClient,
+  tokenIds: Id[],
+): { from: number; to: number } | null {
   const wanted = new Set(tokenIds);
   let from = -1;
   let to = -1;
@@ -81,7 +84,15 @@ export function siteForTokens(segment: SegmentViewClient, tokenIds: Id[]): Site 
   if (covering) return covering;
   const range = unitRange(segment, tokenIds);
   if (!range) return null;
-  return { index: -1, columnFrom: 0, columnTo: 0, baseFrom: range.from, baseTo: range.to, readings: [], kind: 'textual' };
+  return {
+    index: -1,
+    columnFrom: 0,
+    columnTo: 0,
+    baseFrom: range.from,
+    baseTo: range.to,
+    readings: [],
+    kind: 'textual',
+  };
 }
 
 /** An insertion point after a word of the edition (or at the segment's start when null). */
@@ -92,7 +103,17 @@ export function insertionSite(segment: SegmentViewClient, afterTokenId: Id | nul
     at = range ? range.to : segment.baseUnits.length;
   }
   const existing = segment.collation.sites.find((s) => s.baseFrom === at && s.baseTo === at);
-  return existing ?? { index: -1, columnFrom: 0, columnTo: 0, baseFrom: at, baseTo: at, readings: [], kind: 'textual' };
+  return (
+    existing ?? {
+      index: -1,
+      columnFrom: 0,
+      columnTo: 0,
+      baseFrom: at,
+      baseTo: at,
+      readings: [],
+      kind: 'textual',
+    }
+  );
 }
 
 export interface WitnessWord {
@@ -111,7 +132,8 @@ export function witnessIndex(segments: Iterable<SegmentViewClient>): Map<Id, Wit
         if (reading.base) continue;
         for (const textId of reading.textIds) {
           for (const unit of reading.units[textId] ?? []) {
-            for (const tokenId of unit.tokenIds) out.set(tokenId, { segmentId: segment.segmentId, site, reading, textId });
+            for (const tokenId of unit.tokenIds)
+              out.set(tokenId, { segmentId: segment.segmentId, site, reading, textId });
           }
         }
       }
@@ -143,7 +165,10 @@ export interface ClassOptions {
 }
 
 /** Classes for the edition's words: variant sites dotted, the active site lit, sources tinted on request. */
-export function tokenClassesFor(segments: Iterable<SegmentViewClient>, options: ClassOptions): Record<Id, string> {
+export function tokenClassesFor(
+  segments: Iterable<SegmentViewClient>,
+  options: ClassOptions,
+): Record<Id, string> {
   const out: Record<Id, string> = {};
   const add = (id: Id, className: string) => {
     out[id] = out[id] ? `${out[id]} ${className}` : className;
@@ -151,7 +176,8 @@ export function tokenClassesFor(segments: Iterable<SegmentViewClient>, options: 
   for (const segment of segments) {
     for (const site of segment.collation.sites) {
       if (!siteShows(segment, site)) continue;
-      const active = options.active?.segmentId === segment.segmentId && options.active.siteIndex === site.index;
+      const active =
+        options.active?.segmentId === segment.segmentId && options.active.siteIndex === site.index;
       for (const id of siteTokenIds(site, segment.baseUnits)) {
         add(id, 'vs-site');
         if (active) add(id, 'vs-active');
@@ -170,14 +196,20 @@ export function tokenClassesFor(segments: Iterable<SegmentViewClient>, options: 
 }
 
 /** The active site for a selection: the site covering the caret's (or first selected) word. */
-export function activeSiteFor(segments: Iterable<SegmentViewClient>, tokenIds: Id[], caret: Id | null): ActiveSite | null {
+export function activeSiteFor(
+  segments: Iterable<SegmentViewClient>,
+  tokenIds: Id[],
+  caret: Id | null,
+): ActiveSite | null {
   const wanted = caret ? [caret, ...tokenIds] : tokenIds;
   for (const segment of segments) {
     for (const site of segment.collation.sites) {
       const ids = new Set(siteTokenIds(site, segment.baseUnits));
       // The site of a witness lacking the segment is the caret's only when the whole segment is selected.
-      if (site.wanting && !(tokenIds.length > 0 && [...ids].every((id) => tokenIds.includes(id)))) continue;
-      if (wanted.some((id) => ids.has(id))) return { segmentId: segment.segmentId, siteIndex: site.index };
+      if (site.wanting && !(tokenIds.length > 0 && [...ids].every((id) => tokenIds.includes(id))))
+        continue;
+      if (wanted.some((id) => ids.has(id)))
+        return { segmentId: segment.segmentId, siteIndex: site.index };
     }
   }
   return null;
@@ -213,10 +245,18 @@ export function stepSite(
 ): SiteRef | null {
   const all = sitesInOrder(order, views);
   if (all.length === 0) return null;
-  const at = active ? all.findIndex((r) => r.segmentId === active.segmentId && r.site.index === active.siteIndex) : -1;
-  const isDone = (ref: SiteRef) => (reviewed[ref.segmentId] ?? []).includes(siteKey(ref.site, views[ref.segmentId]!.baseUnits));
+  const at = active
+    ? all.findIndex((r) => r.segmentId === active.segmentId && r.site.index === active.siteIndex)
+    : -1;
+  const isDone = (ref: SiteRef) =>
+    (reviewed[ref.segmentId] ?? []).includes(siteKey(ref.site, views[ref.segmentId]!.baseUnits));
   for (let step = 1; step <= all.length; step++) {
-    const index = at < 0 ? (direction === 1 ? step - 1 : all.length - step) : (at + direction * step + all.length * step) % all.length;
+    const index =
+      at < 0
+        ? direction === 1
+          ? step - 1
+          : all.length - step
+        : (at + direction * step + all.length * step) % all.length;
     const ref = all[index]!;
     if (!unreviewedOnly || !isDone(ref)) return ref;
   }
@@ -259,10 +299,15 @@ export function moveLinesOps(stream: Stream, tokenIds: Id[], direction: -1 | 1):
   const lo = direction === -1 ? first - 1 : first;
   const hi = direction === -1 ? last : last + 1;
   const contents = all.slice(lo, hi + 1).map((line) => stream.items.slice(line.from, line.to));
-  const reordered = direction === -1 ? [...contents.slice(1), contents[0]!] : [contents[contents.length - 1]!, ...contents.slice(0, -1)];
+  const reordered =
+    direction === -1
+      ? [...contents.slice(1), contents[0]!]
+      : [contents[contents.length - 1]!, ...contents.slice(0, -1)];
   // The breaks between the lines of the range, in place.
   const breaks = all.slice(lo + 1, hi + 1).map((line) => stream.items[line.from - 1]!);
-  const items = reordered.flatMap((content, k) => (k < breaks.length ? [...content, breaks[k]!] : content));
+  const items = reordered.flatMap((content, k) =>
+    k < breaks.length ? [...content, breaks[k]!] : content,
+  );
   const from = all[lo]!.from;
   const to = all[hi]!.to;
   const ids = stream.items.slice(from, to).map((item) => item.id);
@@ -301,7 +346,9 @@ export function claimTypedWords(before: Stream, ops: Op[]): Op[] {
     if (!item || item.kind !== 'token' || !item.source || item.source.kind === 'editor') continue;
     const form = op.fields.form;
     const norm = op.fields.norm;
-    const lettersChanged = (typeof form === 'string' && form !== item.form) || (typeof norm === 'string' && norm !== (item.norm ?? item.form));
+    const lettersChanged =
+      (typeof form === 'string' && form !== item.form) ||
+      (typeof norm === 'string' && norm !== (item.norm ?? item.form));
     if (!lettersChanged) continue;
     claimed.add(op.id);
     out.push({ t: 'set', id: op.id, fields: { source: { kind: 'editor' } } });
@@ -315,12 +362,17 @@ export function claimTypedWords(before: Stream, ops: Op[]): Op[] {
  * several, keeping its source, its segment start and its place. Nothing when
  * the witness no longer has the word: that is a matter for the apparatus.
  */
-export function takeCurrentOps(stream: Stream, drift: { tokenId: Id; now: string }, ids: () => Id = newId): Op[] {
+export function takeCurrentOps(
+  stream: Stream,
+  drift: { tokenId: Id; now: string },
+  ids: () => Id = newId,
+): Op[] {
   const token = stream.items.find((item) => item.id === drift.tokenId);
   if (!token || token.kind !== 'token') return [];
   const parts = drift.now.split(/\s+/u).filter(Boolean);
   if (parts.length === 0) return [];
-  if (parts.length === 1) return parts[0] === token.form ? [] : [{ t: 'set', id: token.id, fields: { form: parts[0]! } }];
+  if (parts.length === 1)
+    return parts[0] === token.form ? [] : [{ t: 'set', id: token.id, fields: { form: parts[0]! } }];
   const items: Token[] = parts.map((form, i) => {
     const next: Token = { kind: 'token', id: i === 0 ? token.id : ids(), form };
     if (token.source) next.source = token.source;

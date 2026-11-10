@@ -49,7 +49,11 @@ function continuesWord(stream: Stream, index: number): boolean {
 }
 
 /** `n` labels from `start`, each the next of the one before; shorter when no label follows. */
-export function labelSequence(start: string, n: number, next: (label: string) => string | null): string[] {
+export function labelSequence(
+  start: string,
+  n: number,
+  next: (label: string) => string | null,
+): string[] {
   const out: string[] = [];
   let label: string | null = start;
   while (label !== null && out.length < n) {

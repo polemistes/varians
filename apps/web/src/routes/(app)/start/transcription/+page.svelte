@@ -12,14 +12,24 @@
 
 <PageFrame title={t.transcription.title} width="reading">
   <div class="flex flex-col gap-6">
-    <SearchForm action="/start/transcription" query={data.q} label={site.witnesses.search} placeholder={site.witnesses.placeholder} />
+    <SearchForm
+      action="/start/transcription"
+      query={data.q}
+      label={site.witnesses.search}
+      placeholder={site.witnesses.placeholder}
+    />
     {#if data.witnesses.length}
-      <WitnessLinks items={data.witnesses} href={(witness) => `/witnesses/${witness.slug}?transcribe=1`} action={t.transcription.choose} />
+      <WitnessLinks
+        items={data.witnesses}
+        href={(witness) => `/witnesses/${witness.slug}?transcribe=1`}
+        action={t.transcription.choose}
+      />
     {:else}
       <p class="font-sans text-sm text-ink-soft">{data.q ? t.noneFor(data.q) : t.none}</p>
     {/if}
     <div>
-      <Button href="/witnesses/new" variant="secondary" size="sm">{t.transcription.register}</Button>
+      <Button href="/witnesses/new" variant="secondary" size="sm">{t.transcription.register}</Button
+      >
     </div>
   </div>
 </PageFrame>

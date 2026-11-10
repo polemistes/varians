@@ -9,7 +9,18 @@ import type { HistoryStrings } from '../strings/history.ts';
 import type { ChangeCounts } from './types.ts';
 
 export function emptyCounts(): ChangeCounts {
-  return { added: 0, removed: 0, changed: 0, moved: 0, breaksAdded: 0, breaksRemoved: 0, breaksMoved: 0, objectsAdded: 0, objectsRemoved: 0, objectsChanged: 0 };
+  return {
+    added: 0,
+    removed: 0,
+    changed: 0,
+    moved: 0,
+    breaksAdded: 0,
+    breaksRemoved: 0,
+    breaksMoved: 0,
+    objectsAdded: 0,
+    objectsRemoved: 0,
+    objectsChanged: 0,
+  };
 }
 
 type Happening = 'added' | 'removed' | 'changed' | 'moved';
@@ -90,7 +101,10 @@ export function addCounts(a: ChangeCounts, b: ChangeCounts): ChangeCounts {
 }
 
 /** "3 words added, 1 changed, 1 line break added", or the strings' "no change". */
-export function describeCounts(counts: ChangeCounts, t: Pick<HistoryStrings, 'words' | 'noChange'>): string {
+export function describeCounts(
+  counts: ChangeCounts,
+  t: Pick<HistoryStrings, 'words' | 'noChange'>,
+): string {
   const parts: string[] = [];
   // The first count of words names them; the ones after it do not need to.
   const words = (n: number, phrase: (n: number, noun: boolean) => string) => {

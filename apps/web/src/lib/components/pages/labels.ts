@@ -72,8 +72,19 @@ export function romanValue(text: string): number | null {
 
 export function toRoman(n: number, upper = false): string {
   const table: [number, string][] = [
-    [1000, 'm'], [900, 'cm'], [500, 'd'], [400, 'cd'], [100, 'c'], [90, 'xc'],
-    [50, 'l'], [40, 'xl'], [10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i'],
+    [1000, 'm'],
+    [900, 'cm'],
+    [500, 'd'],
+    [400, 'cd'],
+    [100, 'c'],
+    [90, 'xc'],
+    [50, 'l'],
+    [40, 'xl'],
+    [10, 'x'],
+    [9, 'ix'],
+    [5, 'v'],
+    [4, 'iv'],
+    [1, 'i'],
   ];
   let rest = n;
   let out = '';
@@ -106,18 +117,34 @@ function readValues(text: string): Value[] {
     });
   }
   const number = /^(.*?)(\d+)$/u.exec(text);
-  if (number) out.push({ kind: 'number', prefix: number[1]!, n: Number(number[2]), width: widthOf(number[2]!) });
+  if (number)
+    out.push({
+      kind: 'number',
+      prefix: number[1]!,
+      n: Number(number[2]),
+      width: widthOf(number[2]!),
+    });
   const roman = /^(|.*[^\p{L}])([ivxlcdm]+|[IVXLCDM]+)$/u.exec(text);
   if (roman) {
     const value = romanValue(roman[2]!);
     if (value !== null && value < 4000) {
-      out.push({ kind: 'roman', prefix: roman[1]!, n: value, upper: roman[2] === roman[2]!.toUpperCase() });
+      out.push({
+        kind: 'roman',
+        prefix: roman[1]!,
+        n: value,
+        upper: roman[2] === roman[2]!.toUpperCase(),
+      });
     }
   }
   const letter = /^(|.*[^\p{L}])([a-zA-Z])$/u.exec(text);
   if (letter) {
     const ch = letter[2]!;
-    out.push({ kind: 'letter', prefix: letter[1]!, n: ch.toLowerCase().charCodeAt(0), upper: ch === ch.toUpperCase() });
+    out.push({
+      kind: 'letter',
+      prefix: letter[1]!,
+      n: ch.toLowerCase().charCodeAt(0),
+      upper: ch === ch.toUpperCase(),
+    });
   }
   return out;
 }
@@ -150,7 +177,9 @@ function ordinal(value: Value): number {
 
 /** The value at an ordinal, in the manner of `like`. */
 function atOrdinal(like: Value, i: number): Value {
-  return like.kind === 'folio' ? { ...like, n: Math.floor(i / 2), side: i % 2 === 0 ? 'r' : 'v' } : { ...like, n: i };
+  return like.kind === 'folio'
+    ? { ...like, n: Math.floor(i / 2), side: i % 2 === 0 ? 'r' : 'v' }
+    : { ...like, n: i };
 }
 
 /** The second end may repeat the prefix of the first or leave it out. */
@@ -178,7 +207,8 @@ function planPart(part: string): Plan {
       const a = leftValues.find((v) => v.kind === kind);
       const b = rightValues.find((v) => v.kind === kind);
       if (!a || !b) continue;
-      if (!samePrefix(a.prefix, b.prefix)) return { kind: 'error', error: pageStrings.labels.prefixes(text) };
+      if (!samePrefix(a.prefix, b.prefix))
+        return { kind: 'error', error: pageStrings.labels.prefixes(text) };
       const from = ordinal(a);
       const to = ordinal(b);
       if (to < from) return { kind: 'error', error: pageStrings.labels.backwards(text) };
@@ -188,7 +218,8 @@ function planPart(part: string): Plan {
   }
   if (DASH.test(text[0] ?? '') || DASH.test(text[text.length - 1] ?? '')) {
     const end = text.replace(/^[-‐‑‒–—]\s*|\s*[-‐‑‒–—]$/gu, '');
-    if (readValues(end).length > 0) return { kind: 'error', error: pageStrings.labels.incomplete(text) };
+    if (readValues(end).length > 0)
+      return { kind: 'error', error: pageStrings.labels.incomplete(text) };
   }
   if (mismatch) return { kind: 'error', error: mismatch };
   const problem = labelProblem(text);
@@ -217,7 +248,8 @@ export function expandLabels(spec: string, max = MAX_PAGES_AT_ONCE): ExpandResul
   for (const plan of plans) {
     if (plan.kind === 'label') labels.push(plan.label);
     else if (plan.kind === 'range') {
-      for (let i = ordinal(plan.from); i <= plan.to; i++) labels.push(render(atOrdinal(plan.from, i)));
+      for (let i = ordinal(plan.from); i <= plan.to; i++)
+        labels.push(render(atOrdinal(plan.from, i)));
     }
   }
   return { ok: true, labels };

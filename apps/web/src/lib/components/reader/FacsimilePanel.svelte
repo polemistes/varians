@@ -32,7 +32,13 @@
   const current = $derived(sigla.find((x) => x.siglum === siglum) ?? null);
   const transcriptionId = $derived(current?.transcriptionId ?? null);
 
-  type ZoneRow = { id: string; pageId: string; geometry: ZoneGeometry; tokenIds: string[]; feature: unknown };
+  type ZoneRow = {
+    id: string;
+    pageId: string;
+    geometry: ZoneGeometry;
+    tokenIds: string[];
+    feature: unknown;
+  };
   type PageRow = {
     id: string;
     label: string;
@@ -49,7 +55,15 @@
     | { kind: 'unplaced' }
     | { kind: 'failed' }
     | { kind: 'no-image'; label: string | null }
-    | { kind: 'image'; pageId: string; label: string; source: FacsimileSource; zones: FacsimileZone[]; rights: string | null; attribution: string | null };
+    | {
+        kind: 'image';
+        pageId: string;
+        label: string;
+        source: FacsimileSource;
+        zones: FacsimileZone[];
+        rights: string | null;
+        attribution: string | null;
+      };
 
   let view = $state<State>({ kind: 'idle' });
   /** The page shown, so that moving within one page fetches nothing. */
@@ -57,7 +71,8 @@
 
   // The words on screen in this witness, so that a page can be found before anything is lit.
   $effect(() => {
-    if (transcriptionId && segmentIds.length) void texts.load(transcriptionId, segmentIds.slice(0, 3));
+    if (transcriptionId && segmentIds.length)
+      void texts.load(transcriptionId, segmentIds.slice(0, 3));
   });
 
   const target = $derived.by(() => {
@@ -90,7 +105,11 @@
         const base = `/api/transcriptions/${encodeURIComponent(tid)}/zones`;
         // The page the word stands on; for a word not loaded yet, the page of its box.
         const standing = texts.holds(tid, token) ? texts.pageOf(tid, token) : undefined;
-        const pageId = standing === undefined ? (await json<{ zones: ZoneRow[] }>(`${base}?tokens=${encodeURIComponent(token)}`)).zones[0]?.pageId : standing;
+        const pageId =
+          standing === undefined
+            ? (await json<{ zones: ZoneRow[] }>(`${base}?tokens=${encodeURIComponent(token)}`))
+                .zones[0]?.pageId
+            : standing;
         if (cancelled) return;
         if (!pageId) {
           view = { kind: standing === null ? 'unplaced' : 'none' };
@@ -100,7 +119,9 @@
         const key = `${tid}|${pageId}`;
         if (key === shownFor && view.kind === 'image') return;
         if (view.kind !== 'image') view = { kind: 'loading' };
-        const page = await json<{ zones: ZoneRow[]; pages: PageRow[] }>(`${base}?page=${encodeURIComponent(pageId)}`);
+        const page = await json<{ zones: ZoneRow[]; pages: PageRow[] }>(
+          `${base}?page=${encodeURIComponent(pageId)}`,
+        );
         if (cancelled) return;
         const row = page.pages.find((p) => p.id === pageId);
         shownFor = key;
@@ -132,10 +153,16 @@
   });
 
   const litSet = $derived(new Set(lit));
-  const litZones = $derived(view.kind === 'image' ? view.zones.filter((z) => z.tokenIds.some((id) => litSet.has(id))).map((z) => z.id) : []);
+  const litZones = $derived(
+    view.kind === 'image'
+      ? view.zones.filter((z) => z.tokenIds.some((id) => litSet.has(id))).map((z) => z.id)
+      : [],
+  );
 
   // OpenSeadragon needs the window: the viewer is loaded in the browser, when the panel first shows an image.
-  let Viewer = $state<typeof import('$lib/components/facsimile/FacsimileViewer.svelte').default | null>(null);
+  let Viewer = $state<
+    typeof import('$lib/components/facsimile/FacsimileViewer.svelte').default | null
+  >(null);
   $effect(() => {
     if (view.kind === 'image' && !Viewer) {
       void import('$lib/components/facsimile/FacsimileViewer.svelte').then((m) => {
@@ -163,7 +190,13 @@
         options={sigla.map((x) => ({ value: x.siglum, label: `${x.siglum}  ${x.witnessName}` }))}
       />
     {/if}
-    <button type="button" class="panel-close" aria-label={r.panels.close(r.toolbar.facsimile)} title={r.panels.close(r.toolbar.facsimile)} onclick={onclose}>
+    <button
+      type="button"
+      class="panel-close"
+      aria-label={r.panels.close(r.toolbar.facsimile)}
+      title={r.panels.close(r.toolbar.facsimile)}
+      onclick={onclose}
+    >
       <X class="size-4" aria-hidden="true" />
     </button>
   </header>
@@ -172,7 +205,9 @@
     {#if !transcriptionId}
       <p class="notice">{r.panels.noTranscription}</p>
     {:else if view.kind === 'loading' || (view.kind === 'idle' && texts.loading > 0)}
-      <div class="grid h-40 place-items-center"><Spinner label={r.panels.facsimileLoading} class="text-ink-muted" /></div>
+      <div class="grid h-40 place-items-center">
+        <Spinner label={r.panels.facsimileLoading} class="text-ink-muted" />
+      </div>
     {:else if view.kind === 'idle'}
       <p class="notice">{r.panels.facsimileHint}</p>
     {:else if view.kind === 'none'}
@@ -200,11 +235,17 @@
             }}
           />
         {:else}
-          <div class="grid h-full place-items-center"><Spinner label={r.panels.facsimileLoading} class="text-ink-muted" /></div>
+          <div class="grid h-full place-items-center">
+            <Spinner label={r.panels.facsimileLoading} class="text-ink-muted" />
+          </div>
         {/if}
         <span class="page-label">{r.panels.page(view.label)}</span>
       </div>
-      <ImageCredit rights={view.rights} attribution={view.attribution} class="border-t border-line px-3 py-1.5" />
+      <ImageCredit
+        rights={view.rights}
+        attribution={view.attribution}
+        class="border-t border-line px-3 py-1.5"
+      />
     {/if}
   </div>
 </section>

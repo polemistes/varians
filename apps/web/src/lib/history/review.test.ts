@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { applyOps, fromText, indexOf, sequentialIds, type Op, type Stream, type Token } from '@varians/core';
+import {
+  applyOps,
+  fromText,
+  indexOf,
+  sequentialIds,
+  type Op,
+  type Stream,
+  type Token,
+} from '@varians/core';
 import { diffStates } from './diff.ts';
 import { cellText } from './placement.ts';
 import { clipCells, positionIn, slimLine, touchedLines } from './review.ts';
@@ -48,7 +56,9 @@ describe('touchedLines', () => {
   });
 
   it('shows an addition in the new line and the old line it went into', () => {
-    const lines = touched([{ t: 'insert', after: 't4', items: [{ kind: 'token', id: 'n', form: 'x' }] }]);
+    const lines = touched([
+      { t: 'insert', after: 't4', items: [{ kind: 'token', id: 'n', form: 'x' }] },
+    ]);
     expect(lines.before.map(show)).toEqual(['d e f']);
     expect(lines.after.map(show)).toEqual(['+x+ d e f']);
   });
@@ -57,7 +67,9 @@ describe('touchedLines', () => {
     const joined = touched([{ t: 'delete', ids: ['t4'] }]);
     expect(joined.before.map(show)).toEqual(['a b c -¶-']);
     expect(joined.after.map(show)).toEqual(['a b c d e f']);
-    const divided = touched([{ t: 'insert', after: 't2', items: [{ kind: 'break', id: 'nb', type: 'line' }] }]);
+    const divided = touched([
+      { t: 'insert', after: 't2', items: [{ kind: 'break', id: 'nb', type: 'line' }] },
+    ]);
     expect(divided.after.map(show)).toEqual(['+¶+ c']);
     expect(divided.before.map(show)).toEqual(['a b c']);
   });
@@ -105,11 +117,31 @@ describe('clipCells', () => {
     author: null,
   });
   it('keeps changes with their context and folds the rest into one ellipsis each', () => {
-    const cells = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'].map((id) => cell(id, id === 'b' || id === 'h'));
-    expect(clipCells(cells, 1).map((c) => (c ? c.item.id : '…'))).toEqual(['a', 'b', 'c', '…', 'g', 'h', 'i']);
+    const cells = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'].map((id) =>
+      cell(id, id === 'b' || id === 'h'),
+    );
+    expect(clipCells(cells, 1).map((c) => (c ? c.item.id : '…'))).toEqual([
+      'a',
+      'b',
+      'c',
+      '…',
+      'g',
+      'h',
+      'i',
+    ]);
     // One word left out at the edge, or between two kept stretches, stays.
-    const short = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((id) => cell(id, id === 'c' || id === 'g'));
-    expect(clipCells(short, 1).map((c) => (c ? c.item.id : '…'))).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g']);
+    const short = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((id) =>
+      cell(id, id === 'c' || id === 'g'),
+    );
+    expect(clipCells(short, 1).map((c) => (c ? c.item.id : '…'))).toEqual([
+      'a',
+      'b',
+      'c',
+      'd',
+      'e',
+      'f',
+      'g',
+    ]);
   });
 });
 
@@ -126,12 +158,16 @@ describe('positionIn', () => {
 
   it('places a change whose words are gone after the nearest word still standing', () => {
     const before = text();
-    const added = applyOps(before, [{ t: 'insert', after: 't2', items: [{ kind: 'token', id: 'n', form: 'x' }] }]).stream;
+    const added = applyOps(before, [
+      { t: 'insert', after: 't2', items: [{ kind: 'token', id: 'n', form: 'x' }] },
+    ]).stream;
     const gone = applyOps(added, [{ t: 'delete', ids: ['n'] }]).stream;
     const current = indexOf(gone);
     expect(positionIn(current, diffStates(before, added), added)).toBe(1.5);
     expect(positionIn(current, diffStates(before, added))).toBe(Number.MAX_SAFE_INTEGER);
-    const first = applyOps(before, [{ t: 'insert', after: null, items: [{ kind: 'token', id: 'm', form: 'y' }] }]).stream;
+    const first = applyOps(before, [
+      { t: 'insert', after: null, items: [{ kind: 'token', id: 'm', form: 'y' }] },
+    ]).stream;
     const firstGone = applyOps(first, [{ t: 'delete', ids: ['m'] }]).stream;
     expect(positionIn(indexOf(firstGone), diffStates(before, first), first)).toBe(-0.5);
   });
@@ -139,15 +175,44 @@ describe('positionIn', () => {
 
 describe('slimLine', () => {
   it('leaves out the provenance of tokens and nothing else', () => {
-    const token: Token = { kind: 'token', id: 'a', form: 'a', source: { kind: 'editor' }, segment: { segmentId: 's' } };
+    const token: Token = {
+      kind: 'token',
+      id: 'a',
+      form: 'a',
+      source: { kind: 'editor' },
+      segment: { segmentId: 's' },
+    };
     const line: CompactLine = {
       key: 'a0',
       segmentId: 's',
-      cells: [{ item: token, index: 0, added: true, removed: false, changed: false, moved: false, was: token, fields: [], author: null }, null],
+      cells: [
+        {
+          item: token,
+          index: 0,
+          added: true,
+          removed: false,
+          changed: false,
+          moved: false,
+          was: token,
+          fields: [],
+          author: null,
+        },
+        null,
+      ],
     };
     const slim = slimLine(line);
-    expect(slim.cells[0]!.item).toEqual({ kind: 'token', id: 'a', form: 'a', segment: { segmentId: 's' } });
-    expect(slim.cells[0]!.was).toEqual({ kind: 'token', id: 'a', form: 'a', segment: { segmentId: 's' } });
+    expect(slim.cells[0]!.item).toEqual({
+      kind: 'token',
+      id: 'a',
+      form: 'a',
+      segment: { segmentId: 's' },
+    });
+    expect(slim.cells[0]!.was).toEqual({
+      kind: 'token',
+      id: 'a',
+      form: 'a',
+      segment: { segmentId: 's' },
+    });
     expect(slim.cells[1]).toBeNull();
     expect(token.source).toEqual({ kind: 'editor' });
   });

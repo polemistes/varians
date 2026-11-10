@@ -51,7 +51,9 @@ const OPENERS = new Map<string, Bracket>([
   ['(', { close: ')', kind: 'paren' }],
 ]);
 
-const CLOSERS = new Map<string, string>([...OPENERS].map(([open, bracket]) => [bracket.close, open]));
+const CLOSERS = new Map<string, string>(
+  [...OPENERS].map(([open, bracket]) => [bracket.close, open]),
+);
 
 const COMBINING = /^\p{M}$/u;
 const DOT_BELOW = '̣';
@@ -252,7 +254,8 @@ function gapAttrs(content: string): Obj['attrs'] | null {
     return { reason: 'lost', unit: 'character', quantity: (content.match(/[.+]/gu) ?? []).length };
   }
   const circa = GAP_CIRCA.exec(content);
-  if (circa) return { reason: 'lost', unit: 'character', quantity: Number(circa[1]), precision: 'low' };
+  if (circa)
+    return { reason: 'lost', unit: 'character', quantity: Number(circa[1]), precision: 'low' };
   const number = GAP_NUMBER.exec(content);
   if (number) return { reason: 'lost', unit: 'character', quantity: Number(number[1]) };
   return null;
@@ -263,7 +266,9 @@ const VACAT = /^vac(?:at|\.)?\s*(\d+)?$/iu;
 function parenthesis(ctx: Context, content: string, at: number): void {
   const trimmed = content.trim();
   if (trimmed === '?') {
-    ctx.warnings.push(`"(?)" on line ${lineOf(ctx.chars, at)} dropped: uncertainty of a reading is not recorded.`);
+    ctx.warnings.push(
+      `"(?)" on line ${lineOf(ctx.chars, at)} dropped: uncertainty of a reading is not recorded.`,
+    );
     return;
   }
   const vacat = VACAT.exec(trimmed);
@@ -369,12 +374,21 @@ function flushToken(ctx: Context): void {
     return;
   }
   const previous = ctx.items[ctx.items.length - 1];
-  if (!building.abbr && unmarked && /^\d+$/u.test(form) && isObj(previous) && previous.type === 'space' && !previous.attrs) {
+  if (
+    !building.abbr &&
+    unmarked &&
+    /^\d+$/u.test(form) &&
+    isObj(previous) &&
+    previous.type === 'space' &&
+    !previous.attrs
+  ) {
     previous.attrs = { unit: 'character', quantity: Number(form) };
     return;
   }
   if (form === '') {
-    ctx.warnings.push(`"(${building.expansion})" has no abbreviated letters before it; the expansion is used as the form.`);
+    ctx.warnings.push(
+      `"(${building.expansion})" has no abbreviated letters before it; the expansion is used as the form.`,
+    );
     form = building.expansion;
   }
   const token: Token = { kind: 'token', id: ctx.ids(), form };
@@ -466,7 +480,8 @@ function objectLeiden(obj: Obj): string | null {
   const attrs = obj.attrs ?? {};
   if (obj.type === 'gap') {
     const quantity = typeof attrs.quantity === 'number' ? attrs.quantity : null;
-    if (attrs.reason === 'illegible') return quantity === null ? '---' : '.'.repeat(Math.min(quantity, 12));
+    if (attrs.reason === 'illegible')
+      return quantity === null ? '---' : '.'.repeat(Math.min(quantity, 12));
     if (quantity === null || attrs.extent === 'unknown') return '[---]';
     if (attrs.precision === 'low') return `[ca. ${quantity}]`;
     return quantity <= 12 ? `[${'.'.repeat(quantity)}]` : `[${quantity}]`;
@@ -501,7 +516,8 @@ function tokenLeiden(token: Token): string {
       expansion = placed.text;
       continue;
     }
-    const key = mark.kind === 'supplied' && mark.attrs?.reason === 'omitted' ? 'omitted' : mark.kind;
+    const key =
+      mark.kind === 'supplied' && mark.attrs?.reason === 'omitted' ? 'omitted' : mark.kind;
     const pair = BRACKETS[key];
     if (!pair) continue;
     opens[from]!.push(pair[0]);

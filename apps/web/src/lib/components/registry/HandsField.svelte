@@ -30,11 +30,25 @@
 
   // The initial hands only; the fields own them from here on.
   let rows = $state<Row[]>(
-    untrack(() => parseHandsJson(value).map((h) => ({ id: h.id, label: h.label, description: h.description ?? '', main: h.main }))),
+    untrack(() =>
+      parseHandsJson(value).map((h) => ({
+        id: h.id,
+        label: h.label,
+        description: h.description ?? '',
+        main: h.main,
+      })),
+    ),
   );
   const message = $derived(Array.isArray(error) ? error[0] : error || undefined);
   const payload = $derived(
-    JSON.stringify(rows.map((r) => ({ id: r.id, label: r.label, description: r.description || null, main: r.main }))),
+    JSON.stringify(
+      rows.map((r) => ({
+        id: r.id,
+        label: r.label,
+        description: r.description || null,
+        main: r.main,
+      })),
+    ),
   );
 
   function add() {
@@ -52,7 +66,10 @@
   }
 </script>
 
-<fieldset class="flex flex-col gap-2 font-sans" aria-describedby={message ? `hands-${uid}-error` : undefined}>
+<fieldset
+  class="flex flex-col gap-2 font-sans"
+  aria-describedby={message ? `hands-${uid}-error` : undefined}
+>
   <legend class="mb-1.5 text-sm font-medium text-ink">{s.hands}</legend>
   <input type="hidden" name="hands" value={payload} />
   {#if rows.length}
@@ -62,10 +79,30 @@
       <span class="text-xs text-ink-soft">{s.handMain}</span>
       <span></span>
       {#each rows as row, k (k)}
-        <Input bind:value={row.label} aria-label={s.handLabel} autocomplete="off" maxlength={40} class="font-serif text-base" />
-        <Input bind:value={row.description} aria-label={s.handDescription} autocomplete="off" maxlength={500} />
-        <input type="radio" name="hands-main-{uid}" checked={row.main} onchange={() => setMain(k)} aria-label={s.handMainOf(row.label)} class="size-4 justify-self-center accent-accent" />
-        <IconButton label={s.removeHand(row.label)} onclick={() => remove(k)}><X aria-hidden="true" /></IconButton>
+        <Input
+          bind:value={row.label}
+          aria-label={s.handLabel}
+          autocomplete="off"
+          maxlength={40}
+          class="font-serif text-base"
+        />
+        <Input
+          bind:value={row.description}
+          aria-label={s.handDescription}
+          autocomplete="off"
+          maxlength={500}
+        />
+        <input
+          type="radio"
+          name="hands-main-{uid}"
+          checked={row.main}
+          onchange={() => setMain(k)}
+          aria-label={s.handMainOf(row.label)}
+          class="size-4 justify-self-center accent-accent"
+        />
+        <IconButton label={s.removeHand(row.label)} onclick={() => remove(k)}
+          ><X aria-hidden="true" /></IconButton
+        >
       {/each}
     </div>
   {/if}

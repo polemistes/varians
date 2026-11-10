@@ -92,7 +92,8 @@ export function segmentOfItems(lines: LayoutLine[]): Map<string, string | null> 
   let current: string | null = null;
   for (const line of lines) {
     for (const item of line.items) {
-      if ((item.kind === 'token' || item.kind === 'object') && item.segment) current = item.segment.segmentId;
+      if ((item.kind === 'token' || item.kind === 'object') && item.segment)
+        current = item.segment.segmentId;
       out.set(item.id, current);
     }
   }
@@ -100,7 +101,11 @@ export function segmentOfItems(lines: LayoutLine[]): Map<string, string | null> 
 }
 
 /** The label printed beside each line: as the edition sets them, or every line where a segment begins. */
-export function lineLabels(lines: LayoutLine[], labelOf: Record<string, string>, mode: 'edition' | 'every'): (string | null)[] {
+export function lineLabels(
+  lines: LayoutLine[],
+  labelOf: Record<string, string>,
+  mode: 'edition' | 'every',
+): (string | null)[] {
   if (mode === 'edition') return lines.map((line) => line.label);
   return lines.map((line) => {
     const id = firstStart(line);
@@ -109,7 +114,10 @@ export function lineLabels(lines: LayoutLine[], labelOf: Record<string, string>,
 }
 
 /** Segments that begin within a line, after its first item: the item where each begins, with its label. */
-export function inlineStarts(lines: LayoutLine[], labelOf: Record<string, string>): Map<string, string> {
+export function inlineStarts(
+  lines: LayoutLine[],
+  labelOf: Record<string, string>,
+): Map<string, string> {
   const map = new Map<string, string>();
   for (const line of lines) {
     for (const start of line.starts) {
@@ -128,7 +136,8 @@ export function resolveFocus(
 ): { segmentId: string; label: string } | { missing: string } | null {
   if (!param) return null;
   const wanted = param.trim();
-  for (const [segmentId, label] of Object.entries(labelOf)) if (label === wanted) return { segmentId, label };
+  for (const [segmentId, label] of Object.entries(labelOf))
+    if (label === wanted) return { segmentId, label };
   if (labelOf[wanted] !== undefined) return { segmentId: wanted, label: labelOf[wanted]! };
   return { missing: wanted };
 }
@@ -137,7 +146,10 @@ export function resolveFocus(
  * Where a siglum is absent, as ranges of consecutive segments in the order
  * of the edition: `[['1.3', '1.3'], ['1.6', '1.8']]`.
  */
-export function absentRanges(order: { label: string; absent: string[] }[], siglum: string): [string, string][] {
+export function absentRanges(
+  order: { label: string; absent: string[] }[],
+  siglum: string,
+): [string, string][] {
   const out: [string, string][] = [];
   let open: [string, string] | null = null;
   for (const segment of order) {

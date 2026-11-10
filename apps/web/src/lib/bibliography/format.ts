@@ -10,8 +10,31 @@ export interface Piece {
   italic?: boolean;
 }
 
-const BOOKISH = new Set(['book', 'mvbook', 'collection', 'mvcollection', 'proceedings', 'mvproceedings', 'thesis', 'report', 'online', 'manual', 'misc', 'reference', 'mvreference', 'unpublished']);
-const PART_OF_BOOK = new Set(['incollection', 'inproceedings', 'inbook', 'bookinbook', 'inreference', 'suppbook', 'suppcollection']);
+const BOOKISH = new Set([
+  'book',
+  'mvbook',
+  'collection',
+  'mvcollection',
+  'proceedings',
+  'mvproceedings',
+  'thesis',
+  'report',
+  'online',
+  'manual',
+  'misc',
+  'reference',
+  'mvreference',
+  'unpublished',
+]);
+const PART_OF_BOOK = new Set([
+  'incollection',
+  'inproceedings',
+  'inbook',
+  'bookinbook',
+  'inreference',
+  'suppbook',
+  'suppcollection',
+]);
 
 function field(entry: BibEntry, name: string): string {
   const value = entry.fields[name];
@@ -58,7 +81,11 @@ export function referencePieces(entry: BibEntry): Piece[] {
   const authors = namesOf(entry, 'author');
   const editors = namesOf(entry, 'editor');
   const pieces: Piece[] = [];
-  const responsible = authors.length ? formatNames(authors) : editors.length ? edited(editors) : field(entry, 'organization') || field(entry, 'institution');
+  const responsible = authors.length
+    ? formatNames(authors)
+    : editors.length
+      ? edited(editors)
+      : field(entry, 'organization') || field(entry, 'institution');
   if (responsible) pieces.push({ text: `${sentence(responsible)} ` });
   pieces.push({ text: `${year(entry)}. ` });
 
@@ -86,15 +113,24 @@ export function referencePieces(entry: BibEntry): Piece[] {
     if (title) pieces.push({ text: title, italic: BOOKISH.has(entry.type) || !entry.type });
     const edition = field(entry, 'edition');
     pieces.push({ text: '. ' });
-    if (edition) pieces.push({ text: /^\d+$/u.test(edition) ? `${ordinal(Number(edition))} edn. ` : sentence(edition) + ' ' });
-    if (authors.length && editors.length) pieces.push({ text: `${sentence(`Edited by ${formatNames(editors)}`)} ` });
+    if (edition)
+      pieces.push({
+        text: /^\d+$/u.test(edition)
+          ? `${ordinal(Number(edition))} edn. `
+          : sentence(edition) + ' ',
+      });
+    if (authors.length && editors.length)
+      pieces.push({ text: `${sentence(`Edited by ${formatNames(editors)}`)} ` });
     if (location) pieces.push({ text: sentence(location) });
   }
   const doi = field(entry, 'doi');
   const url = field(entry, 'url');
-  if (doi) pieces.push({ text: ` https://doi.org/${doi.replace(/^https?:\/\/(dx\.)?doi\.org\//u, '')}` });
+  if (doi)
+    pieces.push({ text: ` https://doi.org/${doi.replace(/^https?:\/\/(dx\.)?doi\.org\//u, '')}` });
   else if (url) pieces.push({ text: ` ${url}` });
-  return pieces.map((p) => ({ ...p, text: p.text.replace(/\.\./gu, '.') })).filter((p) => p.text !== '');
+  return pieces
+    .map((p) => ({ ...p, text: p.text.replace(/\.\./gu, '.') }))
+    .filter((p) => p.text !== '');
 }
 
 function ordinal(n: number): string {
@@ -111,7 +147,11 @@ export function referenceText(entry: BibEntry): string {
 }
 
 /** "cf. West 1998, 45": the label with what comes before and after it. */
-export function formatCitation(label: string, prenote?: string | null, postnote?: string | null): string {
+export function formatCitation(
+  label: string,
+  prenote?: string | null,
+  postnote?: string | null,
+): string {
   const before = prenote?.trim();
   const after = postnote?.trim();
   return `${before ? `${before} ` : ''}${label}${after ? `, ${after}` : ''}`;

@@ -91,7 +91,11 @@
       if (!open) request = null;
     }
   }
-  title={request ? (request.imageKind ? t.image.replaceTitle(request.label) : t.image.addTitle(request.label)) : ''}
+  title={request
+    ? request.imageKind
+      ? t.image.replaceTitle(request.label)
+      : t.image.addTitle(request.label)
+    : ''}
   size="md"
 >
   {#if request}
@@ -100,7 +104,10 @@
         <Notice kind="warning">{t.replaceImage.zones(request.zones)}</Notice>
       {/if}
       {#if request.file}
-        <p class="text-sm text-ink"><span class="font-medium">{t.image.file}:</span> {request.file.name}</p>
+        <p class="text-sm text-ink">
+          <span class="font-medium">{t.image.file}:</span>
+          {request.file.name}
+        </p>
       {:else}
         <Field label={t.image.file} required error={errors.file}>
           {#snippet children(control)}

@@ -35,19 +35,36 @@ describe('exportEditionTei', () => {
           items: edition.items,
           baseUnits,
           sites: c.sites,
-          attachments: { 0: [{ kind: 'conjecture', id: 'c1', text: 'swift', name: 'Bentley', conjectureKind: 'substitution' }] },
+          attachments: {
+            0: [
+              {
+                kind: 'conjecture',
+                id: 'c1',
+                text: 'swift',
+                name: 'Bentley',
+                conjectureKind: 'substitution',
+              },
+            ],
+          },
         },
       ],
     });
     expect(xml).toContain('<witness xml:id="wit-A" n="A">Codex A</witness>');
-    expect(xml).toContain('<ab n="1.1">the <app><lem wit="#wit-A #wit-C">quick brown</lem><rdg wit="#wit-B">slow</rdg><rdg type="conjecture" resp="Bentley">swift</rdg></app> <app><lem wit="#wit-A #wit-B"/><rdg wit="#wit-C">red</rdg></app> fox<lb/>jumps</ab>');
+    expect(xml).toContain(
+      '<ab n="1.1">the <app><lem wit="#wit-A #wit-C">quick brown</lem><rdg wit="#wit-B">slow</rdg><rdg type="conjecture" resp="Bentley">swift</rdg></app> <app><lem wit="#wit-A #wit-B"/><rdg wit="#wit-C">red</rdg></app> fox<lb/>jumps</ab>',
+    );
   });
 
   it('marks an adopted conjecture on the lemma and a lacunose witness with a gap', () => {
     const edition = fromText('a b c', { ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
     const lacunose = fromText('a c', { ids: sequentialIds('p') });
-    lacunose.items.splice(1, 0, { kind: 'object', id: 'g', type: 'gap', attrs: { reason: 'lost' } });
+    lacunose.items.splice(1, 0, {
+      kind: 'object',
+      id: 'g',
+      type: 'gap',
+      attrs: { reason: 'lost' },
+    });
     const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [
       text('A', 'A', 'a x c'),
       { id: 'P', siglum: 'P', units: units(lacunose, 0, lacunose.items.length) },
@@ -61,18 +78,35 @@ describe('exportEditionTei', () => {
           items: edition.items,
           baseUnits,
           sites: c.sites,
-          attachments: { 0: [{ kind: 'conjecture', id: 'c', text: 'b', name: 'Editor', adopted: true, conjectureKind: 'substitution' }] },
+          attachments: {
+            0: [
+              {
+                kind: 'conjecture',
+                id: 'c',
+                text: 'b',
+                name: 'Editor',
+                adopted: true,
+                conjectureKind: 'substitution',
+              },
+            ],
+          },
         },
       ],
     });
-    expect(xml).toContain('<app><lem resp="Editor">b</lem><rdg wit="#wit-A">x</rdg><rdg wit="#wit-P"><gap reason="lost"/></rdg></app>');
+    expect(xml).toContain(
+      '<app><lem resp="Editor">b</lem><rdg wit="#wit-A">x</rdg><rdg wit="#wit-P"><gap reason="lost"/></rdg></app>',
+    );
   });
 
   it('types the places of the same letters read otherwise as interpretative', () => {
     const edition = fromText('ἦ μέγα', { ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
     const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [text('A', 'A', 'ἢ μέγα')]);
-    const xml = exportEditionTei({ title: 't', witnesses: [{ siglum: 'A' }], segments: [{ label: '1', items: edition.items, baseUnits, sites: c.sites }] });
+    const xml = exportEditionTei({
+      title: 't',
+      witnesses: [{ siglum: 'A' }],
+      segments: [{ label: '1', items: edition.items, baseUnits, sites: c.sites }],
+    });
     expect(xml).toContain('<app type="interpretative"><lem>ἦ</lem><rdg wit="#wit-A">ἢ</rdg></app>');
   });
 
@@ -85,10 +119,17 @@ describe('exportEditionTei', () => {
       { kind: 'object', id: 'st', type: 'paratext', attrs: { type: 'stage' }, text: 'exit' },
     );
     const last = edition.items[edition.items.length - 1]!;
-    if (last.kind === 'token') last.marks = [{ kind: 'variant', attrs: { group: 'g', reading: 'c', place: 'margin' } }];
+    if (last.kind === 'token')
+      last.marks = [{ kind: 'variant', attrs: { group: 'g', reading: 'c', place: 'margin' } }];
     const baseUnits = units(edition, 0, edition.items.length);
-    const xml = exportEditionTei({ title: 't', witnesses: [], segments: [{ label: '1', items: edition.items, baseUnits, sites: [] }] });
-    expect(xml).toContain('<ab n="1"><label type="speaker">ΧΟ.</label> <label type="head">Α</label> <label type="margin">5</label> <stage>exit</stage> a b</ab>');
+    const xml = exportEditionTei({
+      title: 't',
+      witnesses: [],
+      segments: [{ label: '1', items: edition.items, baseUnits, sites: [] }],
+    });
+    expect(xml).toContain(
+      '<ab n="1"><label type="speaker">ΧΟ.</label> <label type="head">Α</label> <label type="margin">5</label> <stage>exit</stage> a b</ab>',
+    );
     expect(xml).not.toContain('<listWit>');
     expect(xml).toContain('<sourceDesc>\n        <p>Edition.</p>\n      </sourceDesc>');
   });

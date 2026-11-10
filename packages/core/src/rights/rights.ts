@@ -17,9 +17,21 @@ export interface LicenceInfo {
 }
 
 const LICENCES: Record<DataLicence, LicenceInfo> = {
-  'CC0-1.0': { id: 'CC0-1.0', name: 'CC0 1.0', url: 'https://creativecommons.org/publicdomain/zero/1.0/' },
-  'CC-BY-4.0': { id: 'CC-BY-4.0', name: 'CC BY 4.0', url: 'https://creativecommons.org/licenses/by/4.0/' },
-  'CC-BY-SA-4.0': { id: 'CC-BY-SA-4.0', name: 'CC BY-SA 4.0', url: 'https://creativecommons.org/licenses/by-sa/4.0/' },
+  'CC0-1.0': {
+    id: 'CC0-1.0',
+    name: 'CC0 1.0',
+    url: 'https://creativecommons.org/publicdomain/zero/1.0/',
+  },
+  'CC-BY-4.0': {
+    id: 'CC-BY-4.0',
+    name: 'CC BY 4.0',
+    url: 'https://creativecommons.org/licenses/by/4.0/',
+  },
+  'CC-BY-SA-4.0': {
+    id: 'CC-BY-SA-4.0',
+    name: 'CC BY-SA 4.0',
+    url: 'https://creativecommons.org/licenses/by-sa/4.0/',
+  },
 };
 
 /** The licence of registry records: works, witnesses, segments, bibliography. */
@@ -52,12 +64,24 @@ export interface RightsStatement {
   copyable: boolean;
 }
 
-const RS = (code: string, label: string, copyable: boolean): RightsStatement => ({ uri: `http://rightsstatements.org/vocab/${code}/1.0/`, label, copyable });
-const CC = (code: string, label: string): RightsStatement => ({ uri: `https://creativecommons.org/licenses/${code}/4.0/`, label, copyable: true });
+const RS = (code: string, label: string, copyable: boolean): RightsStatement => ({
+  uri: `http://rightsstatements.org/vocab/${code}/1.0/`,
+  label,
+  copyable,
+});
+const CC = (code: string, label: string): RightsStatement => ({
+  uri: `https://creativecommons.org/licenses/${code}/4.0/`,
+  label,
+  copyable: true,
+});
 
 /** The rights statements an image may carry, in the order a list offers them. */
 export const IMAGE_RIGHTS: readonly RightsStatement[] = [
-  { uri: 'https://creativecommons.org/publicdomain/mark/1.0/', label: 'Public Domain Mark', copyable: true },
+  {
+    uri: 'https://creativecommons.org/publicdomain/mark/1.0/',
+    label: 'Public Domain Mark',
+    copyable: true,
+  },
   { uri: 'https://creativecommons.org/publicdomain/zero/1.0/', label: 'CC0 1.0', copyable: true },
   CC('by', 'CC BY 4.0'),
   CC('by-sa', 'CC BY-SA 4.0'),
@@ -92,7 +116,7 @@ export function normalizeRights(value: string | null | undefined): string | null
 }
 
 export function rightsStatement(uri: string | null | undefined): RightsStatement | null {
-  return uri ? IMAGE_RIGHTS.find((r) => r.uri === uri) ?? null : null;
+  return uri ? (IMAGE_RIGHTS.find((r) => r.uri === uri) ?? null) : null;
 }
 
 /** Whether an image under this statement may be copied into an archive or package: never when it has none. */

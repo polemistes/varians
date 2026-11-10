@@ -94,7 +94,13 @@
 <section class="panel" aria-labelledby="dictionary-panel-title">
   <header class="panel-header">
     <h2 id="dictionary-panel-title" class="panel-title">{t.title}</h2>
-    <button type="button" class="panel-close" aria-label={r.panels.close(r.toolbar.dictionary)} title={r.panels.close(r.toolbar.dictionary)} onclick={onclose}>
+    <button
+      type="button"
+      class="panel-close"
+      aria-label={r.panels.close(r.toolbar.dictionary)}
+      title={r.panels.close(r.toolbar.dictionary)}
+      onclick={onclose}
+    >
       <X class="size-4" aria-hidden="true" />
     </button>
   </header>
@@ -106,7 +112,14 @@
       void look(typed);
     }}
   >
-    <Input bind:value={typed} placeholder={t.placeholder} aria-label={t.placeholder} lang="grc" autocomplete="off" spellcheck="false" />
+    <Input
+      bind:value={typed}
+      placeholder={t.placeholder}
+      aria-label={t.placeholder}
+      lang="grc"
+      autocomplete="off"
+      spellcheck="false"
+    />
   </form>
 
   <div class="body" lang="en">
@@ -123,12 +136,21 @@
         <ul class="analyses">
           {#each byLemma as group (group.lemma)}
             <li>
-              <button type="button" class={['lemma', group.lemma === lemma && 'chosen']} lang="grc" onclick={() => void open(group.lemma)} aria-pressed={group.lemma === lemma}>
+              <button
+                type="button"
+                class={['lemma', group.lemma === lemma && 'chosen']}
+                lang="grc"
+                onclick={() => void open(group.lemma)}
+                aria-pressed={group.lemma === lemma}
+              >
                 {group.lemma}
               </button>
               <ul class="forms">
                 {#each group.list as a (a.form + a.postag)}
-                  <li><span class="form" lang="grc">{a.form}</span> <span class="parse">{a.description}</span></li>
+                  <li>
+                    <span class="form" lang="grc">{a.form}</span>
+                    <span class="parse">{a.description}</span>
+                  </li>
                 {/each}
               </ul>
             </li>

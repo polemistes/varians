@@ -94,8 +94,10 @@ export const historyStrings = {
   /** Summaries: "3 words added, 1 changed". The first count of words names them. */
   words: {
     added: (n: number, noun = true) => `${n}${noun ? (n === 1 ? ' word' : ' words') : ''} added`,
-    removed: (n: number, noun = true) => `${n}${noun ? (n === 1 ? ' word' : ' words') : ''} removed`,
-    changed: (n: number, noun = true) => `${n}${noun ? (n === 1 ? ' word' : ' words') : ''} changed`,
+    removed: (n: number, noun = true) =>
+      `${n}${noun ? (n === 1 ? ' word' : ' words') : ''} removed`,
+    changed: (n: number, noun = true) =>
+      `${n}${noun ? (n === 1 ? ' word' : ' words') : ''} changed`,
     moved: (n: number, noun = true) => `${n}${noun ? (n === 1 ? ' word' : ' words') : ''} moved`,
     breaksAdded: (n: number) => (n === 1 ? '1 line break added' : `${n} line breaks added`),
     breaksRemoved: (n: number) => (n === 1 ? '1 line break removed' : `${n} line breaks removed`),
@@ -116,7 +118,11 @@ export const historyStrings = {
   reviewUpToDate: 'Nothing left to review.',
   reviewNone: 'No one else has changed the text since then.',
   reviewLeft: (left: number, total: number) =>
-    left === total ? (total === 1 ? '1 change to review' : `${total} changes to review`) : `${left} of ${total} left to review`,
+    left === total
+      ? total === 1
+        ? '1 change to review'
+        : `${total} changes to review`
+      : `${left} of ${total} left to review`,
   reviewed: (n: number) => (n === 1 ? '1 reviewed' : `${n} reviewed`),
   showReviewed: 'Show',
   hideReviewed: 'Hide',
@@ -125,7 +131,8 @@ export const historyStrings = {
   later: 'Later',
   accepted: 'Accepted',
   rejected: (version: number) => `Change ${version} rejected and undone.`,
-  rejectConflict: 'Later changes touched the same words. Rejecting will undo what still can be undone.',
+  rejectConflict:
+    'Later changes touched the same words. Rejecting will undo what still can be undone.',
   rejectAnyway: 'Reject anyway',
   reviewFailed: 'The review could not be saved.',
   before: 'Before',
@@ -138,7 +145,8 @@ export const historyStrings = {
   /** The development page that mounts the panel (routes/(app)/dev/history). */
   dev: {
     title: 'History panel',
-    intro: 'The panel beside the current text of a sample document. Make a few changes, then open moments, undo, bring back and review.',
+    intro:
+      'The panel beside the current text of a sample document. Make a few changes, then open moments, undo, bring back and review.',
     document: 'Document',
     edition: (title: string) => `Edition: ${title}`,
     transcription: (siglum: string, name: string) => `Transcript ${siglum}: ${name}`,

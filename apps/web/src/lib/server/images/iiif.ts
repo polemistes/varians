@@ -123,7 +123,14 @@ function pickByLanguage(entries: { text: string; lang: string }[]): string | nul
   return entries[0].text;
 }
 
-const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+const ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+};
 
 /** Text with markup taken out (IIIF allows a little HTML in values), entities read, in one line. */
 export function plainText(value: string | null): string | null {
@@ -131,7 +138,8 @@ export function plainText(value: string | null): string | null {
   const text = value
     .replace(/<[^>]*>/gu, ' ')
     .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/giu, (whole, name: string) => {
-      if (name.startsWith('#x') || name.startsWith('#X')) return String.fromCodePoint(parseInt(name.slice(2), 16));
+      if (name.startsWith('#x') || name.startsWith('#X'))
+        return String.fromCodePoint(parseInt(name.slice(2), 16));
       if (name.startsWith('#')) return String.fromCodePoint(Number(name.slice(1)));
       return ENTITIES[name.toLowerCase()] ?? whole;
     })
@@ -350,7 +358,14 @@ export function parseManifest(json: unknown, manifestUrl: string): IiifManifest 
   });
 
   if (canvases.length === 0) warnings.push('The manifest has no canvases.');
-  return { label, version, rights: rightsOf(json), attribution: attributionOf(json), canvases, warnings };
+  return {
+    label,
+    version,
+    rights: rightsOf(json),
+    attribution: attributionOf(json),
+    canvases,
+    warnings,
+  };
 }
 
 export interface FetchManifestOptions {
@@ -437,7 +452,8 @@ export async function fetchManifest(
     if (error instanceof Error && error.name === 'AbortError') {
       throw new ManifestError('timeout', `No answer within ${timeoutMs} ms.`);
     }
-    if (error instanceof SafeFetchError) throw new ManifestError('invalid', 'This address cannot be fetched from the server.');
+    if (error instanceof SafeFetchError)
+      throw new ManifestError('invalid', 'This address cannot be fetched from the server.');
     // Network details stay in the log: they would tell a visitor about the server's surroundings.
     console.warn('manifest fetch failed', error);
     throw new ManifestError('fetch', 'The manifest could not be fetched.');

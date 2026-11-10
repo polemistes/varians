@@ -27,8 +27,15 @@ export interface StoredSiglum {
 
 export function normalizeSiglum(row: StoredSiglum): ConspectusEntry {
   const states = row.states ? [...row.states] : [];
-  if (row.originalSiglum && !states.some((s) => s.kind === 'original')) states.unshift({ kind: 'original', siglum: row.originalSiglum });
-  return { siglum: row.siglum, witnessId: row.witnessId, transcriptionId: row.transcriptionId, states, variantSiglum: row.variantSiglum ?? null };
+  if (row.originalSiglum && !states.some((s) => s.kind === 'original'))
+    states.unshift({ kind: 'original', siglum: row.originalSiglum });
+  return {
+    siglum: row.siglum,
+    witnessId: row.witnessId,
+    transcriptionId: row.transcriptionId,
+    states,
+    variantSiglum: row.variantSiglum ?? null,
+  };
 }
 
 /** The id of the collation text of a state: the transcription's id and the state's place in the list. */
@@ -44,7 +51,10 @@ export function handAliases(hand: string, hands: readonly WitnessHand[]): string
 }
 
 /** The state as the core reads it. */
-export function collationStateOf(state: SiglumState, hands: readonly WitnessHand[]): CollationState {
+export function collationStateOf(
+  state: SiglumState,
+  hands: readonly WitnessHand[],
+): CollationState {
   switch (state.kind) {
     case 'original':
       return 'original';

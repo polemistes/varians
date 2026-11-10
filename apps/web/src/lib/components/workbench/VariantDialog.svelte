@@ -63,12 +63,23 @@
     </p>
     <Field label={t.variant.reading} hint={t.variant.readingHint}>
       {#snippet children(control)}
-        <Input {...control} bind:value={reading} autocomplete="off" spellcheck="false" dir="auto" class="font-serif text-base" />
+        <Input
+          {...control}
+          bind:value={reading}
+          autocomplete="off"
+          spellcheck="false"
+          dir="auto"
+          class="font-serif text-base"
+        />
       {/snippet}
     </Field>
     <Field label={t.variant.place}>
       {#snippet children(control)}
-        <Select {...control} bind:value={place} options={Object.entries(t.variant.places).map(([value, label]) => ({ value, label }))} />
+        <Select
+          {...control}
+          bind:value={place}
+          options={Object.entries(t.variant.places).map(([value, label]) => ({ value, label }))}
+        />
       {/snippet}
     </Field>
     <Field label={t.variant.hand}>

@@ -13,7 +13,9 @@
 <PageFrame title={t.title}>
   {#snippet actions()}
     {#if data.user}
-      <Button href="/works/new" variant="secondary" size="sm"><Plus class="size-4" aria-hidden="true" />{t.newWork}</Button>
+      <Button href="/works/new" variant="secondary" size="sm"
+        ><Plus class="size-4" aria-hidden="true" />{t.newWork}</Button
+      >
     {/if}
   {/snippet}
   {#if data.works.length}

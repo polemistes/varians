@@ -34,7 +34,7 @@ Your name and your **ORCID iD** on the account page go with your work: the histo
 
 Choose **New work** on the **Works** page, or **Register Work** on the front page. As you type the title, works with a similar title or author are shown; if yours is among them, open it instead of making a second one.
 
-- **Language** sets how words are normalized and compared when witnesses are collated (see *Diplomatic and normalized* under Transcribing). For Latin, u and v count as one letter; for Hebrew and Arabic, the vowel points are left aside.
+- **Language** sets how words are normalized and compared when witnesses are collated (see _Diplomatic and normalized_ under Transcribing). For Latin, u and v count as one letter; for Hebrew and Arabic, the vowel points are left aside.
 - **Identifier** is optional: the work's CTS URN, such as urn:cts:greekLit:tlg0012.tlg001. Passages of the work are cited by it in the TEI.
 - **Identifiers** lists further canonical identifiers, each a scheme and a value: a CTS URN, Diktyon, Trismegistos, Wikidata (Q8275), VIAF, a URL, or Other. Each value is checked against the form of its scheme. They are shown on the work's page, linked where the scheme has a resolver, and the search finds the work by any of them, so that pasting Q8275 finds the Iliad. An archive brought in from another installation is matched to the work here by its identifiers before a new work is made.
 - **Visibility** is public by default. A private work is visible only to its maintainers and to the editors of its editions.
@@ -54,7 +54,7 @@ A **reported reading** is what a witness is said to have at a place, by another 
 
 ## A witness
 
-Choose **New witness** on the **Witnesses** page, or **Transcribe a witness** on a work's page and then **New witness**. Every field but the name and the siglum is optional: repository, place, shelfmark, identifier (a catalogue number), identifiers, date, material (from a list, or **Other** with a word of your own), extent, hands, provenance and a description. **Hands** is a list: each hand has a label as the catalogues cite it (m1, m2, A²) and a description, and one of them is marked as the scribe of the text. Corrections in the transcripts of the witness can then name the hand that made them (see *Features* under Transcribing). The siglum given here is a default; each edition gives the witness its own.
+Choose **New witness** on the **Witnesses** page, or **Transcribe a witness** on a work's page and then **New witness**. Every field but the name and the siglum is optional: repository, place, shelfmark, identifier (a catalogue number), identifiers, date, material (from a list, or **Other** with a word of your own), extent, hands, provenance and a description. **Hands** is a list: each hand has a label as the catalogues cite it (m1, m2, A²) and a description, and one of them is marked as the scribe of the text. Corrections in the transcripts of the witness can then name the hand that made them (see _Features_ under Transcribing). The siglum given here is a default; each edition gives the witness its own.
 
 **Identifiers** are canonical identifiers of the witness, each a scheme and a value, as for a work: a Diktyon number for a Greek manuscript, a Trismegistos number for a papyrus, a Wikidata item, a URL. The witness's page links them to Pinakes, Trismegistos and Wikidata, and the search finds the witness by any of them: pasting a Diktyon number finds the manuscript.
 
@@ -74,13 +74,13 @@ A witness registered twice is merged into the other with **Merge Into…** in th
 
 The pages of a witness are managed in two places, with the same means: on the **Pages** tab of the side pane while transcribing (see below), and under **Manage pages** on the witness's page. Both are for the maintainers of the witness; everyone else sees the pages.
 
-- **Add images** takes several image files at once, one page per file, in the order of the file names. The labels come from the file names, or continue the sequence of the last page (12r, 12v, 13r). Large files show their progress; the image is tiled for fast zooming. Every image needs a **rights statement** (see *Licences and rights*); the upload is refused without one. The statement, the **credit line** and the **source** (the address the images were obtained from, if you want to record it) chosen here are given to every file of the upload.
+- **Add images** takes several image files at once, one page per file, in the order of the file names. The labels come from the file names, or continue the sequence of the last page (12r, 12v, 13r). Large files show their progress; the image is tiled for fast zooming. Every image needs a **rights statement** (see _Licences and rights_); the upload is refused without one. The statement, the **credit line** and the **source** (the address the images were obtained from, if you want to record it) chosen here are given to every file of the upload.
 - **Add pages** makes pages without images from a range such as 1r-12v, 1-20, p. 1-20 or col. i-iv, or from a list. Images can be added to them later.
 - **Import IIIF manifest** takes the pages of a manuscript published by a library, with their images, which stay on the library's server. A preview shows what will be imported, with the manifest's rights statement and credit line. Import only the pages not yet there, or replace the pages nothing refers to. The manifest's address is kept on the witness and shown on its page, and on each page as the source of its image. Each page keeps the rights statement and credit line of its canvas, or of the manifest where the canvas gives none; where the manifest states no rights at all, the pages take the witness's defaults. A statement that is not among those Varians lists is not kept: the preview says so, and its address becomes the pages' credit line where the manifest gives none.
 
 The witness's **Edit** page has a section **Images**: the **Rights of images** and the **Credit line** that new images of the witness are given, so that an upload starts with them and an image dropped on a page goes up with them at once. Saving them can also give them to the images of the witness that have no rights statement yet, such as those imported from a manifest that stated none.
 
-Every page is a card with its image, its label, its number and the rights statement of its image, or *No rights statement* where it has none. A page without an image says so, and **Add an image** on the card takes one, with its rights statement, credit line and source. An image file dropped on any card becomes that page's image, in place of the one it had: with the witness's rights statement when the witness has one, and otherwise after asking for it. The card's menu (**⋯**) renames the page, moves it up, down or to a position, adds, replaces or removes its image, changes the **Rights of the Image…**, and removes the page. The rights belong to the image: they move with it to another page, and go when it is removed. The menus of Varians use capitals as English menus do (**Move Up**, **Remove Page**); buttons and labels do not. Click the label to rename it in place.
+Every page is a card with its image, its label, its number and the rights statement of its image, or _No rights statement_ where it has none. A page without an image says so, and **Add an image** on the card takes one, with its rights statement, credit line and source. An image file dropped on any card becomes that page's image, in place of the one it had: with the witness's rights statement when the witness has one, and otherwise after asking for it. The card's menu (**⋯**) renames the page, moves it up, down or to a position, adds, replaces or removes its image, changes the **Rights of the Image…**, and removes the page. The rights belong to the image: they move with it to another page, and go when it is removed. The menus of Varians use capitals as English menus do (**Move Up**, **Remove Page**); buttons and labels do not. Click the label to rename it in place.
 
 **Move Image to Another Page…** in the menu is for an image that was given to the wrong page: choose the page it belongs to, and the image goes there; when that page has an image of its own, the two change places. The next page is proposed, which is where an image most often belongs when the pages were counted wrong. Mapped words (zones) stay with their page, as they do when an image is replaced, and show on whatever image the page then has.
 
@@ -155,9 +155,9 @@ Every word of a transcript has a **normalized** form: the word as it is read, in
 - A word whose diplomatic form changes after its normalized form was set is marked faintly until you **Confirm** it. Where the two agree apart from letter case and accents, it is confirmed by itself.
 - Features can be marked on single letters of the diplomatic form (an unclear letter, a supplied one); the normalized form is always the whole word.
 
-**What the apparatus reports.** The apparatus reports different words, never different ways of writing them. Collation compares the normalized texts only, as you type them, without regard to letter case; the diplomatic texts play no part. Whatever differs between a witness's diplomatic and normalized forms is therefore normalization: the scribe's spelling, iotacism, abbreviation, accents written otherwise than the word you read requires. Where two witnesses' normalized forms differ, also only in an accent, a breathing or a punctuation mark (ἦ, ἤ), that is a variant. So give a word a different accentuation, or a passage a different punctuation, from the other witnesses only where its manuscript gives reason to. A grave counts as an acute, since it only marks the word's place before another, and the marks of elision count as one. How a witness writes its words is its diplomatic text, which readers can see beside the edition (see *The reader*).
+**What the apparatus reports.** The apparatus reports different words, never different ways of writing them. Collation compares the normalized texts only, as you type them, without regard to letter case; the diplomatic texts play no part. Whatever differs between a witness's diplomatic and normalized forms is therefore normalization: the scribe's spelling, iotacism, abbreviation, accents written otherwise than the word you read requires. Where two witnesses' normalized forms differ, also only in an accent, a breathing or a punctuation mark (ἦ, ἤ), that is a variant. So give a word a different accentuation, or a passage a different punctuation, from the other witnesses only where its manuscript gives reason to. A grave counts as an acute, since it only marks the word's place before another, and the marks of elision count as one. How a witness writes its words is its diplomatic text, which readers can see beside the edition (see _The reader_).
 
-**Textual and interpretative variants.** A variant is *textual* where the witnesses have different letters: other words, or the same words in another order. It is *interpretative* where they have the same letters read otherwise: in accents, breathings, punctuation or word division (ὅτι, ὅ τι). An archetype in capitals, without accents or spaces, could not tell those apart, so they record the history of the text's interpretation rather than of the text. Varians sorts each place by its letters: an iota subscript or a diaeresis counts as a letter, and a lacuna tells nothing, so a place where only a lacuna differs is textual. The edition's editors can call any place the other kind (see *Adopting readings*), and decide how the edition prints the interpretative ones.
+**Textual and interpretative variants.** A variant is _textual_ where the witnesses have different letters: other words, or the same words in another order. It is _interpretative_ where they have the same letters read otherwise: in accents, breathings, punctuation or word division (ὅτι, ὅ τι). An archetype in capitals, without accents or spaces, could not tell those apart, so they record the history of the text's interpretation rather than of the text. Varians sorts each place by its letters: an iota subscript or a diaeresis counts as a letter, and a lacuna tells nothing, so a place where only a lacuna differs is textual. The edition's editors can call any place the other kind (see _Adopting readings_), and decide how the edition prints the interpretative ones.
 
 **Switching.** The diplomatic form can be turned on and off under **Settings…**, each time as one change in the history:
 
@@ -166,7 +166,7 @@ Every word of a transcript has a **normalized** form: the word as it is read, in
 
 **Tools** in the workbench bar helps with the two texts, and does nothing until you ask. Each tool acts on the selected words, or on every word of the page when nothing is selected, and each is one change that Ctrl+Z undoes:
 
-- **Normalize diacritics** gives the normalized forms their accents, breathings and diaereses from the analyser of Greek forms (see *Sources and licences*). Where the letters can be only one word form, it is set, accented for its place (a grave before another word, unless punctuation follows). Where the witness writes accents or breathings, only the forms that agree with them are considered, and a form you chose before for the same diplomatic word comes first. The remaining words are marked: with the caret on one, a list shows the forms it can be, each with its lemma and grammar; click one (or press Alt and its number), or **Leave as it is**. The status line counts the words left to choose and steps from one to the next. Words the analyser does not know are marked in red: type them.
+- **Normalize diacritics** gives the normalized forms their accents, breathings and diaereses from the analyser of Greek forms (see _Sources and licences_). Where the letters can be only one word form, it is set, accented for its place (a grave before another word, unless punctuation follows). Where the witness writes accents or breathings, only the forms that agree with them are considered, and a form you chose before for the same diplomatic word comes first. The remaining words are marked: with the caret on one, a list shows the forms it can be, each with its lemma and grammar; click one (or press Alt and its number), or **Leave as it is**. The status line counts the words left to choose and steps from one to the next. Words the analyser does not know are marked in red: type them.
 - **Take normalized forms from another text…** aligns the words with another transcript or an edition of the same work, as collation does, and where a word has the same letters as the word it stands against, gives it that text's normalized form, accented for its place here. Words with other letters are textual variants and are left as they are.
 - **Remove from the diplomatic text**: accents, breathings, diaereses or iota subscripts, each by itself, or all four. Useful for a diplomatic text started as a copy of a normalized one.
 - **All lower case** and **All upper case** change the case of the text shown. Case means nothing in the manuscripts; this is only how you prefer to present the text.
@@ -177,7 +177,7 @@ Text without word division, as in many manuscripts and inscriptions, is typed wi
 
 Select some words or letters and the small toolbar under the selection offers the features of the text, named as TEI names them: unclear, supplied, deleted, added, abbreviation, and others. Each also has a shortcut (see below). Features are kept exactly, and come out in the TEI export.
 
-A deletion or an addition is a correction, and **Correction…** in the same toolbar says who made it and when: the **hand**, chosen from the hands registered on the witness, or the scribe, or another hand, or not known; and the **stage**, a number for the layer of correction (1 for the first, 2 for the next), when the stages can be told apart. Both may stay unknown. What is recorded here is what an edition can collate: the witness as first written, after all corrections, after a given stage, or with the corrections of one hand (see *Making one* under The edition). A correction that changes only the spelling shows in the diplomatic text and in the TEI but makes no entry in the apparatus, since the apparatus compares normalized forms.
+A deletion or an addition is a correction, and **Correction…** in the same toolbar says who made it and when: the **hand**, chosen from the hands registered on the witness, or the scribe, or another hand, or not known; and the **stage**, a number for the layer of correction (1 for the first, 2 for the next), when the stages can be told apart. Both may stay unknown. What is recorded here is what an edition can collate: the witness as first written, after all corrections, after a given stage, or with the corrections of one hand (see _Making one_ under The edition). A correction that changes only the spelling shows in the diplomatic text and in the TEI but makes no entry in the apparatus, since the apparatus compares normalized forms.
 
 A reading the manuscript itself offers as an alternative, written in the margin or between the lines (often introduced by γρ.), is entered on the words it concerns: select them and choose **Variant…**, type the variant's words (nothing, if the variant leaves the words out), and say where it stands and, if you know it, in which hand. The words are underlined faintly with a small "v.l." after them. **Edit variant…** and **Remove variant** change or take it off again. Such variants stay part of the same witness; an edition can compare them as a text of their own (see below).
 
@@ -212,7 +212,7 @@ Undo in the text brings back the very words it removed, with their boxes, featur
 
 ### Settings, export and deleting
 
-**Settings…** changes the name, whether the transcript is diplomatic and normalized, the works the transcript is for, and its **Sources** and **Note on rights**: what it rests on, where that matters, and anything about its rights that the licence does not say, such as the rights in the text it started from. The licence itself is not chosen here: the hint under the note names it, the installation's licence that publishing will give, or the licence it was first published under (see *Licences and rights*). Sources, note and licence go into its TEI export. **Download TEI** gives the transcript as TEI XML with its pages, zones and segment labels. **Delete…** removes it, which is refused while an edition compares it. A published transcript is open to readers at its address, read only.
+**Settings…** changes the name, whether the transcript is diplomatic and normalized, the works the transcript is for, and its **Sources** and **Note on rights**: what it rests on, where that matters, and anything about its rights that the licence does not say, such as the rights in the text it started from. The licence itself is not chosen here: the hint under the note names it, the installation's licence that publishing will give, or the licence it was first published under (see _Licences and rights_). Sources, note and licence go into its TEI export. **Download TEI** gives the transcript as TEI XML with its pages, zones and segment labels. **Delete…** removes it, which is refused while an edition compares it. A published transcript is open to readers at its address, read only.
 
 ## The edition
 
@@ -225,7 +225,7 @@ On a work's page, choose **New edition**. Give it a title as it will be printed 
 - **Base transcript**: the transcript whose normalized text becomes the first text. Usually the witness you trust most. You can also start from an empty text.
 - **Segments**: all the segments that transcript has, or a range such as 1.1 to 1.100.
 - **Witnesses**: which transcripts the apparatus compares, and the siglum each goes by in this edition. A witness can have different sigla in different editions.
-- Under **Witnesses and Sigla…** in the editor, a manuscript can also be compared in further **states**, each under a siglum of its own: as first written (before correction, by default A¹), after a stage of correction (A², A³), or with the corrections of one hand (A m2); and with the variants it notes in its margins or between its lines (A v.l.). The states are derived from the deletions and additions in the transcript and the hands and stages they name (see *Features* under Transcribing). Where a state agrees with its manuscript, the apparatus names the manuscript alone. Collate only the states that matter for the witness: a manuscript with trivial corrections needs A alone; one with meaningful layers A¹ and A; one with identifiable hands a siglum per hand.
+- Under **Witnesses and Sigla…** in the editor, a manuscript can also be compared in further **states**, each under a siglum of its own: as first written (before correction, by default A¹), after a stage of correction (A², A³), or with the corrections of one hand (A m2); and with the variants it notes in its margins or between its lines (A v.l.). The states are derived from the deletions and additions in the transcript and the hands and stages they name (see _Features_ under Transcribing). Where a state agrees with its manuscript, the apparatus names the manuscript alone. Collate only the states that matter for the witness: a manuscript with trivial corrections needs A alone; one with meaningful layers A¹ and A; one with identifiable hands a siglum per hand.
 - **Conventions**: verse or prose lineation, how often a label is printed, a positive or negative apparatus, Latin abbreviations (om., add., del.), and where the interpretative variants are printed: with the others, in a list of their own under the apparatus (the default), or not at all. They are always in the TEI export, marked `type="interpretative"`.
 
 Everything chosen here can be changed later from the **⋯** menu of the editor: **Edition Settings…** and **Witnesses and Sigla…**.
@@ -247,7 +247,7 @@ Each place in the apparatus band lists the readings: your text first, then what 
 - A witness that lacks a whole passage within the stretch its transcript covers has a place of its own over the passage, beside the passage's other places: "1.6 ἐξ … ἐρίσαντε A : om. B C", the passage named by its first and last words when it is longer than three. Where the transcript marks a gap or a lacuna there, the witness has lost the passage and the place says **deest in** ("absent in" in English). A witness whose transcript does not reach the passage at all, beginning after it or ending before it, is in no place: the band notes it in grey, and the reader's conspectus says which passages its transcript does not reach.
 - **Keep the text** marks a place as reviewed without changing anything. The counter at the left of the band says how many places are left to review, and **Next to review** goes to the next one.
 - In the witness pane, clicking a word adopts that witness's reading at that place.
-- Each place says whether it is **textual** or **interpretative** (see *Diplomatic and normalized*). Click the word to call the place the other kind; it is then marked with an asterisk, and a second click goes back to what the letters say. A conjecture with other letters makes a place textual whatever the witnesses have.
+- Each place says whether it is **textual** or **interpretative** (see _Diplomatic and normalized_). Click the word to call the place the other kind; it is then marked with an asterisk, and a second click goes back to what the letters say. A conjecture with other letters makes a place textual whatever the witnesses have.
 - In a Greek edition, a textual reading is labelled by how it stands to your words, from the analyser of Greek forms: **form** (another form of the same word: they share a lemma), **word** (another word), or **order** (the same words in another order). Where the analyser does not know a word, or the readings have different numbers of words, there is no label.
 
 Every word remembers the witness it was taken from. When that witness's transcript is corrected later, the word is underlined with a wavy line and the band says, for instance, "ἄειδε: taken from A, which now reads ἄειδεν", with **Take A's reading** to follow the correction. A word you typed over is yours, and is never reported this way. **Colour words by source** tints the words that come from conjectures and from your own hand.
@@ -282,7 +282,7 @@ Readers only ever see published versions. The working state of your edition, its
 
 ### Sources and rights
 
-**Edition Settings…** has fields for the edition's **Sources** (what it rests on beyond its witnesses: an earlier edition, a commentary) and a **Note on rights**, for what the licence does not say. The licence is not a field: the hint under the note names the installation's licence, which the first publication fixes for the edition (see *Licences and rights*), or the licence it was published under. Readers find the sources, the licence, the note and the citation under *About this edition*, followed by a link to **Sources and licences**, the page that lists the data and resources Varians itself uses (typefaces, dictionaries) with their licences. The page is linked from the foot of every page too. A copied edition keeps the original's sources and note until you change them, and takes its own licence when it is first published.
+**Edition Settings…** has fields for the edition's **Sources** (what it rests on beyond its witnesses: an earlier edition, a commentary) and a **Note on rights**, for what the licence does not say. The licence is not a field: the hint under the note names the installation's licence, which the first publication fixes for the edition (see _Licences and rights_), or the licence it was published under. Readers find the sources, the licence, the note and the citation under _About this edition_, followed by a link to **Sources and licences**, the page that lists the data and resources Varians itself uses (typefaces, dictionaries) with their licences. The page is linked from the foot of every page too. A copied edition keeps the original's sources and note until you change them, and takes its own licence when it is first published.
 
 ### Copying an edition
 
@@ -291,7 +291,7 @@ Readers only ever see published versions. The working state of your edition, its
 - **From your own edition**, or one you edit: the edition as it stands now, with its editors' names.
 - **From someone else's published edition**: the published version, with the witnesses it was published with. The editors' names are left for you to give. Witnesses whose transcript you may not see come without one; Varians says how many, and you can choose others under **Witnesses and Sigla…**.
 
-The copy brings the text with every reading's source, the witnesses and sigla, the adopted conjectures, the notes and their references, and the settings. It does not bring the history, the collaborators, the review marks or the published versions. Its reader says where it came from: *Based on* the original, with its editors and the version copied.
+The copy brings the text with every reading's source, the witnesses and sigla, the adopted conjectures, the notes and their references, and the settings. It does not bring the history, the collaborators, the review marks or the published versions. Its reader says where it came from: _Based on_ the original, with its editors and the version copied.
 
 ## The reader
 
@@ -306,7 +306,7 @@ A published edition has a public page at `/editions/` followed by its address, s
 - **Search** finds words regardless of accents and steps through the matches.
 - The menu offers the edition as plain text with its apparatus and as TEI XML, and lists the published versions. Each version keeps its address, `/editions/iliad-1/v/2`, and reads exactly as it was published: its apparatus does not change when a witness is corrected later. A passage has its own address too, such as `/editions/iliad-1/1.5`.
 - Printing gives the text with its print apparatus, without the controls.
-- *About this edition*, at the foot of the page, gives the edition's sources, its licence, its editors' note on rights, and **How to cite** the version shown (see *Licences and rights*).
+- _About this edition_, at the foot of the page, gives the edition's sources, its licence, its editors' note on rights, and **How to cite** the version shown (see _Licences and rights_).
 
 ## History
 
@@ -362,7 +362,7 @@ Varians keeps a copy of every work outside its database, in open formats, so tha
 
 Every record of the work is in the archive, so that the work can be rebuilt from it alone. A change is in the archive's files within a minute of the last save. A commit marks every named moment and every publication, in the name of the person who made it, and the rest is committed every night. Anyone signed in who can see the work downloads it from the work's page as a **package**, a few times an hour, holding what that person may see: an edition they do not edit comes as its published version, and no one's review positions are included. An administrator may also download the server's repository itself, with its history.
 
-A package is a zip holding one or more archives, with a checksum for every file and a description of its contents (BagIt and RO-Crate, which libraries and repositories read). Besides the work's, the reader of an edition offers the edition's package under *Download*: the work's own files, the witnesses and transcripts of its conspectus at the versions its published apparatus was made from, and the bibliography it cites. A transcript has a package of its own at `/transcriptions/<id>/package.zip`, and an administrator exports the whole installation from the users page.
+A package is a zip holding one or more archives, with a checksum for every file and a description of its contents (BagIt and RO-Crate, which libraries and repositories read). Besides the work's, the reader of an edition offers the edition's package under _Download_: the work's own files, the witnesses and transcripts of its conspectus at the versions its published apparatus was made from, and the bibliography it cites. A transcript has a package of its own at `/transcriptions/<id>/package.zip`, and an administrator exports the whole installation from the users page.
 
 **Import…** in the menu under your name brings in a package or an archive, from this installation or another. It first checks the checksums and the files, and shows what it would do: which transcripts and editions are new, which are brought up to date, which have changes on both sides that go together, and which have been changed on both sides in the same words, for which you choose whether to leave them, keep yours or take theirs. Only then does it import. What you may not edit here is left as it is, and what the package brings in becomes yours; the people who made it are named as they were. A package whose licence may not be published here is refused: records under CC BY-SA 4.0 go only to an installation that publishes under CC BY-SA 4.0.
 
@@ -386,7 +386,7 @@ Works, witnesses, segments, reference schemes and bibliography entries are dedic
 
 ### Images
 
-Every page image carries its own **rights statement**, chosen from a fixed list: the Public Domain Mark, the CC0 dedication, the six Creative Commons 4.0 licences (CC BY, CC BY-SA, CC BY-ND, CC BY-NC, CC BY-NC-SA, CC BY-NC-ND), and the statements of RightsStatements.org (No Copyright, Non-Commercial Use Only; No Copyright, Other Known Legal Restrictions; In Copyright; In Copyright, Educational Use Permitted; In Copyright, Non-Commercial Use Permitted; Copyright Not Evaluated; Copyright Undetermined; No Known Copyright). With it go the **credit line** the holder of the rights asks for, and the **source**, the address the image came from. Give the statement the holder gives: a library's manifest usually states it, and the IIIF import keeps it (see *Pages and images*).
+Every page image carries its own **rights statement**, chosen from a fixed list: the Public Domain Mark, the CC0 dedication, the six Creative Commons 4.0 licences (CC BY, CC BY-SA, CC BY-ND, CC BY-NC, CC BY-NC-SA, CC BY-NC-ND), and the statements of RightsStatements.org (No Copyright, Non-Commercial Use Only; No Copyright, Other Known Legal Restrictions; In Copyright; In Copyright, Educational Use Permitted; In Copyright, Non-Commercial Use Permitted; Copyright Not Evaluated; Copyright Undetermined; No Known Copyright). With it go the **credit line** the holder of the rights asks for, and the **source**, the address the image came from. Give the statement the holder gives: a library's manifest usually states it, and the IIIF import keeps it (see _Pages and images_).
 
 The statement decides whether the image travels with the work. Images under the Public Domain Mark, CC0, a Creative Commons licence or one of the two No Copyright statements are copied into the archive and into every download of the work. Images under any other statement (In Copyright and its variants, Copyright Not Evaluated, Copyright Undetermined, No Known Copyright), and images without a statement, are shown here but not copied: the archive names their source instead, and the zones drawn on them are kept all the same, so that the mapping of words to the page survives and the image can be fetched again from its holder. The form says so when such a statement is chosen.
 
@@ -394,36 +394,36 @@ Wherever a page image is shown, in the facsimile pane, the reader, the editor's 
 
 ### How to cite an edition
 
-*About this edition*, at the foot of the reader, gives a citation of the published version shown, under **How to cite**: the editors as listed on the edition, the title, the version and the date of its publication, its lasting address (`/editions/iliad-1/v/2`, which always reads as that version was published), and the licence. Cite that address rather than the edition's plain address, which shows the latest published version. A passage is cited by the version's address followed by the passage, such as `/editions/iliad-1/v/2/1.5`.
+_About this edition_, at the foot of the reader, gives a citation of the published version shown, under **How to cite**: the editors as listed on the edition, the title, the version and the date of its publication, its lasting address (`/editions/iliad-1/v/2`, which always reads as that version was published), and the licence. Cite that address rather than the edition's plain address, which shows the latest published version. A passage is cited by the version's address followed by the passage, such as `/editions/iliad-1/v/2/1.5`.
 
 ## Keyboard
 
 In the edition editor:
 
-| Keys | Action |
-|---|---|
-| Alt+↓, Alt+↑ | next or previous place in the apparatus |
-| Alt+N | next place still to review |
-| Alt+1 to Alt+9 | adopt the first to ninth reading at the caret's place |
-| Alt+K | keep the text: mark the place as reviewed |
-| Alt+C | register a conjecture on the selected words |
-| Alt+I | insert a speaker, heading, note or lacuna at the caret |
-| Alt+Shift+↑, Alt+Shift+↓ | move the selected lines up or down |
-| Ctrl+Z, Ctrl+Shift+Z | undo and redo (Cmd on a Mac) |
+| Keys                     | Action                                                 |
+| ------------------------ | ------------------------------------------------------ |
+| Alt+↓, Alt+↑             | next or previous place in the apparatus                |
+| Alt+N                    | next place still to review                             |
+| Alt+1 to Alt+9           | adopt the first to ninth reading at the caret's place  |
+| Alt+K                    | keep the text: mark the place as reviewed              |
+| Alt+C                    | register a conjecture on the selected words            |
+| Alt+I                    | insert a speaker, heading, note or lacuna at the caret |
+| Alt+Shift+↑, Alt+Shift+↓ | move the selected lines up or down                     |
+| Ctrl+Z, Ctrl+Shift+Z     | undo and redo (Cmd on a Mac)                           |
 
 Everywhere a pane can be resized, the line between the panes takes the keyboard too: reach it with Tab, move it with the arrow keys (with Shift in larger steps), and press Enter to put it back as it was.
 
 In the workbench:
 
-| Keys | Action |
-|---|---|
-| Ctrl+Shift+U | unclear |
-| Ctrl+Shift+S | supplied |
-| Ctrl+Shift+D | deleted |
-| Ctrl+Shift+A | added |
-| Ctrl+Shift+B | abbreviation |
-| Ctrl+Shift+G | gap |
-| Ctrl+Shift+L | segment label at the caret |
+| Keys                       | Action                                     |
+| -------------------------- | ------------------------------------------ |
+| Ctrl+Shift+U               | unclear                                    |
+| Ctrl+Shift+S               | supplied                                   |
+| Ctrl+Shift+D               | deleted                                    |
+| Ctrl+Shift+A               | added                                      |
+| Ctrl+Shift+B               | abbreviation                               |
+| Ctrl+Shift+G               | gap                                        |
+| Ctrl+Shift+L               | segment label at the caret                 |
 | Alt+Page Down, Alt+Page Up | next or previous page, Not on a page first |
-| Ctrl+X, then Ctrl+V | move the selected words to the caret |
-| Enter | new line |
+| Ctrl+X, then Ctrl+V        | move the selected words to the caret       |
+| Enter                      | new line                                   |

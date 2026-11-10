@@ -4,9 +4,14 @@
  */
 export type PageSource = { kind: 'dzi'; url: string } | { kind: 'iiif'; infoUrl: string };
 
-export function pageSource(page: { id: string; imageKind: string | null; imageIiif: string | null }): PageSource | null {
+export function pageSource(page: {
+  id: string;
+  imageKind: string | null;
+  imageIiif: string | null;
+}): PageSource | null {
   if (page.imageKind === 'upload') return { kind: 'dzi', url: `/media/tiles/${page.id}/image.dzi` };
-  if (page.imageKind === 'iiif' && page.imageIiif) return { kind: 'iiif', infoUrl: `${page.imageIiif.replace(/\/+$/, '')}/info.json` };
+  if (page.imageKind === 'iiif' && page.imageIiif)
+    return { kind: 'iiif', infoUrl: `${page.imageIiif.replace(/\/+$/, '')}/info.json` };
   return null;
 }
 
@@ -16,7 +21,9 @@ export function pageImage(page: {
   imagePath: string | null;
   imageIiif: string | null;
 }): { kind: 'file' | 'iiif'; url: string } | null {
-  if (page.imageKind === 'upload' && page.imagePath) return { kind: 'file', url: `/media/${page.imagePath}` };
-  if (page.imageKind === 'iiif' && page.imageIiif) return { kind: 'iiif', url: page.imageIiif.replace(/\/+$/, '') };
+  if (page.imageKind === 'upload' && page.imagePath)
+    return { kind: 'file', url: `/media/${page.imagePath}` };
+  if (page.imageKind === 'iiif' && page.imageIiif)
+    return { kind: 'iiif', url: page.imageIiif.replace(/\/+$/, '') };
   return null;
 }

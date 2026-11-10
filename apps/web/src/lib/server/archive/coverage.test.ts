@@ -11,7 +11,11 @@ const tables = (Object.values(schema) as unknown[])
 
 describe('archive coverage', () => {
   it('classifies every table of the schema as archived, derived or transient', () => {
-    const classified = new Set<string>([...ARCHIVED_TABLES, ...DERIVED_TABLES, ...TRANSIENT_TABLES]);
+    const classified = new Set<string>([
+      ...ARCHIVED_TABLES,
+      ...DERIVED_TABLES,
+      ...TRANSIENT_TABLES,
+    ]);
     const unclassified = tables.filter((t) => !classified.has(t));
     expect(unclassified, 'add these tables to archive/coverage.ts').toEqual([]);
   });

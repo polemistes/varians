@@ -8,7 +8,15 @@
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import ImageOff from '@lucide/svelte/icons/image-off';
-  import { Button, Dialog, Field, Input, Notice, toasts, type ButtonSize } from '$lib/components/ui';
+  import {
+    Button,
+    Dialog,
+    Field,
+    Input,
+    Notice,
+    toasts,
+    type ButtonSize,
+  } from '$lib/components/ui';
   import { s } from '$lib/strings';
   import { pageStrings as t } from '$lib/strings/pages';
   import { actionUrl, failureMessage } from './client';
@@ -26,7 +34,13 @@
     size?: ButtonSize;
   }
 
-  let { manifestUrl, hasPages, base = '', onchanged = invalidateAll, size = 'md' }: Props = $props();
+  let {
+    manifestUrl,
+    hasPages,
+    base = '',
+    onchanged = invalidateAll,
+    size = 'md',
+  }: Props = $props();
 
   const WARNINGS_SHOWN = 6;
 
@@ -67,7 +81,9 @@
       return async ({ result }) => {
         pending = null;
         if (result.type === 'success') {
-          const data = result.data as { preview?: ManifestPreviewView; message?: string } | undefined;
+          const data = result.data as
+            | { preview?: ManifestPreviewView; message?: string }
+            | undefined;
           if (which === 'preview') {
             preview = data?.preview ?? null;
             failedThumbs = {};
@@ -119,11 +135,15 @@
 
         {#if preview.canvases.length > 0}
           <div>
-            <p class="mb-1.5 text-xs text-ink-muted">{t.manifest.firstCanvases(preview.canvases.length, preview.total)}</p>
+            <p class="mb-1.5 text-xs text-ink-muted">
+              {t.manifest.firstCanvases(preview.canvases.length, preview.total)}
+            </p>
             <ul class="grid grid-cols-4 gap-2 sm:grid-cols-6">
               {#each preview.canvases as canvas, i (i)}
                 <li class="flex min-w-0 flex-col gap-1">
-                  <div class="flex aspect-[3/4] items-center justify-center overflow-hidden rounded border border-line bg-sunken">
+                  <div
+                    class="flex aspect-[3/4] items-center justify-center overflow-hidden rounded border border-line bg-sunken"
+                  >
                     {#if canvas.thumbnail && !failedThumbs[i]}
                       <img
                         src={canvas.thumbnail}
@@ -137,7 +157,9 @@
                       <ImageOff class="size-4 text-ink-muted" aria-label={t.manifest.noImage} />
                     {/if}
                   </div>
-                  <span class="truncate text-center text-xs text-ink-soft" title={canvas.label}>{canvas.label}</span>
+                  <span class="truncate text-center text-xs text-ink-soft" title={canvas.label}
+                    >{canvas.label}</span
+                  >
                 </li>
               {/each}
             </ul>
@@ -147,7 +169,14 @@
         <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm">
           {#if preview.rights.rights && preview.rights.label}
             <dt class="text-ink-soft">{t.manifest.rights}</dt>
-            <dd><a href={preview.rights.rights} rel="license noopener" target="_blank" class="text-accent underline">{preview.rights.label}</a></dd>
+            <dd>
+              <a
+                href={preview.rights.rights}
+                rel="license noopener"
+                target="_blank"
+                class="text-accent underline">{preview.rights.label}</a
+              >
+            </dd>
           {/if}
           {#if preview.rights.attribution}
             <dt class="text-ink-soft">{t.manifest.credit}</dt>
@@ -156,11 +185,15 @@
         </dl>
         {#if !preview.rights.rights && !preview.rights.unlisted}
           <p class="text-sm text-ink-soft">
-            {preview.rights.fallbackLabel ? t.manifest.fallbackRights(preview.rights.fallbackLabel) : t.manifest.noRights}
+            {preview.rights.fallbackLabel
+              ? t.manifest.fallbackRights(preview.rights.fallbackLabel)
+              : t.manifest.noRights}
           </p>
         {/if}
         {#if preview.rights.ownStatements > 0}
-          <p class="text-sm text-ink-soft">{t.manifest.ownStatements(preview.rights.ownStatements)}</p>
+          <p class="text-sm text-ink-soft">
+            {t.manifest.ownStatements(preview.rights.ownStatements)}
+          </p>
         {/if}
 
         {#if preview.warnings.length > 0}

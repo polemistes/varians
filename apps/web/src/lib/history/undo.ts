@@ -24,7 +24,11 @@ export function revertOps(current: Stream, target: Stream): Op[] {
  * (null meaning the start). Undefined when `id` is found nowhere, so that
  * nothing is put back in a place that cannot be known.
  */
-function survivingAnchor(id: Id | null, references: Stream[], present: Set<Id>): Id | null | undefined {
+function survivingAnchor(
+  id: Id | null,
+  references: Stream[],
+  present: Set<Id>,
+): Id | null | undefined {
   if (id === null || present.has(id)) return id;
   for (const reference of references) {
     const at = reference.items.findIndex((i) => i.id === id);
@@ -90,7 +94,11 @@ function adapt(stream: Stream, op: Op, references: Stream[]): Op | null {
  * when it applies. Returns the operations, in order, that apply cleanly to
  * `current`, and how many could not be applied at all.
  */
-export function salvageOps(current: Stream, ops: Op[], references: Stream[] = []): { ops: Op[]; skipped: number; stream: Stream } {
+export function salvageOps(
+  current: Stream,
+  ops: Op[],
+  references: Stream[] = [],
+): { ops: Op[]; skipped: number; stream: Stream } {
   let stream = current;
   const kept: Op[] = [];
   let skipped = 0;
@@ -131,11 +139,13 @@ export function wordsOf(ids: Id[], streams: Stream[], ops: Op[] = []): Record<Id
   const out: Record<Id, string> = {};
   const wanted = new Set(ids);
   for (const stream of streams) {
-    for (const item of stream.items) if (wanted.has(item.id) && !(item.id in out)) out[item.id] = itemWord(item);
+    for (const item of stream.items)
+      if (wanted.has(item.id) && !(item.id in out)) out[item.id] = itemWord(item);
   }
   for (const op of ops) {
     const items = op.t === 'insert' || op.t === 'replace' ? op.items : [];
-    for (const item of items) if (wanted.has(item.id) && !(item.id in out)) out[item.id] = itemWord(item);
+    for (const item of items)
+      if (wanted.has(item.id) && !(item.id in out)) out[item.id] = itemWord(item);
   }
   return out;
 }

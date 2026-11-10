@@ -69,8 +69,12 @@ export function joinLinesEdit(
   const index = ledger.spans.findIndex((s) => s.kind === 'break' && s.from === at);
   const before = ledger.spans[index - 1];
   const after = ledger.spans[index + 1];
-  if (index <= 0 || !before || !after || before.kind !== 'token' || after.kind !== 'token') return null;
-  if (!INLINE_SPACE.test(ledger.text.slice(before.to, at)) || !INLINE_SPACE.test(ledger.text.slice(at + 1, after.from)))
+  if (index <= 0 || !before || !after || before.kind !== 'token' || after.kind !== 'token')
+    return null;
+  if (
+    !INLINE_SPACE.test(ledger.text.slice(before.to, at)) ||
+    !INLINE_SPACE.test(ledger.text.slice(at + 1, after.from))
+  )
     return null;
   const previous = byId.get(before.id);
   if (!isToken(previous) || previous.joinNext) return null;

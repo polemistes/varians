@@ -38,11 +38,25 @@ export function defaultLastNumber(label: string): number | null {
 }
 
 /** Group a stream into lines and decide which labels print. */
-export function layoutLines(stream: Stream, labelOf: (segmentId: Id) => string, options: LayoutOptions = {}): LayoutLine[] {
+export function layoutLines(
+  stream: Stream,
+  labelOf: (segmentId: Id) => string,
+  options: LayoutOptions = {},
+): LayoutLine[] {
   const every = Math.max(1, options.numberEvery ?? 1);
   const lastNumber = options.lastNumber ?? defaultLastNumber;
   const lines: LayoutLine[] = [];
-  let current: LayoutLine = { index: 0, from: 0, to: 0, items: [], starts: [], label: null, paragraph: false, pageId: null, rend: null };
+  let current: LayoutLine = {
+    index: 0,
+    from: 0,
+    to: 0,
+    items: [],
+    starts: [],
+    label: null,
+    paragraph: false,
+    pageId: null,
+    rend: null,
+  };
   const push = () => {
     current.to = current.from + current.items.length;
     lines.push(current);
@@ -59,13 +73,18 @@ export function layoutLines(stream: Stream, labelOf: (segmentId: Id) => string, 
         starts: [],
         label: null,
         paragraph: item.type === 'paragraph',
-        pageId: item.type === 'page' ? item.pageId ?? null : null,
+        pageId: item.type === 'page' ? (item.pageId ?? null) : null,
         rend: item.rend ?? null,
       };
       return;
     }
     current.items.push(item);
-    if (item.segment) current.starts.push({ segmentId: item.segment.segmentId, itemIndex: index, part: item.segment.part ?? 1 });
+    if (item.segment)
+      current.starts.push({
+        segmentId: item.segment.segmentId,
+        itemIndex: index,
+        part: item.segment.part ?? 1,
+      });
   });
   push();
   // Labels: the first start on a line gives its label; with numberEvery > 1 only
@@ -83,5 +102,7 @@ export function layoutLines(stream: Stream, labelOf: (segmentId: Id) => string, 
     const n = lastNumber(label);
     if (n !== null && n % every === 0) line.label = label;
   }
-  return lines.filter((l) => l.items.length > 0 || l.paragraph || l.pageId !== null || lines.length === 1);
+  return lines.filter(
+    (l) => l.items.length > 0 || l.paragraph || l.pageId !== null || lines.length === 1,
+  );
 }

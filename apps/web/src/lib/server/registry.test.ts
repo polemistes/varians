@@ -144,17 +144,15 @@ async function edition(
 
 beforeAll(async () => {
   ({ db, pool } = createDatabase(url));
-  await db
-    .insert(users)
-    .values(
-      people.map((p) => ({
-        id: p.id,
-        email: p.email,
-        name: p.name,
-        role: p.role,
-        passwordHash: 'x',
-      })),
-    );
+  await db.insert(users).values(
+    people.map((p) => ({
+      id: p.id,
+      email: p.email,
+      name: p.name,
+      role: p.role,
+      passwordHash: 'x',
+    })),
+  );
 });
 
 afterAll(async () => {
@@ -405,8 +403,18 @@ describe('witnesses', () => {
       format: 'roll',
       name: row.name,
     });
-    const indirect = await updateWitness(db, row.id, { category: 'indirect', format: null, sourceAuthor: ' Athenaeus ', sourceWork: 'Deipnosophistae' });
-    expect(indirect).toMatchObject({ category: 'indirect', format: null, sourceAuthor: 'Athenaeus', sourceWork: 'Deipnosophistae' });
+    const indirect = await updateWitness(db, row.id, {
+      category: 'indirect',
+      format: null,
+      sourceAuthor: ' Athenaeus ',
+      sourceWork: 'Deipnosophistae',
+    });
+    expect(indirect).toMatchObject({
+      category: 'indirect',
+      format: null,
+      sourceAuthor: 'Athenaeus',
+      sourceWork: 'Deipnosophistae',
+    });
   });
 });
 
@@ -439,7 +447,11 @@ describe('transcriptions', () => {
       keepsWrittenForm: false,
     });
     // A second one of the same witness for the same work is allowed.
-    const again = await createTranscription(db, { witnessId: first.id, workIds: [poem.id], name: 'Again' }, alice.id);
+    const again = await createTranscription(
+      db,
+      { witnessId: first.id, workIds: [poem.id], name: 'Again' },
+      alice.id,
+    );
     expect(again.id).not.toBe(source);
     await db.delete(transcriptions).where(eq(transcriptions.id, again.id));
     const other = await createTranscription(
@@ -475,7 +487,11 @@ describe('transcriptions', () => {
     const [history] = await db.select().from(changesets).where(eq(changesets.documentId, copy));
     expect(history!.message).toContain('Poem');
     // A second copy for the same witness and work is allowed too.
-    const twice = await createTranscription(db, { witnessId: second.id, name: 'Twice', fromTranscriptionId: source }, alice.id);
+    const twice = await createTranscription(
+      db,
+      { witnessId: second.id, name: 'Twice', fromTranscriptionId: source },
+      alice.id,
+    );
     expect(toText(twice.content)).toBe(toText(text));
     created.documents.push(twice.id);
     await db.delete(transcriptions).where(eq(transcriptions.id, twice.id));
@@ -753,7 +769,11 @@ describe('transcriptions of several works, and copies', () => {
     const greek = await work('Greek part');
     const latin = await work('Latin part');
     const place = await witness('Miscellany');
-    const row = await createTranscription(db, { witnessId: place.id, workIds: [latin.id, greek.id, latin.id], name: 'All of it' }, alice.id);
+    const row = await createTranscription(
+      db,
+      { witnessId: place.id, workIds: [latin.id, greek.id, latin.id], name: 'All of it' },
+      alice.id,
+    );
     expect(await chosenWorks(db, row.id)).toEqual([latin.id, greek.id]);
     const third = await work('Third part');
     const text = await textOf(third.id, { '1.1': 'alpha beta' });
@@ -761,19 +781,44 @@ describe('transcriptions of several works, and copies', () => {
     created.documents.push(row.id);
     expect(await worksOfTranscription(db, row.id)).toEqual([latin.id, greek.id, third.id]);
     // Listed with every one of its works.
-    for (const w of [latin, greek, third]) expect((await transcriptionsOfWork(db, w.id)).map((t) => t.id)).toContain(row.id);
+    for (const w of [latin, greek, third])
+      expect((await transcriptionsOfWork(db, w.id)).map((t) => t.id)).toContain(row.id);
   });
 
   it('hides a transcription with text of a private work from those who may not see that work', async () => {
     const open = await work('Open text');
-    const closed = await createWork(db, { title: `Closed text ${tag}`, language: 'grc', visibility: 'private', scheme: { preset: SCHEME_PRESETS[0]!.name } }, bob.id);
+    const closed = await createWork(
+      db,
+      {
+        title: `Closed text ${tag}`,
+        language: 'grc',
+        visibility: 'private',
+        scheme: { preset: SCHEME_PRESETS[0]!.name },
+      },
+      bob.id,
+    );
     created.works.push(closed.id);
     const place = await witness('Shared codex');
-    const row = await createTranscription(db, { witnessId: place.id, workIds: [open.id], name: 'Codex' }, alice.id);
-    await db.update(transcriptions).set({ visibility: 'published' }).where(eq(transcriptions.id, row.id));
+    const row = await createTranscription(
+      db,
+      { witnessId: place.id, workIds: [open.id], name: 'Codex' },
+      alice.id,
+    );
+    await db
+      .update(transcriptions)
+      .set({ visibility: 'published' })
+      .where(eq(transcriptions.id, row.id));
     expect((await loadTranscriptionAccess(db, null, row.id))!.canView).toBe(true);
     // Text assigned to the private work, though the work chosen is public.
-    await replaceContent(db, 'transcription', row.id, bob.id, 0, await textOf(closed.id, { '1.1': 'secret words' }), 'test');
+    await replaceContent(
+      db,
+      'transcription',
+      row.id,
+      bob.id,
+      0,
+      await textOf(closed.id, { '1.1': 'secret words' }),
+      'test',
+    );
     created.documents.push(row.id);
     expect((await loadTranscriptionAccess(db, null, row.id))!.canView).toBe(false);
     expect((await loadTranscriptionAccess(db, bob, row.id))!.canView).toBe(true);
@@ -783,20 +828,47 @@ describe('transcriptions of several works, and copies', () => {
     const poem = await work('Copied poem');
     const place = await witness('Copied codex');
     const other = await witness('Other codex');
-    const [page] = await db.insert(pages).values({ id: newId(), witnessId: place.id, label: '1r', position: 1 }).returning();
-    const row = await createTranscription(db, { witnessId: place.id, workIds: [poem.id], name: 'Original' }, alice.id);
+    const [page] = await db
+      .insert(pages)
+      .values({ id: newId(), witnessId: place.id, label: '1r', position: 1 })
+      .returning();
+    const row = await createTranscription(
+      db,
+      { witnessId: place.id, workIds: [poem.id], name: 'Original' },
+      alice.id,
+    );
     const text = await textOf(poem.id, { '1.1': 'arma virumque' });
     await replaceContent(db, 'transcription', row.id, alice.id, 0, text, 'test');
-    await db.update(transcriptions).set({ memory: [{ form: 'ARMA', norm: 'arma', count: 2 }] }).where(eq(transcriptions.id, row.id));
+    await db
+      .update(transcriptions)
+      .set({ memory: [{ form: 'ARMA', norm: 'arma', count: 2 }] })
+      .where(eq(transcriptions.id, row.id));
     created.documents.push(row.id);
     const [first, second] = text.items.filter((i) => i.kind === 'token').map((i) => i.id);
     await createZones(db, row.id, place.id, [
-      { pageId: page!.id, geometry: { rect: { x: 0.1, y: 0.1, w: 0.1, h: 0.05 }, rotate: 2 }, tokenIds: [first!] },
-      { pageId: page!.id, geometry: { rect: { x: 0.2, y: 0.1, w: 0.1, h: 0.05 } }, tokenIds: [second!] },
-      { pageId: page!.id, geometry: { rect: { x: 0.5, y: 0.5, w: 0.2, h: 0.2 } }, tokenIds: [], feature: { kind: 'figure' } },
+      {
+        pageId: page!.id,
+        geometry: { rect: { x: 0.1, y: 0.1, w: 0.1, h: 0.05 }, rotate: 2 },
+        tokenIds: [first!],
+      },
+      {
+        pageId: page!.id,
+        geometry: { rect: { x: 0.2, y: 0.1, w: 0.1, h: 0.05 } },
+        tokenIds: [second!],
+      },
+      {
+        pageId: page!.id,
+        geometry: { rect: { x: 0.5, y: 0.5, w: 0.2, h: 0.2 } },
+        tokenIds: [],
+        feature: { kind: 'figure' },
+      },
     ]);
 
-    const copy = await createTranscription(db, { witnessId: place.id, name: 'Copy', fromTranscriptionId: row.id }, bob.id);
+    const copy = await createTranscription(
+      db,
+      { witnessId: place.id, name: 'Copy', fromTranscriptionId: row.id },
+      bob.id,
+    );
     created.documents.push(copy.id);
     expect(await chosenWorks(db, copy.id)).toEqual([poem.id]);
     expect(copy.memory).toEqual([{ form: 'ARMA', norm: 'arma', count: 2 }]);
@@ -809,7 +881,11 @@ describe('transcriptions of several works, and copies', () => {
     // The original keeps its own.
     expect((await zonesOf(db, row.id)).map((z) => z.tokenIds).flat()).toEqual([first, second]);
 
-    const elsewhere = await createTranscription(db, { witnessId: other.id, name: 'Elsewhere', fromTranscriptionId: row.id }, alice.id);
+    const elsewhere = await createTranscription(
+      db,
+      { witnessId: other.id, name: 'Elsewhere', fromTranscriptionId: row.id },
+      alice.id,
+    );
     created.documents.push(elsewhere.id);
     expect(await zonesOf(db, elsewhere.id)).toEqual([]);
   });
@@ -818,21 +894,41 @@ describe('transcriptions of several works, and copies', () => {
     const poem = await work('Edited poem');
     const place = await witness('Edited codex');
     const second = await witness('Unseen codex');
-    const base = await createTranscription(db, { witnessId: place.id, workIds: [poem.id], name: 'Base' }, alice.id);
-    await db.update(transcriptions).set({ visibility: 'published' }).where(eq(transcriptions.id, base.id));
-    const hidden = await createTranscription(db, { witnessId: second.id, workIds: [poem.id], name: 'Hidden' }, alice.id);
+    const base = await createTranscription(
+      db,
+      { witnessId: place.id, workIds: [poem.id], name: 'Base' },
+      alice.id,
+    );
+    await db
+      .update(transcriptions)
+      .set({ visibility: 'published' })
+      .where(eq(transcriptions.id, base.id));
+    const hidden = await createTranscription(
+      db,
+      { witnessId: second.id, workIds: [poem.id], name: 'Hidden' },
+      alice.id,
+    );
     const id = await edition(poem.id, alice, [
       { witnessId: place.id, transcriptionId: base.id },
       { witnessId: second.id, transcriptionId: hidden.id },
     ]);
-    await db.update(editions).set({ editors: ['Alice Editor'], preface: 'A preface.' }).where(eq(editions.id, id));
+    await db
+      .update(editions)
+      .set({ editors: ['Alice Editor'], preface: 'A preface.' })
+      .where(eq(editions.id, id));
     const text = await textOf(poem.id, { '1.1': 'arma virumque cano' });
     await replaceContent(db, 'edition', id, alice.id, 0, text, 'test');
     const [segmentId] = [(text.items[0] as Token).segment!.segmentId!];
     const tokenId = text.items[0]!.id;
     await db.insert(notes).values([
       { id: newId(), editionId: id, segmentId, tokenIds: [tokenId], text: 'On arma.' },
-      { id: newId(), editionId: id, segmentId, tokenIds: ['gone'], text: 'On a word since removed.' },
+      {
+        id: newId(),
+        editionId: id,
+        segmentId,
+        tokenIds: ['gone'],
+        text: 'On a word since removed.',
+      },
     ]);
 
     // A reader may not copy a draft.
@@ -841,21 +937,40 @@ describe('transcriptions of several works, and copies', () => {
     const own = await copyEdition(db, alice, id, 'Alice again');
     if (typeof own === 'string') throw new Error(own);
     created.documents.push(own.edition.id);
-    expect(own.edition).toMatchObject({ ownerId: alice.id, editors: ['Alice Editor'], preface: 'A preface.', visibility: 'draft', publishedVersion: null });
+    expect(own.edition).toMatchObject({
+      ownerId: alice.id,
+      editors: ['Alice Editor'],
+      preface: 'A preface.',
+      visibility: 'draft',
+      publishedVersion: null,
+    });
     expect(own.edition.copiedFrom).toMatchObject({ editionId: id, published: false, number: null });
     expect(own.withoutTranscription).toBe(0);
     expect(toText(own.edition.content)).toBe(toText(text));
-    expect((await db.select().from(notes).where(eq(notes.editionId, own.edition.id))).map((n) => n.text)).toEqual(['On arma.']);
+    expect(
+      (await db.select().from(notes).where(eq(notes.editionId, own.edition.id))).map((n) => n.text),
+    ).toEqual(['On arma.']);
 
-    await db.update(editions).set({ visibility: 'published', publishedVersion: 1 }).where(eq(editions.id, id));
+    await db
+      .update(editions)
+      .set({ visibility: 'published', publishedVersion: 1 })
+      .where(eq(editions.id, id));
     const theirs = await copyEdition(db, bob, id, 'Bob reads');
     if (typeof theirs === 'string') throw new Error(theirs);
     created.documents.push(theirs.edition.id);
     expect(theirs.edition).toMatchObject({ ownerId: bob.id, editors: [], title: 'Bob reads' });
-    expect(theirs.edition.copiedFrom).toMatchObject({ editionId: id, title: expect.stringContaining('Edition'), published: true, version: 1 });
+    expect(theirs.edition.copiedFrom).toMatchObject({
+      editionId: id,
+      title: expect.stringContaining('Edition'),
+      published: true,
+      version: 1,
+    });
     // Alice's draft transcription stays out of Bob's copy; the witness stays in.
     expect(theirs.withoutTranscription).toBe(1);
-    const sigla = await db.select().from(editionSigla).where(eq(editionSigla.editionId, theirs.edition.id));
+    const sigla = await db
+      .select()
+      .from(editionSigla)
+      .where(eq(editionSigla.editionId, theirs.edition.id));
     expect(sigla.map((s) => s.transcriptionId).sort()).toEqual([base.id, null].sort());
   });
 });

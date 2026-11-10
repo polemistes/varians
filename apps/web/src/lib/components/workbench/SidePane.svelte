@@ -24,7 +24,9 @@
 
   // The history panel is written elsewhere; the pane works without it.
   const historyModules = import.meta.glob('/src/lib/components/history/HistoryPanel.svelte');
-  const loadHistory = historyModules['/src/lib/components/history/HistoryPanel.svelte'] as (() => Promise<unknown>) | undefined;
+  const loadHistory = historyModules['/src/lib/components/history/HistoryPanel.svelte'] as
+    | (() => Promise<unknown>)
+    | undefined;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let HistoryPanel = $state<Component<any> | null>(null);
 
@@ -56,11 +58,13 @@
     const caret = wb.selection.caret;
     if (caret && otherApi) otherApi.scrollToToken(caret);
   });
-
 </script>
 
 <Tabs.Root bind:value={tab} class="flex h-full min-h-0 flex-col bg-surface">
-  <Tabs.List class="flex shrink-0 gap-1 border-b border-line px-2 font-sans text-sm" aria-label={t.pane.label}>
+  <Tabs.List
+    class="flex shrink-0 gap-1 border-b border-line px-2 font-sans text-sm"
+    aria-label={t.pane.label}
+  >
     {#each tabs as item (item.value)}
       <Tabs.Trigger
         value={item.value}
@@ -80,28 +84,34 @@
   {#if wb.keepsWrittenForm}
     <Tabs.Content value="other" class="flex min-h-0 flex-1 flex-col outline-none">
       {#if tab === 'other'}
-      <p class="shrink-0 px-4 pt-2 font-sans text-xs text-ink-muted">
-        {asWritten ? t.pane.asWritten : wb.otherForm === 'written' ? t.pane.otherWritten : t.pane.otherRead}
-      </p>
-      {#if asWritten}
-        <div class="min-h-0 flex-1 overflow-auto px-4 py-3 font-serif text-[1.1rem] leading-[1.7] break-all">
-          {#each writtenLines as line, i (i)}<div>{line || ' '}</div>{/each}
-        </div>
-      {:else}
-        <div class="min-h-0 flex-1">
-          <TextEditor
-            stream={wb.stream}
-            form={wb.otherForm}
-            readonly
-            page={wb.page}
-            pageOrder={wb.pageOrder}
-            segmentLabels={wb.segmentLabels}
-            pageLabels={wb.pageLabels}
-            tokenClasses={caretClasses}
-            bind:api={otherApi}
-          />
-        </div>
-      {/if}
+        <p class="shrink-0 px-4 pt-2 font-sans text-xs text-ink-muted">
+          {asWritten
+            ? t.pane.asWritten
+            : wb.otherForm === 'written'
+              ? t.pane.otherWritten
+              : t.pane.otherRead}
+        </p>
+        {#if asWritten}
+          <div
+            class="min-h-0 flex-1 overflow-auto px-4 py-3 font-serif text-[1.1rem] leading-[1.7] break-all"
+          >
+            {#each writtenLines as line, i (i)}<div>{line || ' '}</div>{/each}
+          </div>
+        {:else}
+          <div class="min-h-0 flex-1">
+            <TextEditor
+              stream={wb.stream}
+              form={wb.otherForm}
+              readonly
+              page={wb.page}
+              pageOrder={wb.pageOrder}
+              segmentLabels={wb.segmentLabels}
+              pageLabels={wb.pageLabels}
+              tokenClasses={caretClasses}
+              bind:api={otherApi}
+            />
+          </div>
+        {/if}
       {/if}
     </Tabs.Content>
   {/if}

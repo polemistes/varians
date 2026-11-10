@@ -34,7 +34,10 @@ export function authorColor(userId: string, size = AUTHOR_PALETTE_SIZE): string 
  * took it, in which case the next free slot is used. Order the list stably
  * (by user id) so that the result does not change between loads.
  */
-export function assignSlots(userIds: Iterable<string>, size = AUTHOR_PALETTE_SIZE): Map<string, number> {
+export function assignSlots(
+  userIds: Iterable<string>,
+  size = AUTHOR_PALETTE_SIZE,
+): Map<string, number> {
   const ids = [...new Set(userIds)].sort();
   const taken = new Set<number>();
   const out = new Map<string, number>();

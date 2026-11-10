@@ -7,7 +7,15 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { fromText, newId, type Item, type Token } from '@varians/core';
-import { createDatabase, editions, referenceSchemes, transcriptions, users, witnesses, works } from '@varians/db';
+import {
+  createDatabase,
+  editions,
+  referenceSchemes,
+  transcriptions,
+  users,
+  witnesses,
+  works,
+} from '@varians/db';
 import { eq, inArray } from 'drizzle-orm';
 import { s } from '../src/lib/strings/en';
 import { pageStrings as t } from '../src/lib/strings/pages';
@@ -43,8 +51,17 @@ async function cleanUp() {
     await db.delete(works).where(eq(works.id, work.id));
   }
   if (witnessSlugs.length) {
-    const rows = await db.select({ id: witnesses.id }).from(witnesses).where(inArray(witnesses.slug, witnessSlugs));
-    if (rows.length) await db.delete(transcriptions).where(inArray(transcriptions.witnessId, rows.map((r) => r.id)));
+    const rows = await db
+      .select({ id: witnesses.id })
+      .from(witnesses)
+      .where(inArray(witnesses.slug, witnessSlugs));
+    if (rows.length)
+      await db.delete(transcriptions).where(
+        inArray(
+          transcriptions.witnessId,
+          rows.map((r) => r.id),
+        ),
+      );
     await db.delete(witnesses).where(inArray(witnesses.slug, witnessSlugs));
   }
   const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));
@@ -66,7 +83,9 @@ function streamOf(lines: Record<string, string>, segmentIds: Record<string, stri
 
 async function saved(page: Page) {
   await expect(page.locator('[aria-live=polite]').first()).toHaveText('Saved', { timeout: 15_000 });
-  await expect(page.locator('.apparatus-band [aria-busy=true]')).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.locator('.apparatus-band [aria-busy=true]')).toHaveCount(0, {
+    timeout: 15_000,
+  });
 }
 
 test.describe.configure({ mode: 'serial' });
@@ -92,7 +111,9 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   await page.locator('input[name=author]').fill('Vergilius');
   await page.locator('select[name=language]').selectOption('la');
   await page.getByRole('button', { name: 'Register the work' }).click();
-  await page.waitForURL((url) => /^\/works\/[^/]+$/.test(url.pathname) && url.pathname !== '/works/new');
+  await page.waitForURL(
+    (url) => /^\/works\/[^/]+$/.test(url.pathname) && url.pathname !== '/works/new',
+  );
   workSlug = new URL(page.url()).pathname.split('/').pop()!;
   await expect(page.locator('h1')).toHaveText(workTitle);
 
@@ -107,7 +128,9 @@ test('from a new work to a published edition and its archive', async ({ page }) 
     await page.locator('input[name=name]').fill(name);
     await page.locator('input[name=siglum]').fill(siglum);
     await page.getByRole('button', { name: 'Register the witness' }).click();
-    await page.waitForURL((url) => /^\/witnesses\/[^/]+$/.test(url.pathname) && url.pathname !== '/witnesses/new');
+    await page.waitForURL(
+      (url) => /^\/witnesses\/[^/]+$/.test(url.pathname) && url.pathname !== '/witnesses/new',
+    );
     witnessSlugs.push(new URL(page.url()).pathname.split('/').pop()!);
     await page.waitForLoadState('networkidle');
     await page.getByRole('button', { name: 'New transcript' }).first().click();
@@ -123,14 +146,24 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   const { db, pool } = createDatabase(DATABASE_URL);
   const [work] = await db.select({ id: works.id }).from(works).where(eq(works.slug, workSlug));
   await pool.end();
-  const segmentsResponse = await page.request.post(`/api/works/${work!.id}/segments`, { data: { labels: Object.keys(TEXT_X) } });
+  const segmentsResponse = await page.request.post(`/api/works/${work!.id}/segments`, {
+    data: { labels: Object.keys(TEXT_X) },
+  });
   expect(segmentsResponse.ok()).toBe(true);
-  const segmentBody = (await segmentsResponse.json()) as { segments: { id: string; label: string }[] };
+  const segmentBody = (await segmentsResponse.json()) as {
+    segments: { id: string; label: string }[];
+  };
   const segmentIds = Object.fromEntries(segmentBody.segments.map((x) => [x.label, x.id]));
   for (const [i, lines] of [TEXT_X, TEXT_Y].entries()) {
-    const response = await page.request.post(`/api/documents/transcription/${transcriptionIds[i]}/ops`, {
-      data: { fromVersion: 0, ops: [{ t: 'insert', after: null, items: streamOf(lines, segmentIds) }] },
-    });
+    const response = await page.request.post(
+      `/api/documents/transcription/${transcriptionIds[i]}/ops`,
+      {
+        data: {
+          fromVersion: 0,
+          ops: [{ t: 'insert', after: null, items: streamOf(lines, segmentIds) }],
+        },
+      },
+    );
     expect(response.ok(), await response.text()).toBe(true);
   }
 
@@ -146,7 +179,10 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   await expect(page.locator('.cm-content .cm-line').nth(1)).toHaveText(/Laviniaque/);
 
   // Y's reading at 1.2 is offered in the apparatus band; adopting it changes the text.
-  await page.locator('.apparatus-band button[title="Adopt"]', { hasText: 'Lavinaque' }).first().click();
+  await page
+    .locator('.apparatus-band button[title="Adopt"]', { hasText: 'Lavinaque' })
+    .first()
+    .click();
   await saved(page);
   await expect(page.locator('.cm-content .cm-line').nth(1)).toHaveText(/Lavinaque/);
 
@@ -210,14 +246,20 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   await page.getByRole('button', { name: w.move.show, exact: true }).click();
   await expect(page.getByRole('button', { name: w.pages.choose })).toHaveText('1r');
   await expect(page.locator('.cm-content .cm-line')).toHaveText([words]);
-  await expect(page.getByRole('status').filter({ hasText: /^Saved/ })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('status').filter({ hasText: /^Saved/ })).toBeVisible({
+    timeout: 15_000,
+  });
 
   // A copy of the transcription, from the workbench's menu: a draft of one's own with the same text.
   await page.getByRole('button', { name: 'More actions' }).click();
   await page.getByRole('menuitem', { name: 'Make a copy…' }).click();
   await expect(page.getByRole('dialog').locator('input[name=name]')).toHaveValue('Copy of Liber 1');
   await page.getByRole('dialog').getByRole('button', { name: 'Make the copy' }).click();
-  await page.waitForURL((url) => /^\/transcriptions\/[^/]+$/.test(url.pathname) && !url.pathname.endsWith(transcriptionIds[1]!));
+  await page.waitForURL(
+    (url) =>
+      /^\/transcriptions\/[^/]+$/.test(url.pathname) &&
+      !url.pathname.endsWith(transcriptionIds[1]!),
+  );
   await expect(page.locator('h1')).toHaveText('Copy of Liber 1');
   // The copy opens on the first page with text, as the transcript does.
   await expect(page.locator('.cm-content .cm-line').nth(0)).toHaveText(words);
@@ -225,7 +267,9 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   await page.waitForLoadState('networkidle');
   await page.getByRole('button', { name: 'More actions' }).click();
   await page.getByRole('menuitem', { name: 'Settings…' }).click();
-  await expect(page.getByRole('dialog').getByRole('group', { name: 'Works' })).toContainText(workTitle);
+  await expect(page.getByRole('dialog').getByRole('group', { name: 'Works' })).toContainText(
+    workTitle,
+  );
   await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
 
   // A copy of the edition, from the editor: it opens in the editor with the same text.
@@ -235,7 +279,9 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   await page.getByRole('button', { name: 'More' }).click();
   await page.getByRole('menuitem', { name: 'Make a copy…' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Make the copy' }).click();
-  await page.waitForURL((url) => /\/edit$/.test(url.pathname) && !url.pathname.includes(`/${editionSlug}/`));
+  await page.waitForURL(
+    (url) => /\/edit$/.test(url.pathname) && !url.pathname.includes(`/${editionSlug}/`),
+  );
   await expect(page.locator('h1')).toHaveText(`Copy of Aeneis 1, ${stamp}`);
   await expect(page.locator('.cm-content .cm-line').nth(1)).toHaveText(/Lavinaque/);
   // Its reader says where it came from.

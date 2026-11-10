@@ -73,13 +73,23 @@ export async function saveOps(
   }
   return db.transaction(async (tx) => {
     const t = table(kind);
-    const [row] = await tx.select({ version: t.version, content: t.content }).from(t).where(eq(t.id, documentId)).for('update');
+    const [row] = await tx
+      .select({ version: t.version, content: t.content })
+      .from(t)
+      .where(eq(t.id, documentId))
+      .for('update');
     if (!row) throw new Error(`no ${kind} ${documentId}`);
     if (row.version !== fromVersion) {
       const since = await tx
         .select()
         .from(changesets)
-        .where(and(eq(changesets.documentKind, kind), eq(changesets.documentId, documentId), gt(changesets.version, fromVersion)))
+        .where(
+          and(
+            eq(changesets.documentKind, kind),
+            eq(changesets.documentId, documentId),
+            gt(changesets.version, fromVersion),
+          ),
+        )
         .orderBy(changesets.version);
       throw new VersionConflict(
         { version: row.version, content: row.content },
@@ -111,7 +121,10 @@ export async function saveOps(
       ...(message ? { message } : {}),
     });
     if (version % CHECKPOINT_EVERY === 0) {
-      await tx.insert(checkpoints).values({ documentKind: kind, documentId, version, content: applied.stream }).onConflictDoNothing();
+      await tx
+        .insert(checkpoints)
+        .values({ documentKind: kind, documentId, version, content: applied.stream })
+        .onConflictDoNothing();
     }
     if (kind === 'transcription') await rebuildSegmentIndex(tx, documentId, applied.stream);
     return { version, content: applied.stream, changesetId };
@@ -129,16 +142,25 @@ export async function replaceContent(
   message = 'import',
 ): Promise<SaveResult> {
   const current = await loadDocument(db, kind, documentId);
-  if (kind === 'transcription') content = conformed(content, await transcriptionPageOrder(db, documentId));
+  if (kind === 'transcription')
+    content = conformed(content, await transcriptionPageOrder(db, documentId));
   const ops: Op[] = [];
-  if (current.content.items.length > 0) ops.push({ t: 'delete', ids: current.content.items.map((i) => i.id) });
+  if (current.content.items.length > 0)
+    ops.push({ t: 'delete', ids: current.content.items.map((i) => i.id) });
   if (content.items.length > 0) ops.push({ t: 'insert', after: null, items: content.items });
   return saveOps(db, kind, documentId, userId, fromVersion, ops, message);
 }
 
-export async function loadDocument(db: Database, kind: DocumentKind, documentId: string): Promise<{ version: number; content: Stream }> {
+export async function loadDocument(
+  db: Database,
+  kind: DocumentKind,
+  documentId: string,
+): Promise<{ version: number; content: Stream }> {
   const t = table(kind);
-  const [row] = await db.select({ version: t.version, content: t.content }).from(t).where(eq(t.id, documentId));
+  const [row] = await db
+    .select({ version: t.version, content: t.content })
+    .from(t)
+    .where(eq(t.id, documentId));
   if (!row) throw new Error(`no ${kind} ${documentId}`);
   return row;
 }
@@ -155,7 +177,8 @@ const PAST_VERSIONS_KEPT = 24;
 function keepPastVersion(key: string, stream: Stream): void {
   pastVersions.delete(key);
   pastVersions.set(key, stream);
-  if (pastVersions.size > PAST_VERSIONS_KEPT) pastVersions.delete(pastVersions.keys().next().value!);
+  if (pastVersions.size > PAST_VERSIONS_KEPT)
+    pastVersions.delete(pastVersions.keys().next().value!);
 }
 
 /** Forgets the kept past versions of a document, after its stored history was rewritten (a merge of works moves segment ids). */
@@ -164,7 +187,12 @@ export function forgetPastVersions(kind: DocumentKind, documentId: string): void
   for (const key of [...pastVersions.keys()]) if (key.startsWith(prefix)) pastVersions.delete(key);
 }
 
-export async function documentAt(db: Database, kind: DocumentKind, documentId: string, version: number): Promise<Stream> {
+export async function documentAt(
+  db: Database,
+  kind: DocumentKind,
+  documentId: string,
+  version: number,
+): Promise<Stream> {
   const current = await loadDocument(db, kind, documentId);
   if (version >= current.version) return current.content;
   const key = `${kind}:${documentId}:${version}`;
@@ -178,11 +206,23 @@ export async function documentAt(db: Database, kind: DocumentKind, documentId: s
   return rebuilt;
 }
 
-async function rebuildVersion(db: Database, kind: DocumentKind, documentId: string, version: number, currentContent: Stream): Promise<Stream> {
+async function rebuildVersion(
+  db: Database,
+  kind: DocumentKind,
+  documentId: string,
+  version: number,
+  currentContent: Stream,
+): Promise<Stream> {
   const [checkpoint] = await db
     .select()
     .from(checkpoints)
-    .where(and(eq(checkpoints.documentKind, kind), eq(checkpoints.documentId, documentId), lte(checkpoints.version, version)))
+    .where(
+      and(
+        eq(checkpoints.documentKind, kind),
+        eq(checkpoints.documentId, documentId),
+        lte(checkpoints.version, version),
+      ),
+    )
     .orderBy(desc(checkpoints.version))
     .limit(1);
   if (checkpoint) {
@@ -206,7 +246,13 @@ async function rebuildVersion(db: Database, kind: DocumentKind, documentId: stri
   const backward = await db
     .select()
     .from(changesets)
-    .where(and(eq(changesets.documentKind, kind), eq(changesets.documentId, documentId), gt(changesets.version, version)))
+    .where(
+      and(
+        eq(changesets.documentKind, kind),
+        eq(changesets.documentId, documentId),
+        gt(changesets.version, version),
+      ),
+    )
     .orderBy(desc(changesets.version));
   let stream = currentContent;
   for (const c of backward) stream = applyOps(stream, c.reverse).stream;
@@ -214,11 +260,23 @@ async function rebuildVersion(db: Database, kind: DocumentKind, documentId: stri
 }
 
 /** The changesets of a document, newest first, optionally only after a version. */
-export async function history(db: Database, kind: DocumentKind, documentId: string, afterVersion = 0, limit = 500): Promise<Changeset[]> {
+export async function history(
+  db: Database,
+  kind: DocumentKind,
+  documentId: string,
+  afterVersion = 0,
+  limit = 500,
+): Promise<Changeset[]> {
   const rows = await db
     .select()
     .from(changesets)
-    .where(and(eq(changesets.documentKind, kind), eq(changesets.documentId, documentId), gt(changesets.version, afterVersion)))
+    .where(
+      and(
+        eq(changesets.documentKind, kind),
+        eq(changesets.documentId, documentId),
+        gt(changesets.version, afterVersion),
+      ),
+    )
     .orderBy(desc(changesets.version))
     .limit(limit);
   return rows.map((c) => ({
@@ -263,9 +321,15 @@ export async function nameMoment(
  * Rebuild the derived index of a transcription: one row per segment run,
  * with the fold text of its units under the work's profile.
  */
-export async function rebuildSegmentIndex(db: Database, transcriptionId: string, content: Stream): Promise<void> {
+export async function rebuildSegmentIndex(
+  db: Database,
+  transcriptionId: string,
+  content: Stream,
+): Promise<void> {
   const runs = segmentRuns(content).filter((r) => r.segmentId !== null);
-  await db.delete(transcriptionSegments).where(eq(transcriptionSegments.transcriptionId, transcriptionId));
+  await db
+    .delete(transcriptionSegments)
+    .where(eq(transcriptionSegments.transcriptionId, transcriptionId));
   if (runs.length === 0) return;
   const segmentIds = [...new Set(runs.map((r) => r.segmentId!))];
   const segmentRows = await db
@@ -303,9 +367,15 @@ export async function rebuildSegmentIndex(db: Database, transcriptionId: string,
 }
 
 /** Which transcriptions assign text to a segment, with the part count. */
-export async function transcriptionsOfSegment(db: Database, segmentId: string): Promise<{ transcriptionId: string; parts: number }[]> {
+export async function transcriptionsOfSegment(
+  db: Database,
+  segmentId: string,
+): Promise<{ transcriptionId: string; parts: number }[]> {
   return db
-    .select({ transcriptionId: transcriptionSegments.transcriptionId, parts: sql<number>`count(*)::int` })
+    .select({
+      transcriptionId: transcriptionSegments.transcriptionId,
+      parts: sql<number>`count(*)::int`,
+    })
     .from(transcriptionSegments)
     .where(eq(transcriptionSegments.segmentId, segmentId))
     .groupBy(transcriptionSegments.transcriptionId);

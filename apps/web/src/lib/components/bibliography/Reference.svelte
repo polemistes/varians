@@ -10,4 +10,7 @@
   let { pieces, class: className }: Props = $props();
 </script>
 
-<span class={['font-serif', className]}>{#each pieces as piece, i (i)}{#if piece.italic}<i>{piece.text}</i>{:else}{piece.text}{/if}{/each}</span>
+<span class={['font-serif', className]}
+  >{#each pieces as piece, i (i)}{#if piece.italic}<i>{piece.text}</i
+      >{:else}{piece.text}{/if}{/each}</span
+>

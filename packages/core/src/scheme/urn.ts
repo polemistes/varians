@@ -12,7 +12,11 @@ export function isCtsWorkUrn(identifier: string | null | undefined): identifier 
 }
 
 /** The passage URN of an address, or null when the work has no CTS URN or the address lacks a level. */
-export function passageUrn(workUrn: string | null | undefined, address: Address, levels: Level[]): string | null {
+export function passageUrn(
+  workUrn: string | null | undefined,
+  address: Address,
+  levels: Level[],
+): string | null {
   if (!isCtsWorkUrn(workUrn)) return null;
   const values: string[] = [];
   for (const level of levels) {

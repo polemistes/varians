@@ -1,6 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newId } from '@varians/core';
-import { createDatabase, referenceSchemes, users, witnesses, works, type Database } from '@varians/db';
+import {
+  createDatabase,
+  referenceSchemes,
+  users,
+  witnesses,
+  works,
+  type Database,
+} from '@varians/db';
 import { eq, inArray } from 'drizzle-orm';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
@@ -50,14 +57,24 @@ describe('archive validation', () => {
     expect(await validateArchiveDir(dir)).toEqual([]);
     // Every TEI file is valid against the RelaxNG of the ODD.
     if (hasXmllint()) expect(await validateTeiFiles(dir)).toEqual([]);
-    else console.warn('xmllint is not installed: the archive TEI is NOT validated against docs/formats/varians.rng.');
-    const tei = await readFile(path.join(dir, 'editions', sample.editionSlug, 'edition.tei.xml'), 'utf8');
+    else
+      console.warn(
+        'xmllint is not installed: the archive TEI is NOT validated against docs/formats/varians.rng.',
+      );
+    const tei = await readFile(
+      path.join(dir, 'editions', sample.editionSlug, 'edition.tei.xml'),
+      'utf8',
+    );
     expect(tei).toContain('<listPrefixDef>');
-    expect(tei).toMatch(/<ab n="1\.1" xml:id="seg-[0-9A-Z]+" corresp="urn:cts:greekLit:tlg0012\.tlg001:1\.1">/);
+    expect(tei).toMatch(
+      /<ab n="1\.1" xml:id="seg-[0-9A-Z]+" corresp="urn:cts:greekLit:tlg0012\.tlg001:1\.1">/,
+    );
     expect(tei).toMatch(/<w xml:id="w-[0-9A-Z]+" corresp="tok:[0-9A-Z]+">/);
     // The first member of every JSON file is its schema's address.
     const work = await readFile(path.join(dir, 'work.json'), 'utf8');
-    expect(work).toMatch(/^\{\n {2}"\$schema": "https:\/\/varians\.eu\/formats\/2\/work\.schema\.json",/);
+    expect(work).toMatch(
+      /^\{\n {2}"\$schema": "https:\/\/varians\.eu\/formats\/2\/work\.schema\.json",/,
+    );
     const segments = await readFile(path.join(dir, 'segments.tsv'), 'utf8');
     expect(segments.split('\n')[0]).toBe('id\tlabel\tsort_key\taddress\turn\tcreated_at');
     expect(segments).toContain('\turn:cts:greekLit:tlg0012.tlg001:1.5\t');

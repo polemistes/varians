@@ -38,7 +38,8 @@ export function canChangeRole(
 }
 
 export type SetRoleResult =
-  { ok: true; name: string } | { ok: false; error: 'last-administrator' | 'not-found' };
+  | { ok: true; name: string }
+  | { ok: false; error: 'last-administrator' | 'not-found' };
 
 export async function setRole(userId: string, role: Role): Promise<SetRoleResult> {
   return db.transaction(async (tx) => {

@@ -26,7 +26,15 @@ export async function recordFilter(
 ): Promise<(row: { id: string; ownerId: string; workId: string; visibility: string }) => boolean> {
   if (audience.kind === 'public') return (row) => row.visibility === 'published';
   const grants = await grantsFor(db, audience.viewer);
-  const workMaintainerIds = (await db.select({ id: workMaintainers.userId }).from(workMaintainers).where(eq(workMaintainers.workId, workId))).map((m) => m.id);
-  return (row) => canViewConjecture(audience.viewer, row as Parameters<typeof canViewConjecture>[1], { workMaintainerIds, grants });
+  const workMaintainerIds = (
+    await db
+      .select({ id: workMaintainers.userId })
+      .from(workMaintainers)
+      .where(eq(workMaintainers.workId, workId))
+  ).map((m) => m.id);
+  return (row) =>
+    canViewConjecture(audience.viewer, row as Parameters<typeof canViewConjecture>[1], {
+      workMaintainerIds,
+      grants,
+    });
 }
-

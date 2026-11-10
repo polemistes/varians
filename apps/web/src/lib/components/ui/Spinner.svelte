@@ -22,6 +22,12 @@
   aria-label={label ?? undefined}
 >
   <circle class="opacity-25" cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.5" />
-  <path class="opacity-90" d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
+  <path
+    class="opacity-90"
+    d="M21 12a9 9 0 0 0-9-9"
+    stroke="currentColor"
+    stroke-width="2.5"
+    stroke-linecap="round"
+  />
   {#if label}<title>{label ?? s.common.loading}</title>{/if}
 </svg>

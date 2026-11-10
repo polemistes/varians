@@ -9,7 +9,9 @@ import { z } from 'zod';
 const id = z.string().min(1).max(64);
 const short = z.string().max(2000);
 const attrValue = z.union([z.string().max(2000), z.number(), z.boolean(), z.null()]);
-const attrs = z.record(z.string().max(64), attrValue).refine((value) => Object.keys(value).length <= 32, 'too many attributes');
+const attrs = z
+  .record(z.string().max(64), attrValue)
+  .refine((value) => Object.keys(value).length <= 32, 'too many attributes');
 
 const mark = z
   .object({
@@ -20,10 +22,14 @@ const mark = z
   })
   .strict();
 
-const segment = z.object({ segmentId: id.nullable(), part: z.number().int().min(1).max(1000).optional() }).strict();
+const segment = z
+  .object({ segmentId: id.nullable(), part: z.number().int().min(1).max(1000).optional() })
+  .strict();
 
 const source = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('witness'), transcriptionId: id, tokenIds: z.array(id).max(64) }).strict(),
+  z
+    .object({ kind: z.literal('witness'), transcriptionId: id, tokenIds: z.array(id).max(64) })
+    .strict(),
   z.object({ kind: z.literal('conjecture'), conjectureId: id }).strict(),
   z.object({ kind: z.literal('editor') }).strict(),
 ]);
@@ -104,8 +110,18 @@ export const opSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('insert'), after: id.nullable(), items }).strict(),
   z.object({ t: z.literal('delete'), ids: z.array(id).min(1).max(100000) }).strict(),
   z.object({ t: z.literal('set'), id, fields }).strict(),
-  z.object({ t: z.literal('move'), ids: z.array(id).min(1).max(100000), after: id.nullable() }).strict(),
-  z.object({ t: z.literal('split'), id, at: z.number().int().min(1), newId: id, join: z.boolean().optional() }).strict(),
+  z
+    .object({ t: z.literal('move'), ids: z.array(id).min(1).max(100000), after: id.nullable() })
+    .strict(),
+  z
+    .object({
+      t: z.literal('split'),
+      id,
+      at: z.number().int().min(1),
+      newId: id,
+      join: z.boolean().optional(),
+    })
+    .strict(),
   z.object({ t: z.literal('join'), id }).strict(),
   z.object({ t: z.literal('replace'), ids: z.array(id).min(1).max(100000), items }).strict(),
 ]);
@@ -117,17 +133,27 @@ export function parseOps(value: unknown): { ok: true; ops: Op[] } | { ok: false;
   const parsed = opsSchema.safeParse(value);
   if (parsed.success) return { ok: true, ops: parsed.data as unknown as Op[] };
   const issue = parsed.error.issues[0];
-  return { ok: false, message: issue ? `${issue.path.join('.')}: ${issue.message}` : 'malformed operations' };
+  return {
+    ok: false,
+    message: issue ? `${issue.path.join('.')}: ${issue.message}` : 'malformed operations',
+  };
 }
 
 /** The segment ids operations name: segment starts of inserted items and of set fields. */
 export function segmentIdsIn(ops: Op[]): string[] {
   const ids = new Set<string>();
   const take = (segment: unknown) => {
-    if (segment && typeof segment === 'object' && 'segmentId' in segment && typeof segment.segmentId === 'string') ids.add(segment.segmentId);
+    if (
+      segment &&
+      typeof segment === 'object' &&
+      'segmentId' in segment &&
+      typeof segment.segmentId === 'string'
+    )
+      ids.add(segment.segmentId);
   };
   for (const op of ops) {
-    if (op.t === 'insert' || op.t === 'replace') for (const item of op.items) if (item.kind !== 'break') take(item.segment);
+    if (op.t === 'insert' || op.t === 'replace')
+      for (const item of op.items) if (item.kind !== 'break') take(item.segment);
     if (op.t === 'set') take(op.fields.segment);
   }
   return [...ids];

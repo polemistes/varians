@@ -33,7 +33,10 @@ import { workbench as t } from '$lib/strings/workbench';
 import { registry } from '$lib/strings/registry';
 import { seesWork } from '$lib/server/edition-access';
 import type { Actions, PageServerLoad } from './$types';
-import { createTranscription, deleteTranscription as deleteRegisteredTranscription } from '$lib/server/registry';
+import {
+  createTranscription,
+  deleteTranscription as deleteRegisteredTranscription,
+} from '$lib/server/registry';
 import { appendSources } from '$lib/server/workbench';
 
 /** A page as the browser sees it: its viewer source, and an image to read lines from. */
@@ -72,7 +75,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   const work = data.works.find((w) => w.id === data.transcription.workIds[0]) ?? data.works[0];
   return {
     ...clientData(data),
-    crumb: work ? { label: work.title, href: `/works/${work.slug}` } : { label: data.witness.name, href: `/witnesses/${data.witness.slug}` },
+    crumb: work
+      ? { label: work.title, href: `/works/${work.slug}` }
+      : { label: data.witness.name, href: `/witnesses/${data.witness.slug}` },
   };
 };
 
@@ -124,7 +129,11 @@ async function fileOrText(form: FormData, file: string, field: string): Promise<
  * the source of the text, it is added to the transcription's sources; most
  * imports are only a starting point, and then nothing is added.
  */
-async function imported(event: RequestEvent<{ id: string }>, form: FormData, run: () => Promise<ImportOutcome>) {
+async function imported(
+  event: RequestEvent<{ id: string }>,
+  form: FormData,
+  run: () => Promise<ImportOutcome>,
+) {
   try {
     const outcome = await run();
     const source = text(form, 'source').trim().slice(0, 1000);
@@ -139,7 +148,8 @@ async function imported(event: RequestEvent<{ id: string }>, form: FormData, run
       },
     };
   } catch (cause) {
-    if (cause instanceof VersionConflict) return fail(409, { message: t.importer.conflict, conflict: true });
+    if (cause instanceof VersionConflict)
+      return fail(409, { message: t.importer.conflict, conflict: true });
     if (cause instanceof SourceError) return fail(400, { message: cause.message });
     // What went wrong in detail is for the log; the message says what to check.
     console.warn('import failed', cause);
@@ -179,11 +189,20 @@ export const actions: Actions = {
     const { data, user } = await editable(event);
     const form = await event.request.formData();
     const parsed = settingsSchema.safeParse({ name: text(form, 'name') });
-    if (!parsed.success) return fail(400, { message: parsed.error.issues[0]?.message ?? t.settings.nameRequired });
+    if (!parsed.success)
+      return fail(400, { message: parsed.error.issues[0]?.message ?? t.settings.nameRequired });
     // The works chosen, each one that exists and is open to the user.
-    const workIds = [...new Set(form.getAll('workIds').map(String).filter((id) => id.length > 0 && id.length <= 64))].slice(0, 200);
+    const workIds = [
+      ...new Set(
+        form
+          .getAll('workIds')
+          .map(String)
+          .filter((id) => id.length > 0 && id.length <= 64),
+      ),
+    ].slice(0, 200);
     for (const id of workIds) {
-      if (!(await seesWork(event.locals.db, user, id))) return fail(400, { message: registry.transcription.works.notVisible });
+      if (!(await seesWork(event.locals.db, user, id)))
+        return fail(400, { message: registry.transcription.works.notVisible });
     }
     try {
       const settings = await saveSettings(event.locals.db, data.transcription.id, {
@@ -198,7 +217,8 @@ export const actions: Actions = {
       });
       return { settings };
     } catch (cause) {
-      if (cause instanceof VersionConflict) return fail(409, { message: t.importer.conflict, conflict: true });
+      if (cause instanceof VersionConflict)
+        return fail(409, { message: t.importer.conflict, conflict: true });
       throw cause;
     }
   },
@@ -212,7 +232,11 @@ export const actions: Actions = {
     const form = await event.request.formData();
     const name = text(form, 'name').trim().slice(0, 200);
     if (!name) return fail(400, { copyError: t.settings.nameRequired });
-    const copy = await createTranscription(event.locals.db, { witnessId: data.witness.id, name, fromTranscriptionId: data.transcription.id }, user.id);
+    const copy = await createTranscription(
+      event.locals.db,
+      { witnessId: data.witness.id, name, fromTranscriptionId: data.transcription.id },
+      user.id,
+    );
     throw redirect(303, `/transcriptions/${copy.id}`);
   },
 
@@ -221,10 +245,20 @@ export const actions: Actions = {
     if (!data) throw error(404, t.errors.notFound);
     if (!data.canDelete) throw error(403, t.errors.forbidden);
     // The registry's rule: not while an edition compares it, for that edition would lose a witness.
-    const result = await deleteRegisteredTranscription(event.locals.db, data.transcription.id, event.locals.user);
+    const result = await deleteRegisteredTranscription(
+      event.locals.db,
+      data.transcription.id,
+      event.locals.user,
+    );
     if (!result.ok) {
-      if (result.error === 'in-conspectus') return fail(409, { deleteError: t.delete.inConspectus(result.editions.map((e) => e.title).join(', ')) });
-      throw error(result.error === 'forbidden' ? 403 : 404, result.error === 'forbidden' ? t.errors.forbidden : t.errors.notFound);
+      if (result.error === 'in-conspectus')
+        return fail(409, {
+          deleteError: t.delete.inConspectus(result.editions.map((e) => e.title).join(', ')),
+        });
+      throw error(
+        result.error === 'forbidden' ? 403 : 404,
+        result.error === 'forbidden' ? t.errors.forbidden : t.errors.notFound,
+      );
     }
     throw redirect(303, `/witnesses/${data.witness.slug}`);
   },
@@ -238,7 +272,9 @@ export const actions: Actions = {
       return { teiPreview: preview };
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
-      return fail(400, { message: cause instanceof SourceError ? message : t.importer.failed(message) });
+      return fail(400, {
+        message: cause instanceof SourceError ? message : t.importer.failed(message),
+      });
     }
   },
 
@@ -247,7 +283,11 @@ export const actions: Actions = {
     const form = await event.request.formData();
     return imported(event, form, async () => {
       const xml = await teiText(form);
-      return importTeiInto(event.locals.db, target(data, form, user.id), { xml, workId: workOf(data, form), mapping: mappingOf(form) ?? {} });
+      return importTeiInto(event.locals.db, target(data, form, user.id), {
+        xml,
+        workId: workOf(data, form),
+        mapping: mappingOf(form) ?? {},
+      });
     });
   },
 
@@ -277,7 +317,9 @@ export const actions: Actions = {
     const form = await event.request.formData();
     const body = await fileOrText(form, 'file', 'text');
     if (!body.trim()) return fail(400, { message: t.importer.emptyText });
-    return imported(event, form, () => importLeidenInto(event.locals.db, target(data, form, user.id), body));
+    return imported(event, form, () =>
+      importLeidenInto(event.locals.db, target(data, form, user.id), body),
+    );
   },
 
   importLayout: async (event) => {
@@ -286,6 +328,8 @@ export const actions: Actions = {
     const xml = await fileOrText(form, 'file', 'xml');
     if (!xml.trim()) return fail(400, { message: t.importer.emptyText });
     const kind = layoutKind(xml) ?? undefined;
-    return imported(event, form, () => importLayoutInto(event.locals.db, target(data, form, user.id), xml, kind));
+    return imported(event, form, () =>
+      importLayoutInto(event.locals.db, target(data, form, user.id), xml, kind),
+    );
   },
 };

@@ -57,7 +57,9 @@
       </Notice>
     {:else if versionMode}
       <Notice kind="info">
-        <span class="font-medium text-ink">{r.notices.versionTitle(versionMode.number)} <LocalDate date={versionMode.at} /></span>.
+        <span class="font-medium text-ink"
+          >{r.notices.versionTitle(versionMode.number)} <LocalDate date={versionMode.at} /></span
+        >.
         {versionMode.isCurrent ? r.notices.versionIsCurrent : r.notices.versionText}
         <a href={data.links.current} class="text-accent underline">{r.notices.readCurrent}</a>
       </Notice>
@@ -69,9 +71,13 @@
 {/if}
 
 <header class="title-block">
-  <p class="font-sans text-xs font-medium tracking-[0.12em] text-ink-muted uppercase">{r.authorAndWork(data.work.author, data.work.title)}</p>
+  <p class="font-sans text-xs font-medium tracking-[0.12em] text-ink-muted uppercase">
+    {r.authorAndWork(data.work.author, data.work.title)}
+  </p>
   <h1 class="mt-2 font-serif text-title text-ink">{data.edition.title}</h1>
-  {#if data.edition.editors.length}<p class="mt-1.5 font-serif text-lg text-ink-soft italic">{r.editedBy(and(data.edition.editors))}</p>{/if}
+  {#if data.edition.editors.length}<p class="mt-1.5 font-serif text-lg text-ink-soft italic">
+      {r.editedBy(and(data.edition.editors))}
+    </p>{/if}
   <p class="mt-3 font-sans text-xs text-ink-muted">
     {#if mode.kind === 'published' && mode.number !== null && mode.at}
       {r.version(mode.number)}, {r.published} <LocalDate date={mode.at} />
@@ -89,7 +95,9 @@
 
 {#if paragraphs.length}
   <details class="preface" bind:this={preface}>
-    <summary class="cursor-pointer font-sans text-sm text-ink-soft select-none hover:text-ink">{r.text.preface}</summary>
+    <summary class="cursor-pointer font-sans text-sm text-ink-soft select-none hover:text-ink"
+      >{r.text.preface}</summary
+    >
     <div class="preface-text">
       {#each paragraphs as paragraph, k (k)}<p>{paragraph}</p>{/each}
     </div>
@@ -98,10 +106,15 @@
 
 {#if data.worksCited.length}
   <details class="preface works-cited" bind:this={worksCited}>
-    <summary class="cursor-pointer font-sans text-sm text-ink-soft select-none hover:text-ink">{r.text.worksCited}</summary>
+    <summary class="cursor-pointer font-sans text-sm text-ink-soft select-none hover:text-ink"
+      >{r.text.worksCited}</summary
+    >
     <ul class="preface-text">
       {#each data.worksCited as item (item.id)}
-        <li id="bib-{item.key}"><span class="font-sans text-sm font-semibold text-ink">{item.label}</span> {item.reference}</li>
+        <li id="bib-{item.key}">
+          <span class="font-sans text-sm font-semibold text-ink">{item.label}</span>
+          {item.reference}
+        </li>
       {/each}
     </ul>
   </details>

@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import type { Item, Stream } from '@varians/core';
-import { hasUnplacedText, initialView, neighbours, nextPageWithoutText, pageOf, pagesWithText, settleView, UNPLACED, viewOrder, WHOLE, wordsUnplaced } from './pages.ts';
+import {
+  hasUnplacedText,
+  initialView,
+  neighbours,
+  nextPageWithoutText,
+  pageOf,
+  pagesWithText,
+  settleView,
+  UNPLACED,
+  viewOrder,
+  WHOLE,
+  wordsUnplaced,
+} from './pages.ts';
 
 /** `a` a token, `/` a line break, `#p1` a page break naming p1. */
 function build(spec: string): Stream {
@@ -11,7 +23,8 @@ function build(spec: string): Stream {
       .filter(Boolean)
       .map((w): Item => {
         if (w === '/') return { kind: 'break', id: `l${++n}`, type: 'line' };
-        if (w.startsWith('#')) return { kind: 'break', id: `b${++n}`, type: 'page', pageId: w.slice(1) };
+        if (w.startsWith('#'))
+          return { kind: 'break', id: `b${++n}`, type: 'page', pageId: w.slice(1) };
         return { kind: 'token', id: w, form: w };
       }),
   };

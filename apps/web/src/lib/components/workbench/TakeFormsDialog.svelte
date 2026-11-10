@@ -54,17 +54,33 @@
   }
 </script>
 
-<Dialog bind:open title={t.title} description={t.description(wb.hasRange && wb.selection.ids.length ? wb.selection.ids.length : null)} size="md">
+<Dialog
+  bind:open
+  title={t.title}
+  description={t.description(
+    wb.hasRange && wb.selection.ids.length ? wb.selection.ids.length : null,
+  )}
+  size="md"
+>
   {#if sources === null}
     <p class="flex items-center gap-2 text-sm text-ink-muted"><Spinner size="sm" /> {t.loading}</p>
   {:else if sources.length === 0}
     <p class="text-sm text-ink-soft">{t.none}</p>
   {:else}
-    <Select bind:value={chosen} aria-label={t.source} options={sources.map((s) => ({ value: `${s.kind}:${s.id}`, label: `${s.kind === 'edition' ? t.edition : t.transcription}: ${s.label}` }))} />
+    <Select
+      bind:value={chosen}
+      aria-label={t.source}
+      options={sources.map((s) => ({
+        value: `${s.kind}:${s.id}`,
+        label: `${s.kind === 'edition' ? t.edition : t.transcription}: ${s.label}`,
+      }))}
+    />
   {/if}
   {#if error}<Notice kind="error">{error}</Notice>{/if}
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (open = false)}>{t.cancel}</Button>
-    <Button variant="primary" loading={busy} disabled={!chosen} onclick={() => void take()}>{t.take}</Button>
+    <Button variant="primary" loading={busy} disabled={!chosen} onclick={() => void take()}
+      >{t.take}</Button
+    >
   {/snippet}
 </Dialog>

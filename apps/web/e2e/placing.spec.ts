@@ -7,7 +7,14 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { fromText, newId, segmentAt, type Item, type Stream, type Token } from '@varians/core';
-import { createDatabase, referenceSchemes, transcriptions, users, witnesses, works } from '@varians/db';
+import {
+  createDatabase,
+  referenceSchemes,
+  transcriptions,
+  users,
+  witnesses,
+  works,
+} from '@varians/db';
 import { eq } from 'drizzle-orm';
 import { s } from '../src/lib/strings/en';
 import { pageStrings as t } from '../src/lib/strings/pages';
@@ -52,18 +59,34 @@ test.afterAll(async () => {
 
 async function content(): Promise<Stream> {
   const { db, pool } = createDatabase(DATABASE_URL);
-  const [row] = await db.select({ content: transcriptions.content }).from(transcriptions).where(eq(transcriptions.id, transcriptionId));
+  const [row] = await db
+    .select({ content: transcriptions.content })
+    .from(transcriptions)
+    .where(eq(transcriptions.id, transcriptionId));
   await pool.end();
   return row!.content;
 }
 
 /** The stream as `#page` for page breaks (by label), `/` for line breaks and the words. */
 function shape(stream: Stream, labels: Record<string, string>): string {
-  return stream.items.map((i) => (i.kind === 'break' ? (i.type === 'page' ? `#${labels[i.pageId!] ?? '?'}` : '/') : i.kind === 'token' ? i.form : '·')).join(' ');
+  return stream.items
+    .map((i) =>
+      i.kind === 'break'
+        ? i.type === 'page'
+          ? `#${labels[i.pageId!] ?? '?'}`
+          : '/'
+        : i.kind === 'token'
+          ? i.form
+          : '·',
+    )
+    .join(' ');
 }
 
 /** The segment label of every word by flow. */
-function segmentsOf(stream: Stream, labelOf: Record<string, string>): Record<string, string | null> {
+function segmentsOf(
+  stream: Stream,
+  labelOf: Record<string, string>,
+): Record<string, string | null> {
   const out: Record<string, string | null> = {};
   stream.items.forEach((item, i) => {
     if (item.kind === 'token') {
@@ -83,10 +106,14 @@ async function selectLine(page: Page, n: number) {
 }
 
 async function saved(page: Page) {
-  await expect(page.getByRole('status').filter({ hasText: /^Saved/ })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('status').filter({ hasText: /^Saved/ })).toBeVisible({
+    timeout: 15_000,
+  });
 }
 
-test('text on no page is placed page by page, and goes back when its page is removed', async ({ page }) => {
+test('text on no page is placed page by page, and goes back when its page is removed', async ({
+  page,
+}) => {
   test.setTimeout(150_000);
   await page.setViewportSize({ width: 1500, height: 950 });
 
@@ -104,7 +131,9 @@ test('text on no page is placed page by page, and goes back when its page is rem
   await page.locator('input[name=author]').fill('Vergilius');
   await page.locator('select[name=language]').selectOption('la');
   await page.getByRole('button', { name: 'Register the work' }).click();
-  await page.waitForURL((url) => /^\/works\/[^/]+$/.test(url.pathname) && url.pathname !== '/works/new');
+  await page.waitForURL(
+    (url) => /^\/works\/[^/]+$/.test(url.pathname) && url.pathname !== '/works/new',
+  );
   const workSlug = new URL(page.url()).pathname.split('/').pop()!;
 
   await page.goto('/witnesses/new');
@@ -112,7 +141,9 @@ test('text on no page is placed page by page, and goes back when its page is rem
   await page.locator('input[name=name]').fill(`Codex Paginatus ${stamp}`);
   await page.locator('input[name=siglum]').fill('Q');
   await page.getByRole('button', { name: 'Register the witness' }).click();
-  await page.waitForURL((url) => /^\/witnesses\/[^/]+$/.test(url.pathname) && url.pathname !== '/witnesses/new');
+  await page.waitForURL(
+    (url) => /^\/witnesses\/[^/]+$/.test(url.pathname) && url.pathname !== '/witnesses/new',
+  );
   witnessSlug = new URL(page.url()).pathname.split('/').pop()!;
   await page.waitForLoadState('networkidle');
   await page.getByRole('button', { name: 'New transcript' }).first().click();
@@ -126,7 +157,10 @@ test('text on no page is placed page by page, and goes back when its page is rem
 
   // Three pages, added on the Pages tab the new transcript opens on.
   const pane = page.getByRole('complementary', { name: w.pane.label });
-  await expect(pane.getByRole('tab', { name: w.pane.pages })).toHaveAttribute('data-state', 'active');
+  await expect(pane.getByRole('tab', { name: w.pane.pages })).toHaveAttribute(
+    'data-state',
+    'active',
+  );
   await pane.getByRole('button', { name: t.panel.addPages }).click();
   await pane.getByLabel(t.add.labels).fill('1r-2r');
   await pane.getByRole('button', { name: t.add.submit(3) }).click();
@@ -135,10 +169,16 @@ test('text on no page is placed page by page, and goes back when its page is rem
   // The whole text, segmented, on no page: as an import would leave it.
   const { db, pool } = createDatabase(DATABASE_URL);
   const [work] = await db.select({ id: works.id }).from(works).where(eq(works.slug, workSlug));
-  const [witnessRow] = await db.select({ id: witnesses.id }).from(witnesses).where(eq(witnesses.slug, witnessSlug));
+  const [witnessRow] = await db
+    .select({ id: witnesses.id })
+    .from(witnesses)
+    .where(eq(witnesses.slug, witnessSlug));
   await pool.end();
-  const made = await page.request.post(`/api/works/${work!.id}/segments`, { data: { labels: Object.keys(LINES) } });
-  const segmentRows = ((await made.json()) as { segments: { id: string; label: string }[] }).segments;
+  const made = await page.request.post(`/api/works/${work!.id}/segments`, {
+    data: { labels: Object.keys(LINES) },
+  });
+  const segmentRows = ((await made.json()) as { segments: { id: string; label: string }[] })
+    .segments;
   const labelOf = Object.fromEntries(segmentRows.map((x) => [x.id, x.label]));
   const items: Item[] = [];
   for (const [label, text] of Object.entries(LINES)) {
@@ -147,7 +187,9 @@ test('text on no page is placed page by page, and goes back when its page is rem
     (line[0] as Token).segment = { segmentId: segmentRows.find((x) => x.label === label)!.id };
     items.push(...line);
   }
-  const saving = await page.request.post(`/api/documents/transcription/${transcriptionId}/ops`, { data: { fromVersion: 0, ops: [{ t: 'insert', after: null, items }] } });
+  const saving = await page.request.post(`/api/documents/transcription/${transcriptionId}/ops`, {
+    data: { fromVersion: 0, ops: [{ t: 'insert', after: null, items }] },
+  });
   expect(saving.ok(), await saving.text()).toBe(true);
   const before = segmentsOf({ items }, labelOf);
 
@@ -185,11 +227,15 @@ test('text on no page is placed page by page, and goes back when its page is rem
   await saved(page);
 
   const { db: db2, pool: pool2 } = createDatabase(DATABASE_URL);
-  const pageRows = await db2.query.pages.findMany({ where: (p, { eq }) => eq(p.witnessId, witnessRow!.id) });
+  const pageRows = await db2.query.pages.findMany({
+    where: (p, { eq }) => eq(p.witnessId, witnessRow!.id),
+  });
   await pool2.end();
   const pageLabels = Object.fromEntries(pageRows.map((p) => [p.id, p.label]));
   const placed = await content();
-  expect(shape(placed, pageLabels)).toBe('#1r arma virumque cano #1v Italiam fato profugus / litora multum ille #2r vi superum saevae');
+  expect(shape(placed, pageLabels)).toBe(
+    '#1r arma virumque cano #1v Italiam fato profugus / litora multum ille #2r vi superum saevae',
+  );
   expect(segmentsOf(placed, labelOf)).toEqual(before);
 
   // On 2r the gutter shows its line's segment; the chooser marks the pages with text.
@@ -207,7 +253,8 @@ test('text on no page is placed page by page, and goes back when its page is rem
   await expect(page.getByRole('button', { name: w.pages.choose })).toHaveText('1v');
 
   // Cut and paste moves words: 2r's line cut, pasted after the last word of 1r, keeps its ids and its segment.
-  const idsOf = (stream: Stream, forms: string[]) => forms.map((f) => stream.items.find((i) => i.kind === 'token' && i.form === f)!.id);
+  const idsOf = (stream: Stream, forms: string[]) =>
+    forms.map((f) => stream.items.find((i) => i.kind === 'token' && i.form === f)!.id);
   const moving = ['vi', 'superum', 'saevae'];
   const idsBefore = idsOf(await content(), moving);
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -221,7 +268,9 @@ test('text on no page is placed page by page, and goes back when its page is rem
   await page.keyboard.press('End');
   await page.keyboard.press('Control+v');
   // The pasted words begin segment 1.4 in mid-line: its label stands before them.
-  await expect(page.locator('.cm-content .cm-line').nth(0)).toHaveText('arma virumque cano 1.4vi superum saevae');
+  await expect(page.locator('.cm-content .cm-line').nth(0)).toHaveText(
+    'arma virumque cano 1.4vi superum saevae',
+  );
   await saved(page);
   const pasted = await content();
   expect(idsOf(pasted, moving)).toEqual(idsBefore);
@@ -235,12 +284,16 @@ test('text on no page is placed page by page, and goes back when its page is rem
   await page.getByRole('menuitem', { name: '2r' }).click();
   await expect(page.getByText(w.move.moved('2r'))).toBeVisible();
   await saved(page);
-  expect(shape(await content(), pageLabels)).toBe('#1r arma virumque cano #1v Italiam fato profugus / litora multum ille #2r vi superum saevae');
+  expect(shape(await content(), pageLabels)).toBe(
+    '#1r arma virumque cano #1v Italiam fato profugus / litora multum ille #2r vi superum saevae',
+  );
   expect(segmentsOf(await content(), labelOf)).toEqual(before);
 
   // 1v removed: its two lines go to Not on a page, which the chooser then counts.
   await pane.getByRole('tab', { name: w.pane.pages }).click();
-  const card = pane.getByRole('list', { name: t.gridLabel }).getByRole('article', { name: '1v', exact: true });
+  const card = pane
+    .getByRole('list', { name: t.gridLabel })
+    .getByRole('article', { name: '1v', exact: true });
   await expect(card.getByText(t.card.lines(2))).toBeVisible();
   await card.getByRole('button', { name: t.card.menu('1v') }).click();
   await page.getByRole('menuitem', { name: t.menu.remove }).click();
@@ -249,10 +302,16 @@ test('text on no page is placed page by page, and goes back when its page is rem
   await removal.getByRole('button', { name: t.remove.submit }).click();
   await expect(page.getByText(t.remove.moved('1v', 6, 1))).toBeVisible();
   const after = await content();
-  expect(shape(after, pageLabels)).toBe('Italiam fato profugus / litora multum ille #1r arma virumque cano #2r vi superum saevae');
+  expect(shape(after, pageLabels)).toBe(
+    'Italiam fato profugus / litora multum ille #1r arma virumque cano #2r vi superum saevae',
+  );
   expect(segmentsOf(after, labelOf)).toEqual(before);
   await page.getByRole('button', { name: w.pages.choose }).click();
-  await expect(page.getByRole('menuitem', { name: new RegExp(`${w.pages.unplaced}.*${w.pages.unplacedWords(6)}`) })).toBeVisible();
+  await expect(
+    page.getByRole('menuitem', {
+      name: new RegExp(`${w.pages.unplaced}.*${w.pages.unplacedWords(6)}`),
+    }),
+  ).toBeVisible();
 
   // The witness is deleted from its own page, with its pages and the transcript of its creator.
   await page.goto(`/witnesses/${witnessSlug}`);
@@ -265,6 +324,8 @@ test('text on no page is placed page by page, and goes back when its page is rem
   await page.waitForURL((url) => url.pathname === '/');
   const { db: db3, pool: pool3 } = createDatabase(DATABASE_URL);
   expect(await db3.select().from(witnesses).where(eq(witnesses.slug, witnessSlug))).toEqual([]);
-  expect(await db3.select().from(transcriptions).where(eq(transcriptions.id, transcriptionId))).toEqual([]);
+  expect(
+    await db3.select().from(transcriptions).where(eq(transcriptions.id, transcriptionId)),
+  ).toEqual([]);
   await pool3.end();
 });

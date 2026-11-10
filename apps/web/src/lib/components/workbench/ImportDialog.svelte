@@ -10,7 +10,21 @@
   import { detectNumbering } from '@varians/core';
   import { untrack } from 'svelte';
   import { UNPLACED } from '$lib/workbench/pages';
-  import { Button, buttonClasses, Checkbox, Dialog, Field, Input, Notice, Select, Spinner, TabPanel, Tabs, Textarea, toasts } from '$lib/components/ui';
+  import {
+    Button,
+    buttonClasses,
+    Checkbox,
+    Dialog,
+    Field,
+    Input,
+    Notice,
+    Select,
+    Spinner,
+    TabPanel,
+    Tabs,
+    Textarea,
+    toasts,
+  } from '$lib/components/ui';
   import { workbench as t } from '$lib/strings/workbench';
   import type { Workbench } from './workbench.svelte';
 
@@ -39,7 +53,9 @@
   let placement = $state<string>(untrack(() => (wb.onPage && wb.page ? wb.page : UNPLACED)));
   const placements = $derived([
     { value: UNPLACED, label: t.importer.placementUnplaced },
-    ...(wb.onPage && wb.page ? [{ value: wb.page, label: t.importer.placementPage(wb.pageLabel) }] : []),
+    ...(wb.onPage && wb.page
+      ? [{ value: wb.page, label: t.importer.placementPage(wb.pageLabel) }]
+      : []),
   ]);
   $effect(() => {
     if (!placements.some((p) => p.value === placement)) placement = UNPLACED;
@@ -124,16 +140,30 @@
     formData.set('placement', placement);
     if (!isPreview) formData.set('source', source);
     // Before the first reading the server proposes the mapping; afterwards it is the one chosen here.
-    if ((action.search.includes('Tei') || isPreview) && preview) formData.set('mapping', JSON.stringify(mapping));
+    if ((action.search.includes('Tei') || isPreview) && preview)
+      formData.set('mapping', JSON.stringify(mapping));
     busy = true;
     return async ({ result }) => {
       busy = false;
       if (result.type === 'success') {
-        const data = result.data as { teiPreview?: TeiPreviewData; imported?: Parameters<Workbench['applyImport']>[0] & { outcome: { segments: number; pagesMatched: number; pagesCreated: number; zones: number; unplaced: number; warnings: string[] } } };
+        const data = result.data as {
+          teiPreview?: TeiPreviewData;
+          imported?: Parameters<Workbench['applyImport']>[0] & {
+            outcome: {
+              segments: number;
+              pagesMatched: number;
+              pagesCreated: number;
+              zones: number;
+              unplaced: number;
+              warnings: string[];
+            };
+          };
+        };
         if (data.teiPreview) {
           preview = data.teiPreview;
           mapping = { ...data.teiPreview.mapping };
-          for (const unit of data.teiPreview.units) if (!(unit.unit in mapping)) mapping[unit.unit] = '';
+          for (const unit of data.teiPreview.units)
+            if (!(unit.unit in mapping)) mapping[unit.unit] = '';
           return;
         }
         if (data.imported) {
@@ -174,7 +204,14 @@
   {#if wb.works.length > 0 && tab !== 'leiden' && tab !== 'layout'}
     <Field label={t.importer.work}>
       {#snippet children(control)}
-        <Select {...control} bind:value={workId} options={[...wb.works.map((w) => ({ value: w.id, label: w.title })), { value: '', label: t.importer.noWork }]} />
+        <Select
+          {...control}
+          bind:value={workId}
+          options={[
+            ...wb.works.map((w) => ({ value: w.id, label: w.title })),
+            { value: '', label: t.importer.noWork },
+          ]}
+        />
       {/snippet}
     </Field>
   {/if}
@@ -212,11 +249,25 @@
 <Dialog bind:open title={t.importer.title} description={t.importer.description} size="lg">
   <Tabs {tabs} bind:value={tab} label={t.importer.title}>
     <TabPanel value="tei">
-      <form bind:this={teiForm} method="post" action="?/importTei" enctype="multipart/form-data" use:enhance={submit} class="flex flex-col gap-4">
+      <form
+        bind:this={teiForm}
+        method="post"
+        action="?/importTei"
+        enctype="multipart/form-data"
+        use:enhance={submit}
+        class="flex flex-col gap-4"
+      >
         <div class="grid gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-end">
           <Field label={t.importer.file}>
             {#snippet children(control)}
-              <input {...control} type="file" name="file" accept=".xml,.tei,application/xml,text/xml" bind:files={teiFiles} class="text-sm text-ink-soft file:mr-3 file:h-8 file:cursor-pointer file:rounded-md file:border file:border-line file:bg-surface file:px-3 file:text-sm file:font-medium file:text-ink hover:file:bg-sunken" />
+              <input
+                {...control}
+                type="file"
+                name="file"
+                accept=".xml,.tei,application/xml,text/xml"
+                bind:files={teiFiles}
+                class="text-sm text-ink-soft file:mr-3 file:h-8 file:cursor-pointer file:rounded-md file:border file:border-line file:bg-surface file:px-3 file:text-sm file:font-medium file:text-ink hover:file:bg-sunken"
+              />
             {/snippet}
           </Field>
           <span class="pb-2 text-center text-xs text-ink-muted">{t.importer.or}</span>
@@ -236,19 +287,26 @@
             bind:this={teiPreviewButton}
             disabled={busy || (!teiSource.trim() && !teiFiles?.length)}
           >
-            {#if busy && !preview}<Spinner size="sm" />{t.importer.tei.reading}{:else}{t.importer.tei.preview}{/if}
+            {#if busy && !preview}<Spinner size="sm" />{t.importer.tei.reading}{:else}{t.importer
+                .tei.preview}{/if}
           </button>
         </div>
         {#if preview}
           <div class="flex flex-col gap-3 rounded-md border border-line p-3">
             <p class="text-sm text-ink-soft">
-              {[preview.title ? t.importer.tei.titleFound(preview.title) : null, t.importer.tei.words(preview.words), t.importer.tei.pageBreaks(preview.pageBreaks)]
+              {[
+                preview.title ? t.importer.tei.titleFound(preview.title) : null,
+                t.importer.tei.words(preview.words),
+                t.importer.tei.pageBreaks(preview.pageBreaks),
+              ]
                 .filter(Boolean)
                 .join(' · ')}
             </p>
             {#if preview.units.length && levels.length}
               <table class="w-full text-sm">
-                <caption class="mb-1 text-left text-xs font-medium text-ink-soft">{t.importer.tei.structure}</caption>
+                <caption class="mb-1 text-left text-xs font-medium text-ink-soft"
+                  >{t.importer.tei.structure}</caption
+                >
                 <thead class="text-left text-xs text-ink-muted">
                   <tr>
                     <th class="py-1 font-medium">{t.importer.tei.unit}</th>
@@ -281,7 +339,12 @@
                 </tbody>
               </table>
               <p class="text-sm">
-                {t.importer.tei.resolved(preview.resolved, preview.resolved + preview.unresolved)}{#if preview.examples.length}, {t.importer.tei.examples(preview.examples.join(', '))}{/if}
+                {t.importer.tei.resolved(
+                  preview.resolved,
+                  preview.resolved + preview.unresolved,
+                )}{#if preview.examples.length}, {t.importer.tei.examples(
+                    preview.examples.join(', '),
+                  )}{/if}
               </p>
             {/if}
             {#if preview.warnings.length}
@@ -294,7 +357,12 @@
         {@render outcome()}
         <div class="flex justify-end gap-2">
           <Button variant="ghost" onclick={() => (open = false)}>{t.importer.cancel}</Button>
-          <Button type="submit" variant="primary" loading={busy && !!preview} disabled={busy || !preview}>{t.importer.run}</Button>
+          <Button
+            type="submit"
+            variant="primary"
+            loading={busy && !!preview}
+            disabled={busy || !preview}>{t.importer.run}</Button
+          >
         </div>
       </form>
     </TabPanel>
@@ -306,7 +374,13 @@
             <Textarea {...control} name="text" rows={8} serif bind:value={text} />
           {/snippet}
         </Field>
-        <input type="file" accept=".txt,text/plain" class="text-sm text-ink-soft file:mr-3 file:h-8 file:cursor-pointer file:rounded-md file:border file:border-line file:bg-surface file:px-3 file:text-sm file:font-medium file:text-ink hover:file:bg-sunken" aria-label={t.importer.file} onchange={(e) => loadInto(e.currentTarget.files, (v) => (text = v))} />
+        <input
+          type="file"
+          accept=".txt,text/plain"
+          class="text-sm text-ink-soft file:mr-3 file:h-8 file:cursor-pointer file:rounded-md file:border file:border-line file:bg-surface file:px-3 file:text-sm file:font-medium file:text-ink hover:file:bg-sunken"
+          aria-label={t.importer.file}
+          onchange={(e) => loadInto(e.currentTarget.files, (v) => (text = v))}
+        />
         <fieldset class="flex flex-col gap-1.5">
           <legend class="mb-1 text-sm font-medium">{t.importer.text.numbering}</legend>
           <label class="flex items-center gap-2 text-sm">
@@ -317,26 +391,40 @@
             <label class="flex items-baseline gap-2 text-sm">
               <input type="radio" name="pattern" value={option.kind} bind:group={pattern} />
               <span>{t.importer.text.kinds[option.kind] ?? option.kind}</span>
-              <span class="text-xs text-ink-soft">{t.importer.text.matches(option.matches, option.sample)}</span>
+              <span class="text-xs text-ink-soft"
+                >{t.importer.text.matches(option.matches, option.sample)}</span
+              >
             </label>
           {/each}
         </fieldset>
         {#if pattern === 'every-line' || pattern === 'margin-every-n'}
           <Field label={t.importer.text.start} hint={t.importer.text.startHint}>
             {#snippet children(control)}
-              <Input {...control} name="startLabel" bind:value={startLabel} autocomplete="off" class="w-40 font-serif" />
+              <Input
+                {...control}
+                name="startLabel"
+                bind:value={startLabel}
+                autocomplete="off"
+                class="w-40 font-serif"
+              />
             {/snippet}
           </Field>
         {/if}
         <div class="flex flex-wrap gap-x-6 gap-y-2">
-          <Checkbox name="paragraphs" bind:checked={paragraphs}>{t.importer.text.paragraphs}</Checkbox>
-          <Checkbox name="hyphenJoins" bind:checked={hyphenJoins}>{t.importer.text.hyphens}</Checkbox>
+          <Checkbox name="paragraphs" bind:checked={paragraphs}
+            >{t.importer.text.paragraphs}</Checkbox
+          >
+          <Checkbox name="hyphenJoins" bind:checked={hyphenJoins}
+            >{t.importer.text.hyphens}</Checkbox
+          >
         </div>
         {@render common()}
         {@render outcome()}
         <div class="flex justify-end gap-2">
           <Button variant="ghost" onclick={() => (open = false)}>{t.importer.cancel}</Button>
-          <Button type="submit" variant="primary" loading={busy} disabled={busy || !text.trim()}>{t.importer.run}</Button>
+          <Button type="submit" variant="primary" loading={busy} disabled={busy || !text.trim()}
+            >{t.importer.run}</Button
+          >
         </div>
       </form>
     </TabPanel>
@@ -348,29 +436,57 @@
             <Textarea {...control} name="text" rows={8} serif bind:value={leiden} />
           {/snippet}
         </Field>
-        <input type="file" accept=".txt,text/plain" class="text-sm text-ink-soft file:mr-3 file:h-8 file:cursor-pointer file:rounded-md file:border file:border-line file:bg-surface file:px-3 file:text-sm file:font-medium file:text-ink hover:file:bg-sunken" aria-label={t.importer.file} onchange={(e) => loadInto(e.currentTarget.files, (v) => (leiden = v))} />
+        <input
+          type="file"
+          accept=".txt,text/plain"
+          class="text-sm text-ink-soft file:mr-3 file:h-8 file:cursor-pointer file:rounded-md file:border file:border-line file:bg-surface file:px-3 file:text-sm file:font-medium file:text-ink hover:file:bg-sunken"
+          aria-label={t.importer.file}
+          onchange={(e) => loadInto(e.currentTarget.files, (v) => (leiden = v))}
+        />
         {@render common()}
         {@render outcome()}
         <div class="flex justify-end gap-2">
           <Button variant="ghost" onclick={() => (open = false)}>{t.importer.cancel}</Button>
-          <Button type="submit" variant="primary" loading={busy} disabled={busy || !leiden.trim()}>{t.importer.run}</Button>
+          <Button type="submit" variant="primary" loading={busy} disabled={busy || !leiden.trim()}
+            >{t.importer.run}</Button
+          >
         </div>
       </form>
     </TabPanel>
 
     <TabPanel value="layout">
-      <form method="post" action="?/importLayout" enctype="multipart/form-data" use:enhance={submit} class="flex flex-col gap-4">
+      <form
+        method="post"
+        action="?/importLayout"
+        enctype="multipart/form-data"
+        use:enhance={submit}
+        class="flex flex-col gap-4"
+      >
         <Field label={t.importer.layout.file} hint={t.importer.layout.hint}>
           {#snippet children(control)}
-            <input {...control} type="file" name="file" accept=".xml,application/xml,text/xml" bind:files={layoutFiles} class="text-sm text-ink-soft file:mr-3 file:h-8 file:cursor-pointer file:rounded-md file:border file:border-line file:bg-surface file:px-3 file:text-sm file:font-medium file:text-ink hover:file:bg-sunken" />
+            <input
+              {...control}
+              type="file"
+              name="file"
+              accept=".xml,application/xml,text/xml"
+              bind:files={layoutFiles}
+              class="text-sm text-ink-soft file:mr-3 file:h-8 file:cursor-pointer file:rounded-md file:border file:border-line file:bg-surface file:px-3 file:text-sm file:font-medium file:text-ink hover:file:bg-sunken"
+            />
           {/snippet}
         </Field>
-        <p class="text-xs text-ink-soft">{wb.canMaintainWitness ? t.importer.layout.createPages : t.importer.layout.noCreatePages}</p>
+        <p class="text-xs text-ink-soft">
+          {wb.canMaintainWitness ? t.importer.layout.createPages : t.importer.layout.noCreatePages}
+        </p>
         {@render common()}
         {@render outcome()}
         <div class="flex justify-end gap-2">
           <Button variant="ghost" onclick={() => (open = false)}>{t.importer.cancel}</Button>
-          <Button type="submit" variant="primary" loading={busy} disabled={busy || !layoutFiles?.length}>{t.importer.run}</Button>
+          <Button
+            type="submit"
+            variant="primary"
+            loading={busy}
+            disabled={busy || !layoutFiles?.length}>{t.importer.run}</Button
+          >
         </div>
       </form>
     </TabPanel>

@@ -20,8 +20,14 @@ function objects(text: string): Obj[] {
 describe('fromLeiden', () => {
   it('marks supplied letters, whole words and parts of words', () => {
     const [kai, tou, demou] = tokens('[καὶ] το[ῦ] δήμου');
-    expect(kai).toMatchObject({ form: 'καὶ', marks: [{ kind: 'supplied', attrs: { reason: 'lost' } }] });
-    expect(tou).toMatchObject({ form: 'τοῦ', marks: [{ kind: 'supplied', attrs: { reason: 'lost' }, from: 2, to: 3 }] });
+    expect(kai).toMatchObject({
+      form: 'καὶ',
+      marks: [{ kind: 'supplied', attrs: { reason: 'lost' } }],
+    });
+    expect(tou).toMatchObject({
+      form: 'τοῦ',
+      marks: [{ kind: 'supplied', attrs: { reason: 'lost' }, from: 2, to: 3 }],
+    });
     expect(demou?.marks).toBeUndefined();
   });
 
@@ -45,16 +51,16 @@ describe('fromLeiden', () => {
 
   it('reads standalone dots as illegible letters, also inside a word', () => {
     const { stream } = read('καὶ ... τ..ῦ . . δήμου.');
-    expect(stream.items.map((i) => (isToken(i) ? i.form : isObj(i) ? `gap${i.attrs?.quantity}` : i.kind))).toEqual([
-      'καὶ',
-      'gap3',
-      'τ',
-      'gap2',
-      'ῦ',
-      'gap2',
-      'δήμου.',
-    ]);
-    expect((stream.items[1] as Obj).attrs).toEqual({ reason: 'illegible', unit: 'character', quantity: 3 });
+    expect(
+      stream.items.map((i) =>
+        isToken(i) ? i.form : isObj(i) ? `gap${i.attrs?.quantity}` : i.kind,
+      ),
+    ).toEqual(['καὶ', 'gap3', 'τ', 'gap2', 'ῦ', 'gap2', 'δήμου.']);
+    expect((stream.items[1] as Obj).attrs).toEqual({
+      reason: 'illegible',
+      unit: 'character',
+      quantity: 3,
+    });
   });
 
   it('reads surplus, deletion, addition and correction', () => {
@@ -68,9 +74,18 @@ describe('fromLeiden', () => {
 
   it('expands abbreviations', () => {
     const [imp, caes, bf] = tokens('Imp(erator) Caes(ar)i b(ene)f(iciarius)');
-    expect(imp).toMatchObject({ form: 'Imp', marks: [{ kind: 'abbr', attrs: { expan: 'Imperator' } }] });
-    expect(caes).toMatchObject({ form: 'Caesi', marks: [{ kind: 'abbr', attrs: { expan: 'Caesari' } }] });
-    expect(bf).toMatchObject({ form: 'bf', marks: [{ kind: 'abbr', attrs: { expan: 'beneficiarius' } }] });
+    expect(imp).toMatchObject({
+      form: 'Imp',
+      marks: [{ kind: 'abbr', attrs: { expan: 'Imperator' } }],
+    });
+    expect(caes).toMatchObject({
+      form: 'Caesi',
+      marks: [{ kind: 'abbr', attrs: { expan: 'Caesari' } }],
+    });
+    expect(bf).toMatchObject({
+      form: 'bf',
+      marks: [{ kind: 'abbr', attrs: { expan: 'beneficiarius' } }],
+    });
   });
 
   it('reads underdots and underscores as unclear', () => {
@@ -104,16 +119,31 @@ describe('fromLeiden', () => {
 
   it('reads vacat as a space object', () => {
     const items = read('καὶ vac. 3 τοῦ (vacat) δήμου vac.').stream.items;
-    expect(items.map((i) => (isToken(i) ? i.form : i.type))).toEqual(['καὶ', 'space', 'τοῦ', 'space', 'δήμου', 'space']);
+    expect(items.map((i) => (isToken(i) ? i.form : i.type))).toEqual([
+      'καὶ',
+      'space',
+      'τοῦ',
+      'space',
+      'δήμου',
+      'space',
+    ]);
     expect((items[1] as Obj).attrs).toEqual({ unit: 'character', quantity: 3 });
     expect((items[3] as Obj).attrs).toBeUndefined();
   });
 
   it('keeps unbalanced brackets as text and warns', () => {
     const { stream, warnings } = read('[καὶ τοῦ\nδήμου ⟦τε');
-    expect(stream.items.filter(isToken).map((t) => t.form)).toEqual(['[καὶ', 'τοῦ', 'δήμου', '⟦τε']);
+    expect(stream.items.filter(isToken).map((t) => t.form)).toEqual([
+      '[καὶ',
+      'τοῦ',
+      'δήμου',
+      '⟦τε',
+    ]);
     expect(stream.items.filter(isToken).every((t) => t.marks === undefined)).toBe(true);
-    expect(warnings).toEqual(['Unbalanced "[" on line 1, kept as text.', 'Unbalanced "⟦" on line 2, kept as text.']);
+    expect(warnings).toEqual([
+      'Unbalanced "[" on line 1, kept as text.',
+      'Unbalanced "⟦" on line 2, kept as text.',
+    ]);
 
     const stray = read('καὶ] τοῦ');
     expect(stray.stream.items.filter(isToken).map((t) => t.form)).toEqual(['καὶ]', 'τοῦ']);
@@ -140,16 +170,33 @@ describe('toLeiden', () => {
   });
 
   it('writes gaps, spaces and line ends, with the hyphen of a divided word', () => {
-    expect(toLeiden(read('[---] [...] [ca. 5] [5] vac. 2 ... || τοῦ').stream)).toBe('[---] [...] [ca. 5] [.....] vac. 2 ... | τοῦ');
+    expect(toLeiden(read('[---] [...] [ca. 5] [5] vac. 2 ... || τοῦ').stream)).toBe(
+      '[---] [...] [ca. 5] [.....] vac. 2 ... | τοῦ',
+    );
     expect(toLeiden(read('ἄνδ-|ρα μοι | θεὰ').stream)).toBe('ἄνδ-|ρα μοι | θεὰ');
   });
 
   it('places the expansion where the written letters stop', () => {
     const stream = {
       items: [
-        { kind: 'token' as const, id: 'a', form: 'ΚΣ', marks: [{ kind: 'abbr', attrs: { expan: 'Κύριος' } }] },
-        { kind: 'token' as const, id: 'b', form: 'ς', marks: [{ kind: 'abbr', attrs: { expan: 'ος' } }] },
-        { kind: 'token' as const, id: 'c', form: 'δέ', marks: [{ kind: 'supplied', attrs: { reason: 'omitted' } }] },
+        {
+          kind: 'token' as const,
+          id: 'a',
+          form: 'ΚΣ',
+          marks: [{ kind: 'abbr', attrs: { expan: 'Κύριος' } }],
+        },
+        {
+          kind: 'token' as const,
+          id: 'b',
+          form: 'ς',
+          marks: [{ kind: 'abbr', attrs: { expan: 'ος' } }],
+        },
+        {
+          kind: 'token' as const,
+          id: 'c',
+          form: 'δέ',
+          marks: [{ kind: 'supplied', attrs: { reason: 'omitted' } }],
+        },
       ],
     };
     expect(toLeiden(stream)).toBe('ΚΣ(Κύριος) (ο)ς <δέ>');

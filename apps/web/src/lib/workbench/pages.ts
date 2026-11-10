@@ -101,7 +101,10 @@ export function neighbours(view: string, order: readonly string[]): Neighbours {
   if (view === WHOLE) return { previous: null, next: order[0] ?? null };
   const at = order.indexOf(view);
   if (at < 0) return { previous: null, next: null };
-  return { previous: at > 0 ? order[at - 1]! : null, next: at < order.length - 1 ? order[at + 1]! : null };
+  return {
+    previous: at > 0 ? order[at - 1]! : null,
+    next: at < order.length - 1 ? order[at + 1]! : null,
+  };
 }
 
 /**
@@ -123,7 +126,11 @@ export function initialView(stream: Stream, witnessPages: readonly WitnessPage[]
  * where the witness has pages; a page is while the witness has it. Anything
  * else falls back to the view a transcript opens on.
  */
-export function settleView(requested: string | null, stream: Stream, witnessPages: readonly WitnessPage[]): string {
+export function settleView(
+  requested: string | null,
+  stream: Stream,
+  witnessPages: readonly WitnessPage[],
+): string {
   if (requested === UNPLACED) return UNPLACED;
   if (requested === WHOLE) return witnessPages.length ? WHOLE : UNPLACED;
   if (requested !== null && witnessPages.some((p) => p.id === requested)) return requested;
@@ -141,7 +148,11 @@ export function pageOf(stream: Stream, itemId: Id): string | null {
 }
 
 /** The first page in the witness's order without text after `after` (from the start when absent), wrapping round; null when every other page has text. */
-export function nextPageWithoutText(witnessPages: readonly WitnessPage[], stream: Stream, after?: string | null): string | null {
+export function nextPageWithoutText(
+  witnessPages: readonly WitnessPage[],
+  stream: Stream,
+  after?: string | null,
+): string | null {
   const withText = pagesWithText(stream);
   const free = (p: WitnessPage) => !withText.has(p.id) && p.id !== after;
   const start = after ? witnessPages.findIndex((p) => p.id === after) : -1;

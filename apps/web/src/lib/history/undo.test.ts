@@ -49,7 +49,14 @@ describe('salvageOps', () => {
   it('drops ids that are gone and items already back, and counts what cannot apply', () => {
     const before = text();
     const target = applyOps(before, [
-      { t: 'insert', after: 't1', items: [{ kind: 'token', id: 'x', form: 'X' }, { kind: 'token', id: 'y', form: 'Y' }] },
+      {
+        t: 'insert',
+        after: 't1',
+        items: [
+          { kind: 'token', id: 'x', form: 'X' },
+          { kind: 'token', id: 'y', form: 'Y' },
+        ],
+      },
       { t: 'set', id: 't4', fields: { form: 'D' } },
     ]);
     // Later: y removed, d removed.
@@ -67,7 +74,9 @@ describe('salvageOps', () => {
       { t: 'move', ids: ['t2', 't3'], after: 't6' },
       { t: 'insert', after: 'nowhere', items: [{ kind: 'token', id: 'z', form: 'Z' }] },
     ];
-    const split = applyOps(before, [{ t: 'insert', after: 't2', items: [{ kind: 'token', id: 'm', form: 'M' }] }]).stream;
+    const split = applyOps(before, [
+      { t: 'insert', after: 't2', items: [{ kind: 'token', id: 'm', form: 'M' }] },
+    ]).stream;
     const result = salvageOps(split, ops, [before]);
     expect(result.skipped).toBe(2);
     expect(result.ops).toEqual([]);
@@ -77,7 +86,11 @@ describe('salvageOps', () => {
 describe('wordsOf', () => {
   it('names ids by their text now, else as operations last carried them', () => {
     const now = text();
-    const words = wordsOf(['t1', 't5', 'gone', 'lost'], [now], [{ t: 'insert', after: null, items: [{ kind: 'token', id: 'gone', form: 'old' }] }]);
+    const words = wordsOf(
+      ['t1', 't5', 'gone', 'lost'],
+      [now],
+      [{ t: 'insert', after: null, items: [{ kind: 'token', id: 'gone', form: 'old' }] }],
+    );
     expect(words).toEqual({ t1: 'a', t5: '¶', gone: 'old' });
   });
 });

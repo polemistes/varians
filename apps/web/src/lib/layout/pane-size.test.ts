@@ -26,7 +26,12 @@ describe('PaneSize', () => {
 
   it('remembers a size, restores it, and forgets it on reset', () => {
     const store = fakeWindow(1000);
-    const pane = new PaneSize('band', { min: 100, max: 800, fallback: 300, initial: () => window.innerHeight * 0.3 });
+    const pane = new PaneSize('band', {
+      min: 100,
+      max: 800,
+      fallback: 300,
+      initial: () => window.innerHeight * 0.3,
+    });
     pane.restore();
     expect(pane.value).toBe(300);
     pane.set(450.4);

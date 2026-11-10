@@ -18,7 +18,11 @@
   const t = workbench.tools;
   let busy = $state(false);
 
-  const scope = $derived(wb.hasRange && wb.selection.ids.length ? t.scopeSelection(wb.selection.ids.length) : t.scopePage);
+  const scope = $derived(
+    wb.hasRange && wb.selection.ids.length
+      ? t.scopeSelection(wb.selection.ids.length)
+      : t.scopePage,
+  );
 
   const removals: { kinds: MarkKind[]; label: string }[] = [
     { kinds: ['accents'], label: t.removeAccents },
@@ -73,7 +77,9 @@
       <DropdownMenu.Separator class="my-1 h-px bg-line" />
       <DropdownMenu.Item class={itemClass} disabled={busy} onSelect={() => void normalize()}>
         <span>{t.normalize}</span>
-        <span class="text-xs text-ink-muted">{wb.keepsWrittenForm ? t.normalizeHint : t.normalizeHintOneForm}</span>
+        <span class="text-xs text-ink-muted"
+          >{wb.keepsWrittenForm ? t.normalizeHint : t.normalizeHintOneForm}</span
+        >
       </DropdownMenu.Item>
       <DropdownMenu.Item class={itemClass} disabled={busy} onSelect={ontake}>
         <span>{t.takeFrom}</span>
@@ -81,16 +87,30 @@
       </DropdownMenu.Item>
       <DropdownMenu.Separator class="my-1 h-px bg-line" />
       <DropdownMenu.Group>
-        <DropdownMenu.GroupHeading class={headingClass}>{wb.keepsWrittenForm ? t.removeHeading : t.removeHeadingOneForm}</DropdownMenu.GroupHeading>
+        <DropdownMenu.GroupHeading class={headingClass}
+          >{wb.keepsWrittenForm
+            ? t.removeHeading
+            : t.removeHeadingOneForm}</DropdownMenu.GroupHeading
+        >
         {#each removals as item (item.label)}
-          <DropdownMenu.Item class={itemClass} onSelect={() => changed(wb.removeMarks(item.kinds))}>{item.label}</DropdownMenu.Item>
+          <DropdownMenu.Item class={itemClass} onSelect={() => changed(wb.removeMarks(item.kinds))}
+            >{item.label}</DropdownMenu.Item
+          >
         {/each}
       </DropdownMenu.Group>
       <DropdownMenu.Separator class="my-1 h-px bg-line" />
       <DropdownMenu.Group>
-        <DropdownMenu.GroupHeading class={headingClass}>{t.caseHeading(wb.editorForm === 'written' && wb.keepsWrittenForm)}</DropdownMenu.GroupHeading>
-        <DropdownMenu.Item class={itemClass} onSelect={() => changed(wb.changeCase('lower'))}>{t.lower}</DropdownMenu.Item>
-        <DropdownMenu.Item class={itemClass} onSelect={() => changed(wb.changeCase('upper'))}>{t.upper}</DropdownMenu.Item>
+        <DropdownMenu.GroupHeading class={headingClass}
+          >{t.caseHeading(
+            wb.editorForm === 'written' && wb.keepsWrittenForm,
+          )}</DropdownMenu.GroupHeading
+        >
+        <DropdownMenu.Item class={itemClass} onSelect={() => changed(wb.changeCase('lower'))}
+          >{t.lower}</DropdownMenu.Item
+        >
+        <DropdownMenu.Item class={itemClass} onSelect={() => changed(wb.changeCase('upper'))}
+          >{t.upper}</DropdownMenu.Item
+        >
       </DropdownMenu.Group>
     </DropdownMenu.Content>
   </DropdownMenu.Portal>

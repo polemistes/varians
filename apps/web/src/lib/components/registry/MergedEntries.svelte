@@ -11,6 +11,10 @@
 
 <ul class="flex flex-col gap-0.5">
   {#each items as item (item.oldId)}
-    <li><span class="font-serif text-base text-ink">{item.label}</span><span class="text-ink-soft">, <LocalDate date={item.mergedAt} /></span></li>
+    <li>
+      <span class="font-serif text-base text-ink">{item.label}</span><span class="text-ink-soft"
+        >, <LocalDate date={item.mergedAt} /></span
+      >
+    </li>
   {/each}
 </ul>

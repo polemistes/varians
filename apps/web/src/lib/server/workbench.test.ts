@@ -3,7 +3,20 @@
  * or the default below, migrated). Every record made here is removed again.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { applyOps, defaultProfile, detectNumbering, fromText, isBreak, isToken, newId, sequentialIds, toText, type Break, type Stream, type Token } from '@varians/core';
+import {
+  applyOps,
+  defaultProfile,
+  detectNumbering,
+  fromText,
+  isBreak,
+  isToken,
+  newId,
+  sequentialIds,
+  toText,
+  type Break,
+  type Stream,
+  type Token,
+} from '@varians/core';
 import {
   changesets,
   createDatabase,
@@ -71,18 +84,38 @@ beforeAll(async () => {
       { key: 'line', label: 'Line', type: 'number', separator: '.' },
     ],
   });
-  await db.insert(works).values({ id: ids.work, slug: `w-${ids.work}`, title: 'Iliad', schemeId: ids.scheme, profile: defaultProfile('grc') });
+  await db.insert(works).values({
+    id: ids.work,
+    slug: `w-${ids.work}`,
+    title: 'Iliad',
+    schemeId: ids.scheme,
+    profile: defaultProfile('grc'),
+  });
   // The owner made the witness and so maintains it.
-  await db.insert(witnesses).values({ id: ids.witness, slug: `a-${ids.witness}`, siglum: 'A', name: 'Venetus A', createdBy: ids.owner });
+  await db.insert(witnesses).values({
+    id: ids.witness,
+    slug: `a-${ids.witness}`,
+    siglum: 'A',
+    name: 'Venetus A',
+    createdBy: ids.owner,
+  });
   await db.insert(pages).values([
     { id: ids.page1, witnessId: ids.witness, label: '12r', position: 1 },
     { id: ids.page2, witnessId: ids.witness, label: '12v', position: 2 },
   ]);
   await db.insert(transcriptions).values([
-    { id: ids.transcription, witnessId: ids.witness, name: 'Iliad 1', ownerId: ids.owner, keepsWrittenForm: true },
+    {
+      id: ids.transcription,
+      witnessId: ids.witness,
+      name: 'Iliad 1',
+      ownerId: ids.owner,
+      keepsWrittenForm: true,
+    },
     { id: ids.draft, witnessId: ids.witness, name: 'Draft', ownerId: ids.owner },
   ]);
-  await db.insert(transcriptionWorks).values({ transcriptionId: ids.transcription, workId: ids.work });
+  await db
+    .insert(transcriptionWorks)
+    .values({ transcriptionId: ids.transcription, workId: ids.work });
 });
 
 afterAll(async () => {
@@ -94,12 +127,26 @@ afterAll(async () => {
   await pool.end();
 });
 
-function target(fromVersion: number, replace = false, transcriptionId = ids.transcription): ImportTarget {
-  return { transcriptionId, witnessId: ids.witness, fromVersion, userId: ids.owner, replace, createPages: true };
+function target(
+  fromVersion: number,
+  replace = false,
+  transcriptionId = ids.transcription,
+): ImportTarget {
+  return {
+    transcriptionId,
+    witnessId: ids.witness,
+    fromVersion,
+    userId: ids.owner,
+    replace,
+    createPages: true,
+  };
 }
 
 async function version(id = ids.transcription): Promise<number> {
-  const [row] = await db.select({ version: transcriptions.version }).from(transcriptions).where(eq(transcriptions.id, id));
+  const [row] = await db
+    .select({ version: transcriptions.version })
+    .from(transcriptions)
+    .where(eq(transcriptions.id, id));
   return row!.version;
 }
 
@@ -127,35 +174,78 @@ describe('matching pages', () => {
   });
 
   it('creates the pages the witness lacks at its end, and names them on the breaks', async () => {
-    const result = await matchPages(db, ids.witness, [{ label: '12v' }, { label: '13r' }], { create: true });
+    const result = await matchPages(db, ids.witness, [{ label: '12v' }, { label: '13r' }], {
+      create: true,
+    });
     expect(result.ids[0]).toBe(ids.page2);
     expect(result.matched).toBe(1);
     expect(result.created).toBe(1);
     const [created] = await db.select().from(pages).where(eq(pages.id, result.ids[1]!));
     expect(created).toMatchObject({ label: '13r', position: 3, witnessId: ids.witness });
-    const stream: Stream = { items: [{ kind: 'break', id: 'b1', type: 'page', label: '12v' }, { kind: 'token', id: 't1', form: 'a' }] };
-    expect(namePageBreaks(stream, result.ids).items[0]).toEqual({ kind: 'break', id: 'b1', type: 'page', pageId: ids.page2 });
+    const stream: Stream = {
+      items: [
+        { kind: 'break', id: 'b1', type: 'page', label: '12v' },
+        { kind: 'token', id: 't1', form: 'a' },
+      ],
+    };
+    expect(namePageBreaks(stream, result.ids).items[0]).toEqual({
+      kind: 'break',
+      id: 'b1',
+      type: 'page',
+      pageId: ids.page2,
+    });
     await db.delete(pages).where(eq(pages.id, result.ids[1]!));
   });
 });
 
 describe('placeImport', () => {
-  const shape = (stream: Stream) => stream.items.map((i) => (i.kind === 'break' ? (i.type === 'page' ? `#${i.pageId ?? '?'}` : '/') : i.kind === 'token' ? i.form : i.id)).join(' ');
+  const shape = (stream: Stream) =>
+    stream.items
+      .map((i) =>
+        i.kind === 'break'
+          ? i.type === 'page'
+            ? `#${i.pageId ?? '?'}`
+            : '/'
+          : i.kind === 'token'
+            ? i.form
+            : i.id,
+      )
+      .join(' ');
 
   it('puts text without pages on no page, after a line break, or on the page asked for', () => {
-    const current: Stream = { items: [{ kind: 'token', id: 'u', form: 'u' }, { kind: 'break', id: 'pb1', type: 'page', pageId: 'p1' }, { kind: 'token', id: 'a', form: 'a' }] };
+    const current: Stream = {
+      items: [
+        { kind: 'token', id: 'u', form: 'u' },
+        { kind: 'break', id: 'pb1', type: 'page', pageId: 'p1' },
+        { kind: 'token', id: 'a', form: 'a' },
+      ],
+    };
     const imported = fromText('c d', { ids: sequentialIds('n') });
-    const unplaced = placeImport(current, imported, { replace: false, pageOrder: ['p1', 'p2'], ids: sequentialIds('x') });
+    const unplaced = placeImport(current, imported, {
+      replace: false,
+      pageOrder: ['p1', 'p2'],
+      ids: sequentialIds('x'),
+    });
     expect(shape(unplaced.content)).toBe('u / c d #p1 a');
     expect(unplaced.unplaced).toBe(2);
-    const onPage = placeImport(current, fromText('c d', { ids: sequentialIds('n') }), { replace: false, placement: { to: 'page', pageId: 'p2' }, pageOrder: ['p1', 'p2'], ids: sequentialIds('x') });
+    const onPage = placeImport(current, fromText('c d', { ids: sequentialIds('n') }), {
+      replace: false,
+      placement: { to: 'page', pageId: 'p2' },
+      pageOrder: ['p1', 'p2'],
+      ids: sequentialIds('x'),
+    });
     expect(shape(onPage.content)).toBe('u #p1 a #p2 c d');
     expect(onPage.unplaced).toBe(0);
     expect(shape(applyOps(current, onPage.ops).stream)).toBe(shape(onPage.content));
   });
 
   it('sends the text of matched page breaks to their pages and the rest to no page, in the order of the file', () => {
-    const current: Stream = { items: [{ kind: 'break', id: 'pb1', type: 'page', pageId: 'p1' }, { kind: 'token', id: 'a', form: 'a' }] };
+    const current: Stream = {
+      items: [
+        { kind: 'break', id: 'pb1', type: 'page', pageId: 'p1' },
+        { kind: 'token', id: 'a', form: 'a' },
+      ],
+    };
     const imported: Stream = {
       items: [
         { kind: 'token', id: 'i0', form: 'lead' },
@@ -167,18 +257,42 @@ describe('placeImport', () => {
         { kind: 'token', id: 'i6', form: 'one' },
       ],
     };
-    const placed = placeImport(current, imported, { replace: false, pageOrder: ['p1', 'p2'], ids: sequentialIds('x') });
+    const placed = placeImport(current, imported, {
+      replace: false,
+      pageOrder: ['p1', 'p2'],
+      ids: sequentialIds('x'),
+    });
     expect(shape(placed.content)).toBe('lead / lost #p1 a / one #p2 two');
     expect(placed.unplaced).toBe(2);
-    const replaced = placeImport(current, imported, { replace: true, pageOrder: ['p1', 'p2'], ids: sequentialIds('x') });
+    const replaced = placeImport(current, imported, {
+      replace: true,
+      pageOrder: ['p1', 'p2'],
+      ids: sequentialIds('x'),
+    });
     expect(shape(replaced.content)).toBe('lead / lost #p1 one #p2 two');
   });
 
   it('keeps the segments the file gave its words', () => {
-    const current: Stream = { items: [{ kind: 'token', id: 'a', form: 'a', segment: { segmentId: 's1' } }, { kind: 'break', id: 'pb1', type: 'page', pageId: 'p1' }] };
-    const imported: Stream = { items: [{ kind: 'token', id: 'x', form: 'x' }, { kind: 'token', id: 'y', form: 'y', segment: { segmentId: 's2' } }] };
-    const placed = placeImport(current, imported, { replace: false, pageOrder: ['p1'], ids: sequentialIds('x') });
-    expect(placed.content.items.find((i) => i.id === 'x')).toMatchObject({ segment: { segmentId: null } });
+    const current: Stream = {
+      items: [
+        { kind: 'token', id: 'a', form: 'a', segment: { segmentId: 's1' } },
+        { kind: 'break', id: 'pb1', type: 'page', pageId: 'p1' },
+      ],
+    };
+    const imported: Stream = {
+      items: [
+        { kind: 'token', id: 'x', form: 'x' },
+        { kind: 'token', id: 'y', form: 'y', segment: { segmentId: 's2' } },
+      ],
+    };
+    const placed = placeImport(current, imported, {
+      replace: false,
+      pageOrder: ['p1'],
+      ids: sequentialIds('x'),
+    });
+    expect(placed.content.items.find((i) => i.id === 'x')).toMatchObject({
+      segment: { segmentId: null },
+    });
   });
 });
 
@@ -201,11 +315,20 @@ describe('imports', () => {
   it('imports plain text numbered every line, then appends Leiden', async () => {
     const text = 'μῆνιν ἄειδε θεὰ\nοὐλομένην ἣ μυρί᾽';
     const pattern = detectNumbering(text).find((p) => p.kind === 'every-line')!;
-    const first = await importPlainTextInto(db, target(await version()), { text, pattern, startLabel: '1.1', workId: ids.work });
+    const first = await importPlainTextInto(db, target(await version()), {
+      text,
+      pattern,
+      startLabel: '1.1',
+      workId: ids.work,
+    });
     expect(first.segments).toBe(2);
     expect(toText(first.content)).toBe(text);
     const data = await loadWorkbench(db, owner(), ids.transcription);
-    expect(Object.values(data!.segments).map((s) => s.label).sort()).toEqual(['1.1', '1.2']);
+    expect(
+      Object.values(data!.segments)
+        .map((s) => s.label)
+        .sort(),
+    ).toEqual(['1.1', '1.2']);
 
     const leiden = await importLeidenInto(db, target(first.version), 'πολλὰς [δ᾽] ἰφθίμους');
     expect(leiden.version).toBe(first.version + 1);
@@ -221,7 +344,11 @@ describe('imports', () => {
   it('imports TEI with its structure mapped and its pages matched or created, replacing the text', async () => {
     const xml = `<TEI xmlns="http://www.tei-c.org/ns/1.0"><text><body><div type="textpart" subtype="book" n="1">
       <pb n="12r"/><l n="1">μῆνιν ἄειδε</l><l n="2">οὐλομένην ἣ</l><pb n="14r"/><l n="3">πολλὰς δ᾽</l></div></body></text></TEI>`;
-    const result = await importTeiInto(db, target(await version(), true), { xml, workId: ids.work, mapping: { book: 'book', line: 'line' } });
+    const result = await importTeiInto(db, target(await version(), true), {
+      xml,
+      workId: ids.work,
+      mapping: { book: 'book', line: 'line' },
+    });
     expect(result.segments).toBe(3);
     expect(result.pagesMatched).toBe(1);
     expect(result.pagesCreated).toBe(1);
@@ -250,10 +377,18 @@ describe('imports', () => {
   </Page>
 </PcGts>`;
     expect(layoutKind(xml)).toBe('page');
-    const result = await importLayoutInto(db, target(await version(ids.draft), false, ids.draft), xml);
+    const result = await importLayoutInto(
+      db,
+      target(await version(ids.draft), false, ids.draft),
+      xml,
+    );
     expect(result.pagesMatched).toBe(1);
     expect(result.zones).toBe(3);
-    expect(result.content.items[0]).toMatchObject({ kind: 'break', type: 'page', pageId: ids.page2 });
+    expect(result.content.items[0]).toMatchObject({
+      kind: 'break',
+      type: 'page',
+      pageId: ids.page2,
+    });
     const rows = await db.select().from(zones).where(eq(zones.transcriptionId, ids.draft));
     expect(rows.every((z) => z.pageId === ids.page2)).toBe(true);
     expect(rows.filter((z) => z.tokenIds.length === 1)).toHaveLength(2);
@@ -298,14 +433,28 @@ describe('ALTO and sources', () => {
 describe('settings and deletion', () => {
   it('gives every word a read form when the written form is switched on, and folds them back when off', async () => {
     const start = await version(ids.draft);
-    const off = await saveSettings(db, ids.draft, { name: 'Draft', keepsWrittenForm: true, displayAsWritten: false, fromVersion: start, userId: ids.owner });
+    const off = await saveSettings(db, ids.draft, {
+      name: 'Draft',
+      keepsWrittenForm: true,
+      displayAsWritten: false,
+      fromVersion: start,
+      userId: ids.owner,
+    });
     expect(off.version).toBe(start + 1);
     const words = off.content!.items.filter(isToken);
     expect(words.every((t) => t.norm === t.form)).toBe(true);
     // Correct one written form; then switch the written form off: the read form stays the word.
-    const ops = [{ t: 'set' as const, id: words[0]!.id, fields: { form: 'ΜΗΝΙΝ', unchecked: true } }];
+    const ops = [
+      { t: 'set' as const, id: words[0]!.id, fields: { form: 'ΜΗΝΙΝ', unchecked: true } },
+    ];
     const edited = await saveOps(db, 'transcription', ids.draft, ids.owner, off.version, ops);
-    const back = await saveSettings(db, ids.draft, { name: 'Renamed', keepsWrittenForm: false, displayAsWritten: true, fromVersion: edited.version, userId: ids.owner });
+    const back = await saveSettings(db, ids.draft, {
+      name: 'Renamed',
+      keepsWrittenForm: false,
+      displayAsWritten: true,
+      fromVersion: edited.version,
+      userId: ids.owner,
+    });
     const first = back.content!.items.find(isToken)!;
     expect(first).toMatchObject({ form: 'μῆνιν' });
     expect(first.norm).toBeUndefined();
@@ -316,22 +465,45 @@ describe('settings and deletion', () => {
 
   it('keeps its sources and note on rights, and adds a named source of an import on a line of its own', async () => {
     const now = await version(ids.draft);
-    const saved = await saveSettings(db, ids.draft, { name: 'Renamed', keepsWrittenForm: false, displayAsWritten: true, sources: 'Collated from the microfilm.', rightsNote: 'By courtesy of the library.', fromVersion: now, userId: ids.owner });
-    expect(saved).toMatchObject({ sources: 'Collated from the microfilm.', rightsNote: 'By courtesy of the library.' });
+    const saved = await saveSettings(db, ids.draft, {
+      name: 'Renamed',
+      keepsWrittenForm: false,
+      displayAsWritten: true,
+      sources: 'Collated from the microfilm.',
+      rightsNote: 'By courtesy of the library.',
+      fromVersion: now,
+      userId: ids.owner,
+    });
+    expect(saved).toMatchObject({
+      sources: 'Collated from the microfilm.',
+      rightsNote: 'By courtesy of the library.',
+    });
     await appendSources(db, ids.draft, 'T. W. Allen, Homeri Ilias (Oxford 1931)');
     await appendSources(db, ids.draft, 'T. W. Allen, Homeri Ilias (Oxford 1931)');
     const [row] = await db.select().from(transcriptions).where(eq(transcriptions.id, ids.draft));
-    expect(row!.sources).toBe('Collated from the microfilm.\nT. W. Allen, Homeri Ilias (Oxford 1931)');
+    expect(row!.sources).toBe(
+      'Collated from the microfilm.\nT. W. Allen, Homeri Ilias (Oxford 1931)',
+    );
     // Settings saved without the fields leave them as they are.
-    const again = await saveSettings(db, ids.draft, { name: 'Renamed', keepsWrittenForm: false, displayAsWritten: true, fromVersion: now, userId: ids.owner });
+    const again = await saveSettings(db, ids.draft, {
+      name: 'Renamed',
+      keepsWrittenForm: false,
+      displayAsWritten: true,
+      fromVersion: now,
+      userId: ids.owner,
+    });
     expect(again.rightsNote).toBe('By courtesy of the library.');
   });
 
   it('deletes a transcription with its zones and history', async () => {
     await deleteTranscription(db, ids.draft);
-    expect(await db.select().from(transcriptions).where(eq(transcriptions.id, ids.draft))).toEqual([]);
+    expect(await db.select().from(transcriptions).where(eq(transcriptions.id, ids.draft))).toEqual(
+      [],
+    );
     expect(await db.select().from(zones).where(eq(zones.transcriptionId, ids.draft))).toEqual([]);
-    expect(await db.select().from(changesets).where(eq(changesets.documentId, ids.draft))).toEqual([]);
+    expect(await db.select().from(changesets).where(eq(changesets.documentId, ids.draft))).toEqual(
+      [],
+    );
     expect(await db.select().from(segments).where(eq(segments.workId, ids.work))).not.toEqual([]);
   });
 });

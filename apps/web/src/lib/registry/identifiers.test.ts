@@ -13,7 +13,10 @@ const json = (rows: unknown) => JSON.stringify(rows);
 
 describe('normalizeIdentifier', () => {
   it('takes a CTS URN of a work and refuses one of a passage', () => {
-    expect(normalizeIdentifier('cts', ' urn:cts:greekLit:tlg0012.tlg001 ')).toEqual({ ok: true, value: 'urn:cts:greekLit:tlg0012.tlg001' });
+    expect(normalizeIdentifier('cts', ' urn:cts:greekLit:tlg0012.tlg001 ')).toEqual({
+      ok: true,
+      value: 'urn:cts:greekLit:tlg0012.tlg001',
+    });
     expect(normalizeIdentifier('cts', 'urn:cts:greekLit:tlg0012.tlg001:1.1').ok).toBe(false);
     expect(normalizeIdentifier('cts', 'tlg0012.tlg001').ok).toBe(false);
   });
@@ -35,7 +38,10 @@ describe('normalizeIdentifier', () => {
   });
 
   it('takes an http or https address only', () => {
-    expect(normalizeIdentifier('url', 'https://example.org/ms/1')).toEqual({ ok: true, value: 'https://example.org/ms/1' });
+    expect(normalizeIdentifier('url', 'https://example.org/ms/1')).toEqual({
+      ok: true,
+      value: 'https://example.org/ms/1',
+    });
     expect(normalizeIdentifier('url', 'http://example.org').ok).toBe(true);
     expect(normalizeIdentifier('url', 'ftp://example.org').ok).toBe(false);
     expect(normalizeIdentifier('url', 'example.org').ok).toBe(false);
@@ -88,12 +94,23 @@ describe('parseIdentifiers', () => {
     expect(parseIdentifiers('{').ok).toBe(false);
     expect(parseIdentifiers(json({ scheme: 'cts' })).ok).toBe(false);
     expect(parseIdentifiers(json([null])).ok).toBe(false);
-    const many = Array.from({ length: 21 }, (_, i) => ({ scheme: 'diktyon', value: String(i + 1) }));
+    const many = Array.from({ length: 21 }, (_, i) => ({
+      scheme: 'diktyon',
+      value: String(i + 1),
+    }));
     expect(parseIdentifiers(json(many)).ok).toBe(false);
   });
 
   it('offers every scheme of the format', () => {
-    expect([...IDENTIFIER_SCHEMES]).toEqual(['cts', 'diktyon', 'trismegistos', 'wikidata', 'viaf', 'url', 'other']);
+    expect([...IDENTIFIER_SCHEMES]).toEqual([
+      'cts',
+      'diktyon',
+      'trismegistos',
+      'wikidata',
+      'viaf',
+      'url',
+      'other',
+    ]);
   });
 });
 
@@ -125,11 +142,19 @@ describe('identifierRows and unionIdentifiers', () => {
 
 describe('identifierHref', () => {
   it('links the schemes with a resolver', () => {
-    expect(identifierHref({ scheme: 'wikidata', value: 'Q8275' })).toBe('https://www.wikidata.org/wiki/Q8275');
+    expect(identifierHref({ scheme: 'wikidata', value: 'Q8275' })).toBe(
+      'https://www.wikidata.org/wiki/Q8275',
+    );
     expect(identifierHref({ scheme: 'viaf', value: '123' })).toBe('https://viaf.org/viaf/123');
-    expect(identifierHref({ scheme: 'trismegistos', value: '59341' })).toBe('https://www.trismegistos.org/text/59341');
-    expect(identifierHref({ scheme: 'diktyon', value: '16630' })).toBe('https://pinakes.irht.cnrs.fr/notices/cote/16630/');
-    expect(identifierHref({ scheme: 'url', value: 'https://example.org/x' })).toBe('https://example.org/x');
+    expect(identifierHref({ scheme: 'trismegistos', value: '59341' })).toBe(
+      'https://www.trismegistos.org/text/59341',
+    );
+    expect(identifierHref({ scheme: 'diktyon', value: '16630' })).toBe(
+      'https://pinakes.irht.cnrs.fr/notices/cote/16630/',
+    );
+    expect(identifierHref({ scheme: 'url', value: 'https://example.org/x' })).toBe(
+      'https://example.org/x',
+    );
   });
 
   it('links nothing else, and nothing malformed', () => {
@@ -175,9 +200,21 @@ describe('the registry forms', () => {
   });
 
   it('reads the identifiers of a witness', () => {
-    const ok = parseWitnessForm(form({ siglum: 'A', name: 'Venetus A', identifiers: json([{ scheme: 'diktyon', value: '69437' }]) }));
+    const ok = parseWitnessForm(
+      form({
+        siglum: 'A',
+        name: 'Venetus A',
+        identifiers: json([{ scheme: 'diktyon', value: '69437' }]),
+      }),
+    );
     expect(ok.ok && ok.data.identifiers).toEqual([{ scheme: 'diktyon', value: '69437' }]);
-    const bad = parseWitnessForm(form({ siglum: 'A', name: 'Venetus A', identifiers: json([{ scheme: 'diktyon', value: 'Marc. gr. 454' }]) }));
+    const bad = parseWitnessForm(
+      form({
+        siglum: 'A',
+        name: 'Venetus A',
+        identifiers: json([{ scheme: 'diktyon', value: 'Marc. gr. 454' }]),
+      }),
+    );
     expect(bad.ok).toBe(false);
     if (!bad.ok) expect(bad.errors.identifiers).toHaveLength(1);
   });

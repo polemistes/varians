@@ -118,7 +118,11 @@
   let affected = $state.raw<Set<string>>(new Set());
 
   const aspect = $derived(api.imageSize.width > 0 ? api.imageSize.height / api.imageSize.width : 1);
-  const activeLine = $derived(chosenLine !== null && boxes.some((b) => b.line === chosenLine) ? chosenLine : (boxes[0]?.line ?? 0));
+  const activeLine = $derived(
+    chosenLine !== null && boxes.some((b) => b.line === chosenLine)
+      ? chosenLine
+      : (boxes[0]?.line ?? 0),
+  );
   const word = (box: GroupBox) => box.text ?? '';
 
   /** The boxes as drawn: as the drag has them, else as they are. */
@@ -152,7 +156,10 @@
 
   function turnOf(point: Point, degrees: number): Point {
     const a = (degrees * Math.PI) / 180;
-    return [point[0] * Math.cos(a) - point[1] * Math.sin(a), point[0] * Math.sin(a) + point[1] * Math.cos(a)];
+    return [
+      point[0] * Math.cos(a) - point[1] * Math.sin(a),
+      point[0] * Math.sin(a) + point[1] * Math.cos(a),
+    ];
   }
 
   interface Placed {
@@ -214,7 +221,10 @@
           : side === 'top'
             ? [padded.x + padded.w / 2, padded.y]
             : [padded.x + padded.w / 2, padded.y + padded.h];
-    const sides = (['left', 'right', 'top', 'bottom'] as Side[]).map((side) => ({ side, at: screenOf(mid(side), drawn) }));
+    const sides = (['left', 'right', 'top', 'bottom'] as Side[]).map((side) => ({
+      side,
+      at: screenOf(mid(side), drawn),
+    }));
     const end = screenOf(mid('right'), drawn);
     const turn = screenOf([padded.x + padded.w + TURN_OUT / s, padded.y + padded.h / 2], drawn);
     return { centre, width: padded.w * s, height: padded.h * s, sides, end, turn };
@@ -271,7 +281,12 @@
   }
 
   /** What the gesture makes of the boxes with the pointer gone from `start` to `to` (screen pixels). */
-  function result(gesture: Gesture, start: { x: number; y: number }, to: { x: number; y: number }, fine = false): Map<string, ZoneGeometry> {
+  function result(
+    gesture: Gesture,
+    start: { x: number; y: number },
+    to: { x: number; y: number },
+    fine = false,
+  ): Map<string, ZoneGeometry> {
     const frame = base;
     if (gesture.kind === 'turn') {
       const pivot = screenOf(frame.pivot, frame);
@@ -288,7 +303,12 @@
     const [x, y] = frameOfPoint(to, frame);
     let rects: Map<string, Rect>;
     if (gesture.kind === 'move') {
-      const moved = moveBoxes(local.map((b) => b.rect), x - x0, y - y0, limits);
+      const moved = moveBoxes(
+        local.map((b) => b.rect),
+        x - x0,
+        y - y0,
+        limits,
+      );
       rects = new Map(local.map((b, i) => [b.id, moved[i]!] as const));
     } else if (gesture.kind === 'ripple') {
       rects = rippleResize(local, gesture.id, x, undefined, limits);
@@ -297,7 +317,12 @@
       const second = local.find((b) => b.id === gesture.second);
       rects = first && second ? moveBoundary(first, second, x) : new Map();
     } else {
-      const scaled = scaleBoxes(local.map((b) => b.rect), gesture.side, gesture.side === 'left' || gesture.side === 'right' ? x : y, limits);
+      const scaled = scaleBoxes(
+        local.map((b) => b.rect),
+        gesture.side,
+        gesture.side === 'left' || gesture.side === 'right' ? x : y,
+        limits,
+      );
       rects = new Map(local.map((b, i) => [b.id, scaled[i]!] as const));
     }
     return geometriesFromFrame(boxes, rects, frame);
@@ -327,7 +352,11 @@
       onpreview?.(null);
       return;
     }
-    if (changed && changed.size) onchange(changed, gesture.kind === 'move' ? 'move' : gesture.kind === 'turn' ? 'turn' : 'resize');
+    if (changed && changed.size)
+      onchange(
+        changed,
+        gesture.kind === 'move' ? 'move' : gesture.kind === 'turn' ? 'turn' : 'resize',
+      );
     onpreview?.(null);
   }
 
@@ -344,7 +373,12 @@
     api.viewer.canvas.dispatchEvent(new WheelEvent('wheel', event));
   }
 
-  const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  const ARROWS: Record<string, [number, number]> = {
+    ArrowLeft: [-1, 0],
+    ArrowRight: [1, 0],
+    ArrowUp: [0, -1],
+    ArrowDown: [0, 1],
+  };
 
   function frameKey(event: KeyboardEvent) {
     const step = ARROWS[event.key];
@@ -353,7 +387,13 @@
     event.stopPropagation();
     const n = event.shiftKey ? 10 : 1;
     const origin = outline.centre;
-    onchange(result({ kind: 'move', id: '' }, origin, { x: origin.x + step[0] * n, y: origin.y + step[1] * n }), 'move');
+    onchange(
+      result({ kind: 'move', id: '' }, origin, {
+        x: origin.x + step[0] * n,
+        y: origin.y + step[1] * n,
+      }),
+      'move',
+    );
   }
 
   /** The arrows move a boundary along its line. */
@@ -364,7 +404,14 @@
     event.stopPropagation();
     const n = (event.shiftKey ? 10 : 1) * step[0];
     const a = (base.angle * Math.PI) / 180;
-    onchange(result({ kind: 'boundary', first, second }, { x: left, y: top }, { x: left + n * Math.cos(a), y: top + n * Math.sin(a) }), 'resize');
+    onchange(
+      result(
+        { kind: 'boundary', first, second },
+        { x: left, y: top },
+        { x: left + n * Math.cos(a), y: top + n * Math.sin(a) },
+      ),
+      'resize',
+    );
   }
 
   const all = $derived(new Set(boxes.map((b) => b.id)));
@@ -410,7 +457,13 @@
       onwheel={wheel}
     ></div>
     {#if p.box.line === activeLine && word(p.box)}
-      <span class="word" style:left="{p.corner.x}px" style:top="{p.corner.y}px" style:--_rotate="{p.rotate}deg" aria-hidden="true">{word(p.box)}</span>
+      <span
+        class="word"
+        style:left="{p.corner.x}px"
+        style:top="{p.corner.y}px"
+        style:--_rotate="{p.rotate}deg"
+        aria-hidden="true">{word(p.box)}</span
+      >
     {/if}
     <div
       class="end"
@@ -452,7 +505,9 @@
       onkeydown={(e) => knobKey(e, k.first.id, k.second.id, k.left, k.top)}
       onwheel={wheel}
     >
-      <svg viewBox="0 0 16 8" aria-hidden="true"><path d="M1 4h14M1 4l3-3M1 4l3 3M15 4l-3-3M15 4l-3 3" /></svg>
+      <svg viewBox="0 0 16 8" aria-hidden="true"
+        ><path d="M1 4h14M1 4l3-3M1 4l3 3M15 4l-3-3M15 4l-3 3" /></svg
+      >
     </div>
   {/each}
   {#each outline.sides as { side, at } (side)}
@@ -485,10 +540,14 @@
     onpointercancel={cancel}
     onwheel={wheel}
   >
-    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v2.8h-2.8" /></svg>
+    <svg viewBox="0 0 16 16" aria-hidden="true"
+      ><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v2.8h-2.8" /></svg
+    >
   </div>
   {#if angleShown !== 0}
-    <span class="angle" style:left="{outline.turn.x}px" style:top="{outline.turn.y}px">{angleShown}°</span>
+    <span class="angle" style:left="{outline.turn.x}px" style:top="{outline.turn.y}px"
+      >{angleShown}°</span
+    >
   {/if}
 </div>
 

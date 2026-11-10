@@ -20,7 +20,8 @@ import {
 } from './group';
 
 const r = (x: number, y: number, w: number, h = 0.05): Rect => ({ x, y, w, h });
-const near = (rects: Rect[]) => rects.map((q) => [q.x, q.y, q.w, q.h].map((v) => Math.round(v * 1e6) / 1e6));
+const near = (rects: Rect[]) =>
+  rects.map((q) => [q.x, q.y, q.w, q.h].map((v) => Math.round(v * 1e6) / 1e6));
 
 describe('moveBoxes', () => {
   it('moves every box by the same amount', () => {
@@ -166,8 +167,23 @@ describe('the turned frame', () => {
     // 0.2 of the width apart before, 0.2 of the width (0.1333 of the height) apart after.
     expect(b.rect!.y - a.rect!.y).toBeCloseTo(0.2 / aspect);
     // Turned back, the boxes are where they were.
-    const back = turnBoxes([{ ...line[0]!, ...a, rotate: 90 } as GroupBox, { ...line[1]!, ...b, rotate: 90 } as GroupBox], frameOf([{ ...line[0]!, rect: a.rect!, rotate: 90 }, { ...line[1]!, rect: b.rect!, rotate: 90 }], aspect), -90);
-    expect(near([back.get('a')!.rect!, back.get('b')!.rect!])).toEqual(near(line.map((x) => x.rect)));
+    const back = turnBoxes(
+      [
+        { ...line[0]!, ...a, rotate: 90 } as GroupBox,
+        { ...line[1]!, ...b, rotate: 90 } as GroupBox,
+      ],
+      frameOf(
+        [
+          { ...line[0]!, rect: a.rect!, rotate: 90 },
+          { ...line[1]!, rect: b.rect!, rotate: 90 },
+        ],
+        aspect,
+      ),
+      -90,
+    );
+    expect(near([back.get('a')!.rect!, back.get('b')!.rect!])).toEqual(
+      near(line.map((x) => x.rect)),
+    );
     expect(back.get('a')!.rotate).toBeUndefined();
   });
 
@@ -185,7 +201,11 @@ describe('the turned frame', () => {
     // In the frame the line is level again.
     expect(local[0]!.rect.y).toBeCloseTo(local[1]!.rect.y);
     const a = local[0]!.rect;
-    const out = geometriesFromFrame(boxes, rippleResize(local, 'a', a.x + a.w + 0.05, undefined, frameLimits(frame)), frame);
+    const out = geometriesFromFrame(
+      boxes,
+      rippleResize(local, 'a', a.x + a.w + 0.05, undefined, frameLimits(frame)),
+      frame,
+    );
     const movedB = out.get('b')!;
     expect(movedB.rotate).toBe(slope);
     // B moved 0.05 along the slope: right by 0.05·cos, down by 0.05·sin (in widths, so / aspect in fractions).

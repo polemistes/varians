@@ -9,8 +9,17 @@ import { isToken, type Id, type Item, type Stream, type Token } from '../stream/
 
 export type Change =
   | { kind: 'added'; item: Item }
-  | { kind: 'removed'; item: Item; /** The id of the item it followed in the old state, for placing it in the new. */ after: Id | null }
-  | { kind: 'changed'; before: Token; after: Token; fields: ('form' | 'norm' | 'marks' | 'segment' | 'joinNext' | 'source')[] }
+  | {
+      kind: 'removed';
+      item: Item;
+      /** The id of the item it followed in the old state, for placing it in the new. */ after: Id | null;
+    }
+  | {
+      kind: 'changed';
+      before: Token;
+      after: Token;
+      fields: ('form' | 'norm' | 'marks' | 'segment' | 'joinNext' | 'source')[];
+    }
   | { kind: 'moved'; item: Item; from: Id | null; to: Id | null };
 
 export interface StreamDiff {
@@ -23,7 +32,8 @@ export interface StreamDiff {
   moved: number;
 }
 
-const same = (a: unknown, b: unknown): boolean => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+const same = (a: unknown, b: unknown): boolean =>
+  JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 /** Compare two states of a stream. */
 export function diffStreams(before: Stream, after: Stream): StreamDiff {

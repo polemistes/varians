@@ -72,21 +72,21 @@
   </FormSection>
 
   {#if data.can.govern}
-  <FormSection title={t.work.visibilitySection}>
-    <form
-      method="post"
-      action="?/visibility"
-      class="flex flex-col gap-6"
-      use:enhance={saving('visibility')}
-    >
-      <VisibilityField value={work.visibility} quietLegend />
-      <div>
-        <Button type="submit" variant="primary" loading={pending === 'visibility'}
-          >{t.work.save}</Button
-        >
-      </div>
-    </form>
-  </FormSection>
+    <FormSection title={t.work.visibilitySection}>
+      <form
+        method="post"
+        action="?/visibility"
+        class="flex flex-col gap-6"
+        use:enhance={saving('visibility')}
+      >
+        <VisibilityField value={work.visibility} quietLegend />
+        <div>
+          <Button type="submit" variant="primary" loading={pending === 'visibility'}
+            >{t.work.save}</Button
+          >
+        </div>
+      </form>
+    </FormSection>
   {/if}
 
   <FormSection title={t.work.schemeSection}>
@@ -111,12 +111,18 @@
   </FormSection>
 
   <FormSection title={t.work.maintainersSection} hint={t.work.maintainersHint}>
-    <MaintainersEditor maintainers={data.maintainers} canManage={data.can.govern} selfId={data.user?.id ?? null} />
+    <MaintainersEditor
+      maintainers={data.maintainers}
+      canManage={data.can.govern}
+      selfId={data.user?.id ?? null}
+    />
   </FormSection>
 
   {#if data.can.merge}
     <FormSection title={t.merge.section} hint={t.merge.workHint}>
-      <div><Button href="/works/{work.slug}/merge" variant="secondary">{t.merge.action}</Button></div>
+      <div>
+        <Button href="/works/{work.slug}/merge" variant="secondary">{t.merge.action}</Button>
+      </div>
     </FormSection>
   {/if}
 

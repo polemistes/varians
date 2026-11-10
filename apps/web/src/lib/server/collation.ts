@@ -70,14 +70,19 @@ export interface Coverage {
 }
 
 /** A transcription's coverage of a work whose segments have these sort keys; null when it has none of them. */
-export function coverageOf(content: Stream, segmentKeys: ReadonlyMap<string, string>): Coverage | null {
+export function coverageOf(
+  content: Stream,
+  segmentKeys: ReadonlyMap<string, string>,
+): Coverage | null {
   let first: string | null = null;
   let last: string | null = null;
   const lost = new Set<string>();
   // The segment of the last word seen, and whether a gap or lacuna stands after it.
   let previous: string | null = null;
   let gapSince = false;
-  const sorted = [...segmentKeys.entries()].sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0));
+  const sorted = [...segmentKeys.entries()].sort((a, b) =>
+    a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0,
+  );
   for (const run of segmentRuns(content)) {
     for (let i = run.from; i < run.to; i++) {
       const item = content.items[i]!;
@@ -133,14 +138,24 @@ export async function loadEditionContext(db: Database, editionId: string): Promi
     .from(editionSigla)
     .where(eq(editionSigla.editionId, editionId))
     .orderBy(editionSigla.position);
-  const transcriptionIds = sigla.map((s) => s.transcriptionId).filter((id): id is string => id !== null);
+  const transcriptionIds = sigla
+    .map((s) => s.transcriptionId)
+    .filter((id): id is string => id !== null);
   const rows = transcriptionIds.length
     ? await db
-        .select({ id: transcriptions.id, content: transcriptions.content, version: transcriptions.version, witnessId: transcriptions.witnessId })
+        .select({
+          id: transcriptions.id,
+          content: transcriptions.content,
+          version: transcriptions.version,
+          witnessId: transcriptions.witnessId,
+        })
         .from(transcriptions)
         .where(inArray(transcriptions.id, transcriptionIds))
     : [];
-  const keyRows = await db.select({ id: segments.id, sortKey: segments.sortKey }).from(segments).where(eq(segments.workId, row.workId));
+  const keyRows = await db
+    .select({ id: segments.id, sortKey: segments.sortKey })
+    .from(segments)
+    .where(eq(segments.workId, row.workId));
   const segmentKeys = new Map(keyRows.map((r) => [r.id, r.sortKey] as const));
   const coverage = new Map<string, Coverage>();
   for (const r of rows) {
@@ -153,24 +168,41 @@ export async function loadEditionContext(db: Database, editionId: string): Promi
     segmentKeys,
     coverage,
     sigla: sigla.map(normalizeSiglum),
-    witnessHands: await loadWitnessHands(db, sigla.map((s) => s.witnessId)),
+    witnessHands: await loadWitnessHands(
+      db,
+      sigla.map((s) => s.witnessId),
+    ),
     transcriptions: new Map(rows.map((r) => [r.id, r] as const)),
     siteKinds: await siteKindsOf(db, editionId),
   };
 }
 
 /** The hands of some witnesses, by witness id. */
-export async function loadWitnessHands(db: Database, witnessIds: string[]): Promise<Map<string, WitnessHand[]>> {
+export async function loadWitnessHands(
+  db: Database,
+  witnessIds: string[],
+): Promise<Map<string, WitnessHand[]>> {
   const ids = [...new Set(witnessIds)];
   if (ids.length === 0) return new Map();
-  const rows = await db.select({ id: witnesses.id, hands: witnesses.hands }).from(witnesses).where(inArray(witnesses.id, ids));
+  const rows = await db
+    .select({ id: witnesses.id, hands: witnesses.hands })
+    .from(witnesses)
+    .where(inArray(witnesses.id, ids));
   return new Map(rows.map((r) => [r.id, r.hands] as const));
 }
 
 /** The kinds the editors have set on an edition's sites, by segment and site key. */
-export async function siteKindsOf(db: Database, editionId: string): Promise<EditionContext['siteKinds']> {
+export async function siteKindsOf(
+  db: Database,
+  editionId: string,
+): Promise<EditionContext['siteKinds']> {
   const rows = await db
-    .select({ segmentId: editionSiteKinds.segmentId, siteKey: editionSiteKinds.siteKey, kind: editionSiteKinds.kind, setAt: editionSiteKinds.setAt })
+    .select({
+      segmentId: editionSiteKinds.segmentId,
+      siteKey: editionSiteKinds.siteKey,
+      kind: editionSiteKinds.kind,
+      setAt: editionSiteKinds.setAt,
+    })
     .from(editionSiteKinds)
     .where(eq(editionSiteKinds.editionId, editionId));
   const out: EditionContext['siteKinds'] = new Map();
@@ -183,8 +215,19 @@ export async function siteKindsOf(db: Database, editionId: string): Promise<Edit
 }
 
 /** Set (or, with null, clear) the editor's word on the kind of a site. */
-export async function setSiteKind(db: Database, editionId: string, segmentId: string, siteKey: string, kind: SiteKind | null, userId: string | null): Promise<void> {
-  const where = and(eq(editionSiteKinds.editionId, editionId), eq(editionSiteKinds.segmentId, segmentId), eq(editionSiteKinds.siteKey, siteKey));
+export async function setSiteKind(
+  db: Database,
+  editionId: string,
+  segmentId: string,
+  siteKey: string,
+  kind: SiteKind | null,
+  userId: string | null,
+): Promise<void> {
+  const where = and(
+    eq(editionSiteKinds.editionId, editionId),
+    eq(editionSiteKinds.segmentId, segmentId),
+    eq(editionSiteKinds.siteKey, siteKey),
+  );
   if (kind === null) {
     await db.delete(editionSiteKinds).where(where);
     return;
@@ -192,19 +235,30 @@ export async function setSiteKind(db: Database, editionId: string, segmentId: st
   await db
     .insert(editionSiteKinds)
     .values({ editionId, segmentId, siteKey, kind, setBy: userId })
-    .onConflictDoUpdate({ target: [editionSiteKinds.editionId, editionSiteKinds.segmentId, editionSiteKinds.siteKey], set: { kind, setBy: userId, setAt: new Date() } });
+    .onConflictDoUpdate({
+      target: [editionSiteKinds.editionId, editionSiteKinds.segmentId, editionSiteKinds.siteKey],
+      set: { kind, setBy: userId, setAt: new Date() },
+    });
 }
 
 /** The edition's collation units for a segment: every run in content order. */
 export function editionUnits(content: Stream, segmentId: string): Unit[] {
   const out: Unit[] = [];
-  for (const run of runsOfSegment(content, segmentId)) out.push(...units(content, run.from, run.to));
+  for (const run of runsOfSegment(content, segmentId))
+    out.push(...units(content, run.from, run.to));
   return out;
 }
 
 /** The collation inputs of one segment: base and witnesses. */
-export function inputsFor(context: EditionContext, segmentId: string): { base: CollationText; witnesses: CollationText[] } {
-  const base: CollationText = { id: context.edition.id, siglum: 'ed.', units: editionUnits(context.edition.content, segmentId) };
+export function inputsFor(
+  context: EditionContext,
+  segmentId: string,
+): { base: CollationText; witnesses: CollationText[] } {
+  const base: CollationText = {
+    id: context.edition.id,
+    siglum: 'ed.',
+    units: editionUnits(context.edition.content, segmentId),
+  };
   const witnessTexts: CollationText[] = [];
   for (const s of context.sigla) {
     if (!s.transcriptionId) continue;
@@ -212,7 +266,8 @@ export function inputsFor(context: EditionContext, segmentId: string): { base: C
     if (!transcription) continue;
     const runs = runsOfSegment(transcription.content, segmentId);
     const words: Unit[] = [];
-    for (const run of runs) words.push(...units(transcription.content, run.from, run.to, 'corrected'));
+    for (const run of runs)
+      words.push(...units(transcription.content, run.from, run.to, 'corrected'));
     if (runs.length > 0) {
       witnessTexts.push({ id: transcription.id, siglum: s.siglum, units: words, present: true });
     } else {
@@ -220,57 +275,97 @@ export function inputsFor(context: EditionContext, segmentId: string): { base: C
       const key = context.segmentKeys?.get(segmentId);
       const covered = context.coverage?.get(transcription.id);
       if (key !== undefined && covered && key > covered.first && key < covered.last) {
-        if (covered.lost.has(segmentId)) witnessTexts.push({ id: transcription.id, siglum: s.siglum, units: [lostUnit(segmentId)] });
-        else witnessTexts.push({ id: transcription.id, siglum: s.siglum, units: [], present: true });
+        if (covered.lost.has(segmentId))
+          witnessTexts.push({
+            id: transcription.id,
+            siglum: s.siglum,
+            units: [lostUnit(segmentId)],
+          });
+        else
+          witnessTexts.push({ id: transcription.id, siglum: s.siglum, units: [], present: true });
       } else witnessTexts.push({ id: transcription.id, siglum: s.siglum, units: [] });
       continue;
     }
     // A second state of the witness is only worth a siglum of its own where it differs from the corrected text.
-    const differs = (other: Unit[]) => other.length !== words.length || other.some((u, i) => u.text !== words[i]!.text);
+    const differs = (other: Unit[]) =>
+      other.length !== words.length || other.some((u, i) => u.text !== words[i]!.text);
     const hands = context.witnessHands.get(s.witnessId) ?? [];
     s.states.forEach((state, k) => {
       const text: Unit[] = [];
       const which = collationStateOf(state, hands);
       for (const run of runs) text.push(...units(transcription.content, run.from, run.to, which));
-      if (differs(text)) witnessTexts.push({ id: stateTextId(transcription.id, k), siglum: state.siglum, units: text });
+      if (differs(text))
+        witnessTexts.push({
+          id: stateTextId(transcription.id, k),
+          siglum: state.siglum,
+          units: text,
+        });
     });
     if (s.variantSiglum) {
       // The variants the manuscript notes in its margins or between its lines, read in place of the words they concern.
       const variant: Unit[] = [];
-      for (const run of runs) variant.push(...units(transcription.content, run.from, run.to, 'variant'));
-      if (differs(variant)) witnessTexts.push({ id: `${transcription.id}:variant`, siglum: s.variantSiglum, units: variant });
+      for (const run of runs)
+        variant.push(...units(transcription.content, run.from, run.to, 'variant'));
+      if (differs(variant))
+        witnessTexts.push({
+          id: `${transcription.id}:variant`,
+          siglum: s.variantSiglum,
+          units: variant,
+        });
     }
   }
   return { base, witnesses: witnessTexts };
 }
 
 /** A hash of everything a segment's collation reads. */
-export function inputHash(context: EditionContext, base: CollationText, witnesses: CollationText[]): string {
+export function inputHash(
+  context: EditionContext,
+  base: CollationText,
+  witnesses: CollationText[],
+): string {
   const hash = createHash('sha256');
   // The shape of the cached result: bump when the collation's output changes.
   hash.update('collation-v10');
   hash.update(JSON.stringify(context.profile.fold));
-  const describe = (t: CollationText) => `${t.id}|${t.siglum}|${t.present ? 'p' : ''}|${t.units.map((u) => (u.gap ? '[gap]' : `${u.text}#${u.tokenIds.join(',')}`)).join(' ')}`;
+  const describe = (t: CollationText) =>
+    `${t.id}|${t.siglum}|${t.present ? 'p' : ''}|${t.units.map((u) => (u.gap ? '[gap]' : `${u.text}#${u.tokenIds.join(',')}`)).join(' ')}`;
   hash.update(describe(base));
   for (const w of witnesses) hash.update('\n' + describe(w));
   return hash.digest('hex').slice(0, 32);
 }
 
 /** Collate one segment of an edition, from the cache when the inputs are unchanged. */
-export async function collateSegment(db: Database, context: EditionContext, segmentId: string): Promise<Collation> {
+export async function collateSegment(
+  db: Database,
+  context: EditionContext,
+  segmentId: string,
+): Promise<Collation> {
   const { base, witnesses: witnessTexts } = inputsFor(context, segmentId);
   const hash = inputHash(context, base, witnessTexts);
   const [cached] = await db
     .select({ inputHash: collationCache.inputHash, result: collationCache.result })
     .from(collationCache)
-    .where(and(eq(collationCache.editionId, context.edition.id), eq(collationCache.segmentId, segmentId)));
+    .where(
+      and(
+        eq(collationCache.editionId, context.edition.id),
+        eq(collationCache.segmentId, segmentId),
+      ),
+    );
   // The editor's kinds are put over the cached result, so that setting one does not collate again.
-  const kinds = new Map([...(context.siteKinds.get(segmentId) ?? [])].map(([key, k]) => [key, k.kind] as const));
-  if (cached && cached.inputHash === hash) return applySiteKinds(reviveCollation(cached.result), base.units, kinds);
+  const kinds = new Map(
+    [...(context.siteKinds.get(segmentId) ?? [])].map(([key, k]) => [key, k.kind] as const),
+  );
+  if (cached && cached.inputHash === hash)
+    return applySiteKinds(reviveCollation(cached.result), base.units, kinds);
   const result = collate(base, witnessTexts, { fold: context.profile.fold });
   await db
     .insert(collationCache)
-    .values({ editionId: context.edition.id, segmentId, inputHash: hash, result: serializeCollation(result) })
+    .values({
+      editionId: context.edition.id,
+      segmentId,
+      inputHash: hash,
+      result: serializeCollation(result),
+    })
     .onConflictDoUpdate({
       target: [collationCache.editionId, collationCache.segmentId],
       set: { inputHash: hash, result: serializeCollation(result), computedAt: new Date() },
@@ -279,7 +374,10 @@ export async function collateSegment(db: Database, context: EditionContext, segm
 }
 
 /** Collate every segment the edition has, in the edition's order. */
-export async function collateEdition(db: Database, context: EditionContext): Promise<Map<string, Collation>> {
+export async function collateEdition(
+  db: Database,
+  context: EditionContext,
+): Promise<Map<string, Collation>> {
   const out = new Map<string, Collation>();
   for (const segmentId of segmentIds(context.edition.content)) {
     out.set(segmentId, await collateSegment(db, context, segmentId));
@@ -296,19 +394,27 @@ export function serializeCollation(collation: Collation): unknown {
 }
 
 export function reviveCollation(raw: unknown): Collation {
-  const data = raw as Omit<Collation, 'columns'> & { columns: { cells: [string, { unitIndex: number; lacunose?: boolean }][] }[] };
+  const data = raw as Omit<Collation, 'columns'> & {
+    columns: { cells: [string, { unitIndex: number; lacunose?: boolean }][] }[];
+  };
   return { ...data, columns: data.columns.map((c) => ({ cells: new Map(c.cells) })) };
 }
 
 /** Which witnesses of a work have which segments: the coverage shown on the work page. */
-export async function coverage(db: Database, workId: string): Promise<{ segmentId: string; label: string; sortKey: string; transcriptionIds: string[] }[]> {
+export async function coverage(
+  db: Database,
+  workId: string,
+): Promise<{ segmentId: string; label: string; sortKey: string; transcriptionIds: string[] }[]> {
   const rows = await db
     .select({ segmentId: segments.id, label: segments.label, sortKey: segments.sortKey })
     .from(segments)
     .where(eq(segments.workId, workId))
     .orderBy(segments.sortKey);
   const has = await db
-    .select({ segmentId: transcriptionSegments.segmentId, transcriptionId: transcriptionSegments.transcriptionId })
+    .select({
+      segmentId: transcriptionSegments.segmentId,
+      transcriptionId: transcriptionSegments.transcriptionId,
+    })
     .from(transcriptionSegments)
     .where(eq(transcriptionSegments.workId, workId));
   const bySegment = new Map<string, Set<string>>();

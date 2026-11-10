@@ -1,7 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { afterRedo, afterUndo, emptyHistory, nextRedo, nextUndo, recordAction, type ZoneAction } from './zone-history.ts';
+import {
+  afterRedo,
+  afterUndo,
+  emptyHistory,
+  nextRedo,
+  nextUndo,
+  recordAction,
+  type ZoneAction,
+} from './zone-history.ts';
 
-const action = (pageId: string, label: string): ZoneAction => ({ pageId, label, undo: async () => true, redo: async () => true });
+const action = (pageId: string, label: string): ZoneAction => ({
+  pageId,
+  label,
+  undo: async () => true,
+  redo: async () => true,
+});
 
 describe('zone history', () => {
   it('undoes the last action of the page shown, and redoes it', () => {

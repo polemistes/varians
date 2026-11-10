@@ -36,18 +36,32 @@ describe('exportTranscriptionTei', () => {
   });
 
   it('writes the licence in the publication statement and the sources in the source description', () => {
-    const xml = exportTranscriptionTei({ ...input, licence: 'CC BY 4.0', sources: 'Started from Allen\'s text (Oxford 1931).' });
-    expect(xml).toContain('<publicationStmt><authority>Varians</authority><availability><licence>CC BY 4.0</licence></availability></publicationStmt>');
+    const xml = exportTranscriptionTei({
+      ...input,
+      licence: 'CC BY 4.0',
+      sources: "Started from Allen's text (Oxford 1931).",
+    });
+    expect(xml).toContain(
+      '<publicationStmt><authority>Varians</authority><availability><licence>CC BY 4.0</licence></availability></publicationStmt>',
+    );
     expect(xml).toContain(`<bibl type="sources">Started from Allen's text (Oxford 1931).</bibl>`);
     expect(() => parseXml(xml)).not.toThrow();
     // Without them, the plain statement as before.
-    expect(exportTranscriptionTei(input)).toContain('<publicationStmt><p>Exported from Varians.</p></publicationStmt>');
+    expect(exportTranscriptionTei(input)).toContain(
+      '<publicationStmt><p>Exported from Varians.</p></publicationStmt>',
+    );
   });
 
   it('writes a turned rectangle as its corners, turned in pixels of the image', () => {
     const turned = exportTranscriptionTei({
       ...input,
-      zones: [{ ...input.zones![0]!, id: 'zr', geometry: { rect: { x: 0.1, y: 0.1, w: 0.2, h: 0.1 }, rotate: 90 } }],
+      zones: [
+        {
+          ...input.zones![0]!,
+          id: 'zr',
+          geometry: { rect: { x: 0.1, y: 0.1, w: 0.2, h: 0.1 }, rotate: 90 },
+        },
+      ],
     });
     // 400 by 300 pixels about the centre (400, 450), a quarter turn clockwise: 300 wide, 400 high.
     expect(turned).toContain('<zone xml:id="z-zr" points="550,250 550,650 250,650 250,250"/>');
@@ -69,10 +83,18 @@ describe('exportTranscriptionTei', () => {
   });
 
   it('identifies a witness without place, library or shelfmark by its name, as TEI requires', () => {
-    expect(exportTranscriptionTei({ stream, title: 'T', witness: { siglum: 'P', name: 'P.Oxy. 3.412' } })).toContain(
+    expect(
+      exportTranscriptionTei({
+        stream,
+        title: 'T',
+        witness: { siglum: 'P', name: 'P.Oxy. 3.412' },
+      }),
+    ).toContain(
       '<msIdentifier>\n            <msName>P.Oxy. 3.412</msName>\n            <altIdentifier type="siglum"><idno>P</idno></altIdentifier>\n          </msIdentifier>',
     );
-    expect(exportTranscriptionTei({ stream, title: 'T', witness: { siglum: 'P' } })).toContain('<msName>P</msName>');
+    expect(exportTranscriptionTei({ stream, title: 'T', witness: { siglum: 'P' } })).toContain(
+      '<msName>P</msName>',
+    );
     expect(xml).not.toContain('<msName>');
   });
 
@@ -144,16 +166,26 @@ describe('markupToken', () => {
 });
 
 describe('hands of corrections', () => {
-  it('writes a correction\'s hand as a pointer to the handNote, the scribe as the main hand, and leaves an unidentified hand unsaid', () => {
+  it("writes a correction's hand as a pointer to the handNote, the scribe as the main hand, and leaves an unidentified hand unsaid", () => {
     const hands = [
       { id: 'h1', label: 'm1', main: true },
       { id: 'h2', label: 'm2', main: false },
     ];
     const write = { handRef: handRefFor(hands) };
-    expect(markupToken('abc', [{ kind: 'del', attrs: { hand: 'h2', seq: 2 } }], write)).toBe('<del hand="#hand-h2" seq="2">abc</del>');
-    expect(markupToken('abc', [{ kind: 'add', attrs: { hand: 'scribe' } }], write)).toBe('<add hand="#hand-h1">abc</add>');
-    expect(markupToken('abc', [{ kind: 'add', attrs: { hand: 'other', seq: 1 } }], write)).toBe('<add seq="1">abc</add>');
-    expect(markupToken('abc', [{ kind: 'del', attrs: { hand: 'm3' } }], write)).toBe('<del hand="#m3">abc</del>');
-    expect(markupToken('abc', [{ kind: 'del', attrs: { hand: 'scribe' } }], { handRef: handRefFor([]) })).toBe('<del>abc</del>');
+    expect(markupToken('abc', [{ kind: 'del', attrs: { hand: 'h2', seq: 2 } }], write)).toBe(
+      '<del hand="#hand-h2" seq="2">abc</del>',
+    );
+    expect(markupToken('abc', [{ kind: 'add', attrs: { hand: 'scribe' } }], write)).toBe(
+      '<add hand="#hand-h1">abc</add>',
+    );
+    expect(markupToken('abc', [{ kind: 'add', attrs: { hand: 'other', seq: 1 } }], write)).toBe(
+      '<add seq="1">abc</add>',
+    );
+    expect(markupToken('abc', [{ kind: 'del', attrs: { hand: 'm3' } }], write)).toBe(
+      '<del hand="#m3">abc</del>',
+    );
+    expect(
+      markupToken('abc', [{ kind: 'del', attrs: { hand: 'scribe' } }], { handRef: handRefFor([]) }),
+    ).toBe('<del>abc</del>');
   });
 });

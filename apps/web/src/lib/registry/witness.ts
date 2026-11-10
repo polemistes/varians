@@ -8,12 +8,23 @@ import { registry } from '$lib/strings/registry';
 export type WitnessCategory = Witness['category'];
 
 /** What the carrier is; the material and the format are fields of their own. */
-export const WITNESS_CATEGORIES = ['manuscript', 'inscription', 'edition', 'indirect', 'other'] as const satisfies readonly WitnessCategory[];
+export const WITNESS_CATEGORIES = [
+  'manuscript',
+  'inscription',
+  'edition',
+  'indirect',
+  'other',
+] as const satisfies readonly WitnessCategory[];
 
 export type WitnessFormat = NonNullable<Witness['format']>;
 
 /** The format of a manuscript. */
-export const WITNESS_FORMATS = ['codex', 'roll', 'sheet', 'unknown'] as const satisfies readonly WitnessFormat[];
+export const WITNESS_FORMATS = [
+  'codex',
+  'roll',
+  'sheet',
+  'unknown',
+] as const satisfies readonly WitnessFormat[];
 
 /**
  * The writing materials offered. The witness's `material` column holds one
@@ -54,9 +65,14 @@ export function materialLabel(value: string | null | undefined): string | null {
 }
 
 /** The two form fields for a stored material: the list's choice, and the free text under Other. */
-export function materialFormValues(stored: string | null | undefined): { material: string; materialOther: string } {
+export function materialFormValues(stored: string | null | undefined): {
+  material: string;
+  materialOther: string;
+} {
   if (!stored) return { material: '', materialOther: '' };
-  return isMaterialKey(stored) ? { material: stored, materialOther: '' } : { material: MATERIAL_OTHER, materialOther: stored };
+  return isMaterialKey(stored)
+    ? { material: stored, materialOther: '' }
+    : { material: MATERIAL_OTHER, materialOther: stored };
 }
 
 export type { WitnessHand };
@@ -76,7 +92,8 @@ export function parseHandsJson(raw: string | null | undefined): WitnessHand[] {
       .map((h) => ({
         id: typeof h.id === 'string' ? h.id : '',
         label: typeof h.label === 'string' ? h.label : '',
-        description: typeof h.description === 'string' && h.description !== '' ? h.description : null,
+        description:
+          typeof h.description === 'string' && h.description !== '' ? h.description : null,
         main: h.main === true,
       }));
   } catch {
@@ -88,7 +105,11 @@ export function parseHandsJson(raw: string | null | undefined): WitnessHand[] {
  * The name of a hand as a mark or a conspectus names it: a registered hand
  * by its label, the scribe, another hand, or a value as imported.
  */
-export function handLabel(value: string | null | undefined, hands: readonly WitnessHand[], words: { scribe: string; other: string }): string | null {
+export function handLabel(
+  value: string | null | undefined,
+  hands: readonly WitnessHand[],
+  words: { scribe: string; other: string },
+): string | null {
   if (!value) return null;
   if (value === HAND_SCRIBE) return hands.find((h) => h.main)?.label ?? words.scribe;
   if (value === HAND_OTHER) return words.other;

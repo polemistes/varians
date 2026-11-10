@@ -37,11 +37,18 @@ export const actions: Actions = {
     const address = getClientAddress();
     const account = parsed.data.email.toLowerCase();
     if (!limits.loginByAddress.take(address) || !limits.loginByAccount.take(account)) {
-      const wait = Math.max(limits.loginByAddress.retryAfter(address), limits.loginByAccount.retryAfter(account));
-      const errors: LoginErrors = { form: s.auth.tooManyAttempts(Math.max(1, Math.ceil(wait / 60))) };
+      const wait = Math.max(
+        limits.loginByAddress.retryAfter(address),
+        limits.loginByAccount.retryAfter(account),
+      );
+      const errors: LoginErrors = {
+        form: s.auth.tooManyAttempts(Math.max(1, Math.ceil(wait / 60))),
+      };
       return fail(429, { values, errors });
     }
-    const result = await login(parsed.data.email, parsed.data.password, { requireConfirmed: mailConfigured() });
+    const result = await login(parsed.data.email, parsed.data.password, {
+      requireConfirmed: mailConfigured(),
+    });
     if (result.ok) limits.loginByAccount.clear(account);
     if (!result.ok && result.error === 'unconfirmed') {
       // The password was right: say so only now, and send a new link, a few times an hour at most.
@@ -53,7 +60,10 @@ export const actions: Actions = {
           await sendVerification(locals.db, send, result.user, siteOf(url.origin));
           sent = true;
         } catch (error) {
-          console.error('The confirmation could not be sent:', error instanceof Error ? error.message : error);
+          console.error(
+            'The confirmation could not be sent:',
+            error instanceof Error ? error.message : error,
+          );
         }
       }
       const errors: LoginErrors = { form: sent ? s.auth.unconfirmedSent : s.auth.unconfirmed };

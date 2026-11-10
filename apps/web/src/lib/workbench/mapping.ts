@@ -37,7 +37,9 @@ export interface NewZoneInput {
 export function unmappedTokens(stream: Stream, zones: ZoneLike[]): Id[] {
   const mapped = new Set<Id>();
   for (const zone of zones) for (const id of zone.tokenIds) mapped.add(id);
-  return stream.items.filter((item) => isToken(item) && !mapped.has(item.id)).map((item) => item.id);
+  return stream.items
+    .filter((item) => isToken(item) && !mapped.has(item.id))
+    .map((item) => item.id);
 }
 
 /** Ids of the zones that name any of the tokens. */
@@ -51,7 +53,10 @@ export function zonesOfTokens(zones: ZoneLike[], tokenIds: Iterable<Id>): string
 export function replacedZones(zones: ZoneLike[], tokenIds: Iterable<Id>): string[] {
   const mapping = new Set(tokenIds);
   return zones
-    .filter((zone) => !zone.feature && zone.tokenIds.length > 0 && zone.tokenIds.every((id) => mapping.has(id)))
+    .filter(
+      (zone) =>
+        !zone.feature && zone.tokenIds.length > 0 && zone.tokenIds.every((id) => mapping.has(id)),
+    )
     .map((zone) => zone.id);
 }
 
@@ -85,7 +90,11 @@ const DEFAULT_GAP_LETTERS = 3;
 function gapLetters(attrs: Record<string, unknown> | undefined): number {
   const quantity = attrs?.quantity;
   const unit = attrs?.unit;
-  if (typeof quantity === 'number' && quantity > 0 && (unit === undefined || unit === 'character' || unit === 'chars')) {
+  if (
+    typeof quantity === 'number' &&
+    quantity > 0 &&
+    (unit === undefined || unit === 'character' || unit === 'chars')
+  ) {
     return Math.min(60, Math.round(quantity));
   }
   return DEFAULT_GAP_LETTERS;
@@ -97,7 +106,11 @@ function gapLetters(attrs: Record<string, unknown> | undefined): number {
  * a part divided across lines (or pages) belongs to. Lines without words
  * are left out.
  */
-export function selectedLines(page: Stream, tokenIds: Iterable<Id>, whole: Stream = page): LineParts[] {
+export function selectedLines(
+  page: Stream,
+  tokenIds: Iterable<Id>,
+  whole: Stream = page,
+): LineParts[] {
   const wanted = new Set(tokenIds);
   const wordOf = wordTokens(whole);
   const out: LineParts[] = [];
@@ -106,7 +119,8 @@ export function selectedLines(page: Stream, tokenIds: Iterable<Id>, whole: Strea
     if (!items.some((item) => isToken(item) && wanted.has(item.id))) continue;
     const parts: WordPart[] = [];
     for (const item of items) {
-      if (isToken(item)) parts.push({ tokenIds: wordOf.get(item.id) ?? [item.id], text: item.form });
+      if (isToken(item))
+        parts.push({ tokenIds: wordOf.get(item.id) ?? [item.id], text: item.form });
       else if (isObj(item) && (item.type === 'gap' || item.type === 'space')) {
         parts.push({ tokenIds: [], text: 'x'.repeat(gapLetters(item.attrs)), spacer: true });
       }
@@ -140,7 +154,8 @@ export function lineDirection(text: string): 'ltr' | 'rtl' {
 /** `n` equal horizontal bands of a box, top to bottom. */
 export function evenBands(box: Rect, n: number): Rect[] {
   const out: Rect[] = [];
-  for (let i = 0; i < n; i++) out.push({ x: box.x, y: box.y + (box.h * i) / n, w: box.w, h: box.h / n });
+  for (let i = 0; i < n; i++)
+    out.push({ x: box.x, y: box.y + (box.h * i) / n, w: box.w, h: box.h / n });
   return out;
 }
 
@@ -167,7 +182,11 @@ export interface GuideBoxOptions {
  * A word divided across lines gets one zone per part, each naming every
  * token of the word, so that either part lights the whole word.
  */
-export function divideGuideBox(box: Rect, lineParts: LineParts[], options: GuideBoxOptions = {}): NewZoneInput[] {
+export function divideGuideBox(
+  box: Rect,
+  lineParts: LineParts[],
+  options: GuideBoxOptions = {},
+): NewZoneInput[] {
   const n = lineParts.length;
   if (n === 0 || box.w <= 0 || box.h <= 0) return [];
   const evens = evenBands(box, n);
@@ -176,7 +195,11 @@ export function divideGuideBox(box: Rect, lineParts: LineParts[], options: Guide
   const out: NewZoneInput[] = [];
   lineParts.forEach((line, i) => {
     const direction = options.direction ?? lineDirection(line.parts.map((p) => p.text).join(' '));
-    const rects = divideLine(bands[i]!, line.parts.map((p) => ({ text: p.text })), direction);
+    const rects = divideLine(
+      bands[i]!,
+      line.parts.map((p) => ({ text: p.text })),
+      direction,
+    );
     line.parts.forEach((part, k) => {
       if (part.spacer || part.tokenIds.length === 0) return;
       out.push({ geometry: { rect: round(rects[k]!) }, tokenIds: part.tokenIds });
@@ -201,12 +224,22 @@ export interface LineWordBox {
  * line's tokens in reading order (one per zone), with the line's box around
  * them. Null when fewer than two words have a rectangle.
  */
-export function lineWordBoxes(zones: ZoneLike[], lineTokenIds: Id[]): { line: Rect; words: LineWordBox[] } | null {
+export function lineWordBoxes(
+  zones: ZoneLike[],
+  lineTokenIds: Id[],
+): { line: Rect; words: LineWordBox[] } | null {
   const order = new Map(lineTokenIds.map((id, i) => [id, i] as const));
   const boxes: (LineWordBox & { at: number })[] = [];
   for (const zone of zones) {
-    if (zone.feature || !zone.geometry.rect || (zone.geometry.polygon && zone.geometry.polygon.length >= 3)) continue;
-    const positions = zone.tokenIds.map((id) => order.get(id)).filter((p): p is number => p !== undefined);
+    if (
+      zone.feature ||
+      !zone.geometry.rect ||
+      (zone.geometry.polygon && zone.geometry.polygon.length >= 3)
+    )
+      continue;
+    const positions = zone.tokenIds
+      .map((id) => order.get(id))
+      .filter((p): p is number => p !== undefined);
     if (positions.length === 0) continue;
     boxes.push({ id: zone.id, rect: zone.geometry.rect, at: Math.min(...positions) });
   }
@@ -222,12 +255,19 @@ export function lineWordBoxes(zones: ZoneLike[], lineTokenIds: Id[]): { line: Re
     x2 = Math.max(x2, box.rect.x + box.rect.w);
     y2 = Math.max(y2, box.rect.y + box.rect.h);
   }
-  return { line: { x, y, w: x2 - x, h: y2 - y }, words: boxes.map(({ id, rect }) => ({ id, rect })) };
+  return {
+    line: { x, y, w: x2 - x, h: y2 - y },
+    words: boxes.map(({ id, rect }) => ({ id, rect })),
+  };
 }
 
 /** Whether a zone is a word box: a rectangle (turned or not), not a feature or a polygon. */
 export function isWordBox(zone: ZoneLike): zone is ZoneLike & { geometry: { rect: Rect } } {
-  return !zone.feature && !!zone.geometry.rect && !(zone.geometry.polygon && zone.geometry.polygon.length >= 3);
+  return (
+    !zone.feature &&
+    !!zone.geometry.rect &&
+    !(zone.geometry.polygon && zone.geometry.polygon.length >= 3)
+  );
 }
 
 /** Lines are told apart when their middles stand this many box heights apart. */
@@ -242,7 +282,12 @@ const LINE_GAP = 0.6;
  * stand (across the slope of their turn), left to right; those lines come
  * after the lines of the text. `aspect` is the image's height over its width.
  */
-export function groupBoxes(page: Stream, zones: ZoneLike[], zoneIds: Iterable<string>, aspect = 1): GroupBox[] {
+export function groupBoxes(
+  page: Stream,
+  zones: ZoneLike[],
+  zoneIds: Iterable<string>,
+  aspect = 1,
+): GroupBox[] {
   const wanted = new Set(zoneIds);
   const where = new Map<Id, { line: number; at: number; form: string }>();
   const texts: string[] = [];
@@ -253,7 +298,8 @@ export function groupBoxes(page: Stream, zones: ZoneLike[], zoneIds: Iterable<st
     texts[index] = tokens.map((t) => t.form).join(' ');
   });
   const chosen = zones.filter((zone) => wanted.has(zone.id) && isWordBox(zone));
-  const placesOf = (zone: ZoneLike) => zone.tokenIds.map((id) => where.get(id)).filter((p) => p !== undefined);
+  const placesOf = (zone: ZoneLike) =>
+    zone.tokenIds.map((id) => where.get(id)).filter((p) => p !== undefined);
   // Where each line stands, from the boxes that belong to one line only.
   const centres = new Map<number, number[]>();
   for (const zone of chosen) {
@@ -288,21 +334,38 @@ export function groupBoxes(page: Stream, zones: ZoneLike[], zoneIds: Iterable<st
     const here = places.filter((p) => p.line === line);
     const at = Math.min(...here.map((p) => p.at));
     const text = here.map((p) => p.form).join(' ');
-    out.push({ id: zone.id, rect: r, line, at, direction: lineDirection(texts[line] ?? ''), text, ...(rotate ? { rotate } : {}) });
+    out.push({
+      id: zone.id,
+      rect: r,
+      line,
+      at,
+      direction: lineDirection(texts[line] ?? ''),
+      text,
+      ...(rotate ? { rotate } : {}),
+    });
   }
   out.push(...looseLines(loose, aspect, pageLines.length));
   return out.sort((a, b) => a.line - b.line || a.at - b.at);
 }
 
 /** Boxes without words, put in lines by where they stand: across their slope for the line, along it for the order. */
-function looseLines(zones: (ZoneLike & { geometry: { rect: Rect } })[], aspect: number, firstLine: number): GroupBox[] {
+function looseLines(
+  zones: (ZoneLike & { geometry: { rect: Rect } })[],
+  aspect: number,
+  firstLine: number,
+): GroupBox[] {
   if (zones.length === 0) return [];
   const placed = zones.map((zone) => {
     const r = zone.geometry.rect;
     const a = ((zone.geometry.rotate ?? 0) * Math.PI) / 180;
     const cx = r.x + r.w / 2;
     const cy = (r.y + r.h / 2) * aspect;
-    return { zone, across: -cx * Math.sin(a) + cy * Math.cos(a), along: cx * Math.cos(a) + cy * Math.sin(a), height: r.h * aspect };
+    return {
+      zone,
+      across: -cx * Math.sin(a) + cy * Math.cos(a),
+      along: cx * Math.cos(a) + cy * Math.sin(a),
+      height: r.h * aspect,
+    };
   });
   placed.sort((a, b) => a.across - b.across);
   const heights = placed.map((p) => p.height).sort((a, b) => a - b);
@@ -310,7 +373,9 @@ function looseLines(zones: (ZoneLike & { geometry: { rect: Rect } })[], aspect: 
   const groups: (typeof placed)[] = [];
   for (const p of placed) {
     const current = groups[groups.length - 1];
-    const middle = current ? current.reduce((sum, q) => sum + q.across, 0) / current.length : -Infinity;
+    const middle = current
+      ? current.reduce((sum, q) => sum + q.across, 0) / current.length
+      : -Infinity;
     if (current && p.across - middle <= gap) current.push(p);
     else groups.push([p]);
   }
@@ -319,7 +384,14 @@ function looseLines(zones: (ZoneLike & { geometry: { rect: Rect } })[], aspect: 
       .sort((a, b) => a.along - b.along)
       .map((p, at) => {
         const rotate = p.zone.geometry.rotate || undefined;
-        return { id: p.zone.id, rect: p.zone.geometry.rect, line: firstLine + index, at, direction: 'ltr' as const, ...(rotate ? { rotate } : {}) };
+        return {
+          id: p.zone.id,
+          rect: p.zone.geometry.rect,
+          line: firstLine + index,
+          at,
+          direction: 'ltr' as const,
+          ...(rotate ? { rotate } : {}),
+        };
       }),
   );
 }
@@ -334,6 +406,7 @@ export function spansLines(stream: Stream, fromId: Id, toId: Id): boolean {
   const a = stream.items.findIndex((i) => i.id === fromId);
   const b = stream.items.findIndex((i) => i.id === toId);
   if (a < 0 || b < 0) return false;
-  for (let i = Math.min(a, b) + 1; i < Math.max(a, b); i++) if (isBreak(stream.items[i])) return true;
+  for (let i = Math.min(a, b) + 1; i < Math.max(a, b); i++)
+    if (isBreak(stream.items[i])) return true;
   return false;
 }

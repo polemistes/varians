@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { sequentialIds } from '../ids.ts';
 import type { Break, Item, Stream, Token } from './items.ts';
-import { conformPages, insertIntoPage, moveRun, moveToPage, pageBreakPlace, repairSegmentStarts, repairSegmentStartsFrom } from './move.ts';
+import {
+  conformPages,
+  insertIntoPage,
+  moveRun,
+  moveToPage,
+  pageBreakPlace,
+  repairSegmentStarts,
+  repairSegmentStartsFrom,
+} from './move.ts';
 import { applyOps, type Op } from './ops.ts';
 import { runsOfSegment, segmentAt, segmentUnits } from './words.ts';
 
@@ -20,7 +28,11 @@ function build(spec: string): Stream {
       if (word === '/') return { kind: 'break', id: `l${++line}`, type: 'line' };
       if (word.startsWith('#')) {
         const [page, label] = word.slice(1).split(':');
-        const brk: Break = { kind: 'break', id: `b-${page}${label ? '-' + label : ''}-${++line}`, type: 'page' };
+        const brk: Break = {
+          kind: 'break',
+          id: `b-${page}${label ? '-' + label : ''}-${++line}`,
+          type: 'page',
+        };
         if (page && page !== '?') brk.pageId = page;
         if (label) brk.label = label;
         return brk;
@@ -30,7 +42,9 @@ function build(spec: string): Stream {
       if (start === '-') token.segment = { segmentId: null };
       else if (start) {
         const [segmentId, part] = start.split('.');
-        token.segment = part ? { segmentId: segmentId!, part: Number(part) } : { segmentId: segmentId! };
+        token.segment = part
+          ? { segmentId: segmentId!, part: Number(part) }
+          : { segmentId: segmentId! };
       }
       return token;
     });
@@ -181,7 +195,10 @@ describe('moveToPage', () => {
 
   it('moves to Not on a page and leaves a run already at the end alone', () => {
     const start = build('u #p1 a@s1 b');
-    const moved = run(start, moveToPage(start, ['a', 'b'], null, { pageOrder: ['p1'], ids: ids() }));
+    const moved = run(
+      start,
+      moveToPage(start, ['a', 'b'], null, { pageOrder: ['p1'], ids: ids() }),
+    );
     expect(show(moved)).toBe('u / a@s1 b #p1');
     expect(moveToPage(moved, ['a', 'b'], null, { pageOrder: ['p1'] })).toEqual([]);
   });
@@ -249,11 +266,23 @@ describe('insertIntoPage', () => {
   it('appends to a page with text after a line break, and creates a missing page in its place', () => {
     const s = build('u #p1 a #p3 c');
     const items = build('x y').items;
-    const onP1 = applyOps(s, insertIntoPage(s, items, 'p1', { pageOrder: ['p1', 'p2', 'p3'], ids: sequentialIds('n') })).stream;
+    const onP1 = applyOps(
+      s,
+      insertIntoPage(s, items, 'p1', { pageOrder: ['p1', 'p2', 'p3'], ids: sequentialIds('n') }),
+    ).stream;
     expect(show(onP1)).toBe('u #p1 a / x y #p3 c');
-    const onP2 = applyOps(s, insertIntoPage(s, build('x y').items, 'p2', { pageOrder: ['p1', 'p2', 'p3'], ids: sequentialIds('n') })).stream;
+    const onP2 = applyOps(
+      s,
+      insertIntoPage(s, build('x y').items, 'p2', {
+        pageOrder: ['p1', 'p2', 'p3'],
+        ids: sequentialIds('n'),
+      }),
+    ).stream;
     expect(show(onP2)).toBe('u #p1 a #p2 x y #p3 c');
-    const unplaced = applyOps(build('#p1 a'), insertIntoPage(build('#p1 a'), build('x').items, null, { pageOrder: ['p1'] })).stream;
+    const unplaced = applyOps(
+      build('#p1 a'),
+      insertIntoPage(build('#p1 a'), build('x').items, null, { pageOrder: ['p1'] }),
+    ).stream;
     expect(show(unplaced)).toBe('x #p1 a');
   });
 });
@@ -263,7 +292,9 @@ describe('repairSegmentStartsFrom', () => {
     const current = build('a@s1 b #p1 c');
     const imported = build('x y@s2 z');
     // x has no segment in the import; placed after b it would join s1 by flow.
-    const placed = { items: [...current.items.slice(0, 2), ...imported.items, ...current.items.slice(2)] };
+    const placed = {
+      items: [...current.items.slice(0, 2), ...imported.items, ...current.items.slice(2)],
+    };
     const after = applyOps(placed, repairSegmentStartsFrom([current, imported], placed)).stream;
     expect(show(after)).toBe('a@s1.1 b x@- y@s2 z #p1 c@s1.2');
   });

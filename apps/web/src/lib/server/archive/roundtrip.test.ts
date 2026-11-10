@@ -1,7 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newId, toText } from '@varians/core';
 import * as schema from '@varians/db/schema';
-import { createDatabase, referenceSchemes, transcriptions, users, witnesses, works, type Database } from '@varians/db';
+import {
+  createDatabase,
+  referenceSchemes,
+  transcriptions,
+  users,
+  witnesses,
+  works,
+  type Database,
+} from '@varians/db';
 import { eq, getTableColumns, getTableName, inArray, is } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -76,8 +84,14 @@ describe('archive round trip', () => {
   it('imports an exported work back, same ids and texts, after it was removed', async () => {
     const sample = await seedSample(db, userId);
     const dir = await writeArchive(db, sample.workId, root);
-    const before = await readFile(path.join(dir, 'editions', sample.editionSlug, 'edition.txt'), 'utf8');
-    const [a] = await db.select().from(transcriptions).where(eq(transcriptions.witnessId, sample.witnessIds.A!));
+    const before = await readFile(
+      path.join(dir, 'editions', sample.editionSlug, 'edition.txt'),
+      'utf8',
+    );
+    const [a] = await db
+      .select()
+      .from(transcriptions)
+      .where(eq(transcriptions.witnessId, sample.witnessIds.A!));
     const aText = toText(a!.content, { form: 'read' });
 
     await removeWorkCompletely(db, sample.workId);
@@ -95,20 +109,35 @@ describe('archive round trip', () => {
     expect(toText(restored!.content, { form: 'read' })).toBe(aText);
 
     const again = await writeArchive(db, sample.workId, root);
-    const after = await readFile(path.join(again, 'editions', sample.editionSlug, 'edition.txt'), 'utf8');
+    const after = await readFile(
+      path.join(again, 'editions', sample.editionSlug, 'edition.txt'),
+      'utf8',
+    );
     expect(after).toBe(before);
-    await db.insert(users).values({ id: userId, email: `${userId}@test`, name: 'Exporter', passwordHash: 'x' });
+    await db
+      .insert(users)
+      .values({ id: userId, email: `${userId}@test`, name: 'Exporter', passwordHash: 'x' });
     await clean();
   });
 
   it('brings back every archived row, column by column', async () => {
     const sample = await seedSample(db, userId, { collaboratorId: collaborator });
     // What the seed leaves out because it would change the sample's text: an adoption and a publication.
-    const [conjecture] = await db.select().from(conjectures).where(eq(conjectures.workId, sample.workId)).limit(1);
+    const [conjecture] = await db
+      .select()
+      .from(conjectures)
+      .where(eq(conjectures.workId, sample.workId))
+      .limit(1);
     await adoptConjecture(db, sample.editionId, conjecture!.id);
     await publishEdition(db, sample.editionId, userId);
     // A witness that was merged into A here: the merged id travels with A.
-    await db.insert(registryMerges).values({ oldId: newId(), kind: 'witness', survivorId: sample.witnessIds.A!, label: 'Venetus A (registered twice)', mergedBy: userId });
+    await db.insert(registryMerges).values({
+      oldId: newId(),
+      kind: 'witness',
+      survivorId: sample.witnessIds.A!,
+      label: 'Venetus A (registered twice)',
+      mergedBy: userId,
+    });
 
     const original = await snapshot();
     for (const name of ARCHIVED_TABLES) {
@@ -120,8 +149,11 @@ describe('archive round trip', () => {
     // The removal took the work's rows out of every table (entries and schemes others share may stay), so the import has to bring each back.
     for (const name of ARCHIVED_TABLES) {
       // Persons outlive a work: they are matched by id on the way back.
-      if (name === 'bibliography_items' || name === 'reference_schemes' || name === 'persons') continue;
-      expect(removed[name]!.length, `nothing of the work was removed from ${name}`).toBeLessThan(original[name]!.length);
+      if (name === 'bibliography_items' || name === 'reference_schemes' || name === 'persons')
+        continue;
+      expect(removed[name]!.length, `nothing of the work was removed from ${name}`).toBeLessThan(
+        original[name]!.length,
+      );
     }
 
     await importArchive(db, dir, userId);

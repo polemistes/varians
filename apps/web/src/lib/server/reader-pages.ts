@@ -56,22 +56,40 @@ export function decideReaderView(
 ): ReaderDecision | null {
   if (!rights.canView) return null;
   const published = edition.visibility === 'published' && edition.publishedVersion !== null;
-  const currentMoment = published ? (moments.find((m) => m.version === edition.publishedVersion) ?? null) : null;
+  const currentMoment = published
+    ? (moments.find((m) => m.version === edition.publishedVersion) ?? null)
+    : null;
   if (request.version !== undefined && request.version !== null) {
     const moment = moments.find((m) => m.number === request.version);
     if (!moment) return null;
     return {
       atVersion: moment.version,
-      mode: { kind: 'version', number: moment.number, at: moment.at.toISOString(), isCurrent: currentMoment?.number === moment.number },
+      mode: {
+        kind: 'version',
+        number: moment.number,
+        at: moment.at.toISOString(),
+        isCurrent: currentMoment?.number === moment.number,
+      },
     };
   }
   if (published) {
     if (request.draft && rights.canEdit) {
-      return { atVersion: null, mode: { kind: 'preview', version: edition.version, publishedNumber: currentMoment?.number ?? null } };
+      return {
+        atVersion: null,
+        mode: {
+          kind: 'preview',
+          version: edition.version,
+          publishedNumber: currentMoment?.number ?? null,
+        },
+      };
     }
     return {
       atVersion: edition.publishedVersion,
-      mode: { kind: 'published', number: currentMoment?.number ?? null, at: currentMoment ? currentMoment.at.toISOString() : null },
+      mode: {
+        kind: 'published',
+        number: currentMoment?.number ?? null,
+        at: currentMoment ? currentMoment.at.toISOString() : null,
+      },
     };
   }
   return { atVersion: null, mode: { kind: 'draft', version: edition.version } };
@@ -79,7 +97,9 @@ export function decideReaderView(
 
 /** Published versions show the work's published records only; a draft or a preview, to its editors, what they may see. */
 function audienceOf(mode: ReaderMode, user: Actor | null): Audience {
-  return (mode.kind === 'draft' || mode.kind === 'preview') && user ? { kind: 'editor', viewer: user } : PUBLIC;
+  return (mode.kind === 'draft' || mode.kind === 'preview') && user
+    ? { kind: 'editor', viewer: user }
+    : PUBLIC;
 }
 
 /** The request a URL makes of the downloads: `?v=n` for a published version, `?draft=1` for the draft. */
@@ -102,10 +122,19 @@ export interface ResolvedReader extends ReaderDecision {
 }
 
 /** Load the edition and decide what the visitor sees; a 404 for anything they may not see. */
-export async function resolveReader(db: Database, user: Actor | null, slug: string, request: ReaderRequest): Promise<ResolvedReader> {
+export async function resolveReader(
+  db: Database,
+  user: Actor | null,
+  slug: string,
+  request: ReaderRequest,
+): Promise<ResolvedReader> {
   const access = await loadEditionAccess(db, user, slug);
   if (!access || !access.canView) error(404, 'No such edition');
-  const moments = (await publishedVersions(db, access.edition.id)).map((m) => ({ number: m.number, version: m.version, at: m.at }));
+  const moments = (await publishedVersions(db, access.edition.id)).map((m) => ({
+    number: m.number,
+    version: m.version,
+    at: m.at,
+  }));
   const decision = decideReaderView(access.edition, access, moments, request);
   if (!decision) error(404, 'No such edition');
   return { ...decision, access, moments };
@@ -136,7 +165,11 @@ export function readerLinks(
   return {
     basePath,
     query,
-    exports: { text: `${base}.txt${exportQuery}`, tei: `${base}.tei.xml${exportQuery}`, package: `${base}/package.zip` },
+    exports: {
+      text: `${base}.txt${exportQuery}`,
+      tei: `${base}.tei.xml${exportQuery}`,
+      package: `${base}/package.zip`,
+    },
     links: {
       current: base,
       preview: published && rights.canEdit ? `${base}?draft=1` : null,
@@ -146,7 +179,11 @@ export function readerLinks(
 }
 
 /** The published versions as the menu lists them, newest first; the current one links to the edition itself. */
-export function readerVersions(slug: string, moments: PublishedMoment[], currentNumber: number | null): ReaderVersion[] {
+export function readerVersions(
+  slug: string,
+  moments: PublishedMoment[],
+  currentNumber: number | null,
+): ReaderVersion[] {
   const base = `/editions/${encodeURIComponent(slug)}`;
   return moments.map((m) => ({
     number: m.number,
@@ -157,13 +194,21 @@ export function readerVersions(slug: string, moments: PublishedMoment[], current
 }
 
 /** The page data: the view at the decided version, trimmed for the browser. */
-export async function loadReader(db: Database, user: Actor | null, slug: string, request: ReaderRequest): Promise<ReaderData> {
+export async function loadReader(
+  db: Database,
+  user: Actor | null,
+  slug: string,
+  request: ReaderRequest,
+): Promise<ReaderData> {
   const resolved = await resolveReader(db, user, slug, request);
   const { access, mode, moments } = resolved;
   const audience = audienceOf(mode, user);
   const view = await editionView(db, access.edition.id, resolved.atVersion, audience);
-  const published = access.edition.visibility === 'published' && access.edition.publishedVersion !== null;
-  const currentNumber = published ? (moments.find((m) => m.version === access.edition.publishedVersion)?.number ?? null) : null;
+  const published =
+    access.edition.visibility === 'published' && access.edition.publishedVersion !== null;
+  const currentNumber = published
+    ? (moments.find((m) => m.version === access.edition.publishedVersion)?.number ?? null)
+    : null;
 
   const segments: Record<string, ReaderSegment> = {};
   for (const [id, segment] of Object.entries(view.segments)) {
@@ -185,7 +230,9 @@ export async function loadReader(db: Database, user: Actor | null, slug: string,
   // Labels of the segments this edition has, not of the whole work.
   const labelOf: Record<string, string> = {};
   for (const line of view.lines) {
-    for (const start of line.starts) if (start.segmentId && view.labelOf[start.segmentId]) labelOf[start.segmentId] = view.labelOf[start.segmentId]!;
+    for (const start of line.starts)
+      if (start.segmentId && view.labelOf[start.segmentId])
+        labelOf[start.segmentId] = view.labelOf[start.segmentId]!;
   }
   for (const segment of Object.values(segments)) labelOf[segment.segmentId] = segment.label;
 
@@ -201,7 +248,10 @@ export async function loadReader(db: Database, user: Actor | null, slug: string,
     mode,
     versions: readerVersions(access.edition.slug, moments, currentNumber),
     canEdit: access.canEdit,
-    copy: user && (access.canEdit || published) ? `/editions/${encodeURIComponent(access.edition.slug)}/copy` : null,
+    copy:
+      user && (access.canEdit || published)
+        ? `/editions/${encodeURIComponent(access.edition.slug)}/copy`
+        : null,
     origin: await originOf(db, access.edition.copiedFrom),
     ...readerLinks(access.edition.slug, mode, access, published),
   };
@@ -210,8 +260,14 @@ export async function loadReader(db: Database, user: Actor | null, slug: string,
 /** Where a copied edition came from, linked while the original is still published. */
 async function originOf(db: Database, origin: EditionOrigin | null): Promise<ReaderData['origin']> {
   if (!origin) return null;
-  const [source] = await db.select({ slug: editions.slug, visibility: editions.visibility }).from(editions).where(eq(editions.id, origin.editionId));
-  const href = source && source.visibility === 'published' ? `/editions/${encodeURIComponent(source.slug)}` : null;
+  const [source] = await db
+    .select({ slug: editions.slug, visibility: editions.visibility })
+    .from(editions)
+    .where(eq(editions.id, origin.editionId));
+  const href =
+    source && source.visibility === 'published'
+      ? `/editions/${encodeURIComponent(source.slug)}`
+      : null;
   return { title: origin.title, editors: origin.editors, number: origin.number, href };
 }
 
@@ -219,7 +275,9 @@ async function originOf(db: Database, origin: EditionOrigin | null): Promise<Rea
 export function versionLine(mode: ReaderMode): string {
   switch (mode.kind) {
     case 'published':
-      return mode.number !== null && mode.at ? `${r.version(mode.number)}, ${r.published} ${mode.at.slice(0, 10)}` : r.unnumbered;
+      return mode.number !== null && mode.at
+        ? `${r.version(mode.number)}, ${r.published} ${mode.at.slice(0, 10)}`
+        : r.unnumbered;
     case 'version':
       return `${r.version(mode.number)}, ${r.published} ${mode.at.slice(0, 10)}`;
     case 'draft':
@@ -258,25 +316,51 @@ export function readerTei(view: EditionView): string {
     language: view.work.language,
     ...(view.edition.preface ? { preface: view.edition.preface } : {}),
     ...(view.edition.sources ? { sources: view.edition.sources } : {}),
-    ...(view.edition.licence ? { licence: view.edition.licence.name, licenceUrl: view.edition.licence.url } : {}),
+    ...(view.edition.licence
+      ? { licence: view.edition.licence.name, licenceUrl: view.edition.licence.url }
+      : {}),
     ...(view.edition.rightsNote ? { rightsNote: view.edition.rightsNote } : {}),
     baseSiglum: 'ed.',
-    witnesses: view.sigla.map((s) => ({ siglum: s.siglum, ...(s.witnessName ? { name: s.witnessName } : {}) })),
+    witnesses: view.sigla.map((s) => ({
+      siglum: s.siglum,
+      ...(s.witnessName ? { name: s.witnessName } : {}),
+    })),
     segments: teiSegments(view.content, view.segments, view.labelOf),
   });
 }
 
 /** A download of the state the visitor would see at the edition's page. */
-export async function readerDownload(db: Database, user: Actor | null, slug: string, request: ReaderRequest, kind: 'text' | 'tei'): Promise<Response> {
+export async function readerDownload(
+  db: Database,
+  user: Actor | null,
+  slug: string,
+  request: ReaderRequest,
+  kind: 'text' | 'tei',
+): Promise<Response> {
   const resolved = await resolveReader(db, user, slug, request);
-  const view = await editionView(db, resolved.access.edition.id, resolved.atVersion, audienceOf(resolved.mode, user));
+  const view = await editionView(
+    db,
+    resolved.access.edition.id,
+    resolved.atVersion,
+    audienceOf(resolved.mode, user),
+  );
   const draft = resolved.mode.kind === 'draft' || resolved.mode.kind === 'preview';
-  const name = resolved.access.edition.slug + (resolved.mode.kind === 'version' ? `-v${resolved.mode.number}` : '');
+  const name =
+    resolved.access.edition.slug +
+    (resolved.mode.kind === 'version' ? `-v${resolved.mode.number}` : '');
   const headers: Record<string, string> =
     kind === 'text'
-      ? { 'content-type': 'text/plain; charset=utf-8', 'content-disposition': `inline; filename="${name}.txt"` }
-      : { 'content-type': 'application/tei+xml; charset=utf-8', 'content-disposition': `inline; filename="${name}.tei.xml"` };
+      ? {
+          'content-type': 'text/plain; charset=utf-8',
+          'content-disposition': `inline; filename="${name}.txt"`,
+        }
+      : {
+          'content-type': 'application/tei+xml; charset=utf-8',
+          'content-disposition': `inline; filename="${name}.tei.xml"`,
+        };
   // A draft must never be kept by a shared cache.
   if (draft) headers['cache-control'] = 'private, no-store';
-  return new Response(kind === 'text' ? readerPlainText(view, resolved.mode) : readerTei(view), { headers });
+  return new Response(kind === 'text' ? readerPlainText(view, resolved.mode) : readerTei(view), {
+    headers,
+  });
 }

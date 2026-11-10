@@ -11,7 +11,7 @@ There are two ways to install it. **Docker Compose** is the simpler: one file st
 - For Docker Compose: Docker Engine with the compose plugin.
 - For the native installation: Linux with glibc on x64 or arm64 (Debian, Ubuntu, Fedora, Arch and the like), Node.js 24 or later, PostgreSQL 16 or later (18 is what the image uses), git, tar, and the PostgreSQL client tools (`pg_dump`, `pg_restore`, `psql`) of the server's major version, for backups.
 - Optionally, an SMTP server through which Varians can send mail.
-- For the Greek dictionaries, outbound https to GitHub while `varians lexicon` runs, which downloads the built lexicon (29 MB) once (see *The dictionaries*).
+- For the Greek dictionaries, outbound https to GitHub while `varians lexicon` runs, which downloads the built lexicon (29 MB) once (see _The dictionaries_).
 
 ## With Docker Compose
 
@@ -25,7 +25,7 @@ There are two ways to install it. **Docker Compose** is the simpler: one file st
    cp .env.example .env
    ```
 
-2. Edit `.env`: set `ORIGIN` to the public address of the site, `DOMAIN` to its host name, `POSTGRES_PASSWORD` to a long random string of letters and digits (`openssl rand -hex 24` makes one), and, if you have one, the mail server (see *Mail*). Every setting is described under *Settings*.
+2. Edit `.env`: set `ORIGIN` to the public address of the site, `DOMAIN` to its host name, `POSTGRES_PASSWORD` to a long random string of letters and digits (`openssl rand -hex 24` makes one), and, if you have one, the mail server (see _Mail_). Every setting is described under _Settings_.
 
 3. Start it. With Caddy in front, which obtains and renews the certificate by itself:
 
@@ -33,13 +33,13 @@ There are two ways to install it. **Docker Compose** is the simpler: one file st
    docker compose --profile tls up -d
    ```
 
-   Or without Caddy, when a web server of yours already holds ports 80 and 443 (see *Proxies*); Varians then answers on 127.0.0.1:3000 only:
+   Or without Caddy, when a web server of yours already holds ports 80 and 443 (see _Proxies_); Varians then answers on 127.0.0.1:3000 only:
 
    ```sh
    docker compose up -d
    ```
 
-4. Open the site and register the first account at once: it becomes the administrator (see *The first account*).
+4. Open the site and register the first account at once: it becomes the administrator (see _The first account_).
 
 `docker compose ps` shows whether the services are healthy, `docker compose logs -f varians` what Varians writes. The data lives in named volumes: `varians_db` (the database), `varians_storage` (images, tiles, archives) and `varians_backups`.
 
@@ -99,7 +99,7 @@ As root, for release 0.2.0 on x64 (replace `x64` with `arm64` on an ARM server):
 
    systemd takes only absolute paths, so the units cannot name files relative to the release they came in: they name `/opt/varians/current` and `/etc/varians/varians.env`. To install elsewhere, change `ExecStart`, `EnvironmentFile` and `VARIANS_FORMATS_DIR` with `systemctl edit varians` (and the same for varians-backup).
 
-6. **A proxy** in front (see *Proxies*), then register the first account.
+6. **A proxy** in front (see _Proxies_), then register the first account.
 
 Commands are run as the user varians: `sudo -u varians /opt/varians/current/bin/varians <command>`. `bin/varians` reads `/etc/varians/varians.env` by itself when no `DATABASE_URL` is set, or the file named by `VARIANS_ENV_FILE`. `systemctl status varians` shows whether it runs, `journalctl -u varians -e` what it writes.
 
@@ -125,31 +125,31 @@ With Docker Compose and your own proxy on the same machine, point it at `127.0.0
 
 With Docker Compose the settings are in `.env` beside `compose.yaml`; natively in `/etc/varians/varians.env` (the unit sets some of them itself, and the file overrides those). After a change: `docker compose up -d`, or `systemctl restart varians`.
 
-| Setting | Meaning | Default |
-|---|---|---|
-| `ORIGIN` | The public address of the site, as visitors type it (`https://editions.example.org`). Used in links, in mail, and to check that forms are sent from the site itself. Required. | none |
-| `DATABASE_URL` | The PostgreSQL connection. Compose sets it from `POSTGRES_PASSWORD`; natively `postgresql://varians@/varians?host=/run/postgresql` (peer authentication through the socket). | none |
-| `POSTGRES_PASSWORD` | Compose only: the database's password. Letters and digits only, since it is written into a connection address. | none |
-| `DOMAIN` | Compose with `--profile tls` only: the host name Caddy obtains a certificate for. | none |
-| `SITE_NAME` | The installation's name, used in mail, citations and package metadata. | Varians |
-| `DATA_LICENCE` | The licence under which published scholarly records are released: `CC-BY-SA-4.0`, `CC-BY-4.0` or `CC0-1.0` (see "Licences and rights" in guide.md). A record keeps the licence it was first published under, so change this only before anything is published. Packages from installations with a licence that cannot be published under this one are refused. | CC-BY-SA-4.0 |
-| `SMTP_URL` | The mail server, see *Mail*. Empty: no mail. | empty |
-| `MAIL_FROM` | The sender of the mail, `"Name <address>"`. | the site's name at noreply@ the host of `ORIGIN` |
-| `STORAGE_DIR` | Where the images, tiles and archives are kept. | `/data/storage` in the image; `/var/lib/varians/storage` natively |
-| `BACKUP_DIR` | Where `varians backup` writes when no directory is given. | `/data/backups`; `/var/lib/varians/backups` |
-| `BACKUP_KEEP` | How many backups in `BACKUP_DIR` are kept; older ones are deleted after each backup. 0 keeps all. | 14 |
-| `BODY_SIZE_LIMIT` | The largest request body accepted, in bytes. | 104857600 (100 MB) in the examples |
-| `ADDRESS_HEADER`, `XFF_DEPTH` | Where the visitor's address is found behind a proxy (see *Proxies*). | `X-Forwarded-For`, 1 in the examples |
-| `HOST`, `PORT` | Where the server listens. | `0.0.0.0:3000` in the image; `127.0.0.1:3000` natively |
-| `ARCHIVE_INTERVAL_HOURS` | Hours between the passes that write changed works to the archives. | 24 |
-| `ARCHIVE_SCHEDULER` | `off` stops those passes (for a second instance on the same data, for instance). | on |
-| `ARCHIVE_WRITE_DELAY_SECONDS` | Seconds a record must be left alone before its archive files are rewritten; between these writes the archive follows every change. | 60 |
-| `SECRET_KEY` | A long random string (at least 16 characters), used to encrypt the tokens of accounts on other installations that a work's maintainers keep for pulling and pushing. Without it, other installations can only be pulled from where their works are public. Keep it with the backups: without it the stored tokens cannot be read. | none |
-| `SOURCE_URL` | If you run a changed Varians: the address of its source code, which the footer links. See *The source code*. | the public repository at the running commit |
-| `VARIANS_FORMATS_DIR` | Where the format specification (`docs/formats`) is. | `/opt/varians/docs/formats` in the image; set by the native unit; found beside `bin/` otherwise |
-| `VARIANS_VERSION` | Compose only: the image tag to run, for instance `0.2` to follow the 0.2 releases. | latest |
-| `VARIANS_PORT` | Compose only: the port on 127.0.0.1 where Varians answers for your own proxy. | 3000 |
-| `VARIANS_ENV_FILE` | For `bin/varians` run by hand: a settings file to read. | `/etc/varians/varians.env` if present |
+| Setting                       | Meaning                                                                                                                                                                                                                                                                                                                                                        | Default                                                                                         |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `ORIGIN`                      | The public address of the site, as visitors type it (`https://editions.example.org`). Used in links, in mail, and to check that forms are sent from the site itself. Required.                                                                                                                                                                                 | none                                                                                            |
+| `DATABASE_URL`                | The PostgreSQL connection. Compose sets it from `POSTGRES_PASSWORD`; natively `postgresql://varians@/varians?host=/run/postgresql` (peer authentication through the socket).                                                                                                                                                                                   | none                                                                                            |
+| `POSTGRES_PASSWORD`           | Compose only: the database's password. Letters and digits only, since it is written into a connection address.                                                                                                                                                                                                                                                 | none                                                                                            |
+| `DOMAIN`                      | Compose with `--profile tls` only: the host name Caddy obtains a certificate for.                                                                                                                                                                                                                                                                              | none                                                                                            |
+| `SITE_NAME`                   | The installation's name, used in mail, citations and package metadata.                                                                                                                                                                                                                                                                                         | Varians                                                                                         |
+| `DATA_LICENCE`                | The licence under which published scholarly records are released: `CC-BY-SA-4.0`, `CC-BY-4.0` or `CC0-1.0` (see "Licences and rights" in guide.md). A record keeps the licence it was first published under, so change this only before anything is published. Packages from installations with a licence that cannot be published under this one are refused. | CC-BY-SA-4.0                                                                                    |
+| `SMTP_URL`                    | The mail server, see _Mail_. Empty: no mail.                                                                                                                                                                                                                                                                                                                   | empty                                                                                           |
+| `MAIL_FROM`                   | The sender of the mail, `"Name <address>"`.                                                                                                                                                                                                                                                                                                                    | the site's name at noreply@ the host of `ORIGIN`                                                |
+| `STORAGE_DIR`                 | Where the images, tiles and archives are kept.                                                                                                                                                                                                                                                                                                                 | `/data/storage` in the image; `/var/lib/varians/storage` natively                               |
+| `BACKUP_DIR`                  | Where `varians backup` writes when no directory is given.                                                                                                                                                                                                                                                                                                      | `/data/backups`; `/var/lib/varians/backups`                                                     |
+| `BACKUP_KEEP`                 | How many backups in `BACKUP_DIR` are kept; older ones are deleted after each backup. 0 keeps all.                                                                                                                                                                                                                                                              | 14                                                                                              |
+| `BODY_SIZE_LIMIT`             | The largest request body accepted, in bytes.                                                                                                                                                                                                                                                                                                                   | 104857600 (100 MB) in the examples                                                              |
+| `ADDRESS_HEADER`, `XFF_DEPTH` | Where the visitor's address is found behind a proxy (see _Proxies_).                                                                                                                                                                                                                                                                                           | `X-Forwarded-For`, 1 in the examples                                                            |
+| `HOST`, `PORT`                | Where the server listens.                                                                                                                                                                                                                                                                                                                                      | `0.0.0.0:3000` in the image; `127.0.0.1:3000` natively                                          |
+| `ARCHIVE_INTERVAL_HOURS`      | Hours between the passes that write changed works to the archives.                                                                                                                                                                                                                                                                                             | 24                                                                                              |
+| `ARCHIVE_SCHEDULER`           | `off` stops those passes (for a second instance on the same data, for instance).                                                                                                                                                                                                                                                                               | on                                                                                              |
+| `ARCHIVE_WRITE_DELAY_SECONDS` | Seconds a record must be left alone before its archive files are rewritten; between these writes the archive follows every change.                                                                                                                                                                                                                             | 60                                                                                              |
+| `SECRET_KEY`                  | A long random string (at least 16 characters), used to encrypt the tokens of accounts on other installations that a work's maintainers keep for pulling and pushing. Without it, other installations can only be pulled from where their works are public. Keep it with the backups: without it the stored tokens cannot be read.                              | none                                                                                            |
+| `SOURCE_URL`                  | If you run a changed Varians: the address of its source code, which the footer links. See _The source code_.                                                                                                                                                                                                                                                   | the public repository at the running commit                                                     |
+| `VARIANS_FORMATS_DIR`         | Where the format specification (`docs/formats`) is.                                                                                                                                                                                                                                                                                                            | `/opt/varians/docs/formats` in the image; set by the native unit; found beside `bin/` otherwise |
+| `VARIANS_VERSION`             | Compose only: the image tag to run, for instance `0.2` to follow the 0.2 releases.                                                                                                                                                                                                                                                                             | latest                                                                                          |
+| `VARIANS_PORT`                | Compose only: the port on 127.0.0.1 where Varians answers for your own proxy.                                                                                                                                                                                                                                                                                  | 3000                                                                                            |
+| `VARIANS_ENV_FILE`            | For `bin/varians` run by hand: a settings file to read.                                                                                                                                                                                                                                                                                                        | `/etc/varians/varians.env` if present                                                           |
 
 ## Mail
 
@@ -253,4 +253,3 @@ Security problems are reported privately, as [SECURITY.md](../SECURITY.md) descr
 ## Other installations
 
 Works move between installations as packages (see "The archive" in guide.md): downloaded from a work's, edition's or transcript's page and brought in under **Import…**, or pulled and pushed from a work's page under **Other installations** by its maintainers. Pulling a public work needs nothing; pulling drafts or a private work, and pushing, need a token of an account on the other installation (made on that account's page) and `SECRET_KEY` here to keep it. A pull can be repeated every so many hours; conflicts it meets are reported and left for a maintainer. From the command line: `varians cli pull <work-slug> <address there> --user <email> [--token <token>]` and `varians cli push <work-slug> <address there> --user <email> --token <token>`.
-

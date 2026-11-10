@@ -31,7 +31,14 @@
   const valid = $derived(kind === 'lacuna' || text.trim().length > 0);
 </script>
 
-<Dialog bind:open title={t.title} size="sm" onOpenChange={(value) => { if (!value) oncancel(); }}>
+<Dialog
+  bind:open
+  title={t.title}
+  size="sm"
+  onOpenChange={(value) => {
+    if (!value) oncancel();
+  }}
+>
   <form
     class="flex flex-col gap-4"
     onsubmit={(event) => {
@@ -40,14 +47,26 @@
     }}
   >
     <Field label={t.kind}>
-      {#snippet children(control)}<Select {...control} bind:value={kind} options={kinds} />{/snippet}
+      {#snippet children(control)}<Select
+          {...control}
+          bind:value={kind}
+          options={kinds}
+        />{/snippet}
     </Field>
     <Field {label} hint={kind === 'lacuna' ? t.lacunaHint : undefined}>
-      {#snippet children(control)}<Input {...control} bind:value={text} class="font-serif" dir="auto" autofocus />{/snippet}
+      {#snippet children(control)}<Input
+          {...control}
+          bind:value={text}
+          class="font-serif"
+          dir="auto"
+          autofocus
+        />{/snippet}
     </Field>
   </form>
   {#snippet footer()}
     <Button variant="ghost" onclick={oncancel}>{editor.dialogs.cancel}</Button>
-    <Button variant="primary" disabled={!valid} onclick={() => valid && oninsert(kind, text.trim())}>{t.insert}</Button>
+    <Button variant="primary" disabled={!valid} onclick={() => valid && oninsert(kind, text.trim())}
+      >{t.insert}</Button
+    >
   {/snippet}
 </Dialog>

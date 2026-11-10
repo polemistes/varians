@@ -33,12 +33,25 @@
     onsegment: () => void;
   }
 
-  let { wb, container, tick, hidden = false, onmap, onvariant, oncorrection, onsegment }: Props = $props();
+  let {
+    wb,
+    container,
+    tick,
+    hidden = false,
+    onmap,
+    onvariant,
+    oncorrection,
+    onsegment,
+  }: Props = $props();
 
   /** The places the words can go, besides the proposed page: Not on a page and every other page. */
   const targets = $derived([
-    ...(wb.view !== UNPLACED ? [{ id: null as string | null, label: t.pages.unplaced, text: wb.unplacedWords > 0 }] : []),
-    ...wb.pages.filter((p) => p.id !== wb.view).map((p) => ({ id: p.id as string | null, label: p.label, text: wb.textOnPages.has(p.id) })),
+    ...(wb.view !== UNPLACED
+      ? [{ id: null as string | null, label: t.pages.unplaced, text: wb.unplacedWords > 0 }]
+      : []),
+    ...wb.pages
+      .filter((p) => p.id !== wb.view)
+      .map((p) => ({ id: p.id as string | null, label: p.label, text: wb.textOnPages.has(p.id) })),
   ]);
 
   const menuItem =
@@ -69,10 +82,16 @@
       at = null;
       return;
     }
-    at = floatingPosition(rect, { top: box.top, left: box.left, width: box.width, height: box.height }, { width: width || 480, height: height || 40 });
+    at = floatingPosition(
+      rect,
+      { top: box.top, left: box.left, width: box.width, height: box.height },
+      { width: width || 480, height: height || 40 },
+    );
   });
 
-  const unchecked = $derived(wb.keepsWrittenForm ? uncheckedIn(wb.stream, wb.selection.ids).length : 0);
+  const unchecked = $derived(
+    wb.keepsWrittenForm ? uncheckedIn(wb.stream, wb.selection.ids).length : 0,
+  );
 
   /** The variant the selected words carry, read again whenever the selection or the text moves. */
   const variant = $derived.by(() => {
@@ -120,12 +139,22 @@
         <div class="flex items-stretch">
           {#if wb.proposedPage}
             {@const proposed = wb.proposedPage}
-            <button type="button" class="wb-tool flex-1 text-left" title={t.move.toTitle} onpointerdown={keepFocus} onclick={() => wb.moveSelection(proposed)}>
+            <button
+              type="button"
+              class="wb-tool flex-1 text-left"
+              title={t.move.toTitle}
+              onpointerdown={keepFocus}
+              onclick={() => wb.moveSelection(proposed)}
+            >
               {t.move.to(wb.viewLabel(proposed))}
             </button>
           {/if}
           <DropdownMenu.Root>
-            <DropdownMenu.Trigger class="inline-flex items-center gap-0.5 rounded-[0.3rem] px-1.5 py-[0.2rem] leading-[1.3] text-ink hover:bg-sunken" title={t.move.otherTitle} aria-label={t.move.other}>
+            <DropdownMenu.Trigger
+              class="inline-flex items-center gap-0.5 rounded-[0.3rem] px-1.5 py-[0.2rem] leading-[1.3] text-ink hover:bg-sunken"
+              title={t.move.otherTitle}
+              aria-label={t.move.other}
+            >
               {#if !wb.proposedPage}{t.move.other}{/if}
               <ChevronDown class="size-3 text-ink-muted" aria-hidden="true" />
             </DropdownMenu.Trigger>
@@ -139,7 +168,11 @@
                 {#each targets as target (target.id ?? UNPLACED)}
                   <DropdownMenu.Item class={menuItem} onSelect={() => wb.moveSelection(target.id)}>
                     <span class="flex-1">{target.label}</span>
-                    {#if target.text}<span class="text-xs text-ink-muted" title={t.pages.hasText} aria-label={t.pages.hasText}>●</span>{/if}
+                    {#if target.text}<span
+                        class="text-xs text-ink-muted"
+                        title={t.pages.hasText}
+                        aria-label={t.pages.hasText}>●</span
+                      >{/if}
                   </DropdownMenu.Item>
                 {/each}
               </DropdownMenu.Content>
@@ -147,7 +180,13 @@
           </DropdownMenu.Root>
         </div>
       {/if}
-      <button type="button" class="wb-tool" title={t.toolbar.segmentTitle} onpointerdown={keepFocus} onclick={onsegment}>{t.toolbar.segment}</button>
+      <button
+        type="button"
+        class="wb-tool"
+        title={t.toolbar.segmentTitle}
+        onpointerdown={keepFocus}
+        onclick={onsegment}>{t.toolbar.segment}</button
+      >
       <button
         type="button"
         class="wb-tool disabled:opacity-50"
@@ -167,21 +206,44 @@
           {t.toolbar.confirm} ({unchecked})
         </button>
       {/if}
-      <button type="button" class="wb-tool" title={t.toolbar.variantTitle} onpointerdown={keepFocus} onclick={onvariant}>
+      <button
+        type="button"
+        class="wb-tool"
+        title={t.toolbar.variantTitle}
+        onpointerdown={keepFocus}
+        onclick={onvariant}
+      >
         {variant?.exact ? t.toolbar.editVariant : t.toolbar.variant}
       </button>
       {#if variant}
-        <button type="button" class="wb-tool" title={t.toolbar.removeVariantTitle} onpointerdown={keepFocus} onclick={removeVariant}>
+        <button
+          type="button"
+          class="wb-tool"
+          title={t.toolbar.removeVariantTitle}
+          onpointerdown={keepFocus}
+          onclick={removeVariant}
+        >
           {t.toolbar.removeVariant}
         </button>
       {/if}
       {#if correction}
-        <button type="button" class="wb-tool" title={t.toolbar.correctionTitle} onpointerdown={keepFocus} onclick={oncorrection}>
+        <button
+          type="button"
+          class="wb-tool"
+          title={t.toolbar.correctionTitle}
+          onpointerdown={keepFocus}
+          onclick={oncorrection}
+        >
           {t.toolbar.correction}
         </button>
       {/if}
     </div>
-    <EditorToolbar api={wb.api} inserts={false} segments={false} class="pointer-events-auto min-w-0 flex-1 shadow-pop" />
+    <EditorToolbar
+      api={wb.api}
+      inserts={false}
+      segments={false}
+      class="pointer-events-auto min-w-0 flex-1 shadow-pop"
+    />
   </div>
 {/if}
 

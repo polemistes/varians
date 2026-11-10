@@ -6,7 +6,13 @@
    */
   import FacsimileViewer from '$lib/components/facsimile/FacsimileViewer.svelte';
   import WordDividers from '$lib/components/facsimile/WordDividers.svelte';
-  import type { FacsimileApi, FacsimileMode, FacsimileSource, FacsimileZone, ZoneKind } from '$lib/facsimile/types';
+  import type {
+    FacsimileApi,
+    FacsimileMode,
+    FacsimileSource,
+    FacsimileZone,
+    ZoneKind,
+  } from '$lib/facsimile/types';
   import { detectLines, divideLine } from '$lib/facsimile/layout';
   import { applyBoundary, type Direction } from '$lib/facsimile/dividers';
   import { rectOf, type Rect, type ZoneGeometry } from '@varians/core';
@@ -17,7 +23,12 @@
     text?: string;
   }
 
-  const SAMPLE: FacsimileSource = { kind: 'image', url: '/dev/sample.jpg', width: 1600, height: 2286 };
+  const SAMPLE: FacsimileSource = {
+    kind: 'image',
+    url: '/dev/sample.jpg',
+    width: 1600,
+    height: 2286,
+  };
 
   let source = $state<FacsimileSource>(SAMPLE);
   let sourceInput = $state('');
@@ -108,7 +119,11 @@
     if (!a?.geometry.rect || !b?.geometry.rect) return;
     const [ra, rb] = applyBoundary(a.geometry.rect, b.geometry.rect, x, direction);
     zones = zones.map((z) =>
-      z.id === wordId ? { ...z, geometry: { rect: ra } } : z.id === neighbourId ? { ...z, geometry: { rect: rb } } : z,
+      z.id === wordId
+        ? { ...z, geometry: { rect: ra } }
+        : z.id === neighbourId
+          ? { ...z, geometry: { rect: rb } }
+          : z,
     );
   }
 
@@ -137,7 +152,12 @@
     const ms = Math.round(performance.now() - started);
     zones = [
       ...zones.filter((z) => z.kind !== 'line' || zones.some((w) => w.lineId === z.id)),
-      ...lines.map((rect) => ({ id: nextId('line'), geometry: { rect }, tokenIds: [], kind: 'line' as const })),
+      ...lines.map((rect) => ({
+        id: nextId('line'),
+        geometry: { rect },
+        tokenIds: [],
+        kind: 'line' as const,
+      })),
     ];
     status = `${lines.length} lines found${region ? ' inside the selected zone' : ' on the whole image'} in ${ms} ms`;
   }
@@ -175,7 +195,13 @@
     >
       {#snippet children(view)}
         {#if lineRect && lineWords.length > 1}
-          <WordDividers api={view} line={lineRect} words={lineWords} {direction} onchange={boundaryMoved} />
+          <WordDividers
+            api={view}
+            line={lineRect}
+            words={lineWords}
+            {direction}
+            onchange={boundaryMoved}
+          />
         {/if}
       {/snippet}
     </FacsimileViewer>
@@ -192,7 +218,13 @@
       </label>
       <div class="row">
         <button type="button" onclick={loadSource}>Load</button>
-        <button type="button" onclick={() => { sourceInput = ''; source = SAMPLE; }}>Sample</button>
+        <button
+          type="button"
+          onclick={() => {
+            sourceInput = '';
+            source = SAMPLE;
+          }}>Sample</button
+        >
       </div>
       <p class="muted">{source.kind}: {source.kind === 'iiif' ? source.infoUrl : source.url}</p>
     </section>
@@ -201,7 +233,11 @@
       <h2>Mode</h2>
       <div class="row" role="group" aria-label="Mode">
         {#each ['pan', 'rect', 'polygon'] as m (m)}
-          <button type="button" class:active={mode === m} onclick={() => (mode = m as FacsimileMode)}>{m}</button>
+          <button
+            type="button"
+            class:active={mode === m}
+            onclick={() => (mode = m as FacsimileMode)}>{m}</button
+          >
         {/each}
       </div>
       <div class="row">
@@ -220,10 +256,22 @@
     <section>
       <h2>Lines</h2>
       <div class="row">
-        <button type="button" onclick={detect}>Detect lines{selectedZone ? ' in the selected zone' : ''}</button>
-        <label>threshold <input type="number" step="0.01" min="0.5" max="2" bind:value={threshold} /></label>
+        <button type="button" onclick={detect}
+          >Detect lines{selectedZone ? ' in the selected zone' : ''}</button
+        >
+        <label
+          >threshold <input
+            type="number"
+            step="0.01"
+            min="0.5"
+            max="2"
+            bind:value={threshold}
+          /></label
+        >
       </div>
-      <p class="muted">Draw a rectangle around the text and select it first; the whole plate is mostly white page.</p>
+      <p class="muted">
+        Draw a rectangle around the text and select it first; the whole plate is mostly white page.
+      </p>
       {#if status}<p>{status}</p>{/if}
     </section>
 
@@ -240,7 +288,9 @@
             <option value="rtl">right to left</option>
           </select>
         </label>
-        <button type="button" disabled={!selectedLine} onclick={divideSelectedLine}>Divide line</button>
+        <button type="button" disabled={!selectedLine} onclick={divideSelectedLine}
+          >Divide line</button
+        >
       </div>
       {#if lineWords.length > 1}
         <p class="muted">Drag the dividers on the image, or focus one and use the arrow keys.</p>
@@ -273,7 +323,12 @@
               {#if zone.text}<span class="text">{zone.text}</span>{/if}
               <span class="geom">{describe(zone.geometry)}</span>
             </button>
-            <button type="button" class="small" aria-label="Remove {zone.id}" onclick={() => remove(zone.id)}>x</button>
+            <button
+              type="button"
+              class="small"
+              aria-label="Remove {zone.id}"
+              onclick={() => remove(zone.id)}>x</button
+            >
           </li>
         {/each}
       </ul>

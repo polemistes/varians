@@ -71,42 +71,105 @@
   const speakers = $derived.by(() => {
     if (speakerDisplay === 'inline') return [];
     const firstWord = pieces.findIndex((p) => p.kind === 'token');
-    return pieces.filter((p, i) => p.kind === 'paratext' && p.type === 'speaker' && (firstWord < 0 || i < firstWord));
+    return pieces.filter(
+      (p, i) => p.kind === 'paratext' && p.type === 'speaker' && (firstWord < 0 || i < firstWord),
+    );
   });
   const flow = $derived(speakers.length ? pieces.filter((p) => !speakers.includes(p)) : pieces);
   const dir = $derived(line.rend === 'rtl' || line.rend === 'ltr' ? line.rend : 'auto');
-  const heading = $derived(flow.length > 0 && flow.every((p) => p.kind === 'paratext' && p.type === 'head'));
+  const heading = $derived(
+    flow.length > 0 && flow.every((p) => p.kind === 'paratext' && p.type === 'head'),
+  );
 
   function gapTitle(piece: Extract<Printed, { kind: 'gap' }>): string {
-    return piece.quantity !== null ? r.text.gapOf(piece.quantity, piece.unit ?? 'characters') : r.text.gap;
+    return piece.quantity !== null
+      ? r.text.gapOf(piece.quantity, piece.unit ?? 'characters')
+      : r.text.gap;
   }
 </script>
 
 {#if speakerDisplay === 'own-line' && speakers.length}
   <div class={['line', 'speaker-line', line.paragraph && index > 0 && 'paragraph']} {dir}>
     <span class="label"></span>
-    <span class="words"><span class="speaker">{#each speakers as speaker (speaker.id)}{#if speaker.kind === 'paratext'}{speaker.text}{/if}{/each}</span></span>
+    <span class="words"
+      ><span class="speaker"
+        >{#each speakers as speaker (speaker.id)}{#if speaker.kind === 'paratext'}{speaker.text}{/if}{/each}</span
+      ></span
+    >
   </div>
 {/if}
 <div
-  class={['line', line.paragraph && index > 0 && !(speakerDisplay === 'own-line' && speakers.length) && 'paragraph', heading && 'heading-line']}
+  class={[
+    'line',
+    line.paragraph &&
+      index > 0 &&
+      !(speakerDisplay === 'own-line' && speakers.length) &&
+      'paragraph',
+    heading && 'heading-line',
+  ]}
   data-line={index}
   data-starts={starts.length ? starts.join(' ') : undefined}
   data-hit={hit ? '' : undefined}
   data-hit-current={currentHit ? '' : undefined}
   {dir}
 >
-  <span class="label">{#if label}{#if labelHref}<a href={labelHref} data-sveltekit-noscroll aria-label={r.text.permalink(label)}>{label}</a>{:else}{label}{/if}{/if}</span>
-  {#if speakerDisplay === 'margin'}<span class="speaker-margin">{#each speakers as speaker (speaker.id)}{#if speaker.kind === 'paratext'}{speaker.text}{/if}{/each}</span>{/if}
-  <span class="words"><span class="run" data-focus={focusLine ? '' : undefined}>{#each flow as piece, n (piece.id)}{#if n > 0 && piece.space && !(piece.kind === 'paratext' && piece.type === 'head')}{' '}{/if}{#if inlineLabels.has(piece.id)}<sup class="inline-label">{inlineLabels.get(piece.id)}</sup>{/if}{#if piece.kind === 'token'}{@const keys = sitesOf.get(piece.id)}{@const live = interactive && marked.has(piece.id)}{piece.before}<!-- The word is a button exactly when it takes focus. --><!-- svelte-ignore a11y_no_noninteractive_tabindex --><span
-        data-token={piece.id}
-        data-sites={keys}
-        data-focus={!focusLine && focusSegment !== null && segmentOf.get(piece.id) === focusSegment ? '' : undefined}
-        class={['w', marked.has(piece.id) && 'variant', marked.has(piece.id) && underline && 'dotted', matches.has(piece.id) && 'match']}
-        role={live ? 'button' : undefined}
-        tabindex={live ? (tabStops.has(piece.id) ? 0 : -1) : undefined}
-        aria-haspopup={live ? 'dialog' : undefined}
-        >{#each piece.parts as part, k (k)}{#if part.struck}<s>{part.text}</s>{:else}{part.text}{/if}{/each}</span>{piece.after}{:else if piece.kind === 'lacuna'}<span class="lacuna" title={piece.extent ? r.text.lacunaOf(piece.extent) : r.text.lacuna}>{piece.text}</span>{:else if piece.kind === 'gap'}<span class="gap" title={gapTitle(piece)}>{GAP_TEXT}</span>{:else if piece.kind === 'space'}<span class="vacat" title={r.text.space}>{VACAT_TEXT}</span>{:else if piece.kind === 'note'}<span class="note-mark" title={piece.text} aria-label={`${r.text.note}: ${piece.text}`}>°</span>{:else if piece.kind === 'paratext'}{#if piece.type === 'head'}<span class="head" role="heading" aria-level="2">{piece.text}</span>{:else if piece.type === 'speaker'}<span class="speaker">{piece.text}</span>{:else if piece.type === 'stage'}<span class="stage">{piece.text}</span>{:else}<span class="paratext">{piece.text}</span>{/if}{/if}{/each}</span></span>
+  <span class="label"
+    >{#if label}{#if labelHref}<a
+          href={labelHref}
+          data-sveltekit-noscroll
+          aria-label={r.text.permalink(label)}>{label}</a
+        >{:else}{label}{/if}{/if}</span
+  >
+  {#if speakerDisplay === 'margin'}<span class="speaker-margin"
+      >{#each speakers as speaker (speaker.id)}{#if speaker.kind === 'paratext'}{speaker.text}{/if}{/each}</span
+    >{/if}
+  <span class="words"
+    ><span class="run" data-focus={focusLine ? '' : undefined}
+      >{#each flow as piece, n (piece.id)}{#if n > 0 && piece.space && !(piece.kind === 'paratext' && piece.type === 'head')}{' '}{/if}{#if inlineLabels.has(piece.id)}<sup
+            class="inline-label">{inlineLabels.get(piece.id)}</sup
+          >{/if}{#if piece.kind === 'token'}{@const keys = sitesOf.get(piece.id)}{@const live =
+            interactive &&
+            marked.has(
+              piece.id,
+            )}{piece.before}<!-- The word is a button exactly when it takes focus. --><!-- svelte-ignore a11y_no_noninteractive_tabindex --><span
+            data-token={piece.id}
+            data-sites={keys}
+            data-focus={!focusLine &&
+            focusSegment !== null &&
+            segmentOf.get(piece.id) === focusSegment
+              ? ''
+              : undefined}
+            class={[
+              'w',
+              marked.has(piece.id) && 'variant',
+              marked.has(piece.id) && underline && 'dotted',
+              matches.has(piece.id) && 'match',
+            ]}
+            role={live ? 'button' : undefined}
+            tabindex={live ? (tabStops.has(piece.id) ? 0 : -1) : undefined}
+            aria-haspopup={live ? 'dialog' : undefined}
+            >{#each piece.parts as part, k (k)}{#if part.struck}<s>{part.text}</s
+                >{:else}{part.text}{/if}{/each}</span
+          >{piece.after}{:else if piece.kind === 'lacuna'}<span
+            class="lacuna"
+            title={piece.extent ? r.text.lacunaOf(piece.extent) : r.text.lacuna}>{piece.text}</span
+          >{:else if piece.kind === 'gap'}<span class="gap" title={gapTitle(piece)}>{GAP_TEXT}</span
+          >{:else if piece.kind === 'space'}<span class="vacat" title={r.text.space}
+            >{VACAT_TEXT}</span
+          >{:else if piece.kind === 'note'}<span
+            class="note-mark"
+            title={piece.text}
+            aria-label={`${r.text.note}: ${piece.text}`}>°</span
+          >{:else if piece.kind === 'paratext'}{#if piece.type === 'head'}<span
+              class="head"
+              role="heading"
+              aria-level="2">{piece.text}</span
+            >{:else if piece.type === 'speaker'}<span class="speaker">{piece.text}</span
+            >{:else if piece.type === 'stage'}<span class="stage">{piece.text}</span>{:else}<span
+              class="paratext">{piece.text}</span
+            >{/if}{/if}{/each}</span
+    ></span
+  >
 </div>
 
 <style>

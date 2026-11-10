@@ -11,4 +11,3 @@ export function identifierMatches(table: typeof works | typeof witnesses, query:
   const q = query.trim().toLowerCase();
   return sql`(lower(${table.identifier}) = ${q} or exists (select 1 from jsonb_array_elements(${table.identifiers}) as i where lower(i->>'value') = ${q}))`;
 }
-

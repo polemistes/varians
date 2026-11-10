@@ -33,7 +33,8 @@ import { importTei } from './import.ts';
 
 const RNG = fileURLToPath(new URL('../../../../docs/formats/varians.rng', import.meta.url));
 const xmllint = spawnSync('xmllint', ['--version']).error === undefined;
-const UNCHECKED = 'xmllint is not installed: the TEI exports are NOT validated against docs/formats/varians.rng.';
+const UNCHECKED =
+  'xmllint is not installed: the TEI exports are NOT validated against docs/formats/varians.rng.';
 if (!xmllint) console.warn(UNCHECKED);
 
 const dir = xmllint ? mkdtempSync(join(tmpdir(), 'varians-tei-')) : '';
@@ -64,7 +65,8 @@ function schemaErrors(xml: string, schema: string): string[] {
  */
 function ruleErrors(xml: string): string[] {
   const out: string[] = [];
-  if (/<msIdentifier>\s*(<altIdentifier|<\/msIdentifier>)/u.test(xml)) out.push('msId_minimal: an msIdentifier is empty or begins with altIdentifier');
+  if (/<msIdentifier>\s*(<altIdentifier|<\/msIdentifier>)/u.test(xml))
+    out.push('msId_minimal: an msIdentifier is empty or begins with altIdentifier');
   for (const tag of xml.match(/<[A-Za-z][^>]*>/gu) ?? []) {
     if (/\ssubtype="/u.test(tag) && !/\stype="/u.test(tag)) out.push(`subtypeTyped: ${tag}`);
   }
@@ -131,7 +133,13 @@ describe.skipIf(!xmllint)('transcription TEI is valid', slow, () => {
     for (const words of [true, false]) {
       const xml = transcription({
         stream: variantStream(),
-        witness: { siglum: 'A', hands: [{ id: 'm1', label: 'm1', main: true }, { id: 'm2', label: 'm2' }] },
+        witness: {
+          siglum: 'A',
+          hands: [
+            { id: 'm1', label: 'm1', main: true },
+            { id: 'm2', label: 'm2' },
+          ],
+        },
         words,
       });
       expect(errors(xml)).toEqual([]);
@@ -141,9 +149,27 @@ describe.skipIf(!xmllint)('transcription TEI is valid', slow, () => {
   it('with corrections by hand and stage, hand shifts and several hands', () => {
     const stream: Stream = {
       items: [
-        { kind: 'token', id: 't1', form: 'abc', marks: [{ kind: 'del', attrs: { hand: 'h2', seq: 2, rend: 'erasure' } }] },
-        { kind: 'token', id: 't2', form: 'def', marks: [{ kind: 'add', attrs: { hand: 'scribe', place: 'above', seq: 1 } }] },
-        { kind: 'token', id: 't3', form: 'ghi', marks: [{ kind: 'add', attrs: { hand: 'other' } }, { kind: 'handShift', attrs: { new: '#hand-h2' } }] },
+        {
+          kind: 'token',
+          id: 't1',
+          form: 'abc',
+          marks: [{ kind: 'del', attrs: { hand: 'h2', seq: 2, rend: 'erasure' } }],
+        },
+        {
+          kind: 'token',
+          id: 't2',
+          form: 'def',
+          marks: [{ kind: 'add', attrs: { hand: 'scribe', place: 'above', seq: 1 } }],
+        },
+        {
+          kind: 'token',
+          id: 't3',
+          form: 'ghi',
+          marks: [
+            { kind: 'add', attrs: { hand: 'other' } },
+            { kind: 'handShift', attrs: { new: '#hand-h2' } },
+          ],
+        },
         { kind: 'token', id: 't4', form: 'jkl', marks: [{ kind: 'del', attrs: { hand: 'm3' } }] },
       ],
     };
@@ -165,23 +191,106 @@ describe.skipIf(!xmllint)('transcription TEI is valid', slow, () => {
   it('with every feature the importer reads', () => {
     const stream: Stream = {
       items: [
-        { kind: 'token', id: 't1', form: 'abcd', marks: [{ kind: 'subst' }, { kind: 'del', from: 0, to: 2 }, { kind: 'add', from: 2, to: 4 }] },
-        { kind: 'token', id: 't2', form: 'efg', marks: [{ kind: 'restore', from: 0, to: 1 }, { kind: 'retrace', from: 1, to: 2 }, { kind: 'mod', from: 2, to: 3 }] },
-        { kind: 'token', id: 't3', form: 'hij', marks: [{ kind: 'redo', attrs: { hand: '#h2' }, from: 1, to: 1 }, { kind: 'undo', from: 2, to: 2 }, { kind: 'secl', from: 2, to: 3 }] },
+        {
+          kind: 'token',
+          id: 't1',
+          form: 'abcd',
+          marks: [
+            { kind: 'subst' },
+            { kind: 'del', from: 0, to: 2 },
+            { kind: 'add', from: 2, to: 4 },
+          ],
+        },
+        {
+          kind: 'token',
+          id: 't2',
+          form: 'efg',
+          marks: [
+            { kind: 'restore', from: 0, to: 1 },
+            { kind: 'retrace', from: 1, to: 2 },
+            { kind: 'mod', from: 2, to: 3 },
+          ],
+        },
+        {
+          kind: 'token',
+          id: 't3',
+          form: 'hij',
+          marks: [
+            { kind: 'redo', attrs: { hand: '#h2' }, from: 1, to: 1 },
+            { kind: 'undo', from: 2, to: 2 },
+            { kind: 'secl', from: 2, to: 3 },
+          ],
+        },
         { kind: 'token', id: 't4', form: 'klm', marks: [{ kind: 'orig' }] },
         { kind: 'token', id: 't5', form: 'κς', marks: [{ kind: 'abbr' }] },
-        { kind: 'token', id: 't6', form: 'nop', marks: [{ kind: 'crux' }, { kind: 'note', attrs: { text: 'a note at a point' }, from: 1, to: 1 }] },
+        {
+          kind: 'token',
+          id: 't6',
+          form: 'nop',
+          marks: [
+            { kind: 'crux' },
+            { kind: 'note', attrs: { text: 'a note at a point' }, from: 1, to: 1 },
+          ],
+        },
         { kind: 'token', id: 't7', form: 'qrs', marks: [{ kind: 'note', from: 0, to: 2 }] },
-        { kind: 'token', id: 't8', form: 'tuv', marks: [{ kind: 'unclear', attrs: { reason: 'faded', cert: 'low' } }, { kind: 'space', attrs: { quantity: 1, unit: 'character' }, from: 1, to: 1 }] },
-        { kind: 'token', id: 't9', form: 'wxy', marks: [{ kind: 'supplied', attrs: { reason: 'omitted', resp: '#ed' } }, { kind: 'damage', attrs: { agent: 'hole', degree: 'medium' } }] },
-        { kind: 'token', id: 't10', form: 'zz', marks: [{ kind: 'hi', attrs: { rend: 'superscript' } }, { kind: 'gap', attrs: { reason: 'illegible', quantity: 2, unit: 'character' }, from: 2, to: 2 }] },
+        {
+          kind: 'token',
+          id: 't8',
+          form: 'tuv',
+          marks: [
+            { kind: 'unclear', attrs: { reason: 'faded', cert: 'low' } },
+            { kind: 'space', attrs: { quantity: 1, unit: 'character' }, from: 1, to: 1 },
+          ],
+        },
+        {
+          kind: 'token',
+          id: 't9',
+          form: 'wxy',
+          marks: [
+            { kind: 'supplied', attrs: { reason: 'omitted', resp: '#ed' } },
+            { kind: 'damage', attrs: { agent: 'hole', degree: 'medium' } },
+          ],
+        },
+        {
+          kind: 'token',
+          id: 't10',
+          form: 'zz',
+          marks: [
+            { kind: 'hi', attrs: { rend: 'superscript' } },
+            {
+              kind: 'gap',
+              attrs: { reason: 'illegible', quantity: 2, unit: 'character' },
+              from: 2,
+              to: 2,
+            },
+          ],
+        },
       ],
     };
-    for (const words of [true, false]) expect(errors(transcription({ stream, words, regularizations: true }))).toEqual([]);
+    for (const words of [true, false])
+      expect(errors(transcription({ stream, words, regularizations: true }))).toEqual([]);
   });
 
   it('with paratext of every kind the importer reads, notes, figures, scribal marks and lacunae', () => {
-    const kinds = ['head', 'speaker', 'stage', 'label', 'trailer', 'fw', 'byline', 'dateline', 'opener', 'closer', 'salute', 'signed', 'docAuthor', 'docTitle', 'argument', 'epigraph', 'margin'];
+    const kinds = [
+      'head',
+      'speaker',
+      'stage',
+      'label',
+      'trailer',
+      'fw',
+      'byline',
+      'dateline',
+      'opener',
+      'closer',
+      'salute',
+      'signed',
+      'docAuthor',
+      'docTitle',
+      'argument',
+      'epigraph',
+      'margin',
+    ];
     const ids = sequentialIds('x');
     const items: Item[] = [{ kind: 'break', id: ids(), type: 'page', label: '1' }];
     for (const type of kinds) {
@@ -189,12 +298,42 @@ describe.skipIf(!xmllint)('transcription TEI is valid', slow, () => {
       items.push({ kind: 'token', id: ids(), form: 'w' });
     }
     items.push(
-      { kind: 'object', id: ids(), type: 'paratext', attrs: { type: 'head', subtype: 'chapter' }, text: 'Α' },
-      { kind: 'object', id: ids(), type: 'paratext', attrs: { type: 'fw', subtype: 'catch', place: 'bottom' }, text: 'καί' },
-      { kind: 'object', id: ids(), type: 'paratext', attrs: { type: 'label', subtype: 'number' }, text: '3' },
+      {
+        kind: 'object',
+        id: ids(),
+        type: 'paratext',
+        attrs: { type: 'head', subtype: 'chapter' },
+        text: 'Α',
+      },
+      {
+        kind: 'object',
+        id: ids(),
+        type: 'paratext',
+        attrs: { type: 'fw', subtype: 'catch', place: 'bottom' },
+        text: 'καί',
+      },
+      {
+        kind: 'object',
+        id: ids(),
+        type: 'paratext',
+        attrs: { type: 'label', subtype: 'number' },
+        text: '3',
+      },
       { kind: 'object', id: ids(), type: 'paratext', text: 'untyped' },
-      { kind: 'object', id: ids(), type: 'note', attrs: { place: 'margin', type: 'gloss' }, text: 'σχόλιον' },
-      { kind: 'object', id: ids(), type: 'figure', attrs: { url: 'https://images.example/f.png' }, text: 'a drawing' },
+      {
+        kind: 'object',
+        id: ids(),
+        type: 'note',
+        attrs: { place: 'margin', type: 'gloss' },
+        text: 'σχόλιον',
+      },
+      {
+        kind: 'object',
+        id: ids(),
+        type: 'figure',
+        attrs: { url: 'https://images.example/f.png' },
+        text: 'a drawing',
+      },
       { kind: 'object', id: ids(), type: 'figure' },
       { kind: 'object', id: ids(), type: 'mark', attrs: { function: 'insertion' }, text: '⸓' },
       { kind: 'object', id: ids(), type: 'lacuna', attrs: { extent: 'several lines' } },
@@ -203,12 +342,19 @@ describe.skipIf(!xmllint)('transcription TEI is valid', slow, () => {
       { kind: 'break', id: ids(), type: 'column', label: 'b' },
       { kind: 'token', id: ids(), form: 'end' },
     );
-    for (const words of [true, false]) expect(errors(transcription({ stream: { items }, words }))).toEqual([]);
+    for (const words of [true, false])
+      expect(errors(transcription({ stream: { items }, words }))).toEqual([]);
   });
 
   it('with witnesses described in part: a siglum only, a shelfmark without a library, a name only, nothing', () => {
     const stream = exportInput().stream;
-    for (const witness of [{ siglum: 'A' }, { settlement: 'Paris', idno: 'gr. 2036' }, { name: 'Codex Parisinus' }, {}, { material: 'papyrus', form: 'scroll' as const }]) {
+    for (const witness of [
+      { siglum: 'A' },
+      { settlement: 'Paris', idno: 'gr. 2036' },
+      { name: 'Codex Parisinus' },
+      {},
+      { material: 'papyrus', form: 'scroll' as const },
+    ]) {
       expect(errors(transcription({ stream, witness }))).toEqual([]);
     }
   });
@@ -217,10 +363,23 @@ describe.skipIf(!xmllint)('transcription TEI is valid', slow, () => {
     const input = exportInput();
     const xml = transcription({
       stream: input.stream,
-      pages: [{ id: 'p1', label: '12r' }, { id: 'p2', label: '12v', imageUrl: 'iiif/12v.jpg' }],
+      pages: [
+        { id: 'p1', label: '12r' },
+        { id: 'p2', label: '12v', imageUrl: 'iiif/12v.jpg' },
+      ],
       zones: [
-        { id: 'z1', pageId: 'p1', tokenIds: ['t1'], geometry: { rect: { x: 0.1, y: 0.1, w: 0.2, h: 0.1 }, rotate: 30 } },
-        { id: 'z2', pageId: 'p2', tokenIds: ['t2'], geometry: { rect: { x: 0.1, y: 0.1, w: 0.2, h: 0.1 } } },
+        {
+          id: 'z1',
+          pageId: 'p1',
+          tokenIds: ['t1'],
+          geometry: { rect: { x: 0.1, y: 0.1, w: 0.2, h: 0.1 }, rotate: 30 },
+        },
+        {
+          id: 'z2',
+          pageId: 'p2',
+          tokenIds: ['t2'],
+          geometry: { rect: { x: 0.1, y: 0.1, w: 0.2, h: 0.1 } },
+        },
       ],
       words: true,
     });
@@ -237,14 +396,24 @@ describe.skipIf(!xmllint)('transcription TEI is valid', slow, () => {
       </div></div></body></text></TEI>`;
     const imported = importTei(foreign, { ids: sequentialIds('i') });
     // The parser drops the prefix of xml:lang; it is written back with it.
-    expect(transcription({ stream: imported.stream })).toContain('<hi rend="italic" xml:lang="la">vale</hi>');
-    for (const words of [true, false]) expect(errors(transcription({ stream: imported.stream, words, regularizations: true }))).toEqual([]);
+    expect(transcription({ stream: imported.stream })).toContain(
+      '<hi rend="italic" xml:lang="la">vale</hi>',
+    );
+    for (const words of [true, false])
+      expect(
+        errors(transcription({ stream: imported.stream, words, regularizations: true })),
+      ).toEqual([]);
   });
 });
 
 describe.skipIf(!xmllint)('edition TEI is valid', slow, () => {
   it('with the apparatus by parallel segmentation: substitution, omission, addition, lacuna, conjectures and reported readings', () => {
-    const xml = exportEditionTei({ ...editionInput(), licence: 'CC BY-SA 4.0', sources: 'Allen 1931.', preface: 'A preface.' });
+    const xml = exportEditionTei({
+      ...editionInput(),
+      licence: 'CC BY-SA 4.0',
+      sources: 'Allen 1931.',
+      preface: 'A preface.',
+    });
     expect(errors(xml)).toEqual([]);
   });
 
@@ -259,21 +428,45 @@ describe.skipIf(!xmllint)('edition TEI is valid', slow, () => {
     );
     segment.items.push(
       { kind: 'object', id: ids(), type: 'lacuna', attrs: { extent: 'a line' } },
-      { kind: 'object', id: ids(), type: 'gap', attrs: { reason: 'lost', quantity: 3, unit: 'character' } },
+      {
+        kind: 'object',
+        id: ids(),
+        type: 'gap',
+        attrs: { reason: 'lost', quantity: 3, unit: 'character' },
+      },
       { kind: 'object', id: ids(), type: 'note', text: 'a note' },
       { kind: 'object', id: ids(), type: 'space' },
       { kind: 'object', id: ids(), type: 'figure', text: 'a drawing' },
       { kind: 'break', id: ids(), type: 'paragraph' },
-      { kind: 'token', id: ids(), form: 'ἔπος', marks: [{ kind: 'supplied', attrs: { resp: '01JCONJECTURE00000000000000' } }, { kind: 'variant', attrs: { group: 'g', reading: 'x', place: 'margin' } }] },
+      {
+        kind: 'token',
+        id: ids(),
+        form: 'ἔπος',
+        marks: [
+          { kind: 'supplied', attrs: { resp: '01JCONJECTURE00000000000000' } },
+          { kind: 'variant', attrs: { group: 'g', reading: 'x', place: 'margin' } },
+        ],
+      },
     );
-    const xml = exportEditionTei({ title: 't', language: 'grc', witnesses: [{ siglum: 'A', name: 'Codex A', description: 'Iliad' }], segments: [segment] });
+    const xml = exportEditionTei({
+      title: 't',
+      language: 'grc',
+      witnesses: [{ siglum: 'A', name: 'Codex A', description: 'Iliad' }],
+      segments: [segment],
+    });
     expect(errors(xml)).toEqual([]);
   });
 
   it('with Greek sigla, sigla that differ only by a superscript, and a sub-siglum for the variants of a carrier', () => {
     const sigla = ['Π', 'Σ', 'A¹', 'A²', 'A v.l.', 'a', '1'];
-    const witnesses = sigla.map((siglum, i) => collationText(`W${i}`, siglum, i % 2 ? 'the slow fox' : 'the quick fox'));
-    const xml = exportEditionTei({ title: 't', witnesses: sigla.map((siglum) => ({ siglum })), segments: [editionSegment('1', 'the quick fox', witnesses)] });
+    const witnesses = sigla.map((siglum, i) =>
+      collationText(`W${i}`, siglum, i % 2 ? 'the slow fox' : 'the quick fox'),
+    );
+    const xml = exportEditionTei({
+      title: 't',
+      witnesses: sigla.map((siglum) => ({ siglum })),
+      segments: [editionSegment('1', 'the quick fox', witnesses)],
+    });
     expect(xml).toContain('<witness xml:id="wit-Π" n="Π">');
     expect(xml).toContain('<witness xml:id="wit-A_" n="A¹">');
     expect(xml).toContain('<witness xml:id="wit-A_-2" n="A²">');
@@ -291,19 +484,35 @@ describe.skipIf(!xmllint)('the record pointers the exporters write', slow, () =>
     const input = editionInput();
     const [first, ...rest] = input.segments;
     const tokens = first!.items.filter((i) => i.kind === 'token');
-    tokens[0]!.source = { kind: 'witness', transcriptionId: 'T1', tokenIds: ['01JTOKEN0000000000000000A1', '01JTOKEN0000000000000000A2'] };
+    tokens[0]!.source = {
+      kind: 'witness',
+      transcriptionId: 'T1',
+      tokenIds: ['01JTOKEN0000000000000000A1', '01JTOKEN0000000000000000A2'],
+    };
     tokens[1]!.source = { kind: 'conjecture', conjectureId: '01JCONJECTURE000000000001' };
     tokens[2]!.source = { kind: 'editor' };
     const xml = exportEditionTei({
       ...input,
       words: true,
       origin: 'https://varians.example/',
-      witnesses: input.witnesses.map((w, i) => ({ ...w, id: `01JWITNESS00000000000000${String(i).padStart(2, '0')}` })),
-      segments: [{ ...first!, id: '01JSEGMENT000000000000001', urn: 'urn:cts:greekLit:tlg0012.tlg001:1.1' }, ...rest],
+      witnesses: input.witnesses.map((w, i) => ({
+        ...w,
+        id: `01JWITNESS00000000000000${String(i).padStart(2, '0')}`,
+      })),
+      segments: [
+        { ...first!, id: '01JSEGMENT000000000000001', urn: 'urn:cts:greekLit:tlg0012.tlg001:1.1' },
+        ...rest,
+      ],
     });
-    expect(xml).toContain('<prefixDef ident="tok" matchPattern="([0-9A-HJKMNP-TV-Z]{26})" replacementPattern="https://varians.example/id/$1"/>');
-    expect(xml).toContain('<ab n="1.1" xml:id="seg-01JSEGMENT000000000000001" corresp="urn:cts:greekLit:tlg0012.tlg001:1.1">');
-    expect(xml).toContain('corresp="tok:01JTOKEN0000000000000000A1 tok:01JTOKEN0000000000000000A2">the</w>');
+    expect(xml).toContain(
+      '<prefixDef ident="tok" matchPattern="([0-9A-HJKMNP-TV-Z]{26})" replacementPattern="https://varians.example/id/$1"/>',
+    );
+    expect(xml).toContain(
+      '<ab n="1.1" xml:id="seg-01JSEGMENT000000000000001" corresp="urn:cts:greekLit:tlg0012.tlg001:1.1">',
+    );
+    expect(xml).toContain(
+      'corresp="tok:01JTOKEN0000000000000000A1 tok:01JTOKEN0000000000000000A2">the</w>',
+    );
     expect(xml).toContain('source="conj:01JCONJECTURE000000000001">quick</w>');
     expect(xml).toMatch(/<w xml:id="w-[^"]+">brown<\/w>/);
     expect(xml).toContain('corresp="wit:01JWITNESS0000000000000000"');
@@ -322,11 +531,20 @@ describe.skipIf(!xmllint)('the record pointers the exporters write', slow, () =>
         { name: 'A. N. Other', resp: 'notes', personId: '01JPERSON0000000000000000A' },
       ],
     });
-    expect(xml).toContain('<availability><licence target="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</licence><licence>The text of witness A by courtesy of the library.</licence></availability>');
-    expect(xml).toContain('<respStmt><resp>edition</resp><persName ref="https://orcid.org/0000-0002-1825-0097">Josiah Carberry</persName></respStmt>');
+    expect(xml).toContain(
+      '<availability><licence target="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</licence><licence>The text of witness A by courtesy of the library.</licence></availability>',
+    );
+    expect(xml).toContain(
+      '<respStmt><resp>edition</resp><persName ref="https://orcid.org/0000-0002-1825-0097">Josiah Carberry</persName></respStmt>',
+    );
     expect(xml).toContain('<persName ref="person:01JPERSON0000000000000000A">');
     expect(errors(xml)).toEqual([]);
-    const transcription = exportTranscriptionTei({ ...exportInput(), licence: 'CC0 1.0', licenceUrl: 'https://creativecommons.org/publicdomain/zero/1.0/', contributors: [{ name: 'Josiah Carberry', resp: 'transcription' }] });
+    const transcription = exportTranscriptionTei({
+      ...exportInput(),
+      licence: 'CC0 1.0',
+      licenceUrl: 'https://creativecommons.org/publicdomain/zero/1.0/',
+      contributors: [{ name: 'Josiah Carberry', resp: 'transcription' }],
+    });
     expect(errors(transcription)).toEqual([]);
   });
 

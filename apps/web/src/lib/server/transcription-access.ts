@@ -1,9 +1,21 @@
 /**
  * Loading a transcription with what a request needs to authorize against it.
  */
-import { transcriptions, witnesses, type Database, type Transcription, type Witness } from '@varians/db';
+import {
+  transcriptions,
+  witnesses,
+  type Database,
+  type Transcription,
+  type Witness,
+} from '@varians/db';
 import { eq } from 'drizzle-orm';
-import { canDeleteTranscription, canEditTranscription, canViewTranscription, grantsFor, type Actor } from './authz';
+import {
+  canDeleteTranscription,
+  canEditTranscription,
+  canViewTranscription,
+  grantsFor,
+  type Actor,
+} from './authz';
 import { seesWork } from './edition-access';
 import { worksOfTranscription } from './transcription-works';
 
@@ -15,7 +27,11 @@ export interface TranscriptionAccess {
   canDelete: boolean;
 }
 
-export async function loadTranscriptionAccess(db: Database, user: Actor | null, id: string): Promise<TranscriptionAccess | null> {
+export async function loadTranscriptionAccess(
+  db: Database,
+  user: Actor | null,
+  id: string,
+): Promise<TranscriptionAccess | null> {
   const [row] = await db
     .select({ transcription: transcriptions, witness: witnesses })
     .from(transcriptions)

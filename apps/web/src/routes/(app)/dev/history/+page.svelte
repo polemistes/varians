@@ -14,7 +14,9 @@
   let { data }: { data: PageData } = $props();
 
   const selectedValue = $derived(`${data.selected.kind}:${data.selected.id}`);
-  const options = $derived(data.documents.map((d) => ({ value: `${d.kind}:${d.id}`, label: d.label })));
+  const options = $derived(
+    data.documents.map((d) => ({ value: `${d.kind}:${d.id}`, label: d.label })),
+  );
   const endpoint = $derived(`/api/documents/${data.selected.kind}/${data.selected.id}/ops`);
 
   let version = $state(0);
@@ -44,9 +46,25 @@
     if (!token) return;
     const ops: Op[] =
       what === 'respell'
-        ? [{ t: 'set', id: token.id, fields: { form: token.form.endsWith('·') ? token.form.slice(0, -1) : `${token.form}·` } }]
+        ? [
+            {
+              t: 'set',
+              id: token.id,
+              fields: {
+                form: token.form.endsWith('·') ? token.form.slice(0, -1) : `${token.form}·`,
+              },
+            },
+          ]
         : what === 'insert'
-          ? [{ t: 'insert', after: token.id, items: [{ kind: 'token', id: newId(), form: t.dev.added, source: { kind: 'editor' } }] }]
+          ? [
+              {
+                t: 'insert',
+                after: token.id,
+                items: [
+                  { kind: 'token', id: newId(), form: t.dev.added, source: { kind: 'editor' } },
+                ],
+              },
+            ]
           : [{ t: 'delete', ids: [token.id] }];
     saving = true;
     try {
@@ -76,18 +94,27 @@
     </div>
     <label class="block max-w-sm">
       <span class="mb-1 block text-xs text-ink-soft">{t.dev.document}</span>
-      <Select value={selectedValue} {options} onchange={(event) => choose(event.currentTarget.value)} />
+      <Select
+        value={selectedValue}
+        {options}
+        onchange={(event) => choose(event.currentTarget.value)}
+      />
     </label>
     {#if data.selected.canEdit}
       <div class="flex flex-wrap gap-2">
-        <Button size="sm" disabled={saving} onclick={() => change('respell')}>{t.dev.respell}</Button>
+        <Button size="sm" disabled={saving} onclick={() => change('respell')}
+          >{t.dev.respell}</Button
+        >
         <Button size="sm" disabled={saving} onclick={() => change('insert')}>{t.dev.insert}</Button>
         <Button size="sm" disabled={saving} onclick={() => change('remove')}>{t.dev.remove}</Button>
       </div>
     {:else}
       <Notice>{t.dev.readOnly}</Notice>
     {/if}
-    <section class="rounded-md border border-line bg-surface p-4" aria-label={t.dev.current(version)}>
+    <section
+      class="rounded-md border border-line bg-surface p-4"
+      aria-label={t.dev.current(version)}
+    >
       <p class="mb-3 font-sans text-xs text-ink-muted">{t.dev.current(version)}</p>
       {#if content}
         <StreamView stream={content} labelOf={data.labels} numberEvery={data.numberEvery} />
@@ -95,7 +122,9 @@
     </section>
   </div>
   <!-- A side pane of fixed height, as an editor gives it: the panel scrolls inside. -->
-  <aside class="h-[36rem] shrink-0 lg:sticky lg:top-6 lg:h-[calc(100dvh-3rem)] lg:border-l lg:border-line lg:pl-6">
+  <aside
+    class="h-[36rem] shrink-0 lg:sticky lg:top-6 lg:h-[calc(100dvh-3rem)] lg:border-l lg:border-line lg:pl-6"
+  >
     {#key selectedValue}
       <HistoryPanel
         kind={data.selected.kind}

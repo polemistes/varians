@@ -24,8 +24,16 @@ export const POST: RequestHandler = async ({ locals, request }) => {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'varians-push-'));
   try {
     const file = path.join(dir, 'package.zip');
-    await pipeline(Readable.fromWeb(request.body as import('node:stream/web').ReadableStream), createWriteStream(file));
-    const report = await importPackage(locals.db, file, user.id, { ...(user.role === 'administrator' ? {} : { actor: user }), onConflict: 'keep', source: 'a push', limits: WEB_LIMITS });
+    await pipeline(
+      Readable.fromWeb(request.body as import('node:stream/web').ReadableStream),
+      createWriteStream(file),
+    );
+    const report = await importPackage(locals.db, file, user.id, {
+      ...(user.role === 'administrator' ? {} : { actor: user }),
+      onConflict: 'keep',
+      source: 'a push',
+      limits: WEB_LIMITS,
+    });
     return json(summary(report), { status: report.refused ? 422 : 200 });
   } finally {
     await rm(dir, { recursive: true, force: true });

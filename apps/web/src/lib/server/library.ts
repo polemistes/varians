@@ -280,9 +280,15 @@ export async function sharedWith(
 }
 
 /** Published editions the user may see, matching a query on the edition's title, the work's title or its author. */
-export function searchPublishedEditions(db: Database, user: Actor | null, query: string): Promise<EditionRow[]> {
+export function searchPublishedEditions(
+  db: Database,
+  user: Actor | null,
+  query: string,
+): Promise<EditionRow[]> {
   const pattern = query.trim() ? likePattern(query) : null;
-  const matches = pattern ? or(ilike(editions.title, pattern), ilike(works.title, pattern), ilike(works.author, pattern)) : undefined;
+  const matches = pattern
+    ? or(ilike(editions.title, pattern), ilike(works.title, pattern), ilike(works.author, pattern))
+    : undefined;
   return selectEditions(db, and(eq(editions.visibility, 'published'), visibleWorks(user), matches));
 }
 
@@ -291,7 +297,12 @@ export type RecentItem =
   | ({ kind: 'transcription'; shared: boolean } & TranscriptionRow);
 
 /** The user's own and shared editions and transcriptions, the most recently changed first. */
-export async function recentWork(db: Database, user: Actor, grants: Grants, limit = 4): Promise<{ items: RecentItem[]; total: number }> {
+export async function recentWork(
+  db: Database,
+  user: Actor,
+  grants: Grants,
+  limit = 4,
+): Promise<{ items: RecentItem[]; total: number }> {
   const [ownEditions, ownTranscriptions, shared] = await Promise.all([
     editionsOwnedBy(db, user.id),
     transcriptionsOwnedBy(db, user.id),

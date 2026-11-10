@@ -12,11 +12,24 @@
    */
   import { onMount, untrack } from 'svelte';
   import { PageFrame } from '$lib/components/shell';
-  import { blocksOf, inlineStarts, lineLabels, segmentOfItems, segmentsByLine, type Block } from '$lib/reader/blocks';
+  import {
+    blocksOf,
+    inlineStarts,
+    lineLabels,
+    segmentOfItems,
+    segmentsByLine,
+    type Block,
+  } from '$lib/reader/blocks';
   import { DEFAULT_SIGLA, printLine } from '$lib/reader/marks';
   import { findHits, searchIndex, type SearchHit, type SearchLine } from '$lib/reader/search';
   import { explainSite, variantsOf, type ExplainContext } from '$lib/reader/explain';
-  import { DEFAULT_SETTINGS, effectiveConventions, loadSettings, saveSettings, type ReaderSettings } from '$lib/reader/settings';
+  import {
+    DEFAULT_SETTINGS,
+    effectiveConventions,
+    loadSettings,
+    saveSettings,
+    type ReaderSettings,
+  } from '$lib/reader/settings';
   import {
     entriesBySegment,
     entryBySite,
@@ -61,20 +74,34 @@
   const siglaOrder = $derived(siglaOrderOf(data.sigla));
   const printed = $derived(data.lines.map((line) => printLine(line.items, sigla)));
   const blocks = $derived(
-    blocksOf(data.lines, { lineation: conventionsOfEdition.lineation ?? 'verse', numberEvery: conventionsOfEdition.numberEvery ?? 5 }),
+    blocksOf(data.lines, {
+      lineation: conventionsOfEdition.lineation ?? 'verse',
+      numberEvery: conventionsOfEdition.numberEvery ?? 5,
+    }),
   );
   const segmentsOfLine = $derived(segmentsByLine(data.lines));
   const segmentOf = $derived(segmentOfItems(data.lines));
   const sitesOfToken = $derived(siteByToken(data));
-  const startsOfLine = $derived(data.lines.map((line) => line.starts.flatMap((start) => (start.segmentId ? [start.segmentId] : []))));
+  const startsOfLine = $derived(
+    data.lines.map((line) =>
+      line.starts.flatMap((start) => (start.segmentId ? [start.segmentId] : [])),
+    ),
+  );
   /** The segments in the order of the text, with the sigla absent from each, for the conspectus. */
   const order = $derived(
-    blocks.flatMap((block) => block.segmentIds).map((id) => ({ label: data.labelOf[id] ?? id, absent: data.segments[id]?.absent ?? [] })),
+    blocks
+      .flatMap((block) => block.segmentIds)
+      .map((id) => ({ label: data.labelOf[id] ?? id, absent: data.segments[id]?.absent ?? [] })),
   );
   const speakerDisplay = $derived(conventionsOfEdition.speakerDisplay ?? 'margin');
   const marginSpeakers = $derived(
     speakerDisplay === 'margin' &&
-      data.lines.some((line) => line.items.some((item) => item.kind === 'object' && item.type === 'paratext' && item.attrs?.type === 'speaker')),
+      data.lines.some((line) =>
+        line.items.some(
+          (item) =>
+            item.kind === 'object' && item.type === 'paratext' && item.attrs?.type === 'speaker',
+        ),
+      ),
   );
   const hasLabels = $derived(data.lines.some((line) => line.starts.length > 0));
   const witnessesWithText = $derived(data.sigla.some((x) => x.transcriptionId));
@@ -132,7 +159,11 @@
   const labels = $derived(lineLabels(data.lines, data.labelOf, settings.labels));
   /** Segments that begin within a line are labelled where they begin: in prose, or when every line is labelled. */
   const startsWithin = $derived(inlineStarts(data.lines, data.labelOf));
-  const inlineLabels = $derived(conventionsOfEdition.lineation === 'prose' || settings.labels === 'every' ? startsWithin : new Map<string, string>());
+  const inlineLabels = $derived(
+    conventionsOfEdition.lineation === 'prose' || settings.labels === 'every'
+      ? startsWithin
+      : new Map<string, string>(),
+  );
 
   function segmentHref(label: string): string {
     return `${data.basePath}/${encodeURIComponent(label)}${data.query}`;
@@ -140,13 +171,20 @@
 
   function blockHasApparatus(block: Block): boolean {
     return block.segmentIds.some(
-      (id) => (entries.get(id)?.length ?? 0) > 0 || (data.segments[id]?.unplaced.length ?? 0) > 0 || (data.segments[id]?.notes.length ?? 0) > 0,
+      (id) =>
+        (entries.get(id)?.length ?? 0) > 0 ||
+        (data.segments[id]?.unplaced.length ?? 0) > 0 ||
+        (data.segments[id]?.notes.length ?? 0) > 0,
     );
   }
 
   // The permalink's segment: scrolled to once the page is live, and lit for a moment (by CSS, so also without scripts).
-  const focusSegment = $derived(data.focus && 'segmentId' in data.focus ? data.focus.segmentId : null);
-  const missingSegment = $derived(data.focus && 'missing' in data.focus ? data.focus.missing : null);
+  const focusSegment = $derived(
+    data.focus && 'segmentId' in data.focus ? data.focus.segmentId : null,
+  );
+  const missingSegment = $derived(
+    data.focus && 'missing' in data.focus ? data.focus.missing : null,
+  );
 
   let textRoot = $state<HTMLElement | null>(null);
   let reading = $state<HTMLElement | null>(null);
@@ -167,7 +205,10 @@
   $effect(() => {
     const title = reading?.querySelector('.title-block h1');
     if (!title) return;
-    const observer = new IntersectionObserver(([record]) => (titleInView = record?.isIntersecting ?? false), { rootMargin: '-48px 0px 0px 0px' });
+    const observer = new IntersectionObserver(
+      ([record]) => (titleInView = record?.isIntersecting ?? false),
+      { rootMargin: '-48px 0px 0px 0px' },
+    );
     observer.observe(title);
     return () => observer.disconnect();
   });
@@ -185,7 +226,9 @@
   /** The normalized form of each edition word, for the dictionary. */
   const wordOf = $derived.by(() => {
     const out = new Map<string, string>();
-    for (const line of data.lines) for (const item of line.items) if (item.kind === 'token') out.set(item.id, item.norm ?? item.form);
+    for (const line of data.lines)
+      for (const item of line.items)
+        if (item.kind === 'token') out.set(item.id, item.norm ?? item.form);
     return out;
   });
   let chosenSiglum = $state<string | null>(null);
@@ -194,7 +237,9 @@
       ? chosenSiglum
       : (data.sigla.find((x) => x.transcriptionId)?.siglum ?? data.sigla[0]?.siglum ?? null),
   );
-  const transcriptionId = $derived(data.sigla.find((x) => x.siglum === siglum)?.transcriptionId ?? null);
+  const transcriptionId = $derived(
+    data.sigla.find((x) => x.siglum === siglum)?.transcriptionId ?? null,
+  );
   const texts = new WitnessTexts();
 
   // The segments on screen, while a panel needs them.
@@ -245,13 +290,19 @@
       const ref = parseSiteKey(key);
       if (!ref) continue;
       const segment = data.segments[ref.segmentId];
-      const fallback = { aligned: segment?.aligned?.[textId], units: texts.get(textId, ref.segmentId)?.units };
-      for (const id of witnessTokensAt(siteOf(segment, ref.siteIndex), textId, fallback)) if (!ids.includes(id)) ids.push(id);
+      const fallback = {
+        aligned: segment?.aligned?.[textId],
+        units: texts.get(textId, ref.segmentId)?.units,
+      };
+      for (const id of witnessTokensAt(siteOf(segment, ref.siteIndex), textId, fallback))
+        if (!ids.includes(id)) ids.push(id);
     }
     return ids;
   }
 
-  const witnessLit = $derived(new Set(witnessTokens(hoveredKeys.length ? hoveredKeys : activeKeys, transcriptionId)));
+  const witnessLit = $derived(
+    new Set(witnessTokens(hoveredKeys.length ? hoveredKeys : activeKeys, transcriptionId)),
+  );
   const facsimileLit = $derived(witnessTokens(activeKeys, transcriptionId));
 
   // The witness's words of the open entry's segments, for the panels to light them.
@@ -266,23 +317,32 @@
     activeKeys.flatMap((key) => {
       const ref = parseSiteKey(key);
       const segment = ref ? data.segments[ref.segmentId] : undefined;
-      const explanation = segment && entryMap.has(key) ? explainSite(segment, ref!.siteIndex, explainContext) : null;
+      const explanation =
+        segment && entryMap.has(key) ? explainSite(segment, ref!.siteIndex, explainContext) : null;
       if (!explanation) return [];
-      return [{ key, label: explanation.label, explanation, permalink: segmentHref(explanation.label) }];
+      return [
+        { key, label: explanation.label, explanation, permalink: segmentHref(explanation.label) },
+      ];
     }),
   );
 
   /** The variant places of the lines on screen, explained, while the list of variants is open. */
-  const variantGroups = $derived(variantsOpen ? variantsOf(visibleSegments, data.segments, entryMap, explainContext) : []);
+  const variantGroups = $derived(
+    variantsOpen ? variantsOf(visibleSegments, data.segments, entryMap, explainContext) : [],
+  );
 
   /** Light the words and entries of some sites, by a data attribute the components style. */
   function mark(attribute: 'data-lit' | 'data-active', keys: string[]) {
     const root = reading;
     if (!root) return;
-    for (const element of root.querySelectorAll(`[${attribute}]`)) element.removeAttribute(attribute);
+    for (const element of root.querySelectorAll(`[${attribute}]`))
+      element.removeAttribute(attribute);
     for (const key of keys) {
       const value = CSS.escape(key);
-      for (const element of root.querySelectorAll(`[data-sites~="${value}"], [data-site="${value}"]`)) element.setAttribute(attribute, '');
+      for (const element of root.querySelectorAll(
+        `[data-sites~="${value}"], [data-site="${value}"]`,
+      ))
+        element.setAttribute(attribute, '');
     }
   }
 
@@ -304,12 +364,17 @@
     const root = reading;
     if (!root) return;
     const value = CSS.escape(key);
-    const word = root.querySelector<HTMLElement>(`[data-sites~="${value}"][tabindex="0"]`) ?? root.querySelector<HTMLElement>(`[data-sites~="${value}"]`);
+    const word =
+      root.querySelector<HTMLElement>(`[data-sites~="${value}"][tabindex="0"]`) ??
+      root.querySelector<HTMLElement>(`[data-sites~="${value}"]`);
     if (!word) return;
     // Wide screens keep the panel beside the text; narrow ones have it as a sheet at the foot, so the words go to the top.
     const wide = window.matchMedia('(min-width: 64rem)').matches;
     const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    (word.closest<HTMLElement>('[data-line]') ?? word).scrollIntoView({ block: wide ? 'center' : 'start', behavior: still ? 'auto' : 'smooth' });
+    (word.closest<HTMLElement>('[data-line]') ?? word).scrollIntoView({
+      block: wide ? 'center' : 'start',
+      behavior: still ? 'auto' : 'smooth',
+    });
     openEntry(word, [key]);
     returnFocus = from;
   }
@@ -339,7 +404,9 @@
     if (anchor.tabIndex >= 0) anchor.focus({ preventScroll: true });
     else {
       const key = activeKeys[0];
-      const stop = key ? reading?.querySelector<HTMLElement>(`[data-sites~="${CSS.escape(key)}"][tabindex="0"]`) : null;
+      const stop = key
+        ? reading?.querySelector<HTMLElement>(`[data-sites~="${CSS.escape(key)}"][tabindex="0"]`)
+        : null;
       stop?.focus({ preventScroll: true });
     }
   }
@@ -372,7 +439,9 @@
     };
     let hovered = '';
     const over = (event: PointerEvent) => {
-      const target = (event.target as HTMLElement).closest<HTMLElement>('[data-sites], [data-site]');
+      const target = (event.target as HTMLElement).closest<HTMLElement>(
+        '[data-sites], [data-site]',
+      );
       const value = target ? (target.dataset.sites ?? target.dataset.site ?? '') : '';
       if (value === hovered) return;
       hovered = value;
@@ -408,7 +477,9 @@
   const currentHitLine = $derived(hits[hitIndex]?.line ?? null);
 
   function scrollToLine(index: number) {
-    textRoot?.querySelector<HTMLElement>(`[data-line="${index}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    textRoot
+      ?.querySelector<HTMLElement>(`[data-line="${index}"]`)
+      ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
 
   function runSearch(value: string) {
@@ -450,7 +521,9 @@
   });
 
   const authorAndWork = $derived(r.authorAndWork(data.work.author, data.work.title));
-  const description = $derived((data.edition.preface ?? '').trim().slice(0, 200) || `${authorAndWork}. ${data.edition.title}`);
+  const description = $derived(
+    (data.edition.preface ?? '').trim().slice(0, 200) || `${authorAndWork}. ${data.edition.title}`,
+  );
 </script>
 
 <svelte:head>
@@ -458,23 +531,34 @@
   <meta name="description" content={description} />
   <!-- The header's tools need the page to be live; without scripts the text, the apparatus and the colophon remain. -->
   <!-- Without scripts no word can be opened, so the print apparatus shows under the text. -->
-  <noscript>{#if data.copy}
-  <CopyDialog
-    bind:open={copyOpen}
-    title={registry.copy.editionTitle}
-    description={data.canEdit ? registry.copy.editionBodyEditor : registry.copy.editionBodyReader}
-    proposed={registry.copy.proposed(data.edition.title)}
-    action={data.copy}
-    label={registry.copy.title}
-  />
-{/if}
+  <noscript
+    >{#if data.copy}
+      <CopyDialog
+        bind:open={copyOpen}
+        title={registry.copy.editionTitle}
+        description={data.canEdit
+          ? registry.copy.editionBodyEditor
+          : registry.copy.editionBodyReader}
+        proposed={registry.copy.proposed(data.edition.title)}
+        action={data.copy}
+        label={registry.copy.title}
+      />
+    {/if}
 
-<style>
-  :global(.word-addressed) {
-    outline: 2px solid var(--color-accent, currentColor);
-    outline-offset: 2px;
-    border-radius: 2px;
-  }.reader-bar-root { display: none !important; } .apparatus-wrap.apparatus-hidden { display: block !important; }</style></noscript>
+    <style>
+      :global(.word-addressed) {
+        outline: 2px solid var(--color-accent, currentColor);
+        outline-offset: 2px;
+        border-radius: 2px;
+      }
+      .reader-bar-root {
+        display: none !important;
+      }
+      .apparatus-wrap.apparatus-hidden {
+        display: block !important;
+      }
+    </style></noscript
+  >
 </svelte:head>
 
 <div class="reader" style:--reader-size={sizes[settings.size]}>
@@ -496,13 +580,22 @@
     oncopy={data.copy ? () => (copyOpen = true) : undefined}
   />
 
-  <div class={['reader-body', panelsOpen && 'with-panels']} bind:this={readerBody} style:--panels-width="{panelsWidth.value}px">
+  <div
+    class={['reader-body', panelsOpen && 'with-panels']}
+    bind:this={readerBody}
+    style:--panels-width="{panelsWidth.value}px"
+  >
     <div class="reader-main" bind:this={reading}>
       <PageFrame width="reading" class={side ? 'max-w-[67rem]!' : undefined}>
         <ReaderHeading {data} {missingSegment} />
 
         <article
-          class={['text-root', side && 'side', marginSpeakers && 'margin-speakers', !hasLabels && 'no-labels']}
+          class={[
+            'text-root',
+            side && 'side',
+            marginSpeakers && 'margin-speakers',
+            !hasLabels && 'no-labels',
+          ]}
           bind:this={textRoot}
           aria-label={r.text.label}
           lang={data.work.language}
@@ -528,7 +621,9 @@
                     {inlineLabels}
                     {segmentOf}
                     {focusSegment}
-                    focusLine={focusSegment !== null && segmentsOfLine[i]?.length === 1 && segmentsOfLine[i]![0] === focusSegment}
+                    focusLine={focusSegment !== null &&
+                      segmentsOfLine[i]?.length === 1 &&
+                      segmentsOfLine[i]![0] === focusSegment}
                     matches={matchTokens}
                     hit={hitLines.has(i)}
                     currentHit={currentHitLine === i}
@@ -537,7 +632,14 @@
               </div>
               {#if blockHasApparatus(block)}
                 <div class={['apparatus-wrap', !apparatusOnScreen && 'apparatus-hidden']}>
-                  <ApparatusBlock segmentIds={block.segmentIds} {entries} segments={data.segments} labelOf={data.labelOf} {conventions} {side} />
+                  <ApparatusBlock
+                    segmentIds={block.segmentIds}
+                    {entries}
+                    segments={data.segments}
+                    labelOf={data.labelOf}
+                    {conventions}
+                    {side}
+                  />
                 </div>
               {/if}
             </section>
@@ -546,13 +648,35 @@
           {/each}
         </article>
 
-        <ReaderColophon exports={data.exports} versions={data.versions} origin={data.origin} sources={data.edition.sources} licence={data.edition.licence} rightsNote={data.edition.rightsNote} cite={{ title: data.edition.title, editors: data.edition.editors, slug: data.edition.slug, mode: data.mode }} />
+        <ReaderColophon
+          exports={data.exports}
+          versions={data.versions}
+          origin={data.origin}
+          sources={data.edition.sources}
+          licence={data.edition.licence}
+          rightsNote={data.edition.rightsNote}
+          cite={{
+            title: data.edition.title,
+            editors: data.edition.editors,
+            slug: data.edition.slug,
+            mode: data.mode,
+          }}
+        />
       </PageFrame>
     </div>
 
     {#if panelsOpen}
       <aside class="reader-panels" aria-label={r.panels.region}>
-        <div class="panels-edge"><Splitter pane={panelsWidth} axis="x" side="after" container={readerBody} share={0.6} label={r.panels.resize} /></div>
+        <div class="panels-edge">
+          <Splitter
+            pane={panelsWidth}
+            axis="x"
+            side="after"
+            container={readerBody}
+            share={0.6}
+            label={r.panels.resize}
+          />
+        </div>
         {#if variantsOpen}
           <VariantsPanel
             groups={variantGroups}

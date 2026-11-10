@@ -122,14 +122,32 @@ describe('parseWitnessForm', () => {
     const none = parseWitnessForm(form({ siglum: 'A', name: 'A' }));
     expect(none.ok && none.data.hands).toEqual([]);
     const two = parseWitnessForm(
-      form({ siglum: 'A', name: 'A', hands: JSON.stringify([{ id: 'abc12345', label: ' m1 ', description: '', main: false }, { id: '', label: 'm2', description: 'a later hand', main: false }]) }),
+      form({
+        siglum: 'A',
+        name: 'A',
+        hands: JSON.stringify([
+          { id: 'abc12345', label: ' m1 ', description: '', main: false },
+          { id: '', label: 'm2', description: 'a later hand', main: false },
+        ]),
+      }),
     );
     expect(two.ok).toBe(true);
     if (!two.ok) return;
-    expect(two.data.hands[0]).toMatchObject({ id: 'abc12345', label: 'm1', description: null, main: true });
-    expect(two.data.hands[1]).toMatchObject({ label: 'm2', description: 'a later hand', main: false });
+    expect(two.data.hands[0]).toMatchObject({
+      id: 'abc12345',
+      label: 'm1',
+      description: null,
+      main: true,
+    });
+    expect(two.data.hands[1]).toMatchObject({
+      label: 'm2',
+      description: 'a later hand',
+      main: false,
+    });
     expect(two.data.hands[1]!.id).toMatch(/^[0-9a-f]{8}$/);
-    const unlabelled = parseWitnessForm(form({ siglum: 'A', name: 'A', hands: JSON.stringify([{ label: '', description: 'who?' }]) }));
+    const unlabelled = parseWitnessForm(
+      form({ siglum: 'A', name: 'A', hands: JSON.stringify([{ label: '', description: 'who?' }]) }),
+    );
     expect(unlabelled.ok).toBe(false);
     if (!unlabelled.ok) expect(unlabelled.errors.hands?.[0]).toBeTruthy();
     const broken = parseWitnessForm(form({ siglum: 'A', name: 'A', hands: '{not json' }));
@@ -139,7 +157,9 @@ describe('parseWitnessForm', () => {
   it('takes the material from the list, or as free text under Other', () => {
     const listed = parseWitnessForm(form({ siglum: 'P', name: 'P', material: 'papyrus' }));
     expect(listed.ok && listed.data.material).toBe('papyrus');
-    const other = parseWitnessForm(form({ siglum: 'L', name: 'L', material: 'other', materialOther: ' lead ' }));
+    const other = parseWitnessForm(
+      form({ siglum: 'L', name: 'L', material: 'other', materialOther: ' lead ' }),
+    );
     expect(other.ok && other.data.material).toBe('lead');
     const none = parseWitnessForm(form({ siglum: 'N', name: 'N', material: '' }));
     expect(none.ok && none.data.material).toBe('');
@@ -149,9 +169,7 @@ describe('parseWitnessForm', () => {
   });
 
   it('defaults the category', () => {
-    const parsed = parseWitnessForm(
-      form({ siglum: 'A', name: 'Venetus A' }),
-    );
+    const parsed = parseWitnessForm(form({ siglum: 'A', name: 'Venetus A' }));
     expect(parsed.ok && parsed.data).toMatchObject({
       siglum: 'A',
       category: 'manuscript',
@@ -162,15 +180,34 @@ describe('parseWitnessForm', () => {
   });
 
   it('keeps the format for manuscripts and the quoting work for indirect sources', () => {
-    const papyrus = parseWitnessForm(form({ siglum: 'P', name: 'P. Oxy. 1', material: 'papyrus', format: 'roll' }));
-    expect(papyrus.ok && papyrus.data).toMatchObject({ category: 'manuscript', format: 'roll', material: 'papyrus' });
+    const papyrus = parseWitnessForm(
+      form({ siglum: 'P', name: 'P. Oxy. 1', material: 'papyrus', format: 'roll' }),
+    );
+    expect(papyrus.ok && papyrus.data).toMatchObject({
+      category: 'manuscript',
+      format: 'roll',
+      material: 'papyrus',
+    });
     const unsaid = parseWitnessForm(form({ siglum: 'Q', name: 'Q' }));
     expect(unsaid.ok && unsaid.data).toMatchObject({ format: 'unknown' });
     const quoted = parseWitnessForm(
-      form({ siglum: 'Ath', name: 'Athenaeus', category: 'indirect', format: 'codex', sourceAuthor: 'Athenaeus', sourceWork: 'Deipnosophistae' }),
+      form({
+        siglum: 'Ath',
+        name: 'Athenaeus',
+        category: 'indirect',
+        format: 'codex',
+        sourceAuthor: 'Athenaeus',
+        sourceWork: 'Deipnosophistae',
+      }),
     );
-    expect(quoted.ok && quoted.data).toMatchObject({ format: null, sourceAuthor: 'Athenaeus', sourceWork: 'Deipnosophistae' });
-    const stone = parseWitnessForm(form({ siglum: 'I', name: 'I', category: 'inscription', sourceAuthor: 'x' }));
+    expect(quoted.ok && quoted.data).toMatchObject({
+      format: null,
+      sourceAuthor: 'Athenaeus',
+      sourceWork: 'Deipnosophistae',
+    });
+    const stone = parseWitnessForm(
+      form({ siglum: 'I', name: 'I', category: 'inscription', sourceAuthor: 'x' }),
+    );
     expect(stone.ok && stone.data).toMatchObject({ format: null, sourceAuthor: '' });
   });
 });

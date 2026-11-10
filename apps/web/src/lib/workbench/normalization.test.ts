@@ -25,7 +25,10 @@ const wire = (ops: Op[]): Op[] => JSON.parse(JSON.stringify(ops)) as Op[];
 describe('effectiveProfile', () => {
   it('lays the transcription overrides over the work profile', () => {
     const work = defaultProfile('grc');
-    const profile = effectiveProfile(work, { lowercaseCapitals: false, fold: { stripDiacritics: true } as never });
+    const profile = effectiveProfile(work, {
+      lowercaseCapitals: false,
+      fold: { stripDiacritics: true } as never,
+    });
     expect(profile.lowercaseCapitals).toBe(false);
     expect(profile.finalSigma).toBe(true);
     expect(profile.fold.stripDiacritics).toBe(true);
@@ -50,7 +53,13 @@ describe('typed read forms', () => {
   });
 
   it('removes repeated pairs', () => {
-    expect(distinctPairs([{ form: 'a', norm: 'b' }, { form: 'a', norm: 'b' }, { form: 'a', norm: 'c' }])).toHaveLength(2);
+    expect(
+      distinctPairs([
+        { form: 'a', norm: 'b' },
+        { form: 'a', norm: 'b' },
+        { form: 'a', norm: 'c' },
+      ]),
+    ).toHaveLength(2);
   });
 });
 
@@ -92,9 +101,18 @@ describe('switching the written form', () => {
 
   it('off: the read form becomes the only form, ranged marks cover the word', () => {
     const s = fromText('ΜΗΝΙΝ ΘΕΑ', { ids: sequentialIds() });
-    Object.assign(s.items[0] as Token, { norm: 'μῆνιν', unchecked: true, marks: [{ kind: 'unclear', from: 1, to: 2 }] });
+    Object.assign(s.items[0] as Token, {
+      norm: 'μῆνιν',
+      unchecked: true,
+      marks: [{ kind: 'unclear', from: 1, to: 2 }],
+    });
     const after = applyOps(s, wire(dropWrittenFormOps(s))).stream;
-    expect(after.items[0]).toEqual({ kind: 'token', id: 't1', form: 'μῆνιν', marks: [{ kind: 'unclear' }] });
+    expect(after.items[0]).toEqual({
+      kind: 'token',
+      id: 't1',
+      form: 'μῆνιν',
+      marks: [{ kind: 'unclear' }],
+    });
     expect(after.items[1]).toEqual({ kind: 'token', id: 't2', form: 'ΘΕΑ' });
   });
 });
@@ -124,7 +142,7 @@ describe('profilesByWork', () => {
     expect(profilesByWork(stream, segments, works, null, 'greek')(token(2)).language).toBe('grc');
   });
 
-  it('applies the transcription\'s own settings to every work', () => {
+  it("applies the transcription's own settings to every work", () => {
     const of = profilesByWork(stream, segments, works, { lowercaseCapitals: false }, 'greek');
     expect(of(token(0)).lowercaseCapitals).toBe(false);
     expect(of(token(1)).lowercaseCapitals).toBe(false);

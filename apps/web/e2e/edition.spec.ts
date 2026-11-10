@@ -6,7 +6,15 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import sharp from 'sharp';
-import { createDatabase, referenceSchemes, transcriptions, users, witnesses, works, zones } from '@varians/db';
+import {
+  createDatabase,
+  referenceSchemes,
+  transcriptions,
+  users,
+  witnesses,
+  works,
+  zones,
+} from '@varians/db';
 import { eq, inArray } from 'drizzle-orm';
 import { editor as ed } from '../src/lib/strings/editor';
 import { pageStrings as t } from '../src/lib/strings/pages';
@@ -32,7 +40,9 @@ async function line(page: Page, n: number): Promise<string> {
 async function saved(page: Page) {
   await expect(page.locator('[aria-live=polite]').first()).toHaveText('Saved', { timeout: 15_000 });
   // The segments an edit touched are collated again after the save.
-  await expect(page.locator('.apparatus-band [aria-busy=true]')).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.locator('.apparatus-band [aria-busy=true]')).toHaveCount(0, {
+    timeout: 15_000,
+  });
 }
 
 test.describe.configure({ mode: 'serial' });
@@ -89,7 +99,10 @@ test('adopts a reading, takes it back, and adopts a conjecture', async ({ page }
   expect(await line(page, 1)).toBe('οὐλομένην, ἣ μυρί᾽ Ἀχαιοῖς ἄλγε᾽ ἔθηκε,');
 
   await page.locator('.cm-content .cm-line').nth(2).getByText('ἰφθίμους').dblclick();
-  await page.getByRole('toolbar', { name: 'Edition marks' }).getByRole('button', { name: 'Conjecture…' }).click();
+  await page
+    .getByRole('toolbar', { name: 'Edition marks' })
+    .getByRole('button', { name: 'Conjecture…' })
+    .click();
   await page.getByLabel('Reading').fill('ἰφθίμων');
   await page.getByLabel('Proposed by').fill('Tester');
   await page.getByRole('button', { name: 'Register and adopt' }).click();
@@ -99,7 +112,9 @@ test('adopts a reading, takes it back, and adopts a conjecture', async ({ page }
   await page.reload();
   await expect(page.locator('.cm-content')).toBeVisible();
   expect(await line(page, 2)).toBe('πολλὰς δ᾽ ἰφθίμων ψυχὰς Ἄϊδι προΐαψεν');
-  await expect(page.locator('.apparatus-band section', { hasText: '1.3' }).first()).toContainText('Tester');
+  await expect(page.locator('.apparatus-band section', { hasText: '1.3' }).first()).toContainText(
+    'Tester',
+  );
 });
 
 test('moves a line with its label and reports the order of the witnesses', async ({ page }) => {
@@ -116,21 +131,42 @@ test('moves a line with its label and reports the order of the witnesses', async
   await expect(page.locator('.apparatus-band')).not.toContainText('has it after');
 });
 
-test('shows the page where a witness’s words stand, mapped to the image or not', async ({ page }) => {
+test('shows the page where a witness’s words stand, mapped to the image or not', async ({
+  page,
+}) => {
   // A's words lose their boxes; its first page gets an image.
   const { db, pool } = createDatabase(DATABASE_URL);
-  const [a] = await db.select({ id: witnesses.id }).from(witnesses).where(eq(witnesses.slug, 'venetus-a'));
-  const rows = await db.select({ id: transcriptions.id }).from(transcriptions).where(eq(transcriptions.witnessId, a!.id));
-  await db.delete(zones).where(inArray(zones.transcriptionId, rows.map((r) => r.id)));
+  const [a] = await db
+    .select({ id: witnesses.id })
+    .from(witnesses)
+    .where(eq(witnesses.slug, 'venetus-a'));
+  const rows = await db
+    .select({ id: transcriptions.id })
+    .from(transcriptions)
+    .where(eq(transcriptions.witnessId, a!.id));
+  await db.delete(zones).where(
+    inArray(
+      zones.transcriptionId,
+      rows.map((r) => r.id),
+    ),
+  );
   await pool.end();
   await signIn(page);
   await page.goto('/witnesses/venetus-a/pages');
   await page.waitForLoadState('networkidle');
-  const card = page.getByRole('list', { name: t.gridLabel }).getByRole('article', { name: '12r', exact: true });
+  const card = page
+    .getByRole('list', { name: t.gridLabel })
+    .getByRole('article', { name: '12r', exact: true });
   await card.getByRole('button', { name: t.card.addImage }).click();
   const dialog = page.getByRole('dialog', { name: t.image.addTitle('12r') });
-  const png = await sharp({ create: { width: 400, height: 300, channels: 3, background: { r: 230, g: 220, b: 190 } } }).png().toBuffer();
-  await dialog.locator('input[type=file]').setInputFiles({ name: 'venetus-12r.png', mimeType: 'image/png', buffer: png });
+  const png = await sharp({
+    create: { width: 400, height: 300, channels: 3, background: { r: 230, g: 220, b: 190 } },
+  })
+    .png()
+    .toBuffer();
+  await dialog
+    .locator('input[type=file]')
+    .setInputFiles({ name: 'venetus-12r.png', mimeType: 'image/png', buffer: png });
   await dialog.getByLabel(t.rights.statement).selectOption({ label: 'Public Domain Mark' });
   await dialog.getByRole('button', { name: t.image.submit }).click();
   await expect(card.locator('img')).toBeVisible({ timeout: 20_000 });

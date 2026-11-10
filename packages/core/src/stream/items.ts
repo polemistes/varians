@@ -81,14 +81,7 @@ export interface Break {
 }
 
 /** Objects in the flow that are not words: gaps, figures, scribal marks, notes, paratext, lacuna marks. */
-export type ObjectType =
-  | 'gap'
-  | 'figure'
-  | 'mark'
-  | 'note'
-  | 'lacuna'
-  | 'paratext'
-  | 'space';
+export type ObjectType = 'gap' | 'figure' | 'mark' | 'note' | 'lacuna' | 'paratext' | 'space';
 
 export interface Obj {
   kind: 'object';

@@ -9,7 +9,11 @@ describe('safeEntryHtml', () => {
   });
 
   it('escapes everything else', () => {
-    expect(safeEntryHtml('<script>alert(1)</script><span class="x" onclick="y">z</span><img src=x onerror=1>')).toBe(
+    expect(
+      safeEntryHtml(
+        '<script>alert(1)</script><span class="x" onclick="y">z</span><img src=x onerror=1>',
+      ),
+    ).toBe(
       '&lt;script&gt;alert(1)&lt;/script&gt;&lt;span class=&quot;x&quot; onclick=&quot;y&quot;&gt;z</span>&lt;img src=x onerror=1&gt;',
     );
     // An entity quote cannot close the class: it stays text.

@@ -21,7 +21,11 @@ export interface ApparatusConventions {
 
 export type InterpretativePlacement = 'apparatus' | 'separate' | 'none';
 
-export const DEFAULT_CONVENTIONS: ApparatusConventions = { form: 'positive', latin: true, interpretative: 'separate' };
+export const DEFAULT_CONVENTIONS: ApparatusConventions = {
+  form: 'positive',
+  latin: true,
+  interpretative: 'separate',
+};
 
 /** A conjecture or reported reading attached to a site for printing. */
 export interface Attachment {
@@ -31,7 +35,13 @@ export interface Attachment {
   /** Proposer of a conjecture, or the siglum of the witness a reading is reported for. */
   name: string;
   /** The kind of conjecture, when one. */
-  conjectureKind?: 'substitution' | 'deletion' | 'addition' | 'lacuna' | 'supplement' | 'transposition';
+  conjectureKind?:
+    | 'substitution'
+    | 'deletion'
+    | 'addition'
+    | 'lacuna'
+    | 'supplement'
+    | 'transposition';
   /** Printed after the name: "(Ath. 1.12e)", "(teste Allen)". */
   source?: string;
   /** The edition prints it. */
@@ -95,7 +105,9 @@ export function apparatusEntries(
   siglaOrder: string[] = [],
 ): ApparatusEntry[] {
   const entries: ApparatusEntry[] = [];
-  const baseCount = collation.columns.filter((c) => (c.cells.get(collation.baseId)?.unitIndex ?? -1) >= 0).length;
+  const baseCount = collation.columns.filter(
+    (c) => (c.cells.get(collation.baseId)?.unitIndex ?? -1) >= 0,
+  ).length;
   for (const site of collation.sites) {
     const base = site.readings.find((r) => r.base);
     const others = site.readings.filter((r) => !r.base);
@@ -106,8 +118,11 @@ export function apparatusEntries(
     const printable = others;
     const adopted = attached.find((a) => a.adopted);
     // A site over the whole segment: what a witness lacks there it lacks entirely.
-    const whole = base !== undefined && baseCount > 0 && site.baseFrom === 0 && site.baseTo === baseCount;
-    const variants: ApparatusVariant[] = printable.map((reading) => renderReading(reading, base, conventions, siglaOrder, whole));
+    const whole =
+      base !== undefined && baseCount > 0 && site.baseFrom === 0 && site.baseTo === baseCount;
+    const variants: ApparatusVariant[] = printable.map((reading) =>
+      renderReading(reading, base, conventions, siglaOrder, whole),
+    );
     for (const attachment of attached) {
       if (attachment.adopted) continue;
       variants.push(renderAttachment(attachment, conventions));
@@ -115,7 +130,9 @@ export function apparatusEntries(
     const entry: ApparatusEntry = {
       siteIndex: site.index,
       label,
-      lemma: base ? lemmaOf(base, whole && others.every((r) => r.text === '' && (r.omission || r.lacunose))) : '',
+      lemma: base
+        ? lemmaOf(base, whole && others.every((r) => r.text === '' && (r.omission || r.lacunose)))
+        : '',
       // The edition's own siglum comes first and is not printed.
       lemmaSigla: base ? sortSigla(printedSigla(base).slice(1), siglaOrder) : [],
       variants,
@@ -123,7 +140,8 @@ export function apparatusEntries(
     };
     if (adopted) entry.adopted = adopted;
     if (site.transposition && site.transposition.withSite !== site.index) {
-      entry.transposition = `${word('transp', conventions.latin)} ${site.transposition.textIds.length} `.trim();
+      entry.transposition =
+        `${word('transp', conventions.latin)} ${site.transposition.textIds.length} `.trim();
     }
     entries.push(entry);
   }
@@ -139,14 +157,19 @@ export function printedKind(site: Site, attached: Pick<Attachment, 'text'>[]): S
   if (site.kind === 'textual') return 'textual';
   if (attached.length === 0) return 'interpretative';
   const letters = archetypeLetters(site.readings.find((r) => r.base)?.text ?? '');
-  return attached.every((a) => a.text !== '' && archetypeLetters(a.text) === letters) ? 'interpretative' : 'textual';
+  return attached.every((a) => a.text !== '' && archetypeLetters(a.text) === letters)
+    ? 'interpretative'
+    : 'textual';
 }
 
 /**
  * The entries as printed: the textual ones, and the interpretative ones
  * among them or in a list of their own, as the conventions say.
  */
-export function splitEntries(entries: ApparatusEntry[], conventions: Pick<ApparatusConventions, 'interpretative'>): { main: ApparatusEntry[]; interpretative: ApparatusEntry[] } {
+export function splitEntries(
+  entries: ApparatusEntry[],
+  conventions: Pick<ApparatusConventions, 'interpretative'>,
+): { main: ApparatusEntry[]; interpretative: ApparatusEntry[] } {
   if (conventions.interpretative === 'apparatus') return { main: entries, interpretative: [] };
   const main: ApparatusEntry[] = [];
   const interpretative: ApparatusEntry[] = [];
@@ -183,13 +206,17 @@ function renderReading(
     sigla,
     lacunose: reading.lacunose,
   };
-  if (reading.lacunose && reading.text === '') variant.note = word(whole ? 'deest' : 'lac', conventions.latin);
+  if (reading.lacunose && reading.text === '')
+    variant.note = word(whole ? 'deest' : 'lac', conventions.latin);
   else if (reading.omission) variant.note = word('om', conventions.latin);
   else if (base && base.text === '') variant.note = word('add', conventions.latin);
   return variant;
 }
 
-function renderAttachment(attachment: Attachment, conventions: ApparatusConventions): ApparatusVariant {
+function renderAttachment(
+  attachment: Attachment,
+  conventions: ApparatusConventions,
+): ApparatusVariant {
   const latin = conventions.latin;
   const variant: ApparatusVariant = {
     text: attachment.text,
@@ -241,11 +268,16 @@ export function printedSigla(reading: Pick<Reading, 'textIds' | 'sigla'>): strin
 function sortSigla(sigla: string[], order: string[]): string[] {
   if (order.length === 0) return sigla;
   const rank = new Map(order.map((s, i) => [s, i]));
-  return [...sigla].sort((a, b) => (rank.get(a) ?? 1e9) - (rank.get(b) ?? 1e9) || a.localeCompare(b));
+  return [...sigla].sort(
+    (a, b) => (rank.get(a) ?? 1e9) - (rank.get(b) ?? 1e9) || a.localeCompare(b),
+  );
 }
 
 /** One entry as a line of text, in the classic form "lemma sigla : reading sigla". */
-export function formatEntry(entry: ApparatusEntry, conventions: ApparatusConventions = DEFAULT_CONVENTIONS): string {
+export function formatEntry(
+  entry: ApparatusEntry,
+  conventions: ApparatusConventions = DEFAULT_CONVENTIONS,
+): string {
   const parts: string[] = [];
   const lemma = entry.lemma === '' ? (conventions.latin ? '' : '') : entry.lemma;
   const lemmaSource = entry.adopted
@@ -253,7 +285,12 @@ export function formatEntry(entry: ApparatusEntry, conventions: ApparatusConvent
     : conventions.form === 'positive'
       ? entry.lemmaSigla.join(' ')
       : '';
-  parts.push([lemma, lemmaSource].filter((p) => p !== '').join(' ').trim());
+  parts.push(
+    [lemma, lemmaSource]
+      .filter((p) => p !== '')
+      .join(' ')
+      .trim(),
+  );
   for (const variant of entry.variants) {
     const sigla = variant.sigla.join(' ');
     const text = variant.note
@@ -261,16 +298,23 @@ export function formatEntry(entry: ApparatusEntry, conventions: ApparatusConvent
         ? `${variant.text} ${variant.note}`
         : variant.note
       : variant.text;
-    const printed = variant.attachment && variant.attachment.kind === 'conjecture' && variant.attachment.conjectureKind !== 'deletion' && variant.text
-      ? `${variant.text} ${sigla}${variant.note && variant.attachment.conjectureKind && variant.attachment.conjectureKind !== 'substitution' ? ` (${variant.note})` : variant.note === words.coni.latin || variant.note === words.coni.english ? ` (${variant.note})` : ''}`
-      : `${text} ${sigla}`;
+    const printed =
+      variant.attachment &&
+      variant.attachment.kind === 'conjecture' &&
+      variant.attachment.conjectureKind !== 'deletion' &&
+      variant.text
+        ? `${variant.text} ${sigla}${variant.note && variant.attachment.conjectureKind && variant.attachment.conjectureKind !== 'substitution' ? ` (${variant.note})` : variant.note === words.coni.latin || variant.note === words.coni.english ? ` (${variant.note})` : ''}`
+        : `${text} ${sigla}`;
     parts.push(printed.trim());
   }
   return `${entry.label} ${parts.join(' : ')}`.trim();
 }
 
 /** The whole apparatus of a segment as lines. */
-export function formatApparatus(entries: ApparatusEntry[], conventions: ApparatusConventions = DEFAULT_CONVENTIONS): string[] {
+export function formatApparatus(
+  entries: ApparatusEntry[],
+  conventions: ApparatusConventions = DEFAULT_CONVENTIONS,
+): string[] {
   return entries.map((e) => formatEntry(e, conventions));
 }
 

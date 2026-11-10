@@ -2,7 +2,12 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { canMaintainWitness, isAdministrator, type Actor } from '$lib/server/authz';
 import { requireUser } from '$lib/server/guards';
 import { removePageFiles } from '$lib/server/images/storage';
-import { PageError, pagesWithoutRights, parseWitnessImageDefaults, setWitnessImageDefaults } from '$lib/server/pages';
+import {
+  PageError,
+  pagesWithoutRights,
+  parseWitnessImageDefaults,
+  setWitnessImageDefaults,
+} from '$lib/server/pages';
 import {
   addMaintainer,
   deleteWitness,
@@ -13,7 +18,13 @@ import {
   witnessBySlug,
 } from '$lib/server/registry';
 import { storageRoot } from '$lib/server/startup';
-import { checked, describeDependents, field, parseEmail, parseWitnessForm } from '$lib/registry/forms';
+import {
+  checked,
+  describeDependents,
+  field,
+  parseEmail,
+  parseWitnessForm,
+} from '$lib/registry/forms';
 import { materialFormValues } from '$lib/registry/witness';
 import { registry as t } from '$lib/strings/registry';
 import type { Actions, PageServerLoad } from './$types';
@@ -62,7 +73,8 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     maintainers,
     can: {
       govern: governs(user, witness),
-      merge: isAdministrator(user) || witness.createdBy === user.id || maintainerIds.includes(user.id),
+      merge:
+        isAdministrator(user) || witness.createdBy === user.id || maintainerIds.includes(user.id),
     },
   };
 };
@@ -83,17 +95,36 @@ export const actions: Actions = {
     const user = requireUser(locals);
     const { witness } = await maintained(locals, params.slug, user);
     const form = await request.formData();
-    const input = { imageRights: field(form, 'imageRights'), imageAttribution: field(form, 'imageAttribution') };
+    const input = {
+      imageRights: field(form, 'imageRights'),
+      imageAttribution: field(form, 'imageAttribution'),
+    };
     const parsed = parseWitnessImageDefaults(input);
     if (!parsed.ok) {
-      return fail(400, { form: 'images' as const, errors: { [parsed.field]: [parsed.error] }, values: input });
+      return fail(400, {
+        form: 'images' as const,
+        errors: { [parsed.field]: [parsed.error] },
+        values: input,
+      });
     }
     try {
-      const applied = await setWitnessImageDefaults(locals.db, witness.id, input, checked(form, 'apply'));
-      return { form: 'images' as const, message: applied > 0 ? t.witness.imagesApplied(applied) : t.witness.imagesSaved };
+      const applied = await setWitnessImageDefaults(
+        locals.db,
+        witness.id,
+        input,
+        checked(form, 'apply'),
+      );
+      return {
+        form: 'images' as const,
+        message: applied > 0 ? t.witness.imagesApplied(applied) : t.witness.imagesSaved,
+      };
     } catch (cause) {
       if (!(cause instanceof PageError)) throw cause;
-      return fail(400, { form: 'images' as const, errors: { imageRights: [cause.message] }, values: input });
+      return fail(400, {
+        form: 'images' as const,
+        errors: { imageRights: [cause.message] },
+        values: input,
+      });
     }
   },
 

@@ -31,7 +31,12 @@
       </div>
       <div class="flex shrink-0 items-center gap-2">
         {#if item.visibility === 'draft'}<Badge>{registry.common.draft}</Badge>{/if}
-        <Button href="/editions/{item.slug}" size="sm" variant={item.visibility === 'published' ? 'primary' : 'secondary'} aria-label={`${s.read}: ${item.title}`}>
+        <Button
+          href="/editions/{item.slug}"
+          size="sm"
+          variant={item.visibility === 'published' ? 'primary' : 'secondary'}
+          aria-label={`${s.read}: ${item.title}`}
+        >
           {s.read}
         </Button>
         {#if item.canEdit}

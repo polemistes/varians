@@ -7,7 +7,10 @@ import { IMAGE_RIGHTS, rightsStatement } from '@varians/core';
 import type { SelectOption } from '$lib/components/ui';
 
 export function rightsOptions(empty: string): SelectOption[] {
-  return [{ value: '', label: empty }, ...IMAGE_RIGHTS.map((r) => ({ value: r.uri, label: r.label }))];
+  return [
+    { value: '', label: empty },
+    ...IMAGE_RIGHTS.map((r) => ({ value: r.uri, label: r.label })),
+  ];
 }
 
 /** The label of a listed statement, or null. */

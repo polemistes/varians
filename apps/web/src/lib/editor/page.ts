@@ -16,7 +16,15 @@
  * that order.
  */
 
-import { isBreak, pageBreakPlace, type Break, type Id, type Item, type Op, type Stream } from '@varians/core';
+import {
+  isBreak,
+  pageBreakPlace,
+  type Break,
+  type Id,
+  type Item,
+  type Op,
+  type Stream,
+} from '@varians/core';
 
 /** The sentinel of the text on no page. */
 export const UNPLACED = 'unplaced';
@@ -40,7 +48,11 @@ export function pageBreaks(stream: Stream): Break[] {
 }
 
 /** The items of a page, of the text on no page, or the whole stream when `page` is null. */
-export function pageView(whole: Stream, page: string | null | undefined, pageOrder: readonly string[] = []): PageView {
+export function pageView(
+  whole: Stream,
+  page: string | null | undefined,
+  pageOrder: readonly string[] = [],
+): PageView {
   if (page === null || page === undefined) return { stream: whole, anchor: null, missing: null };
   const items = whole.items;
   if (page === UNPLACED) {
@@ -51,7 +63,11 @@ export function pageView(whole: Stream, page: string | null | undefined, pageOrd
   const start = items.findIndex((item) => isPageBreak(item) && item.pageId === page);
   if (start < 0) {
     const order = pageOrder.includes(page) ? pageOrder : [...pageOrder, page];
-    return { stream: { items: [] }, anchor: null, missing: { pageId: page, after: pageBreakPlace(whole, page, order) } };
+    return {
+      stream: { items: [] },
+      anchor: null,
+      missing: { pageId: page, after: pageBreakPlace(whole, page, order) },
+    };
   }
   let end = start + 1;
   while (end < items.length && !isPageBreak(items[end])) end++;
@@ -66,7 +82,8 @@ export function pageView(whole: Stream, page: string | null | undefined, pageOrd
 export function liftOps(ops: Op[], anchor: Id | null): Op[] {
   if (anchor === null) return ops;
   return ops.map((op) => {
-    if ((op.t === 'insert' || op.t === 'move') && op.after === null) return { ...op, after: anchor };
+    if ((op.t === 'insert' || op.t === 'move') && op.after === null)
+      return { ...op, after: anchor };
     return op;
   });
 }

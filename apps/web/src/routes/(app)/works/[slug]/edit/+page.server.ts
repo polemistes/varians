@@ -73,7 +73,14 @@ export const actions: Actions = {
     if (!parsed.ok)
       return fail(400, { form: 'details' as const, errors: parsed.errors, values: parsed.values });
     const { title, author, language, identifier, identifiers, description } = parsed.data;
-    await updateWork(locals.db, work.id, { title, author, language, identifier, identifiers, description });
+    await updateWork(locals.db, work.id, {
+      title,
+      author,
+      language,
+      identifier,
+      identifiers,
+      description,
+    });
     return { form: 'details' as const, message: t.work.saved };
   },
 

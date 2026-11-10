@@ -34,10 +34,18 @@
   const editable = $derived(wb.canEdit && wb.view !== WHOLE);
 </script>
 
-<div class="flex min-h-11 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface px-3 py-1 font-sans text-sm" data-text-bar>
+<div
+  class="flex min-h-11 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface px-3 py-1 font-sans text-sm"
+  data-text-bar
+>
   {#if wb.pages.length > 0}
     <nav class="flex items-center gap-0.5" aria-label={t.pages.label}>
-      <IconButton label={t.pages.previous} size="sm" disabled={wb.neighbours.previous === null} onclick={() => wb.goTo(wb.neighbours.previous)}>
+      <IconButton
+        label={t.pages.previous}
+        size="sm"
+        disabled={wb.neighbours.previous === null}
+        onclick={() => wb.goTo(wb.neighbours.previous)}
+      >
         <ChevronLeft aria-hidden="true" />
       </IconButton>
       <DropdownMenu.Root>
@@ -56,13 +64,18 @@
           >
             <DropdownMenu.Item class={itemClass} onSelect={() => wb.goTo(UNPLACED)}>
               <span class="flex-1">{t.pages.unplaced}</span>
-              {#if wb.unplacedWords > 0}<span class="text-xs text-ink-muted">{t.pages.unplacedWords(wb.unplacedWords)}</span>{/if}
+              {#if wb.unplacedWords > 0}<span class="text-xs text-ink-muted"
+                  >{t.pages.unplacedWords(wb.unplacedWords)}</span
+                >{/if}
               {#if wb.view === UNPLACED}<span class="text-accent" aria-hidden="true">●</span>{/if}
             </DropdownMenu.Item>
             <DropdownMenu.Separator class="my-1 h-px bg-line" />
             {#each wb.pages as page (page.id)}
               <DropdownMenu.Item class={itemClass} onSelect={() => wb.goTo(page.id)}>
-                <span class="w-3 text-center text-xs text-ink-muted" title={wb.textOnPages.has(page.id) ? t.pages.hasText : undefined}>
+                <span
+                  class="w-3 text-center text-xs text-ink-muted"
+                  title={wb.textOnPages.has(page.id) ? t.pages.hasText : undefined}
+                >
                   {#if wb.textOnPages.has(page.id)}<span aria-label={t.pages.hasText}>▪</span>{/if}
                 </span>
                 <span class="flex-1">{page.label}</span>
@@ -70,7 +83,11 @@
               </DropdownMenu.Item>
             {/each}
             <DropdownMenu.Separator class="my-1 h-px bg-line" />
-            <DropdownMenu.Item class={itemClass} onSelect={() => wb.goTo(WHOLE)} title={t.pages.wholeHint}>
+            <DropdownMenu.Item
+              class={itemClass}
+              onSelect={() => wb.goTo(WHOLE)}
+              title={t.pages.wholeHint}
+            >
               <span class="flex-1">{t.pages.whole}</span>
               {#if wb.view === WHOLE}<span class="text-accent" aria-hidden="true">●</span>{/if}
             </DropdownMenu.Item>
@@ -80,20 +97,34 @@
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
-      <IconButton label={t.pages.next} size="sm" disabled={wb.neighbours.next === null} onclick={() => wb.goTo(wb.neighbours.next)}>
+      <IconButton
+        label={t.pages.next}
+        size="sm"
+        disabled={wb.neighbours.next === null}
+        onclick={() => wb.goTo(wb.neighbours.next)}
+      >
         <ChevronRight aria-hidden="true" />
       </IconButton>
     </nav>
   {/if}
 
   {#if wb.keepsWrittenForm}
-    <div class="inline-flex rounded-md border border-line p-0.5" role="group" aria-label={t.form.label}>
+    <div
+      class="inline-flex rounded-md border border-line p-0.5"
+      role="group"
+      aria-label={t.form.label}
+    >
       {#each [{ value: 'written', label: t.form.written, hint: t.form.writtenHint }, { value: 'read', label: t.form.read, hint: t.form.readHint }] as option (option.value)}
         <button
           type="button"
           aria-pressed={wb.form === option.value}
           title={option.hint}
-          class={['h-7 rounded px-2.5 text-sm transition-colors', wb.form === option.value ? 'bg-accent text-accent-ink' : 'text-ink-soft hover:bg-sunken hover:text-ink']}
+          class={[
+            'h-7 rounded px-2.5 text-sm transition-colors',
+            wb.form === option.value
+              ? 'bg-accent text-accent-ink'
+              : 'text-ink-soft hover:bg-sunken hover:text-ink',
+          ]}
           onclick={() => (wb.form = option.value as 'written' | 'read')}
         >
           {option.label}

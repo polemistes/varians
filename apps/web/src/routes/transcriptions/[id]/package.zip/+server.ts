@@ -14,13 +14,32 @@ import { registry as t } from '$lib/strings/registry';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ locals, params, url, getClientAddress }) => {
-  const [row] = await locals.db.select({ id: transcriptions.id, ownerId: transcriptions.ownerId, visibility: transcriptions.visibility }).from(transcriptions).where(eq(transcriptions.id, params.id));
-  if (!row || !canViewTranscription(locals.user, row, await grantsFor(locals.db, locals.user))) error(404, 'Not found');
-  if (!limits.archiveByUser.take(locals.user?.id ?? `address:${getClientAddress()}`)) error(429, t.work.archiveTooOften);
+  const [row] = await locals.db
+    .select({
+      id: transcriptions.id,
+      ownerId: transcriptions.ownerId,
+      visibility: transcriptions.visibility,
+    })
+    .from(transcriptions)
+    .where(eq(transcriptions.id, params.id));
+  if (!row || !canViewTranscription(locals.user, row, await grantsFor(locals.db, locals.user)))
+    error(404, 'Not found');
+  if (!limits.archiveByUser.take(locals.user?.id ?? `address:${getClientAddress()}`))
+    error(429, t.work.archiveTooOften);
   try {
-    return packageResponse(await buildPackage(locals.db, locals.user, [{ kind: 'transcription', transcriptionId: row.id }], { storageRoot: storageRoot(), origin: packageOrigin(url.origin), agent: PACKAGE_AGENT }));
+    return packageResponse(
+      await buildPackage(
+        locals.db,
+        locals.user,
+        [{ kind: 'transcription', transcriptionId: row.id }],
+        { storageRoot: storageRoot(), origin: packageOrigin(url.origin), agent: PACKAGE_AGENT },
+      ),
+    );
   } catch (e) {
     console.error('package for download failed', e);
-    error(e instanceof Error && e.message === 'nothing to package' ? 404 : 500, t.work.archiveFailed);
+    error(
+      e instanceof Error && e.message === 'nothing to package' ? 404 : 500,
+      t.work.archiveFailed,
+    );
   }
 };

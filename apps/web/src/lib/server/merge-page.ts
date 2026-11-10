@@ -29,20 +29,46 @@ interface LoadedEntry {
   maintainerIds: string[];
 }
 
-async function entryBySlug(locals: App.Locals, kind: MergeKind, slug: string): Promise<LoadedEntry | null> {
+async function entryBySlug(
+  locals: App.Locals,
+  kind: MergeKind,
+  slug: string,
+): Promise<LoadedEntry | null> {
   if (kind === 'work') {
     const record = await workBySlug(locals.db, slug);
-    return record ? { id: record.work.id, slug: record.work.slug, name: record.work.title, createdBy: record.work.createdBy, maintainerIds: record.maintainerIds } : null;
+    return record
+      ? {
+          id: record.work.id,
+          slug: record.work.slug,
+          name: record.work.title,
+          createdBy: record.work.createdBy,
+          maintainerIds: record.maintainerIds,
+        }
+      : null;
   }
   const record = await witnessBySlug(locals.db, slug);
-  return record ? { id: record.witness.id, slug: record.witness.slug, name: record.witness.name, createdBy: record.witness.createdBy, maintainerIds: record.maintainerIds } : null;
+  return record
+    ? {
+        id: record.witness.id,
+        slug: record.witness.slug,
+        name: record.witness.name,
+        createdBy: record.witness.createdBy,
+        maintainerIds: record.maintainerIds,
+      }
+    : null;
 }
 
 /** The entry for someone who might merge it: an administrator or one of its maintainers. */
-async function mergeable(locals: App.Locals, kind: MergeKind, slug: string, user: Actor): Promise<LoadedEntry> {
+async function mergeable(
+  locals: App.Locals,
+  kind: MergeKind,
+  slug: string,
+  user: Actor,
+): Promise<LoadedEntry> {
   const entry = await entryBySlug(locals, kind, slug);
   if (!entry) error(404, kind === 'work' ? t.work.notFound : t.witness.notFound);
-  const maintains = isAdministrator(user) || entry.createdBy === user.id || entry.maintainerIds.includes(user.id);
+  const maintains =
+    isAdministrator(user) || entry.createdBy === user.id || entry.maintainerIds.includes(user.id);
   if (!maintains) error(403, t.merge.notAllowed);
   return entry;
 }
@@ -59,7 +85,12 @@ export interface MergePageData {
   blocked: boolean;
 }
 
-export async function loadMergePage(locals: App.Locals, kind: MergeKind, slug: string, url: URL): Promise<MergePageData & { crumb: { label: string; href: string } }> {
+export async function loadMergePage(
+  locals: App.Locals,
+  kind: MergeKind,
+  slug: string,
+  url: URL,
+): Promise<MergePageData & { crumb: { label: string; href: string } }> {
   const user = requireUser(locals, url.pathname + url.search);
   const entry = await mergeable(locals, kind, slug, user);
   const q = (url.searchParams.get('q') ?? '').trim().slice(0, 200);
@@ -78,7 +109,10 @@ export async function loadMergePage(locals: App.Locals, kind: MergeKind, slug: s
       // A private work the user may not see is not offered by the search, and not previewed either.
       const visible = kind === 'witness' || (await seesWork(locals.db, user, into.id));
       if (visible) {
-        preview = kind === 'work' ? await previewWorkMerge(locals.db, entry.id, into.id) : await previewWitnessMerge(locals.db, entry.id, into.id);
+        preview =
+          kind === 'work'
+            ? await previewWorkMerge(locals.db, entry.id, into.id)
+            : await previewWitnessMerge(locals.db, entry.id, into.id);
         allowed = canMergeEntries(user, entry, into);
       }
     }
@@ -96,13 +130,21 @@ export async function loadMergePage(locals: App.Locals, kind: MergeKind, slug: s
 }
 
 /** The merge action: done, then to the survivor's page; refused with the reason otherwise. */
-export async function runMerge(locals: App.Locals, kind: MergeKind, slug: string, request: Request) {
+export async function runMerge(
+  locals: App.Locals,
+  kind: MergeKind,
+  slug: string,
+  request: Request,
+) {
   const user = requireUser(locals);
   const entry = await mergeable(locals, kind, slug, user);
   const intoId = field(await request.formData(), 'intoId');
   if (!intoId) return fail(400, { error: t.common.invalidForm });
   if (intoId === entry.id) return fail(400, { error: t.merge.same });
-  const result = kind === 'work' ? await mergeWorks(locals.db, entry.id, intoId, user) : await mergeWitnesses(locals.db, entry.id, intoId, user);
+  const result =
+    kind === 'work'
+      ? await mergeWorks(locals.db, entry.id, intoId, user)
+      : await mergeWitnesses(locals.db, entry.id, intoId, user);
   if (!result.ok) {
     if (result.error === 'forbidden') return fail(403, { error: t.merge.notAllowed });
     if (result.error === 'blocked') return fail(409, { error: t.merge.blocked });

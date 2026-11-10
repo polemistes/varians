@@ -29,24 +29,36 @@ export class HistoryRequestError extends Error {
 async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(url, { ...init, headers: { accept: 'application/json', ...(init.headers ?? {}) } });
+    response = await fetch(url, {
+      ...init,
+      headers: { accept: 'application/json', ...(init.headers ?? {}) },
+    });
   } catch {
     throw new HistoryRequestError(0, 'offline', null);
   }
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    const message = body && typeof body === 'object' && 'message' in body ? String(body.message) : response.statusText;
+    const message =
+      body && typeof body === 'object' && 'message' in body
+        ? String(body.message)
+        : response.statusText;
     throw new HistoryRequestError(response.status, message, body);
   }
   return body as T;
 }
 
 function post<T>(url: string, data: unknown): Promise<T> {
-  return request<T>(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) });
+  return request<T>(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(data),
+  });
 }
 
 function isRefusedUndo(body: unknown): body is Extract<UndoResult, { ok: false }> {
-  return !!body && typeof body === 'object' && 'ok' in body && body.ok === false && 'conflicts' in body;
+  return (
+    !!body && typeof body === 'object' && 'ok' in body && body.ok === false && 'conflicts' in body
+  );
 }
 
 export interface HistoryApi {
@@ -64,14 +76,20 @@ export function historyApi(kind: DocumentKind, documentId: string): HistoryApi {
   const base = `/api/documents/${kind}/${encodeURIComponent(documentId)}`;
   return {
     history: () => request(`${base}/history`),
-    at: (version, since) => request(`${base}/at/${version}${since === undefined ? '' : `?since=${since}`}`),
+    at: (version, since) =>
+      request(`${base}/at/${version}${since === undefined ? '' : `?since=${since}`}`),
     nameMoment: (version, name) => post(`${base}/moments`, { version, name }),
     revert: (version, currentVersion) => post(`${base}/revert`, { version, currentVersion }),
     undo: async (changesetId, options = {}) => {
       try {
         return await post<UndoResult>(`${base}/undo`, { changesetId, ...options });
       } catch (cause) {
-        if (cause instanceof HistoryRequestError && cause.status === 409 && isRefusedUndo(cause.body)) return cause.body;
+        if (
+          cause instanceof HistoryRequestError &&
+          cause.status === 409 &&
+          isRefusedUndo(cause.body)
+        )
+          return cause.body;
         throw cause;
       }
     },

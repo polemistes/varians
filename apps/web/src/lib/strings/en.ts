@@ -24,7 +24,8 @@ export const s = {
   },
 
   auth: {
-    tooManyAttempts: (minutes: number) => `Too many attempts. Try again in ${minutes === 1 ? 'a minute' : `${minutes} minutes`}.`,
+    tooManyAttempts: (minutes: number) =>
+      `Too many attempts. Try again in ${minutes === 1 ? 'a minute' : `${minutes} minutes`}.`,
     logInTitle: 'Log in',
     registerTitle: 'Create an account',
     email: 'Email',
@@ -50,30 +51,39 @@ export const s = {
     forgotPassword: 'Forgotten your password?',
     // Confirming the address.
     confirmTitle: 'Confirm your address',
-    confirmSent: (email: string) => `A link to confirm the address has been sent to ${email}. It is valid for a day; once the address is confirmed, you can log in.`,
-    confirmNotSent: 'The account has been made, but the message to confirm its address could not be sent. Ask the administrator of this installation.',
-    unconfirmedSent: 'This address has not been confirmed yet. A new link to confirm it has been sent to it.',
-    unconfirmed: 'This address has not been confirmed yet. Open the link in the message sent to it.',
+    confirmSent: (email: string) =>
+      `A link to confirm the address has been sent to ${email}. It is valid for a day; once the address is confirmed, you can log in.`,
+    confirmNotSent:
+      'The account has been made, but the message to confirm its address could not be sent. Ask the administrator of this installation.',
+    unconfirmedSent:
+      'This address has not been confirmed yet. A new link to confirm it has been sent to it.',
+    unconfirmed:
+      'This address has not been confirmed yet. Open the link in the message sent to it.',
     confirmedTitle: 'Address confirmed',
     confirmed: 'The address is confirmed.',
-    confirmInvalid: 'This link is no longer valid: a link can be used once, and for a day. Log in to have a new one sent.',
+    confirmInvalid:
+      'This link is no longer valid: a link can be used once, and for a day. Log in to have a new one sent.',
     // Setting a new password.
     resetTitle: 'New password',
     resetAction: 'Send link',
-    resetSent: 'If an account has this address, a link to set a new password has been sent to it. The link is valid for an hour.',
-    resetWithoutMail: 'This installation does not send mail. Ask its administrator for a link to set a new password.',
+    resetSent:
+      'If an account has this address, a link to set a new password has been sent to it. The link is valid for an hour.',
+    resetWithoutMail:
+      'This installation does not send mail. Ask its administrator for a link to set a new password.',
     newPassword: 'New password',
     repeatPassword: 'Repeat the new password',
     passwordsDiffer: 'The two passwords differ.',
     setPassword: 'Set password',
-    resetInvalid: 'This link is no longer valid: a link can be used once, and only for a limited time.',
+    resetInvalid:
+      'This link is no longer valid: a link can be used once, and only for a limited time.',
     resetAgain: 'Ask for a new link',
   },
 
   account: {
     title: 'Account',
     offersSection: 'Offers',
-    offersHint: 'Editions and transcripts handed from one owner to another. Ownership moves when the person named accepts.',
+    offersHint:
+      'Editions and transcripts handed from one owner to another. Ownership moves when the person named accepts.',
     offerFrom: (name: string) => `from ${name}`,
     offeredTo: (name: string) => `offered to ${name}`,
     accept: 'Accept',
@@ -82,7 +92,8 @@ export const s = {
     nameSection: 'Name',
     nameHint: 'Shown beside the records you own and in the history of every text you edit.',
     tokensSection: 'Tokens',
-    tokensHint: 'A token lets another installation of Varians, or a script, read and send packages of the works you may see, as you.',
+    tokensHint:
+      'A token lets another installation of Varians, or a script, read and send packages of the works you may see, as you.',
     tokenName: 'Name of a new token',
     makeToken: 'Make a token',
     tokenMade: 'Copy the token now: it is not shown again.',
@@ -95,7 +106,8 @@ export const s = {
     orcid: 'ORCID iD',
     orcidSaved: 'Your ORCID iD has been saved.',
     orcidCleared: 'Your ORCID iD has been removed.',
-    orcidClaimed: (name: string) => `Your ORCID iD has been saved. The work recorded for ${name} under this iD is now yours.`,
+    orcidClaimed: (name: string) =>
+      `Your ORCID iD has been saved. The work recorded for ${name} under this iD is now yours.`,
     orcidInvalid: 'This is not an ORCID iD: sixteen digits, the last possibly X.',
     orcidTaken: 'Another account has this ORCID iD.',
     passwordSection: 'Password',
@@ -124,7 +136,8 @@ export const s = {
   admin: {
     title: 'Administration',
     usersTitle: 'Users',
-    usersLead: 'Editors may edit anything but not delete, publish or grant; administrators may do everything.',
+    usersLead:
+      'Editors may edit anything but not delete, publish or grant; administrators may do everything.',
     exportInstallation: 'Export the installation as a package',
     user: 'User',
     email: 'Email',
@@ -145,7 +158,8 @@ export const s = {
     sendResetLink: 'Send reset link',
     makeResetLink: 'Make reset link',
     resetLinkSent: (name: string) => `A link to set a new password has been sent to ${name}.`,
-    resetLinkMade: (name: string) => `A link to set a new password for ${name}, valid for a day and for one use. Give it to them by a means you trust.`,
+    resetLinkMade: (name: string) =>
+      `A link to set a new password for ${name}, valid for a day and for one use. Give it to them by a means you trust.`,
     resetLinkNotSent: 'The message could not be sent.',
   },
 

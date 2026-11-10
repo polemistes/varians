@@ -19,6 +19,7 @@ export function siteName(value: string | undefined = process.env.SITE_NAME): str
 export function dataLicence(value: string | undefined = process.env.DATA_LICENCE): DataLicence {
   const v = value?.trim();
   if (!v) return 'CC-BY-SA-4.0';
-  if (!isDataLicence(v)) throw new Error(`DATA_LICENCE must be CC0-1.0, CC-BY-4.0 or CC-BY-SA-4.0, not ${v}`);
+  if (!isDataLicence(v))
+    throw new Error(`DATA_LICENCE must be CC0-1.0, CC-BY-4.0 or CC-BY-SA-4.0, not ${v}`);
   return v;
 }

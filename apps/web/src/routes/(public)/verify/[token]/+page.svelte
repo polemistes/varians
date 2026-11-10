@@ -14,6 +14,8 @@
     <Notice kind="error">{s.auth.confirmInvalid}</Notice>
   {/if}
   {#if !data.signedIn}
-    <p class="mt-6 font-sans text-sm"><a href="/login" class="text-accent underline">{s.auth.logInTitle}</a></p>
+    <p class="mt-6 font-sans text-sm">
+      <a href="/login" class="text-accent underline">{s.auth.logInTitle}</a>
+    </p>
   {/if}
 </PageFrame>

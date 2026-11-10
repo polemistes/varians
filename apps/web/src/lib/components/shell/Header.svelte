@@ -19,7 +19,9 @@
   let logoutForm = $state<HTMLFormElement | null>(null);
 
   /** The query shown in the search field: the one in force on the search page, otherwise nothing. */
-  const searchQuery = $derived(page.url.pathname === '/search' ? (page.url.searchParams.get('q') ?? '') : '');
+  const searchQuery = $derived(
+    page.url.pathname === '/search' ? (page.url.searchParams.get('q') ?? '') : '',
+  );
 
   /** Where one goes: to read, to find a text or a witness, to the shared bibliography; and, signed in, to one's own work. */
   const links = $derived([
@@ -33,14 +35,24 @@
   function current(href: string): boolean {
     const path = page.url.pathname;
     // The editor of an edition is work, not reading: it belongs to no list.
-    if (href === '/editions') return path === '/editions' || (path.startsWith('/editions/') && !path.endsWith('/edit') && !path.startsWith('/editions/new'));
+    if (href === '/editions')
+      return (
+        path === '/editions' ||
+        (path.startsWith('/editions/') &&
+          !path.endsWith('/edit') &&
+          !path.startsWith('/editions/new'))
+      );
     return path === href || path.startsWith(`${href}/`);
   }
 </script>
 
 <header class="border-b border-line bg-page font-sans">
   <div class="mx-auto flex h-14 w-full max-w-page items-center gap-3 px-6 sm:px-8">
-    <a href="/" class="shrink-0 font-serif text-xl text-ink transition-colors hover:text-accent" title={s.shell.library}>
+    <a
+      href="/"
+      class="shrink-0 font-serif text-xl text-ink transition-colors hover:text-accent"
+      title={s.shell.library}
+    >
       {s.app.name}
     </a>
     {#if crumb}
@@ -61,9 +73,22 @@
       {/each}
     </nav>
 
-    <form method="get" action="/search" role="search" class="ml-auto hidden shrink-0 items-center gap-2 md:flex lg:ml-3">
+    <form
+      method="get"
+      action="/search"
+      role="search"
+      class="ml-auto hidden shrink-0 items-center gap-2 md:flex lg:ml-3"
+    >
       <label for="site-search" class="text-sm text-ink-soft">{site.nav.search}</label>
-      <Input id="site-search" name="q" type="search" value={searchQuery} autocomplete="off" aria-label={site.nav.searchField} class="h-8 w-40 lg:w-52" />
+      <Input
+        id="site-search"
+        name="q"
+        type="search"
+        value={searchQuery}
+        autocomplete="off"
+        aria-label={site.nav.searchField}
+        class="h-8 w-40 lg:w-52"
+      />
     </form>
 
     <div class="ml-auto flex shrink-0 items-center gap-1 md:ml-2">

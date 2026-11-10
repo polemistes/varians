@@ -23,16 +23,44 @@
 
   /** A conjecture with words prints its kind after the name, in brackets: "δαῖτα Zenodotus (coni.)". */
   function conjectureWithText(variant: ApparatusVariant): boolean {
-    return variant.attachment?.kind === 'conjecture' && variant.attachment.conjectureKind !== 'deletion' && variant.text !== '';
+    return (
+      variant.attachment?.kind === 'conjecture' &&
+      variant.attachment.conjectureKind !== 'deletion' &&
+      variant.text !== ''
+    );
   }
 
-  const lemmaSource = $derived(entry.adopted ? null : conventions.form === 'positive' ? entry.lemmaSigla : []);
+  const lemmaSource = $derived(
+    entry.adopted ? null : conventions.form === 'positive' ? entry.lemmaSigla : [],
+  );
   /** Whether anything stands before the readings; an addition with nothing to name opens with its reading. */
-  const head = $derived(entry.lemma !== '' || Boolean(entry.adopted) || (lemmaSource?.length ?? 0) > 0);
+  const head = $derived(
+    entry.lemma !== '' || Boolean(entry.adopted) || (lemmaSource?.length ?? 0) > 0,
+  );
 </script>
 
 <span class={['entry', layout === 'stacked' && 'entry-stacked']} data-site={siteKey} dir="auto">
-  {#if showLabel}<b class="entry-label">{entry.label}</b>{'\u00a0'}{/if}{#if entry.lemma}<span class="lemma">{entry.lemma}</span>{/if}{#if entry.adopted}{' '}<span class="name">{entry.adopted.name}</span>{#if entry.adopted.source}{' '}<span class="source">{entry.adopted.source}</span>{/if}{:else if lemmaSource && lemmaSource.length}{' '}<span class="sigla">{lemmaSource.join(' ')}</span>{/if}{#each entry.variants as variant, k (k)}{#if k > 0 || head}<span class="colon">{' '}:{' '}</span>{/if}<span class="variant">{#if conjectureWithText(variant)}<span class="reading">{variant.text}</span>{' '}<span class="name">{variant.attachment!.name}</span>{#if variant.attachment!.source}{' '}<span class="source">{variant.attachment!.source}</span>{/if}{#if variant.note}{' '}<i class="note">({variant.note})</i>{/if}{:else}{#if variant.text}<span class="reading">{variant.text}</span>{/if}{#if variant.note}{#if variant.text}{' '}{/if}<i class="note">{variant.note}</i>{/if}{' '}{#if variant.attachment}<span class="name">{variant.attachment.name}</span>{#if variant.attachment.source}{' '}<span class="source">{variant.attachment.source}</span>{/if}{:else}<span class="sigla">{variant.sigla.join(' ')}</span>{/if}{/if}</span>{/each}{#if entry.transposition}{' '}<i class="note">{entry.transposition}</i>{/if}
+  {#if showLabel}<b class="entry-label">{entry.label}</b>{'\u00a0'}{/if}{#if entry.lemma}<span
+      class="lemma">{entry.lemma}</span
+    >{/if}{#if entry.adopted}{' '}<span class="name">{entry.adopted.name}</span
+    >{#if entry.adopted.source}{' '}<span class="source">{entry.adopted.source}</span
+      >{/if}{:else if lemmaSource && lemmaSource.length}{' '}<span class="sigla"
+      >{lemmaSource.join(' ')}</span
+    >{/if}{#each entry.variants as variant, k (k)}{#if k > 0 || head}<span class="colon"
+        >{' '}:{' '}</span
+      >{/if}<span class="variant"
+      >{#if conjectureWithText(variant)}<span class="reading">{variant.text}</span>{' '}<span
+          class="name">{variant.attachment!.name}</span
+        >{#if variant.attachment!.source}{' '}<span class="source"
+            >{variant.attachment!.source}</span
+          >{/if}{#if variant.note}{' '}<i class="note">({variant.note})</i
+          >{/if}{:else}{#if variant.text}<span class="reading">{variant.text}</span
+          >{/if}{#if variant.note}{#if variant.text}{' '}{/if}<i class="note">{variant.note}</i
+          >{/if}{' '}{#if variant.attachment}<span class="name">{variant.attachment.name}</span
+          >{#if variant.attachment.source}{' '}<span class="source"
+              >{variant.attachment.source}</span
+            >{/if}{:else}<span class="sigla">{variant.sigla.join(' ')}</span>{/if}{/if}</span
+    >{/each}{#if entry.transposition}{' '}<i class="note">{entry.transposition}</i>{/if}
 </span>
 
 <style>
@@ -91,7 +119,6 @@
   .colon {
     color: var(--color-ink-muted);
   }
-
 
   @media print {
     .entry:global([data-lit]),

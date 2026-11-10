@@ -1,22 +1,44 @@
 import { describe, expect, it } from 'vitest';
 import type { Item, Token } from '@varians/core';
-import { DEFAULT_SIGLA, LEIDEN_SIGLA, plainLine, printLine, tokenParts, type EditionSigla } from './marks';
+import {
+  DEFAULT_SIGLA,
+  LEIDEN_SIGLA,
+  plainLine,
+  printLine,
+  tokenParts,
+  type EditionSigla,
+} from './marks';
 
-const t = (id: string, form: string, extra: Partial<Token> = {}): Token => ({ kind: 'token', id, form, ...extra });
-const print = (items: Item[], sigla: EditionSigla = DEFAULT_SIGLA) => plainLine(printLine(items, sigla));
+const t = (id: string, form: string, extra: Partial<Token> = {}): Token => ({
+  kind: 'token',
+  id,
+  form,
+  ...extra,
+});
+const print = (items: Item[], sigla: EditionSigla = DEFAULT_SIGLA) =>
+  plainLine(printLine(items, sigla));
 
 describe('printLine', () => {
   it('separates words by spaces, and not a word divided at a line end', () => {
-    expect(print([t('a', 'μῆνιν'), t('b', 'ἄει', { joinNext: true }), t('c', 'δε'), t('d', 'θεά')])).toBe('μῆνιν ἄειδε θεά');
+    expect(
+      print([t('a', 'μῆνιν'), t('b', 'ἄει', { joinNext: true }), t('c', 'δε'), t('d', 'θεά')]),
+    ).toBe('μῆνιν ἄειδε θεά');
   });
 
   it('brackets a run of supplied words once, in the edition convention', () => {
-    const items = [t('a', 'οὐλομένην'), t('b', 'ἣ', { marks: [{ kind: 'supplied' }] }), t('c', 'μυρί᾽', { marks: [{ kind: 'supplied' }] }), t('d', 'Ἀχαιοῖς')];
+    const items = [
+      t('a', 'οὐλομένην'),
+      t('b', 'ἣ', { marks: [{ kind: 'supplied' }] }),
+      t('c', 'μυρί᾽', { marks: [{ kind: 'supplied' }] }),
+      t('d', 'Ἀχαιοῖς'),
+    ];
     expect(print(items)).toBe('οὐλομένην ⟨ἣ μυρί᾽⟩ Ἀχαιοῖς');
     const pieces = printLine(items, DEFAULT_SIGLA);
     expect(pieces[1]).toMatchObject({ kind: 'token', before: '⟨', after: '' });
     expect(pieces[2]).toMatchObject({ kind: 'token', before: '', after: '⟩' });
-    expect(print(items, { ...DEFAULT_SIGLA, supplied: ['<', '>'] })).toBe('οὐλομένην <ἣ μυρί᾽> Ἀχαιοῖς');
+    expect(print(items, { ...DEFAULT_SIGLA, supplied: ['<', '>'] })).toBe(
+      'οὐλομένην <ἣ μυρί᾽> Ἀχαιοῖς',
+    );
   });
 
   it('brackets what the editor deletes, and does not strike it through', () => {
@@ -27,10 +49,16 @@ describe('printLine', () => {
   });
 
   it('puts the crux before one word, and around several', () => {
-    expect(print([t('a', 'ἔριδι', { marks: [{ kind: 'crux' }] }), t('b', 'ξυνέηκε')])).toBe('†ἔριδι ξυνέηκε');
-    expect(print([t('a', 'ἔριδι', { marks: [{ kind: 'crux' }] }), t('b', 'ξυνέηκε', { marks: [{ kind: 'crux' }] }), t('c', 'μάχεσθαι')])).toBe(
-      '†ἔριδι ξυνέηκε† μάχεσθαι',
+    expect(print([t('a', 'ἔριδι', { marks: [{ kind: 'crux' }] }), t('b', 'ξυνέηκε')])).toBe(
+      '†ἔριδι ξυνέηκε',
     );
+    expect(
+      print([
+        t('a', 'ἔριδι', { marks: [{ kind: 'crux' }] }),
+        t('b', 'ξυνέηκε', { marks: [{ kind: 'crux' }] }),
+        t('c', 'μάχεσθαι'),
+      ]),
+    ).toBe('†ἔριδι ξυνέηκε† μάχεσθαι');
   });
 
   it('closes a run at an object between the words', () => {
@@ -64,16 +92,25 @@ describe('printLine', () => {
 describe('tokenParts', () => {
   it('dots every marked letter that is unclear', () => {
     expect(tokenParts(t('a', 'θεά', { marks: [{ kind: 'unclear' }] }))).toEqual([{ text: 'θ̣ε̣ά̣' }]);
-    expect(tokenParts(t('a', 'θεά', { marks: [{ kind: 'unclear', from: 1, to: 2 }] }))).toEqual([{ text: 'θε̣ά' }]);
+    expect(tokenParts(t('a', 'θεά', { marks: [{ kind: 'unclear', from: 1, to: 2 }] }))).toEqual([
+      { text: 'θε̣ά' },
+    ]);
   });
 
   it('brackets supplied letters inside a word', () => {
-    expect(tokenParts(t('a', 'ἄειδε', { marks: [{ kind: 'supplied', from: 3, to: 5 }] }))).toEqual([{ text: 'ἄει⟨δε⟩' }]);
-    expect(tokenParts(t('a', 'ἄειδε', { marks: [{ kind: 'supplied', from: 0, to: 2 }] }), LEIDEN_SIGLA)).toEqual([{ text: '[ἄε]ιδε' }]);
+    expect(tokenParts(t('a', 'ἄειδε', { marks: [{ kind: 'supplied', from: 3, to: 5 }] }))).toEqual([
+      { text: 'ἄει⟨δε⟩' },
+    ]);
+    expect(
+      tokenParts(t('a', 'ἄειδε', { marks: [{ kind: 'supplied', from: 0, to: 2 }] }), LEIDEN_SIGLA),
+    ).toEqual([{ text: '[ἄε]ιδε' }]);
   });
 
   it('strikes through what the scribe deleted', () => {
-    expect(tokenParts(t('a', 'ἔθηκε', { marks: [{ kind: 'del', from: 0, to: 1 }] }))).toEqual([{ text: 'ἔ', struck: true }, { text: 'θηκε' }]);
+    expect(tokenParts(t('a', 'ἔθηκε', { marks: [{ kind: 'del', from: 0, to: 1 }] }))).toEqual([
+      { text: 'ἔ', struck: true },
+      { text: 'θηκε' },
+    ]);
   });
 
   it('prints the read form, or the written form when asked', () => {

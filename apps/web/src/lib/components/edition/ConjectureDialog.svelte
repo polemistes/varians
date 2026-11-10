@@ -68,13 +68,28 @@
   function submit(adopt: boolean) {
     if (!draft || !valid) return;
     onsubmit(
-      { ...draft, kind, reading: needsReading ? reading.trim() : '', proposer: proposer.trim(), note: note.trim(), extent: extent.trim(), citations: $state.snapshot(citations) },
+      {
+        ...draft,
+        kind,
+        reading: needsReading ? reading.trim() : '',
+        proposer: proposer.trim(),
+        note: note.trim(),
+        extent: extent.trim(),
+        citations: $state.snapshot(citations),
+      },
       adopt,
     );
   }
 </script>
 
-<Dialog bind:open title={s.conjecture.title} description={draft ? `${draft.segmentLabel}${draft.lemma ? `  ${draft.lemma}` : ''}` : ''} onOpenChange={(value) => { if (!value) oncancel(); }}>
+<Dialog
+  bind:open
+  title={s.conjecture.title}
+  description={draft ? `${draft.segmentLabel}${draft.lemma ? `  ${draft.lemma}` : ''}` : ''}
+  onOpenChange={(value) => {
+    if (!value) oncancel();
+  }}
+>
   <form
     class="flex flex-col gap-4"
     onsubmit={(event) => {
@@ -88,7 +103,10 @@
       {/snippet}
     </Field>
     {#if needsReading}
-      <Field label={s.conjecture.reading} hint={kind === 'substitution' ? undefined : s.conjecture.readingHint}>
+      <Field
+        label={s.conjecture.reading}
+        hint={kind === 'substitution' ? undefined : s.conjecture.readingHint}
+      >
         {#snippet children(control)}
           <Input {...control} bind:value={reading} class="font-serif" dir="auto" autofocus />
         {/snippet}
@@ -115,7 +133,11 @@
   </form>
   {#snippet footer()}
     <Button variant="ghost" onclick={oncancel}>{s.conjecture.cancel}</Button>
-    <Button variant="secondary" disabled={!valid || busy} onclick={() => submit(false)}>{s.conjecture.registerOnly}</Button>
-    <Button variant="primary" disabled={!valid} loading={busy} onclick={() => submit(true)}>{s.conjecture.registerAdopt}</Button>
+    <Button variant="secondary" disabled={!valid || busy} onclick={() => submit(false)}
+      >{s.conjecture.registerOnly}</Button
+    >
+    <Button variant="primary" disabled={!valid} loading={busy} onclick={() => submit(true)}
+      >{s.conjecture.registerAdopt}</Button
+    >
   {/snippet}
 </Dialog>

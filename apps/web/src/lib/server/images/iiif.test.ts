@@ -147,7 +147,14 @@ describe('parseManifest, Presentation API 3', () => {
 });
 
 describe('rights in manifests', () => {
-  const image = (n: number) => ({ '@id': `https://example.org/img/${n}`, '@type': 'dctypes:Image', service: { '@id': `https://example.org/iiif/${n}`, profile: 'http://iiif.io/api/image/2/level1.json' } });
+  const image = (n: number) => ({
+    '@id': `https://example.org/img/${n}`,
+    '@type': 'dctypes:Image',
+    service: {
+      '@id': `https://example.org/iiif/${n}`,
+      profile: 'http://iiif.io/api/image/2/level1.json',
+    },
+  });
 
   it('reads Presentation 2 license and attribution, at canvas level where given', () => {
     const manifest = {
@@ -155,12 +162,26 @@ describe('rights in manifests', () => {
       '@type': 'sc:Manifest',
       label: 'Codex',
       license: 'https://creativecommons.org/licenses/by-nc/4.0/',
-      attribution: [{ '@value': 'Bibliothèque nationale de France', '@language': 'fr' }, { '@value': '<span>Courtesy of the <b>Library</b> &amp; friends</span>', '@language': 'en' }],
+      attribution: [
+        { '@value': 'Bibliothèque nationale de France', '@language': 'fr' },
+        {
+          '@value': '<span>Courtesy of the <b>Library</b> &amp; friends</span>',
+          '@language': 'en',
+        },
+      ],
       sequences: [
         {
           canvases: [
             { '@id': 'c1', label: '1r', width: 10, height: 10, images: [{ resource: image(1) }] },
-            { '@id': 'c2', label: '1v', width: 10, height: 10, license: ['http://creativecommons.org/publicdomain/mark/1.0/'], attribution: 'Folio credit', images: [{ resource: image(2) }] },
+            {
+              '@id': 'c2',
+              label: '1v',
+              width: 10,
+              height: 10,
+              license: ['http://creativecommons.org/publicdomain/mark/1.0/'],
+              attribution: 'Folio credit',
+              images: [{ resource: image(2) }],
+            },
           ],
         },
       ],
@@ -170,7 +191,10 @@ describe('rights in manifests', () => {
     expect(result.attribution).toBe('Courtesy of the Library & friends');
     expect(result.canvases[0]!.rights).toBeUndefined();
     expect(result.canvases[0]!.attribution).toBeUndefined();
-    expect(result.canvases[1]).toMatchObject({ rights: 'http://creativecommons.org/publicdomain/mark/1.0/', attribution: 'Folio credit' });
+    expect(result.canvases[1]).toMatchObject({
+      rights: 'http://creativecommons.org/publicdomain/mark/1.0/',
+      attribution: 'Folio credit',
+    });
   });
 
   it('reads Presentation 3 rights and the value of requiredStatement, at canvas level where given', () => {
@@ -180,7 +204,22 @@ describe('rights in manifests', () => {
       label: { none: [id] },
       width: 10,
       height: 10,
-      items: [{ type: 'AnnotationPage', items: [{ type: 'Annotation', motivation: 'painting', body: { id: `${id}.jpg`, type: 'Image', service: [{ id: `https://example.org/iiif3/${id}`, type: 'ImageService3' }] } }] }],
+      items: [
+        {
+          type: 'AnnotationPage',
+          items: [
+            {
+              type: 'Annotation',
+              motivation: 'painting',
+              body: {
+                id: `${id}.jpg`,
+                type: 'Image',
+                service: [{ id: `https://example.org/iiif3/${id}`, type: 'ImageService3' }],
+              },
+            },
+          ],
+        },
+      ],
       ...extra,
     });
     const manifest = {
@@ -189,17 +228,29 @@ describe('rights in manifests', () => {
       type: 'Manifest',
       label: { en: ['Codex'] },
       rights: 'http://rightsstatements.org/vocab/NoC-NC/1.0/',
-      requiredStatement: { label: { en: ['Attribution'] }, value: { de: ['Staatsbibliothek'], en: ['State Library'] } },
+      requiredStatement: {
+        label: { en: ['Attribution'] },
+        value: { de: ['Staatsbibliothek'], en: ['State Library'] },
+      },
       items: [
         canvas('p1'),
-        canvas('p2', { rights: 'https://creativecommons.org/licenses/by/4.0/', requiredStatement: { label: { en: ['Credit'] }, value: { none: ['Photo: A. Photographer'] } } }),
+        canvas('p2', {
+          rights: 'https://creativecommons.org/licenses/by/4.0/',
+          requiredStatement: {
+            label: { en: ['Credit'] },
+            value: { none: ['Photo: A. Photographer'] },
+          },
+        }),
       ],
     };
     const result = parseManifest(manifest, 'https://example.org/m3');
     expect(result.rights).toBe('http://rightsstatements.org/vocab/NoC-NC/1.0/');
     expect(result.attribution).toBe('State Library');
     expect(result.canvases[0]!.rights).toBeUndefined();
-    expect(result.canvases[1]).toMatchObject({ rights: 'https://creativecommons.org/licenses/by/4.0/', attribution: 'Photo: A. Photographer' });
+    expect(result.canvases[1]).toMatchObject({
+      rights: 'https://creativecommons.org/licenses/by/4.0/',
+      attribution: 'Photo: A. Photographer',
+    });
   });
 
   it('gives no rights where the manifest states none', () => {

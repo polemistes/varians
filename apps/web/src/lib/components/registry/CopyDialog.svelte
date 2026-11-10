@@ -67,6 +67,8 @@
   </form>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (open = false)}>{s.cancel}</Button>
-    <Button type="submit" form="copy-form" variant="primary" loading={busy} disabled={!name.trim()}>{s.make}</Button>
+    <Button type="submit" form="copy-form" variant="primary" loading={busy} disabled={!name.trim()}
+      >{s.make}</Button
+    >
   {/snippet}
 </Dialog>

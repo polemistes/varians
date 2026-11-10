@@ -37,7 +37,9 @@
       return async ({ result, update }) => {
         busy = false;
         if (result.type === 'failure') {
-          refused = (result.data as { deleteError?: string } | undefined)?.deleteError ?? t.errors.forbidden;
+          refused =
+            (result.data as { deleteError?: string } | undefined)?.deleteError ??
+            t.errors.forbidden;
           return;
         }
         await update();
@@ -52,6 +54,8 @@
         if (refused) location.reload();
       }}>{t.delete.cancel}</Button
     >
-    <Button type="submit" form="wb-delete" variant="danger" loading={busy}>{t.delete.confirm}</Button>
+    <Button type="submit" form="wb-delete" variant="danger" loading={busy}
+      >{t.delete.confirm}</Button
+    >
   {/snippet}
 </Dialog>

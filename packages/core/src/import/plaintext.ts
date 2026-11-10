@@ -64,7 +64,9 @@ export function detectNumbering(text: string): NumberingPattern[] {
   const found: { pattern: NumberingPattern; score: number }[] = [];
 
   const startRegex = new RegExp(LINE_START, 'u');
-  const startLabels = content.map((line) => labelOf(startRegex.exec(line))).filter((l): l is string => l !== null);
+  const startLabels = content
+    .map((line) => labelOf(startRegex.exec(line)))
+    .filter((l): l is string => l !== null);
   const marginRegex = new RegExp(MARGIN, 'u');
   const marginHits: { at: number; label: string }[] = [];
   content.forEach((line, at) => {
@@ -75,29 +77,52 @@ export function detectNumbering(text: string): NumberingPattern[] {
   if (interval !== null) {
     found.push({
       score: 3,
-      pattern: { kind: 'margin-every-n', regex: MARGIN, matches: marginHits.length, sample: marginHits[0]!.label, interval },
+      pattern: {
+        kind: 'margin-every-n',
+        regex: MARGIN,
+        matches: marginHits.length,
+        sample: marginHits[0]!.label,
+        interval,
+      },
     });
   }
   if (startLabels.length > 0) {
     const coverage = startLabels.length / content.length;
     found.push({
       score: (coverage >= 0.5 ? 2 : 1) + coverage,
-      pattern: { kind: 'line-start-number', regex: LINE_START, matches: startLabels.length, sample: startLabels[0]! },
+      pattern: {
+        kind: 'line-start-number',
+        regex: LINE_START,
+        matches: startLabels.length,
+        sample: startLabels[0]!,
+      },
     });
   }
   const bracketLabels = [...text.matchAll(new RegExp(BRACKETED, 'gu'))].map((m) => m[1]!);
   if (bracketLabels.length > 0) {
     found.push({
       score: bracketLabels.length >= 2 ? 2 + Math.min(1, bracketLabels.length / content.length) : 1,
-      pattern: { kind: 'bracketed', regex: BRACKETED, matches: bracketLabels.length, sample: bracketLabels[0]! },
+      pattern: {
+        kind: 'bracketed',
+        regex: BRACKETED,
+        matches: bracketLabels.length,
+        sample: bracketLabels[0]!,
+      },
     });
   }
-  const verse = content.length >= 2 && content.filter((line) => line.length <= 100).length / content.length >= 0.9;
+  const verse =
+    content.length >= 2 &&
+    content.filter((line) => line.length <= 100).length / content.length >= 0.9;
   if (verse) {
     const numbered = found.some((f) => f.score >= 2);
     found.push({
       score: numbered ? 0.5 : 2.5,
-      pattern: { kind: 'every-line', regex: EVERY_LINE, matches: content.length, sample: content[0]!.trim().slice(0, 60) },
+      pattern: {
+        kind: 'every-line',
+        regex: EVERY_LINE,
+        matches: content.length,
+        sample: content[0]!.trim().slice(0, 60),
+      },
     });
   }
   return found.sort((a, b) => b.score - a.score).map((f) => f.pattern);
@@ -167,7 +192,9 @@ function compile(pattern: NumberingPattern, warnings: string[]): RegExp | null {
   try {
     return new RegExp(pattern.regex, pattern.kind === 'bracketed' ? 'gu' : 'u');
   } catch {
-    warnings.push(`The numbering pattern "${pattern.regex}" is not a valid regular expression; no numbering was read.`);
+    warnings.push(
+      `The numbering pattern "${pattern.regex}" is not a valid regular expression; no numbering was read.`,
+    );
     return null;
   }
 }
@@ -218,7 +245,9 @@ function marginEveryN(
       if (current !== null && !stopped) {
         const expected = next(current);
         if (expected !== label) {
-          warnings.push(`Line ${index + 1} is numbered ${label}, but counting from the previous number gives ${expected ?? 'nothing'}.`);
+          warnings.push(
+            `Line ${index + 1} is numbered ${label}, but counting from the previous number gives ${expected ?? 'nothing'}.`,
+          );
         }
       }
       current = label;
@@ -236,7 +265,9 @@ function marginEveryN(
     } else {
       const following = next(current);
       if (following === null) {
-        warnings.push(`No label follows ${current}; the lines after it are unlabelled until the next number.`);
+        warnings.push(
+          `No label follows ${current}; the lines after it are unlabelled until the next number.`,
+        );
         stopped = true;
         return line;
       }
@@ -246,7 +277,9 @@ function marginEveryN(
     return line;
   });
   if (unlabeled > 0) {
-    warnings.push(`${unlabeled} line${unlabeled === 1 ? '' : 's'} before the first number ${unlabeled === 1 ? 'has' : 'have'} no label; give a start label to count them.`);
+    warnings.push(
+      `${unlabeled} line${unlabeled === 1 ? '' : 's'} before the first number ${unlabeled === 1 ? 'has' : 'have'} no label; give a start label to count them.`,
+    );
   }
   return { cleaned, places };
 }
@@ -267,7 +300,9 @@ function everyLine(
     if (lines[index]!.trim() === '') continue;
     current = current === null ? startLabel : next(current);
     if (current === null) {
-      warnings.push(`No label follows ${places[places.length - 1]?.label ?? startLabel}; the remaining lines are unlabelled.`);
+      warnings.push(
+        `No label follows ${places[places.length - 1]?.label ?? startLabel}; the remaining lines are unlabelled.`,
+      );
       break;
     }
     places.push({ line: index, column: 0, label: current });
@@ -294,7 +329,9 @@ function attach(
     for (const match of text.matchAll(/\S+/gu)) starts.push({ line: index, column: match.index });
   });
   if (starts.length !== tokenIndexes.length) {
-    warnings.push('The numbering could not be attached: the words of the text do not match its tokens.');
+    warnings.push(
+      'The numbering could not be attached: the words of the text do not match its tokens.',
+    );
     return [];
   }
   const out: SegmentStartLabel[] = [];
@@ -302,7 +339,8 @@ function attach(
   for (const place of places) {
     while (k < starts.length) {
       const start = starts[k]!;
-      if (start.line > place.line || (start.line === place.line && start.column >= place.column)) break;
+      if (start.line > place.line || (start.line === place.line && start.column >= place.column))
+        break;
       k++;
     }
     if (k >= starts.length) {
@@ -312,7 +350,9 @@ function attach(
     const itemIndex = tokenIndexes[k]!;
     const previous = out[out.length - 1];
     if (previous && previous.itemIndex === itemIndex) {
-      warnings.push(`Label ${previous.label} has no text before label ${place.label} and was dropped.`);
+      warnings.push(
+        `Label ${previous.label} has no text before label ${place.label} and was dropped.`,
+      );
       out.pop();
     }
     out.push({ itemIndex, label: place.label });

@@ -18,7 +18,12 @@
     <li>
       <span class="text-ink-soft">{scheme}</span>
       {#if href}
-        <a {href} class="font-mono text-xs break-all text-accent hover:underline" rel="noopener noreferrer" aria-label={s.lookUp(scheme, identifier.value)}>{identifier.value}</a>
+        <a
+          {href}
+          class="font-mono text-xs break-all text-accent hover:underline"
+          rel="noopener noreferrer"
+          aria-label={s.lookUp(scheme, identifier.value)}>{identifier.value}</a
+        >
       {:else}
         <span class="font-mono text-xs break-all text-ink">{identifier.value}</span>
       {/if}

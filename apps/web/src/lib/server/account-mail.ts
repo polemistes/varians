@@ -10,7 +10,14 @@
  */
 import { and, eq, isNull, sessions, sql, users, type Database } from '@varians/db';
 import { mail } from '$lib/strings/mail';
-import { consumeEmailToken, findEmailToken, issueEmailToken, retireEmailTokens, TOKEN_TTL_MS, type IssuedToken } from './email-tokens';
+import {
+  consumeEmailToken,
+  findEmailToken,
+  issueEmailToken,
+  retireEmailTokens,
+  TOKEN_TTL_MS,
+  type IssuedToken,
+} from './email-tokens';
 import type { Mailer } from './mail';
 import { hashPassword } from './password';
 
@@ -42,15 +49,29 @@ async function accountByEmail(db: Database, email: string): Promise<Account | nu
 }
 
 async function accountById(db: Database, userId: string): Promise<Account | null> {
-  const [row] = await db.select({ id: users.id, email: users.email, name: users.name }).from(users).where(eq(users.id, userId)).limit(1);
+  const [row] = await db
+    .select({ id: users.id, email: users.email, name: users.name })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
   return row ?? null;
 }
 
 // Confirming an address
 
 /** Sends the link that confirms an account's address (valid for a day). */
-export async function sendVerification(db: Database, mailer: Mailer, account: Account, site: Site): Promise<void> {
-  const { token } = await issueEmailToken(db, { userId: account.id, email: account.email, purpose: 'verify', ttlMs: TOKEN_TTL_MS.verify });
+export async function sendVerification(
+  db: Database,
+  mailer: Mailer,
+  account: Account,
+  site: Site,
+): Promise<void> {
+  const { token } = await issueEmailToken(db, {
+    userId: account.id,
+    email: account.email,
+    purpose: 'verify',
+    ttlMs: TOKEN_TTL_MS.verify,
+  });
   const link = linkTo(site, 'verify', token);
   await mailer.send({
     to: account.email,
@@ -60,18 +81,32 @@ export async function sendVerification(db: Database, mailer: Mailer, account: Ac
 }
 
 /** Uses a confirmation link: true when the address is now confirmed. */
-export async function confirmEmail(db: Database, token: string, now: Date = new Date()): Promise<boolean> {
+export async function confirmEmail(
+  db: Database,
+  token: string,
+  now: Date = new Date(),
+): Promise<boolean> {
   const valid = await consumeEmailToken(db, token, 'verify', now);
   if (!valid) return false;
-  await db.update(users).set({ emailVerifiedAt: now }).where(and(eq(users.id, valid.userId), isNull(users.emailVerifiedAt)));
+  await db
+    .update(users)
+    .set({ emailVerifiedAt: now })
+    .where(and(eq(users.id, valid.userId), isNull(users.emailVerifiedAt)));
   return true;
 }
 
 /** Confirms an address without a link, for the operator (cli confirm-email). False when there is no such account. */
-export async function confirmEmailDirectly(db: Database, email: string, now: Date = new Date()): Promise<boolean> {
+export async function confirmEmailDirectly(
+  db: Database,
+  email: string,
+  now: Date = new Date(),
+): Promise<boolean> {
   const account = await accountByEmail(db, email);
   if (!account) return false;
-  await db.update(users).set({ emailVerifiedAt: now }).where(and(eq(users.id, account.id), isNull(users.emailVerifiedAt)));
+  await db
+    .update(users)
+    .set({ emailVerifiedAt: now })
+    .where(and(eq(users.id, account.id), isNull(users.emailVerifiedAt)));
   return true;
 }
 
@@ -81,14 +116,28 @@ export async function confirmEmailDirectly(db: Database, email: string, now: Dat
  * Sends a link to set a new password to the account with this address, if
  * there is one (valid for an hour). Returns nothing either way.
  */
-export async function requestPasswordReset(db: Database, mailer: Mailer, email: string, site: Site): Promise<void> {
+export async function requestPasswordReset(
+  db: Database,
+  mailer: Mailer,
+  email: string,
+  site: Site,
+): Promise<void> {
   const account = await accountByEmail(db, email);
   if (!account) return;
-  const { token } = await issueEmailToken(db, { userId: account.id, email: account.email, purpose: 'reset', ttlMs: TOKEN_TTL_MS.reset });
+  const { token } = await issueEmailToken(db, {
+    userId: account.id,
+    email: account.email,
+    purpose: 'reset',
+    ttlMs: TOKEN_TTL_MS.reset,
+  });
   await mailer.send({
     to: account.email,
     subject: mail.reset.subject(site.name),
-    text: mail.reset.text({ site: site.name, link: linkTo(site, 'reset', token), origin: site.origin }),
+    text: mail.reset.text({
+      site: site.name,
+      link: linkTo(site, 'reset', token),
+      origin: site.origin,
+    }),
   });
 }
 
@@ -98,21 +147,39 @@ export interface AdministratorLink extends IssuedToken {
 }
 
 /** Makes a link to set a new password for an account (valid for a day), for an administrator to send or hand over. */
-export async function makeResetLink(db: Database, userId: string, site: Site): Promise<AdministratorLink | null> {
+export async function makeResetLink(
+  db: Database,
+  userId: string,
+  site: Site,
+): Promise<AdministratorLink | null> {
   const account = await accountById(db, userId);
   if (!account) return null;
-  const issued = await issueEmailToken(db, { userId: account.id, email: account.email, purpose: 'reset', ttlMs: TOKEN_TTL_MS.resetByAdministrator });
+  const issued = await issueEmailToken(db, {
+    userId: account.id,
+    email: account.email,
+    purpose: 'reset',
+    ttlMs: TOKEN_TTL_MS.resetByAdministrator,
+  });
   return { ...issued, link: linkTo(site, 'reset', issued.token), account };
 }
 
 /** The same, found by address (cli reset-password). */
-export async function makeResetLinkFor(db: Database, email: string, site: Site): Promise<AdministratorLink | null> {
+export async function makeResetLinkFor(
+  db: Database,
+  email: string,
+  site: Site,
+): Promise<AdministratorLink | null> {
   const account = await accountByEmail(db, email);
   return account ? makeResetLink(db, account.id, site) : null;
 }
 
 /** Sends an administrator's reset link to the account's address. Null when there is no such account. */
-export async function sendResetLink(db: Database, mailer: Mailer, userId: string, site: Site): Promise<Account | null> {
+export async function sendResetLink(
+  db: Database,
+  mailer: Mailer,
+  userId: string,
+  site: Site,
+): Promise<Account | null> {
   const made = await makeResetLink(db, userId, site);
   if (!made) return null;
   await mailer.send({
@@ -130,7 +197,12 @@ export async function sendResetLink(db: Database, mailer: Mailer, userId: string
  * confirmed, since the link reached its owner. Answers the account, or null
  * when the link cannot be used.
  */
-export async function resetPassword(db: Database, token: string, password: string, now: Date = new Date()): Promise<{ userId: string } | null> {
+export async function resetPassword(
+  db: Database,
+  token: string,
+  password: string,
+  now: Date = new Date(),
+): Promise<{ userId: string } | null> {
   // Hashing is deliberately slow: only for a link that can be used.
   if (!(await findEmailToken(db, token, 'reset', now))) return null;
   const passwordHash = await hashPassword(password);
@@ -139,7 +211,10 @@ export async function resetPassword(db: Database, token: string, password: strin
     if (!valid) return null;
     await tx
       .update(users)
-      .set({ passwordHash, emailVerifiedAt: sql`coalesce(${users.emailVerifiedAt}, ${now.toISOString()}::timestamptz)` })
+      .set({
+        passwordHash,
+        emailVerifiedAt: sql`coalesce(${users.emailVerifiedAt}, ${now.toISOString()}::timestamptz)`,
+      })
       .where(eq(users.id, valid.userId));
     await tx.delete(sessions).where(eq(sessions.userId, valid.userId));
     await retireEmailTokens(tx, valid.userId, 'reset', now);

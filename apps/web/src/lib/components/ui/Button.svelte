@@ -18,7 +18,10 @@
   };
 
   /** The classes of a button, for elements that must look like one (menu triggers). */
-  export function buttonClasses(variant: ButtonVariant = 'secondary', size: ButtonSize = 'md'): string {
+  export function buttonClasses(
+    variant: ButtonVariant = 'secondary',
+    size: ButtonSize = 'md',
+  ): string {
     return `${base} ${sizes[size]} ${variants[variant]}`;
   }
 </script>

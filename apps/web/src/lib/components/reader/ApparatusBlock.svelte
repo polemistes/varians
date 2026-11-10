@@ -29,7 +29,11 @@
     return first === last ? first : `${first}–${last}`;
   });
 
-  const split = $derived(new Map(segmentIds.map((id) => [id, splitEntries(entries.get(id) ?? [], conventions)] as const)));
+  const split = $derived(
+    new Map(
+      segmentIds.map((id) => [id, splitEntries(entries.get(id) ?? [], conventions)] as const),
+    ),
+  );
   const anyInterpretative = $derived([...split.values()].some((s) => s.interpretative.length > 0));
 </script>
 
@@ -37,13 +41,20 @@
   <div class="entries">
     {#each segmentIds as segmentId (segmentId)}
       {#each split.get(segmentId)?.main ?? [] as entry (entry.siteIndex)}
-        <ApparatusEntryView {entry} {conventions} siteKey={siteKey(segmentId, entry.siteIndex)} layout={side ? 'stacked' : 'inline'} />
+        <ApparatusEntryView
+          {entry}
+          {conventions}
+          siteKey={siteKey(segmentId, entry.siteIndex)}
+          layout={side ? 'stacked' : 'inline'}
+        />
       {/each}
       {#each segments[segmentId]?.unplaced ?? [] as attachment (attachment.id)}
         <span class={['unplaced', side && 'stacked']} dir="auto"
-          ><b class="label">{labelOf[segmentId]}</b>{' '}{#if attachment.text}<span class="reading">{attachment.text}</span>{' '}{/if}<span class="name"
-            >{attachment.name}</span
-          >{#if attachment.source}{' '}<span class="source">{attachment.source}</span>{/if}</span
+          ><b class="label">{labelOf[segmentId]}</b>{' '}{#if attachment.text}<span class="reading"
+              >{attachment.text}</span
+            >{' '}{/if}<span class="name">{attachment.name}</span>{#if attachment.source}{' '}<span
+              class="source">{attachment.source}</span
+            >{/if}</span
         >
       {/each}
     {/each}
@@ -53,7 +64,12 @@
       <span class="tier">{r.text.interpretative}</span>
       {#each segmentIds as segmentId (segmentId)}
         {#each split.get(segmentId)?.interpretative ?? [] as entry (entry.siteIndex)}
-          <ApparatusEntryView {entry} {conventions} siteKey={siteKey(segmentId, entry.siteIndex)} layout={side ? 'stacked' : 'inline'} />
+          <ApparatusEntryView
+            {entry}
+            {conventions}
+            siteKey={siteKey(segmentId, entry.siteIndex)}
+            layout={side ? 'stacked' : 'inline'}
+          />
         {/each}
       {/each}
     </div>
@@ -62,7 +78,10 @@
     {#each segments[segmentId]?.notes ?? [] as note (note.id)}
       <p class="note" dir="auto">
         <b class="label">{labelOf[segmentId]}</b>
-        {note.text}{#if note.cites?.length}{' '}({note.cites.join('; ')}){/if}{#if note.author}{' '}<span class="author">{r.text.noteBy(note.author)}</span>{/if}
+        {note.text}{#if note.cites?.length}{' '}({note.cites.join(
+            '; ',
+          )}){/if}{#if note.author}{' '}<span class="author">{r.text.noteBy(note.author)}</span
+          >{/if}
       </p>
     {/each}
   {/each}

@@ -8,10 +8,14 @@ const levels = [
 
 describe('passage URNs', () => {
   it('joins the address values by full stops after the work URN', () => {
-    expect(passageUrn('urn:cts:greekLit:tlg0012.tlg001', { book: '1', line: '5' }, levels)).toBe('urn:cts:greekLit:tlg0012.tlg001:1.5');
+    expect(passageUrn('urn:cts:greekLit:tlg0012.tlg001', { book: '1', line: '5' }, levels)).toBe(
+      'urn:cts:greekLit:tlg0012.tlg001:1.5',
+    );
   });
   it('stops at the first level without a value', () => {
-    expect(passageUrn('urn:cts:greekLit:tlg0012.tlg001', { book: '2' }, levels)).toBe('urn:cts:greekLit:tlg0012.tlg001:2');
+    expect(passageUrn('urn:cts:greekLit:tlg0012.tlg001', { book: '2' }, levels)).toBe(
+      'urn:cts:greekLit:tlg0012.tlg001:2',
+    );
   });
   it('gives nothing without a CTS URN of a work', () => {
     expect(passageUrn(null, { book: '1', line: '5' }, levels)).toBeNull();

@@ -23,7 +23,13 @@ const schema = z.object({
     .max(PASSWORD_MAX_LENGTH, s.auth.passwordTooLong),
 });
 
-type RegisterErrors = { name?: string[]; email?: string[]; password?: string[]; terms?: string[]; form?: string };
+type RegisterErrors = {
+  name?: string[];
+  email?: string[];
+  password?: string[];
+  terms?: string[];
+  form?: string;
+};
 
 export const load: PageServerLoad = ({ locals }) => {
   if (locals.user) redirect(303, '/');
@@ -48,12 +54,19 @@ export const actions: Actions = {
     }
     const address = getClientAddress();
     if (!limits.registerByAddress.take(address)) {
-      const errors: RegisterErrors = { form: s.auth.tooManyAttempts(Math.max(1, Math.ceil(limits.registerByAddress.retryAfter(address) / 60))) };
+      const errors: RegisterErrors = {
+        form: s.auth.tooManyAttempts(
+          Math.max(1, Math.ceil(limits.registerByAddress.retryAfter(address) / 60)),
+        ),
+      };
       return fail(429, { values, errors });
     }
     // With mail, the address is confirmed before the account can be used; without, the account is ready at once.
     const send = mailer();
-    const result = await register(parsed.data.email, parsed.data.name, parsed.data.password, { session: !send, termsVersion: TERMS_VERSION });
+    const result = await register(parsed.data.email, parsed.data.name, parsed.data.password, {
+      session: !send,
+      termsVersion: TERMS_VERSION,
+    });
     if (!result.ok) {
       const errors: RegisterErrors = { email: [s.auth.emailTaken] };
       return fail(400, { values, errors });
@@ -64,7 +77,10 @@ export const actions: Actions = {
         await sendVerification(locals.db, send, result.user, siteOf(url.origin));
         return { confirm: { email: result.user.email, sent: true } };
       } catch (error) {
-        console.error('The confirmation could not be sent:', error instanceof Error ? error.message : error);
+        console.error(
+          'The confirmation could not be sent:',
+          error instanceof Error ? error.message : error,
+        );
         return { confirm: { email: result.user.email, sent: false } };
       }
     }

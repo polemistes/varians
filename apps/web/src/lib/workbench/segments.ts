@@ -22,7 +22,10 @@ export interface SegmentInfo {
 }
 
 /** The nearest segment start strictly before an item, with the item carrying it; null when there is none. */
-export function startBefore(stream: Stream, itemId: Id): { itemId: Id; start: SegmentStart } | null {
+export function startBefore(
+  stream: Stream,
+  itemId: Id,
+): { itemId: Id; start: SegmentStart } | null {
   const index = stream.items.findIndex((item) => item.id === itemId);
   for (let i = (index < 0 ? stream.items.length : index) - 1; i >= 0; i--) {
     const item = stream.items[i]!;

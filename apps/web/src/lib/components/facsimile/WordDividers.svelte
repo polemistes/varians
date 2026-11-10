@@ -67,7 +67,12 @@
 
   let drag = $state<{ index: number; x: number } | null>(null);
 
-  const boundaries = $derived(boundariesOf(words.map((w) => w.rect), direction));
+  const boundaries = $derived(
+    boundariesOf(
+      words.map((w) => w.rect),
+      direction,
+    ),
+  );
 
   interface Placed {
     index: number;

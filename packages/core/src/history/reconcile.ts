@@ -65,7 +65,14 @@
  * made only on the other side) is placed by the item it was inserted after.
  */
 
-import { StreamError, isToken, type Id, type Item, type SegmentStart, type Stream } from '../stream/items.ts';
+import {
+  StreamError,
+  isToken,
+  type Id,
+  type Item,
+  type SegmentStart,
+  type Stream,
+} from '../stream/items.ts';
 import { applyOp, touchedIds, type Op } from '../stream/ops.ts';
 import type { Changeset } from './changeset.ts';
 
@@ -154,7 +161,11 @@ export function reconcile<C extends HistoryEntry = Changeset>(
   for (const c of local) requireParent(c, 'local');
   const chain = orderChain(incoming);
   const unknown = () => chain.filter((c) => !localById.has(c.id));
-  const refuse = (reason: ConflictReason, ids: Id[] = [], segments: Id[] = []): Reconciliation<C> => ({
+  const refuse = (
+    reason: ConflictReason,
+    ids: Id[] = [],
+    segments: Id[] = [],
+  ): Reconciliation<C> => ({
     kind: 'conflict',
     reason,
     ids,
@@ -164,7 +175,9 @@ export function reconcile<C extends HistoryEntry = Changeset>(
 
   if (chain.length === 0) return { kind: 'nothing', keep: [] };
 
-  const documents = new Set([...local, ...chain].map((c) => c.documentId).filter((d) => d !== undefined));
+  const documents = new Set(
+    [...local, ...chain].map((c) => c.documentId).filter((d) => d !== undefined),
+  );
   if (documents.size > 1) return refuse('unrelated');
   for (const c of chain) {
     const ours = localById.get(c.id);
@@ -175,11 +188,13 @@ export function reconcile<C extends HistoryEntry = Changeset>(
   if (localById.has(head.id)) return { kind: 'nothing', keep: unknown() };
 
   const ourHead = options.head !== undefined ? options.head : findHead(local);
-  if (ourHead !== null && !localById.has(ourHead)) throw new ReconcileError(`our head ${ourHead} is not in the local history`);
+  if (ourHead !== null && !localById.has(ourHead))
+    throw new ReconcileError(`our head ${ourHead} is not in the local history`);
 
   const graph = new Map<Id, C>(localById);
   for (const c of chain) if (!graph.has(c.id)) graph.set(c.id, c);
-  const ancestorsOf = (start: Id | null): Set<string> => ancestors(graph, start === null ? [ROOT] : [start]);
+  const ancestorsOf = (start: Id | null): Set<string> =>
+    ancestors(graph, start === null ? [ROOT] : [start]);
   const ourSide = ancestorsOf(ourHead);
   const theirSide = ancestorsOf(head.id);
   if (![...ourSide].some((id) => theirSide.has(id))) return refuse('unrelated');
@@ -203,7 +218,8 @@ export function reconcile<C extends HistoryEntry = Changeset>(
 
   if (base !== undefined && ourHead === base) {
     const applied = applyGuarded(content, theirs);
-    if (!applied.ok) return refuse('inapplicable', applied.ids, segmentsOf(applied.ids, content, [], theirs));
+    if (!applied.ok)
+      return refuse('inapplicable', applied.ids, segmentsOf(applied.ids, content, [], theirs));
     return { kind: 'fast-forward', apply: theirs, content: applied.stream };
   }
 
@@ -211,7 +227,10 @@ export function reconcile<C extends HistoryEntry = Changeset>(
   // changesets that are not ancestors of its parent.
   const folded = (c: C): { ids: Set<string>; unknown: boolean } => {
     const merged = c.merged ?? [];
-    const ids = ancestors(graph, merged.filter((m) => graph.has(m)));
+    const ids = ancestors(
+      graph,
+      merged.filter((m) => graph.has(m)),
+    );
     for (const id of ancestorsOf(c.parentId!)) ids.delete(id);
     return { ids, unknown: merged.some((m) => !graph.has(m)) };
   };
@@ -248,11 +267,16 @@ export function reconcile<C extends HistoryEntry = Changeset>(
   const missing = missingAnchors(content, effective);
   if (missing.length || overlap.length) {
     const ids = [...new Set([...missing, ...overlap])];
-    return refuse(missing.length ? 'missing-anchor' : 'overlap', ids, segmentsOf(ids, content, ours, theirs));
+    return refuse(
+      missing.length ? 'missing-anchor' : 'overlap',
+      ids,
+      segmentsOf(ids, content, ours, theirs),
+    );
   }
 
   const applied = applyGuarded(content, effective);
-  if (!applied.ok) return refuse('inapplicable', applied.ids, segmentsOf(applied.ids, content, ours, theirs));
+  if (!applied.ok)
+    return refuse('inapplicable', applied.ids, segmentsOf(applied.ids, content, ours, theirs));
   return {
     kind: 'merge',
     base: base ?? null,
@@ -274,7 +298,8 @@ function byId<C extends HistoryEntry>(list: C[], side: string): Map<Id, C> {
 }
 
 function requireParent(c: HistoryEntry, side: string): void {
-  if (c.parentId === undefined) throw new ReconcileError(`${side} changeset ${c.id} names no parent`);
+  if (c.parentId === undefined)
+    throw new ReconcileError(`${side} changeset ${c.id} names no parent`);
 }
 
 /** The incoming changesets in chain order, or an error when they are not one chain. */
@@ -287,14 +312,19 @@ function orderChain<C extends HistoryEntry>(incoming: C[]): C[] {
     requireParent(c, 'incoming');
     const parent = c.parentId!;
     if (parent !== null && map.has(parent)) {
-      if (childOf.has(parent)) throw new ReconcileError(`incoming history is not a chain: two changesets stand on ${parent}`);
+      if (childOf.has(parent))
+        throw new ReconcileError(
+          `incoming history is not a chain: two changesets stand on ${parent}`,
+        );
       childOf.set(parent, c);
     } else starts.push(c);
   }
-  if (starts.length !== 1) throw new ReconcileError(`incoming history is not a chain: it has ${starts.length} beginnings`);
+  if (starts.length !== 1)
+    throw new ReconcileError(`incoming history is not a chain: it has ${starts.length} beginnings`);
   const out: C[] = [];
   for (let c: C | undefined = starts[0]; c; c = childOf.get(c.id)) out.push(c);
-  if (out.length !== incoming.length) throw new ReconcileError('incoming history is not a chain: it has a cycle');
+  if (out.length !== incoming.length)
+    throw new ReconcileError('incoming history is not a chain: it has a cycle');
   return out;
 }
 
@@ -340,7 +370,13 @@ function ancestors(graph: Map<Id, HistoryEntry>, starts: string[]): Set<string> 
 function joinPartners(c: HistoryEntry): Map<Id, Set<Id>> {
   const out = new Map<Id, Set<Id>>();
   for (const op of c.reverse) {
-    if (op.t !== 'replace' || op.ids.length !== 1 || op.items.length !== 2 || op.items[0]!.id !== op.ids[0]) continue;
+    if (
+      op.t !== 'replace' ||
+      op.ids.length !== 1 ||
+      op.items.length !== 2 ||
+      op.items[0]!.id !== op.ids[0]
+    )
+      continue;
     const set = out.get(op.ids[0]!) ?? new Set<Id>();
     set.add(op.items[1]!.id);
     out.set(op.ids[0]!, set);
@@ -421,7 +457,10 @@ function applyGuarded(content: Stream, changesets: HistoryEntry[]): Guarded {
         const at = stream.items.findIndex((i) => i.id === op.id);
         const next = at >= 0 ? stream.items[at + 1] : undefined;
         if (candidates && (!next || !candidates.has(next.id))) {
-          return { ok: false, ids: [op.id, ...(next && isToken(next) ? [next.id] : []), ...candidates] };
+          return {
+            ok: false,
+            ids: [op.id, ...(next && isToken(next) ? [next.id] : []), ...candidates],
+          };
         }
       }
       try {
@@ -429,7 +468,8 @@ function applyGuarded(content: Stream, changesets: HistoryEntry[]): Guarded {
         stream = result.stream;
         reverse.unshift(...result.reverse);
       } catch (error) {
-        if (error instanceof StreamError) return { ok: false, ids: error.ids.length ? error.ids : touchedIds(op) };
+        if (error instanceof StreamError)
+          return { ok: false, ids: error.ids.length ? error.ids : touchedIds(op) };
         throw error;
       }
     }
@@ -443,7 +483,12 @@ function applyGuarded(content: Stream, changesets: HistoryEntry[]): Guarded {
  * from our reverse operations (which reinsert what we deleted) and their
  * operations (which insert what they made).
  */
-function segmentsOf(ids: Id[], content: Stream, ours: HistoryEntry[], theirs: HistoryEntry[]): Id[] {
+function segmentsOf(
+  ids: Id[],
+  content: Stream,
+  ours: HistoryEntry[],
+  theirs: HistoryEntry[],
+): Id[] {
   const index = new Map<Id, number>();
   content.items.forEach((item, i) => index.set(item.id, i));
   const anchor = new Map<Id, Id | null>();
@@ -453,7 +498,8 @@ function segmentsOf(ids: Id[], content: Stream, ours: HistoryEntry[], theirs: Hi
         if (!anchor.has(item.id)) anchor.set(item.id, k === 0 ? op.after : op.items[k - 1]!.id);
       });
     } else if (op.t === 'replace') {
-      for (const item of op.items) if (item.id !== op.ids[0] && !anchor.has(item.id)) anchor.set(item.id, op.ids[0]!);
+      for (const item of op.items)
+        if (item.id !== op.ids[0] && !anchor.has(item.id)) anchor.set(item.id, op.ids[0]!);
     } else if (op.t === 'split') {
       if (!anchor.has(op.newId)) anchor.set(op.newId, op.id);
     }

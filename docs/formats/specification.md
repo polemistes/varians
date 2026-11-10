@@ -2,7 +2,7 @@
 
 This document specifies how Varians writes a scholarly work, its witnesses, transcriptions and editions as files: the archive of one work, and the package that carries one or more archives between installations. It is written so that the files can be read, checked and rebuilt without Varians, and so that another program can write files that Varians reads.
 
-The key words *must*, *must not*, *should* and *may* are to be read as in RFC 2119. A *writer* is a program that writes files of this format; a *reader* is one that reads them.
+The key words _must_, _must not_, _should_ and _may_ are to be read as in RFC 2119. A _writer_ is a program that writes files of this format; a _reader_ is one that reads them.
 
 Address of this version: `https://varians.eu/formats/2/`. Every installation of Varians serves the same documents at `/formats/2/`.
 
@@ -73,27 +73,27 @@ Each file below lists its members. The schema is the full statement; types are g
 
 ### 4.1 `work.json`
 
-| Member | |
-|---|---|
-| `formatVersion` | `2`. |
-| `id`, `slug`, `title` | The work's id, its slug (lower-case letters, digits and hyphens) and its title. |
-| `author` | The author as cited, or null. |
-| `language` | A language code (ISO 639-3 where one exists): `grc`, `lat`, `la`, `heb`, `ara`, `san`. |
-| `identifier` | The work's primary CTS URN, or null. |
-| `identifiers` | Further canonical identifiers: a list of `{ scheme, value }` (section 7). |
-| `description` | Free text, or null. |
-| `visibility` | `public` or `private`. |
-| `scheme` | The reference scheme: `{ id, name, levels, createdBy, createdAt }`, where `levels` is a list of `{ key, label, type, separator }` and `type` is `number`, `roman`, `letter` or `text`. |
-| `profile` | The normalization profile: `language`, `fold` (the folding options: what collation ignores), `lowercaseCapitals`, `finalSigma`, `expandAbbreviations`, `latinUV`. |
-| `maintainers` | The accounts that maintain the work here: `{ id, name, since }`. |
-| `licence` | The licence of the records in this archive that have no licence of their own (conjectures, reported readings, notes), as an SPDX identifier (section 10). |
-| `createdBy`, `createdAt` | The account that registered the work, and when. |
+| Member                   |                                                                                                                                                                                        |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `formatVersion`          | `2`.                                                                                                                                                                                   |
+| `id`, `slug`, `title`    | The work's id, its slug (lower-case letters, digits and hyphens) and its title.                                                                                                        |
+| `author`                 | The author as cited, or null.                                                                                                                                                          |
+| `language`               | A language code (ISO 639-3 where one exists): `grc`, `lat`, `la`, `heb`, `ara`, `san`.                                                                                                 |
+| `identifier`             | The work's primary CTS URN, or null.                                                                                                                                                   |
+| `identifiers`            | Further canonical identifiers: a list of `{ scheme, value }` (section 7).                                                                                                              |
+| `description`            | Free text, or null.                                                                                                                                                                    |
+| `visibility`             | `public` or `private`.                                                                                                                                                                 |
+| `scheme`                 | The reference scheme: `{ id, name, levels, createdBy, createdAt }`, where `levels` is a list of `{ key, label, type, separator }` and `type` is `number`, `roman`, `letter` or `text`. |
+| `profile`                | The normalization profile: `language`, `fold` (the folding options: what collation ignores), `lowercaseCapitals`, `finalSigma`, `expandAbbreviations`, `latinUV`.                      |
+| `maintainers`            | The accounts that maintain the work here: `{ id, name, since }`.                                                                                                                       |
+| `licence`                | The licence of the records in this archive that have no licence of their own (conjectures, reported readings, notes), as an SPDX identifier (section 10).                              |
+| `createdBy`, `createdAt` | The account that registered the work, and when.                                                                                                                                        |
 
 ### 4.2 `persons.json`
 
 `{ "persons": [ { "id", "name", "orcid" } ] }`: every person a file of the archive refers to by `personId`, `createdBy` of a moment, or the like. `orcid` is the 19-character form (`0000-0002-1825-0097`) or null; a reader should check its checksum (ISO 7064 MOD 11-2). A person is not an account: they may have no account on any installation.
 
-People appear in two ways. *Persons* made or did something: changesets, moments, notes, collaborators, site reviews, site kinds and review positions name them by `personId`. *Accounts* own or maintain records on the installation that wrote the archive (`ownerId`, `maintainers`, `createdBy` of registry records); they are given with `id` and `name` for reading, and do not travel between installations: an importer gives records whose owner has no account there to the person importing.
+People appear in two ways. _Persons_ made or did something: changesets, moments, notes, collaborators, site reviews, site kinds and review positions name them by `personId`. _Accounts_ own or maintain records on the installation that wrote the archive (`ownerId`, `maintainers`, `createdBy` of registry records); they are given with `id` and `name` for reading, and do not travel between installations: an importer gives records whose owner has no account there to the person importing.
 
 ### 4.3 `segments.tsv`
 
@@ -157,17 +157,17 @@ The **stream** is the text, `{ "items": [...] }`, an ordered list of items, each
 
 Every change to a document's text is a changeset; a document's history is all of them. One line per changeset, in the order of the installation that wrote the archive:
 
-| Member | |
-|---|---|
-| `id` | The changeset's id, kept on every installation it reaches. |
-| `parentId` | The changeset this one was made on, or null for the document's first. |
-| `merged` | For a merge changeset: the ids of the changesets it brings in. Absent otherwise. |
-| `version` | The changeset's place in this installation's applied order (1, 2, ...), or null for a changeset kept for its provenance and not applied here. |
-| `personId` | Who made it, or null. |
-| `at` | When. |
-| `ops` | The operations, in order. |
-| `reverse` | The operations that undo it, in order. |
-| `message` | A note on the change, or null. |
+| Member     |                                                                                                                                               |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`       | The changeset's id, kept on every installation it reaches.                                                                                    |
+| `parentId` | The changeset this one was made on, or null for the document's first.                                                                         |
+| `merged`   | For a merge changeset: the ids of the changesets it brings in. Absent otherwise.                                                              |
+| `version`  | The changeset's place in this installation's applied order (1, 2, ...), or null for a changeset kept for its provenance and not applied here. |
+| `personId` | Who made it, or null.                                                                                                                         |
+| `at`       | When.                                                                                                                                         |
+| `ops`      | The operations, in order.                                                                                                                     |
+| `reverse`  | The operations that undo it, in order.                                                                                                        |
+| `message`  | A note on the change, or null.                                                                                                                |
 
 The changesets with a version form a chain: each one's `parentId` (or, for a merge, its `parentId` and its `merged`) is earlier in the file. Applying the `ops` of the changesets with a version, in version order, to an empty stream must give the document's `content`; applying a changeset's `reverse` to the result of its `ops` undoes it. `head` in the document's file is the id of the changeset with the highest version.
 
@@ -175,24 +175,24 @@ The changesets with a version form a chain: each one's `parentId` (or, for a mer
 
 An operation is an object with `t`:
 
-| `t` | Members | Effect |
-|---|---|---|
-| `insert` | `after`, `items` | Insert the items after the item `after`, or at the start when `after` is null. |
-| `delete` | `ids` | Remove the items. |
-| `set` | `id`, `fields` | Change fields of one item; a field set to null is removed. |
-| `move` | `ids`, `after` | Move a contiguous run of items to stand after `after` (null: the start). |
-| `split` | `id`, `at`, `newId`, `join` | Divide a token's written form at code point `at`; the first part keeps `id`, the second gets `newId`; `join` marks the two as one word. |
-| `join` | `id` | Fuse a token with the token that follows it. |
-| `replace` | `ids`, `items` | Replace a contiguous run of items by other items, keeping the ids the new items carry. |
+| `t`       | Members                     | Effect                                                                                                                                  |
+| --------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `insert`  | `after`, `items`            | Insert the items after the item `after`, or at the start when `after` is null.                                                          |
+| `delete`  | `ids`                       | Remove the items.                                                                                                                       |
+| `set`     | `id`, `fields`              | Change fields of one item; a field set to null is removed.                                                                              |
+| `move`    | `ids`, `after`              | Move a contiguous run of items to stand after `after` (null: the start).                                                                |
+| `split`   | `id`, `at`, `newId`, `join` | Divide a token's written form at code point `at`; the first part keeps `id`, the second gets `newId`; `join` marks the two as one word. |
+| `join`    | `id`                        | Fuse a token with the token that follows it.                                                                                            |
+| `replace` | `ids`, `items`              | Replace a contiguous run of items by other items, keeping the ids the new items carry.                                                  |
 
 ### 5.3 Reconciling two histories
 
 When a document arrives from another installation (an import, a package, a pull), the reader compares the two histories by changeset id:
 
-- *Nothing to do:* every incoming changeset is known.
-- *Fast-forward:* the reader's head is an ancestor of the incoming head (following `parentId` and `merged`); the incoming changesets after it are applied in order, keeping their ids, persons, times and parents, and get local versions.
-- *Merge:* both sides have changesets after their common ancestor, the item ids the two sides touch are disjoint, and every item the incoming operations name exists in the reader's text. The result is one merge changeset by the person importing, with the incoming operations applied on the reader's text, `parentId` the reader's head and `merged` the incoming ids; the incoming changesets are stored with `version` null.
-- *Conflict:* the two sides touch the same items, or an incoming operation names an item the reader has deleted. A conforming reader must not resolve a conflict by guessing: it leaves its document as it is and reports the segments concerned. It may then, on the person's choice, keep its own text (storing the incoming changesets with `version` null) or take the incoming text (as a new changeset of the person importing, keeping its prior state as a named moment).
+- _Nothing to do:_ every incoming changeset is known.
+- _Fast-forward:_ the reader's head is an ancestor of the incoming head (following `parentId` and `merged`); the incoming changesets after it are applied in order, keeping their ids, persons, times and parents, and get local versions.
+- _Merge:_ both sides have changesets after their common ancestor, the item ids the two sides touch are disjoint, and every item the incoming operations name exists in the reader's text. The result is one merge changeset by the person importing, with the incoming operations applied on the reader's text, `parentId` the reader's head and `merged` the incoming ids; the incoming changesets are stored with `version` null.
+- _Conflict:_ the two sides touch the same items, or an incoming operation names an item the reader has deleted. A conforming reader must not resolve a conflict by guessing: it leaves its document as it is and reports the segments concerned. It may then, on the person's choice, keep its own text (storing the incoming changesets with `version` null) or take the incoming text (as a new changeset of the person importing, keeping its prior state as a named moment).
 
 A reader must never overwrite a document's text silently.
 
@@ -213,15 +213,15 @@ A reader must never overwrite a document's text silently.
 
 Works and witnesses carry `identifiers`, a list of `{ scheme, value }`, with `scheme` one of:
 
-| Scheme | Value |
-|---|---|
-| `cts` | A CTS URN of a work (`urn:cts:greekLit:tlg0012.tlg001`). |
-| `diktyon` | A Pinakes/Diktyon number of a Greek manuscript. |
+| Scheme         | Value                                                           |
+| -------------- | --------------------------------------------------------------- |
+| `cts`          | A CTS URN of a work (`urn:cts:greekLit:tlg0012.tlg001`).        |
+| `diktyon`      | A Pinakes/Diktyon number of a Greek manuscript.                 |
 | `trismegistos` | A Trismegistos number (texts and objects of the ancient world). |
-| `wikidata` | A Wikidata item (`Q8275`). |
-| `viaf` | A VIAF identifier. |
-| `url` | An address that identifies the record. |
-| `other` | Anything else; the value says what. |
+| `wikidata`     | A Wikidata item (`Q8275`).                                      |
+| `viaf`         | A VIAF identifier.                                              |
+| `url`          | An address that identifies the record.                          |
+| `other`        | Anything else; the value says what.                             |
 
 On import, a work or witness whose id is unknown is matched to an existing one by any identifier of the same scheme and value before a new one is made.
 
@@ -256,7 +256,7 @@ A reader must verify the checksums before reading, and must refuse a package who
 
 ### 9.3 Scopes
 
-A package holds a *work* (the archive as the person making it may see it), an *edition* (the work's own files, the witnesses of its conspectus with their pages and copyable images, and the transcriptions it names, at the versions its published version was collated against, with history up to them), a *transcription* (with its works' own files, its witness, pages and images), a *set* of these, or a whole *installation*. A partial package carries what its records depend on, at the versions they need.
+A package holds a _work_ (the archive as the person making it may see it), an _edition_ (the work's own files, the witnesses of its conspectus with their pages and copyable images, and the transcriptions it names, at the versions its published version was collated against, with history up to them), a _transcription_ (with its works' own files, its witness, pages and images), a _set_ of these, or a whole _installation_. A partial package carries what its records depend on, at the versions they need.
 
 Importing a package is reconciling its documents as section 5.3 says, matching registry records by id and identifiers (section 7), and persons by id, then ORCID (section 4.2).
 

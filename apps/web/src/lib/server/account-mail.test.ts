@@ -41,7 +41,12 @@ let outbox: Outbox;
 
 beforeAll(async () => {
   ({ db, pool } = createDatabase(url));
-  await db.insert(users).values({ id: userId, email, name: 'Ada Reader', passwordHash: await hashPassword('old password') });
+  await db.insert(users).values({
+    id: userId,
+    email,
+    name: 'Ada Reader',
+    passwordHash: await hashPassword('old password'),
+  });
 });
 
 beforeEach(() => {
@@ -56,7 +61,9 @@ afterAll(async () => {
 describe('links', () => {
   it('are made from the origin, never doubled slashes', () => {
     expect(linkTo(site, 'reset', 'abc')).toBe('https://editions.example.org/reset/abc');
-    expect(linkTo({ ...site, origin: 'https://editions.example.org/' }, 'verify', 'abc')).toBe('https://editions.example.org/verify/abc');
+    expect(linkTo({ ...site, origin: 'https://editions.example.org/' }, 'verify', 'abc')).toBe(
+      'https://editions.example.org/verify/abc',
+    );
   });
 });
 
@@ -79,7 +86,9 @@ describe('asking for a new password', () => {
   });
 
   it('sets the new password with the link, once, and signs out every session', async () => {
-    await db.insert(sessions).values({ id: `s-${userId}`, userId, expiresAt: new Date(Date.now() + 86_400_000) });
+    await db
+      .insert(sessions)
+      .values({ id: `s-${userId}`, userId, expiresAt: new Date(Date.now() + 86_400_000) });
     await db.update(users).set({ emailVerifiedAt: null }).where(eq(users.id, userId));
     await requestPasswordReset(db, outbox, email, site);
     const token = outbox.token('reset');
@@ -98,9 +107,18 @@ describe('asking for a new password', () => {
 
   it('refuses an expired link, and a confirmation link', async () => {
     const past = new Date(Date.now() - 2 * TOKEN_TTL_MS.reset);
-    const expired = await issueEmailToken(db, { userId, email, purpose: 'reset', ttlMs: TOKEN_TTL_MS.reset }, past);
+    const expired = await issueEmailToken(
+      db,
+      { userId, email, purpose: 'reset', ttlMs: TOKEN_TTL_MS.reset },
+      past,
+    );
     expect(await resetPassword(db, expired.token, 'never set')).toBeNull();
-    const verify = await issueEmailToken(db, { userId, email, purpose: 'verify', ttlMs: TOKEN_TTL_MS.verify });
+    const verify = await issueEmailToken(db, {
+      userId,
+      email,
+      purpose: 'verify',
+      ttlMs: TOKEN_TTL_MS.verify,
+    });
     expect(await resetPassword(db, verify.token, 'never set')).toBeNull();
   });
 });
@@ -111,7 +129,9 @@ describe('links from an administrator', () => {
     expect(sent?.name).toBe('Ada Reader');
     expect(outbox.messages[0]!.text).toContain('An administrator of Varians Test');
     expect(outbox.messages[0]!.text).toContain('valid for a day');
-    expect(await resetPassword(db, outbox.token('reset'), 'from the administrator')).toEqual({ userId });
+    expect(await resetPassword(db, outbox.token('reset'), 'from the administrator')).toEqual({
+      userId,
+    });
   });
 
   it('are made for the command line without mail', async () => {
@@ -137,7 +157,12 @@ describe('confirming an address', () => {
   });
 
   it('does not confirm with a reset link', async () => {
-    const reset = await issueEmailToken(db, { userId, email, purpose: 'reset', ttlMs: TOKEN_TTL_MS.reset });
+    const reset = await issueEmailToken(db, {
+      userId,
+      email,
+      purpose: 'reset',
+      ttlMs: TOKEN_TTL_MS.reset,
+    });
     expect(await confirmEmail(db, reset.token)).toBe(false);
   });
 

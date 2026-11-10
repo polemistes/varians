@@ -17,7 +17,11 @@
 
 <li class="flex flex-wrap items-baseline gap-x-6 gap-y-1 px-4 py-3 sm:flex-nowrap">
   <div class="min-w-0 flex-1">
-    <a {href} class="font-serif text-lg leading-snug text-ink transition-colors hover:text-accent hover:underline">{title}</a>
+    <a
+      {href}
+      class="font-serif text-lg leading-snug text-ink transition-colors hover:text-accent hover:underline"
+      >{title}</a
+    >
     {#if subtitle}
       <p class="mt-0.5 font-sans text-xs text-ink-soft">
         {#if subtitleHref}

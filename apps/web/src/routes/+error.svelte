@@ -5,11 +5,23 @@
   import { s } from '$lib/strings';
 
   /** The default texts SvelteKit gives when the server named no reason. */
-  const GENERIC = new Set(['Not Found', 'Forbidden', 'Unauthorized', 'Bad Request', 'Internal Error']);
+  const GENERIC = new Set([
+    'Not Found',
+    'Forbidden',
+    'Unauthorized',
+    'Bad Request',
+    'Internal Error',
+  ]);
 
   const text = $derived.by(() => {
     // A reason the server gave for refusing ("Only maintainers manage the pages") says more than the generic text.
-    const reason = page.status >= 400 && page.status < 500 && page.error?.message && !GENERIC.has(page.error.message) ? page.error.message : null;
+    const reason =
+      page.status >= 400 &&
+      page.status < 500 &&
+      page.error?.message &&
+      !GENERIC.has(page.error.message)
+        ? page.error.message
+        : null;
     switch (page.status) {
       case 404:
         return { title: s.errors.notFoundTitle, body: reason ?? s.errors.notFoundText };
@@ -30,7 +42,8 @@
 <PageFrame title={text.title} width="narrow">
   <p class="font-serif text-reading text-ink-soft">{text.body}</p>
   <p class="mt-3 font-sans text-xs text-ink-muted">
-    {s.errors.status(page.status)}{#if page.error?.message && page.status >= 500}: {page.error.message}{/if}
+    {s.errors.status(page.status)}{#if page.error?.message && page.status >= 500}: {page.error
+        .message}{/if}
   </p>
   <div class="mt-8">
     <Button href="/" variant="secondary">{s.common.backToLibrary}</Button>

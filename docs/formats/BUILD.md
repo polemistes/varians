@@ -10,13 +10,13 @@ The script needs Java (11 or later, as Saxon 12 does), `curl`, `unzip`, `sha256s
 
 ## Versions
 
-| Tool | Version | Source | SHA-256 |
-|---|---|---|---|
-| TEI Stylesheets | 7.61.0 (28 July 2026) | https://github.com/TEIC/Stylesheets/releases/download/v7.61.0/tei-xsl-7.61.0.zip | `1a6cd1043af5adb3c5a8c1b2ec0b6abb7d0f241cd8725e233d691b3ca2f312bf` |
-| TEI P5 source, `p5subset.xml` | 4.12.0 (28 July 2026) | https://www.tei-c.org/Vault/P5/4.12.0/xml/tei/odd/p5subset.xml (the same file as in `tei-4.12.0.zip` of the release) | `5b89720edc6f3821ab3d0aa242aa5dc922bfbafabfb103d2de9d211001c33e26` |
-| Saxon-HE | 12.9 | https://repo1.maven.org/maven2/net/sf/saxon/Saxon-HE/12.9/Saxon-HE-12.9.jar | `8f3a9216a537367132293eacbba9df062eace8f8b16a184af59e2e4839d4cd41` |
-| XML Resolver (needed by Saxon 12) | 5.3.3 | https://repo1.maven.org/maven2/org/xmlresolver/xmlresolver/5.3.3/xmlresolver-5.3.3.jar | `1fe4d5b92f708dcdb82dbce12919e0171e6b5ca62c6dca6220483625098feb5f` |
-| `tei_all.rng`, for the tests only | 4.12.0 | https://www.tei-c.org/Vault/P5/4.12.0/xml/tei/custom/schema/relaxng/tei_all.rng | `b0f115095ead2ccc6933aa3365c6f4a82cba3b2ec7eee7f76bb616d7a63b7e48` |
+| Tool                              | Version               | Source                                                                                                               | SHA-256                                                            |
+| --------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| TEI Stylesheets                   | 7.61.0 (28 July 2026) | https://github.com/TEIC/Stylesheets/releases/download/v7.61.0/tei-xsl-7.61.0.zip                                     | `1a6cd1043af5adb3c5a8c1b2ec0b6abb7d0f241cd8725e233d691b3ca2f312bf` |
+| TEI P5 source, `p5subset.xml`     | 4.12.0 (28 July 2026) | https://www.tei-c.org/Vault/P5/4.12.0/xml/tei/odd/p5subset.xml (the same file as in `tei-4.12.0.zip` of the release) | `5b89720edc6f3821ab3d0aa242aa5dc922bfbafabfb103d2de9d211001c33e26` |
+| Saxon-HE                          | 12.9                  | https://repo1.maven.org/maven2/net/sf/saxon/Saxon-HE/12.9/Saxon-HE-12.9.jar                                          | `8f3a9216a537367132293eacbba9df062eace8f8b16a184af59e2e4839d4cd41` |
+| XML Resolver (needed by Saxon 12) | 5.3.3                 | https://repo1.maven.org/maven2/org/xmlresolver/xmlresolver/5.3.3/xmlresolver-5.3.3.jar                               | `1fe4d5b92f708dcdb82dbce12919e0171e6b5ca62c6dca6220483625098feb5f` |
+| `tei_all.rng`, for the tests only | 4.12.0                | https://www.tei-c.org/Vault/P5/4.12.0/xml/tei/custom/schema/relaxng/tei_all.rng                                      | `b0f115095ead2ccc6933aa3365c6f4a82cba3b2ec7eee7f76bb616d7a63b7e48` |
 
 The Stylesheets and the P5 source are of the same TEI release. To move to a later release, change the versions and sums in `build-rng.sh`, rebuild, run the tests, and record the change in the changelog of the format.
 

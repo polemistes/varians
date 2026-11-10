@@ -47,7 +47,14 @@
         if (result.type === 'success') {
           const summary = (result.data as { summary?: Summary } | undefined)?.summary;
           if (summary) {
-            toasts.success(t.importDialog.summary(summary.created.length, summary.updated.length, summary.unchanged.length, summary.kept.length));
+            toasts.success(
+              t.importDialog.summary(
+                summary.created.length,
+                summary.updated.length,
+                summary.unchanged.length,
+                summary.kept.length,
+              ),
+            );
             warnings = summary.warnings;
           }
           if (!summary?.warnings.length) open = false;
@@ -65,14 +72,27 @@
       </Notice>
     {/if}
     <Field label={t.importDialog.file}>
-      {#snippet children(control)}<Input {...control} type="file" name="file" accept=".bib,.bibtex,text/plain" />{/snippet}
+      {#snippet children(control)}<Input
+          {...control}
+          type="file"
+          name="file"
+          accept=".bib,.bibtex,text/plain"
+        />{/snippet}
     </Field>
     <Field label={t.importDialog.text}>
-      {#snippet children(control)}<Textarea {...control} name="text" rows={8} spellcheck={false} class="font-mono text-xs" />{/snippet}
+      {#snippet children(control)}<Textarea
+          {...control}
+          name="text"
+          rows={8}
+          spellcheck={false}
+          class="font-mono text-xs"
+        />{/snippet}
     </Field>
   </form>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (open = false)}>{t.importDialog.cancel}</Button>
-    <Button variant="primary" type="submit" form="bib-import-form" loading={busy}>{t.importDialog.run}</Button>
+    <Button variant="primary" type="submit" form="bib-import-form" loading={busy}
+      >{t.importDialog.run}</Button
+    >
   {/snippet}
 </Dialog>

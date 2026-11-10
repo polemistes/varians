@@ -12,7 +12,8 @@ export const bibStrings = {
   import: 'Import .bib',
   download: 'Download .bib',
   clear: 'Clear',
-  count: (shown: number, total: number) => (shown === total ? plural(total, 'entry', 'entries') : `${shown} of ${total} entries`),
+  count: (shown: number, total: number) =>
+    shown === total ? plural(total, 'entry', 'entries') : `${shown} of ${total} entries`,
   empty: 'The bibliography is empty',
   noResults: (q: string) => `Nothing matches “${q}”.`,
   cited: (n: number) => (n === 0 ? 'Not cited yet' : `Cited ${plural(n, 'time', 'times')}`),
@@ -26,9 +27,11 @@ export const bibStrings = {
   entry: {
     addTitle: 'Add an entry',
     editTitle: 'Edit the entry',
-    description: 'The label the apparatus cites by, such as “West 1998”, is made from the names and the year.',
+    description:
+      'The label the apparatus cites by, such as “West 1998”, is made from the names and the year.',
     field: 'biblatex',
-    template: '@book{key,\n  author = {Family, Given},\n  title = {Title},\n  date = {2000},\n  location = {Place},\n  publisher = {Publisher},\n}',
+    template:
+      '@book{key,\n  author = {Family, Given},\n  title = {Title},\n  date = {2000},\n  location = {Place},\n  publisher = {Publisher},\n}',
     save: 'Save',
     cancel: 'Cancel',
     saved: 'Entry saved.',
@@ -36,7 +39,8 @@ export const bibStrings = {
 
   importDialog: {
     title: 'Import a .bib file',
-    description: 'Entries with new keys are added. Your own entries with a key that exists are updated; entries someone else added are kept as they are.',
+    description:
+      'Entries with new keys are added. Your own entries with a key that exists are updated; entries someone else added are kept as they are.',
     file: 'File',
     text: 'Or paste biblatex',
     run: 'Import',
@@ -58,7 +62,8 @@ export const bibStrings = {
     description: 'The entry leaves the bibliography for everyone.',
     confirm: 'Delete',
     cancel: 'Cancel',
-    cited: (n: number) => `It is cited ${plural(n, 'time', 'times')}; remove those citations first.`,
+    cited: (n: number) =>
+      `It is cited ${plural(n, 'time', 'times')}; remove those citations first.`,
     forbidden: 'Only whoever added the entry, or a site editor, may delete it.',
     deleted: 'Entry deleted.',
   },

@@ -26,5 +26,7 @@
   >
     <div class="h-full rounded-full bg-accent/70" style:width="{Math.round(share * 100)}%"></div>
   </div>
-  <span class="min-w-32 whitespace-nowrap tabular-nums" aria-hidden="true">{registry.work.coverage(n, total)}</span>
+  <span class="min-w-32 whitespace-nowrap tabular-nums" aria-hidden="true"
+    >{registry.work.coverage(n, total)}</span
+  >
 </div>

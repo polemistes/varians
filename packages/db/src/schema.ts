@@ -48,11 +48,24 @@ export const VISIBILITIES = ['draft', 'published'] as const;
 export type Visibility = (typeof VISIBILITIES)[number];
 export const WORK_VISIBILITIES = ['public', 'private'] as const;
 /** What a witness's carrier is. The material (papyrus, parchment, paper) and the format (codex, roll) are fields of their own. */
-export const WITNESS_CATEGORIES = ['manuscript', 'inscription', 'edition', 'indirect', 'other'] as const;
+export const WITNESS_CATEGORIES = [
+  'manuscript',
+  'inscription',
+  'edition',
+  'indirect',
+  'other',
+] as const;
 /** The physical format of a manuscript. */
 export const WITNESS_FORMATS = ['codex', 'roll', 'sheet', 'unknown'] as const;
 export type WitnessFormat = (typeof WITNESS_FORMATS)[number];
-export const CONJECTURE_KINDS = ['substitution', 'deletion', 'addition', 'lacuna', 'supplement', 'transposition'] as const;
+export const CONJECTURE_KINDS = [
+  'substitution',
+  'deletion',
+  'addition',
+  'lacuna',
+  'supplement',
+  'transposition',
+] as const;
 export type ConjectureKind = (typeof CONJECTURE_KINDS)[number];
 export const DOCUMENT_KINDS = ['transcription', 'edition'] as const;
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
@@ -71,7 +84,10 @@ export const users = pgTable(
     /** The version of the terms of contribution the person accepted, and when. */
     termsVersion: integer(),
     termsAcceptedAt: timestamp({ withTimezone: true }),
-    preferences: jsonb().$type<{ font?: string; theme?: 'light' | 'dark' | 'system' }>().notNull().default({}),
+    preferences: jsonb()
+      .$type<{ font?: string; theme?: 'light' | 'dark' | 'system' }>()
+      .notNull()
+      .default({}),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -95,13 +111,25 @@ export const persons = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
-    uniqueIndex('persons_orcid_idx').on(t.orcid).where(sql`${t.orcid} is not null`),
-    uniqueIndex('persons_user_idx').on(t.userId).where(sql`${t.userId} is not null`),
+    uniqueIndex('persons_orcid_idx')
+      .on(t.orcid)
+      .where(sql`${t.orcid} is not null`),
+    uniqueIndex('persons_user_idx')
+      .on(t.userId)
+      .where(sql`${t.userId} is not null`),
   ],
 );
 
 /** A canonical identifier of a work or witness. */
-export const IDENTIFIER_SCHEMES = ['cts', 'diktyon', 'trismegistos', 'wikidata', 'viaf', 'url', 'other'] as const;
+export const IDENTIFIER_SCHEMES = [
+  'cts',
+  'diktyon',
+  'trismegistos',
+  'wikidata',
+  'viaf',
+  'url',
+  'other',
+] as const;
 export type IdentifierScheme = (typeof IDENTIFIER_SCHEMES)[number];
 export interface CanonicalIdentifier {
   scheme: IdentifierScheme;
@@ -211,7 +239,10 @@ export const segments = pgTable(
     sortKey: text().notNull(),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex('segments_work_label_idx').on(t.workId, t.label), index('segments_work_sort_idx').on(t.workId, t.sortKey)],
+  (t) => [
+    uniqueIndex('segments_work_label_idx').on(t.workId, t.label),
+    index('segments_work_sort_idx').on(t.workId, t.sortKey),
+  ],
 );
 
 /** A hand of a witness, as the catalogues cite it; `main` marks the scribe of the text. */
@@ -321,7 +352,10 @@ export const bibliographyItems = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [uniqueIndex('bibliography_key_idx').on(t.citationKey), index('bibliography_label_idx').on(t.label)],
+  (t) => [
+    uniqueIndex('bibliography_key_idx').on(t.citationKey),
+    index('bibliography_label_idx').on(t.label),
+  ],
 );
 
 // Owned records
@@ -358,7 +392,10 @@ export const transcriptions = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index('transcriptions_witness_idx').on(t.witnessId), index('transcriptions_owner_idx').on(t.ownerId)],
+  (t) => [
+    index('transcriptions_witness_idx').on(t.witnessId),
+    index('transcriptions_owner_idx').on(t.ownerId),
+  ],
 );
 
 /** Derived from a transcription's content on every save: which segments it has, and the fold text of each run. */
@@ -379,7 +416,10 @@ export const transcriptionWorks = pgTable(
       .references(() => works.id, { onDelete: 'cascade' }),
     position: integer().notNull().default(0),
   },
-  (t) => [primaryKey({ columns: [t.transcriptionId, t.workId] }), index('transcription_works_work_idx').on(t.workId)],
+  (t) => [
+    primaryKey({ columns: [t.transcriptionId, t.workId] }),
+    index('transcription_works_work_idx').on(t.workId),
+  ],
 );
 
 export const transcriptionSegments = pgTable(
@@ -440,7 +480,10 @@ export const lexiconEntries = pgTable(
     looseKey: text().notNull(),
     html: text().notNull(),
   },
-  (t) => [index('lexicon_entries_lemma_idx').on(t.lemmaKey), index('lexicon_entries_loose_idx').on(t.looseKey)],
+  (t) => [
+    index('lexicon_entries_lemma_idx').on(t.lemmaKey),
+    index('lexicon_entries_loose_idx').on(t.looseKey),
+  ],
 );
 
 export const zones = pgTable(
@@ -487,7 +530,9 @@ export const conjectures = pgTable(
     /** The lacuna this supplement fills. */
     supplementsId: text(),
     /** A witness-token anchor recorded when registered from a text. */
-    anchor: jsonb().$type<{ transcriptionId: string; tokenIds: string[] } | { editionId: string; tokenIds: string[] }>(),
+    anchor: jsonb().$type<
+      { transcriptionId: string; tokenIds: string[] } | { editionId: string; tokenIds: string[] }
+    >(),
     ownerId: text()
       .notNull()
       .references(() => users.id),
@@ -495,7 +540,10 @@ export const conjectures = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index('conjectures_segment_idx').on(t.segmentId), index('conjectures_work_idx').on(t.workId)],
+  (t) => [
+    index('conjectures_segment_idx').on(t.segmentId),
+    index('conjectures_work_idx').on(t.workId),
+  ],
 );
 
 export const reportedReadings = pgTable(
@@ -523,7 +571,10 @@ export const reportedReadings = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index('reported_readings_segment_idx').on(t.segmentId), index('reported_readings_witness_idx').on(t.witnessId)],
+  (t) => [
+    index('reported_readings_segment_idx').on(t.segmentId),
+    index('reported_readings_witness_idx').on(t.witnessId),
+  ],
 );
 
 export interface EditionConventions {
@@ -588,7 +639,11 @@ export const editions = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [uniqueIndex('editions_slug_idx').on(t.slug), index('editions_work_idx').on(t.workId), index('editions_owner_idx').on(t.ownerId)],
+  (t) => [
+    uniqueIndex('editions_slug_idx').on(t.slug),
+    index('editions_work_idx').on(t.workId),
+    index('editions_owner_idx').on(t.ownerId),
+  ],
 );
 
 /** A further state of a witness that an edition collates under a siglum of its own: as first written, after a stage of correction, or with the corrections of one hand. */
@@ -727,7 +782,10 @@ export const citations = pgTable(
     position: integer().notNull().default(0),
     createdAt: createdAt(),
   },
-  (t) => [index('citations_item_idx').on(t.itemId), index('citations_conjecture_idx').on(t.conjectureId)],
+  (t) => [
+    index('citations_item_idx').on(t.itemId),
+    index('citations_conjecture_idx').on(t.conjectureId),
+  ],
 );
 
 export const editionCollaborators = pgTable(
@@ -788,7 +846,10 @@ export const changesets = pgTable(
     reverse: jsonb().$type<Op[]>().notNull(),
     message: text(),
   },
-  (t) => [uniqueIndex('changesets_document_version_idx').on(t.documentKind, t.documentId, t.version), index('changesets_parent_idx').on(t.parentId)],
+  (t) => [
+    uniqueIndex('changesets_document_version_idx').on(t.documentKind, t.documentId, t.version),
+    index('changesets_parent_idx').on(t.parentId),
+  ],
 );
 
 export const checkpoints = pgTable(
@@ -886,7 +947,10 @@ export const apiTokens = pgTable(
     lastUsedAt: timestamp({ withTimezone: true }),
     expiresAt: timestamp({ withTimezone: true }),
   },
-  (t) => [uniqueIndex('api_tokens_hash_idx').on(t.tokenHash), index('api_tokens_user_idx').on(t.userId)],
+  (t) => [
+    uniqueIndex('api_tokens_hash_idx').on(t.tokenHash),
+    index('api_tokens_user_idx').on(t.userId),
+  ],
 );
 
 /** Another installation's copy of a work, to pull from and push to. */
@@ -916,7 +980,17 @@ export const workRemotes = pgTable(
 );
 
 /** What an archive queue entry names: which records' files to rewrite. */
-export const ARCHIVE_QUEUE_KINDS = ['work-all', 'work', 'work-editions', 'scheme', 'bibliography', 'witness', 'transcription', 'edition', 'person'] as const;
+export const ARCHIVE_QUEUE_KINDS = [
+  'work-all',
+  'work',
+  'work-editions',
+  'scheme',
+  'bibliography',
+  'witness',
+  'transcription',
+  'edition',
+  'person',
+] as const;
 
 /** A registry entry merged into another: its id still resolves, and imports naming it land on the survivor. */
 export const registryMerges = pgTable(
@@ -1013,17 +1087,26 @@ export const transcriptionsRelations = relations(transcriptions, ({ one, many })
 }));
 
 export const transcriptionWorksRelations = relations(transcriptionWorks, ({ one }) => ({
-  transcription: one(transcriptions, { fields: [transcriptionWorks.transcriptionId], references: [transcriptions.id] }),
+  transcription: one(transcriptions, {
+    fields: [transcriptionWorks.transcriptionId],
+    references: [transcriptions.id],
+  }),
   work: one(works, { fields: [transcriptionWorks.workId], references: [works.id] }),
 }));
 
 export const transcriptionSegmentsRelations = relations(transcriptionSegments, ({ one }) => ({
-  transcription: one(transcriptions, { fields: [transcriptionSegments.transcriptionId], references: [transcriptions.id] }),
+  transcription: one(transcriptions, {
+    fields: [transcriptionSegments.transcriptionId],
+    references: [transcriptions.id],
+  }),
   segment: one(segments, { fields: [transcriptionSegments.segmentId], references: [segments.id] }),
 }));
 
 export const zonesRelations = relations(zones, ({ one }) => ({
-  transcription: one(transcriptions, { fields: [zones.transcriptionId], references: [transcriptions.id] }),
+  transcription: one(transcriptions, {
+    fields: [zones.transcriptionId],
+    references: [transcriptions.id],
+  }),
   page: one(pages, { fields: [zones.pageId], references: [pages.id] }),
 }));
 
@@ -1052,12 +1135,18 @@ export const editionsRelations = relations(editions, ({ one, many }) => ({
 export const editionSiglaRelations = relations(editionSigla, ({ one }) => ({
   edition: one(editions, { fields: [editionSigla.editionId], references: [editions.id] }),
   witness: one(witnesses, { fields: [editionSigla.witnessId], references: [witnesses.id] }),
-  transcription: one(transcriptions, { fields: [editionSigla.transcriptionId], references: [transcriptions.id] }),
+  transcription: one(transcriptions, {
+    fields: [editionSigla.transcriptionId],
+    references: [transcriptions.id],
+  }),
 }));
 
 export const editionAdoptionsRelations = relations(editionAdoptions, ({ one }) => ({
   edition: one(editions, { fields: [editionAdoptions.editionId], references: [editions.id] }),
-  conjecture: one(conjectures, { fields: [editionAdoptions.conjectureId], references: [conjectures.id] }),
+  conjecture: one(conjectures, {
+    fields: [editionAdoptions.conjectureId],
+    references: [conjectures.id],
+  }),
 }));
 
 export const editionCollaboratorsRelations = relations(editionCollaborators, ({ one }) => ({
@@ -1075,7 +1164,10 @@ export const notesRelations = relations(notes, ({ one, many }) => ({
 export const citationsRelations = relations(citations, ({ one }) => ({
   item: one(bibliographyItems, { fields: [citations.itemId], references: [bibliographyItems.id] }),
   conjecture: one(conjectures, { fields: [citations.conjectureId], references: [conjectures.id] }),
-  reportedReading: one(reportedReadings, { fields: [citations.reportedReadingId], references: [reportedReadings.id] }),
+  reportedReading: one(reportedReadings, {
+    fields: [citations.reportedReadingId],
+    references: [reportedReadings.id],
+  }),
   note: one(notes, { fields: [citations.noteId], references: [notes.id] }),
 }));
 

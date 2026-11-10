@@ -11,13 +11,26 @@ import { worksOfTranscription } from '../transcription-works.ts';
 import { archiveWork, personAuthor, VARIANS_AUTHOR, type ArchiveWriters } from './archive.ts';
 
 /** The works whose archives hold a document. */
-export async function worksOfDocument(db: Database, kind: 'transcription' | 'edition', documentId: string): Promise<string[]> {
+export async function worksOfDocument(
+  db: Database,
+  kind: 'transcription' | 'edition',
+  documentId: string,
+): Promise<string[]> {
   if (kind === 'edition') {
-    const [row] = await db.select({ workId: editions.workId }).from(editions).where(eq(editions.id, documentId));
+    const [row] = await db
+      .select({ workId: editions.workId })
+      .from(editions)
+      .where(eq(editions.id, documentId));
     return row ? [row.workId] : [];
   }
-  const viaSigla = await db.selectDistinct({ workId: editions.workId }).from(editionSigla).innerJoin(editions, eq(editions.id, editionSigla.editionId)).where(eq(editionSigla.transcriptionId, documentId));
-  return [...new Set([...(await worksOfTranscription(db, documentId)), ...viaSigla.map((r) => r.workId)])];
+  const viaSigla = await db
+    .selectDistinct({ workId: editions.workId })
+    .from(editionSigla)
+    .innerJoin(editions, eq(editions.id, editionSigla.editionId))
+    .where(eq(editionSigla.transcriptionId, documentId));
+  return [
+    ...new Set([...(await worksOfTranscription(db, documentId)), ...viaSigla.map((r) => r.workId)]),
+  ];
 }
 
 /** Write and commit the archives of a document's works, authored by the person. Returns the commit hashes made. */

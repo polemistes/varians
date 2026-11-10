@@ -44,5 +44,8 @@ export function loadEnv(): void {
 
 /** A connection string fit for a log: without the password. */
 export function redactUrl(url: string): string {
-  return url.replace(/\/\/([^@/]*)@/u, (_, credentials: string) => `//${credentials.split(':')[0]}@`);
+  return url.replace(
+    /\/\/([^@/]*)@/u,
+    (_, credentials: string) => `//${credentials.split(':')[0]}@`,
+  );
 }

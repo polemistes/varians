@@ -12,17 +12,36 @@ import {
 
 describe('parseSettings', () => {
   it('reads what was stored', () => {
-    const stored = JSON.stringify({ size: 'large', apparatus: 'side', form: 'negative', interpretative: 'none', labels: 'every', underline: false });
-    expect(parseSettings(stored)).toEqual({ size: 'large', apparatus: 'side', form: 'negative', interpretative: 'none', labels: 'every', underline: false });
+    const stored = JSON.stringify({
+      size: 'large',
+      apparatus: 'side',
+      form: 'negative',
+      interpretative: 'none',
+      labels: 'every',
+      underline: false,
+    });
+    expect(parseSettings(stored)).toEqual({
+      size: 'large',
+      apparatus: 'side',
+      form: 'negative',
+      interpretative: 'none',
+      labels: 'every',
+      underline: false,
+    });
     // A choice stored before the apparatus stopped printing spellings is simply dropped.
-    expect(parseSettings(JSON.stringify({ size: 'large', orthographica: true }))).toEqual({ ...DEFAULT_SETTINGS, size: 'large' });
+    expect(parseSettings(JSON.stringify({ size: 'large', orthographica: true }))).toEqual({
+      ...DEFAULT_SETTINGS,
+      size: 'large',
+    });
   });
 
   it('falls back to the defaults for nothing, broken JSON and values it does not know', () => {
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings('{not json')).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings('[1,2]')).toEqual(DEFAULT_SETTINGS);
-    expect(parseSettings({ size: 'huge', apparatus: 'top', form: 'both', labels: 7, underline: 'no' })).toEqual(DEFAULT_SETTINGS);
+    expect(
+      parseSettings({ size: 'huge', apparatus: 'top', form: 'both', labels: 7, underline: 'no' }),
+    ).toEqual(DEFAULT_SETTINGS);
   });
 
   it('shows no print apparatus on screen by default, and keeps the placements stored before', () => {
@@ -35,12 +54,17 @@ describe('parseSettings', () => {
   });
 
   it('stores a chosen placement and nothing for the default', () => {
-    expect(serializeSettings({ ...DEFAULT_SETTINGS, apparatus: 'foot' })).toBe('{"apparatus":"foot"}');
+    expect(serializeSettings({ ...DEFAULT_SETTINGS, apparatus: 'foot' })).toBe(
+      '{"apparatus":"foot"}',
+    );
     expect(serializeSettings({ ...DEFAULT_SETTINGS, apparatus: 'none' })).toBe('{}');
   });
 
   it('keeps the valid fields of a partly valid object', () => {
-    expect(parseSettings({ size: 'small', form: 'sideways' })).toEqual({ ...DEFAULT_SETTINGS, size: 'small' });
+    expect(parseSettings({ size: 'small', form: 'sideways' })).toEqual({
+      ...DEFAULT_SETTINGS,
+      size: 'small',
+    });
   });
 });
 
@@ -61,7 +85,11 @@ describe('effectiveConventions', () => {
     expect(effectiveConventions(edition, DEFAULT_SETTINGS)).toEqual(edition);
   });
   it('puts the reader choices over it, never the Latin', () => {
-    expect(effectiveConventions(edition, { ...DEFAULT_SETTINGS, form: 'positive' })).toEqual({ form: 'positive', latin: false, interpretative: 'separate' });
+    expect(effectiveConventions(edition, { ...DEFAULT_SETTINGS, form: 'positive' })).toEqual({
+      form: 'positive',
+      latin: false,
+      interpretative: 'separate',
+    });
   });
 });
 

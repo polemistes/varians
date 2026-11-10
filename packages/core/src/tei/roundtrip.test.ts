@@ -161,15 +161,50 @@ describe('TEI round trip of variants noted in the carrier', () => {
 describe('TEI round trip of paratext', () => {
   it('writes paratext that TEI allows in no line as a typed label, and reads every kind back with its subtype', () => {
     const ids = sequentialIds('x');
-    const kinds = ['head', 'speaker', 'stage', 'label', 'trailer', 'fw', 'byline', 'dateline', 'opener', 'closer', 'salute', 'signed', 'docAuthor', 'docTitle', 'argument', 'epigraph'];
+    const kinds = [
+      'head',
+      'speaker',
+      'stage',
+      'label',
+      'trailer',
+      'fw',
+      'byline',
+      'dateline',
+      'opener',
+      'closer',
+      'salute',
+      'signed',
+      'docAuthor',
+      'docTitle',
+      'argument',
+      'epigraph',
+    ];
     const items: Item[] = [];
     for (const type of kinds) {
-      items.push({ kind: 'object', id: ids(), type: 'paratext', attrs: { type }, text: `the ${type}` });
+      items.push({
+        kind: 'object',
+        id: ids(),
+        type: 'paratext',
+        attrs: { type },
+        text: `the ${type}`,
+      });
       items.push({ kind: 'break', id: ids(), type: 'line' });
     }
-    items.push({ kind: 'object', id: ids(), type: 'paratext', attrs: { type: 'head', subtype: 'chapter' }, text: 'Α' });
+    items.push({
+      kind: 'object',
+      id: ids(),
+      type: 'paratext',
+      attrs: { type: 'head', subtype: 'chapter' },
+      text: 'Α',
+    });
     items.push({ kind: 'break', id: ids(), type: 'line' });
-    items.push({ kind: 'object', id: ids(), type: 'paratext', attrs: { type: 'label', subtype: 'number' }, text: '3' });
+    items.push({
+      kind: 'object',
+      id: ids(),
+      type: 'paratext',
+      attrs: { type: 'label', subtype: 'number' },
+      text: '3',
+    });
     const xml = exportTranscriptionTei({ stream: { items }, title: 'T' });
     expect(xml).toContain('<label type="head">the head</label>');
     expect(xml).toContain('<label type="speaker">the speaker</label>');

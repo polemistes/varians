@@ -190,7 +190,13 @@
 <article
   class={[
     'group relative flex h-full flex-col overflow-hidden rounded-md border bg-surface font-sans transition-colors',
-    dragging ? 'border-accent ring-2 ring-accent/30' : busy ? 'border-accent/40' : current ? 'border-accent' : 'border-line hover:border-line-strong',
+    dragging
+      ? 'border-accent ring-2 ring-accent/30'
+      : busy
+        ? 'border-accent/40'
+        : current
+          ? 'border-accent'
+          : 'border-line hover:border-line-strong',
     current && !dragging && 'ring-2 ring-accent/30',
   ]}
   aria-label={page.label}
@@ -249,14 +255,22 @@
       {page.index}
     </span>
     {#if dragging}
-      <div class="pointer-events-none absolute inset-0 flex items-center justify-center bg-accent-soft/90 px-3 text-center text-xs font-medium text-accent">
+      <div
+        class="pointer-events-none absolute inset-0 flex items-center justify-center bg-accent-soft/90 px-3 text-center text-xs font-medium text-accent"
+      >
         {t.card.dropHere}
       </div>
     {:else if busy}
-      <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-surface/80 px-4 text-xs text-ink-soft" role="status">
+      <div
+        class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-surface/80 px-4 text-xs text-ink-soft"
+        role="status"
+      >
         {#if busy.kind === 'uploading'}
           <div class="h-1.5 w-full overflow-hidden rounded-full bg-line" aria-hidden="true">
-            <div class="h-full rounded-full bg-accent transition-[width]" style:width="{percent}%"></div>
+            <div
+              class="h-full rounded-full bg-accent transition-[width]"
+              style:width="{percent}%"
+            ></div>
           </div>
           <span>{t.card.uploading(percent)}</span>
         {:else}
@@ -325,7 +339,9 @@
             {/if}
           </div>
           {#if renameError}
-            <p id="label-error-{page.id}" class="mt-1 text-xs text-danger" role="alert">{renameError}</p>
+            <p id="label-error-{page.id}" class="mt-1 text-xs text-danger" role="alert">
+              {renameError}
+            </p>
           {/if}
         </form>
       {:else if readonly}
@@ -340,7 +356,10 @@
           aria-label={t.card.rename(page.label)}
         >
           <span class="truncate">{page.label}</span>
-          <Pencil class="size-3 shrink-0 text-ink-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100" aria-hidden="true" />
+          <Pencil
+            class="size-3 shrink-0 text-ink-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+            aria-hidden="true"
+          />
         </button>
       {/if}
       {#if meta}
@@ -357,12 +376,19 @@
       {#if text}
         <p class="mt-0.5 truncate text-xs text-ink-muted">{text}</p>
       {:else if references}
-        <p class="mt-0.5 truncate text-xs text-ink-muted" title={t.card.referencedTitle}>{references}</p>
+        <p class="mt-0.5 truncate text-xs text-ink-muted" title={t.card.referencedTitle}>
+          {references}
+        </p>
       {/if}
     </div>
 
     {#if !readonly}
-      <Menu label={t.card.menu(page.label)} triggerSize="sm" triggerClass="w-8 px-0! text-ink-soft" align="end">
+      <Menu
+        label={t.card.menu(page.label)}
+        triggerSize="sm"
+        triggerClass="w-8 px-0! text-ink-soft"
+        align="end"
+      >
         {#snippet trigger()}
           <Ellipsis class="size-4" strokeWidth={2.25} aria-hidden="true" />
         {/snippet}
@@ -377,11 +403,17 @@
           {t.menu.rename}
         </MenuItem>
         <MenuSeparator />
-        <MenuItem disabled={page.index <= 1 || !!busy} onSelect={() => onmove(page, page.index - 1)}>
+        <MenuItem
+          disabled={page.index <= 1 || !!busy}
+          onSelect={() => onmove(page, page.index - 1)}
+        >
           {#snippet icon()}<ArrowUp />{/snippet}
           {t.menu.moveUp}
         </MenuItem>
-        <MenuItem disabled={page.index >= count || !!busy} onSelect={() => onmove(page, page.index + 1)}>
+        <MenuItem
+          disabled={page.index >= count || !!busy}
+          onSelect={() => onmove(page, page.index + 1)}
+        >
           {#snippet icon()}<ArrowDown />{/snippet}
           {t.menu.moveDown}
         </MenuItem>

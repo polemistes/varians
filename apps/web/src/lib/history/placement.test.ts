@@ -9,7 +9,13 @@ const text = (): Stream => fromText('a b c\nd e f\ng h', { ids: sequentialIds() 
 function render(ops: Op[], authors: Record<string, string> = {}): RenderLine[] {
   const before = text();
   const after = applyOps(before, ops).stream;
-  return renderLines(after, serializeDiff(diffStates(before, after)), (id) => id.toUpperCase(), {}, authors);
+  return renderLines(
+    after,
+    serializeDiff(diffStates(before, after)),
+    (id) => id.toUpperCase(),
+    {},
+    authors,
+  );
 }
 
 /** A line as text: removed words in -minus-, added in +plus+, changed in ~tilde~, moved in >. */
@@ -35,7 +41,11 @@ describe('renderLines', () => {
   it('puts removed words back where they stood: mid-line, at a line start, at the very start', () => {
     expect(render([{ t: 'delete', ids: ['t2'] }]).map(show)).toEqual(['a -b- c', 'd e f', 'g h']);
     expect(render([{ t: 'delete', ids: ['t5'] }]).map(show)).toEqual(['a b c', '-d- e f', 'g h']);
-    expect(render([{ t: 'delete', ids: ['t1', 't2'] }]).map(show)).toEqual(['-a- -b- c', 'd e f', 'g h']);
+    expect(render([{ t: 'delete', ids: ['t1', 't2'] }]).map(show)).toEqual([
+      '-a- -b- c',
+      'd e f',
+      'g h',
+    ]);
   });
 
   it('shows a line removed with its break as struck words and a struck pilcrow', () => {
@@ -70,7 +80,10 @@ describe('renderLines', () => {
   });
 
   it('marks a line whose break was added', () => {
-    const lines = render([{ t: 'insert', after: 't2', items: [{ kind: 'break', id: 'nb', type: 'line' }] }], { nb: 'ann' });
+    const lines = render(
+      [{ t: 'insert', after: 't2', items: [{ kind: 'break', id: 'nb', type: 'line' }] }],
+      { nb: 'ann' },
+    );
     expect(lines.map(show)).toEqual(['a b', 'c', 'd e f', 'g h']);
     expect(lines[1]!.opener).toEqual({ added: true, moved: false, author: 'ann' });
     expect(lines[0]!.opener).toBeNull();
@@ -90,7 +103,9 @@ describe('renderLines', () => {
 describe('cellText', () => {
   it('shows the read form when asked, gaps in brackets and breaks as pilcrows', () => {
     expect(cellText({ kind: 'token', id: 'a', form: 'ΚΑΙ', norm: 'καὶ' }, 'read')).toBe('καὶ');
-    expect(cellText({ kind: 'object', id: 'g', type: 'gap', attrs: { quantity: 3 } })).toBe('[...]');
+    expect(cellText({ kind: 'object', id: 'g', type: 'gap', attrs: { quantity: 3 } })).toBe(
+      '[...]',
+    );
     expect(cellText({ kind: 'break', id: 'b', type: 'line' })).toBe('¶');
   });
 });

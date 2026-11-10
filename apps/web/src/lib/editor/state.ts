@@ -55,7 +55,11 @@ export const modelField = StateField.define<ModelState>({
     const wholeEdits = tr.effects.filter((e) => e.is(wholeEdit));
     if (wholeEdits.length) {
       // The model no longer matches the document; the editor rebuilds it from the whole stream at once.
-      return { model: { ...value.model, misaligned: true }, ops: [], whole: wholeEdits.flatMap((e) => e.value.ops) };
+      return {
+        model: { ...value.model, misaligned: true },
+        ops: [],
+        whole: wholeEdits.flatMap((e) => e.value.ops),
+      };
     }
     const edits = tr.effects.filter((e) => e.is(modelEdit));
     if (edits.length) {
@@ -116,9 +120,13 @@ export const decorationField = StateField.define<DecorationSet>({
  */
 export const modelHistory = invertedEffects.of((tr) => {
   const wholes = tr.effects.filter((e) => e.is(wholeEdit));
-  if (wholes.length) return wholes.reverse().map((e) => wholeEdit.of({ ops: e.value.reverse, reverse: e.value.ops }));
+  if (wholes.length)
+    return wholes
+      .reverse()
+      .map((e) => wholeEdit.of({ ops: e.value.reverse, reverse: e.value.ops }));
   const edits = tr.effects.filter((e) => e.is(modelEdit));
-  if (edits.length) return edits.reverse().map((e) => modelEdit.of({ ops: e.value.reverse, reverse: e.value.ops }));
+  if (edits.length)
+    return edits.reverse().map((e) => modelEdit.of({ ops: e.value.reverse, reverse: e.value.ops }));
   const typed = tr.docChanged ? tr.state.field(modelField, false)?.typed : undefined;
   return typed ? [modelEdit.of({ ops: typed.reverse, reverse: typed.ops })] : [];
 });

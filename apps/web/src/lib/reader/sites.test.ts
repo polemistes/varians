@@ -22,14 +22,28 @@ function text(id: string, siglum: string, words: string): CollationText {
   return { id, siglum, units };
 }
 
-function segment(base: CollationText, witnesses: CollationText[], segmentId = 's1', label = '1.1'): SegmentSites & { collation: ReturnType<typeof collate> } {
-  return { segmentId, label, collation: collate(base, witnesses), baseUnits: base.units, attachments: {} };
+function segment(
+  base: CollationText,
+  witnesses: CollationText[],
+  segmentId = 's1',
+  label = '1.1',
+): SegmentSites & { collation: ReturnType<typeof collate> } {
+  return {
+    segmentId,
+    label,
+    collation: collate(base, witnesses),
+    baseUnits: base.units,
+    attachments: {},
+  };
 }
 
 describe('siteByToken', () => {
   it('maps every word of a site to it, and nothing else', () => {
     const ed = text('e', 'ed.', 'μῆνιν ἄειδε θεὰ Πηληϊάδεω');
-    const seg = segment(ed, [text('a', 'A', 'μῆνιν ἄειδε θεὰ Πηληϊάδεω'), text('b', 'B', 'μῆνιν ἄειδε θεοί Πηλεΐδεω')]);
+    const seg = segment(ed, [
+      text('a', 'A', 'μῆνιν ἄειδε θεὰ Πηληϊάδεω'),
+      text('b', 'B', 'μῆνιν ἄειδε θεοί Πηλεΐδεω'),
+    ]);
     const map = siteByToken({ segments: { s1: seg } });
     const sites = seg.collation.sites;
     expect(sites.length).toBeGreaterThan(0);
@@ -48,11 +62,19 @@ describe('siteByToken', () => {
     const addition = seg.collation.sites.find((s) => s.baseFrom === s.baseTo)!;
     expect(addition).toBeDefined();
     const map = siteByToken({ segments: [seg] });
-    expect(map.get('e1')).toEqual([{ segmentId: 's1', siteIndex: addition.index, insertion: true }]);
+    expect(map.get('e1')).toEqual([
+      { segmentId: 's1', siteIndex: addition.index, insertion: true },
+    ]);
 
-    const atStart = segment(text('f', 'ed.', 'ἄλγε ἔθηκε'), [text('c', 'C', 'καὶ ἄλγε ἔθηκε')], 's2');
+    const atStart = segment(
+      text('f', 'ed.', 'ἄλγε ἔθηκε'),
+      [text('c', 'C', 'καὶ ἄλγε ἔθηκε')],
+      's2',
+    );
     const first = atStart.collation.sites.find((s) => s.baseFrom === s.baseTo)!;
-    expect(siteByToken({ segments: [atStart] }).get('f0')).toEqual([{ segmentId: 's2', siteIndex: first.index, insertion: true }]);
+    expect(siteByToken({ segments: [atStart] }).get('f0')).toEqual([
+      { segmentId: 's2', siteIndex: first.index, insertion: true },
+    ]);
     expect(editionTokensAt(atStart, first.index)).toEqual(['f0']);
   });
 
@@ -67,10 +89,20 @@ describe('entries under the reader settings', () => {
   it('reports different words only: a grave for an acute is no variant', () => {
     const ed = text('e', 'ed.', 'ἄειδε θεὰ');
     const same = segment(ed, [text('a', 'A', 'ἄειδε θεὰ'), text('b', 'B', 'ἄειδε θεά')]);
-    expect(entriesBySegment({ s1: same }, { form: 'positive', latin: true, interpretative: 'separate' }, ['A', 'B']).get('s1')).toEqual([]);
+    expect(
+      entriesBySegment(
+        { s1: same },
+        { form: 'positive', latin: true, interpretative: 'separate' },
+        ['A', 'B'],
+      ).get('s1'),
+    ).toEqual([]);
     const seg = segment(ed, [text('a', 'A', 'ἄειδε θεὰ'), text('b', 'B', 'ἄειδε θεοί')]);
     const segments = { s1: seg };
-    const shown = entriesBySegment(segments, { form: 'negative', latin: true, interpretative: 'separate' }, ['A', 'B']);
+    const shown = entriesBySegment(
+      segments,
+      { form: 'negative', latin: true, interpretative: 'separate' },
+      ['A', 'B'],
+    );
     expect(shown.get('s1')).toHaveLength(1);
     const byKey = entryBySite(shown);
     expect([...byKey.keys()]).toEqual([siteKey('s1', shown.get('s1')![0]!.siteIndex)]);
@@ -92,12 +124,16 @@ describe('witnessTokensAt', () => {
     const witness = text('a', 'A', 'οἰωνοῖσί τε πᾶσι');
     const collation = collate(ed, [witness]);
     expect(collation.sites).toHaveLength(0);
-    const attached = attachToSites(collation, ed.units, [{ id: 'z', kind: 'conjecture', lemma: 'πᾶσι', reading: 'δαῖτα', name: 'Zenodotus' }]);
+    const attached = attachToSites(collation, ed.units, [
+      { id: 'z', kind: 'conjecture', lemma: 'πᾶσι', reading: 'δαῖτα', name: 'Zenodotus' },
+    ]);
     const site = attached.collation.sites[0]!;
     expect(witnessTokensAt(site, 'a')).toEqual([]);
     const aligned = alignedUnits(collation, ed.units.length);
     expect(aligned).toEqual({ a: [0, 1, 2] });
-    expect(witnessTokensAt(site, 'a', { aligned: aligned.a, units: witness.units })).toEqual(['a2']);
+    expect(witnessTokensAt(site, 'a', { aligned: aligned.a, units: witness.units })).toEqual([
+      'a2',
+    ]);
   });
 });
 
@@ -107,7 +143,11 @@ describe('markSites', () => {
     const seg = segment(ed, [text('a', 'A', 'ἄειδε θεοί Πηληϊάδεω Ἀχιλλῆος οὐλομένην')]);
     expect(seg.collation.sites).toHaveLength(2);
     const segments = { s1: seg };
-    const all = entryBySite(entriesBySegment(segments, { form: 'positive', latin: true, interpretative: 'separate' }, ['A']));
+    const all = entryBySite(
+      entriesBySegment(segments, { form: 'positive', latin: true, interpretative: 'separate' }, [
+        'A',
+      ]),
+    );
     expect(all.size).toBe(2);
     const marking = markSites(siteByToken({ segments }), all, segments);
     for (const key of all.keys()) {

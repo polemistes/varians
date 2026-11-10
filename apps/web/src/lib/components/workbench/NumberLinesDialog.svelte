@@ -76,7 +76,7 @@
     {#if wb.works.length === 0}
       <Notice kind="warning">{t.segment.noWork}</Notice>
     {:else}
-      <Field label={t.numbering.start} error={error}>
+      <Field label={t.numbering.start} {error}>
         {#snippet children(control)}
           <Input {...control} bind:value={start} autocomplete="off" class="font-serif" />
         {/snippet}
@@ -89,7 +89,11 @@
       {#if wb.works.length > 1}
         <Field label={t.numbering.work}>
           {#snippet children(control)}
-            <Select {...control} bind:value={workId} options={wb.works.map((w) => ({ value: w.id, label: w.title }))} />
+            <Select
+              {...control}
+              bind:value={workId}
+              options={wb.works.map((w) => ({ value: w.id, label: w.title }))}
+            />
           {/snippet}
         </Field>
       {/if}
@@ -97,7 +101,13 @@
   </form>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (open = false)}>{t.numbering.cancel}</Button>
-    <Button type="submit" form="wb-number-lines" variant="primary" loading={busy} disabled={wb.works.length === 0 || !start.trim()}>
+    <Button
+      type="submit"
+      form="wb-number-lines"
+      variant="primary"
+      loading={busy}
+      disabled={wb.works.length === 0 || !start.trim()}
+    >
       {t.numbering.run}
     </Button>
   {/snippet}

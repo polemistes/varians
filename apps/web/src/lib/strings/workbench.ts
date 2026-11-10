@@ -58,8 +58,10 @@ export const workbench = {
     scopeSelection: (n: number) => `For the ${n === 1 ? 'selected word' : `${n} selected words`}`,
     scopePage: 'For every word of the page shown (select words to act on fewer)',
     normalize: 'Normalize diacritics',
-    normalizeHint: 'Accents, breathings and diaereses of the normalized forms, from the analyser. Where one form fits it is set; the others are marked for you to choose.',
-    normalizeHintOneForm: 'Accents, breathings and diaereses of the words, from the analyser. Where one form fits it is set; the others are marked for you to choose.',
+    normalizeHint:
+      'Accents, breathings and diaereses of the normalized forms, from the analyser. Where one form fits it is set; the others are marked for you to choose.',
+    normalizeHintOneForm:
+      'Accents, breathings and diaereses of the words, from the analyser. Where one form fits it is set; the others are marked for you to choose.',
     removeHeading: 'Remove from the diplomatic text',
     removeHeadingOneForm: 'Remove from the text',
     removeAccents: 'Accents',
@@ -67,16 +69,24 @@ export const workbench = {
     removeDiaereses: 'Diaereses',
     removeIotaSubscripts: 'Iota subscripts',
     removeAll: 'All four',
-    caseHeading: (diplomatic: boolean) => (diplomatic ? 'Case of the diplomatic text' : 'Case of the text shown'),
+    caseHeading: (diplomatic: boolean) =>
+      diplomatic ? 'Case of the diplomatic text' : 'Case of the text shown',
     lower: 'All lower case',
     upper: 'All upper case',
     changed: (n: number) => `${plural(n, 'word', 'words')} changed.`,
     nothingChanged: 'Nothing to change.',
     failed: 'The analyser could not be reached.',
     normalized: (set: number, choose: number, unknown: number) =>
-      [`${plural(set, 'word', 'words')} normalized`, choose ? `${choose} to choose` : '', unknown ? `${unknown} unknown to the analyser` : ''].filter((x) => x).join(', ') + '.',
+      [
+        `${plural(set, 'word', 'words')} normalized`,
+        choose ? `${choose} to choose` : '',
+        unknown ? `${unknown} unknown to the analyser` : '',
+      ]
+        .filter((x) => x)
+        .join(', ') + '.',
     takeFrom: 'Take normalized forms from another text…',
-    takeFromHint: 'Where a word has the same letters as the word it stands against in another transcript or an edition, its form there.',
+    takeFromHint:
+      'Where a word has the same letters as the word it stands against in another transcript or an edition, its form there.',
     take: {
       title: 'Take normalized forms from another text',
       description: (n: number | null) =>
@@ -85,7 +95,7 @@ export const workbench = {
       transcription: 'Transcript',
       edition: 'Edition',
       loading: 'Finding the texts of the work',
-      none: 'There is no other text of this transcript\'s works that you may see.',
+      none: "There is no other text of this transcript's works that you may see.",
       failed: 'The other text could not be read.',
       take: 'Take the forms',
       cancel: 'Cancel',
@@ -195,7 +205,8 @@ export const workbench = {
     confirmTitle: 'Confirm the normalized forms of the selected words as they stand',
     numberLines: 'Number lines…',
     variant: 'Variant…',
-    variantTitle: 'Note a variant the manuscript gives for the selected words, in the margin or between the lines',
+    variantTitle:
+      'Note a variant the manuscript gives for the selected words, in the margin or between the lines',
     editVariant: 'Edit variant…',
     removeVariant: 'Remove variant',
     removeVariantTitle: 'Remove the variant noted on these words',
@@ -217,14 +228,16 @@ export const workbench = {
     kinds: { del: 'Deletion', add: 'Addition' } as Record<string, string>,
     hand: 'Hand',
     stage: 'Stage',
-    stageHint: 'The order of the layers of correction: 1 for the first, 2 for the next. An edition can collate the text after any stage.',
+    stageHint:
+      'The order of the layers of correction: 1 for the first, 2 for the next. An edition can collate the text after any stage.',
     save: 'Save',
     cancel: 'Cancel',
   },
 
   variant: {
     title: 'Variant noted in the manuscript',
-    description: 'Stays with this witness; an edition can collate it under a siglum of its own (A v.l.).',
+    description:
+      'Stays with this witness; an edition can collate it under a siglum of its own (A v.l.).',
     words: 'For the words',
     reading: 'Reading',
     readingHint: 'Empty if the variant leaves the words out.',
@@ -245,19 +258,22 @@ export const workbench = {
     hint: (example: string) => `As the work numbers it, for example ${example}.`,
     work: 'Work',
     part: 'Part',
-    partHint: (n: number) => `This segment already begins elsewhere in the text; this is its part ${n}.`,
+    partHint: (n: number) =>
+      `This segment already begins elsewhere in the text; this is its part ${n}.`,
     set: 'Set',
     unassign: 'Unassigned from here',
     remove: 'Remove this start',
     cancel: 'Cancel',
-    noWork: 'This transcript is not made for a work yet. Choose its work in the registry to name segments.',
+    noWork:
+      'This transcript is not made for a work yet. Choose its work in the registry to name segments.',
     invalid: (label: string) => `${label} is not a label of this work.`,
     failed: 'The segment could not be set.',
   },
 
   numbering: {
     title: 'Number lines',
-    description: 'Each line from the caret to the end of the page gets the next label on its first word.',
+    description:
+      'Each line from the caret to the end of the page gets the next label on its first word.',
     start: 'First label',
     count: 'Lines',
     countHint: 'Leave empty to number to the end of the page.',
@@ -271,7 +287,8 @@ export const workbench = {
 
   proposals: {
     title: 'Normalized forms proposed',
-    description: 'From the normalization profile and the forms you confirmed before. Accepting remembers each pair.',
+    description:
+      'From the normalization profile and the forms you confirmed before. Accepting remembers each pair.',
     scope: 'Where',
     page: 'This page',
     whole: 'Whole text',
@@ -293,7 +310,8 @@ export const workbench = {
     noPage: 'This view has no page. Choose a page to see its image.',
     noImage: (label: string) => `Page ${label} has no image yet.`,
     addImage: 'Add an image…',
-    addImageHint: (maxMb: number) => `JPEG, PNG, TIFF or WebP, up to ${maxMb} MB. You can also drop the file here.`,
+    addImageHint: (maxMb: number) =>
+      `JPEG, PNG, TIFF or WebP, up to ${maxMb} MB. You can also drop the file here.`,
     dropHere: 'Drop the image here',
     allPages: 'All pages',
     uploading: (percent: number) => `Uploading ${percent}%`,
@@ -308,12 +326,14 @@ export const workbench = {
     mapLines: 'Map lines',
     mapLinesHint: 'Select whole lines in the text, then draw one box around them on the image.',
     feature: 'Feature',
-    featureHint: 'With no words selected, a shape you draw marks a feature: a figure, damage, a marginal mark.',
+    featureHint:
+      'With no words selected, a shape you draw marks a feature: a figure, damage, a marginal mark.',
     showUnmapped: 'Light unmapped words',
     showBoxes: 'Show all boxes',
     drawPrompt: {
       selection: (n: number) => `Draw around the ${plural(n, 'selected word', 'selected words')}.`,
-      lines: (n: number) => `Draw one box around the ${plural(n, 'selected line', 'selected lines')}.`,
+      lines: (n: number) =>
+        `Draw one box around the ${plural(n, 'selected line', 'selected lines')}.`,
       noLines: 'Select the lines to map in the text first.',
       area: 'Draw around the boxes to select. A box is taken when its middle lies inside.',
       feature: 'Draw the feature on the image.',
@@ -321,16 +341,19 @@ export const workbench = {
     detecting: 'Finding the lines…',
     mapped: (n: number) => `${plural(n, 'zone', 'zones')} made.`,
     linesFound: (found: number, wanted: number) =>
-      found === wanted ? `The image shows ${plural(found, 'line', 'lines')}, as the text has.` : `Divided evenly: the image showed ${found} lines, the text has ${wanted}.`,
+      found === wanted
+        ? `The image shows ${plural(found, 'line', 'lines')}, as the text has.`
+        : `Divided evenly: the image showed ${found} lines, the text has ${wanted}.`,
     failed: 'The zones could not be saved.',
     select: {
       label: 'Select',
-      line: 'The Boxes of the Caret\'s Line',
+      line: "The Boxes of the Caret's Line",
       all: (n: number) => `All Word Boxes on This Page (${n})`,
       area: 'Boxes in an Area…',
       none: 'None',
     },
-    picked: (n: number) => (n ? `${plural(n, 'box', 'boxes')} selected.` : 'No box stands in that area.'),
+    picked: (n: number) =>
+      n ? `${plural(n, 'box', 'boxes')} selected.` : 'No box stands in that area.',
     undo: 'Undo',
     redo: 'Redo',
     history: {
@@ -357,15 +380,18 @@ export const workbench = {
       confirm: (n: number) => `Delete ${plural(n, 'box', 'boxes')}`,
       cancel: 'Cancel',
     },
-    deletedMessage: (n: number) => `${plural(n, 'box', 'boxes')} deleted. Undo brings ${n === 1 ? 'it' : 'them'} back.`,
+    deletedMessage: (n: number) =>
+      `${plural(n, 'box', 'boxes')} deleted. Undo brings ${n === 1 ? 'it' : 'them'} back.`,
     group: {
       label: 'The selected boxes',
       keys: 'The arrow keys move the selected boxes; with Shift, ten times as far',
       hint: (n: number) =>
         `${n} boxes selected, each labelled with its word. Drag a box to move them all. The bar at the end of a box resizes it, and the boxes after it on its line follow. The round knob under the gap between two words moves the boundary between them, and nothing else. The square handles on the frame stretch or squeeze all the boxes; the round handle beyond its end turns them, for sloping lines (hold Shift to turn finely). Shift-click a box to add or remove it; Escape lets go. Delete removes the boxes while the image has the focus; in the text, it removes the words.`,
       turn: 'Turn the boxes, for lines that slope. Hold Shift to turn finely.',
-      resize: (word: string) => `Resize “${word}”: the boxes after it on its line follow, keeping their size`,
-      boundary: (a: string, b: string) => `Move the boundary between “${a}” and “${b}”: one gets more room, the other less, and nothing else moves`,
+      resize: (word: string) =>
+        `Resize “${word}”: the boxes after it on its line follow, keeping their size`,
+      boundary: (a: string, b: string) =>
+        `Move the boundary between “${a}” and “${b}”: one gets more room, the other less, and nothing else moves`,
       side: {
         left: 'Stretch or squeeze the boxes from the left',
         right: 'Stretch or squeeze the boxes from the right',
@@ -394,16 +420,18 @@ export const workbench = {
 
   importer: {
     title: 'Import',
-    description: 'The import is one change in the history. Text is added at the end of the place chosen, or of the pages of the witness the file names; an empty transcript is replaced.',
+    description:
+      'The import is one change in the history. Text is added at the end of the place chosen, or of the pages of the witness the file names; an empty transcript is replaced.',
     tabs: { tei: 'TEI', text: 'Plain text', leiden: 'Leiden', layout: 'PAGE or ALTO' },
     replace: 'Replace the whole text',
     replaceHint: 'Instead of adding to what is there. The history keeps the old text.',
     placement: 'Place',
     placementUnplaced: 'Not on a page',
     placementPage: (label: string) => `On ${label}`,
-    placementTei: 'The text of page breaks that name pages of the witness goes to those pages; the rest goes here.',
+    placementTei:
+      'The text of page breaks that name pages of the witness goes to those pages; the rest goes here.',
     source: 'Source to record (optional)',
-    sourceHint: 'Added to the transcript\'s sources.',
+    sourceHint: "Added to the transcript's sources.",
     work: 'Work',
     noWork: 'No work: the text comes in without segment labels.',
     file: 'File',
@@ -438,7 +466,8 @@ export const workbench = {
       } as Record<string, string>,
       matches: (n: number, sample: string) => `${plural(n, 'match', 'matches')}, first ${sample}`,
       start: 'First label',
-      startHint: 'The label of the first line, for numbering every line or the lines before the first number.',
+      startHint:
+        'The label of the first line, for numbering every line or the lines before the first number.',
       paragraphs: 'A blank line is a paragraph',
       hyphens: 'A hyphen at the end of a line divides a word',
     },
@@ -456,7 +485,13 @@ export const workbench = {
     running: 'Importing…',
     cancel: 'Cancel',
     done: 'Imported.',
-    summary: (o: { segments: number; pagesMatched: number; pagesCreated: number; zones: number; unplaced?: number }) =>
+    summary: (o: {
+      segments: number;
+      pagesMatched: number;
+      pagesCreated: number;
+      zones: number;
+      unplaced?: number;
+    }) =>
       [
         o.segments ? plural(o.segments, 'segment start', 'segment starts') : null,
         o.pagesMatched ? `${plural(o.pagesMatched, 'page', 'pages')} matched` : null,
@@ -470,9 +505,14 @@ export const workbench = {
     notes: {
       unresolvedLabels: (n: number, shown: string, more: boolean) =>
         `${n === 1 ? '1 label' : `${n} labels`} not in the work's numbering: ${shown}${more ? ', …' : ''}`,
-      unresolvedPlaces: (n: number) => `${n === 1 ? '1 numbered place' : `${n} numbered places`} could not be read as labels of the work.`,
-      teiPagesUnplaced: (n: number) => (n === 1 ? '1 page of the file is not a page of the witness; its text is not on a page.' : `${n} pages of the file are not pages of the witness; their text is not on a page.`),
-      layoutPagesUnplaced: (n: number) => `${n === 1 ? '1 page' : `${n} pages`} of the file are not pages of the witness; their words have no zones.`,
+      unresolvedPlaces: (n: number) =>
+        `${n === 1 ? '1 numbered place' : `${n} numbered places`} could not be read as labels of the work.`,
+      teiPagesUnplaced: (n: number) =>
+        n === 1
+          ? '1 page of the file is not a page of the witness; its text is not on a page.'
+          : `${n} pages of the file are not pages of the witness; their text is not on a page.`,
+      layoutPagesUnplaced: (n: number) =>
+        `${n === 1 ? '1 page' : `${n} pages`} of the file are not pages of the witness; their words have no zones.`,
       badSource: 'Give an http or https URL, or a CTS URN.',
       sourceStatus: (status: number, text: string) => `The URL answered ${status} ${text}.`,
       sourceTooLarge: 'The file at that URL is larger than 20 MB.',
@@ -488,14 +528,17 @@ export const workbench = {
     title: 'Settings',
     name: 'Name',
     keepWritten: 'Keep a diplomatic form beside the normalized',
-    keepWrittenHint: 'The text as it stands becomes the normalized text; the diplomatic text starts as a copy of it.',
-    dropWrittenWarning: 'Turning this off keeps the normalized text only. The diplomatic text stays in the history.',
+    keepWrittenHint:
+      'The text as it stands becomes the normalized text; the diplomatic text starts as a copy of it.',
+    dropWrittenWarning:
+      'Turning this off keeps the normalized text only. The diplomatic text stays in the history.',
     asWritten: 'Show the diplomatic text without word division',
     sources: 'Sources',
     sourcesHint: 'Printed with the other sources.',
     rightsNote: 'Note on rights',
     licenceFixed: (name: string) => `Published under ${name}, fixed when it was first published.`,
-    licenceToCome: (name: string) => `Publishing puts it under ${name}, the licence of this installation.`,
+    licenceToCome: (name: string) =>
+      `Publishing puts it under ${name}, the licence of this installation.`,
     save: 'Save',
     cancel: 'Cancel',
     saved: 'Settings saved.',
@@ -504,10 +547,12 @@ export const workbench = {
 
   delete: {
     title: 'Delete transcript',
-    body: (name: string) => `Delete "${name}" with its zones and history? The witness and its pages stay.`,
+    body: (name: string) =>
+      `Delete "${name}" with its zones and history? The witness and its pages stay.`,
     confirm: 'Delete',
     cancel: 'Cancel',
-    inConspectus: (editions: string) => `Not deleted: the edition ${editions} compares this transcript. Take it out of that edition's witnesses first.`,
+    inConspectus: (editions: string) =>
+      `Not deleted: the edition ${editions} compares this transcript. Take it out of that edition's witnesses first.`,
   },
 
   errors: {

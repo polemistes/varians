@@ -8,16 +8,25 @@
 
 <PageFrame width="page">
   <div class="flex flex-col gap-10 lg:flex-row lg:items-start lg:gap-16">
-    <nav aria-label={site.guide.contents} class="font-sans text-sm lg:sticky lg:top-6 lg:w-56 lg:shrink-0">
+    <nav
+      aria-label={site.guide.contents}
+      class="font-sans text-sm lg:sticky lg:top-6 lg:w-56 lg:shrink-0"
+    >
       <p class="mb-2 font-semibold text-ink">{site.guide.contents}</p>
       <ul class="flex flex-col gap-1.5">
         {#each data.contents as heading (heading.id)}
-          <li><a href="#{heading.id}" class="text-ink-soft hover:text-ink hover:underline">{heading.text}</a></li>
+          <li>
+            <a href="#{heading.id}" class="text-ink-soft hover:text-ink hover:underline"
+              >{heading.text}</a
+            >
+          </li>
         {/each}
       </ul>
     </nav>
     <!-- eslint-disable-next-line svelte/no-at-html-tags -- the guide is the repository's own Markdown, rendered by $lib/guide/markdown. -->
-    <article class="guide min-w-0 max-w-reading font-serif text-reading text-ink">{@html data.html}</article>
+    <article class="guide min-w-0 max-w-reading font-serif text-reading text-ink">
+      {@html data.html}
+    </article>
   </div>
 </PageFrame>
 

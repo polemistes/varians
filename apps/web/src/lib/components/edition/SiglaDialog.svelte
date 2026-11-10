@@ -43,7 +43,14 @@
     onsaved?: () => void;
   }
 
-  let { open = $bindable(), sigla, candidates, reportedOnly, witnessHands, onsaved }: Props = $props();
+  let {
+    open = $bindable(),
+    sigla,
+    candidates,
+    reportedOnly,
+    witnessHands,
+    onsaved,
+  }: Props = $props();
 
   /** A state as the dialog edits it: every field present, the kind deciding which count. */
   interface StateRow {
@@ -53,7 +60,13 @@
     siglum: string;
   }
 
-  type Row = Omit<Entry, 'states'> & { states: StateRow[]; name: string; detail: string; included: boolean; withVariants: boolean };
+  type Row = Omit<Entry, 'states'> & {
+    states: StateRow[];
+    name: string;
+    detail: string;
+    included: boolean;
+    withVariants: boolean;
+  };
 
   let rows = $state<Row[]>([]);
   let message = $state<string | null>(null);
@@ -62,7 +75,11 @@
 
   function nameOf(entry: Entry): { name: string; detail: string } {
     const candidate = candidates.find((c) => c.transcriptionId === entry.transcriptionId);
-    if (candidate) return { name: candidate.witnessName, detail: `${candidate.transcriptionName} · ${candidate.segments}` };
+    if (candidate)
+      return {
+        name: candidate.witnessName,
+        detail: `${candidate.transcriptionName} · ${candidate.segments}`,
+      };
     const reported = reportedOnly.find((w) => w.id === entry.witnessId);
     return { name: reported?.name ?? entry.witnessId, detail: t.reportedOnly };
   }
@@ -80,13 +97,39 @@
   $effect(() => {
     if (!open) return;
     message = null;
-    const present = sigla.map((x) => ({ ...x, states: x.states.map(stateRow), ...nameOf(x), included: true, withVariants: x.variantSiglum !== null }));
+    const present = sigla.map((x) => ({
+      ...x,
+      states: x.states.map(stateRow),
+      ...nameOf(x),
+      included: true,
+      withVariants: x.variantSiglum !== null,
+    }));
     const more = candidates
       .filter((c) => !sigla.some((x) => x.transcriptionId === c.transcriptionId))
-      .map((c) => ({ witnessId: c.witnessId, transcriptionId: c.transcriptionId, siglum: c.siglum, states: [], variantSiglum: null, name: c.witnessName, detail: `${c.transcriptionName} · ${c.segments}`, included: false, withVariants: false }));
+      .map((c) => ({
+        witnessId: c.witnessId,
+        transcriptionId: c.transcriptionId,
+        siglum: c.siglum,
+        states: [],
+        variantSiglum: null,
+        name: c.witnessName,
+        detail: `${c.transcriptionName} · ${c.segments}`,
+        included: false,
+        withVariants: false,
+      }));
     const reported = reportedOnly
       .filter((w) => !sigla.some((x) => x.witnessId === w.id))
-      .map((w) => ({ witnessId: w.id, transcriptionId: null, siglum: w.siglum, states: [], variantSiglum: null, name: w.name, detail: t.reportedOnly, included: false, withVariants: false }));
+      .map((w) => ({
+        witnessId: w.id,
+        transcriptionId: null,
+        siglum: w.siglum,
+        states: [],
+        variantSiglum: null,
+        name: w.name,
+        detail: t.reportedOnly,
+        included: false,
+        withVariants: false,
+      }));
     rows = [...present, ...more, ...reported];
   });
 
@@ -99,7 +142,11 @@
   }
 
   const SUPERSCRIPT = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
-  const sup = (n: number) => String(n).split('').map((c) => SUPERSCRIPT[Number(c)] ?? c).join('');
+  const sup = (n: number) =>
+    String(n)
+      .split('')
+      .map((c) => SUPERSCRIPT[Number(c)] ?? c)
+      .join('');
 
   /** The siglum proposed for a state: A¹ before correction, A² and on after the stages, A with the hand's label otherwise. */
   function proposedSiglum(row: Row, state: StateRow): string {
@@ -108,20 +155,29 @@
     if (state.kind === 'stage') return `${base}${sup((Number.parseInt(state.stage, 10) || 1) + 1)}`;
     const hands = witnessHands[row.witnessId] ?? [];
     const registered = hands.find((h) => h.id === state.hand);
-    const label = registered ? registered.label : state.hand === 'other' ? workbench.hands.other.toLowerCase() : state.hand === 'scribe' ? workbench.hands.scribe.toLowerCase() : state.hand;
+    const label = registered
+      ? registered.label
+      : state.hand === 'other'
+        ? workbench.hands.other.toLowerCase()
+        : state.hand === 'scribe'
+          ? workbench.hands.scribe.toLowerCase()
+          : state.hand;
     return `${base} ${label}`.trim();
   }
 
   /** The hands a state may name: the scribe, the registered hands, another hand. */
   function handChoices(row: Row, current: string) {
-    return handOptions(witnessHands[row.witnessId] ?? [], workbench.hands, current).filter((o) => o.value !== '');
+    return handOptions(witnessHands[row.witnessId] ?? [], workbench.hands, current).filter(
+      (o) => o.value !== '',
+    );
   }
 
   /** A change of kind keeps the siglum when the editor typed one, and proposes anew otherwise. */
   function changeKind(row: Row, state: StateRow, kind: StateRow['kind']) {
     const proposed = state.siglum === '' || state.siglum === proposedSiglum(row, state);
     state.kind = kind;
-    if (kind === 'stage' && !state.stage) state.stage = String(row.states.filter((s) => s.kind === 'stage' && s !== state).length + 1);
+    if (kind === 'stage' && !state.stage)
+      state.stage = String(row.states.filter((s) => s.kind === 'stage' && s !== state).length + 1);
     if (kind === 'hand' && !state.hand) state.hand = handChoices(row, '')[0]?.value ?? 'scribe';
     if (proposed) state.siglum = proposedSiglum(row, state);
   }
@@ -129,7 +185,9 @@
   function addState(row: Row) {
     const hasOriginal = row.states.some((s) => s.kind === 'original');
     const nextStage = row.states.filter((s) => s.kind === 'stage').length + 1;
-    const state: StateRow = hasOriginal ? { kind: 'stage', stage: String(nextStage), hand: '', siglum: '' } : { kind: 'original', stage: '', hand: '', siglum: '' };
+    const state: StateRow = hasOriginal
+      ? { kind: 'stage', stage: String(nextStage), hand: '', siglum: '' }
+      : { kind: 'original', stage: '', hand: '', siglum: '' };
     state.siglum = proposedSiglum(row, state);
     row.states.push(state);
   }
@@ -145,12 +203,16 @@
           states: r.transcriptionId
             ? r.states.map((s) => {
                 const siglum = s.siglum.trim() || proposedSiglum(r, s);
-                if (s.kind === 'stage') return { kind: 'stage', stage: Number.parseInt(s.stage, 10) || 1, siglum };
+                if (s.kind === 'stage')
+                  return { kind: 'stage', stage: Number.parseInt(s.stage, 10) || 1, siglum };
                 if (s.kind === 'hand') return { kind: 'hand', hand: s.hand || 'scribe', siglum };
                 return { kind: 'original', siglum };
               })
             : [],
-          variantSiglum: r.withVariants && r.transcriptionId ? r.variantSiglum?.trim() || `${r.siglum.trim()} v.l.` : null,
+          variantSiglum:
+            r.withVariants && r.transcriptionId
+              ? r.variantSiglum?.trim() || `${r.siglum.trim()} v.l.`
+              : null,
         })),
     ),
   );
@@ -192,12 +254,28 @@
       <tbody>
         {#each rows as row, index (row.witnessId + (row.transcriptionId ?? ''))}
           <tr class="border-t border-line">
-            <td class="py-1.5 pr-2"><Checkbox bind:checked={row.included} aria-label={t.include(row.name)} /></td>
-            <td class="py-1.5 pr-2"><Input bind:value={row.siglum} class="w-20 font-serif" aria-label={t.siglum} disabled={!row.included} /></td>
-            <td class="py-1.5 pr-2"><span class="font-serif text-ink">{row.name}</span> <span class="text-xs text-ink-soft">{row.detail}</span></td>
+            <td class="py-1.5 pr-2"
+              ><Checkbox bind:checked={row.included} aria-label={t.include(row.name)} /></td
+            >
+            <td class="py-1.5 pr-2"
+              ><Input
+                bind:value={row.siglum}
+                class="w-20 font-serif"
+                aria-label={t.siglum}
+                disabled={!row.included}
+              /></td
+            >
+            <td class="py-1.5 pr-2"
+              ><span class="font-serif text-ink">{row.name}</span>
+              <span class="text-xs text-ink-soft">{row.detail}</span></td
+            >
             <td class="py-1.5 pr-2">
               {#if row.transcriptionId}
-                <Checkbox bind:checked={row.withVariants} disabled={!row.included} aria-label={t.variantsLabel} />
+                <Checkbox
+                  bind:checked={row.withVariants}
+                  disabled={!row.included}
+                  aria-label={t.variantsLabel}
+                />
               {/if}
             </td>
             <td class="py-1.5 whitespace-nowrap">
@@ -213,15 +291,45 @@
                   {#each row.states as state, k (k)}
                     <div class="flex items-center gap-2">
                       <div class="w-40 shrink-0">
-                        <Select value={state.kind} options={kindOptions} aria-label={t.states} onchange={(e) => changeKind(row, state, e.currentTarget.value as StateRow['kind'])} />
+                        <Select
+                          value={state.kind}
+                          options={kindOptions}
+                          aria-label={t.states}
+                          onchange={(e) =>
+                            changeKind(row, state, e.currentTarget.value as StateRow['kind'])}
+                        />
                       </div>
                       {#if state.kind === 'stage'}
-                        <div class="w-16 shrink-0"><Input type="number" min="1" max="9" bind:value={state.stage} aria-label={t.stateStage} /></div>
+                        <div class="w-16 shrink-0">
+                          <Input
+                            type="number"
+                            min="1"
+                            max="9"
+                            bind:value={state.stage}
+                            aria-label={t.stateStage}
+                          />
+                        </div>
                       {:else if state.kind === 'hand'}
-                        <div class="w-44 shrink-0"><Select bind:value={state.hand} options={handChoices(row, state.hand)} aria-label={t.stateHand} /></div>
+                        <div class="w-44 shrink-0">
+                          <Select
+                            bind:value={state.hand}
+                            options={handChoices(row, state.hand)}
+                            aria-label={t.stateHand}
+                          />
+                        </div>
                       {/if}
-                      <div class="w-28 shrink-0"><Input bind:value={state.siglum} class="font-serif" aria-label={t.stateSiglum} /></div>
-                      <IconButton label={t.removeState} size="sm" onclick={() => row.states.splice(k, 1)}><X aria-hidden="true" /></IconButton>
+                      <div class="w-28 shrink-0">
+                        <Input
+                          bind:value={state.siglum}
+                          class="font-serif"
+                          aria-label={t.stateSiglum}
+                        />
+                      </div>
+                      <IconButton
+                        label={t.removeState}
+                        size="sm"
+                        onclick={() => row.states.splice(k, 1)}><X aria-hidden="true" /></IconButton
+                      >
                     </div>
                   {/each}
                   <div>
@@ -240,6 +348,8 @@
   </form>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (open = false)}>{d.cancel}</Button>
-    <Button variant="primary" loading={saving} onclick={() => form?.requestSubmit()}>{d.save}</Button>
+    <Button variant="primary" loading={saving} onclick={() => form?.requestSubmit()}
+      >{d.save}</Button
+    >
   {/snippet}
 </Dialog>

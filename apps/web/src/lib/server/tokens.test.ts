@@ -13,7 +13,9 @@ const owner = newId();
 
 beforeAll(async () => {
   ({ db, pool } = createDatabase(url));
-  await db.insert(users).values({ id: owner, email: `${owner}@test`, name: 'Token Holder', passwordHash: 'x' });
+  await db
+    .insert(users)
+    .values({ id: owner, email: `${owner}@test`, name: 'Token Holder', passwordHash: 'x' });
 });
 
 afterAll(async () => {

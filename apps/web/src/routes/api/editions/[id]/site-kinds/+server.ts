@@ -12,7 +12,11 @@ import type { RequestHandler } from './$types';
 import { setSiteKind } from '$lib/server/collation';
 import { loadEditionAccess } from '$lib/server/edition-access';
 
-const body = z.object({ segmentId: z.string().min(1).max(64), siteKey: z.string().min(1).max(2000), kind: z.enum(['textual', 'interpretative']).nullable() });
+const body = z.object({
+  segmentId: z.string().min(1).max(64),
+  siteKey: z.string().min(1).max(2000),
+  kind: z.enum(['textual', 'interpretative']).nullable(),
+});
 
 export const POST: RequestHandler = async ({ locals, params, request }) => {
   const access = await loadEditionAccess(locals.db, locals.user, params.id);
@@ -25,6 +29,13 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
     .from(segments)
     .where(and(eq(segments.id, parsed.data.segmentId), eq(segments.workId, access.edition.workId)));
   if (!segment) throw error(400, 'The segment is not one of this work');
-  await setSiteKind(locals.db, access.edition.id, parsed.data.segmentId, parsed.data.siteKey, parsed.data.kind, locals.user?.id ?? null);
+  await setSiteKind(
+    locals.db,
+    access.edition.id,
+    parsed.data.segmentId,
+    parsed.data.siteKey,
+    parsed.data.kind,
+    locals.user?.id ?? null,
+  );
   return json({ ok: true });
 };

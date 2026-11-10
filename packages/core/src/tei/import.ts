@@ -167,7 +167,9 @@ const INLINE_PARATEXT = new Set(['stage', 'label']);
  * Paratext that Varians writes as `<label type="KIND">` because TEI allows
  * no such element inside a line (see varians.odd): read back as that kind.
  */
-const LABELLED_PARATEXT = new Set([...PARATEXT_ELEMENTS, 'margin'].filter((name) => !['stage', 'label', 'fw'].includes(name)));
+const LABELLED_PARATEXT = new Set(
+  [...PARATEXT_ELEMENTS, 'margin'].filter((name) => !['stage', 'label', 'fw'].includes(name)),
+);
 /** Elements whose content is read as if the element were not there. */
 const TRANSPARENT_ELEMENTS = new Set([
   'TEI',
@@ -668,7 +670,8 @@ class Importer {
     const rdgs = kids.filter((k) => k.name === 'rdg');
     const rdg = rdgs[0];
     const place = rdg ? attr(rdg, 'type') : undefined;
-    if (!lem || !rdg || rdgs.length !== 1 || place === undefined || !VARIANT_PLACES.has(place)) return false;
+    if (!lem || !rdg || rdgs.length !== 1 || place === undefined || !VARIANT_PLACES.has(place))
+      return false;
     const attrs: Attrs = { group: this.ids().slice(-8), reading: textContent(rdg), place };
     const hand = attr(rdg, 'hand');
     if (hand !== undefined) attrs.hand = handValueOf(hand);

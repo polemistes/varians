@@ -11,7 +11,14 @@
  * siglum beside it), words of the text (set in the text's face). The wording
  * is in `reader.explain` in the strings.
  */
-import { printedTextIds, trimPunctuation, type Attachment, type Reading, type Site, type VariantRelation } from '@varians/core';
+import {
+  printedTextIds,
+  trimPunctuation,
+  type Attachment,
+  type Reading,
+  type Site,
+  type VariantRelation,
+} from '@varians/core';
 import { reader as r } from '$lib/strings/reader';
 import { editionTokensAt, siteKey, siteOf } from './sites';
 import type { ReaderNote, ReaderSegment, ReaderSiglum } from './types';
@@ -105,7 +112,8 @@ export function fill(template: string, values: Record<string, Part[]>): Sentence
 export function listOf(items: Part[][]): Part[] {
   const out: Part[] = [];
   items.forEach((item, i) => {
-    if (i > 0) out.push({ kind: 'text', text: i === items.length - 1 ? ` ${r.explain.and} ` : ', ' });
+    if (i > 0)
+      out.push({ kind: 'text', text: i === items.length - 1 ? ` ${r.explain.and} ` : ', ' });
     out.push(...item);
   });
   return out;
@@ -160,15 +168,25 @@ class Witnesses {
       if (s.transcriptionId) this.byText.set(s.transcriptionId, i);
       this.bySiglum.set(s.siglum, { index: i });
       (s.states ?? []).forEach((state, k) => {
-        if (!this.bySiglum.has(state.siglum)) this.bySiglum.set(state.siglum, { index: i, state: { kind: 'state', k } });
+        if (!this.bySiglum.has(state.siglum))
+          this.bySiglum.set(state.siglum, { index: i, state: { kind: 'state', k } });
       });
-      if (s.variantSiglum && !this.bySiglum.has(s.variantSiglum)) this.bySiglum.set(s.variantSiglum, { index: i, state: { kind: 'variant' } });
+      if (s.variantSiglum && !this.bySiglum.has(s.variantSiglum))
+        this.bySiglum.set(s.variantSiglum, { index: i, state: { kind: 'variant' } });
     });
   }
 
-  private part(index: number | undefined, siglum: string, state?: State): { rank: number; part: Witness } {
+  private part(
+    index: number | undefined,
+    siglum: string,
+    state?: State,
+  ): { rank: number; part: Witness } {
     const entry = index === undefined ? undefined : this.sigla[index];
-    if (!entry) return { rank: Number.MAX_SAFE_INTEGER, part: { kind: 'witness', name: r.explain.unknownWitness(siglum), siglum: '' } };
+    if (!entry)
+      return {
+        rank: Number.MAX_SAFE_INTEGER,
+        part: { kind: 'witness', name: r.explain.unknownWitness(siglum), siglum: '' },
+      };
     const name = entry.witnessName.trim() || r.explain.unknownWitness(entry.siglum);
     if (state?.kind === 'state') {
       const found = entry.states?.[state.k];
@@ -179,11 +197,22 @@ class Witnesses {
           : found?.kind === 'hand'
             ? r.explain.correctedBy(name, found.hand ?? r.explain.anotherHand)
             : r.explain.beforeCorrection(name);
-      return { rank: index! + 0.3 + state.k * 0.01, part: { kind: 'witness', name: named, siglum: shown } };
+      return {
+        rank: index! + 0.3 + state.k * 0.01,
+        part: { kind: 'witness', name: named, siglum: shown },
+      };
     }
     if (state?.kind === 'variant') {
       const shown = entry.variantSiglum || siglum;
-      return { rank: index! + 0.6, part: { kind: 'witness', name: r.explain.variantNoted(name), siglum: shown, atStart: r.explain.variantNotedStart(name) } };
+      return {
+        rank: index! + 0.6,
+        part: {
+          kind: 'witness',
+          name: r.explain.variantNoted(name),
+          siglum: shown,
+          atStart: r.explain.variantNotedStart(name),
+        },
+      };
     }
     return { rank: index!, part: { kind: 'witness', name, siglum: entry.siglum } };
   }
@@ -193,7 +222,8 @@ class Witnesses {
     const second = /^(.*):(variant|s(\d+))$/u.exec(id);
     if (second) {
       const index = this.byText.get(second[1]!);
-      const state: State = second[2] === 'variant' ? { kind: 'variant' } : { kind: 'state', k: Number(second[3]) };
+      const state: State =
+        second[2] === 'variant' ? { kind: 'variant' } : { kind: 'state', k: Number(second[3]) };
       // A text named only by its id has its siglum from the conspectus, when the conspectus gives it.
       if (index !== undefined) return this.part(index, siglum === id ? '' : siglum, state);
     }
@@ -251,7 +281,11 @@ function proposer(name: string): Part[] {
   return text(name === EDITOR_NAME ? r.explain.theEditor : name);
 }
 
-function referencesOf(attachment: Attachment, cites: Record<string, string[]>, withSource: boolean): string[] {
+function referencesOf(
+  attachment: Attachment,
+  cites: Record<string, string[]>,
+  withSource: boolean,
+): string[] {
   const out: string[] = [];
   const source = unbracket(attachment.source);
   if (withSource && source) out.push(source);
@@ -260,7 +294,11 @@ function referencesOf(attachment: Attachment, cites: Record<string, string[]>, w
 }
 
 /** One conjecture or reported reading as a sentence, with what it rests on. */
-export function explainAttachment(attachment: Attachment, context: ExplainContext, cites: Record<string, string[]> = {}): ExplainLine {
+export function explainAttachment(
+  attachment: Attachment,
+  context: ExplainContext,
+  cites: Record<string, string[]> = {},
+): ExplainLine {
   const reading = trimPunctuation(attachment.text);
   if (attachment.kind === 'reported') {
     const witness = new Witnesses(context.sigla).ofSigla([attachment.name]);
@@ -298,7 +336,11 @@ export function explainAttachment(attachment: Attachment, context: ExplainContex
     default:
       template = reading ? r.explain.proposed : r.explain.proposedDeletion;
   }
-  return { kind: 'conjecture', sentence: fill(template, { name, words: words(reading) }), references: referencesOf(attachment, cites, true) };
+  return {
+    kind: 'conjecture',
+    sentence: fill(template, { name, words: words(reading) }),
+    references: referencesOf(attachment, cites, true),
+  };
 }
 
 /** What the edition prints at a site and on what authority. */
@@ -314,51 +356,109 @@ function authorityOf(
   if (adopted?.kind === 'conjecture') {
     const name = proposer(adopted.name);
     const references = referencesOf(adopted, cites, true);
-    if (adopted.conjectureKind === 'deletion' || (adopted.text === '' && adopted.conjectureKind !== 'lacuna')) {
+    if (
+      adopted.conjectureKind === 'deletion' ||
+      (adopted.text === '' && adopted.conjectureKind !== 'lacuna')
+    ) {
       return { sentences: [fill(r.explain.conjectureDeletion, { name })], references };
     }
-    if (adopted.conjectureKind === 'lacuna') return { sentences: [fill(r.explain.conjectureLacuna, { name })], references };
-    if (agreeing.length) return { sentences: [fill(plural(r.explain.conjectureAlso, agreeing.length), { name, who: who(agreeing) })], references };
-    if (adopted.name === EDITOR_NAME) return { sentences: [fill(r.explain.conjectureOwn, {})], references };
+    if (adopted.conjectureKind === 'lacuna')
+      return { sentences: [fill(r.explain.conjectureLacuna, { name })], references };
+    if (agreeing.length)
+      return {
+        sentences: [
+          fill(plural(r.explain.conjectureAlso, agreeing.length), { name, who: who(agreeing) }),
+        ],
+        references,
+      };
+    if (adopted.name === EDITOR_NAME)
+      return { sentences: [fill(r.explain.conjectureOwn, {})], references };
     return { sentences: [fill(r.explain.conjecture, { name })], references };
   }
   if (adopted?.kind === 'reported') {
     const reported = witnesses.ofSigla([adopted.name]);
-    const followers = [...agreeing, ...reported.filter((w) => !agreeing.some((a) => a.siglum === w.siglum && a.name === w.name))];
+    const followers = [
+      ...agreeing,
+      ...reported.filter((w) => !agreeing.some((a) => a.siglum === w.siglum && a.name === w.name)),
+    ];
     const source = unbracket(adopted.source);
     return {
       sentences: [
         fill(r.explain.follows, { who: who(followers) }),
-        source ? fill(r.explain.reportedFrom, { who: who(reported), source: text(source) }) : fill(r.explain.reportedOnly, { who: who(reported) }),
+        source
+          ? fill(r.explain.reportedFrom, { who: who(reported), source: text(source) })
+          : fill(r.explain.reportedOnly, { who: who(reported) }),
       ],
       references: referencesOf(adopted, cites, false),
     };
   }
   if (agreeing.length) {
     const every = agreeing.length >= 3 && agreeing.length === present.length;
-    return { sentences: [every ? fill(r.explain.followsEvery, {}) : fill(r.explain.follows, { who: who(agreeing) })], references: [] };
+    return {
+      sentences: [
+        every ? fill(r.explain.followsEvery, {}) : fill(r.explain.follows, { who: who(agreeing) }),
+      ],
+      references: [],
+    };
   }
-  if (!base || base.text === '') return { sentences: present.length ? [fill(r.explain.editorLeftOut, {})] : [], references: [] };
+  if (!base || base.text === '')
+    return { sentences: present.length ? [fill(r.explain.editorLeftOut, {})] : [], references: [] };
   const othersHaveWords = site.readings.some((reading) => !reading.base && reading.text !== '');
-  return { sentences: [fill(othersHaveWords ? r.explain.editorReading : r.explain.editorAdded, {})], references: [] };
+  return {
+    sentences: [fill(othersHaveWords ? r.explain.editorReading : r.explain.editorAdded, {})],
+    references: [],
+  };
 }
 
 /** The line of one witness reading. */
-function readingLine(reading: Reading, base: Reading | undefined, group: Witness[], site: Site, transposed: Set<string>, relation: VariantRelation | null = null): ExplainLine {
+function readingLine(
+  reading: Reading,
+  base: Reading | undefined,
+  group: Witness[],
+  site: Site,
+  transposed: Set<string>,
+  relation: VariantRelation | null = null,
+): ExplainLine {
   const count = group.length;
   // Where the difference may be a punctuation mark, the reading keeps its punctuation.
   const said = site.kind === 'interpretative' ? reading.text : trimPunctuation(reading.text);
   const values = { who: who(group), words: words(said) };
-  if (reading.lacunose && reading.text === '') return { kind: 'lost', sentence: fill(plural(r.explain.lost, count), values), references: [] };
-  if (reading.lacunose) return { kind: 'damaged', sentence: fill(plural(r.explain.damaged, count), values), references: [] };
-  if (reading.omission || reading.text === '') return { kind: 'omits', sentence: fill(plural(r.explain.omits, count), values), references: [] };
-  if (base && base.text === '') return { kind: 'adds', sentence: fill(plural(r.explain.adds, count), values), references: [] };
+  if (reading.lacunose && reading.text === '')
+    return { kind: 'lost', sentence: fill(plural(r.explain.lost, count), values), references: [] };
+  if (reading.lacunose)
+    return {
+      kind: 'damaged',
+      sentence: fill(plural(r.explain.damaged, count), values),
+      references: [],
+    };
+  if (reading.omission || reading.text === '')
+    return {
+      kind: 'omits',
+      sentence: fill(plural(r.explain.omits, count), values),
+      references: [],
+    };
+  if (base && base.text === '')
+    return { kind: 'adds', sentence: fill(plural(r.explain.adds, count), values), references: [] };
   const sameSite = site.transposition && site.transposition.withSite === site.index;
   if (sameSite && reading.textIds.every((id) => transposed.has(id))) {
-    return { kind: 'order', sentence: fill(plural(r.explain.otherOrder, count), values), references: [] };
+    return {
+      kind: 'order',
+      sentence: fill(plural(r.explain.otherOrder, count), values),
+      references: [],
+    };
   }
-  if (relation === 'order') return { kind: 'order', sentence: fill(plural(r.explain.otherOrder, count), values), references: [] };
-  const template = site.kind === 'interpretative' ? r.explain.readsInterpretative : relation === 'form' ? r.explain.readsForm : r.explain.reads;
+  if (relation === 'order')
+    return {
+      kind: 'order',
+      sentence: fill(plural(r.explain.otherOrder, count), values),
+      references: [],
+    };
+  const template =
+    site.kind === 'interpretative'
+      ? r.explain.readsInterpretative
+      : relation === 'form'
+        ? r.explain.readsForm
+        : r.explain.reads;
   return { kind: 'reads', sentence: fill(plural(template, count), values), references: [] };
 }
 
@@ -369,7 +469,11 @@ export function notesAt(segment: ReaderSegment, siteIndex: number): ReaderNote[]
 }
 
 /** A site explained, or null when the segment has no such site. */
-export function explainSite(segment: ReaderSegment, siteIndex: number, context: ExplainContext): SiteExplanation | null {
+export function explainSite(
+  segment: ReaderSegment,
+  siteIndex: number,
+  context: ExplainContext,
+): SiteExplanation | null {
   const site = siteOf(segment, siteIndex);
   if (!site) return null;
   const witnesses = new Witnesses(context.sigla);
@@ -381,7 +485,10 @@ export function explainSite(segment: ReaderSegment, siteIndex: number, context: 
   const cites = segment.cites ?? {};
 
   const agreeing = base ? witnesses.ofReading(base, baseId) : [];
-  const present = [...agreeing, ...others.flatMap((reading) => witnesses.ofReading(reading, baseId))];
+  const present = [
+    ...agreeing,
+    ...others.flatMap((reading) => witnesses.ofReading(reading, baseId)),
+  ];
   const authority = authorityOf(site, base, agreeing, present, adopted, witnesses, cites);
 
   const transposed = new Set(site.transposition?.textIds ?? []);
@@ -389,14 +496,31 @@ export function explainSite(segment: ReaderSegment, siteIndex: number, context: 
   const relations = segment.relations?.[siteIndex];
   for (const reading of others) {
     const group = witnesses.ofReading(reading, baseId);
-    if (group.length) lines.push(readingLine(reading, base, group, site, transposed, relations?.[site.readings.indexOf(reading)] ?? null));
+    if (group.length)
+      lines.push(
+        readingLine(
+          reading,
+          base,
+          group,
+          site,
+          transposed,
+          relations?.[site.readings.indexOf(reading)] ?? null,
+        ),
+      );
   }
   if (site.transposition && transposed.size) {
     const sameSite = site.transposition.withSite === site.index;
     const covered = sameSite && lines.some((line) => line.kind === 'order');
     if (!covered) {
       const group = witnesses.ofTexts([...transposed]);
-      lines.push({ kind: sameSite ? 'order' : 'place', sentence: fill(plural(sameSite ? r.explain.otherOrderPlain : r.explain.otherPlace, group.length), { who: who(group) }), references: [] });
+      lines.push({
+        kind: sameSite ? 'order' : 'place',
+        sentence: fill(
+          plural(sameSite ? r.explain.otherOrderPlain : r.explain.otherPlace, group.length),
+          { who: who(group) },
+        ),
+        references: [],
+      });
     }
   }
   for (const attachment of attached) {
@@ -406,7 +530,13 @@ export function explainSite(segment: ReaderSegment, siteIndex: number, context: 
 
   const absentWitnesses = witnesses.ofSigla(segment.absent ?? []);
   const absent: ExplainLine | null = absentWitnesses.length
-    ? { kind: 'absent', sentence: fill(plural(r.explain.absent, absentWitnesses.length), { who: who(absentWitnesses) }), references: [] }
+    ? {
+        kind: 'absent',
+        sentence: fill(plural(r.explain.absent, absentWitnesses.length), {
+          who: who(absentWitnesses),
+        }),
+        references: [],
+      }
     : null;
 
   let place: SiteExplanation['place'] = null;
@@ -470,8 +600,11 @@ export function variantsOf(
     const places = sites.flatMap((site) => explainSite(segment, site.index, context) ?? []);
     const placed = new Set(places.flatMap((place) => place.notes.map((note) => note.id)));
     const notes = (segment.notes ?? []).filter((note) => !placed.has(note.id));
-    const unplaced = (segment.unplaced ?? []).map((a) => explainAttachment(a, context, segment.cites ?? {}));
-    if (places.length || notes.length || unplaced.length) out.push({ segmentId, label: segment.label, places, unplaced, notes });
+    const unplaced = (segment.unplaced ?? []).map((a) =>
+      explainAttachment(a, context, segment.cites ?? {}),
+    );
+    if (places.length || notes.length || unplaced.length)
+      out.push({ segmentId, label: segment.label, places, unplaced, notes });
   }
   return out;
 }

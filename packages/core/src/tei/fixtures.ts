@@ -212,10 +212,25 @@ export function variantStream(): Stream {
   return {
     items: [
       { kind: 'token', id: ids(), form: 'μῆνιν' },
-      { kind: 'token', id: ids(), form: 'ἄειδε', marks: [variant('g1', 'ἔννεπε μοι', 'margin', 'm2')] },
-      { kind: 'token', id: ids(), form: 'θεὰ', marks: [{ kind: 'unclear' }, variant('g1', 'ἔννεπε μοι', 'margin', 'm2')] },
+      {
+        kind: 'token',
+        id: ids(),
+        form: 'ἄειδε',
+        marks: [variant('g1', 'ἔννεπε μοι', 'margin', 'm2')],
+      },
+      {
+        kind: 'token',
+        id: ids(),
+        form: 'θεὰ',
+        marks: [{ kind: 'unclear' }, variant('g1', 'ἔννεπε μοι', 'margin', 'm2')],
+      },
       { kind: 'break', id: ids(), type: 'line' },
-      { kind: 'token', id: ids(), form: 'Πηληϊάδεω', marks: [variant('g1', 'ἔννεπε μοι', 'margin', 'm2')] },
+      {
+        kind: 'token',
+        id: ids(),
+        form: 'Πηληϊάδεω',
+        marks: [variant('g1', 'ἔννεπε μοι', 'margin', 'm2')],
+      },
       { kind: 'token', id: ids(), form: 'Ἀχιλῆος', marks: [variant('g2', '', 'interlinear')] },
       { kind: 'token', id: ids(), form: 'οὐλομένην', marks: [variant('g3', 'οὐλομένη', 'other')] },
     ],
@@ -238,7 +253,13 @@ export function editionSegment(
   const edition = fromText(text, { ids: sequentialIds(`e${label}-`) });
   const baseUnits = units(edition, 0, edition.items.length);
   const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, witnesses);
-  return { label, items: edition.items, baseUnits, sites: c.sites, ...(attachments ? { attachments } : {}) };
+  return {
+    label,
+    items: edition.items,
+    baseUnits,
+    sites: c.sites,
+    ...(attachments ? { attachments } : {}),
+  };
 }
 
 /** An edition with substitution, omission, addition, a conjecture, an adopted conjecture, a lacunose witness and a reported reading. */
@@ -267,7 +288,13 @@ export function editionInput(): EditionExport {
         ],
         {
           0: [
-            { kind: 'conjecture', id: 'c1', text: 'swift', name: 'Bentley', conjectureKind: 'substitution' },
+            {
+              kind: 'conjecture',
+              id: 'c1',
+              text: 'swift',
+              name: 'Bentley',
+              conjectureKind: 'substitution',
+            },
             { kind: 'reported', id: 'r1', text: 'quick', name: 'D', source: 'teste Allen' },
           ],
         },
@@ -279,7 +306,19 @@ export function editionInput(): EditionExport {
           collationText('A', 'A', 'a x c'),
           { id: 'P', siglum: 'P', units: units(lacunose, 0, lacunose.items.length) },
         ],
-        { 0: [{ kind: 'conjecture', id: 'c2', text: 'b', name: 'M. L. West', adopted: true, conjectureKind: 'substitution', source: '(Ath. 1.12e)' }] },
+        {
+          0: [
+            {
+              kind: 'conjecture',
+              id: 'c2',
+              text: 'b',
+              name: 'M. L. West',
+              adopted: true,
+              conjectureKind: 'substitution',
+              source: '(Ath. 1.12e)',
+            },
+          ],
+        },
       ),
     ],
   };

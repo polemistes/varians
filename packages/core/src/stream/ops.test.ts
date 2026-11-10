@@ -34,7 +34,11 @@ describe('applyOp', () => {
 
   it('refuses a duplicate id', () => {
     expect(() =>
-      applyOp(sample(), { t: 'insert', after: null, items: [{ kind: 'token', id: 't1', form: 'x' }] }),
+      applyOp(sample(), {
+        t: 'insert',
+        after: null,
+        items: [{ kind: 'token', id: 't1', form: 'x' }],
+      }),
     ).toThrow(/already present/);
   });
 
@@ -48,7 +52,11 @@ describe('applyOp', () => {
 
   it('sets fields and reverses them, removing fields that were absent', () => {
     const s = sample();
-    const { stream, reverse } = applyOp(s, { t: 'set', id: 't2', fields: { norm: 'quyck', unchecked: true } });
+    const { stream, reverse } = applyOp(s, {
+      t: 'set',
+      id: 't2',
+      fields: { norm: 'quyck', unchecked: true },
+    });
     expect(token(stream, 't2').norm).toBe('quyck');
     const back = applyOps(stream, reverse).stream;
     expect(token(back, 't2')).toEqual(token(s, 't2'));
@@ -64,7 +72,9 @@ describe('applyOp', () => {
   });
 
   it('refuses to move a non-contiguous run', () => {
-    expect(() => applyOp(sample(), { t: 'move', ids: ['t1', 't3'], after: null })).toThrow(/contiguous/);
+    expect(() => applyOp(sample(), { t: 'move', ids: ['t1', 't3'], after: null })).toThrow(
+      /contiguous/,
+    );
   });
 
   it('splits a token, keeping the id on the first half, and joins back exactly', () => {
@@ -73,7 +83,11 @@ describe('applyOp', () => {
     const marked: Stream = applyOp(s, {
       t: 'set',
       id: 't2',
-      fields: { marks: [{ kind: 'unclear', from: 3, to: 5 }, { kind: 'hi' }], norm: 'quick', joinNext: true },
+      fields: {
+        marks: [{ kind: 'unclear', from: 3, to: 5 }, { kind: 'hi' }],
+        norm: 'quick',
+        joinNext: true,
+      },
     }).stream;
     const { stream, reverse } = applyOp(marked, { t: 'split', id: 't2', at: 2, newId: 'n1' });
     const first = token(stream, 't2');
@@ -133,7 +147,9 @@ describe('applyOp', () => {
   });
 
   it('names the ids an operation touches', () => {
-    expect(touchedIds({ t: 'insert', after: 'a', items: [{ kind: 'token', id: 'b', form: 'x' }] })).toEqual(['a', 'b']);
+    expect(
+      touchedIds({ t: 'insert', after: 'a', items: [{ kind: 'token', id: 'b', form: 'x' }] }),
+    ).toEqual(['a', 'b']);
     expect(touchedIds({ t: 'move', ids: ['a', 'b'], after: 'c' })).toEqual(['a', 'b', 'c']);
     expect(touchedIds({ t: 'join', id: 'a' })).toEqual(['a']);
   });

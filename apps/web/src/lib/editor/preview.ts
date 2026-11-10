@@ -27,7 +27,11 @@ export function breakAt(model: Model, pos: number, type: BreakType): BreakAt | n
   const line = lineAt(linesOf(model), pos);
   if (!line) return null;
   // On the first line of a page shown alone, the page's own break opens it.
-  const item = line.opener ? model.byId.get(line.opener.id) : line.from === 0 ? model.view.anchor : null;
+  const item = line.opener
+    ? model.byId.get(line.opener.id)
+    : line.from === 0
+      ? model.view.anchor
+      : null;
   const opener = item && item.kind === 'break' ? item : null;
   return { line, opener, target: breakTarget(opener, type) };
 }
@@ -45,20 +49,25 @@ const previewField = StateField.define<BreakPreview>({
   },
 });
 
-const previewDecorations = EditorView.decorations.compute([previewField, 'selection', modelField], (state) => {
-  const preview = state.field(previewField);
-  if (!preview) return Decoration.none;
-  const model = state.field(modelField).model;
-  const pos = state.selection.main.head;
-  const types: BreakType[] = preview === 'any' ? ['column', 'paragraph'] : [preview];
-  const found = types.map((type) => breakAt(model, pos, type)).find((at) => at && at.target.t !== 'none');
-  if (!found) return Decoration.none;
-  return Decoration.set([
-    Decoration.line({
-      class: `cm-break-preview cm-break-preview-${preview}`,
-      attributes: { 'data-preview': editorStrings.breakPreview[preview] },
-    }).range(found.line.from),
-  ]);
-});
+const previewDecorations = EditorView.decorations.compute(
+  [previewField, 'selection', modelField],
+  (state) => {
+    const preview = state.field(previewField);
+    if (!preview) return Decoration.none;
+    const model = state.field(modelField).model;
+    const pos = state.selection.main.head;
+    const types: BreakType[] = preview === 'any' ? ['column', 'paragraph'] : [preview];
+    const found = types
+      .map((type) => breakAt(model, pos, type))
+      .find((at) => at && at.target.t !== 'none');
+    if (!found) return Decoration.none;
+    return Decoration.set([
+      Decoration.line({
+        class: `cm-break-preview cm-break-preview-${preview}`,
+        attributes: { 'data-preview': editorStrings.breakPreview[preview] },
+      }).range(found.line.from),
+    ]);
+  },
+);
 
 export const breakPreview = [previewField, previewDecorations];

@@ -51,7 +51,6 @@
     segmentLabels = { ...initialLabels };
     log = [];
   }
-
 </script>
 
 <svelte:head>

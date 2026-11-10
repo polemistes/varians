@@ -96,11 +96,11 @@ Migrations are not undone by going back. They only ever add, so an earlier relea
 
 ## Looking after it
 
-| | |
-|---|---|
-| `systemctl status varians` | is it running |
-| `journalctl -u varians -e` | the application's log |
-| `/var/log/httpd/varians.eu-*_log` | Apache's log of the site |
+|                                              |                                    |
+| -------------------------------------------- | ---------------------------------- |
+| `systemctl status varians`                   | is it running                      |
+| `journalctl -u varians -e`                   | the application's log              |
+| `/var/log/httpd/varians.eu-*_log`            | Apache's log of the site           |
 | `systemctl list-timers varians-backup.timer` | when the last and next backups run |
 
 To restore a backup, stop the service, then:

@@ -50,7 +50,14 @@
   </Field>
   <Field label={t.rights.credit} error={errors[names.attribution]}>
     {#snippet children(control)}
-      <Input {...control} name={names.attribution} bind:value={attribution} maxlength={500} autocomplete="off" {disabled} />
+      <Input
+        {...control}
+        name={names.attribution}
+        bind:value={attribution}
+        maxlength={500}
+        autocomplete="off"
+        {disabled}
+      />
     {/snippet}
   </Field>
   {#if withSource}

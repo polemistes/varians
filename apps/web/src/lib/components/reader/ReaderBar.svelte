@@ -15,7 +15,14 @@
   import ScrollText from '@lucide/svelte/icons/scroll-text';
   import Split from '@lucide/svelte/icons/split';
   import SquarePen from '@lucide/svelte/icons/square-pen';
-  import { IconButton, LocalDate, Menu, MenuItem, MenuLabel, MenuSeparator } from '$lib/components/ui';
+  import {
+    IconButton,
+    LocalDate,
+    Menu,
+    MenuItem,
+    MenuLabel,
+    MenuSeparator,
+  } from '$lib/components/ui';
   import type { ReaderSettings } from '$lib/reader/settings';
   import type { ReaderData } from '$lib/reader/types';
   import { reader as r } from '$lib/strings/reader';
@@ -23,7 +30,10 @@
   import ReaderSearch from './ReaderSearch.svelte';
 
   interface Props {
-    data: Pick<ReaderData, 'edition' | 'apparatus' | 'mode' | 'versions' | 'exports' | 'links' | 'copy'>;
+    data: Pick<
+      ReaderData,
+      'edition' | 'apparatus' | 'mode' | 'versions' | 'exports' | 'links' | 'copy'
+    >;
     /** Open the dialog that makes a copy; absent when none may be made. */
     oncopy?: () => void;
     settings: ReaderSettings;
@@ -78,23 +88,46 @@
 
 <div class="reader-bar reader-bar-root">
   <div class="mx-auto flex h-12 w-full max-w-page items-center gap-1.5 px-4 sm:gap-2 sm:px-8">
-    <p class={['min-w-0 flex-1 truncate transition-opacity duration-200', !showTitle && 'opacity-0']} aria-hidden={!showTitle || undefined}>
+    <p
+      class={['min-w-0 flex-1 truncate transition-opacity duration-200', !showTitle && 'opacity-0']}
+      aria-hidden={!showTitle || undefined}
+    >
       <span class="font-serif text-[1.05rem] text-ink">{data.edition.title}</span>
       <span class="ml-2 hidden font-sans text-xs text-ink-muted sm:inline">{shown}</span>
     </p>
     <ReaderSearch {query} count={hits} current={hit} oninput={onsearch} {onstep} />
     <ReaderGear {settings} edition={data.apparatus} onchange={onsettings} />
-    <IconButton label={r.toolbar.variants} aria-pressed={variantsOpen} class={variantsOpen ? 'bg-sunken text-ink' : ''} onclick={() => (variantsOpen = !variantsOpen)}>
+    <IconButton
+      label={r.toolbar.variants}
+      aria-pressed={variantsOpen}
+      class={variantsOpen ? 'bg-sunken text-ink' : ''}
+      onclick={() => (variantsOpen = !variantsOpen)}
+    >
       <Split aria-hidden="true" />
     </IconButton>
-    <IconButton label={r.toolbar.witnesses} aria-pressed={witnessOpen} class={witnessOpen ? 'bg-sunken text-ink' : ''} onclick={() => (witnessOpen = !witnessOpen)}>
+    <IconButton
+      label={r.toolbar.witnesses}
+      aria-pressed={witnessOpen}
+      class={witnessOpen ? 'bg-sunken text-ink' : ''}
+      onclick={() => (witnessOpen = !witnessOpen)}
+    >
       <ScrollText aria-hidden="true" />
     </IconButton>
-    <IconButton label={r.toolbar.facsimile} aria-pressed={facsimileOpen} class={facsimileOpen ? 'bg-sunken text-ink' : ''} onclick={() => (facsimileOpen = !facsimileOpen)}>
+    <IconButton
+      label={r.toolbar.facsimile}
+      aria-pressed={facsimileOpen}
+      class={facsimileOpen ? 'bg-sunken text-ink' : ''}
+      onclick={() => (facsimileOpen = !facsimileOpen)}
+    >
       <ImageIcon aria-hidden="true" />
     </IconButton>
     {#if hasDictionary}
-      <IconButton label={r.toolbar.dictionary} aria-pressed={dictionaryOpen} class={dictionaryOpen ? 'bg-sunken text-ink' : ''} onclick={() => (dictionaryOpen = !dictionaryOpen)}>
+      <IconButton
+        label={r.toolbar.dictionary}
+        aria-pressed={dictionaryOpen}
+        class={dictionaryOpen ? 'bg-sunken text-ink' : ''}
+        onclick={() => (dictionaryOpen = !dictionaryOpen)}
+      >
         <BookOpen aria-hidden="true" />
       </IconButton>
     {/if}
@@ -116,7 +149,9 @@
       {#each data.versions as version (version.number)}
         <MenuItem href={version.href}>
           {#snippet icon()}<History aria-hidden="true" />{/snippet}
-          <span class="flex-1">{r.version(version.number)}{version.current ? ` (${r.menu.current})` : ''}</span>
+          <span class="flex-1"
+            >{r.version(version.number)}{version.current ? ` (${r.menu.current})` : ''}</span
+          >
           <LocalDate date={version.at} class="text-xs text-ink-muted" />
         </MenuItem>
       {:else}

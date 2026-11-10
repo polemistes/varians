@@ -34,7 +34,11 @@ export default defineConfig({
         lexicon: 'scripts/lexicon.ts',
         migrate: 'scripts/migrate.ts',
       },
-      output: { format: 'es', entryFileNames: '[name].js', chunkFileNames: 'chunks/[name]-[hash].js' },
+      output: {
+        format: 'es',
+        entryFileNames: '[name].js',
+        chunkFileNames: 'chunks/[name]-[hash].js',
+      },
     },
   },
 });

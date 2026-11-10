@@ -40,34 +40,68 @@ export interface EditionCopy {
 }
 
 /** Make a copy of an edition for `user`, under `title`. */
-export async function copyEdition(db: Database, user: Actor, sourceId: string, title: string): Promise<EditionCopy | CopyRefusal> {
+export async function copyEdition(
+  db: Database,
+  user: Actor,
+  sourceId: string,
+  title: string,
+): Promise<EditionCopy | CopyRefusal> {
   const access = await loadEditionAccess(db, user, sourceId);
   if (!access) return 'not-found';
   const source = access.edition;
   // Editors copy the draft; readers the published version, and only that.
   const asEditor = access.canEdit;
   if (!asEditor && (!access.canView || source.publishedVersion === null)) return 'forbidden';
-  const { context } = asEditor ? { context: await loadEditionContext(db, source.id) } : await contextAt(db, source.id, source.publishedVersion);
+  const { context } = asEditor
+    ? { context: await loadEditionContext(db, source.id) }
+    : await contextAt(db, source.id, source.publishedVersion);
   const content: Stream = context.edition.content;
   const version = asEditor ? source.version : source.publishedVersion!;
 
   // The conspectus: each witness with its transcription, where the copier may see it.
   const grants = await grantsFor(db, user);
-  const named = context.sigla.map((s) => s.transcriptionId).filter((id): id is string => id !== null);
+  const named = context.sigla
+    .map((s) => s.transcriptionId)
+    .filter((id): id is string => id !== null);
   const rows = named.length
-    ? await db.select({ id: transcriptions.id, ownerId: transcriptions.ownerId, visibility: transcriptions.visibility }).from(transcriptions).where(inArray(transcriptions.id, named))
+    ? await db
+        .select({
+          id: transcriptions.id,
+          ownerId: transcriptions.ownerId,
+          visibility: transcriptions.visibility,
+        })
+        .from(transcriptions)
+        .where(inArray(transcriptions.id, named))
     : [];
-  const visible = new Set(rows.filter((r) => canViewTranscription(user, r, grants)).map((r) => r.id));
+  const visible = new Set(
+    rows.filter((r) => canViewTranscription(user, r, grants)).map((r) => r.id),
+  );
   let withoutTranscription = 0;
   const sigla = context.sigla.map((s, position) => {
     const keep = s.transcriptionId !== null && visible.has(s.transcriptionId);
     if (s.transcriptionId !== null && !keep) withoutTranscription++;
-    return { witnessId: s.witnessId, transcriptionId: keep ? s.transcriptionId : null, siglum: s.siglum, states: s.states, variantSiglum: s.variantSiglum, position };
+    return {
+      witnessId: s.witnessId,
+      transcriptionId: keep ? s.transcriptionId : null,
+      siglum: s.siglum,
+      states: s.states,
+      variantSiglum: s.variantSiglum,
+      position,
+    };
   });
 
   const id = newId();
-  const number = asEditor ? null : ((await publishedVersions(db, source.id)).find((m) => m.version === version)?.number ?? null);
-  const origin: EditionOrigin = { editionId: source.id, title: source.title, editors: source.editors, version, published: !asEditor, number };
+  const number = asEditor
+    ? null
+    : ((await publishedVersions(db, source.id)).find((m) => m.version === version)?.number ?? null);
+  const origin: EditionOrigin = {
+    editionId: source.id,
+    title: source.title,
+    editors: source.editors,
+    version,
+    published: !asEditor,
+    number,
+  };
   await db.insert(editions).values({
     id,
     workId: source.workId,
@@ -83,11 +117,27 @@ export async function copyEdition(db: Database, user: Actor, sourceId: string, t
     copiedFrom: origin,
   });
   try {
-    if (content.items.length) await replaceContent(db, 'edition', id, user.id, 0, content, `copied from ${source.title}, version ${version}`);
-    if (sigla.length) await db.insert(editionSigla).values(sigla.map((s) => ({ editionId: id, ...s })));
+    if (content.items.length)
+      await replaceContent(
+        db,
+        'edition',
+        id,
+        user.id,
+        0,
+        content,
+        `copied from ${source.title}, version ${version}`,
+      );
+    if (sigla.length)
+      await db.insert(editionSigla).values(sigla.map((s) => ({ editionId: id, ...s })));
 
-    const adopted = await db.select({ conjectureId: editionAdoptions.conjectureId }).from(editionAdoptions).where(eq(editionAdoptions.editionId, source.id));
-    if (adopted.length) await db.insert(editionAdoptions).values(adopted.map((a) => ({ editionId: id, conjectureId: a.conjectureId })));
+    const adopted = await db
+      .select({ conjectureId: editionAdoptions.conjectureId })
+      .from(editionAdoptions)
+      .where(eq(editionAdoptions.editionId, source.id));
+    if (adopted.length)
+      await db
+        .insert(editionAdoptions)
+        .values(adopted.map((a) => ({ editionId: id, conjectureId: a.conjectureId })));
 
     // Notes and alignments come along where the words they are about are in the copied text.
     const present = new Set(content.items.filter(isToken).map((t) => t.id));
@@ -96,10 +146,32 @@ export async function copyEdition(db: Database, user: Actor, sourceId: string, t
     const keptNotes = sourceNotes.filter((n) => n.tokenIds.every((t) => present.has(t)));
     for (const n of keptNotes) noteIds.set(n.id, newId());
     if (keptNotes.length) {
-      await db.insert(notes).values(keptNotes.map((n) => ({ id: noteIds.get(n.id)!, editionId: id, segmentId: n.segmentId, tokenIds: n.tokenIds, text: n.text, authorId: n.authorId })));
+      await db.insert(notes).values(
+        keptNotes.map((n) => ({
+          id: noteIds.get(n.id)!,
+          editionId: id,
+          segmentId: n.segmentId,
+          tokenIds: n.tokenIds,
+          text: n.text,
+          authorId: n.authorId,
+        })),
+      );
     }
-    const sourceCitations = await db.select().from(citations).where(eq(citations.editionId, source.id));
-    const noteCitations = keptNotes.length ? await db.select().from(citations).where(inArray(citations.noteId, keptNotes.map((n) => n.id))) : [];
+    const sourceCitations = await db
+      .select()
+      .from(citations)
+      .where(eq(citations.editionId, source.id));
+    const noteCitations = keptNotes.length
+      ? await db
+          .select()
+          .from(citations)
+          .where(
+            inArray(
+              citations.noteId,
+              keptNotes.map((n) => n.id),
+            ),
+          )
+      : [];
     const copiedCitations = [
       ...sourceCitations.filter((c) => c.noteId === null),
       ...noteCitations,
@@ -117,15 +189,37 @@ export async function copyEdition(db: Database, user: Actor, sourceId: string, t
     }));
     if (copiedCitations.length) await db.insert(citations).values(copiedCitations);
 
-    const constraints = await db.select().from(alignmentConstraints).where(eq(alignmentConstraints.editionId, source.id));
-    const keptConstraints = constraints.filter((c) => c.baseTokenIds.every((t) => present.has(t)) && (c.transcriptionId === null || visible.has(c.transcriptionId)));
+    const constraints = await db
+      .select()
+      .from(alignmentConstraints)
+      .where(eq(alignmentConstraints.editionId, source.id));
+    const keptConstraints = constraints.filter(
+      (c) =>
+        c.baseTokenIds.every((t) => present.has(t)) &&
+        (c.transcriptionId === null || visible.has(c.transcriptionId)),
+    );
     if (keptConstraints.length) {
       await db.insert(alignmentConstraints).values(
-        keptConstraints.map((c) => ({ id: newId(), editionId: id, segmentId: c.segmentId, baseTokenIds: c.baseTokenIds, transcriptionId: c.transcriptionId, witnessTokenIds: c.witnessTokenIds })),
+        keptConstraints.map((c) => ({
+          id: newId(),
+          editionId: id,
+          segmentId: c.segmentId,
+          baseTokenIds: c.baseTokenIds,
+          transcriptionId: c.transcriptionId,
+          witnessTokenIds: c.witnessTokenIds,
+        })),
       );
     }
 
-    const kinds = [...context.siteKinds].flatMap(([segmentId, bySite]) => [...bySite].map(([siteKey, k]) => ({ editionId: id, segmentId, siteKey, kind: k.kind, setBy: user.id })));
+    const kinds = [...context.siteKinds].flatMap(([segmentId, bySite]) =>
+      [...bySite].map(([siteKey, k]) => ({
+        editionId: id,
+        segmentId,
+        siteKey,
+        kind: k.kind,
+        setBy: user.id,
+      })),
+    );
     if (kinds.length) await db.insert(editionSiteKinds).values(kinds);
   } catch (cause) {
     // No half-made copy: its history goes, and all else hangs on the edition row and goes with it.

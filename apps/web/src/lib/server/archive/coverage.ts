@@ -35,13 +35,29 @@ export const ARCHIVED_TABLES = [
 ] as const;
 
 /** Tables rebuilt from archived data. */
-export const DERIVED_TABLES = ['transcription_segments', 'collation_cache', 'checkpoints', 'archive_commits'] as const;
+export const DERIVED_TABLES = [
+  'transcription_segments',
+  'collation_cache',
+  'checkpoints',
+  'archive_commits',
+] as const;
 
 /**
  * Transient state and reference data: sessions, offers, accounts (their names
  * reach the archive with the records), the archive's own queue, and the
  * dictionaries, a dataset with its own documentation (docs/lexicon.md) and licence.
  */
-export const TRANSIENT_TABLES = ['sessions', 'email_tokens', 'api_tokens', 'work_remotes', 'ownership_offers', 'users', 'archive_queue', 'greek_forms', 'lexicons', 'lexicon_entries'] as const;
+export const TRANSIENT_TABLES = [
+  'sessions',
+  'email_tokens',
+  'api_tokens',
+  'work_remotes',
+  'ownership_offers',
+  'users',
+  'archive_queue',
+  'greek_forms',
+  'lexicons',
+  'lexicon_entries',
+] as const;
 
 export type ArchivedTable = (typeof ARCHIVED_TABLES)[number];

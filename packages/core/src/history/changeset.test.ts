@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { compose, conflictingIds, sessions, thin, undoConflicts, type Changeset } from './changeset.ts';
+import {
+  compose,
+  conflictingIds,
+  sessions,
+  thin,
+  undoConflicts,
+  type Changeset,
+} from './changeset.ts';
 
 function cs(version: number, userId: string, at: string, ids: string[]): Changeset {
   return {

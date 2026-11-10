@@ -12,7 +12,7 @@ You keep whatever rights you have in your transcripts, editions, conjectures, re
 
 ## Publishing licenses your work
 
-When you publish an edition or a transcript here, you license it, non-exclusively and for ever, under the data licence of this installation, which the page *Sources and licences* names and every published record names too. The conjectures, reported readings and notes you publish with a work are licensed in the same way. A record keeps the licence it was first published under; later changes to these terms or to the installation's licence do not change it.
+When you publish an edition or a transcript here, you license it, non-exclusively and for ever, under the data licence of this installation, which the page _Sources and licences_ names and every published record names too. The conjectures, reported readings and notes you publish with a work are licensed in the same way. A record keeps the licence it was first published under; later changes to these terms or to the installation's licence do not change it.
 
 Varians keeps the full history of every text. Publishing a text publishes its history with it: every change, who made it and when, back to the text you started from.
 
@@ -22,7 +22,7 @@ Works, witnesses, segments, reference schemes and bibliography entries describe 
 
 ## Texts you start from
 
-A text you bring in to start from (an earlier edition, a digital text from another project) must be in the public domain or under an open licence that allows it to be published here, changed, and published again under this installation's licence. Its history is published with your work, and with it the text as you brought it in. Say where it comes from under *Sources*.
+A text you bring in to start from (an earlier edition, a digital text from another project) must be in the public domain or under an open licence that allows it to be published here, changed, and published again under this installation's licence. Its history is published with your work, and with it the text as you brought it in. Say where it comes from under _Sources_.
 
 ## Images
 

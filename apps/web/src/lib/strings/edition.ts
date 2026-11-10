@@ -16,7 +16,8 @@ export const edition = {
   witnessColumn: 'Witness',
   transcriptionColumn: 'Transcript',
   include: 'Include',
-  noWitnesses: 'No witness of this work has been transcribed yet. The conspectus can be filled later.',
+  noWitnesses:
+    'No witness of this work has been transcribed yet. The conspectus can be filled later.',
   conventions: 'Conventions',
   lineation: 'Lineation',
   verse: 'Verse, labels every few lines',
@@ -28,8 +29,13 @@ export const edition = {
   negative: 'Negative',
   latin: 'Latin abbreviations (om., add., del.)',
   interpretative: 'Interpretative variants',
-  interpretativeHint: 'Accents, breathings, punctuation and word division: the same letters read otherwise.',
-  interpretativeOptions: { apparatus: 'In the apparatus, with the others', separate: 'In a list of their own, under the apparatus', none: 'Not printed' },
+  interpretativeHint:
+    'Accents, breathings, punctuation and word division: the same letters read otherwise.',
+  interpretativeOptions: {
+    apparatus: 'In the apparatus, with the others',
+    separate: 'In a list of their own, under the apparatus',
+    none: 'Not printed',
+  },
   create: 'Create the edition',
   creating: 'Creating…',
   errors: {

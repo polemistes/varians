@@ -3,13 +3,33 @@ import { licenceAllowed, licenceProblems, parseExpression } from './check-licenc
 
 describe('licence statements', () => {
   it('allow the permissive and weak copyleft licences in use', () => {
-    for (const id of ['MIT', 'MIT-0', 'ISC', 'BSD-2-Clause', 'BSD-3-Clause', '0BSD', 'Apache-2.0', 'MPL-2.0', 'LGPL-3.0-or-later']) {
+    for (const id of [
+      'MIT',
+      'MIT-0',
+      'ISC',
+      'BSD-2-Clause',
+      'BSD-3-Clause',
+      '0BSD',
+      'Apache-2.0',
+      'MPL-2.0',
+      'LGPL-3.0-or-later',
+    ]) {
       expect(licenceAllowed(id), id).toBe(true);
     }
   });
 
   it('refuse licences incompatible with the AGPL-3.0', () => {
-    for (const id of ['GPL-2.0-only', 'CC-BY-NC-4.0', 'CC-BY-ND-4.0', 'SSPL-1.0', 'BUSL-1.1', 'EPL-1.0', 'CDDL-1.0', 'JSON', 'Proprietary']) {
+    for (const id of [
+      'GPL-2.0-only',
+      'CC-BY-NC-4.0',
+      'CC-BY-ND-4.0',
+      'SSPL-1.0',
+      'BUSL-1.1',
+      'EPL-1.0',
+      'CDDL-1.0',
+      'JSON',
+      'Proprietary',
+    ]) {
       expect(licenceAllowed(id), id).toBe(false);
     }
   });

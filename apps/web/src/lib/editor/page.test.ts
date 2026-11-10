@@ -41,7 +41,9 @@ describe('pageView', () => {
     expect(toText(view.stream)).toBe('x');
     expect(view.anchor).toBeNull();
     expect(view.missing).toBeNull();
-    expect(toText(pageView(fromText('a b\nc', { ids: sequentialIds() }), UNPLACED).stream)).toBe('a b\nc');
+    expect(toText(pageView(fromText('a b\nc', { ids: sequentialIds() }), UNPLACED).stream)).toBe(
+      'a b\nc',
+    );
   });
 
   it('shows nothing for a page that has no break yet, remembering where the witness order puts its break', () => {
@@ -162,7 +164,11 @@ describe('editing one page through the bridge', () => {
   it('creates the break of a page between two others in its place', () => {
     const whole = twoPages();
     const view = pageView(whole, 'p1a', ['p1', 'p1a', 'p2']);
-    const lifted = liftToWhole([{ t: 'insert', after: null, items: [{ kind: 'token', id: 'n1', form: 'f' }] }], view, sequentialIds('b'));
+    const lifted = liftToWhole(
+      [{ t: 'insert', after: null, items: [{ kind: 'token', id: 'n1', form: 'f' }] }],
+      view,
+      sequentialIds('b'),
+    );
     const next = applyOps(whole, lifted.ops).stream;
     expect(toText(next)).toBe('x\na b\nf\nc d\ne');
     expect(pageBreaks(next).map((b) => b.pageId)).toEqual(['p1', 'p1a', 'p2']);
@@ -171,7 +177,13 @@ describe('editing one page through the bridge', () => {
   it('lifts edits of the text on no page as they are', () => {
     const whole = twoPages();
     const view = pageView(whole, UNPLACED);
-    const ops = [{ t: 'insert' as const, after: null, items: [{ kind: 'token' as const, id: 'n1', form: 'w' }] }];
+    const ops = [
+      {
+        t: 'insert' as const,
+        after: null,
+        items: [{ kind: 'token' as const, id: 'n1', form: 'w' }],
+      },
+    ];
     expect(liftToWhole(ops, view, sequentialIds('b')).ops).toEqual(ops);
   });
 

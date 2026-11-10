@@ -36,7 +36,14 @@
 >
   <Field label={s.account.orcid} error={mine?.errors?.orcid}>
     {#snippet children(control)}
-      <Input {...control} name="orcid" inputmode="text" spellcheck="false" placeholder="0000-0000-0000-0000" value={mine?.values?.orcid ?? orcid ?? ''} />
+      <Input
+        {...control}
+        name="orcid"
+        inputmode="text"
+        spellcheck="false"
+        placeholder="0000-0000-0000-0000"
+        value={mine?.values?.orcid ?? orcid ?? ''}
+      />
     {/snippet}
   </Field>
   <div>

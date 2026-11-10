@@ -34,7 +34,13 @@
 >
   <Field label={s.auth.name} error={mine?.errors?.name}>
     {#snippet children(control)}
-      <Input {...control} name="name" autocomplete="name" required value={mine?.values?.name ?? name} />
+      <Input
+        {...control}
+        name="name"
+        autocomplete="name"
+        required
+        value={mine?.values?.name ?? name}
+      />
     {/snippet}
   </Field>
   <div>

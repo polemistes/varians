@@ -1,9 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { IMAGE_RIGHTS, isCopyable, licenceCompatible, licenceInfo, normalizeRights } from './rights.ts';
+import {
+  IMAGE_RIGHTS,
+  isCopyable,
+  licenceCompatible,
+  licenceInfo,
+  normalizeRights,
+} from './rights.ts';
 
 describe('licences and rights', () => {
   it('knows the data licences by SPDX id', () => {
-    expect(licenceInfo('CC-BY-SA-4.0')).toEqual({ id: 'CC-BY-SA-4.0', name: 'CC BY-SA 4.0', url: 'https://creativecommons.org/licenses/by-sa/4.0/' });
+    expect(licenceInfo('CC-BY-SA-4.0')).toEqual({
+      id: 'CC-BY-SA-4.0',
+      name: 'CC BY-SA 4.0',
+      url: 'https://creativecommons.org/licenses/by-sa/4.0/',
+    });
     expect(licenceInfo('GPL-3.0')).toBeNull();
   });
 
@@ -25,9 +35,15 @@ describe('licences and rights', () => {
   });
 
   it('reads statements as sources give them', () => {
-    expect(normalizeRights('http://creativecommons.org/licenses/by/4.0')).toBe('https://creativecommons.org/licenses/by/4.0/');
-    expect(normalizeRights('https://creativecommons.org/licenses/by-sa/4.0/legalcode')).toBe('https://creativecommons.org/licenses/by-sa/4.0/');
-    expect(normalizeRights('https://rightsstatements.org/vocab/InC/1.0/')).toBe('http://rightsstatements.org/vocab/InC/1.0/');
+    expect(normalizeRights('http://creativecommons.org/licenses/by/4.0')).toBe(
+      'https://creativecommons.org/licenses/by/4.0/',
+    );
+    expect(normalizeRights('https://creativecommons.org/licenses/by-sa/4.0/legalcode')).toBe(
+      'https://creativecommons.org/licenses/by-sa/4.0/',
+    );
+    expect(normalizeRights('https://rightsstatements.org/vocab/InC/1.0/')).toBe(
+      'http://rightsstatements.org/vocab/InC/1.0/',
+    );
     expect(normalizeRights('https://creativecommons.org/licenses/by/3.0/')).toBeNull();
   });
 });

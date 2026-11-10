@@ -7,7 +7,12 @@
   import Settings2 from '@lucide/svelte/icons/settings-2';
   import type { ApparatusConventions } from '@varians/core';
   import { Checkbox, Popover } from '$lib/components/ui';
-  import { DEFAULT_SETTINGS, TEXT_SIZES, isDefault, type ReaderSettings } from '$lib/reader/settings';
+  import {
+    DEFAULT_SETTINGS,
+    TEXT_SIZES,
+    isDefault,
+    type ReaderSettings,
+  } from '$lib/reader/settings';
   import { reader as r } from '$lib/strings/reader';
 
   interface Props {
@@ -36,10 +41,20 @@
     { value: 'foot', label: r.settings.apparatusFoot },
     { value: 'side', label: r.settings.apparatusSide },
   ] as const;
-  const interpretativePlacements = (['apparatus', 'separate', 'none'] as const).map((value) => ({ value, label: r.settings.interpretativeOptions[value] }));
+  const interpretativePlacements = (['apparatus', 'separate', 'none'] as const).map((value) => ({
+    value,
+    label: r.settings.interpretativeOptions[value],
+  }));
 </script>
 
-<Popover label={r.toolbar.settings} triggerVariant="ghost" triggerSize="sm" triggerClass="w-8 px-0" align="end" class="w-80">
+<Popover
+  label={r.toolbar.settings}
+  triggerVariant="ghost"
+  triggerSize="sm"
+  triggerClass="w-8 px-0"
+  align="end"
+  class="w-80"
+>
   {#snippet trigger()}
     <Settings2 class="size-4 text-ink-soft" aria-hidden="true" />
   {/snippet}
@@ -51,8 +66,17 @@
       <div class={group}>
         {#each TEXT_SIZES as size (size)}
           <label class={segment}>
-            <input class="sr-only" type="radio" name="reader-size" value={size} checked={settings.size === size} onchange={() => set('size', size)} />
-            <span class={size === 'small' ? 'text-[0.7rem]' : size === 'large' ? 'text-sm' : ''}>{r.settings.sizes[size]}</span>
+            <input
+              class="sr-only"
+              type="radio"
+              name="reader-size"
+              value={size}
+              checked={settings.size === size}
+              onchange={() => set('size', size)}
+            />
+            <span class={size === 'small' ? 'text-[0.7rem]' : size === 'large' ? 'text-sm' : ''}
+              >{r.settings.sizes[size]}</span
+            >
           </label>
         {/each}
       </div>
@@ -78,15 +102,29 @@
       {#if settings.apparatus === 'none'}
         <p class="text-xs text-ink-muted">{r.settings.apparatusNoneHint}</p>
       {:else}
-        {#if settings.apparatus === 'side'}<p class="text-xs text-ink-muted">{r.settings.apparatusSideHint}</p>{/if}
+        {#if settings.apparatus === 'side'}<p class="text-xs text-ink-muted">
+            {r.settings.apparatusSideHint}
+          </p>{/if}
         <p class="mt-1.5 text-xs text-ink-soft" id="reader-form-label">{r.settings.form}</p>
         <div class={group} role="radiogroup" aria-labelledby="reader-form-label">
           <label class={segment}>
-            <input class="sr-only" type="radio" name="reader-form" checked={form === 'positive'} onchange={() => set('form', edition.form === 'positive' ? null : 'positive')} />
+            <input
+              class="sr-only"
+              type="radio"
+              name="reader-form"
+              checked={form === 'positive'}
+              onchange={() => set('form', edition.form === 'positive' ? null : 'positive')}
+            />
             {r.settings.positive}
           </label>
           <label class={segment}>
-            <input class="sr-only" type="radio" name="reader-form" checked={form === 'negative'} onchange={() => set('form', edition.form === 'negative' ? null : 'negative')} />
+            <input
+              class="sr-only"
+              type="radio"
+              name="reader-form"
+              checked={form === 'negative'}
+              onchange={() => set('form', edition.form === 'negative' ? null : 'negative')}
+            />
             {r.settings.negative}
           </label>
         </div>
@@ -105,30 +143,52 @@
               name="reader-interpretative"
               value={placement.value}
               checked={interpretative === placement.value}
-              onchange={() => set('interpretative', edition.interpretative === placement.value ? null : placement.value)}
+              onchange={() =>
+                set(
+                  'interpretative',
+                  edition.interpretative === placement.value ? null : placement.value,
+                )}
             />
             {placement.label}
           </label>
         {/each}
       </div>
-      <p class="text-xs text-ink-muted">{r.settings.interpretativeHint} {r.settings.editionInterpretative(edition.interpretative)}</p>
+      <p class="text-xs text-ink-muted">
+        {r.settings.interpretativeHint}
+        {r.settings.editionInterpretative(edition.interpretative)}
+      </p>
     </fieldset>
 
     <fieldset class="flex flex-col gap-1.5">
       <legend class="mb-1.5 text-xs font-medium text-ink-soft">{r.settings.labels}</legend>
       <div class={group}>
         <label class={segment}>
-          <input class="sr-only" type="radio" name="reader-labels" checked={settings.labels === 'edition'} onchange={() => set('labels', 'edition')} />
+          <input
+            class="sr-only"
+            type="radio"
+            name="reader-labels"
+            checked={settings.labels === 'edition'}
+            onchange={() => set('labels', 'edition')}
+          />
           {r.settings.labelsEdition}
         </label>
         <label class={segment}>
-          <input class="sr-only" type="radio" name="reader-labels" checked={settings.labels === 'every'} onchange={() => set('labels', 'every')} />
+          <input
+            class="sr-only"
+            type="radio"
+            name="reader-labels"
+            checked={settings.labels === 'every'}
+            onchange={() => set('labels', 'every')}
+          />
           {r.settings.labelsEvery}
         </label>
       </div>
     </fieldset>
 
-    <Checkbox checked={settings.underline} onchange={(event) => set('underline', (event.currentTarget as HTMLInputElement).checked)}>
+    <Checkbox
+      checked={settings.underline}
+      onchange={(event) => set('underline', (event.currentTarget as HTMLInputElement).checked)}
+    >
       {r.settings.underline}
     </Checkbox>
 

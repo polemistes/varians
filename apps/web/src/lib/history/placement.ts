@@ -6,7 +6,15 @@
  * only renders the result.
  */
 
-import { gapText, layoutLines, type Change, type Id, type Item, type LayoutOptions, type Stream } from '@varians/core';
+import {
+  gapText,
+  layoutLines,
+  type Change,
+  type Id,
+  type Item,
+  type LayoutOptions,
+  type Stream,
+} from '@varians/core';
 import type { Cell, SerializedDiff } from './types.ts';
 
 export interface LineOpener {
@@ -27,7 +35,17 @@ export interface RenderLine {
 }
 
 export function plainCell(item: Item, index: number): Cell {
-  return { item, index, added: false, removed: false, changed: false, moved: false, was: null, fields: [], author: null };
+  return {
+    item,
+    index,
+    added: false,
+    removed: false,
+    changed: false,
+    moved: false,
+    was: null,
+    fields: [],
+    author: null,
+  };
 }
 
 /** What a diff says happened to each item, by id. */
@@ -60,7 +78,12 @@ export function indexDiff(diff: Pick<SerializedDiff, 'changes'> | null): DiffInd
 }
 
 /** A cell of a present item, marked by the diff. */
-export function markedCell(item: Item, index: number, marks: DiffIndex, authors: Record<Id, string>): Cell {
+export function markedCell(
+  item: Item,
+  index: number,
+  marks: DiffIndex,
+  authors: Record<Id, string>,
+): Cell {
   const cell = plainCell(item, index);
   if (marks.added.has(item.id)) cell.added = true;
   if (marks.moved.has(item.id)) cell.moved = true;
@@ -101,7 +124,11 @@ export function renderLines(
     const items = removedAt.get(anchor);
     if (!items) return [];
     consumed.add(anchor);
-    return items.map((item) => ({ ...plainCell(item, -1), removed: true, author: authors[item.id] ?? null }));
+    return items.map((item) => ({
+      ...plainCell(item, -1),
+      removed: true,
+      author: authors[item.id] ?? null,
+    }));
   };
 
   const out: RenderLine[] = [];
@@ -113,17 +140,38 @@ export function renderLines(
     }
     let opener: LineOpener | null = null;
     const openerItem = line.from > 0 ? stream.items[line.from - 1] : undefined;
-    if (openerItem?.kind === 'break' && (marks.added.has(openerItem.id) || marks.moved.has(openerItem.id))) {
-      opener = { added: marks.added.has(openerItem.id), moved: marks.moved.has(openerItem.id), author: authors[openerItem.id] ?? null };
+    if (
+      openerItem?.kind === 'break' &&
+      (marks.added.has(openerItem.id) || marks.moved.has(openerItem.id))
+    ) {
+      opener = {
+        added: marks.added.has(openerItem.id),
+        moved: marks.moved.has(openerItem.id),
+        author: authors[openerItem.id] ?? null,
+      };
     }
-    out.push({ key: `l${line.index}`, label: line.label, cells, ghost: false, paragraph: line.paragraph, opener });
+    out.push({
+      key: `l${line.index}`,
+      label: line.label,
+      cells,
+      ghost: false,
+      paragraph: line.paragraph,
+      opener,
+    });
   }
 
   // Removed items anchored where no rendered line reaches (the break of a line
   // left empty) become ghost lines in their place.
   const orphans = [...removedAt.keys()].filter((a) => !consumed.has(a)).sort((a, b) => a - b);
   for (const anchor of orphans) {
-    const ghost: RenderLine = { key: `g${anchor}`, label: null, cells: take(anchor), ghost: true, paragraph: false, opener: null };
+    const ghost: RenderLine = {
+      key: `g${anchor}`,
+      label: null,
+      cells: take(anchor),
+      ghost: true,
+      paragraph: false,
+      opener: null,
+    };
     const at = out.findIndex((l) => !l.ghost && firstIndex(l) > anchor);
     if (at < 0) out.push(ghost);
     else out.splice(at, 0, ghost);

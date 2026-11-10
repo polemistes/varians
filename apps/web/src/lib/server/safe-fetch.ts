@@ -60,7 +60,11 @@ export function isPublicAddress(address: string): boolean {
   return false;
 }
 
-type LookupCallback = (error: NodeJS.ErrnoException | null, address: string | dns.LookupAddress[], family?: number) => void;
+type LookupCallback = (
+  error: NodeJS.ErrnoException | null,
+  address: string | dns.LookupAddress[],
+  family?: number,
+) => void;
 
 /** A lookup that refuses names resolving to any address that is not public. */
 function guardedLookup(allow: (address: string) => boolean) {
@@ -69,7 +73,10 @@ function guardedLookup(allow: (address: string) => boolean) {
       if (error) return callback(error, '');
       const list = addresses as dns.LookupAddress[];
       if (list.length === 0 || list.some((a) => !allow(a.address))) {
-        return callback(new SafeFetchError('address', 'This address cannot be fetched from the server.'), '');
+        return callback(
+          new SafeFetchError('address', 'This address cannot be fetched from the server.'),
+          '',
+        );
       }
       if (options.all) callback(null, list);
       else callback(null, list[0]!.address, list[0]!.family);
@@ -87,20 +94,37 @@ export interface SafeFetchInit {
   allow?: (address: string) => boolean;
 }
 
-function requestOnce(url: URL, init: SafeFetchInit, allow: (address: string) => boolean): Promise<http.IncomingMessage> {
+function requestOnce(
+  url: URL,
+  init: SafeFetchInit,
+  allow: (address: string) => boolean,
+): Promise<http.IncomingMessage> {
   return new Promise((resolve, reject) => {
     const client = url.protocol === 'https:' ? https : http;
     const request = client.request(
       url,
       {
         method: init.method ?? 'GET',
-        headers: { 'user-agent': 'Varians', ...(init.headers ?? {}), 'accept-encoding': 'identity', ...(init.body ? { 'content-length': String(init.body.length) } : {}) },
+        headers: {
+          'user-agent': 'Varians',
+          ...(init.headers ?? {}),
+          'accept-encoding': 'identity',
+          ...(init.body ? { 'content-length': String(init.body.length) } : {}),
+        },
         lookup: guardedLookup(allow) as unknown as typeof dns.lookup,
         ...(init.signal ? { signal: init.signal } : {}),
       },
       resolve,
     );
-    request.on('error', (error) => reject(error instanceof SafeFetchError ? error : (error as { cause?: unknown }).cause instanceof SafeFetchError ? (error as { cause: SafeFetchError }).cause : error));
+    request.on('error', (error) =>
+      reject(
+        error instanceof SafeFetchError
+          ? error
+          : (error as { cause?: unknown }).cause instanceof SafeFetchError
+            ? (error as { cause: SafeFetchError }).cause
+            : error,
+      ),
+    );
     request.end(init.body);
   });
 }
@@ -110,16 +134,19 @@ export async function safeFetch(input: string | URL, init: SafeFetchInit = {}): 
   const allow = init.allow ?? isPublicAddress;
   let url = new URL(input);
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new SafeFetchError('protocol', 'Only http and https addresses can be fetched.');
+    if (url.protocol !== 'http:' && url.protocol !== 'https:')
+      throw new SafeFetchError('protocol', 'Only http and https addresses can be fetched.');
     const host = url.hostname.replace(/^\[|\]$/gu, '');
     // An address given as a number is connected to without a lookup: check it here.
-    if (net.isIP(host) && !allow(host)) throw new SafeFetchError('address', 'This address cannot be fetched from the server.');
+    if (net.isIP(host) && !allow(host))
+      throw new SafeFetchError('address', 'This address cannot be fetched from the server.');
     const response = await requestOnce(url, init, allow);
     const status = response.statusCode ?? 0;
     const location = response.headers.location;
     if (status >= 300 && status < 400 && location) {
       response.resume();
-      if (init.method === 'POST') throw new SafeFetchError('redirect', 'The other installation answered with a redirect.');
+      if (init.method === 'POST')
+        throw new SafeFetchError('redirect', 'The other installation answered with a redirect.');
       const next = new URL(location, url);
       // Credentials are for the origin they were given for, not for where it sends us.
       if (next.origin !== url.origin && init.headers) {
@@ -150,7 +177,8 @@ export async function safeFetch(input: string | URL, init: SafeFetchInit = {}): 
 /** The body of a response as text, refused beyond a size. */
 export async function readTextCapped(response: Response, maxBytes: number): Promise<string> {
   const declared = Number(response.headers.get('content-length'));
-  if (Number.isFinite(declared) && declared > maxBytes) throw new RangeError(`larger than ${maxBytes} bytes`);
+  if (Number.isFinite(declared) && declared > maxBytes)
+    throw new RangeError(`larger than ${maxBytes} bytes`);
   if (!response.body) return '';
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];

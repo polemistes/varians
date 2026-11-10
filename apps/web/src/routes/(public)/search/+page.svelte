@@ -11,7 +11,12 @@
   let { data }: PageProps = $props();
   const t = site.search;
 
-  const nothing = $derived(!data.editions.length && !data.works.length && !data.witnesses.length && !data.bibliography.items.length);
+  const nothing = $derived(
+    !data.editions.length &&
+      !data.works.length &&
+      !data.witnesses.length &&
+      !data.bibliography.items.length,
+  );
   const bibliographyHref = $derived(`/bibliography?q=${encodeURIComponent(data.q)}`);
 </script>
 
@@ -63,13 +68,18 @@
         <ul class="flex flex-col divide-y divide-line">
           {#each data.bibliography.items as item (item.id)}
             <li class="flex flex-col gap-1 py-3">
-              <a href="{bibliographyHref}#bib-{item.key}" class="font-sans text-sm font-semibold text-ink hover:text-accent">{item.label}</a>
+              <a
+                href="{bibliographyHref}#bib-{item.key}"
+                class="font-sans text-sm font-semibold text-ink hover:text-accent">{item.label}</a
+              >
               <Reference pieces={item.pieces} class="text-[0.95rem] leading-snug text-ink" />
             </li>
           {/each}
         </ul>
         {#if data.bibliography.total > data.bibliography.items.length}
-          <a href={bibliographyHref} class="font-sans text-sm text-accent hover:underline">{t.allBibliography(data.bibliography.total)}</a>
+          <a href={bibliographyHref} class="font-sans text-sm text-accent hover:underline"
+            >{t.allBibliography(data.bibliography.total)}</a
+          >
         {/if}
       </section>
     {/if}

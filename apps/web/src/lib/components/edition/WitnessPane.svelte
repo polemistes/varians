@@ -27,7 +27,16 @@
     onhover?: (tokenId: string | null) => void;
   }
 
-  let { sigla, segmentIds, labelOf, highlightTokenIds, selected = $bindable(null), mode = $bindable('text'), onpick, onhover }: Props = $props();
+  let {
+    sigla,
+    segmentIds,
+    labelOf,
+    highlightTokenIds,
+    selected = $bindable(null),
+    mode = $bindable('text'),
+    onpick,
+    onhover,
+  }: Props = $props();
 
   const current = $derived(sigla.find((x) => x.siglum === selected) ?? sigla[0] ?? null);
   $effect(() => {
@@ -80,7 +89,15 @@
     | { kind: 'none' }
     | { kind: 'unplaced' }
     | { kind: 'no-image'; pageId: string; label: string }
-    | { kind: 'image'; pageId: string; label: string; source: FacsimileSource; zones: FacsimileZone[]; rights: string | null; attribution: string | null };
+    | {
+        kind: 'image';
+        pageId: string;
+        label: string;
+        source: FacsimileSource;
+        zones: FacsimileZone[];
+        rights: string | null;
+        attribution: string | null;
+      };
   let image = $state<Shown>({ kind: 'none' });
   let imageLoading = $state(false);
   let imageFor = $state('');
@@ -151,27 +168,43 @@
     imageLoading = true;
     fetch(`/api/transcriptions/${transcriptionId}/zones?page=${encodeURIComponent(pageId)}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.statusText))))
-      .then((data: { zones: { id: string; geometry: ZoneGeometry; tokenIds: string[]; feature: unknown }[]; pages: { id: string; label: string; source: FacsimileSource | null; rights?: string | null; attribution?: string | null }[] }) => {
-        const page = data.pages.find((p) => p.id === pageId);
-        imageFor = key;
-        if (!page) {
-          image = { kind: 'none' };
-          return;
-        }
-        if (!page.source) {
-          image = { kind: 'no-image', pageId, label: page.label };
-          return;
-        }
-        image = {
-          kind: 'image',
-          pageId,
-          source: page.source,
-          label: page.label,
-          rights: page.rights ?? null,
-          attribution: page.attribution ?? null,
-          zones: data.zones.map((z) => ({ id: z.id, geometry: z.geometry, tokenIds: z.tokenIds, kind: z.feature ? 'feature' : z.tokenIds.length > 1 ? 'line' : 'word' })),
-        };
-      })
+      .then(
+        (data: {
+          zones: { id: string; geometry: ZoneGeometry; tokenIds: string[]; feature: unknown }[];
+          pages: {
+            id: string;
+            label: string;
+            source: FacsimileSource | null;
+            rights?: string | null;
+            attribution?: string | null;
+          }[];
+        }) => {
+          const page = data.pages.find((p) => p.id === pageId);
+          imageFor = key;
+          if (!page) {
+            image = { kind: 'none' };
+            return;
+          }
+          if (!page.source) {
+            image = { kind: 'no-image', pageId, label: page.label };
+            return;
+          }
+          image = {
+            kind: 'image',
+            pageId,
+            source: page.source,
+            label: page.label,
+            rights: page.rights ?? null,
+            attribution: page.attribution ?? null,
+            zones: data.zones.map((z) => ({
+              id: z.id,
+              geometry: z.geometry,
+              tokenIds: z.tokenIds,
+              kind: z.feature ? 'feature' : z.tokenIds.length > 1 ? 'line' : 'word',
+            })),
+          };
+        },
+      )
       .catch(() => {
         image = { kind: 'none' };
       })
@@ -183,10 +216,17 @@
   /** The witness's pages before and after the one shown (from Not on a page, the first). */
   const step = $derived.by(() => {
     const at = shownPage ? witnessPages.findIndex((p) => p.id === shownPage) : -1;
-    return { previous: at > 0 ? witnessPages[at - 1]!.id : null, next: at + 1 < witnessPages.length ? witnessPages[at + 1]!.id : null };
+    return {
+      previous: at > 0 ? witnessPages[at - 1]!.id : null,
+      next: at + 1 < witnessPages.length ? witnessPages[at + 1]!.id : null,
+    };
   });
 
-  const litZoneIds = $derived(image.kind === 'image' ? image.zones.filter((z) => z.tokenIds.some((id) => lit.has(id))).map((z) => z.id) : []);
+  const litZoneIds = $derived(
+    image.kind === 'image'
+      ? image.zones.filter((z) => z.tokenIds.some((id) => lit.has(id))).map((z) => z.id)
+      : [],
+  );
 
   function shown(item: Item): string {
     if (item.kind === 'token') return form === 'read' ? (item.norm ?? item.form) : item.form;
@@ -194,7 +234,9 @@
     return '';
   }
 
-  let FacsimileViewer = $state<typeof import('$lib/components/facsimile/FacsimileViewer.svelte').default | null>(null);
+  let FacsimileViewer = $state<
+    typeof import('$lib/components/facsimile/FacsimileViewer.svelte').default | null
+  >(null);
   $effect(() => {
     if (mode === 'image' && !FacsimileViewer) {
       import('$lib/components/facsimile/FacsimileViewer.svelte').then((m) => {
@@ -215,11 +257,20 @@
     />
     <Tabs {tabs} bind:value={mode} label={s.witness.title} />
     {#if mode === 'text' && keepsWrittenForm}
-      <div class="ml-auto flex rounded-md border border-line bg-sunken p-0.5 text-xs" role="group" aria-label={s.witness.form}>
+      <div
+        class="ml-auto flex rounded-md border border-line bg-sunken p-0.5 text-xs"
+        role="group"
+        aria-label={s.witness.form}
+      >
         {#each [{ value: 'read', label: s.witness.read }, { value: 'written', label: s.witness.written }] as option (option.value)}
           <button
             type="button"
-            class={['rounded px-1.5 py-0.5', form === option.value ? 'bg-surface text-ink shadow-sm' : 'text-ink-soft hover:text-ink']}
+            class={[
+              'rounded px-1.5 py-0.5',
+              form === option.value
+                ? 'bg-surface text-ink shadow-sm'
+                : 'text-ink-soft hover:text-ink',
+            ]}
             aria-pressed={form === option.value}
             onclick={() => (form = option.value as 'read' | 'written')}>{option.label}</button
           >
@@ -231,14 +282,19 @@
   {#if !current?.transcriptionId}
     <p class="px-3 py-4 text-ink-muted">{s.witness.noTranscription}</p>
   {:else if mode === 'text'}
-    <div class="flex-1 overflow-y-auto px-3 py-2 font-serif text-reading leading-relaxed text-ink" dir="auto">
+    <div
+      class="flex-1 overflow-y-auto px-3 py-2 font-serif text-reading leading-relaxed text-ink"
+      dir="auto"
+    >
       {#if loading && Object.keys(segments).length === 0}
         <Spinner />
       {/if}
       {#each segmentIds as segmentId (segmentId)}
         {@const segment = segments[segmentId]}
         <div class="flex gap-3 py-1">
-          <span class="w-12 shrink-0 pt-1 font-sans text-xs text-ink-soft">{labelOf[segmentId] ?? ''}</span>
+          <span class="w-12 shrink-0 pt-1 font-sans text-xs text-ink-soft"
+            >{labelOf[segmentId] ?? ''}</span
+          >
           <div class="min-w-0 flex-1">
             {#if !segment || segment.runs.length === 0}
               <span class="font-sans text-xs text-ink-muted">—</span>
@@ -249,12 +305,15 @@
                   {#if item.kind === 'token'}
                     <button
                       type="button"
-                      class={['rounded px-0.5 hover:bg-sunken', lit.has(item.id) && 'bg-accent-soft text-ink']}
+                      class={[
+                        'rounded px-0.5 hover:bg-sunken',
+                        lit.has(item.id) && 'bg-accent-soft text-ink',
+                      ]}
                       title={s.witness.pick}
                       onclick={() => onpick?.(segmentId, item.id)}
                       onmouseenter={() => onhover?.(item.id)}
-                      onmouseleave={() => onhover?.(null)}
-                    >{shown(item)}</button>{' '}
+                      onmouseleave={() => onhover?.(null)}>{shown(item)}</button
+                    >{' '}
                   {:else if item.kind === 'object'}
                     <span class="text-ink-muted">{shown(item)}</span>{' '}
                   {/if}
@@ -276,24 +335,50 @@
       {:else if image.kind === 'none'}
         <p class="px-3 py-4 text-ink-muted">{s.witness.noImage}</p>
       {:else if FacsimileViewer}
-        <FacsimileViewer source={image.source} zones={image.zones} highlighted={litZoneIds} mode="pan" editable={false} class="h-full" />
-        <span class="absolute top-2 right-2 rounded bg-surface/80 px-1.5 py-0.5 text-xs text-ink-soft">{image.label}</span>
+        <FacsimileViewer
+          source={image.source}
+          zones={image.zones}
+          highlighted={litZoneIds}
+          mode="pan"
+          editable={false}
+          class="h-full"
+        />
+        <span
+          class="absolute top-2 right-2 rounded bg-surface/80 px-1.5 py-0.5 text-xs text-ink-soft"
+          >{image.label}</span
+        >
       {:else}
         <div class="absolute inset-0 grid place-items-center"><Spinner /></div>
       {/if}
       {#if witnessPages.length > 1}
         <div class="absolute bottom-2 left-2 flex gap-1">
-          <IconButton label={s.witness.previousPage} size="sm" class="bg-surface/90" disabled={step.previous === null} onclick={() => (browsed = step.previous)}>
+          <IconButton
+            label={s.witness.previousPage}
+            size="sm"
+            class="bg-surface/90"
+            disabled={step.previous === null}
+            onclick={() => (browsed = step.previous)}
+          >
             <ChevronLeft aria-hidden="true" />
           </IconButton>
-          <IconButton label={s.witness.nextPage} size="sm" class="bg-surface/90" disabled={step.next === null} onclick={() => (browsed = step.next)}>
+          <IconButton
+            label={s.witness.nextPage}
+            size="sm"
+            class="bg-surface/90"
+            disabled={step.next === null}
+            onclick={() => (browsed = step.next)}
+          >
             <ChevronRight aria-hidden="true" />
           </IconButton>
         </div>
       {/if}
     </div>
     {#if image.kind === 'image' && !imageLoading}
-      <ImageCredit rights={image.rights} attribution={image.attribution} class="shrink-0 truncate border-t border-line px-3 py-1" />
+      <ImageCredit
+        rights={image.rights}
+        attribution={image.attribution}
+        class="shrink-0 truncate border-t border-line px-3 py-1"
+      />
     {/if}
   {/if}
 </div>

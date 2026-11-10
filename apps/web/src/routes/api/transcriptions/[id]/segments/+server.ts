@@ -14,8 +14,15 @@ export const GET: RequestHandler = async ({ locals, params, url }) => {
   if (!access || !access.canView) throw error(404, 'No such transcription');
   const content = access.transcription.content;
   const wanted = url.searchParams.get('ids');
-  if (!wanted) return json({ segmentIds: segmentIds(content), version: access.transcription.version });
-  const out: Record<string, { runs: { items: Item[]; pageId: string | null; read: string; written: string }[]; units: ReturnType<typeof units> }> = {};
+  if (!wanted)
+    return json({ segmentIds: segmentIds(content), version: access.transcription.version });
+  const out: Record<
+    string,
+    {
+      runs: { items: Item[]; pageId: string | null; read: string; written: string }[];
+      units: ReturnType<typeof units>;
+    }
+  > = {};
   // The page each item stands on: the last page break before it.
   const pageAt: (string | null)[] = [];
   let current: string | null = null;
@@ -38,5 +45,9 @@ export const GET: RequestHandler = async ({ locals, params, url }) => {
       units: runs.flatMap((run) => units(content, run.from, run.to)),
     };
   }
-  return json({ segments: out, version: access.transcription.version, keepsWrittenForm: access.transcription.keepsWrittenForm });
+  return json({
+    segments: out,
+    version: access.transcription.version,
+    keepsWrittenForm: access.transcription.keepsWrittenForm,
+  });
 };

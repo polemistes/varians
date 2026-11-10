@@ -24,7 +24,13 @@ import {
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { eq, inArray, lte, sql } from 'drizzle-orm';
-import { folderName, withWorkLock, writeWorkParts, type ArchivePlan, type ArchiveWriters } from './archive.ts';
+import {
+  folderName,
+  withWorkLock,
+  writeWorkParts,
+  type ArchivePlan,
+  type ArchiveWriters,
+} from './archive.ts';
 
 type QueueEntry = typeof archiveQueue.$inferSelect;
 
@@ -40,24 +46,45 @@ async function requeue(db: Database, entries: QueueEntry[]): Promise<void> {
   await db
     .insert(archiveQueue)
     .values(entries)
-    .onConflictDoUpdate({ target: [archiveQueue.kind, archiveQueue.recordId], set: { at: sql`greatest(${archiveQueue.at}, excluded.at)` } });
+    .onConflictDoUpdate({
+      target: [archiveQueue.kind, archiveQueue.recordId],
+      set: { at: sql`greatest(${archiveQueue.at}, excluded.at)` },
+    });
 }
 
 /** The works whose archive holds a transcription: chosen for, assigned to, or named by a conspectus of an edition of. */
-async function worksOfTranscriptions(db: Database, ids: string[]): Promise<Map<string, Set<string>>> {
+async function worksOfTranscriptions(
+  db: Database,
+  ids: string[],
+): Promise<Map<string, Set<string>>> {
   const out = new Map<string, Set<string>>();
   if (ids.length === 0) return out;
   const add = (t: string, w: string) => out.set(t, (out.get(t) ?? new Set()).add(w));
-  for (const r of await db.selectDistinct({ t: transcriptionSegments.transcriptionId, w: transcriptionSegments.workId }).from(transcriptionSegments).where(inArray(transcriptionSegments.transcriptionId, ids))) add(r.t, r.w);
-  for (const r of await db.select({ t: transcriptionWorks.transcriptionId, w: transcriptionWorks.workId }).from(transcriptionWorks).where(inArray(transcriptionWorks.transcriptionId, ids))) add(r.t, r.w);
-  for (const r of await db.select({ t: editionSigla.transcriptionId, w: editions.workId }).from(editionSigla).innerJoin(editions, eq(editions.id, editionSigla.editionId)).where(inArray(editionSigla.transcriptionId, ids))) {
+  for (const r of await db
+    .selectDistinct({ t: transcriptionSegments.transcriptionId, w: transcriptionSegments.workId })
+    .from(transcriptionSegments)
+    .where(inArray(transcriptionSegments.transcriptionId, ids)))
+    add(r.t, r.w);
+  for (const r of await db
+    .select({ t: transcriptionWorks.transcriptionId, w: transcriptionWorks.workId })
+    .from(transcriptionWorks)
+    .where(inArray(transcriptionWorks.transcriptionId, ids)))
+    add(r.t, r.w);
+  for (const r of await db
+    .select({ t: editionSigla.transcriptionId, w: editions.workId })
+    .from(editionSigla)
+    .innerJoin(editions, eq(editions.id, editionSigla.editionId))
+    .where(inArray(editionSigla.transcriptionId, ids))) {
     if (r.t) add(r.t, r.w);
   }
   return out;
 }
 
 /** Turn queue entries into what to write, per work. */
-export async function planEntries(db: Database, entries: QueueEntry[]): Promise<Map<string, ArchivePlan>> {
+export async function planEntries(
+  db: Database,
+  entries: QueueEntry[],
+): Promise<Map<string, ArchivePlan>> {
   const plans = new Map<string, ArchivePlan>();
   const plan = (workId: string) => {
     let p = plans.get(workId);
@@ -68,7 +95,8 @@ export async function planEntries(db: Database, entries: QueueEntry[]): Promise<
     const p = plan(workId);
     (p[key] ??= new Set()).add(id);
   };
-  const ids = (kind: QueueEntry['kind']) => entries.filter((e) => e.kind === kind).map((e) => e.recordId);
+  const ids = (kind: QueueEntry['kind']) =>
+    entries.filter((e) => e.kind === kind).map((e) => e.recordId);
   const existingWorks = new Set((await db.select({ id: works.id }).from(works)).map((w) => w.id));
 
   for (const id of ids('work-all')) if (existingWorks.has(id)) plan(id).all = true;
@@ -76,13 +104,23 @@ export async function planEntries(db: Database, entries: QueueEntry[]): Promise<
   for (const id of ids('work-editions')) if (existingWorks.has(id)) plan(id).editionsAll = true;
 
   const schemes = ids('scheme');
-  if (schemes.length) for (const w of await db.select({ id: works.id }).from(works).where(inArray(works.schemeId, schemes))) plan(w.id).all = true;
+  if (schemes.length)
+    for (const w of await db
+      .select({ id: works.id })
+      .from(works)
+      .where(inArray(works.schemeId, schemes)))
+      plan(w.id).all = true;
 
   // A bibliography entry is in the archive of every work that cites it.
   const items = ids('bibliography');
   if (items.length) {
     const rows = await db
-      .select({ conjecture: conjectures.workId, reported: reportedReadings.workId, edition: editions.workId, noteEdition: notes.editionId })
+      .select({
+        conjecture: conjectures.workId,
+        reported: reportedReadings.workId,
+        edition: editions.workId,
+        noteEdition: notes.editionId,
+      })
       .from(citations)
       .leftJoin(conjectures, eq(conjectures.id, citations.conjectureId))
       .leftJoin(reportedReadings, eq(reportedReadings.id, citations.reportedReadingId))
@@ -95,15 +133,34 @@ export async function planEntries(db: Database, entries: QueueEntry[]): Promise<
   // A witness is in every work that has one of its transcriptions, names it in a conspectus, or reports a reading of it.
   const witnessIds = ids('witness');
   if (witnessIds.length) {
-    const ofTranscriptions = await db.select({ id: transcriptions.id, witnessId: transcriptions.witnessId }).from(transcriptions).where(inArray(transcriptions.witnessId, witnessIds));
-    const byTranscription = await worksOfTranscriptions(db, ofTranscriptions.map((t) => t.id));
-    for (const t of ofTranscriptions) for (const w of byTranscription.get(t.id) ?? []) add(w, 'witnesses', t.witnessId);
-    for (const r of await db.select({ witnessId: editionSigla.witnessId, workId: editions.workId, editionId: editions.id }).from(editionSigla).innerJoin(editions, eq(editions.id, editionSigla.editionId)).where(inArray(editionSigla.witnessId, witnessIds))) {
+    const ofTranscriptions = await db
+      .select({ id: transcriptions.id, witnessId: transcriptions.witnessId })
+      .from(transcriptions)
+      .where(inArray(transcriptions.witnessId, witnessIds));
+    const byTranscription = await worksOfTranscriptions(
+      db,
+      ofTranscriptions.map((t) => t.id),
+    );
+    for (const t of ofTranscriptions)
+      for (const w of byTranscription.get(t.id) ?? []) add(w, 'witnesses', t.witnessId);
+    for (const r of await db
+      .select({
+        witnessId: editionSigla.witnessId,
+        workId: editions.workId,
+        editionId: editions.id,
+      })
+      .from(editionSigla)
+      .innerJoin(editions, eq(editions.id, editionSigla.editionId))
+      .where(inArray(editionSigla.witnessId, witnessIds))) {
       add(r.workId, 'witnesses', r.witnessId);
       // The witness's name is in the edition's TEI.
       add(r.workId, 'editions', r.editionId);
     }
-    for (const r of await db.selectDistinct({ witnessId: reportedReadings.witnessId, workId: reportedReadings.workId }).from(reportedReadings).where(inArray(reportedReadings.witnessId, witnessIds))) add(r.workId, 'witnesses', r.witnessId);
+    for (const r of await db
+      .selectDistinct({ witnessId: reportedReadings.witnessId, workId: reportedReadings.workId })
+      .from(reportedReadings)
+      .where(inArray(reportedReadings.witnessId, witnessIds)))
+      add(r.workId, 'witnesses', r.witnessId);
   }
 
   // A transcription is written in each of its works, and the editions collating it are written again: their apparatus depends on it.
@@ -111,13 +168,22 @@ export async function planEntries(db: Database, entries: QueueEntry[]): Promise<
   if (transcriptionIds.length) {
     const byTranscription = await worksOfTranscriptions(db, transcriptionIds);
     for (const [t, ws] of byTranscription) for (const w of ws) add(w, 'transcriptions', t);
-    for (const r of await db.select({ editionId: editionSigla.editionId, workId: editions.workId }).from(editionSigla).innerJoin(editions, eq(editions.id, editionSigla.editionId)).where(inArray(editionSigla.transcriptionId, transcriptionIds))) {
+    for (const r of await db
+      .select({ editionId: editionSigla.editionId, workId: editions.workId })
+      .from(editionSigla)
+      .innerJoin(editions, eq(editions.id, editionSigla.editionId))
+      .where(inArray(editionSigla.transcriptionId, transcriptionIds))) {
       add(r.workId, 'editions', r.editionId);
     }
   }
 
   const editionIds = ids('edition');
-  if (editionIds.length) for (const e of await db.select({ id: editions.id, workId: editions.workId }).from(editions).where(inArray(editions.id, editionIds))) add(e.workId, 'editions', e.id);
+  if (editionIds.length)
+    for (const e of await db
+      .select({ id: editions.id, workId: editions.workId })
+      .from(editions)
+      .where(inArray(editions.id, editionIds)))
+      add(e.workId, 'editions', e.id);
 
   return plans;
 }
@@ -151,22 +217,32 @@ export async function flushArchiveQueue(db: Database, options: FlushOptions): Pr
   const failed: string[] = [];
   for (const [workId, plan] of plans) {
     const [work] = await db.select({ slug: works.slug }).from(works).where(eq(works.id, workId));
-    if (!work || !existsSync(path.join(options.root, folderName(work.slug, workId), '.git'))) continue;
+    if (!work || !existsSync(path.join(options.root, folderName(work.slug, workId), '.git')))
+      continue;
     try {
       await withWorkLock(workId, () => writeWorkParts(db, workId, options.root, plan, writers));
       written.push(workId);
     } catch (error) {
       failed.push(workId);
-      options.log?.(`archive: writing ${work.slug} failed: ${error instanceof Error ? error.message : String(error)}`);
+      options.log?.(
+        `archive: writing ${work.slug} failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
   // A failed work is tried again whole at the next pass.
-  if (failed.length) await requeue(db, failed.map((recordId) => ({ kind: 'work-all' as const, recordId, at: new Date() })));
+  if (failed.length)
+    await requeue(
+      db,
+      failed.map((recordId) => ({ kind: 'work-all' as const, recordId, at: new Date() })),
+    );
   return written;
 }
 
 /** Start the write-through: look at the queue every few seconds. Returns a function that stops it. */
-export function startArchiveWriter(db: Database, options: FlushOptions & { pollMs?: number }): () => void {
+export function startArchiveWriter(
+  db: Database,
+  options: FlushOptions & { pollMs?: number },
+): () => void {
   const log = options.log ?? ((m: string) => console.log(m));
   let running = false;
   const tick = async () => {
@@ -175,12 +251,17 @@ export function startArchiveWriter(db: Database, options: FlushOptions & { pollM
     try {
       await flushArchiveQueue(db, { ...options, log });
     } catch (error) {
-      log(`archive: write-through failed: ${error instanceof Error ? error.message : String(error)}`);
+      log(
+        `archive: write-through failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     } finally {
       running = false;
     }
   };
-  const timer = setInterval(() => void tick(), options.pollMs ?? Math.min(10_000, Math.max(1000, options.delaySeconds * 250)));
+  const timer = setInterval(
+    () => void tick(),
+    options.pollMs ?? Math.min(10_000, Math.max(1000, options.delaySeconds * 250)),
+  );
   timer.unref?.();
   return () => clearInterval(timer);
 }

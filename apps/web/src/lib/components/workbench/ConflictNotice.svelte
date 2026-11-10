@@ -19,7 +19,9 @@
   <Notice kind="warning" title={t.conflict.title}>
     <p>{t.conflict.body(ops.length)}</p>
     <ul class="mt-1 list-disc pl-5">
-      {#if aside.words.length}<li class="font-serif">{t.conflict.words(aside.words.slice(0, 20).join(', '))}</li>{/if}
+      {#if aside.words.length}<li class="font-serif">
+          {t.conflict.words(aside.words.slice(0, 20).join(', '))}
+        </li>{/if}
       {#if aside.removed}<li>{t.conflict.removed(aside.removed)}</li>{/if}
       {#if aside.other}<li>{t.conflict.other(aside.other)}</li>{/if}
     </ul>

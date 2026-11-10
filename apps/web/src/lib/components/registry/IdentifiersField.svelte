@@ -20,7 +20,10 @@
   let { value = '', error }: Props = $props();
   const s = registry.identifiers;
   const uid = $props.id();
-  const options = IDENTIFIER_SCHEMES.map((scheme) => ({ value: scheme, label: s.schemes[scheme] ?? scheme }));
+  const options = IDENTIFIER_SCHEMES.map((scheme) => ({
+    value: scheme,
+    label: s.schemes[scheme] ?? scheme,
+  }));
 
   // The initial rows only; the fields own them from here on.
   let rows = $state<{ scheme: string; value: string }[]>(untrack(() => identifierRows(value)));
@@ -32,7 +35,10 @@
   }
 </script>
 
-<fieldset class="flex flex-col gap-2 font-sans" aria-describedby={message ? `identifiers-${uid}-error` : undefined}>
+<fieldset
+  class="flex flex-col gap-2 font-sans"
+  aria-describedby={message ? `identifiers-${uid}-error` : undefined}
+>
   <legend class="mb-1.5 text-sm font-medium text-ink">{s.label}</legend>
   <input type="hidden" name="identifiers" value={payload} />
   {#if rows.length}
@@ -42,8 +48,16 @@
       <span></span>
       {#each rows as row, k (k)}
         <Select bind:value={row.scheme} {options} aria-label={s.schemeOf(row.value)} />
-        <Input bind:value={row.value} aria-label={s.value} autocomplete="off" spellcheck="false" maxlength={300} />
-        <IconButton label={s.remove(row.value)} onclick={() => rows.splice(k, 1)}><X aria-hidden="true" /></IconButton>
+        <Input
+          bind:value={row.value}
+          aria-label={s.value}
+          autocomplete="off"
+          spellcheck="false"
+          maxlength={300}
+        />
+        <IconButton label={s.remove(row.value)} onclick={() => rows.splice(k, 1)}
+          ><X aria-hidden="true" /></IconButton
+        >
       {/each}
     </div>
   {/if}
@@ -53,5 +67,7 @@
       {s.add}
     </Button>
   </div>
-  {#if message}<p id="identifiers-{uid}-error" class="text-xs text-danger" role="alert">{message}</p>{/if}
+  {#if message}<p id="identifiers-{uid}-error" class="text-xs text-danger" role="alert">
+      {message}
+    </p>{/if}
 </fieldset>

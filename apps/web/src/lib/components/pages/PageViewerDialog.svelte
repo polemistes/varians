@@ -71,7 +71,9 @@
     >
       <div class="flex items-center gap-3 border-b border-line px-4 py-2.5">
         <div class="min-w-0 flex-1">
-          <Dialog.Title class="truncate text-base font-semibold text-ink">{page ? t.viewer.title(page.label) : ''}</Dialog.Title>
+          <Dialog.Title class="truncate text-base font-semibold text-ink"
+            >{page ? t.viewer.title(page.label) : ''}</Dialog.Title
+          >
           <Dialog.Description class="text-xs text-ink-soft tabular-nums">
             {page ? t.viewer.of(index + 1, pages.length) : ''}
           </Dialog.Description>
@@ -79,7 +81,11 @@
         <IconButton label={t.viewer.previous} disabled={index <= 0} onclick={() => go(-1)}>
           <ChevronLeft aria-hidden="true" />
         </IconButton>
-        <IconButton label={t.viewer.next} disabled={index < 0 || index >= pages.length - 1} onclick={() => go(1)}>
+        <IconButton
+          label={t.viewer.next}
+          disabled={index < 0 || index >= pages.length - 1}
+          onclick={() => go(1)}
+        >
           <ChevronRight aria-hidden="true" />
         </IconButton>
         <Dialog.Close
@@ -91,9 +97,17 @@
       </div>
       <div class="relative min-h-0 flex-1">
         {#if page?.source && FacsimileViewer}
-          <FacsimileViewer source={page.source} mode="pan" editable={false} labels={t.viewer.labels} class="h-full" />
+          <FacsimileViewer
+            source={page.source}
+            mode="pan"
+            editable={false}
+            labels={t.viewer.labels}
+            class="h-full"
+          />
         {:else if loadFailed}
-          <p class="absolute inset-0 grid place-items-center text-sm text-ink-soft">{t.errors.generic}</p>
+          <p class="absolute inset-0 grid place-items-center text-sm text-ink-soft">
+            {t.errors.generic}
+          </p>
         {:else}
           <div class="absolute inset-0 grid place-items-center text-ink-soft">
             <Spinner label={t.viewer.loading} />
@@ -101,7 +115,11 @@
         {/if}
       </div>
       {#if page}
-        <ImageCredit rights={page.rights} attribution={page.attribution} class="shrink-0 border-t border-line px-4 py-1.5" />
+        <ImageCredit
+          rights={page.rights}
+          attribution={page.attribution}
+          class="shrink-0 border-t border-line px-4 py-1.5"
+        />
       {/if}
     </Dialog.Content>
   </Dialog.Portal>

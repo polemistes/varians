@@ -31,13 +31,26 @@
     onpaneleft: (left: boolean) => void;
   }
 
-  let { wb, paneOpen, ontogglepane, onimport, onsettings, ondelete, onnumber, oncopy, paneLeft, onpaneleft }: Props = $props();
+  let {
+    wb,
+    paneOpen,
+    ontogglepane,
+    onimport,
+    onsettings,
+    ondelete,
+    onnumber,
+    oncopy,
+    paneLeft,
+    onpaneleft,
+  }: Props = $props();
 
   const itemClass =
     'flex w-full cursor-default items-center gap-2 rounded px-2 py-1.5 text-left text-ink outline-none select-none data-highlighted:bg-sunken data-disabled:pointer-events-none data-disabled:opacity-50';
 </script>
 
-<div class="flex min-h-12 flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface px-4 py-1.5 font-sans text-sm">
+<div
+  class="flex min-h-12 flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface px-4 py-1.5 font-sans text-sm"
+>
   <div class="flex min-w-0 items-baseline gap-2">
     <a
       href="/witnesses/{wb.witness.slug}"
@@ -56,10 +69,19 @@
 
   <div class="ml-auto flex flex-wrap items-center gap-3">
     <div class="flex items-center gap-0.5">
-      <IconButton label={t.menu.togglePane} size="sm" aria-pressed={paneOpen} onclick={ontogglepane}>
+      <IconButton
+        label={t.menu.togglePane}
+        size="sm"
+        aria-pressed={paneOpen}
+        onclick={ontogglepane}
+      >
         {#if paneLeft}
-          {#if paneOpen}<PanelLeftClose aria-hidden="true" />{:else}<PanelLeftOpen aria-hidden="true" />{/if}
-        {:else if paneOpen}<PanelRightClose aria-hidden="true" />{:else}<PanelRightOpen aria-hidden="true" />{/if}
+          {#if paneOpen}<PanelLeftClose aria-hidden="true" />{:else}<PanelLeftOpen
+              aria-hidden="true"
+            />{/if}
+        {:else if paneOpen}<PanelRightClose aria-hidden="true" />{:else}<PanelRightOpen
+            aria-hidden="true"
+          />{/if}
       </IconButton>
       <Menu label={t.menu.label} triggerSize="sm" triggerClass="w-8 px-0">
         {#snippet trigger()}
@@ -73,13 +95,21 @@
         {/if}
         <DropdownMenu.Item class={itemClass}>
           {#snippet child({ props })}
-            <a {...props} href="/transcriptions/{wb.id}/tei" download data-sveltekit-reload>{t.menu.downloadTei}</a>
+            <a {...props} href="/transcriptions/{wb.id}/tei" download data-sveltekit-reload
+              >{t.menu.downloadTei}</a
+            >
           {/snippet}
         </DropdownMenu.Item>
         <MenuItem href="/witnesses/{wb.witness.slug}">{t.menu.witness}</MenuItem>
-        <DropdownMenu.CheckboxItem class={itemClass} checked={paneLeft} onCheckedChange={(checked) => onpaneleft(checked)}>
+        <DropdownMenu.CheckboxItem
+          class={itemClass}
+          checked={paneLeft}
+          onCheckedChange={(checked) => onpaneleft(checked)}
+        >
           {#snippet children({ checked })}
-            <span class="flex w-4 justify-center">{#if checked}<Check class="size-3.5" aria-hidden="true" />{/if}</span>
+            <span class="flex w-4 justify-center"
+              >{#if checked}<Check class="size-3.5" aria-hidden="true" />{/if}</span
+            >
             <span>{t.menu.paneLeft}</span>
           {/snippet}
         </DropdownMenu.CheckboxItem>
@@ -94,4 +124,3 @@
     </div>
   </div>
 </div>
-

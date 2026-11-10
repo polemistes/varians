@@ -34,9 +34,13 @@
       controller?.abort();
       controller = new AbortController();
       try {
-        const response = await fetch(`/api/bibliography/search?q=${encodeURIComponent(q.trim())}`, { signal: controller.signal });
+        const response = await fetch(`/api/bibliography/search?q=${encodeURIComponent(q.trim())}`, {
+          signal: controller.signal,
+        });
         if (!response.ok) return;
-        const data = (await response.json()) as { items: { id: string; label: string; reference: string }[] };
+        const data = (await response.json()) as {
+          items: { id: string; label: string; reference: string }[];
+        };
         results = data.items.filter((item) => !value.some((c) => c.itemId === item.id)).slice(0, 6);
         searched = true;
       } catch {
@@ -72,11 +76,21 @@
       {#each value as citation, i (citation.itemId)}
         <li class="flex items-center gap-2">
           <div class="w-16 shrink-0">
-            <Input bind:value={citation.prenote} aria-label={t.picker.prenote} placeholder={t.picker.prenotePlaceholder} class="text-xs" />
+            <Input
+              bind:value={citation.prenote}
+              aria-label={t.picker.prenote}
+              placeholder={t.picker.prenotePlaceholder}
+              class="text-xs"
+            />
           </div>
           <span class="min-w-0 flex-1 truncate text-sm text-ink">{citation.label}</span>
           <div class="w-28 shrink-0">
-            <Input bind:value={citation.postnote} aria-label={t.picker.postnote} placeholder={t.picker.postnotePlaceholder} class="text-xs" />
+            <Input
+              bind:value={citation.postnote}
+              aria-label={t.picker.postnote}
+              placeholder={t.picker.postnotePlaceholder}
+              class="text-xs"
+            />
           </div>
           <IconButton label={t.picker.remove(citation.label)} size="sm" onclick={() => remove(i)}>
             <X class="size-4" aria-hidden="true" />
@@ -87,7 +101,10 @@
   {/if}
   <div class="relative">
     <label for="cite-{id}" class="sr-only">{t.picker.search}</label>
-    <Search class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
+    <Search
+      class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted"
+      aria-hidden="true"
+    />
     <Input
       id="cite-{id}"
       type="search"
@@ -115,6 +132,9 @@
       {/each}
     </ul>
   {:else if searched}
-    <p class="text-xs text-ink-soft">{t.picker.none} <a href="/bibliography" target="_blank" class="text-accent underline">{t.picker.manage}</a></p>
+    <p class="text-xs text-ink-soft">
+      {t.picker.none}
+      <a href="/bibliography" target="_blank" class="text-accent underline">{t.picker.manage}</a>
+    </p>
   {/if}
 </fieldset>

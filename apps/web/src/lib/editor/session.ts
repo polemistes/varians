@@ -206,7 +206,8 @@ export class DocumentSession {
 export function wireOp(op: Op): Op {
   if (op.t !== 'set') return op;
   const fields: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(op.fields)) fields[key] = value === undefined ? null : value;
+  for (const [key, value] of Object.entries(op.fields))
+    fields[key] = value === undefined ? null : value;
   return { ...op, fields };
 }
 

@@ -1,6 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SCHEME_PRESETS, defaultProfile, newId, segmentRuns, toText } from '@varians/core';
-import { createDatabase, referenceSchemes, segments, transcriptions, users, witnesses, works, type Database } from '@varians/db';
+import {
+  createDatabase,
+  referenceSchemes,
+  segments,
+  transcriptions,
+  users,
+  witnesses,
+  works,
+  type Database,
+} from '@varians/db';
 import { eq } from 'drizzle-orm';
 import pg from 'pg';
 import { importTeiIntoTranscription, previewTei } from './tei.ts';
@@ -8,7 +17,13 @@ import { importTeiIntoTranscription, previewTei } from './tei.ts';
 const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329/varians_test';
 let db: Database;
 let pool: pg.Pool;
-const ids = { user: newId(), scheme: newId(), work: newId(), witness: newId(), transcription: newId() };
+const ids = {
+  user: newId(),
+  scheme: newId(),
+  work: newId(),
+  witness: newId(),
+  transcription: newId(),
+};
 
 const XML = `<?xml version="1.0" encoding="UTF-8"?>
 <TEI xmlns="http://www.tei-c.org/ns/1.0">
@@ -26,11 +41,25 @@ const XML = `<?xml version="1.0" encoding="UTF-8"?>
 
 beforeAll(async () => {
   ({ db, pool } = createDatabase(url));
-  await db.insert(users).values({ id: ids.user, email: `${ids.user}@test`, name: 'T', passwordHash: 'x' });
-  await db.insert(referenceSchemes).values({ id: ids.scheme, name: 'epic', levels: SCHEME_PRESETS[0]!.scheme.levels });
-  await db.insert(works).values({ id: ids.work, slug: `w-${ids.work}`, title: 'W', schemeId: ids.scheme, profile: defaultProfile('grc') });
-  await db.insert(witnesses).values({ id: ids.witness, slug: `a-${ids.witness}`, siglum: 'A', name: 'A' });
-  await db.insert(transcriptions).values({ id: ids.transcription, witnessId: ids.witness, name: 'T', ownerId: ids.user });
+  await db
+    .insert(users)
+    .values({ id: ids.user, email: `${ids.user}@test`, name: 'T', passwordHash: 'x' });
+  await db
+    .insert(referenceSchemes)
+    .values({ id: ids.scheme, name: 'epic', levels: SCHEME_PRESETS[0]!.scheme.levels });
+  await db.insert(works).values({
+    id: ids.work,
+    slug: `w-${ids.work}`,
+    title: 'W',
+    schemeId: ids.scheme,
+    profile: defaultProfile('grc'),
+  });
+  await db
+    .insert(witnesses)
+    .values({ id: ids.witness, slug: `a-${ids.witness}`, siglum: 'A', name: 'A' });
+  await db
+    .insert(transcriptions)
+    .values({ id: ids.transcription, witnessId: ids.witness, name: 'T', ownerId: ids.user });
 });
 
 afterAll(async () => {

@@ -33,7 +33,15 @@ import { checkArchive, isClean } from '../src/lib/server/archive/check.ts';
 import { writeExample } from '../src/lib/server/archive/example.ts';
 import { importPackage } from '../src/lib/server/archive/import-package.ts';
 import { buildPackage, type PackageScope } from '../src/lib/server/archive/package.ts';
-import { addRemote, httpTransport, parseRemoteAddress, pullRemote, pushRemote, remotesOf, transportOf } from '../src/lib/server/sync.ts';
+import {
+  addRemote,
+  httpTransport,
+  parseRemoteAddress,
+  pullRemote,
+  pushRemote,
+  remotesOf,
+  transportOf,
+} from '../src/lib/server/sync.ts';
 import { confirmEmailDirectly, makeResetLinkFor } from '../src/lib/server/account-mail.ts';
 import { seedSample } from '../src/lib/server/seed/sample.ts';
 import { conformAll, formatConformance } from '../src/lib/server/conform.ts';
@@ -48,7 +56,10 @@ function flag(args: string[], name: string): string | undefined {
 
 /** The version of this Varians: fixed by the bundling of the scripts (vite.scripts.config.ts); from source, the package's version alone. */
 function cliVersion(): string {
-  const version = typeof __VARIANS_VERSION__ === 'string' ? __VARIANS_VERSION__ : process.env.npm_package_version ?? 'unknown';
+  const version =
+    typeof __VARIANS_VERSION__ === 'string'
+      ? __VARIANS_VERSION__
+      : (process.env.npm_package_version ?? 'unknown');
   const commit = typeof __VARIANS_COMMIT__ === 'string' ? __VARIANS_COMMIT__ : '';
   return formatVersion(version, commit);
 }
@@ -72,12 +83,16 @@ async function main(): Promise<void> {
         if (!slug) throw new Error('usage: export-archive <work-slug>');
         const [work] = await db.select({ id: works.id }).from(works).where(eq(works.slug, slug));
         if (!work) throw new Error(`no work with slug ${slug}`);
-        const hash = await archiveWork(db, work.id, root, 'manual export', { storageRoot: storage });
+        const hash = await archiveWork(db, work.id, root, 'manual export', {
+          storageRoot: storage,
+        });
         console.log(hash ? `committed ${hash}` : 'nothing changed');
         break;
       }
       case 'export-all': {
-        const archived = await archiveChangedWorks(db, root, 'manual export', { storageRoot: storage });
+        const archived = await archiveChangedWorks(db, root, 'manual export', {
+          storageRoot: storage,
+        });
         console.log(`${archived.length} work(s) committed`);
         // With --package, the whole installation as a package as well.
         const out = flag(args, 'package');
@@ -87,7 +102,10 @@ async function main(): Promise<void> {
       case 'export-package': {
         // export-package (--work <slug> | --edition <slug> | --transcription <id> | --all) --out <file.zip>
         const out = flag(args, 'out');
-        if (!out) throw new Error('usage: export-package (--work <slug> | --edition <slug> | --transcription <id> | --all) --out <file.zip>');
+        if (!out)
+          throw new Error(
+            'usage: export-package (--work <slug> | --edition <slug> | --transcription <id> | --all) --out <file.zip>',
+          );
         const scopes: PackageScope[] = [];
         const workSlug = flag(args, 'work');
         if (workSlug) {
@@ -97,20 +115,27 @@ async function main(): Promise<void> {
         }
         const editionSlug = flag(args, 'edition');
         if (editionSlug) {
-          const [e] = await db.select({ id: editions.id }).from(editions).where(eq(editions.slug, editionSlug));
+          const [e] = await db
+            .select({ id: editions.id })
+            .from(editions)
+            .where(eq(editions.slug, editionSlug));
           if (!e) throw new Error(`no edition with slug ${editionSlug}`);
           scopes.push({ kind: 'edition', editionId: e.id });
         }
         const transcriptionId = flag(args, 'transcription');
         if (transcriptionId) scopes.push({ kind: 'transcription', transcriptionId });
         if (args.includes('--all')) scopes.push({ kind: 'installation' });
-        if (scopes.length === 0) throw new Error('name what to package: --work, --edition, --transcription or --all');
+        if (scopes.length === 0)
+          throw new Error('name what to package: --work, --edition, --transcription or --all');
         await writePackage(db, scopes, out, storage);
         break;
       }
       case 'check-archive': {
         const slug = args[0] && !args[0].startsWith('--') ? args[0] : null;
-        const list = await db.select({ id: works.id, slug: works.slug }).from(works).where(slug ? eq(works.slug, slug) : undefined);
+        const list = await db
+          .select({ id: works.id, slug: works.slug })
+          .from(works)
+          .where(slug ? eq(works.slug, slug) : undefined);
         if (slug && list.length === 0) throw new Error(`no work with slug ${slug}`);
         let clean = true;
         for (const work of list) {
@@ -130,7 +155,9 @@ async function main(): Promise<void> {
       }
       case 'write-example': {
         // The example of the format, built in a database of its own on the same server (docs/formats/example).
-        const out = path.resolve(flag(args, 'out') ?? path.join(process.cwd(), '..', '..', 'docs', 'formats', 'example'));
+        const out = path.resolve(
+          flag(args, 'out') ?? path.join(process.cwd(), '..', '..', 'docs', 'formats', 'example'),
+        );
         const dir = await writeExample(url, out);
         console.log(`wrote ${dir}`);
         break;
@@ -138,9 +165,13 @@ async function main(): Promise<void> {
       case 'import-archive': {
         const dir = args[0];
         const email = flag(args, 'user');
-        if (!dir || !email) throw new Error('usage: import-archive <dir> --user <email> [--on-conflict keep|take] [--dry-run]');
+        if (!dir || !email)
+          throw new Error(
+            'usage: import-archive <dir> --user <email> [--on-conflict keep|take] [--dry-run]',
+          );
         const policy = flag(args, 'on-conflict');
-        if (policy !== undefined && policy !== 'keep' && policy !== 'take') throw new Error('--on-conflict is keep or take');
+        if (policy !== undefined && policy !== 'keep' && policy !== 'take')
+          throw new Error('--on-conflict is keep or take');
         const user = await userByEmail(db, email);
         // A package (zip or bag), a zipped archive, or an archive directory.
         const result = await importPackage(db, path.resolve(dir), user.id, {
@@ -157,19 +188,26 @@ async function main(): Promise<void> {
         if (result.bag) console.log('The checksums of the package are right.');
         if (result.dryRun) console.log('A preview: nothing was changed.');
         for (const report of result.works) {
-        console.log(`work ${report.workId}`);
-        for (const d of report.documents) {
-          const where = d.segments.length ? ` (segments ${d.segments.join(', ')})` : '';
-          console.log(`  ${d.result.padEnd(12)} ${d.kind} ${d.name}${where}`);
-        }
-        for (const m of report.matches) console.log(`  matched      ${m.kind} ${m.incomingId} to ${m.localId} by ${m.by}${m.value ? ` ${m.value}` : ''}`);
-        for (const w of report.possibleDuplicates) console.log(`  duplicate?   witness ${w.name} may be ${w.localName} (${w.localId})`);
-        if (report.persons.created) console.log(`  persons new here: ${report.persons.createdNames.join(', ')}`);
-        for (const w of report.warnings) console.log(`  warning: ${w}`);
-        if (report.documents.some((d) => d.result === 'conflict')) {
-          console.log('Conflicting documents were left as they are: import again with --on-conflict keep or --on-conflict take.');
-          process.exitCode = 2;
-        }
+          console.log(`work ${report.workId}`);
+          for (const d of report.documents) {
+            const where = d.segments.length ? ` (segments ${d.segments.join(', ')})` : '';
+            console.log(`  ${d.result.padEnd(12)} ${d.kind} ${d.name}${where}`);
+          }
+          for (const m of report.matches)
+            console.log(
+              `  matched      ${m.kind} ${m.incomingId} to ${m.localId} by ${m.by}${m.value ? ` ${m.value}` : ''}`,
+            );
+          for (const w of report.possibleDuplicates)
+            console.log(`  duplicate?   witness ${w.name} may be ${w.localName} (${w.localId})`);
+          if (report.persons.created)
+            console.log(`  persons new here: ${report.persons.createdNames.join(', ')}`);
+          for (const w of report.warnings) console.log(`  warning: ${w}`);
+          if (report.documents.some((d) => d.result === 'conflict')) {
+            console.log(
+              'Conflicting documents were left as they are: import again with --on-conflict keep or --on-conflict take.',
+            );
+            process.exitCode = 2;
+          }
         }
         break;
       }
@@ -179,32 +217,71 @@ async function main(): Promise<void> {
         // push <work-slug> <address of the work there> --user <email> --token T
         const [slug, address] = args;
         const email = flag(args, 'user');
-        if (!slug || !address || !email) throw new Error(`usage: ${command} <work-slug> <address of the work there> --user <email> [--token <token>]`);
+        if (!slug || !address || !email)
+          throw new Error(
+            `usage: ${command} <work-slug> <address of the work there> --user <email> [--token <token>]`,
+          );
         const [work] = await db.select({ id: works.id }).from(works).where(eq(works.slug, slug));
         if (!work) throw new Error(`no work with slug ${slug}`);
         const parsed = parseRemoteAddress(address);
-        if (!parsed) throw new Error('give the address of the work there, such as https://example.org/works/iliad');
+        if (!parsed)
+          throw new Error(
+            'give the address of the work there, such as https://example.org/works/iliad',
+          );
         const user = await userByEmail(db, email);
         const token = flag(args, 'token') ?? null;
         const transport = httpTransport(parsed.origin, parsed.slug, token);
-        const known = (await remotesOf(db, work.id)).find((r) => r.origin === parsed.origin && r.remoteSlug === parsed.slug);
+        const known = (await remotesOf(db, work.id)).find(
+          (r) => r.origin === parsed.origin && r.remoteSlug === parsed.slug,
+        );
         // The token is kept only where SECRET_KEY allows; otherwise it is used for this run alone.
-        const remote = known ?? (await addRemote(db, user, work.id, address, token && process.env.SECRET_KEY ? token : null, transport)).remote;
+        const remote =
+          known ??
+          (
+            await addRemote(
+              db,
+              user,
+              work.id,
+              address,
+              token && process.env.SECRET_KEY ? token : null,
+              transport,
+            )
+          ).remote;
         if (command === 'push') {
-          if (!token && !remote.token) throw new Error('pushing needs --token, a token of an account there');
-          console.log(JSON.stringify(await pushRemote(db, user, remote, { transport: token ? transport : transportOf(remote, user.id), storageRoot: storage }), null, 2));
+          if (!token && !remote.token)
+            throw new Error('pushing needs --token, a token of an account there');
+          console.log(
+            JSON.stringify(
+              await pushRemote(db, user, remote, {
+                transport: token ? transport : transportOf(remote, user.id),
+                storageRoot: storage,
+              }),
+              null,
+              2,
+            ),
+          );
           break;
         }
         const policy = flag(args, 'on-conflict');
-        if (policy !== undefined && policy !== 'keep' && policy !== 'take') throw new Error('--on-conflict is keep or take');
-        const report = await pullRemote(db, user, remote, { transport: token || !remote.token ? transport : transportOf(remote, user.id), dryRun: args.includes('--dry-run'), ...(policy ? { policy } : {}) });
+        if (policy !== undefined && policy !== 'keep' && policy !== 'take')
+          throw new Error('--on-conflict is keep or take');
+        const report = await pullRemote(db, user, remote, {
+          transport: token || !remote.token ? transport : transportOf(remote, user.id),
+          dryRun: args.includes('--dry-run'),
+          ...(policy ? { policy } : {}),
+        });
         if (report.refused) {
           console.log(`Nothing was imported: ${report.refused}`);
           process.exitCode = 1;
           break;
         }
-        for (const w of report.works) for (const d of w.documents) console.log(`  ${d.result.padEnd(12)} ${d.kind} ${d.name}${d.segments.length ? ` (segments ${d.segments.join(', ')})` : ''}`);
-        if (report.works.some((w) => w.documents.some((d) => d.result === 'conflict'))) process.exitCode = 2;
+        for (const w of report.works)
+          for (const d of w.documents)
+            console.log(
+              `  ${d.result.padEnd(12)} ${d.kind} ${d.name}${d.segments.length ? ` (segments ${d.segments.join(', ')})` : ''}`,
+            );
+        if (report.works.some((w) => w.documents.some((d) => d.result === 'conflict')))
+          process.exitCode = 2;
         break;
       }
       case 'seed-sample': {
@@ -229,9 +306,14 @@ async function main(): Promise<void> {
         if (!email) throw new Error('usage: reset-password <email>');
         const origin = process.env.ORIGIN?.trim();
         if (!origin) throw new Error('ORIGIN is not set; the link is made from it');
-        const made = await makeResetLinkFor(db, email, { name: process.env.SITE_NAME?.trim() || 'Varians', origin: origin.replace(/\/+$/u, '') });
+        const made = await makeResetLinkFor(db, email, {
+          name: process.env.SITE_NAME?.trim() || 'Varians',
+          origin: origin.replace(/\/+$/u, ''),
+        });
         if (!made) throw new Error(`no user ${email}`);
-        console.log(`A link to set a new password for ${made.account.name}, valid until ${made.expiresAt.toISOString()} and for one use:`);
+        console.log(
+          `A link to set a new password for ${made.account.name}, valid until ${made.expiresAt.toISOString()} and for one use:`,
+        );
         console.log(made.link);
         break;
       }
@@ -259,8 +341,17 @@ async function main(): Promise<void> {
 }
 
 /** Write a package for the operator: everything, drafts included, as an administrator sees it; review positions stay out. */
-async function writePackage(db: ReturnType<typeof createDatabase>['db'], scopes: PackageScope[], out: string, storage: string): Promise<void> {
-  const pkg = await buildPackage(db, { id: 'operator', role: 'administrator' }, scopes, { storageRoot: storage, ...(process.env.ORIGIN ? { origin: process.env.ORIGIN } : {}), agent: `Varians ${cliVersion()}` });
+async function writePackage(
+  db: ReturnType<typeof createDatabase>['db'],
+  scopes: PackageScope[],
+  out: string,
+  storage: string,
+): Promise<void> {
+  const pkg = await buildPackage(db, { id: 'operator', role: 'administrator' }, scopes, {
+    storageRoot: storage,
+    ...(process.env.ORIGIN ? { origin: process.env.ORIGIN } : {}),
+    agent: `Varians ${cliVersion()}`,
+  });
   try {
     await copyFile(pkg.file, path.resolve(out));
     console.log(`wrote ${path.resolve(out)}`);
@@ -271,7 +362,10 @@ async function writePackage(db: ReturnType<typeof createDatabase>['db'], scopes:
 
 async function userByEmail(db: ReturnType<typeof createDatabase>['db'], email: string) {
   // Addresses are kept as typed and compared without regard to case, as at login.
-  const [user] = await db.select().from(users).where(eq(sql`lower(${users.email})`, email.trim().toLowerCase()));
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(sql`lower(${users.email})`, email.trim().toLowerCase()));
   if (!user) throw new Error(`no user ${email}`);
   return user;
 }

@@ -1,6 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newId } from '@varians/core';
-import { conjectures, createDatabase, pages, referenceSchemes, users, witnesses, works, type Database } from '@varians/db';
+import {
+  conjectures,
+  createDatabase,
+  pages,
+  referenceSchemes,
+  users,
+  witnesses,
+  works,
+  type Database,
+} from '@varians/db';
 import { eq, inArray } from 'drizzle-orm';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
@@ -22,7 +31,9 @@ beforeAll(async () => {
   ({ db, pool } = createDatabase(url));
   await db.delete(works).where(eq(works.slug, 'iliad'));
   await db.delete(witnesses).where(inArray(witnesses.slug, SLUGS));
-  await db.insert(users).values({ id: userId, email: `${userId}@test`, name: 'Archivist', passwordHash: 'x' });
+  await db
+    .insert(users)
+    .values({ id: userId, email: `${userId}@test`, name: 'Archivist', passwordHash: 'x' });
   root = await mkdtemp(path.join(os.tmpdir(), 'varians-archive-'));
 });
 
@@ -40,25 +51,65 @@ describe('archive', () => {
     const sample = await seedSample(db, userId);
     const dir = await writeArchive(db, sample.workId, root);
     const top = (await readdir(dir)).sort();
-    expect(top).toEqual(expect.arrayContaining(['README.md', 'work.json', 'segments.tsv', 'conjectures.json', 'reported-readings.json', 'witnesses', 'editions', 'schemas', 'bibliography.json']));
+    expect(top).toEqual(
+      expect.arrayContaining([
+        'README.md',
+        'work.json',
+        'segments.tsv',
+        'conjectures.json',
+        'reported-readings.json',
+        'witnesses',
+        'editions',
+        'schemas',
+        'bibliography.json',
+      ]),
+    );
     expect((await readdir(path.join(dir, 'schemas'))).length).toBeGreaterThanOrEqual(9);
     const work = JSON.parse(await readFile(path.join(dir, 'work.json'), 'utf8'));
     expect(work.title).toBe('Iliad');
     expect(work.scheme.levels).toHaveLength(2);
     const segmentsTsv = await readFile(path.join(dir, 'segments.tsv'), 'utf8');
     expect(segmentsTsv.split('\n').filter((l) => l).length).toBe(11);
-    const a = JSON.parse(await readFile(path.join(dir, 'witnesses', 'venetus-a', 'transcriptions', 'iliad-1', 'transcription.json'), 'utf8'));
+    const a = JSON.parse(
+      await readFile(
+        path.join(dir, 'witnesses', 'venetus-a', 'transcriptions', 'iliad-1', 'transcription.json'),
+        'utf8',
+      ),
+    );
     expect(a.content.items.length).toBeGreaterThan(60);
-    const history = await readFile(path.join(dir, 'witnesses', 'venetus-a', 'transcriptions', 'iliad-1', 'history.ndjson'), 'utf8');
+    const history = await readFile(
+      path.join(dir, 'witnesses', 'venetus-a', 'transcriptions', 'iliad-1', 'history.ndjson'),
+      'utf8',
+    );
     expect(history.trim().split('\n')).toHaveLength(1);
     expect(JSON.parse(history.trim()).version).toBe(1);
-    const text = await readFile(path.join(dir, 'editions', sample.editionSlug, 'edition.txt'), 'utf8');
+    const text = await readFile(
+      path.join(dir, 'editions', sample.editionSlug, 'edition.txt'),
+      'utf8',
+    );
     expect(text).toContain('1.1  μῆνιν ἄειδε θεὰ Πηληϊάδεω Ἀχιλῆος');
     expect(text).toContain('1.2 μυρί᾽ A C : μυρία B');
-    const tei = await readFile(path.join(dir, 'editions', sample.editionSlug, 'edition.tei.xml'), 'utf8');
-    expect(tei).toMatch(/<witness xml:id="wit-A" n="A" corresp="wit:[0-9A-Z]+">Venetus A<\/witness>/);
-    expect(tei).toMatch(/<app><lem wit="#wit-A #wit-C"><w xml:id="w-[0-9A-Z]+" corresp="tok:[0-9A-Z]+">μυρί᾽<\/w><\/lem><rdg wit="#wit-B">μυρία<\/rdg><\/app>/);
-    const transcriptionTei = await readFile(path.join(dir, 'witnesses', 'venetus-a', 'transcriptions', 'iliad-1', 'transcription.tei.xml'), 'utf8');
+    const tei = await readFile(
+      path.join(dir, 'editions', sample.editionSlug, 'edition.tei.xml'),
+      'utf8',
+    );
+    expect(tei).toMatch(
+      /<witness xml:id="wit-A" n="A" corresp="wit:[0-9A-Z]+">Venetus A<\/witness>/,
+    );
+    expect(tei).toMatch(
+      /<app><lem wit="#wit-A #wit-C"><w xml:id="w-[0-9A-Z]+" corresp="tok:[0-9A-Z]+">μυρί᾽<\/w><\/lem><rdg wit="#wit-B">μυρία<\/rdg><\/app>/,
+    );
+    const transcriptionTei = await readFile(
+      path.join(
+        dir,
+        'witnesses',
+        'venetus-a',
+        'transcriptions',
+        'iliad-1',
+        'transcription.tei.xml',
+      ),
+      'utf8',
+    );
     expect(transcriptionTei).toContain('<msIdentifier>');
     expect(transcriptionTei).toContain('<milestone unit="segment" n="1.1"/>');
     const hash = await commitArchive(dir, 'first export');
@@ -79,7 +130,9 @@ describe('archive', () => {
       expect(hash).toMatch(/^[0-9a-f]{40}$/);
       expect(existsSync(path.join(dir, '.git'))).toBe(true);
       // The enclosing repository still has no commit.
-      expect(() => execFileSync('git', ['rev-parse', '--verify', 'HEAD'], { cwd: outer, stdio: 'ignore' })).toThrow();
+      expect(() =>
+        execFileSync('git', ['rev-parse', '--verify', 'HEAD'], { cwd: outer, stdio: 'ignore' }),
+      ).toThrow();
     } finally {
       await rm(outer, { recursive: true, force: true });
     }
@@ -87,7 +140,11 @@ describe('archive', () => {
 
   it('writes for one person only what they may see, as a zip', async () => {
     const sample = await seedSample(db, userId);
-    const [first] = await db.select().from(conjectures).where(eq(conjectures.workId, sample.workId)).limit(1);
+    const [first] = await db
+      .select()
+      .from(conjectures)
+      .where(eq(conjectures.workId, sample.workId))
+      .limit(1);
     const only = {
       transcription: () => true,
       edition: () => false,
@@ -96,7 +153,11 @@ describe('archive', () => {
       editionWorking: () => true,
     };
     const dir = await writeArchive(db, sample.workId, root, { only });
-    const written = (JSON.parse(await readFile(path.join(dir, 'conjectures.json'), 'utf8')) as { conjectures: { id: string }[] }).conjectures;
+    const written = (
+      JSON.parse(await readFile(path.join(dir, 'conjectures.json'), 'utf8')) as {
+        conjectures: { id: string }[];
+      }
+    ).conjectures;
     expect(written.map((c) => c.id)).not.toContain(first!.id);
     expect(written.length).toBeGreaterThan(0);
     expect(existsSync(path.join(dir, 'editions'))).toBe(false);
@@ -114,16 +175,46 @@ describe('archive', () => {
     const sample = await seedSample(db, userId);
     const storage = await mkdtemp(path.join(os.tmpdir(), 'varians-images-'));
     try {
-      const [page] = await db.select().from(pages).where(eq(pages.witnessId, sample.witnessIds.A!)).orderBy(pages.position).limit(1);
+      const [page] = await db
+        .select()
+        .from(pages)
+        .where(eq(pages.witnessId, sample.witnessIds.A!))
+        .orderBy(pages.position)
+        .limit(1);
       await mkdir(path.join(storage, 'originals'), { recursive: true });
       await writeFile(path.join(storage, 'originals', 'a.jpg'), 'not really an image');
-      await db.update(pages).set({ imageKind: 'upload', imagePath: 'originals/a.jpg', rights: 'http://rightsstatements.org/vocab/InC/1.0/', attribution: 'By courtesy of the library' }).where(eq(pages.id, page!.id));
+      await db
+        .update(pages)
+        .set({
+          imageKind: 'upload',
+          imagePath: 'originals/a.jpg',
+          rights: 'http://rightsstatements.org/vocab/InC/1.0/',
+          attribution: 'By courtesy of the library',
+        })
+        .where(eq(pages.id, page!.id));
       const dir = await writeArchive(db, sample.workId, root, { storageRoot: storage });
-      const read = async () => (JSON.parse(await readFile(path.join(dir, 'witnesses', 'venetus-a', 'pages.json'), 'utf8')) as { pages: { id: string; image: { file: string | null; rights: string; attribution: string } | null }[] }).pages.find((p) => p.id === page!.id)!;
+      const read = async () =>
+        (
+          JSON.parse(
+            await readFile(path.join(dir, 'witnesses', 'venetus-a', 'pages.json'), 'utf8'),
+          ) as {
+            pages: {
+              id: string;
+              image: { file: string | null; rights: string; attribution: string } | null;
+            }[];
+          }
+        ).pages.find((p) => p.id === page!.id)!;
       const closed = await read();
-      expect(closed.image).toMatchObject({ file: null, rights: 'http://rightsstatements.org/vocab/InC/1.0/', attribution: 'By courtesy of the library' });
+      expect(closed.image).toMatchObject({
+        file: null,
+        rights: 'http://rightsstatements.org/vocab/InC/1.0/',
+        attribution: 'By courtesy of the library',
+      });
       expect(existsSync(path.join(dir, 'witnesses', 'venetus-a', 'images'))).toBe(false);
-      await db.update(pages).set({ rights: 'https://creativecommons.org/licenses/by/4.0/' }).where(eq(pages.id, page!.id));
+      await db
+        .update(pages)
+        .set({ rights: 'https://creativecommons.org/licenses/by/4.0/' })
+        .where(eq(pages.id, page!.id));
       await writeArchive(db, sample.workId, root, { storageRoot: storage });
       const open = await read();
       expect(open.image!.file).toMatch(/^images\/12r-/);
@@ -135,4 +226,3 @@ describe('archive', () => {
     }
   });
 });
-

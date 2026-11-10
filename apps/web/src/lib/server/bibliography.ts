@@ -3,8 +3,23 @@
  * add, kept by whoever added them and by site editors, and the citations
  * that conjectures, reported readings, notes and editions make of them.
  */
-import { citationLabel, disambiguateLabels, newId, parseBiblatex, serializeBiblatex, type BibEntry } from '@varians/core';
-import { bibliographyItems, citations, conjectures, editions, notes, reportedReadings, type Database } from '@varians/db';
+import {
+  citationLabel,
+  disambiguateLabels,
+  newId,
+  parseBiblatex,
+  serializeBiblatex,
+  type BibEntry,
+} from '@varians/core';
+import {
+  bibliographyItems,
+  citations,
+  conjectures,
+  editions,
+  notes,
+  reportedReadings,
+  type Database,
+} from '@varians/db';
 import { and, asc, count, eq, ilike, inArray, isNotNull, or, sql } from 'drizzle-orm';
 import { formatCitation, referenceText } from '$lib/bibliography/format';
 import { isAdministrator, isSiteEditor, type Actor, type Maybe } from './authz.ts';
@@ -67,7 +82,11 @@ export async function listBibliography(
 
 export async function citationCounts(db: Database, ids: string[]): Promise<Map<string, number>> {
   if (!ids.length) return new Map();
-  const rows = await db.select({ id: citations.itemId, n: count() }).from(citations).where(inArray(citations.itemId, ids)).groupBy(citations.itemId);
+  const rows = await db
+    .select({ id: citations.itemId, n: count() })
+    .from(citations)
+    .where(inArray(citations.itemId, ids))
+    .groupBy(citations.itemId);
   return new Map(rows.map((r) => [r.id, r.n] as const));
 }
 
@@ -88,9 +107,19 @@ export interface ImportSummary {
 }
 
 /** Read `.bib` text into the bibliography: new keys are added, the user's own entries updated, others' kept. */
-export async function importBibliography(db: Database, text: string, user: Actor): Promise<ImportSummary> {
+export async function importBibliography(
+  db: Database,
+  text: string,
+  user: Actor,
+): Promise<ImportSummary> {
   const parsed = parseBiblatex(text);
-  const summary: ImportSummary = { created: [], updated: [], unchanged: [], kept: [], warnings: [...parsed.warnings] };
+  const summary: ImportSummary = {
+    created: [],
+    updated: [],
+    unchanged: [],
+    kept: [],
+    warnings: [...parsed.warnings],
+  };
   const seen = new Set<string>();
   for (const entry of parsed.entries) {
     if (seen.has(entry.key)) {
@@ -98,14 +127,27 @@ export async function importBibliography(db: Database, text: string, user: Actor
       continue;
     }
     seen.add(entry.key);
-    const [existing] = await db.select().from(bibliographyItems).where(eq(bibliographyItems.citationKey, entry.key));
+    const [existing] = await db
+      .select()
+      .from(bibliographyItems)
+      .where(eq(bibliographyItems.citationKey, entry.key));
     if (!existing) {
-      await db.insert(bibliographyItems).values({ id: newId(), entryType: entry.type, citationKey: entry.key, fields: entry.fields, label: citationLabel(entry), createdBy: user.id });
+      await db.insert(bibliographyItems).values({
+        id: newId(),
+        entryType: entry.type,
+        citationKey: entry.key,
+        fields: entry.fields,
+        label: citationLabel(entry),
+        createdBy: user.id,
+      });
       summary.created.push(entry.key);
     } else if (sameEntry(entryOf(existing), entry)) {
       summary.unchanged.push(entry.key);
     } else if (canEditBibItem(user, existing)) {
-      await db.update(bibliographyItems).set({ entryType: entry.type, fields: entry.fields, label: citationLabel(entry) }).where(eq(bibliographyItems.id, existing.id));
+      await db
+        .update(bibliographyItems)
+        .set({ entryType: entry.type, fields: entry.fields, label: citationLabel(entry) })
+        .where(eq(bibliographyItems.id, existing.id));
       summary.updated.push(entry.key);
     } else {
       summary.kept.push(entry.key);
@@ -114,37 +156,86 @@ export async function importBibliography(db: Database, text: string, user: Actor
   return summary;
 }
 
-export type SaveResult = { ok: true; item: BibItem } | { ok: false; error: 'parse' | 'count' | 'duplicate' | 'forbidden' | 'missing'; message: string };
+export type SaveResult =
+  | { ok: true; item: BibItem }
+  | {
+      ok: false;
+      error: 'parse' | 'count' | 'duplicate' | 'forbidden' | 'missing';
+      message: string;
+    };
 
 /** Add an entry, or replace one, from the biblatex text of exactly one entry. */
-export async function saveEntry(db: Database, id: string | null, text: string, user: Actor): Promise<SaveResult> {
+export async function saveEntry(
+  db: Database,
+  id: string | null,
+  text: string,
+  user: Actor,
+): Promise<SaveResult> {
   const parsed = parseBiblatex(text);
-  if (parsed.entries.length === 0) return { ok: false, error: 'parse', message: parsed.warnings[0] ?? 'No entry could be read. An entry looks like @book{key, title = {…}}.' };
-  if (parsed.entries.length > 1) return { ok: false, error: 'count', message: 'Give one entry at a time; use Import for several.' };
+  if (parsed.entries.length === 0)
+    return {
+      ok: false,
+      error: 'parse',
+      message:
+        parsed.warnings[0] ??
+        'No entry could be read. An entry looks like @book{key, title = {…}}.',
+    };
+  if (parsed.entries.length > 1)
+    return {
+      ok: false,
+      error: 'count',
+      message: 'Give one entry at a time; use Import for several.',
+    };
   const entry = parsed.entries[0]!;
-  const [sameKey] = await db.select().from(bibliographyItems).where(eq(bibliographyItems.citationKey, entry.key));
+  const [sameKey] = await db
+    .select()
+    .from(bibliographyItems)
+    .where(eq(bibliographyItems.citationKey, entry.key));
   if (id === null) {
-    if (sameKey) return { ok: false, error: 'duplicate', message: `The key ${entry.key} is taken.` };
+    if (sameKey)
+      return { ok: false, error: 'duplicate', message: `The key ${entry.key} is taken.` };
     const [item] = await db
       .insert(bibliographyItems)
-      .values({ id: newId(), entryType: entry.type, citationKey: entry.key, fields: entry.fields, label: citationLabel(entry), createdBy: user.id })
+      .values({
+        id: newId(),
+        entryType: entry.type,
+        citationKey: entry.key,
+        fields: entry.fields,
+        label: citationLabel(entry),
+        createdBy: user.id,
+      })
       .returning();
     return { ok: true, item: item! };
   }
   const [existing] = await db.select().from(bibliographyItems).where(eq(bibliographyItems.id, id));
   if (!existing) return { ok: false, error: 'missing', message: 'That entry no longer exists.' };
-  if (!canEditBibItem(user, existing)) return { ok: false, error: 'forbidden', message: 'Only whoever added the entry, or a site editor, may change it.' };
-  if (sameKey && sameKey.id !== id) return { ok: false, error: 'duplicate', message: `The key ${entry.key} is taken.` };
+  if (!canEditBibItem(user, existing))
+    return {
+      ok: false,
+      error: 'forbidden',
+      message: 'Only whoever added the entry, or a site editor, may change it.',
+    };
+  if (sameKey && sameKey.id !== id)
+    return { ok: false, error: 'duplicate', message: `The key ${entry.key} is taken.` };
   const [item] = await db
     .update(bibliographyItems)
-    .set({ entryType: entry.type, citationKey: entry.key, fields: entry.fields, label: citationLabel(entry) })
+    .set({
+      entryType: entry.type,
+      citationKey: entry.key,
+      fields: entry.fields,
+      label: citationLabel(entry),
+    })
     .where(eq(bibliographyItems.id, id))
     .returning();
   return { ok: true, item: item! };
 }
 
 /** Remove an entry nothing cites. */
-export async function deleteEntry(db: Database, id: string, user: Actor): Promise<{ ok: true } | { ok: false; error: 'cited' | 'forbidden' | 'missing'; cited?: number }> {
+export async function deleteEntry(
+  db: Database,
+  id: string,
+  user: Actor,
+): Promise<{ ok: true } | { ok: false; error: 'cited' | 'forbidden' | 'missing'; cited?: number }> {
   const [existing] = await db.select().from(bibliographyItems).where(eq(bibliographyItems.id, id));
   if (!existing) return { ok: false, error: 'missing' };
   if (!canDeleteBibItem(user, existing)) return { ok: false, error: 'forbidden' };
@@ -167,7 +258,11 @@ export async function bibText(db: Database, ids?: string[]): Promise<string> {
 
 // Citations
 
-export type CitationTarget = { conjectureId: string } | { reportedReadingId: string } | { noteId: string; editionId: string } | { editionId: string };
+export type CitationTarget =
+  | { conjectureId: string }
+  | { reportedReadingId: string }
+  | { noteId: string; editionId: string }
+  | { editionId: string };
 
 export interface CitationInput {
   itemId: string;
@@ -187,7 +282,8 @@ export interface CitationView {
 
 function targetCondition(target: CitationTarget) {
   if ('conjectureId' in target) return eq(citations.conjectureId, target.conjectureId);
-  if ('reportedReadingId' in target) return eq(citations.reportedReadingId, target.reportedReadingId);
+  if ('reportedReadingId' in target)
+    return eq(citations.reportedReadingId, target.reportedReadingId);
   if ('noteId' in target) return eq(citations.noteId, target.noteId);
   return and(eq(citations.editionId, target.editionId), sql`${citations.noteId} is null`);
 }
@@ -200,9 +296,22 @@ function targetColumns(target: CitationTarget) {
 }
 
 /** Replace what a record cites. Unknown items are left out. */
-export async function setCitations(db: Database, target: CitationTarget, list: CitationInput[]): Promise<void> {
+export async function setCitations(
+  db: Database,
+  target: CitationTarget,
+  list: CitationInput[],
+): Promise<void> {
   const ids = [...new Set(list.map((c) => c.itemId))];
-  const known = new Set(ids.length ? (await db.select({ id: bibliographyItems.id }).from(bibliographyItems).where(inArray(bibliographyItems.id, ids))).map((r) => r.id) : []);
+  const known = new Set(
+    ids.length
+      ? (
+          await db
+            .select({ id: bibliographyItems.id })
+            .from(bibliographyItems)
+            .where(inArray(bibliographyItems.id, ids))
+        ).map((r) => r.id)
+      : [],
+  );
   await db.transaction(async (tx) => {
     await tx.delete(citations).where(targetCondition(target));
     const rows = list
@@ -219,18 +328,34 @@ export async function setCitations(db: Database, target: CitationTarget, list: C
   });
 }
 
-async function viewsOf(db: Database, rows: (typeof citations.$inferSelect)[]): Promise<Map<string, BibItem>> {
+async function viewsOf(
+  db: Database,
+  rows: (typeof citations.$inferSelect)[],
+): Promise<Map<string, BibItem>> {
   const ids = [...new Set(rows.map((r) => r.itemId))];
-  const items = ids.length ? await db.select().from(bibliographyItems).where(inArray(bibliographyItems.id, ids)) : [];
+  const items = ids.length
+    ? await db.select().from(bibliographyItems).where(inArray(bibliographyItems.id, ids))
+    : [];
   return new Map(items.map((i) => [i.id, i] as const));
 }
 
 function view(row: typeof citations.$inferSelect, item: BibItem): CitationView {
-  return { itemId: item.id, key: item.citationKey, label: item.label, prenote: row.prenote, postnote: row.postnote, text: formatCitation(item.label, row.prenote, row.postnote) };
+  return {
+    itemId: item.id,
+    key: item.citationKey,
+    label: item.label,
+    prenote: row.prenote,
+    postnote: row.postnote,
+    text: formatCitation(item.label, row.prenote, row.postnote),
+  };
 }
 
 export async function citationsOf(db: Database, target: CitationTarget): Promise<CitationView[]> {
-  const rows = await db.select().from(citations).where(targetCondition(target)).orderBy(asc(citations.position));
+  const rows = await db
+    .select()
+    .from(citations)
+    .where(targetCondition(target))
+    .orderBy(asc(citations.position));
   const items = await viewsOf(db, rows);
   return rows.flatMap((r) => {
     const item = items.get(r.itemId);
@@ -246,11 +371,21 @@ export async function citationsByRecord(
 ): Promise<Map<string, CitationView[]>> {
   const out = new Map<string, CitationView[]>();
   if (!ids.length) return out;
-  const column = kind === 'conjecture' ? citations.conjectureId : kind === 'reported' ? citations.reportedReadingId : citations.noteId;
-  const rows = await db.select().from(citations).where(inArray(column, ids)).orderBy(asc(citations.position));
+  const column =
+    kind === 'conjecture'
+      ? citations.conjectureId
+      : kind === 'reported'
+        ? citations.reportedReadingId
+        : citations.noteId;
+  const rows = await db
+    .select()
+    .from(citations)
+    .where(inArray(column, ids))
+    .orderBy(asc(citations.position));
   const items = await viewsOf(db, rows);
   for (const r of rows) {
-    const owner = kind === 'conjecture' ? r.conjectureId : kind === 'reported' ? r.reportedReadingId : r.noteId;
+    const owner =
+      kind === 'conjecture' ? r.conjectureId : kind === 'reported' ? r.reportedReadingId : r.noteId;
     const item = items.get(r.itemId);
     if (!owner || !item) continue;
     out.set(owner, [...(out.get(owner) ?? []), view(r, item)]);
@@ -271,22 +406,57 @@ export interface WorkCited {
  * conjectures and reported readings its apparatus prints for this audience
  * cite (for readers, the work's published records), in label order.
  */
-export async function editionWorksCited(db: Database, editionId: string, audience: Audience = PUBLIC): Promise<WorkCited[]> {
-  const [edition] = await db.select({ id: editions.id, workId: editions.workId, ownerId: editions.ownerId }).from(editions).where(eq(editions.id, editionId));
+export async function editionWorksCited(
+  db: Database,
+  editionId: string,
+  audience: Audience = PUBLIC,
+): Promise<WorkCited[]> {
+  const [edition] = await db
+    .select({ id: editions.id, workId: editions.workId, ownerId: editions.ownerId })
+    .from(editions)
+    .where(eq(editions.id, editionId));
   if (!edition) return [];
   const sees = await recordFilter(db, edition.workId, audience);
-  const conjectureIds = (await db.select().from(conjectures).where(eq(conjectures.workId, edition.workId))).filter(sees).map((r) => r.id);
-  const reportedIds = (await db.select().from(reportedReadings).where(eq(reportedReadings.workId, edition.workId))).filter(sees).map((r) => r.id);
-  const noteIds = (await db.select({ id: notes.id }).from(notes).where(eq(notes.editionId, editionId))).map((r) => r.id);
+  const conjectureIds = (
+    await db.select().from(conjectures).where(eq(conjectures.workId, edition.workId))
+  )
+    .filter(sees)
+    .map((r) => r.id);
+  const reportedIds = (
+    await db.select().from(reportedReadings).where(eq(reportedReadings.workId, edition.workId))
+  )
+    .filter(sees)
+    .map((r) => r.id);
+  const noteIds = (
+    await db.select({ id: notes.id }).from(notes).where(eq(notes.editionId, editionId))
+  ).map((r) => r.id);
   const conditions = [
     eq(citations.editionId, editionId),
     conjectureIds.length ? inArray(citations.conjectureId, conjectureIds) : undefined,
     reportedIds.length ? inArray(citations.reportedReadingId, reportedIds) : undefined,
     noteIds.length ? inArray(citations.noteId, noteIds) : undefined,
   ].filter((c) => c !== undefined);
-  const itemIds = [...new Set((await db.selectDistinct({ id: citations.itemId }).from(citations).where(and(isNotNull(citations.itemId), or(...conditions)))).map((r) => r.id))];
+  const itemIds = [
+    ...new Set(
+      (
+        await db
+          .selectDistinct({ id: citations.itemId })
+          .from(citations)
+          .where(and(isNotNull(citations.itemId), or(...conditions)))
+      ).map((r) => r.id),
+    ),
+  ];
   if (!itemIds.length) return [];
-  const items = await db.select().from(bibliographyItems).where(inArray(bibliographyItems.id, itemIds)).orderBy(asc(bibliographyItems.label), asc(bibliographyItems.citationKey));
+  const items = await db
+    .select()
+    .from(bibliographyItems)
+    .where(inArray(bibliographyItems.id, itemIds))
+    .orderBy(asc(bibliographyItems.label), asc(bibliographyItems.citationKey));
   const labels = disambiguateLabels(items.map((i) => i.label));
-  return items.map((item, i) => ({ id: item.id, key: item.citationKey, label: labels[i]!, reference: referenceText(entryOf(item)) }));
+  return items.map((item, i) => ({
+    id: item.id,
+    key: item.citationKey,
+    label: labels[i]!,
+    reference: referenceText(entryOf(item)),
+  }));
 }

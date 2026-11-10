@@ -50,7 +50,8 @@ export function normalizeIdentifier(
     case 'diktyon':
     case 'trismegistos':
     case 'viaf':
-      if (!DIGITS.test(value)) return { ok: false, error: t.identifiers.invalid.digits(t.identifiers.schemes[scheme]) };
+      if (!DIGITS.test(value))
+        return { ok: false, error: t.identifiers.invalid.digits(t.identifiers.schemes[scheme]) };
       break;
     case 'url':
       if (!isWebAddress(value)) return { ok: false, error: t.identifiers.invalid.url };
@@ -72,7 +73,9 @@ function isWebAddress(value: string): boolean {
 }
 
 /** The rows of a JSON list as they are, for showing them again; anything unreadable is left out. */
-export function identifierRows(raw: string | null | undefined): { scheme: string; value: string }[] {
+export function identifierRows(
+  raw: string | null | undefined,
+): { scheme: string; value: string }[] {
   if (!raw?.trim()) return [];
   let parsed: unknown;
   try {
@@ -113,18 +116,23 @@ export function parseIdentifiers(
     if (typeof value !== 'string' || !value.trim()) continue;
     if (!isIdentifierScheme(scheme)) return { ok: false, error: t.identifiers.unknownScheme };
     const checked = normalizeIdentifier(scheme, value);
-    if (!checked.ok) return { ok: false, error: t.identifiers.problem(value.trim(), checked.error) };
+    if (!checked.ok)
+      return { ok: false, error: t.identifiers.problem(value.trim(), checked.error) };
     const key = `${scheme}\u0000${checked.value}`;
     if (seen.has(key)) continue;
     seen.add(key);
     out.push({ scheme, value: checked.value });
   }
-  if (out.length > MAX_IDENTIFIERS) return { ok: false, error: t.identifiers.tooMany(MAX_IDENTIFIERS) };
+  if (out.length > MAX_IDENTIFIERS)
+    return { ok: false, error: t.identifiers.tooMany(MAX_IDENTIFIERS) };
   return { ok: true, identifiers: out };
 }
 
 /** Two lists as one, each scheme and value once, the first list's first. */
-export function unionIdentifiers(a: CanonicalIdentifier[], b: CanonicalIdentifier[]): CanonicalIdentifier[] {
+export function unionIdentifiers(
+  a: CanonicalIdentifier[],
+  b: CanonicalIdentifier[],
+): CanonicalIdentifier[] {
   const seen = new Set<string>();
   return [...a, ...b].filter((i) => {
     const key = `${i.scheme}\u0000${i.value}`;

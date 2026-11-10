@@ -79,7 +79,14 @@ export function sessions(changesets: Changeset[], pauseMs = 20 * 60 * 1000): Ses
       last.toVersion = c.version;
       last.changesets.push(c);
     } else {
-      out.push({ userId: c.userId, from: c.at, to: c.at, fromVersion: c.version, toVersion: c.version, changesets: [c] });
+      out.push({
+        userId: c.userId,
+        from: c.at,
+        to: c.at,
+        fromVersion: c.version,
+        toVersion: c.version,
+        changesets: [c],
+      });
     }
   }
   return out;
@@ -138,9 +145,7 @@ export function thin(changesets: Changeset[], rules: ThinningRules): Changeset[]
     }
     const date = new Date(c.at);
     const slot =
-      granularity === 'day'
-        ? date.toISOString().slice(0, 10)
-        : date.toISOString().slice(0, 13);
+      granularity === 'day' ? date.toISOString().slice(0, 10) : date.toISOString().slice(0, 13);
     const key = `${c.userId}|${granularity}|${slot}`;
     if (key !== bucketKey) {
       flush();

@@ -10,7 +10,14 @@
 import { newId } from '../ids.ts';
 import type { ImportedZone, Point, Rect, ZoneGeometry } from '../image/zones.ts';
 import type { Break, Item, Stream, Token } from '../stream/items.ts';
-import { childrenNamed, descendants, firstChild, numberAttr, parseXml, type XmlElement } from './xml.ts';
+import {
+  childrenNamed,
+  descendants,
+  firstChild,
+  numberAttr,
+  parseXml,
+  type XmlElement,
+} from './xml.ts';
 
 export interface LayoutPage {
   /** The page's name: the image file name without its extension when there is one. */
@@ -61,7 +68,9 @@ export function importPageXml(xml: string, options: LayoutImportOptions = {}): L
   const root = parseRoot(ctx, xml);
   if (!root) return result(ctx);
   if (root.name !== 'PcGts') {
-    ctx.warnings.push(`The root element is <${root.name}>, not <PcGts>; reading the <Page> elements found.`);
+    ctx.warnings.push(
+      `The root element is <${root.name}>, not <PcGts>; reading the <Page> elements found.`,
+    );
   }
   const pages = root.name === 'PcGts' ? childrenNamed(root, 'Page') : descendants(root, 'Page');
   if (pages.length === 0) ctx.warnings.push('No <Page> element found.');
@@ -75,13 +84,17 @@ export function importAltoXml(xml: string, options: LayoutImportOptions = {}): L
   const root = parseRoot(ctx, xml);
   if (!root) return result(ctx);
   if (root.name !== 'alto') {
-    ctx.warnings.push(`The root element is <${root.name}>, not <alto>; reading the <Page> elements found.`);
+    ctx.warnings.push(
+      `The root element is <${root.name}>, not <alto>; reading the <Page> elements found.`,
+    );
   }
   const layout = firstChild(root, 'Layout');
   const pages = layout ? childrenNamed(layout, 'Page') : descendants(root, 'Page');
   if (pages.length === 0) ctx.warnings.push('No <Page> element found.');
   const fileName = descendants(root, 'fileName')[0]?.text;
-  pages.forEach((page, n) => importAltoPage(ctx, page, n, pages.length === 1 ? fileName : undefined));
+  pages.forEach((page, n) =>
+    importAltoPage(ctx, page, n, pages.length === 1 ? fileName : undefined),
+  );
   return result(ctx);
 }
 
@@ -98,7 +111,12 @@ function newContext(options: LayoutImportOptions): Context {
 }
 
 function result(ctx: Context): LayoutImport {
-  return { stream: { items: ctx.items }, zones: ctx.zones, pages: ctx.pages, warnings: ctx.warnings };
+  return {
+    stream: { items: ctx.items },
+    zones: ctx.zones,
+    pages: ctx.pages,
+    warnings: ctx.warnings,
+  };
 }
 
 function parseRoot(ctx: Context, xml: string): XmlElement | null {
@@ -119,14 +137,19 @@ function importPage(ctx: Context, page: XmlElement, n: number): void {
   const label = imageFilename ? stem(imageFilename) : String(n + 1);
   const size = sizeOf(page, 'imageWidth', 'imageHeight');
   startPage(ctx, label, imageFilename, size);
-  if (!size) ctx.warnings.push(`Page ${label}: no image size (imageWidth, imageHeight), so its zones are left out.`);
+  if (!size)
+    ctx.warnings.push(
+      `Page ${label}: no image size (imageWidth, imageHeight), so its zones are left out.`,
+    );
   let first = true;
   for (const region of orderedTextRegions(page)) {
     const regionRtl = region.attrs.readingDirection === 'right-to-left';
     for (const line of textLinesOf(region)) {
       if (!first) lineBreak(ctx);
       first = false;
-      const rtl = line.attrs.readingDirection ? line.attrs.readingDirection === 'right-to-left' : regionRtl;
+      const rtl = line.attrs.readingDirection
+        ? line.attrs.readingDirection === 'right-to-left'
+        : regionRtl;
       importTextLine(ctx, line, size, rtl);
     }
   }
@@ -223,7 +246,8 @@ function coordsShape(element: XmlElement): Shape | null {
   if (coords.attrs.points) {
     for (const pair of coords.attrs.points.trim().split(/\s+/u)) {
       const [x, y] = pair.split(',').map(Number);
-      if (x !== undefined && y !== undefined && Number.isFinite(x) && Number.isFinite(y)) points.push([x, y]);
+      if (x !== undefined && y !== undefined && Number.isFinite(x) && Number.isFinite(y))
+        points.push([x, y]);
     }
   } else {
     for (const point of childrenNamed(coords, 'Point')) {
@@ -243,11 +267,19 @@ function shapeOfPoints(points: Point[]): Shape | null {
 
 // ALTO
 
-function importAltoPage(ctx: Context, page: XmlElement, n: number, fileName: string | undefined): void {
-  const label = fileName ? stem(fileName) : (page.attrs.PHYSICAL_IMG_NR ?? page.attrs.ID ?? String(n + 1));
+function importAltoPage(
+  ctx: Context,
+  page: XmlElement,
+  n: number,
+  fileName: string | undefined,
+): void {
+  const label = fileName
+    ? stem(fileName)
+    : (page.attrs.PHYSICAL_IMG_NR ?? page.attrs.ID ?? String(n + 1));
   const size = sizeOf(page, 'WIDTH', 'HEIGHT');
   startPage(ctx, label, fileName, size);
-  if (!size) ctx.warnings.push(`Page ${label}: no page size (WIDTH, HEIGHT), so its zones are left out.`);
+  if (!size)
+    ctx.warnings.push(`Page ${label}: no page size (WIDTH, HEIGHT), so its zones are left out.`);
   let first = true;
   for (const line of descendants(page, 'TextLine')) {
     if (!first) lineBreak(ctx);
@@ -282,7 +314,9 @@ function altoShape(element: XmlElement): Shape | null {
   const polygon = firstChild(firstChild(element, 'Shape'), 'Polygon');
   if (polygon?.attrs.POINTS) {
     const points: Point[] = [];
-    const numbers = polygon.attrs.POINTS.trim().split(/[\s,]+/u).map(Number);
+    const numbers = polygon.attrs.POINTS.trim()
+      .split(/[\s,]+/u)
+      .map(Number);
     for (let i = 0; i + 1 < numbers.length; i += 2) {
       const x = numbers[i]!;
       const y = numbers[i + 1]!;
@@ -301,7 +335,12 @@ function altoShape(element: XmlElement): Shape | null {
 
 // Shared
 
-function startPage(ctx: Context, label: string, imageFilename: string | undefined, size: Size | null): void {
+function startPage(
+  ctx: Context,
+  label: string,
+  imageFilename: string | undefined,
+  size: Size | null,
+): void {
   const page: LayoutPage = { label, width: size?.width ?? 0, height: size?.height ?? 0 };
   if (imageFilename !== undefined) page.imageFilename = imageFilename;
   ctx.pages.push(page);
@@ -313,7 +352,9 @@ function startPage(ctx: Context, label: string, imageFilename: string | undefine
 
 function endPage(ctx: Context, label: string): void {
   if (ctx.unplaced > 0) {
-    ctx.warnings.push(`Page ${label}: ${ctx.unplaced} word${ctx.unplaced === 1 ? '' : 's'} without coordinates, imported without a zone.`);
+    ctx.warnings.push(
+      `Page ${label}: ${ctx.unplaced} word${ctx.unplaced === 1 ? '' : 's'} without coordinates, imported without a zone.`,
+    );
   }
 }
 
@@ -328,7 +369,13 @@ function lineBreak(ctx: Context): void {
  * several words divide the shape's bounding box horizontally in proportion
  * to their letter counts, from the right for a right-to-left line.
  */
-function emitWords(ctx: Context, text: string, shape: Shape | null, size: Size | null, rtl: boolean): Token[] {
+function emitWords(
+  ctx: Context,
+  text: string,
+  shape: Shape | null,
+  size: Size | null,
+  rtl: boolean,
+): Token[] {
   const words = text.split(/\s+/u).filter((word) => word.length > 0);
   const tokens: Token[] = [];
   if (words.length === 0) return tokens;
@@ -337,7 +384,9 @@ function emitWords(ctx: Context, text: string, shape: Shape | null, size: Size |
     shapes = [shape];
   } else {
     const bounds = shape ? boundsOfShape(shape) : null;
-    shapes = bounds ? divideProportionally(bounds, words, rtl).map((rect) => ({ rect })) : words.map(() => null);
+    shapes = bounds
+      ? divideProportionally(bounds, words, rtl).map((rect) => ({ rect }))
+      : words.map(() => null);
   }
   words.forEach((form, i) => {
     const token: Token = { kind: 'token', id: ctx.ids(), form };
@@ -373,13 +422,19 @@ export function divideProportionally(box: Rect, words: string[], rtl = false): R
 
 function toGeometry(shape: Shape, size: Size): ZoneGeometry | null {
   if (shape.polygon) {
-    return { polygon: shape.polygon.map(([x, y]) => [clamp(x / size.width), clamp(y / size.height)] as Point) };
+    return {
+      polygon: shape.polygon.map(
+        ([x, y]) => [clamp(x / size.width), clamp(y / size.height)] as Point,
+      ),
+    };
   }
   if (shape.rect) {
     const { x, y, w, h } = shape.rect;
     const x0 = clamp(x / size.width);
     const y0 = clamp(y / size.height);
-    return { rect: { x: x0, y: y0, w: clamp(w / size.width, 1 - x0), h: clamp(h / size.height, 1 - y0) } };
+    return {
+      rect: { x: x0, y: y0, w: clamp(w / size.width, 1 - x0), h: clamp(h / size.height, 1 - y0) },
+    };
   }
   return null;
 }

@@ -38,7 +38,8 @@
 
   function sizeAt(event: PointerEvent): number {
     const rect = container!.getBoundingClientRect();
-    if (axis === 'x') return side === 'after' ? rect.right - event.clientX : event.clientX - rect.left;
+    if (axis === 'x')
+      return side === 'after' ? rect.right - event.clientX : event.clientX - rect.left;
     return side === 'after' ? rect.bottom - event.clientY : event.clientY - rect.top;
   }
 
@@ -99,7 +100,12 @@
   aria-valuemax={pane.max}
   tabindex="0"
   title={label}
-  class={['splitter', axis === 'x' ? 'splitter-x' : 'splitter-y', dragging && 'dragging', className]}
+  class={[
+    'splitter',
+    axis === 'x' ? 'splitter-x' : 'splitter-y',
+    dragging && 'dragging',
+    className,
+  ]}
   onpointerdown={pointerdown}
   onpointermove={pointermove}
   onpointerup={pointerup}

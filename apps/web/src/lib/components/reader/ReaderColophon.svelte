@@ -22,26 +22,45 @@
     cite?: { title: string; editors: string[]; slug: string; mode: ReaderData['mode'] } | null;
   }
 
-  let { exports, versions, origin = null, sources = null, licence = null, rightsNote = null, cite = null }: Props = $props();
+  let {
+    exports,
+    versions,
+    origin = null,
+    sources = null,
+    licence = null,
+    rightsNote = null,
+    cite = null,
+  }: Props = $props();
 
   /** A citation of a published version: editors, title, version and date, its lasting address, licence. */
   const citation = $derived.by(() => {
     if (!cite) return null;
     const mode = cite.mode;
-    const number = mode.kind === 'version' ? mode.number : mode.kind === 'published' ? mode.number : null;
+    const number =
+      mode.kind === 'version' ? mode.number : mode.kind === 'published' ? mode.number : null;
     const at = mode.kind === 'version' ? mode.at : mode.kind === 'published' ? mode.at : null;
     if (number === null || at === null) return null;
     const address = `${page.url.origin}/editions/${encodeURIComponent(cite.slug)}/v/${number}`;
-    return r.colophon.citation(and(cite.editors), cite.title, r.version(number), at.slice(0, 10), address, licence?.name ?? null);
+    return r.colophon.citation(
+      and(cite.editors),
+      cite.title,
+      r.version(number),
+      at.slice(0, 10),
+      address,
+      licence?.name ?? null,
+    );
   });
 </script>
 
 <footer class="colophon">
-  <h2 class="font-sans text-xs font-semibold tracking-[0.08em] text-ink-muted uppercase">{r.colophon.title}</h2>
+  <h2 class="font-sans text-xs font-semibold tracking-[0.08em] text-ink-muted uppercase">
+    {r.colophon.title}
+  </h2>
   {#if origin}
     <p class="mt-2">
       {r.colophon.copiedFrom}
-      {#if origin.href}<a href={origin.href}><i>{origin.title}</i></a>{:else}<i>{origin.title}</i>{/if}{origin.editors.length ? `, ${r.colophon.editedBy(and(origin.editors))}` : ''},
+      {#if origin.href}<a href={origin.href}><i>{origin.title}</i></a>{:else}<i>{origin.title}</i
+        >{/if}{origin.editors.length ? `, ${r.colophon.editedBy(and(origin.editors))}` : ''},
       {origin.number !== null ? r.colophon.copiedVersion(origin.number) : r.colophon.copiedDraft}.
     </p>
   {/if}
@@ -56,7 +75,9 @@
   {#if versions.length}
     <p class="mt-1">
       {r.colophon.versions}:
-      {#each versions as version, k (version.number)}{k > 0 ? ', ' : ''}<a href={version.href}>{r.version(version.number)}</a>
+      {#each versions as version, k (version.number)}{k > 0 ? ', ' : ''}<a href={version.href}
+          >{r.version(version.number)}</a
+        >
         (<LocalDate date={version.at} />{version.current ? `, ${r.colophon.current}` : ''}){/each}
     </p>
   {/if}

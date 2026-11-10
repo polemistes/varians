@@ -14,7 +14,11 @@
 <div class={['notes', compact && 'compact']}>
   <p class="key">{r.entry.notes}</p>
   {#each notes as note (note.id)}
-    <p class="note" dir="auto">{note.text}{#if note.cites?.length}{' '}({note.cites.join('; ')}){/if}{#if note.author}{' '}<span class="author">{r.text.noteBy(note.author)}</span>{/if}</p>
+    <p class="note" dir="auto">
+      {note.text}{#if note.cites?.length}{' '}({note.cites.join(
+          '; ',
+        )}){/if}{#if note.author}{' '}<span class="author">{r.text.noteBy(note.author)}</span>{/if}
+    </p>
   {/each}
 </div>
 

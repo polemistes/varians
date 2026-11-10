@@ -16,7 +16,14 @@
   let { sentence, lang }: Props = $props();
 </script>
 
-{#each sentence as part, k (k)}{#if part.kind === 'text'}{part.text}{:else if part.kind === 'witness'}<span class="witness">{part.name}{#if part.siglum}<span class="siglum"><span class="sr-only">{r.explain.siglumOpen}</span>{part.siglum}<span class="sr-only">{r.explain.siglumClose}</span></span>{/if}</span>{:else}<span class="words" {lang} dir="auto">{part.text}</span>{/if}{/each}
+{#each sentence as part, k (k)}{#if part.kind === 'text'}{part.text}{:else if part.kind === 'witness'}<span
+      class="witness"
+      >{part.name}{#if part.siglum}<span class="siglum"
+          ><span class="sr-only">{r.explain.siglumOpen}</span>{part.siglum}<span class="sr-only"
+            >{r.explain.siglumClose}</span
+          ></span
+        >{/if}</span
+    >{:else}<span class="words" {lang} dir="auto">{part.text}</span>{/if}{/each}
 
 <style>
   .witness {

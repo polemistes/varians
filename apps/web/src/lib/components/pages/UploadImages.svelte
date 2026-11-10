@@ -53,7 +53,14 @@
     onchanged?: () => Promise<void> | void;
   }
 
-  let { lastLabel, defaults = { rights: null, attribution: null }, maxBytes, result = null, base = '', onchanged = invalidateAll }: Props = $props();
+  let {
+    lastLabel,
+    defaults = { rights: null, attribution: null },
+    maxBytes,
+    result = null,
+    base = '',
+    onchanged = invalidateAll,
+  }: Props = $props();
 
   let scripted = $state(false);
   let entries = $state<Entry[]>([]);
@@ -83,20 +90,27 @@
   const pending = $derived(entries.filter((e) => e.state === 'queued'));
   const proposed = $derived.by(() => {
     const names = pending.map((e) => labelFromFileName(e.file.name));
-    if (mode === 'sequence' && canContinue) return labelsAfter(inFlight ?? lastLabel, pending.length) ?? names;
+    if (mode === 'sequence' && canContinue)
+      return labelsAfter(inFlight ?? lastLabel, pending.length) ?? names;
     return names;
   });
 
   function labelOf(entry: Entry): string {
     if (entry.label) return entry.label;
     const i = pending.indexOf(entry);
-    return i >= 0 ? (proposed[i] ?? labelFromFileName(entry.file.name)) : labelFromFileName(entry.file.name);
+    return i >= 0
+      ? (proposed[i] ?? labelFromFileName(entry.file.name))
+      : labelFromFileName(entry.file.name);
   }
 
   function add(files: FileList | File[] | null | undefined) {
     if (!files || files.length === 0) return;
     const fresh: Entry[] = sortByName([...files]).map((file) => {
-      const problem = !isImageFile(file) ? t.upload.notImage : file.size > maxBytes ? t.upload.tooLarge(maxMb) : null;
+      const problem = !isImageFile(file)
+        ? t.upload.notImage
+        : file.size > maxBytes
+          ? t.upload.tooLarge(maxMb)
+          : null;
       return {
         key: ++sequenceKey,
         file,
@@ -214,7 +228,8 @@
       inFlight = null;
     }
     running = false;
-    if (added > 0) toasts.success(failed > 0 ? t.upload.addedSome(added, failed) : t.upload.added(added));
+    if (added > 0)
+      toasts.success(failed > 0 ? t.upload.addedSome(added, failed) : t.upload.added(added));
     else if (failed > 1) toasts.error(t.upload.allFailed);
   }
 
@@ -240,7 +255,10 @@
   }
 </script>
 
-<section aria-labelledby="add-images-heading" class="flex flex-col gap-3 rounded-md border border-line bg-surface p-4 font-sans">
+<section
+  aria-labelledby="add-images-heading"
+  class="flex flex-col gap-3 rounded-md border border-line bg-surface p-4 font-sans"
+>
   <div>
     <h2 id="add-images-heading" class="text-sm font-semibold text-ink">{t.upload.title}</h2>
     <p class="mt-0.5 text-xs text-ink-soft">{t.upload.hint(maxMb)}</p>
@@ -261,7 +279,13 @@
     {/if}
   {/if}
 
-  <form method="post" action={actionUrl('upload', base)} enctype="multipart/form-data" class="flex flex-col gap-3" onsubmit={start}>
+  <form
+    method="post"
+    action={actionUrl('upload', base)}
+    enctype="multipart/form-data"
+    class="flex flex-col gap-3"
+    onsubmit={start}
+  >
     <div
       role="group"
       aria-label={t.upload.drop}
@@ -304,17 +328,29 @@
     {/if}
 
     {#if !scripted || entries.length > 0}
-      <RightsFields bind:rights bind:attribution bind:source required disabled={running} errors={{ rights: rightsError }} />
+      <RightsFields
+        bind:rights
+        bind:attribution
+        bind:source
+        required
+        disabled={running}
+        errors={{ rights: rightsError }}
+      />
     {/if}
 
     {#if entries.length > 0}
-      <ul class="flex max-h-80 flex-col divide-y divide-line overflow-y-auto rounded-md border border-line" aria-label={t.upload.files}>
+      <ul
+        class="flex max-h-80 flex-col divide-y divide-line overflow-y-auto rounded-md border border-line"
+        aria-label={t.upload.files}
+      >
         {#each entries as entry (entry.key)}
           <li class="flex items-center gap-3 px-3 py-2 text-sm">
             <div class="min-w-0 flex-1">
               <div class="flex items-baseline gap-2">
                 <span class="truncate text-ink" title={entry.file.name}>{entry.file.name}</span>
-                <span class="shrink-0 text-xs text-ink-muted tabular-nums">{t.upload.size(entry.file.size)}</span>
+                <span class="shrink-0 text-xs text-ink-muted tabular-nums"
+                  >{t.upload.size(entry.file.size)}</span
+                >
               </div>
               {#if entry.state === 'uploading'}
                 <div
@@ -325,11 +361,21 @@
                   aria-valuemax={100}
                   aria-valuenow={Math.round(entry.progress * 100)}
                 >
-                  <div class="h-full rounded-full bg-accent transition-[width]" style:width="{Math.round(entry.progress * 100)}%"></div>
+                  <div
+                    class="h-full rounded-full bg-accent transition-[width]"
+                    style:width="{Math.round(entry.progress * 100)}%"
+                  ></div>
                 </div>
               {/if}
               <p
-                class={['mt-0.5 text-xs', entry.state === 'failed' ? 'text-danger' : entry.state === 'done' ? 'text-success' : 'text-ink-soft']}
+                class={[
+                  'mt-0.5 text-xs',
+                  entry.state === 'failed'
+                    ? 'text-danger'
+                    : entry.state === 'done'
+                      ? 'text-success'
+                      : 'text-ink-soft',
+                ]}
                 aria-live={entry.state === 'failed' ? 'assertive' : 'off'}
               >
                 {#if entry.state === 'queued'}

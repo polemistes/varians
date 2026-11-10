@@ -41,7 +41,12 @@ describe('zones and words', () => {
 describe('selectedLines', () => {
   it('takes whole lines touched by the selection, with gaps as spacers', () => {
     const s = fromText('aa bb\ncc dd\nee', { ids: sequentialIds() }); // t1 t2 / t4 t5 / t7
-    const gap: Obj = { kind: 'object', id: 'g', type: 'gap', attrs: { quantity: 4, unit: 'character' } };
+    const gap: Obj = {
+      kind: 'object',
+      id: 'g',
+      type: 'gap',
+      attrs: { quantity: 4, unit: 'character' },
+    };
     s.items.splice(4, 0, gap); // cc [gap] dd
     const lines = selectedLines(s, ['t2', 't4']);
     expect(lines).toHaveLength(2);
@@ -71,7 +76,12 @@ describe('selectedLines', () => {
 describe('divideGuideBox', () => {
   const box = { x: 0.1, y: 0.2, w: 0.4, h: 0.2 };
   const lines = [
-    { parts: [{ tokenIds: ['a'], text: 'aaa' }, { tokenIds: ['b'], text: 'b' }] },
+    {
+      parts: [
+        { tokenIds: ['a'], text: 'aaa' },
+        { tokenIds: ['b'], text: 'b' },
+      ],
+    },
     { parts: [{ tokenIds: ['c'], text: 'cc' }] },
   ];
 
@@ -101,7 +111,13 @@ describe('divideGuideBox', () => {
 
   it('runs right to left for a right-to-left line and gives spacers no zone', () => {
     const zones = divideGuideBox(box, [
-      { parts: [{ tokenIds: ['x'], text: 'אב' }, { tokenIds: [], text: 'xx', spacer: true }, { tokenIds: ['y'], text: 'גד' }] },
+      {
+        parts: [
+          { tokenIds: ['x'], text: 'אב' },
+          { tokenIds: [], text: 'xx', spacer: true },
+          { tokenIds: ['y'], text: 'גד' },
+        ],
+      },
     ]);
     expect(zones.map((z) => z.tokenIds)).toEqual([['x'], ['y']]);
     expect(zones[0]!.geometry.rect!.x).toBeGreaterThan(zones[1]!.geometry.rect!.x);
@@ -121,7 +137,17 @@ describe('lineWordBoxes', () => {
     const zones: ZoneLike[] = [
       { id: 'z2', tokenIds: ['t2'], geometry: rect(0.3, 0.1, 0.1, 0.05) },
       { id: 'z1', tokenIds: ['t1'], geometry: rect(0.1, 0.12, 0.15, 0.04) },
-      { id: 'p', tokenIds: ['t3'], geometry: { polygon: [[0, 0], [1, 0], [1, 1]] } },
+      {
+        id: 'p',
+        tokenIds: ['t3'],
+        geometry: {
+          polygon: [
+            [0, 0],
+            [1, 0],
+            [1, 1],
+          ],
+        },
+      },
     ];
     const boxes = lineWordBoxes(zones, ['t1', 't2', 't3']);
     expect(boxes?.words.map((w) => w.id)).toEqual(['z1', 'z2']);
@@ -134,11 +160,20 @@ describe('lineWordBoxes', () => {
 });
 
 describe('groupBoxes', () => {
-  const box = (id: string, tokenIds: string[], x: number, y: number): ZoneLike => ({ id, tokenIds, geometry: { rect: { x, y, w: 0.1, h: 0.04 } } });
+  const box = (id: string, tokenIds: string[], x: number, y: number): ZoneLike => ({
+    id,
+    tokenIds,
+    geometry: { rect: { x, y, w: 0.1, h: 0.04 } },
+  });
 
   it('takes the boxes of the selected words, with their lines and places, in reading order', () => {
     const page = fromText('aa bb cc\ndd ee', { ids: sequentialIds() }); // t1 t2 t3 / t5 t6
-    const zones = [box('z3', ['t3'], 0.3, 0.1), box('z1', ['t1'], 0.1, 0.1), box('z5', ['t5'], 0.1, 0.2), box('z2', ['t2'], 0.2, 0.1)];
+    const zones = [
+      box('z3', ['t3'], 0.3, 0.1),
+      box('z1', ['t1'], 0.1, 0.1),
+      box('z5', ['t5'], 0.1, 0.2),
+      box('z2', ['t2'], 0.2, 0.1),
+    ];
     const group = groupBoxes(page, zones, ['z2', 'z3', 'z5']);
     expect(group.map((b) => [b.id, b.line, b.at])).toEqual([
       ['z2', 0, 1],
@@ -153,8 +188,24 @@ describe('groupBoxes', () => {
     const page = fromText('aa bb', { ids: sequentialIds() });
     const zones: ZoneLike[] = [
       box('z1', ['t1'], 0.1, 0.1),
-      { id: 'f', tokenIds: ['t1'], geometry: { rect: { x: 0, y: 0, w: 0.1, h: 0.1 } }, feature: { kind: 'damage' } },
-      { id: 'p', tokenIds: ['t2'], geometry: { rect: { x: 0, y: 0, w: 0.1, h: 0.1 }, polygon: [[0, 0], [0.1, 0], [0.1, 0.1]] } },
+      {
+        id: 'f',
+        tokenIds: ['t1'],
+        geometry: { rect: { x: 0, y: 0, w: 0.1, h: 0.1 } },
+        feature: { kind: 'damage' },
+      },
+      {
+        id: 'p',
+        tokenIds: ['t2'],
+        geometry: {
+          rect: { x: 0, y: 0, w: 0.1, h: 0.1 },
+          polygon: [
+            [0, 0],
+            [0.1, 0],
+            [0.1, 0.1],
+          ],
+        },
+      },
       box('z2', ['t2'], 0.2, 0.1),
     ];
     expect(groupBoxes(page, zones, ['z1', 'f', 'p']).map((b) => b.id)).toEqual(['z1']);
@@ -186,7 +237,11 @@ describe('groupBoxes', () => {
       box('r1a', ['gone1'], 0.1, 0.101),
       box('r2a', [], 0.1, 0.2),
     ];
-    const group = groupBoxes(page, zones, zones.map((z) => z.id));
+    const group = groupBoxes(
+      page,
+      zones,
+      zones.map((z) => z.id),
+    );
     expect(group.map((b) => [b.id, b.line, b.at])).toEqual([
       ['kept', 0, 0],
       ['r1a', 1, 0],

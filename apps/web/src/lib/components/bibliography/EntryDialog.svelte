@@ -23,7 +23,12 @@
   });
 </script>
 
-<Dialog bind:open title={entry ? t.entry.editTitle : t.entry.addTitle} description={t.entry.description} size="lg">
+<Dialog
+  bind:open
+  title={entry ? t.entry.editTitle : t.entry.addTitle}
+  description={t.entry.description}
+  size="lg"
+>
   <form
     id="bib-entry-form"
     method="POST"
@@ -48,12 +53,21 @@
     {#if message}<Notice kind="error" class="mb-3">{message}</Notice>{/if}
     <Field label={t.entry.field}>
       {#snippet children(control)}
-        <Textarea {...control} name="bib" bind:value={text} rows={12} spellcheck={false} class="font-mono text-xs" />
+        <Textarea
+          {...control}
+          name="bib"
+          bind:value={text}
+          rows={12}
+          spellcheck={false}
+          class="font-mono text-xs"
+        />
       {/snippet}
     </Field>
   </form>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (open = false)}>{t.entry.cancel}</Button>
-    <Button variant="primary" type="submit" form="bib-entry-form" loading={busy}>{t.entry.save}</Button>
+    <Button variant="primary" type="submit" form="bib-entry-form" loading={busy}
+      >{t.entry.save}</Button
+    >
   {/snippet}
 </Dialog>

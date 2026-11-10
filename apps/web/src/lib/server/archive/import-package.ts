@@ -30,33 +30,78 @@ export interface PackageImportReport {
 }
 
 /** Import a package (a zip file, or a directory holding a bag or archives). */
-export async function importPackage(db: Database, source: string, userId: string, options: ImportOptions & { limits?: ExtractLimits } = {}): Promise<PackageImportReport> {
+export async function importPackage(
+  db: Database,
+  source: string,
+  userId: string,
+  options: ImportOptions & { limits?: ExtractLimits } = {},
+): Promise<PackageImportReport> {
   const isFile = existsSync(source) && statSync(source).isFile();
   let opened;
   try {
-    opened = isFile ? await openPackageZip(source, options.limits) : { ...(await openPackage(source)), dir: null };
+    opened = isFile
+      ? await openPackageZip(source, options.limits)
+      : { ...(await openPackage(source)), dir: null };
   } catch (cause) {
-    if (cause instanceof PackageError) return { bag: false, info: {}, works: [], problems: [], refused: cause.message, dryRun: options.dryRun ?? false };
+    if (cause instanceof PackageError)
+      return {
+        bag: false,
+        info: {},
+        works: [],
+        problems: [],
+        refused: cause.message,
+        dryRun: options.dryRun ?? false,
+      };
     throw cause;
   }
   try {
-    const base: Omit<PackageImportReport, 'works' | 'problems' | 'refused'> = { bag: opened.bag, info: opened.info, dryRun: options.dryRun ?? false };
-    if (opened.workDirs.length === 0) return { ...base, works: [], problems: [], refused: 'The package holds no archive of a work (no work.json).' };
+    const base: Omit<PackageImportReport, 'works' | 'problems' | 'refused'> = {
+      bag: opened.bag,
+      info: opened.info,
+      dryRun: options.dryRun ?? false,
+    };
+    if (opened.workDirs.length === 0)
+      return {
+        ...base,
+        works: [],
+        problems: [],
+        refused: 'The package holds no archive of a work (no work.json).',
+      };
     // Files written in this version of the format, or a later one, are checked against its schemas; version 1 archives have none.
     const problems: ValidationProblem[] = [];
     for (const dir of opened.workDirs) {
-      const version = Number((JSON.parse(await readFile(path.join(dir, 'work.json'), 'utf8')) as { formatVersion?: unknown }).formatVersion ?? 1);
-      if (version > FORMAT_VERSION) return { ...base, works: [], problems: [], refused: `The package is written in version ${version} of the format; this installation reads versions up to ${FORMAT_VERSION}.` };
+      const version = Number(
+        (
+          JSON.parse(await readFile(path.join(dir, 'work.json'), 'utf8')) as {
+            formatVersion?: unknown;
+          }
+        ).formatVersion ?? 1,
+      );
+      if (version > FORMAT_VERSION)
+        return {
+          ...base,
+          works: [],
+          problems: [],
+          refused: `The package is written in version ${version} of the format; this installation reads versions up to ${FORMAT_VERSION}.`,
+        };
       if (version < 2) continue;
-      for (const p of await validateArchiveDir(dir)) problems.push({ file: `${path.basename(dir)}/${p.file}`, message: p.message });
+      for (const p of await validateArchiveDir(dir))
+        problems.push({ file: `${path.basename(dir)}/${p.file}`, message: p.message });
     }
-    if (problems.length) return { ...base, works: [], problems, refused: 'Files of the package do not follow the format.' };
+    if (problems.length)
+      return {
+        ...base,
+        works: [],
+        problems,
+        refused: 'Files of the package do not follow the format.',
+      };
     const works: ImportReport[] = [];
     for (const dir of opened.workDirs) {
       try {
         works.push(await importArchive(db, dir, userId, options));
       } catch (cause) {
-        if (cause instanceof ImportRefused) return { ...base, works, problems: [], refused: cause.message };
+        if (cause instanceof ImportRefused)
+          return { ...base, works, problems: [], refused: cause.message };
         throw cause;
       }
     }

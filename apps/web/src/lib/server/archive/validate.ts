@@ -24,7 +24,9 @@ async function schemas(): Promise<Ajv2020> {
     if (!dir) throw new Error('docs/formats not found: cannot validate archives');
     const ajv = new Ajv2020({ allErrors: true, strict: false, validateFormats: false });
     const schemaDir = path.join(dir, 'schemas');
-    for (const name of (await readdir(schemaDir)).filter((n) => n.endsWith('.schema.json')).sort()) {
+    for (const name of (await readdir(schemaDir))
+      .filter((n) => n.endsWith('.schema.json'))
+      .sort()) {
       ajv.addSchema(JSON.parse(await readFile(path.join(schemaDir, name), 'utf8')));
     }
     return ajv;
@@ -68,7 +70,8 @@ export async function validateArchiveDir(dir: string): Promise<ValidationProblem
           problems.push({ file: `${file}:${i + 1}`, message: 'is not JSON' });
           return;
         }
-        if (!changeset(data)) problems.push({ file: `${file}:${i + 1}`, message: describe(changeset) });
+        if (!changeset(data))
+          problems.push({ file: `${file}:${i + 1}`, message: describe(changeset) });
       });
       continue;
     }
@@ -80,12 +83,16 @@ export async function validateArchiveDir(dir: string): Promise<ValidationProblem
       problems.push({ file, message: 'is not JSON' });
       continue;
     }
-    const id = data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>).$schema : undefined;
+    const id =
+      data && typeof data === 'object' && !Array.isArray(data)
+        ? (data as Record<string, unknown>).$schema
+        : undefined;
     if (typeof id !== 'string') {
       problems.push({ file, message: 'names no schema in $schema' });
       continue;
     }
-    if (Object.keys(data as object)[0] !== '$schema') problems.push({ file, message: '$schema is not the first member' });
+    if (Object.keys(data as object)[0] !== '$schema')
+      problems.push({ file, message: '$schema is not the first member' });
     const validate = ajv.getSchema(id);
     if (!validate) {
       problems.push({ file, message: `names an unknown schema ${id}` });
@@ -119,9 +126,13 @@ export async function validateTeiFiles(dir: string): Promise<ValidationProblem[]
   const files = (await filesUnder(dir)).filter((f) => f.endsWith('.tei.xml'));
   const problems: ValidationProblem[] = [];
   for (const file of files) {
-    const run = spawnSync('xmllint', ['--noout', '--relaxng', rng, path.join(dir, file)], { encoding: 'utf8' });
+    const run = spawnSync('xmllint', ['--noout', '--relaxng', rng, path.join(dir, file)], {
+      encoding: 'utf8',
+    });
     if (run.status !== 0) {
-      const lines = run.stderr.split('\n').filter((l) => l.trim() !== '' && !l.endsWith('fails to validate'));
+      const lines = run.stderr
+        .split('\n')
+        .filter((l) => l.trim() !== '' && !l.endsWith('fails to validate'));
       problems.push({ file, message: lines.slice(0, 5).join('; ') || 'is not valid TEI' });
     }
   }

@@ -23,7 +23,7 @@ services:
       - backups:/data/backups
     ports:
       # Only on this machine: a proxy in front (yours, or Caddy below) serves the public.
-      - "127.0.0.1:${VARIANS_PORT:-3000}:3000"
+      - '127.0.0.1:${VARIANS_PORT:-3000}:3000'
     depends_on:
       db:
         condition: service_healthy
@@ -40,7 +40,7 @@ services:
       # PostgreSQL 18's image keeps its data in a directory named for the major version under this path.
       - db:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U varians -d varians"]
+      test: ['CMD-SHELL', 'pg_isready -U varians -d varians']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -53,9 +53,9 @@ services:
     environment:
       DOMAIN: ${DOMAIN:-}
     ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data

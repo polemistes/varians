@@ -26,7 +26,8 @@ export function defaultFold(language: string): FoldOptions {
   const base = { ...DEFAULT_FOLD };
   const lang = language.toLowerCase().split('-')[0];
   if (lang === 'la' || lang === 'lat') return { ...base, latinUV: true };
-  if (lang === 'he' || lang === 'heb' || lang === 'ar' || lang === 'ara') return { ...base, stripDiacritics: true };
+  if (lang === 'he' || lang === 'heb' || lang === 'ar' || lang === 'ara')
+    return { ...base, stripDiacritics: true };
   return base;
 }
 
@@ -68,8 +69,14 @@ const ELISION_MARKS = /[\u02bc\u2019\u1fbd'\u2032]/gu;
  * several characters of elision as one.
  */
 export function agreementFold(text: string, options: FoldOptions = DEFAULT_FOLD): string {
-  const marks = text.normalize('NFD').replace(/\u0300/gu, '\u0301').normalize('NFC').replace(ELISION_MARKS, '\u2019');
-  return fold(marks, { ...options, stripPunctuation: false }).replace(/\s+/gu, ' ').trim();
+  const marks = text
+    .normalize('NFD')
+    .replace(/\u0300/gu, '\u0301')
+    .normalize('NFC')
+    .replace(ELISION_MARKS, '\u2019');
+  return fold(marks, { ...options, stripPunctuation: false })
+    .replace(/\s+/gu, ' ')
+    .trim();
 }
 
 /**
@@ -115,7 +122,9 @@ export function trimPunctuation(text: string): string {
 /** Whether a string is entirely in capital letters (and has letters at all). */
 export function isAllCaps(text: string): boolean {
   const letters = text.replace(/[^\p{L}]/gu, '');
-  return letters.length > 0 && letters === letters.toUpperCase() && letters !== letters.toLowerCase();
+  return (
+    letters.length > 0 && letters === letters.toUpperCase() && letters !== letters.toLowerCase()
+  );
 }
 
 /** Greek lowercase with the final sigma in place. */

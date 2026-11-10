@@ -103,11 +103,7 @@
   };
 </script>
 
-<Dialog
-  bind:open
-  title={editing ? s.editTitle : s.addTitle}
-  size="lg"
->
+<Dialog bind:open title={editing ? s.editTitle : s.addTitle} size="lg">
   {#if witnesses.length === 0}
     <Notice kind="info">{s.noWitnesses}</Notice>
   {:else}

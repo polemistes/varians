@@ -44,7 +44,12 @@ describe('lineIndex', () => {
 });
 
 describe('breakTarget', () => {
-  const brk = (type: Break['type'], extra: Partial<Break> = {}): Break => ({ kind: 'break', id: 'b', type, ...extra });
+  const brk = (type: Break['type'], extra: Partial<Break> = {}): Break => ({
+    kind: 'break',
+    id: 'b',
+    type,
+    ...extra,
+  });
 
   it('turns the line break before the line into the new break', () => {
     for (const type of ['column', 'paragraph'] as const) {
@@ -58,7 +63,10 @@ describe('breakTarget', () => {
   });
 
   it('keeps the page break of a line that begins a page', () => {
-    expect(breakTarget(brk('page', { pageId: 'p1' }), 'column')).toEqual({ t: 'none', reason: 'page' });
+    expect(breakTarget(brk('page', { pageId: 'p1' }), 'column')).toEqual({
+      t: 'none',
+      reason: 'page',
+    });
     expect(breakTarget(brk('page'), 'paragraph')).toEqual({ t: 'none', reason: 'page' });
   });
 

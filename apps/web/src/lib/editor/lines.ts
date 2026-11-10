@@ -85,7 +85,10 @@ export type BreakType = 'column' | 'paragraph';
  * `page`); a line that already begins what was asked for is left alone
  * (`none`, `same`).
  */
-export type BreakTarget = { t: 'set'; id: Id } | { t: 'insert' } | { t: 'none'; reason: 'page' | 'same' };
+export type BreakTarget =
+  | { t: 'set'; id: Id }
+  | { t: 'insert' }
+  | { t: 'none'; reason: 'page' | 'same' };
 
 /** `opener` is the break that opens the line (the page's own break on a page's first line), null on the first line of the text. */
 export function breakTarget(opener: Break | null, type: BreakType): BreakTarget {

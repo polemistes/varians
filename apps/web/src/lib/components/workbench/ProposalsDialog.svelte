@@ -41,7 +41,9 @@
     const picked = selected;
     if (picked.length === 0) return;
     if (wb.apply(acceptProposals(picked))) {
-      wb.remember(picked.map((p) => ({ form: p.form, norm: p.norm })).filter((p) => p.norm !== p.form));
+      wb.remember(
+        picked.map((p) => ({ form: p.form, norm: p.norm })).filter((p) => p.norm !== p.form),
+      );
       toasts.success(t.proposals.accepted(picked.length));
     }
     open = false;
@@ -51,12 +53,21 @@
 <Dialog bind:open title={t.proposals.title} description={t.proposals.description} size="lg">
   <div class="flex flex-col gap-3">
     <div class="flex flex-wrap items-center gap-3">
-      <div class="inline-flex rounded-md border border-line p-0.5" role="group" aria-label={t.proposals.scope}>
+      <div
+        class="inline-flex rounded-md border border-line p-0.5"
+        role="group"
+        aria-label={t.proposals.scope}
+      >
         {#each [{ value: 'page', label: t.proposals.page }, { value: 'whole', label: t.proposals.whole }] as option (option.value)}
           <button
             type="button"
             aria-pressed={scope === option.value}
-            class={['h-7 rounded px-2.5 text-sm', scope === option.value ? 'bg-accent text-accent-ink' : 'text-ink-soft hover:bg-sunken']}
+            class={[
+              'h-7 rounded px-2.5 text-sm',
+              scope === option.value
+                ? 'bg-accent text-accent-ink'
+                : 'text-ink-soft hover:bg-sunken',
+            ]}
             onclick={() => (scope = option.value as 'page' | 'whole')}
           >
             {option.label}
@@ -64,8 +75,12 @@
         {/each}
       </div>
       <div class="ml-auto flex gap-2 text-sm">
-        <button type="button" class="text-accent hover:underline" onclick={() => setAll(true)}>{t.proposals.all}</button>
-        <button type="button" class="text-accent hover:underline" onclick={() => setAll(false)}>{t.proposals.none}</button>
+        <button type="button" class="text-accent hover:underline" onclick={() => setAll(true)}
+          >{t.proposals.all}</button
+        >
+        <button type="button" class="text-accent hover:underline" onclick={() => setAll(false)}
+          >{t.proposals.none}</button
+        >
       </div>
     </div>
     {#if list.length === 0}
@@ -108,6 +123,8 @@
   </div>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (open = false)}>{t.proposals.cancel}</Button>
-    <Button variant="primary" disabled={selected.length === 0} onclick={accept}>{t.proposals.accept(selected.length)}</Button>
+    <Button variant="primary" disabled={selected.length === 0} onclick={accept}
+      >{t.proposals.accept(selected.length)}</Button
+    >
   {/snippet}
 </Dialog>

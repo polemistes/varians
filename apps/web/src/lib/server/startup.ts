@@ -36,9 +36,17 @@ export function startBackgroundWork(): void {
   const delay = Number(env.ARCHIVE_WRITE_DELAY_SECONDS ?? '60');
   const delaySeconds = Number.isFinite(delay) && delay >= 0 ? delay : 60;
   // Changes made while the server was down, or before the queue existed, are written too.
-  void markChangedWorks(db).catch((cause) => console.error('archive: marking changed works failed', cause));
+  void markChangedWorks(db).catch((cause) =>
+    console.error('archive: marking changed works failed', cause),
+  );
   startArchiveWriter(db, { root: archiveRoot(), storageRoot: storageRoot(), delaySeconds });
   // Remotes set to be pulled every so many hours: looked at hourly.
-  const pulls = setInterval(() => void pullDueRemotes(db).catch((cause) => console.error('sync: scheduled pulls failed', cause)), 60 * 60 * 1000);
+  const pulls = setInterval(
+    () =>
+      void pullDueRemotes(db).catch((cause) =>
+        console.error('sync: scheduled pulls failed', cause),
+      ),
+    60 * 60 * 1000,
+  );
   pulls.unref?.();
 }

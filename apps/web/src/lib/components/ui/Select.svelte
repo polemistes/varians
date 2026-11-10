@@ -18,7 +18,14 @@
     children?: Snippet;
   }
 
-  let { value = $bindable(), options, invalid = false, class: className, children, ...rest }: Props = $props();
+  let {
+    value = $bindable(),
+    options,
+    invalid = false,
+    class: className,
+    children,
+    ...rest
+  }: Props = $props();
 </script>
 
 <div class={['relative', className]}>
@@ -35,5 +42,8 @@
     {/if}
     {@render children?.()}
   </select>
-  <ChevronDown class="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
+  <ChevronDown
+    class="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-ink-muted"
+    aria-hidden="true"
+  />
 </div>

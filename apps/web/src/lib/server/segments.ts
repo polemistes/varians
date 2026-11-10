@@ -22,13 +22,21 @@ export async function schemeOfWork(db: Database, workId: string): Promise<WorkSc
 }
 
 /** The segment with this label, created if it does not exist. Null when the label does not fit the scheme. */
-export async function resolveSegment(db: Database, work: WorkScheme, label: string): Promise<Segment | null> {
+export async function resolveSegment(
+  db: Database,
+  work: WorkScheme,
+  label: string,
+): Promise<Segment | null> {
   const address = parseLabel(work.scheme, label);
   if (!address) return null;
   return resolveAddress(db, work, address);
 }
 
-export async function resolveAddress(db: Database, work: WorkScheme, address: Address): Promise<Segment> {
+export async function resolveAddress(
+  db: Database,
+  work: WorkScheme,
+  address: Address,
+): Promise<Segment> {
   const label = formatLabel(work.scheme, address);
   const [existing] = await db
     .select()
@@ -37,7 +45,13 @@ export async function resolveAddress(db: Database, work: WorkScheme, address: Ad
   if (existing) return existing;
   const [created] = await db
     .insert(segments)
-    .values({ id: newId(), workId: work.workId, address, label, sortKey: sortKey(work.scheme, address) })
+    .values({
+      id: newId(),
+      workId: work.workId,
+      address,
+      label,
+      sortKey: sortKey(work.scheme, address),
+    })
     .onConflictDoNothing()
     .returning();
   if (created) return created;
@@ -49,7 +63,11 @@ export async function resolveAddress(db: Database, work: WorkScheme, address: Ad
 }
 
 /** Resolve many labels at once, returning a map from label to segment (labels that do not parse are left out). */
-export async function resolveLabels(db: Database, work: WorkScheme, labels: string[]): Promise<Map<string, Segment>> {
+export async function resolveLabels(
+  db: Database,
+  work: WorkScheme,
+  labels: string[],
+): Promise<Map<string, Segment>> {
   const out = new Map<string, Segment>();
   for (const label of [...new Set(labels)]) {
     const segment = await resolveSegment(db, work, label);

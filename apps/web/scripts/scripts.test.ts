@@ -38,8 +38,12 @@ describe('settings files', () => {
   });
 
   it('never print a password', () => {
-    expect(redactUrl('postgres://varians:s3cret@db:5432/varians')).toBe('postgres://varians@db:5432/varians');
-    expect(redactUrl('postgresql://varians@/varians?host=/run/postgresql')).toBe('postgresql://varians@/varians?host=/run/postgresql');
+    expect(redactUrl('postgres://varians:s3cret@db:5432/varians')).toBe(
+      'postgres://varians@db:5432/varians',
+    );
+    expect(redactUrl('postgresql://varians@/varians?host=/run/postgresql')).toBe(
+      'postgresql://varians@/varians?host=/run/postgresql',
+    );
   });
 });
 
@@ -49,7 +53,10 @@ describe('a download of the lexicon build', () => {
 
   it('is written to its destination, made as needed, and checked against the SHA-256 given', async () => {
     const dest = path.join(dir, 'sources', 'checked.xml');
-    await download('https://example.org/checked.xml', dest, { fetch: abc, sha256: sha.toUpperCase() });
+    await download('https://example.org/checked.xml', dest, {
+      fetch: abc,
+      sha256: sha.toUpperCase(),
+    });
     expect(await readFile(dest, 'utf8')).toBe('abc');
     expect(await sha256OfFile(dest)).toBe(sha);
     expect(existsSync(`${dest}.part`)).toBe(false);
@@ -57,24 +64,46 @@ describe('a download of the lexicon build', () => {
 
   it('leaves nothing behind when the checksum does not match', async () => {
     const dest = path.join(dir, 'wrong.xml');
-    await expect(download('https://example.org/wrong.xml', dest, { fetch: abc, sha256: '0'.repeat(64) })).rejects.toThrow(/SHA-256/u);
+    await expect(
+      download('https://example.org/wrong.xml', dest, { fetch: abc, sha256: '0'.repeat(64) }),
+    ).rejects.toThrow(/SHA-256/u);
     expect(existsSync(dest)).toBe(false);
     expect(existsSync(`${dest}.part`)).toBe(false);
     expect(() => checksumGiven('xyz')).toThrow(/64 hexadecimal/u);
   });
 
   it('refuses a failed download, plain http without a checksum, and other schemes', async () => {
-    const notFound = (async () => new Response('missing', { status: 404, statusText: 'Not Found' })) as unknown as typeof fetch;
-    await expect(download('https://example.org/missing', path.join(dir, 'missing'), { fetch: notFound })).rejects.toThrow(/404/u);
-    await expect(download('https://example.org/missing', path.join(dir, 'missing'), { fetch: notFound })).rejects.toBeInstanceOf(DownloadError);
-    await expect(download('http://example.org/x.xml', path.join(dir, 'x.xml'))).rejects.toThrow(/https/u);
-    await expect(download('file:///etc/passwd', path.join(dir, 'passwd'))).rejects.toThrow(/https/u);
+    const notFound = (async () =>
+      new Response('missing', { status: 404, statusText: 'Not Found' })) as unknown as typeof fetch;
+    await expect(
+      download('https://example.org/missing', path.join(dir, 'missing'), { fetch: notFound }),
+    ).rejects.toThrow(/404/u);
+    await expect(
+      download('https://example.org/missing', path.join(dir, 'missing'), { fetch: notFound }),
+    ).rejects.toBeInstanceOf(DownloadError);
+    await expect(download('http://example.org/x.xml', path.join(dir, 'x.xml'))).rejects.toThrow(
+      /https/u,
+    );
+    await expect(download('file:///etc/passwd', path.join(dir, 'passwd'))).rejects.toThrow(
+      /https/u,
+    );
   });
 
   it('refuses a redirect away from https unless a checksum vouches for the file', async () => {
-    const redirected = (async () => ({ ok: true, status: 200, statusText: 'OK', url: 'http://mirror.example.org/x.xml', body: new Response('abc').body })) as unknown as typeof fetch;
-    await expect(download('https://example.org/x.xml', path.join(dir, 'r1.xml'), { fetch: redirected })).rejects.toThrow(/redirected/u);
-    await download('https://example.org/x.xml', path.join(dir, 'r2.xml'), { fetch: redirected, sha256: sha });
+    const redirected = (async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      url: 'http://mirror.example.org/x.xml',
+      body: new Response('abc').body,
+    })) as unknown as typeof fetch;
+    await expect(
+      download('https://example.org/x.xml', path.join(dir, 'r1.xml'), { fetch: redirected }),
+    ).rejects.toThrow(/redirected/u);
+    await download('https://example.org/x.xml', path.join(dir, 'r2.xml'), {
+      fetch: redirected,
+      sha256: sha,
+    });
     expect(existsSync(path.join(dir, 'r2.xml'))).toBe(true);
   });
 });

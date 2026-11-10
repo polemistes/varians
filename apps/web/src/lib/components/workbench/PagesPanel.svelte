@@ -86,13 +86,29 @@
       {#if pages}{t.summary(pages.length, withImage)}{/if}
     </p>
     {#if canMaintain && pages}
-      <Button size="sm" variant={tool === 'upload' ? 'primary' : 'secondary'} aria-pressed={tool === 'upload'} onclick={() => toggle('upload')}>
+      <Button
+        size="sm"
+        variant={tool === 'upload' ? 'primary' : 'secondary'}
+        aria-pressed={tool === 'upload'}
+        onclick={() => toggle('upload')}
+      >
         {t.panel.addImages}
       </Button>
-      <Button size="sm" variant={tool === 'add' ? 'primary' : 'secondary'} aria-pressed={tool === 'add'} onclick={() => toggle('add')}>
+      <Button
+        size="sm"
+        variant={tool === 'add' ? 'primary' : 'secondary'}
+        aria-pressed={tool === 'add'}
+        onclick={() => toggle('add')}
+      >
         {t.panel.addPages}
       </Button>
-      <ManifestImport manifestUrl={info?.iiifManifest ?? null} hasPages={pages.length > 0} base={wb.pagesBase} onchanged={changed} size="sm" />
+      <ManifestImport
+        manifestUrl={info?.iiifManifest ?? null}
+        hasPages={pages.length > 0}
+        base={wb.pagesBase}
+        onchanged={changed}
+        size="sm"
+      />
     {/if}
   </div>
 
@@ -100,11 +116,22 @@
     {#if canMaintain && tool && pages}
       <div class="relative mb-4">
         {#if tool === 'upload'}
-          <UploadImages {lastLabel} defaults={wb.imageDefaults} maxBytes={wb.maxUploadBytes} base={wb.pagesBase} onchanged={changed} />
+          <UploadImages
+            {lastLabel}
+            defaults={wb.imageDefaults}
+            maxBytes={wb.maxUploadBytes}
+            base={wb.pagesBase}
+            onchanged={changed}
+          />
         {:else}
           <AddPagesForm roll={info?.roll ?? false} base={wb.pagesBase} onchanged={changed} />
         {/if}
-        <IconButton label={t.panel.close} size="sm" class="absolute top-2.5 right-2.5" onclick={() => (tool = null)}>
+        <IconButton
+          label={t.panel.close}
+          size="sm"
+          class="absolute top-2.5 right-2.5"
+          onclick={() => (tool = null)}
+        >
           <X aria-hidden="true" />
         </IconButton>
       </div>
@@ -117,7 +144,10 @@
         <Button size="sm" onclick={load}>{t.panel.retry}</Button>
       </EmptyState>
     {:else if pages && pages.length === 0}
-      <EmptyState title={t.panel.empty} description={canMaintain ? t.panel.emptyHint : t.panel.emptyReadOnly} />
+      <EmptyState
+        title={t.panel.empty}
+        description={canMaintain ? t.panel.emptyHint : t.panel.emptyReadOnly}
+      />
     {:else if pages}
       <PageGrid
         {pages}

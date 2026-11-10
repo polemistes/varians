@@ -20,10 +20,22 @@ const slugs: string[] = [];
 
 test.afterAll(async () => {
   const { db, pool } = createDatabase(DATABASE_URL);
-  const rows = slugs.length ? await db.select({ id: witnesses.id }).from(witnesses).where(inArray(witnesses.slug, slugs)) : [];
+  const rows = slugs.length
+    ? await db.select({ id: witnesses.id }).from(witnesses).where(inArray(witnesses.slug, slugs))
+    : [];
   if (rows.length) {
-    await db.delete(registryMerges).where(inArray(registryMerges.survivorId, rows.map((r) => r.id)));
-    await db.delete(witnesses).where(inArray(witnesses.id, rows.map((r) => r.id)));
+    await db.delete(registryMerges).where(
+      inArray(
+        registryMerges.survivorId,
+        rows.map((r) => r.id),
+      ),
+    );
+    await db.delete(witnesses).where(
+      inArray(
+        witnesses.id,
+        rows.map((r) => r.id),
+      ),
+    );
   }
   await db.delete(users).where(eq(users.email, email));
   await pool.end();
@@ -51,21 +63,24 @@ test('a witness registered twice is merged into the other', async ({ page }) => 
     await page.locator('input[name=siglum]').fill(siglum);
     if (withIdentifier) {
       await page.getByRole('button', { name: t.identifiers.add }).click();
-      await page.getByRole('combobox', { name: t.identifiers.schemeOf(''), exact: true }).selectOption('diktyon');
+      await page
+        .getByRole('combobox', { name: t.identifiers.schemeOf(''), exact: true })
+        .selectOption('diktyon');
       await page.getByRole('textbox', { name: t.identifiers.value, exact: true }).fill(diktyon);
     }
     await page.getByRole('button', { name: t.witness.create }).click();
-    await page.waitForURL((url) => /^\/witnesses\/[^/]+$/.test(url.pathname) && url.pathname !== '/witnesses/new');
+    await page.waitForURL(
+      (url) => /^\/witnesses\/[^/]+$/.test(url.pathname) && url.pathname !== '/witnesses/new',
+    );
     slugs.push(new URL(page.url()).pathname.split('/').pop()!);
   }
   const [survivorSlug, duplicateSlug] = slugs;
 
   // The identifier is shown with a link to Pinakes, and the search finds the witness by it.
   await page.goto(`/witnesses/${survivorSlug}`);
-  await expect(page.getByRole('link', { name: t.identifiers.lookUp('Diktyon', diktyon) })).toHaveAttribute(
-    'href',
-    `https://pinakes.irht.cnrs.fr/notices/cote/${diktyon}/`,
-  );
+  await expect(
+    page.getByRole('link', { name: t.identifiers.lookUp('Diktyon', diktyon) }),
+  ).toHaveAttribute('href', `https://pinakes.irht.cnrs.fr/notices/cote/${diktyon}/`);
   await page.goto(`/search?q=${diktyon}`);
   await expect(page.getByRole('link', { name: survivor })).toBeVisible();
 

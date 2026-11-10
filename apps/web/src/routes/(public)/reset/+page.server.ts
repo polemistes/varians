@@ -23,7 +23,11 @@ export const load: PageServerLoad = ({ locals }) => {
 export const actions: Actions = {
   default: async ({ request, getClientAddress, locals, url }) => {
     const send = mailer();
-    if (!send) return fail(404, { values: { email: '' }, errors: { form: s.auth.resetWithoutMail } as ResetErrors });
+    if (!send)
+      return fail(404, {
+        values: { email: '' },
+        errors: { form: s.auth.resetWithoutMail } as ResetErrors,
+      });
     const form = await request.formData();
     const values = { email: String(form.get('email') ?? '') };
     const parsed = schema.safeParse(values);
@@ -33,15 +37,24 @@ export const actions: Actions = {
     }
     const address = getClientAddress();
     if (!limits.resetByAddress.take(address)) {
-      const errors: ResetErrors = { form: s.auth.tooManyAttempts(Math.max(1, Math.ceil(limits.resetByAddress.retryAfter(address) / 60))) };
+      const errors: ResetErrors = {
+        form: s.auth.tooManyAttempts(
+          Math.max(1, Math.ceil(limits.resetByAddress.retryAfter(address) / 60)),
+        ),
+      };
       return fail(429, { values, errors });
     }
     // Past the limit for this address, nothing more is sent to it, and the answer stays the same.
     const account = parsed.data.email.trim().toLowerCase();
     if (limits.mailByAccount.take(account)) {
-      void requestPasswordReset(locals.db, send, parsed.data.email, siteOf(url.origin)).catch((error: unknown) => {
-        console.error('A link to set a new password could not be sent:', error instanceof Error ? error.message : error);
-      });
+      void requestPasswordReset(locals.db, send, parsed.data.email, siteOf(url.origin)).catch(
+        (error: unknown) => {
+          console.error(
+            'A link to set a new password could not be sent:',
+            error instanceof Error ? error.message : error,
+          );
+        },
+      );
     }
     return { sent: true as const };
   },

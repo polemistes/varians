@@ -56,7 +56,11 @@ export function typedReadForms(ops: Op[], after: Stream): { tokenId: Id; pair: F
   for (const item of after.items) {
     if (!isToken(item) || !touched.has(item.id)) continue;
     const norm = item.norm;
-    out.push({ tokenId: item.id, pair: norm !== undefined && norm !== '' && norm !== item.form ? { form: item.form, norm } : null });
+    out.push({
+      tokenId: item.id,
+      pair:
+        norm !== undefined && norm !== '' && norm !== item.form ? { form: item.form, norm } : null,
+    });
   }
   return out;
 }
@@ -77,14 +81,21 @@ export function distinctPairs(pairs: FormPair[]): FormPair[] {
 /** The unchecked tokens among `tokenIds` (all of the stream when omitted). */
 export function uncheckedIn(stream: Stream, tokenIds?: Iterable<Id>): Token[] {
   const wanted = tokenIds ? new Set(tokenIds) : null;
-  return stream.items.filter((item): item is Token => isToken(item) && item.unchecked === true && (!wanted || wanted.has(item.id)));
+  return stream.items.filter(
+    (item): item is Token =>
+      isToken(item) && item.unchecked === true && (!wanted || wanted.has(item.id)),
+  );
 }
 
 /**
  * Confirming the read forms of some tokens as they stand: the operations
  * that clear their check marks and the pairs the memory learns.
  */
-export function confirmTokens(stream: Stream, tokenIds: Iterable<Id>, memory?: NormalizationMemory): { ops: Op[]; pairs: FormPair[] } {
+export function confirmTokens(
+  stream: Stream,
+  tokenIds: Iterable<Id>,
+  memory?: NormalizationMemory,
+): { ops: Op[]; pairs: FormPair[] } {
   const ops: Op[] = [];
   const pairs: FormPair[] = [];
   for (const token of uncheckedIn(stream, tokenIds)) {
@@ -104,7 +115,9 @@ export function confirmTokens(stream: Stream, tokenIds: Iterable<Id>, memory?: N
  */
 export function autoConfirmOps(stream: Stream, tokenIds: Iterable<Id>, profiles: ProfileFor): Op[] {
   return uncheckedIn(stream, tokenIds)
-    .filter((token) => agreeUnderFold(token.form, token.norm ?? token.form, profileOf(profiles, token)))
+    .filter((token) =>
+      agreeUnderFold(token.form, token.norm ?? token.form, profileOf(profiles, token)),
+    )
     .map((token) => ({ t: 'set' as const, id: token.id, fields: { unchecked: null } }));
 }
 
@@ -175,8 +188,12 @@ export function profilesByWork(
   overrides: Partial<NormalizationProfile> | null | undefined,
   fallback: string | null,
 ): (token: Token) => NormalizationProfile {
-  const profiles = new Map(works.map((w) => [w.id, effectiveProfile(w.profile, overrides, w.language)] as const));
-  const first = (fallback && profiles.get(fallback)) || (works[0] ? profiles.get(works[0].id)! : effectiveProfile(null, overrides));
+  const profiles = new Map(
+    works.map((w) => [w.id, effectiveProfile(w.profile, overrides, w.language)] as const),
+  );
+  const first =
+    (fallback && profiles.get(fallback)) ||
+    (works[0] ? profiles.get(works[0].id)! : effectiveProfile(null, overrides));
   const workOf = new Map<Id, string | null>();
   let current: string | null = null;
   for (const item of stream.items) {

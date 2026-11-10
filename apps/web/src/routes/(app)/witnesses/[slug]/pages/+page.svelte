@@ -20,13 +20,19 @@
   /** What the page itself reports: every success but an upload's, and the failures no form shows. */
   const notice = $derived.by(() => {
     if (!form || form.action === 'upload') return null;
-    if (form.ok) return 'message' in form && form.message ? { kind: 'success' as const, text: form.message } : null;
+    if (form.ok)
+      return 'message' in form && form.message
+        ? { kind: 'success' as const, text: form.message }
+        : null;
     if (form.action === 'add') return null;
     return 'error' in form && form.error ? { kind: 'error' as const, text: form.error } : null;
   });
 </script>
 
-<PageFrame title={t.title(data.witness.name)} lead={t.lead(data.witness.siglum, data.pages.length, withImage)}>
+<PageFrame
+  title={t.title(data.witness.name)}
+  lead={t.lead(data.witness.siglum, data.pages.length, withImage)}
+>
   {#snippet actions()}
     <ManifestImport manifestUrl={data.witness.iiifManifest} hasPages={data.pages.length > 0} />
   {/snippet}
@@ -36,13 +42,22 @@
   {/if}
 
   <div class="mb-10 grid items-start gap-4 lg:grid-cols-2">
-    <UploadImages {lastLabel} defaults={data.witness.imageDefaults} maxBytes={data.maxUploadBytes} result={uploadResult} />
+    <UploadImages
+      {lastLabel}
+      defaults={data.witness.imageDefaults}
+      maxBytes={data.maxUploadBytes}
+      result={uploadResult}
+    />
     <AddPagesForm failure={addFailure} roll={data.witness.roll} />
   </div>
 
   {#if data.pages.length === 0}
     <EmptyState title={t.empty} description={t.emptyHint} />
   {:else}
-    <PageGrid pages={data.pages} defaults={data.witness.imageDefaults} maxUploadBytes={data.maxUploadBytes} />
+    <PageGrid
+      pages={data.pages}
+      defaults={data.witness.imageDefaults}
+      maxUploadBytes={data.maxUploadBytes}
+    />
   {/if}
 </PageFrame>

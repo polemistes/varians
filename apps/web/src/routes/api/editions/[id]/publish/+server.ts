@@ -9,7 +9,12 @@ import type { RequestHandler } from './$types';
 import { commitDocument } from '$lib/server/archive/commits';
 import { loadEditionAccess } from '$lib/server/edition-access';
 import { archiveRoot, storageRoot } from '$lib/server/startup';
-import { PublishRefused, publishEdition, publishedVersions, unpublishEdition } from '$lib/server/publish';
+import {
+  PublishRefused,
+  publishEdition,
+  publishedVersions,
+  unpublishEdition,
+} from '$lib/server/publish';
 
 const body = z.object({ action: z.enum(['publish', 'unpublish']) });
 
@@ -38,7 +43,15 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
   }
   // The archive follows a publication; a failure there must not undo the publication.
   try {
-    await commitDocument(locals.db, 'edition', access.edition.id, `published version ${result.number}`, locals.user?.id ?? null, archiveRoot(), { storageRoot: storageRoot() });
+    await commitDocument(
+      locals.db,
+      'edition',
+      access.edition.id,
+      `published version ${result.number}`,
+      locals.user?.id ?? null,
+      archiveRoot(),
+      { storageRoot: storageRoot() },
+    );
   } catch (cause) {
     console.error('archive after publishing failed', cause);
   }

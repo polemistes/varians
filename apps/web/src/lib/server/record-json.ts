@@ -36,7 +36,13 @@ import type { Resolved, Visibility } from './resolver.ts';
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
 
 /** Write the part of a work's archive that holds a record, for the viewer, and read one of its files. */
-async function fromArchive(db: Database, user: Actor | null, workId: string, part: Parameters<typeof writeRecordPart>[2], file: (paths: Awaited<ReturnType<typeof writeRecordPart>>['paths']) => string | null): Promise<unknown> {
+async function fromArchive(
+  db: Database,
+  user: Actor | null,
+  workId: string,
+  part: Parameters<typeof writeRecordPart>[2],
+  file: (paths: Awaited<ReturnType<typeof writeRecordPart>>['paths']) => string | null,
+): Promise<unknown> {
   const [work] = await db.select({ slug: works.slug }).from(works).where(eq(works.id, workId));
   const record = work ? await workBySlug(db, work.slug) : null;
   const only = await viewerFilter(db, user, record?.maintainerIds ?? []);
@@ -52,13 +58,28 @@ async function fromArchive(db: Database, user: Actor | null, workId: string, par
   }
 }
 
-async function fromList(db: Database, user: Actor | null, workId: string, file: string, key: string, id: string): Promise<unknown> {
-  const data = (await fromArchive(db, user, workId, {}, () => file)) as Record<string, { id: string }[]> | null;
+async function fromList(
+  db: Database,
+  user: Actor | null,
+  workId: string,
+  file: string,
+  key: string,
+  id: string,
+): Promise<unknown> {
+  const data = (await fromArchive(db, user, workId, {}, () => file)) as Record<
+    string,
+    { id: string }[]
+  > | null;
   return data?.[key]?.find((r) => r.id === id) ?? null;
 }
 
 /** The record an address names, as the archive represents it; null when the viewer may not see it in that form. */
-export async function recordJson(db: Database, user: Actor | null, resolved: Resolved, visibility: Visibility): Promise<unknown> {
+export async function recordJson(
+  db: Database,
+  user: Actor | null,
+  resolved: Resolved,
+  visibility: Visibility,
+): Promise<unknown> {
   switch (resolved.kind) {
     case 'work':
       return fromArchive(db, user, resolved.workId, {}, () => 'work.json');
@@ -68,11 +89,16 @@ export async function recordJson(db: Database, user: Actor | null, resolved: Res
       return fromList(db, user, resolved.workId, 'reported-readings.json', 'readings', resolved.id);
     case 'transcription':
     case 'edition': {
-      const [workId] = resolved.kind === 'edition' ? [resolved.workId] : await worksOfDocument(db, 'transcription', resolved.id);
+      const [workId] =
+        resolved.kind === 'edition'
+          ? [resolved.workId]
+          : await worksOfDocument(db, 'transcription', resolved.id);
       if (!workId) return null;
       const key = resolved.kind === 'edition' ? 'editions' : 'transcriptions';
       return fromArchive(db, user, workId, { [key]: [resolved.id] }, (paths) => {
-        const dir = (resolved.kind === 'edition' ? paths.edition : paths.transcription).get(resolved.id);
+        const dir = (resolved.kind === 'edition' ? paths.edition : paths.transcription).get(
+          resolved.id,
+        );
         return dir ? path.join(dir, `${resolved.kind}.json`) : null;
       });
     }
@@ -90,44 +116,90 @@ export async function recordJson(db: Database, user: Actor | null, resolved: Res
           label: p.label,
           position: p.position,
           image: p.imageKind
-            ? { kind: p.imageKind, iiif: p.imageIiif, width: p.imageWidth, height: p.imageHeight, rights: p.rights, attribution: p.attribution, source: p.imageSource }
+            ? {
+                kind: p.imageKind,
+                iiif: p.imageIiif,
+                width: p.imageWidth,
+                height: p.imageHeight,
+                rights: p.rights,
+                attribution: p.attribution,
+                source: p.imageSource,
+              }
             : null,
           createdAt: iso(p.createdAt),
         };
       }
       const maintainers = await db
-        .select({ id: witnessMaintainers.userId, name: users.name, since: witnessMaintainers.createdAt })
+        .select({
+          id: witnessMaintainers.userId,
+          name: users.name,
+          since: witnessMaintainers.createdAt,
+        })
         .from(witnessMaintainers)
         .innerJoin(users, eq(users.id, witnessMaintainers.userId))
         .where(eq(witnessMaintainers.witnessId, w.id))
         .orderBy(asc(witnessMaintainers.userId));
-      const merged = await db.select().from(registryMerges).where(eq(registryMerges.survivorId, w.id)).orderBy(asc(registryMerges.oldId));
+      const merged = await db
+        .select()
+        .from(registryMerges)
+        .where(eq(registryMerges.survivorId, w.id))
+        .orderBy(asc(registryMerges.oldId));
       return {
         $schema: `${FORMAT_BASE}witness.schema.json`,
         ...w,
         maintainers: maintainers.map((m) => ({ id: m.id, name: m.name, since: iso(m.since) })),
-        mergedIds: merged.map((m) => ({ id: m.oldId, label: m.label, mergedBy: m.mergedBy, mergedAt: iso(m.mergedAt) })),
+        mergedIds: merged.map((m) => ({
+          id: m.oldId,
+          label: m.label,
+          mergedBy: m.mergedBy,
+          mergedAt: iso(m.mergedAt),
+        })),
         createdAt: iso(w.createdAt),
         updatedAt: iso(w.updatedAt),
       };
     }
     case 'segment': {
       const [row] = await db
-        .select({ id: segments.id, workId: segments.workId, label: segments.label, sortKey: segments.sortKey, address: segments.address, createdAt: segments.createdAt, identifier: works.identifier, schemeId: works.schemeId })
+        .select({
+          id: segments.id,
+          workId: segments.workId,
+          label: segments.label,
+          sortKey: segments.sortKey,
+          address: segments.address,
+          createdAt: segments.createdAt,
+          identifier: works.identifier,
+          schemeId: works.schemeId,
+        })
         .from(segments)
         .innerJoin(works, eq(works.id, segments.workId))
         .where(eq(segments.id, resolved.id));
       if (!row) return null;
       const record = await workBySlug(db, resolved.workSlug);
       const levels = record?.scheme?.levels ?? [];
-      return { id: row.id, workId: row.workId, label: row.label, sortKey: row.sortKey, address: row.address, urn: passageUrn(row.identifier, row.address, levels), createdAt: iso(row.createdAt) };
+      return {
+        id: row.id,
+        workId: row.workId,
+        label: row.label,
+        sortKey: row.sortKey,
+        address: row.address,
+        urn: passageUrn(row.identifier, row.address, levels),
+        createdAt: iso(row.createdAt),
+      };
     }
     case 'bibliography': {
-      const [item] = await db.select().from(bibliographyItems).where(eq(bibliographyItems.id, resolved.id));
-      return item ? { ...item, createdAt: iso(item.createdAt), updatedAt: iso(item.updatedAt) } : null;
+      const [item] = await db
+        .select()
+        .from(bibliographyItems)
+        .where(eq(bibliographyItems.id, resolved.id));
+      return item
+        ? { ...item, createdAt: iso(item.createdAt), updatedAt: iso(item.updatedAt) }
+        : null;
     }
     case 'person': {
-      const [p] = await db.select({ id: persons.id, name: persons.name, orcid: persons.orcid }).from(persons).where(eq(persons.id, resolved.id));
+      const [p] = await db
+        .select({ id: persons.id, name: persons.name, orcid: persons.orcid })
+        .from(persons)
+        .where(eq(persons.id, resolved.id));
       return p ?? null;
     }
     case 'changeset': {
@@ -150,15 +222,26 @@ export async function recordJson(db: Database, user: Actor | null, resolved: Res
     case 'token': {
       let items: Item[];
       if (resolved.documentKind === 'transcription') {
-        const [t] = await db.select({ content: transcriptions.content }).from(transcriptions).where(eq(transcriptions.id, resolved.documentId));
+        const [t] = await db
+          .select({ content: transcriptions.content })
+          .from(transcriptions)
+          .where(eq(transcriptions.id, resolved.documentId));
         items = t?.content.items ?? [];
       } else {
-        const [e] = await db.select({ content: editions.content, publishedVersion: editions.publishedVersion }).from(editions).where(eq(editions.id, resolved.documentId));
+        const [e] = await db
+          .select({ content: editions.content, publishedVersion: editions.publishedVersion })
+          .from(editions)
+          .where(eq(editions.id, resolved.documentId));
         if (!e) return null;
-        items = visibility.edits || e.publishedVersion === null ? e.content.items : (await documentAt(db, 'edition', resolved.documentId, e.publishedVersion)).items;
+        items =
+          visibility.edits || e.publishedVersion === null
+            ? e.content.items
+            : (await documentAt(db, 'edition', resolved.documentId, e.publishedVersion)).items;
       }
       const item = items.find((i) => i.id === resolved.id);
-      return item ? { document: { kind: resolved.documentKind, id: resolved.documentId }, item } : null;
+      return item
+        ? { document: { kind: resolved.documentKind, id: resolved.documentId }, item }
+        : null;
     }
   }
 }

@@ -20,14 +20,19 @@ export interface HandOption {
  * id when one is registered), the other registered hands, another hand, and
  * the current value when it is none of these (a value as imported).
  */
-export function handOptions(hands: readonly WitnessHand[], words: HandWords, current?: string): HandOption[] {
+export function handOptions(
+  hands: readonly WitnessHand[],
+  words: HandWords,
+  current?: string,
+): HandOption[] {
   const main = hands.find((h) => h.main);
   const out: HandOption[] = [{ value: '', label: words.notKnown }];
   if (main) out.push({ value: main.id, label: `${main.label} (${words.scribe.toLowerCase()})` });
   else out.push({ value: HAND_SCRIBE, label: words.scribe });
   for (const hand of hands) if (!hand.main) out.push({ value: hand.id, label: hand.label });
   out.push({ value: HAND_OTHER, label: words.other });
-  if (current && !out.some((o) => o.value === current)) out.push({ value: current, label: current });
+  if (current && !out.some((o) => o.value === current))
+    out.push({ value: current, label: current });
   return out;
 }
 

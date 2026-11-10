@@ -88,11 +88,7 @@
   };
 </script>
 
-<Dialog
-  bind:open
-  title={registry.witness.newTranscription}
-  size="md"
->
+<Dialog bind:open title={registry.witness.newTranscription} size="md">
   <form
     id={formId}
     method="post"

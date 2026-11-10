@@ -15,32 +15,55 @@
     </Notice>
   </PageFrame>
 {:else}
-<PageFrame title={s.auth.registerTitle} width="narrow">
-  <AuthForm submitLabel={s.auth.registerAction}>
-    <Field label={s.auth.name} error={form?.errors?.name}>
-      {#snippet children(control)}
-        <Input {...control} name="name" autocomplete="name" required value={form?.values?.name ?? ''} />
+  <PageFrame title={s.auth.registerTitle} width="narrow">
+    <AuthForm submitLabel={s.auth.registerAction}>
+      <Field label={s.auth.name} error={form?.errors?.name}>
+        {#snippet children(control)}
+          <Input
+            {...control}
+            name="name"
+            autocomplete="name"
+            required
+            value={form?.values?.name ?? ''}
+          />
+        {/snippet}
+      </Field>
+      <Field label={s.auth.email} error={form?.errors?.email}>
+        {#snippet children(control)}
+          <Input
+            {...control}
+            name="email"
+            type="email"
+            autocomplete="email"
+            required
+            value={form?.values?.email ?? ''}
+          />
+        {/snippet}
+      </Field>
+      <Field label={s.auth.password} hint={s.auth.passwordHint} error={form?.errors?.password}>
+        {#snippet children(control)}
+          <Input
+            {...control}
+            name="password"
+            type="password"
+            autocomplete="new-password"
+            required
+          />
+        {/snippet}
+      </Field>
+      <Field label="" error={form?.errors?.terms}>
+        {#snippet children()}
+          <Checkbox name="terms" value="accepted" required
+            >{s.auth.acceptTerms}
+            <a href="/terms" target="_blank" class="text-accent underline">{s.auth.termsLink}</a
+            ></Checkbox
+          >
+        {/snippet}
+      </Field>
+      {#snippet aside()}
+        {s.auth.haveAccount}
+        <a href="/login" class="text-accent underline">{s.auth.logInTitle}</a>
       {/snippet}
-    </Field>
-    <Field label={s.auth.email} error={form?.errors?.email}>
-      {#snippet children(control)}
-        <Input {...control} name="email" type="email" autocomplete="email" required value={form?.values?.email ?? ''} />
-      {/snippet}
-    </Field>
-    <Field label={s.auth.password} hint={s.auth.passwordHint} error={form?.errors?.password}>
-      {#snippet children(control)}
-        <Input {...control} name="password" type="password" autocomplete="new-password" required />
-      {/snippet}
-    </Field>
-    <Field label="" error={form?.errors?.terms}>
-      {#snippet children()}
-        <Checkbox name="terms" value="accepted" required>{s.auth.acceptTerms} <a href="/terms" target="_blank" class="text-accent underline">{s.auth.termsLink}</a></Checkbox>
-      {/snippet}
-    </Field>
-    {#snippet aside()}
-      {s.auth.haveAccount}
-      <a href="/login" class="text-accent underline">{s.auth.logInTitle}</a>
-    {/snippet}
-  </AuthForm>
-</PageFrame>
+    </AuthForm>
+  </PageFrame>
 {/if}

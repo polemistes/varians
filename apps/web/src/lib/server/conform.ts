@@ -16,13 +16,23 @@ import { saveOps } from './documents/service.ts';
 
 /** The ids of a witness's pages in order. */
 export async function witnessPageOrder(db: Database, witnessId: string): Promise<string[]> {
-  const rows = await db.select({ id: pages.id }).from(pages).where(eq(pages.witnessId, witnessId)).orderBy(asc(pages.position));
+  const rows = await db
+    .select({ id: pages.id })
+    .from(pages)
+    .where(eq(pages.witnessId, witnessId))
+    .orderBy(asc(pages.position));
   return rows.map((r) => r.id);
 }
 
 /** The ids of the pages of a transcript's witness in order; empty for an unknown transcript. */
-export async function transcriptionPageOrder(db: Database, transcriptionId: string): Promise<string[]> {
-  const [row] = await db.select({ witnessId: transcriptions.witnessId }).from(transcriptions).where(eq(transcriptions.id, transcriptionId));
+export async function transcriptionPageOrder(
+  db: Database,
+  transcriptionId: string,
+): Promise<string[]> {
+  const [row] = await db
+    .select({ witnessId: transcriptions.witnessId })
+    .from(transcriptions)
+    .where(eq(transcriptions.id, transcriptionId));
   return row ? witnessPageOrder(db, row.witnessId) : [];
 }
 
@@ -47,10 +57,19 @@ export interface ConformanceReport {
 }
 
 /** What `conformPages` would do to a stream, counted. */
-export function describeConformance(stream: Stream, pageOrder: readonly string[]): ConformanceReport {
+export function describeConformance(
+  stream: Stream,
+  pageOrder: readonly string[],
+): ConformanceReport {
   const known = new Map(pageOrder.map((id, i) => [id, i] as const));
   const seen = new Set<string>();
-  const report: ConformanceReport = { orphanBreaks: 0, wordsUnplaced: 0, duplicateBreaks: 0, reordered: false, labels: 0 };
+  const report: ConformanceReport = {
+    orphanBreaks: 0,
+    wordsUnplaced: 0,
+    duplicateBreaks: 0,
+    reordered: false,
+    labels: 0,
+  };
   let orphan = false;
   let last = -1;
   for (const item of stream.items) {
@@ -107,7 +126,11 @@ export async function conformTranscription(
 ): Promise<ConformOutcome | null> {
   return db.transaction(async (tx) => {
     const [row] = await tx
-      .select({ version: transcriptions.version, content: transcriptions.content, name: transcriptions.name })
+      .select({
+        version: transcriptions.version,
+        content: transcriptions.content,
+        name: transcriptions.name,
+      })
       .from(transcriptions)
       .where(eq(transcriptions.id, transcriptionId))
       .for('update');
@@ -115,15 +138,32 @@ export async function conformTranscription(
     const ops = conformPages(row.content, pageOrder);
     if (ops.length === 0) return null;
     const report = describeConformance(row.content, pageOrder);
-    const saved = await saveOps(tx, 'transcription', transcriptionId, userId, row.version, ops, message);
+    const saved = await saveOps(
+      tx,
+      'transcription',
+      transcriptionId,
+      userId,
+      row.version,
+      ops,
+      message,
+    );
     return { transcriptionId, name: row.name, version: saved.version, report };
   });
 }
 
 /** Conform every transcript of a witness to its pages as they stand. */
-export async function conformWitness(db: Database, witnessId: string, userId: string | null, message: string): Promise<ConformOutcome[]> {
+export async function conformWitness(
+  db: Database,
+  witnessId: string,
+  userId: string | null,
+  message: string,
+): Promise<ConformOutcome[]> {
   const order = await witnessPageOrder(db, witnessId);
-  const rows = await db.select({ id: transcriptions.id }).from(transcriptions).where(eq(transcriptions.witnessId, witnessId)).orderBy(asc(transcriptions.id));
+  const rows = await db
+    .select({ id: transcriptions.id })
+    .from(transcriptions)
+    .where(eq(transcriptions.witnessId, witnessId))
+    .orderBy(asc(transcriptions.id));
   const out: ConformOutcome[] = [];
   for (const row of rows) {
     const outcome = await conformTranscription(db, row.id, order, userId, message);
@@ -133,13 +173,27 @@ export async function conformWitness(db: Database, witnessId: string, userId: st
 }
 
 /** Conform one transcript to its witness's pages as they stand. */
-export async function conformStored(db: Database, transcriptionId: string, userId: string | null, message: string): Promise<ConformOutcome | null> {
-  return conformTranscription(db, transcriptionId, await transcriptionPageOrder(db, transcriptionId), userId, message);
+export async function conformStored(
+  db: Database,
+  transcriptionId: string,
+  userId: string | null,
+  message: string,
+): Promise<ConformOutcome | null> {
+  return conformTranscription(
+    db,
+    transcriptionId,
+    await transcriptionPageOrder(db, transcriptionId),
+    userId,
+    message,
+  );
 }
 
 /** The conformance run over every transcript (B3): what it changed, transcript by transcript. */
 export async function conformAll(db: Database, message: string): Promise<ConformOutcome[]> {
-  const rows = await db.select({ id: transcriptions.id }).from(transcriptions).orderBy(asc(transcriptions.id));
+  const rows = await db
+    .select({ id: transcriptions.id })
+    .from(transcriptions)
+    .orderBy(asc(transcriptions.id));
   const out: ConformOutcome[] = [];
   for (const row of rows) {
     const outcome = await conformStored(db, row.id, null, message);
@@ -152,9 +206,16 @@ export async function conformAll(db: Database, message: string): Promise<Conform
 export function formatConformance(outcome: ConformOutcome): string {
   const r = outcome.report;
   const parts: string[] = [];
-  if (r.orphanBreaks) parts.push(`${r.orphanBreaks} page break${r.orphanBreaks === 1 ? '' : 's'} naming no page of the witness removed, ${r.wordsUnplaced} word${r.wordsUnplaced === 1 ? '' : 's'} now not on a page`);
-  if (r.duplicateBreaks) parts.push(`${r.duplicateBreaks} second page break${r.duplicateBreaks === 1 ? '' : 's'} of a page joined to the first`);
+  if (r.orphanBreaks)
+    parts.push(
+      `${r.orphanBreaks} page break${r.orphanBreaks === 1 ? '' : 's'} naming no page of the witness removed, ${r.wordsUnplaced} word${r.wordsUnplaced === 1 ? '' : 's'} now not on a page`,
+    );
+  if (r.duplicateBreaks)
+    parts.push(
+      `${r.duplicateBreaks} second page break${r.duplicateBreaks === 1 ? '' : 's'} of a page joined to the first`,
+    );
   if (r.reordered) parts.push('pages put in the witness order');
-  if (r.labels) parts.push(`${r.labels} label${r.labels === 1 ? '' : 's'} removed from page breaks`);
+  if (r.labels)
+    parts.push(`${r.labels} label${r.labels === 1 ? '' : 's'} removed from page breaks`);
   return `${outcome.name} (${outcome.transcriptionId}), version ${outcome.version}: ${parts.join('; ') || 'conformed'}`;
 }

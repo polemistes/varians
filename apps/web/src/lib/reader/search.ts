@@ -5,7 +5,12 @@
  */
 import { fold, type FoldOptions, type LayoutLine } from '@varians/core';
 
-export const SEARCH_FOLD: FoldOptions = { caseFold: true, stripPunctuation: true, stripDiacritics: true, latinUV: false };
+export const SEARCH_FOLD: FoldOptions = {
+  caseFold: true,
+  stripPunctuation: true,
+  stripDiacritics: true,
+  latinUV: false,
+};
 
 export interface SearchLine {
   line: number;
@@ -35,7 +40,9 @@ export function searchIndex(lines: LayoutLine[]): SearchLine[] {
         joined = false;
         continue;
       }
-      const folded = fold(item.norm ?? item.form, SEARCH_FOLD).replace(/\s+/gu, ' ').trim();
+      const folded = fold(item.norm ?? item.form, SEARCH_FOLD)
+        .replace(/\s+/gu, ' ')
+        .trim();
       if (folded === '') {
         joined = item.joinNext === true;
         continue;
@@ -62,7 +69,8 @@ export function findHits(index: SearchLine[], query: string): SearchHit[] {
     while (at >= 0) {
       const end = at + needle.length;
       for (const word of line.words) {
-        if (word.from < end && word.to > at && !tokenIds.includes(word.tokenId)) tokenIds.push(word.tokenId);
+        if (word.from < end && word.to > at && !tokenIds.includes(word.tokenId))
+          tokenIds.push(word.tokenId);
       }
       at = line.text.indexOf(needle, at + 1);
     }

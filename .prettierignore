@@ -3,3 +3,10 @@ node_modules
 build
 dist
 pnpm-lock.yaml
+
+# Written by programs, and compared with what they write
+packages/db/drizzle
+docs/formats/schemas
+docs/formats/example
+docs/formats/varians.rng
+apps/web/scripts/lexicon/fixtures

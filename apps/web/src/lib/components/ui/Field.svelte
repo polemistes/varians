@@ -21,7 +21,15 @@
   }
 
   const generated = $props.id();
-  let { label, hint, error, required = false, id = `field-${generated}`, class: className, children }: Props = $props();
+  let {
+    label,
+    hint,
+    error,
+    required = false,
+    id = `field-${generated}`,
+    class: className,
+    children,
+  }: Props = $props();
 
   const message = $derived(Array.isArray(error) ? error[0] : error || undefined);
   const hintId = $derived(`${id}-hint`);

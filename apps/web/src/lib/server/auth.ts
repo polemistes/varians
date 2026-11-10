@@ -9,7 +9,19 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { env } from '$env/dynamic/private';
 import { newId } from '@varians/core';
-import { and, count, emailTokens, eq, isNull, ne, sessions, sql, users, type Database, type User } from '@varians/db';
+import {
+  and,
+  count,
+  emailTokens,
+  eq,
+  isNull,
+  ne,
+  sessions,
+  sql,
+  users,
+  type Database,
+  type User,
+} from '@varians/db';
 import { normalizePreferences } from '$lib/preferences';
 import type { CurrentUser, Preferences } from '$lib/types';
 import { db } from './db';
@@ -156,7 +168,8 @@ export async function logoutEverywhere(userId: string): Promise<void> {
 // Accounts
 
 export type RegisterResult =
-  { ok: true; user: CurrentUser; token: string | null } | { ok: false; error: 'email-taken' };
+  | { ok: true; user: CurrentUser; token: string | null }
+  | { ok: false; error: 'email-taken' };
 
 /**
  * Creates an account, and a session unless `session` is false (when the
@@ -190,7 +203,9 @@ export async function register(
         name: name.trim(),
         passwordHash,
         role,
-        ...(options.termsVersion !== undefined ? { termsVersion: options.termsVersion, termsAcceptedAt: new Date() } : {}),
+        ...(options.termsVersion !== undefined
+          ? { termsVersion: options.termsVersion, termsAcceptedAt: new Date() }
+          : {}),
       })
       .returning();
     if (!user) throw new Error('insert returned no row');
@@ -213,7 +228,11 @@ function decoy(): Promise<string> {
 }
 
 /** Checks the password and makes a session; with `requireConfirmed`, only for an account whose address is confirmed. */
-export async function login(email: string, password: string, options: { requireConfirmed?: boolean } = {}): Promise<LoginResult> {
+export async function login(
+  email: string,
+  password: string,
+  options: { requireConfirmed?: boolean } = {},
+): Promise<LoginResult> {
   const [user] = await db
     .select()
     .from(users)
@@ -223,7 +242,8 @@ export async function login(email: string, password: string, options: { requireC
     ? await verifyPassword(user.passwordHash, password)
     : (await verifyPassword(await decoy(), password), false);
   if (!user || !valid) return { ok: false, error: 'invalid-credentials' };
-  if (options.requireConfirmed && !user.emailVerifiedAt) return { ok: false, error: 'unconfirmed', user: toCurrentUser(user) };
+  if (options.requireConfirmed && !user.emailVerifiedAt)
+    return { ok: false, error: 'unconfirmed', user: toCurrentUser(user) };
   const token = await createSession(user.id);
   return { ok: true, user: toCurrentUser(user), token };
 }
@@ -233,7 +253,8 @@ export async function updateName(userId: string, name: string): Promise<void> {
 }
 
 export type ChangePasswordResult =
-  { ok: true } | { ok: false; error: 'wrong-password' | 'not-found' };
+  | { ok: true }
+  | { ok: false; error: 'wrong-password' | 'not-found' };
 
 /**
  * Changes the password. Every other session of the account ends with it, so
@@ -256,12 +277,22 @@ export async function changePassword(
     .where(eq(users.id, userId));
   await db
     .delete(sessions)
-    .where(keepToken ? and(eq(sessions.userId, userId), ne(sessions.id, hashToken(keepToken))) : eq(sessions.userId, userId));
+    .where(
+      keepToken
+        ? and(eq(sessions.userId, userId), ne(sessions.id, hashToken(keepToken)))
+        : eq(sessions.userId, userId),
+    );
   // A link to set a new password, asked for before the change, no longer works after it.
   await db
     .update(emailTokens)
     .set({ usedAt: new Date() })
-    .where(and(eq(emailTokens.userId, userId), eq(emailTokens.purpose, 'reset'), isNull(emailTokens.usedAt)));
+    .where(
+      and(
+        eq(emailTokens.userId, userId),
+        eq(emailTokens.purpose, 'reset'),
+        isNull(emailTokens.usedAt),
+      ),
+    );
   return { ok: true };
 }
 

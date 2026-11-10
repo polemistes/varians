@@ -9,13 +9,24 @@
     serif?: boolean;
   }
 
-  let { value = $bindable(), invalid = false, serif = false, rows = 4, class: className, ...rest }: Props = $props();
+  let {
+    value = $bindable(),
+    invalid = false,
+    serif = false,
+    rows = 4,
+    class: className,
+    ...rest
+  }: Props = $props();
 </script>
 
 <textarea
   {...rest}
   {rows}
   bind:value
-  class={[controlClasses, 'min-h-9 px-3 py-2 leading-relaxed', serif && 'font-serif text-reading', className]}
-  aria-invalid={invalid ? 'true' : rest['aria-invalid']}
-></textarea>
+  class={[
+    controlClasses,
+    'min-h-9 px-3 py-2 leading-relaxed',
+    serif && 'font-serif text-reading',
+    className,
+  ]}
+  aria-invalid={invalid ? 'true' : rest['aria-invalid']}></textarea>

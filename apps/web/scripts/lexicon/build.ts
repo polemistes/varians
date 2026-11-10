@@ -166,17 +166,15 @@ export async function loadLexicon(
     await tx.delete(lexiconEntries);
     await tx.delete(lexicons);
     await tx.delete(greekForms);
-    await tx
-      .insert(lexicons)
-      .values(
-        data.dictionaries.map((d, position) => ({
-          id: d.id,
-          title: d.title,
-          source: d.source,
-          licence: d.licence,
-          position,
-        })),
-      );
+    await tx.insert(lexicons).values(
+      data.dictionaries.map((d, position) => ({
+        id: d.id,
+        title: d.title,
+        source: d.source,
+        licence: d.licence,
+        position,
+      })),
+    );
     let id = 0;
     const entryRows = (function* () {
       for (const e of data.entries)

@@ -118,7 +118,8 @@ export function canMergeEntries(
 ): boolean {
   if (!user) return false;
   if (isAdministrator(user)) return true;
-  const maintains = (entry: typeof from) => entry.createdBy === user.id || has(entry.maintainerIds, user.id);
+  const maintains = (entry: typeof from) =>
+    entry.createdBy === user.id || has(entry.maintainerIds, user.id);
   return maintains(from) && maintains(into);
 }
 

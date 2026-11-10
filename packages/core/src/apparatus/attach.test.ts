@@ -14,10 +14,26 @@ describe('attachToSites', () => {
   it('places a conjecture by its lemma, and marks one whose reading is printed as adopted', () => {
     const edition = fromText('οἰωνοῖσί τε δαῖτα Διὸς', { ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
-    const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [witness('A', 'A', 'οἰωνοῖσί τε πᾶσι Διὸς')]);
+    const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [
+      witness('A', 'A', 'οἰωνοῖσί τε πᾶσι Διὸς'),
+    ]);
     const attached = attachToSites(c, baseUnits, [
-      { id: 'z', kind: 'conjecture', lemma: 'πᾶσι', reading: 'δαῖτα', name: 'Zenodotus', conjectureKind: 'substitution' },
-      { id: 'b', kind: 'conjecture', lemma: 'πᾶσι', reading: 'πάντα', name: 'Berge', conjectureKind: 'substitution' },
+      {
+        id: 'z',
+        kind: 'conjecture',
+        lemma: 'πᾶσι',
+        reading: 'δαῖτα',
+        name: 'Zenodotus',
+        conjectureKind: 'substitution',
+      },
+      {
+        id: 'b',
+        kind: 'conjecture',
+        lemma: 'πᾶσι',
+        reading: 'πάντα',
+        name: 'Berge',
+        conjectureKind: 'substitution',
+      },
       { id: 'x', kind: 'conjecture', lemma: 'nowhere', reading: 'else', name: 'Nobody' },
     ]);
     expect(attached.bySite[0]!.map((a) => [a.name, a.adopted ?? false])).toEqual([
@@ -30,8 +46,20 @@ describe('attachToSites', () => {
   it('opens a site for a conjecture on words every witness agrees about', () => {
     const edition = fromText('οἰωνοῖσί τε πᾶσι Διὸς', { ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
-    const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [witness('A', 'A', 'οἰωνοῖσί τε πᾶσι Διὸς'), witness('B', 'B', 'οἰωνοῖσί τε πᾶσι Διός')]);
-    const attached = attachToSites(c, baseUnits, [{ id: 'z', kind: 'conjecture', lemma: 'πᾶσι', reading: 'δαῖτα', name: 'Zenodotus', conjectureKind: 'substitution' }]);
+    const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [
+      witness('A', 'A', 'οἰωνοῖσί τε πᾶσι Διὸς'),
+      witness('B', 'B', 'οἰωνοῖσί τε πᾶσι Διός'),
+    ]);
+    const attached = attachToSites(c, baseUnits, [
+      {
+        id: 'z',
+        kind: 'conjecture',
+        lemma: 'πᾶσι',
+        reading: 'δαῖτα',
+        name: 'Zenodotus',
+        conjectureKind: 'substitution',
+      },
+    ]);
     expect(attached.collation.sites).toHaveLength(c.sites.length + 1);
     const opened = attached.collation.sites[attached.collation.sites.length - 1]!;
     expect(opened.baseFrom).toBe(2);
@@ -39,8 +67,19 @@ describe('attachToSites', () => {
     expect(attached.bySite[opened.index]![0]!.name).toBe('Zenodotus');
     expect(attached.unplaced).toEqual([]);
     expect(opened.kind).toBe('textual');
-    const accented = attachToSites(c, baseUnits, [{ id: 'y', kind: 'conjecture', lemma: 'πᾶσι', reading: 'πασί', name: 'Someone', conjectureKind: 'substitution' }]);
-    expect(accented.collation.sites[accented.collation.sites.length - 1]!.kind).toBe('interpretative');
+    const accented = attachToSites(c, baseUnits, [
+      {
+        id: 'y',
+        kind: 'conjecture',
+        lemma: 'πᾶσι',
+        reading: 'πασί',
+        name: 'Someone',
+        conjectureKind: 'substitution',
+      },
+    ]);
+    expect(accented.collation.sites[accented.collation.sites.length - 1]!.kind).toBe(
+      'interpretative',
+    );
   });
 
   it('places a reported reading by the base words, and a record by its anchor tokens', () => {
@@ -49,7 +88,14 @@ describe('attachToSites', () => {
     const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [witness('A', 'A', 'a x c')]);
     const attached = attachToSites(c, baseUnits, [
       { id: 'r', kind: 'reported', lemma: 'b', reading: 'y', name: 'T', source: '(Allen)' },
-      { id: 'k', kind: 'conjecture', lemma: 'other', reading: 'z', name: 'K', anchorTokenIds: ['e2'] },
+      {
+        id: 'k',
+        kind: 'conjecture',
+        lemma: 'other',
+        reading: 'z',
+        name: 'K',
+        anchorTokenIds: ['e2'],
+      },
     ]);
     expect(attached.bySite[0]!.map((a) => a.id)).toEqual(['r', 'k']);
   });

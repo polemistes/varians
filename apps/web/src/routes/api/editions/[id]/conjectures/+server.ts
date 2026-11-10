@@ -15,7 +15,9 @@ import { loadEditionAccess } from '$lib/server/edition-access';
 
 const body = z.object({
   segmentId: z.string().min(1).max(64),
-  kind: z.enum(['substitution', 'deletion', 'addition', 'lacuna', 'supplement', 'transposition']).default('substitution'),
+  kind: z
+    .enum(['substitution', 'deletion', 'addition', 'lacuna', 'supplement', 'transposition'])
+    .default('substitution'),
   lemma: z.string().max(2000).default(''),
   reading: z.string().max(2000).default(''),
   proposer: z.string().max(300).nullable().optional(),
@@ -23,7 +25,13 @@ const body = z.object({
   extent: z.string().max(300).nullable().optional(),
   anchorTokenIds: z.array(z.string().max(64)).max(200).optional(),
   citations: z
-    .array(z.object({ itemId: z.string().min(1).max(64), prenote: z.string().max(100).nullable().optional(), postnote: z.string().max(100).nullable().optional() }))
+    .array(
+      z.object({
+        itemId: z.string().min(1).max(64),
+        prenote: z.string().max(100).nullable().optional(),
+        postnote: z.string().max(100).nullable().optional(),
+      }),
+    )
     .max(20)
     .optional(),
   adopt: z.boolean().default(false),
@@ -52,13 +60,16 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
       proposer: input.proposer ?? locals.user.name,
       note: input.note ?? null,
       extent: input.extent ?? null,
-      anchor: input.anchorTokenIds?.length ? { editionId: access.edition.id, tokenIds: input.anchorTokenIds } : null,
+      anchor: input.anchorTokenIds?.length
+        ? { editionId: access.edition.id, tokenIds: input.anchorTokenIds }
+        : null,
       visibility: access.edition.visibility === 'published' ? 'published' : 'draft',
     },
     // A conjecture entered in an edition is the edition's, like its text: its owner and collaborators see it, and publishing publishes it.
     access.edition.ownerId,
   );
-  if (input.citations?.length) await setCitations(locals.db, { conjectureId: conjecture.id }, input.citations);
+  if (input.citations?.length)
+    await setCitations(locals.db, { conjectureId: conjecture.id }, input.citations);
   if (input.adopt) await adoptConjecture(locals.db, access.edition.id, conjecture.id);
   return json({ conjecture, adopted: input.adopt }, { status: 201 });
 };

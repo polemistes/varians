@@ -26,7 +26,8 @@
   let { data, error = null }: Props = $props();
   const s = t.merge;
 
-  const chooseHref = (slug: string) => `?${new URLSearchParams({ q: data.q, into: slug }).toString()}`;
+  const chooseHref = (slug: string) =>
+    `?${new URLSearchParams({ q: data.q, into: slug }).toString()}`;
 
   /** What moves, in words, leaving out what is nothing. */
   const moves = $derived.by(() => {
@@ -74,7 +75,14 @@
       <Field label={data.kind === 'work' ? s.findWork : s.findWitness}>
         {#snippet children(control)}
           <div class="flex gap-2">
-            <Input {...control} name="q" value={data.q} autocomplete="off" spellcheck="false" class="min-w-0 flex-1" />
+            <Input
+              {...control}
+              name="q"
+              value={data.q}
+              autocomplete="off"
+              spellcheck="false"
+              class="min-w-0 flex-1"
+            />
             <Button type="submit" variant="secondary">{s.find}</Button>
           </div>
         {/snippet}
@@ -82,13 +90,22 @@
     </form>
     {#if data.q}
       {#if data.hits.length}
-        <ul class="mt-4 divide-y divide-line rounded-md border border-line bg-surface font-sans text-sm" data-testid="merge-hits">
+        <ul
+          class="mt-4 divide-y divide-line rounded-md border border-line bg-surface font-sans text-sm"
+          data-testid="merge-hits"
+        >
           {#each data.hits as hit (hit.id)}
             <li class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 px-4 py-2.5">
               <span class="min-w-0">
-                <span class="font-serif text-base text-ink">{hit.title}</span>{#if hit.detail}<span class="text-ink-soft">, {hit.detail}</span>{/if}
+                <span class="font-serif text-base text-ink">{hit.title}</span>{#if hit.detail}<span
+                    class="text-ink-soft">, {hit.detail}</span
+                  >{/if}
               </span>
-              <a href={chooseHref(hit.slug)} class="text-accent underline-offset-2 hover:underline" aria-label={s.chooseLabel(hit.title)}>{s.choose}</a>
+              <a
+                href={chooseHref(hit.slug)}
+                class="text-accent underline-offset-2 hover:underline"
+                aria-label={s.chooseLabel(hit.title)}>{s.choose}</a
+              >
             </li>
           {/each}
         </ul>

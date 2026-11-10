@@ -44,8 +44,15 @@ describe('the health of the installation', () => {
   });
 
   it('counts a database that fails or does not answer in time as unreachable', async () => {
-    expect(await databaseState(fakeDb(() => Promise.reject(new Error('connection refused'))))).toBe('unreachable');
-    expect(await databaseState(fakeDb(() => new Promise(() => undefined)), 20)).toBe('unreachable');
+    expect(await databaseState(fakeDb(() => Promise.reject(new Error('connection refused'))))).toBe(
+      'unreachable',
+    );
+    expect(
+      await databaseState(
+        fakeDb(() => new Promise(() => undefined)),
+        20,
+      ),
+    ).toBe('unreachable');
   });
 
   it('counts a database without the migrations table as behind', async () => {
@@ -61,7 +68,13 @@ describe('the health of the installation', () => {
     expect(ok.headers.get('cache-control')).toBe('no-store');
     expect(await ok.json()).toEqual({ status: 'ok', version: VERSION, database: 'ok' });
 
-    const down = await GET({ locals: { db: fakeDb(() => Promise.reject(new Error('password authentication failed for user "varians"'))) } } as unknown as Parameters<typeof GET>[0]);
+    const down = await GET({
+      locals: {
+        db: fakeDb(() =>
+          Promise.reject(new Error('password authentication failed for user "varians"')),
+        ),
+      },
+    } as unknown as Parameters<typeof GET>[0]);
     expect(down.status).toBe(503);
     const body = await down.json();
     expect(body).toEqual({ status: 'unavailable', version: VERSION, database: 'unreachable' });

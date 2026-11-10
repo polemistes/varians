@@ -12,7 +12,10 @@
   let { data, children }: LayoutProps = $props();
 
   /** The workbench and the edition editor fill the window: no footer under them. */
-  const fullHeight = $derived(page.url.pathname.startsWith('/transcriptions/') || /^\/editions\/[^/]+\/edit$/.test(page.url.pathname));
+  const fullHeight = $derived(
+    page.url.pathname.startsWith('/transcriptions/') ||
+      /^\/editions\/[^/]+\/edit$/.test(page.url.pathname),
+  );
 
   // The server stamps data-theme and data-font on <html> for the first paint;
   // this keeps them current when the preferences change without a reload.

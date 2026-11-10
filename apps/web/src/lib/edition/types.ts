@@ -2,7 +2,16 @@
  * Client-side shapes of the edition editor: what the server's edition view
  * carries, named here so that components never import server modules.
  */
-import type { ApparatusConventions, ApparatusEntry, Attachment, Collation, LayoutLine, Stream, Unit, VariantRelation } from '@varians/core';
+import type {
+  ApparatusConventions,
+  ApparatusEntry,
+  Attachment,
+  Collation,
+  LayoutLine,
+  Stream,
+  Unit,
+  VariantRelation,
+} from '@varians/core';
 import type { EditionConventions } from '@varians/db';
 
 export interface SegmentViewClient {
@@ -14,7 +23,13 @@ export interface SegmentViewClient {
   attachments: Record<number, Attachment[]>;
   unplaced: Attachment[];
   absent: string[];
-  notes: { id: string; tokenIds: string[]; text: string; author: string | null; cites?: string[] }[];
+  notes: {
+    id: string;
+    tokenIds: string[];
+    text: string;
+    author: string | null;
+    cites?: string[];
+  }[];
   /** What attached conjectures and reported readings cite, by attachment id. */
   cites?: Record<string, string[]>;
   /** Words taken from a witness that now reads otherwise there; `now` is empty when it no longer has them. */
@@ -32,7 +47,15 @@ export interface SiglumClient {
 }
 
 export interface EditionViewClient {
-  edition: { id: string; slug: string; title: string; editors: string[]; preface: string | null; version: number; conventions: EditionConventions };
+  edition: {
+    id: string;
+    slug: string;
+    title: string;
+    editors: string[];
+    preface: string | null;
+    version: number;
+    conventions: EditionConventions;
+  };
   apparatus: ApparatusConventions;
   work: { id: string; title: string; author: string | null; language: string };
   content: Stream;
@@ -53,15 +76,30 @@ export interface ActiveSite {
 
 /** What the witness pane fetches for one segment of one transcription. */
 export interface WitnessSegment {
-  runs: { items: import('@varians/core').Item[]; pageId: string | null; read: string; written: string }[];
+  runs: {
+    items: import('@varians/core').Item[];
+    pageId: string | null;
+    read: string;
+    written: string;
+  }[];
   units: Unit[];
 }
 
 /** A collation's columns travel as arrays of pairs; this rebuilds the Maps the core expects. */
 export function reviveCollationClient(raw: unknown): Collation {
-  const data = raw as Omit<Collation, 'columns'> & { columns: ({ cells: [string, { unitIndex: number; lacunose?: boolean }][] } | { cells: Map<string, { unitIndex: number }> })[] };
+  const data = raw as Omit<Collation, 'columns'> & {
+    columns: (
+      | { cells: [string, { unitIndex: number; lacunose?: boolean }][] }
+      | { cells: Map<string, { unitIndex: number }> }
+    )[];
+  };
   return {
     ...data,
-    columns: data.columns.map((c) => ({ cells: c.cells instanceof Map ? c.cells : new Map(c.cells as [string, { unitIndex: number; lacunose?: boolean }][]) })),
+    columns: data.columns.map((c) => ({
+      cells:
+        c.cells instanceof Map
+          ? c.cells
+          : new Map(c.cells as [string, { unitIndex: number; lacunose?: boolean }][]),
+    })),
   };
 }

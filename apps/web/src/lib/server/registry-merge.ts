@@ -10,7 +10,14 @@
  * a change of the text: the id of a segment is metadata. It is rewritten in
  * place and nothing is recorded in the history.
  */
-import { formatLabel, sortKey, type Address, type Level, type Scheme, type Stream } from '@varians/core';
+import {
+  formatLabel,
+  sortKey,
+  type Address,
+  type Level,
+  type Scheme,
+  type Stream,
+} from '@varians/core';
 import {
   and,
   asc,
@@ -44,24 +51,38 @@ import {
   type WitnessHand,
 } from '@varians/db';
 import { unionIdentifiers } from '$lib/registry/identifiers';
-import type { MergeEntryRef, MergeKind, MergePreview, MergeRecord, WitnessMergePreview, WorkMergePreview } from '$lib/registry/merge';
+import type {
+  MergeEntryRef,
+  MergeKind,
+  MergePreview,
+  MergeRecord,
+  WitnessMergePreview,
+  WorkMergePreview,
+} from '$lib/registry/merge';
 import { canMergeEntries, type Actor } from './authz';
 import { forgetPastVersions, rebuildSegmentIndex } from './documents/service.ts';
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 type Db = Database | Tx;
 
-export type { MergeEntryRef, MergeKind, MergePreview, MergeRecord, WitnessMergePreview, WorkMergePreview };
+export type {
+  MergeEntryRef,
+  MergeKind,
+  MergePreview,
+  MergeRecord,
+  WitnessMergePreview,
+  WorkMergePreview,
+};
 
 export type MergeResult =
   | { ok: true; preview: MergePreview }
   | { ok: false; error: 'not-found' | 'same' | 'forbidden' }
   | { ok: false; error: 'blocked'; preview: MergePreview };
 
-
 /** Whether anything prevents the merge. */
 export function isBlocked(preview: MergePreview): boolean {
-  if (preview.kind === 'witness') return preview.blocks.bothInEdition.length > 0 || preview.blocks.pageConflicts.length > 0;
+  if (preview.kind === 'witness')
+    return preview.blocks.bothInEdition.length > 0 || preview.blocks.pageConflicts.length > 0;
   return preview.blocks.schemeDiffers || preview.blocks.labelCollisions.length > 0;
 }
 
@@ -77,44 +98,88 @@ interface Entry {
 
 async function loadEntry(db: Db, kind: MergeKind, id: string, lock = false): Promise<Entry | null> {
   if (kind === 'work') {
-    const query = db.select({ id: works.id, slug: works.slug, name: works.title, createdBy: works.createdBy }).from(works).where(eq(works.id, id));
+    const query = db
+      .select({ id: works.id, slug: works.slug, name: works.title, createdBy: works.createdBy })
+      .from(works)
+      .where(eq(works.id, id));
     const [row] = lock ? await query.for('update') : await query;
     if (!row) return null;
-    const rows = await db.select({ userId: workMaintainers.userId }).from(workMaintainers).where(eq(workMaintainers.workId, id));
+    const rows = await db
+      .select({ userId: workMaintainers.userId })
+      .from(workMaintainers)
+      .where(eq(workMaintainers.workId, id));
     return { ...row, maintainerIds: rows.map((r) => r.userId) };
   }
-  const query = db.select({ id: witnesses.id, slug: witnesses.slug, name: witnesses.name, createdBy: witnesses.createdBy }).from(witnesses).where(eq(witnesses.id, id));
+  const query = db
+    .select({
+      id: witnesses.id,
+      slug: witnesses.slug,
+      name: witnesses.name,
+      createdBy: witnesses.createdBy,
+    })
+    .from(witnesses)
+    .where(eq(witnesses.id, id));
   const [row] = lock ? await query.for('update') : await query;
   if (!row) return null;
-  const rows = await db.select({ userId: witnessMaintainers.userId }).from(witnessMaintainers).where(eq(witnessMaintainers.witnessId, id));
+  const rows = await db
+    .select({ userId: witnessMaintainers.userId })
+    .from(witnessMaintainers)
+    .where(eq(witnessMaintainers.witnessId, id));
   return { ...row, maintainerIds: rows.map((r) => r.userId) };
 }
 
 const ref = (e: Entry): MergeEntryRef => ({ id: e.id, slug: e.slug, name: e.name });
 
 /** Everyone who maintains an entry: its creator and its maintainers. */
-const maintainersOfEntry = (e: Entry) => [...new Set([...(e.createdBy ? [e.createdBy] : []), ...e.maintainerIds])];
+const maintainersOfEntry = (e: Entry) => [
+  ...new Set([...(e.createdBy ? [e.createdBy] : []), ...e.maintainerIds]),
+];
 
 /** The names of those who maintain `from` and not `into`, in the order of their names. */
-async function newMaintainers(db: Db, from: Entry, into: Entry): Promise<{ ids: string[]; names: string[] }> {
+async function newMaintainers(
+  db: Db,
+  from: Entry,
+  into: Entry,
+): Promise<{ ids: string[]; names: string[] }> {
   const already = new Set(maintainersOfEntry(into));
   const ids = maintainersOfEntry(from).filter((id) => !already.has(id));
   if (ids.length === 0) return { ids, names: [] };
-  const rows = await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, ids)).orderBy(asc(users.name));
+  const rows = await db
+    .select({ id: users.id, name: users.name })
+    .from(users)
+    .where(inArray(users.id, ids))
+    .orderBy(asc(users.name));
   return { ids: rows.map((r) => r.id), names: rows.map((r) => r.name) };
 }
 
 /** Whether the user may merge the one entry into the other; null when either is missing. */
-export async function mayMerge(db: Database, user: Actor | null, kind: MergeKind, fromId: string, intoId: string): Promise<boolean | null> {
-  const [from, into] = await Promise.all([loadEntry(db, kind, fromId), loadEntry(db, kind, intoId)]);
+export async function mayMerge(
+  db: Database,
+  user: Actor | null,
+  kind: MergeKind,
+  fromId: string,
+  intoId: string,
+): Promise<boolean | null> {
+  const [from, into] = await Promise.all([
+    loadEntry(db, kind, fromId),
+    loadEntry(db, kind, intoId),
+  ]);
   if (!from || !into) return null;
   return canMergeEntries(user, from, into);
 }
 
 /** The earlier merges into an entry, oldest first, for its page. */
-export async function mergesInto(db: Database, kind: MergeKind, id: string): Promise<MergeRecord[]> {
+export async function mergesInto(
+  db: Database,
+  kind: MergeKind,
+  id: string,
+): Promise<MergeRecord[]> {
   const rows = await db
-    .select({ oldId: registryMerges.oldId, label: registryMerges.label, mergedAt: registryMerges.mergedAt })
+    .select({
+      oldId: registryMerges.oldId,
+      label: registryMerges.label,
+      mergedAt: registryMerges.mergedAt,
+    })
     .from(registryMerges)
     .where(and(eq(registryMerges.kind, kind), eq(registryMerges.survivorId, id)))
     .orderBy(asc(registryMerges.mergedAt), asc(registryMerges.label));
@@ -122,30 +187,62 @@ export async function mergesInto(db: Database, kind: MergeKind, id: string): Pro
 }
 
 /** Records the merge, and points earlier merges into the merged entry at the survivor, so that chains stay one step long. */
-async function recordMerge(tx: Tx, kind: MergeKind, from: Entry, intoId: string, userId: string): Promise<void> {
+async function recordMerge(
+  tx: Tx,
+  kind: MergeKind,
+  from: Entry,
+  intoId: string,
+  userId: string,
+): Promise<void> {
   await tx
     .update(registryMerges)
     .set({ survivorId: intoId })
     .where(and(eq(registryMerges.kind, kind), eq(registryMerges.survivorId, from.id)));
-  await tx.insert(registryMerges).values({ oldId: from.id, kind, survivorId: intoId, label: from.name, mergedBy: userId });
+  await tx
+    .insert(registryMerges)
+    .values({ oldId: from.id, kind, survivorId: intoId, label: from.name, mergedBy: userId });
 }
 
 /** Adds the maintainers of the merged entry to the survivor, keeping the date each became a maintainer. */
-async function addMaintainers(tx: Tx, kind: MergeKind, from: Entry, intoId: string, ids: string[]): Promise<void> {
+async function addMaintainers(
+  tx: Tx,
+  kind: MergeKind,
+  from: Entry,
+  intoId: string,
+  ids: string[],
+): Promise<void> {
   if (ids.length === 0) return;
   if (kind === 'work') {
-    const since = await tx.select().from(workMaintainers).where(eq(workMaintainers.workId, from.id));
+    const since = await tx
+      .select()
+      .from(workMaintainers)
+      .where(eq(workMaintainers.workId, from.id));
     const at = new Map(since.map((r) => [r.userId, r.createdAt] as const));
     await tx
       .insert(workMaintainers)
-      .values(ids.map((userId) => ({ workId: intoId, userId, ...(at.has(userId) ? { createdAt: at.get(userId)! } : {}) })))
+      .values(
+        ids.map((userId) => ({
+          workId: intoId,
+          userId,
+          ...(at.has(userId) ? { createdAt: at.get(userId)! } : {}),
+        })),
+      )
       .onConflictDoNothing();
   } else {
-    const since = await tx.select().from(witnessMaintainers).where(eq(witnessMaintainers.witnessId, from.id));
+    const since = await tx
+      .select()
+      .from(witnessMaintainers)
+      .where(eq(witnessMaintainers.witnessId, from.id));
     const at = new Map(since.map((r) => [r.userId, r.createdAt] as const));
     await tx
       .insert(witnessMaintainers)
-      .values(ids.map((userId) => ({ witnessId: intoId, userId, ...(at.has(userId) ? { createdAt: at.get(userId)! } : {}) })))
+      .values(
+        ids.map((userId) => ({
+          witnessId: intoId,
+          userId,
+          ...(at.has(userId) ? { createdAt: at.get(userId)! } : {}),
+        })),
+      )
       .onConflictDoNothing();
   }
 }
@@ -153,7 +250,10 @@ async function addMaintainers(tx: Tx, kind: MergeKind, from: Entry, intoId: stri
 const identifierText = (i: CanonicalIdentifier) => i.value;
 
 /** The identifiers of `from` that `into` lacks. */
-function addedIdentifiers(from: CanonicalIdentifier[], into: CanonicalIdentifier[]): CanonicalIdentifier[] {
+function addedIdentifiers(
+  from: CanonicalIdentifier[],
+  into: CanonicalIdentifier[],
+): CanonicalIdentifier[] {
   const have = new Set(into.map((i) => `${i.scheme}\u0000${i.value}`));
   return unionIdentifiers([], from).filter((i) => !have.has(`${i.scheme}\u0000${i.value}`));
 }
@@ -161,8 +261,14 @@ function addedIdentifiers(from: CanonicalIdentifier[], into: CanonicalIdentifier
 // Witnesses
 
 async function witnessPreview(db: Db, from: Entry, into: Entry): Promise<WitnessMergePreview> {
-  const [fromRow] = await db.select({ hands: witnesses.hands, identifiers: witnesses.identifiers }).from(witnesses).where(eq(witnesses.id, from.id));
-  const [intoRow] = await db.select({ hands: witnesses.hands, identifiers: witnesses.identifiers }).from(witnesses).where(eq(witnesses.id, into.id));
+  const [fromRow] = await db
+    .select({ hands: witnesses.hands, identifiers: witnesses.identifiers })
+    .from(witnesses)
+    .where(eq(witnesses.id, from.id));
+  const [intoRow] = await db
+    .select({ hands: witnesses.hands, identifiers: witnesses.identifiers })
+    .from(witnesses)
+    .where(eq(witnesses.id, into.id));
   const [{ n: transcriptionCount }] = (await db
     .select({ n: sql<number>`count(*)::int` })
     .from(transcriptions)
@@ -172,30 +278,44 @@ async function witnessPreview(db: Db, from: Entry, into: Entry): Promise<Witness
     .from(reportedReadings)
     .where(eq(reportedReadings.witnessId, from.id))) as [{ n: number }];
   const siglaRows = await db
-    .select({ editionId: editionSigla.editionId, witnessId: editionSigla.witnessId, title: editions.title })
+    .select({
+      editionId: editionSigla.editionId,
+      witnessId: editionSigla.witnessId,
+      title: editions.title,
+    })
     .from(editionSigla)
     .innerJoin(editions, eq(editions.id, editionSigla.editionId))
     .where(inArray(editionSigla.witnessId, [from.id, into.id]))
     .orderBy(asc(editions.title));
-  const naming = (witnessId: string) => new Set(siglaRows.filter((r) => r.witnessId === witnessId).map((r) => r.editionId));
+  const naming = (witnessId: string) =>
+    new Set(siglaRows.filter((r) => r.witnessId === witnessId).map((r) => r.editionId));
   const namesFrom = naming(from.id);
   const namesInto = naming(into.id);
   const titleOf = new Map(siglaRows.map((r) => [r.editionId, r.title] as const));
   const sigla = [...namesFrom].map((id) => titleOf.get(id)!).sort((a, b) => a.localeCompare(b));
-  const bothInEdition = [...namesFrom].filter((id) => namesInto.has(id)).map((id) => titleOf.get(id)!).sort((a, b) => a.localeCompare(b));
+  const bothInEdition = [...namesFrom]
+    .filter((id) => namesInto.has(id))
+    .map((id) => titleOf.get(id)!)
+    .sort((a, b) => a.localeCompare(b));
 
   const pageRows = await db
     .select({ witnessId: pages.witnessId, label: pages.label })
     .from(pages)
     .where(inArray(pages.witnessId, [from.id, into.id]))
     .orderBy(asc(pages.position));
-  const intoLabels = new Set(pageRows.filter((p) => p.witnessId === into.id).map((p) => p.label.trim()));
+  const intoLabels = new Set(
+    pageRows.filter((p) => p.witnessId === into.id).map((p) => p.label.trim()),
+  );
   const fromPages = pageRows.filter((p) => p.witnessId === from.id);
-  const pageConflicts = [...new Set(fromPages.map((p) => p.label.trim()).filter((label) => intoLabels.has(label)))];
+  const pageConflicts = [
+    ...new Set(fromPages.map((p) => p.label.trim()).filter((label) => intoLabels.has(label))),
+  ];
 
   const intoHandIds = new Set((intoRow?.hands ?? []).map((h) => h.id));
   const hands = (fromRow?.hands ?? []).filter((h) => !intoHandIds.has(h.id)).map((h) => h.label);
-  const identifiers = addedIdentifiers(fromRow?.identifiers ?? [], intoRow?.identifiers ?? []).map(identifierText);
+  const identifiers = addedIdentifiers(fromRow?.identifiers ?? [], intoRow?.identifiers ?? []).map(
+    identifierText,
+  );
   const maintainers = await newMaintainers(db, from, into);
 
   return {
@@ -216,8 +336,15 @@ async function witnessPreview(db: Db, from: Entry, into: Entry): Promise<Witness
 }
 
 /** What merging one witness into another would move, and what prevents it; null when either is missing. */
-export async function previewWitnessMerge(db: Database, fromId: string, intoId: string): Promise<WitnessMergePreview | null> {
-  const [from, into] = await Promise.all([loadEntry(db, 'witness', fromId), loadEntry(db, 'witness', intoId)]);
+export async function previewWitnessMerge(
+  db: Database,
+  fromId: string,
+  intoId: string,
+): Promise<WitnessMergePreview | null> {
+  const [from, into] = await Promise.all([
+    loadEntry(db, 'witness', fromId),
+    loadEntry(db, 'witness', intoId),
+  ]);
   if (!from || !into || from.id === into.id) return null;
   return witnessPreview(db, from, into);
 }
@@ -229,7 +356,12 @@ export async function previewWitnessMerge(db: Database, fromId: string, intoId: 
  * the merge recorded. Refused for anyone but an administrator or a
  * maintainer of both, and while the preview names anything that prevents it.
  */
-export async function mergeWitnesses(db: Database, fromId: string, intoId: string, user: Actor | null): Promise<MergeResult> {
+export async function mergeWitnesses(
+  db: Database,
+  fromId: string,
+  intoId: string,
+  user: Actor | null,
+): Promise<MergeResult> {
   if (fromId === intoId) return { ok: false, error: 'same' };
   return db.transaction(async (tx): Promise<MergeResult> => {
     // Locked in a fixed order, so that two merges of the same pair cannot deadlock.
@@ -248,16 +380,31 @@ export async function mergeWitnesses(db: Database, fromId: string, intoId: strin
       .select({ max: sql<number>`coalesce(max(${pages.position}), 0)::float8` })
       .from(pages)
       .where(eq(pages.witnessId, into.id))) as [{ max: number }];
-    const fromPages = await tx.select({ id: pages.id }).from(pages).where(eq(pages.witnessId, from.id)).orderBy(asc(pages.position), asc(pages.createdAt));
+    const fromPages = await tx
+      .select({ id: pages.id })
+      .from(pages)
+      .where(eq(pages.witnessId, from.id))
+      .orderBy(asc(pages.position), asc(pages.createdAt));
     for (let i = 0; i < fromPages.length; i += 500) {
-      const rows = fromPages.slice(i, i + 500).map((p, k) => sql`(${p.id}::text, ${Number(max) + i + k + 1}::float8)`);
+      const rows = fromPages
+        .slice(i, i + 500)
+        .map((p, k) => sql`(${p.id}::text, ${Number(max) + i + k + 1}::float8)`);
       await tx.execute(
         sql`update ${pages} set witness_id = ${into.id}, position = v.position from (values ${sql.join(rows, sql`, `)}) as v(id, position) where ${pages.id} = v.id`,
       );
     }
-    await tx.update(transcriptions).set({ witnessId: into.id }).where(eq(transcriptions.witnessId, from.id));
-    await tx.update(reportedReadings).set({ witnessId: into.id }).where(eq(reportedReadings.witnessId, from.id));
-    await tx.update(editionSigla).set({ witnessId: into.id }).where(eq(editionSigla.witnessId, from.id));
+    await tx
+      .update(transcriptions)
+      .set({ witnessId: into.id })
+      .where(eq(transcriptions.witnessId, from.id));
+    await tx
+      .update(reportedReadings)
+      .set({ witnessId: into.id })
+      .where(eq(reportedReadings.witnessId, from.id));
+    await tx
+      .update(editionSigla)
+      .set({ witnessId: into.id })
+      .where(eq(editionSigla.witnessId, from.id));
     // A published edition's basis names its witnesses: it keeps naming the same one under its new id.
     await tx.execute(
       sql`update ${moments} set basis = replace(basis::text, ${JSON.stringify(from.id)}, ${JSON.stringify(into.id)})::jsonb where basis is not null and strpos(basis::text, ${JSON.stringify(from.id)}) > 0`,
@@ -266,11 +413,20 @@ export async function mergeWitnesses(db: Database, fromId: string, intoId: strin
     const maintainers = await newMaintainers(tx, from, into);
     await addMaintainers(tx, 'witness', from, into.id, maintainers.ids);
 
-    const [fromRow] = await tx.select({ hands: witnesses.hands, identifiers: witnesses.identifiers }).from(witnesses).where(eq(witnesses.id, from.id));
-    const [intoRow] = await tx.select({ hands: witnesses.hands, identifiers: witnesses.identifiers }).from(witnesses).where(eq(witnesses.id, into.id));
+    const [fromRow] = await tx
+      .select({ hands: witnesses.hands, identifiers: witnesses.identifiers })
+      .from(witnesses)
+      .where(eq(witnesses.id, from.id));
+    const [intoRow] = await tx
+      .select({ hands: witnesses.hands, identifiers: witnesses.identifiers })
+      .from(witnesses)
+      .where(eq(witnesses.id, into.id));
     const haveHands = new Set(intoRow!.hands.map((h) => h.id));
     // The marks of corrections in the moved transcripts name their hands by id: those hands come along, none as the scribe.
-    const hands: WitnessHand[] = [...intoRow!.hands, ...fromRow!.hands.filter((h) => !haveHands.has(h.id)).map((h) => ({ ...h, main: false }))];
+    const hands: WitnessHand[] = [
+      ...intoRow!.hands,
+      ...fromRow!.hands.filter((h) => !haveHands.has(h.id)).map((h) => ({ ...h, main: false })),
+    ];
     await tx
       .update(witnesses)
       .set({ hands, identifiers: unionIdentifiers(intoRow!.identifiers, fromRow!.identifiers) })
@@ -286,7 +442,10 @@ export async function mergeWitnesses(db: Database, fromId: string, intoId: strin
 
 /** Whether two schemes have the same levels: the same keys and types in the same order. Labels and separators may differ. */
 export function sameLevels(a: Level[], b: Level[]): boolean {
-  return a.length === b.length && a.every((level, i) => level.key === b[i]!.key && level.type === b[i]!.type);
+  return (
+    a.length === b.length &&
+    a.every((level, i) => level.key === b[i]!.key && level.type === b[i]!.type)
+  );
 }
 
 /** An address as a key: the values of the scheme's levels in order, so that the same address gives the same key. */
@@ -328,7 +487,12 @@ async function workPlan(db: Db, from: Entry, into: Entry): Promise<WorkPlan> {
   const intoScheme: Scheme = { levels: intoRow.levels };
 
   const segmentRows = await db
-    .select({ id: segments.id, workId: segments.workId, address: segments.address, label: segments.label })
+    .select({
+      id: segments.id,
+      workId: segments.workId,
+      address: segments.address,
+      label: segments.label,
+    })
     .from(segments)
     .where(inArray(segments.workId, [from.id, into.id]));
   const matched = new Map<string, string>();
@@ -361,13 +525,33 @@ async function workPlan(db: Db, from: Entry, into: Entry): Promise<WorkPlan> {
       .where(eq(table.workId, from.id))) as [{ n: number }];
     return n;
   };
-  const editionRows = await db.select({ id: editions.id, title: editions.title }).from(editions).where(eq(editions.workId, from.id)).orderBy(asc(editions.title));
-  const viaText = await db.selectDistinct({ id: transcriptionSegments.transcriptionId }).from(transcriptionSegments).where(eq(transcriptionSegments.workId, from.id));
-  const viaChoice = await db.select({ id: transcriptionWorks.transcriptionId }).from(transcriptionWorks).where(eq(transcriptionWorks.workId, from.id));
+  const editionRows = await db
+    .select({ id: editions.id, title: editions.title })
+    .from(editions)
+    .where(eq(editions.workId, from.id))
+    .orderBy(asc(editions.title));
+  const viaText = await db
+    .selectDistinct({ id: transcriptionSegments.transcriptionId })
+    .from(transcriptionSegments)
+    .where(eq(transcriptionSegments.workId, from.id));
+  const viaChoice = await db
+    .select({ id: transcriptionWorks.transcriptionId })
+    .from(transcriptionWorks)
+    .where(eq(transcriptionWorks.workId, from.id));
   const transcriptionIds = [...new Set([...viaText, ...viaChoice].map((r) => r.id))];
   const maintainers = await newMaintainers(db, from, into);
-  const extra = [...(fromRow.identifier && fromRow.identifier !== intoRow.identifier ? [primaryAsIdentifier(fromRow.identifier)] : [])];
-  const identifiers = addedIdentifiers([...extra, ...fromRow.identifiers], [...(intoRow.identifier ? [primaryAsIdentifier(intoRow.identifier)] : []), ...intoRow.identifiers]);
+  const extra = [
+    ...(fromRow.identifier && fromRow.identifier !== intoRow.identifier
+      ? [primaryAsIdentifier(fromRow.identifier)]
+      : []),
+  ];
+  const identifiers = addedIdentifiers(
+    [...extra, ...fromRow.identifiers],
+    [
+      ...(intoRow.identifier ? [primaryAsIdentifier(intoRow.identifier)] : []),
+      ...intoRow.identifiers,
+    ],
+  );
 
   return {
     preview: {
@@ -405,8 +589,15 @@ function primaryAsIdentifier(value: string): CanonicalIdentifier {
 }
 
 /** What merging one work into another would move, and what prevents it; null when either is missing. */
-export async function previewWorkMerge(db: Database, fromId: string, intoId: string): Promise<WorkMergePreview | null> {
-  const [from, into] = await Promise.all([loadEntry(db, 'work', fromId), loadEntry(db, 'work', intoId)]);
+export async function previewWorkMerge(
+  db: Database,
+  fromId: string,
+  intoId: string,
+): Promise<WorkMergePreview | null> {
+  const [from, into] = await Promise.all([
+    loadEntry(db, 'work', fromId),
+    loadEntry(db, 'work', intoId),
+  ]);
   if (!from || !into || from.id === into.id) return null;
   return (await workPlan(db, from, into)).preview;
 }
@@ -444,7 +635,12 @@ export function replaceIds<T>(value: T, map: Map<string, string>): T {
 export function renumberParts(stream: Stream, segmentIds: Set<string>): Stream {
   const runs = new Map<string, { index: number; part: number }[]>();
   stream.items.forEach((item, index) => {
-    if (item.kind === 'break' || !item.segment?.segmentId || !segmentIds.has(item.segment.segmentId)) return;
+    if (
+      item.kind === 'break' ||
+      !item.segment?.segmentId ||
+      !segmentIds.has(item.segment.segmentId)
+    )
+      return;
     const id = item.segment.segmentId;
     runs.set(id, [...(runs.get(id) ?? []), { index, part: item.segment.part ?? 1 }]);
   });
@@ -456,7 +652,8 @@ export function renumberParts(stream: Stream, segmentIds: Set<string>): Stream {
       .sort((a, b) => a.part - b.part || a.index - b.index)
       .forEach((run, k) => {
         const item = items[run.index]!;
-        if (item.kind !== 'break' && item.segment) items[run.index] = { ...item, segment: { ...item.segment, part: k + 1 } };
+        if (item.kind !== 'break' && item.segment)
+          items[run.index] = { ...item, segment: { ...item.segment, part: k + 1 } };
       });
   }
   return items === stream.items ? stream : { items };
@@ -466,7 +663,9 @@ export function renumberParts(stream: Stream, segmentIds: Set<string>): Stream {
 async function remapColumn(tx: Tx, table: SQL, pairs: [string, string][]): Promise<void> {
   for (let i = 0; i < pairs.length; i += 500) {
     const rows = pairs.slice(i, i + 500).map(([o, n]) => sql`(${o}::text, ${n}::text)`);
-    await tx.execute(sql`update ${table} as t set segment_id = m.new_id from (values ${sql.join(rows, sql`, `)}) as m(old_id, new_id) where t.segment_id = m.old_id`);
+    await tx.execute(
+      sql`update ${table} as t set segment_id = m.new_id from (values ${sql.join(rows, sql`, `)}) as m(old_id, new_id) where t.segment_id = m.old_id`,
+    );
   }
 }
 
@@ -480,12 +679,20 @@ async function remapKeyed(tx: Tx, table: SQL, pairs: [string, string][]): Promis
     await tx.execute(
       sql`delete from ${table} as t using ${values} as m(old_id, new_id) where t.segment_id = m.old_id and exists (select 1 from ${table} as u where u.edition_id = t.edition_id and u.segment_id = m.new_id and u.site_key = t.site_key)`,
     );
-    await tx.execute(sql`update ${table} as t set segment_id = m.new_id from ${values} as m(old_id, new_id) where t.segment_id = m.old_id`);
+    await tx.execute(
+      sql`update ${table} as t set segment_id = m.new_id from ${values} as m(old_id, new_id) where t.segment_id = m.old_id`,
+    );
   }
 }
 
 /** Rewrites the segment ids in a document's stored text, checkpoints and history; records nothing. */
-async function rewriteDocument(tx: Tx, kind: 'transcription' | 'edition', id: string, map: Map<string, string>, targets: Set<string>): Promise<Stream | null> {
+async function rewriteDocument(
+  tx: Tx,
+  kind: 'transcription' | 'edition',
+  id: string,
+  map: Map<string, string>,
+  targets: Set<string>,
+): Promise<Stream | null> {
   const table = kind === 'transcription' ? transcriptions : editions;
   const [row] = await tx.select({ content: table.content }).from(table).where(eq(table.id, id));
   if (!row) return null;
@@ -501,7 +708,13 @@ async function rewriteDocument(tx: Tx, kind: 'transcription' | 'edition', id: st
       await tx
         .update(checkpoints)
         .set({ content: rewritten })
-        .where(and(eq(checkpoints.documentKind, kind), eq(checkpoints.documentId, id), eq(checkpoints.version, checkpoint.version)));
+        .where(
+          and(
+            eq(checkpoints.documentKind, kind),
+            eq(checkpoints.documentId, id),
+            eq(checkpoints.version, checkpoint.version),
+          ),
+        );
   }
   const history = await tx
     .select({ id: changesets.id, ops: changesets.ops, reverse: changesets.reverse })
@@ -510,13 +723,17 @@ async function rewriteDocument(tx: Tx, kind: 'transcription' | 'edition', id: st
       and(
         eq(changesets.documentKind, kind),
         eq(changesets.documentId, id),
-        or(sql`strpos(${changesets.ops}::text, '"segmentId"') > 0`, sql`strpos(${changesets.reverse}::text, '"segmentId"') > 0`),
+        or(
+          sql`strpos(${changesets.ops}::text, '"segmentId"') > 0`,
+          sql`strpos(${changesets.reverse}::text, '"segmentId"') > 0`,
+        ),
       ),
     );
   for (const c of history) {
     const ops = replaceIds(c.ops, map);
     const reverse = replaceIds(c.reverse, map);
-    if (ops !== c.ops || reverse !== c.reverse) await tx.update(changesets).set({ ops, reverse }).where(eq(changesets.id, c.id));
+    if (ops !== c.ops || reverse !== c.reverse)
+      await tx.update(changesets).set({ ops, reverse }).where(eq(changesets.id, c.id));
   }
   return content;
 }
@@ -533,7 +750,12 @@ async function rewriteDocument(tx: Tx, kind: 'transcription' | 'edition', id: st
  * merge recorded. Refused for anyone but an administrator or a maintainer of
  * both, and while the preview names anything that prevents it.
  */
-export async function mergeWorks(db: Database, fromId: string, intoId: string, user: Actor | null): Promise<MergeResult> {
+export async function mergeWorks(
+  db: Database,
+  fromId: string,
+  intoId: string,
+  user: Actor | null,
+): Promise<MergeResult> {
   if (fromId === intoId) return { ok: false, error: 'same' };
   const rewritten: { kind: 'transcription' | 'edition'; id: string }[] = [];
   const result = await db.transaction(async (tx): Promise<MergeResult> => {
@@ -550,8 +772,14 @@ export async function mergeWorks(db: Database, fromId: string, intoId: string, u
     const pairs = [...plan.matched];
     const targets = new Set(plan.matched.values());
     // The editions of either work: their cached collations go, as their witnesses' segments change.
-    const allEditionIds = (await tx.select({ id: editions.id }).from(editions).where(inArray(editions.workId, [from.id, into.id]))).map((e) => e.id);
-    if (allEditionIds.length) await tx.delete(collationCache).where(inArray(collationCache.editionId, allEditionIds));
+    const allEditionIds = (
+      await tx
+        .select({ id: editions.id })
+        .from(editions)
+        .where(inArray(editions.workId, [from.id, into.id]))
+    ).map((e) => e.id);
+    if (allEditionIds.length)
+      await tx.delete(collationCache).where(inArray(collationCache.editionId, allEditionIds));
 
     if (pairs.length) {
       await remapColumn(tx, sql`conjectures`, pairs);
@@ -565,25 +793,39 @@ export async function mergeWorks(db: Database, fromId: string, intoId: string, u
       const sequences = await tx
         .select({ id: conjectures.id, sequence: conjectures.sequence })
         .from(conjectures)
-        .where(and(inArray(conjectures.workId, [from.id, into.id]), sql`${conjectures.sequence} is not null`));
+        .where(
+          and(
+            inArray(conjectures.workId, [from.id, into.id]),
+            sql`${conjectures.sequence} is not null`,
+          ),
+        );
       for (const c of sequences) {
         const sequence = replaceIds(c.sequence, plan.matched);
-        if (sequence !== c.sequence) await tx.update(conjectures).set({ sequence }).where(eq(conjectures.id, c.id));
+        if (sequence !== c.sequence)
+          await tx.update(conjectures).set({ sequence }).where(eq(conjectures.id, c.id));
       }
     }
 
     // Segments the survivor lacks move to it, labelled in its scheme.
     for (let i = 0; i < plan.moved.length; i += 500) {
-      const rows = plan.moved.slice(i, i + 500).map((m) => sql`(${m.id}::text, ${m.label}::text, ${m.sortKey}::text)`);
+      const rows = plan.moved
+        .slice(i, i + 500)
+        .map((m) => sql`(${m.id}::text, ${m.label}::text, ${m.sortKey}::text)`);
       await tx.execute(
         sql`update ${segments} set work_id = ${into.id}, label = v.label, sort_key = v.sort_key from (values ${sql.join(rows, sql`, `)}) as v(id, label, sort_key) where ${segments.id} = v.id`,
       );
     }
 
     await tx.update(conjectures).set({ workId: into.id }).where(eq(conjectures.workId, from.id));
-    await tx.update(reportedReadings).set({ workId: into.id }).where(eq(reportedReadings.workId, from.id));
+    await tx
+      .update(reportedReadings)
+      .set({ workId: into.id })
+      .where(eq(reportedReadings.workId, from.id));
     await tx.update(editions).set({ workId: into.id }).where(eq(editions.workId, from.id));
-    const chosen = await tx.select().from(transcriptionWorks).where(eq(transcriptionWorks.workId, from.id));
+    const chosen = await tx
+      .select()
+      .from(transcriptionWorks)
+      .where(eq(transcriptionWorks.workId, from.id));
     if (chosen.length) {
       await tx
         .insert(transcriptionWorks)
@@ -594,9 +836,18 @@ export async function mergeWorks(db: Database, fromId: string, intoId: string, u
 
     // The texts: segment ids moved in place, and the index of each transcription built again.
     for (const id of plan.transcriptionIds) {
-      const content = pairs.length ? await rewriteDocument(tx, 'transcription', id, plan.matched, targets) : null;
+      const content = pairs.length
+        ? await rewriteDocument(tx, 'transcription', id, plan.matched, targets)
+        : null;
       if (pairs.length) rewritten.push({ kind: 'transcription', id });
-      const stream = content ?? (await tx.select({ content: transcriptions.content }).from(transcriptions).where(eq(transcriptions.id, id)))[0]?.content;
+      const stream =
+        content ??
+        (
+          await tx
+            .select({ content: transcriptions.content })
+            .from(transcriptions)
+            .where(eq(transcriptions.id, id))
+        )[0]?.content;
       if (stream) await rebuildSegmentIndex(tx as unknown as Database, id, stream);
     }
     if (pairs.length) {
@@ -609,10 +860,19 @@ export async function mergeWorks(db: Database, fromId: string, intoId: string, u
     await addMaintainers(tx, 'work', from, into.id, plan.newMaintainerIds);
     // The survivor keeps its own primary identifier; the merged work's goes with the others.
     const intoIdentifier = plan.intoIdentifier ?? plan.fromIdentifier;
-    const fromPrimary = plan.fromIdentifier && plan.fromIdentifier !== intoIdentifier ? [primaryAsIdentifier(plan.fromIdentifier)] : [];
+    const fromPrimary =
+      plan.fromIdentifier && plan.fromIdentifier !== intoIdentifier
+        ? [primaryAsIdentifier(plan.fromIdentifier)]
+        : [];
     await tx
       .update(works)
-      .set({ identifier: intoIdentifier, identifiers: unionIdentifiers(plan.intoIdentifiers, [...fromPrimary, ...plan.fromIdentifiers]) })
+      .set({
+        identifier: intoIdentifier,
+        identifiers: unionIdentifiers(plan.intoIdentifiers, [
+          ...fromPrimary,
+          ...plan.fromIdentifiers,
+        ]),
+      })
       .where(eq(works.id, into.id));
 
     // What is left of the merged work: its matched segments, now referred to by nothing.
@@ -622,7 +882,8 @@ export async function mergeWorks(db: Database, fromId: string, intoId: string, u
       .select({ n: sql<number>`count(*)::int` })
       .from(works)
       .where(eq(works.schemeId, plan.fromSchemeId))) as [{ n: number }];
-    if (sharers === 0) await tx.delete(referenceSchemes).where(eq(referenceSchemes.id, plan.fromSchemeId));
+    if (sharers === 0)
+      await tx.delete(referenceSchemes).where(eq(referenceSchemes.id, plan.fromSchemeId));
     await recordMerge(tx, 'work', from, into.id, user.id);
     return { ok: true, preview: plan.preview };
   });

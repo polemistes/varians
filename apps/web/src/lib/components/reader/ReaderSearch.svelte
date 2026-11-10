@@ -37,7 +37,8 @@
   function globalKey(event: KeyboardEvent) {
     if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return;
     const target = event.target as HTMLElement | null;
-    if (target && (target.isContentEditable || /^(input|textarea|select)$/i.test(target.tagName))) return;
+    if (target && (target.isContentEditable || /^(input|textarea|select)$/i.test(target.tagName)))
+      return;
     event.preventDefault();
     input?.focus();
   }
@@ -47,7 +48,10 @@
 
 <div class="reader-search flex min-w-0 items-center gap-1" role="search">
   <div class="relative min-w-0">
-    <Search class="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
+    <Search
+      class="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-ink-muted"
+      aria-hidden="true"
+    />
     <input
       bind:this={input}
       type="search"

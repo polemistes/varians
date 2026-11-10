@@ -17,7 +17,14 @@
     <AuthForm formError={form?.errors?.form} submitLabel={s.auth.resetAction}>
       <Field label={s.auth.email} error={form?.errors?.email}>
         {#snippet children(control)}
-          <Input {...control} name="email" type="email" autocomplete="email" required value={form?.values?.email ?? ''} />
+          <Input
+            {...control}
+            name="email"
+            type="email"
+            autocomplete="email"
+            required
+            value={form?.values?.email ?? ''}
+          />
         {/snippet}
       </Field>
       {#snippet aside()}

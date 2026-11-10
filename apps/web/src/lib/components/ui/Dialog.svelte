@@ -51,7 +51,8 @@
         <div class="min-w-0">
           <Dialog.Title class="text-base font-semibold text-ink">{title}</Dialog.Title>
           {#if description}
-            <Dialog.Description class="mt-1 text-sm text-ink-soft">{description}</Dialog.Description>
+            <Dialog.Description class="mt-1 text-sm text-ink-soft">{description}</Dialog.Description
+            >
           {/if}
         </div>
         <Dialog.Close

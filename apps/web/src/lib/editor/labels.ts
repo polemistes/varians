@@ -70,7 +70,11 @@ export const editorStrings = {
   runningSegment: 'The segment continues from before; click to set the segment of this word',
   editor: 'Transcription text',
   /** A variant noted in the carrier, by where it stands. */
-  variantPlaces: { margin: 'in the margin', interlinear: 'between the lines', other: 'elsewhere' } as Record<string, string>,
+  variantPlaces: {
+    margin: 'in the margin',
+    interlinear: 'between the lines',
+    other: 'elsewhere',
+  } as Record<string, string>,
   /** What a variant that leaves the words out reads. */
   variantOmits: 'leaves these words out',
   variantHand: (hand: string) => `hand ${hand}`,
@@ -78,7 +82,8 @@ export const editorStrings = {
   correctionHand: (hand: string) => `hand ${hand}`,
   correctionStage: (n: number) => `stage ${n}`,
   /** The title of words a variant covers: `{reading}` its words, `{place}` where it stands. */
-  variantTitle: (reading: string, place: string) => (reading === '' ? `Variant ${place}: leaves these words out` : `Variant ${place}: ${reading}`),
+  variantTitle: (reading: string, place: string) =>
+    reading === '' ? `Variant ${place}: leaves these words out` : `Variant ${place}: ${reading}`,
 };
 
 export const toolbarStrings = {

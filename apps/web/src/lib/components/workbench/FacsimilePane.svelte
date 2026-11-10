@@ -19,8 +19,22 @@
   import FacsimileViewer from '$lib/components/facsimile/FacsimileViewer.svelte';
   import BoxGroup from '$lib/components/facsimile/BoxGroup.svelte';
   import ImageCredit from '$lib/components/facsimile/ImageCredit.svelte';
-  import PageImageDialog, { type ImageChoice, type ImageRequest } from '$lib/components/pages/PageImageDialog.svelte';
-  import { Button, Checkbox, Dialog, EmptyState, Menu, MenuItem, MenuSeparator, Select, Spinner, toasts } from '$lib/components/ui';
+  import PageImageDialog, {
+    type ImageChoice,
+    type ImageRequest,
+  } from '$lib/components/pages/PageImageDialog.svelte';
+  import {
+    Button,
+    Checkbox,
+    Dialog,
+    EmptyState,
+    Menu,
+    MenuItem,
+    MenuSeparator,
+    Select,
+    Spinner,
+    toasts,
+  } from '$lib/components/ui';
   import { UNPLACED } from '$lib/workbench/pages';
   import { failureMessage, megabytes, uploadToAction } from '$lib/components/pages/client';
   import { ACCEPT_IMAGES, isImageFile } from '$lib/components/pages/files';
@@ -36,7 +50,15 @@
     zonesOfTokens,
   } from '$lib/workbench/mapping';
   import { workbench as t } from '$lib/strings/workbench';
-  import { afterRedo, afterUndo, emptyHistory, nextRedo, nextUndo, recordAction, type ZoneAction } from '$lib/workbench/zone-history';
+  import {
+    afterRedo,
+    afterUndo,
+    emptyHistory,
+    nextRedo,
+    nextUndo,
+    recordAction,
+    type ZoneAction,
+  } from '$lib/workbench/zone-history';
   import { linesInBox } from './detect';
   import FeatureDialog from './FeatureDialog.svelte';
   import type { Workbench, Zone } from './workbench.svelte';
@@ -85,23 +107,44 @@
   const page = $derived(wb.witnessPage);
   /** Words can be mapped here: an editor, on a page's own view. */
   const mapping = $derived(wb.canEdit && wb.onPage);
-  const unmappableTitle = $derived(wb.view === UNPLACED ? t.move.notMappable : t.move.notMappableWhole);
-  const facsimileOptions = $derived(wb.pages.map((p) => ({ value: p.id, label: wb.textOnPages.has(p.id) ? `${p.label} ●` : p.label })));
+  const unmappableTitle = $derived(
+    wb.view === UNPLACED ? t.move.notMappable : t.move.notMappableWhole,
+  );
+  const facsimileOptions = $derived(
+    wb.pages.map((p) => ({
+      value: p.id,
+      label: wb.textOnPages.has(p.id) ? `${p.label} ●` : p.label,
+    })),
+  );
   const zones = $derived<Zone[]>(wb.pageZones ?? []);
   /** The boxes of a group as a drag has them, before they are saved. */
   let preview = $state.raw<Map<string, ZoneGeometry> | null>(null);
   const viewerZones = $derived<FacsimileZone[]>(
-    zones.map((z) => ({ id: z.id, geometry: preview?.get(z.id) ?? z.geometry, tokenIds: z.tokenIds, kind: z.feature ? 'feature' : 'word' })),
+    zones.map((z) => ({
+      id: z.id,
+      geometry: preview?.get(z.id) ?? z.geometry,
+      tokenIds: z.tokenIds,
+      kind: z.feature ? 'feature' : 'word',
+    })),
   );
   /** The image's height over its width, once the viewer has it; turning boxes keeps their shape in pixels. */
   let imageSize = $state<{ width: number; height: number } | null>(null);
   const aspect = $derived(
-    imageSize && imageSize.width > 0 ? imageSize.height / imageSize.width : page?.width && page.height ? page.height / page.width : 1,
+    imageSize && imageSize.width > 0
+      ? imageSize.height / imageSize.width
+      : page?.width && page.height
+        ? page.height / page.width
+        : 1,
   );
   const mode = $derived<FacsimileMode>(intent ? shape : 'pan');
   const selectedWords = $derived(wb.hasRange ? wb.selection.ids : []);
   /** The boxes lit: of the words selected in the text, and of the word the pointer is on there. Not the caret's word. */
-  const highlighted = $derived(zonesOfTokens(zones, [...(wb.hasRange ? wb.selection.ids : []), ...(wb.hoveredToken ? [wb.hoveredToken] : [])]));
+  const highlighted = $derived(
+    zonesOfTokens(zones, [
+      ...(wb.hasRange ? wb.selection.ids : []),
+      ...(wb.hoveredToken ? [wb.hoveredToken] : []),
+    ]),
+  );
 
   /**
    * The boxes chosen. By default the boxes of the words selected in the
@@ -160,10 +203,18 @@
   }
 
   /** A zone as it is sent to be made again, under its own id. */
-  const remake = (z: Zone) => ({ id: z.id, geometry: z.geometry, tokenIds: z.tokenIds, feature: z.feature ?? null });
+  const remake = (z: Zone) => ({
+    id: z.id,
+    geometry: z.geometry,
+    tokenIds: z.tokenIds,
+    feature: z.feature ?? null,
+  });
 
   /** Save new shapes for some zones of the page shown. */
-  async function reshape(changes: { id: string; geometry: ZoneGeometry }[], done: 'move' | 'resize' | 'turn' = 'move'): Promise<boolean> {
+  async function reshape(
+    changes: { id: string; geometry: ZoneGeometry }[],
+    done: 'move' | 'resize' | 'turn' = 'move',
+  ): Promise<boolean> {
     const pageId = wb.pageId;
     if (!pageId || changes.length === 0) return false;
     const old = changes
@@ -185,7 +236,15 @@
   }
 
   /** Make zones on the page, in place of the zones `replace` names. */
-  async function make(pageId: string, inputs: { geometry: ZoneGeometry; tokenIds: Id[]; feature?: { kind: string; description?: string } | null }[], replace: string[] = []): Promise<Zone[] | null> {
+  async function make(
+    pageId: string,
+    inputs: {
+      geometry: ZoneGeometry;
+      tokenIds: Id[];
+      feature?: { kind: string; description?: string } | null;
+    }[],
+    replace: string[] = [],
+  ): Promise<Zone[] | null> {
     const replaced = zones.filter((z) => replace.includes(z.id));
     const made = await wb.createZones(pageId, inputs, replace);
     if (!made) {
@@ -196,8 +255,15 @@
     record({
       pageId,
       label: t.facsimile.history.made(made.length),
-      undo: async () => (await wb.deleteZones(pageId, ids)) && (replaced.length === 0 || !!(await wb.createZones(pageId, replaced.map(remake)))),
-      redo: async () => !!(await wb.createZones(pageId, made.map(remake), replaced.map((z) => z.id))),
+      undo: async () =>
+        (await wb.deleteZones(pageId, ids)) &&
+        (replaced.length === 0 || !!(await wb.createZones(pageId, replaced.map(remake)))),
+      redo: async () =>
+        !!(await wb.createZones(
+          pageId,
+          made.map(remake),
+          replaced.map((z) => z.id),
+        )),
     });
     return made;
   }
@@ -250,7 +316,10 @@
   }
 
   function groupChanged(shapes: Map<string, ZoneGeometry>, done: 'move' | 'resize' | 'turn') {
-    void reshape([...shapes].map(([id, geometry]) => ({ id, geometry })), done);
+    void reshape(
+      [...shapes].map(([id, geometry]) => ({ id, geometry })),
+      done,
+    );
   }
 
   let pane = $state<HTMLElement>();
@@ -309,7 +378,9 @@
     else if (next === 'area') message = t.facsimile.drawPrompt.area;
     else if (next === 'lines') {
       const lines = selectedLines(wb.facsimileStream, wb.focusTokens, wb.stream);
-      message = lines.length ? t.facsimile.drawPrompt.lines(lines.length) : t.facsimile.drawPrompt.noLines;
+      message = lines.length
+        ? t.facsimile.drawPrompt.lines(lines.length)
+        : t.facsimile.drawPrompt.noLines;
       if (!lines.length) intent = null;
     } else message = t.facsimile.drawPrompt.feature;
   }
@@ -351,7 +422,13 @@
   }
 
   function inside(point: [number, number] | null, box: Rect): boolean {
-    return !!point && point[0] >= box.x && point[0] <= box.x + box.w && point[1] >= box.y && point[1] <= box.y + box.h;
+    return (
+      !!point &&
+      point[0] >= box.x &&
+      point[0] <= box.x + box.w &&
+      point[1] >= box.y &&
+      point[1] <= box.y + box.h
+    );
   }
 
   async function mapLines(pageId: string, geometry: ZoneGeometry) {
@@ -368,7 +445,9 @@
       const inputs = divideGuideBox(box, lines, detected ? { detected } : {});
       const tokenIds = new Set(inputs.flatMap((z) => z.tokenIds));
       // Zones of these words standing in the box are replaced; a divided word's part on another line stays.
-      const replace = replacedZones(zones, tokenIds).filter((id) => inside(centre(zones.find((z) => z.id === id)!), box));
+      const replace = replacedZones(zones, tokenIds).filter((id) =>
+        inside(centre(zones.find((z) => z.id === id)!), box),
+      );
       const made = await make(pageId, inputs, replace);
       message = made
         ? `${t.facsimile.linesFound(detected?.length ?? 0, lines.length)} ${t.facsimile.mapped(made.length)}`
@@ -397,12 +476,16 @@
     const zone = id ? zones.find((z) => z.id === id) : null;
     if (extend && zone) {
       const current = picked.length ? picked : selectedZone ? [selectedZone] : [];
-      pickByHand(current.includes(zone.id) ? current.filter((z) => z !== zone.id) : [...current, zone.id]);
+      pickByHand(
+        current.includes(zone.id) ? current.filter((z) => z !== zone.id) : [...current, zone.id],
+      );
       return;
     }
     selectedZone = id;
     if (!zone || !wb.api) return;
-    const present = wb.pageStream.items.filter((item) => zone.tokenIds.includes(item.id)).map((item) => item.id);
+    const present = wb.pageStream.items
+      .filter((item) => zone.tokenIds.includes(item.id))
+      .map((item) => item.id);
     if (present.length) wb.api.selectTokens(present[0]!, present[present.length - 1]!);
     // After the text selection has settled: this box alone, also when it has no words.
     void tick().then(() => {
@@ -430,12 +513,19 @@
     if (group) return group.map((b) => b.id);
     if (selectedZone) return [selectedZone];
     if (handPicked) return picked;
-    return wb.hasRange ? zonesOfTokens(zones.filter((z) => !z.feature), wb.selection.ids) : [];
+    return wb.hasRange
+      ? zonesOfTokens(
+          zones.filter((z) => !z.feature),
+          wb.selection.ids,
+        )
+      : [];
   });
   /** Boxes whose words are no longer in the text. */
   const orphans = $derived.by(() => {
     const live = new Set(wb.stream.items.map((i) => i.id));
-    return zones.filter((z) => !z.feature && z.tokenIds.length > 0 && !z.tokenIds.some((id) => live.has(id))).map((z) => z.id);
+    return zones
+      .filter((z) => !z.feature && z.tokenIds.length > 0 && !z.tokenIds.some((id) => live.has(id)))
+      .map((z) => z.id);
   });
   const wordBoxes = $derived(zones.filter((z) => !z.feature).map((z) => z.id));
   let confirmAll = $state(false);
@@ -516,10 +606,23 @@
     if (!target || !wb.canMaintainWitness) return;
     const defaults = wb.imageDefaults;
     if (defaults.rights) {
-      void sendImage(target.id, { file, rights: defaults.rights, attribution: defaults.attribution ?? '', imageSource: '' });
+      void sendImage(target.id, {
+        file,
+        rights: defaults.rights,
+        attribution: defaults.attribution ?? '',
+        imageSource: '',
+      });
       return;
     }
-    imageRequest = { id: target.id, label: target.label, imageKind: null, zones: 0, rights: null, attribution: null, file };
+    imageRequest = {
+      id: target.id,
+      label: target.label,
+      imageKind: null,
+      zones: 0,
+      rights: null,
+      attribution: null,
+      file,
+    };
   }
 
   async function sendImage(pageId: string, choice: ImageChoice) {
@@ -539,7 +642,12 @@
     body.append('attribution', choice.attribution);
     body.append('imageSource', choice.imageSource);
     upload = { progress: 0, processing: false };
-    const result = await uploadToAction('replaceImage', body, (fraction) => (upload = { progress: fraction, processing: fraction >= 1 }), wb.pagesBase).result;
+    const result = await uploadToAction(
+      'replaceImage',
+      body,
+      (fraction) => (upload = { progress: fraction, processing: fraction >= 1 }),
+      wb.pagesBase,
+    ).result;
     if (result.type === 'success') {
       await wb.refreshPages();
       const message = (result.data as { message?: string } | undefined)?.message;
@@ -561,9 +669,17 @@
 
 <div class="flex h-full min-h-0 flex-col" data-facsimile-pane bind:this={pane}>
   {#if wb.view === UNPLACED && wb.pages.length > 0}
-    <label class="flex shrink-0 items-center gap-2 border-b border-line px-3 py-1.5 font-sans text-xs text-ink-soft">
+    <label
+      class="flex shrink-0 items-center gap-2 border-b border-line px-3 py-1.5 font-sans text-xs text-ink-soft"
+    >
       <span>{t.move.facsimilePage}</span>
-      <Select class="h-7 w-auto py-0 text-sm" value={wb.pageId ?? ''} options={facsimileOptions} onchange={(event) => wb.chooseFacsimilePage((event.currentTarget as HTMLSelectElement).value)} />
+      <Select
+        class="h-7 w-auto py-0 text-sm"
+        value={wb.pageId ?? ''}
+        options={facsimileOptions}
+        onchange={(event) =>
+          wb.chooseFacsimilePage((event.currentTarget as HTMLSelectElement).value)}
+      />
     </label>
   {/if}
   {#if !page}
@@ -573,10 +689,19 @@
       </EmptyState>
     </div>
   {:else if !page.source}
-    <div class="p-4" ondragenter={dragover} ondragover={dragover} ondragleave={dragleave} ondrop={dropped} role="presentation">
+    <div
+      class="p-4"
+      ondragenter={dragover}
+      ondragover={dragover}
+      ondragleave={dragleave}
+      ondrop={dropped}
+      role="presentation"
+    >
       <EmptyState
         title={t.facsimile.noImage(page.label)}
-        description={wb.canMaintainWitness ? t.facsimile.addImageHint(megabytes(wb.maxUploadBytes)) : undefined}
+        description={wb.canMaintainWitness
+          ? t.facsimile.addImageHint(megabytes(wb.maxUploadBytes))
+          : undefined}
         class={dropping ? 'border-accent bg-accent-soft' : undefined}
       >
         {#if dropping}
@@ -584,7 +709,11 @@
         {:else if upload}
           <div class="flex items-center gap-2 text-sm text-ink-soft" role="status">
             <Spinner size="sm" />
-            <span>{upload.processing ? t.facsimile.processing : t.facsimile.uploading(Math.round(upload.progress * 100))}</span>
+            <span
+              >{upload.processing
+                ? t.facsimile.processing
+                : t.facsimile.uploading(Math.round(upload.progress * 100))}</span
+            >
           </div>
         {:else}
           {#if wb.canMaintainWitness}
@@ -597,111 +726,184 @@
         {/if}
       </EmptyState>
       {#if wb.canMaintainWitness}
-        <input bind:this={fileInput} type="file" accept={ACCEPT_IMAGES} class="hidden" tabindex="-1" aria-hidden="true" onchange={chosenFile} />
+        <input
+          bind:this={fileInput}
+          type="file"
+          accept={ACCEPT_IMAGES}
+          class="hidden"
+          tabindex="-1"
+          aria-hidden="true"
+          onchange={chosenFile}
+        />
       {/if}
     </div>
   {:else}
     {#if wb.canEdit}
       <fieldset class="contents" disabled={!mapping} title={mapping ? undefined : unmappableTitle}>
-      <div class="flex flex-wrap items-center gap-1 border-b border-line px-2 py-1.5 font-sans" role="toolbar" aria-label={t.facsimile.tools}>
-        <div class="inline-flex rounded-md border border-line p-0.5" role="group" aria-label={t.facsimile.shape}>
-          <button type="button" aria-pressed={shape === 'rect'} class={toolClass(shape === 'rect')} onclick={() => (shape = 'rect')}>
-            {t.facsimile.rect}
+        <div
+          class="flex flex-wrap items-center gap-1 border-b border-line px-2 py-1.5 font-sans"
+          role="toolbar"
+          aria-label={t.facsimile.tools}
+        >
+          <div
+            class="inline-flex rounded-md border border-line p-0.5"
+            role="group"
+            aria-label={t.facsimile.shape}
+          >
+            <button
+              type="button"
+              aria-pressed={shape === 'rect'}
+              class={toolClass(shape === 'rect')}
+              onclick={() => (shape = 'rect')}
+            >
+              {t.facsimile.rect}
+            </button>
+            <button
+              type="button"
+              aria-pressed={shape === 'polygon'}
+              class={toolClass(shape === 'polygon')}
+              onclick={() => (shape = 'polygon')}
+            >
+              {t.facsimile.polygon}
+            </button>
+          </div>
+          <button
+            type="button"
+            class={toolClass(intent === 'selection')}
+            aria-pressed={intent === 'selection'}
+            title={t.facsimile.mapSelectionHint}
+            disabled={busy || selectedWords.length === 0}
+            onclick={() => arm('selection')}
+          >
+            {t.facsimile.mapSelection}
           </button>
           <button
             type="button"
-            aria-pressed={shape === 'polygon'}
-            class={toolClass(shape === 'polygon')}
-            onclick={() => (shape = 'polygon')}
+            class={toolClass(intent === 'lines')}
+            aria-pressed={intent === 'lines'}
+            title={t.facsimile.mapLinesHint}
+            disabled={busy || wb.focusTokens.length === 0}
+            onclick={() => arm('lines')}
           >
-            {t.facsimile.polygon}
+            {t.facsimile.mapLines}
           </button>
+          <button
+            type="button"
+            class={toolClass(intent === 'feature')}
+            aria-pressed={intent === 'feature'}
+            title={t.facsimile.featureHint}
+            disabled={busy}
+            onclick={() => arm('feature')}
+          >
+            {t.facsimile.feature}
+          </button>
+          <Menu
+            label={t.facsimile.delete.label}
+            triggerSize="sm"
+            triggerClass="h-7 px-2 text-xs"
+            align="start"
+          >
+            {#snippet trigger()}{t.facsimile.delete.label}<ChevronDown
+                class="size-3.5 text-ink-muted"
+                aria-hidden="true"
+              />{/snippet}
+            <MenuItem
+              disabled={busy || deletable.length === 0}
+              onSelect={() => void remove(deletable)}
+            >
+              {t.facsimile.delete.selected(deletable.length)}
+            </MenuItem>
+            {#if orphans.length}
+              <MenuItem disabled={busy} onSelect={() => void remove(orphans)}
+                >{t.facsimile.delete.orphans(orphans.length)}</MenuItem
+              >
+            {/if}
+            <MenuSeparator />
+            <MenuItem
+              danger
+              disabled={busy || wordBoxes.length === 0}
+              onSelect={() => (confirmAll = true)}
+            >
+              {t.facsimile.delete.all(wordBoxes.length)}
+            </MenuItem>
+          </Menu>
+          <Menu
+            label={t.facsimile.select.label}
+            triggerSize="sm"
+            triggerClass="h-7 px-2 text-xs"
+            align="start"
+          >
+            {#snippet trigger()}{t.facsimile.select.label}<ChevronDown
+                class="size-3.5 text-ink-muted"
+                aria-hidden="true"
+              />{/snippet}
+            <MenuItem
+              disabled={busy || !(wb.selection.caret ?? wb.selection.ids[0])}
+              onSelect={selectLine}>{t.facsimile.select.line}</MenuItem
+            >
+            <MenuItem
+              disabled={busy || wordBoxIds.length === 0}
+              onSelect={() => pickByHand([...wordBoxIds])}
+            >
+              {t.facsimile.select.all(wordBoxIds.length)}
+            </MenuItem>
+            <MenuItem disabled={busy || wordBoxIds.length === 0} onSelect={() => arm('area')}
+              >{t.facsimile.select.area}</MenuItem
+            >
+            <MenuSeparator />
+            <MenuItem disabled={!picked.length && !selectedZone} onSelect={clearPicked}
+              >{t.facsimile.select.none}</MenuItem
+            >
+          </Menu>
+          <button
+            type="button"
+            class={toolClass(false)}
+            title={undoable
+              ? t.facsimile.history.undoTitle(undoable.label)
+              : t.facsimile.history.nothing}
+            disabled={busy || !undoable}
+            onclick={undo}
+          >
+            {t.facsimile.undo}
+          </button>
+          <button
+            type="button"
+            class={toolClass(false)}
+            title={redoable
+              ? t.facsimile.history.redoTitle(redoable.label)
+              : t.facsimile.history.nothingRedo}
+            disabled={busy || !redoable}
+            onclick={redo}
+          >
+            {t.facsimile.redo}
+          </button>
+          <div class="ml-auto flex flex-wrap items-center gap-x-3">
+            <Checkbox
+              class="text-xs"
+              checked={outlines}
+              onchange={(event) => setOutlines((event.currentTarget as HTMLInputElement).checked)}
+            >
+              {t.facsimile.showBoxes}
+            </Checkbox>
+            <Checkbox class="text-xs" bind:checked={wb.showUnmapped}
+              >{t.facsimile.showUnmapped}</Checkbox
+            >
+          </div>
         </div>
-        <button
-          type="button"
-          class={toolClass(intent === 'selection')}
-          aria-pressed={intent === 'selection'}
-          title={t.facsimile.mapSelectionHint}
-          disabled={busy || selectedWords.length === 0}
-          onclick={() => arm('selection')}
-        >
-          {t.facsimile.mapSelection}
-        </button>
-        <button
-          type="button"
-          class={toolClass(intent === 'lines')}
-          aria-pressed={intent === 'lines'}
-          title={t.facsimile.mapLinesHint}
-          disabled={busy || wb.focusTokens.length === 0}
-          onclick={() => arm('lines')}
-        >
-          {t.facsimile.mapLines}
-        </button>
-        <button
-          type="button"
-          class={toolClass(intent === 'feature')}
-          aria-pressed={intent === 'feature'}
-          title={t.facsimile.featureHint}
-          disabled={busy}
-          onclick={() => arm('feature')}
-        >
-          {t.facsimile.feature}
-        </button>
-        <Menu label={t.facsimile.delete.label} triggerSize="sm" triggerClass="h-7 px-2 text-xs" align="start">
-          {#snippet trigger()}{t.facsimile.delete.label}<ChevronDown class="size-3.5 text-ink-muted" aria-hidden="true" />{/snippet}
-          <MenuItem disabled={busy || deletable.length === 0} onSelect={() => void remove(deletable)}>
-            {t.facsimile.delete.selected(deletable.length)}
-          </MenuItem>
-          {#if orphans.length}
-            <MenuItem disabled={busy} onSelect={() => void remove(orphans)}>{t.facsimile.delete.orphans(orphans.length)}</MenuItem>
-          {/if}
-          <MenuSeparator />
-          <MenuItem danger disabled={busy || wordBoxes.length === 0} onSelect={() => (confirmAll = true)}>
-            {t.facsimile.delete.all(wordBoxes.length)}
-          </MenuItem>
-        </Menu>
-        <Menu label={t.facsimile.select.label} triggerSize="sm" triggerClass="h-7 px-2 text-xs" align="start">
-          {#snippet trigger()}{t.facsimile.select.label}<ChevronDown class="size-3.5 text-ink-muted" aria-hidden="true" />{/snippet}
-          <MenuItem disabled={busy || !(wb.selection.caret ?? wb.selection.ids[0])} onSelect={selectLine}>{t.facsimile.select.line}</MenuItem>
-          <MenuItem disabled={busy || wordBoxIds.length === 0} onSelect={() => pickByHand([...wordBoxIds])}>
-            {t.facsimile.select.all(wordBoxIds.length)}
-          </MenuItem>
-          <MenuItem disabled={busy || wordBoxIds.length === 0} onSelect={() => arm('area')}>{t.facsimile.select.area}</MenuItem>
-          <MenuSeparator />
-          <MenuItem disabled={!picked.length && !selectedZone} onSelect={clearPicked}>{t.facsimile.select.none}</MenuItem>
-        </Menu>
-        <button
-          type="button"
-          class={toolClass(false)}
-          title={undoable ? t.facsimile.history.undoTitle(undoable.label) : t.facsimile.history.nothing}
-          disabled={busy || !undoable}
-          onclick={undo}
-        >
-          {t.facsimile.undo}
-        </button>
-        <button
-          type="button"
-          class={toolClass(false)}
-          title={redoable ? t.facsimile.history.redoTitle(redoable.label) : t.facsimile.history.nothingRedo}
-          disabled={busy || !redoable}
-          onclick={redo}
-        >
-          {t.facsimile.redo}
-        </button>
-        <div class="ml-auto flex flex-wrap items-center gap-x-3">
-          <Checkbox class="text-xs" checked={outlines} onchange={(event) => setOutlines((event.currentTarget as HTMLInputElement).checked)}>
-            {t.facsimile.showBoxes}
-          </Checkbox>
-          <Checkbox class="text-xs" bind:checked={wb.showUnmapped}>{t.facsimile.showUnmapped}</Checkbox>
-        </div>
-      </div>
       </fieldset>
     {/if}
     {#if message}
-      <p class="border-b border-line bg-sunken px-3 py-1 font-sans text-xs text-ink-soft" role="status">{message}</p>
+      <p
+        class="border-b border-line bg-sunken px-3 py-1 font-sans text-xs text-ink-soft"
+        role="status"
+      >
+        {message}
+      </p>
     {/if}
     {#if group}
-      <p class="border-b border-line bg-sunken px-3 py-1 font-sans text-xs text-ink-soft">{t.facsimile.group.hint(group.length)}</p>
+      <p class="border-b border-line bg-sunken px-3 py-1 font-sans text-xs text-ink-soft">
+        {t.facsimile.group.hint(group.length)}
+      </p>
     {/if}
     <div class="relative min-h-0 flex-1">
       {#if browser}
@@ -736,7 +938,11 @@
         </FacsimileViewer>
       {/if}
     </div>
-    <ImageCredit rights={page.rights} attribution={page.attribution} class="shrink-0 truncate border-t border-line px-3 py-1" />
+    <ImageCredit
+      rights={page.rights}
+      attribution={page.attribution}
+      class="shrink-0 truncate border-t border-line px-3 py-1"
+    />
   {/if}
 </div>
 
@@ -749,9 +955,15 @@
   />
 {/if}
 
-<Dialog bind:open={confirmAll} title={t.facsimile.delete.confirmTitle} description={t.facsimile.delete.confirmBody(wordBoxes.length, page?.label ?? '')} size="sm">
+<Dialog
+  bind:open={confirmAll}
+  title={t.facsimile.delete.confirmTitle}
+  description={t.facsimile.delete.confirmBody(wordBoxes.length, page?.label ?? '')}
+  size="sm"
+>
   {#snippet footer()}
-    <Button variant="ghost" onclick={() => (confirmAll = false)}>{t.facsimile.delete.cancel}</Button>
+    <Button variant="ghost" onclick={() => (confirmAll = false)}>{t.facsimile.delete.cancel}</Button
+    >
     <Button
       variant="danger"
       onclick={() => {
@@ -762,4 +974,8 @@
   {/snippet}
 </Dialog>
 
-<FeatureDialog bind:open={featureOpen} onsave={saveFeature} oncancel={() => (pendingFeature = null)} />
+<FeatureDialog
+  bind:open={featureOpen}
+  onsave={saveFeature}
+  oncancel={() => (pendingFeature = null)}
+/>

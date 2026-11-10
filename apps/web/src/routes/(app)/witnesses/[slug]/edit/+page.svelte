@@ -5,11 +5,7 @@
   import RightsFields from '$lib/components/pages/RightsFields.svelte';
   import { PageFrame } from '$lib/components/shell';
   import { Button, Checkbox, toasts } from '$lib/components/ui';
-  import {
-    FormSection,
-    MaintainersEditor,
-    WitnessFields,
-  } from '$lib/components/registry';
+  import { FormSection, MaintainersEditor, WitnessFields } from '$lib/components/registry';
   import { registry as t } from '$lib/strings/registry';
   import type { PageProps } from './$types';
 
@@ -30,8 +26,12 @@
   let saving = $state(false);
 
   // The defaults for images
-  const imagesFailed = $derived(form && 'form' in form && form.form === 'images' && 'errors' in form ? form : null);
-  const imageErrors = $derived((imagesFailed?.errors ?? {}) as Record<string, string[] | undefined>);
+  const imagesFailed = $derived(
+    form && 'form' in form && form.form === 'images' && 'errors' in form ? form : null,
+  );
+  const imageErrors = $derived(
+    (imagesFailed?.errors ?? {}) as Record<string, string[] | undefined>,
+  );
   let imageRights = $state(untrack(() => data.images.imageRights));
   let imageAttribution = $state(untrack(() => data.images.imageAttribution));
   let applyToPages = $state(false);
@@ -75,7 +75,13 @@
   </FormSection>
 
   <FormSection title={s.imagesSection} hint={s.imagesHint}>
-    <form method="post" action="?/images" class="flex flex-col gap-4" novalidate use:enhance={saveImages}>
+    <form
+      method="post"
+      action="?/images"
+      class="flex flex-col gap-4"
+      novalidate
+      use:enhance={saveImages}
+    >
       <RightsFields
         bind:rights={imageRights}
         bind:attribution={imageAttribution}
@@ -86,20 +92,29 @@
         errors={imageErrors}
       />
       {#if data.images.withoutRights > 0}
-        <Checkbox name="apply" bind:checked={applyToPages} disabled={!imageRights}>{s.applyToPages(data.images.withoutRights)}</Checkbox>
+        <Checkbox name="apply" bind:checked={applyToPages} disabled={!imageRights}
+          >{s.applyToPages(data.images.withoutRights)}</Checkbox
+        >
       {/if}
-      <div><Button type="submit" variant="primary" loading={savingImages}>{s.imagesSave}</Button></div>
+      <div>
+        <Button type="submit" variant="primary" loading={savingImages}>{s.imagesSave}</Button>
+      </div>
     </form>
   </FormSection>
 
   <FormSection title={s.maintainersSection} hint={s.maintainersHint}>
-    <MaintainersEditor maintainers={data.maintainers} canManage={data.can.govern} selfId={data.user?.id ?? null} />
+    <MaintainersEditor
+      maintainers={data.maintainers}
+      canManage={data.can.govern}
+      selfId={data.user?.id ?? null}
+    />
   </FormSection>
 
   {#if data.can.merge}
     <FormSection title={t.merge.section} hint={t.merge.witnessHint}>
-      <div><Button href="/witnesses/{witness.slug}/merge" variant="secondary">{t.merge.action}</Button></div>
+      <div>
+        <Button href="/witnesses/{witness.slug}/merge" variant="secondary">{t.merge.action}</Button>
+      </div>
     </FormSection>
   {/if}
-
 </PageFrame>

@@ -46,7 +46,8 @@
 
   function hint(type: BreakType, c: BreakChoices): string {
     const target = c[type];
-    if (target.t === 'none') return target.reason === 'page' ? t.pageStart(c.line) : t.already[type](c.line);
+    if (target.t === 'none')
+      return target.reason === 'page' ? t.pageStart(c.line) : t.already[type](c.line);
     return t.begins[type](c.line);
   }
 
@@ -78,7 +79,9 @@
       {#if choices}
         {@const c = choices}
         <DropdownMenu.Group>
-          <DropdownMenu.GroupHeading class={headingClass}>{t.breaksHeading(c.line)}</DropdownMenu.GroupHeading>
+          <DropdownMenu.GroupHeading class={headingClass}
+            >{t.breaksHeading(c.line)}</DropdownMenu.GroupHeading
+          >
           {#each breaks as item (item.type)}
             <DropdownMenu.Item
               class={itemClass}
@@ -93,7 +96,9 @@
         </DropdownMenu.Group>
         <DropdownMenu.Separator class="my-1 h-px bg-line" />
         <DropdownMenu.Group>
-          <DropdownMenu.GroupHeading class={headingClass}>{t.objectsHeading}</DropdownMenu.GroupHeading>
+          <DropdownMenu.GroupHeading class={headingClass}
+            >{t.objectsHeading}</DropdownMenu.GroupHeading
+          >
           {#each objects as item (item.type)}
             <DropdownMenu.Item
               class={itemClass}

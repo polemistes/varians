@@ -55,7 +55,10 @@ export const tokenClassField = StateField.define<HighlightState>({
     if (classes === value.classes && !modelChanged) {
       return tr.docChanged ? { classes, decorations: value.decorations.map(tr.changes) } : value;
     }
-    return { classes, decorations: after ? highlightDecorations(classes, after.model) : Decoration.none };
+    return {
+      classes,
+      decorations: after ? highlightDecorations(classes, after.model) : Decoration.none,
+    };
   },
   provide: (field) => EditorView.decorations.from(field, (value) => value.decorations),
 });

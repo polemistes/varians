@@ -41,8 +41,18 @@ const text = (form: FormData, name: string) => String(form.get(name) ?? '');
 export const load: PageServerLoad = async ({ locals }) => {
   const user = requireUser(locals);
   const person = await personOfAccount(locals.db, user.id, user.name);
-  const tokens = (await tokensOf(locals.db, user.id)).map((t) => ({ id: t.id, name: t.name, createdAt: t.createdAt.toISOString(), lastUsedAt: t.lastUsedAt?.toISOString() ?? null }));
-  return { crumb: { label: s.account.title }, offers: await offersOf(locals.db, user.id), orcid: person.orcid, tokens };
+  const tokens = (await tokensOf(locals.db, user.id)).map((t) => ({
+    id: t.id,
+    name: t.name,
+    createdAt: t.createdAt.toISOString(),
+    lastUsedAt: t.lastUsedAt?.toISOString() ?? null,
+  }));
+  return {
+    crumb: { label: s.account.title },
+    offers: await offersOf(locals.db, user.id),
+    orcid: person.orcid,
+    tokens,
+  };
 };
 
 export const actions: Actions = {
@@ -69,11 +79,18 @@ export const actions: Actions = {
     if (!result.ok) {
       return fail(400, {
         form: 'orcid' as const,
-        errors: { orcid: [result.error === 'invalid' ? s.account.orcidInvalid : s.account.orcidTaken] },
+        errors: {
+          orcid: [result.error === 'invalid' ? s.account.orcidInvalid : s.account.orcidTaken],
+        },
         values: { orcid: input },
       });
     }
-    return { form: 'orcid' as const, ok: true, claimed: result.claimed, cleared: result.orcid === null };
+    return {
+      form: 'orcid' as const,
+      ok: true,
+      claimed: result.claimed,
+      cleared: result.orcid === null,
+    };
   },
 
   token: async ({ request, locals }) => {
@@ -86,7 +103,8 @@ export const actions: Actions = {
   revoke: async ({ request, locals }) => {
     const user = requireUser(locals);
     const form = await request.formData();
-    if (!(await revokeToken(locals.db, user.id, text(form, 'id')))) return fail(404, { form: 'revoke' as const });
+    if (!(await revokeToken(locals.db, user.id, text(form, 'id'))))
+      return fail(404, { form: 'revoke' as const });
     return { form: 'revoke' as const, ok: true };
   },
 
@@ -103,7 +121,12 @@ export const actions: Actions = {
         form: 'password' as const,
         errors: z.flattenError(parsed.error).fieldErrors,
       });
-    const result = await changePassword(user.id, parsed.data.current, parsed.data.next, cookies.get(SESSION_COOKIE));
+    const result = await changePassword(
+      user.id,
+      parsed.data.current,
+      parsed.data.next,
+      cookies.get(SESSION_COOKIE),
+    );
     if (!result.ok)
       return fail(400, {
         form: 'password' as const,
@@ -132,7 +155,8 @@ export const actions: Actions = {
     const user = requireUser(locals);
     const form = await request.formData();
     const answer = text(form, 'answer');
-    if (answer !== 'accept' && answer !== 'decline' && answer !== 'withdraw') return fail(400, { form: 'offer' as const });
+    if (answer !== 'accept' && answer !== 'decline' && answer !== 'withdraw')
+      return fail(400, { form: 'offer' as const });
     const done = await answerOffer(locals.db, text(form, 'offerId'), user.id, answer);
     if (!done) return fail(400, { form: 'offer' as const });
     return { form: 'offer' as const, ok: true, answer };

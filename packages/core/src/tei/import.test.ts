@@ -489,7 +489,9 @@ describe('detectStructure', () => {
 describe('importTei: hands and stages of corrections', () => {
   it('reads hand pointers as hand ids and seq as a number', () => {
     const result = read(`<ab>a <del hand="#hand-h2" seq="2">b</del> <add hand="#m3">c</add></ab>`);
-    const marks = result.stream.items.filter((i) => i.kind === 'token').map((t) => (t as { marks?: unknown }).marks);
+    const marks = result.stream.items
+      .filter((i) => i.kind === 'token')
+      .map((t) => (t as { marks?: unknown }).marks);
     expect(marks[1]).toEqual([{ kind: 'del', attrs: { hand: 'h2', seq: 2 } }]);
     expect(marks[2]).toEqual([{ kind: 'add', attrs: { hand: 'm3' } }]);
   });

@@ -1,8 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { applyOps, collate, fromText, sequentialIds, toText, units, type Attachment } from '@varians/core';
-import { countUnreviewed, insertionSitesAfter, keyOfSite, needsReview, opsForAttachment, opsForReading, sitesByToken, type SegmentForAdoption } from './adopt-client.ts';
+import {
+  applyOps,
+  collate,
+  fromText,
+  sequentialIds,
+  toText,
+  units,
+  type Attachment,
+} from '@varians/core';
+import {
+  countUnreviewed,
+  insertionSitesAfter,
+  keyOfSite,
+  needsReview,
+  opsForAttachment,
+  opsForReading,
+  sitesByToken,
+  type SegmentForAdoption,
+} from './adopt-client.ts';
 
-function segment(editionText: string, witnessTexts: Record<string, string>, attachments: Record<number, Attachment[]> = {}) {
+function segment(
+  editionText: string,
+  witnessTexts: Record<string, string>,
+  attachments: Record<number, Attachment[]> = {},
+) {
   const edition = fromText(editionText, { ids: sequentialIds('e') });
   const baseUnits = units(edition, 0, edition.items.length);
   const witnesses = Object.entries(witnessTexts).map(([siglum, text]) => {
@@ -28,21 +49,39 @@ describe('adopt-client', () => {
   });
 
   it('adopts a conjecture attachment and a reported reading', () => {
-    const conj: Attachment = { kind: 'conjecture', id: 'c1', text: 'swift', name: 'Bentley', conjectureKind: 'substitution' };
+    const conj: Attachment = {
+      kind: 'conjecture',
+      id: 'c1',
+      text: 'swift',
+      name: 'Bentley',
+      conjectureKind: 'substitution',
+    };
     const { edition, seg } = segment('the quick fox', { B: 'the slow fox' }, { 0: [conj] });
     const site = seg.collation.sites[0]!;
-    expect(toText(applyOps(edition, opsForAttachment(edition, seg, site, conj)).stream)).toBe('the swift fox');
+    expect(toText(applyOps(edition, opsForAttachment(edition, seg, site, conj)).stream)).toBe(
+      'the swift fox',
+    );
     const reported: Attachment = { kind: 'reported', id: 'r1', text: 'rapid', name: 'T' };
-    expect(toText(applyOps(edition, opsForAttachment(edition, seg, site, reported)).stream)).toBe('the rapid fox');
+    expect(toText(applyOps(edition, opsForAttachment(edition, seg, site, reported)).stream)).toBe(
+      'the rapid fox',
+    );
   });
 
   it('adopts a deletion by marking the words for brackets, not removing them', () => {
-    const del: Attachment = { kind: 'conjecture', id: 'c9', text: '', name: 'Bentley', conjectureKind: 'deletion' };
+    const del: Attachment = {
+      kind: 'conjecture',
+      id: 'c9',
+      text: '',
+      name: 'Bentley',
+      conjectureKind: 'deletion',
+    };
     const { edition, seg } = segment('the quick fox', { B: 'the slow fox' }, { 0: [del] });
     const site = seg.collation.sites[0]!;
     const next = applyOps(edition, opsForAttachment(edition, seg, site, del)).stream;
     expect(toText(next)).toBe('the quick fox');
-    expect((next.items[1] as { marks?: unknown }).marks).toEqual([{ kind: 'surplus', attrs: { resp: 'c9' } }]);
+    expect((next.items[1] as { marks?: unknown }).marks).toEqual([
+      { kind: 'surplus', attrs: { resp: 'c9' } },
+    ]);
   });
 
   it('finds insertion sites after a token and counts what needs review', () => {

@@ -18,7 +18,12 @@
   });
 </script>
 
-<Dialog bind:open title={t.deleteDialog.title(entry?.label ?? '')} description={t.deleteDialog.description} size="sm">
+<Dialog
+  bind:open
+  title={t.deleteDialog.title(entry?.label ?? '')}
+  description={t.deleteDialog.description}
+  size="sm"
+>
   {#if message}<Notice kind="error">{message}</Notice>{/if}
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (open = false)}>{t.deleteDialog.cancel}</Button>

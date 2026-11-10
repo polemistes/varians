@@ -7,7 +7,12 @@
   import { onMount, untrack } from 'svelte';
   import type { Id, Op, Stream } from '@varians/core';
   import type { Form } from '$lib/editor/bridge';
-  import { VariansEditor, type CutRecord, type Direction, type EditorApi } from '$lib/editor/editor';
+  import {
+    VariansEditor,
+    type CutRecord,
+    type Direction,
+    type EditorApi,
+  } from '$lib/editor/editor';
   import type { TokenClasses } from '$lib/editor/highlight';
 
   interface Props {
@@ -72,7 +77,19 @@
   onMount(() => {
     editor = new VariansEditor(
       host,
-      { stream, form, readonly, page, pageOrder, direction, lineNumbers, segmentLabels, pageLabels, tokenClasses, handLabel },
+      {
+        stream,
+        form,
+        readonly,
+        page,
+        pageOrder,
+        direction,
+        lineNumbers,
+        segmentLabels,
+        pageLabels,
+        tokenClasses,
+        handLabel,
+      },
       {
         onops: (ops, next) => onops?.(ops, next),
         onselection: (ids, caret) => onselection?.(ids, caret),
@@ -162,7 +179,8 @@
      colour and a longer selector; these match its selectors and outrank
      them, so that selected text stays readable in dark mode too. */
   .varians-editor :global(.cm-editor > .cm-scroller > .cm-selectionLayer .cm-selectionBackground),
-  .varians-editor :global(.cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground),
+  .varians-editor
+    :global(.cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground),
   .varians-editor :global(.cm-content ::selection) {
     background: color-mix(in srgb, var(--_accent) 22%, transparent);
   }
@@ -387,7 +405,11 @@
      so the height map is not disturbed. */
   .varians-editor :global(.cm-break-preview) {
     position: relative;
-    background-image: repeating-linear-gradient(to right, var(--_accent) 0 6px, transparent 6px 10px);
+    background-image: repeating-linear-gradient(
+      to right,
+      var(--_accent) 0 6px,
+      transparent 6px 10px
+    );
     background-size: 100% 2px;
     background-repeat: no-repeat;
     background-position: top left;

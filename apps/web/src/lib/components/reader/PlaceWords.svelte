@@ -18,7 +18,9 @@
 
   const where = $derived(
     explanation.place
-      ? fill(explanation.place.side === 'after' ? r.explain.after : r.explain.before, { words: [{ kind: 'words', text: explanation.place.word }] })
+      ? fill(explanation.place.side === 'after' ? r.explain.after : r.explain.before, {
+          words: [{ kind: 'words', text: explanation.place.word }],
+        })
       : [],
   );
 </script>

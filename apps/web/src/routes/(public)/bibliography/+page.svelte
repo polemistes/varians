@@ -63,7 +63,9 @@
           <span>{site.search.resultsFor(data.q)}</span>
           <a href="/bibliography" class="text-accent hover:underline">{t.clear}</a>
         {/if}
-        {#if data.total}<span class="ml-auto text-xs text-ink-muted">{t.count(data.items.length, data.total)}</span>{/if}
+        {#if data.total}<span class="ml-auto text-xs text-ink-muted"
+            >{t.count(data.items.length, data.total)}</span
+          >{/if}
       </p>
     {/if}
 
@@ -109,10 +111,19 @@
         {/each}
       </ul>
       {#if data.pages > 1}
-        <nav class="flex items-center justify-between font-sans text-sm" aria-label={t.page(data.page, data.pages)}>
-          {#if data.page > 1}<Button variant="ghost" size="sm" href={pageHref(data.page - 1)}>{t.previous}</Button>{:else}<span></span>{/if}
+        <nav
+          class="flex items-center justify-between font-sans text-sm"
+          aria-label={t.page(data.page, data.pages)}
+        >
+          {#if data.page > 1}<Button variant="ghost" size="sm" href={pageHref(data.page - 1)}
+              >{t.previous}</Button
+            >{:else}<span></span>{/if}
           <span class="text-ink-muted">{t.page(data.page, data.pages)}</span>
-          {#if data.page < data.pages}<Button variant="ghost" size="sm" href={pageHref(data.page + 1)}>{t.next}</Button>{:else}<span></span>{/if}
+          {#if data.page < data.pages}<Button
+              variant="ghost"
+              size="sm"
+              href={pageHref(data.page + 1)}>{t.next}</Button
+            >{:else}<span></span>{/if}
         </nav>
       {/if}
     {/if}

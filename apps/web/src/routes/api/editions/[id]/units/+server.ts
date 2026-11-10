@@ -16,11 +16,17 @@ export const GET: RequestHandler = async ({ locals, params, url }) => {
   let content = edition.content;
   if (!access.canEdit) {
     if (edition.publishedVersion === null) throw error(404, 'No such edition');
-    if (edition.publishedVersion !== edition.version) content = await documentAt(locals.db, 'edition', edition.id, edition.publishedVersion);
+    if (edition.publishedVersion !== edition.version)
+      content = await documentAt(locals.db, 'edition', edition.id, edition.publishedVersion);
   }
   const out: Record<string, { units: Unit[] }> = {};
-  for (const id of (url.searchParams.get('ids') ?? '').split(',').filter((s) => s).slice(0, 500)) {
-    out[id] = { units: runsOfSegment(content, id).flatMap((run) => units(content, run.from, run.to)) };
+  for (const id of (url.searchParams.get('ids') ?? '')
+    .split(',')
+    .filter((s) => s)
+    .slice(0, 500)) {
+    out[id] = {
+      units: runsOfSegment(content, id).flatMap((run) => units(content, run.from, run.to)),
+    };
   }
   return json({ segments: out });
 };

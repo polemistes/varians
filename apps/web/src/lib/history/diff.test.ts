@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { applyOps, diffStreams, fromText, sequentialIds, type Op, type Stream } from '@varians/core';
+import {
+  applyOps,
+  diffStreams,
+  fromText,
+  sequentialIds,
+  type Op,
+  type Stream,
+} from '@varians/core';
 import { deepEqual, diffStates, sameItem } from './diff.ts';
 
 const text = (): Stream => fromText('a b c d\ne f g h\ni j k l', { ids: sequentialIds() });
@@ -19,7 +26,13 @@ function summary(diff: ReturnType<typeof diffStreams>) {
       }
     })
     .sort();
-  return { changes, added: diff.added, removed: diff.removed, changed: diff.changed, moved: diff.moved };
+  return {
+    changes,
+    added: diff.added,
+    removed: diff.removed,
+    changed: diff.changed,
+    moved: diff.moved,
+  };
 }
 
 describe('deepEqual and sameItem', () => {
@@ -29,15 +42,22 @@ describe('deepEqual and sameItem', () => {
     expect(deepEqual({ a: 1 }, { a: 2 })).toBe(false);
     expect(deepEqual([1, 2], [2, 1])).toBe(false);
     expect(deepEqual({ a: [1] }, { a: { 0: 1 } })).toBe(false);
-    expect(sameItem({ kind: 'token', id: 'x', form: 'a' }, { form: 'a', id: 'x', kind: 'token' })).toBe(true);
-    expect(sameItem({ kind: 'token', id: 'x', form: 'a' }, { kind: 'token', id: 'y', form: 'a' })).toBe(false);
+    expect(
+      sameItem({ kind: 'token', id: 'x', form: 'a' }, { form: 'a', id: 'x', kind: 'token' }),
+    ).toBe(true);
+    expect(
+      sameItem({ kind: 'token', id: 'x', form: 'a' }, { kind: 'token', id: 'y', form: 'a' }),
+    ).toBe(false);
   });
 });
 
 describe('diffStates', () => {
   const cases: [string, Op[]][] = [
     ['a word re-spelt in the middle', [{ t: 'set', id: 't6', fields: { form: 'E' } }]],
-    ['a word added at the start', [{ t: 'insert', after: null, items: [{ kind: 'token', id: 'n1', form: 'new' }] }]],
+    [
+      'a word added at the start',
+      [{ t: 'insert', after: null, items: [{ kind: 'token', id: 'n1', form: 'new' }] }],
+    ],
     ['words removed at the start', [{ t: 'delete', ids: ['t1', 't2'] }]],
     ['a word removed after a kept head', [{ t: 'delete', ids: ['t8'] }]],
     ['a line removed with its break', [{ t: 'delete', ids: ['t5', 't6', 't7', 't8', 't9'] }]],
@@ -72,12 +92,18 @@ describe('diffStates', () => {
     const before = text();
     const after = applyOps(before, [{ t: 'move', ids: ['t9'], after: 't5' }]).stream;
     const moved = diffStates(before, after).changes.find((c) => c.kind === 'moved');
-    expect(moved && moved.kind === 'moved' ? [moved.item.id, moved.from, moved.to] : null).toEqual(['t9', 't8', 't5']);
+    expect(moved && moved.kind === 'moved' ? [moved.item.id, moved.from, moved.to] : null).toEqual([
+      't9',
+      't8',
+      't5',
+    ]);
   });
 
   it('finds nothing between equal states, even rebuilt with keys in another order', () => {
     const before = text();
-    const copy: Stream = { items: before.items.map((i) => JSON.parse(JSON.stringify(i, Object.keys(i).sort()))) };
+    const copy: Stream = {
+      items: before.items.map((i) => JSON.parse(JSON.stringify(i, Object.keys(i).sort()))),
+    };
     const diff = diffStates(before, copy);
     expect(diff.changes).toEqual([]);
   });

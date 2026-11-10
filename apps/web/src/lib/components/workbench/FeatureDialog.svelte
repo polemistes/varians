@@ -40,7 +40,11 @@
   <form id="wb-feature" class="flex flex-col gap-4" onsubmit={save}>
     <Field label={t.feature.kind}>
       {#snippet children(control)}
-        <Select {...control} bind:value={kind} options={Object.entries(t.feature.kinds).map(([value, label]) => ({ value, label }))} />
+        <Select
+          {...control}
+          bind:value={kind}
+          options={Object.entries(t.feature.kinds).map(([value, label]) => ({ value, label }))}
+        />
       {/snippet}
     </Field>
     <Field label={t.feature.description}>

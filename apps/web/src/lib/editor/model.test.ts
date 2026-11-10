@@ -274,7 +274,9 @@ describe('the segment running into a page', () => {
 
   it('is the segment of the text before the page, for a page shown alone', () => {
     const whole = segmented();
-    expect(buildModel(whole, { form: 'written', page: 'p2' }).inherited).toEqual({ segmentId: 's1' });
+    expect(buildModel(whole, { form: 'written', page: 'p2' }).inherited).toEqual({
+      segmentId: 's1',
+    });
     expect(buildModel(whole, { form: 'written', page: 'p1' }).inherited).toBeNull();
     expect(buildModel(whole, { form: 'written', page: 'unplaced' }).inherited).toBeNull();
     expect(buildModel(whole, { form: 'written' }).inherited).toBeNull();
@@ -282,9 +284,17 @@ describe('the segment running into a page', () => {
 
   it('is shown muted in the gutter of the first line when its first word begins nothing', async () => {
     const { lineLabel } = await import('./editor.ts');
-    const model = buildModel(segmented(), { form: 'written', page: 'p2', segmentLabels: { s1: '1.1', s2: '1.2' } });
+    const model = buildModel(segmented(), {
+      form: 'written',
+      page: 'p2',
+      segmentLabels: { s1: '1.1', s2: '1.2' },
+    });
     expect(lineLabel(model, { from: 0 })).toEqual({ tokenId: 't6', label: '1.1', running: true });
-    const own = buildModel(segmented(), { form: 'written', page: 'p1', segmentLabels: { s1: '1.1' } });
+    const own = buildModel(segmented(), {
+      form: 'written',
+      page: 'p1',
+      segmentLabels: { s1: '1.1' },
+    });
     expect(lineLabel(own, { from: 0 })).toEqual({ tokenId: 't3', label: '1.1', running: false });
   });
 });
@@ -294,6 +304,8 @@ describe('page labels', () => {
     const { pageLabel, MissingPageLabel } = await import('./decorations.ts');
     const model = buildModel(paged(), { form: 'written', pageLabels: { p1: '12r' } });
     expect(pageLabel(model, { kind: 'break', id: 'b', type: 'page', pageId: 'p1' })).toBe('12r');
-    expect(() => pageLabel(model, { kind: 'break', id: 'b', type: 'page', pageId: 'gone' })).toThrow(MissingPageLabel);
+    expect(() =>
+      pageLabel(model, { kind: 'break', id: 'b', type: 'page', pageId: 'gone' }),
+    ).toThrow(MissingPageLabel);
   });
 });

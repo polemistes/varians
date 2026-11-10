@@ -95,7 +95,10 @@ describe('selectorToGeometry', () => {
     } as unknown as Shape;
     const g = selectorToGeometry(selector, size)!;
     expect(g).toEqual({ rect: { x: 0.4, y: 0.466667, w: 0.2, h: 0.066667 }, rotate: 90 });
-    const back = geometryToSelector(g, size)!.geometry as unknown as { rot: number; bounds: { minX: number; maxX: number } };
+    const back = geometryToSelector(g, size)!.geometry as unknown as {
+      rot: number;
+      bounds: { minX: number; maxX: number };
+    };
     expect(back.rot).toBeCloseTo(Math.PI / 2);
     // Centre (1000, 1500); a quarter turn makes it 200 wide.
     expect(back.bounds.minX).toBeCloseTo(900, 0);

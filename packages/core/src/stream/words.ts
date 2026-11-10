@@ -163,7 +163,9 @@ export function lineOf(stream: Stream, index: number): number {
 /** Whether a token is wholly covered by a mark of a kind. */
 export function wholeTokenMark(token: Token, kind: string): boolean {
   return (token.marks ?? []).some(
-    (m) => m.kind === kind && (m.from === undefined || (m.from === 0 && m.to === Array.from(token.form).length)),
+    (m) =>
+      m.kind === kind &&
+      (m.from === undefined || (m.from === 0 && m.to === Array.from(token.form).length)),
   );
 }
 
@@ -187,14 +189,17 @@ export type CollationState =
 /** The mark of a kind that covers the whole token, if any. */
 function wholeMark(token: Token, kind: string): Mark | undefined {
   return (token.marks ?? []).find(
-    (m) => m.kind === kind && (m.from === undefined || (m.from === 0 && m.to === Array.from(token.form).length)),
+    (m) =>
+      m.kind === kind &&
+      (m.from === undefined || (m.from === 0 && m.to === Array.from(token.form).length)),
   );
 }
 
 /** Whether a correction (a deletion or an addition) is applied in a state. */
 function correctionApplies(mark: Mark, state: CollationState): boolean {
   if (typeof state === 'string') return state !== 'original';
-  if (state.kind === 'stage') return typeof mark.attrs?.seq === 'number' && mark.attrs.seq <= state.upTo;
+  if (state.kind === 'stage')
+    return typeof mark.attrs?.seq === 'number' && mark.attrs.seq <= state.upTo;
   return typeof mark.attrs?.hand === 'string' && state.hands.includes(mark.attrs.hand);
 }
 
@@ -233,7 +238,11 @@ function neighbourToken(stream: Stream, index: number, step: 1 | -1): Token | un
  * objects between them passed over, a gap ending it) whose variant mark has
  * `group`. `first` is the index of its first token.
  */
-export function variantSpan(stream: Stream, index: number, group: string): { first: number; tokens: Token[] } {
+export function variantSpan(
+  stream: Stream,
+  index: number,
+  group: string,
+): { first: number; tokens: Token[] } {
   let first = index;
   for (let i = index - 1; i >= 0; i--) {
     const item = stream.items[i]!;
@@ -274,7 +283,12 @@ export interface Unit {
  * the chosen state, read through their normalized forms, with gaps kept as
  * units that absorb whatever other witnesses have there.
  */
-export function units(stream: Stream, from: number, to: number, state: CollationState = 'corrected'): Unit[] {
+export function units(
+  stream: Stream,
+  from: number,
+  to: number,
+  state: CollationState = 'corrected',
+): Unit[] {
   const out: Unit[] = [];
   let i = from;
   const wordsHere = words(stream, from, to);
@@ -308,7 +322,9 @@ export function units(stream: Stream, from: number, to: number, state: Collation
         const span = variantSpan(stream, at, group);
         const reading = variantMark(marked!)?.attrs?.reading;
         const tokenIds = span.tokens.map((t) => t.id);
-        const parts = (typeof reading === 'string' ? reading : '').split(/\s+/u).filter((p) => p.length > 0);
+        const parts = (typeof reading === 'string' ? reading : '')
+          .split(/\s+/u)
+          .filter((p) => p.length > 0);
         for (const part of parts) out.push({ text: part, tokenIds });
         continue;
       }
@@ -323,8 +339,13 @@ export function units(stream: Stream, from: number, to: number, state: Collation
 }
 
 /** The collation units of one segment, every run in content order. */
-export function segmentUnits(stream: Stream, segmentId: Id, state: CollationState = 'corrected'): Unit[] {
+export function segmentUnits(
+  stream: Stream,
+  segmentId: Id,
+  state: CollationState = 'corrected',
+): Unit[] {
   const out: Unit[] = [];
-  for (const run of runsOfSegment(stream, segmentId)) out.push(...units(stream, run.from, run.to, state));
+  for (const run of runsOfSegment(stream, segmentId))
+    out.push(...units(stream, run.from, run.to, state));
   return out;
 }

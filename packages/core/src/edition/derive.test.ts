@@ -17,7 +17,9 @@ describe('deriveEdition', () => {
     expect(first.source).toEqual({ kind: 'witness', transcriptionId: 'T', tokenIds: ['a1'] });
     expect(first.segment).toEqual({ segmentId: 's1' });
     expect(first.marks).toBeUndefined();
-    expect(e.items.filter((i) => i.kind === 'break').map((b) => (b as { type: string }).type)).toEqual(['line']);
+    expect(
+      e.items.filter((i) => i.kind === 'break').map((b) => (b as { type: string }).type),
+    ).toEqual(['line']);
   });
 
   it('keeps only the segments asked for', () => {

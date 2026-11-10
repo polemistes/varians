@@ -8,6 +8,11 @@ import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = () =>
   json(
-    { version: VERSION, release: PACKAGE_VERSION, commit: COMMIT, source: sourceUrl(COMMIT, env.SOURCE_URL) },
+    {
+      version: VERSION,
+      release: PACKAGE_VERSION,
+      commit: COMMIT,
+      source: sourceUrl(COMMIT, env.SOURCE_URL),
+    },
     { headers: { 'cache-control': 'no-store' } },
   );

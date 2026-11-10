@@ -18,7 +18,13 @@ const create = z.object({
   tokenIds: z.array(z.string().max(64)).max(500).optional(),
   text: z.string().trim().min(1).max(10000),
   citations: z
-    .array(z.object({ itemId: z.string().min(1).max(64), prenote: z.string().max(100).nullable().optional(), postnote: z.string().max(100).nullable().optional() }))
+    .array(
+      z.object({
+        itemId: z.string().min(1).max(64),
+        prenote: z.string().max(100).nullable().optional(),
+        postnote: z.string().max(100).nullable().optional(),
+      }),
+    )
     .max(20)
     .optional(),
 });
@@ -53,14 +59,18 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
     ...(parsed.data.tokenIds ? { tokenIds: parsed.data.tokenIds } : {}),
     ...(parsed.data.citations ? { citations: parsed.data.citations } : {}),
   };
-  return json({ note: await addNote(locals.db, edition.id, input, locals.user!.id) }, { status: 201 });
+  return json(
+    { note: await addNote(locals.db, edition.id, input, locals.user!.id) },
+    { status: 201 },
+  );
 };
 
 export const PATCH: RequestHandler = async ({ locals, params, request }) => {
   const { edition } = await access(locals, params.id, true);
   const parsed = patch.safeParse(await request.json().catch(() => null));
   if (!parsed.success) throw error(400, 'id and text are required');
-  if (!(await updateNote(locals.db, edition.id, parsed.data.id, parsed.data.text))) throw error(404, 'No such note');
+  if (!(await updateNote(locals.db, edition.id, parsed.data.id, parsed.data.text)))
+    throw error(404, 'No such note');
   return json({ ok: true });
 };
 

@@ -1,6 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { formatEntry, newId, siteKey, type Token } from '@varians/core';
-import { conjectures, createDatabase, editionCollaborators, referenceSchemes, transcriptions, users, witnesses, works, type Database } from '@varians/db';
+import {
+  conjectures,
+  createDatabase,
+  editionCollaborators,
+  referenceSchemes,
+  transcriptions,
+  users,
+  witnesses,
+  works,
+  type Database,
+} from '@varians/db';
 import { eq, inArray } from 'drizzle-orm';
 import pg from 'pg';
 import { setSiteKind } from './collation.ts';
@@ -51,14 +61,27 @@ describe('editionView', () => {
     expect(lines).toContain('1.5 πᾶσι A B C : δαῖτα Zenodotus (coni.)');
     expect(lines.some((l) => l.includes('lac. C'))).toBe(true);
     const one = byLabel['1.1']!;
-    expect(one.entries.some((e) => e.variants.some((v) => v.attachment?.kind === 'reported' && v.sigla[0]!.startsWith('T')))).toBe(true);
+    expect(
+      one.entries.some((e) =>
+        e.variants.some((v) => v.attachment?.kind === 'reported' && v.sigla[0]!.startsWith('T')),
+      ),
+    ).toBe(true);
     // B and C lack line 1.6 within the stretch their transcripts cover: they omit it, and are not merely absent.
     expect(byLabel['1.6']!.absent).toEqual([]);
-    expect(byLabel['1.6']!.entries.map((e) => formatEntry(e, view.apparatus))).toEqual(['1.6 ἐξ … ἐρίσαντε A : om. B C']);
-    expect(byLabel['1.4']!.entries.some((e) => e.variants.some((v) => v.attachment?.name === 'Berge'))).toBe(true);
+    expect(byLabel['1.6']!.entries.map((e) => formatEntry(e, view.apparatus))).toEqual([
+      '1.6 ἐξ … ἐρίσαντε A : om. B C',
+    ]);
+    expect(
+      byLabel['1.4']!.entries.some((e) => e.variants.some((v) => v.attachment?.name === 'Berge')),
+    ).toBe(true);
     // B has no line 1.6 but every other line in the edition's order; nobody reorders whole lines.
     expect(view.order).toEqual([]);
-    const some = await segmentViewsFor(db, sample.editionId, [five.segmentId, one.segmentId], owner);
+    const some = await segmentViewsFor(
+      db,
+      sample.editionId,
+      [five.segmentId, one.segmentId],
+      owner,
+    );
     expect(Object.keys(some)).toHaveLength(2);
     expect(some[five.segmentId]!.entries.length).toBe(five.entries.length);
   });
@@ -66,10 +89,15 @@ describe('editionView', () => {
   it('puts the editor’s kind of a site over what the letters say, and goes back to the letters', async () => {
     const sample = await seedSample(db, userId);
     const view = await editionView(db, sample.editionId, null, owner);
-    const segment = Object.values(view.segments).find((s) => s.collation.sites.some((site) => site.kind === 'textual'))!;
+    const segment = Object.values(view.segments).find((s) =>
+      s.collation.sites.some((site) => site.kind === 'textual'),
+    )!;
     const site = segment.collation.sites.find((x) => x.kind === 'textual')!;
     const key = siteKey(site, segment.baseUnits);
-    const kindNow = async () => (await segmentViewsFor(db, sample.editionId, [segment.segmentId], owner))[segment.segmentId]!.collation.sites.find((x) => x.index === site.index)!;
+    const kindNow = async () =>
+      (await segmentViewsFor(db, sample.editionId, [segment.segmentId], owner))[
+        segment.segmentId
+      ]!.collation.sites.find((x) => x.index === site.index)!;
     await setSiteKind(db, sample.editionId, segment.segmentId, key, 'interpretative', userId);
     expect(await kindNow()).toMatchObject({ kind: 'interpretative', kindByEditor: true });
     await setSiteKind(db, sample.editionId, segment.segmentId, key, null, userId);
@@ -86,7 +114,10 @@ describe('editionView', () => {
       for (const [index, list] of Object.entries(segment.relations ?? {})) {
         const site = segment.collation.sites.find((x) => x.index === Number(index))!;
         list.forEach((relation, k) => {
-          if (relation) found.push(`${site.readings.find((r) => r.base)!.text} ${site.readings[k]!.text} ${relation}`);
+          if (relation)
+            found.push(
+              `${site.readings.find((r) => r.base)!.text} ${site.readings[k]!.text} ${relation}`,
+            );
         });
       }
     }
@@ -100,12 +131,21 @@ describe('editionView', () => {
     const four = Object.values(view.segments).find((s) => s.label === '1.4')!;
     const conjecture = await registerConjecture(
       db,
-      { workId: sample.workId, segmentId: four.segmentId, kind: 'substitution', lemma: 'κύνεσσιν', reading: 'κύνεσι', proposer: 'Stranger' },
+      {
+        workId: sample.workId,
+        segmentId: four.segmentId,
+        kind: 'substitution',
+        lemma: 'κύνεσσιν',
+        reading: 'κύνεσι',
+        proposer: 'Stranger',
+      },
       strangerId,
     );
     const named = async (audience: Audience) => {
       const some = await segmentViewsFor(db, sample.editionId, [four.segmentId], audience);
-      return some[four.segmentId]!.entries.flatMap((e) => e.variants.map((v) => v.attachment?.name)).concat(some[four.segmentId]!.unplaced.map((u) => u.name));
+      return some[four.segmentId]!.entries.flatMap((e) =>
+        e.variants.map((v) => v.attachment?.name),
+      ).concat(some[four.segmentId]!.unplaced.map((u) => u.name));
     };
     const stranger: Audience = { kind: 'editor', viewer: { id: strangerId, role: 'member' } };
     const helper: Audience = { kind: 'editor', viewer: { id: helperId, role: 'member' } };
@@ -122,7 +162,10 @@ describe('editionView', () => {
     expect(await named(stranger)).not.toContain('Berge');
     await db.delete(editionCollaborators).where(eq(editionCollaborators.userId, helperId));
     // Published, it is everyone's.
-    await db.update(conjectures).set({ visibility: 'published' }).where(eq(conjectures.id, conjecture.id));
+    await db
+      .update(conjectures)
+      .set({ visibility: 'published' })
+      .where(eq(conjectures.id, conjecture.id));
     expect(await named(PUBLIC)).toContain('Stranger');
     await db.delete(conjectures).where(eq(conjectures.id, conjecture.id));
   });
@@ -131,9 +174,14 @@ describe('editionView', () => {
     const sample = await seedSample(db, userId);
     const before = await editionView(db, sample.editionId, null, owner);
     expect(Object.values(before.segments).flatMap((v) => v.drift)).toEqual([]);
-    const taken = before.content.items.find((i): i is Token => i.kind === 'token' && i.source?.kind === 'witness')!;
+    const taken = before.content.items.find(
+      (i): i is Token => i.kind === 'token' && i.source?.kind === 'witness',
+    )!;
     const source = taken.source as { transcriptionId: string; tokenIds: string[] };
-    const [row] = await db.select().from(transcriptions).where(eq(transcriptions.id, source.transcriptionId));
+    const [row] = await db
+      .select()
+      .from(transcriptions)
+      .where(eq(transcriptions.id, source.transcriptionId));
     const changed = structuredClone(row!.content);
     const word = changed.items.find((i) => i.id === source.tokenIds[0]) as Token;
     word.norm = 'ἄλλο';
@@ -141,9 +189,14 @@ describe('editionView', () => {
     try {
       const after = await editionView(db, sample.editionId, null, owner);
       const drift = Object.values(after.segments).flatMap((v) => v.drift);
-      expect(drift).toEqual([{ tokenId: taken.id, siglum: 'A', transcriptionId: row!.id, now: 'ἄλλο' }]);
+      expect(drift).toEqual([
+        { tokenId: taken.id, siglum: 'A', transcriptionId: row!.id, now: 'ἄλλο' },
+      ]);
     } finally {
-      await db.update(transcriptions).set({ content: row!.content }).where(eq(transcriptions.id, row!.id));
+      await db
+        .update(transcriptions)
+        .set({ content: row!.content })
+        .where(eq(transcriptions.id, row!.id));
     }
   });
 });

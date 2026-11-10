@@ -14,13 +14,21 @@
   {#if invalid}
     <Notice kind="error">{s.auth.resetInvalid}</Notice>
     {#if data.mail}
-      <p class="mt-6 font-sans text-sm"><a href="/reset" class="text-accent underline">{s.auth.resetAgain}</a></p>
+      <p class="mt-6 font-sans text-sm">
+        <a href="/reset" class="text-accent underline">{s.auth.resetAgain}</a>
+      </p>
     {/if}
   {:else}
     <AuthForm formError={form?.errors?.form} submitLabel={s.auth.setPassword}>
       <Field label={s.auth.newPassword} hint={s.auth.passwordHint} error={form?.errors?.password}>
         {#snippet children(control)}
-          <Input {...control} name="password" type="password" autocomplete="new-password" required />
+          <Input
+            {...control}
+            name="password"
+            type="password"
+            autocomplete="new-password"
+            required
+          />
         {/snippet}
       </Field>
       <Field label={s.auth.repeatPassword} error={form?.errors?.repeat}>

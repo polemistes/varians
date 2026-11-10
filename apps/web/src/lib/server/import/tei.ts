@@ -31,7 +31,12 @@ export interface TeiPreview {
 }
 
 /** What an import would do, before it is confirmed: the structure found and the proposed mapping. */
-export async function previewTei(db: Database, workId: string, xml: string, mapping?: UnitMapping): Promise<TeiPreview> {
+export async function previewTei(
+  db: Database,
+  workId: string,
+  xml: string,
+  mapping?: UnitMapping,
+): Promise<TeiPreview> {
   const work = await schemeOfWork(db, workId);
   const structure = detectStructure(xml);
   const result = importTei(xml);
@@ -64,20 +69,42 @@ export interface TeiImportResult {
 /** Import TEI into a transcription, replacing its content. */
 export async function importTeiIntoTranscription(
   db: Database,
-  input: { transcriptionId: string; fromVersion: number; workId: string; xml: string; mapping: UnitMapping; userId: string | null },
+  input: {
+    transcriptionId: string;
+    fromVersion: number;
+    workId: string;
+    xml: string;
+    mapping: UnitMapping;
+    userId: string | null;
+  },
 ): Promise<TeiImportResult> {
   const work = await schemeOfWork(db, input.workId);
   const result = importTei(input.xml);
   const { resolved, unresolved } = resolveStarts(result.segmentStarts, input.mapping, work.scheme);
-  const labels = await resolveLabels(db, work, resolved.map((r) => r.label));
+  const labels = await resolveLabels(
+    db,
+    work,
+    resolved.map((r) => r.label),
+  );
   // Several hints at one item (a line element and its lb) keep the one the mapping resolved last for that index.
   const byIndex = new Map<number, string>();
   for (const r of resolved) {
     const segment = labels.get(r.label);
     if (segment) byIndex.set(r.itemIndex, segment.id);
   }
-  const stream = applyStarts(result.stream, [...byIndex.entries()].map(([itemIndex, segmentId]) => ({ itemIndex, segmentId })));
-  const saved = await replaceContent(db, 'transcription', input.transcriptionId, input.userId, input.fromVersion, stream, 'TEI import');
+  const stream = applyStarts(
+    result.stream,
+    [...byIndex.entries()].map(([itemIndex, segmentId]) => ({ itemIndex, segmentId })),
+  );
+  const saved = await replaceContent(
+    db,
+    'transcription',
+    input.transcriptionId,
+    input.userId,
+    input.fromVersion,
+    stream,
+    'TEI import',
+  );
   return {
     version: saved.version,
     content: saved.content,

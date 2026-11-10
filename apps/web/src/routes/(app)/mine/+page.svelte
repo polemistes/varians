@@ -29,7 +29,11 @@
         />
       {/each}
     </LibrarySection>
-    <LibrarySection title={t.transcriptions} count={data.transcriptions.length} empty={t.noTranscriptions}>
+    <LibrarySection
+      title={t.transcriptions}
+      count={data.transcriptions.length}
+      empty={t.noTranscriptions}
+    >
       {#each data.transcriptions as transcription (transcription.id)}
         <RecordRow
           href="/transcriptions/{transcription.id}"
@@ -41,7 +45,11 @@
         />
       {/each}
     </LibrarySection>
-    <LibrarySection title={t.shared} count={data.shared.editions.length + data.shared.transcriptions.length} empty={t.noShared}>
+    <LibrarySection
+      title={t.shared}
+      count={data.shared.editions.length + data.shared.transcriptions.length}
+      empty={t.noShared}
+    >
       {#each data.shared.editions as edition (edition.id)}
         <RecordRow
           href="/editions/{edition.slug}/edit"

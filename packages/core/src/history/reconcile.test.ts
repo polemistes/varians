@@ -80,7 +80,9 @@ class Installation {
       }
       this.content = result.content;
     } else if (result.kind === 'merge') {
-      this.log.push(...result.theirs.filter((c) => !known.has(c.id)).map((c) => ({ ...c, version: 0 })));
+      this.log.push(
+        ...result.theirs.filter((c) => !known.has(c.id)).map((c) => ({ ...c, version: 0 })),
+      );
       const merge: Changeset = {
         id: mergeId,
         documentId: this.documentId,
@@ -102,7 +104,10 @@ class Installation {
 const set = (id: string, form: string): Op => ({ t: 'set', id, fields: { form } });
 const word = (id: string, form: string): Token => ({ kind: 'token', id, form });
 
-function expectKind<K extends Reconciliation['kind']>(result: Reconciliation, kind: K): Extract<Reconciliation, { kind: K }> {
+function expectKind<K extends Reconciliation['kind']>(
+  result: Reconciliation,
+  kind: K,
+): Extract<Reconciliation, { kind: K }> {
   expect(result.kind).toBe(kind);
   return result as Extract<Reconciliation, { kind: K }>;
 }
@@ -164,7 +169,10 @@ describe('reconcile: fast-forward', () => {
     const b = a.copy('v');
     a.save('c2', [set('t3', 'red')]);
     a.save('c3', [set('t4', 'hare')]);
-    const result = expectKind(reconcile(b.log, [...a.applied].reverse(), b.content), 'fast-forward');
+    const result = expectKind(
+      reconcile(b.log, [...a.applied].reverse(), b.content),
+      'fast-forward',
+    );
     expect(result.apply.map((c) => c.id)).toEqual(['c2', 'c3']);
   });
 });
@@ -324,7 +332,9 @@ describe('reconcile: conflict', () => {
     const incoming = [{ ...a.log[0]!, id: 'x2', parentId: 'x1' }];
     const b = new Installation('v');
     b.save('o1', [set('t9', 'idle')]);
-    expect(expectKind(b.pullFrom({ applied: incoming } as Installation), 'conflict').reason).toBe('unrelated');
+    expect(expectKind(b.pullFrom({ applied: incoming } as Installation), 'conflict').reason).toBe(
+      'unrelated',
+    );
   });
 
   it('refuses a history rewritten on one side', () => {
@@ -332,7 +342,9 @@ describe('reconcile: conflict', () => {
     a.save('c1', [set('t2', 'swift')]);
     a.save('c2', [set('t3', 'red')]);
     const b = a.copy('v');
-    const rewritten = a.applied.map((c) => (c.id === 'c2' ? { ...c, parentId: null } : c)).filter((c) => c.id !== 'c1');
+    const rewritten = a.applied
+      .map((c) => (c.id === 'c2' ? { ...c, parentId: null } : c))
+      .filter((c) => c.id !== 'c1');
     expect(expectKind(reconcile(b.log, rewritten, b.content), 'conflict').reason).toBe('rewritten');
   });
 
@@ -362,9 +374,15 @@ describe('reconcile: errors', () => {
 
   it('refuses incoming history that is not a chain', () => {
     const content = initial();
-    expect(() => reconcile([], [entry('a', null), entry('b', 'a'), entry('c', 'a')], content)).toThrow(ReconcileError);
-    expect(() => reconcile([], [entry('a', null), entry('b', null)], content)).toThrow(/2 beginnings/);
-    expect(() => reconcile([], [entry('a', null), entry('b', 'c'), entry('c', 'b')], content)).toThrow(/cycle/);
+    expect(() =>
+      reconcile([], [entry('a', null), entry('b', 'a'), entry('c', 'a')], content),
+    ).toThrow(ReconcileError);
+    expect(() => reconcile([], [entry('a', null), entry('b', null)], content)).toThrow(
+      /2 beginnings/,
+    );
+    expect(() =>
+      reconcile([], [entry('a', null), entry('b', 'c'), entry('c', 'b')], content),
+    ).toThrow(/cycle/);
     expect(() => reconcile([], [entry('a', null), entry('a', null)], content)).toThrow(/twice/);
   });
 
@@ -378,10 +396,16 @@ describe('reconcile: errors', () => {
     const local = [entry('a', null), entry('b', 'a')];
     expect(reconcile(local, [entry('a', null)], content).kind).toBe('nothing');
     const forked = [entry('a', null), entry('b', 'a'), entry('c', 'a')];
-    expect(() => reconcile(forked, [entry('a', null), entry('d', 'a')], content)).toThrow(/2 heads/);
-    expect(reconcile(forked, [entry('a', null), entry('b', 'a'), entry('d', 'b')], content, { head: 'b' }).kind).toBe(
-      'fast-forward',
+    expect(() => reconcile(forked, [entry('a', null), entry('d', 'a')], content)).toThrow(
+      /2 heads/,
     );
-    expect(() => reconcile(local, [entry('a', null), entry('d', 'a')], content, { head: 'zz' })).toThrow(/not in the local/);
+    expect(
+      reconcile(forked, [entry('a', null), entry('b', 'a'), entry('d', 'b')], content, {
+        head: 'b',
+      }).kind,
+    ).toBe('fast-forward');
+    expect(() =>
+      reconcile(local, [entry('a', null), entry('d', 'a')], content, { head: 'zz' }),
+    ).toThrow(/not in the local/);
   });
 });

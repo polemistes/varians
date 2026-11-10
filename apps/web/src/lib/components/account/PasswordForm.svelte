@@ -47,6 +47,8 @@
     {/snippet}
   </Field>
   <div>
-    <Button type="submit" variant="secondary" loading={submitting}>{s.account.changePassword}</Button>
+    <Button type="submit" variant="secondary" loading={submitting}
+      >{s.account.changePassword}</Button
+    >
   </div>
 </form>

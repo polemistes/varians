@@ -56,7 +56,9 @@
 
   let paneOpen = $state(true);
   // A witness with neither pages nor text opens on its pages: that is where its transcription begins.
-  let sideTab = $state(untrack(() => (wb.pages.length === 0 && wb.stream.items.length === 0 ? 'pages' : 'facsimile')));
+  let sideTab = $state(
+    untrack(() => (wb.pages.length === 0 && wb.stream.items.length === 0 ? 'pages' : 'facsimile')),
+  );
   let importOpen = $state(false);
   let settingsOpen = $state(false);
   let deleteOpen = $state(false);
@@ -71,7 +73,11 @@
   let correctionInitial = $state<CorrectionFound | null>(null);
 
   /** The name of a hand as the marks record it, for the editor's tooltips. */
-  const nameHand = (value: string) => handLabel(value, wb.witness.hands, { scribe: t.hands.scribe.toLowerCase(), other: t.hands.other.toLowerCase() }) ?? value;
+  const nameHand = (value: string) =>
+    handLabel(value, wb.witness.hands, {
+      scribe: t.hands.scribe.toLowerCase(),
+      other: t.hands.other.toLowerCase(),
+    }) ?? value;
   let editorArea = $state<HTMLDivElement>();
   let tick = $state(0);
   /** The selection toolbar keeps out of the way while a selection is made with the pointer, and after Escape. */
@@ -112,7 +118,14 @@
     if (!first) return;
     const item = wb.stream.items.find((i) => i.id === first);
     const start = item && item.kind !== 'break' ? item.segment : undefined;
-    requestSegment(first, start ? (start.segmentId === null ? null : (wb.segmentLabels[start.segmentId] ?? null)) : null);
+    requestSegment(
+      first,
+      start
+        ? start.segmentId === null
+          ? null
+          : (wb.segmentLabels[start.segmentId] ?? null)
+        : null,
+    );
   }
 
   // The zones of the page shown, for the facsimile and the unmapped count.
@@ -145,7 +158,9 @@
   }
 
   function onToolbar(event: Event): boolean {
-    return event.target instanceof Element && event.target.closest('[data-selection-toolbar]') !== null;
+    return (
+      event.target instanceof Element && event.target.closest('[data-selection-toolbar]') !== null
+    );
   }
 
   function pointerdown(event: PointerEvent) {
@@ -160,7 +175,8 @@
   }
 
   function keyup(event: KeyboardEvent) {
-    if (event.key !== 'Escape' && !['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) dismissed = false;
+    if (event.key !== 'Escape' && !['Shift', 'Control', 'Alt', 'Meta'].includes(event.key))
+      dismissed = false;
     remeasure();
   }
 
@@ -190,7 +206,9 @@
       .map((token) => (wb.editorForm === 'written' ? token.form : (token.norm ?? token.form)))
       .join(' ');
     const found = api.variantAtSelection();
-    variantInitial = found?.exact ? { reading: found.reading, place: found.place, ...(found.hand ? { hand: found.hand } : {}) } : null;
+    variantInitial = found?.exact
+      ? { reading: found.reading, place: found.place, ...(found.hand ? { hand: found.hand } : {}) }
+      : null;
     variantOpen = true;
   }
 
@@ -250,7 +268,12 @@
 
   // The side pane's width, which the divider changes and the browser remembers.
   let splitArea = $state<HTMLElement | null>(null);
-  const sidePane = new PaneSize('workbench.side', { min: 300, max: 1800, fallback: 560, initial: () => window.innerWidth * 0.44 });
+  const sidePane = new PaneSize('workbench.side', {
+    min: 300,
+    max: 1800,
+    fallback: 560,
+    initial: () => window.innerWidth * 0.44,
+  });
   onMount(() => sidePane.restore());
 
   // Which side the pane stands on (C4), remembered in the browser beside its width.
@@ -274,7 +297,12 @@
   }
 </script>
 
-<svelte:window onkeydown={keydown} onbeforeunload={beforeunload} onresize={remeasure} onpointerup={pointerup} />
+<svelte:window
+  onkeydown={keydown}
+  onbeforeunload={beforeunload}
+  onresize={remeasure}
+  onpointerup={pointerup}
+/>
 
 <div class="workbench flex h-[calc(100dvh-3.5rem-1px)] min-h-[28rem] flex-col">
   <WorkbenchHeader
@@ -305,47 +333,71 @@
     style:--wb-pane="{sidePane.value}px"
   >
     <div class={['flex min-h-0 flex-col bg-surface', paneOpen && paneLeft && 'lg:order-3']}>
-    <TextBar {wb} onpages={showPages} />
-    <div
-      class="relative min-h-0 flex-1 bg-surface"
-      bind:this={editorArea}
-      onkeyup={keyup}
-      onpointerdowncapture={pointerdown}
-      onscrollcapture={remeasure}
-      role="presentation"
-    >
-      {#key wb.generation}
-      <TextEditor
-        stream={wb.stream}
-        form={wb.editorForm}
-        readonly={!wb.canEdit || wb.view === WHOLE}
-        page={wb.page}
-        pageOrder={wb.pageOrder}
-        segmentLabels={wb.segmentLabels}
-        pageLabels={wb.pageLabels}
-        {tokenClasses}
-        handLabel={nameHand}
-        bind:api={wb.api}
-        onops={(ops, next) => wb.editorOps(ops, next)}
-        onselection={selection}
-        ontokenhover={(id) => (wb.hoveredToken = id)}
-        onrequestsegment={requestSegment}
-        oncut={(cut) => wb.editorCut(cut)}
-        oncopy={() => wb.editorCopy()}
-        onpaste={(text) => wb.editorPaste(text)}
-        onworddblclick={(id) => void openWord(id)}
-      />
-      {/key}
-      {#if wb.canEdit && wb.view !== WHOLE}
-        <SelectionToolbar {wb} container={editorArea} {tick} hidden={selecting || dismissed || variantOpen || correctionOpen} onmap={map} onvariant={openVariant} oncorrection={openCorrection} onsegment={segmentOfSelection} />
-        <SegmentPopover {wb} request={segmentRequest} root={editorArea} onclose={() => (segmentRequest = null)} />
-        <DiacriticChooser {wb} root={editorArea} />
-      {/if}
-    </div>
+      <TextBar {wb} onpages={showPages} />
+      <div
+        class="relative min-h-0 flex-1 bg-surface"
+        bind:this={editorArea}
+        onkeyup={keyup}
+        onpointerdowncapture={pointerdown}
+        onscrollcapture={remeasure}
+        role="presentation"
+      >
+        {#key wb.generation}
+          <TextEditor
+            stream={wb.stream}
+            form={wb.editorForm}
+            readonly={!wb.canEdit || wb.view === WHOLE}
+            page={wb.page}
+            pageOrder={wb.pageOrder}
+            segmentLabels={wb.segmentLabels}
+            pageLabels={wb.pageLabels}
+            {tokenClasses}
+            handLabel={nameHand}
+            bind:api={wb.api}
+            onops={(ops, next) => wb.editorOps(ops, next)}
+            onselection={selection}
+            ontokenhover={(id) => (wb.hoveredToken = id)}
+            onrequestsegment={requestSegment}
+            oncut={(cut) => wb.editorCut(cut)}
+            oncopy={() => wb.editorCopy()}
+            onpaste={(text) => wb.editorPaste(text)}
+            onworddblclick={(id) => void openWord(id)}
+          />
+        {/key}
+        {#if wb.canEdit && wb.view !== WHOLE}
+          <SelectionToolbar
+            {wb}
+            container={editorArea}
+            {tick}
+            hidden={selecting || dismissed || variantOpen || correctionOpen}
+            onmap={map}
+            onvariant={openVariant}
+            oncorrection={openCorrection}
+            onsegment={segmentOfSelection}
+          />
+          <SegmentPopover
+            {wb}
+            request={segmentRequest}
+            root={editorArea}
+            onclose={() => (segmentRequest = null)}
+          />
+          <DiacriticChooser {wb} root={editorArea} />
+        {/if}
+      </div>
     </div>
     {#if paneOpen}
-      <Splitter class={paneLeft ? 'hidden lg:order-2 lg:block' : 'hidden lg:block'} pane={sidePane} axis="x" side={paneLeft ? 'before' : 'after'} container={splitArea} label={t.pane.resize} />
-      <aside class={['min-h-0 border-t border-line lg:border-t-0', paneLeft && 'lg:order-1']} aria-label={t.pane.label}>
+      <Splitter
+        class={paneLeft ? 'hidden lg:order-2 lg:block' : 'hidden lg:block'}
+        pane={sidePane}
+        axis="x"
+        side={paneLeft ? 'before' : 'after'}
+        container={splitArea}
+        label={t.pane.resize}
+      />
+      <aside
+        class={['min-h-0 border-t border-line lg:border-t-0', paneLeft && 'lg:order-1']}
+        aria-label={t.pane.label}
+      >
         <SidePane {wb} bind:tab={sideTab} />
       </aside>
     {/if}
@@ -358,8 +410,21 @@
   <SettingsDialog {wb} bind:open={settingsOpen} />
   <NumberLinesDialog {wb} bind:open={numberOpen} />
   <ProposalsDialog {wb} bind:open={proposalsOpen} />
-  <VariantDialog bind:open={variantOpen} words={variantWords} hands={wb.witness.hands} initial={variantInitial} onsave={saveVariant} oncancel={() => wb.api?.focus()} />
-  <CorrectionDialog bind:open={correctionOpen} hands={wb.witness.hands} initial={correctionInitial} onsave={saveCorrection} oncancel={() => wb.api?.focus()} />
+  <VariantDialog
+    bind:open={variantOpen}
+    words={variantWords}
+    hands={wb.witness.hands}
+    initial={variantInitial}
+    onsave={saveVariant}
+    oncancel={() => wb.api?.focus()}
+  />
+  <CorrectionDialog
+    bind:open={correctionOpen}
+    hands={wb.witness.hands}
+    initial={correctionInitial}
+    onsave={saveCorrection}
+    oncancel={() => wb.api?.focus()}
+  />
 {/if}
 {#if wb.canDelete}
   <DeleteDialog {wb} bind:open={deleteOpen} />

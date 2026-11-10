@@ -116,7 +116,14 @@ export interface WorkbenchInput {
     workIds: string[];
     profile: Partial<NormalizationProfile> | null;
   };
-  witness: { id: string; slug: string; siglum: string; name: string; hands: WitnessHand[]; imageDefaults?: ImageDefaults };
+  witness: {
+    id: string;
+    slug: string;
+    siglum: string;
+    name: string;
+    hands: WitnessHand[];
+    imageDefaults?: ImageDefaults;
+  };
   pages: WorkbenchPage[];
   works: WorkbenchWork[];
   segments: Record<string, SegmentInfo>;
@@ -156,7 +163,8 @@ export interface WorkbenchNotice {
   view: string | null;
 }
 
-const sameText = (a: string, b: string) => a.replace(/\r\n?/gu, '\n') === b.replace(/\r\n?/gu, '\n');
+const sameText = (a: string, b: string) =>
+  a.replace(/\r\n?/gu, '\n') === b.replace(/\r\n?/gu, '\n');
 
 export class Workbench {
   readonly id: string;
@@ -282,7 +290,12 @@ export class Workbench {
     }
     if (!remembered || settleView(remembered, this.stream, this.pages) !== remembered) return;
     // Not on a page left empty since, while pages have text: the text has been placed, and the transcript opens where it is.
-    if (remembered === UNPLACED && !hasUnplacedText(this.stream) && pagesWithText(this.stream).size > 0) return;
+    if (
+      remembered === UNPLACED &&
+      !hasUnplacedText(this.stream) &&
+      pagesWithText(this.stream).size > 0
+    )
+      return;
     this.requestedView = remembered;
   }
 
@@ -298,9 +311,14 @@ export class Workbench {
 
   // Derived
 
-  readonly pageLabels = $derived({ ...this.seenLabels, ...Object.fromEntries(this.pages.map((p) => [p.id, p.label])) });
+  readonly pageLabels = $derived({
+    ...this.seenLabels,
+    ...Object.fromEntries(this.pages.map((p) => [p.id, p.label])),
+  });
   readonly pageOrder = $derived(this.pages.map((p) => p.id));
-  readonly segmentLabels = $derived(Object.fromEntries(Object.entries(this.segments).map(([id, s]) => [id, s.label])));
+  readonly segmentLabels = $derived(
+    Object.fromEntries(Object.entries(this.segments).map(([id, s]) => [id, s.label])),
+  );
   /** The pages of the witness with text in this transcript, with their words and lines. */
   readonly textOnPages = $derived(pagesWithText(this.stream));
   /** Words on no page. */
@@ -337,28 +355,52 @@ export class Workbench {
   });
   readonly witnessPage = $derived(this.pages.find((p) => p.id === this.pageId) ?? null);
   readonly pageLabel = $derived(
-    this.view === WHOLE ? t.pages.whole : this.view === UNPLACED ? t.pages.unplaced : (this.pages.find((p) => p.id === this.view)?.label ?? ''),
+    this.view === WHOLE
+      ? t.pages.whole
+      : this.view === UNPLACED
+        ? t.pages.unplaced
+        : (this.pages.find((p) => p.id === this.view)?.label ?? ''),
   );
   readonly pageStream = $derived(pageView(this.stream, this.page, this.pageOrder).stream);
   /** The text of the page the facsimile shows. */
-  readonly facsimileStream = $derived(this.onPage ? this.pageStream : this.pageId ? pageView(this.stream, this.pageId, this.pageOrder).stream : { items: [] });
+  readonly facsimileStream = $derived(
+    this.onPage
+      ? this.pageStream
+      : this.pageId
+        ? pageView(this.stream, this.pageId, this.pageOrder).stream
+        : { items: [] },
+  );
   readonly neighbours = $derived(neighbours(this.view, viewOrder(this.pages)));
   readonly editorForm = $derived<Form>(this.keepsWrittenForm ? this.form : 'written');
   readonly otherForm = $derived<Form>(this.editorForm === 'written' ? 'read' : 'written');
   readonly lines = $derived(lineCount(this.pageStream));
   /** The spelling rules each word is read by: its stretch's work's, else the first work's. */
-  readonly profile = $derived.by(() => profilesByWork(this.stream, this.segments, this.works, this.profileOverrides, this.workId));
+  readonly profile = $derived.by(() =>
+    profilesByWork(this.stream, this.segments, this.works, this.profileOverrides, this.workId),
+  );
   readonly unchecked = $derived(this.keepsWrittenForm ? uncheckedIn(this.pageStream).length : 0);
   readonly proposals = $derived.by(() => {
     void this.memoryTick;
     return this.keepsWrittenForm ? proposeNorms(this.pageStream, this.profile, this.memory) : [];
   });
   readonly pageZones = $derived(this.pageId ? (this.zones[this.pageId] ?? null) : null);
-  readonly unmapped = $derived(this.pageZones && this.witnessPage?.source ? unmappedTokens(this.facsimileStream, this.pageZones) : []);
-  readonly schemes = $derived(new Map(this.works.map((w) => [w.id, { levels: w.levels } satisfies Scheme])));
+  readonly unmapped = $derived(
+    this.pageZones && this.witnessPage?.source
+      ? unmappedTokens(this.facsimileStream, this.pageZones)
+      : [],
+  );
+  readonly schemes = $derived(
+    new Map(this.works.map((w) => [w.id, { levels: w.levels } satisfies Scheme])),
+  );
 
   /** Words selected in the editor, or the word at the caret. */
-  readonly focusTokens = $derived(this.selection.ids.length ? this.selection.ids : this.selection.caret ? [this.selection.caret] : []);
+  readonly focusTokens = $derived(
+    this.selection.ids.length
+      ? this.selection.ids
+      : this.selection.caret
+        ? [this.selection.caret]
+        : [],
+  );
 
   schemeOf = (workId: string): Scheme | undefined => this.schemes.get(workId);
 
@@ -549,7 +591,9 @@ export class Workbench {
   // Diacritics and case
 
   /** Words whose diacritics are left to choose after Normalize diacritics, with their options; empty options for a word the analyser does not know. */
-  diacriticChoices = $state.raw<Map<Id, { options: FormOption[]; reason: 'several' | 'disagrees' | 'unknown' }>>(new Map());
+  diacriticChoices = $state.raw<
+    Map<Id, { options: FormOption[]; reason: 'several' | 'disagrees' | 'unknown' }>
+  >(new Map());
 
   /** The words a tool acts on: those selected, else every word of the page shown. */
   private toolScope(): Id[] {
@@ -588,10 +632,16 @@ export class Workbench {
     const analyses: Record<string, AnalysisLike[]> = {};
     try {
       for (let i = 0; i < texts.length; i += 250) {
-        const query = texts.slice(i, i + 250).map((w) => `w=${encodeURIComponent(w)}`).join('&');
+        const query = texts
+          .slice(i, i + 250)
+          .map((w) => `w=${encodeURIComponent(w)}`)
+          .join('&');
         const response = await fetch(`/api/greek/words?${query}`);
         if (!response.ok) return null;
-        Object.assign(analyses, ((await response.json()) as { words: Record<string, AnalysisLike[]> }).words);
+        Object.assign(
+          analyses,
+          ((await response.json()) as { words: Record<string, AnalysisLike[]> }).words,
+        );
       }
     } catch {
       return null;
@@ -613,7 +663,8 @@ export class Workbench {
       if (outcome.kind === 'set') {
         ops.push(setTextOp(token, field, outcome.value));
         set++;
-      } else if (outcome.kind === 'choose') choices.set(token.id, { options: outcome.options, reason: outcome.reason });
+      } else if (outcome.kind === 'choose')
+        choices.set(token.id, { options: outcome.options, reason: outcome.reason });
       else if (outcome.kind === 'unknown') {
         choices.set(token.id, { options: [], reason: 'unknown' });
         unknown++;
@@ -629,22 +680,42 @@ export class Workbench {
    * of the same work) for the words in scope whose letters agree with the
    * words they stand against. Null when the other text could not be read.
    */
-  async takeFormsFrom(source: { kind: 'transcription' | 'edition'; id: string }): Promise<{ taken: number; differing: number } | null> {
+  async takeFormsFrom(source: {
+    kind: 'transcription' | 'edition';
+    id: string;
+  }): Promise<{ taken: number; differing: number } | null> {
     const field = this.normalizedField;
     const scope = new Set(this.toolScope());
-    const segmentIds = [...new Set(segmentRuns(this.stream).filter((run) => run.segmentId && this.stream.items.slice(run.from, run.to).some((i) => scope.has(i.id))).map((run) => run.segmentId!))];
+    const segmentIds = [
+      ...new Set(
+        segmentRuns(this.stream)
+          .filter(
+            (run) =>
+              run.segmentId &&
+              this.stream.items.slice(run.from, run.to).some((i) => scope.has(i.id)),
+          )
+          .map((run) => run.segmentId!),
+      ),
+    ];
     if (segmentIds.length === 0) return { taken: 0, differing: 0 };
-    const url = source.kind === 'transcription' ? `/api/transcriptions/${source.id}/segments` : `/api/editions/${source.id}/units`;
+    const url =
+      source.kind === 'transcription'
+        ? `/api/transcriptions/${source.id}/segments`
+        : `/api/editions/${source.id}/units`;
     let there: Record<string, Unit[]>;
     try {
       const response = await fetch(`${url}?ids=${segmentIds.map(encodeURIComponent).join(',')}`);
       if (!response.ok) return null;
       const data = (await response.json()) as { segments: Record<string, { units: Unit[] }> };
-      there = Object.fromEntries(Object.entries(data.segments).map(([id, s]) => [id, s.units] as const));
+      there = Object.fromEntries(
+        Object.entries(data.segments).map(([id, s]) => [id, s.units] as const),
+      );
     } catch {
       return null;
     }
-    const here = Object.fromEntries(segmentIds.map((id) => [id, segmentUnits(this.stream, id)] as const));
+    const here = Object.fromEntries(
+      segmentIds.map((id) => [id, segmentUnits(this.stream, id)] as const),
+    );
     const outcome = takeForms(this.stream, scope, field, this.keepsWrittenForm, here, there);
     if (outcome.ops.length) this.apply(outcome.ops);
     return { taken: outcome.taken, differing: outcome.differing };
@@ -655,7 +726,8 @@ export class Workbench {
     const token = this.token(id);
     if (!token) return;
     const field = this.normalizedField;
-    if (this.apply([setTextOp(token, field, value)]) && this.keepsWrittenForm) this.remember([{ form: token.form, norm: value }]);
+    if (this.apply([setTextOp(token, field, value)]) && this.keepsWrittenForm)
+      this.remember([{ form: token.form, norm: value }]);
     this.dismissChoice(id);
   }
 
@@ -761,7 +833,10 @@ export class Workbench {
 
   private async updateZoneTokens(pageId: string, id: string, tokenIds: Id[]): Promise<boolean> {
     const before = this.zones[pageId] ?? [];
-    this.setZones(pageId, before.map((z) => (z.id === id ? { ...z, tokenIds } : z)));
+    this.setZones(
+      pageId,
+      before.map((z) => (z.id === id ? { ...z, tokenIds } : z)),
+    );
     const response = await fetch(`/api/transcriptions/${this.id}/zones`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
@@ -825,7 +900,11 @@ export class Workbench {
     ops.push(...repairSegmentStartsFrom([this.stream, reference], placed));
     if (!api.applyWhole(ops)) return false;
     const to = pageOf(this.stream, cut.items[0]!.id);
-    if (cut.page && cut.page !== UNPLACED && cut.page !== to) void this.detachZones(cut.page, cut.items.map((item) => item.id));
+    if (cut.page && cut.page !== UNPLACED && cut.page !== to)
+      void this.detachZones(
+        cut.page,
+        cut.items.map((item) => item.id),
+      );
     this.cutWords = null;
     return true;
   }
@@ -861,7 +940,10 @@ export class Workbench {
       attribution: p.attribution,
     }));
     this.imageDefaults = data.witness.imageDefaults;
-    this.seenLabels = { ...this.seenLabels, ...Object.fromEntries(data.pages.map((p) => [p.id, p.label])) };
+    this.seenLabels = {
+      ...this.seenLabels,
+      ...Object.fromEntries(data.pages.map((p) => [p.id, p.label])),
+    };
     return data;
   }
 
@@ -869,10 +951,13 @@ export class Workbench {
 
   /** The zones of a page, loaded once; `force` loads again. */
   loadZones(pageId: string, force = false): Promise<void> {
-    if (!force && (this.zones[pageId] || this.zoneLoads.has(pageId))) return this.zoneLoads.get(pageId) ?? Promise.resolve();
+    if (!force && (this.zones[pageId] || this.zoneLoads.has(pageId)))
+      return this.zoneLoads.get(pageId) ?? Promise.resolve();
     const load = (async () => {
       try {
-        const response = await fetch(`/api/transcriptions/${this.id}/zones?page=${encodeURIComponent(pageId)}`);
+        const response = await fetch(
+          `/api/transcriptions/${this.id}/zones?page=${encodeURIComponent(pageId)}`,
+        );
         if (!response.ok) return;
         const data = (await response.json()) as { zones: Zone[] };
         this.zones = { ...untrack(() => this.zones), [pageId]: data.zones };
@@ -889,13 +974,30 @@ export class Workbench {
   }
 
   /** Make zones on a page, replacing the zones that consist only of tokens being mapped again. */
-  async createZones(pageId: string, inputs: { id?: string; geometry: ZoneGeometry; tokenIds: Id[]; feature?: { kind: string; description?: string } | null }[], replace: string[] = []): Promise<Zone[] | null> {
+  async createZones(
+    pageId: string,
+    inputs: {
+      id?: string;
+      geometry: ZoneGeometry;
+      tokenIds: Id[];
+      feature?: { kind: string; description?: string } | null;
+    }[],
+    replace: string[] = [],
+  ): Promise<Zone[] | null> {
     if (!this.canEdit || inputs.length === 0) return null;
     if (replace.length) await this.deleteZones(pageId, replace);
     const response = await fetch(`/api/transcriptions/${this.id}/zones`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ zones: inputs.map((z) => ({ id: z.id, pageId, geometry: z.geometry, tokenIds: z.tokenIds, feature: z.feature ?? null })) }),
+      body: JSON.stringify({
+        zones: inputs.map((z) => ({
+          id: z.id,
+          pageId,
+          geometry: z.geometry,
+          tokenIds: z.tokenIds,
+          feature: z.feature ?? null,
+        })),
+      }),
     });
     if (!response.ok) return null;
     const data = (await response.json()) as { zones: Zone[] };
@@ -906,7 +1008,10 @@ export class Workbench {
   async updateZone(pageId: string, id: string, geometry: ZoneGeometry): Promise<boolean> {
     if (!this.canEdit) return false;
     const before = this.zones[pageId] ?? [];
-    this.setZones(pageId, before.map((z) => (z.id === id ? { ...z, geometry } : z)));
+    this.setZones(
+      pageId,
+      before.map((z) => (z.id === id ? { ...z, geometry } : z)),
+    );
     const response = await fetch(`/api/transcriptions/${this.id}/zones`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
@@ -917,11 +1022,17 @@ export class Workbench {
   }
 
   /** New shapes for several zones of a page, saved together: all or none. */
-  async updateZones(pageId: string, changes: { id: string; geometry: ZoneGeometry }[]): Promise<boolean> {
+  async updateZones(
+    pageId: string,
+    changes: { id: string; geometry: ZoneGeometry }[],
+  ): Promise<boolean> {
     if (!this.canEdit || changes.length === 0) return false;
     const next = new Map(changes.map((c) => [c.id, c.geometry] as const));
     const before = this.zones[pageId] ?? [];
-    this.setZones(pageId, before.map((z) => (next.has(z.id) ? { ...z, geometry: next.get(z.id)! } : z)));
+    this.setZones(
+      pageId,
+      before.map((z) => (next.has(z.id) ? { ...z, geometry: next.get(z.id)! } : z)),
+    );
     const response = await fetch(`/api/transcriptions/${this.id}/zones`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
@@ -935,7 +1046,10 @@ export class Workbench {
     if (!this.canEdit || ids.length === 0) return false;
     const gone = new Set(ids);
     const before = this.zones[pageId] ?? [];
-    this.setZones(pageId, before.filter((z) => !gone.has(z.id)));
+    this.setZones(
+      pageId,
+      before.filter((z) => !gone.has(z.id)),
+    );
     const response = await fetch(`/api/transcriptions/${this.id}/zones`, {
       method: 'DELETE',
       headers: { 'content-type': 'application/json' },
@@ -953,7 +1067,10 @@ export class Workbench {
   }
 
   /** Resolve labels of a work to segments (found or created), in order; null when the server refuses. */
-  async resolveLabels(workId: string, labels: string[]): Promise<{ ok: true; ids: string[] } | { ok: false; message: string }> {
+  async resolveLabels(
+    workId: string,
+    labels: string[],
+  ): Promise<{ ok: true; ids: string[] } | { ok: false; message: string }> {
     const response = await fetch(`/api/works/${encodeURIComponent(workId)}/segments`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -969,13 +1086,21 @@ export class Workbench {
       return { ok: false, message };
     }
     const data = (await response.json()) as { segments: { id: string; label: string }[] };
-    this.addSegments(Object.fromEntries(data.segments.map((s) => [s.id, { label: s.label, workId }])));
+    this.addSegments(
+      Object.fromEntries(data.segments.map((s) => [s.id, { label: s.label, workId }])),
+    );
     return { ok: true, ids: data.segments.map((s) => s.id) };
   }
 
   // Settings and imports
 
-  applySettings(settings: { name: string; keepsWrittenForm: boolean; displayAsWritten: boolean; sources?: string | null; rightsNote?: string | null }): void {
+  applySettings(settings: {
+    name: string;
+    keepsWrittenForm: boolean;
+    displayAsWritten: boolean;
+    sources?: string | null;
+    rightsNote?: string | null;
+  }): void {
     const turnedOn = settings.keepsWrittenForm && !this.keepsWrittenForm;
     this.name = settings.name;
     if (settings.sources !== undefined) this.sources = settings.sources;
@@ -998,6 +1123,9 @@ export class Workbench {
     this.replaceDocument(result.outcome);
     // Stay where the text was shown when it is still there; else go where the text now is.
     const current = this.requestedView;
-    this.requestedView = current !== null && settleView(current, this.stream, this.pages) === current ? current : initialView(this.stream, this.pages);
+    this.requestedView =
+      current !== null && settleView(current, this.stream, this.pages) === current
+        ? current
+        : initialView(this.stream, this.pages);
   }
 }

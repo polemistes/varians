@@ -43,7 +43,10 @@
   });
 </script>
 
-<section aria-labelledby="add-pages-heading" class="flex flex-col gap-3 rounded-md border border-line bg-surface p-4 font-sans">
+<section
+  aria-labelledby="add-pages-heading"
+  class="flex flex-col gap-3 rounded-md border border-line bg-surface p-4 font-sans"
+>
   <div>
     <h2 id="add-pages-heading" class="text-sm font-semibold text-ink">{t.add.title}</h2>
   </div>
@@ -73,7 +76,7 @@
     }}
   >
     <div class="flex items-end gap-2">
-      <Field label={t.add.labels} error={error} class="min-w-0 flex-1">
+      <Field label={t.add.labels} {error} class="min-w-0 flex-1">
         {#snippet children(control)}
           <Input
             {...control}
@@ -91,7 +94,10 @@
         {t.add.submit(count)}
       </Button>
     </div>
-    <p class={['min-h-4 text-xs', expanded && !expanded.ok ? 'text-ink-muted' : 'text-ink-soft']} aria-live="polite">
+    <p
+      class={['min-h-4 text-xs', expanded && !expanded.ok ? 'text-ink-muted' : 'text-ink-soft']}
+      aria-live="polite"
+    >
       {#if preview}{preview}{:else}{t.add.labelsHint}{/if}
     </p>
   </form>

@@ -50,7 +50,12 @@ export const DEFAULT_CONVENTIONS = {
   lineation: 'verse' as const,
   numberEvery: 5,
   speakerDisplay: 'margin' as const,
-  sigla: { supplied: ['⟨', '⟩'] as [string, string], deleted: ['[', ']'] as [string, string], lacuna: '***', crux: '†' },
+  sigla: {
+    supplied: ['⟨', '⟩'] as [string, string],
+    deleted: ['[', ']'] as [string, string],
+    lacuna: '***',
+    crux: '†',
+  },
 };
 
 const ILIAD: Record<string, string> = {
@@ -67,11 +72,16 @@ const ILIAD: Record<string, string> = {
 };
 
 /** Lines to a stream, each line a segment, with optional page breaks before given labels. */
-function linesToStream(lines: Record<string, string>, segmentIdOf: (label: string) => string, pageBefore: Record<string, string> = {}): Stream {
+function linesToStream(
+  lines: Record<string, string>,
+  segmentIdOf: (label: string) => string,
+  pageBefore: Record<string, string> = {},
+): Stream {
   const items: Item[] = [];
   let first = true;
   for (const [label, text] of Object.entries(lines)) {
-    if (pageBefore[label]) items.push({ kind: 'break', id: newId(), type: 'page', pageId: pageBefore[label] });
+    if (pageBefore[label])
+      items.push({ kind: 'break', id: newId(), type: 'page', pageId: pageBefore[label] });
     else if (!first) items.push({ kind: 'break', id: newId(), type: 'line' });
     first = false;
     const line = fromText(text);
@@ -94,15 +104,32 @@ export interface SampleOptions {
 }
 
 /** Seed the sample, owned by the given user. Idempotent by work slug. */
-export async function seedSample(db: Database, ownerId: string, options: SampleOptions = {}): Promise<SampleResult> {
+export async function seedSample(
+  db: Database,
+  ownerId: string,
+  options: SampleOptions = {},
+): Promise<SampleResult> {
   const existing = await db.select({ id: works.id }).from(works).where(eq(works.slug, 'iliad'));
   if (existing.length) {
-    const [edition] = await db.select({ id: editions.id, slug: editions.slug }).from(editions).where(eq(editions.workId, existing[0]!.id));
-    return { workId: existing[0]!.id, editionId: edition?.id ?? '', editionSlug: edition?.slug ?? '', witnessIds: {} };
+    const [edition] = await db
+      .select({ id: editions.id, slug: editions.slug })
+      .from(editions)
+      .where(eq(editions.workId, existing[0]!.id));
+    return {
+      workId: existing[0]!.id,
+      editionId: edition?.id ?? '',
+      editionSlug: edition?.slug ?? '',
+      witnessIds: {},
+    };
   }
 
   const schemeId = newId();
-  await db.insert(referenceSchemes).values({ id: schemeId, name: SCHEME_PRESETS[0]!.name, levels: SCHEME_PRESETS[0]!.scheme.levels, createdBy: ownerId });
+  await db.insert(referenceSchemes).values({
+    id: schemeId,
+    name: SCHEME_PRESETS[0]!.name,
+    levels: SCHEME_PRESETS[0]!.scheme.levels,
+    createdBy: ownerId,
+  });
   const workId = newId();
   await db.insert(works).values({
     id: workId,
@@ -134,10 +161,16 @@ export async function seedSample(db: Database, ownerId: string, options: SampleO
     description: 'The principal manuscript of the Iliad, with scholia.',
   });
   const aPages = await makePages(db, aId, ['12r', '12v', '13r']);
-  const aRead = linesToStream(ILIAD, segmentIdOf, { '1.1': aPages[0]!, '1.6': aPages[1]!, '1.9': aPages[2]! });
+  const aRead = linesToStream(ILIAD, segmentIdOf, {
+    '1.1': aPages[0]!,
+    '1.6': aPages[1]!,
+    '1.9': aPages[2]!,
+  });
   for (const item of aRead.items) {
     if (item.kind !== 'token') continue;
-    const written = stripDiacritics(item.form).toUpperCase().replace(/[,.;·]/gu, '');
+    const written = stripDiacritics(item.form)
+      .toUpperCase()
+      .replace(/[,.;·]/gu, '');
     if (written !== item.form) {
       item.norm = item.form;
       item.form = written;
@@ -157,20 +190,52 @@ export async function seedSample(db: Database, ownerId: string, options: SampleO
   bLines['1.8'] = 'τίς τ᾽ ἄρ σφωε θεῶν ἔριδι συνέηκε μάχεσθαι;';
   bLines['1.9'] = 'Διὸς καὶ Λητοῦς υἱός· ὁ γὰρ βασιλῆϊ χολωθεὶς';
   delete bLines['1.6'];
-  const bId = await witness(db, ownerId, { slug: 'venetus-b', siglum: 'B', name: 'Venetus B', repository: 'Biblioteca Nazionale Marciana', settlement: 'Venice', shelfmark: 'Marc. gr. Z. 453', dateText: 's. XI' });
-  const bTranscription = await transcription(db, bId, ownerId, 'Iliad 1', linesToStream(bLines, segmentIdOf), false, workId);
+  const bId = await witness(db, ownerId, {
+    slug: 'venetus-b',
+    siglum: 'B',
+    name: 'Venetus B',
+    repository: 'Biblioteca Nazionale Marciana',
+    settlement: 'Venice',
+    shelfmark: 'Marc. gr. Z. 453',
+    dateText: 's. XI',
+  });
+  const bTranscription = await transcription(
+    db,
+    bId,
+    ownerId,
+    'Iliad 1',
+    linesToStream(bLines, segmentIdOf),
+    false,
+    workId,
+  );
 
   // Witness C: fragmentary, lines 3 and 6 lost, a gap inside line 5, one substitution.
   const cLines: Record<string, string> = { ...ILIAD };
   delete cLines['1.3'];
   delete cLines['1.6'];
   cLines['1.10'] = 'νοῦσον ἀνὰ στρατὸν ὄρσε κακά, ὀλέκοντο δὲ λαοί,';
-  const cId = await witness(db, ownerId, { slug: 'laurentianus-c', siglum: 'C', name: 'Codex Laurentianus', category: 'manuscript', dateText: 's. XII' });
+  const cId = await witness(db, ownerId, {
+    slug: 'laurentianus-c',
+    siglum: 'C',
+    name: 'Codex Laurentianus',
+    category: 'manuscript',
+    dateText: 's. XII',
+  });
   const cStream = linesToStream(cLines, segmentIdOf);
   // Replace "Διὸς δ᾽" in 1.5 with a gap.
-  const line5Start = cStream.items.findIndex((i) => i.kind === 'token' && i.segment?.segmentId === segmentIdOf('1.5'));
-  const dios = cStream.items.findIndex((i, k) => k > line5Start && i.kind === 'token' && i.form === 'Διὸς');
-  if (dios > 0) cStream.items.splice(dios, 2, { kind: 'object', id: newId(), type: 'gap', attrs: { reason: 'lost', quantity: 6, unit: 'character' } });
+  const line5Start = cStream.items.findIndex(
+    (i) => i.kind === 'token' && i.segment?.segmentId === segmentIdOf('1.5'),
+  );
+  const dios = cStream.items.findIndex(
+    (i, k) => k > line5Start && i.kind === 'token' && i.form === 'Διὸς',
+  );
+  if (dios > 0)
+    cStream.items.splice(dios, 2, {
+      kind: 'object',
+      id: newId(),
+      type: 'gap',
+      attrs: { reason: 'lost', quantity: 6, unit: 'character' },
+    });
   const cTranscription = await transcription(db, cId, ownerId, 'Iliad 1', cStream, false, workId);
 
   // The edition, based on A.
@@ -182,7 +247,8 @@ export async function seedSample(db: Database, ownerId: string, options: SampleO
     slug: 'iliad-1-working-edition',
     title: 'Iliad 1, a working edition',
     editors: ['Test User'],
-    preface: 'The opening of the Iliad, collated from three witnesses. A worked example, not a verified text.',
+    preface:
+      'The opening of the Iliad, collated from three witnesses. A worked example, not a verified text.',
     ownerId,
     conventions: DEFAULT_CONVENTIONS,
   });
@@ -221,7 +287,16 @@ export async function seedSample(db: Database, ownerId: string, options: SampleO
     },
   ]);
   // A reported reading of a witness nobody has transcribed.
-  const dId = await witness(db, ownerId, { slug: 'townleianus-t', siglum: 'T', name: 'Townleianus', repository: 'British Library', settlement: 'London', shelfmark: 'Burney 86', dateText: 'a. 1059', category: 'manuscript' });
+  const dId = await witness(db, ownerId, {
+    slug: 'townleianus-t',
+    siglum: 'T',
+    name: 'Townleianus',
+    repository: 'British Library',
+    settlement: 'London',
+    shelfmark: 'Burney 86',
+    dateText: 'a. 1059',
+    category: 'manuscript',
+  });
   await db.insert(reportedReadings).values({
     id: newId(),
     workId,
@@ -233,7 +308,9 @@ export async function seedSample(db: Database, ownerId: string, options: SampleO
     ownerId,
     visibility: 'published',
   });
-  await db.insert(editionSigla).values({ editionId, witnessId: dId, transcriptionId: null, siglum: 'T', position: 3 });
+  await db
+    .insert(editionSigla)
+    .values({ editionId, witnessId: dId, transcriptionId: null, siglum: 'T', position: 3 });
 
   // The record of the work on the edition, so that every kind of archived record has one:
   // a citation and a note citing the literature, a zone on A's first page, an alignment constraint,
@@ -247,20 +324,62 @@ export async function seedSample(db: Database, ownerId: string, options: SampleO
   await setCitations(db, { conjectureId: zenodotus }, [{ itemId: allen, postnote: 'ad 1.5' }]);
   const editionTokens = content.items.filter((i): i is Token => i.kind === 'token');
   const firstWord = editionTokens[0]!;
-  await addNote(db, editionId, { segmentId: segmentIdOf('1.1'), tokenIds: [firstWord.id], text: 'The first word states the theme.', citations: [{ itemId: allen, prenote: 'cf.' }] }, ownerId);
+  await addNote(
+    db,
+    editionId,
+    {
+      segmentId: segmentIdOf('1.1'),
+      tokenIds: [firstWord.id],
+      text: 'The first word states the theme.',
+      citations: [{ itemId: allen, prenote: 'cf.' }],
+    },
+    ownerId,
+  );
   const aTokens = aRead.items.filter((i): i is Token => i.kind === 'token');
-  await createZones(db, aTranscription, aId, [{ pageId: aPages[0]!, tokenIds: [aTokens[0]!.id], geometry: { rect: { x: 0.12, y: 0.08, w: 0.1, h: 0.03 } } }]);
-  const [bRow] = await db.select({ content: transcriptions.content }).from(transcriptions).where(eq(transcriptions.id, bTranscription));
+  await createZones(db, aTranscription, aId, [
+    {
+      pageId: aPages[0]!,
+      tokenIds: [aTokens[0]!.id],
+      geometry: { rect: { x: 0.12, y: 0.08, w: 0.1, h: 0.03 } },
+    },
+  ]);
+  const [bRow] = await db
+    .select({ content: transcriptions.content })
+    .from(transcriptions)
+    .where(eq(transcriptions.id, bTranscription));
   const bFirst = bRow!.content.items.find((i): i is Token => i.kind === 'token')!;
-  await db.insert(alignmentConstraints).values({ id: newId(), editionId, segmentId: segmentIdOf('1.1'), baseTokenIds: [firstWord.id], transcriptionId: bTranscription, witnessTokenIds: [bFirst.id] });
+  await db.insert(alignmentConstraints).values({
+    id: newId(),
+    editionId,
+    segmentId: segmentIdOf('1.1'),
+    baseTokenIds: [firstWord.id],
+    transcriptionId: bTranscription,
+    witnessTokenIds: [bFirst.id],
+  });
   await reviewSite(db, editionId, segmentIdOf('1.2'), `${segmentIdOf('1.2')}:0`, ownerId);
-  await setSiteKind(db, editionId, segmentIdOf('1.2'), `${segmentIdOf('1.2')}:0`, 'textual', ownerId);
+  await setSiteKind(
+    db,
+    editionId,
+    segmentIdOf('1.2'),
+    `${segmentIdOf('1.2')}:0`,
+    'textual',
+    ownerId,
+  );
   await setReviewFrom(db, 'edition', editionId, ownerId, 1);
   await setReviewFrom(db, 'transcription', aTranscription, ownerId, 1);
   await nameMoment(db, 'edition', editionId, 1, 'Collated against A, B and C', ownerId);
-  if (options.collaboratorId) await db.insert(editionCollaborators).values({ editionId, userId: options.collaboratorId, grantedBy: ownerId }).onConflictDoNothing();
+  if (options.collaboratorId)
+    await db
+      .insert(editionCollaborators)
+      .values({ editionId, userId: options.collaboratorId, grantedBy: ownerId })
+      .onConflictDoNothing();
 
-  return { workId, editionId, editionSlug: 'iliad-1-working-edition', witnessIds: { A: aId, B: bId, C: cId, T: dId } };
+  return {
+    workId,
+    editionId,
+    editionSlug: 'iliad-1-working-edition',
+    witnessIds: { A: aId, B: bId, C: cId, T: dId },
+  };
 }
 
 async function witness(
@@ -275,8 +394,15 @@ async function witness(
 }
 
 /** A bibliography entry by its key: the existing one, or a new one. */
-async function bibliographyItem(db: Database, ownerId: string, entry: { entryType: string; citationKey: string; fields: Record<string, string>; label: string }): Promise<string> {
-  const [existing] = await db.select({ id: bibliographyItems.id }).from(bibliographyItems).where(eq(bibliographyItems.citationKey, entry.citationKey));
+async function bibliographyItem(
+  db: Database,
+  ownerId: string,
+  entry: { entryType: string; citationKey: string; fields: Record<string, string>; label: string },
+): Promise<string> {
+  const [existing] = await db
+    .select({ id: bibliographyItems.id })
+    .from(bibliographyItems)
+    .where(eq(bibliographyItems.citationKey, entry.citationKey));
   if (existing) return existing.id;
   const id = newId();
   await db.insert(bibliographyItems).values({ id, createdBy: ownerId, ...entry });
@@ -285,13 +411,25 @@ async function bibliographyItem(db: Database, ownerId: string, entry: { entryTyp
 
 async function makePages(db: Database, witnessId: string, labels: string[]): Promise<string[]> {
   const ids = labels.map(() => newId());
-  await db.insert(pages).values(labels.map((label, i) => ({ id: ids[i]!, witnessId, label, position: i + 1 })));
+  await db
+    .insert(pages)
+    .values(labels.map((label, i) => ({ id: ids[i]!, witnessId, label, position: i + 1 })));
   return ids;
 }
 
-async function transcription(db: Database, witnessId: string, ownerId: string, name: string, content: Stream, keepsWrittenForm: boolean, workId: string | null = null): Promise<string> {
+async function transcription(
+  db: Database,
+  witnessId: string,
+  ownerId: string,
+  name: string,
+  content: Stream,
+  keepsWrittenForm: boolean,
+  workId: string | null = null,
+): Promise<string> {
   const id = newId();
-  await db.insert(transcriptions).values({ id, witnessId, name, ownerId, keepsWrittenForm, visibility: 'published' });
+  await db
+    .insert(transcriptions)
+    .values({ id, witnessId, name, ownerId, keepsWrittenForm, visibility: 'published' });
   if (workId) await setChosenWorks(db, id, [workId]);
   await replaceContent(db, 'transcription', id, ownerId, 0, content, 'seed');
   return id;

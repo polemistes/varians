@@ -12,12 +12,25 @@
   <AuthForm formError={form?.errors?.form} submitLabel={s.auth.logInAction}>
     <Field label={s.auth.email} error={form?.errors?.email}>
       {#snippet children(control)}
-        <Input {...control} name="email" type="email" autocomplete="email" required value={form?.values?.email ?? ''} />
+        <Input
+          {...control}
+          name="email"
+          type="email"
+          autocomplete="email"
+          required
+          value={form?.values?.email ?? ''}
+        />
       {/snippet}
     </Field>
     <Field label={s.auth.password} error={form?.errors?.password}>
       {#snippet children(control)}
-        <Input {...control} name="password" type="password" autocomplete="current-password" required />
+        <Input
+          {...control}
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          required
+        />
       {/snippet}
     </Field>
     {#snippet aside()}

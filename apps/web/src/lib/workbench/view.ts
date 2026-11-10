@@ -34,7 +34,8 @@ export function floatingPosition(
   const above = anchor.top - container.top - gap - size.height;
   const fitsBelow = below + size.height <= container.height;
   const placement = fitsBelow || above < 0 ? 'below' : 'above';
-  const top = placement === 'below' ? Math.min(below, Math.max(0, container.height - size.height)) : above;
+  const top =
+    placement === 'below' ? Math.min(below, Math.max(0, container.height - size.height)) : above;
   const maxLeft = Math.max(gap, container.width - size.width - gap);
   const left = Math.min(Math.max(anchor.left - container.left, gap), maxLeft);
   return { top: Math.max(0, top), left, placement };

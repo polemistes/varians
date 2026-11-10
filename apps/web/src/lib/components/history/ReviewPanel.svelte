@@ -6,7 +6,15 @@
    * reviewer's) or left for later; with how many are left.
    */
   import { tick } from 'svelte';
-  import { Button, EmptyState, Notice, Select, Spinner, toasts, type SelectOption } from '$lib/components/ui';
+  import {
+    Button,
+    EmptyState,
+    Notice,
+    Select,
+    Spinner,
+    toasts,
+    type SelectOption,
+  } from '$lib/components/ui';
   import type { HistoryMoment, ReviewChanges, ReviewItem } from '$lib/history/types';
   import { historyStrings as t } from '$lib/strings/history';
   import { HistoryRequestError, type HistoryApi } from './api';
@@ -28,7 +36,17 @@
     onshow: (item: ReviewItem) => void;
   }
 
-  let { api, active, canEdit, currentVersion, moments, labelOf, colorOf, onchanged, onshow }: Props = $props();
+  let {
+    api,
+    active,
+    canEdit,
+    currentVersion,
+    moments,
+    labelOf,
+    colorOf,
+    onchanged,
+    onshow,
+  }: Props = $props();
 
   let container = $state<HTMLElement>();
   let data = $state.raw<ReviewChanges | null>(null);
@@ -66,10 +84,13 @@
     if (!active) return;
     const first = loadedAt < 0;
     if (!first && loadedAt === version) return;
-    const timer = setTimeout(() => {
-      loadedAt = version;
-      void load();
-    }, first ? 0 : 400);
+    const timer = setTimeout(
+      () => {
+        loadedAt = version;
+        void load();
+      },
+      first ? 0 : 400,
+    );
     return () => clearTimeout(timer);
   });
 
@@ -77,7 +98,10 @@
     if (!data) return [];
     const open = data.items.filter((i) => !i.accepted);
     const later = new Set(deferred);
-    return [...open.filter((i) => !later.has(i.id)), ...deferred.map((id) => open.find((i) => i.id === id)).filter((i): i is ReviewItem => !!i)];
+    return [
+      ...open.filter((i) => !later.has(i.id)),
+      ...deferred.map((id) => open.find((i) => i.id === id)).filter((i): i is ReviewItem => !!i),
+    ];
   });
   const reviewed = $derived(data ? data.items.filter((i) => i.accepted) : []);
 
@@ -89,17 +113,24 @@
 
   const fromOptions = $derived.by((): SelectOption[] => {
     const byVersion = new Map<number, string>([[0, t.beginning]]);
-    for (const moment of moments) if (!byVersion.has(moment.version)) byVersion.set(moment.version, t.reviewMoment(moment.name, moment.version));
-    if (data && !byVersion.has(data.fromVersion)) byVersion.set(data.fromVersion, t.reviewPoint(data.fromVersion));
-    return [...byVersion.entries()].sort((a, b) => b[0] - a[0]).map(([version, label]) => ({ value: String(version), label }));
+    for (const moment of moments)
+      if (!byVersion.has(moment.version))
+        byVersion.set(moment.version, t.reviewMoment(moment.name, moment.version));
+    if (data && !byVersion.has(data.fromVersion))
+      byVersion.set(data.fromVersion, t.reviewPoint(data.fromVersion));
+    return [...byVersion.entries()]
+      .sort((a, b) => b[0] - a[0])
+      .map(([version, label]) => ({ value: String(version), label }));
   });
 
-  const labelFor = (segmentId: string | null): string => (segmentId ? (labelOf[segmentId] ?? data?.labels[segmentId] ?? '') : '');
+  const labelFor = (segmentId: string | null): string =>
+    segmentId ? (labelOf[segmentId] ?? data?.labels[segmentId] ?? '') : '';
 
   /** After a card leaves the list, focus the one now in its place. */
   async function focusAt(index: number) {
     await tick();
-    const cards = container?.querySelectorAll<HTMLElement>('[data-pending] [data-review-card]') ?? [];
+    const cards =
+      container?.querySelectorAll<HTMLElement>('[data-pending] [data-review-card]') ?? [];
     const card = cards[Math.min(index, cards.length - 1)];
     card?.querySelector<HTMLElement>('button')?.focus();
   }
@@ -110,7 +141,11 @@
     try {
       await api.accept([item.id]);
       if (data) {
-        data = { ...data, items: data.items.map((i) => (i.id === item.id ? { ...i, accepted: true } : i)), remaining: Math.max(0, data.remaining - 1) };
+        data = {
+          ...data,
+          items: data.items.map((i) => (i.id === item.id ? { ...i, accepted: true } : i)),
+          remaining: Math.max(0, data.remaining - 1),
+        };
       }
       deferred = deferred.filter((id) => id !== item.id);
       await focusAt(index);
@@ -127,7 +162,10 @@
     try {
       const result = await api.undo(item.id, { force, reviewed: true });
       if (!result.ok) {
-        conflicts = { ...conflicts, [item.id]: result.conflicts.map((id) => result.words[id]).filter((w): w is string => !!w) };
+        conflicts = {
+          ...conflicts,
+          [item.id]: result.conflicts.map((id) => result.words[id]).filter((w): w is string => !!w),
+        };
         return;
       }
       const { [item.id]: _, ...rest } = conflicts;
@@ -168,7 +206,9 @@
 
 <div bind:this={container} class="space-y-3">
   {#if loading && !data}
-    <p class="flex items-center gap-2 text-xs text-ink-muted"><Spinner size="sm" />{t.loadingReview}</p>
+    <p class="flex items-center gap-2 text-xs text-ink-muted">
+      <Spinner size="sm" />{t.loadingReview}
+    </p>
   {:else if failure && !data}
     <Notice kind={failure === t.loginToReview ? 'info' : 'error'} title={failure}>
       {#if failure !== t.loginToReview}
@@ -192,7 +232,9 @@
     <div class="flex items-center justify-between gap-2">
       <p class="text-sm font-medium text-ink" aria-live="polite">{counter}</p>
       {#if canEdit && data.fromVersion < data.currentVersion}
-        <Button size="sm" variant="ghost" onclick={() => reviewFrom(data!.currentVersion)}>{t.startNextReview}</Button>
+        <Button size="sm" variant="ghost" onclick={() => reviewFrom(data!.currentVersion)}
+          >{t.startNextReview}</Button
+        >
       {/if}
     </div>
 

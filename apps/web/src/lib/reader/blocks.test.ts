@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { layoutLines, type Item, type Stream } from '@varians/core';
-import { absentRanges, blocksOf, formatRanges, inlineStarts, lineLabels, resolveFocus, segmentOfItems, segmentsByLine } from './blocks';
+import {
+  absentRanges,
+  blocksOf,
+  formatRanges,
+  inlineStarts,
+  lineLabels,
+  resolveFocus,
+  segmentOfItems,
+  segmentsByLine,
+} from './blocks';
 
 let next = 0;
 const id = () => `i${next++}`;
@@ -24,7 +33,24 @@ function ranges(blocks: { from: number; to: number }[]): [number, number][] {
 
 describe('blocksOf, verse', () => {
   it('closes a block at each printed label, the first line courtesy label excepted', () => {
-    const lines = layoutLines(verse(['1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9', '1.10', '1.11', '1.12']), labelOf, { numberEvery: 5 });
+    const lines = layoutLines(
+      verse([
+        '1.1',
+        '1.2',
+        '1.3',
+        '1.4',
+        '1.5',
+        '1.6',
+        '1.7',
+        '1.8',
+        '1.9',
+        '1.10',
+        '1.11',
+        '1.12',
+      ]),
+      labelOf,
+      { numberEvery: 5 },
+    );
     const blocks = blocksOf(lines, { lineation: 'verse', numberEvery: 5 });
     expect(ranges(blocks)).toEqual([
       [0, 5],
@@ -36,7 +62,9 @@ describe('blocksOf, verse', () => {
   });
 
   it('lets a first label that falls on the numbering close its block', () => {
-    const lines = layoutLines(verse(['1.5', '1.6', '1.7', '1.8', '1.9', '1.10']), labelOf, { numberEvery: 5 });
+    const lines = layoutLines(verse(['1.5', '1.6', '1.7', '1.8', '1.9', '1.10']), labelOf, {
+      numberEvery: 5,
+    });
     expect(ranges(blocksOf(lines, { lineation: 'verse', numberEvery: 5 }))).toEqual([
       [0, 1],
       [1, 6],
@@ -54,7 +82,10 @@ describe('blocksOf, verse', () => {
 
   it('keeps unassigned lines before the first segment in the first block', () => {
     const stream = verse(['1.1', '1.2']);
-    stream.items.unshift({ kind: 'object', id: id(), type: 'paratext', attrs: { type: 'head' }, text: 'Α' }, { kind: 'break', id: id(), type: 'line' });
+    stream.items.unshift(
+      { kind: 'object', id: id(), type: 'paratext', attrs: { type: 'head' }, text: 'Α' },
+      { kind: 'break', id: id(), type: 'line' },
+    );
     const lines = layoutLines(stream, labelOf, { numberEvery: 5 });
     expect(ranges(blocksOf(lines, { lineation: 'verse', numberEvery: 5 }))).toEqual([[0, 3]]);
   });
@@ -115,8 +146,12 @@ describe('lines and segments', () => {
   });
 
   it('labels lines as the edition sets them, or every line where a segment begins', () => {
-    const lines = layoutLines(verse(['1.1', '1.2', '1.3', '1.4', '1.5', '1.6']), labelOf, { numberEvery: 5 });
-    const of = Object.fromEntries(['1.1', '1.2', '1.3', '1.4', '1.5', '1.6'].map((l) => [`s${l}`, l]));
+    const lines = layoutLines(verse(['1.1', '1.2', '1.3', '1.4', '1.5', '1.6']), labelOf, {
+      numberEvery: 5,
+    });
+    const of = Object.fromEntries(
+      ['1.1', '1.2', '1.3', '1.4', '1.5', '1.6'].map((l) => [`s${l}`, l]),
+    );
     expect(lineLabels(lines, of, 'edition')).toEqual(['1.1', null, null, null, '1.5', null]);
     expect(lineLabels(lines, of, 'every')).toEqual(['1.1', '1.2', '1.3', '1.4', '1.5', '1.6']);
   });

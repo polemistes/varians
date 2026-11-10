@@ -7,7 +7,18 @@
  * ones, so that only the newest link works.
  */
 import { createHash, randomBytes } from 'node:crypto';
-import { and, emailTokens, eq, gt, isNull, lt, sql, users, type Database, type EmailTokenPurpose } from '@varians/db';
+import {
+  and,
+  emailTokens,
+  eq,
+  gt,
+  isNull,
+  lt,
+  sql,
+  users,
+  type Database,
+  type EmailTokenPurpose,
+} from '@varians/db';
 
 export type TokenExecutor = Pick<Database, 'select' | 'insert' | 'update' | 'delete'>;
 
@@ -52,8 +63,12 @@ export async function issueEmailToken(
 ): Promise<IssuedToken> {
   const token = newEmailToken();
   const expiresAt = new Date(now.getTime() + input.ttlMs);
-  await db.delete(emailTokens).where(and(eq(emailTokens.userId, input.userId), eq(emailTokens.purpose, input.purpose)));
-  await db.delete(emailTokens).where(lt(emailTokens.expiresAt, new Date(now.getTime() - PRUNE_AFTER_MS)));
+  await db
+    .delete(emailTokens)
+    .where(and(eq(emailTokens.userId, input.userId), eq(emailTokens.purpose, input.purpose)));
+  await db
+    .delete(emailTokens)
+    .where(lt(emailTokens.expiresAt, new Date(now.getTime() - PRUNE_AFTER_MS)));
   await db.insert(emailTokens).values({
     id: hashEmailToken(token),
     userId: input.userId,
@@ -89,7 +104,12 @@ export async function findEmailToken(
 ): Promise<ValidToken | null> {
   if (!isTokenShaped(token)) return null;
   const [row] = await db
-    .select({ userId: emailTokens.userId, email: emailTokens.email, name: users.name, current: users.email })
+    .select({
+      userId: emailTokens.userId,
+      email: emailTokens.email,
+      name: users.name,
+      current: users.email,
+    })
     .from(emailTokens)
     .innerJoin(users, eq(users.id, emailTokens.userId))
     .where(usable(token, purpose, now))
@@ -122,14 +142,29 @@ export async function consumeEmailToken(
     )
     .returning({ userId: emailTokens.userId, email: emailTokens.email });
   if (!row) return null;
-  const [user] = await db.select({ name: users.name }).from(users).where(eq(users.id, row.userId)).limit(1);
+  const [user] = await db
+    .select({ name: users.name })
+    .from(users)
+    .where(eq(users.id, row.userId))
+    .limit(1);
   return { userId: row.userId, email: row.email, name: user?.name ?? '' };
 }
 
 /** Retires every unused token of an account for a purpose, for instance once its password is set. */
-export async function retireEmailTokens(db: TokenExecutor, userId: string, purpose: EmailTokenPurpose, now: Date = new Date()): Promise<void> {
+export async function retireEmailTokens(
+  db: TokenExecutor,
+  userId: string,
+  purpose: EmailTokenPurpose,
+  now: Date = new Date(),
+): Promise<void> {
   await db
     .update(emailTokens)
     .set({ usedAt: now })
-    .where(and(eq(emailTokens.userId, userId), eq(emailTokens.purpose, purpose), isNull(emailTokens.usedAt)));
+    .where(
+      and(
+        eq(emailTokens.userId, userId),
+        eq(emailTokens.purpose, purpose),
+        isNull(emailTokens.usedAt),
+      ),
+    );
 }

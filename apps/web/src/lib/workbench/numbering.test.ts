@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { applyOps, fromText, nextLabel, sequentialIds, type Scheme, type Token } from '@varians/core';
+import {
+  applyOps,
+  fromText,
+  nextLabel,
+  sequentialIds,
+  type Scheme,
+  type Token,
+} from '@varians/core';
 import { labelSequence, lineStarts, numberingOps } from './numbering.ts';
 
 const bookLine: Scheme = {

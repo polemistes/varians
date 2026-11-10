@@ -57,11 +57,40 @@ const PARTS: Record<string, string> = {
 };
 const PERSONS: Record<string, string> = { '1': '1st person', '2': '2nd person', '3': '3rd person' };
 const NUMBERS: Record<string, string> = { s: 'singular', p: 'plural', d: 'dual' };
-const TENSES: Record<string, string> = { p: 'present', i: 'imperfect', r: 'perfect', l: 'pluperfect', t: 'future perfect', f: 'future', a: 'aorist' };
-const MOODS: Record<string, string> = { i: 'indicative', s: 'subjunctive', o: 'optative', n: 'infinitive', m: 'imperative', p: 'participle', d: 'gerund', g: 'gerundive' };
-const VOICES: Record<string, string> = { a: 'active', p: 'passive', m: 'middle', e: 'middle or passive' };
+const TENSES: Record<string, string> = {
+  p: 'present',
+  i: 'imperfect',
+  r: 'perfect',
+  l: 'pluperfect',
+  t: 'future perfect',
+  f: 'future',
+  a: 'aorist',
+};
+const MOODS: Record<string, string> = {
+  i: 'indicative',
+  s: 'subjunctive',
+  o: 'optative',
+  n: 'infinitive',
+  m: 'imperative',
+  p: 'participle',
+  d: 'gerund',
+  g: 'gerundive',
+};
+const VOICES: Record<string, string> = {
+  a: 'active',
+  p: 'passive',
+  m: 'middle',
+  e: 'middle or passive',
+};
 const GENDERS: Record<string, string> = { m: 'masculine', f: 'feminine', n: 'neuter', c: 'common' };
-const CASES: Record<string, string> = { n: 'nominative', g: 'genitive', d: 'dative', a: 'accusative', v: 'vocative', l: 'locative' };
+const CASES: Record<string, string> = {
+  n: 'nominative',
+  g: 'genitive',
+  d: 'dative',
+  a: 'accusative',
+  v: 'vocative',
+  l: 'locative',
+};
 const DEGREES: Record<string, string> = { p: 'positive', c: 'comparative', s: 'superlative' };
 
 /** A morphological tag spelt out: "verb, 3rd person singular imperfect indicative active". */
@@ -94,14 +123,23 @@ export function partOfSpeech(postag: string): string | null {
  */
 export type VariantRelation = 'order' | 'form' | 'word';
 
-export function variantRelation(lemma: string, reading: string, lemmasOf: (word: string) => ReadonlySet<string> | undefined): VariantRelation | null {
+export function variantRelation(
+  lemma: string,
+  reading: string,
+  lemmasOf: (word: string) => ReadonlySet<string> | undefined,
+): VariantRelation | null {
   const words = (text: string) => text.split(/\s+/u).filter((w) => looseKey(w) !== '');
   const a = words(lemma);
   const b = words(reading);
   if (a.length === 0 || b.length === 0) return null;
   const keysA = a.map(looseKey);
   const keysB = b.map(looseKey);
-  if (keysA.length === keysB.length && keysA.join(' ') !== keysB.join(' ') && [...keysA].sort().join(' ') === [...keysB].sort().join(' ')) return 'order';
+  if (
+    keysA.length === keysB.length &&
+    keysA.join(' ') !== keysB.join(' ') &&
+    [...keysA].sort().join(' ') === [...keysB].sort().join(' ')
+  )
+    return 'order';
   if (a.length !== b.length) return null;
   let relation: VariantRelation | null = null;
   for (let i = 0; i < a.length; i++) {

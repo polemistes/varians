@@ -34,6 +34,9 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
   else memory.remember(parsed.data.form, parsed.data.norm);
   const entries = memory.toJSON();
   if (entries.length > MAX_PAIRS) throw error(400, 'The memory is full');
-  await locals.db.update(transcriptions).set({ memory: entries }).where(eq(transcriptions.id, params.id));
+  await locals.db
+    .update(transcriptions)
+    .set({ memory: entries })
+    .where(eq(transcriptions.id, params.id));
   return json({ memory: entries });
 };

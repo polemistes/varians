@@ -124,8 +124,10 @@ export const site = {
       refused: 'not yours to change here: left as it is',
     } as Record<string, string>,
     segments: (labels: string) => `segments ${labels}`,
-    matched: (kind: string, by: string) => `${kind === 'work' ? 'Work' : 'Witness'} found here by ${by === 'merge' ? 'an earlier merge' : 'its identifier'}`,
-    duplicate: (name: string, other: string) => `The witness ${name} may be the same as ${other} here.`,
+    matched: (kind: string, by: string) =>
+      `${kind === 'work' ? 'Work' : 'Witness'} found here by ${by === 'merge' ? 'an earlier merge' : 'its identifier'}`,
+    duplicate: (name: string, other: string) =>
+      `The witness ${name} may be the same as ${other} here.`,
     newPersons: (names: string) => `New here, without an account: ${names}.`,
     problems: 'Files that do not follow the format',
     expired: 'The upload is no longer here. Upload the package again.',
@@ -153,9 +155,15 @@ export const site = {
     every: 'Bring changes here every',
     hours: 'hours',
     byHand: 'By hand only',
-    differences: { same: 'the same', differs: 'differs', 'only-there': 'only there', 'only-here': 'only here' } as Record<string, string>,
+    differences: {
+      same: 'the same',
+      differs: 'differs',
+      'only-there': 'only there',
+      'only-here': 'only here',
+    } as Record<string, string>,
     pushed: 'Sent. The other installation keeps its own text where the two conflict.',
-    secretMissing: 'This installation has no SECRET_KEY setting, so it cannot keep a token of another installation.',
+    secretMissing:
+      'This installation has no SECRET_KEY setting, so it cannot keep a token of another installation.',
   },
 
   people: {
@@ -166,7 +174,8 @@ export const site = {
     title: 'Terms of contribution',
     accept: 'Accept these terms',
     acceptedOn: (version: number) => `You accepted version ${version} of these terms`,
-    changed: 'The terms of contribution have changed since you last accepted them. Accept them to go on editing and publishing; reading needs nothing.',
+    changed:
+      'The terms of contribution have changed since you last accepted them. Accept them to go on editing and publishing; reading needs nothing.',
     first: 'Accept the terms of contribution to edit and publish here; reading needs nothing.',
     required: 'Accept the terms of contribution (at /terms) before you edit or publish.',
     footer: 'Terms',

@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { applyOps, fromText, sequentialIds, type Scheme, type Stream, type Token } from '@varians/core';
-import { otherRuns, partFor, proposeLabel, segmentOp, startBefore, unknownSegments } from './segments.ts';
+import {
+  applyOps,
+  fromText,
+  sequentialIds,
+  type Scheme,
+  type Stream,
+  type Token,
+} from '@varians/core';
+import {
+  otherRuns,
+  partFor,
+  proposeLabel,
+  segmentOp,
+  startBefore,
+  unknownSegments,
+} from './segments.ts';
 
 const bookLine: Scheme = {
   levels: [
@@ -26,17 +40,33 @@ const schemeOf = (workId: string) => (workId === 'w' ? bookLine : undefined);
 
 describe('proposeLabel', () => {
   it('proposes the label after the previous start', () => {
-    expect(proposeLabel(verse(), 't7', segments, schemeOf)).toEqual({ label: '1.3', workId: 'w', current: false });
-    expect(proposeLabel(verse(), 't5', segments, schemeOf)).toEqual({ label: '1.3', workId: 'w', current: false });
+    expect(proposeLabel(verse(), 't7', segments, schemeOf)).toEqual({
+      label: '1.3',
+      workId: 'w',
+      current: false,
+    });
+    expect(proposeLabel(verse(), 't5', segments, schemeOf)).toEqual({
+      label: '1.3',
+      workId: 'w',
+      current: false,
+    });
   });
 
   it('shows the label a token carries', () => {
-    expect(proposeLabel(verse(), 't4', segments, schemeOf)).toEqual({ label: '1.2', workId: 'w', current: true });
+    expect(proposeLabel(verse(), 't4', segments, schemeOf)).toEqual({
+      label: '1.2',
+      workId: 'w',
+      current: true,
+    });
   });
 
   it('proposes nothing before the first start or after an unassigned one', () => {
     const s = verse();
-    expect(proposeLabel(s, 't2', {}, schemeOf)).toEqual({ label: '', workId: null, current: false });
+    expect(proposeLabel(s, 't2', {}, schemeOf)).toEqual({
+      label: '',
+      workId: null,
+      current: false,
+    });
     // A start whose label is not known is still a start.
     expect(proposeLabel(s, 't1', {}, schemeOf)).toEqual({ label: '', workId: null, current: true });
     (s.items[3] as Token).segment = { segmentId: null };
@@ -62,7 +92,11 @@ describe('parts and operations', () => {
     const s = verse();
     const set = segmentOp('t7', 's3', 2);
     expect(set).toEqual({ t: 'set', id: 't7', fields: { segment: { segmentId: 's3', part: 2 } } });
-    expect(segmentOp('t7', null)).toEqual({ t: 'set', id: 't7', fields: { segment: { segmentId: null } } });
+    expect(segmentOp('t7', null)).toEqual({
+      t: 'set',
+      id: 't7',
+      fields: { segment: { segmentId: null } },
+    });
     const remove = JSON.parse(JSON.stringify(segmentOp('t4', undefined)));
     const after = applyOps(s, [remove]).stream;
     expect((after.items[3] as Token).segment).toBeUndefined();

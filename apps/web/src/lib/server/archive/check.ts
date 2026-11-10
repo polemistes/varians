@@ -37,13 +37,19 @@ async function filesUnder(dir: string, prefix = ''): Promise<string[]> {
 }
 
 /** Compare two archive directories, ignoring `.git`. */
-export async function compareArchiveDirs(expected: string, actual: string): Promise<ArchiveDifferences> {
+export async function compareArchiveDirs(
+  expected: string,
+  actual: string,
+): Promise<ArchiveDifferences> {
   const want = new Set(await filesUnder(expected));
   const have = new Set(await filesUnder(actual));
   const differences: ArchiveDifferences = { missing: [], extra: [], changed: [] };
   for (const file of want) {
     if (!have.has(file)) differences.missing.push(file);
-    else if (!(await readFile(path.join(expected, file))).equals(await readFile(path.join(actual, file)))) differences.changed.push(file);
+    else if (
+      !(await readFile(path.join(expected, file))).equals(await readFile(path.join(actual, file)))
+    )
+      differences.changed.push(file);
   }
   for (const file of have) if (!want.has(file)) differences.extra.push(file);
   for (const list of Object.values(differences)) list.sort();
@@ -51,7 +57,12 @@ export async function compareArchiveDirs(expected: string, actual: string): Prom
 }
 
 /** Write the work afresh and compare it with its stored archive under `root`. */
-export async function checkArchive(db: Database, work: { id: string; slug: string }, root: string, writers: ArchiveWriters = {}): Promise<ArchiveDifferences> {
+export async function checkArchive(
+  db: Database,
+  work: { id: string; slug: string },
+  root: string,
+  writers: ArchiveWriters = {},
+): Promise<ArchiveDifferences> {
   const tmp = await mkdtemp(path.join(os.tmpdir(), 'varians-check-'));
   try {
     const fresh = await writeArchive(db, work.id, tmp, writers);

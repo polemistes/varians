@@ -34,7 +34,11 @@
     <span>{t.status.readOnly}</span>
   {:else if wb.saveError}
     <span class="text-danger">{t.status.notSaved(wb.saveError)}</span>
-    <button type="button" class="text-accent underline-offset-2 hover:underline" onclick={() => wb.retry()}>{t.status.retry}</button>
+    <button
+      type="button"
+      class="text-accent underline-offset-2 hover:underline"
+      onclick={() => wb.retry()}>{t.status.retry}</button
+    >
   {:else if wb.saving}
     <span class="inline-flex items-center gap-1.5"><Spinner size="sm" />{t.status.saving}</span>
   {:else if wb.pending > 0}
@@ -47,7 +51,11 @@
     <span class={dot} aria-hidden="true">·</span>
     <span class="text-ink">{notice.text}</span>
     {#if notice.view !== null && notice.view !== wb.view}
-      <button type="button" class="text-accent underline-offset-2 hover:underline" onclick={() => wb.goTo(notice.view)}>{t.move.show}</button>
+      <button
+        type="button"
+        class="text-accent underline-offset-2 hover:underline"
+        onclick={() => wb.goTo(notice.view)}>{t.move.show}</button
+      >
     {/if}
   {/if}
   {#if wb.pages.length > 0}
@@ -58,7 +66,9 @@
   <span>{t.status.lines(wb.lines)}</span>
   {#if wb.pages.length > 0 && wb.view !== UNPLACED && wb.unplacedWords > 0}
     <span class={dot} aria-hidden="true">·</span>
-    <button type="button" class="hover:text-ink hover:underline" onclick={() => wb.goTo(UNPLACED)}>{t.status.unplaced(wb.unplacedWords)}</button>
+    <button type="button" class="hover:text-ink hover:underline" onclick={() => wb.goTo(UNPLACED)}
+      >{t.status.unplaced(wb.unplacedWords)}</button
+    >
   {/if}
   {#if wb.witnessPage?.source && wb.pageZones}
     <span class={dot} aria-hidden="true">·</span>
@@ -66,14 +76,30 @@
   {/if}
   {#if wb.unchecked > 0}
     <span class={dot} aria-hidden="true">·</span>
-    <button type="button" class="hover:text-ink hover:underline" onclick={onunchecked}>{t.status.unchecked(wb.unchecked)}</button>
+    <button type="button" class="hover:text-ink hover:underline" onclick={onunchecked}
+      >{t.status.unchecked(wb.unchecked)}</button
+    >
   {/if}
   {#if wb.canEdit && wb.diacriticChoices.size > 0}
     <span class={dot} aria-hidden="true">·</span>
     <span class="inline-flex items-center gap-1">
-      <button type="button" class="rounded px-1 hover:bg-sunken hover:text-ink" aria-label={t.tools.choose.previous} title={t.tools.choose.previous} onclick={() => step(-1)}>‹</button>
-      <button type="button" class="hover:text-ink hover:underline" onclick={() => step(1)}>{t.tools.choose.count(wb.diacriticChoices.size)}</button>
-      <button type="button" class="rounded px-1 hover:bg-sunken hover:text-ink" aria-label={t.tools.choose.next} title={t.tools.choose.next} onclick={() => step(1)}>›</button>
+      <button
+        type="button"
+        class="rounded px-1 hover:bg-sunken hover:text-ink"
+        aria-label={t.tools.choose.previous}
+        title={t.tools.choose.previous}
+        onclick={() => step(-1)}>‹</button
+      >
+      <button type="button" class="hover:text-ink hover:underline" onclick={() => step(1)}
+        >{t.tools.choose.count(wb.diacriticChoices.size)}</button
+      >
+      <button
+        type="button"
+        class="rounded px-1 hover:bg-sunken hover:text-ink"
+        aria-label={t.tools.choose.next}
+        title={t.tools.choose.next}
+        onclick={() => step(1)}>›</button
+      >
     </span>
   {/if}
   {#if wb.canEdit && wb.proposals.length > 0}

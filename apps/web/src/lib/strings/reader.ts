@@ -70,7 +70,8 @@ export const reader = {
     apparatusNone: 'Not shown',
     apparatusFoot: 'Below the text, as in print',
     apparatusSide: 'Beside the text, as in print',
-    apparatusNoneHint: 'Click a word with a dotted line to see its variants, or open the list of variants.',
+    apparatusNoneHint:
+      'Click a word with a dotted line to see its variants, or open the list of variants.',
     apparatusSideHint: 'Beside the text on wide screens.',
     form: 'Form',
     positive: 'Positive',
@@ -80,8 +81,13 @@ export const reader = {
         ? 'The edition names the witnesses that agree with its text.'
         : 'The edition names only the witnesses that differ from its text.',
     interpretative: 'Interpretative variants',
-    interpretativeOptions: { apparatus: 'With the others', separate: 'In a list of their own', none: 'Not shown' },
-    interpretativeHint: 'Accents, breathings, punctuation and word division: the same letters read otherwise.',
+    interpretativeOptions: {
+      apparatus: 'With the others',
+      separate: 'In a list of their own',
+      none: 'Not shown',
+    },
+    interpretativeHint:
+      'Accents, breathings, punctuation and word division: the same letters read otherwise.',
     editionInterpretative: (placement: 'apparatus' | 'separate' | 'none') =>
       placement === 'apparatus'
         ? 'The edition prints them with the others.'
@@ -149,9 +155,13 @@ export const reader = {
     reportedFrom: 'The reading of {who} is known from {source}.',
     reportedOnly: 'The reading of {who} is known only from a report.',
     conjecture: 'The edition prints a conjecture of {name}; no witness has it.',
-    conjectureAlso: { one: 'The edition prints a conjecture of {name}, which {who} also has.', many: 'The edition prints a conjecture of {name}, which {who} also have.' },
+    conjectureAlso: {
+      one: 'The edition prints a conjecture of {name}, which {who} also has.',
+      many: 'The edition prints a conjecture of {name}, which {who} also have.',
+    },
     conjectureOwn: "The edition prints the editor's own conjecture; no witness has it.",
-    conjectureDeletion: 'The edition leaves these words out, as {name} proposed; the witnesses have them.',
+    conjectureDeletion:
+      'The edition leaves these words out, as {name} proposed; the witnesses have them.',
     conjectureLacuna: 'The edition marks words as missing here, as {name} proposed.',
     editorAdded: 'No witness has these words; the editor added them.',
     editorReading: "No witness has this reading; it is the editor's own.",
@@ -159,19 +169,43 @@ export const reader = {
     /** The witnesses' readings. */
     reads: { one: '{who} reads {words}.', many: '{who} read {words}.' },
     /** The same word in another form, by the analyser of Greek forms. */
-    readsForm: { one: '{who} reads {words}, another form of the same word.', many: '{who} read {words}, another form of the same word.' },
+    readsForm: {
+      one: '{who} reads {words}, another form of the same word.',
+      many: '{who} read {words}, another form of the same word.',
+    },
     /** The same letters read otherwise: accents, breathings, punctuation, word division. */
     /** The words come last and stand alone, since their punctuation may be the difference. */
-    readsInterpretative: { one: '{who} reads the same letters otherwise: {words}', many: '{who} read the same letters otherwise: {words}' },
+    readsInterpretative: {
+      one: '{who} reads the same letters otherwise: {words}',
+      many: '{who} read the same letters otherwise: {words}',
+    },
     omits: { one: '{who} leaves these words out.', many: '{who} leave these words out.' },
     adds: { one: '{who} adds {words} here.', many: '{who} add {words} here.' },
-    lost: { one: '{who} is damaged here; its text is lost.', many: '{who} are damaged here; their text is lost.' },
-    damaged: { one: '{who} is damaged here and reads only {words}.', many: '{who} are damaged here and read only {words}.' },
-    otherOrder: { one: '{who} has these words in another order: {words}.', many: '{who} have these words in another order: {words}.' },
-    otherOrderPlain: { one: '{who} has these words in another order.', many: '{who} have these words in another order.' },
-    otherPlace: { one: '{who} has these words in another place.', many: '{who} have these words in another place.' },
+    lost: {
+      one: '{who} is damaged here; its text is lost.',
+      many: '{who} are damaged here; their text is lost.',
+    },
+    damaged: {
+      one: '{who} is damaged here and reads only {words}.',
+      many: '{who} are damaged here and read only {words}.',
+    },
+    otherOrder: {
+      one: '{who} has these words in another order: {words}.',
+      many: '{who} have these words in another order: {words}.',
+    },
+    otherOrderPlain: {
+      one: '{who} has these words in another order.',
+      many: '{who} have these words in another order.',
+    },
+    otherPlace: {
+      one: '{who} has these words in another place.',
+      many: '{who} have these words in another place.',
+    },
     /** Witnesses whose transcripts begin after this passage or end before it. */
-    absent: { one: '{who} is not transcribed for this passage.', many: '{who} are not transcribed for this passage.' },
+    absent: {
+      one: '{who} is not transcribed for this passage.',
+      many: '{who} are not transcribed for this passage.',
+    },
     /** Spelling only. */
     /** Readings reported by others, and conjectures. */
     reportedReads: '{who} is reported to read {words}.',
@@ -207,7 +241,8 @@ export const reader = {
     readForm: 'Normalized',
     writtenForm: 'Diplomatic',
     formLabel: 'Form shown',
-    noTranscription: 'This witness has no transcript; it enters the apparatus through reported readings only.',
+    noTranscription:
+      'This witness has no transcript; it enters the apparatus through reported readings only.',
     absent: 'not in this witness',
     failed: 'The witness text could not be loaded.',
     nothingOnScreen: 'Scroll to some text to see this witness beside it.',
@@ -244,7 +279,14 @@ export const reader = {
     licence: 'Licence',
     rightsNote: 'Rights',
     cite: 'How to cite',
-    citation: (editors: string, title: string, version: string, date: string, address: string, licence: string | null) =>
+    citation: (
+      editors: string,
+      title: string,
+      version: string,
+      date: string,
+      address: string,
+      licence: string | null,
+    ) =>
       `${editors ? `${editors}, ` : ''}${title}, ${version} (${date}), ${address}.${licence ? ` ${licence}.` : ''}`,
     usedByVarians: 'Sources and licences of the data Varians uses',
     copiedFrom: 'Based on',

@@ -43,7 +43,17 @@
     textOf?: (page: PageView) => string;
   }
 
-  let { pages, maxUploadBytes, defaults = { rights: null, attribution: null }, readonly = false, current = null, base = '', onchanged = invalidateAll, onopen, textOf }: Props = $props();
+  let {
+    pages,
+    maxUploadBytes,
+    defaults = { rights: null, attribution: null },
+    readonly = false,
+    current = null,
+    base = '',
+    onchanged = invalidateAll,
+    onopen,
+    textOf,
+  }: Props = $props();
 
   const viewable = $derived(pages.filter((p) => p.source));
   let viewing = $state<string | null>(null);
@@ -103,7 +113,12 @@
    */
   function requestImage(page: PageView, file: File | null) {
     if (file && defaults.rights && !(page.imageKind && page.zones > 0)) {
-      void sendImage(page, { file, rights: defaults.rights, attribution: defaults.attribution ?? '', imageSource: '' });
+      void sendImage(page, {
+        file,
+        rights: defaults.rights,
+        attribution: defaults.attribution ?? '',
+        imageSource: '',
+      });
       return;
     }
     imageRequest = {
@@ -138,7 +153,8 @@
       'replaceImage',
       body,
       (fraction) => {
-        busy[page.id] = fraction >= 1 ? { kind: 'processing' } : { kind: 'uploading', progress: fraction };
+        busy[page.id] =
+          fraction >= 1 ? { kind: 'processing' } : { kind: 'uploading', progress: fraction };
       },
       base,
     );
@@ -186,8 +202,14 @@
     return {
       before,
       any: tail.some((p) => p.imageKind),
-      adds: last.imageKind ? { last: last.label, next: followingLabel(last.label) ?? String(pages.length + 1) } : null,
-      earlierProblem: !before ? t.shiftImages.firstPage : before.imageKind ? t.shiftImages.occupied(before.label) : null,
+      adds: last.imageKind
+        ? { last: last.label, next: followingLabel(last.label) ?? String(pages.length + 1) }
+        : null,
+      earlierProblem: !before
+        ? t.shiftImages.firstPage
+        : before.imageKind
+          ? t.shiftImages.occupied(before.label)
+          : null,
     };
   });
 
@@ -300,7 +322,10 @@
               rightsOf = null;
               await onchanged();
               succeeded(result.data);
-            } else if (result.type === 'failure' && (result.data as { errors?: Record<string, string[]> } | undefined)?.errors) {
+            } else if (
+              result.type === 'failure' &&
+              (result.data as { errors?: Record<string, string[]> } | undefined)?.errors
+            ) {
               rightsErrors = (result.data as { errors: Record<string, string[]> }).errors;
             } else {
               rightsOf = null;
@@ -310,12 +335,20 @@
         }}
       >
         <input type="hidden" name="pageId" value={page.id} />
-        <RightsFields bind:rights={rightsDraft} bind:attribution={attributionDraft} bind:source={sourceDraft} required errors={rightsErrors} />
+        <RightsFields
+          bind:rights={rightsDraft}
+          bind:attribution={attributionDraft}
+          bind:source={sourceDraft}
+          required
+          errors={rightsErrors}
+        />
       </form>
     {/if}
     {#snippet footer()}
       <Button onclick={() => (rightsOf = null)}>{s.common.cancel}</Button>
-      <Button type="submit" form="rights-form" variant="primary" loading={rightsSubmitting}>{t.rights.submit}</Button>
+      <Button type="submit" form="rights-form" variant="primary" loading={rightsSubmitting}
+        >{t.rights.submit}</Button
+      >
     {/snippet}
   </Dialog>
 
@@ -360,14 +393,26 @@
         <input type="hidden" name="pageId" value={page.id} />
         <Field label={t.move.position} error={moveError}>
           {#snippet children(control)}
-            <Input {...control} name="to" type="number" min="1" max={pages.length} step="1" required bind:value={moveTo} class="w-32" />
+            <Input
+              {...control}
+              name="to"
+              type="number"
+              min="1"
+              max={pages.length}
+              step="1"
+              required
+              bind:value={moveTo}
+              class="w-32"
+            />
           {/snippet}
         </Field>
       </form>
     {/if}
     {#snippet footer()}
       <Button onclick={() => (moving = null)}>{s.common.cancel}</Button>
-      <Button type="submit" form="move-form" variant="primary" loading={moveSubmitting}>{t.move.submit}</Button>
+      <Button type="submit" form="move-form" variant="primary" loading={moveSubmitting}
+        >{t.move.submit}</Button
+      >
     {/snippet}
   </Dialog>
 
@@ -416,7 +461,10 @@
               {...control}
               name="toPageId"
               bind:value={imageTarget}
-              options={imageTargets.map((p) => ({ value: p.id, label: p.imageKind ? t.moveImage.withImage(p.label) : p.label }))}
+              options={imageTargets.map((p) => ({
+                value: p.id,
+                label: p.imageKind ? t.moveImage.withImage(p.label) : p.label,
+              }))}
             />
           {/snippet}
         </Field>
@@ -430,7 +478,9 @@
     {/if}
     {#snippet footer()}
       <Button onclick={() => (movingImage = null)}>{s.common.cancel}</Button>
-      <Button type="submit" form="move-image-form" variant="primary" loading={moveImageSubmitting}>{t.moveImage.submit}</Button>
+      <Button type="submit" form="move-image-form" variant="primary" loading={moveImageSubmitting}
+        >{t.moveImage.submit}</Button
+      >
     {/snippet}
   </Dialog>
 
@@ -455,7 +505,11 @@
         novalidate
         class="flex flex-col gap-3"
         use:enhance={({ cancel }) => {
-          const problem = !info.any ? t.shiftImages.nothing : shiftDirection === 'earlier' ? info.earlierProblem : null;
+          const problem = !info.any
+            ? t.shiftImages.nothing
+            : shiftDirection === 'earlier'
+              ? info.earlierProblem
+              : null;
           if (problem) {
             shiftError = problem;
             cancel();
@@ -477,18 +531,36 @@
         <input type="hidden" name="pageId" value={page.id} />
         <fieldset class="flex flex-col gap-2.5">
           <label class="flex items-start gap-2">
-            <input type="radio" name="direction" value="later" bind:group={shiftDirection} class="mt-1" />
+            <input
+              type="radio"
+              name="direction"
+              value="later"
+              bind:group={shiftDirection}
+              class="mt-1"
+            />
             <span>
               <span class="font-medium text-ink">{t.shiftImages.later}</span>
               <span class="block text-ink-soft">{t.shiftImages.laterHint(page.label)}</span>
-              {#if info.adds}<span class="block text-ink-soft">{t.shiftImages.laterAdds(info.adds.last, info.adds.next)}</span>{/if}
+              {#if info.adds}<span class="block text-ink-soft"
+                  >{t.shiftImages.laterAdds(info.adds.last, info.adds.next)}</span
+                >{/if}
             </span>
           </label>
           <label class={['flex items-start gap-2', info.earlierProblem && 'opacity-60']}>
-            <input type="radio" name="direction" value="earlier" bind:group={shiftDirection} disabled={!!info.earlierProblem} class="mt-1" />
+            <input
+              type="radio"
+              name="direction"
+              value="earlier"
+              bind:group={shiftDirection}
+              disabled={!!info.earlierProblem}
+              class="mt-1"
+            />
             <span>
               <span class="font-medium text-ink">{t.shiftImages.earlier}</span>
-              <span class="block text-ink-soft">{info.earlierProblem ?? t.shiftImages.earlierHint(info.before?.label ?? '', page.label)}</span>
+              <span class="block text-ink-soft"
+                >{info.earlierProblem ??
+                  t.shiftImages.earlierHint(info.before?.label ?? '', page.label)}</span
+              >
             </span>
           </label>
         </fieldset>
@@ -500,7 +572,13 @@
     {/if}
     {#snippet footer()}
       <Button onclick={() => (shifting = null)}>{s.common.cancel}</Button>
-      <Button type="submit" form="shift-form" variant="primary" loading={shiftSubmitting} disabled={!shiftInfo?.any}>{t.shiftImages.submit}</Button>
+      <Button
+        type="submit"
+        form="shift-form"
+        variant="primary"
+        loading={shiftSubmitting}
+        disabled={!shiftInfo?.any}>{t.shiftImages.submit}</Button
+      >
     {/snippet}
   </Dialog>
 
@@ -543,7 +621,9 @@
     {/if}
     {#snippet footer()}
       <Button onclick={() => (unimaging = null)}>{s.common.cancel}</Button>
-      <Button type="submit" form="remove-image-form" variant="danger" loading={unimageSubmitting}>{t.removeImage.submit}</Button>
+      <Button type="submit" form="remove-image-form" variant="danger" loading={unimageSubmitting}
+        >{t.removeImage.submit}</Button
+      >
     {/snippet}
   </Dialog>
 
@@ -555,7 +635,15 @@
       }
     }
     title={removing ? t.remove.title(removing.label) : ''}
-    description={removing ? t.remove.description(removing.label, removing.words, removing.transcriptions, removing.zones, removing.imageKind !== null) : undefined}
+    description={removing
+      ? t.remove.description(
+          removing.label,
+          removing.words,
+          removing.transcriptions,
+          removing.zones,
+          removing.imageKind !== null,
+        )
+      : undefined}
     size="md"
   >
     {#if removing}

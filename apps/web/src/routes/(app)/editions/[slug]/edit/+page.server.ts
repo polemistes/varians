@@ -1,6 +1,14 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { editorNames } from '$lib/edition/editors';
-import { editionSigla, editions, reportedReadings, witnesses, works, type EditionConventions, type WitnessHand } from '@varians/db';
+import {
+  editionSigla,
+  editions,
+  reportedReadings,
+  witnesses,
+  works,
+  type EditionConventions,
+  type WitnessHand,
+} from '@varians/db';
 import { and, eq, inArray } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
@@ -22,7 +30,8 @@ import { dataLicence } from '$lib/server/settings';
 /** Collation columns are server-side only. */
 function lighten(views: Record<string, SegmentView>): Record<string, SegmentView> {
   const out: Record<string, SegmentView> = {};
-  for (const [id, view] of Object.entries(views)) out[id] = { ...view, collation: { ...view.collation, columns: [] } };
+  for (const [id, view] of Object.entries(views))
+    out[id] = { ...view, collation: { ...view.collation, columns: [] } };
   return out;
 }
 
@@ -41,16 +50,43 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
   if (!access.canEdit) throw redirect(303, `/editions/${access.edition.slug}`);
   const edition = access.edition;
   const view = await editionView(locals.db, edition.id, null, { kind: 'editor', viewer: user });
-  const [work] = await locals.db.select({ slug: works.slug, title: works.title }).from(works).where(eq(works.id, edition.workId));
-  const reviewed = Object.fromEntries([...(await reviewedSites(locals.db, edition.id))].map(([segmentId, keys]) => [segmentId, [...keys]]));
-  const candidates = await candidateWitnesses(locals.db, edition.workId, user, await grantsFor(locals.db, user));
-  const reportedWitnessIds = (await locals.db.selectDistinct({ id: reportedReadings.witnessId }).from(reportedReadings).where(eq(reportedReadings.workId, edition.workId))).map((r) => r.id);
+  const [work] = await locals.db
+    .select({ slug: works.slug, title: works.title })
+    .from(works)
+    .where(eq(works.id, edition.workId));
+  const reviewed = Object.fromEntries(
+    [...(await reviewedSites(locals.db, edition.id))].map(([segmentId, keys]) => [
+      segmentId,
+      [...keys],
+    ]),
+  );
+  const candidates = await candidateWitnesses(
+    locals.db,
+    edition.workId,
+    user,
+    await grantsFor(locals.db, user),
+  );
+  const reportedWitnessIds = (
+    await locals.db
+      .selectDistinct({ id: reportedReadings.witnessId })
+      .from(reportedReadings)
+      .where(eq(reportedReadings.workId, edition.workId))
+  ).map((r) => r.id);
   const reportedOnly = reportedWitnessIds.length
-    ? await locals.db.select({ id: witnesses.id, name: witnesses.name, siglum: witnesses.siglum }).from(witnesses).where(inArray(witnesses.id, reportedWitnessIds))
+    ? await locals.db
+        .select({ id: witnesses.id, name: witnesses.name, siglum: witnesses.siglum })
+        .from(witnesses)
+        .where(inArray(witnesses.id, reportedWitnessIds))
     : [];
-  const sigla = await locals.db.select().from(editionSigla).where(eq(editionSigla.editionId, edition.id)).orderBy(editionSigla.position);
+  const sigla = await locals.db
+    .select()
+    .from(editionSigla)
+    .where(eq(editionSigla.editionId, edition.id))
+    .orderBy(editionSigla.position);
   const revision = createHash('sha1')
-    .update(JSON.stringify([edition.title, edition.editors, edition.preface, edition.conventions, sigla]))
+    .update(
+      JSON.stringify([edition.title, edition.editors, edition.preface, edition.conventions, sigla]),
+    )
     .digest('hex')
     .slice(0, 12);
   return {
@@ -74,12 +110,24 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     },
     work: { slug: work?.slug ?? '', title: work?.title ?? '' },
     reviewed,
-    sigla: sigla.map((x) => ({ witnessId: x.witnessId, transcriptionId: x.transcriptionId, siglum: x.siglum, states: x.states, variantSiglum: x.variantSiglum })),
-    witnessHands: await handsOf(locals.db, [...candidates.map((c) => c.witnessId), ...sigla.map((x) => x.witnessId), ...reportedOnly.map((w) => w.id)]),
+    sigla: sigla.map((x) => ({
+      witnessId: x.witnessId,
+      transcriptionId: x.transcriptionId,
+      siglum: x.siglum,
+      states: x.states,
+      variantSiglum: x.variantSiglum,
+    })),
+    witnessHands: await handsOf(locals.db, [
+      ...candidates.map((c) => c.witnessId),
+      ...sigla.map((x) => x.witnessId),
+      ...reportedOnly.map((w) => w.id),
+    ]),
     candidates,
     reportedOnly,
     versions: await publishedVersions(locals.db, edition.id),
-    collaborators: canGrantOnEdition(user, edition) ? await listCollaborators(locals.db, edition.id) : [],
+    collaborators: canGrantOnEdition(user, edition)
+      ? await listCollaborators(locals.db, edition.id)
+      : [],
     can: {
       publish: access.canPublish,
       grant: canGrantOnEdition(user, edition),
@@ -121,10 +169,16 @@ const siglaSchema = z
   .max(200);
 
 /** The hands of some witnesses, by id, for the states of the conspectus. */
-async function handsOf(db: App.Locals['db'], ids: string[]): Promise<Record<string, WitnessHand[]>> {
+async function handsOf(
+  db: App.Locals['db'],
+  ids: string[],
+): Promise<Record<string, WitnessHand[]>> {
   const unique = [...new Set(ids)];
   if (unique.length === 0) return {};
-  const rows = await db.select({ id: witnesses.id, hands: witnesses.hands }).from(witnesses).where(inArray(witnesses.id, unique));
+  const rows = await db
+    .select({ id: witnesses.id, hands: witnesses.hands })
+    .from(witnesses)
+    .where(inArray(witnesses.id, unique));
   return Object.fromEntries(rows.map((r) => [r.id, r.hands]));
 }
 
@@ -146,7 +200,11 @@ export const actions: Actions = {
       interpretative: text('interpretative') || 'separate',
       speakerDisplay: text('speakerDisplay') || 'margin',
     });
-    if (!parsed.success) return fail(400, { form: 'settings' as const, errors: z.flattenError(parsed.error).fieldErrors });
+    if (!parsed.success)
+      return fail(400, {
+        form: 'settings' as const,
+        errors: z.flattenError(parsed.error).fieldErrors,
+      });
     const data = parsed.data;
     const conventions: EditionConventions = {
       ...access.edition.conventions,
@@ -175,44 +233,91 @@ export const actions: Actions = {
     try {
       raw = JSON.parse(String(form.get('sigla') ?? '[]'));
     } catch {
-      return fail(400, { form: 'sigla' as const, message: 'The list of witnesses could not be read.' });
+      return fail(400, {
+        form: 'sigla' as const,
+        message: 'The list of witnesses could not be read.',
+      });
     }
     const parsed = siglaSchema.safeParse(raw);
-    if (!parsed.success) return fail(400, { form: 'sigla' as const, message: 'Every witness needs a siglum.' });
+    if (!parsed.success)
+      return fail(400, { form: 'sigla' as const, message: 'Every witness needs a siglum.' });
     const seen = new Set<string>();
     for (const entry of parsed.data) {
-      for (const siglum of [entry.siglum, ...(entry.states ?? []).map((s) => s.siglum), entry.variantSiglum].filter((x): x is string => !!x)) {
-        if (seen.has(siglum)) return fail(400, { form: 'sigla' as const, message: s.errors.duplicateSiglum(siglum) });
+      for (const siglum of [
+        entry.siglum,
+        ...(entry.states ?? []).map((s) => s.siglum),
+        entry.variantSiglum,
+      ].filter((x): x is string => !!x)) {
+        if (seen.has(siglum))
+          return fail(400, { form: 'sigla' as const, message: s.errors.duplicateSiglum(siglum) });
         seen.add(siglum);
       }
     }
     // Only witnesses and transcriptions that belong together.
     const ids = parsed.data.map((e) => e.witnessId);
-    const known = new Set((ids.length ? await locals.db.select({ id: witnesses.id }).from(witnesses).where(inArray(witnesses.id, ids)) : []).map((w) => w.id));
-    if (parsed.data.some((e) => !known.has(e.witnessId))) return fail(400, { form: 'sigla' as const, message: 'An unknown witness was named.' });
-    const candidates = await candidateWitnesses(locals.db, access.edition.workId, user, await grantsFor(locals.db, user));
-    const current = await locals.db.select().from(editionSigla).where(eq(editionSigla.editionId, access.edition.id));
-    const pairs = new Set([...candidates, ...current].map((c) => `${c.witnessId}|${c.transcriptionId}`));
-    if (parsed.data.some((e) => e.transcriptionId && !pairs.has(`${e.witnessId}|${e.transcriptionId}`))) {
-      return fail(400, { form: 'sigla' as const, message: 'A transcription does not belong to its witness or to this work.' });
+    const known = new Set(
+      (ids.length
+        ? await locals.db
+            .select({ id: witnesses.id })
+            .from(witnesses)
+            .where(inArray(witnesses.id, ids))
+        : []
+      ).map((w) => w.id),
+    );
+    if (parsed.data.some((e) => !known.has(e.witnessId)))
+      return fail(400, { form: 'sigla' as const, message: 'An unknown witness was named.' });
+    const candidates = await candidateWitnesses(
+      locals.db,
+      access.edition.workId,
+      user,
+      await grantsFor(locals.db, user),
+    );
+    const current = await locals.db
+      .select()
+      .from(editionSigla)
+      .where(eq(editionSigla.editionId, access.edition.id));
+    const pairs = new Set(
+      [...candidates, ...current].map((c) => `${c.witnessId}|${c.transcriptionId}`),
+    );
+    if (
+      parsed.data.some(
+        (e) => e.transcriptionId && !pairs.has(`${e.witnessId}|${e.transcriptionId}`),
+      )
+    ) {
+      return fail(400, {
+        form: 'sigla' as const,
+        message: 'A transcription does not belong to its witness or to this work.',
+      });
     }
     await setSigla(
       locals.db,
       access.edition.id,
-      parsed.data.map((e) => ({ witnessId: e.witnessId, transcriptionId: e.transcriptionId, siglum: e.siglum, states: e.transcriptionId ? (e.states ?? []) : [], variantSiglum: e.variantSiglum || null })),
+      parsed.data.map((e) => ({
+        witnessId: e.witnessId,
+        transcriptionId: e.transcriptionId,
+        siglum: e.siglum,
+        states: e.transcriptionId ? (e.states ?? []) : [],
+        variantSiglum: e.variantSiglum || null,
+      })),
     );
     return { form: 'sigla' as const, ok: true };
   },
 
   addCollaborator: async ({ locals, params, request }) => {
     const { user, access } = await editable(locals, params.slug);
-    if (!canGrantOnEdition(user, access.edition)) throw error(403, 'Only the owner may invite collaborators');
+    if (!canGrantOnEdition(user, access.edition))
+      throw error(403, 'Only the owner may invite collaborators');
     const email = String((await request.formData()).get('email') ?? '').trim();
-    if (!email) return fail(400, { form: 'collaborators' as const, message: 'Give an email address.' });
+    if (!email)
+      return fail(400, { form: 'collaborators' as const, message: 'Give an email address.' });
     const result = await addCollaborator(locals.db, access.edition.id, email, user.id);
     if (!result.ok) {
       const message =
-        result.error === 'no-user' ? 'Nobody with that address has an account.' : result.error === 'owner' ? 'That is the owner.' : 'Already a collaborator.';
+        result.error === 'no-user'
+          ? 'Nobody with that address has an account.'
+          : result.error === 'owner'
+            ? 'That is the owner.'
+            : 'Already a collaborator.';
       return fail(400, { form: 'collaborators' as const, message });
     }
     return { form: 'collaborators' as const, ok: true, added: result.collaborator.name };
@@ -220,7 +325,8 @@ export const actions: Actions = {
 
   removeCollaborator: async ({ locals, params, request }) => {
     const { user, access } = await editable(locals, params.slug);
-    if (!canGrantOnEdition(user, access.edition)) throw error(403, 'Only the owner may remove collaborators');
+    if (!canGrantOnEdition(user, access.edition))
+      throw error(403, 'Only the owner may remove collaborators');
     const userId = String((await request.formData()).get('userId') ?? '');
     await removeCollaborator(locals.db, access.edition.id, userId);
     return { form: 'collaborators' as const, ok: true };
@@ -228,9 +334,16 @@ export const actions: Actions = {
 
   offerOwnership: async ({ locals, params, request }) => {
     const { user, access } = await editable(locals, params.slug);
-    if (!canGrantOnEdition(user, access.edition)) throw error(403, 'Only the owner may hand the edition on');
+    if (!canGrantOnEdition(user, access.edition))
+      throw error(403, 'Only the owner may hand the edition on');
     const email = String((await request.formData()).get('email') ?? '').trim();
-    const result = await offerOwnership(locals.db, 'edition', access.edition.id, access.edition.ownerId, email);
+    const result = await offerOwnership(
+      locals.db,
+      'edition',
+      access.edition.id,
+      access.edition.ownerId,
+      email,
+    );
     if (!result.ok) {
       const message = {
         'no-user': 'Nobody with that address has an account.',
@@ -245,8 +358,12 @@ export const actions: Actions = {
 
   delete: async ({ locals, params }) => {
     const { user, access } = await editable(locals, params.slug);
-    if (!canDeleteEdition(user, access.edition)) throw error(403, 'Only the owner may delete the edition');
-    const [work] = await locals.db.select({ slug: works.slug }).from(works).where(eq(works.id, access.edition.workId));
+    if (!canDeleteEdition(user, access.edition))
+      throw error(403, 'Only the owner may delete the edition');
+    const [work] = await locals.db
+      .select({ slug: works.slug })
+      .from(works)
+      .where(eq(works.id, access.edition.workId));
     // The edition goes with its history, its moments and any open offer of it.
     await locals.db.transaction(async (tx) => {
       await deleteHistory(tx, 'edition', [access.edition.id]);

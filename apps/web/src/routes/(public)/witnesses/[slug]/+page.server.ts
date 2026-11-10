@@ -42,7 +42,8 @@ async function witnessOr404(locals: App.Locals, slug: string) {
 
 /** Whether the user sees a work; the grants hold the works they maintain or reach through an edition. */
 const seesWork =
-  (user: Actor | null, grants: Grants) => (work: Pick<WorkRef, 'id' | 'visibility' | 'createdBy'>) =>
+  (user: Actor | null, grants: Grants) =>
+  (work: Pick<WorkRef, 'id' | 'visibility' | 'createdBy'>) =>
     canViewWork(user, work, [], grants);
 
 /** The witness page is public like the registry; what it offers to do needs a user. */
@@ -52,17 +53,25 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   const db = locals.db;
   const grants = await grantsFor(db, user);
   const sees = seesWork(user, grants);
-  const [maintainers, pageRows, transcriptionRows, workRows, readingRows, workChoices, sources, merged] =
-    await Promise.all([
-      maintainersOf(db, 'witness', witness.id),
-      pagesOfWitness(db, witness.id),
-      transcriptionsOfWitness(db, witness.id),
-      worksOfWitness(db, witness.id),
-      readingsOfWitness(db, witness.id),
-      user ? workOptions(db, user, grants) : Promise.resolve([]),
-      user ? viewableTranscriptions(db, user, grants) : Promise.resolve([]),
-      mergesInto(db, 'witness', witness.id),
-    ]);
+  const [
+    maintainers,
+    pageRows,
+    transcriptionRows,
+    workRows,
+    readingRows,
+    workChoices,
+    sources,
+    merged,
+  ] = await Promise.all([
+    maintainersOf(db, 'witness', witness.id),
+    pagesOfWitness(db, witness.id),
+    transcriptionsOfWitness(db, witness.id),
+    worksOfWitness(db, witness.id),
+    readingsOfWitness(db, witness.id),
+    user ? workOptions(db, user, grants) : Promise.resolve([]),
+    user ? viewableTranscriptions(db, user, grants) : Promise.resolve([]),
+    mergesInto(db, 'witness', witness.id),
+  ]);
   const context = { workMaintainerIds: [] as string[], grants };
   const readings = readingRows.filter((r) => sees(r.work) && canViewConjecture(user, r, context));
   const citations = await citationsByRecord(
@@ -130,10 +139,18 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 };
 
 /** The checks deleteWitness makes, made in advance so that the menu can say why it is refused. */
-async function deletionOf(locals: App.Locals, witnessId: string, user: Actor): Promise<{ allowed: boolean; reason: string | null }> {
+async function deletionOf(
+  locals: App.Locals,
+  witnessId: string,
+  user: Actor,
+): Promise<{ allowed: boolean; reason: string | null }> {
   const dependents = await witnessDependents(locals.db, witnessId, user.id);
-  const blocked = dependents.editions.length > 0 || dependents.transcriptions > 0 || dependents.records > 0;
-  return { allowed: !blocked, reason: blocked ? t.witness.inUse(describeDependents(dependents, 'readings')) : null };
+  const blocked =
+    dependents.editions.length > 0 || dependents.transcriptions > 0 || dependents.records > 0;
+  return {
+    allowed: !blocked,
+    reason: blocked ? t.witness.inUse(describeDependents(dependents, 'readings')) : null,
+  };
 }
 
 export const actions: Actions = {

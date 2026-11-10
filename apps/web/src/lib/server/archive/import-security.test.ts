@@ -39,7 +39,11 @@ const SLUGS = ['venetus-a', 'venetus-b', 'laurentianus-c', 'townleianus-t'];
 const asAttacker = { actor: { id: attacker, role: 'member' as const } };
 
 async function clean(): Promise<void> {
-  for (const w of await db.select({ id: works.id }).from(works).where(inArray(works.slug, ['iliad', 'stolen']))) await removeWorkCompletely(db, w.id);
+  for (const w of await db
+    .select({ id: works.id })
+    .from(works)
+    .where(inArray(works.slug, ['iliad', 'stolen'])))
+    await removeWorkCompletely(db, w.id);
   await db.delete(witnesses).where(inArray(witnesses.slug, SLUGS));
 }
 
@@ -74,7 +78,15 @@ describe('a crafted archive', () => {
     const pagesFile = path.join(dir, 'witnesses', 'venetus-a', 'pages.json');
     const list = await json(pagesFile);
     const first = (list.pages as { id: string; image: unknown }[])[0]!;
-    first.image = { kind: 'upload', path: '../../../../etc/passwd', iiif: null, width: 1, height: 1, tiles: '/etc/shadow', rights: 'https://creativecommons.org/publicdomain/zero/1.0/' };
+    first.image = {
+      kind: 'upload',
+      path: '../../../../etc/passwd',
+      iiif: null,
+      width: 1,
+      height: 1,
+      tiles: '/etc/shadow',
+      rights: 'https://creativecommons.org/publicdomain/zero/1.0/',
+    };
     await writeFile(pagesFile, JSON.stringify(list));
     const editionDir = path.join(dir, 'editions', (await readdir(path.join(dir, 'editions')))[0]!);
     const edition = await json(path.join(editionDir, 'edition.json'));
@@ -84,7 +96,10 @@ describe('a crafted archive', () => {
     const [page] = await db.select().from(pages).where(eq(pages.id, first.id));
     expect(page!.imagePath).toBeNull();
     expect(page!.tilesPath).toBeNull();
-    const [e] = await db.select({ slug: editions.slug }).from(editions).where(eq(editions.id, sample.editionId));
+    const [e] = await db
+      .select({ slug: editions.slug })
+      .from(editions)
+      .where(eq(editions.id, sample.editionId));
     expect(e!.slug).toMatch(/^[a-z0-9-]+$/);
     expect(folderName('../../x', 'ID')).toBe('id');
   }, 120_000);
@@ -92,9 +107,15 @@ describe('a crafted archive', () => {
   it('cannot move or rewrite records of others by their ids, nor publish or grant on an edition it only collaborates on', async () => {
     await clean();
     const sample = await seedSample(db, owner);
-    await db.insert(editionCollaborators).values({ editionId: sample.editionId, userId: attacker, grantedBy: owner });
+    await db
+      .insert(editionCollaborators)
+      .values({ editionId: sample.editionId, userId: attacker, grantedBy: owner });
     const [note] = await db.select().from(notes).where(eq(notes.editionId, sample.editionId));
-    const [pageOfB] = await db.select().from(pages).where(eq(pages.witnessId, sample.witnessIds.A!)).limit(1);
+    const [pageOfB] = await db
+      .select()
+      .from(pages)
+      .where(eq(pages.witnessId, sample.witnessIds.A!))
+      .limit(1);
     const dir = await writeArchive(db, sample.workId, path.join(tmp, newId()));
 
     // The edition: published, its collaborators replaced by the attacker's friend, another's page id under witness B, the scheme renamed.
@@ -119,11 +140,24 @@ describe('a crafted archive', () => {
     expect(e!.visibility).toBe('draft');
     expect(e!.publishedVersion).toBeNull();
     expect(e!.ownerId).toBe(owner);
-    expect(await db.select().from(editionCollaborators).where(and(eq(editionCollaborators.editionId, sample.editionId), eq(editionCollaborators.userId, attacker)))).toHaveLength(1);
+    expect(
+      await db
+        .select()
+        .from(editionCollaborators)
+        .where(
+          and(
+            eq(editionCollaborators.editionId, sample.editionId),
+            eq(editionCollaborators.userId, attacker),
+          ),
+        ),
+    ).toHaveLength(1);
     const [p] = await db.select().from(pages).where(eq(pages.id, pageOfB!.id));
     expect(p!.witnessId).toBe(sample.witnessIds.A);
     expect(p!.label).toBe(pageOfB!.label);
-    const [scheme] = await db.select().from(referenceSchemes).where(eq(referenceSchemes.id, (work.scheme as { id: string }).id));
+    const [scheme] = await db
+      .select()
+      .from(referenceSchemes)
+      .where(eq(referenceSchemes.id, (work.scheme as { id: string }).id));
     expect(scheme!.name).not.toBe('Renamed by the attacker');
     // The note is in an edition the attacker edits, so its text may change; its edition may not.
     const [n] = await db.select().from(notes).where(eq(notes.id, note!.id));

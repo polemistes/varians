@@ -24,9 +24,16 @@ export const GET: RequestHandler = async ({ locals, params, url, getClientAddres
     error(404, t.work.notFound);
   }
   // Writing a package is heavy work: a few downloads an hour per person or address.
-  if (!limits.archiveByUser.take(user?.id ?? `address:${getClientAddress()}`)) error(429, t.work.archiveTooOften);
+  if (!limits.archiveByUser.take(user?.id ?? `address:${getClientAddress()}`))
+    error(429, t.work.archiveTooOften);
   try {
-    return packageResponse(await buildPackage(locals.db, user, [{ kind: 'work', workId: record.work.id }], { storageRoot: storageRoot(), origin: packageOrigin(url.origin), agent: PACKAGE_AGENT }));
+    return packageResponse(
+      await buildPackage(locals.db, user, [{ kind: 'work', workId: record.work.id }], {
+        storageRoot: storageRoot(),
+        origin: packageOrigin(url.origin),
+        agent: PACKAGE_AGENT,
+      }),
+    );
   } catch (e) {
     console.error('package for download failed', e);
     error(500, t.work.archiveFailed);
