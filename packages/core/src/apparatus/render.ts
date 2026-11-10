@@ -140,10 +140,10 @@ export function apparatusEntries(
   const baseCount = collation.columns.filter(
     (c) => (c.cells.get(collation.baseId)?.unitIndex ?? -1) >= 0,
   ).length;
-  // The witnesses proper that have the segment.
-  const everyone = Object.keys(collation.sigla ?? {}).filter(
-    (id) => id !== collation.baseId && !isState(id) && !collation.absent.includes(id),
-  );
+  // The witnesses proper that have the segment: every one of them stands in some place's reading.
+  const everyone = [
+    ...new Set(collation.sites.flatMap((site) => site.readings.flatMap((r) => r.textIds))),
+  ].filter((id) => id !== collation.baseId && !isState(id));
   for (const site of collation.sites) {
     // A place the editor has chosen not to report.
     if (site.unreported) continue;
@@ -158,7 +158,8 @@ export function apparatusEntries(
     const support = attached.filter((a) => a.adopted && a.kind === 'reported');
     // A site over the whole segment: what a witness lacks there it lacks entirely.
     const whole =
-      base !== undefined && baseCount > 0 && site.baseFrom === 0 && site.baseTo === baseCount;
+      site.wanting === true ||
+      (base !== undefined && baseCount > 0 && site.baseFrom === 0 && site.baseTo === baseCount);
     const variants: ApparatusVariant[] = others.map((reading) =>
       renderReading(reading, base, conventions, siglaOrder, whole),
     );
