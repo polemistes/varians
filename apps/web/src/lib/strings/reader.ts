@@ -133,13 +133,42 @@ export const reader = {
   },
 
   /**
-   * Plain sentences about a variant place, for the popover and the list of
-   * variants. `{who}` stands for one or more witnesses by name, `{name}` for
-   * a scholar, `{words}` for words of the text, `{source}` for where a
-   * reading is reported. `one` and `many` agree with the number of witnesses.
+   * The variant window: a list of the witnesses that are there and one row
+   * for each reading. Words are never said of what a reading means or how it
+   * is formed.
    */
-  explain: {
-    and: 'and',
+  variant: {
+    /** The witnesses of the conspectus that are there, when all are and when some are. */
+    thereAll: (total: number) =>
+      total === 1
+        ? 'In the only witness'
+        : total === 2
+          ? 'In both witnesses'
+          : `In all ${total} witnesses`,
+    thereSome: (count: number, total: number) => `In ${count} of ${total} witnesses`,
+    /** Before the witnesses in which the words are an addition. */
+    addition: 'Addition in',
+    /** The kinds of variant a head names. */
+    minor: 'minor',
+    interpretative: 'interpretative',
+    /** Where a variant stands that has no words of the edition. */
+    after: 'after',
+    before: 'before',
+    /** Read before the row of the edition's reading, which is set apart by its weight alone. */
+    edition: 'Edition',
+    /** What stands in place of a reading's words where a witness has none, or where a conjecture proposes none. */
+    notIn: 'not in',
+    delete: 'delete',
+    lacuna: 'lacuna',
+    add: 'add',
+    move: 'move',
+    /** What a reading rests on besides witnesses. */
+    conjecture: 'conjecture',
+    theEditor: 'the editor',
+    /** Where the edition has no words and every witness that is there has some: the row reads "not in the edition". */
+    theEdition: 'the edition',
+    /** A witness known only from a report, with where the report is. */
+    reported: (source: string) => (source ? `reported, ${source}` : 'reported'),
     /** A witness the edition does not list, by its siglum. */
     unknownWitness: (siglum: string) => `Witness ${siglum}`,
     /** A witness collated as it stood before the scribe's corrections. */
@@ -150,67 +179,13 @@ export const reader = {
     correctedBy: (name: string, hand: string) => `${name} with the corrections of ${hand}`,
     theScribe: 'the scribe',
     anotherHand: 'another hand',
-    /** The variants a witness notes in its margins or between its lines, collated as a text of their own; `start` opens a sentence. */
-    variantNoted: (name: string) => `a variant noted in ${name}`,
-    variantNotedStart: (name: string) => `A variant noted in ${name}`,
-    /** What the edition prints, and on what authority. */
-    follows: 'The edition follows {who}.',
-    followsEvery: 'The edition follows every witness.',
-    reportedFrom: 'The reading of {who} is known from {source}.',
-    reportedOnly: 'The reading of {who} is known only from a report.',
-    conjecture: 'The edition prints a conjecture of {name}; no witness has it.',
-    conjectureAlso: {
-      one: 'The edition prints a conjecture of {name}, which {who} also has.',
-      many: 'The edition prints a conjecture of {name}, which {who} also have.',
-    },
-    conjectureOwn: "The edition prints the editor's own conjecture; no witness has it.",
-    conjectureDeletion:
-      'The edition leaves these words out, as {name} proposed; the witnesses have them.',
-    conjectureLacuna: 'The edition marks words as missing here, as {name} proposed.',
-    editorAdded: 'No witness has these words; the editor added them.',
-    editorReading: "No witness has this reading; it is the editor's own.",
-    editorLeftOut: 'The editor leaves out what the witnesses have here.',
-    /** The witnesses' readings. */
-    reads: { one: '{who} reads {words}.', many: '{who} read {words}.' },
-    /** The same letters read otherwise: accents, breathings, punctuation, word division. */
-    /** The words come last and stand alone, since their punctuation may be the difference. */
-    readsInterpretative: {
-      one: '{who} reads the same letters otherwise: {words}',
-      many: '{who} read the same letters otherwise: {words}',
-    },
-    omits: { one: '{who} leaves these words out.', many: '{who} leave these words out.' },
-    adds: { one: '{who} adds {words} here.', many: '{who} add {words} here.' },
-    otherOrder: {
-      one: '{who} has these words in another order: {words}.',
-      many: '{who} have these words in another order: {words}.',
-    },
-    otherOrderPlain: {
-      one: '{who} has these words in another order.',
-      many: '{who} have these words in another order.',
-    },
-    otherPlace: {
-      one: '{who} has these words in another place.',
-      many: '{who} have these words in another place.',
-    },
-    /** Spelling only. */
-    /** Readings reported by others, and conjectures. */
-    reportedReads: '{who} is reported to read {words}.',
-    reportedReadsFrom: '{who} is reported to read {words}, according to {source}.',
-    reportedOmits: '{who} is reported to leave these words out.',
-    reportedOmitsFrom: '{who} is reported to leave these words out, according to {source}.',
-    theEditor: 'The editor',
-    proposed: '{name} proposed {words}.',
-    proposedDeletion: '{name} proposed deleting these words.',
-    proposedLacuna: '{name} thought words are missing here.',
-    proposedAddition: '{name} proposed adding {words} here.',
-    proposedOrder: '{name} proposed the order {words}.',
-    proposedMove: '{name} proposed moving these words.',
-    /** Where an addition stands, beside the edition's words. */
-    after: 'after {words}',
-    before: 'before {words}',
-    /** Read after a witness's siglum by screen readers and copied with it. */
-    siglumOpen: ' (',
-    siglumClose: ')',
+    /** The variants a witness notes in its margins or between its lines, collated as a text of its own. */
+    variantNoted: (name: string) => `Variant noted in ${name}`,
+    /** From a row to the variant where the same witnesses have the words in another place. */
+    open: (where: string) => `Open the variant ${where}`,
+    /** The point between two words, for the mark in the text. */
+    pointAfter: (word: string) => `Variant after ${word}`,
+    pointBefore: (word: string) => `Variant before ${word}`,
   },
 
   /** The panels. */

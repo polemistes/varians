@@ -1,21 +1,21 @@
 <script lang="ts" module>
-  import type { SiteExplanation } from '$lib/reader/explain';
+  import type { Variant } from '$lib/reader/variant';
 
   export interface PopoverEntry {
     key: string;
     label: string;
-    explanation: SiteExplanation;
+    variant: Variant;
     permalink: string | null;
   }
 </script>
 
 <script lang="ts">
   /**
-   * What varies at the word a reader clicked or tapped, explained in plain
-   * sentences, in a popover anchored to that word. It has no trigger of its
-   * own: the page opens it with the word as its anchor, and focus goes back
-   * to the word (or to the card of the list of variants that opened it) when
-   * it closes.
+   * The variant window on the word or the point a reader clicked or tapped:
+   * what the witnesses have there, as a list, in a popover anchored to the
+   * mark. It has no trigger of its own: the page opens it with the mark as
+   * its anchor, and focus goes back to the mark (or to the card of the list
+   * of variants that opened it) when it closes.
    */
   import { Popover } from 'bits-ui';
   import Link2 from '@lucide/svelte/icons/link-2';
@@ -24,7 +24,7 @@
   import ImageIcon from '@lucide/svelte/icons/image';
   import { reader as r } from '$lib/strings/reader';
   import PlaceWords from './PlaceWords.svelte';
-  import VariantExplanation from './VariantExplanation.svelte';
+  import VariantWindow from './VariantWindow.svelte';
 
   interface Props {
     open?: boolean;
@@ -36,6 +36,10 @@
     witnesses: boolean;
     onwitness?: () => void;
     onfacsimile?: () => void;
+    /** A siglum of the window: the witness it opens, and the variant's key. */
+    onsiglum?: (siglum: string, key: string) => void;
+    /** A link of the window to another variant of the segment. */
+    onopen?: (key: string, from: HTMLElement) => void;
     /** Called when the popover has closed, to give focus back. */
     onclosed?: () => void;
   }
@@ -48,6 +52,8 @@
     witnesses,
     onwitness,
     onfacsimile,
+    onsiglum,
+    onopen,
     onclosed,
   }: Props = $props();
 
@@ -103,9 +109,9 @@
             {/if}
           </header>
           <p class="mb-2.5 text-[1.3rem] leading-snug">
-            <PlaceWords explanation={item.explanation} {lang} />
+            <PlaceWords variant={item.variant} {lang} />
           </p>
-          <VariantExplanation explanation={item.explanation} {lang} />
+          <VariantWindow variant={item.variant} {lang} onwitness={onsiglum} {onopen} />
         </section>
       {/each}
       {#if witnesses}

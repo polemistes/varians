@@ -1,20 +1,19 @@
 <script lang="ts">
   /**
-   * The variants of the lines on screen, explained: for each segment with
-   * variant places, a card with its label and, for each place, the edition's
-   * words and the same explanation the popover gives; then what belongs to
-   * the segment as a whole (conjectures no place took, notes). Hovering a
-   * place lights its words in the text; clicking it scrolls to them and
-   * opens their popover.
+   * The variants of the lines on screen: for each segment with variants, a
+   * card with its label and, for each variant, the edition's words and the
+   * same window the popover gives, in a compact form; then what belongs to
+   * the segment as a whole (conjectures no variant took, notes). Hovering a
+   * variant lights its words in the text; clicking it scrolls to them and
+   * opens their window.
    */
   import X from '@lucide/svelte/icons/x';
-  import type { SegmentVariants, SiteExplanation } from '$lib/reader/explain';
-  import { fill, plainSentence } from '$lib/reader/explain';
+  import { whereText, type SegmentVariants } from '$lib/reader/variant';
   import { reader as r } from '$lib/strings/reader';
-  import ExplainSentence from './ExplainSentence.svelte';
   import PlaceWords from './PlaceWords.svelte';
   import ReaderNotes from './ReaderNotes.svelte';
-  import VariantExplanation from './VariantExplanation.svelte';
+  import VariantRows from './VariantRows.svelte';
+  import VariantWindow from './VariantWindow.svelte';
 
   interface Props {
     groups: SegmentVariants[];
@@ -25,20 +24,12 @@
     active: string[];
     onhover: (keys: string[]) => void;
     onopen: (key: string, from: HTMLElement) => void;
+    /** A siglum of a window: the witness it opens, and the key of the variant. */
+    onwitness: (siglum: string, key: string) => void;
     onclose: () => void;
   }
 
-  let { groups, onScreen, lang, active, onhover, onopen, onclose }: Props = $props();
-
-  function wordsOf(place: SiteExplanation): string {
-    if (place.words) return place.words;
-    if (!place.place) return '';
-    return plainSentence(
-      fill(place.place.side === 'after' ? r.explain.after : r.explain.before, {
-        words: [{ kind: 'words', text: place.place.word }],
-      }),
-    );
-  }
+  let { groups, onScreen, lang, active, onhover, onopen, onwitness, onclose }: Props = $props();
 
   function open(event: MouseEvent, key: string) {
     // Selecting text in a card is not opening it.
@@ -86,28 +77,23 @@
                   type="button"
                   class="place-words"
                   aria-haspopup="dialog"
-                  aria-label={r.panels.variantsShow(wordsOf(place), place.label)}
+                  aria-label={r.panels.variantsShow(whereText(place), place.label)}
                   onfocus={() => onhover([place.key])}
                   onblur={() => onhover([])}
                 >
-                  <PlaceWords explanation={place} {lang} />
+                  <PlaceWords variant={place} {lang} />
                 </button>
-                <VariantExplanation explanation={place} {lang} compact />
+                <VariantWindow variant={place} {lang} compact {onwitness} {onopen} />
               </div>
             {/each}
             {#if group.unplaced.length}
-              <ul class="unplaced">
-                {#each group.unplaced as line, k (k)}
-                  <li>
-                    <ExplainSentence
-                      sentence={line.sentence}
-                      {lang}
-                    />{#if line.references.length}{' '}<span class="refs"
-                        >{line.references.join('; ')}</span
-                      >{/if}
-                  </li>
-                {/each}
-              </ul>
+              <div class="unplaced">
+                <VariantRows
+                  rows={group.unplaced}
+                  {lang}
+                  onwitness={(siglum) => onwitness(siglum, '')}
+                />
+              </div>
             {/if}
             {#if group.notes.length}
               <div class="segment-notes"><ReaderNotes notes={group.notes} compact /></div>
@@ -226,19 +212,12 @@
   }
 
   .unplaced {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
     padding: 0.45rem 0.5rem 0.3rem;
     border-top: 1px solid var(--color-line);
+    font-family: var(--font-sans);
     font-size: 0.8125rem;
     line-height: 1.55;
     color: var(--color-ink-soft);
-  }
-
-  .refs {
-    font-size: 0.85em;
-    color: var(--color-ink-muted);
   }
 
   .segment-notes {

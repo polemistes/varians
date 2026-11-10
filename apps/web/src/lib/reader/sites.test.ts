@@ -14,6 +14,7 @@ import {
   editionTokensAt,
   entriesBySegment,
   entryBySite,
+  listingMinor,
   markSites,
   minorAsOthers,
   parseSiteKey,
@@ -68,15 +69,13 @@ describe('siteByToken', () => {
     expect(map.has('e1')).toBe(false);
   });
 
-  it('reaches an addition through the word before it, or after it at the start', () => {
+  it('leaves the words beside a point between two words unmarked: the point has its own mark', () => {
     const ed = text('e', 'ed.', 'ἄλγε ἔθηκε');
     const seg = segment(ed, [text('b', 'B', 'ἄλγε ἔθηκε πολλά')]);
     const addition = seg.collation.sites.find((s) => s.baseFrom === s.baseTo)!;
     expect(addition).toBeDefined();
-    const map = siteByToken({ segments: [seg] });
-    expect(map.get('e1')).toEqual([
-      { segmentId: 's1', siteIndex: addition.index, insertion: true },
-    ]);
+    expect(siteByToken({ segments: [seg] }).size).toBe(0);
+    expect(editionTokensAt(seg, addition.index)).toEqual(['e1']);
 
     const atStart = segment(
       text('f', 'ed.', 'ἄλγε ἔθηκε'),
@@ -84,9 +83,7 @@ describe('siteByToken', () => {
       's2',
     );
     const first = atStart.collation.sites.find((s) => s.baseFrom === s.baseTo)!;
-    expect(siteByToken({ segments: [atStart] }).get('f0')).toEqual([
-      { segmentId: 's2', siteIndex: first.index, insertion: true },
-    ]);
+    expect(siteByToken({ segments: [atStart] }).size).toBe(0);
     expect(editionTokensAt(atStart, first.index)).toEqual(['f0']);
   });
 
@@ -94,6 +91,79 @@ describe('siteByToken', () => {
     expect(siteKey('01ABC', 3)).toBe('01ABC:3');
     expect(parseSiteKey('01ABC:3')).toEqual({ segmentId: '01ABC', siteIndex: 3 });
     expect(parseSiteKey('nonsense')).toBeNull();
+  });
+});
+
+describe('the marks at points between two words', () => {
+  const printed = (segments: Record<string, ReturnType<typeof segment>>) => {
+    const entries = entryBySite(
+      entriesBySegment(segments, { form: 'positive', latin: true, interpretative: 'separate' }, [
+        'A',
+        'B',
+      ]),
+    );
+    return markSites(siteByToken({ segments }), entries, segments);
+  };
+
+  it('follows the word before the point, and is no stop of a word', () => {
+    const ed = text('e', 'ed.', 'ἄλγε ἔθηκε κύνεσσιν');
+    const seg = segment(ed, [text('b', 'B', 'ἄλγε πολλά ἔθηκε κύνεσσιν')]);
+    const point = seg.collation.sites.find((s) => s.baseFrom === s.baseTo)!;
+    const marking = printed({ s1: seg });
+    expect([...marking.after]).toEqual([
+      ['e0', { keys: `s1:${point.index}`, side: 'after', word: 'ἄλγε' }],
+    ]);
+    expect(marking.before.size).toBe(0);
+    expect(marking.marked.size).toBe(0);
+    expect(marking.tabStops.size).toBe(0);
+  });
+
+  it('precedes the first word at the start of a segment, and follows the last at its end', () => {
+    const ed = text('e', 'ed.', 'ἄλγε ἔθηκε');
+    const seg = segment(ed, [
+      text('b', 'B', 'καὶ ἄλγε ἔθηκε'),
+      text('c', 'C', 'ἄλγε ἔθηκε πολλά,'),
+    ]);
+    const marking = printed({ s1: seg });
+    expect([...marking.before].map(([id, mark]) => [id, mark.side, mark.word])).toEqual([
+      ['e0', 'before', 'ἄλγε'],
+    ]);
+    expect([...marking.after].map(([id, mark]) => [id, mark.side, mark.word])).toEqual([
+      ['e1', 'after', 'ἔθηκε'],
+    ]);
+  });
+
+  it('keeps the keys of two variants at one point together', () => {
+    const seg = segment(text('e', 'ed.', 'a b'), []);
+    const reading = (ids: string[], words: string) => ({
+      text: words,
+      fold: words,
+      textIds: ids,
+      sigla: ids,
+      units: {},
+      omission: words === '',
+      lacunose: false,
+      base: ids[0] === 'e',
+    });
+    const site = (index: number) => ({
+      index,
+      columnFrom: 0,
+      columnTo: 0,
+      baseFrom: 1,
+      baseTo: 1,
+      kind: 'textual' as const,
+      readings: [reading(['e'], ''), reading(['a'], 'x')],
+    });
+    const two = { ...seg, collation: { ...seg.collation, sites: [site(0), site(1)] } };
+    const marking = markSites(
+      siteByToken({ segments: { s1: two } }),
+      new Map([
+        ['s1:0', {}],
+        ['s1:1', {}],
+      ]),
+      { s1: two },
+    );
+    expect(marking.after.get('e0')!.keys).toBe('s1:0 s1:1');
   });
 });
 
@@ -226,17 +296,20 @@ describe('a minor variant', () => {
     expect(minorAsOthers(plain)).toBe(plain);
   });
 
-  it('stands like any other place of a page that has asked for it, which the print apparatus still leaves out', () => {
+  it('stands in a page that has asked for it, flagged, and listed like any other', () => {
     const { dog, segments } = marked();
     expect(anyMinor(segments)).toBe(true);
     expect(anyMinor(withMinor(segments, false))).toBe(false);
     const shown = withMinor(segments, true);
-    expect(anyMinor(shown)).toBe(false);
+    // The flag stays, so that the window can say the place is minor.
+    expect(anyMinor(shown)).toBe(true);
     expect(shown.s1.collation.sites).toHaveLength(segments.s1.collation.sites.length);
     expect(shown.s1.attachments[dog.index]).toHaveLength(1);
-    const entries = entryBySite(entriesBySegment(shown, conventions, ['A', 'B']));
+    const listed = listingMinor(shown);
+    expect(anyMinor(listed)).toBe(false);
+    const entries = entryBySite(entriesBySegment(listed, conventions, ['A', 'B']));
     expect(entries.has(siteKey('s1', dog.index))).toBe(true);
-    expect(markSites(siteByToken({ segments: shown }), entries, shown).marked.has('e2')).toBe(true);
+    expect(markSites(siteByToken({ segments: shown }), entries, shown).marked.has('e1')).toBe(true);
     // The sent segments, whose sites keep their flag, print nothing of it.
     expect(entriesBySegment(segments, conventions, ['A', 'B']).get('s1')).toHaveLength(1);
     // Taking the flag off leaves the sent site as it was.

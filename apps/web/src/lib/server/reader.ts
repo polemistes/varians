@@ -199,8 +199,8 @@ function readerState(
       siglum: state.siglum,
       hand:
         handLabel(state.hand, hands, {
-          scribe: r.explain.theScribe,
-          other: r.explain.anotherHand,
+          scribe: r.variant.theScribe,
+          other: r.variant.anotherHand,
         }) ?? state.hand,
     };
   }

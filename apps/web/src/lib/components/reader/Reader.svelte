@@ -1,9 +1,10 @@
 <script lang="ts">
   /**
    * The reader of an edition: the critical text with labels
-   * in the margin, words at variant places marked with a dotted line that
-   * explain what varies there when opened, the variants of the lines on
-   * screen, the witnesses and the facsimile in panels, search, and a print
+   * in the margin, words at variants marked with a dotted line and the points
+   * between two words where a witness has words the edition has not marked
+   * with a small caret, each opening the variant window, the variants of the
+   * lines on screen, the witnesses and the facsimile in panels, search, and a print
    * stylesheet. The print apparatus is in the page for printing, for readers
    * without JavaScript, and on screen when the reader asks for it in the
    * gear (at the foot of each block or beside it). Server-rendered: the
@@ -22,7 +23,8 @@
   } from '$lib/reader/blocks';
   import { DEFAULT_SIGLA, printLine } from '$lib/reader/marks';
   import { findHits, searchIndex, type SearchHit, type SearchLine } from '$lib/reader/search';
-  import { explainSite, variantsOf, type ExplainContext } from '$lib/reader/explain';
+  import { EditionText } from '$lib/reader/edition-text';
+  import { variantOf, variantsOf, type VariantContext } from '$lib/reader/variant';
   import {
     DEFAULT_SETTINGS,
     effectiveConventions,
@@ -34,6 +36,7 @@
     anyMinor,
     entriesBySegment,
     entryBySite,
+    listingMinor,
     markSites,
     parseSiteKey,
     siteByToken,
@@ -166,14 +169,25 @@
   /** The entries that mark words, open in the popover and fill the list of variants: those of the print apparatus, and the minor variants when asked for. */
   const entries = $derived(
     settings.showMinor && anyMinor(sent)
-      ? entriesBySegment(segments, conventions, siglaOrder)
+      ? entriesBySegment(listingMinor(segments), conventions, siglaOrder)
       : printEntries,
   );
   const entryMap = $derived(entryBySite(entries));
 
   const marking = $derived(markSites(sitesOfToken, entryMap, segments));
-  /** What the explanations of variant places read: the conspectus and the conventions in force. */
-  const explainContext = $derived<ExplainContext>({ sigla: data.sigla });
+  /** The edition's words as it prints them, for the first row of a variant window. */
+  const editionText = $derived(
+    new EditionText(
+      data.lines.flatMap((line) => line.items),
+      sigla,
+    ),
+  );
+  /** What a variant window reads: the conspectus, the edition's groups and its text. */
+  const variantContext = $derived<VariantContext>({
+    sigla: data.sigla,
+    groups: conventionsOfEdition.groups,
+    edition: editionText,
+  });
 
   const labels = $derived(lineLabels(data.lines, data.labelOf, settings.labels));
   /** Segments that begin within a line are labelled where they begin: in prose, or when every line is labelled. */
@@ -388,18 +402,16 @@
     activeKeys.flatMap((key) => {
       const ref = parseSiteKey(key);
       const segment = ref ? segments[ref.segmentId] : undefined;
-      const explanation =
-        segment && entryMap.has(key) ? explainSite(segment, ref!.siteIndex, explainContext) : null;
-      if (!explanation) return [];
-      return [
-        { key, label: explanation.label, explanation, permalink: segmentHref(explanation.label) },
-      ];
+      const variant =
+        segment && entryMap.has(key) ? variantOf(segment, ref!.siteIndex, variantContext) : null;
+      if (!variant) return [];
+      return [{ key, label: variant.label, variant, permalink: segmentHref(variant.label) }];
     }),
   );
 
-  /** The variant places of the lines on screen, explained, while the list of variants is open. */
+  /** The variants of the lines on screen, while the list of variants is open. */
   const variantGroups = $derived(
-    variantsOpen ? variantsOf(visibleSegments, segments, entryMap, explainContext) : [],
+    variantsOpen ? variantsOf(visibleSegments, segments, entryMap, variantContext) : [],
   );
 
   /** Light the words and entries of some sites, by a data attribute the components style. */
@@ -450,6 +462,17 @@
     returnFocus = from;
   }
 
+  /**
+   * From a siglum of a variant window: the Witnesses panel on that witness,
+   * with the variant's words lit (a siglum of no variant lights none).
+   */
+  function showWitness(witness: string, key: string) {
+    chosenSiglum = witness;
+    if (key) activeKeys = [key];
+    witnessOpen = true;
+    popoverOpen = false;
+  }
+
   /** Light the words of some places from the list of variants. */
   function hoverSites(keys: string[]) {
     mark('data-lit', keys);
@@ -493,7 +516,7 @@
         const text = any?.dataset.token ? wordOf.get(any.dataset.token) : undefined;
         if (text) lookedUp = trimPunctuation(text);
       }
-      const word = (event.target as HTMLElement).closest<HTMLElement>('[data-token][data-sites]');
+      const word = (event.target as HTMLElement).closest<HTMLElement>('[data-sites]');
       if (!word || !root.contains(word)) return;
       // Selecting text is not opening an entry.
       if (window.getSelection()?.toString()) return;
@@ -502,7 +525,7 @@
     };
     const keydown = (event: KeyboardEvent) => {
       if (event.key !== 'Enter' && event.key !== ' ') return;
-      const word = (event.target as HTMLElement).closest<HTMLElement>('[data-token][data-sites]');
+      const word = (event.target as HTMLElement).closest<HTMLElement>('[data-sites]');
       if (!word) return;
       event.preventDefault();
       returnFocus = null;
@@ -688,6 +711,8 @@
                     sitesOf={marking.keysOf}
                     marked={marking.marked}
                     tabStops={marking.tabStops}
+                    pointsAfter={marking.after}
+                    pointsBefore={marking.before}
                     underline={settings.underline}
                     interactive={live}
                     {inlineLabels}
@@ -757,6 +782,7 @@
             active={popoverOpen ? activeKeys : []}
             onhover={hoverSites}
             onopen={openSite}
+            onwitness={showWitness}
             onclose={() => (variantsOpen = false)}
           />
         {/if}
@@ -806,6 +832,8 @@
       facsimileOpen = true;
       popoverOpen = false;
     }}
+    onsiglum={showWitness}
+    onopen={openSite}
     onclosed={focusAfterClose}
   />
 </div>

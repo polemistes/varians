@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { differOnlyInFold, fold, greekLower, isAllCaps, stripDiacritics } from './fold.ts';
+import {
+  differOnlyInFold,
+  fold,
+  greekLower,
+  isAllCaps,
+  stripDiacritics,
+  trimPunctuation,
+  trimPunctuationAt,
+} from './fold.ts';
 import { NormalizationMemory, agreeUnderFold, defaultProfile, proposeReadForm } from './profile.ts';
 
 const greek = defaultProfile('grc');
@@ -41,6 +49,23 @@ describe('fold', () => {
     expect(isAllCaps('ΜΗΝΙΝ')).toBe(true);
     expect(isAllCaps('Μῆνιν')).toBe(false);
     expect(isAllCaps('123')).toBe(false);
+  });
+});
+
+describe('trimPunctuationAt', () => {
+  it('takes the punctuation off one edge of a phrase and keeps the rest', () => {
+    expect(trimPunctuationAt('ἄειδε, θεὰ,', 'start')).toBe('ἄειδε, θεὰ,');
+    expect(trimPunctuationAt('ἄειδε, θεὰ,', 'end')).toBe('ἄειδε, θεὰ');
+    expect(trimPunctuationAt('· ἄειδε', 'start')).toBe('ἄειδε');
+    expect(trimPunctuationAt('ἄλγε᾽', 'end')).toBe('ἄλγε᾽');
+  });
+
+  it('leaves a phrase that is only punctuation as it is, and agrees with trimming both edges', () => {
+    expect(trimPunctuationAt('…', 'start')).toBe('…');
+    const phrase = '«ἄειδε, θεὰ.»';
+    expect(trimPunctuationAt(trimPunctuationAt(phrase, 'start'), 'end')).toBe(
+      trimPunctuation(phrase),
+    );
   });
 });
 

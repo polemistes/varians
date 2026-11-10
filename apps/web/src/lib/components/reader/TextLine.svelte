@@ -4,10 +4,13 @@
    * speaker in a margin of its own where the edition sets it so, and the
    * printed words, each a span with its token id. Words at a variant site
    * carry the keys of their sites, and once the page is live the first word
-   * of each site is a stop for the keyboard.
+   * of each site is a stop for the keyboard. A variant at a point between
+   * two words has a small mark there, which opens it like a word and takes
+   * the keyboard's focus.
    */
   import type { LayoutLine } from '@varians/core';
   import type { Printed } from '$lib/reader/marks';
+  import type { PointMark } from '$lib/reader/sites';
   import { gapSign, VACAT_TEXT } from '$lib/reader/marks';
   import { reader as r } from '$lib/strings/reader';
 
@@ -26,6 +29,10 @@
     marked: Set<string>;
     /** The first word of each site: reachable by Tab once the page is live. */
     tabStops: Set<string>;
+    /** The marks of variants at a point between two words, by the word each follows. */
+    pointsAfter: Map<string, PointMark>;
+    /** The marks that precede the first word of a segment, by that word. */
+    pointsBefore: Map<string, PointMark>;
     underline: boolean;
     interactive: boolean;
     /** Mid-line segment starts, labelled in the line: item id to label. */
@@ -52,6 +59,8 @@
     sitesOf,
     marked,
     tabStops,
+    pointsAfter,
+    pointsBefore,
     underline,
     interactive,
     inlineLabels,
@@ -81,6 +90,12 @@
     flow.length > 0 && flow.every((p) => p.kind === 'paratext' && p.type === 'head'),
   );
 
+  function pointName(mark: PointMark): string {
+    return mark.side === 'after'
+      ? r.variant.pointAfter(mark.word)
+      : r.variant.pointBefore(mark.word);
+  }
+
   function gapTitle(piece: Extract<Printed, { kind: 'gap' }>): string {
     if (piece.untranscribed) return r.text.notTranscribed;
     return piece.quantity !== null
@@ -88,6 +103,17 @@
       : r.text.gap;
   }
 </script>
+
+<!-- A variant at a point between two words: a mark of no width in the space there, a button once the page is live. -->
+{#snippet point(mark: PointMark)}<!-- svelte-ignore a11y_no_noninteractive_tabindex --><span
+    class={['point', mark.side, underline && 'drawn']}
+    data-sites={mark.keys}
+    role={interactive ? 'button' : undefined}
+    tabindex={interactive ? 0 : undefined}
+    aria-haspopup={interactive ? 'dialog' : undefined}
+    aria-label={interactive ? pointName(mark) : undefined}
+    title={pointName(mark)}
+  ></span>{/snippet}
 
 {#if speakerDisplay === 'own-line' && speakers.length}
   <div class={['line', 'speaker-line', line.paragraph && index > 0 && 'paragraph']} {dir}>
@@ -129,10 +155,9 @@
       >{#each flow as piece, n (piece.id)}{#if n > 0 && piece.space && !(piece.kind === 'paratext' && piece.type === 'head')}{' '}{/if}{#if inlineLabels.has(piece.id)}<sup
             class="inline-label">{inlineLabels.get(piece.id)}</sup
           >{/if}{#if piece.kind === 'token'}{@const keys = sitesOf.get(piece.id)}{@const live =
-            interactive &&
-            marked.has(
-              piece.id,
-            )}{piece.before}<!-- The word is a button exactly when it takes focus. --><!-- svelte-ignore a11y_no_noninteractive_tabindex --><span
+            interactive && marked.has(piece.id)}{#if pointsBefore.has(piece.id)}{@render point(
+              pointsBefore.get(piece.id)!,
+            )}{/if}{piece.before}<!-- The word is a button exactly when it takes focus. --><!-- svelte-ignore a11y_no_noninteractive_tabindex --><span
             data-token={piece.id}
             data-sites={keys}
             data-focus={!focusLine &&
@@ -151,7 +176,9 @@
             aria-haspopup={live ? 'dialog' : undefined}
             >{#each piece.parts as part, k (k)}{#if part.struck}<s>{part.text}</s
                 >{:else}{part.text}{/if}{/each}</span
-          >{piece.after}{:else if piece.kind === 'lacuna'}<span
+          >{piece.after}{#if pointsAfter.has(piece.id)}{@render point(
+              pointsAfter.get(piece.id)!,
+            )}{/if}{:else if piece.kind === 'lacuna'}<span
             class="lacuna"
             title={piece.extent ? r.text.lacunaOf(piece.extent) : r.text.lacuna}>{piece.text}</span
           >{:else if piece.kind === 'gap'}<span
@@ -261,6 +288,87 @@
     outline-offset: 1px;
   }
 
+  /*
+   * The mark of a variant at a point between two words stands in the space
+   * there and has no net width: its box is as wide as the space and the same
+   * width is taken off its margin, so that the words stay where they are and
+   * the line breaks where it did. A little caret under the line, with a hit
+   * area that takes in the space. It follows the word before the point
+   * (its box extends forward over the space) or, at the start of a segment,
+   * precedes the first word (its box extends back over the space before it).
+   */
+  .point {
+    position: relative;
+    display: inline-block;
+    width: 0.32em;
+    height: 1.1em;
+    vertical-align: -0.3em;
+    cursor: pointer;
+    color: transparent;
+    text-indent: 0;
+  }
+
+  .point.after {
+    margin-inline-end: -0.32em;
+  }
+
+  .point.before {
+    margin-inline-start: -0.32em;
+  }
+
+  .point::before {
+    content: '';
+    position: absolute;
+    bottom: 0.04em;
+    inset-inline-start: 50%;
+    width: 0.26em;
+    height: 0.26em;
+    border-top: 1px solid currentColor;
+    border-inline-start: 1px solid currentColor;
+    transform: translateX(-50%) rotate(45deg);
+    transform-origin: center;
+    opacity: 0;
+  }
+
+  .point.drawn {
+    color: color-mix(in srgb, var(--color-ink-muted) 80%, transparent);
+  }
+
+  .point.drawn::before,
+  .point:hover::before,
+  .point:focus-visible::before,
+  .point:global([data-active])::before,
+  .point:global([data-lit])::before {
+    opacity: 1;
+  }
+
+  .point:hover,
+  .point:global([data-active]),
+  .point:global([data-lit]) {
+    color: var(--color-accent);
+  }
+
+  .point:global([data-active])::after,
+  .point:global([data-lit])::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 0.2em;
+    background-color: var(--color-accent-soft);
+    z-index: -1;
+  }
+
+  .point:global([data-active])::after {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 35%, transparent);
+  }
+
+  .point:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 0;
+    border-radius: 0.15em;
+    color: var(--color-accent);
+  }
+
   .w:global([data-lit]) {
     background-color: var(--color-accent-soft);
   }
@@ -361,6 +469,10 @@
 
     .variant:hover {
       color: inherit;
+    }
+
+    .point {
+      display: none;
     }
 
     .w:global([data-lit]),

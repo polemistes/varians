@@ -23,6 +23,7 @@ import type pg from 'pg';
 import {
   entriesBySegment,
   entryBySite,
+  listingMinor,
   markSites,
   siglaOrderOf,
   siteByToken,
@@ -105,7 +106,9 @@ function printed(data: ReaderData, segmentId: string): string[] {
 /** The words of the reader's page that are marked as having a variant, with the minor variants shown or not as the reader chose. */
 function markedWords(data: ReaderData, showMinor = false): Set<string> {
   const segments = withMinor(data.segments, showMinor);
-  const entries = entryBySite(entriesBySegment(segments, data.apparatus, siglaOrderOf(data.sigla)));
+  const entries = entryBySite(
+    entriesBySegment(listingMinor(segments), data.apparatus, siglaOrderOf(data.sigla)),
+  );
   return markSites(siteByToken({ segments }), entries, segments).marked;
 }
 

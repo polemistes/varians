@@ -119,6 +119,19 @@ export function trimPunctuation(text: string): string {
   return trimmed === '' ? text : trimmed;
 }
 
+/**
+ * `trimPunctuation` for one edge of a phrase: for a word that stands at the
+ * start or the end of a phrase, where the punctuation inside the phrase is
+ * kept.
+ */
+export function trimPunctuationAt(text: string, edge: 'start' | 'end'): string {
+  const marks =
+    edge === 'start' ? /^[,.;:!?··;…\-–—()[\]«»“”"]+/u : /[,.;:!?··;…\-–—()[\]«»“”"]+$/u;
+  const cut = text.replace(marks, '');
+  const trimmed = edge === 'start' ? cut.trimStart() : cut.trimEnd();
+  return trimmed === '' ? text : trimmed;
+}
+
 /** Whether a string is entirely in capital letters (and has letters at all). */
 export function isAllCaps(text: string): boolean {
   const letters = text.replace(/[^\p{L}]/gu, '');

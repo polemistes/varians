@@ -251,6 +251,12 @@ test('names a family by one siglum and the other witnesses by a word, and marks 
   await expect(gear.getByLabel(rd.settings.minorShown, { exact: true })).toBeChecked();
   await expect.poll(() => marked.count()).toBeGreaterThan(withoutMinor);
   await page.keyboard.press('Escape');
+  // A minor variant, once shown, says so in its window.
+  await marked.first().click();
+  await expect(page.getByRole('dialog', { name: rd.entry.title('1.1') })).toContainText(
+    rd.variant.minor,
+  );
+  await page.keyboard.press('Escape');
 
   // The reader's conspectus lists the family.
   await page.getByRole('button', { name: 'Witnesses', exact: true }).first().click();
@@ -265,4 +271,101 @@ test('names a family by one siglum and the other witnesses by a word, and marks 
   await expect(again).toHaveAttribute('aria-pressed', 'true');
   await again.click();
   await expect(again).toHaveAttribute('aria-pressed', 'false', { timeout: 15_000 });
+});
+
+test('opens a variant as a list, and a variant at a point between two words by its mark', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.setViewportSize({ width: 1400, height: 900 });
+
+  // A family of B and C, which the window gathers wherever both have a reading.
+  const { db, pool } = createDatabase(DATABASE_URL);
+  const [stored] = await db
+    .select({ conventions: editions.conventions })
+    .from(editions)
+    .where(eq(editions.slug, 'iliad-1-working-edition'));
+  await db
+    .update(editions)
+    .set({
+      conventions: {
+        ...stored!.conventions,
+        groups: [{ siglum: 'β', members: ['B', 'C'], note: 'consensus codicum BC' }],
+      },
+    })
+    .where(eq(editions.slug, 'iliad-1-working-edition'));
+  await pool.end();
+
+  // The edition leaves out the third word of 1.8, which every witness has: a variant at a point.
+  await page.goto('/editions/iliad-1-working-edition/edit');
+  await expect(page.locator('.cm-content')).toBeVisible();
+  await page.locator('.cm-content .cm-line').nth(7).getByText('ἄρ', { exact: true }).dblclick();
+  await page.keyboard.press('Backspace');
+  await saved(page);
+
+  await page.goto('/editions/iliad-1-working-edition?draft=1');
+  await page.waitForLoadState('networkidle');
+  const reader = page.locator('.reader');
+
+  // A word with a variant: the window lists the witnesses that are there and a row for each reading.
+  await reader.locator('[data-line="1"] [data-sites]').first().click();
+  const window = page.getByRole('dialog', { name: rd.entry.title('1.2') });
+  await expect(window).toBeVisible();
+  await expect(window.getByText(rd.variant.thereAll(3))).toBeVisible();
+  const rows = window.locator('.row');
+  await expect(rows).toHaveCount(2);
+  // The edition's reading comes first, set apart by its weight and read out as the edition's.
+  await expect(rows.first()).toHaveClass(/edition/);
+  await expect(rows.first()).toContainText(`${rd.variant.edition}: `);
+  await expect(rows.first().locator('.words')).toHaveCSS('font-weight', '700');
+  await expect(rows.first().getByRole('button', { name: 'Venetus A' })).toHaveText('A');
+  await expect(rows.first().getByRole('button', { name: 'Codex Laurentianus' })).toHaveText('C');
+  await expect(rows.nth(1).getByRole('button', { name: 'Venetus B' })).toHaveText('B');
+  // A siglum opens the Witnesses panel on that witness.
+  await rows.nth(1).getByRole('button', { name: 'Venetus B' }).click();
+  await expect(window).toBeHidden();
+  await expect(page.locator('.conspectus-row.selected')).toContainText('Venetus B');
+  await page.getByRole('button', { name: rd.panels.close(rd.toolbar.witnesses) }).click();
+
+  // A line some witnesses do not have: their row reads "not in", whatever the reason.
+  await reader.locator('[data-line="5"] [data-sites]').first().click();
+  const lacking = page.getByRole('dialog', { name: rd.entry.title('1.6') });
+  await expect(lacking.locator('.row').first()).toContainText('ἐξ οὗ δὴ τὰ πρῶτα');
+  const notIn = lacking.locator('.row', { hasText: rd.variant.notIn });
+  await expect(notIn.getByRole('button', { name: 'Venetus B' })).toBeVisible();
+  await expect(notIn.getByRole('button', { name: 'Codex Laurentianus' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(lacking).toBeHidden();
+
+  // The point has a small mark between the two words, which is in the Tab order and opens the window.
+  const mark = reader.getByRole('button', { name: rd.variant.pointAfter('τ᾽') });
+  await expect(mark).toHaveCount(1);
+  await expect(mark).toHaveAttribute('tabindex', '0');
+  await mark.focus();
+  await page.keyboard.press('Enter');
+  const point = page.getByRole('dialog', { name: rd.entry.title('1.8') });
+  await expect(point).toBeVisible();
+  await expect(point.getByText(rd.variant.thereAll(3))).toBeVisible();
+  await expect(point.getByText(rd.variant.addition)).toBeVisible();
+  await expect(point.locator('.row').first()).toContainText(rd.variant.notIn);
+  await expect(point.locator('.row').first()).toContainText(rd.variant.theEdition);
+  await expect(point.locator('.row').nth(1).locator('.words')).toHaveText('ἄρ');
+  // The word beside the point is not marked for it.
+  await expect(reader.locator('[data-line="7"] .w', { hasText: 'τ᾽' })).not.toHaveClass(/variant/);
+  // The family gathers B and C, whose sigla stay beside it.
+  await expect(point.locator('.addition')).toContainText('β (B C)');
+  await page.keyboard.press('Escape');
+  await expect(point).toBeHidden();
+  await expect(mark).toBeFocused();
+  // Printed, the page has no marks: the apparatus carries the variants.
+  await page.emulateMedia({ media: 'print' });
+  await expect(mark).toBeHidden();
+  await page.emulateMedia({ media: 'screen' });
+  await expect(mark).toBeVisible();
+
+  // The list of variants gives the same windows, in a compact form.
+  await page.getByRole('button', { name: rd.toolbar.variants, exact: true }).click();
+  const panel = page.getByRole('region', { name: rd.panels.variants });
+  await expect(panel.locator('.row').first()).toBeVisible();
+  await expect(panel.getByText(rd.variant.addition).first()).toBeVisible();
 });

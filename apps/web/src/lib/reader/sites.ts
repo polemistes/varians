@@ -6,6 +6,7 @@
 import {
   apparatusEntries,
   siteTokenIds,
+  trimPunctuation,
   type ApparatusConventions,
   type ApparatusEntry,
   type Attachment,
@@ -32,8 +33,6 @@ export function siglaOrderOf(
 export interface SiteRef {
   segmentId: string;
   siteIndex: number;
-  /** The site has no words of the edition (an addition): the word before it, or after it, stands for it. */
-  insertion?: boolean;
 }
 
 /** The parts of a segment view this module reads. */
@@ -75,7 +74,8 @@ export function withoutMinor<T extends MinorSegment>(segment: T): T {
 /**
  * A segment whose minor variants stand like any other. The flag is what the
  * print apparatus leaves a place out by, as a printed edition does; taken
- * off, the place is marked in the text and listed like the rest.
+ * off, the place is marked in the text and listed like the rest. For the
+ * apparatus entries only: a variant window still says which places are minor.
  */
 export function minorAsOthers<T extends MinorSegment>(segment: T): T {
   if (!segment.collation.sites.some((s) => s.minor)) return segment;
@@ -88,14 +88,27 @@ export function minorAsOthers<T extends MinorSegment>(segment: T): T {
   };
 }
 
-/** The segments as a reader's page works with them: the minor variants out, or, when the reader asks for them, like any other. */
+/**
+ * The segments as a reader's page works with them: the minor variants out
+ * or, when the reader asks for them, in, with their flag kept so that the
+ * window can say they are minor.
+ */
 export function withMinor<T extends MinorSegment>(
   segments: Record<string, T>,
   shown: boolean,
 ): Record<string, T> {
+  if (shown) return segments;
   const out: Record<string, T> = {};
-  for (const [id, segment] of Object.entries(segments))
-    out[id] = shown ? minorAsOthers(segment) : withoutMinor(segment);
+  for (const [id, segment] of Object.entries(segments)) out[id] = withoutMinor(segment);
+  return out;
+}
+
+/** The segments with every minor variant standing like any other, for the entries a reader who asks for them is shown. */
+export function listingMinor<T extends MinorSegment>(
+  segments: Record<string, T>,
+): Record<string, T> {
+  const out: Record<string, T> = {};
+  for (const [id, segment] of Object.entries(segments)) out[id] = minorAsOthers(segment);
   return out;
 }
 
@@ -119,8 +132,8 @@ export function parseSiteKey(key: string): { segmentId: string; siteIndex: numbe
 /**
  * Every edition token that stands at a variant site, with the sites it
  * stands at. A site's words come from `siteTokenIds`; a site with no words
- * of the edition (a witness adds something) is reached through the word
- * before it, or the word after it at the start of a segment.
+ * of the edition (a witness adds something) marks none: it is marked at the
+ * point between two words (`markSites`).
  */
 export function siteByToken(view: {
   segments: Record<string, SegmentSites> | SegmentSites[];
@@ -135,14 +148,8 @@ export function siteByToken(view: {
   const list = Array.isArray(view.segments) ? view.segments : Object.values(view.segments);
   for (const segment of list) {
     for (const site of segment.collation.sites) {
-      const ids = siteTokenIds(site, segment.baseUnits);
-      if (ids.length > 0) {
-        for (const id of ids) add(id, { segmentId: segment.segmentId, siteIndex: site.index });
-        continue;
-      }
-      const neighbour = segment.baseUnits[site.baseFrom - 1] ?? segment.baseUnits[site.baseFrom];
-      for (const id of neighbour?.tokenIds ?? [])
-        add(id, { segmentId: segment.segmentId, siteIndex: site.index, insertion: true });
+      for (const id of siteTokenIds(site, segment.baseUnits))
+        add(id, { segmentId: segment.segmentId, siteIndex: site.index });
     }
   }
   return map;
@@ -227,7 +234,7 @@ export function alignedUnits(
   return out;
 }
 
-/** The edition tokens of a site, in order: its own words, or the neighbour standing for an addition. */
+/** The edition tokens of a site, in order: its own words, or, for a point between two words, the neighbour its notes are found by. */
 export function editionTokensAt(segment: SegmentSites | undefined, siteIndex: number): string[] {
   const site = siteOf(segment, siteIndex);
   if (!segment || !site) return [];
@@ -237,6 +244,16 @@ export function editionTokensAt(segment: SegmentSites | undefined, siteIndex: nu
   return [...(neighbour?.tokenIds ?? [])];
 }
 
+/** The mark of a variant at a point between two words, standing beside the word it is placed by. */
+export interface PointMark {
+  /** The keys of the variants at the point, space-separated, for its data attribute. */
+  keys: string;
+  /** Whether the mark follows the word it is placed by, or precedes it (at the start of a segment). */
+  side: 'after' | 'before';
+  /** That word, without its punctuation, for the mark's name. */
+  word: string;
+}
+
 export interface SiteMarking {
   /** Words whose site prints an entry: underlined, and opening it. */
   marked: Set<string>;
@@ -244,6 +261,10 @@ export interface SiteMarking {
   keysOf: Map<string, string>;
   /** The first word of each printed site: the one that takes the keyboard's focus. */
   tabStops: Set<string>;
+  /** The marks of the printed variants at a point between two words, by the token id of the word each follows. */
+  after: Map<string, PointMark>;
+  /** The marks that precede the first word of a segment, by the token id of that word. */
+  before: Map<string, PointMark>;
 }
 
 /** Which words open an entry under the entries in force. */
@@ -263,10 +284,31 @@ export function markSites(
     keysOf.set(tokenId, keys.join(' '));
   }
   const tabStops = new Set<string>();
+  const after = new Map<string, PointMark>();
+  const before = new Map<string, PointMark>();
+  const place = (map: Map<string, PointMark>, tokenId: string, mark: PointMark) => {
+    const there = map.get(tokenId);
+    map.set(tokenId, there ? { ...there, keys: `${there.keys} ${mark.keys}` } : mark);
+  };
   for (const key of entries.keys()) {
     const ref = parseSiteKey(key);
-    const first = ref ? editionTokensAt(segments[ref.segmentId], ref.siteIndex)[0] : undefined;
-    if (first) tabStops.add(first);
+    const segment = ref ? segments[ref.segmentId] : undefined;
+    const site = ref ? siteOf(segment, ref.siteIndex) : undefined;
+    if (!segment || !site) continue;
+    if (site.baseFrom !== site.baseTo) {
+      const first = siteTokenIds(site, segment.baseUnits)[0];
+      if (first) tabStops.add(first);
+      continue;
+    }
+    // A point between two words: its mark follows the word before it, or at the start of a segment precedes the first.
+    const previous = segment.baseUnits[site.baseFrom - 1];
+    const next = segment.baseUnits[site.baseFrom];
+    const last = previous?.tokenIds[previous.tokenIds.length - 1];
+    const first = next?.tokenIds[0];
+    if (last)
+      place(after, last, { keys: key, side: 'after', word: trimPunctuation(previous!.text) });
+    else if (first)
+      place(before, first, { keys: key, side: 'before', word: trimPunctuation(next!.text) });
   }
-  return { marked, keysOf, tabStops };
+  return { marked, keysOf, tabStops, after, before };
 }
