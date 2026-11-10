@@ -103,3 +103,27 @@ describe('teiSegments', () => {
     expect(tei).toContain('<rdg wit="#wit-A">μυρία</rdg>');
   });
 });
+
+describe('segmentItems', () => {
+  it('gives what opens a line before its first word to that line, not to the line above', () => {
+    const stream: Stream = {
+      items: [
+        { kind: 'object', id: 'sp1', type: 'paratext', text: 'ΑΧΙΛΛΕΥΣ' },
+        { kind: 'token', id: 'a1', form: 'μῆνιν', segment: { segmentId: 's1' } },
+        { kind: 'break', id: 'b1', type: 'line' },
+        { kind: 'object', id: 'sp2', type: 'paratext', text: 'ΑΓΑΜΕΜΝΩΝ' },
+        { kind: 'token', id: 'a2', form: 'οὐλομένην', segment: { segmentId: 's2' } },
+        { kind: 'break', id: 'b2', type: 'line' },
+        { kind: 'object', id: 'end', type: 'paratext', text: 'τέλος' },
+      ] satisfies Item[],
+    };
+    const ids = (segmentId: string) =>
+      segmentItems(stream)
+        .find((s) => s.segmentId === segmentId)!
+        .items.map((i) => i.id);
+    // Also at the very start of the text, before any segment begins.
+    expect(ids('s1')).toEqual(['sp1', 'a1', 'b1']);
+    // The speaker who opens the second line stands in it; what follows the last break stays with the last line.
+    expect(ids('s2')).toEqual(['sp2', 'a2', 'b2', 'end']);
+  });
+});

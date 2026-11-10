@@ -29,15 +29,39 @@ export interface ExportSegment {
   notes?: { text: string; author: string | null }[];
 }
 
-/** Each segment's items, its runs gathered in the order they stand, segments in the order they first appear. */
+/**
+ * The items of each segment, in the order of the text. What opens a line
+ * before its first word (a speaker, a heading, a mark) stands in the stream
+ * after the break that ends the line above, and so in the run of the segment
+ * above: it is given to the segment it opens.
+ */
 export function segmentItems(content: Stream): { segmentId: string; items: Item[] }[] {
   const bySegment = new Map<string, Item[]>();
+  let opening: Item[] = [];
+  let last: Item[] | null = null;
   for (const run of segmentRuns(content)) {
-    if (run.segmentId === null) continue;
-    const items = bySegment.get(run.segmentId) ?? [];
-    items.push(...content.items.slice(run.from, run.to));
-    bySegment.set(run.segmentId, items);
+    let items = content.items.slice(run.from, run.to);
+    let next: Item[] = [];
+    const lastBreak = items.findLastIndex((item) => item.kind === 'break');
+    // Before the first segment there is no break to look for: whatever stands there opens the first line.
+    const after = lastBreak >= 0 || run.segmentId === null ? items.slice(lastBreak + 1) : [];
+    if (after.length > 0 && after.every((item) => item.kind === 'object')) {
+      next = after;
+      items = items.slice(0, lastBreak + 1);
+    }
+    if (run.segmentId === null) {
+      // Text of no segment is not printed; what opens the line after it still is.
+      opening = next;
+      continue;
+    }
+    const list = bySegment.get(run.segmentId) ?? [];
+    list.push(...opening, ...items);
+    bySegment.set(run.segmentId, list);
+    opening = next;
+    last = list;
   }
+  // Nothing follows: what stood after the last break stays with the last segment.
+  if (opening.length > 0 && last) last.push(...opening);
   return [...bySegment].map(([segmentId, items]) => ({ segmentId, items }));
 }
 
