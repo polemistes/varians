@@ -287,6 +287,39 @@ describe('reconcile: conflict', () => {
     expect(result.theirs.map((c) => c.id)).toEqual(['r1', 'r2']);
   });
 
+  it('refuses edits at the very start of the text on both sides, naming the items placed there', () => {
+    const a = new Installation('u');
+    const b = a.copy('v');
+    a.save('r1', [{ t: 'insert', after: null, items: [word('n1', 'one')] }]);
+    b.save('o1', [{ t: 'move', ids: ['t2'], after: null }]);
+    const result = expectKind(b.pullFrom(a), 'conflict');
+    expect(result.reason).toBe('overlap');
+    expect([...result.ids].sort()).toEqual(['n1', 't2']);
+    expect(result.theirs.map((c) => c.id)).toEqual(['r1']);
+    // The same from the other side, and for two insertions.
+    expect(expectKind(a.pullFrom(b), 'conflict').reason).toBe('overlap');
+    const c = a.copy('w');
+    const d = a.copy('x');
+    c.save('r2', [{ t: 'insert', after: null, items: [word('n2', 'two')] }]);
+    d.save('o2', [{ t: 'insert', after: null, items: [word('n3', 'three')] }]);
+    const both = expectKind(d.pullFrom(c), 'conflict');
+    expect(both.reason).toBe('overlap');
+    expect([...both.ids].sort()).toEqual(['n2', 'n3']);
+  });
+
+  it('merges an edit at the start on one side only', () => {
+    const a = new Installation('u');
+    const b = a.copy('v');
+    a.save('r1', [{ t: 'insert', after: null, items: [word('n1', 'one')] }]);
+    b.save('o1', [{ t: 'insert', after: 't3', items: [word('n2', 'two')] }]);
+    expect(toText(expectKind(b.pullFrom(a), 'merge').content)).toBe(
+      'one the quick brown two fox\njumps over the lazy dog',
+    );
+    expect(toText(expectKind(a.pullFrom(b), 'merge').content)).toBe(
+      'one the quick brown two fox\njumps over the lazy dog',
+    );
+  });
+
   it('refuses an incoming insertion after an item deleted here', () => {
     const a = new Installation('u');
     const b = a.copy('v');

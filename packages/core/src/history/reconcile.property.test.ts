@@ -342,28 +342,35 @@ describe('reconciling histories (random)', () => {
     );
   });
 
-  // Counterexample (shrunk): two installations each type a word at the very
-  // start of the text (`insert` after null). The operations name no item in
-  // common, so the histories merge, and each installation puts the other's word
-  // first: A+B reads `R1 L1`, B+A `L1 R1`. After pulling each other's changes
-  // the two copies differ, and the next pull finds them diverged for good.
-  // `touchedIds` leaves out the start (`after: null`) of an `insert` and of a
-  // `move`, so two edits at the start never conflict. A fault of the core.
-  it.fails(
-    'gives the same words in the same order with the same segments when each side merges the other',
-    () => {
-      runProperty('reconcile: A merges B and B merges A alike', property(alike));
-    },
-  );
+  // Two installations that each put something at the very start of the text
+  // share no item, but nothing orders their items: it is the conflict `overlap`.
+  it('gives the same words in the same order with the same segments when each side merges the other', () => {
+    runProperty('reconcile: A merges B and B merges A alike', property(alike));
+  });
 
-  it.fails('gives the same text when each side merges the other (the shrunk case)', () => {
+  it('gives the same text when each side merges the other (the shrunk case)', () => {
     const base: Stream = { items: [{ kind: 'token', id: 'a', form: 'a' }] };
     const c: Case = {
       base,
       left: [[{ t: 'insert', after: null, items: [{ kind: 'token', id: 'L1', form: 'Lx' }] }]],
       right: [[{ t: 'insert', after: null, items: [{ kind: 'token', id: 'R1', form: 'Rx' }] }]],
     };
-    alike(merged(c));
+    // Neither side merges the other: the same verdict, whoever pulls, naming both words.
+    const ours = side(base, 'L', c.left);
+    const theirs = side(base, 'R', c.right);
+    for (const [here, there] of [
+      [ours, theirs],
+      [theirs, ours],
+    ] as const) {
+      const result = reconcile(here.log, there.log, here.content, {
+        incomingContent: there.content,
+      });
+      expect(result.kind).toBe('conflict');
+      if (result.kind === 'conflict') {
+        expect(result.reason).toBe('overlap');
+        expect([...result.ids].sort()).toStrictEqual(['L1', 'R1']);
+      }
+    }
   });
 
   // Whether two histories merge should not depend on which installation pulls

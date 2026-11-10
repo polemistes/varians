@@ -49,7 +49,10 @@
  *    work therefore settle instead of answering merge with merge.
  * 8. The item ids the two sides touch are compared: the ids `touchedIds`
  *    gives for the operations, and the ids a join consumed, which only its
- *    reverse records. Any shared id is a conflict, `overlap`. Every item the
+ *    reverse records. Any shared id is a conflict, `overlap`. So is an edit
+ *    at the very start of the text on both sides (an insert or a move to the
+ *    start), which names no item in common but has no order between the two:
+ *    each installation would put the other's items first. Every item the
  *    incoming operations name must stand in our content when its operation
  *    comes (or have been made by an earlier incoming operation); a missing
  *    one is a conflict, `missing-anchor`, which is reported in preference to
@@ -256,12 +259,14 @@ export function reconcile<C extends HistoryEntry = Changeset>(
 
   const ours = local.filter((c) => ourSide.has(c.id) && !theirSide.has(c.id));
   const ourIds = new Set<Id>();
+  const ourStart = new Set<Id>();
   for (const c of ours) {
     if (c.merged?.length) {
       const f = folded(c);
       if (!f.unknown && f.ids.size > 0 && within(f.ids, theirSide)) continue;
     }
     for (const id of touched(c)) ourIds.add(id);
+    for (const id of placedAtStart(c)) ourStart.add(id);
   }
 
   const effective: C[] = [];
@@ -280,8 +285,13 @@ export function reconcile<C extends HistoryEntry = Changeset>(
   if (effective.length === 0) return { kind: 'nothing', keep: unknown() };
 
   const theirIds = new Set<Id>();
-  for (const c of effective) for (const id of touched(c)) theirIds.add(id);
+  const theirStart = new Set<Id>();
+  for (const c of effective) {
+    for (const id of touched(c)) theirIds.add(id);
+    for (const id of placedAtStart(c)) theirStart.add(id);
+  }
   const overlap = [...theirIds].filter((id) => ourIds.has(id));
+  if (ourStart.size > 0 && theirStart.size > 0) overlap.push(...ourStart, ...theirStart);
   const missing = missingAnchors(content, effective);
   if (missing.length || overlap.length) {
     const ids = [...new Set([...missing, ...overlap])];
@@ -414,6 +424,20 @@ function touched(c: HistoryEntry): Set<Id> {
     if (op.t !== 'replace') continue;
     for (const id of op.ids) out.add(id);
     for (const item of op.items) out.add(item.id);
+  }
+  return out;
+}
+
+/**
+ * The items a changeset inserts or moves to the very start of the text.
+ * `touchedIds` leaves the start out (it is no item), so two edits there
+ * would not meet; the merge treats the start as touched by both.
+ */
+function placedAtStart(c: HistoryEntry): Id[] {
+  const out: Id[] = [];
+  for (const op of c.ops) {
+    if (op.t === 'insert' && op.after === null) out.push(...op.items.map((i) => i.id));
+    else if (op.t === 'move' && op.after === null) out.push(...op.ids);
   }
   return out;
 }
