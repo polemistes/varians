@@ -186,6 +186,9 @@
           "kind": {
             "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/siteKind"
           },
+          "minor": {
+            "const": true
+          },
           "personId": {
             "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
           },
@@ -195,8 +198,19 @@
         },
         "required": [
           "segmentId",
-          "siteKey",
-          "kind"
+          "siteKey"
+        ],
+        "anyOf": [
+          {
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "required": [
+              "minor"
+            ]
+          }
         ]
       }
     },

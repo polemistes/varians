@@ -94,6 +94,12 @@ describe.skipIf(!xmllint)('the RelaxNG schema of the ODD', slow, () => {
     expect(schemaErrors(doc('<ab><name>b</name></ab>'), RNG)).not.toEqual([]);
     expect(schemaErrors(doc('<ab><milestone unit="page" n="1"/>a</ab>'), RNG)).not.toEqual([]);
     expect(schemaErrors(doc('<ab><app type="major"><lem>a</lem></app></ab>'), RNG)).not.toEqual([]);
+    expect(
+      schemaErrors(doc('<ab><app type="textual" subtype="minor"><lem>a</lem></app></ab>'), RNG),
+    ).toEqual([]);
+    expect(
+      schemaErrors(doc('<ab><app type="textual" subtype="major"><lem>a</lem></app></ab>'), RNG),
+    ).not.toEqual([]);
   });
 });
 
@@ -475,6 +481,22 @@ describe.skipIf(!xmllint)('edition TEI is valid', slow, () => {
       witnesses: [{ siglum: 'A', name: 'Codex A', description: 'Iliad' }],
       segments: [segment],
     });
+    expect(errors(xml)).toEqual([]);
+  });
+
+  it('with minor places of either kind, the grade as a subtype beside the type', () => {
+    const segment = editionSegment('2', 'ἦ μέγα ἔργον', [
+      collationText('A', 'A', 'ἢ μέγα ἔργον'),
+      collationText('B', 'B', 'ἦ μέγα ἔπος'),
+    ]);
+    for (const site of segment.sites) site.minor = true;
+    const xml = exportEditionTei({
+      title: 't',
+      witnesses: [{ siglum: 'A' }, { siglum: 'B' }],
+      segments: [segment],
+    });
+    expect(xml).toContain('<app type="interpretative" subtype="minor">');
+    expect(xml).toContain('<app type="textual" subtype="minor">');
     expect(errors(xml)).toEqual([]);
   });
 

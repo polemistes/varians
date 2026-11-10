@@ -117,13 +117,13 @@ export function keyOfSite(segment: SegmentForAdoption, site: Site): string {
   return siteKey(site, segment.baseUnits);
 }
 
-/** Whether a site needs the editor's attention: a reading other than the base's, or an attachment that is not adopted. A place the editor leaves out of the apparatus needs none. */
+/** Whether a site needs the editor's attention: a reading other than the base's, or an attachment that is not adopted. A variant the editor judges minor needs none. */
 export function needsReview(
   segment: SegmentForAdoption,
   site: Site,
   reviewed: Set<string>,
 ): boolean {
-  if (site.unreported || reviewed.has(keyOfSite(segment, site))) return false;
+  if (site.minor || reviewed.has(keyOfSite(segment, site))) return false;
   const substantive = site.readings.some((r) => !r.base);
   const pending = (segment.attachments[site.index] ?? []).some((a) => !a.adopted);
   return substantive || pending;

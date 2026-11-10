@@ -6103,13 +6103,24 @@ Sample values include: 1] homeoteleuton; 2] homeoarchy; 3] paleographicConfusion
             </zeroOrMore>
          </group>
          <ref name="tei_att.global.attributes"/>
-         <ref name="tei_att.typed.attribute.subtype"/>
          <optional>
             <attribute name="type">
                <a:documentation xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0">classifies the variation contained in this element according to some convenient typology.</a:documentation>
                <choice>
+                  <value>textual</value>
+                  <a:documentation xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0">the witnesses have different letters (an <code xmlns="http://www.w3.org/1999/xhtml"
+                           xmlns:rng="http://relaxng.org/ns/structure/1.0">&lt;app&gt;</code> without a type is textual too)</a:documentation>
                   <value>interpretative</value>
                   <a:documentation xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0">the witnesses have the same letters, read otherwise (accent, breathing, word division)</a:documentation>
+               </choice>
+            </attribute>
+         </optional>
+         <optional>
+            <attribute name="subtype">
+               <a:documentation xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0">(subtype) provides a sub-categorization of the element, if needed.</a:documentation>
+               <choice>
+                  <value>minor</value>
+                  <a:documentation xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0">the editor judges the variant minor; a subtype of the type, which is then always given</a:documentation>
                </choice>
             </attribute>
          </optional>

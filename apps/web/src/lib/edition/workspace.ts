@@ -157,9 +157,9 @@ export function witnessTokensAt(site: Site, textId: Id): Id[] {
   return [];
 }
 
-/** Whether a site deserves a mark in the text: a different reading or something attached, unless the editor leaves the place out of the apparatus. */
+/** Whether a site deserves a mark in the text: a different reading or something attached, unless the editor judges the variant minor. */
 export function siteShows(segment: Pick<SegmentViewClient, 'attachments'>, site: Site): boolean {
-  if (site.unreported) return false;
+  if (site.minor) return false;
   if ((segment.attachments[site.index] ?? []).length > 0) return true;
   return site.readings.some((r) => !r.base);
 }

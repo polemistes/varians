@@ -31,6 +31,7 @@
     type ReaderSettings,
   } from '$lib/reader/settings';
   import {
+    anyMinor,
     entriesBySegment,
     entryBySite,
     markSites,
@@ -38,6 +39,7 @@
     siteByToken,
     siglaOrderOf,
     siteOf,
+    withMinor,
     witnessTokensAt,
   } from '$lib/reader/sites';
   import type { ReaderPageData, ReaderSegment } from '$lib/reader/types';
@@ -70,11 +72,17 @@
 
   let copyOpen = $state(false);
 
+  // The reader's settings: defaults on the server and in the first render, the stored ones once live.
+  let settings = $state<ReaderSettings>({ ...DEFAULT_SETTINGS });
+  let live = $state(false);
+
   // The places of the segments the page was not sent when it opened, as they have come.
   let arrived = $state.raw<Record<string, ReaderSegment>>({});
-  const segments = $derived(
+  const sent = $derived(
     Object.keys(arrived).length > 0 ? { ...data.segments, ...arrived } : data.segments,
   );
+  /** What the page works with: a minor variant is in it, like any other, only when the reader asks for them. */
+  const segments = $derived(withMinor(sent, settings.showMinor));
 
   // What the edition is: fixed for a page.
   const conventionsOfEdition = $derived(data.edition.conventions);
@@ -113,10 +121,6 @@
   );
   const hasLabels = $derived(data.lines.some((line) => line.starts.length > 0));
   const witnessesWithText = $derived(data.sigla.some((x) => x.transcriptionId));
-
-  // The reader's settings: defaults on the server and in the first render, the stored ones once live.
-  let settings = $state<ReaderSettings>({ ...DEFAULT_SETTINGS });
-  let live = $state(false);
 
   function storage(): Storage | undefined {
     try {
@@ -157,7 +161,14 @@
 
   // The apparatus under the settings in force.
   const conventions = $derived(effectiveConventions(data.apparatus, settings));
-  const entries = $derived(entriesBySegment(segments, conventions, siglaOrder));
+  /** The print apparatus, which leaves a minor variant out as a printed edition does. */
+  const printEntries = $derived(entriesBySegment(sent, conventions, siglaOrder));
+  /** The entries that mark words, open in the popover and fill the list of variants: those of the print apparatus, and the minor variants when asked for. */
+  const entries = $derived(
+    settings.showMinor && anyMinor(sent)
+      ? entriesBySegment(segments, conventions, siglaOrder)
+      : printEntries,
+  );
   const entryMap = $derived(entryBySite(entries));
 
   const marking = $derived(markSites(sitesOfToken, entryMap, segments));
@@ -180,7 +191,7 @@
   function blockHasApparatus(block: Block): boolean {
     return block.segmentIds.some(
       (id) =>
-        (entries.get(id)?.length ?? 0) > 0 ||
+        (printEntries.get(id)?.length ?? 0) > 0 ||
         (segments[id]?.unplaced.length ?? 0) > 0 ||
         (segments[id]?.notes.length ?? 0) > 0,
     );
@@ -695,7 +706,7 @@
                 <div class={['apparatus-wrap', !apparatusOnScreen && 'apparatus-hidden']}>
                   <ApparatusBlock
                     segmentIds={block.segmentIds}
-                    {entries}
+                    entries={printEntries}
                     {segments}
                     labelOf={data.labelOf}
                     {conventions}

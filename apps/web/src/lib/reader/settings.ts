@@ -28,6 +28,8 @@ export interface ReaderSettings {
   labels: 'edition' | 'every';
   /** The dotted underline under words with variants. */
   underline: boolean;
+  /** The variants the editor judges minor: marked and listed like the others when shown, neither when not. */
+  showMinor: boolean;
 }
 
 export const DEFAULT_SETTINGS: ReaderSettings = {
@@ -37,6 +39,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   interpretative: null,
   labels: 'edition',
   underline: true,
+  showMinor: false,
 };
 
 export const SETTINGS_KEY = 'varians.reader';
@@ -72,6 +75,7 @@ export function parseSettings(raw: unknown): ReaderSettings {
         : null,
     labels: oneOf(s.labels, ['edition', 'every'] as const, DEFAULT_SETTINGS.labels),
     underline: typeof s.underline === 'boolean' ? s.underline : DEFAULT_SETTINGS.underline,
+    showMinor: typeof s.showMinor === 'boolean' ? s.showMinor : DEFAULT_SETTINGS.showMinor,
   };
 }
 

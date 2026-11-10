@@ -507,7 +507,7 @@ export async function contextAt(
     if (published?.basis) {
       await applyBasis(db, context, published.basis);
       asOf = published.at;
-      // The kinds, and the places left out, as the editors had them when it was published.
+      // The kinds, and the places judged minor, as the editors had them when it was published.
       context.siteKinds = marksAtPublication(context.siteKinds, published.basis, published.at);
     }
   }
@@ -805,11 +805,12 @@ async function buildSegmentViews(
       }),
     ];
     const attached = attachToSites(collation, baseUnits, candidates, context.profile.fold);
-    // The places a conjecture or reported reading makes take the editor's kind too.
-    const kinds = new Map(
-      [...(context.siteKinds.get(segmentId) ?? [])].map(([key, k]) => [key, k.kind] as const),
+    // The places a conjecture or reported reading makes take the editor's marks too.
+    attached.collation = applySiteKinds(
+      attached.collation,
+      baseUnits,
+      context.siteKinds.get(segmentId),
     );
-    attached.collation = applySiteKinds(attached.collation, baseUnits, kinds);
     const label = labelOf[segmentId] ?? segmentId;
     const absent = collation.absent.map((id) => siglumOfText.get(id) ?? id);
     views[segmentId] = {

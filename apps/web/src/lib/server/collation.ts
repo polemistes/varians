@@ -19,7 +19,7 @@ import {
   type CollationText,
   type NormalizationProfile,
   type SegmentRun,
-  type SiteMark,
+  type SiteKind,
   type Stream,
   type Unit,
 } from '@varians/core';
@@ -38,8 +38,9 @@ import {
 } from '@varians/db';
 import { collationStateOf, normalizeSiglum, stateTextId, type ConspectusEntry } from './sigla.ts';
 import { loadEditionText, loadTranscriptions } from './loaded-streams.ts';
+import type { Marks } from './site-marks.ts';
 import { createHash } from 'node:crypto';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 export interface EditionContext {
   edition: { id: string; workId: string; content: Stream; version: number };
@@ -50,8 +51,8 @@ export interface EditionContext {
   witnessHands: Map<string, WitnessHand[]>;
   /** The transcriptions named by the conspectus, by id. */
   transcriptions: Map<string, { id: string; content: Stream; version: number; witnessId: string }>;
-  /** The editor's word on the kind of some sites: by segment, by site key. */
-  siteKinds: Map<string, Map<string, { kind: SiteMark; setAt: Date }>>;
+  /** The editor's word on some sites, their kind and whether they are minor: by segment, by site key. */
+  siteKinds: Marks;
   /** The sort key of every segment of the work, by id. */
   segmentKeys?: Map<string, string>;
   /** How much of the work each transcription covers, by transcription id (B5). */
@@ -191,7 +192,7 @@ export async function loadWitnessHands(
   return new Map(rows.map((r) => [r.id, r.hands] as const));
 }
 
-/** The kinds the editors have set on an edition's sites and the sites they have left out, by segment and site key. */
+/** The kinds the editors have given an edition's sites and the sites they judge minor, by segment and site key. */
 export async function siteKindsOf(
   db: Database,
   editionId: string,
@@ -201,6 +202,7 @@ export async function siteKindsOf(
       segmentId: editionSiteKinds.segmentId,
       siteKey: editionSiteKinds.siteKey,
       kind: editionSiteKinds.kind,
+      minor: editionSiteKinds.minor,
       setAt: editionSiteKinds.setAt,
     })
     .from(editionSiteKinds)
@@ -208,19 +210,28 @@ export async function siteKindsOf(
   const out: EditionContext['siteKinds'] = new Map();
   for (const r of rows) {
     const bySite = out.get(r.segmentId) ?? new Map();
-    bySite.set(r.siteKey, { kind: r.kind, setAt: r.setAt });
+    bySite.set(r.siteKey, {
+      ...(r.kind ? { kind: r.kind } : {}),
+      ...(r.minor ? { minor: true } : {}),
+      setAt: r.setAt,
+    });
     out.set(r.segmentId, bySite);
   }
   return out;
 }
 
-/** Set (or, with null, clear) the editor's word on a site: its kind, or that it is not reported. */
-export async function setSiteKind(
+/**
+ * Change the editor's word on a site. The kind (null: back to what the
+ * letters say) and whether the site is minor are separate words: one that
+ * the change leaves out stays as it is. A site keeps its row while either
+ * word is said, and loses it when neither is.
+ */
+export async function setSiteMark(
   db: Database,
   editionId: string,
   segmentId: string,
   siteKey: string,
-  kind: SiteMark | null,
+  change: { kind?: SiteKind | null; minor?: boolean },
   userId: string | null,
 ): Promise<void> {
   const where = and(
@@ -228,17 +239,47 @@ export async function setSiteKind(
     eq(editionSiteKinds.segmentId, segmentId),
     eq(editionSiteKinds.siteKey, siteKey),
   );
-  if (kind === null) {
-    await db.delete(editionSiteKinds).where(where);
-    return;
-  }
-  await db
-    .insert(editionSiteKinds)
-    .values({ editionId, segmentId, siteKey, kind, setBy: userId })
-    .onConflictDoUpdate({
-      target: [editionSiteKinds.editionId, editionSiteKinds.segmentId, editionSiteKinds.siteKey],
-      set: { kind, setBy: userId, setAt: new Date() },
-    });
+  const said = {
+    ...(change.kind !== undefined ? { kind: change.kind } : {}),
+    ...(change.minor !== undefined ? { minor: change.minor } : {}),
+  };
+  if (Object.keys(said).length === 0) return;
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(editionSiteKinds)
+      .values({ editionId, segmentId, siteKey, ...said, setBy: userId })
+      .onConflictDoUpdate({
+        target: [editionSiteKinds.editionId, editionSiteKinds.segmentId, editionSiteKinds.siteKey],
+        set: { ...said, setBy: userId, setAt: new Date() },
+      });
+    await tx
+      .delete(editionSiteKinds)
+      .where(and(where, isNull(editionSiteKinds.kind), eq(editionSiteKinds.minor, false)));
+  });
+}
+
+/** Set (or, with null, clear) the editor's word on the kind of a site; whether it is minor is left as it is. */
+export function setSiteKind(
+  db: Database,
+  editionId: string,
+  segmentId: string,
+  siteKey: string,
+  kind: SiteKind | null,
+  userId: string | null,
+): Promise<void> {
+  return setSiteMark(db, editionId, segmentId, siteKey, { kind }, userId);
+}
+
+/** Mark a site minor, or not; its kind is left as it is. */
+export function setSiteMinor(
+  db: Database,
+  editionId: string,
+  segmentId: string,
+  siteKey: string,
+  minor: boolean,
+  userId: string | null,
+): Promise<void> {
+  return setSiteMark(db, editionId, segmentId, siteKey, { minor }, userId);
 }
 
 /**
@@ -464,15 +505,12 @@ export async function collateSegments(
     if (fresh.length >= CACHE_WRITE) await write();
   }
   await write();
-  // The editor's kinds are put over the cached result, so that setting one does not collate again.
+  // The editor's marks are put over the cached result, so that setting one does not collate again.
   const out = new Map<string, Collation>();
   for (const { segmentId, base } of gathered) {
     const collation = results.get(segmentId);
     if (!collation) continue;
-    const kinds = new Map(
-      [...(context.siteKinds.get(segmentId) ?? [])].map(([key, k]) => [key, k.kind] as const),
-    );
-    out.set(segmentId, applySiteKinds(collation, base.units, kinds));
+    out.set(segmentId, applySiteKinds(collation, base.units, context.siteKinds.get(segmentId)));
   }
   return out;
 }

@@ -18,6 +18,7 @@ import {
 } from '@varians/db';
 import { eq, inArray } from 'drizzle-orm';
 import { editor as ed } from '../src/lib/strings/editor';
+import { reader as rd } from '../src/lib/strings/reader';
 import { pageStrings as t } from '../src/lib/strings/pages';
 import { seedSample } from '../src/lib/server/seed/sample.ts';
 import { s } from '../src/lib/strings/en';
@@ -184,7 +185,7 @@ test('shows the page where a witness’s words stand, mapped to the image or not
   await expect(pane.getByText(ed.witness.noImageOf('12v'))).toBeVisible();
 });
 
-test('names a family by one siglum and the other witnesses by a word, and leaves a place out', async ({
+test('names a family by one siglum and the other witnesses by a word, and marks a variant minor', async ({
   page,
 }) => {
   await signIn(page);
@@ -225,28 +226,43 @@ test('names a family by one siglum and the other witnesses by a word, and leaves
   expect(stored!.conventions.rest).toBe('cett.');
   expect(stored!.conventions.all).toBe('codd.');
 
-  // A place left out stays in the band, set apart, and can be reported again.
+  // A variant judged minor stays in the band, set apart, and the kind stays available beside it.
   await page.reload();
   await expect(page.locator('.cm-content')).toBeVisible();
   const band = page.locator('.apparatus-band');
-  await expect(band.getByText(ed.notReported)).toHaveCount(0);
-  await band.getByRole('button', { name: ed.leaveOut, exact: true }).first().click();
-  await expect(band.getByText(ed.notReported).first()).toBeVisible({ timeout: 15_000 });
+  const minor = band.getByRole('button', { name: ed.minor, exact: true }).first();
+  await expect(minor).toHaveAttribute('aria-pressed', 'false');
+  const kind = band.getByRole('button', { name: /^(Textual|Interpretative)/ }).first();
+  await expect(kind).toBeVisible();
+  await minor.click();
+  await expect(minor).toHaveAttribute('aria-pressed', 'true', { timeout: 15_000 });
+  await expect(kind).toBeVisible();
 
-  // The reader's conspectus lists the family.
+  // The reader neither marks nor lists a minor variant until it is asked to: Minor variants, in the gear.
   await page.goto('/editions/iliad-1-working-edition?draft=1');
   await page.waitForLoadState('networkidle');
+  const marked = page.locator('.reader [data-sites]');
+  await expect(marked.first()).toBeVisible();
+  const withoutMinor = await marked.count();
+  await page.getByRole('button', { name: rd.toolbar.settings }).click();
+  const gear = page.getByRole('group', { name: rd.settings.minor });
+  await expect(gear.getByLabel(rd.settings.minorHidden, { exact: true })).toBeChecked();
+  await gear.getByText(rd.settings.minorShown, { exact: true }).click();
+  await expect(gear.getByLabel(rd.settings.minorShown, { exact: true })).toBeChecked();
+  await expect.poll(() => marked.count()).toBeGreaterThan(withoutMinor);
+  await page.keyboard.press('Escape');
+
+  // The reader's conspectus lists the family.
   await page.getByRole('button', { name: 'Witnesses', exact: true }).first().click();
   await expect(page.getByText('consensus codicum BC')).toBeVisible();
 
   await page.goto('/editions/iliad-1-working-edition/edit');
   await expect(page.locator('.cm-content')).toBeVisible();
-  await page
+  const again = page
     .locator('.apparatus-band')
-    .getByRole('button', { name: ed.report, exact: true })
-    .first()
-    .click();
-  await expect(page.locator('.apparatus-band').getByText(ed.notReported)).toHaveCount(0, {
-    timeout: 15_000,
-  });
+    .getByRole('button', { name: ed.minor, exact: true })
+    .first();
+  await expect(again).toHaveAttribute('aria-pressed', 'true');
+  await again.click();
+  await expect(again).toHaveAttribute('aria-pressed', 'false', { timeout: 15_000 });
 });

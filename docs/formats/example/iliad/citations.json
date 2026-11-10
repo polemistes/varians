@@ -2,9 +2,9 @@
   "$schema": "https://varians.eu/formats/2/citations.schema.json",
   "citations": [
     {
-      "id": "01M72HG85MM84AASCK22F7DDBP",
-      "itemId": "01M72HG85E8GVPA33M3TDXY5D4",
-      "conjectureId": "01M72HG850J9XSN544ST6GRKJP",
+      "id": "01M72TX5HN3MM75K1M50714NE3",
+      "itemId": "01M72TX5HGMAFA8FQ68PXD3AJA",
+      "conjectureId": "01M72TX5H2ERKDAD6W3NGR77HQ",
       "reportedReadingId": null,
       "noteId": null,
       "editionId": null,
@@ -12,20 +12,20 @@
       "prenote": null,
       "postnote": "ad 1.5",
       "position": 0,
-      "createdAt": "2026-11-10T10:54:15.218Z"
+      "createdAt": "2026-11-10T13:38:35.700Z"
     },
     {
-      "id": "01M72HG85WTY5X31RHW4GCYG0T",
-      "itemId": "01M72HG85E8GVPA33M3TDXY5D4",
+      "id": "01M72TX5HYZJFBR6SBHEVHPBKC",
+      "itemId": "01M72TX5HGMAFA8FQ68PXD3AJA",
       "conjectureId": null,
       "reportedReadingId": null,
-      "noteId": "01M72HG85REMKRN6HJVMX50NFQ",
-      "editionId": "01M72HG84M9EWR1Z57YEQ40093",
+      "noteId": "01M72TX5HSX9SYTB8YB01T7J8J",
+      "editionId": "01M72TX5GP4QG1DN5GEBG6D71V",
       "segmentId": null,
       "prenote": "cf.",
       "postnote": null,
       "position": 0,
-      "createdAt": "2026-11-10T10:54:15.228Z"
+      "createdAt": "2026-11-10T13:38:35.709Z"
     }
   ]
 }

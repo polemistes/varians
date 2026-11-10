@@ -216,7 +216,8 @@ export async function copyEdition(
         editionId: id,
         segmentId,
         siteKey,
-        kind: k.kind,
+        kind: k.kind ?? null,
+        minor: k.minor ?? false,
         setBy: user.id,
       })),
     );

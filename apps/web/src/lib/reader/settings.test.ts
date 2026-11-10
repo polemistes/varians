@@ -19,6 +19,7 @@ describe('parseSettings', () => {
       interpretative: 'none',
       labels: 'every',
       underline: false,
+      showMinor: true,
     });
     expect(parseSettings(stored)).toEqual({
       size: 'large',
@@ -27,6 +28,7 @@ describe('parseSettings', () => {
       interpretative: 'none',
       labels: 'every',
       underline: false,
+      showMinor: true,
     });
     // A choice stored before the apparatus stopped printing spellings is simply dropped.
     expect(parseSettings(JSON.stringify({ size: 'large', orthographica: true }))).toEqual({
@@ -40,7 +42,14 @@ describe('parseSettings', () => {
     expect(parseSettings('{not json')).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings('[1,2]')).toEqual(DEFAULT_SETTINGS);
     expect(
-      parseSettings({ size: 'huge', apparatus: 'top', form: 'both', labels: 7, underline: 'no' }),
+      parseSettings({
+        size: 'huge',
+        apparatus: 'top',
+        form: 'both',
+        labels: 7,
+        underline: 'no',
+        showMinor: 'yes',
+      }),
     ).toEqual(DEFAULT_SETTINGS);
   });
 
@@ -58,6 +67,13 @@ describe('parseSettings', () => {
       '{"apparatus":"foot"}',
     );
     expect(serializeSettings({ ...DEFAULT_SETTINGS, apparatus: 'none' })).toBe('{}');
+  });
+
+  it('does not show the minor variants by default, and stores the choice to show them', () => {
+    expect(DEFAULT_SETTINGS.showMinor).toBe(false);
+    expect(parseSettings(null).showMinor).toBe(false);
+    expect(serializeSettings({ ...DEFAULT_SETTINGS, showMinor: true })).toBe('{"showMinor":true}');
+    expect(parseSettings('{"showMinor":true}').showMinor).toBe(true);
   });
 
   it('keeps the valid fields of a partly valid object', () => {

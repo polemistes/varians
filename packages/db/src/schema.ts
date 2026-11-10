@@ -16,6 +16,7 @@ import type {
   MemoryEntry,
   NormalizationProfile,
   Op,
+  SiteKind,
   Stream,
   TokenSource,
   ZoneGeometry,
@@ -715,11 +716,14 @@ export const editionSiteReviews = pgTable(
   (t) => [primaryKey({ columns: [t.editionId, t.segmentId, t.siteKey] })],
 );
 
-/** What an editor may say of a place of variation: its kind over the letters', or that it is not reported. */
-export const SITE_KIND_MARKS = ['textual', 'interpretative', 'unreported'] as const;
-export type SiteKindMark = (typeof SITE_KIND_MARKS)[number];
+/** The kind an editor may give a place of variation over what its letters say. */
+export const SITE_KINDS = ['textual', 'interpretative'] as const satisfies readonly SiteKind[];
 
-/** An editor's word on a place of variation: its kind over the classification by letters, or that it is not reported. */
+/**
+ * An editor's word on a place of variation: its kind over the classification
+ * by letters, and whether it is minor. The two are separate words; a row
+ * stands while either is said and is deleted when neither is.
+ */
 export const editionSiteKinds = pgTable(
   'edition_site_kinds',
   {
@@ -730,8 +734,10 @@ export const editionSiteKinds = pgTable(
       .notNull()
       .references(() => segments.id, { onDelete: 'cascade' }),
     siteKey: text().notNull(),
-    // The kind the editor gives the place over what its letters say, or that the place is not reported.
-    kind: text({ enum: SITE_KIND_MARKS }).notNull(),
+    // The kind the editor gives the place over what its letters say; null where the letters decide.
+    kind: text({ enum: SITE_KINDS }),
+    // The editor judges the place minor.
+    minor: boolean().notNull().default(false),
     setBy: text().references(() => users.id, { onDelete: 'set null' }),
     setAt: createdAt(),
   },
@@ -896,10 +902,17 @@ export interface MomentBasis {
   versions: Record<string, number>;
   /**
    * The editors' word on places of variation as it stood at the publication:
-   * a kind over the letters' or that the place is not reported. A basis from
-   * before it was recorded lacks it; the marks set before the publication stand.
+   * the kind they gave over the letters', and whether the place was minor.
+   * A basis from before it was recorded lacks it; the marks set before the
+   * publication stand. The first bases to record it wrote `kind: 'unreported'`
+   * for a place left out of the apparatus, which is read as minor.
    */
-  siteKinds?: { segmentId: string; siteKey: string; kind: SiteKindMark }[];
+  siteKinds?: {
+    segmentId: string;
+    siteKey: string;
+    kind?: SiteKind | 'unreported';
+    minor?: true;
+  }[];
 }
 
 export const moments = pgTable(

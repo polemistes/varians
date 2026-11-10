@@ -165,10 +165,9 @@
     "siteKind": {
       "enum": [
         "textual",
-        "interpretative",
-        "unreported"
+        "interpretative"
       ],
-      "description": "What an editor says of a place of variation: its kind, over what its letters say, or that it is not reported."
+      "description": "The kind an editor gives a place of variation, over what its letters say."
     },
     "siglum": {
       "type": "object",

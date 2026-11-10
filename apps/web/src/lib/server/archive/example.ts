@@ -20,7 +20,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import sharp from 'sharp';
-import { setSiteKind } from '../collation.ts';
+import { setSiteMinor } from '../collation.ts';
 import { adoptConjecture } from '../conjectures.ts';
 import { publishEdition } from '../publish.ts';
 import { editionView } from '../reader.ts';
@@ -33,7 +33,7 @@ export const EXAMPLE_ORIGIN = 'https://varians.eu';
 
 const EXAMPLE_README = `# The example archive
 
-\`iliad/\` is a complete archive in the Varians Data Format, version 2: the opening of Iliad 1 in three transcribed witnesses and one known from a reported reading, an edition with its apparatus, a conjecture adopted and one not, a note citing the literature, a zone on a page with a small image, an alignment constraint, sites looked at and classed, one place left out of the apparatus, review positions, a named and a published moment, and a collaborator.
+\`iliad/\` is a complete archive in the Varians Data Format, version 2: the opening of Iliad 1 in three transcribed witnesses and one known from a reported reading, an edition with its apparatus, a conjecture adopted and one not, a note citing the literature, a zone on a page with a small image, an alignment constraint, sites looked at and classed, one place judged minor, review positions, a named and a published moment, and a collaborator.
 
 \`iliad.zip\` is the same work as a package: a BagIt bag with RO-Crate metadata, as one installation sends a work to another.
 
@@ -94,7 +94,7 @@ export async function writeExample(serverUrl: string, outDir: string): Promise<s
         .where(eq(conjectures.workId, sample.workId))
         .limit(1);
       await adoptConjecture(db, sample.editionId, conjecture!.id);
-      // One place the editor leaves out of the apparatus, as a spelling of the same word that the edition does not record.
+      // One place the editor judges minor, as a spelling of the same word that the edition does not record.
       const view = await editionView(db, sample.editionId, null, {
         kind: 'editor',
         viewer: { id: editor, role: 'member' },
@@ -103,12 +103,12 @@ export async function writeExample(serverUrl: string, outDir: string): Promise<s
       const place = left.collation.sites.find((site) =>
         site.readings.some((r) => r.text === 'συνέηκε'),
       )!;
-      await setSiteKind(
+      await setSiteMinor(
         db,
         sample.editionId,
         left.segmentId,
         siteKey(place, left.baseUnits),
-        'unreported',
+        true,
         editor,
       );
       await publishEdition(db, sample.editionId, editor);

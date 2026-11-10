@@ -18,6 +18,7 @@
  */
 
 import { normalizeSiglum } from '../sigla.ts';
+import { markOfBasis } from '../site-marks.ts';
 import {
   isDataLicence,
   licenceCompatible,
@@ -54,7 +55,6 @@ import {
   registryMerges,
   reportedReadings,
   reviewState,
-  SITE_KIND_MARKS,
   segments,
   transcriptionWorks,
   transcriptions,
@@ -68,7 +68,6 @@ import {
   type Database,
   type MomentBasis,
   type SiglumState,
-  type SiteKindMark,
 } from '@varians/db';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -1255,11 +1254,12 @@ async function importInto(
         authorId?: string | null;
         createdAt?: string;
       }[];
-      /** Absent in archives written before sites could be given a kind. */
+      /** Absent in archives written before sites could be given a kind; `kind: "unreported"` is how archives of one day wrote a minor place. */
       siteKinds?: {
         segmentId: string;
         siteKey: string;
-        kind: SiteKindMark;
+        kind?: string;
+        minor?: boolean;
         personId?: string | null;
         setBy?: string | null;
         setAt?: string | null;
@@ -1374,7 +1374,13 @@ async function importInto(
       ctx.imported.add(n.id);
     }
     await db.delete(editionSiteKinds).where(eq(editionSiteKinds.editionId, e.id));
-    const kinds = (e.siteKinds ?? []).filter((k) => SITE_KIND_MARKS.includes(k.kind));
+    // An entry that says neither a kind nor that the place is minor says nothing.
+    const kinds = (e.siteKinds ?? []).flatMap((k) => {
+      const mark = markOfBasis(k);
+      return mark.kind || mark.minor
+        ? [{ ...k, kind: mark.kind ?? null, minor: mark.minor === true }]
+        : [];
+    });
     if (kinds.length) {
       await db
         .insert(editionSiteKinds)
@@ -1384,6 +1390,7 @@ async function importInto(
             segmentId: k.segmentId,
             siteKey: k.siteKey,
             kind: k.kind,
+            minor: k.minor,
             setBy: account(ctx, k.personId ?? k.setBy),
             setAt: when(k.setAt),
           })),

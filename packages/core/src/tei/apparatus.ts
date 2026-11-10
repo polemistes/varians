@@ -38,7 +38,7 @@ export interface EditionSegmentExport {
   items: Item[];
   /** The edition's collation units for the segment (as given to collate). */
   baseUnits: Unit[];
-  /** The places of variation; one the editor does not report (`unreported`) is not written. */
+  /** The places of variation; one the editor judges minor (`minor`) is written as such. */
   sites: Site[];
   /** Conjectures and reported readings by site index. */
   attachments?: Record<number, Attachment[]>;
@@ -215,8 +215,6 @@ function segmentXml(segment: EditionSegmentExport, refs: WitnessRefs): string {
   const insertionBefore = new Map<string, Site[]>();
   const insertionsAtEnd: Site[] = [];
   for (const site of segment.sites) {
-    // A place the editor does not report is not written: its words stand as the edition's own.
-    if (site.unreported) continue;
     if (site.baseTo > site.baseFrom) {
       for (let i = site.baseFrom; i < site.baseTo; i++)
         for (const id of segment.baseUnits[i]?.tokenIds ?? []) siteOfToken.set(id, site);
@@ -300,7 +298,12 @@ function appXml(
     if (attachment.text === '') out.push(`<rdg type="${type}"${resp}${source}/>`);
     else out.push(`<rdg type="${type}"${resp}${source}>${escapeText(attachment.text)}</rdg>`);
   }
-  return printedKind(site, attachments) === 'interpretative'
-    ? `<app type="interpretative">${out.join('')}</app>`
-    : `<app>${out.join('')}</app>`;
+  // A minor place says its kind besides: a subtype stands only beside a type.
+  const kind = printedKind(site, attachments);
+  const typed = site.minor
+    ? ` type="${kind}" subtype="minor"`
+    : kind === 'interpretative'
+      ? ' type="interpretative"'
+      : '';
+  return `<app${typed}>${out.join('')}</app>`;
 }

@@ -20,7 +20,7 @@ import { publishedVersions } from './publish';
 import { PUBLIC, editionView, type Audience, type EditionView } from './reader';
 import { editionWorksCited } from './bibliography.ts';
 import { plainText, teiSegments } from '$lib/reader/export';
-import { alignedUnits, siglaOrderOf, withoutUnreported } from '$lib/reader/sites';
+import { alignedUnits, siglaOrderOf } from '$lib/reader/sites';
 import { DEFAULT_SIGLA } from '$lib/reader/marks';
 import type { ReaderData, ReaderMode, ReaderVersion } from '$lib/reader/types';
 import { detailOf, packSegments, type ReaderWireData, type SegmentDetail } from '$lib/reader/wire';
@@ -232,8 +232,7 @@ export async function loadReader(
     ? (moments.find((m) => m.version === access.edition.publishedVersion)?.number ?? null)
     : null;
 
-  // A reader is given nothing of the places the editor does not report.
-  const { segments, texts } = packSegments(Object.values(view.segments).map(withoutUnreported));
+  const { segments, texts } = packSegments(Object.values(view.segments));
   // Labels of the segments this edition has, not of the whole work.
   const labelOf: Record<string, string> = {};
   for (const line of view.lines) {
@@ -292,8 +291,7 @@ export async function readerSites(
       order: false,
     },
   );
-  // As in the page itself: nothing of the places the editor does not report.
-  return packSegments(Object.values(view.segments).map(withoutUnreported));
+  return packSegments(Object.values(view.segments));
 }
 
 /**
@@ -323,13 +321,11 @@ export async function readerDetail(
     },
   );
   const out: Record<string, SegmentDetail> = {};
-  for (const whole of Object.values(view.segments)) {
-    const segment = withoutUnreported(whole);
+  for (const segment of Object.values(view.segments))
     out[segment.segmentId] = detailOf(
       segment.collation,
       alignedUnits(segment.collation, segment.baseUnits.length),
     );
-  }
   return out;
 }
 

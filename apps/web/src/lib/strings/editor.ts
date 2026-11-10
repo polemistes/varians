@@ -18,12 +18,9 @@ export const editor = {
     (byEditor
       ? ' Set by an editor; click to go back to what the letters say.'
       : ` Click to call it ${kind === 'textual' ? 'interpretative' : 'textual'}.`),
-  notReported: 'Not reported',
-  leaveOut: 'Leave out',
-  leaveOutTitle:
-    'Leave this place out of the apparatus and of everything readers see. It stays here.',
-  report: 'Report',
-  reportTitle: 'Report this place again.',
+  minor: 'Minor',
+  minorTitle:
+    'A minor variant is left out of the print apparatus, and readers see it only when they ask for minor variants.',
   register: 'Conjecture…',
   omitted: 'omitted',
   added: 'added',

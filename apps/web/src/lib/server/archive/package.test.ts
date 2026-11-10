@@ -19,7 +19,7 @@ import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import pg from 'pg';
 import { seedSample } from '../seed/sample.ts';
-import { setSiteKind } from '../collation.ts';
+import { setSiteMinor } from '../collation.ts';
 import { saveOps } from '../documents/service.ts';
 import { publishEdition } from '../publish.ts';
 import { editionView } from '../reader.ts';
@@ -169,7 +169,7 @@ describe('packages', () => {
     }
   }, 120_000);
 
-  it('carry the places a published edition leaves out as it left them, and come back by import with them', async () => {
+  it('carry the variants a published edition judges minor as it judged them, and come back by import with them', async () => {
     await clean();
     const sample = await seedSample(db, owner);
     const view = await editionView(db, sample.editionId, null, {
@@ -179,10 +179,10 @@ describe('packages', () => {
     const segment = Object.values(view.segments).find((s) => s.label === '1.8')!;
     const site = segment.collation.sites.find((s) => s.readings.some((r) => r.text === 'συνέηκε'))!;
     const key = siteKey(site, segment.baseUnits);
-    await setSiteKind(db, sample.editionId, segment.segmentId, key, 'unreported', owner);
+    await setSiteMinor(db, sample.editionId, segment.segmentId, key, true, owner);
     await publishEdition(db, sample.editionId, owner);
-    // Reported again in the draft: the published version, and so its package, still leaves it out.
-    await setSiteKind(db, sample.editionId, segment.segmentId, key, null, owner);
+    // Not minor in the draft again: the published version, and so its package, still has it so.
+    await setSiteMinor(db, sample.editionId, segment.segmentId, key, false, owner);
     const pkg = await buildPackage(db, null, [{ kind: 'edition', editionId: sample.editionId }]);
     try {
       const dir = await unpack(pkg.file);
@@ -192,9 +192,9 @@ describe('packages', () => {
           path.join(data, 'editions', 'iliad-1-working-edition', 'edition.json'),
           'utf8',
         ),
-      ) as { siteKinds: { segmentId: string; siteKey: string; kind: string }[] };
+      ) as { siteKinds: { segmentId: string; siteKey: string; kind?: string; minor?: boolean }[] };
       expect(edition.siteKinds).toContainEqual(
-        expect.objectContaining({ segmentId: segment.segmentId, siteKey: key, kind: 'unreported' }),
+        expect.objectContaining({ segmentId: segment.segmentId, siteKey: key, minor: true }),
       );
       const text = await readFile(
         path.join(data, 'editions', 'iliad-1-working-edition', 'edition.txt'),
@@ -210,7 +210,12 @@ describe('packages', () => {
         .from(editionSiteKinds)
         .where(eq(editionSiteKinds.editionId, sample.editionId));
       expect(kinds).toContainEqual(
-        expect.objectContaining({ segmentId: segment.segmentId, siteKey: key, kind: 'unreported' }),
+        expect.objectContaining({
+          segmentId: segment.segmentId,
+          siteKey: key,
+          kind: null,
+          minor: true,
+        }),
       );
     } finally {
       await pkg.cleanup();

@@ -46,18 +46,18 @@ export interface SegmentSites {
   attachments: Record<number, Attachment[]>;
 }
 
+/** What the minor variants of a segment concern: its sites, what is attached to them, how their readings stand to the edition's words. */
+interface MinorSegment {
+  collation: Pick<Collation, 'sites'>;
+  attachments: Record<number, Attachment[]>;
+}
+
 /**
- * A segment as a reader is given it, without the places the editor does not
- * report: their sites and what was attached to them. The editor's own view
- * keeps them.
+ * A segment without its minor variants: their sites and what was attached to
+ * them. What a reader's page works with unless the reader asks for them.
  */
-export function withoutUnreported<
-  T extends {
-    collation: Pick<Collation, 'sites'>;
-    attachments: Record<number, Attachment[]>;
-  },
->(segment: T): T {
-  const left = new Set(segment.collation.sites.filter((s) => s.unreported).map((s) => s.index));
+export function withoutMinor<T extends MinorSegment>(segment: T): T {
+  const left = new Set(segment.collation.sites.filter((s) => s.minor).map((s) => s.index));
   if (left.size === 0) return segment;
   const kept = <V>(record: Record<number, V>): Record<number, V> =>
     Object.fromEntries(Object.entries(record).filter(([index]) => !left.has(Number(index))));
@@ -65,11 +65,43 @@ export function withoutUnreported<
     ...segment,
     collation: {
       ...segment.collation,
-      sites: segment.collation.sites.filter((s) => !s.unreported),
+      sites: segment.collation.sites.filter((s) => !s.minor),
     },
     attachments: kept(segment.attachments),
   };
   return out;
+}
+
+/**
+ * A segment whose minor variants stand like any other. The flag is what the
+ * print apparatus leaves a place out by, as a printed edition does; taken
+ * off, the place is marked in the text and listed like the rest.
+ */
+export function minorAsOthers<T extends MinorSegment>(segment: T): T {
+  if (!segment.collation.sites.some((s) => s.minor)) return segment;
+  return {
+    ...segment,
+    collation: {
+      ...segment.collation,
+      sites: segment.collation.sites.map(({ minor: _minor, ...site }) => site),
+    },
+  };
+}
+
+/** The segments as a reader's page works with them: the minor variants out, or, when the reader asks for them, like any other. */
+export function withMinor<T extends MinorSegment>(
+  segments: Record<string, T>,
+  shown: boolean,
+): Record<string, T> {
+  const out: Record<string, T> = {};
+  for (const [id, segment] of Object.entries(segments))
+    out[id] = shown ? minorAsOthers(segment) : withoutMinor(segment);
+  return out;
+}
+
+/** Whether any place of the segments is minor. */
+export function anyMinor(segments: Record<string, MinorSegment>): boolean {
+  return Object.values(segments).some((s) => s.collation.sites.some((site) => site.minor));
 }
 
 /** The key of a site in maps and data attributes: `segmentId:siteIndex`. */

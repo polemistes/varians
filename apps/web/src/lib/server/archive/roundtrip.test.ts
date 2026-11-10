@@ -25,7 +25,7 @@ import os from 'node:os';
 import path from 'node:path';
 import pg from 'pg';
 import { seedSample } from '../seed/sample.ts';
-import { setSiteKind } from '../collation.ts';
+import { setSiteKind, setSiteMinor } from '../collation.ts';
 import { saveOps } from '../documents/service.ts';
 import { adoptConjecture } from '../conjectures.ts';
 import { publishEdition } from '../publish.ts';
@@ -222,9 +222,10 @@ describe('archive round trip', () => {
         },
       })
       .where(eq(editions.id, sample.editionId));
-    // A place the editor leaves out of the apparatus: the mark is archived as data, and so is the basis of the publication that fixes it.
+    // A variant the editor gives a kind and judges minor: both words are archived as data, and so is the basis of the publication that fixes them.
     const eight = await placeOf(sample.editionId, '1.8', 'συνέηκε');
-    await setSiteKind(db, sample.editionId, eight.segmentId, eight.key, 'unreported', userId);
+    await setSiteKind(db, sample.editionId, eight.segmentId, eight.key, 'textual', userId);
+    await setSiteMinor(db, sample.editionId, eight.segmentId, eight.key, true, userId);
     await publishEdition(db, sample.editionId, userId);
     // A witness that was merged into A here: the merged id travels with A.
     await db.insert(registryMerges).values({
@@ -243,17 +244,19 @@ describe('archive round trip', () => {
     const editionDir = path.join(dir, 'editions', sample.editionSlug);
     const written = JSON.parse(await readFile(path.join(editionDir, 'edition.json'), 'utf8'));
     expect(written.siteKinds).toContainEqual(
-      expect.objectContaining({ segmentId: eight.segmentId, kind: 'unreported' }),
+      expect.objectContaining({ segmentId: eight.segmentId, kind: 'textual', minor: true }),
     );
     const moment = JSON.parse(await readFile(path.join(editionDir, 'moments.json'), 'utf8'));
     expect(
       moment.moments.find((m: { kind: string }) => m.kind === 'published').basis.siteKinds,
-    ).toContainEqual(expect.objectContaining({ segmentId: eight.segmentId, kind: 'unreported' }));
+    ).toContainEqual(
+      expect.objectContaining({ segmentId: eight.segmentId, kind: 'textual', minor: true }),
+    );
     expect(await validateArchiveDir(dir)).toEqual([]);
-    // The archive's texts leave the place out; its words stand.
+    // The plain text leaves the variant out, as a printed edition does; the TEI has it, as a minor one.
     expect(await readFile(path.join(editionDir, 'edition.txt'), 'utf8')).not.toContain('συνέηκε');
-    expect(await readFile(path.join(editionDir, 'edition.tei.xml'), 'utf8')).not.toContain(
-      'συνέηκε',
+    expect(await readFile(path.join(editionDir, 'edition.tei.xml'), 'utf8')).toMatch(
+      /<app type="textual" subtype="minor">.*συνέηκε/u,
     );
     await removeWorkCompletely(db, sample.workId);
     const removed = await snapshot();
@@ -270,15 +273,14 @@ describe('archive round trip', () => {
     await importArchive(db, dir, userId);
     const restored = await snapshot();
     for (const name of ARCHIVED_TABLES) expect(restored[name], name).toEqual(original[name]);
-    // The mark is read back as a mark: the editor's view has the place, flagged.
+    // The marks are read back as marks: the editor's view has the place, flagged.
     const back = await editionView(db, sample.editionId, null, {
       kind: 'editor',
       viewer: { id: userId, role: 'member' },
     });
     expect(
-      back.segments[eight.segmentId]!.collation.sites.find((s) => s.index === eight.index)!
-        .unreported,
-    ).toBe(true);
+      back.segments[eight.segmentId]!.collation.sites.find((s) => s.index === eight.index),
+    ).toMatchObject({ kind: 'textual', minor: true });
     await clean();
   }, 120_000);
 });

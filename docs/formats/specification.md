@@ -144,7 +144,7 @@ The **stream** is the text, `{ "items": [...] }`, an ordered list of items, each
 - `adoptions`: the conjectures the edition adopts, `{ conjectureId, at }`.
 - `collaborators`: persons who may edit it, `{ personId, grantedBy, since }`.
 - `notes`: `{ id, segmentId, segmentLabel, tokenIds, text, personId, createdAt }`, a note on edition tokens (or the whole segment when `tokenIds` is empty).
-- `siteKinds`: the editors' word on a place of variation, `{ segmentId, siteKey, kind, personId, setAt }`, a place having one at a time. `kind` is `textual` or `interpretative`, the place's kind over what its letters say, or `unreported`: the place is not reported, so that the apparatus, the readers' views and the exports leave it out, and in the TEI its words stand as the edition's own. A place that no word is given is reported, and has the kind its letters say.
+- `siteKinds`: the editors' word on a place of variation, `{ segmentId, siteKey, kind?, minor?, personId, setAt }`, one entry for a place, present while either word is said. `kind` is `textual` or `interpretative`, the place's kind over what its letters say, when the editor set one; without it the place has the kind its letters say. `minor: true` says that the editor judges the place minor: the print apparatus and the plain-text export leave it out as a printed edition would, a reader sees it when they ask for all the variants, and the TEI writes it with `subtype="minor"`. The two words are independent. An archive written before `minor` existed may give `kind: "unreported"` for a place left out of the apparatus; a reader takes it as `minor: true`, with no kind.
 - `content`: the edition's text as a stream (section 4.8), every token with its `source`.
 
 ### 4.11 `alignment.json`
@@ -198,7 +198,7 @@ A reader must never overwrite a document's text silently.
 
 ### 5.4 Moments (`moments.json`)
 
-`{ "moments": [ { "id", "version", "name", "kind", "number", "basis", "personId", "at" } ] }`: a named point of a document's history. `kind` is `named` or `published`; a published moment carries `number`, the version number readers cite (1, 2, 3), and for an edition `basis`: the conspectus and the version of each transcription the published apparatus was collated against, and the editors' word on places of variation as it stood (`{ sigla: [...], versions: { <transcriptionId>: <version> }, siteKinds: [ { segmentId, siteKey, kind } ] }`, the `siteKinds` as in section 4.10), so that a published version can be rebuilt as it was published. A basis written before the marks were recorded has no `siteKinds`: the marks set before the publication stand.
+`{ "moments": [ { "id", "version", "name", "kind", "number", "basis", "personId", "at" } ] }`: a named point of a document's history. `kind` is `named` or `published`; a published moment carries `number`, the version number readers cite (1, 2, 3), and for an edition `basis`: the conspectus and the version of each transcription the published apparatus was collated against, and the editors' word on places of variation as it stood (`{ sigla: [...], versions: { <transcriptionId>: <version> }, siteKinds: [ { segmentId, siteKey, kind?, minor? } ] }`, the `siteKinds` as in section 4.10), so that a published version can be rebuilt as it was published. A basis written before the marks were recorded has no `siteKinds`: the marks set before the publication stand.
 
 ## 6. TEI
 

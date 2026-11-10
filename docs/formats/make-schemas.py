@@ -43,7 +43,7 @@ common = {
       obj({'kind': {'const': 'stage'}, 'stage': {'type': 'integer'}, 'siglum': {'type': 'string'}}, ['kind', 'stage', 'siglum']),
       obj({'kind': {'const': 'hand'}, 'hand': {'type': 'string'}, 'siglum': {'type': 'string'}}, ['kind', 'hand', 'siglum']),
     ]},
-    'siteKind': {'enum': ['textual', 'interpretative', 'unreported'], 'description': 'What an editor says of a place of variation: its kind, over what its letters say, or that it is not reported.'},
+    'siteKind': {'enum': ['textual', 'interpretative'], 'description': 'The kind an editor gives a place of variation, over what its letters say.'},
     'siglum': obj({'siglum': {'type': 'string'}, 'witnessId': ref('id'), 'transcriptionId': ref('idOrNull'), 'states': arr(ref('siglumState')), 'variantSiglum': NS}, ['siglum', 'witnessId']),
   },
 }
@@ -135,7 +135,7 @@ schema('changeset', 'Changeset', 'One line of history.ndjson: a change to a docu
   'ops': arr(sref('op')), 'reverse': arr(sref('op')), 'message': NS}, ['id', 'at', 'ops', 'reverse']))
 schema('moments', 'Moments', 'moments.json: named and published moments of a document\'s history (specification 5.4).', None,
   ('moments', obj({'id': ref('id'), 'version': {'type': 'integer', 'minimum': 0}, 'name': {'type': 'string'}, 'kind': {'enum': ['named', 'published']}, 'number': NI,
-                   'basis': {'type': ['object', 'null'], 'properties': {'sigla': arr(ref('siglum')), 'versions': {'type': 'object', 'additionalProperties': {'type': 'integer'}}, 'siteKinds': arr(obj({'segmentId': ref('id'), 'siteKey': {'type': 'string'}, 'kind': ref('siteKind')}, ['segmentId', 'siteKey', 'kind']))}},
+                   'basis': {'type': ['object', 'null'], 'properties': {'sigla': arr(ref('siglum')), 'versions': {'type': 'object', 'additionalProperties': {'type': 'integer'}}, 'siteKinds': arr(obj({'segmentId': ref('id'), 'siteKey': {'type': 'string'}, 'kind': ref('siteKind'), 'minor': {'const': True}}, ['segmentId', 'siteKey'], anyOf=[{'required': ['kind']}, {'required': ['minor']}]))}},
                    'personId': ref('idOrNull'), 'at': ref('time')}, ['id', 'version', 'name', 'kind', 'at'])))
 schema('edition', 'Edition', 'edition.json: an edition, its conspectus, adoptions, notes and text (specification 4.10).', obj({
   **top('edition'), 'id': ref('id'), 'slug': {'type': 'string'}, 'title': {'type': 'string'}, 'editors': arr({'type': 'string'}), 'preface': NS, 'ownerId': ref('id'), 'ownerName': NS,
@@ -145,7 +145,7 @@ schema('edition', 'Edition', 'edition.json: an edition, its conspectus, adoption
   'adoptions': arr({'oneOf': [ref('id'), obj({'conjectureId': ref('id'), 'at': ref('timeOrNull')}, ['conjectureId'])]}),
   'collaborators': arr(obj({'personId': ref('id'), 'grantedBy': ref('idOrNull'), 'since': ref('timeOrNull')})),
   'notes': arr(obj({'id': ref('id'), 'segmentId': ref('id'), 'segmentLabel': NS, 'tokenIds': arr(ref('id')), 'text': {'type': 'string'}, 'personId': ref('idOrNull'), 'createdAt': ref('timeOrNull')}, ['id', 'segmentId', 'tokenIds', 'text'])),
-  'siteKinds': arr(obj({'segmentId': ref('id'), 'siteKey': {'type': 'string'}, 'kind': ref('siteKind'), 'personId': ref('idOrNull'), 'setAt': ref('timeOrNull')}, ['segmentId', 'siteKey', 'kind'])),
+  'siteKinds': arr(obj({'segmentId': ref('id'), 'siteKey': {'type': 'string'}, 'kind': ref('siteKind'), 'minor': {'const': True}, 'personId': ref('idOrNull'), 'setAt': ref('timeOrNull')}, ['segmentId', 'siteKey'], anyOf=[{'required': ['kind']}, {'required': ['minor']}])),
   'content': {'$ref': BASE + 'stream.schema.json'}}, ['$schema', 'id', 'slug', 'title', 'version', 'conventions', 'sigla', 'content']))
 schema('alignment', 'Alignment constraints', 'alignment.json: edition tokens an editor holds to witness tokens (specification 4.11).', None,
   ('constraints', obj({'id': ref('id'), 'segmentId': ref('id'), 'baseTokenIds': arr(ref('id')), 'transcriptionId': ref('id'), 'witnessTokenIds': arr(ref('id')), 'createdAt': ref('timeOrNull')},

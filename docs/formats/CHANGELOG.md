@@ -30,7 +30,7 @@ The format becomes a specification ([specification.md](specification.md)) with J
 - A gap that touches the letters of a word is a point mark of that word.
 - In an edition's `conventions`: `groups`, sigla that stand for several witnesses of the conspectus together (`[ { siglum, members, note } ]`), `rest`, the word the apparatus prints for the other witnesses (Varians offers `cett.` and `rell.`), and `all`, the word for all the witnesses (Varians offers `codd.`). Both are absent where the apparatus names every witness.
 
-- A place of variation can be marked not reported: `kind` of an edition's `siteKinds` takes `unreported` besides `textual` and `interpretative`, a reader that validates against the enumeration has to know it, and the TEI does not write such a place. The `basis` of a published moment of an edition records the marks as they stood (`siteKinds`), so that a published version does not change when they do.
+- A place of variation can be marked minor. An entry of an edition's `siteKinds` is `{ segmentId, siteKey, kind?, minor?, personId, setAt }`: `kind` (`textual` or `interpretative`) when the editor set one, `minor: true` when the place is minor, the two independent. The TEI writes a minor place as `<app type="textual" subtype="minor">` or `<app type="interpretative" subtype="minor">`; the ODD and `varians.rng` allow `app/@type` `textual` and `app/@subtype` `minor`. An archive written on 10 November 2026 may give `kind: "unreported"`, which a reader takes as `minor: true`. The `basis` of a published moment of an edition records the marks as they stood (`siteKinds`, with the same two words), so that a published version does not change when they do.
 
 **Clarified, November 2026**
 

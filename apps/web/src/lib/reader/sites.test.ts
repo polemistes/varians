@@ -10,14 +10,17 @@ import {
 } from '@varians/core';
 import {
   alignedUnits,
+  anyMinor,
   editionTokensAt,
   entriesBySegment,
   entryBySite,
   markSites,
+  minorAsOthers,
   parseSiteKey,
   siteByToken,
   siteKey,
-  withoutUnreported,
+  withMinor,
+  withoutMinor,
   witnessTokensAt,
   type SegmentSites,
 } from './sites';
@@ -171,8 +174,8 @@ describe('markSites', () => {
   });
 });
 
-describe('a place the editor does not report', () => {
-  /** Two places, the first of which is marked not reported. */
+describe('a minor variant', () => {
+  /** Two places, the first of which is marked minor. */
   function marked() {
     const ed = text('e', 'ed.', 'red fox runs');
     const seg = segment(ed, [text('a', 'A', 'red dog runs'), text('b', 'B', 'red fox walks')]);
@@ -180,7 +183,7 @@ describe('a place the editor does not report', () => {
     const collation = applySiteKinds(
       seg.collation,
       ed.units,
-      new Map([[coreSiteKey(dog, ed.units), 'unreported']]),
+      new Map([[coreSiteKey(dog, ed.units), { minor: true }]]),
     );
     const attachment: Attachment = { kind: 'conjecture', id: 'c1', text: 'cat', name: 'Quill' };
     return {
@@ -200,7 +203,7 @@ describe('a place the editor does not report', () => {
     interpretative: 'separate' as const,
   };
 
-  it('has no entry and no marked words, though its site is still in the data', () => {
+  it('has no print entry and so no marked words, though its site is still in the data', () => {
     const { dog, segments } = marked();
     const entries = entryBySite(entriesBySegment(segments, conventions, ['A', 'B']));
     expect([...entries.keys()]).toHaveLength(1);
@@ -210,15 +213,33 @@ describe('a place the editor does not report', () => {
     expect(marking.marked.has('e2')).toBe(true);
   });
 
-  it('is left out, with what stood at it, of a segment given to a reader', () => {
+  it('is left out, with what stood at it, of a page that has not asked for it', () => {
     const { dog, segments } = marked();
-    const given = withoutUnreported(segments.s1);
+    const given = withoutMinor(segments.s1);
     expect(given.collation.sites.map((site) => site.index)).not.toContain(dog.index);
     expect(given.collation.sites).toHaveLength(segments.s1.collation.sites.length - 1);
     expect(given.attachments).toEqual({});
-    // The editor's own segment is left as it is, and a segment with no such place is the same object.
-    expect(segments.s1.collation.sites.some((site) => site.unreported)).toBe(true);
+    // The segment as it was sent is left as it is, and a segment with no such place is the same object.
+    expect(segments.s1.collation.sites.some((site) => site.minor)).toBe(true);
     const plain = segment(text('e', 'ed.', 'a b'), [text('a', 'A', 'a c')]);
-    expect(withoutUnreported(plain)).toBe(plain);
+    expect(withoutMinor(plain)).toBe(plain);
+    expect(minorAsOthers(plain)).toBe(plain);
+  });
+
+  it('stands like any other place of a page that has asked for it, which the print apparatus still leaves out', () => {
+    const { dog, segments } = marked();
+    expect(anyMinor(segments)).toBe(true);
+    expect(anyMinor(withMinor(segments, false))).toBe(false);
+    const shown = withMinor(segments, true);
+    expect(anyMinor(shown)).toBe(false);
+    expect(shown.s1.collation.sites).toHaveLength(segments.s1.collation.sites.length);
+    expect(shown.s1.attachments[dog.index]).toHaveLength(1);
+    const entries = entryBySite(entriesBySegment(shown, conventions, ['A', 'B']));
+    expect(entries.has(siteKey('s1', dog.index))).toBe(true);
+    expect(markSites(siteByToken({ segments: shown }), entries, shown).marked.has('e2')).toBe(true);
+    // The sent segments, whose sites keep their flag, print nothing of it.
+    expect(entriesBySegment(segments, conventions, ['A', 'B']).get('s1')).toHaveLength(1);
+    // Taking the flag off leaves the sent site as it was.
+    expect(segments.s1.collation.sites.find((site) => site.index === dog.index)!.minor).toBe(true);
   });
 });

@@ -634,26 +634,27 @@
     views = { ...views, [segmentId]: { ...current, collation: { ...current.collation, sites } } };
   }
 
-  /** Leave a place out of the apparatus, or report it again; the place is collated again to take the kind it then has. */
-  async function setReported(segmentId: Id, site: Site) {
+  /** Judge a variant minor, or not; its kind is as it was. A minor variant is no longer marked in the text nor counted among those left to review. */
+  async function setMinor(segmentId: Id, site: Site) {
     const segment = views[segmentId];
     if (!segment) return;
+    const minor = !site.minor;
     const response = await fetch(`/api/editions/${editionId}/site-kinds`, {
       method: 'POST',
       headers: json,
-      body: JSON.stringify({
-        segmentId,
-        siteKey: keyOfSite(segment, site),
-        kind: site.unreported ? null : 'unreported',
-      }),
+      body: JSON.stringify({ segmentId, siteKey: keyOfSite(segment, site), minor }),
     });
     if (!response.ok) return;
-    const sites = segment.collation.sites.map((x) =>
-      x.index === site.index ? { ...x, unreported: !site.unreported } : x,
-    );
-    views = { ...views, [segmentId]: { ...segment, collation: { ...segment.collation, sites } } };
-    stale = new Set([...stale, segmentId]);
-    await refreshStale();
+    const current = views[segmentId];
+    if (!current) return;
+    const sites = current.collation.sites.map((x) => {
+      if (x.index !== site.index) return x;
+      const { minor: _was, ...rest } = x;
+      return minor ? { ...rest, minor } : rest;
+    });
+    const next = { ...current, collation: { ...current.collation, sites } };
+    views = { ...views, [segmentId]: next };
+    outlines = { ...outlines, [segmentId]: outlineOf(next) };
   }
 
   // Conjectures
@@ -1270,7 +1271,7 @@
         onadopt={(segmentId, site, choice) => void adopt(segmentId, site, choice)}
         onkeep={(segmentId, site, flag) => void setReviewed(segmentId, site, flag)}
         onkind={(segmentId, site) => void setKind(segmentId, site)}
-        onreport={(segmentId, site) => void setReported(segmentId, site)}
+        onminor={(segmentId, site) => void setMinor(segmentId, site)}
         onregister={(segmentId, site) => openConjecture(segmentId, site)}
         onfocus={focusSite}
         onnote={(segmentId) => {

@@ -135,14 +135,17 @@ export interface Site {
    * some of it included.
    */
   wanting?: boolean;
-  /** The editor has chosen not to report the place: the apparatus leaves it out. */
-  unreported?: boolean;
+  /** The editor judges the place minor: the print apparatus leaves it out, and a reader sees it on asking for all the variants. */
+  minor?: boolean;
 }
 
 export type SiteKind = 'textual' | 'interpretative';
 
-/** What an editor may say of a place: its kind, over what the letters say, or that it is not to be reported. */
-export type SiteMark = SiteKind | 'unreported';
+/** What an editor says of a place: its kind over what the letters say, and whether it is minor, each apart from the other. */
+export interface SiteMark {
+  kind?: SiteKind;
+  minor?: boolean;
+}
 
 /**
  * Whether readings differ in their letters, or only in how the same letters
@@ -1064,21 +1067,25 @@ function anchorColumns(
 
 /**
  * The editor's word on some sites, by site key: the kind of a place, put
- * over the classification by letters, or that the place is not reported. A
- * key that no longer names a site is ignored.
+ * over the classification by letters, and whether it is minor. A key that no
+ * longer names a site is ignored.
  */
 export function applySiteKinds(
   collation: Collation,
   baseUnits: Unit[],
-  kinds: ReadonlyMap<string, SiteMark> | undefined,
+  marks: ReadonlyMap<string, SiteMark> | undefined,
 ): Collation {
-  if (!kinds || kinds.size === 0) return collation;
+  if (!marks || marks.size === 0) return collation;
   return {
     ...collation,
     sites: collation.sites.map((site) => {
-      const mark = kinds.get(siteKey(site, baseUnits));
-      if (mark === 'unreported') return { ...site, unreported: true };
-      return mark && mark !== site.kind ? { ...site, kind: mark, kindByEditor: true } : site;
+      const mark = marks.get(siteKey(site, baseUnits));
+      if (!mark) return site;
+      let marked = site;
+      if (mark.kind && mark.kind !== site.kind)
+        marked = { ...marked, kind: mark.kind, kindByEditor: true };
+      if (mark.minor) marked = { ...marked, minor: true };
+      return marked;
     }),
   };
 }

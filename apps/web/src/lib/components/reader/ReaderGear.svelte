@@ -2,7 +2,7 @@
   /**
    * The gear: how the reader likes to read. Text size, whether the print
    * apparatus shows on screen and where (with its form), where interpretative
-   * variants show, the margin labels, the dotted underline. The page keeps the choices per browser.
+   * variants show, whether the minor ones do, the margin labels, the dotted underline. The page keeps the choices per browser.
    */
   import Settings2 from '@lucide/svelte/icons/settings-2';
   import type { ApparatusConventions } from '@varians/core';
@@ -157,6 +157,32 @@
         {r.settings.interpretativeHint}
         {r.settings.editionInterpretative(edition.interpretative)}
       </p>
+    </fieldset>
+
+    <fieldset class="flex flex-col gap-1.5">
+      <legend class="mb-1.5 text-xs font-medium text-ink-soft">{r.settings.minor}</legend>
+      <div class={group}>
+        <label class={segment}>
+          <input
+            class="sr-only"
+            type="radio"
+            name="reader-minor"
+            checked={settings.showMinor}
+            onchange={() => set('showMinor', true)}
+          />
+          {r.settings.minorShown}
+        </label>
+        <label class={segment}>
+          <input
+            class="sr-only"
+            type="radio"
+            name="reader-minor"
+            checked={!settings.showMinor}
+            onchange={() => set('showMinor', false)}
+          />
+          {r.settings.minorHidden}
+        </label>
+      </div>
     </fieldset>
 
     <fieldset class="flex flex-col gap-1.5">

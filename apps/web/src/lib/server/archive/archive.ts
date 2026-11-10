@@ -83,6 +83,7 @@ import { collateEdition } from '../collation.ts';
 import { documentAt } from '../documents/service.ts';
 import { exportHands, teiForm } from '../witness-format.ts';
 import { apparatusConventionsOf, contextAt } from '../reader.ts';
+import { basisForArchive } from '../site-marks.ts';
 import { siglaOrderOf } from '../../reader/sites.ts';
 import { chosenWorksOf } from '../transcription-works.ts';
 import { safeJoin } from '../images/safe-join.ts';
@@ -534,7 +535,7 @@ async function historyFiles(
         name: m.name,
         kind: m.kind,
         number: m.number,
-        basis: m.basis,
+        basis: basisForArchive(m.basis),
         personId: m.personId,
         at: m.at.toISOString(),
       })),
@@ -1072,7 +1073,8 @@ async function writeEditionFiles(ctx: WorkContext, edition: EditionRow): Promise
       ).map((k) => ({
         segmentId: k.segmentId,
         siteKey: k.siteKey,
-        kind: k.kind,
+        ...(k.kind ? { kind: k.kind } : {}),
+        ...(k.minor ? { minor: true as const } : {}),
         personId: personOf(ctx, k.setBy),
         setAt: iso(k.setAt),
       }))
@@ -1080,7 +1082,8 @@ async function writeEditionFiles(ctx: WorkContext, edition: EditionRow): Promise
         [...bySite].map(([siteKey, k]) => ({
           segmentId,
           siteKey,
-          kind: k.kind,
+          ...(k.kind ? { kind: k.kind } : {}),
+          ...(k.minor ? { minor: true as const } : {}),
           personId: null,
           setAt: iso(k.setAt),
         })),

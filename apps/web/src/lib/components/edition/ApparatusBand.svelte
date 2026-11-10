@@ -28,8 +28,8 @@
     onkeep?: (segmentId: string, site: Site, reviewed: boolean) => void;
     /** Call the site textual or interpretative, the other of what it is. */
     onkind?: (segmentId: string, site: Site) => void;
-    /** Leave the place out of the apparatus, or report it again. */
-    onreport?: (segmentId: string, site: Site) => void;
+    /** Judge the variant minor, or not. */
+    onminor?: (segmentId: string, site: Site) => void;
     onregister?: (segmentId: string, site: Site) => void;
     onfocus?: (segmentId: string, site: Site) => void;
     onnote?: (segmentId: string) => void;
@@ -51,7 +51,7 @@
     onadopt,
     onkeep,
     onkind,
-    onreport,
+    onminor,
     onregister,
     onfocus,
     onnote,
@@ -201,7 +201,7 @@
               'entry mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded-md py-1 pr-2 pl-14 transition-colors',
               activeHere && 'bg-accent-soft',
               !activeHere && pending(segment, site) && 'border-l-2 border-warning',
-              site.unreported && 'border-l-2 border-dashed border-line-strong bg-sunken',
+              site.minor && 'border-l-2 border-dashed border-line-strong bg-sunken',
             ]}
             data-site={site.index}
             bind:this={
@@ -291,38 +291,35 @@
                 </span>
               {/if}
             {/each}
-            {#if !canEdit && site.unreported}
-              <span class="ml-auto text-xs text-ink-muted italic">{s.notReported}</span>
-            {:else if !canEdit && site.kind === 'interpretative'}
-              <span class="ml-auto text-xs text-ink-muted italic">{s.interpretative}</span>
+            {#if !canEdit && (site.minor || site.kind === 'interpretative')}
+              <span class="ml-auto flex gap-2 text-xs text-ink-muted italic">
+                {#if site.kind === 'interpretative'}<span>{s.interpretative}</span>{/if}
+                {#if site.minor}<span>{s.minor}</span>{/if}
+              </span>
             {/if}
             {#if canEdit}
               <span class="ml-auto flex items-center gap-1">
-                {#if site.unreported}
-                  <span class="px-1.5 text-xs text-ink-muted italic">{s.notReported}</span>
-                {:else}
-                  <button
-                    type="button"
-                    class={[
-                      'rounded px-1.5 py-0.5 text-xs hover:bg-sunken',
-                      site.kindByEditor ? 'text-accent' : 'text-ink-muted',
-                      site.kind === 'interpretative' && 'italic',
-                    ]}
-                    title={s.kindTitle(site.kind, site.kindByEditor ?? false)}
-                    aria-label={s.kindTitle(site.kind, site.kindByEditor ?? false)}
-                    onclick={() => onkind?.(segment.segmentId, site)}
-                  >
-                    {site.kind === 'interpretative'
-                      ? s.interpretative
-                      : s.textual}{site.kindByEditor ? '*' : ''}
-                  </button>
-                {/if}
+                <button
+                  type="button"
+                  class={[
+                    'rounded px-1.5 py-0.5 text-xs hover:bg-sunken',
+                    site.kindByEditor ? 'text-accent' : 'text-ink-muted',
+                    site.kind === 'interpretative' && 'italic',
+                  ]}
+                  title={s.kindTitle(site.kind, site.kindByEditor ?? false)}
+                  aria-label={s.kindTitle(site.kind, site.kindByEditor ?? false)}
+                  onclick={() => onkind?.(segment.segmentId, site)}
+                >
+                  {site.kind === 'interpretative' ? s.interpretative : s.textual}{site.kindByEditor
+                    ? '*'
+                    : ''}
+                </button>
                 <Button
                   size="sm"
-                  variant="ghost"
-                  title={site.unreported ? s.reportTitle : s.leaveOutTitle}
-                  onclick={() => onreport?.(segment.segmentId, site)}
-                  >{site.unreported ? s.report : s.leaveOut}</Button
+                  variant={site.minor ? 'secondary' : 'ghost'}
+                  title={s.minorTitle}
+                  aria-pressed={site.minor === true}
+                  onclick={() => onminor?.(segment.segmentId, site)}>{s.minor}</Button
                 >
                 <Button
                   size="sm"

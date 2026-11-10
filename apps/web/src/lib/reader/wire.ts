@@ -39,6 +39,8 @@ export interface WireSite {
   kind: SiteKind;
   kindByEditor?: true;
   wanting?: true;
+  /** The editor judges the place minor: a reader's page shows it only when asked. */
+  minor?: true;
   readings: WireReading[];
   /** The texts whose words exchange places with those of another site, by place in the list. */
   transposition?: { withSite: number; t: number[] };
@@ -130,6 +132,7 @@ export function packSegments(segments: Iterable<PackableSegment>): {
       };
       if (site.kindByEditor) wire.kindByEditor = true;
       if (site.wanting) wire.wanting = true;
+      if (site.minor) wire.minor = true;
       if (site.transposition)
         wire.transposition = {
           withSite: site.transposition.withSite,
@@ -177,6 +180,7 @@ export function unpackSegment(wire: WireSegment, texts: WireText[], baseId: stri
     };
     if (site.kindByEditor) unpacked.kindByEditor = true;
     if (site.wanting) unpacked.wanting = true;
+    if (site.minor) unpacked.minor = true;
     if (site.transposition)
       unpacked.transposition = {
         withSite: site.transposition.withSite,

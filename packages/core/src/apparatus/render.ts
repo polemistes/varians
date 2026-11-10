@@ -143,8 +143,8 @@ export function apparatusEntries(
     ]),
   ].filter((id) => id !== collation.baseId && !isState(id));
   for (const site of collation.sites) {
-    // A place the editor has chosen not to report.
-    if (site.unreported) continue;
+    // A printed edition leaves out what the editor judges minor.
+    if (site.minor) continue;
     const base = site.readings.find((r) => r.base);
     const others = site.readings.filter((r) => !r.base);
     const attached = attachments[site.index] ?? [];

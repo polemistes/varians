@@ -94,6 +94,9 @@ export const reader = {
         : placement === 'separate'
           ? 'The edition prints them in a list of their own.'
           : 'The edition does not print them.',
+    minor: 'Minor variants',
+    minorShown: 'Shown',
+    minorHidden: 'Not shown',
     labels: 'Line labels',
     labelsEdition: 'As in the edition',
     labelsEvery: 'Every line',

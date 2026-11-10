@@ -296,7 +296,7 @@ describe('takeCurrentOps', () => {
   });
 });
 
-describe('a place the editor leaves out of the apparatus', () => {
+describe('a variant the editor judges minor', () => {
   it('is not dotted in the text, nor stepped to, nor counted', () => {
     const { segment } = view('s', 'the quick fox jumps', {
       A: 'the slow fox jumps',
@@ -309,7 +309,7 @@ describe('a place the editor leaves out of the apparatus', () => {
       ...segment,
       collation: {
         ...segment.collation,
-        sites: sites.map((site, i) => (i === 0 ? { ...site, unreported: true } : site)),
+        sites: sites.map((site, i) => (i === 0 ? { ...site, minor: true } : site)),
       },
     };
     expect(siteShows(left, left.collation.sites[0]!)).toBe(false);

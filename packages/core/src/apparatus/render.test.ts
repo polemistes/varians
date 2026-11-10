@@ -156,10 +156,10 @@ describe('interpretative variants', () => {
     const base = text('E', 'ed', 'ἦ μέγα θαῦμα');
     const c = collate(base, [text('A', 'A', 'ἢ μέγα θαῦμα')]);
     const key = siteKey(c.sites[0]!, base.units);
-    const set = applySiteKinds(c, base.units, new Map([[key, 'textual' as const]]));
+    const set = applySiteKinds(c, base.units, new Map([[key, { kind: 'textual' as const }]]));
     expect(set.sites[0]).toMatchObject({ kind: 'textual', kindByEditor: true });
     expect(
-      applySiteKinds(c, base.units, new Map([[key, 'interpretative' as const]])).sites[0]!
+      applySiteKinds(c, base.units, new Map([[key, { kind: 'interpretative' as const }]])).sites[0]!
         .kindByEditor,
     ).toBeUndefined();
     expect(apparatusEntries(set, '1', {})[0]!.kind).toBe('textual');
@@ -334,17 +334,33 @@ describe('the order and extent of entries', () => {
     ]);
   });
 
-  it('leaves out a place the editor does not report', () => {
+  it('leaves out a place the editor judges minor, as a printed edition does', () => {
     const base = text('E', 'ed', 'red fox runs');
     const c = collate(base, [text('A', 'A', 'red dog runs'), text('B', 'B', 'red fox walks')]);
     const site = c.sites.find((s) => s.readings.some((r) => r.text === 'dog'))!;
     const marked = applySiteKinds(
       c,
       base.units,
-      new Map([[siteKey(site, base.units), 'unreported']]),
+      new Map([[siteKey(site, base.units), { minor: true }]]),
     );
     expect(formatApparatus(apparatusEntries(marked, '1', {}, negative), negative)).toEqual([
       '1 runs : walks B',
     ]);
+  });
+
+  it('takes the kind and the grade of a place as two words, each apart from the other', () => {
+    const base = text('E', 'ed', 'ἦ μέγα θαῦμα');
+    const c = collate(base, [text('A', 'A', 'ἢ μέγα θαῦμα')]);
+    const key = siteKey(c.sites[0]!, base.units);
+    const both = applySiteKinds(
+      c,
+      base.units,
+      new Map([[key, { kind: 'textual' as const, minor: true }]]),
+    );
+    expect(both.sites[0]).toMatchObject({ kind: 'textual', kindByEditor: true, minor: true });
+    const grade = applySiteKinds(c, base.units, new Map([[key, { minor: true }]]));
+    expect(grade.sites[0]).toMatchObject({ kind: 'interpretative', minor: true });
+    expect(grade.sites[0]!.kindByEditor).toBeUndefined();
+    expect(applySiteKinds(c, base.units, new Map([[key, {}]])).sites[0]!.minor).toBeUndefined();
   });
 });
