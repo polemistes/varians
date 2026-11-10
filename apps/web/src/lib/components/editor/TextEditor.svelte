@@ -14,6 +14,7 @@
     type EditorApi,
   } from '$lib/editor/editor';
   import type { TokenClasses } from '$lib/editor/highlight';
+  import type { MarginMark } from '$lib/editor/margin';
 
   interface Props {
     stream: Stream;
@@ -29,6 +30,8 @@
     pageLabels?: Record<string, string>;
     /** Classes to put on tokens, by token id: highlights the host decides. */
     tokenClasses?: TokenClasses;
+    /** Marks in a margin between lines, each after the line of an item; no margin when absent. */
+    marginMarks?: MarginMark[];
     /** The name of a hand as a mark records it, for tooltips. */
     handLabel?: (value: string) => string;
     onops?: (ops: Op[], next: Stream) => void;
@@ -40,6 +43,7 @@
     /** True when the parent put the pasted text in itself. */
     onpaste?: (text: string) => boolean;
     onworddblclick?: (tokenId: Id) => void;
+    onmarginmark?: (key: string) => void;
     onready?: (api: EditorApi) => void;
     /** The editor's commands, available once mounted. */
     api?: EditorApi | null;
@@ -57,6 +61,7 @@
     segmentLabels = {},
     pageLabels = {},
     tokenClasses = {},
+    marginMarks,
     handLabel,
     onops,
     onselection,
@@ -66,6 +71,7 @@
     oncopy,
     onpaste,
     onworddblclick,
+    onmarginmark,
     onready,
     api = $bindable(null),
     class: className = '',
@@ -88,6 +94,7 @@
         segmentLabels,
         pageLabels,
         tokenClasses,
+        marginMarks,
         handLabel,
       },
       {
@@ -99,6 +106,7 @@
         oncopy: () => oncopy?.(),
         onpaste: (text) => onpaste?.(text) ?? false,
         onworddblclick: (id) => onworddblclick?.(id),
+        onmarginmark: (key) => onmarginmark?.(key),
       },
     );
     api = editor;
@@ -122,6 +130,7 @@
       segmentLabels,
       pageLabels,
       tokenClasses,
+      marginMarks,
       handLabel,
     };
     untrack(() => editor?.update(props));
@@ -215,6 +224,47 @@
     font-weight: 400;
     font-style: italic;
     color: var(--_muted);
+  }
+
+  /* Marks between two lines, in a narrow margin beside the text: each stands
+     at the foot of its line, over the boundary with the next. The margin keeps
+     its width without marks, so that the text does not move when one comes. */
+  .varians-editor :global(.cm-margin-gutter) {
+    min-width: 1rem;
+  }
+
+  .varians-editor :global(.cm-margin-gutter .cm-gutterElement) {
+    position: relative;
+    width: 1rem;
+  }
+
+  .varians-editor :global(.cm-margin-marks) {
+    position: absolute;
+    left: 0;
+    bottom: -0.6em;
+    display: flex;
+    gap: 0.1rem;
+    z-index: 1;
+  }
+
+  .varians-editor :global(.cm-margin-mark) {
+    font-family: var(--font-sans, system-ui, sans-serif);
+    font-size: 0.85rem;
+    line-height: 1;
+    padding: 0 0.15rem;
+    border-radius: 0.2rem;
+    color: color-mix(in srgb, var(--_accent) 70%, transparent);
+    cursor: pointer;
+  }
+
+  .varians-editor :global(.cm-margin-mark:hover),
+  .varians-editor :global(.cm-margin-mark:focus-visible) {
+    color: var(--_accent);
+  }
+
+  .varians-editor :global(.cm-margin-mark-active) {
+    color: var(--_accent);
+    background: var(--color-accent-soft, var(--_tint));
   }
 
   .varians-editor :global(.cm-lineNumbers .cm-gutterElement) {

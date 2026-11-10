@@ -5,6 +5,7 @@
  * on the edition's words.
  */
 import {
+  printPlace,
   segmentAt,
   segmentIds as segmentIdsOf,
   siteTokenIds,
@@ -241,6 +242,16 @@ export function sitesInOrder(order: Id[], outlines: Record<Id, SegmentOutline>):
  * outlines say. One whose segment is no longer in the text comes at the end.
  */
 export function reviewOrder(order: Id[], outlines: Record<Id, SegmentOutline>): Id[] {
+  const { following, loose } = unprintedAfter(order, outlines);
+  if (following.size === 0 && loose.length === 0) return order;
+  return [...order.flatMap((id) => [id, ...(following.get(id) ?? [])]), ...loose];
+}
+
+/** The segments the edition does not print, by the segment of `order` they stand after; those whose segment is not in it apart. */
+function unprintedAfter(
+  order: Id[],
+  outlines: Record<Id, SegmentOutline>,
+): { following: Map<Id, Id[]>; loose: Id[] } {
   const inText = new Set(order);
   const following = new Map<Id, Id[]>();
   const loose: Id[] = [];
@@ -250,8 +261,59 @@ export function reviewOrder(order: Id[], outlines: Record<Id, SegmentOutline>): 
     if (!inText.has(after)) loose.push(outline.segmentId);
     else following.set(after, [...(following.get(after) ?? []), outline.segmentId]);
   }
-  if (following.size === 0 && loose.length === 0) return order;
-  return [...order.flatMap((id) => [id, ...(following.get(id) ?? [])]), ...loose];
+  return { following, loose };
+}
+
+/** The segment of the text a segment stands at: itself, or for one the edition does not print, the segment it stands after. */
+export function placeInText(
+  order: Id[],
+  outlines: Record<Id, SegmentOutline>,
+  segmentId: Id | null,
+): Id | null {
+  if (segmentId === null || order.includes(segmentId)) return segmentId;
+  return outlines[segmentId]?.unprinted?.after ?? segmentId;
+}
+
+/**
+ * The window of segments on show around a segment: `radius` of the text's
+ * each way, with the segments the edition does not print after the ones
+ * they stand after. Around a segment the edition does not print, the window
+ * is the one around the segment it follows; one whose segment is no longer
+ * in the text is put at the end of it.
+ */
+export function windowWithUnprinted(
+  order: Id[],
+  outlines: Record<Id, SegmentOutline>,
+  centre: Id | null,
+  radius = WINDOW_RADIUS,
+): Id[] {
+  const ids = segmentWindow(order, placeInText(order, outlines, centre), radius);
+  const { following, loose } = unprintedAfter(order, outlines);
+  const out = ids.flatMap((id) => [id, ...(following.get(id) ?? [])]);
+  if (centre !== null && loose.includes(centre)) out.push(centre);
+  return out;
+}
+
+/**
+ * Where the mark of a segment the edition does not print stands in the
+ * text: after the item the line would be printed after (`printPlace`), for
+ * each such segment whose variant shows. In the order of the text.
+ */
+export function unprintedMarks(
+  stream: Stream,
+  order: Id[],
+  outlines: Record<Id, SegmentOutline>,
+): { segmentId: Id; after: Id; site: SiteOutline }[] {
+  const { following } = unprintedAfter(order, outlines);
+  const out: { segmentId: Id; after: Id; site: SiteOutline }[] = [];
+  for (const id of order) {
+    for (const segmentId of following.get(id) ?? []) {
+      const site = outlines[segmentId]?.sites[0];
+      const place = site ? printPlace(stream, id) : null;
+      if (site && place) out.push({ segmentId, after: place, site });
+    }
+  }
+  return out;
 }
 
 /** The next (or previous) site from the active one; with `unreviewedOnly`, skipping reviewed ones. */
@@ -265,9 +327,9 @@ export function stepSite(
   /** The segment the caret is in: where the step starts when no place is open. */
   from?: Id | null,
 ): SiteRef | null {
-  // A step goes to the places the window can show: those of the segments in the text.
-  const inText = new Set(order);
-  const all = sitesInOrder(order, outlines).filter((ref) => inText.has(ref.segmentId));
+  // The segments the edition does not print are stepped to in their places among the others.
+  const sequence = reviewOrder(order, outlines);
+  const all = sitesInOrder(order, outlines);
   if (all.length === 0) return null;
   let at = active
     ? all.findIndex((r) => r.segmentId === active.segmentId && r.site.index === active.siteIndex)
@@ -275,7 +337,7 @@ export function stepSite(
   if (at < 0 && from) {
     // No place is open: the next one is the first in the caret's segment or after it, the previous
     // one the last before it, and not the first or last of the whole text.
-    const position = new Map(order.map((id, i) => [id, i] as const));
+    const position = new Map(sequence.map((id, i) => [id, i] as const));
     const here = position.get(from);
     if (here !== undefined) {
       const first = all.findIndex((r) => (position.get(r.segmentId) ?? -1) >= here);

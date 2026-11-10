@@ -25,6 +25,10 @@ export const editor = {
   omitted: 'omitted',
   added: 'added',
   nothing: '⟨nothing⟩',
+  /** The edition's reading at a line it does not print, before the witnesses whose text runs on without it. */
+  notIn: 'not in',
+  /** The mark between two lines where a line stands that witnesses have and the edition does not print. */
+  notPrinted: (label: string) => `${label}, not printed`,
   /** Witnesses without this segment: their transcripts begin after it or end before it, or have lost it. */
   absent: (sigla: string) => `No text here: ${sigla}`,
   noSites: 'The witnesses agree with the text here.',

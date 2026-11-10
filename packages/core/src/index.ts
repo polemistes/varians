@@ -12,6 +12,7 @@ export * from './history/changeset.ts';
 export * from './apparatus/render.ts';
 export * from './edition/adopt.ts';
 export * from './edition/derive.ts';
+export * from './edition/print.ts';
 export * from './scheme/mapping.ts';
 export * from './scheme/urn.ts';
 export * from './people/orcid.ts';

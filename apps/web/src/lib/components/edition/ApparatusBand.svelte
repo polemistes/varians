@@ -124,6 +124,7 @@
       collation: segment.collation,
       baseUnits: segment.baseUnits,
       attachments: segment.attachments,
+      ...(segment.unprinted ? { unprinted: segment.unprinted } : {}),
     };
   }
 
@@ -164,6 +165,7 @@
         ]}
         aria-busy={isBusy}
         data-segment={segment.segmentId}
+        data-unprinted={segment.unprinted ? '' : undefined}
       >
         <div class="flex items-baseline gap-3">
           <h3 class="w-14 shrink-0 font-sans text-xs font-semibold text-ink-soft">
@@ -216,7 +218,11 @@
               class="font-serif text-ink hover:underline"
               onclick={() => onfocus?.(segment.segmentId, site)}
             >
-              {base && base.text !== '' ? trimPunctuation(base.text) : s.nothing}
+              {segment.unprinted
+                ? s.notIn
+                : base && base.text !== ''
+                  ? trimPunctuation(base.text)
+                  : s.nothing}
             </button>
             {#if lemmaSigla(site)}<span class="text-xs tracking-wide text-ink-soft uppercase"
                 >{lemmaSigla(site)}</span

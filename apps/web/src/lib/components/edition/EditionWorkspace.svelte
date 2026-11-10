@@ -11,6 +11,7 @@
   import {
     applyOps,
     nextLabel,
+    printPlace,
     siteTokenIds,
     type Attachment,
     type Id,
@@ -53,12 +54,13 @@
     takeCurrentOps,
     segmentOfItem,
     segmentOrder,
-    segmentWindow,
     segmentsTouched,
     siteForTokens,
     sitesInOrder,
     stepSite,
     tokenClassesFor,
+    unprintedMarks,
+    windowWithUnprinted,
     witnessIndex,
     witnessTokensAt,
   } from '$lib/edition/workspace';
@@ -125,8 +127,15 @@
   let side = $state('witnesses');
   let colourBySource = $state(false);
   let scheme: Scheme | null = null;
-  /** The last adoption, to take back with one click while nothing else has happened. */
-  let lastAdoption = $state.raw<{ reverse: Op[]; label: string } | null>(null);
+  /**
+   * The last adoption, to take back with one click while nothing else has
+   * happened; `restore` says again the editor's word that the adoption cleared.
+   */
+  let lastAdoption = $state.raw<{
+    reverse: Op[];
+    label: string;
+    restore?: () => Promise<void>;
+  } | null>(null);
 
   // Saving
 
@@ -194,7 +203,7 @@
   let refreshing = false;
   let refreshAgain = false;
   /** Sites to mark as reviewed once their segment has been collated again. */
-  let reviewAfter: { segmentId: Id; ids: Id[]; before: Id | null }[] = [];
+  let reviewAfter: { segmentId: Id; ids: Id[]; before: Id | null; printed?: boolean }[] = [];
 
   async function refreshStale(): Promise<void> {
     if (refreshing) {
@@ -212,6 +221,7 @@
       const data = (await response.json()) as {
         segments: Record<Id, SegmentViewClient>;
         order?: EditionViewClient['order'];
+        unprinted?: EditionViewClient['unprinted'];
       };
       if (data.order) order = data.order;
       const nextViews = { ...views };
@@ -222,6 +232,7 @@
         nextOutlines[id] = outlineOf(segment);
         nextLabels[id] = segment.label;
       }
+      if (data.unprinted) takeUnprinted(data.unprinted, nextViews, nextOutlines);
       views = nextViews;
       outlines = nextOutlines;
       labelOf = nextLabels;
@@ -239,6 +250,33 @@
       if (refreshAgain) {
         refreshAgain = false;
         void refreshStale();
+      }
+    }
+  }
+
+  /**
+   * Where the segments the edition does not print stand, as the server now
+   * says: each after the segment it follows, which an edit elsewhere can
+   * change. One that is neither in the text nor among them is no variant now.
+   */
+  function takeUnprinted(
+    list: EditionViewClient['unprinted'],
+    nextViews: Record<Id, SegmentViewClient>,
+    nextOutlines: Record<Id, SegmentOutline>,
+  ) {
+    const after = new Map(list.map((u) => [u.segmentId, u.after] as const));
+    const inText = new Set(sequence);
+    for (const [id, outline] of Object.entries(nextOutlines)) {
+      const at = after.get(id);
+      if (at !== undefined) {
+        if (outline.unprinted?.after !== at)
+          nextOutlines[id] = { ...outline, unprinted: { after: at } };
+        const segment = nextViews[id];
+        if (segment && segment.unprinted?.after !== at)
+          nextViews[id] = { ...segment, unprinted: { after: at } };
+      } else if (outline.unprinted && !inText.has(id)) {
+        delete nextOutlines[id];
+        delete nextViews[id];
       }
     }
   }
@@ -269,7 +307,7 @@
     if (missing.length === 0) return;
     const center = caretSegment ?? active?.segmentId ?? null;
     await ensure(
-      segmentWindow(sequence, center, PREFETCH_RADIUS).filter(
+      windowWithUnprinted(sequence, outlines, center, PREFETCH_RADIUS).filter(
         (id) => !views[id] && !loading.has(id),
       ),
     );
@@ -293,6 +331,7 @@
       const data = (await response.json()) as {
         segments: Record<Id, SegmentViewClient>;
         order?: EditionViewClient['order'];
+        unprinted?: EditionViewClient['unprinted'];
       };
       if (data.order) order = data.order;
       const nextViews = { ...views };
@@ -303,6 +342,7 @@
         nextViews[id] = segment;
         nextOutlines[id] = outlineOf(segment);
       }
+      if (data.unprinted) takeUnprinted(data.unprinted, nextViews, nextOutlines);
       views = nextViews;
       outlines = nextOutlines;
       settleSelection();
@@ -344,18 +384,26 @@
       }
       const segment = views[entry.segmentId];
       if (!segment) continue;
-      const site = siteAfterAdoption(segment, entry.ids, entry.before);
+      const site = siteAfterAdoption(segment, entry.ids, entry.before, entry.printed);
       if (site) void setReviewed(entry.segmentId, site, true);
     }
   }
 
-  /** The site an adoption left: the one holding the new words, or the gap where removed words stood. */
+  /**
+   * The site an adoption left: the one holding the new words, or the gap where
+   * removed words stood. Of a segment just printed, the one over the whole
+   * segment for the witnesses without it comes first: it is what the variant
+   * of the line not printed has become.
+   */
   function siteAfterAdoption(
     segment: SegmentViewClient,
     ids: Id[],
     before: Id | null,
+    printed = false,
   ): Site | null {
     const wanted = new Set(ids);
+    const whole = printed ? segment.collation.sites.find((site) => site.wanting) : undefined;
+    if (whole) return whole;
     for (const site of segment.collation.sites) {
       if (siteTokenIds(site, segment.baseUnits).some((id) => wanted.has(id))) return site;
     }
@@ -369,7 +417,9 @@
   // What is on show
 
   const sequence = $derived(segmentOrder(stream));
-  const windowIds = $derived(segmentWindow(sequence, caretSegment ?? active?.segmentId ?? null, 8));
+  const windowIds = $derived(
+    windowWithUnprinted(sequence, outlines, caretSegment ?? active?.segmentId ?? null),
+  );
   const orderNotes = $derived.by(() => {
     const notes: Record<Id, string[]> = {};
     for (const statement of order) {
@@ -385,6 +435,15 @@
   );
   const tokenClasses = $derived(
     tokenClassesFor(Object.values(outlines), { active, colourBySource, stream }),
+  );
+  // A line the edition does not print is marked between the lines it stands between, while its variant shows.
+  const marginMarks = $derived(
+    unprintedMarks(stream, sequence, outlines).map((mark) => ({
+      key: mark.segmentId,
+      after: mark.after,
+      title: s.notPrinted(labelOf[mark.segmentId] ?? ''),
+      active: active?.segmentId === mark.segmentId,
+    })),
   );
   const reviewedMap = $derived(
     new Map(Object.entries(reviewed).map(([id, keys]) => [id, new Set(keys)] as const)),
@@ -431,6 +490,17 @@
     caretSegment = segmentId;
     const segment = views[segmentId];
     if (!segment || !api) return;
+    if (segment.unprinted && !sequence.includes(segmentId)) {
+      // A line the edition does not print: the text is brought to where it would stand. A selection
+      // of other words is let go, the caret staying where it is, and the variant stays the active one.
+      api.clearSelection();
+      selectionTick++;
+      active = { segmentId, siteIndex: site.index };
+      caretSegment = segmentId;
+      const place = printPlace(stream, segment.unprinted.after);
+      if (place) api.scrollToToken(place);
+      return;
+    }
     const ids = siteTokenIds(site, segment.baseUnits);
     if (ids.length) {
       api.selectTokens(ids[0]!, ids[ids.length - 1]!);
@@ -440,6 +510,17 @@
       if (near) api.scrollToToken(near);
       active = { segmentId, siteIndex: site.index };
     }
+  }
+
+  /** Open the variant of a line the edition does not print, from its mark in the text. */
+  async function openUnprinted(segmentId: Id) {
+    const index = outlines[segmentId]?.sites[0]?.index;
+    if (index === undefined) return;
+    caretSegment = segmentId;
+    active = { segmentId, siteIndex: index };
+    await ensure([segmentId]);
+    const site = views[segmentId]?.collation.sites.find((x) => x.index === index);
+    if (site) focusSite(segmentId, site);
   }
 
   async function step(direction: 1 | -1, unreviewedOnly: boolean) {
@@ -515,6 +596,8 @@
       return;
     }
     const siteIds = siteTokenIds(site, segment.baseUnits);
+    const printing = segment.unprinted !== undefined && !sequence.includes(segmentId);
+    const restore = printing ? await clearUnprintedWord(segmentId, site) : undefined;
     // The conjectures the site printed until now are no longer printed, unless it is the one chosen.
     for (const attachment of segment.attachments[site.index] ?? []) {
       if (attachment.kind !== 'conjecture' || !attachment.adopted) continue;
@@ -531,10 +614,46 @@
           : [],
       ),
       before: tokenBefore(siteIds, segment, site),
+      printed: printing,
     });
     commit(ops, next, before);
-    lastAdoption = { reverse, label: segment.label };
+    lastAdoption = { reverse, label: segment.label, ...(restore ? { restore } : {}) };
     await session.flush();
+  }
+
+  /**
+   * The editor's word on the variant of a line the edition does not print
+   * (reviewed, its kind, minor) is kept under a key that names no word of
+   * the edition, so it would hold again whenever the line is not printed.
+   * Printing the line clears it; the function returned says it again, for
+   * Undo. Nothing when there was nothing to clear.
+   */
+  async function clearUnprintedWord(
+    segmentId: Id,
+    site: Site,
+  ): Promise<(() => Promise<void>) | undefined> {
+    const segment = views[segmentId];
+    if (!segment) return undefined;
+    const key = keyOfSite(segment, site);
+    const wasReviewed = (reviewed[segmentId] ?? []).includes(key);
+    const said = {
+      ...(site.kindByEditor ? { kind: site.kind } : {}),
+      ...(site.minor ? { minor: true } : {}),
+    };
+    const marked = Object.keys(said).length > 0;
+    if (!wasReviewed && !marked) return undefined;
+    const mark = (body: Record<string, unknown>) =>
+      fetch(`/api/editions/${editionId}/site-kinds`, {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ segmentId, siteKey: key, ...body }),
+      });
+    if (wasReviewed) await setReviewedKey(segmentId, key, false);
+    if (marked) await mark({ kind: null, minor: false });
+    return async () => {
+      if (wasReviewed) await setReviewedKey(segmentId, key, true);
+      if (marked) await mark(said);
+    };
   }
 
   async function undoAdoption() {
@@ -543,6 +662,8 @@
     lastAdoption = null;
     try {
       const next = applyOps(stream, last.reverse).stream;
+      // Said again before the text changes, so that the segments collated again carry it.
+      await last.restore?.();
       commit(last.reverse, next, stream);
       await session.flush();
     } catch {
@@ -598,7 +719,10 @@
   async function setReviewed(segmentId: Id, site: Site, flag: boolean) {
     const segment = views[segmentId];
     if (!segment) return;
-    const key = keyOfSite(segment, site);
+    await setReviewedKey(segmentId, keyOfSite(segment, site), flag);
+  }
+
+  async function setReviewedKey(segmentId: Id, key: string, flag: boolean) {
     const response = await fetch(`/api/editions/${editionId}/reviews`, {
       method: 'POST',
       headers: json,
@@ -1090,6 +1214,8 @@
         lineNumbers={false}
         segmentLabels={labelOf}
         {tokenClasses}
+        {marginMarks}
+        onmarginmark={(segmentId) => void openUnprinted(segmentId)}
         onops={onEditorOps}
         onselection={onSelection}
         onrequestsegment={(id, current) => void requestSegment(id, current)}

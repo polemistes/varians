@@ -6,7 +6,10 @@ import {
   newId,
   adoptConjecture,
   adoptReading,
+  printReading,
+  printSegment,
   replaceAtSite,
+  tokensFromConjecture,
   siteKey,
   siteTokenIds,
   type Attachment,
@@ -25,6 +28,8 @@ export interface SegmentForAdoption {
   collation: Collation;
   baseUnits: Unit[];
   attachments: Record<number, Attachment[]>;
+  /** A segment the edition does not print: adopting a reading of it prints it after the segment `after`. */
+  unprinted?: { after: Id };
 }
 
 /** A map from token id to the site that covers it, over several segments. */
@@ -56,6 +61,8 @@ export function opsForReading(
   reading: Reading,
   textId: Id,
 ): Op[] {
+  if (segment.unprinted)
+    return printReading(stream, segment.segmentId, segment.unprinted.after, reading, textId);
   return adoptReading(stream, site, segment.baseUnits, reading, textId);
 }
 
@@ -90,6 +97,8 @@ export function opsForAttachment(
   site: Site,
   attachment: Attachment,
 ): Op[] {
+  if (segment.unprinted)
+    return opsPrintingAttachment(stream, segment.segmentId, segment.unprinted.after, attachment);
   if (attachment.kind === 'conjecture' && attachment.conjectureKind === 'deletion') {
     return opsForDeletion(stream, segment, site, attachment.id);
   }
@@ -110,6 +119,42 @@ export function opsForAttachment(
     reading: attachment.text,
     kind: attachment.conjectureKind ?? 'substitution',
   });
+}
+
+/**
+ * A conjecture or reported reading adopted at a segment the edition does not
+ * print: its words printed as the segment, or a lacuna mark where a lacuna
+ * is posited. A deletion of what is not printed changes nothing.
+ */
+function opsPrintingAttachment(
+  stream: Stream,
+  segmentId: Id,
+  after: Id,
+  attachment: Attachment,
+): Op[] {
+  const print = (items: Parameters<typeof printSegment>[3]) =>
+    printSegment(stream, segmentId, after, items);
+  if (attachment.kind === 'reported')
+    return print(
+      attachment.text
+        .split(/\s+/u)
+        .filter((w) => w)
+        .map((form) => ({ kind: 'token', id: newId(), form, source: { kind: 'editor' } })),
+    );
+  switch (attachment.conjectureKind) {
+    case 'deletion':
+      return [];
+    case 'lacuna':
+      return print([
+        { kind: 'object', id: newId(), type: 'lacuna', attrs: { conjectureId: attachment.id } },
+      ]);
+    default:
+      return print(
+        tokensFromConjecture(attachment.text, attachment.id, {
+          supplied: attachment.conjectureKind === 'supplement',
+        }),
+      );
+  }
 }
 
 /** The review key of a site, from the edition's tokens it covers. */

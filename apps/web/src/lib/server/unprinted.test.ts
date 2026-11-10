@@ -14,8 +14,11 @@ import {
   defaultProfile,
   fromText,
   newId,
+  segmentAt,
   siteKey,
+  toText,
   type Item,
+  type Op,
   type Stream,
   type Token,
 } from '@varians/core';
@@ -33,11 +36,12 @@ import {
 } from '@varians/db';
 import { and, eq, inArray } from 'drizzle-orm';
 import type pg from 'pg';
+import { opsForReading } from '../edition/adopt-client.ts';
 import { countNeeding } from '../edition/outline.ts';
 import { sitesInOrder, stepSite } from '../edition/workspace.ts';
 import { unpackReader } from '../reader/wire.ts';
 import { setSiteMinor } from './collation.ts';
-import { replaceContent } from './documents/service.ts';
+import { replaceContent, saveOps } from './documents/service.ts';
 import { publishEdition } from './publish.ts';
 import { loadReader, readerSites } from './reader-pages.ts';
 import { editionOutline, editionView, refreshView, type Audience } from './reader.ts';
@@ -254,9 +258,86 @@ describe('a segment the edition does not print', () => {
     expect(countNeeding(order, outline, new Map([[three, new Set([key])]]))).toBe(
       all.filter((r) => r.site.needs).length - 1,
     );
-    // Stepping goes only to the places the window shows, the lines of the text.
-    const stepped = stepSite(order, outline, null, 1, {});
-    expect(stepped?.segmentId).not.toBe(three);
+    // Stepping reaches it in its place: on from the line it follows, and back from the next place after it.
+    expect(stepSite(order, outline, null, 1, {}, false, segmentIdOf('1.2'))?.segmentId).toBe(three);
+    const at = all.findIndex((ref) => ref.segmentId === three);
+    const after = all[at + 1];
+    if (after) {
+      const back = { segmentId: after.segmentId, siteIndex: after.site.index };
+      expect(stepSite(order, outline, back, -1, {})?.segmentId).toBe(three);
+    }
+  });
+
+  it('is printed when a reading of it is adopted, and given back after its absence is adopted', async () => {
+    const three = segmentIdOf('1.3');
+    const save = async (ops: Op[]) => {
+      const [row] = await db
+        .select({ version: editions.version })
+        .from(editions)
+        .where(eq(editions.id, editionId));
+      return saveOps(db, 'edition', editionId, userId, row!.version, ops);
+    };
+    const [a] = await db
+      .select({ content: transcriptions.content })
+      .from(transcriptions)
+      .where(eq(transcriptions.id, transcriptionOf.A!));
+    const aWords = a!.content.items.filter(
+      (item, i) => item.kind === 'token' && segmentAt(a!.content, i)?.segmentId === three,
+    );
+    const sourcesOf = (content: Stream) =>
+      content.items.flatMap((item, i) =>
+        item.kind === 'token' && segmentAt(content, i)?.segmentId === three ? [item.source] : [],
+      );
+    const fromA = aWords.map((t) => ({
+      kind: 'witness',
+      transcriptionId: transcriptionOf.A,
+      tokenIds: [t.id],
+    }));
+
+    const before = await editionView(db, editionId, null, owner);
+    const original = before.content;
+    const variant = before.segments[three]!;
+    const site = variant.collation.sites[0]!;
+    const reading = site.readings.find((r) => r.sigla.includes('A'))!;
+    await save(opsForReading(original, variant, site, reading, transcriptionOf.A!));
+
+    // Printed from A, after 1.2: collated as a printed line, the variant over the whole of it says B has it not.
+    const printed = await editionView(db, editionId, null, owner);
+    expect(printed.unprinted).toEqual([]);
+    expect(toText(printed.content).split('\n')).toEqual(
+      ['1.1', '1.2', '1.3', '1.4', '1.5'].map((l) => LINES[l]),
+    );
+    expect(sourcesOf(printed.content)).toEqual(fromA);
+    const line = printed.segments[three]!;
+    expect(line.unprinted).toBeUndefined();
+    expect(line.baseUnits.map((u) => u.text)).toEqual(['eta', 'theta', 'iota']);
+    expect(readingsOf(line)).toEqual([['*eta theta iota: ed. A', '(nothing): B']]);
+
+    // Its absence adopted: not printed, and a variant after 1.2 again.
+    const wanting = line.collation.sites.find((s) => s.wanting)!;
+    const notIn = wanting.readings.find((r) => r.sigla.includes('B'))!;
+    await save(opsForReading(printed.content, line, wanting, notIn, transcriptionOf.B!));
+    const without = await editionView(db, editionId, null, owner);
+    expect(without.unprinted).toEqual([{ segmentId: three, after: segmentIdOf('1.2') }]);
+    expect(toText(without.content)).not.toContain('theta');
+
+    // Adopted back from its variant: the line as it was printed, its words from A.
+    const again = without.segments[three]!;
+    const fromVariant = again.collation.sites[0]!;
+    const its = fromVariant.readings.find((r) => r.sigla.includes('A'))!;
+    await save(opsForReading(without.content, again, fromVariant, its, transcriptionOf.A!));
+    const back = await editionView(db, editionId, null, owner);
+    expect(toText(back.content)).toBe(toText(printed.content));
+    expect(back.content.items.map((i) => i.kind)).toEqual(printed.content.items.map((i) => i.kind));
+    expect(sourcesOf(back.content)).toEqual(fromA);
+    expect(back.unprinted).toEqual([]);
+
+    // The edition as it was, for what follows.
+    const [row] = await db
+      .select({ version: editions.version })
+      .from(editions)
+      .where(eq(editions.id, editionId));
+    await replaceContent(db, 'edition', editionId, userId, row!.version, original);
   });
 
   it('takes the editor’s marks by its segment and its site key', async () => {

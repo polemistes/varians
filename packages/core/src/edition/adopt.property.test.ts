@@ -10,20 +10,28 @@ import {
 } from '../collate/collate.ts';
 import { sequentialIds } from '../ids.ts';
 import { agreementFold, trimPunctuation } from '../normalize/fold.ts';
-import type { Item, Stream, Token } from '../stream/items.ts';
+import { isBreak, isToken, type Id, type Item, type Stream, type Token } from '../stream/items.ts';
 import { applyOps, type Op } from '../stream/ops.ts';
-import { units, type Unit } from '../stream/words.ts';
+import { runsOfSegment, units, type Unit } from '../stream/words.ts';
 import {
   assume,
+  clone,
+  membershipOf,
+  pageIds,
+  picture,
+  randomStream,
   randomTexts,
   runProperty,
+  shrinkStream,
   shrinkTexts,
   showTexts,
   unitsOf,
   type Property,
+  type Rng,
   type TextsCase,
 } from '../testing/random.ts';
 import { adoptReading, siteTokenIds } from './adopt.ts';
+import { printPlace, printSegment } from './print.ts';
 
 /** A text case with the random choices the property makes, kept in the case so that it can be shrunk and replayed. */
 interface AdoptCase extends TextsCase {
@@ -560,6 +568,113 @@ describe('the apparatus (random)', () => {
           expect(entry!.variants).toHaveLength(others.length);
           if (!site.wanting) expect(entry!.lemma).toBe(trimPunctuation(base.text));
         }
+      },
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Printing a segment the edition does not print
+
+interface PrintCase {
+  stream: Stream;
+  /** The segment the printed one follows. */
+  after: Id;
+  /** How many words the printed segment has. */
+  words: number;
+}
+
+function generatePrint(rng: Rng, size: number): PrintCase {
+  const stream = randomStream(rng, {
+    size,
+    parts: rng.pick(['ordered', 'ordered', 'shuffled', 'none'] as const),
+    segmentRate: rng.pick([0.1, 0.2, 0.35]),
+    ...(rng.chance(0.3) ? { pages: pageIds(3) } : {}),
+  });
+  return { stream, after: rng.pick(['s1', 's2', 's3', 's4']), words: rng.between(1, 4) };
+}
+
+function* shrinkPrint(c: PrintCase): Generator<PrintCase> {
+  for (const stream of shrinkStream(c.stream)) yield { ...c, stream };
+  if (c.words > 1) yield { ...c, words: c.words - 1 };
+}
+
+const showPrint = (c: PrintCase): string =>
+  `stream: ${picture(c.stream)}\nprint ${c.words} words after ${c.after}`;
+
+/** The tokens and objects of a segment in content order: its runs by part, then place. */
+function contentOrder(stream: Stream, segmentId: Id): Id[] {
+  const out: Id[] = [];
+  for (const run of runsOfSegment(stream, segmentId))
+    for (let i = run.from; i < run.to; i++) {
+      const item = stream.items[i]!;
+      if (!isBreak(item)) out.push(item.id);
+    }
+  return out;
+}
+
+describe('printing a segment (random)', () => {
+  it('puts the words on a line of their own after the segment, in the new segment, and changes the segment of no other word', () => {
+    runProperty('print: a line of its own, every other word in its segment', {
+      generate: generatePrint,
+      shrink: shrinkPrint,
+      show: showPrint,
+      check({ stream, after, words }) {
+        const made: Token[] = Array.from({ length: words }, (_, k) => ({
+          kind: 'token',
+          id: `new${k + 1}`,
+          form: 'x',
+        }));
+        const before = clone(stream);
+        const ops = printSegment(stream, 'printed', after, made, { ids: sequentialIds('nb') });
+        expect(stream).toStrictEqual(before);
+        const place = printPlace(stream, after);
+        if (place === null) {
+          expect(ops).toStrictEqual([]);
+          expect(contentOrder(stream, after)).toStrictEqual([]);
+          return;
+        }
+        const applied = applyOps(stream, ops);
+        const next = applied.stream;
+        // Every word that was there is in the segment it was in, and every segment's words are in their order.
+        const was = membershipOf(stream);
+        const now = membershipOf(next);
+        for (const [id, segment] of was) expect(now.get(id), `the segment of ${id}`).toBe(segment);
+        for (const segmentId of ['s1', 's2', 's3', 's4'])
+          expect(contentOrder(next, segmentId), `the order of ${segmentId}`).toStrictEqual(
+            contentOrder(stream, segmentId),
+          );
+        // The new words are the new segment, in one run.
+        expect(contentOrder(next, 'printed')).toStrictEqual(made.map((t) => t.id));
+        for (const t of made) expect(now.get(t.id)).toBe('printed');
+        // On a line of their own: a line break before them, and after them a break or the end.
+        const first = next.items.findIndex((i) => i.id === 'new1');
+        const last = first + words - 1;
+        expect(next.items.slice(first, last + 1).map((i) => i.id)).toStrictEqual(
+          made.map((t) => t.id),
+        );
+        const previous = next.items[first - 1];
+        expect(isBreak(previous) && previous.type === 'line').toBe(true);
+        const following = next.items[last + 1];
+        expect(following === undefined || isBreak(following)).toBe(true);
+        // Directly after the place: the last word of the segment, and what follows it on its line.
+        expect(next.items[first - 2]?.id).toBe(place);
+        const wordsOfAfter = contentOrder(stream, after).filter((id) =>
+          isToken(stream.items.find((i) => i.id === id)),
+        );
+        if (wordsOfAfter.length > 0) {
+          const lastWord = stream.items.findIndex(
+            (i) => i.id === wordsOfAfter[wordsOfAfter.length - 1],
+          );
+          const at = stream.items.findIndex((i) => i.id === place);
+          expect(at).toBeGreaterThanOrEqual(lastWord);
+          for (let i = lastWord + 1; i <= at; i++) {
+            expect(isBreak(stream.items[i])).toBe(false);
+            expect(isToken(stream.items[i])).toBe(false);
+          }
+        }
+        // The reverse takes it all back.
+        expect(applyOps(next, clone(applied.reverse)).stream).toStrictEqual(before);
       },
     });
   });

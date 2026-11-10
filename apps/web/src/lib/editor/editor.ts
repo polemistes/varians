@@ -86,6 +86,7 @@ import {
   type VariantFound,
 } from './marks.ts';
 import { setTokenClasses, tokenClassField, type TokenClasses } from './highlight.ts';
+import { marginGutter, marginMarksField, setMarginMarks, type MarginMark } from './margin.ts';
 import { buildModel, type Model, type ModelOptions } from './model.ts';
 import { breakAt, breakPreview, setBreakPreview, type BreakPreview } from './preview.ts';
 import { planInsertion, selectionTokens, tokenAt, tokenSpanAt } from './selection.ts';
@@ -114,6 +115,8 @@ export interface EditorProps {
   pageLabels?: Record<string, string>;
   /** Classes to put on tokens: highlights the host decides (variant sites, a hovered zone's words). */
   tokenClasses?: TokenClasses;
+  /** Marks in a margin between lines, each after the line of an item; no margin when absent. */
+  marginMarks?: MarginMark[];
   /** The name of a hand as a mark records it, for tooltips; the value itself when absent. */
   handLabel?: (value: string) => string;
 }
@@ -133,6 +136,8 @@ export interface EditorCallbacks {
   onpaste?: (text: string) => boolean;
   /** A word was double-clicked in a read-only text. */
   onworddblclick?: (tokenId: Id) => void;
+  /** A mark in the margin between lines was clicked: its key. */
+  onmarginmark?: (key: string) => void;
 }
 
 /** What a cut takes from the text shown. */
@@ -224,6 +229,7 @@ interface Settled {
   segmentLabels: Record<string, string>;
   pageLabels: Record<string, string>;
   tokenClasses: TokenClasses;
+  marginMarks: MarginMark[] | null;
   handLabel?: (value: string) => string;
 }
 
@@ -242,6 +248,7 @@ function settle(props: EditorProps): Settled {
     segmentLabels: props.segmentLabels ?? {},
     pageLabels: props.pageLabels ?? {},
     tokenClasses: props.tokenClasses ?? NO_CLASSES,
+    marginMarks: props.marginMarks ?? null,
     ...(props.handLabel ? { handLabel: props.handLabel } : {}),
   };
 }
@@ -408,6 +415,7 @@ export class VariansEditor implements EditorApi {
   private readonly direction = new Compartment();
   private readonly numbers = new Compartment();
   private readonly undoHistory = new Compartment();
+  private readonly margin = new Compartment();
   private lastSelection = '';
   private hovered: Id | null = null;
   /** The pointer's last place over the text, read once a frame. */
@@ -434,6 +442,9 @@ export class VariansEditor implements EditorApi {
     this.view = new EditorView({ state, parent });
     if (Object.keys(this.props.tokenClasses).length) {
       this.view.dispatch({ effects: setTokenClasses.of(this.props.tokenClasses) });
+    }
+    if (this.props.marginMarks?.length) {
+      this.view.dispatch({ effects: setMarginMarks.of(this.props.marginMarks) });
     }
     this.view.dom.addEventListener(SEGMENT_CLICK_EVENT, (event) => {
       const tokenId = (event as CustomEvent<Id>).detail;
@@ -473,6 +484,8 @@ export class VariansEditor implements EditorApi {
       this.editable.of(editableExtension(this.props.readonly)),
       this.direction.of(directionExtension(this.props.direction)),
       this.segmentGutter(),
+      marginMarksField,
+      this.margin.of(this.marginExtension(this.props.marginMarks !== null)),
       this.numbers.of(this.props.lineNumbers ? this.lineNumberGutter() : []),
       hoverTooltip((view, pos, side) => this.tooltipAt(view, pos, side), { hoverTime: 250 }),
       Prec.high(keymap.of(this.keys())),
@@ -544,6 +557,10 @@ export class VariansEditor implements EditorApi {
     });
   }
 
+  private marginExtension(shown: boolean): Extension {
+    return shown ? marginGutter((key) => this.callbacks.onmarginmark?.(key)) : [];
+  }
+
   private lineNumberGutter(): Extension {
     return lineNumbers({
       formatNumber: (n, state) => {
@@ -591,6 +608,10 @@ export class VariansEditor implements EditorApi {
     }
     if (previous.tokenClasses !== next.tokenClasses)
       effects.push(setTokenClasses.of(next.tokenClasses));
+    if ((previous.marginMarks === null) !== (next.marginMarks === null))
+      effects.push(this.margin.reconfigure(this.marginExtension(next.marginMarks !== null)));
+    if (previous.marginMarks !== next.marginMarks)
+      effects.push(setMarginMarks.of(next.marginMarks ?? []));
     if (effects.length) this.view.dispatch({ effects });
     const streamChanged = next.stream !== this.whole;
     const modelChanged =
