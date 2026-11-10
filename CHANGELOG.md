@@ -21,6 +21,7 @@ What changed in each release of Varians, for those who run it. The section of a 
 - **The edition editor and the reader show the page where a witness's words stand**, whether the words are mapped to the image or not; arrows in the editor browse the witness's pages.
 - **A witness is deleted from its own page** (⋯, **Delete Witness…**), where the menu says why when it cannot be.
 - **A transcript keeps the shape of its pages whatever happens meanwhile.** Text typed on a page that someone removed in the meantime, a page begun by two people at once, or the undoing of a page's removal no longer leaves a page break without its page: the save puts the text in order, the status line says so, and the History shows it as _Pages reorganized_.
+- **Importing and pulling no longer let a word slip into another segment.** Changes made here and on another installation to different words could together carry a word into a segment neither side gave it (one side moving a word to the head of a line, the other changing the segment that begins before it). Such a text is now reported as changed on both sides, for you to keep yours or take theirs.
 
 ## 0.2.0
 

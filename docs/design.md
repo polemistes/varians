@@ -168,7 +168,7 @@ Every save is a **changeset**: the operations, their reverse, the person, the ti
 - Bringing back a segment, a page or the whole text, and undoing one earlier change, are new changesets. History is never rewritten.
 - Review goes through the changes since a moment, with accept, reject and later; each person's position is kept.
 
-**The history is a graph.** Every changeset names its parent; the version number is this installation's local order. Bringing in another installation's history (`reconcile` in the core) is one of: nothing to do; a fast-forward; a merge, where the two sides touched different items; or a conflict. A conflict is refused and reported, never resolved by guessing. The person may then keep ours (theirs is stored unapplied) or take theirs (ours is first named as a moment).
+**The history is a graph.** Every changeset names its parent; the version number is this installation's local order. Bringing in another installation's history (`reconcile` in the core) is one of: nothing to do; a fast-forward; a merge; or a conflict. A merge needs two things. The two sides touched different items; and, since a word's segment depends on what stands before it (3.5), no word would end in a segment that neither side gave it: a word the other side left in its segment keeps the segment it has here, and a word the other side gave another segment ends in theirs or in ours. Two people numbering different passages therefore merge; a word moved on one side to a place whose segment the other side changed does not. A conflict is refused and reported, never resolved by guessing. The person may then keep ours (theirs is stored unapplied) or take theirs (ours is first named as a moment).
 
 ### 3.13 The archive and the data format
 

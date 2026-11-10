@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { sequentialIds } from '../ids.ts';
 import type { Stream, Token } from '../stream/items.ts';
+import { moveRun } from '../stream/move.ts';
 import { applyOps, type Op } from '../stream/ops.ts';
+import { segmentAt } from '../stream/words.ts';
 import { fromText, toText } from '../stream/text.ts';
 import type { Changeset } from './changeset.ts';
 import { ReconcileError, reconcile, type Reconciliation } from './reconcile.ts';
@@ -63,8 +65,12 @@ class Installation {
     return other;
   }
 
-  pullFrom(remote: Installation): Reconciliation {
-    return reconcile(this.log, remote.applied, this.content, { head: this.head });
+  /** Reconcile with what the remote exports: its applied history and, as an import has it, its text. */
+  pullFrom(remote: Installation, { text = true } = {}): Reconciliation {
+    return reconcile(this.log, remote.applied, this.content, {
+      head: this.head,
+      ...(text ? { incomingContent: remote.content } : {}),
+    });
   }
 
   /** Store a result as the caller is meant to. */
@@ -313,6 +319,59 @@ describe('reconcile: conflict', () => {
     expect(result.reason).toBe('missing-anchor');
     expect(result.ids).toEqual(['t4']);
     expect(result.segments).toEqual(['s1']);
+  });
+
+  it('refuses a merge that would carry a word neither side re-segmented into another segment', () => {
+    // Here "brown" goes to the head of the second line, still of s1 by the start before it.
+    // There "the" of the second line goes to the end of the first, taking the start of s2 with it.
+    // The ids are disjoint; together "brown" would follow the start of s2.
+    const a = new Installation('u');
+    const b = a.copy('v');
+    const mine = moveRun(a.content, ['t3'], 't5');
+    expect(mine).toEqual([{ t: 'move', ids: ['t3'], after: 't5' }]);
+    a.save('a1', mine);
+    b.save('b1', moveRun(b.content, ['t8'], 't4'));
+    expect(toText(b.content)).toBe('the quick brown fox the\njumps over lazy dog');
+    const segmentOf = (stream: Stream, id: string) =>
+      segmentAt(
+        stream,
+        stream.items.findIndex((i) => i.id === id),
+      )?.segmentId;
+    expect([segmentOf(a.content, 't3'), segmentOf(b.content, 't3')]).toEqual(['s1', 's1']);
+
+    const result = expectKind(a.pullFrom(b), 'conflict');
+    expect(result.reason).toBe('segments');
+    expect(result.ids).toEqual(['t3']);
+    expect(result.segments).toEqual(['s1']);
+    expect(result.theirs.map((c) => c.id)).toEqual(['b1']);
+    // And from the other side, where it is their word that would stray.
+    expect(expectKind(b.pullFrom(a), 'conflict').reason).toBe('segments');
+
+    // On the ids alone, as before the text was given, the merge went through and the word strayed.
+    const blind = expectKind(a.pullFrom(b, { text: false }), 'merge');
+    expect(segmentOf(blind.content, 't3')).toBe('s2');
+  });
+
+  it('merges two people numbering different passages, each of whom changed by the flow words the other numbered', () => {
+    const start = (id: string, segmentId: string): Op => ({
+      t: 'set',
+      id,
+      fields: { segment: { segmentId } },
+    });
+    const segments = (stream: Stream) =>
+      stream.items.flatMap((item, i) =>
+        item.kind === 'token' ? [segmentAt(stream, i)?.segmentId ?? null] : [],
+      );
+    const a = new Installation('u');
+    const b = a.copy('v');
+    // Here a segment begins at "quick", which takes "brown" and "fox" with it; there one begins at "brown".
+    a.save('a1', [start('t2', 's5')]);
+    b.save('b1', [start('t3', 's6'), start('t8', 's7')]);
+    const wanted = ['s1', 's5', 's6', 's6', 's2', 's2', 's7', 's7', 's7'];
+    const here = expectKind(a.pullFrom(b), 'merge');
+    expect(segments(here.content)).toEqual(wanted);
+    const there = expectKind(b.pullFrom(a), 'merge');
+    expect(segments(there.content)).toEqual(wanted);
   });
 
   it('refuses an unrelated document', () => {

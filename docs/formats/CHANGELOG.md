@@ -24,6 +24,10 @@ The format becomes a specification ([specification.md](specification.md)) with J
 - In TEI: `<listPrefixDef>` resolving `tok:`, `seg:`, `wit:`, `conj:` and `person:` to the installation's `/id/` addresses; every edition word as `<w>` with `corresp` or `source`; `<availability><licence>`; `<respStmt>` with ORCID.
 - Packages: BagIt with RO-Crate 1.2 metadata.
 
+**Clarified, November 2026**
+
+- Reconciling two histories (5.3): a merge is also a conflict when it would carry a word into a segment that neither side gave it, which operations on disjoint ids can do. Nothing in the files changes.
+
 ## Version 1 (October 2026)
 
 The first archive layout, described in the README of each archive.

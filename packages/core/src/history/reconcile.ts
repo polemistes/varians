@@ -56,7 +56,16 @@
  *    `overlap`. Then the operations are applied to our content; a join must
  *    fuse the token it fused on the other side, and any failure is a
  *    conflict, `inapplicable`.
- * 9. Otherwise the result is a merge: the operations to apply here as one
+ * 9. Disjoint ids are not the whole of it. A word belongs to the segment
+ *    whose start last preceded it, so a change to one word can move
+ *    another into a different segment without touching it: one side moves
+ *    a word to the head of a line, relying on the start that stood before
+ *    that place, and the other side changes that start. So, when the
+ *    incoming text is given, the merged text is checked word by word: a
+ *    word the other side did not give another segment keeps the segment it
+ *    has here, and a word the other side did give another segment ends in
+ *    theirs or in ours. Any other outcome is a conflict, `segments`.
+ * 10. Otherwise the result is a merge: the operations to apply here as one
  *    merge changeset (parent our head, merged the ids of theirs), their
  *    reverse, and the content that results.
  *
@@ -73,7 +82,8 @@ import {
   type SegmentStart,
   type Stream,
 } from '../stream/items.ts';
-import { applyOp, touchedIds, type Op } from '../stream/ops.ts';
+import { applyOp, applyOps, touchedIds, type Op } from '../stream/ops.ts';
+import { segmentRuns } from '../stream/words.ts';
 import type { Changeset } from './changeset.ts';
 
 /** What reconcile needs of a changeset; every other field is carried through untouched. */
@@ -93,6 +103,8 @@ export type ConflictReason =
   | 'missing-anchor'
   /** The incoming operations could not be applied to our content as they were on the other side. */
   | 'inapplicable'
+  /** The two sides' changes together would leave words in a segment neither side gave them. */
+  | 'segments'
   /** An incoming merge changeset folds in some of our changes and some others; it cannot be divided. */
   | 'partial-merge'
   /** The histories share nothing: another document, or a history that begins after anything we know. */
@@ -138,6 +150,12 @@ export type Reconciliation<C extends HistoryEntry = Changeset> =
 export interface ReconcileOptions {
   /** Our head: the last changeset applied here, null when none has been. Found from `local` when absent. */
   head?: Id | null;
+  /**
+   * The incoming document's text as it stands on the other side. With it a
+   * merge is checked for words that would change segment unasked; without
+   * it the merge rests on the item ids alone.
+   */
+  incomingContent?: Stream;
 }
 
 export class ReconcileError extends Error {
@@ -277,6 +295,11 @@ export function reconcile<C extends HistoryEntry = Changeset>(
   const applied = applyGuarded(content, effective);
   if (!applied.ok)
     return refuse('inapplicable', applied.ids, segmentsOf(applied.ids, content, ours, theirs));
+  if (options.incomingContent) {
+    const strayed = strayedWords(content, applied.stream, options.incomingContent, theirs);
+    if (strayed.length)
+      return refuse('segments', strayed, segmentsOf(strayed, content, ours, theirs));
+  }
   return {
     kind: 'merge',
     base: base ?? null,
@@ -441,6 +464,60 @@ function missingAnchors(content: Stream, changesets: HistoryEntry[]): Id[] {
     }
   }
   return missing;
+}
+
+/** The segment every token and object of a stream belongs to; null for the unassigned. */
+function membership(stream: Stream): Map<Id, Id | null> {
+  const out = new Map<Id, Id | null>();
+  for (const run of segmentRuns(stream)) {
+    for (let i = run.from; i < run.to; i++) {
+      const item = stream.items[i]!;
+      if (item.kind !== 'break') out.set(item.id, run.segmentId);
+    }
+  }
+  return out;
+}
+
+/**
+ * The words a merge would leave in a segment that neither side gave them.
+ *
+ * `theirs` are the incoming changesets after the base, in order, and
+ * `incoming` the text they led to; undoing them gives the incoming text as
+ * it stood at the base, and so which words the other side gave another
+ * segment. A word they left in its segment must have in the merged text
+ * the segment it has in ours; a word they gave another segment must have
+ * theirs or ours (two people numbering different passages each change, by
+ * the flow of the text, words the other then numbers: either holds).
+ *
+ * Empty when the incoming text cannot be taken back to the base (its
+ * history does not lead to it): the merge then rests on the ids alone.
+ */
+function strayedWords(
+  ours: Stream,
+  merged: Stream,
+  incoming: Stream,
+  theirs: HistoryEntry[],
+): Id[] {
+  let before = incoming;
+  try {
+    for (let i = theirs.length - 1; i >= 0; i--)
+      before = applyOps(before, theirs[i]!.reverse).stream;
+  } catch (error) {
+    if (error instanceof StreamError) return [];
+    throw error;
+  }
+  const here = membership(ours);
+  const theirsBefore = membership(before);
+  const theirsNow = membership(incoming);
+  const strayed: Id[] = [];
+  for (const [id, now] of membership(merged)) {
+    if (!here.has(id) || !theirsBefore.has(id) || !theirsNow.has(id)) continue;
+    const mine = here.get(id);
+    const given = theirsNow.get(id);
+    const untouchedThere = theirsBefore.get(id) === given;
+    if (now !== mine && (untouchedThere || now !== given)) strayed.push(id);
+  }
+  return strayed;
 }
 
 type Guarded = { ok: true; stream: Stream; reverse: Op[] } | { ok: false; ids: Id[] };

@@ -1751,7 +1751,11 @@ async function importDocument(
   });
   let r;
   try {
-    r = reconcile(ours.map(asEntry), history.applied.map(asEntry), local.content, { head });
+    // With their text, a merge is also checked for words it would carry into another segment.
+    r = reconcile(ours.map(asEntry), history.applied.map(asEntry), local.content, {
+      head,
+      incomingContent,
+    });
   } catch (cause) {
     if (!(cause instanceof ReconcileError)) throw cause;
     return outcome('conflict', 0, {
