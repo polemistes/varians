@@ -171,7 +171,7 @@ test('a line the edition does not print is marked, stepped to, adopted, taken ba
   await entry.getByRole('button', { name: ed.kept }).click();
   await expect(entry.getByRole('button', { name: ed.keep })).toBeVisible();
 
-  // Stepping reaches it in its place: Next site from the first line, and Next to review.
+  // Stepping reaches it in its place: Next variant from the first line, and Next to review.
   const steps = [
     page.getByTitle(ed.workspace.nextSite, { exact: true }),
     page.getByRole('button', { name: ed.workspace.nextUnreviewed }),

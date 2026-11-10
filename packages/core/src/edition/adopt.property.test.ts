@@ -519,13 +519,12 @@ describe('attaching conjectures (random)', () => {
     runProperty('attach: the lemma alone finds the place', attaches(false, true));
   });
 
-  // The anchor is looked up by the first site that holds its token, so where
-  // places overlap (the fault of `buildSites` shown in the collation tests) a
-  // conjecture can be attached to the wrong one. Counterexample (shrunk): the
-  // edition `ἔπερσεν ὅς Τροίης`, A `ὅς ἔννεπε Τροίης`, B `ἔννεπε ἔπερσεν ὅς`:
-  // site 1, over `ἔπερσεν`, lies inside site 0, over `ἔπερσεν ὅς`, and a
-  // conjecture on `ἔπερσεν` named by its token is attached to site 0.
-  it.fails('(with places that overlap) the token anchor finds the place', () => {
+  // Where places overlap, several hold the anchor's token: the one over the
+  // lemma's own words is taken. The edition `ἔπερσεν ὅς Τροίης`, A `ὅς ἔννεπε
+  // Τροίης`, B `ἔννεπε ἔπερσεν ὅς`: site 1, over `ἔπερσεν`, lies inside site
+  // 0, over `ἔπερσεν ὅς`, and a conjecture on `ἔπερσεν` named by its token is
+  // attached to site 1.
+  it('(with places that overlap) the token anchor finds the place', () => {
     runProperty(
       'attach: lemma and token anchor find the place, overlapping places allowed',
       attaches(true, true),
