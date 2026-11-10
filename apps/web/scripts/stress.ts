@@ -46,35 +46,45 @@ import { mkdtemp, readdir, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { planEntries } from '../src/lib/server/archive/queue.ts';
-import { editionText, writeArchive, writeWorkParts } from '../src/lib/server/archive/archive.ts';
-import { importPackage } from '../src/lib/server/archive/import-package.ts';
-import { buildPackage } from '../src/lib/server/archive/package.ts';
-import { collateEdition, inputsFor, loadEditionContext } from '../src/lib/server/collation.ts';
-import {
-  documentAt,
-  loadDocument,
-  rebuildSegmentIndex,
-  saveOps,
-} from '../src/lib/server/documents/service.ts';
-import { pageViewsOf } from '../src/lib/server/pages.ts';
-import { loadReader } from '../src/lib/server/reader-pages.ts';
-import {
-  apparatusConventionsOf,
-  editionView,
-  refreshView,
-  type EditionView,
-  type SegmentView,
-} from '../src/lib/server/reader.ts';
-import { resolveId } from '../src/lib/server/resolver.ts';
-import { refuseDevelopmentDatabase } from '../src/lib/server/seed/stress.ts';
-import { makeRandom } from '../src/lib/server/seed/stress-text.ts';
-import { loadWorkbench } from '../src/lib/server/workbench.ts';
-import { DEFAULT_SIGLA } from '../src/lib/reader/marks.ts';
-import { plainText, segmentItems } from '../src/lib/reader/export.ts';
-import { siglaOrderOf } from '../src/lib/reader/sites.ts';
-import { reader as r } from '../src/lib/strings/reader.ts';
+import { registerHooks } from 'node:module';
+import type { EditionView, SegmentView } from '../src/lib/server/reader.ts';
 import { loadEnv, redactUrl } from './env.ts';
+
+// Some modules of the application ask SvelteKit for its environment ($env/dynamic/private), which only
+// the SvelteKit build resolves. Here it is the process environment, and the modules are loaded after
+// that is said, since imports are resolved before any code runs.
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier === '$env/dynamic/private')
+      return { url: 'data:text/javascript,export const env = process.env;', shortCircuit: true };
+    return nextResolve(specifier, context);
+  },
+});
+const { planEntries } = await import('../src/lib/server/archive/queue.ts');
+const { editionText, writeArchive, writeWorkParts } = await import(
+  '../src/lib/server/archive/archive.ts'
+);
+const { importPackage } = await import('../src/lib/server/archive/import-package.ts');
+const { buildPackage } = await import('../src/lib/server/archive/package.ts');
+const { collateEdition, inputsFor, loadEditionContext } = await import(
+  '../src/lib/server/collation.ts'
+);
+const { documentAt, loadDocument, rebuildSegmentIndex, saveOps } = await import(
+  '../src/lib/server/documents/service.ts'
+);
+const { pageViewsOf } = await import('../src/lib/server/pages.ts');
+const { loadReader } = await import('../src/lib/server/reader-pages.ts');
+const { apparatusConventionsOf, editionView, refreshView } = await import(
+  '../src/lib/server/reader.ts'
+);
+const { resolveId } = await import('../src/lib/server/resolver.ts');
+const { refuseDevelopmentDatabase } = await import('../src/lib/server/seed/stress.ts');
+const { makeRandom } = await import('../src/lib/server/seed/stress-text.ts');
+const { loadWorkbench } = await import('../src/lib/server/workbench.ts');
+const { DEFAULT_SIGLA } = await import('../src/lib/reader/marks.ts');
+const { plainText, segmentItems } = await import('../src/lib/reader/export.ts');
+const { siglaOrderOf } = await import('../src/lib/reader/sites.ts');
+const { reader: r } = await import('../src/lib/strings/reader.ts');
 
 // Reporting
 
@@ -788,7 +798,7 @@ async function working(c: Context): Promise<void> {
     const replay = below > 0 ? v - below : current - v;
     const { ms } = await timed(() => documentAt(c.db, 'transcription', long.id, v));
     report(
-      `documentAt, an ${label} version (${v} of ${current})`,
+      `documentAt, version ${v} of ${current} (${label})`,
       ms,
       'ms',
       `${long.siglum}; ${below > 0 ? `from checkpoint ${below}, ${replay} changesets forward` : `no checkpoint below: ${replay} reverses back from the current text`}`,

@@ -974,6 +974,7 @@ export function generateStress(options: StressOptions = {}): StressText {
     const pageOf: (number | null)[] = [];
     const pages: string[] = [];
     const end = start + length - 1;
+    let losses = 0;
     // A fragment or a column at a time; between two fragments some lines are lost, between columns now and then.
     for (let n = start, page = 0; n <= end; page++) {
       pages.push(columns ? `col. ${roman(page)}` : `fr. ${String.fromCharCode(97 + (page % 26))}`);
@@ -996,11 +997,12 @@ export function generateStress(options: StressOptions = {}): StressText {
         entries.push({ kind: 'line', work: 'main', number: n, items });
         pageOf.push(page);
       }
-      if (n < end && (!columns || rng.chance(0.34))) {
+      if (n < end && (!columns || losses === 0 || rng.chance(0.34))) {
         const lost = Math.min(rng.range(1, 10), end - n);
         entries.push({ kind: 'lost', lines: lost });
         pageOf.push(page);
         n += lost;
+        losses++;
       }
     }
     witnesses.push({
@@ -1259,20 +1261,34 @@ function decorate(
     });
 }
 
-/** A papyrus line, damaged: a gap at its start or end, a word broken by a gap, an illegible word. */
+/**
+ * A papyrus line, damaged: words lost at its start or end (a gap in their
+ * place), a word broken by a gap, a word illegible. Every line is damaged.
+ */
 function damage(items: StressItem[], rng: Random): void {
   const gap = (reason: 'lost' | 'illegible', quantity: number): StressItem => ({
     kind: 'gap',
-    attrs: { reason, unit: 'character', quantity },
+    attrs: { reason, unit: 'character', quantity: Math.max(1, quantity) },
   });
-  let start = rng.chance(SPRINKLES.papyrusStart);
-  let end = rng.chance(SPRINKLES.papyrusEnd);
-  const broken = rng.chance(SPRINKLES.papyrusBroken);
-  const illegible = rng.chance(SPRINKLES.papyrusIllegible);
-  const words = wordsOf(items);
+  const lettersOf = (stretch: StressItem[]) =>
+    wordsOf(stretch).reduce((n, w) => n + Array.from(w.form).length + 1, 0);
   let damaged = false;
-  if (broken && words.length > 2) {
-    const item = rng.pick(words.slice(1, -1));
+  // Words lost at the start or the end; some words always stay.
+  let removable = Math.max(0, wordsOf(items).length - 3);
+  const atStart = rng.chance(SPRINKLES.papyrusStart) ? Math.min(removable, rng.range(1, 2)) : 0;
+  removable -= atStart;
+  const atEnd = rng.chance(SPRINKLES.papyrusEnd) ? Math.min(removable, rng.range(1, 2)) : 0;
+  if (atEnd > 0) {
+    items.splice(items.length - atEnd, atEnd, gap('lost', lettersOf(items.slice(-atEnd))));
+    damaged = true;
+  }
+  if (atStart > 0) {
+    items.splice(0, atStart, gap('lost', lettersOf(items.slice(0, atStart))));
+    damaged = true;
+  }
+  const words = wordsOf(items);
+  if (rng.chance(SPRINKLES.papyrusBroken) && words.length > 1) {
+    const item = rng.pick(words);
     const chars = Array.from(item.form);
     if (chars.length >= 3) {
       const keep = rng.range(1, chars.length - 1);
@@ -1296,19 +1312,18 @@ function damage(items: StressItem[], rng: Random): void {
       ];
     }
   }
-  if (illegible && items.length > 2) {
-    items.splice(rng.range(1, items.length - 1), 0, gap('illegible', rng.range(1, 3)));
-    damaged = true;
+  // A word that cannot be read stands as an illegible gap in its place.
+  if (rng.chance(SPRINKLES.papyrusIllegible) && items.length > 4) {
+    const at = rng.range(1, items.length - 2);
+    const here = items[at]!;
+    if (here.kind === 'word') {
+      items.splice(at, 1, gap('illegible', Array.from(here.form).length));
+      damaged = true;
+    }
   }
-  // Every line of a papyrus is damaged: a line with no damage so far loses its start or its end.
-  if (!damaged && !start && !end) {
-    if (rng.chance(0.5)) start = true;
-    else end = true;
-  }
-  if (start) items.unshift(gap('lost', rng.range(2, 9)));
-  if (end) items.push(gap('lost', rng.range(2, 9)));
+  // A line with no damage so far loses a few letters before its first word.
+  if (!damaged) items.unshift(gap('lost', rng.range(2, 6)));
 }
-
 /** Pages of a codex: 25 lines to a page, the first lines on none for some, no pages at all for one. */
 function codexPages(
   entries: StressEntry[],
