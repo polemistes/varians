@@ -24,6 +24,12 @@ export interface TextOptions {
   asWritten?: boolean;
   /** What to print for a gap object. */
   gap?: (attrs: Record<string, unknown>) => string;
+  /**
+   * For an edition's text, as it is shown (`shownBreaks`): the breaks that are
+   * not shown, where the words run on, and the words that end a shown line
+   * divided, where a hyphen is written.
+   */
+  shown?: { hyphens: ReadonlySet<Id>; hidden: ReadonlySet<Id> };
 }
 
 /** A stream as plain text: tokens separated by spaces, breaks as newlines (two for a paragraph). */
@@ -34,6 +40,7 @@ export function toText(stream: Stream, options: TextOptions = {}): string {
   let pendingJoin = false;
   for (const item of stream.items) {
     if (isBreak(item)) {
+      if (options.shown?.hidden.has(item.id)) continue;
       out += item.type === 'paragraph' ? '\n\n' : '\n';
       atLineStart = true;
       continue;
@@ -54,6 +61,7 @@ export function toText(stream: Stream, options: TextOptions = {}): string {
       out += separatorBefore(item, options.asWritten ?? false);
     }
     out += text;
+    if (options.shown?.hyphens.has(item.id)) out += '-';
     atLineStart = false;
     pendingJoin = item.joinNext === true;
   }

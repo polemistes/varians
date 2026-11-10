@@ -479,7 +479,9 @@ export function claimTypedWords(before: Stream, ops: Op[]): Op[] {
 /**
  * Take a witness's current reading for a word the edition took from it:
  * the word gets the witness's present read form, as one word or
- * several, keeping its source, its segment start and its place. Nothing when
+ * several, keeping its source, its segment start and its place. A word the
+ * edition keeps divided is taken whole in its first part, the parts after it
+ * going (a segment one of them began begins at the next word). Nothing when
  * the witness no longer has the word: that is a matter for the apparatus.
  */
 export function takeCurrentOps(
@@ -487,17 +489,42 @@ export function takeCurrentOps(
   drift: { tokenId: Id; now: string },
   ids: () => Id = newId,
 ): Op[] {
-  const token = stream.items.find((item) => item.id === drift.tokenId);
+  const index = stream.items.findIndex((item) => item.id === drift.tokenId);
+  const token = stream.items[index];
   if (!token || token.kind !== 'token') return [];
   const parts = drift.now.split(/\s+/u).filter(Boolean);
   if (parts.length === 0) return [];
-  if (parts.length === 1)
-    return parts[0] === token.form ? [] : [{ t: 'set', id: token.id, fields: { form: parts[0]! } }];
+  // The parts of a divided word that follow this one.
+  const later: Token[] = [];
+  let end = index;
+  for (let last: Token = token, i = index + 1; last.joinNext && i < stream.items.length; i++) {
+    const next = stream.items[i]!;
+    if (next.kind === 'break') continue;
+    if (next.kind !== 'token') break;
+    later.push(next);
+    last = next;
+    end = i;
+  }
+  const dropped: Op[] = [];
+  if (later.length) {
+    dropped.push({ t: 'delete', ids: later.map((part) => part.id) });
+    const carried = later.findLast((part) => part.segment)?.segment;
+    const next = stream.items.slice(end + 1).find((item) => item.kind !== 'break');
+    if (carried && next && !next.segment)
+      dropped.push({ t: 'set', id: next.id, fields: { segment: carried } });
+  }
+  if (parts.length === 1) {
+    if (parts[0] === token.form && !later.length) return [];
+    // Whole, the word is no longer divided: no part follows to join.
+    const fields: Record<string, unknown> = { form: parts[0]! };
+    if (later.length) fields.joinNext = null;
+    return [{ t: 'set', id: token.id, fields }, ...dropped];
+  }
   const items: Token[] = parts.map((form, i) => {
     const next: Token = { kind: 'token', id: i === 0 ? token.id : ids(), form };
     if (token.source) next.source = token.source;
     if (i === 0 && token.segment) next.segment = token.segment;
     return next;
   });
-  return [{ t: 'replace', ids: [token.id], items }];
+  return [{ t: 'replace', ids: [token.id], items }, ...dropped];
 }

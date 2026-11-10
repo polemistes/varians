@@ -187,6 +187,12 @@
         },
         "rend": {
           "type": "string"
+        },
+        "lineation": {
+          "enum": [
+            "verse",
+            "prose"
+          ]
         }
       },
       "required": [

@@ -5,6 +5,7 @@ import {
   conjectures,
   createDatabase,
   editionCollaborators,
+  editions,
   referenceSchemes,
   transcriptions,
   users,
@@ -198,6 +199,69 @@ describe('editionView', () => {
         .update(transcriptions)
         .set({ content: row!.content })
         .where(eq(transcriptions.id, row!.id));
+    }
+  });
+});
+
+describe('an edition with divided words and paragraphs of both kinds', () => {
+  /** The sample's content with its first word divided over two lines and its fourth to sixth lines made one prose paragraph. */
+  async function withDivisions(editionId: string) {
+    const [row] = await db.select().from(editions).where(eq(editions.id, editionId));
+    const content = structuredClone(row!.content);
+    const items = content.items;
+    const first = items.findIndex((item) => item.kind === 'token') as number;
+    const word = items[first] as Token;
+    const half = Math.floor(word.form.length / 2);
+    const rest: Token = {
+      kind: 'token',
+      id: newId(),
+      form: word.form.slice(half),
+      source: word.source!,
+    };
+    word.form = word.form.slice(0, half);
+    word.joinNext = true;
+    items.splice(first + 1, 0, { kind: 'break', id: newId(), type: 'line' }, rest);
+    // The fourth line begins a prose paragraph; the line after the sixth begins one marked as verse.
+    const breaks = items
+      .map((item, i) => (item.kind === 'break' ? i : -1))
+      .filter((i) => i >= 0 && i > first + 2);
+    (items[breaks[2]!] as { type: string; lineation?: string }).type = 'paragraph';
+    (items[breaks[2]!] as { lineation?: string }).lineation = 'prose';
+    (items[breaks[5]!] as { type: string; lineation?: string }).type = 'paragraph';
+    (items[breaks[5]!] as { lineation?: string }).lineation = 'verse';
+    await db.update(editions).set({ content }).where(eq(editions.id, editionId));
+    return { original: row!.content, word, rest };
+  }
+
+  it('lays out verse as lines with a hyphen where a divided word ends one, and a prose paragraph as one line', async () => {
+    const sample = await seedSample(db, userId);
+    const { original, word, rest } = await withDivisions(sample.editionId);
+    try {
+      const view = await editionView(db, sample.editionId, null, owner);
+      // The ten lines are eleven with the divided word, and the paragraph of three is one.
+      expect(view.lines.map((l) => l.lineation)).toEqual([
+        'verse',
+        'verse',
+        'verse',
+        'verse',
+        'prose',
+        'verse',
+        'verse',
+        'verse',
+        'verse',
+      ]);
+      // The first line ends in the divided word's first part, drawn with a hyphen.
+      expect(view.lines[0]!.hyphen).toBe(true);
+      expect(view.lines[0]!.items.at(-1)).toMatchObject({ id: word.id, joinNext: true });
+      expect(view.lines[1]!.items[0]).toMatchObject({ id: rest.id });
+      // A prose paragraph is one line, holding its line breaks among its items, and no hyphen.
+      const prose = view.lines.find((l) => l.lineation === 'prose')!;
+      expect(prose.hyphen).toBe(false);
+      expect(prose.items.some((item) => item.kind === 'break')).toBe(true);
+      // The word, divided, is one word and its source has not drifted.
+      expect(Object.values(view.segments).flatMap((v) => v.drift)).toEqual([]);
+    } finally {
+      await db.update(editions).set({ content: original }).where(eq(editions.id, sample.editionId));
     }
   });
 });

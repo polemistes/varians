@@ -9,11 +9,14 @@ import {
   splitEntries,
   formatApparatus,
   segmentRuns,
+  shownBreaks,
   type ApparatusConventions,
   type Attachment,
   type Collation,
   type EditionSegmentExport,
   type Item,
+  type Lineation,
+  type Shown,
   type Site,
   type Stream,
   type Unit,
@@ -62,18 +65,32 @@ export function segmentItems(content: Stream): { segmentId: string; items: Item[
   }
   // Nothing follows: what stood after the last break stays with the last segment.
   if (opening.length > 0 && last) last.push(...opening);
-  return [...bySegment].map(([segmentId, items]) => ({ segmentId, items }));
+  const out = [...bySegment].map(([segmentId, items]) => ({ segmentId, items }));
+  // A paragraph break that begins the text gives its first paragraph its kind: it goes with the first segment.
+  const leading = content.items[0];
+  if (leading?.kind === 'break' && leading.type === 'paragraph' && out[0])
+    out[0].items.unshift(leading);
+  return out;
 }
 
-/** Items split at their breaks into printed lines, empty lines left out. */
-function printedLines(items: Item[], sigla: EditionSigla): string[] {
+/**
+ * Items split at their breaks into printed lines, empty lines left out. A
+ * break that is not shown (inside a prose paragraph) does not end a line, and
+ * a word divided by the end of a line that is shown has its hyphen there.
+ */
+function printedLines(items: Item[], sigla: EditionSigla, shown: Shown): string[] {
   const lines: Item[][] = [[]];
   for (const item of items) {
-    if (item.kind === 'break') lines.push([]);
+    if (item.kind === 'break' && !shown.hidden.has(item.id)) lines.push([]);
     else lines[lines.length - 1]!.push(item);
   }
   return lines
-    .map((line) => plainLine(printLine(line, sigla)))
+    .map((line) => {
+      const last = line[line.length - 1];
+      return plainLine(
+        printLine(line, sigla, 'read', last !== undefined && shown.hyphens.has(last.id)),
+      );
+    })
     .filter((line) => line.trim() !== '');
 }
 
@@ -90,6 +107,8 @@ export interface PlainTextInput {
   noteWord: string;
   /** The word that introduces an interpretative variant listed apart. */
   interpretativeWord: string;
+  /** The edition's convention: the kind of a paragraph that is not marked. Verse where absent. */
+  lineation?: Lineation;
 }
 
 /**
@@ -100,10 +119,11 @@ export interface PlainTextInput {
 export function plainText(input: PlainTextInput): string {
   const out: string[] = [...input.heading];
   if (out.length) out.push('');
+  const shown = shownBreaks(input.content.items, input.lineation ?? 'verse');
   for (const { segmentId, items } of segmentItems(input.content)) {
     const segment = input.segments[segmentId];
     const label = segment?.label ?? input.labelOf[segmentId] ?? segmentId;
-    const lines = printedLines(items, input.sigla);
+    const lines = printedLines(items, input.sigla, shown);
     const indent = ' '.repeat(label.length + 2);
     lines.forEach((line, i) => out.push(i === 0 ? `${label}  ${line}` : `${indent}${line}`));
     if (lines.length === 0) out.push(label);

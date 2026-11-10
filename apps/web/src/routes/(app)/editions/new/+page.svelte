@@ -137,13 +137,11 @@
           ><input type="radio" name="lineation" value="prose" bind:group={lineation} />
           {s.prose}</label
         >
-        {#if lineation === 'verse'}
-          <label class="mt-1 flex items-center gap-2 text-ink-soft">
-            {s.numberEvery}
-            <Input name="numberEvery" type="number" min="1" max="100" value="5" class="w-20" />
-            {s.numberEveryUnit}
-          </label>
-        {/if}
+        <label class="mt-1 flex items-center gap-2 text-ink-soft">
+          {s.numberEvery}
+          <Input name="numberEvery" type="number" min="1" max="100" value="5" class="w-20" />
+          {s.numberEveryUnit}
+        </label>
       </fieldset>
       <fieldset class="flex flex-col gap-2 font-sans text-sm">
         <legend class="mb-1 text-xs text-ink-soft">{s.apparatusForm}</legend>

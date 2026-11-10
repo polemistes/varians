@@ -57,6 +57,7 @@ const brk = z
     pageId: id.optional(),
     label: z.string().max(200).optional(),
     rend: z.string().max(64).optional(),
+    lineation: z.enum(['verse', 'prose']).optional(),
   })
   .strict();
 
@@ -87,6 +88,7 @@ const settable: Record<string, z.ZodType> = {
   pageId: id,
   label: z.string().max(200),
   rend: z.string().max(64),
+  lineation: z.enum(['verse', 'prose']),
   attrs,
   text: z.string().max(20000),
 };

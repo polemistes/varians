@@ -66,6 +66,11 @@
             <tag>label type="head"</tag>, <tag>label type="speaker"</tag> and so on (the
             label's <att>type</att> is the kind, its <att>subtype</att> the paratext's own
             type); <gi>stage</gi>, <gi>fw</gi> and <gi>label</gi> stand as themselves.</item>
+          <label>Paragraphs</label>
+          <item>An edition's text says of each paragraph whether it is verse or prose. The
+            paragraph break is written as two <gi>lb</gi>, and the second one's <att>type</att>
+            is <val>verse</val> or <val>prose</val> where the paragraph has a kind of its own;
+            without a type, the paragraph is of the edition's own convention.</item>
           <label>Segments</label>
           <item>The only milestone written is <tag>milestone unit="segment" n="…"</tag>,
             the start of a segment of the work's reference scheme in a transcription.</item>
@@ -163,6 +168,23 @@
                 <valItem ident="undefined">
                   <desc versionDate="2026-11-10" xml:lang="en">a sign on the carrier, as EpiDoc
                     writes a paragraphos and the like</desc>
+                </valItem>
+              </valList>
+            </attDef>
+          </attList>
+        </elementSpec>
+
+        <elementSpec ident="lb" mode="change">
+          <attList>
+            <attDef ident="type" mode="change">
+              <valList type="closed" mode="replace">
+                <valItem ident="verse">
+                  <desc versionDate="2026-11-11" xml:lang="en">the paragraph that begins here is
+                    verse: its lines are shown as the editor breaks them</desc>
+                </valItem>
+                <valItem ident="prose">
+                  <desc versionDate="2026-11-11" xml:lang="en">the paragraph that begins here is
+                    prose: its line breaks are not shown</desc>
                 </valItem>
               </valList>
             </attDef>

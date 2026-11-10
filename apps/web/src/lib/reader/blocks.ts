@@ -5,8 +5,7 @@
  */
 import { defaultLastNumber, type LayoutLine } from '@varians/core';
 
-export interface Lineation {
-  lineation: 'verse' | 'prose';
+export interface BlockOptions {
   numberEvery: number;
 }
 
@@ -24,14 +23,16 @@ function firstStart(line: LayoutLine): string | null {
 }
 
 /**
- * Group lines into blocks. Verse: a block runs up to and including the next
- * line with a printed label; the courtesy label of the first numbered line,
- * printed only because it is the first, does not close a block, so that
- * blocks follow the numbering (1 to 5, 6 to 10). Prose: a block is one
- * segment, from the line where it begins to the line before the next begins;
- * segments that begin on one line share its block.
+ * Group lines into blocks, each paragraph by its own kind (`line.lineation`),
+ * and a block never holds both kinds. Verse: a block runs up to and including
+ * the next line with a printed label; the courtesy label of the first
+ * numbered line, printed only because it is the first, does not close a
+ * block, so that blocks follow the numbering (1 to 5, 6 to 10). Prose: a
+ * block is one segment, from the line where it begins to the line before the
+ * next begins; segments that begin on one line (a prose paragraph is one
+ * line) share its block.
  */
-export function blocksOf(lines: LayoutLine[], options: Lineation): Block[] {
+export function blocksOf(lines: LayoutLine[], options: BlockOptions): Block[] {
   const every = Math.max(1, options.numberEvery || 1);
   const blocks: Block[] = [];
   let from = 0;
@@ -43,7 +44,8 @@ export function blocksOf(lines: LayoutLine[], options: Lineation): Block[] {
     blockHasStart = false;
   };
   lines.forEach((line, i) => {
-    if (options.lineation === 'prose') {
+    if (i > 0 && line.lineation !== lines[i - 1]!.lineation) close(i);
+    if (line.lineation === 'prose') {
       const starts = firstStart(line) !== null;
       if (starts && blockHasStart) close(i);
       if (starts) blockHasStart = true;
@@ -100,7 +102,11 @@ export function segmentOfItems(lines: LayoutLine[]): Map<string, string | null> 
   return out;
 }
 
-/** The label printed beside each line: as the edition sets them, or every line where a segment begins. */
+/**
+ * The label printed beside each line: as the edition sets them, or every line
+ * where a segment begins. A prose paragraph has the label of its first word
+ * in the margin, and every other where its segment begins.
+ */
 export function lineLabels(
   lines: LayoutLine[],
   labelOf: Record<string, string>,
@@ -108,18 +114,25 @@ export function lineLabels(
 ): (string | null)[] {
   if (mode === 'edition') return lines.map((line) => line.label);
   return lines.map((line) => {
+    if (line.lineation === 'prose') return line.label;
     const id = firstStart(line);
     return id === null ? line.label : (labelOf[id] ?? line.label);
   });
 }
 
-/** Segments that begin within a line, after its first item: the item where each begins, with its label. */
+/**
+ * Segments that begin within a line, after its first item: the item where each
+ * begins, with its label. In a prose paragraph every segment is labelled where
+ * it begins; in verse only when `verse` asks for it.
+ */
 export function inlineStarts(
   lines: LayoutLine[],
   labelOf: Record<string, string>,
+  verse: boolean,
 ): Map<string, string> {
   const map = new Map<string, string>();
   for (const line of lines) {
+    if (line.lineation !== 'prose' && !verse) continue;
     for (const start of line.starts) {
       if (start.segmentId === null || start.itemIndex === line.from) continue;
       const item = line.items[start.itemIndex - line.from];

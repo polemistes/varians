@@ -13,7 +13,7 @@ import { Annotation, StateEffect, StateField } from '@codemirror/state';
 import { invertedEffects } from '@codemirror/commands';
 import { Decoration, EditorView, type DecorationSet } from '@codemirror/view';
 import type { Op } from '@varians/core';
-import { buildDecorations } from './decorations.ts';
+import { buildDecorations, buildRunOn } from './decorations.ts';
 import { editModel, reconcileModel, withForm, type Intent, type Model } from './model.ts';
 
 export interface ModelEdit {
@@ -115,6 +115,27 @@ export const decorationField = StateField.define<DecorationSet>({
 });
 
 /**
+ * The line breaks not shown, and the spaces that stand for nothing, as
+ * replaced ranges that the caret skips (`buildRunOn`). A field of its own, so
+ * that the ranges alone are the editor's atomic ranges.
+ */
+export const runOnField = StateField.define<DecorationSet>({
+  create(state) {
+    return buildRunOn(state.field(modelField).model);
+  },
+  update(deco, tr) {
+    const before = tr.startState.field(modelField).model;
+    const after = tr.state.field(modelField).model;
+    if (after !== before) return buildRunOn(after);
+    return tr.docChanged ? deco.map(tr.changes) : deco;
+  },
+  provide: (field) => [
+    EditorView.decorations.from(field),
+    EditorView.atomicRanges.of((view) => view.state.field(field)),
+  ],
+});
+
+/**
  * Model edits are undone by their reverse operations; so is typed text,
  * whose undo then brings back the very items it removed, ids and all.
  */
@@ -131,4 +152,4 @@ export const modelHistory = invertedEffects.of((tr) => {
   return typed ? [modelEdit.of({ ops: typed.reverse, reverse: typed.ops })] : [];
 });
 
-export const modelExtensions = [decorationField, modelHistory];
+export const modelExtensions = [decorationField, runOnField, modelHistory];

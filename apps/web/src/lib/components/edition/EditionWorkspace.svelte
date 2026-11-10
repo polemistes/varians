@@ -15,6 +15,7 @@
     siteTokenIds,
     type Attachment,
     type Id,
+    type Lineation,
     type Op,
     type Scheme,
     type Site,
@@ -29,6 +30,7 @@
     Checkbox,
     Menu,
     MenuItem,
+    MenuSeparator,
     Tabs,
     toasts,
     type Tab,
@@ -1188,6 +1190,13 @@
     api?.toggleMark(kind);
   }
 
+  // The Paragraph menu offers the kind the paragraphs of the selection are not.
+  let paragraphMenuOpen = $state(false);
+  let kindAtSelection = $state<Lineation | null>(null);
+  $effect(() => {
+    if (paragraphMenuOpen) kindAtSelection = api?.lineationAtSelection() ?? null;
+  });
+
   // The side pane: witnesses, and the history, whose panel loads when first opened.
 
   let HistoryPanel = $state<
@@ -1234,6 +1243,7 @@
         form="written"
         readonly={!canEdit}
         lineNumbers={false}
+        lineation={view.edition.conventions.lineation ?? 'verse'}
         segmentLabels={labelOf}
         {tokenClasses}
         {marginMarks}
@@ -1245,9 +1255,28 @@
         class="h-full px-2"
       />
       {#if canEdit}
-        <div class="absolute top-2 right-3 z-10">
+        <div class="absolute top-2 right-3 z-10 flex items-center gap-1">
+          <Menu
+            bind:open={paragraphMenuOpen}
+            label={s.dialogs.paragraph.menu}
+            triggerVariant="ghost"
+            triggerSize="sm"
+            align="end"
+          >
+            {#snippet trigger()}{s.dialogs.paragraph.menu}{/snippet}
+            <MenuItem
+              disabled={kindAtSelection === 'verse'}
+              onSelect={() => api?.setLineation('verse')}>{s.dialogs.paragraph.verse}</MenuItem
+            >
+            <MenuItem
+              disabled={kindAtSelection === 'prose'}
+              onSelect={() => api?.setLineation('prose')}>{s.dialogs.paragraph.prose}</MenuItem
+            >
+            <MenuSeparator />
+            <MenuItem onSelect={() => api?.newParagraph()}>{s.dialogs.paragraph.begin}</MenuItem>
+          </Menu>
           <Menu label={s.dialogs.insert.menu} triggerVariant="ghost" triggerSize="sm" align="end">
-            {#snippet trigger()}Insert{/snippet}
+            {#snippet trigger()}{s.dialogs.insert.menu}{/snippet}
             <MenuItem onSelect={() => openInsert('speaker')}>{s.dialogs.insert.speaker}…</MenuItem>
             <MenuItem onSelect={() => openInsert('head')}>{s.dialogs.insert.head}…</MenuItem>
             <MenuItem onSelect={() => openInsert('stage')}>{s.dialogs.insert.stage}…</MenuItem>

@@ -15,6 +15,7 @@ import {
   apparatusEntries,
   splitEntries,
   exportEditionTei,
+  shownBreaks,
   exportTranscriptionTei,
   formatApparatus,
   isCopyable,
@@ -1362,6 +1363,9 @@ export async function editionText(
     .from(editions)
     .where(eq(editions.id, editionId));
   const conventions = apparatusConventionsOf(row!.conventions);
+  // The text as the edition shows it: the lines of a prose paragraph run on, and a divided word is hyphenated where a shown line ends.
+  const shown = shownBreaks(context.edition.content.items, row!.conventions.lineation ?? 'verse');
+  const leading = context.edition.content.items[0];
   const collations = await collateEdition(db, context);
   const plain: string[] = [];
   const markdown: string[] = [];
@@ -1377,7 +1381,7 @@ export async function editionText(
     const items = segmentRunsHere.flatMap((run) =>
       context.edition.content.items.slice(run.from, run.to),
     );
-    const text = toText({ items }, { form: 'read' });
+    const text = toText({ items }, { form: 'read', shown });
     const collation = collations.get(segmentId);
     const { main, interpretative } = collation
       ? splitEntries(apparatusEntries(collation, label, {}, conventions, siglaOrder), conventions)
@@ -1397,7 +1401,11 @@ export async function editionText(
       label,
       id: segmentId,
       ...(urnOf.get(segmentId) ? { urn: urnOf.get(segmentId)! } : {}),
-      items,
+      // A paragraph break that begins the text gives its first paragraph its kind: it goes with the first segment.
+      items:
+        segmentsOut.length === 0 && leading?.kind === 'break' && leading.type === 'paragraph'
+          ? [leading, ...items]
+          : items,
       baseUnits,
       sites: collation?.sites ?? [],
     });

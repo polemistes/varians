@@ -101,12 +101,11 @@
   const conventionsOfEdition = $derived(data.edition.conventions);
   const sigla = $derived(conventionsOfEdition.sigla ?? DEFAULT_SIGLA);
   const siglaOrder = $derived(siglaOrderOf(data.sigla));
-  const printed = $derived(data.lines.map((line) => printLine(line.items, sigla)));
+  const printed = $derived(
+    data.lines.map((line) => printLine(line.items, sigla, 'read', line.hyphen)),
+  );
   const blocks = $derived(
-    blocksOf(data.lines, {
-      lineation: conventionsOfEdition.lineation ?? 'verse',
-      numberEvery: conventionsOfEdition.numberEvery ?? 5,
-    }),
+    blocksOf(data.lines, { numberEvery: conventionsOfEdition.numberEvery ?? 5 }),
   );
   const segmentsOfLine = $derived(segmentsByLine(data.lines));
   const segmentOf = $derived(segmentOfItems(data.lines));
@@ -223,11 +222,8 @@
 
   const labels = $derived(lineLabels(data.lines, data.labelOf, settings.labels));
   /** Segments that begin within a line are labelled where they begin: in prose, or when every line is labelled. */
-  const startsWithin = $derived(inlineStarts(data.lines, data.labelOf));
   const inlineLabels = $derived(
-    conventionsOfEdition.lineation === 'prose' || settings.labels === 'every'
-      ? startsWithin
-      : new Map<string, string>(),
+    inlineStarts(data.lines, data.labelOf, settings.labels === 'every'),
   );
 
   function segmentHref(label: string): string {

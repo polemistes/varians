@@ -5,7 +5,7 @@
    * the stream they produce, which the parent passes back as `stream`.
    */
   import { onMount, untrack } from 'svelte';
-  import type { Id, Op, Stream } from '@varians/core';
+  import type { Id, Lineation, Op, Stream } from '@varians/core';
   import type { Form } from '$lib/editor/bridge';
   import {
     VariansEditor,
@@ -28,6 +28,8 @@
     lineNumbers?: boolean;
     segmentLabels?: Record<string, string>;
     pageLabels?: Record<string, string>;
+    /** An edition's text: the kind of a paragraph that is not marked; absent for a transcript. */
+    lineation?: Lineation | null;
     /** Classes to put on tokens, by token id: highlights the host decides. */
     tokenClasses?: TokenClasses;
     /** Marks in a margin between lines, each after the line of an item; no margin when absent. */
@@ -60,6 +62,7 @@
     lineNumbers = true,
     segmentLabels = {},
     pageLabels = {},
+    lineation = null,
     tokenClasses = {},
     marginMarks,
     handLabel,
@@ -93,6 +96,7 @@
         lineNumbers,
         segmentLabels,
         pageLabels,
+        lineation,
         tokenClasses,
         marginMarks,
         handLabel,
@@ -129,6 +133,7 @@
       lineNumbers,
       segmentLabels,
       pageLabels,
+      lineation,
       tokenClasses,
       marginMarks,
       handLabel,

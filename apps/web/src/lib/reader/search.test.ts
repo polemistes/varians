@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { layoutLines, type Item } from '@varians/core';
+import { layoutLines, runOn, type Item } from '@varians/core';
 import { findHits, foldQuery, searchIndex } from './search';
 
 const items: Item[] = [
@@ -32,6 +32,24 @@ describe('search', () => {
     expect(findHits(index, 'τε')).toEqual([
       { line: 0, tokenIds: ['b'] },
       { line: 1, tokenIds: ['f'] },
+    ]);
+  });
+
+  it('reads a word divided by a line break of a prose paragraph as one, the break not being shown', () => {
+    const prose: Item[] = [
+      { kind: 'token', id: 'a', form: 'Ἀχιλ', joinNext: true },
+      { kind: 'break', id: 'x', type: 'line' },
+      { kind: 'token', id: 'b', form: 'λεύς' },
+      { kind: 'break', id: 'y', type: 'line' },
+      { kind: 'token', id: 'c', form: 'δῖος' },
+    ];
+    const shown = runOn(
+      { items: prose },
+      layoutLines({ items: prose }, () => '', { lineation: 'prose' }),
+    );
+    expect(shown).toHaveLength(1);
+    expect(findHits(searchIndex(shown), 'ἀχιλλευς δίος')).toEqual([
+      { line: 0, tokenIds: ['a', 'b', 'c'] },
     ]);
   });
 

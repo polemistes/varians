@@ -36,6 +36,8 @@ export function searchIndex(lines: LayoutLine[]): SearchLine[] {
     const words: SearchLine['words'] = [];
     let joined = false;
     for (const item of line.items) {
+      // The line breaks of a prose paragraph are not shown, and a word divided by one is one word.
+      if (item.kind === 'break') continue;
       if (item.kind !== 'token') {
         joined = false;
         continue;

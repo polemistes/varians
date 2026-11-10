@@ -12,11 +12,14 @@
 import { Text, type ChangeSet } from '@codemirror/state';
 import {
   applyOps,
+  isBreak,
   isToken,
   newId,
   segmentAt,
+  type Break,
   type Id,
   type Item,
+  type Lineation,
   type Op,
   type SegmentStart,
   type Stream,
@@ -42,6 +45,13 @@ export interface Model {
   byId: Map<Id, Item>;
   segmentLabels: Record<string, string>;
   pageLabels: Record<string, string>;
+  /**
+   * An edition's text: the kind of a paragraph that is not marked, each
+   * paragraph being verse, shown in the lines its breaks make, or prose,
+   * whose line breaks are not shown. Null for a transcript, whose lines are
+   * always shown.
+   */
+  lineation: Lineation | null;
   /** The document's words do not match the stream's: the document must be reset to the canonical text. */
   misaligned: boolean;
 }
@@ -53,6 +63,8 @@ export interface ModelOptions {
   pageOrder?: readonly string[];
   segmentLabels?: Record<string, string>;
   pageLabels?: Record<string, string>;
+  /** An edition's text: the kind of a paragraph that is not marked. Absent for a transcript. */
+  lineation?: Lineation | null;
 }
 
 /** What a change meant beyond its text, carried on the transaction. */
@@ -61,6 +73,8 @@ export interface Intent {
   join?: Id;
   /** Clear this token's join: the user joined the lines again. */
   unjoin?: Id;
+  /** The line break the change made is a paragraph break, of this kind where it is marked. */
+  paragraph?: { lineation?: Lineation };
 }
 
 export interface ModelChange {
@@ -107,6 +121,7 @@ export function buildModel(whole: Stream, options: ModelOptions, docText?: strin
     inherited: inheritedSegment(whole, view, page),
     segmentLabels: options.segmentLabels ?? {},
     pageLabels: options.pageLabels ?? {},
+    lineation: options.lineation ?? null,
   };
   return finish(base, render(view.stream, options.form), docText);
 }
@@ -179,6 +194,25 @@ function intentOps(sub: Stream, intent: Intent | undefined): Op[] {
   return ops;
 }
 
+/**
+ * The operations of a change that made one line break, with that break a
+ * paragraph break of the kind given (none: of the edition's own).
+ */
+function paragraphOps(before: Stream, ops: Op[], lineation: Lineation | undefined): Op[] {
+  const known = new Set(before.items.map((item) => item.id));
+  const made = (item: Item): item is Break => isBreak(item) && !known.has(item.id);
+  const paragraph = (brk: Break): Break => ({
+    ...brk,
+    type: 'paragraph',
+    ...(lineation ? { lineation } : {}),
+  });
+  const turn = (items: Item[]): Item[] =>
+    items.map((item) => (made(item) ? paragraph(item) : item));
+  return ops.map((op) =>
+    op.t === 'insert' || op.t === 'replace' ? { ...op, items: turn(op.items) } : op,
+  );
+}
+
 function commit(
   model: Model,
   sub: Stream,
@@ -188,7 +222,12 @@ function commit(
   canonical?: Ledger,
 ): Omit<ModelChange, 'reverse'> {
   const lifted = liftToWhole(ops, model.view, ids);
-  const view: PageView = { stream: sub, anchor: lifted.anchor, missing: lifted.missing };
+  const view: PageView = {
+    stream: sub,
+    anchor: lifted.anchor,
+    missing: lifted.missing,
+    trailingBreak: model.view.trailingBreak,
+  };
   const next = finish({ ...model, view }, canonical ?? render(sub, model.form), docText);
   return { model: next, ops: lifted.ops };
 }
@@ -220,6 +259,11 @@ export function reconcileModel(
       sub = applyOps(model.view.stream, ops).stream;
       canonical = undefined;
     }
+  }
+  if (intent?.paragraph) {
+    ops = paragraphOps(model.view.stream, ops, intent.paragraph.lineation);
+    sub = applyOps(model.view.stream, ops).stream;
+    canonical = undefined;
   }
   const extra = intentOps(sub, intent);
   if (extra.length) {

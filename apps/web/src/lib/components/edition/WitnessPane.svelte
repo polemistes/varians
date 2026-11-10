@@ -248,6 +248,16 @@
       });
     }
   });
+
+  /** The word at `index` is the second or a later part of a divided word. */
+  function continues(items: Item[], index: number): boolean {
+    for (let j = index - 1; j >= 0; j--) {
+      const before = items[j]!;
+      if (before.kind === 'break') continue;
+      return before.kind === 'token' && before.joinNext === true;
+    }
+    return false;
+  }
 </script>
 
 <div class="witness-pane flex h-full flex-col font-sans text-sm">
@@ -305,19 +315,22 @@
             {:else}
               {#each segment.runs as run, r (r)}
                 {#if r > 0}<span class="font-sans text-xs text-ink-muted"> … </span>{/if}
-                {#each run.items as item (item.id)}
+                {#each run.items as item, i (item.id)}
                   {#if item.kind === 'token'}
                     <button
                       type="button"
                       class={[
                         'rounded px-0.5 hover:bg-sunken',
+                        // The parts of a divided word stand together.
+                        item.joinNext && 'pr-0',
+                        continues(run.items, i) && 'pl-0',
                         lit.has(item.id) && 'bg-accent-soft text-ink',
                       ]}
                       title={s.witness.pick}
                       onclick={() => onpick?.(segmentId, item.id)}
                       onmouseenter={() => onhover?.(item.id)}
                       onmouseleave={() => onhover?.(null)}>{shown(item)}</button
-                    >{' '}
+                    >{#if !item.joinNext}{' '}{/if}
                   {:else if item.kind === 'object'}
                     <span
                       class={[

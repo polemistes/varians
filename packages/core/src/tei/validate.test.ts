@@ -464,6 +464,12 @@ describe.skipIf(!xmllint)('edition TEI is valid', slow, () => {
       { kind: 'object', id: ids(), type: 'note', text: 'a note' },
       { kind: 'object', id: ids(), type: 'space' },
       { kind: 'object', id: ids(), type: 'figure', text: 'a drawing' },
+      { kind: 'break', id: ids(), type: 'paragraph', lineation: 'prose' },
+      { kind: 'token', id: ids(), form: 'μῦθος' },
+      { kind: 'break', id: ids(), type: 'paragraph', lineation: 'verse' },
+      { kind: 'token', id: ids(), form: 'ἀνα', joinNext: true },
+      { kind: 'break', id: ids(), type: 'line' },
+      { kind: 'token', id: ids(), form: 'στασις' },
       { kind: 'break', id: ids(), type: 'paragraph' },
       {
         kind: 'token',

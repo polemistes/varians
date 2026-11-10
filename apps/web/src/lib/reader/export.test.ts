@@ -87,6 +87,46 @@ describe('plainText', () => {
   });
 });
 
+describe('plainText, divided words and prose', () => {
+  /** Two segments: a word divided by the end of a line, then a paragraph of prose with a word divided by a line break. */
+  const stream: Stream = {
+    items: [
+      { kind: 'token', id: 'a1', form: 'ἀνα', joinNext: true, segment: { segmentId: 's1' } },
+      { kind: 'break', id: 'b1', type: 'line' },
+      { kind: 'token', id: 'a2', form: 'στασις' },
+      { kind: 'token', id: 'a3', form: 'δε' },
+      { kind: 'break', id: 'b2', type: 'paragraph' },
+      { kind: 'token', id: 'a4', form: 'μῆ', joinNext: true, segment: { segmentId: 's2' } },
+      { kind: 'break', id: 'b3', type: 'line' },
+      { kind: 'token', id: 'a5', form: 'νιν' },
+      { kind: 'break', id: 'b4', type: 'line' },
+      { kind: 'token', id: 'a6', form: 'ἄειδε' },
+    ] satisfies Item[],
+  };
+  const input = (lineation?: 'verse' | 'prose') => ({
+    heading: [],
+    content: stream,
+    segments: {},
+    labelOf: { s1: '1', s2: '2' },
+    conventions: { form: 'positive' as const, latin: true, interpretative: 'separate' as const },
+    siglaOrder: [],
+    sigla: DEFAULT_SIGLA,
+    noteWord: 'Note',
+    interpretativeWord: 'Interpretative',
+    ...(lineation ? { lineation } : {}),
+  });
+
+  it('writes the hyphen where a shown line ends, and runs the lines of a prose paragraph on', () => {
+    expect(plainText(input('verse'))).toBe(
+      ['1  ἀνα-', '   στασις δε', '2  μῆ-', '   νιν', '   ἄειδε', ''].join('\n'),
+    );
+    expect(plainText(input('prose'))).toBe(['1  ἀναστασις δε', '2  μῆνιν ἄειδε', ''].join('\n'));
+    // A paragraph marked as prose is prose where the edition's convention is verse.
+    stream.items[4] = { kind: 'break', id: 'b2', type: 'paragraph', lineation: 'prose' };
+    expect(plainText(input())).toBe(['1  ἀνα-', '   στασις δε', '2  μῆνιν ἄειδε', ''].join('\n'));
+  });
+});
+
 describe('teiSegments', () => {
   it('gives the TEI exporter each segment with its units, sites and attachments', () => {
     const out = teiSegments(content, segments, {});

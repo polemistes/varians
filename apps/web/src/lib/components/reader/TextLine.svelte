@@ -133,6 +133,7 @@
 <div
   class={[
     'line',
+    line.lineation,
     line.paragraph &&
       index > 0 &&
       !(speakerDisplay === 'own-line' && speakers.length) &&
@@ -181,7 +182,8 @@
             aria-haspopup={live ? 'dialog' : undefined}
             >{#each piece.parts as part, k (k)}{#if part.struck}<s>{part.text}</s
                 >{:else}{part.text}{/if}{/each}</span
-          >{piece.after}{#if pointsAfter.has(piece.id)}{@render point(
+          >{piece.after}{#if piece.hyphen}<span class="hyphen" aria-hidden="true"
+            ></span>{/if}{#if pointsAfter.has(piece.id)}{@render point(
               pointsAfter.get(piece.id)!,
             )}{/if}{:else if piece.kind === 'lacuna'}<span
             class="lacuna"
@@ -269,6 +271,17 @@
     padding-inline-start: 1.25em;
     text-indent: -1.25em;
     text-align: start;
+  }
+
+  /* A paragraph of prose runs on to the width of the page, with no indent. */
+  .prose .words {
+    padding-inline-start: 0;
+    text-indent: 0;
+  }
+
+  /* The hyphen of a word the end of a line divides is drawn, and is no part of the text. */
+  .hyphen::after {
+    content: '-';
   }
 
   .heading-line .words {

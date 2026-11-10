@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { layoutLines, type Item, type Stream } from '@varians/core';
+import { layoutLines, runOn, type Item, type Stream } from '@varians/core';
 import {
   absentRanges,
   blocksOf,
@@ -51,7 +51,7 @@ describe('blocksOf, verse', () => {
       labelOf,
       { numberEvery: 5 },
     );
-    const blocks = blocksOf(lines, { lineation: 'verse', numberEvery: 5 });
+    const blocks = blocksOf(lines, { numberEvery: 5 });
     expect(ranges(blocks)).toEqual([
       [0, 5],
       [5, 10],
@@ -65,7 +65,7 @@ describe('blocksOf, verse', () => {
     const lines = layoutLines(verse(['1.5', '1.6', '1.7', '1.8', '1.9', '1.10']), labelOf, {
       numberEvery: 5,
     });
-    expect(ranges(blocksOf(lines, { lineation: 'verse', numberEvery: 5 }))).toEqual([
+    expect(ranges(blocksOf(lines, { numberEvery: 5 }))).toEqual([
       [0, 1],
       [1, 6],
     ]);
@@ -73,7 +73,7 @@ describe('blocksOf, verse', () => {
 
   it('makes a block of every line when every line is labelled', () => {
     const lines = layoutLines(verse(['1', '2', '3']), labelOf, { numberEvery: 1 });
-    expect(ranges(blocksOf(lines, { lineation: 'verse', numberEvery: 1 }))).toEqual([
+    expect(ranges(blocksOf(lines, { numberEvery: 1 }))).toEqual([
       [0, 1],
       [1, 2],
       [2, 3],
@@ -87,7 +87,7 @@ describe('blocksOf, verse', () => {
       { kind: 'break', id: id(), type: 'line' },
     );
     const lines = layoutLines(stream, labelOf, { numberEvery: 5 });
-    expect(ranges(blocksOf(lines, { lineation: 'verse', numberEvery: 5 }))).toEqual([[0, 3]]);
+    expect(ranges(blocksOf(lines, { numberEvery: 5 }))).toEqual([[0, 3]]);
   });
 });
 
@@ -104,8 +104,8 @@ describe('blocksOf, prose', () => {
       { kind: 'break', id: id(), type: 'paragraph' },
       { kind: 'token', id: 'f', form: 'πεπόνθατε', segment: { segmentId: 's17d' } },
     ];
-    const lines = layoutLines({ items }, labelOf, { numberEvery: 1 });
-    const blocks = blocksOf(lines, { lineation: 'prose', numberEvery: 1 });
+    const lines = layoutLines({ items }, labelOf, { numberEvery: 1, lineation: 'prose' });
+    const blocks = blocksOf(lines, { numberEvery: 1 });
     expect(ranges(blocks)).toEqual([
       [0, 2],
       [2, 3],
@@ -113,6 +113,61 @@ describe('blocksOf, prose', () => {
     ]);
     expect(blocks.map((b) => b.segmentIds)).toEqual([['s17a'], ['s17b', 's17c'], ['s17d']]);
     expect(segmentsByLine(lines)).toEqual([['s17a'], ['s17a'], ['s17b', 's17c'], ['s17d']]);
+  });
+});
+
+describe('blocksOf, verse and prose in one text', () => {
+  /** A prose paragraph of two lines, three lines of verse, and prose again. */
+  function mixed() {
+    const items: Item[] = [
+      { kind: 'token', id: 'a', form: 'α', segment: { segmentId: 's1' } },
+      { kind: 'break', id: 'l1', type: 'line' },
+      { kind: 'token', id: 'b', form: 'β', segment: { segmentId: 's2' } },
+      { kind: 'break', id: 'p1', type: 'paragraph', lineation: 'verse' },
+      { kind: 'token', id: 'c', form: 'γ', segment: { segmentId: 's3' } },
+      { kind: 'break', id: 'l2', type: 'line' },
+      { kind: 'token', id: 'd', form: 'δ', segment: { segmentId: 's4' } },
+      { kind: 'break', id: 'l3', type: 'line' },
+      { kind: 'token', id: 'e', form: 'ε', segment: { segmentId: 's5' } },
+      { kind: 'break', id: 'p2', type: 'paragraph', lineation: 'prose' },
+      { kind: 'token', id: 'f', form: 'ζ', segment: { segmentId: 's6' } },
+      { kind: 'token', id: 'g', form: 'η', segment: { segmentId: 's7' } },
+    ];
+    const stream = { items };
+    return {
+      stream,
+      lines: runOn(stream, layoutLines(stream, labelOf, { numberEvery: 5, lineation: 'prose' })),
+    };
+  }
+
+  it("runs a prose paragraph on and goes by each paragraph's kind, a block never holding both", () => {
+    const { lines } = mixed();
+    expect(lines.map((l) => l.lineation)).toEqual(['prose', 'verse', 'verse', 'verse', 'prose']);
+    const blocks = blocksOf(lines, { numberEvery: 5 });
+    expect(ranges(blocks)).toEqual([
+      [0, 1],
+      [1, 4],
+      [4, 5],
+    ]);
+    expect(blocks.map((b) => b.segmentIds)).toEqual([
+      ['s1', 's2'],
+      ['s3', 's4', 's5'],
+      ['s6', 's7'],
+    ]);
+  });
+
+  it('labels a prose paragraph where each segment begins, and verse as the convention says', () => {
+    const { lines } = mixed();
+    const of = Object.fromEntries(['1', '2', '3', '4', '5', '6', '7'].map((l) => [`s${l}`, l]));
+    expect(lineLabels(lines, of, 'edition')).toEqual(['1', null, null, '5', '6']);
+    expect([...inlineStarts(lines, of, false)]).toEqual([
+      ['b', '2'],
+      ['g', '7'],
+    ]);
+    expect([...inlineStarts(lines, of, true)]).toEqual([
+      ['b', '2'],
+      ['g', '7'],
+    ]);
   });
 });
 
@@ -142,7 +197,9 @@ describe('lines and segments', () => {
       { kind: 'token', id: 'c', form: 'γ', segment: { segmentId: 's3' } },
     ];
     const lines = layoutLines({ items }, labelOf, { numberEvery: 1 });
-    expect([...inlineStarts(lines, { s1: '17a', s2: '17b', s3: '17c' })]).toEqual([['b', '17b']]);
+    expect([...inlineStarts(lines, { s1: '17a', s2: '17b', s3: '17c' }, true)]).toEqual([
+      ['b', '17b'],
+    ]);
   });
 
   it('labels lines as the edition sets them, or every line where a segment begins', () => {

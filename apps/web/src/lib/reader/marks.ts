@@ -57,7 +57,14 @@ interface Spaced {
 }
 
 export type Printed =
-  | (Spaced & { kind: 'token'; before: string; parts: TextPart[]; after: string })
+  | (Spaced & {
+      kind: 'token';
+      before: string;
+      parts: TextPart[];
+      after: string;
+      /** The word is divided by the end of the line: a hyphen is drawn after it, and is not part of its text. */
+      hyphen: boolean;
+    })
   | (Spaced & { kind: 'lacuna'; text: string; extent: string | null })
   | (Spaced & {
       kind: 'gap';
@@ -160,12 +167,21 @@ function attr(
   return item.attrs?.[key];
 }
 
-/** One line's items as printed pieces, with the runs of bracketing marks resolved. */
+/**
+ * One line's items as printed pieces, with the runs of bracketing marks
+ * resolved. A line of prose holds the line breaks of its paragraph, which are
+ * not shown: the words run on over them. `hyphen`: the last word of the line
+ * is divided by its end, and a hyphen is drawn after it.
+ */
 export function printLine(
-  items: Item[],
+  all: Item[],
   sigla: EditionSigla = DEFAULT_SIGLA,
   form: PrintForm = 'read',
+  hyphen = false,
 ): Printed[] {
+  const items = all.some((item) => item.kind === 'break')
+    ? all.filter((item) => item.kind !== 'break')
+    : all;
   const out: Printed[] = [];
   // Whole-word marks of each item, for finding where runs begin and end.
   const whole = items.map((item) =>
@@ -203,6 +219,7 @@ export function printLine(
         before,
         parts: tokenParts(item, sigla, form),
         after,
+        hyphen: hyphen && i === items.length - 1 && item.joinNext === true,
       });
       joinNext = item.joinNext === true;
       return;
@@ -267,6 +284,9 @@ export function gapSign(piece: { untranscribed: boolean }): string {
 }
 export const VACAT_TEXT = 'vac.';
 
+/** The hyphen drawn after a word that the end of a line divides. */
+export const HYPHEN = '-';
+
 /** A line as plain text, as the plain-text export and the search print it. */
 export function plainLine(pieces: Printed[]): string {
   let out = '';
@@ -274,7 +294,11 @@ export function plainLine(pieces: Printed[]): string {
     let text = '';
     switch (piece.kind) {
       case 'token':
-        text = piece.before + piece.parts.map((p) => p.text).join('') + piece.after;
+        text =
+          piece.before +
+          piece.parts.map((p) => p.text).join('') +
+          piece.after +
+          (piece.hyphen ? HYPHEN : '');
         break;
       case 'lacuna':
         text = piece.text;

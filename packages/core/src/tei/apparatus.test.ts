@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applySiteKinds, collate, siteKey, type CollationText } from '../collate/collate.ts';
 import { sequentialIds } from '../ids.ts';
+import type { Token } from '../stream/items.ts';
 import { fromText } from '../stream/text.ts';
 import { units } from '../stream/words.ts';
 import { exportEditionTei } from './apparatus.ts';
@@ -53,6 +54,34 @@ describe('exportEditionTei', () => {
     expect(xml).toContain(
       '<ab n="1.1">the <app><lem wit="#wit-A #wit-C">quick brown</lem><rdg wit="#wit-B">slow</rdg><rdg type="conjecture" resp="Bentley">swift</rdg></app> <app><lem wit="#wit-A #wit-B"/><rdg wit="#wit-C">red</rdg></app> fox<lb/>jumps</ab>',
     );
+  });
+
+  it('writes a word that a line break divides with the break inside it, and a paragraph break typed by its kind', () => {
+    const edition = fromText('ἀνα στασις δε μῦθος', { ids: sequentialIds('e') });
+    (edition.items[0] as Token).joinNext = true;
+    edition.items.splice(1, 0, { kind: 'break', id: 'b1', type: 'line' });
+    // A paragraph, and one marked as prose; one of the edition's own kind.
+    edition.items.splice(4, 0, { kind: 'break', id: 'b2', type: 'paragraph', lineation: 'prose' });
+    edition.items.push({ kind: 'break', id: 'b3', type: 'paragraph' });
+    const baseUnits = units(edition, 0, edition.items.length);
+    const xml = exportEditionTei({
+      title: 'Test edition',
+      witnesses: [],
+      segments: [{ label: '1', items: edition.items, baseUnits, sites: [] }],
+    });
+    expect(xml).toContain('<ab n="1">ἀνα<lb/>στασις δε<lb/><lb type="prose"/>μῦθος<lb/><lb/></ab>');
+  });
+
+  it('writes words joined without a break between them as one', () => {
+    const edition = fromText('ἀνα στασις δε', { ids: sequentialIds('e') });
+    (edition.items[0] as Token).joinNext = true;
+    const baseUnits = units(edition, 0, edition.items.length);
+    const xml = exportEditionTei({
+      title: 'Test edition',
+      witnesses: [],
+      segments: [{ label: '1', items: edition.items, baseUnits, sites: [] }],
+    });
+    expect(xml).toContain('<ab n="1">ἀναστασις δε</ab>');
   });
 
   it('marks an adopted conjecture on the lemma and names a witness that has lost the words nowhere', () => {

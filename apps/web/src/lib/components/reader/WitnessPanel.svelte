@@ -75,10 +75,12 @@
         });
       else lines[lines.length - 1]!.items.push(item);
     }
+    // A word divided by the end of a line is written with a hyphen there: every line the run's breaks end.
+    const ended = lines.length - 1;
     // A run ends where the next segment begins: the break before it belongs to neither.
     while (lines.length > 1 && lines[lines.length - 1]!.items.length === 0) lines.pop();
-    return lines.map((line) => ({
-      pieces: printLine(line.items, LEIDEN_SIGLA, shownForm),
+    return lines.map((line, l) => ({
+      pieces: printLine(line.items, LEIDEN_SIGLA, shownForm, l < ended),
       brk: line.brk,
     }));
   }
@@ -214,7 +216,8 @@
                           data-witness-token={piece.id}
                           >{#each piece.parts as part, p (p)}{#if part.struck}<s>{part.text}</s
                               >{:else}{part.text}{/if}{/each}</span
-                        >{piece.after}{:else if piece.kind === 'gap'}<span
+                        >{piece.after}{#if piece.hyphen}<span class="hyphen" aria-hidden="true"
+                          ></span>{/if}{:else if piece.kind === 'gap'}<span
                           class={['text-ink-muted', piece.untranscribed && 'italic']}
                           title={piece.untranscribed ? r.text.notTranscribed : undefined}
                           >{gapSign(piece)}</span
@@ -233,6 +236,11 @@
 </section>
 
 <style>
+  /* The hyphen of a word the end of a line divides is drawn, and is no part of the text. */
+  .hyphen::after {
+    content: '-';
+  }
+
   .panel {
     border: 1px solid var(--color-line);
     border-radius: 0.5rem;

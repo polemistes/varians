@@ -19,9 +19,9 @@ export const edition = {
   noWitnesses:
     'No witness of this work has been transcribed yet. The conspectus can be filled later.',
   conventions: 'Conventions',
-  lineation: 'Lineation',
-  verse: 'Verse, labels every few lines',
-  prose: 'Prose, every label printed',
+  lineation: 'Paragraphs',
+  verse: 'Verse',
+  prose: 'Prose',
   numberEvery: 'Label every',
   numberEveryUnit: 'lines',
   apparatusForm: 'Apparatus',

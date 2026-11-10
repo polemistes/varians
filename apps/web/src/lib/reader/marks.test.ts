@@ -25,6 +25,32 @@ describe('printLine', () => {
     ).toBe('μῆνιν ἄειδε θεά');
   });
 
+  it('draws a hyphen after the last word of a line the end divides, outside its text', () => {
+    const items = [t('a', 'μῆνιν'), t('b', 'ἄει', { joinNext: true })];
+    expect(plainLine(printLine(items, DEFAULT_SIGLA, 'read', true))).toBe('μῆνιν ἄει-');
+    expect(printLine(items, DEFAULT_SIGLA, 'read', true)[1]).toMatchObject({
+      parts: [{ text: 'ἄει' }],
+      hyphen: true,
+    });
+    // Nothing to divide where the last word is whole, or where the line's end is not shown.
+    expect(plainLine(printLine([t('a', 'μῆνιν')], DEFAULT_SIGLA, 'read', true))).toBe('μῆνιν');
+    expect(plainLine(printLine(items, DEFAULT_SIGLA, 'read', false))).toBe('μῆνιν ἄει');
+  });
+
+  it('runs a prose paragraph on over its line breaks, joining the parts of a word they divide', () => {
+    const items: Item[] = [
+      t('a', 'ἀνα', { joinNext: true }),
+      { kind: 'break', id: 'b1', type: 'line' },
+      t('b', 'στασις'),
+      { kind: 'break', id: 'b2', type: 'line' },
+      t('c', 'δε', { marks: [{ kind: 'supplied' }] }),
+      { kind: 'break', id: 'b3', type: 'line' },
+      t('d', 'μοι', { marks: [{ kind: 'supplied' }] }),
+    ];
+    // The run of supplied words goes over the break between them, which is not shown.
+    expect(print(items)).toBe('ἀναστασις ⟨δε μοι⟩');
+  });
+
   it('brackets a run of supplied words once, in the edition convention', () => {
     const items = [
       t('a', 'οὐλομένην'),

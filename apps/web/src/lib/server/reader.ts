@@ -11,6 +11,7 @@ import {
   compareOrder,
   layoutLines,
   orderVariants,
+  runOn,
   type ApparatusConventions,
   type ApparatusEntry,
   type Attachment,
@@ -21,6 +22,7 @@ import {
   type OrderVariant,
   type OrderWitness,
   type Stream,
+  type Token,
   type Unit,
   units,
   licenceInfo,
@@ -105,32 +107,34 @@ export function driftOf(context: EditionContext, segmentTokenIds: string[]): Dri
   for (const id of new Set(segmentTokenIds)) {
     const token = editionById.get(id);
     if (!token || token.kind !== 'token' || token.source?.kind !== 'witness') continue;
+    // A word the edition keeps divided is one word, compared whole, and the drift is its first part's.
+    const word = dividedWord(context, token, token.source.transcriptionId);
+    if (!word) continue;
     const source = token.source;
     const siglum = context.sigla.find((x) => x.transcriptionId === source.transcriptionId);
     const index = wordIndexOf(context, source.transcriptionId);
     if (!siglum || !index) continue;
+    const tokenIds = [...new Set(word.sources.flatMap((s) => s.tokenIds))];
     const words = [
       ...new Set(
-        source.tokenIds
-          .map((t) => index.corrected.get(t))
-          .filter((w): w is string => w !== undefined),
+        tokenIds.map((t) => index.corrected.get(t)).filter((w): w is string => w !== undefined),
       ),
     ];
     const now = words.join(' ').normalize('NFC');
     const parts = now.split(/\s+/u).filter(Boolean);
-    const form = token.form.normalize('NFC');
+    const form = word.form.normalize('NFC');
     if (parts.includes(form) || now === form) continue;
     // A word the edition took from another state of the witness is not adrift while that state still has it.
     if (
       index.states.some((state) =>
-        source.tokenIds
+        tokenIds
           .map((t) => state.get(t))
           .some((w) => w !== undefined && w.normalize('NFC').split(/\s+/u).includes(form)),
       )
     )
       continue;
     if (siglum.variantSiglum) {
-      const noted = source.tokenIds
+      const noted = tokenIds
         .map((t) => index.variant.get(t))
         .filter((w): w is string => w !== undefined);
       if (noted.some((w) => w.normalize('NFC').split(/\s+/u).includes(form))) continue;
@@ -138,6 +142,49 @@ export function driftOf(context: EditionContext, segmentTokenIds: string[]): Dri
     out.push({ tokenId: id, siglum: siglum.siglum, transcriptionId: source.transcriptionId, now });
   }
   return out;
+}
+
+/**
+ * The whole word an edition token is a part of, from its first part: the
+ * parts' forms run together and the witness sources they were taken from.
+ * Null for a part that follows another, whose word is the first part's.
+ */
+function dividedWord(
+  context: EditionContext,
+  token: Token,
+  transcriptionId: string,
+): { form: string; sources: { tokenIds: string[] }[] } | null {
+  const items = context.edition.content.items;
+  const at = positionIndex(context).get(token.id);
+  if (at === undefined) return null;
+  let before = at - 1;
+  while (items[before]?.kind === 'break') before--;
+  const previous = items[before];
+  if (previous?.kind === 'token' && previous.joinNext) return null;
+  const parts: Token[] = [token];
+  for (let i = at + 1, last: Token = token; last.joinNext && i < items.length; i++) {
+    const next = items[i]!;
+    if (next.kind === 'break') continue;
+    if (next.kind !== 'token') break;
+    parts.push(next);
+    last = next;
+  }
+  const sources = parts.flatMap((part) =>
+    part.source?.kind === 'witness' && part.source.transcriptionId === transcriptionId
+      ? [part.source]
+      : [],
+  );
+  return { form: parts.map((part) => part.form).join(''), sources };
+}
+
+const positionIndexes = new WeakMap<EditionContext, Map<string, number>>();
+function positionIndex(context: EditionContext): Map<string, number> {
+  let index = positionIndexes.get(context);
+  if (!index) {
+    index = new Map(context.edition.content.items.map((item, i) => [item.id, i] as const));
+    positionIndexes.set(context, index);
+  }
+  return index;
 }
 
 const editionIndexes = new WeakMap<EditionContext, Map<string, Item>>();
@@ -491,8 +538,7 @@ export async function editionView(
   );
   markUnprinted(views, unprinted);
   const order = options.order === false ? null : orderOf(context);
-  const lineation =
-    row.conventions.lineation === 'prose' ? 1 : Number(row.conventions.numberEvery ?? 5);
+  const lineation = row.conventions.lineation ?? 'verse';
   return {
     edition: {
       id: row.id,
@@ -517,9 +563,13 @@ export async function editionView(
     lines:
       options.lines === false
         ? []
-        : layoutLines(context.edition.content, (id) => labelOf[id] ?? id, {
-            numberEvery: lineation,
-          }),
+        : runOn(
+            context.edition.content,
+            layoutLines(context.edition.content, (id) => labelOf[id] ?? id, {
+              numberEvery: Number(row.conventions.numberEvery ?? 5),
+              lineation,
+            }),
+          ),
     sigla,
     segments: views,
     labelOf,

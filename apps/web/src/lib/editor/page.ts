@@ -36,6 +36,8 @@ export interface PageView {
   anchor: Break | null;
   /** The page shown has no break yet; its break is created after this item on the first edit. */
   missing: { pageId: string; after: Id | null } | null;
+  /** A page break follows the items shown: a word that ends them and runs on is divided by it. */
+  trailingBreak: boolean;
 }
 
 export function isPageBreak(item: Item | undefined): item is Break {
@@ -53,12 +55,18 @@ export function pageView(
   page: string | null | undefined,
   pageOrder: readonly string[] = [],
 ): PageView {
-  if (page === null || page === undefined) return { stream: whole, anchor: null, missing: null };
+  if (page === null || page === undefined)
+    return { stream: whole, anchor: null, missing: null, trailingBreak: false };
   const items = whole.items;
   if (page === UNPLACED) {
     let end = 0;
     while (end < items.length && !isPageBreak(items[end])) end++;
-    return { stream: { items: items.slice(0, end) }, anchor: null, missing: null };
+    return {
+      stream: { items: items.slice(0, end) },
+      anchor: null,
+      missing: null,
+      trailingBreak: end < items.length,
+    };
   }
   const start = items.findIndex((item) => isPageBreak(item) && item.pageId === page);
   if (start < 0) {
@@ -67,6 +75,7 @@ export function pageView(
       stream: { items: [] },
       anchor: null,
       missing: { pageId: page, after: pageBreakPlace(whole, page, order) },
+      trailingBreak: false,
     };
   }
   let end = start + 1;
@@ -75,6 +84,7 @@ export function pageView(
     stream: { items: items.slice(start + 1, end) },
     anchor: items[start] as Break,
     missing: null,
+    trailingBreak: end < items.length,
   };
 }
 

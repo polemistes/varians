@@ -117,22 +117,18 @@
           ><input type="radio" name="lineation" value="prose" bind:group={lineation} />
           {t.prose}</label
         >
-        {#if lineation === 'verse'}
-          <label class="flex items-center gap-2 text-ink-soft">
-            {e.numberEvery}
-            <Input
-              name="numberEvery"
-              type="number"
-              min="1"
-              max="100"
-              value={String(edition.conventions.numberEvery)}
-              class="w-20"
-            />
-            {e.numberEveryUnit}
-          </label>
-        {:else}
-          <input type="hidden" name="numberEvery" value="1" />
-        {/if}
+        <label class="flex items-center gap-2 text-ink-soft">
+          {e.numberEvery}
+          <Input
+            name="numberEvery"
+            type="number"
+            min="1"
+            max="100"
+            value={String(edition.conventions.numberEvery)}
+            class="w-20"
+          />
+          {e.numberEveryUnit}
+        </label>
       </fieldset>
       <fieldset class="flex flex-col gap-2 font-sans text-sm">
         <legend class="mb-1 text-xs text-ink-soft">{e.apparatusForm}</legend>

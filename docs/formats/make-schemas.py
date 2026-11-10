@@ -73,7 +73,7 @@ stream = {
     ]},
     'token': obj({'kind': {'const': 'token'}, 'id': ref('id'), 'form': {'type': 'string'}, 'norm': {'type': 'string'}, 'unchecked': {'type': 'boolean'}, 'joinNext': {'type': 'boolean'},
                   'sep': {'enum': ['space', 'none', 'interpunct', 'other']}, 'segment': sref('segmentStart'), 'marks': arr(sref('mark')), 'source': sref('source')}, ['kind', 'id', 'form']),
-    'break': obj({'kind': {'const': 'break'}, 'id': ref('id'), 'type': {'enum': ['line', 'column', 'page', 'paragraph']}, 'pageId': ref('id'), 'label': {'type': 'string'}, 'rend': {'type': 'string'}}, ['kind', 'id', 'type']),
+    'break': obj({'kind': {'const': 'break'}, 'id': ref('id'), 'type': {'enum': ['line', 'column', 'page', 'paragraph']}, 'pageId': ref('id'), 'label': {'type': 'string'}, 'rend': {'type': 'string'}, 'lineation': {'enum': ['verse', 'prose']}}, ['kind', 'id', 'type']),
     'object': obj({'kind': {'const': 'object'}, 'id': ref('id'), 'type': {'enum': ['gap', 'figure', 'mark', 'note', 'lacuna', 'paratext', 'space']}, 'attrs': attrs, 'text': {'type': 'string'}, 'segment': sref('segmentStart')}, ['kind', 'id', 'type']),
     'item': {'oneOf': [sref('token'), sref('break'), sref('object')]},
     'op': ops,

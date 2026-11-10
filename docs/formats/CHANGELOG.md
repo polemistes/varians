@@ -32,6 +32,9 @@ The format becomes a specification ([specification.md](specification.md)) with J
 
 - A place of variation can be marked minor. An entry of an edition's `siteKinds` is `{ segmentId, siteKey, kind?, minor?, personId, setAt }`: `kind` (`textual` or `interpretative`) when the editor set one, `minor: true` when the place is minor, the two independent. The TEI writes a minor place as `<app type="textual" subtype="minor">` or `<app type="interpretative" subtype="minor">`; the ODD and `varians.rng` allow `app/@type` `textual` and `app/@subtype` `minor`. An archive written on 10 November 2026 may give `kind: "unreported"`, which a reader takes as `minor: true`. The `basis` of a published moment of an edition records the marks as they stood (`siteKinds`, with the same two words), so that a published version does not change when they do.
 
+- A paragraph break of an edition's text may carry `lineation`, `verse` or `prose`: the kind of the paragraph it opens, which where absent is the kind the edition's `conventions.lineation` gives. The line breaks of a prose paragraph are kept and not shown. In the edition's TEI the second `<lb>` of a paragraph break is typed `verse` or `prose`, and the ODD allows `lb/@type` those two values.
+- `joinNext` joins a word that a segment boundary divides as well as one that a line break divides, and in an edition a word divided by a line break is kept divided. Nothing in the files changes: the hyphen was never stored.
+
 **Clarified, November 2026**
 
 - Reconciling two histories (5.3): a merge is also a conflict when it would carry a word into a segment that neither side gave it, which operations on disjoint ids can do. Nothing in the files changes.

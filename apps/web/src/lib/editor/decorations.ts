@@ -11,6 +11,7 @@ import {
   isBreak,
   isNotTranscribed,
   isToken,
+  shownBreaks,
   variantGroup,
   type Break,
   type Id,
@@ -18,6 +19,7 @@ import {
   type Mark,
   type Obj,
   type SegmentStart,
+  type Shown,
 } from '@varians/core';
 import { editor as editorText } from '../strings/editor.ts';
 import { breakLabels, editorStrings, objectLabels } from './labels.ts';
@@ -38,6 +40,29 @@ export function linesOf(model: Model): LineInfo[] {
     lineCache.set(model, lines);
   }
   return lines;
+}
+
+const shownCache = new WeakMap<Model, Shown>();
+
+/**
+ * What the model shows of its breaks: the words divided by the end of a line
+ * that is shown, which are written with a hyphen there, and the breaks that
+ * are not shown. A transcript shows every break; in an edition the line
+ * breaks of a prose paragraph are not shown and no word of one is hyphenated.
+ */
+export function shownOf(model: Model): Shown {
+  let shown = shownCache.get(model);
+  if (!shown) {
+    const items = model.view.stream.items;
+    const found = shownBreaks(items, model.lineation ?? 'verse');
+    const hidden = model.lineation === null ? new Set<Id>() : found.hidden;
+    // A word the shown text ends with is divided by the page break that follows it.
+    const last = items[items.length - 1];
+    if (model.view.trailingBreak && isToken(last) && last.joinNext) found.hyphens.add(last.id);
+    shown = { hyphens: found.hyphens, hidden };
+    shownCache.set(model, shown);
+  }
+  return shown;
 }
 
 export function segmentLabel(model: Model, segment: SegmentStart): string {
@@ -127,6 +152,24 @@ class HyphenWidget extends WidgetType {
     span.className = 'cm-join-hyphen';
     span.textContent = '-';
     span.setAttribute('aria-hidden', 'true');
+    return span;
+  }
+}
+
+/** What stands where a line break is not shown: the space between two words, or nothing inside a word. */
+class RunOnWidget extends WidgetType {
+  constructor(readonly space: boolean) {
+    super();
+  }
+
+  override eq(other: RunOnWidget): boolean {
+    return other.space === this.space;
+  }
+
+  toDOM(): HTMLElement {
+    const span = document.createElement('span');
+    span.className = 'cm-run-on';
+    span.textContent = this.space ? ' ' : '';
     return span;
   }
 }
@@ -224,12 +267,70 @@ function variantTitle(mark: Mark): string {
   return editorStrings.variantTitle(reading, place);
 }
 
+/**
+ * The line breaks the editor does not show, and the spaces that stand for
+ * nothing, as replaced ranges: the document keeps its newline where the text
+ * has its break, and the view puts a space there (or nothing, inside a word),
+ * the lines on either side being one line. The caret skips such a range as it
+ * skips one character. A break between a word and the next that it joins with
+ * no break between them (a word divided where a segment begins) hides the space
+ * the document has there, so that the word is one word. The text that opens
+ * with a paragraph break does not show an empty line above it.
+ */
+export function buildRunOn(model: Model): DecorationSet {
+  if (model.misaligned) return Decoration.none;
+  const shown = shownOf(model);
+  const spans = model.ledger.spans;
+  const ranges: Range<Decoration>[] = [];
+  const hide = (from: number, to: number, space: boolean) =>
+    ranges.push(Decoration.replace({ widget: new RunOnWidget(space) }).range(from, to));
+  const joins = (span: (typeof spans)[number] | undefined): boolean => {
+    const item = span ? model.byId.get(span.id) : undefined;
+    return isToken(item) && item.joinNext === true;
+  };
+  for (let i = 0; i < spans.length; i++) {
+    const span = spans[i]!;
+    if (span.kind === 'break') {
+      const item = model.byId.get(span.id);
+      if (i === 0 && model.lineation !== null && isBreak(item) && item.type === 'paragraph') {
+        hide(span.from, span.to, false);
+        continue;
+      }
+      if (!shown.hidden.has(span.id)) continue;
+      // The breaks in a row that are not shown stand for one space between the words either side.
+      let last = i;
+      while (spans[last + 1]?.kind === 'break' && shown.hidden.has(spans[last + 1]!.id)) last++;
+      const before = spans[i - 1];
+      const after = spans[last + 1];
+      if (before && after && before.kind !== 'break' && after.kind !== 'break')
+        hide(before.to, after.from, !joins(before));
+      else hide(span.from, spans[last]!.to, false);
+      i = last;
+      continue;
+    }
+    const next = spans[i + 1];
+    if (joins(span) && next?.kind === 'token' && next.from > span.to)
+      hide(span.to, next.from, false);
+  }
+  return Decoration.set(ranges, true);
+}
+
 /** The decorations of a model. `perLineDirection` adds `dir=auto` to every line. */
 export function buildDecorations(model: Model, perLineDirection: boolean): DecorationSet {
   if (model.misaligned) return Decoration.none;
   const ranges: Range<Decoration>[] = [];
   const lines = linesOf(model);
+  const shown = shownOf(model);
   for (const line of lines) {
+    // A line that a break not shown joins to the line above is part of that line.
+    const continued = line.opener !== null && shown.hidden.has(line.opener.id);
+    if (continued) {
+      for (const start of line.starts) {
+        const widget = new SegmentLabelWidget(segmentLabel(model, start.segment), start.span.id);
+        ranges.push(Decoration.widget({ widget, side: -1 }).range(start.span.from));
+      }
+      continue;
+    }
     const attributes: Record<string, string> = {};
     const classes: string[] = [];
     if (perLineDirection) attributes.dir = 'auto';
@@ -286,10 +387,9 @@ export function buildDecorations(model: Model, perLineDirection: boolean): Decor
     if (!isToken(item) || span.to <= span.from) continue;
     const classes = ['cm-token'];
     if (item.unchecked) classes.push('cm-unchecked');
-    if (item.joinNext) {
-      classes.push('cm-joined');
+    if (item.joinNext) classes.push('cm-joined');
+    if (shown.hyphens.has(item.id))
       ranges.push(Decoration.widget({ widget: new HyphenWidget(), side: 1 }).range(span.to));
-    }
     ranges.push(
       Decoration.mark({ class: classes.join(' '), attributes: { 'data-token': item.id } }).range(
         span.from,

@@ -305,6 +305,40 @@ describe('takeCurrentOps', () => {
     ).toEqual(['μῆν', 'ἵν', 'ἄειδε']);
   });
 
+  it('takes a word the edition keeps divided whole in its first part, the parts after it going', () => {
+    const divided: Stream = {
+      items: [
+        {
+          kind: 'token',
+          id: 'p',
+          form: 'ἀνά',
+          joinNext: true,
+          segment: { segmentId: 's1' },
+          source: { kind: 'witness', transcriptionId: 'A', tokenIds: ['x'] },
+        },
+        { kind: 'break', id: 'br', type: 'line' },
+        {
+          kind: 'token',
+          id: 'q',
+          form: 'στασις',
+          segment: { segmentId: 's2' },
+          source: { kind: 'witness', transcriptionId: 'A', tokenIds: ['y'] },
+        },
+        { kind: 'token', id: 'r', form: 'δε' },
+      ],
+    };
+    const ops = takeCurrentOps(divided, { tokenId: 'p', now: 'ἀνάστασεις' });
+    const next = applyOps(divided, ops).stream;
+    expect(next.items.map((i) => (i.kind === 'token' ? i.form : '/'))).toEqual([
+      'ἀνάστασεις',
+      '/',
+      'δε',
+    ]);
+    expect((next.items[0] as Token).joinNext).toBeUndefined();
+    // The segment the second part began begins at the next word.
+    expect((next.items[2] as Token).segment).toEqual({ segmentId: 's2' });
+  });
+
   it('does nothing when the witness no longer has the word or already agrees', () => {
     expect(takeCurrentOps(stream, { tokenId: 'a', now: '' })).toEqual([]);
     expect(takeCurrentOps(stream, { tokenId: 'a', now: 'μῆνιν' })).toEqual([]);

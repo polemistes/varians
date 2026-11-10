@@ -160,6 +160,12 @@ export const editor = {
       conjecture: 'Conjecture at the caret…',
       marks: 'Edition marks',
     },
+    paragraph: {
+      menu: 'Paragraph',
+      verse: 'Verse',
+      prose: 'Prose',
+      begin: 'New Paragraph',
+    },
   },
   witness: {
     title: 'Witness',

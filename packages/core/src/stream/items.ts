@@ -55,7 +55,11 @@ export interface Token {
   norm?: string;
   /** The diplomatic form changed after the normalized form was last confirmed. */
   unchecked?: boolean;
-  /** This token and the next form one word (a word divided at a line's end). */
+  /**
+   * This token and the next form one word: divided at a line's end, or where
+   * a segment begins. The hyphen of a divided word is not stored: it is drawn
+   * where a line break that is shown falls inside the word.
+   */
   joinNext?: boolean;
   /** What the carrier has before this token, when recorded. */
   sep?: Separator;
@@ -68,6 +72,9 @@ export interface Token {
 
 export type BreakType = 'line' | 'column' | 'page' | 'paragraph';
 
+/** How a paragraph of an edition's text is shown: in lines as the editor breaks them, or run on. */
+export type Lineation = 'verse' | 'prose';
+
 export interface Break {
   kind: 'break';
   id: Id;
@@ -78,6 +85,13 @@ export interface Break {
   label?: string;
   /** Layout of the line that begins here: ltr, rtl, vertical, circular, boustrophedon, retrograde. */
   rend?: string;
+  /**
+   * On a paragraph break of an edition's text: whether the paragraph it opens
+   * is verse or prose. Absent: the edition's own convention. The text before
+   * the first paragraph break is a paragraph too; a paragraph break at the
+   * very start of the text opens it and carries its kind.
+   */
+  lineation?: Lineation;
 }
 
 /** Objects in the flow that are not words: gaps, figures, scribal marks, notes, paratext, lacuna marks. */

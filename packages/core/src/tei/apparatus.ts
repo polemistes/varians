@@ -178,7 +178,10 @@ function itemXml(item: Item, refs?: WitnessRefs): string {
     case 'token':
       return tokenXml(item, refs);
     case 'break':
-      return item.type === 'paragraph' ? '<lb/><lb/>' : '<lb/>';
+      // A paragraph is two line breaks, the second typed where the paragraph has a kind of its own.
+      return item.type === 'paragraph'
+        ? `<lb/><lb${item.lineation ? ` type="${item.lineation}"` : ''}/>`
+        : '<lb/>';
     case 'object': {
       const attrs = item.attrs ?? {};
       if (item.type === 'gap' && isNotTranscribed(attrs))
@@ -226,12 +229,20 @@ function segmentXml(segment: EditionSegmentExport, refs: WitnessRefs): string {
   }
   const emitted = new Set<Site>();
   const parts: string[] = [];
+  /** The last token written joins the next one: no space between them, as where a line break divides the word. */
+  let joinNext = false;
   const push = (xml: string) => {
     if (xml === '') return;
     const previous = parts[parts.length - 1];
-    if (previous !== undefined && !previous.startsWith('<lb') && !xml.startsWith('<lb'))
+    if (
+      previous !== undefined &&
+      !joinNext &&
+      !previous.startsWith('<lb') &&
+      !xml.startsWith('<lb')
+    )
       parts.push(' ');
     parts.push(xml);
+    joinNext = false;
   };
   for (const item of segment.items) {
     if (item.kind === 'token') {
@@ -252,6 +263,7 @@ function segmentXml(segment: EditionSegmentExport, refs: WitnessRefs): string {
         continue;
       }
       push(tokenXml(item, refs));
+      joinNext = item.joinNext === true;
       continue;
     }
     push(itemXml(item, refs));

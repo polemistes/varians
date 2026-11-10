@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sequentialIds } from '../ids.ts';
+import { shownBreaks } from '../edition/layout.ts';
 import { fromText, toText } from './text.ts';
 
 describe('fromText and toText', () => {
@@ -20,6 +21,13 @@ describe('fromText and toText', () => {
     const s = fromText('ἄνδ-\nρα μοι', { ids: sequentialIds(), hyphenJoins: true });
     expect(toText(s)).toBe('ἄνδ\nρα μοι');
     expect(s.items[0]).toMatchObject({ form: 'ἄνδ', joinNext: true });
+  });
+
+  it('writes the hyphen of a divided word where a shown line ends, and runs prose on', () => {
+    const s = fromText('ἄνδ-\nρα μοι\nἔν-\nνεπε', { ids: sequentialIds(), hyphenJoins: true });
+    expect(toText(s, { shown: shownBreaks(s.items, 'verse') })).toBe('ἄνδ-\nρα μοι\nἔν-\nνεπε');
+    // Where the lines are not shown the word runs on, and so do the words either side.
+    expect(toText(s, { shown: shownBreaks(s.items, 'prose') })).toBe('ἄνδρα μοι ἔννεπε');
   });
 
   it('prints the read form where asked', () => {

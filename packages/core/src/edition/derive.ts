@@ -5,7 +5,16 @@
  */
 
 import { newId } from '../ids.ts';
-import { readForm, type Id, type Item, type Stream, type Token } from '../stream/items.ts';
+import {
+  isToken,
+  readForm,
+  type Break,
+  type Id,
+  type Item,
+  type SegmentStart,
+  type Stream,
+  type Token,
+} from '../stream/items.ts';
 
 export interface DeriveOptions {
   ids?: () => Id;
@@ -16,9 +25,16 @@ export interface DeriveOptions {
 /**
  * An edition's text from a transcription: the read forms become the printed
  * words, each sourced from its witness token; line and paragraph breaks are
- * kept as the edition's first lineation; page and column breaks are dropped;
- * segment starts, gaps and paratext objects are kept; marks are not (the
- * edition's own sigla are its own).
+ * kept as the edition's first lineation; page and column breaks become line
+ * breaks; segment starts, gaps and paratext objects are kept; marks are not
+ * (the edition's own sigla are its own).
+ *
+ * A word the witness divides stays divided: its parts are joined tokens, each
+ * with the segment start it had. Where the first part carries a normalized
+ * form for the whole word, that form is divided where the witness divides the
+ * word, if its letters correspond to those of the parts as written; where
+ * they do not, the edition has the word whole before the break, and a segment
+ * that began with a later part begins with the next word.
  */
 export function deriveEdition(
   stream: Stream,
@@ -27,8 +43,10 @@ export function deriveEdition(
 ): Stream {
   const ids = options.ids ?? newId;
   const items: Item[] = [];
+  /** The witness token each edition token was made from. */
+  const origin = new Map<Id, Token>();
   let include = options.segmentIds === undefined;
-  let pendingBreak: Item | null = null;
+  let pendingBreak: Break | null = null;
   for (const item of stream.items) {
     if (item.kind === 'break') {
       if (!include) continue;
@@ -57,23 +75,117 @@ export function deriveEdition(
       source: { kind: 'witness', transcriptionId, tokenIds: [item.id] },
     };
     if (item.segment) token.segment = item.segment;
-    // A word divided at a line's end is printed whole, and the division is not the edition's.
-    if (item.joinNext) {
-      const previous = items[items.length - 1];
-      void previous;
-    }
+    if (item.joinNext) token.joinNext = true;
+    origin.set(token.id, item);
     items.push(token);
   }
-  return { items: joinDividedWords(items) };
+  return { items: withoutEmptyLines(dividedWords(items, origin, transcriptionId)) };
 }
 
-/** Tokens the witness divided at a line end are one printed word in the edition. */
-function joinDividedWords(items: Item[]): Item[] {
-  const out: Item[] = [];
+/** The letters of a text, which the parts of a divided word and its normalized form are compared by: accents and breathings are not counted. */
+function letterCount(text: string): number {
+  let n = 0;
+  for (const char of text) if (/\p{L}/u.test(char)) n++;
+  return n;
+}
+
+/**
+ * The parts of a word whose letters are counted, as the normalized form of
+ * the whole word divides over them, and whether each part joins the next
+ * (not where a space of the normalized form falls between two parts). Null
+ * where the letters do not correspond.
+ */
+function divide(whole: string, letters: number[]): { form: string; joinNext: boolean }[] | null {
+  if (letters.some((n) => n === 0) || letterCount(whole) !== letters.reduce((a, b) => a + b, 0))
+    return null;
+  const chars = Array.from(whole);
+  const texts: string[] = [];
+  let at = 0;
+  for (const n of letters.slice(0, -1)) {
+    let seen = 0;
+    while (at < chars.length && seen < n) if (/\p{L}/u.test(chars[at++]!)) seen++;
+    // The marks that stand on the last letter go with it.
+    while (at < chars.length && /\p{M}/u.test(chars[at]!)) at++;
+    texts.push(chars.splice(0, at).join(''));
+    at = 0;
+  }
+  texts.push(chars.join(''));
+  const parts = texts.map((text, k) => ({
+    form: text.trim(),
+    joinNext: k < texts.length - 1 && !/\s$/u.test(text) && !/^\s/u.test(texts[k + 1]!),
+  }));
+  return parts.some((part) => part.form === '') ? null : parts;
+}
+
+/**
+ * The tokens of the words the witness divides, as the edition has them (see
+ * `deriveEdition`). A join that nothing follows, where the text derived stops
+ * inside the word, is dropped.
+ */
+function dividedWords(items: Item[], origin: ReadonlyMap<Id, Token>, transcriptionId: Id): Item[] {
+  const absorbed = new Set<Id>();
   for (let i = 0; i < items.length; i++) {
-    const item = items[i]!;
+    const first = items[i]!;
+    if (!isToken(first) || !first.joinNext) continue;
+    // The parts of the word: the tokens the join reaches, over the breaks between them.
+    const at = [i];
+    for (let current: Token = first, j = i + 1; current.joinNext; j++) {
+      while (items[j]?.kind === 'break') j++;
+      const next = items[j];
+      if (!isToken(next)) break;
+      at.push(j);
+      current = next;
+    }
+    const parts = at.map((k) => items[k] as Token);
+    const last = parts[parts.length - 1]!;
+    delete last.joinNext;
+    i = at[at.length - 1]!;
+    if (parts.length === 1) continue;
+    const witness = parts.map((part) => origin.get(part.id)!);
+    const whole = witness[0]!.norm;
+    // Without a normalized form for the word, the parts keep their read forms.
+    if (whole === undefined) continue;
+    const cut = divide(
+      whole,
+      witness.map((w) => letterCount(w.form)),
+    );
+    if (cut) {
+      parts.forEach((part, k) => {
+        part.form = cut[k]!.form;
+        if (cut[k]!.joinNext) part.joinNext = true;
+        else delete part.joinNext;
+      });
+      continue;
+    }
+    // The word whole in its first part; what began with a later part begins with the next word.
+    const [head, ...rest] = parts as [Token, ...Token[]];
+    head.form = whole;
+    delete head.joinNext;
+    head.source = { kind: 'witness', transcriptionId, tokenIds: witness.map((w) => w.id) };
+    let carried: SegmentStart | undefined;
+    for (const part of rest) {
+      absorbed.add(part.id);
+      if (part.segment) carried = part.segment;
+    }
+    const next = items.slice(i + 1).find((item) => item.kind !== 'break');
+    if (carried && next && !(next as Token).segment && !absorbed.has(next.id))
+      (next as Token).segment = carried;
+  }
+  return items.filter((item) => !absorbed.has(item.id));
+}
+
+/** Breaks that no word stands between become one (a paragraph break outweighs a line break), and none ends the text. */
+function withoutEmptyLines(items: Item[]): Item[] {
+  const out: Item[] = [];
+  for (const item of items) {
+    const previous = out[out.length - 1];
+    if (item.kind === 'break' && previous?.kind === 'break') {
+      if (item.type === 'paragraph') out[out.length - 1] = item;
+      continue;
+    }
     out.push(item);
   }
+  while (out[out.length - 1]?.kind === 'break') out.pop();
   return out;
 }
 

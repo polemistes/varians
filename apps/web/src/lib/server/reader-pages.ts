@@ -381,6 +381,7 @@ export function readerPlainText(view: EditionView, mode: ReaderMode): string {
     sigla: view.edition.conventions.sigla ?? DEFAULT_SIGLA,
     noteWord: r.plain.note,
     interpretativeWord: r.plain.interpretative,
+    lineation: view.edition.conventions.lineation,
   });
 }
 

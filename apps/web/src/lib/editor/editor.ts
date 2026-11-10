@@ -48,6 +48,7 @@ import {
   type Break,
   type Id,
   type Item,
+  type Lineation,
   type Obj,
   type ObjectType,
   type Op,
@@ -64,7 +65,14 @@ import {
   SEGMENT_CLICK_EVENT,
   segmentLabel,
 } from './decorations.ts';
-import { backspaceUnjoin, hyphenEnter, joinLinesEdit, spanContaining } from './hyphen.ts';
+import {
+  backspaceUnjoin,
+  divideWord,
+  hyphenEnter,
+  joinLinesEdit,
+  rejoinWord,
+  spanContaining,
+} from './hyphen.ts';
 import { editorStrings, markLabels, objectLabels } from './labels.ts';
 import { lineAt, type BreakTarget, type BreakType } from './lines.ts';
 import {
@@ -88,6 +96,7 @@ import {
 import { setTokenClasses, tokenClassField, type TokenClasses } from './highlight.ts';
 import { marginGutter, marginMarksField, setMarginMarks, type MarginMark } from './margin.ts';
 import { buildModel, type Model, type ModelOptions } from './model.ts';
+import { hiddenBreakAt, lineationIn, markLineation, paragraphAt } from './paragraphs.ts';
 import { breakAt, breakPreview, setBreakPreview, type BreakPreview } from './preview.ts';
 import { planInsertion, selectionTokens, tokenAt, tokenSpanAt } from './selection.ts';
 import {
@@ -113,6 +122,15 @@ export interface EditorProps {
   lineNumbers?: boolean;
   segmentLabels?: Record<string, string>;
   pageLabels?: Record<string, string>;
+  /**
+   * An edition's text: the kind of a paragraph that is not marked. The editor
+   * decides where the lines break (Enter inside a word divides it, joining the
+   * lines puts it together), each paragraph is verse, shown in lines, or prose,
+   * whose line breaks are not shown, and a word is hyphenated where a line
+   * that is shown ends inside it. Absent for a transcript, whose lines the
+   * transcriber sets and are all shown.
+   */
+  lineation?: Lineation | null;
   /** Classes to put on tokens: highlights the host decides (variant sites, a hovered zone's words). */
   tokenClasses?: TokenClasses;
   /** Marks in a margin between lines, each after the line of an item; no margin when absent. */
@@ -174,6 +192,19 @@ export interface EditorApi {
    * before the line, wherever in it the caret stands. A line break is Enter.
    */
   insertBreak(type: BreakType): boolean;
+  /**
+   * Begin a paragraph: in verse as `insertBreak` does, at the caret's line; in
+   * prose, where lines are not shown, at the caret.
+   */
+  newParagraph(): boolean;
+  /**
+   * Make the paragraphs the selection touches (the caret's, with none) verse
+   * or prose, by a mark on the paragraph break that opens each; the first
+   * paragraph of the text, which no break opens, gets one. For an edition.
+   */
+  setLineation(kind: Lineation): boolean;
+  /** The kind of the paragraphs the selection touches, when they are of one kind; null otherwise, and for a transcript. */
+  lineationAtSelection(): Lineation | null;
   /** The caret's line, and what each kind of break would do there; null when no break can be made. */
   breakChoices(): BreakChoices | null;
   /** Show where a break would go (`any`: any kind), or stop showing it (null). */
@@ -228,6 +259,7 @@ interface Settled {
   lineNumbers: boolean;
   segmentLabels: Record<string, string>;
   pageLabels: Record<string, string>;
+  lineation: Lineation | null;
   tokenClasses: TokenClasses;
   marginMarks: MarginMark[] | null;
   handLabel?: (value: string) => string;
@@ -247,6 +279,7 @@ function settle(props: EditorProps): Settled {
     lineNumbers: props.lineNumbers ?? true,
     segmentLabels: props.segmentLabels ?? {},
     pageLabels: props.pageLabels ?? {},
+    lineation: props.lineation ?? null,
     tokenClasses: props.tokenClasses ?? NO_CLASSES,
     marginMarks: props.marginMarks ?? null,
     ...(props.handLabel ? { handLabel: props.handLabel } : {}),
@@ -469,6 +502,7 @@ export class VariansEditor implements EditorApi {
       pageOrder: this.props.pageOrder,
       segmentLabels: this.props.segmentLabels,
       pageLabels: this.props.pageLabels,
+      lineation: this.props.lineation,
     };
   }
 
@@ -620,7 +654,8 @@ export class VariansEditor implements EditorApi {
       next.page !== previous.page ||
       next.pageOrder !== previous.pageOrder ||
       next.segmentLabels !== previous.segmentLabels ||
-      next.pageLabels !== previous.pageLabels;
+      next.pageLabels !== previous.pageLabels ||
+      next.lineation !== previous.lineation;
     if (streamChanged) this.whole = next.stream;
     const viewChanged = next.form !== previous.form || next.page !== previous.page;
     const caret = viewChanged ? this.tokenAtCaret() : null;
@@ -710,9 +745,43 @@ export class VariansEditor implements EditorApi {
 
   // Keys
 
+  /** Whether the text is an edition's, whose lines the editor breaks. */
+  private get isEdition(): boolean {
+    return this.props.lineation !== null;
+  }
+
+  /**
+   * Enter in a prose paragraph, which breaks at paragraphs only: the text goes
+   * on in a paragraph of its own, of the kind this one is marked as.
+   */
+  private breakParagraph(): boolean {
+    if (this.props.readonly) return false;
+    const main = this.view.state.selection.main;
+    const opener = paragraphAt(this.model, main.head).opener;
+    // Where the caret stands against a line break that is not shown, that break begins the paragraph: no second one is made.
+    const against = main.empty ? hiddenBreakAt(this.model, main.head) : null;
+    if (against) {
+      const fields: Record<string, unknown> = { type: 'paragraph' };
+      if (opener?.lineation) fields.lineation = opener.lineation;
+      return this.edit([{ t: 'set', id: against.id, fields }], undefined, against.next);
+    }
+    this.view.dispatch({
+      changes: { from: main.from, to: main.to, insert: '\n' },
+      selection: { anchor: main.from + 1 },
+      annotations: editIntent.of({
+        paragraph: opener?.lineation ? { lineation: opener.lineation } : {},
+      }),
+      userEvent: 'input',
+      scrollIntoView: true,
+    });
+    return true;
+  }
+
   private enter(view: EditorView): boolean {
     if (this.props.readonly) return true;
     const main = view.state.selection.main;
+    if (this.isEdition && paragraphAt(this.model, main.head).kind === 'prose')
+      return this.breakParagraph();
     if (main.empty) {
       const model = this.model;
       const edit = hyphenEnter(model.ledger, model.byId, main.head);
@@ -726,6 +795,11 @@ export class VariansEditor implements EditorApi {
         });
         return true;
       }
+      // Where the editor breaks the lines, a break inside a word divides it there.
+      if (this.isEdition) {
+        const divided = divideWord(model.ledger, model.byId, model.form, main.head, this.ids);
+        if (divided && this.edit(divided.ops, divided.change, divided.caret)) return true;
+      }
     }
     return insertNewline(view);
   }
@@ -733,6 +807,11 @@ export class VariansEditor implements EditorApi {
   private backspace(view: EditorView): boolean {
     if (this.props.readonly) return true;
     const main = view.state.selection.main;
+    if (main.empty && this.isEdition) {
+      const model = this.model;
+      const joined = rejoinWord(model.ledger, model.byId, main.head, 'backward');
+      if (joined && this.edit(joined.ops, joined.change, joined.caret)) return true;
+    }
     if (main.empty) {
       const model = this.model;
       const edit = backspaceUnjoin(model.ledger, model.byId, main.head);
@@ -767,6 +846,11 @@ export class VariansEditor implements EditorApi {
     if (this.props.readonly) return true;
     const main = view.state.selection.main;
     if (!main.empty) return false;
+    if (this.isEdition) {
+      const model = this.model;
+      const joined = rejoinWord(model.ledger, model.byId, main.head, 'forward');
+      if (joined && this.edit(joined.ops, joined.change, joined.caret)) return true;
+    }
     const join = joinLinesEdit(this.model.ledger, this.model.byId, main.head, 'forward');
     if (!join) return false;
     view.dispatch({
@@ -988,6 +1072,29 @@ export class VariansEditor implements EditorApi {
     const plan = planInsertion(model.ledger, model.byId, model.form, at.line.from, 'break');
     const brk: Break = { kind: 'break', id: this.ids(), type };
     return this.edit([{ t: 'insert', after: plan.after, items: [brk] }], plan.change, plan.caret);
+  }
+
+  newParagraph(): boolean {
+    if (this.props.readonly) return false;
+    if (
+      this.isEdition &&
+      paragraphAt(this.model, this.view.state.selection.main.head).kind === 'prose'
+    )
+      return this.breakParagraph();
+    return this.insertBreak('paragraph');
+  }
+
+  setLineation(kind: Lineation): boolean {
+    if (this.props.readonly || !this.isEdition || this.model.misaligned) return false;
+    const main = this.view.state.selection.main;
+    const marking = markLineation(this.model, main.from, main.to, kind, this.ids);
+    return marking !== null && this.edit(marking.ops, marking.change);
+  }
+
+  lineationAtSelection(): Lineation | null {
+    if (!this.isEdition || this.model.misaligned) return null;
+    const main = this.view.state.selection.main;
+    return lineationIn(this.model, main.from, main.to);
   }
 
   breakChoices(): BreakChoices | null {
