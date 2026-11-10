@@ -8,15 +8,7 @@
  * all, for the page asks for them of the segments it opens (`SegmentDetail`).
  * Pure, so that the page can use it.
  */
-import type {
-  Attachment,
-  Collation,
-  Reading,
-  Site,
-  SiteKind,
-  Unit,
-  VariantRelation,
-} from '@varians/core';
+import type { Attachment, Collation, Reading, Site, SiteKind, Unit } from '@varians/core';
 import type { ReaderData, ReaderNote, ReaderSegment } from './types.ts';
 
 /** What the reader's page is sent: the page data with its segments as they travel. */
@@ -62,7 +54,6 @@ export interface WireSegment {
   absent: string[];
   notes: ReaderNote[];
   cites?: Record<string, string[]>;
-  relations?: Record<number, (VariantRelation | null)[]>;
 }
 
 /**
@@ -97,7 +88,6 @@ export interface PackableSegment {
   absent: string[];
   notes: ReaderNote[];
   cites?: Record<string, string[]>;
-  relations?: Record<number, (VariantRelation | null)[]>;
 }
 
 /** The segments made ready to send, with the list of texts they name. */
@@ -157,7 +147,6 @@ export function packSegments(segments: Iterable<PackableSegment>): {
       absent: segment.absent,
       notes: segment.notes,
       ...(segment.cites ? { cites: segment.cites } : {}),
-      ...(segment.relations ? { relations: segment.relations } : {}),
     };
   }
   return { segments: out, texts };
@@ -205,7 +194,6 @@ export function unpackSegment(wire: WireSegment, texts: WireText[], baseId: stri
     absent: wire.absent,
     notes: wire.notes,
     ...(wire.cites ? { cites: wire.cites } : {}),
-    ...(wire.relations ? { relations: wire.relations } : {}),
   };
 }
 

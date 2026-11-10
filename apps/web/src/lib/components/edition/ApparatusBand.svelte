@@ -98,7 +98,6 @@
 
   function variantNote(reading: Reading, site: Site): string | null {
     const base = site.readings.find((r) => r.base);
-    if (reading.lacunose && reading.text === '') return s.lacuna;
     if (reading.omission) return s.omitted;
     if (base && base.text === '' && reading.text !== '') return s.added;
     return null;
@@ -224,8 +223,6 @@
               >{/if}
             {#each site.readings.filter((r) => !r.base) as reading, k (k)}
               {@const note = variantNote(reading, site)}
-              {@const relation =
-                segment.relations?.[site.index]?.[site.readings.indexOf(reading)] ?? null}
               <span class="text-ink-muted">:</span>
               {#if canEdit}
                 <button
@@ -241,10 +238,6 @@
                   <span class="text-xs tracking-wide text-ink-soft uppercase"
                     >{reading.sigla.join(' ')}</span
                   >
-                  {#if relation}<span
-                      class="text-xs text-ink-muted"
-                      title={s.relationTitle[relation]}>{s.relation[relation]}</span
-                    >{/if}
                 </button>
               {:else}
                 <span class="inline-flex items-baseline gap-1.5">
@@ -255,10 +248,6 @@
                   <span class="text-xs tracking-wide text-ink-soft uppercase"
                     >{reading.sigla.join(' ')}</span
                   >
-                  {#if relation}<span
-                      class="text-xs text-ink-muted"
-                      title={s.relationTitle[relation]}>{s.relation[relation]}</span
-                    >{/if}
                 </span>
               {/if}
             {/each}

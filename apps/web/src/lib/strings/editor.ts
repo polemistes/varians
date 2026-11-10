@@ -9,13 +9,6 @@ export const editor = {
   keep: 'Keep the text',
   kept: 'Reviewed',
   unreview: 'Review again',
-  /** How a reading stands to the edition's words, by the analyser of Greek forms. */
-  relation: { form: 'form', word: 'word', order: 'order' },
-  relationTitle: {
-    form: 'Another form of the same word (a lemma in common)',
-    word: 'Another word (no lemma in common)',
-    order: 'The same words in another order',
-  },
   textual: 'textual',
   interpretative: 'interpretative',
   kindTitle: (kind: 'textual' | 'interpretative', byEditor: boolean) =>
@@ -34,10 +27,9 @@ export const editor = {
   register: 'Conjecture…',
   omitted: 'omitted',
   added: 'added',
-  lacuna: 'lacuna',
   nothing: '⟨nothing⟩',
-  /** Witnesses whose transcripts begin after this segment or end before it. */
-  absent: (sigla: string) => `Not transcribed here: ${sigla}`,
+  /** Witnesses without this segment: their transcripts begin after it or end before it, or have lost it. */
+  absent: (sigla: string) => `No text here: ${sigla}`,
   noSites: 'The witnesses agree with the text here.',
   saving: 'saving…',
   order: 'order',

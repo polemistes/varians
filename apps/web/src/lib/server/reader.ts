@@ -19,10 +19,7 @@ import {
   type LayoutLine,
   type Stream,
   type Unit,
-  type VariantRelation,
   units,
-  variantRelation,
-  looseKey,
   licenceInfo,
 } from '@varians/core';
 import {
@@ -36,7 +33,6 @@ import {
   segments,
   users,
   witnesses,
-  works,
   type Database,
   type EditionConventions,
   type MomentBasis,
@@ -60,7 +56,6 @@ import { handLabel } from '../registry/witness.ts';
 import type { ReaderSiglumState } from '../reader/types.ts';
 import { reader as r } from '../strings/reader.ts';
 import { documentAt } from './documents/service.ts';
-import { analyseWords } from './lexicon.ts';
 import { siglaOrderOf } from '../reader/sites.ts';
 import { outlineOf, type SegmentOutline } from '../edition/outline.ts';
 
@@ -80,12 +75,6 @@ export interface SegmentView {
   cites: Record<string, string[]>;
   /** Words of the edition taken from a witness that now reads differently there. `now` is empty when the witness no longer has them. */
   drift: Drift[];
-  /**
-   * How each reading of a textual place stands to the edition's words, by
-   * site index and the reading's index among the site's readings: another
-   * form of the same word, another word, another order. Greek works only.
-   */
-  relations?: Record<number, (VariantRelation | null)[]>;
 }
 
 export interface Drift {
@@ -349,8 +338,6 @@ interface ViewParts {
   drift?: boolean;
   /** The notes and what the records cite. */
   notes?: boolean;
-  /** How the readings of Greek places stand to the edition's words. */
-  relations?: boolean;
 }
 
 /** What an edition's view is made of, when a page needs less than all of it. */
@@ -365,7 +352,7 @@ export interface ViewOptions {
   lines?: boolean;
   /** Say where the witnesses order whole segments otherwise (default), or leave it out. */
   order?: boolean;
-  /** The notes and what the records cite, and the relations of Greek readings to the edition's words (default), or leave them out. */
+  /** The notes and what the records cite (default), or leave them out. */
   detail?: boolean;
   /**
    * Collate afresh at most this many of the segments the cache lacks, those
@@ -443,7 +430,6 @@ export async function editionView(
       entries: options.lean !== true,
       drift: options.lean !== true,
       notes: options.detail !== false,
-      relations: options.detail !== false,
     },
   );
   const lineation =
@@ -614,7 +600,7 @@ export async function editionOutline(
     witnessById,
     null,
     audience,
-    { entries: false, notes: false, relations: false },
+    { entries: false, notes: false },
   );
   return {
     outline: Object.fromEntries(ids.map((id) => [id, outlineOf(views[id]!)] as const)),
@@ -859,42 +845,7 @@ async function buildSegmentViews(
       ),
     };
   }
-  if (parts.relations === false) return views;
-  const [work] = await db
-    .select({ language: works.language })
-    .from(works)
-    .where(eq(works.id, row.workId));
-  if (work?.language === 'grc') await relateReadings(db, Object.values(views));
   return views;
-}
-
-/** The relations of the readings of textual places to the edition's words, from the analyser of Greek forms. */
-async function relateReadings(db: Database, views: SegmentView[]): Promise<void> {
-  const textual = views.flatMap((view) =>
-    view.collation.sites
-      .filter((site) => site.kind === 'textual' && site.readings.length > 1)
-      .map((site) => ({ view, site })),
-  );
-  const words = new Set<string>();
-  for (const { site } of textual)
-    for (const reading of site.readings)
-      for (const w of reading.text.split(/\s+/u)) if (w) words.add(w);
-  if (words.size === 0) return;
-  const analysed = await analyseWords(db, [...words]);
-  // Lemmas compared by their letters: the treebanks and Morpheus spell some differently, and number homographs.
-  const lemmas = new Map(
-    Object.entries(analysed).map(
-      ([w, list]) => [w, new Set(list.map((a) => looseKey(a.lemma)))] as const,
-    ),
-  );
-  for (const { view, site } of textual) {
-    const base = site.readings.find((r) => r.base);
-    if (!base) continue;
-    const list = site.readings.map((reading) =>
-      reading.base ? null : variantRelation(base.text, reading.text, (w) => lemmas.get(w)),
-    );
-    if (list.some((x) => x !== null)) (view.relations ??= {})[site.index] = list;
-  }
 }
 
 export type { EditionContext };

@@ -186,17 +186,10 @@ describe('a whole segment a witness lacks', () => {
     expect(formatApparatus(apparatusEntries(short, '2', {}))).toEqual(['2 a b c : om. B']);
   });
 
-  it('prints "deest in" for a lost passage and keeps "lac." within one', () => {
+  it('says nothing of a loss: a lost passage is no entry, and a witness that has lost the words is not named', () => {
     const lost = collate(text('E', 'ed', 'a b c d'), [text('A', 'A', 'a b c d'), gap('B')]);
-    expect(formatApparatus(apparatusEntries(lost, '3', {}))).toEqual(['3 a … d A : deest in B']);
-    const english = {
-      form: 'positive' as const,
-      latin: false,
-      interpretative: 'separate' as const,
-    };
-    expect(formatApparatus(apparatusEntries(lost, '3', {}, english), english)).toEqual([
-      '3 a … d A : absent in B',
-    ]);
+    expect(lost.absent).toEqual(['B']);
+    expect(formatApparatus(apparatusEntries(lost, '3', {}))).toEqual([]);
     const within: CollationText = {
       id: 'B',
       siglum: 'B',
@@ -204,7 +197,18 @@ describe('a whole segment a witness lacks', () => {
     };
     expect(
       formatApparatus(apparatusEntries(collate(text('E', 'ed', 'a b c d'), [within]), '4', {})),
-    ).toEqual(['4 b c : lac. B']);
+    ).toEqual([]);
+    // Beside another witness's variant, the witness that has lost the word is neither named nor among "the others".
+    const beside = collate(text('E', 'ed', 'a b c d'), [
+      text('A', 'A', 'a x c d'),
+      within,
+      text('C', 'C', 'a b c d'),
+      text('D', 'D', 'a b c d'),
+      text('F', 'F', 'a b c d'),
+    ]);
+    expect(
+      formatApparatus(apparatusEntries(beside, '4', {}, { ...DEFAULT_CONVENTIONS, rest: 'cett.' })),
+    ).toEqual(['4 b C D F : x A']);
   });
 
   it('prints the other variants of the segment as entries of their own', () => {

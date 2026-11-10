@@ -11,7 +11,7 @@ import {
   type Property,
   type TextsCase,
 } from '../testing/random.ts';
-import { collate, type Collation, type CollationText, type Site } from './collate.ts';
+import { collate, witnessesAt, type Collation, type CollationText, type Site } from './collate.ts';
 
 interface Built {
   base: CollationText;
@@ -210,8 +210,45 @@ function within(inner: Site, outer: Site): boolean {
 }
 
 /**
+ * Where a witness is not there, as the columns of the collation show it: the
+ * base's units it has lost (a gap of its stands against a word of the base,
+ * or it has nothing for a word beside a gap), and the points between the
+ * base's units where it has a gap of its own.
+ */
+function lossesOf(built: Built, collation: Collation, textId: string) {
+  const units = new Set<number>();
+  const points = new Set<number>();
+  let slot = 0;
+  for (const column of collation.columns) {
+    const baseCell = column.cells.get(built.base.id);
+    const cell = column.cells.get(textId);
+    if (baseCell) {
+      slot = baseCell.unitIndex + 1;
+      if (cell?.lacunose && !built.base.units[baseCell.unitIndex]!.gap)
+        units.add(baseCell.unitIndex);
+    } else if (cell?.lacunose) points.add(slot);
+  }
+  return { units, points };
+}
+
+/** Whether a witness with these losses is there at a place, the place over the whole segment aside. */
+function thereAt(site: Site, losses: ReturnType<typeof lossesOf>): boolean {
+  if (site.baseTo > site.baseFrom) {
+    for (let b = site.baseFrom; b < site.baseTo; b++) if (losses.units.has(b)) return false;
+    return true;
+  }
+  return !(
+    losses.units.has(site.baseFrom - 1) ||
+    losses.units.has(site.baseFrom) ||
+    losses.points.has(site.baseFrom)
+  );
+}
+
+/**
  * Every word of every text is accounted for: it stands in a reading of some
- * place, or at a position where every text reads with the base.
+ * place, or at a position where every text that is there reads with the
+ * base, or where its witness is not there: within a place over a word the
+ * witness has lost, or beside a loss of the witness.
  */
 function covered(c: TextsCase): void {
   const { built, collation } = run(c);
@@ -231,8 +268,30 @@ function covered(c: TextsCase): void {
         site.readings.some((r) => r.units[text.id]?.includes(u)),
       );
       const here = anchored.get(text.id)?.has(index) ? 1 : 0;
-      const message = `${text.id} unit ${index + 1} "${u.text}": in ${sites.length} places and ${here} positions of agreement\n${describeSites(collation)}`;
-      expect(sites.length + here, message).toBeGreaterThanOrEqual(1);
+      let excused = false;
+      if (sites.length + here === 0 && text.id !== built.base.id) {
+        const losses = lossesOf(built, collation, text.id);
+        let slot = 0;
+        let paired: number | null = null;
+        for (const column of collation.columns) {
+          const baseCell = column.cells.get(built.base.id);
+          if (column.cells.get(text.id)?.unitIndex === index) {
+            paired = baseCell ? baseCell.unitIndex : null;
+            break;
+          }
+          if (baseCell) slot = baseCell.unitIndex + 1;
+        }
+        const notThere = collation.sites.filter((site) => !site.wanting && !thereAt(site, losses));
+        excused =
+          paired !== null
+            ? notThere.some((site) => site.baseFrom <= paired && paired < site.baseTo)
+            : losses.units.has(slot - 1) ||
+              losses.units.has(slot) ||
+              losses.points.has(slot) ||
+              notThere.some((site) => site.baseFrom < slot && slot < site.baseTo);
+      }
+      const message = `${text.id} unit ${index + 1} "${u.text}": in ${sites.length} places and ${here} positions of agreement, not excused by a loss\n${describeSites(collation)}`;
+      expect(sites.length + here > 0 || excused, message).toBe(true);
     });
   }
 }
@@ -255,12 +314,12 @@ function reportedOnce(c: TextsCase): void {
       expect(sites.length, message).toBeLessThanOrEqual(1);
     });
   }
-  // A witness that lacks the whole segment stands in the place over all of it and nowhere else.
+  // A witness whose text runs on without the whole segment stands in the place over all of it and nowhere else.
   for (const whole of collation.sites.filter((s) => s.wanting)) {
     const lacking = whole.readings
-      .filter((r) => !r.base && r.text === '' && (r.omission || r.lacunose))
+      .filter((r) => !r.base && r.omission)
       .flatMap((r) => r.textIds)
-      .filter((id) => built.witnesses.find((w) => w.id === id)!.units.every((u) => u.gap));
+      .filter((id) => built.witnesses.find((w) => w.id === id)!.units.length === 0);
     for (const site of collation.sites) {
       if (site === whole) continue;
       for (const reading of site.readings)
@@ -315,6 +374,43 @@ function placesAreNestedAndInOrder(c: TextsCase): void {
   }
 }
 
+/**
+ * Who is there: no reading but the base's is lacunose; a witness is in at
+ * most one reading of a place; a witness that has lost a unit of the base,
+ * or has a gap of its own at a point, is in no reading of a place over it
+ * (the place over the whole segment aside, where every witness with a word
+ * of the segment is there); a text with no word of the segment is absent;
+ * and the witnesses a place names are those of its readings, in the order
+ * they were given.
+ */
+function whoIsThere(c: TextsCase): void {
+  const { built, collation } = run(c);
+  const order = built.witnesses.map((w) => w.id);
+  for (const site of collation.sites) {
+    const where = `place ${site.index}\n${describeSites(collation)}`;
+    for (const reading of site.readings)
+      expect(reading.lacunose && !reading.base, `a lacunose reading at ${where}`).toBe(false);
+    const named = site.readings.flatMap((r) => r.textIds);
+    expect(new Set(named).size, `a text in two readings at ${where}`).toBe(named.length);
+    const there = witnessesAt(site, built.base.id, order);
+    expect(there).toEqual(order.filter((id) => named.includes(id)));
+    for (const text of built.witnesses) {
+      if (collation.absent.includes(text.id)) {
+        expect(named.includes(text.id), `${text.id} is absent, at ${where}`).toBe(false);
+        continue;
+      }
+      if (site.wanting) continue;
+      if (!thereAt(site, lossesOf(built, collation, text.id)))
+        expect(named.includes(text.id), `${text.id} is not there, at ${where}`).toBe(false);
+    }
+  }
+  for (const text of built.witnesses) {
+    const words = text.units.some((u) => !u.gap);
+    if (!words && !(text.present && text.units.length === 0))
+      expect(collation.absent, `${text.id} has no word of the segment`).toContain(text.id);
+  }
+}
+
 describe('collation: every word is accounted for, places nested and in order (random)', () => {
   for (const [name, options] of KINDS) {
     it(`every word stands in a reading or at a position of full agreement (${name})`, () => {
@@ -326,6 +422,10 @@ describe('collation: every word is accounted for, places nested and in order (ra
 
     it(`a departure from the base is reported once (${name})`, () => {
       runProperty(`collate: reported once (${name})`, textsProperty(options, reportedOnce));
+    });
+
+    it(`a place speaks only of the witnesses that are there (${name})`, () => {
+      runProperty(`collate: who is there (${name})`, textsProperty(options, whoIsThere));
     });
 
     it(`places share words only by lying one within another, and stand in order (${name})`, () => {

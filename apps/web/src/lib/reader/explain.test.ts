@@ -307,23 +307,19 @@ describe('explainSite: the alternatives', () => {
     });
   });
 
-  it('explains damage, partial or whole', () => {
+  it('says nothing of a witness that is in no reading, as one that has lost the words is', () => {
     const seg = segment([
       {
         index: 0,
         baseFrom: 1,
         baseTo: 3,
-        readings: [
-          reading('ἄειδε θεὰ', ['ed', 'ta']),
-          reading('', ['tc'], { lacunose: true }),
-          reading('ἄειδε', ['tb'], { lacunose: true }),
-        ],
+        readings: [reading('ἄειδε θεὰ', ['ed', 'ta']), reading('ἄειδε θεοί', ['tb'])],
       },
     ]);
-    expect(plain(explain(seg)).lines).toEqual([
-      'Codex Laurentianus is damaged here; its text is lost.',
-      'Venetus B is damaged here and reads only ἄειδε.',
-    ]);
+    expect(plain(explain(seg))).toEqual({
+      authority: ['The edition follows Venetus A.'],
+      lines: ['Venetus B reads ἄειδε θεοί.'],
+    });
   });
 
   it('explains a change of order in the same place, and a move to another place', () => {
@@ -411,7 +407,7 @@ describe('explainSite: the alternatives', () => {
     expect(line.references).toEqual(['Ath. 1.12e', 'West 1998, 45']);
   });
 
-  it('names the witnesses without the passage', () => {
+  it('says nothing of the witnesses without the passage', () => {
     const seg = segment(
       [
         {
@@ -423,9 +419,10 @@ describe('explainSite: the alternatives', () => {
       ],
       { absent: ['C'] },
     );
-    expect(plainSentence(explain(seg).absent!.sentence)).toBe(
-      'Codex Laurentianus is not transcribed for this passage.',
-    );
+    expect(plain(explain(seg))).toEqual({
+      authority: ['The edition follows Venetus A.'],
+      lines: ['Venetus B reads θεοί.'],
+    });
   });
 
   it('never uses Latin abbreviations or bare sigla', () => {
@@ -435,11 +432,7 @@ describe('explainSite: the alternatives', () => {
           index: 0,
           baseFrom: 0,
           baseTo: 1,
-          readings: [
-            reading('μῆνιν', ['ed', 'ta']),
-            reading('', ['tb']),
-            reading('', ['tc'], { lacunose: true }),
-          ],
+          readings: [reading('μῆνιν', ['ed', 'ta']), reading('', ['tb'])],
         },
         {
           index: 1,
@@ -615,19 +608,12 @@ describe('explainSite: states of a witness collated under sub-sigla', () => {
   });
 
   it('finds a sub-siglum given as a siglum', () => {
-    const seg = segment(
-      [
-        {
-          index: 0,
-          baseFrom: 2,
-          baseTo: 3,
-          readings: [reading('θεὰ', ['ed', 'ta']), reading('θεοί', ['tb'])],
-        },
-      ],
-      { absent: ['A v.l.'] },
+    const line = explainAttachment(
+      { kind: 'reported', id: 'r', text: 'θεοί', name: 'A v.l.' },
+      withSub,
     );
-    expect(plainSentence(explain(seg, 0, withSub).absent!.sentence)).toBe(
-      'A variant noted in Venetus A is not transcribed for this passage.',
+    expect(plainSentence(line.sentence)).toBe(
+      'A variant noted in Venetus A is reported to read θεοί.',
     );
   });
 });
@@ -686,27 +672,22 @@ describe('variantsOf', () => {
 });
 
 describe('explainSite: how a reading stands to the edition’s words', () => {
-  it('says where a reading is another form of the same word, or the same words in another order', () => {
-    const seg = segment(
-      [
-        {
-          index: 0,
-          baseFrom: 2,
-          baseTo: 3,
-          readings: [
-            reading('θεὰ', ['ed', 'ta']),
-            reading('θεοί', ['tb']),
-            reading('θεὰ ἄειδε', ['tc']),
-          ],
-        },
-      ],
+  it('says what a reading is, and nothing of its grammar: another order only where the words are the same', () => {
+    const seg = segment([
       {
-        relations: { 0: [null, 'form', 'order'] },
+        index: 0,
+        baseFrom: 2,
+        baseTo: 3,
+        readings: [
+          reading('θεὰ', ['ed', 'ta']),
+          reading('θεοί', ['tb']),
+          reading('θεὰ ἄειδε', ['tc']),
+        ],
       },
-    );
+    ]);
     expect(plain(explain(seg)).lines).toEqual([
-      'Venetus B reads θεοί, another form of the same word.',
-      'Codex Laurentianus has these words in another order: θεὰ ἄειδε.',
+      'Venetus B reads θεοί.',
+      'Codex Laurentianus reads θεὰ ἄειδε.',
     ]);
   });
 

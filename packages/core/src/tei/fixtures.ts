@@ -262,7 +262,7 @@ export function editionSegment(
   };
 }
 
-/** An edition with substitution, omission, addition, a conjecture, an adopted conjecture, a lacunose witness and a reported reading. */
+/** An edition with substitution, omission, addition, a conjecture, an adopted conjecture, a witness that has lost a word and a reported reading. */
 export function editionInput(): EditionExport {
   const lacunose = fromText('a c', { ids: sequentialIds('p') });
   lacunose.items.splice(1, 0, { kind: 'object', id: 'g', type: 'gap', attrs: { reason: 'lost' } });

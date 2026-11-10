@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collate, type CollationText } from '../collate/collate.ts';
+import { collate, witnessesAt, type CollationText } from '../collate/collate.ts';
 import { sequentialIds } from '../ids.ts';
 import { fromText } from '../stream/text.ts';
 import { units } from '../stream/words.ts';
@@ -80,6 +80,25 @@ describe('attachToSites', () => {
     expect(accented.collation.sites[accented.collation.sites.length - 1]!.kind).toBe(
       'interpretative',
     );
+  });
+
+  it('leaves a witness that has lost the words out of a site opened for a conjecture', () => {
+    const edition = fromText('a b c d', { ids: sequentialIds('e') });
+    const baseUnits = units(edition, 0, edition.items.length);
+    const lost = fromText('a d', { ids: sequentialIds('p') });
+    lost.items.splice(1, 0, { kind: 'object', id: 'g', type: 'gap', attrs: { reason: 'lost' } });
+    const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [
+      witness('A', 'A', 'a b c d'),
+      { id: 'P', siglum: 'P', units: units(lost, 0, lost.items.length) },
+      witness('Q', 'Q', 'a b c d'),
+    ]);
+    expect(c.sites).toEqual([]);
+    const attached = attachToSites(c, baseUnits, [
+      { id: 'z', kind: 'conjecture', lemma: 'b c', reading: 'y', name: 'Z' },
+    ]);
+    const opened = attached.collation.sites[0]!;
+    expect(opened.readings[0]!.sigla).toEqual(['ed.', 'A', 'Q']);
+    expect(witnessesAt(opened, 'E', ['A', 'P', 'Q'])).toEqual(['A', 'Q']);
   });
 
   it('places a reported reading by the base words, and a record by its anchor tokens', () => {

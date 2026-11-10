@@ -44,10 +44,6 @@
     </ul>
   {/if}
 
-  {#if explanation.absent}
-    <p class="absent"><ExplainSentence sentence={explanation.absent.sentence} {lang} /></p>
-  {/if}
-
   {#if explanation.notes.length}
     <ReaderNotes notes={explanation.notes} {compact} />
   {/if}
@@ -83,10 +79,5 @@
     font-size: 0.85em;
     color: var(--color-ink-muted);
     white-space: nowrap;
-  }
-
-  .absent {
-    font-size: 0.92em;
-    color: var(--color-ink-muted);
   }
 </style>

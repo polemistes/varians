@@ -69,8 +69,9 @@ describe('seedSample', () => {
     expect(lines.some((l) => l.startsWith('1.9 Λητοῦς καὶ Διὸς A C : Διὸς καὶ Λητοῦς B'))).toBe(
       true,
     );
-    expect(lines.some((l) => l.startsWith('1.5') && l.includes('lac. C'))).toBe(true);
-    // B and C lack line 6 within the stretch they cover: one site over the whole line, which they omit.
+    // C has lost words of 1.5: it is not there, and the apparatus says nothing of the loss.
+    expect(lines.some((l) => l.startsWith('1.5') && / C\b/u.test(l))).toBe(false);
+    // B and C are without line 6 within the stretch they cover: one site over the whole line, which is not in them.
     const six = [...collations.entries()].find(([id]) => labelOf.get(id) === '1.6')![1];
     expect(six.absent).toEqual([]);
     expect(lines).toContain('1.6 ἐξ … ἐρίσαντε A : om. B C');

@@ -112,11 +112,6 @@ function sortedByKey(segmentKeys: ReadonlyMap<string, string>): [string, string]
   return [...segmentKeys.entries()].sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0));
 }
 
-/** A unit standing for a passage lost in a witness. */
-function lostUnit(segmentId: string): Unit {
-  return { text: '', tokenIds: [], gap: { kind: 'object', id: `lost:${segmentId}`, type: 'gap' } };
-}
-
 /** Load everything a collation of an edition needs, once. */
 export async function loadEditionContext(db: Database, editionId: string): Promise<EditionContext> {
   const [[meta], text] = await Promise.all([
@@ -301,19 +296,23 @@ export function inputsFor(
     if (runs.length > 0) {
       witnessTexts.push({ id: transcription.id, siglum: s.siglum, units: words, present: true });
     } else {
-      // Without the segment: within the stretch it covers the witness omits it, or has lost it; outside, it is absent.
+      // Without the segment: within the stretch it covers, its text runs on without it, unless a gap
+      // stands there (of whatever reason, a stretch not transcribed included); outside, or where it
+      // has lost the segment, the witness is not there and stands in no variant.
       const key = context.segmentKeys?.get(segmentId);
       const covered = context.coverage?.get(transcription.id);
-      if (key !== undefined && covered && key > covered.first && key < covered.last) {
-        if (covered.lost.has(segmentId))
-          witnessTexts.push({
-            id: transcription.id,
-            siglum: s.siglum,
-            units: [lostUnit(segmentId)],
-          });
-        else
-          witnessTexts.push({ id: transcription.id, siglum: s.siglum, units: [], present: true });
-      } else witnessTexts.push({ id: transcription.id, siglum: s.siglum, units: [] });
+      const runsOn =
+        key !== undefined &&
+        covered !== undefined &&
+        key > covered.first &&
+        key < covered.last &&
+        !covered.lost.has(segmentId);
+      witnessTexts.push({
+        id: transcription.id,
+        siglum: s.siglum,
+        units: [],
+        ...(runsOn ? { present: true } : {}),
+      });
       continue;
     }
     // A second state of the witness is only worth a siglum of its own where it differs from the corrected text.
@@ -355,7 +354,7 @@ export function inputHash(
 ): string {
   const hash = createHash('sha256');
   // The shape of the cached result: bump when the collation's output changes.
-  hash.update('collation-v11');
+  hash.update('collation-v12');
   hash.update(JSON.stringify(context.profile.fold));
   const describe = (t: CollationText) =>
     `${t.id}|${t.siglum}|${t.present ? 'p' : ''}|${t.units.map((u) => (u.gap ? '[gap]' : `${u.text}#${u.tokenIds.join(',')}`)).join(' ')}`;

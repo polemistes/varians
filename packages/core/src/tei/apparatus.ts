@@ -288,12 +288,9 @@ function appXml(
   for (const reading of site.readings) {
     if (reading.base) continue;
     const wit = witAttr(reading.sigla, refs);
-    if (reading.lacunose && reading.text === '') out.push(`<rdg${wit}><gap reason="lost"/></rdg>`);
-    else if (reading.omission) out.push(`<rdg${wit}/>`);
-    else
-      out.push(
-        `<rdg${wit}>${escapeText(reading.text)}${reading.lacunose ? '<gap reason="lost"/>' : ''}</rdg>`,
-      );
+    // A witness that has lost the words is in no reading, and so in no <rdg>.
+    if (reading.omission) out.push(`<rdg${wit}/>`);
+    else out.push(`<rdg${wit}>${escapeText(reading.text)}</rdg>`);
   }
   for (const attachment of attachments) {
     if (attachment.adopted) continue;

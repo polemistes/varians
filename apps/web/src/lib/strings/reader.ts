@@ -169,11 +169,6 @@ export const reader = {
     editorLeftOut: 'The editor leaves out what the witnesses have here.',
     /** The witnesses' readings. */
     reads: { one: '{who} reads {words}.', many: '{who} read {words}.' },
-    /** The same word in another form, by the analyser of Greek forms. */
-    readsForm: {
-      one: '{who} reads {words}, another form of the same word.',
-      many: '{who} read {words}, another form of the same word.',
-    },
     /** The same letters read otherwise: accents, breathings, punctuation, word division. */
     /** The words come last and stand alone, since their punctuation may be the difference. */
     readsInterpretative: {
@@ -182,14 +177,6 @@ export const reader = {
     },
     omits: { one: '{who} leaves these words out.', many: '{who} leave these words out.' },
     adds: { one: '{who} adds {words} here.', many: '{who} add {words} here.' },
-    lost: {
-      one: '{who} is damaged here; its text is lost.',
-      many: '{who} are damaged here; their text is lost.',
-    },
-    damaged: {
-      one: '{who} is damaged here and reads only {words}.',
-      many: '{who} are damaged here and read only {words}.',
-    },
     otherOrder: {
       one: '{who} has these words in another order: {words}.',
       many: '{who} have these words in another order: {words}.',
@@ -201,11 +188,6 @@ export const reader = {
     otherPlace: {
       one: '{who} has these words in another place.',
       many: '{who} have these words in another place.',
-    },
-    /** Witnesses whose transcripts begin after this passage or end before it. */
-    absent: {
-      one: '{who} is not transcribed for this passage.',
-      many: '{who} are not transcribed for this passage.',
     },
     /** Spelling only. */
     /** Readings reported by others, and conjectures. */
@@ -236,7 +218,7 @@ export const reader = {
     conspectus: 'Conspectus siglorum',
     conspectusEmpty: 'The edition names no witnesses.',
     groups: 'Groups',
-    absentFrom: 'not transcribed for',
+    absentFrom: 'no text for',
     reportedOnly: 'Enters through reported readings only.',
     witness: 'Witness',
     chooseWitness: 'Witness',

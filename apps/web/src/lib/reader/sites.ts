@@ -48,14 +48,13 @@ export interface SegmentSites {
 
 /**
  * A segment as a reader is given it, without the places the editor does not
- * report: their sites, what was attached to them, and how their readings
- * stand to the edition's words. The editor's own view keeps them.
+ * report: their sites and what was attached to them. The editor's own view
+ * keeps them.
  */
 export function withoutUnreported<
   T extends {
     collation: Pick<Collation, 'sites'>;
     attachments: Record<number, Attachment[]>;
-    relations?: Record<number, unknown>;
   },
 >(segment: T): T {
   const left = new Set(segment.collation.sites.filter((s) => s.unreported).map((s) => s.index));
@@ -70,7 +69,6 @@ export function withoutUnreported<
     },
     attachments: kept(segment.attachments),
   };
-  if (segment.relations) out.relations = kept(segment.relations);
   return out;
 }
 

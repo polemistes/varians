@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describePostag, lemmaKey, looseKey, parseAnalyses, variantRelation } from './forms.ts';
+import { describePostag, lemmaKey, looseKey, parseAnalyses } from './forms.ts';
 
 describe('looseKey', () => {
   it('keeps the letters alone, in lower case, with a final sigma', () => {
@@ -36,36 +36,5 @@ describe('analyses', () => {
     );
     expect(describePostag('n-s---mn-')).toBe('noun, singular masculine nominative');
     expect(describePostag('c--------')).toBe('conjunction');
-  });
-});
-
-describe('variantRelation', () => {
-  const lemmas: Record<string, string[]> = {
-    ἑλώρια: ['ἑλώριον'],
-    ἕλωρα: ['ἕλωρ'],
-    ἔθηκε: ['τίθημι'],
-    θῆκε: ['τίθημι'],
-    πᾶσι: ['πᾶς'],
-    δαῖτα: ['δαίς'],
-    κύνεσσιν: ['κύων'],
-    κύνεσι: ['κύων'],
-  };
-  const of = (w: string) => (lemmas[w] ? new Set(lemmas[w]) : undefined);
-
-  it('tells another form of the same word from another word', () => {
-    expect(variantRelation('κύνεσσιν', 'κύνεσι', of)).toBe('form');
-    expect(variantRelation('ἔθηκε', 'θῆκε', of)).toBe('form');
-    expect(variantRelation('πᾶσι', 'δαῖτα', of)).toBe('word');
-    expect(variantRelation('ἑλώρια', 'ἕλωρα', of)).toBe('word');
-  });
-
-  it('tells the same words in another order', () => {
-    expect(variantRelation('πᾶσι δαῖτα', 'δαῖτα πᾶσι,', of)).toBe('order');
-  });
-
-  it('says nothing of omissions, unequal lengths and unknown words', () => {
-    expect(variantRelation('πᾶσι', '', of)).toBeNull();
-    expect(variantRelation('πᾶσι', 'πᾶσι δαῖτα', of)).toBeNull();
-    expect(variantRelation('πᾶσι', 'ἄγνωστον', of)).toBeNull();
   });
 });

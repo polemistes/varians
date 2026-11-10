@@ -55,7 +55,7 @@ describe('exportEditionTei', () => {
     );
   });
 
-  it('marks an adopted conjecture on the lemma and a lacunose witness with a gap', () => {
+  it('marks an adopted conjecture on the lemma and names a witness that has lost the words nowhere', () => {
     const edition = fromText('a b c', { ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
     const lacunose = fromText('a c', { ids: sequentialIds('p') });
@@ -93,9 +93,7 @@ describe('exportEditionTei', () => {
         },
       ],
     });
-    expect(xml).toContain(
-      '<app><lem resp="Editor">b</lem><rdg wit="#wit-A">x</rdg><rdg wit="#wit-P"><gap reason="lost"/></rdg></app>',
-    );
+    expect(xml).toContain('<app><lem resp="Editor">b</lem><rdg wit="#wit-A">x</rdg></app>');
   });
 
   it('types the places of the same letters read otherwise as interpretative', () => {

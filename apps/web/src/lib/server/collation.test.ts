@@ -160,7 +160,7 @@ describe('coverage', () => {
     expect(coverageOf(lines(':a b'), keys)).toBeNull();
   });
 
-  it('gives a witness without a segment an omission within its coverage, a lacuna where lost, and nothing outside', () => {
+  it('gives a witness without a segment nothing within its coverage, and leaves it out where lost or outside', () => {
     const edition: Stream = lines('s1:a', 's2:b', 's3:c', 's4:d', 's5:e');
     const witness = lines('s1:a', 's3:c [gap]', 's5:e');
     const ctx: EditionContext = {
@@ -170,7 +170,27 @@ describe('coverage', () => {
       coverage: new Map([['ta', coverageOf(witness, keys)!]]),
     };
     expect(inputsFor(ctx, 's2').witnesses[0]).toMatchObject({ units: [], present: true });
-    expect(inputsFor(ctx, 's4').witnesses[0]!.units.map((u) => Boolean(u.gap))).toEqual([true]);
+    // Lost: the witness is not there, like one without the segment.
+    expect(inputsFor(ctx, 's4').witnesses[0]).toEqual({ id: 'ta', siglum: 'A', units: [] });
+    // A gap marked as not transcribed is a gap like any other.
+    const skipped = lines('s1:a', 's3:c', 's5:e');
+    skipped.items.splice(skipped.items.length - 1, 0, {
+      kind: 'object',
+      id: 'el',
+      type: 'gap',
+      attrs: { reason: 'ellipsis' },
+    });
+    const notTranscribed = inputsFor(
+      {
+        ...ctx,
+        transcriptions: new Map([
+          ['ta', { id: 'ta', content: skipped, version: 1, witnessId: 'wa' }],
+        ]),
+        coverage: new Map([['ta', coverageOf(skipped, keys)!]]),
+      },
+      's4',
+    );
+    expect(notTranscribed.witnesses[0]).toEqual({ id: 'ta', siglum: 'A', units: [] });
     const narrow = lines('s2:b', 's3:c');
     const outside = inputsFor(
       {

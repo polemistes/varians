@@ -209,7 +209,7 @@ export async function seedSample(
     workId,
   );
 
-  // Witness C: fragmentary, lines 3 and 6 lost, a gap inside line 5, one substitution.
+  // Witness C: without lines 3 and 6, a gap inside line 5, one substitution.
   const cLines: Record<string, string> = { ...ILIAD };
   delete cLines['1.3'];
   delete cLines['1.6'];

@@ -190,7 +190,6 @@ describe('a place the editor does not report', () => {
           ...seg,
           collation,
           attachments: { [dog.index]: [attachment] },
-          relations: { [dog.index]: [null, 'word' as const] },
         },
       },
     };
@@ -217,7 +216,6 @@ describe('a place the editor does not report', () => {
     expect(given.collation.sites.map((site) => site.index)).not.toContain(dog.index);
     expect(given.collation.sites).toHaveLength(segments.s1.collation.sites.length - 1);
     expect(given.attachments).toEqual({});
-    expect(given.relations).toEqual({});
     // The editor's own segment is left as it is, and a segment with no such place is the same object.
     expect(segments.s1.collation.sites.some((site) => site.unreported)).toBe(true);
     const plain = segment(text('e', 'ed.', 'a b'), [text('a', 'A', 'a c')]);

@@ -953,7 +953,7 @@ async function workOn(work: Work, from: number, to: number): Promise<void> {
       const alone = [...support(base, collation.baseId)].every((id) => id === baseTranscription);
       if (!alone) continue;
       const best = site.readings
-        .filter((r) => !r.base && !r.omission && r.text !== '' && !r.lacunose)
+        .filter((r) => !r.base && !r.omission && r.text !== '')
         .sort((a, b) => support(b, collation.baseId).size - support(a, collation.baseId).size)[0];
       if (!best || support(best, collation.baseId).size < 3) continue;
       count(s, 'places where the base stands alone');

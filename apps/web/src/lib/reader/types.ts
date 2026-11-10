@@ -3,14 +3,7 @@
  * version the visitor may see, trimmed for the browser. Only types here, so
  * that components never import server modules.
  */
-import type {
-  ApparatusConventions,
-  Attachment,
-  Collation,
-  LayoutLine,
-  Unit,
-  VariantRelation,
-} from '@varians/core';
+import type { ApparatusConventions, Attachment, Collation, LayoutLine, Unit } from '@varians/core';
 import type { EditionConventions } from '@varians/db';
 
 export interface ReaderSegment {
@@ -34,8 +27,6 @@ export interface ReaderSegment {
   notes: ReaderNote[];
   /** What attached conjectures and reported readings cite, by attachment id: "cf. West 1998, 45". */
   cites?: Record<string, string[]>;
-  /** How each reading of a textual place stands to the edition's words, by site index and reading index (Greek works). */
-  relations?: Record<number, (VariantRelation | null)[]>;
 }
 
 export interface ReaderNote {

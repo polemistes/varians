@@ -63,14 +63,17 @@ function siteOver(
     if (!overlaps) continue;
     for (const r of site.readings) if (!r.base) for (const id of r.textIds) departing.add(id);
   }
-  // Every other text present in the columns the base units occupy.
+  // Every other text in the columns the base units occupy, but not one that has lost any of them: it is not there.
+  const lost = new Set<string>();
   for (const column of collation.columns) {
     const baseCell = column.cells.get(collation.baseId);
     if (!baseCell || baseCell.unitIndex < from || baseCell.unitIndex >= to) continue;
-    for (const [textId] of column.cells) {
-      if (!textIds.includes(textId) && !departing.has(textId)) textIds.push(textId);
+    for (const [textId, cell] of column.cells) {
+      if (cell.lacunose) lost.add(textId);
+      else if (!textIds.includes(textId) && !departing.has(textId)) textIds.push(textId);
     }
   }
+  for (const id of lost) if (textIds.includes(id)) textIds.splice(textIds.indexOf(id), 1);
   if (!textIds.includes(collation.baseId)) textIds.unshift(collation.baseId);
   for (const id of textIds) {
     units[id] = id === collation.baseId ? baseUnits.slice(from, to) : [];

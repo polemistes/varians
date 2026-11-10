@@ -10,7 +10,6 @@ import type {
   LayoutLine,
   Stream,
   Unit,
-  VariantRelation,
 } from '@varians/core';
 import type { EditionConventions } from '@varians/db';
 
@@ -34,8 +33,6 @@ export interface SegmentViewClient {
   cites?: Record<string, string[]>;
   /** Words taken from a witness that now reads otherwise there; `now` is empty when it no longer has them. */
   drift?: { tokenId: string; siglum: string; transcriptionId: string; now: string }[];
-  /** How each reading of a textual place stands to the edition's words, by site index and reading index (Greek works). */
-  relations?: Record<number, (VariantRelation | null)[]>;
 }
 
 export interface SiglumClient {

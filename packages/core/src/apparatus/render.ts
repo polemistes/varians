@@ -100,9 +100,8 @@ export interface ApparatusEntry {
 export interface ApparatusVariant {
   text: string;
   sigla: string[];
-  /** Printed in place of text for omissions, additions, lacunae. */
+  /** Printed in place of text, or after it: for a reading without words, an addition, a conjecture. */
   note?: string;
-  lacunose: boolean;
   attachment?: Attachment;
   /** Sources reported to have this reading too, printed after its witnesses. */
   reported?: Attachment[];
@@ -112,8 +111,6 @@ const words = {
   om: { latin: 'om.', english: 'omitted' },
   add: { latin: 'add.', english: 'added' },
   del: { latin: 'del.', english: 'deleted' },
-  lac: { latin: 'lac.', english: 'lacuna in' },
-  deest: { latin: 'deest in', english: 'absent in' },
   coni: { latin: 'coni.', english: 'conjectured' },
   suppl: { latin: 'suppl.', english: 'supplied' },
   transp: { latin: 'transp.', english: 'transposed' },
@@ -137,12 +134,13 @@ export function apparatusEntries(
   siglaOrder: string[] = [],
 ): ApparatusEntry[] {
   const entries: { entry: ApparatusEntry; site: Site }[] = [];
-  const baseCount = collation.columns.filter(
-    (c) => (c.cells.get(collation.baseId)?.unitIndex ?? -1) >= 0,
-  ).length;
-  // The witnesses proper that have the segment: every one of them stands in some place's reading.
+  // The witnesses proper that have the segment: those given and not absent, and those in some place's reading.
+  const absent = new Set(collation.absent ?? []);
   const everyone = [
-    ...new Set(collation.sites.flatMap((site) => site.readings.flatMap((r) => r.textIds))),
+    ...new Set([
+      ...Object.keys(collation.sigla ?? {}).filter((id) => !absent.has(id)),
+      ...collation.sites.flatMap((site) => site.readings.flatMap((r) => r.textIds)),
+    ]),
   ].filter((id) => id !== collation.baseId && !isState(id));
   for (const site of collation.sites) {
     // A place the editor has chosen not to report.
@@ -156,12 +154,8 @@ export function apparatusEntries(
     // What the edition prints is a conjecture's reading, or has the support of a source that is only reported.
     const adopted = attached.find((a) => a.adopted && a.kind === 'conjecture');
     const support = attached.filter((a) => a.adopted && a.kind === 'reported');
-    // A site over the whole segment: what a witness lacks there it lacks entirely.
-    const whole =
-      site.wanting === true ||
-      (base !== undefined && baseCount > 0 && site.baseFrom === 0 && site.baseTo === baseCount);
     const variants: ApparatusVariant[] = others.map((reading) =>
-      renderReading(reading, base, conventions, siglaOrder, whole),
+      renderReading(reading, base, conventions, siglaOrder),
     );
     // The edition's own siglum comes first and is not printed.
     const named = nameWitnesses(
@@ -174,7 +168,7 @@ export function apparatusEntries(
         main: mainWitnesses(others[k]!, collation.baseId),
         states: stateSigla(others[k]!, siglaOrder),
       })),
-      // Where a witness stands at a wider place around this one, "the others" and "all" would wrongly take it in.
+      // Where a witness stands at a wider place around this one, or is not there, "the others" and "all" would wrongly take it in.
       everyone.some((id) => !site.readings.some((r) => r.textIds.includes(id)))
         ? { ...conventions, rest: '', all: '' }
         : conventions,
@@ -187,7 +181,6 @@ export function apparatusEntries(
         attachment.kind === 'reported'
           ? variants.find(
               (v) =>
-                !v.lacunose &&
                 v.attachment?.kind !== 'conjecture' &&
                 sameWords(v.text, attachment.text) &&
                 (v.text !== '' || v.note === word('om', conventions.latin)),
@@ -199,7 +192,7 @@ export function apparatusEntries(
     const entry: ApparatusEntry = {
       siteIndex: site.index,
       label,
-      // A long lemma against which the witnesses have nothing (they omit or have lost it) is abridged.
+      // A long lemma against which the witnesses have nothing is abridged.
       lemma: base
         ? lemmaOf(
             base,
@@ -339,9 +332,9 @@ export function splitEntries(
 
 /**
  * The lemma: the base's words; where it has more than three and nothing is
- * read against it (the witnesses of the place leave it out or have lost it,
- * or only conjectures concern it), its first and last words with an
- * ellipsis between.
+ * read against it (the witnesses of the place have none of the words, or
+ * only conjectures concern it), its first and last words with an ellipsis
+ * between.
  */
 function lemmaOf(base: Reading, abridge: boolean): string {
   const text = trimPunctuation(base.text);
@@ -356,17 +349,10 @@ function renderReading(
   base: Reading | undefined,
   conventions: ApparatusConventions,
   siglaOrder: string[],
-  whole = false,
 ): ApparatusVariant {
   const sigla = sortSigla(printedSigla(reading), siglaOrder);
-  const variant: ApparatusVariant = {
-    text: trimPunctuation(reading.text),
-    sigla,
-    lacunose: reading.lacunose,
-  };
-  if (reading.lacunose && reading.text === '')
-    variant.note = word(whole ? 'deest' : 'lac', conventions.latin);
-  else if (reading.omission) variant.note = word('om', conventions.latin);
+  const variant: ApparatusVariant = { text: trimPunctuation(reading.text), sigla };
+  if (reading.omission) variant.note = word('om', conventions.latin);
   else if (base && base.text === '') variant.note = word('add', conventions.latin);
   return variant;
 }
@@ -379,7 +365,6 @@ function renderAttachment(
   const variant: ApparatusVariant = {
     text: attachment.text,
     sigla: [attachment.name + (attachment.source ? ` ${attachment.source}` : '')],
-    lacunose: false,
     attachment,
   };
   // A source reported to have nothing here leaves the words out.

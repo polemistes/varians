@@ -17,7 +17,6 @@ import {
   type Attachment,
   type Reading,
   type Site,
-  type VariantRelation,
 } from '@varians/core';
 import { reader as r } from '$lib/strings/reader';
 import { editionTokensAt, siteKey, siteOf } from './sites';
@@ -32,17 +31,7 @@ export type Part =
 export type Sentence = Part[];
 
 export interface ExplainLine {
-  kind:
-    | 'reads'
-    | 'omits'
-    | 'adds'
-    | 'lost'
-    | 'damaged'
-    | 'order'
-    | 'place'
-    | 'reported'
-    | 'conjecture'
-    | 'absent';
+  kind: 'reads' | 'omits' | 'adds' | 'order' | 'place' | 'reported' | 'conjecture';
   sentence: Sentence;
   /** What the line rests on, printed after it: "West 1998, 45". */
   references: string[];
@@ -63,8 +52,6 @@ export interface SiteExplanation {
   authorityReferences: string[];
   /** One line per substantive alternative, in the order of the site. */
   lines: ExplainLine[];
-  /** The witnesses without this passage at all. */
-  absent: ExplainLine | null;
   /** The editor's notes on these words. */
   notes: ReaderNote[];
 }
@@ -417,20 +404,11 @@ function readingLine(
   group: Witness[],
   site: Site,
   transposed: Set<string>,
-  relation: VariantRelation | null = null,
 ): ExplainLine {
   const count = group.length;
   // Where the difference may be a punctuation mark, the reading keeps its punctuation.
   const said = site.kind === 'interpretative' ? reading.text : trimPunctuation(reading.text);
   const values = { who: who(group), words: words(said) };
-  if (reading.lacunose && reading.text === '')
-    return { kind: 'lost', sentence: fill(plural(r.explain.lost, count), values), references: [] };
-  if (reading.lacunose)
-    return {
-      kind: 'damaged',
-      sentence: fill(plural(r.explain.damaged, count), values),
-      references: [],
-    };
   if (reading.omission || reading.text === '')
     return {
       kind: 'omits',
@@ -447,18 +425,7 @@ function readingLine(
       references: [],
     };
   }
-  if (relation === 'order')
-    return {
-      kind: 'order',
-      sentence: fill(plural(r.explain.otherOrder, count), values),
-      references: [],
-    };
-  const template =
-    site.kind === 'interpretative'
-      ? r.explain.readsInterpretative
-      : relation === 'form'
-        ? r.explain.readsForm
-        : r.explain.reads;
+  const template = site.kind === 'interpretative' ? r.explain.readsInterpretative : r.explain.reads;
   return { kind: 'reads', sentence: fill(plural(template, count), values), references: [] };
 }
 
@@ -493,20 +460,9 @@ export function explainSite(
 
   const transposed = new Set(site.transposition?.textIds ?? []);
   const lines: ExplainLine[] = [];
-  const relations = segment.relations?.[siteIndex];
   for (const reading of others) {
     const group = witnesses.ofReading(reading, baseId);
-    if (group.length)
-      lines.push(
-        readingLine(
-          reading,
-          base,
-          group,
-          site,
-          transposed,
-          relations?.[site.readings.indexOf(reading)] ?? null,
-        ),
-      );
+    if (group.length) lines.push(readingLine(reading, base, group, site, transposed));
   }
   if (site.transposition && transposed.size) {
     const sameSite = site.transposition.withSite === site.index;
@@ -528,17 +484,6 @@ export function explainSite(
     lines.push(explainAttachment(attachment, context, cites));
   }
 
-  const absentWitnesses = witnesses.ofSigla(segment.absent ?? []);
-  const absent: ExplainLine | null = absentWitnesses.length
-    ? {
-        kind: 'absent',
-        sentence: fill(plural(r.explain.absent, absentWitnesses.length), {
-          who: who(absentWitnesses),
-        }),
-        references: [],
-      }
-    : null;
-
   let place: SiteExplanation['place'] = null;
   if (site.baseFrom === site.baseTo) {
     const before = segment.baseUnits[site.baseFrom - 1];
@@ -557,7 +502,6 @@ export function explainSite(
     authority: authority.sentences,
     authorityReferences: authority.references,
     lines,
-    absent,
     notes: notesAt(segment, siteIndex),
   };
 }

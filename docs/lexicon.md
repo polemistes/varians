@@ -1,6 +1,6 @@
 # The Greek forms and dictionaries
 
-The reader's dictionary, the workbench's tools for normalizing diacritics, and the relations the apparatus draws between readings use a lexicon of Greek word forms and two dictionaries, kept in the database. It is not part of Varians: its sources are some 370 MB, and built it is 29 MB. Like Anagnosis, which builds the same lexicon for its reader, Varians builds it once, from the sources, and ships the result as one file that every installation imports.
+The reader's dictionary and the workbench's tools for normalizing diacritics use a lexicon of Greek word forms and two dictionaries, kept in the database. It is not part of Varians: its sources are some 370 MB, and built it is 29 MB. Like Anagnosis, which builds the same lexicon for its reader, Varians builds it once, from the sources, and ships the result as one file that every installation imports.
 
     varians lexicon                                   import the lexicon published for this Varians
     varians lexicon import FILE|URL [--sha256 HEX]    import a lexicon exported elsewhere

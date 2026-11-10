@@ -71,14 +71,15 @@ describe('editionView', () => {
     const five = byLabel['1.5']!;
     const lines = five.entries.map((e) => formatEntry(e, view.apparatus));
     expect(lines).toContain('1.5 πᾶσι A B C : δαῖτα Zenodotus (coni.)');
-    expect(lines.some((l) => l.includes('lac. C'))).toBe(true);
+    // C has lost words of 1.5: it is named only where it is there.
+    expect(lines.some((l) => l.includes('lac.'))).toBe(false);
     const one = byLabel['1.1']!;
     expect(
       one.entries.some((e) =>
         e.variants.some((v) => v.attachment?.kind === 'reported' && v.sigla[0]!.startsWith('T')),
       ),
     ).toBe(true);
-    // B and C lack line 1.6 within the stretch their transcripts cover: they omit it, and are not merely absent.
+    // B and C are without line 1.6 within the stretch their transcripts cover: it is not in them, and they are not absent.
     expect(byLabel['1.6']!.absent).toEqual([]);
     expect(byLabel['1.6']!.entries.map((e) => formatEntry(e, view.apparatus))).toEqual([
       '1.6 ἐξ … ἐρίσαντε A : om. B C',
@@ -118,23 +119,11 @@ describe('editionView', () => {
     expect(back.kindByEditor).toBeUndefined();
   });
 
-  it('tells another form of the same word from another word, by the analyser', async () => {
+  it('says nothing of how a reading is formed: no relation to the edition’s words is given', async () => {
     const sample = await seedSample(db, userId);
     const view = await editionView(db, sample.editionId, null, owner);
-    const found: string[] = [];
-    for (const segment of Object.values(view.segments)) {
-      for (const [index, list] of Object.entries(segment.relations ?? {})) {
-        const site = segment.collation.sites.find((x) => x.index === Number(index))!;
-        list.forEach((relation, k) => {
-          if (relation)
-            found.push(
-              `${site.readings.find((r) => r.base)!.text} ${site.readings[k]!.text} ${relation}`,
-            );
-        });
-      }
-    }
-    expect(found.length).toBeGreaterThan(0);
-    expect(found.every((f) => /(form|word|order)$/.test(f))).toBe(true);
+    for (const segment of Object.values(view.segments))
+      expect(segment).not.toHaveProperty('relations');
   });
 
   it('shows readers published records only, and each editor the drafts they may see', async () => {
