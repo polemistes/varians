@@ -443,7 +443,15 @@
   }
 
   async function step(direction: 1 | -1, unreviewedOnly: boolean) {
-    const ref = stepSite(sequence, outlines, active, direction, reviewed, unreviewedOnly);
+    const ref = stepSite(
+      sequence,
+      outlines,
+      active,
+      direction,
+      reviewed,
+      unreviewedOnly,
+      caretSegment,
+    );
     if (!ref) return;
     // The place may be in a segment not yet given: the window moves there, and the place is found once it comes.
     caretSegment = ref.segmentId;

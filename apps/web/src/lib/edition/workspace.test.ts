@@ -147,6 +147,19 @@ describe('sites and selections', () => {
     expect(second?.site.index).not.toBe(first!.site.index);
   });
 
+  it('steps from the caret’s segment when no place is open, not from the start of the text', () => {
+    // Three lines with the same places; the caret is in the second, on a word that has no place.
+    const outline = outlineOf(segment);
+    const views = { a: outline, b: outline, c: outline };
+    const order = ['a', 'b', 'c'];
+    expect(stepSite(order, views, null, 1, {}, false, 'b')?.segmentId).toBe('b');
+    expect(stepSite(order, views, null, -1, {}, false, 'b')?.segmentId).toBe('a');
+    // With nothing after the caret the step goes round to the start, as it does from the last place.
+    expect(stepSite(['a', 'x'], { a: outline }, null, 1, {}, false, 'x')?.segmentId).toBe('a');
+    // Without a caret it starts at the first place, as before.
+    expect(stepSite(order, views, null, 1, {})?.segmentId).toBe('a');
+  });
+
   it('finds the segments an edit touched and the items it brought in', () => {
     const ops = [{ t: 'set' as const, id: 's1e2', fields: { form: 'slow' } }];
     const after = applyOps(stream, ops).stream;

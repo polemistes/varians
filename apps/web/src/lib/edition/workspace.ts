@@ -242,12 +242,25 @@ export function stepSite(
   direction: 1 | -1,
   reviewed: Record<Id, string[]>,
   unreviewedOnly = false,
+  /** The segment the caret is in: where the step starts when no place is open. */
+  from?: Id | null,
 ): SiteRef | null {
   const all = sitesInOrder(order, outlines);
   if (all.length === 0) return null;
-  const at = active
+  let at = active
     ? all.findIndex((r) => r.segmentId === active.segmentId && r.site.index === active.siteIndex)
     : -1;
+  if (at < 0 && from) {
+    // No place is open: the next one is the first in the caret's segment or after it, the previous
+    // one the last before it, and not the first or last of the whole text.
+    const position = new Map(order.map((id, i) => [id, i] as const));
+    const here = position.get(from);
+    if (here !== undefined) {
+      const first = all.findIndex((r) => (position.get(r.segmentId) ?? -1) >= here);
+      if (direction === 1) at = first < 0 ? all.length - 1 : first - 1;
+      else at = first < 0 ? all.length : first;
+    }
+  }
   const isDone = (ref: SiteRef) => (reviewed[ref.segmentId] ?? []).includes(ref.site.key);
   for (let step = 1; step <= all.length; step++) {
     const index =
