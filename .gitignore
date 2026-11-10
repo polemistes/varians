@@ -28,3 +28,6 @@ playwright-report/
 
 # The cache of the lexicon sources, copied or downloaded (docs/lexicon.md)
 /apps/web/lexicon-sources/
+
+# Texts in copyright, used for tests on this machine only
+/local/
