@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   applyOps,
   defaultProfile,
+  fold,
   fromText,
   newId,
   sequentialIds,
@@ -19,15 +20,23 @@ import {
   pages,
   referenceSchemes,
   segments,
+  transcriptionSegments,
   transcriptions,
   users,
   witnesses,
   works,
   type Database,
 } from '@varians/db';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import pg from 'pg';
-import { CHECKPOINT_EVERY, VersionConflict, documentAt, history, saveOps } from './service.ts';
+import {
+  CHECKPOINT_EVERY,
+  VersionConflict,
+  documentAt,
+  history,
+  rebuildSegmentIndex,
+  saveOps,
+} from './service.ts';
 
 const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329/varians_test';
 let db: Database;
@@ -232,5 +241,115 @@ describe("saveOps keeps a transcript in the shape of its witness's pages", () =>
     ]);
     expect(saved.version).toBe(version + 1);
     expect(saved.conformed).toBeUndefined();
+  });
+});
+
+describe('the segment index of a transcript', () => {
+  const indexed = newId();
+  const segmentIds = [newId(), newId(), newId()];
+  let version = 0;
+  const save = async (ops: Op[]) => {
+    version = (await saveOps(db, 'transcription', indexed, ids.user, version, ops)).version;
+  };
+  /** The rows, by segment, with the transaction that wrote each: a row left alone keeps its own. */
+  const rows = async () => {
+    const found = await db.execute<{
+      segment_id: string;
+      fold_text: string;
+      unit_count: number;
+      written: string;
+    }>(
+      sql`select segment_id, fold_text, unit_count, xmin::text as written from transcription_segments where transcription_id = ${indexed}`,
+    );
+    return new Map(found.rows.map((r) => [r.segment_id, r] as const));
+  };
+  const line = (n: number, text: string): Item[] =>
+    text.split(' ').map((form, i) => ({
+      kind: 'token',
+      id: `s${n}w${i + 1}`,
+      form,
+      ...(i === 0 ? { segment: { segmentId: segmentIds[n]! } } : {}),
+    }));
+
+  beforeAll(async () => {
+    await db.insert(segments).values(
+      segmentIds.map((id, n) => ({
+        id,
+        workId: ids.work,
+        address: { line: String(n + 10) },
+        label: String(n + 10),
+        sortKey: `0000001${n}`,
+      })),
+    );
+    await db
+      .insert(transcriptions)
+      .values({ id: indexed, witnessId: ids.witness, name: 'Indexed', ownerId: ids.user });
+  });
+
+  it('holds a row for each segment, and rewrites only the rows of the segments a save changed', async () => {
+    await save([
+      {
+        t: 'insert',
+        after: null,
+        items: [...line(0, 'ἄλφα βῆτα'), ...line(1, 'γάμμα δέλτα'), ...line(2, 'ἔψιλον')],
+      },
+    ]);
+    const first = await rows();
+    expect([...first.keys()].sort()).toEqual([...segmentIds].sort());
+    const folded = (text: string) => fold(text, defaultProfile('grc').fold);
+    expect(first.get(segmentIds[1]!)!.fold_text).toBe(folded('γάμμα') + ' ' + folded('δέλτα'));
+    await save([{ t: 'set', id: 's1w2', fields: { form: 'Δέλτα' } }]);
+    const second = await rows();
+    // The fold does not tell Δέλτα from δέλτα: nothing was written. A word that differs is.
+    expect(folded('Δέλτα')).toBe(folded('δέλτα'));
+    expect(second.get(segmentIds[1]!)!.written).toBe(first.get(segmentIds[1]!)!.written);
+    await save([{ t: 'set', id: 's1w2', fields: { form: 'ζῆτα' } }]);
+    const third = await rows();
+    expect(third.get(segmentIds[1]!)!.fold_text).toBe(folded('γάμμα') + ' ' + folded('ζῆτα'));
+    expect(third.get(segmentIds[1]!)!.written).not.toBe(first.get(segmentIds[1]!)!.written);
+    for (const id of [segmentIds[0]!, segmentIds[2]!])
+      expect(third.get(id)!.written).toBe(first.get(id)!.written);
+  });
+
+  it('drops the rows of a segment that loses its text and adds those of one that gains some', async () => {
+    const before = await rows();
+    await save([
+      { t: 'delete', ids: ['s2w1'] },
+      { t: 'insert', after: 's0w2', items: [{ kind: 'token', id: 'n1', form: 'νῦ' }] },
+    ]);
+    const after = await rows();
+    expect([...after.keys()].sort()).toEqual([segmentIds[0]!, segmentIds[1]!].sort());
+    expect(after.get(segmentIds[0]!)!.fold_text).toBe(
+      ['ἄλφα', 'βῆτα', 'νῦ'].map((w) => fold(w, defaultProfile('grc').fold)).join(' '),
+    );
+    expect(after.get(segmentIds[0]!)!.unit_count).toBe(3);
+    expect(after.get(segmentIds[1]!)!.written).toBe(before.get(segmentIds[1]!)!.written);
+  });
+
+  it('is what a rebuild from nothing would give', async () => {
+    const current = await rows();
+    await db
+      .delete(transcriptionSegments)
+      .where(eq(transcriptionSegments.transcriptionId, indexed));
+    expect((await rows()).size).toBe(0);
+    await rebuildSegmentIndex(db, indexed, await documentAt(db, 'transcription', indexed, version));
+    const rebuilt = await rows();
+    const flat = (m: typeof rebuilt) =>
+      [...m].map(([k, r]) => [k, r.fold_text, r.unit_count] as const).sort();
+    expect(flat(rebuilt)).toEqual(flat(current));
+  });
+
+  it('puts right a row that has come to differ from the text when it is rebuilt whole, and leaves it where a save touched other segments', async () => {
+    const content = await documentAt(db, 'transcription', indexed, version);
+    const tamper = () =>
+      db
+        .update(transcriptionSegments)
+        .set({ foldText: 'wrong' })
+        .where(eq(transcriptionSegments.segmentId, segmentIds[1]!));
+    await tamper();
+    await save([{ t: 'set', id: 's0w1', fields: { form: 'ἄλφα,' } }]);
+    expect((await rows()).get(segmentIds[1]!)!.fold_text).toBe('wrong');
+    await rebuildSegmentIndex(db, indexed, content);
+    expect((await rows()).get(segmentIds[1]!)!.fold_text).not.toBe('wrong');
   });
 });

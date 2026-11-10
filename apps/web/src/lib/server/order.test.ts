@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fromText, sequentialIds, type Stream, type Token } from '@varians/core';
+import { compareOrder, fromText, sequentialIds, type Stream, type Token } from '@varians/core';
 import { orderStatements } from './reader.ts';
 import type { EditionContext } from './collation.ts';
 
@@ -49,5 +49,48 @@ describe('orderStatements', () => {
       witnessHands: new Map(),
     } satisfies EditionContext;
     expect(orderStatements(context)).toEqual([{ siglum: 'B', moved: ['1000'], after: '976' }]);
+  });
+
+  it('says what comparing the orders says, for witnesses that keep the order, drop segments, move them and have others', () => {
+    const edition = ['1', '2', '3', '4', '5', '6', '7', '8'];
+    const witnessOrders: Record<string, string[]> = {
+      keeps: edition,
+      drops: ['1', '3', '4', '8'],
+      moves: ['1', '4', '5', '2', '3', '6', '7', '8'],
+      reverses: [...edition].reverse(),
+      other: ['9', '1', '2', '10', '3'],
+      nothing: ['9', '10'],
+    };
+    const ids = Object.keys(witnessOrders);
+    const context = {
+      edition: { id: 'e', workId: 'w', content: lined(edition, 'e'), version: 1 },
+      profile: { language: 'grc' } as EditionContext['profile'],
+      sigla: ids.map((id) => ({
+        siglum: id,
+        witnessId: `w${id}`,
+        transcriptionId: `t${id}`,
+        states: [],
+        variantSiglum: null,
+      })),
+      transcriptions: new Map(
+        ids.map((id) => [
+          `t${id}`,
+          { id: `t${id}`, content: lined(witnessOrders[id]!, id), version: 1, witnessId: `w${id}` },
+        ]),
+      ),
+      siteKinds: new Map(),
+      witnessHands: new Map(),
+    } satisfies EditionContext;
+    const expected = ids.flatMap((id) =>
+      compareOrder(
+        edition,
+        witnessOrders[id]!.filter((x) => edition.includes(x)),
+      ).map((statement) => ({ siglum: id, moved: statement.moved, after: statement.after })),
+    );
+    expect(orderStatements(context)).toEqual(expected);
+    // Asked again, with the orders remembered, it says the same.
+    expect(orderStatements(context)).toEqual(expected);
+    expect(expected.map((x) => x.siglum)).not.toContain('keeps');
+    expect(expected.map((x) => x.siglum)).not.toContain('drops');
   });
 });

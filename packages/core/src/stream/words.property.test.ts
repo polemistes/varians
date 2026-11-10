@@ -11,7 +11,15 @@ import {
   type Rng,
 } from '../testing/random.ts';
 import { isObj, isToken, type Id, type Mark, type Stream, type Token } from './items.ts';
-import { segmentRuns, segmentUnits, units, words, type CollationState } from './words.ts';
+import {
+  runsBySegment,
+  runsOfSegment,
+  segmentRuns,
+  segmentUnits,
+  units,
+  words,
+  type CollationState,
+} from './words.ts';
 
 function describeState(state: CollationState): string {
   return typeof state === 'string' ? state : JSON.stringify(state);
@@ -145,6 +153,32 @@ describe('units over a stream and over its segments (random)', () => {
       show: showStateCase,
       shrink: (c) => shrinkTidy(c),
       check: (c) => wholeEqualsRuns(c, true),
+    });
+  });
+});
+
+describe('runsBySegment (random)', () => {
+  it('finds for every segment the runs runsOfSegment finds, whatever the numbering of the parts', () => {
+    runProperty('runsBySegment equals runsOfSegment for every segment', {
+      generate: (rng, size) => ({
+        stream: randomStream(rng, {
+          size,
+          segmentRate: 0.3,
+          parts: 'shuffled',
+          nullStarts: true,
+        }),
+        state: 'corrected' as const,
+      }),
+      show: showStateCase,
+      shrink: shrinkStateCase,
+      check({ stream }) {
+        const index = runsBySegment(stream);
+        const named = new Set(
+          segmentRuns(stream).flatMap((run) => (run.segmentId === null ? [] : [run.segmentId])),
+        );
+        expect(new Set(index.keys())).toStrictEqual(named);
+        for (const id of named) expect(index.get(id)).toStrictEqual(runsOfSegment(stream, id));
+      },
     });
   });
 });

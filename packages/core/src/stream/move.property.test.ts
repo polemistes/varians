@@ -17,6 +17,7 @@ import { isBreak, type Id, type Item, type Stream, type Token } from './items.ts
 import {
   conformPages,
   insertIntoPage,
+  isConformed,
   moveRun,
   moveToPage,
   pagesWithText,
@@ -626,6 +627,18 @@ describe('conformPages (random)', () => {
         // Idempotent.
         expect(conformPages(after, order, sequentialIds('y'))).toStrictEqual([]);
         expect(applyOps(after, clone(applied.reverse)).stream).toStrictEqual(before);
+      },
+    });
+  });
+
+  it('is told to have nothing to do by isConformed, and only then', () => {
+    runProperty('isConformed: agrees with conformPages having nothing to do', {
+      generate: (rng, size) => generateConform(rng, size, rng.chance(0.5)),
+      show: showConform,
+      shrink: shrinkConform,
+      check({ stream, order }) {
+        const nothing = conformPages(stream, order, sequentialIds('z')).length === 0;
+        expect(isConformed(stream, order)).toBe(nothing);
       },
     });
   });

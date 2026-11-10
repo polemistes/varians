@@ -4,6 +4,7 @@ import type { Stream } from './items.ts';
 import { fromText } from './text.ts';
 import {
   lines,
+  runsBySegment,
   runsOfSegment,
   segmentIds,
   segmentRuns,
@@ -59,6 +60,21 @@ describe('segmentRuns', () => {
     (s.items[2] as { segment?: unknown }).segment = { segmentId: 's1', part: 1 };
     expect(runsOfSegment(s, 's1').map((r) => r.from)).toEqual([2, 0]);
     expect(segmentUnits(s, 's1').map((u) => u.text)).toEqual(['three', 'four', 'one', 'two']);
+  });
+});
+
+describe('runsBySegment', () => {
+  it('gives each segment the runs runsOfSegment gives it, and none to unassigned text', () => {
+    const s = fromText('x y\none two three four five', { ids: sequentialIds() });
+    // Unassigned text first, then s1 in parts 2 and 1 and s2 between them.
+    (s.items[3] as { segment?: unknown }).segment = { segmentId: 's1', part: 2 };
+    (s.items[4] as { segment?: unknown }).segment = { segmentId: 's2' };
+    (s.items[5] as { segment?: unknown }).segment = { segmentId: 's1', part: 1 };
+    const index = runsBySegment(s);
+    expect([...index.keys()]).toEqual(['s1', 's2']);
+    for (const id of ['s1', 's2']) expect(index.get(id)).toStrictEqual(runsOfSegment(s, id));
+    expect(index.get('s1')!.map((r) => r.from)).toEqual([5, 3]);
+    expect(runsBySegment({ items: [] }).size).toBe(0);
   });
 });
 

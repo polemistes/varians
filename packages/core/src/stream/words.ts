@@ -104,6 +104,26 @@ export function runsOfSegment(stream: Stream, segmentId: Id): SegmentRun[] {
     .sort((a, b) => a.part - b.part || a.from - b.from);
 }
 
+/**
+ * The runs of every segment of a stream, each segment's in content order (by
+ * part, then physical order), found in one pass. What `runsOfSegment` gives
+ * for one segment, for all of them at the price of one: where the runs of
+ * many segments of the same stream are wanted, this is the way, since
+ * `runsOfSegment` divides the whole stream every time it is asked.
+ */
+export function runsBySegment(stream: Stream): Map<Id, SegmentRun[]> {
+  const out = new Map<Id, SegmentRun[]>();
+  for (const run of segmentRuns(stream)) {
+    if (run.segmentId === null) continue;
+    const list = out.get(run.segmentId);
+    if (list) list.push(run);
+    else out.set(run.segmentId, [run]);
+  }
+  for (const list of out.values())
+    if (list.length > 1) list.sort((a, b) => a.part - b.part || a.from - b.from);
+  return out;
+}
+
 /** The ids of the segments a stream assigns text to, in order of first appearance. */
 export function segmentIds(stream: Stream): Id[] {
   const seen = new Set<Id>();

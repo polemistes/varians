@@ -20,12 +20,15 @@ import {
   applyOps,
   conformPages,
   fold,
+  isConformed,
   newId,
+  runsBySegment,
   segmentRuns,
   units,
   type Changeset,
   type NormalizationProfile,
   type Op,
+  type SegmentRun,
   type Stream,
 } from '@varians/core';
 import {
@@ -151,7 +154,8 @@ export async function saveOps(
     // A transcript keeps the shape of its witness's pages whatever the operations did.
     let conformed: Changeset | undefined;
     if (kind === 'transcription') {
-      const repair = conformPages(content, await transcriptionPageOrder(tx, documentId));
+      const pageOrder = await transcriptionPageOrder(tx, documentId);
+      const repair = isConformed(content, pageOrder) ? [] : conformPages(content, pageOrder);
       if (repair.length > 0) {
         const shaped = applyOps(content, repair);
         const parentId = changesetId;
@@ -178,7 +182,7 @@ export async function saveOps(
     }
 
     await tx.update(t).set({ content, version }).where(eq(t.id, documentId));
-    if (kind === 'transcription') await rebuildSegmentIndex(tx, documentId, content);
+    if (kind === 'transcription') await rebuildSegmentIndex(tx, documentId, content, row.content);
     return { version, content, changesetId, ...(conformed ? { conformed } : {}) };
   });
 }
@@ -369,53 +373,155 @@ export async function nameMoment(
   return id;
 }
 
+/** How many segment ids one statement of the index's rewriting names. */
+const INDEX_CHUNK = 500;
+
+/**
+ * The segments whose runs are not the same items in a text as they were in an
+ * earlier one: items are compared as the objects they are, so that a save
+ * that changed a word leaves every segment it did not touch out.
+ */
+function segmentsChanged(before: Stream, after: Stream): Set<string> {
+  const was = runsBySegment(before);
+  const now = runsBySegment(after);
+  const changed = new Set<string>();
+  const same = (a: SegmentRun[], b: SegmentRun[] | undefined) =>
+    b !== undefined &&
+    a.length === b.length &&
+    a.every((run, k) => {
+      const other = b[k]!;
+      if (run.part !== other.part || run.to - run.from !== other.to - other.from) return false;
+      for (let i = 0; i < run.to - run.from; i++)
+        if (before.items[run.from + i] !== after.items[other.from + i]) return false;
+      return true;
+    });
+  for (const [segmentId, runs] of was) if (!same(runs, now.get(segmentId))) changed.add(segmentId);
+  for (const segmentId of now.keys()) if (!was.has(segmentId)) changed.add(segmentId);
+  return changed;
+}
+
 /**
  * Rebuild the derived index of a transcription: one row per segment run,
- * with the fold text of its units under the work's profile.
+ * with the fold text of its units under the work's profile. Only the
+ * segments whose rows differ from what is stored are written: a save of one
+ * word in a long transcript touches the rows of its segment, not those of
+ * every segment (each row written also marks the work for the archive).
+ * Given the text as it was before a change, only the segments the change
+ * touched are looked at; without it, all of them are, and a row that has
+ * come to differ from the text for any reason is put right.
  */
 export async function rebuildSegmentIndex(
   db: Database,
   transcriptionId: string,
   content: Stream,
+  before?: Stream,
 ): Promise<void> {
-  const runs = segmentRuns(content).filter((r) => r.segmentId !== null);
-  await db
-    .delete(transcriptionSegments)
-    .where(eq(transcriptionSegments.transcriptionId, transcriptionId));
-  if (runs.length === 0) return;
+  const only = before ? segmentsChanged(before, content) : null;
+  if (only && only.size === 0) return;
+  const runs = segmentRuns(content).filter(
+    (r) => r.segmentId !== null && (!only || only.has(r.segmentId)),
+  );
+  const stored = await db
+    .select()
+    .from(transcriptionSegments)
+    .where(
+      and(
+        eq(transcriptionSegments.transcriptionId, transcriptionId),
+        only ? sql`${transcriptionSegments.segmentId} = any(${sql.param([...only])})` : undefined,
+      ),
+    );
+  const wanted = await indexRows(db, transcriptionId, content, runs);
+  /** Each segment's rows as one string to compare. */
+  const rowsBySegment = (rows: (typeof wanted)[number][]) => {
+    const by = new Map<string, (typeof wanted)[number][]>();
+    for (const row of rows) {
+      const list = by.get(row.segmentId);
+      if (list) list.push(row);
+      else by.set(row.segmentId, [row]);
+    }
+    return new Map(
+      [...by].map(([segmentId, list]) => [
+        segmentId,
+        JSON.stringify(
+          list
+            .sort((a, b) => a.part - b.part)
+            .map((r) => [r.part, r.workId, r.firstItemId, r.unitCount, r.foldText]),
+        ),
+      ]),
+    );
+  };
+  const held = rowsBySegment(stored);
+  const due = rowsBySegment(wanted);
+  const changed = new Set<string>();
+  for (const [segmentId, signature] of due)
+    if (held.get(segmentId) !== signature) changed.add(segmentId);
+  for (const segmentId of held.keys()) if (!due.has(segmentId)) changed.add(segmentId);
+  if (changed.size === 0) return;
+  const ids = [...changed];
+  for (let i = 0; i < ids.length; i += INDEX_CHUNK)
+    await db
+      .delete(transcriptionSegments)
+      .where(
+        and(
+          eq(transcriptionSegments.transcriptionId, transcriptionId),
+          inArray(transcriptionSegments.segmentId, ids.slice(i, i + INDEX_CHUNK)),
+        ),
+      );
+  const rows = wanted.filter((r) => changed.has(r.segmentId));
+  for (let i = 0; i < rows.length; i += INDEX_CHUNK)
+    await db.insert(transcriptionSegments).values(rows.slice(i, i + INDEX_CHUNK));
+}
+
+/** The rows the index should hold for a transcription's runs. */
+async function indexRows(
+  db: Database,
+  transcriptionId: string,
+  content: Stream,
+  runs: ReturnType<typeof segmentRuns>,
+) {
+  if (runs.length === 0) return [];
   const segmentIds = [...new Set(runs.map((r) => r.segmentId!))];
-  const segmentRows = await db
-    .select({ id: segments.id, workId: segments.workId, profile: works.profile })
+  // The works of the segments, asked by one array and not by a thousand parameters.
+  const workOf = new Map<string, string>();
+  for (const row of await db
+    .select({ id: segments.id, workId: segments.workId })
     .from(segments)
-    .innerJoin(works, eq(works.id, segments.workId))
-    .where(inArray(segments.id, segmentIds));
-  const bySegment = new Map(segmentRows.map((s) => [s.id, s] as const));
+    .where(sql`${segments.id} = any(${sql.param(segmentIds)})`))
+    workOf.set(row.id, row.workId);
+  const workIds = [...new Set(workOf.values())];
+  const profiles = new Map<string, NormalizationProfile>();
+  if (workIds.length)
+    for (const row of await db
+      .select({ id: works.id, profile: works.profile })
+      .from(works)
+      .where(inArray(works.id, workIds)))
+      profiles.set(row.id, row.profile as NormalizationProfile);
   const rows = runs
-    .filter((run) => bySegment.has(run.segmentId!))
+    .filter((run) => profiles.has(workOf.get(run.segmentId!) ?? ''))
     .map((run) => {
-      const seg = bySegment.get(run.segmentId!)!;
-      const profile = seg.profile as NormalizationProfile;
+      const workId = workOf.get(run.segmentId!)!;
       const runUnits = units(content, run.from, run.to);
       const first = content.items[run.from]!;
       return {
         transcriptionId,
         segmentId: run.segmentId!,
-        workId: seg.workId,
+        workId,
         part: run.part,
         firstItemId: first.id,
         unitCount: runUnits.length,
-        foldText: runUnits.map((u) => (u.gap ? '[...]' : fold(u.text, profile.fold))).join(' '),
+        foldText: runUnits
+          .map((u) => (u.gap ? '[...]' : fold(u.text, profiles.get(workId)!.fold)))
+          .join(' '),
       };
     });
   // Two runs with the same part number (older data, or a numbering slip) keep the first.
   const seen = new Set<string>();
-  const unique = rows.filter((r) => {
+  return rows.filter((r) => {
     const key = `${r.segmentId}:${r.part}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
-  if (unique.length) await db.insert(transcriptionSegments).values(unique);
 }
 
 /** Which transcriptions assign text to a segment, with the part count. */

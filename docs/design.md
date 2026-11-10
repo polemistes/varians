@@ -165,7 +165,7 @@ An edition's text is a stream of the same shape as a transcript's, with the edit
 
 ### 3.10 Collation and the apparatus
 
-Collation is a pure function in the core: given the words of one segment in the edition and in each witness, it returns the segment's **places** of variation (in the code, sites). It references nothing stored. The server caches results under a hash of the inputs.
+Collation is a pure function in the core: given the words of one segment in the edition and in each witness, it returns the segment's **places** of variation (in the code, sites). It references nothing stored. The server caches results under a hash of the inputs, one row for each segment of an edition: the cache is read for the segments asked for in one statement, and what it lacks is collated and written back together. The runs of a text are found once for the text, not for every segment asked. Which witnesses order whole segments otherwise than the edition is worked out when the orders differ, and remembered for the pair of orders.
 
 Per segment, every witness is aligned with the edition's words alone, by dynamic programming over the letters of the words. What one witness reads therefore never depends on another witness, nor on the order of the sigla. Where a witness departs from the edition it does so over an extent of its own:
 

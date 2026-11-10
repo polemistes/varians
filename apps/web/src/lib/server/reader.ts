@@ -10,7 +10,6 @@ import {
   attachToSites,
   compareOrder,
   layoutLines,
-  segmentIds as segmentIdsOf,
   type ApparatusConventions,
   type ApparatusEntry,
   type Attachment,
@@ -43,7 +42,8 @@ import {
   type MomentBasis,
   type WitnessHand,
 } from '@varians/db';
-import { and, desc, eq, inArray, lte } from 'drizzle-orm';
+import { and, desc, eq, getTableColumns, inArray, lte } from 'drizzle-orm';
+import { createHash } from 'node:crypto';
 import { MAX_REFRESH, PUBLIC, recordFilter, type Audience } from './audience.ts';
 import { citationsByRecord } from './bibliography.ts';
 import {
@@ -52,6 +52,7 @@ import {
   editionUnits,
   loadEditionContext,
   loadWitnessHands,
+  segmentOrderOf,
   type EditionContext,
 } from './collation.ts';
 import { collationStateOf, normalizeSiglum, type ConspectusEntry } from './sigla.ts';
@@ -233,21 +234,55 @@ export interface OrderStatement {
   after: string | null;
 }
 
+/**
+ * What comparing two orders of segments gave, by the two orders. Comparing
+ * is slow on long editions (every pair of segments), and the orders change
+ * far less often than the words do, so an edit of words asks nothing anew.
+ */
+const orderMemo = new Map<string, ReturnType<typeof compareOrder>>();
+const ORDER_MEMO_KEPT = 512;
+
+function orderDigest(order: string[]): string {
+  return createHash('sha1').update(order.join('\n')).digest('hex');
+}
+
 /** Order statements for every witness of the conspectus with a transcription. */
 export function orderStatements(context: EditionContext): OrderStatement[] {
-  const editionOrder = segmentIdsOf(context.edition.content);
+  const editionOrder = segmentOrderOf(context.edition.content);
+  const inEdition = new Set(editionOrder);
+  let editionKey: string | null = null;
   const out: OrderStatement[] = [];
   for (const siglum of context.sigla) {
     if (!siglum.transcriptionId) continue;
     const transcription = context.transcriptions.get(siglum.transcriptionId);
     if (!transcription) continue;
-    const inEdition = new Set(editionOrder);
-    const witnessOrder = segmentIdsOf(transcription.content).filter((id) => inEdition.has(id));
-    for (const statement of compareOrder(editionOrder, witnessOrder)) {
+    const witnessOrder = segmentOrderOf(transcription.content).filter((id) => inEdition.has(id));
+    // A witness that has the segments it shares with the edition in the edition's order moves none.
+    const shared = new Set(witnessOrder);
+    const reference = editionOrder.filter((id) => shared.has(id));
+    if (reference.every((id, i) => id === witnessOrder[i])) continue;
+    const key = `${(editionKey ??= orderDigest(editionOrder))}:${orderDigest(witnessOrder)}`;
+    let statements = orderMemo.get(key);
+    if (!statements) {
+      statements = compareOrder(editionOrder, witnessOrder);
+      orderMemo.set(key, statements);
+      if (orderMemo.size > ORDER_MEMO_KEPT) orderMemo.delete(orderMemo.keys().next().value!);
+    }
+    for (const statement of statements) {
       out.push({ siglum: siglum.siglum, moved: statement.moved, after: statement.after });
     }
   }
   return out;
+}
+
+/** An edition's row without its text, which a collation context holds already. */
+type EditionMeta = Omit<typeof editions.$inferSelect, 'content'>;
+
+async function editionMeta(db: Database, editionId: string): Promise<EditionMeta> {
+  const { content: _content, ...columns } = getTableColumns(editions);
+  const [row] = await db.select(columns).from(editions).where(eq(editions.id, editionId));
+  if (!row) throw new Error(`no edition ${editionId}`);
+  return row;
 }
 
 export interface EditionView {
@@ -297,8 +332,7 @@ export async function editionView(
   audience: Audience = PUBLIC,
 ): Promise<EditionView> {
   const { context, asOf } = await contextAt(db, editionId, atVersion);
-  const [row] = await db.select().from(editions).where(eq(editions.id, editionId));
-  if (!row) throw new Error(`no edition ${editionId}`);
+  const row = await editionMeta(db, editionId);
   const work = await db.query.works.findFirst({ where: (t, { eq }) => eq(t.id, row.workId) });
   const segmentRows = await db.select().from(segments).where(eq(segments.workId, row.workId));
   const labelOf: Record<string, string> = {};
@@ -477,9 +511,10 @@ export async function refreshView(
   segmentIds: string[],
   audience: Audience = PUBLIC,
 ): Promise<{ segments: Record<string, SegmentView>; order: OrderStatement[] }> {
-  const context = await loadEditionContext(db, editionId);
-  const [row] = await db.select().from(editions).where(eq(editions.id, editionId));
-  if (!row) throw new Error(`no edition ${editionId}`);
+  const [context, row] = await Promise.all([
+    loadEditionContext(db, editionId),
+    editionMeta(db, editionId),
+  ]);
   // Segments of this work only, and a bounded number of them: the editor asks for those it has on screen.
   const asked = [...new Set(segmentIds)].slice(0, MAX_REFRESH);
   const segmentRows = asked.length
@@ -523,7 +558,7 @@ export async function refreshView(
 async function buildSegmentViews(
   db: Database,
   context: EditionContext,
-  row: typeof editions.$inferSelect,
+  row: EditionMeta,
   collations: Map<string, Collation>,
   labelOf: Record<string, string>,
   witnessById: Map<string, typeof witnesses.$inferSelect>,

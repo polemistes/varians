@@ -409,6 +409,26 @@ function reorderOps(stream: Stream, target: Id[]): { ops: Op[]; stream: Stream }
 }
 
 /**
+ * Whether a stream keeps the page invariants of `conformPages` for a witness
+ * whose pages are `pageOrder`: every page break names a page of the witness,
+ * each page once, in the witness's order, with no label. Where it does,
+ * `conformPages` has nothing to do; this finds that out in one pass over the
+ * page breaks, which is worth asking before it on a long text.
+ */
+export function isConformed(stream: Stream, pageOrder: readonly Id[]): boolean {
+  const rank = new Map(pageOrder.map((id, i) => [id, i] as const));
+  let last = -1;
+  for (const item of stream.items) {
+    if (!isPageBreakItem(item)) continue;
+    if (item.label !== undefined) return false;
+    const at = item.pageId ? rank.get(item.pageId) : undefined;
+    if (at === undefined || at <= last) return false;
+    last = at;
+  }
+  return true;
+}
+
+/**
  * The ops that make a stream keep a transcript's page invariants for a
  * witness whose pages are `pageOrder`, and none for a stream that keeps them:
  *

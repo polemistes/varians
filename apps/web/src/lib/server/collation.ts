@@ -12,13 +12,13 @@ import {
   fold,
   isObj,
   isToken,
-  runsOfSegment,
+  runsBySegment,
   segmentRuns,
-  segmentIds,
   units,
   type Collation,
   type CollationText,
   type NormalizationProfile,
+  type SegmentRun,
   type SiteKind,
   type Stream,
   type Unit,
@@ -38,7 +38,7 @@ import {
 } from '@varians/db';
 import { collationStateOf, normalizeSiglum, stateTextId, type ConspectusEntry } from './sigla.ts';
 import { createHash } from 'node:crypto';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 
 export interface EditionContext {
   edition: { id: string; workId: string; content: Stream; version: number };
@@ -73,6 +73,8 @@ export interface Coverage {
 export function coverageOf(
   content: Stream,
   segmentKeys: ReadonlyMap<string, string>,
+  /** The keys in order, when several transcriptions are asked of one work. */
+  sortedKeys?: readonly (readonly [string, string])[],
 ): Coverage | null {
   let first: string | null = null;
   let last: string | null = null;
@@ -80,9 +82,7 @@ export function coverageOf(
   // The segment of the last word seen, and whether a gap or lacuna stands after it.
   let previous: string | null = null;
   let gapSince = false;
-  const sorted = [...segmentKeys.entries()].sort((a, b) =>
-    a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0,
-  );
+  const sorted = sortedKeys ?? sortedByKey(segmentKeys);
   for (const run of segmentRuns(content)) {
     for (let i = run.from; i < run.to; i++) {
       const item = content.items[i]!;
@@ -105,6 +105,10 @@ export function coverageOf(
     }
   }
   return first !== null && last !== null ? { first, last, lost } : null;
+}
+
+function sortedByKey(segmentKeys: ReadonlyMap<string, string>): [string, string][] {
+  return [...segmentKeys.entries()].sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0));
 }
 
 /** A unit standing for a passage lost in a witness. */
@@ -141,39 +145,51 @@ export async function loadEditionContext(db: Database, editionId: string): Promi
   const transcriptionIds = sigla
     .map((s) => s.transcriptionId)
     .filter((id): id is string => id !== null);
-  const rows = transcriptionIds.length
-    ? await db
-        .select({
-          id: transcriptions.id,
-          content: transcriptions.content,
-          version: transcriptions.version,
-          witnessId: transcriptions.witnessId,
-        })
-        .from(transcriptions)
-        .where(inArray(transcriptions.id, transcriptionIds))
-    : [];
-  const keyRows = await db
-    .select({ id: segments.id, sortKey: segments.sortKey })
-    .from(segments)
-    .where(eq(segments.workId, row.workId));
+  // What the rest needs is asked at once.
+  const [rows, keyRows, witnessHands, siteKinds] = await Promise.all([
+    transcriptionIds.length
+      ? db
+          .select({
+            id: transcriptions.id,
+            content: transcriptions.content,
+            version: transcriptions.version,
+            witnessId: transcriptions.witnessId,
+          })
+          .from(transcriptions)
+          .where(inArray(transcriptions.id, transcriptionIds))
+      : [],
+    db
+      .select({ id: segments.id, sortKey: segments.sortKey })
+      .from(segments)
+      .where(eq(segments.workId, row.workId)),
+    loadWitnessHands(
+      db,
+      sigla.map((s) => s.witnessId),
+    ),
+    siteKindsOf(db, editionId),
+  ]);
   const segmentKeys = new Map(keyRows.map((r) => [r.id, r.sortKey] as const));
-  const coverage = new Map<string, Coverage>();
-  for (const r of rows) {
-    const found = coverageOf(r.content, segmentKeys);
-    if (found) coverage.set(r.id, found);
-  }
+  // Which stretch each transcription covers is worked out when a collation first asks (a witness lacking a segment).
+  let coverage: Map<string, Coverage> | undefined;
   return {
     edition: { id: row.id, workId: row.workId, content: row.content, version: row.version },
     profile: row.profile,
     segmentKeys,
-    coverage,
+    get coverage() {
+      if (!coverage) {
+        coverage = new Map();
+        const sorted = sortedByKey(segmentKeys);
+        for (const r of rows) {
+          const found = coverageOf(r.content, segmentKeys, sorted);
+          if (found) coverage.set(r.id, found);
+        }
+      }
+      return coverage;
+    },
     sigla: sigla.map(normalizeSiglum),
-    witnessHands: await loadWitnessHands(
-      db,
-      sigla.map((s) => s.witnessId),
-    ),
+    witnessHands,
     transcriptions: new Map(rows.map((r) => [r.id, r] as const)),
-    siteKinds: await siteKindsOf(db, editionId),
+    siteKinds,
   };
 }
 
@@ -241,11 +257,36 @@ export async function setSiteKind(
     });
 }
 
+/**
+ * The runs of a stream by segment, found once for each stream: a stream is
+ * not changed once it is loaded (an edit makes a new one), and a collation
+ * of the whole edition asks for the runs of every segment in every witness.
+ */
+const runIndexes = new WeakMap<Stream, Map<string, SegmentRun[]>>();
+
+function runIndexOf(stream: Stream): Map<string, SegmentRun[]> {
+  let index = runIndexes.get(stream);
+  if (!index) {
+    index = runsBySegment(stream);
+    runIndexes.set(stream, index);
+  }
+  return index;
+}
+
+/** The runs of one segment of a stream, in content order. */
+export function runsOf(stream: Stream, segmentId: string): SegmentRun[] {
+  return runIndexOf(stream).get(segmentId) ?? [];
+}
+
+/** The ids of the segments a stream assigns text to, in order of first appearance. */
+export function segmentOrderOf(stream: Stream): string[] {
+  return [...runIndexOf(stream).keys()];
+}
+
 /** The edition's collation units for a segment: every run in content order. */
 export function editionUnits(content: Stream, segmentId: string): Unit[] {
   const out: Unit[] = [];
-  for (const run of runsOfSegment(content, segmentId))
-    out.push(...units(content, run.from, run.to));
+  for (const run of runsOf(content, segmentId)) out.push(...units(content, run.from, run.to));
   return out;
 }
 
@@ -264,7 +305,7 @@ export function inputsFor(
     if (!s.transcriptionId) continue;
     const transcription = context.transcriptions.get(s.transcriptionId);
     if (!transcription) continue;
-    const runs = runsOfSegment(transcription.content, segmentId);
+    const runs = runsOf(transcription.content, segmentId);
     const words: Unit[] = [];
     for (const run of runs)
       words.push(...units(transcription.content, run.from, run.to, 'corrected'));
@@ -334,43 +375,94 @@ export function inputHash(
   return hash.digest('hex').slice(0, 32);
 }
 
+/** How many cache rows one statement reads or writes. */
+const CACHE_CHUNK = 200;
+
+/**
+ * Collate some segments of an edition, from the cache where the inputs are
+ * unchanged: the cache is read in one go, what it lacks is collated and
+ * written back in one go. The result is in the order asked.
+ */
+export async function collateSegments(
+  db: Database,
+  context: EditionContext,
+  segmentIds: string[],
+): Promise<Map<string, Collation>> {
+  const wanted = [...new Set(segmentIds)];
+  const gathered = wanted.map((segmentId) => {
+    const { base, witnesses: witnessTexts } = inputsFor(context, segmentId);
+    return { segmentId, base, witnessTexts, hash: inputHash(context, base, witnessTexts) };
+  });
+  const cached = new Map<string, { inputHash: string; result: unknown }>();
+  for (let i = 0; i < gathered.length; i += CACHE_CHUNK * 5) {
+    const rows = await db
+      .select({
+        segmentId: collationCache.segmentId,
+        inputHash: collationCache.inputHash,
+        result: collationCache.result,
+      })
+      .from(collationCache)
+      .where(
+        and(
+          eq(collationCache.editionId, context.edition.id),
+          inArray(
+            collationCache.segmentId,
+            gathered.slice(i, i + CACHE_CHUNK * 5).map((g) => g.segmentId),
+          ),
+        ),
+      );
+    for (const row of rows) cached.set(row.segmentId, row);
+  }
+  const results = new Map<string, Collation>();
+  const fresh: { segmentId: string; hash: string; result: Collation }[] = [];
+  for (const { segmentId, base, witnessTexts, hash } of gathered) {
+    const hit = cached.get(segmentId);
+    if (hit && hit.inputHash === hash) {
+      results.set(segmentId, reviveCollation(hit.result));
+      continue;
+    }
+    const result = collate(base, witnessTexts, { fold: context.profile.fold });
+    fresh.push({ segmentId, hash, result });
+    results.set(segmentId, result);
+  }
+  for (let i = 0; i < fresh.length; i += CACHE_CHUNK / 4) {
+    await db
+      .insert(collationCache)
+      .values(
+        fresh.slice(i, i + CACHE_CHUNK / 4).map((f) => ({
+          editionId: context.edition.id,
+          segmentId: f.segmentId,
+          inputHash: f.hash,
+          result: serializeCollation(f.result),
+        })),
+      )
+      .onConflictDoUpdate({
+        target: [collationCache.editionId, collationCache.segmentId],
+        set: {
+          inputHash: sql`excluded.input_hash`,
+          result: sql`excluded.result`,
+          computedAt: new Date(),
+        },
+      });
+  }
+  // The editor's kinds are put over the cached result, so that setting one does not collate again.
+  const out = new Map<string, Collation>();
+  for (const { segmentId, base } of gathered) {
+    const kinds = new Map(
+      [...(context.siteKinds.get(segmentId) ?? [])].map(([key, k]) => [key, k.kind] as const),
+    );
+    out.set(segmentId, applySiteKinds(results.get(segmentId)!, base.units, kinds));
+  }
+  return out;
+}
+
 /** Collate one segment of an edition, from the cache when the inputs are unchanged. */
 export async function collateSegment(
   db: Database,
   context: EditionContext,
   segmentId: string,
 ): Promise<Collation> {
-  const { base, witnesses: witnessTexts } = inputsFor(context, segmentId);
-  const hash = inputHash(context, base, witnessTexts);
-  const [cached] = await db
-    .select({ inputHash: collationCache.inputHash, result: collationCache.result })
-    .from(collationCache)
-    .where(
-      and(
-        eq(collationCache.editionId, context.edition.id),
-        eq(collationCache.segmentId, segmentId),
-      ),
-    );
-  // The editor's kinds are put over the cached result, so that setting one does not collate again.
-  const kinds = new Map(
-    [...(context.siteKinds.get(segmentId) ?? [])].map(([key, k]) => [key, k.kind] as const),
-  );
-  if (cached && cached.inputHash === hash)
-    return applySiteKinds(reviveCollation(cached.result), base.units, kinds);
-  const result = collate(base, witnessTexts, { fold: context.profile.fold });
-  await db
-    .insert(collationCache)
-    .values({
-      editionId: context.edition.id,
-      segmentId,
-      inputHash: hash,
-      result: serializeCollation(result),
-    })
-    .onConflictDoUpdate({
-      target: [collationCache.editionId, collationCache.segmentId],
-      set: { inputHash: hash, result: serializeCollation(result), computedAt: new Date() },
-    });
-  return applySiteKinds(result, base.units, kinds);
+  return (await collateSegments(db, context, [segmentId])).get(segmentId)!;
 }
 
 /** Collate every segment the edition has, in the edition's order. */
@@ -378,11 +470,7 @@ export async function collateEdition(
   db: Database,
   context: EditionContext,
 ): Promise<Map<string, Collation>> {
-  const out = new Map<string, Collation>();
-  for (const segmentId of segmentIds(context.edition.content)) {
-    out.set(segmentId, await collateSegment(db, context, segmentId));
-  }
-  return out;
+  return collateSegments(db, context, segmentOrderOf(context.edition.content));
 }
 
 /** Maps cannot be stored as JSON; columns are serialized as arrays of [textId, cell] pairs. */
