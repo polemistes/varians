@@ -16,6 +16,7 @@ import {
   activeSiteFor,
   insertedIds,
   insertionSite,
+  itemsAround,
   segmentWindow,
   segmentsTouched,
   siteForTokens,
@@ -69,6 +70,16 @@ describe('segmentWindow', () => {
     expect(segmentWindow(order, 'g', 1)).toEqual(['e', 'f', 'g']);
     expect(segmentWindow(order, null, 2)).toEqual(['a', 'b', 'c', 'd', 'e']);
     expect(segmentWindow([], 'x')).toEqual([]);
+  });
+});
+
+describe('itemsAround', () => {
+  it('holds the stretch from the first word of the segments on show to the last, and nothing outside it', () => {
+    const { stream, segment } = view('s1', 'one two three four five', { B: 'one two' });
+    const middle = { baseUnits: segment.baseUnits.slice(1, 3) };
+    expect(itemsAround(stream, [middle]).map((item) => item.id)).toEqual(['s1e2', 's1e3']);
+    expect(itemsAround(stream, [segment]).length).toBe(stream.items.length);
+    expect(itemsAround(stream, [])).toEqual([]);
   });
 });
 

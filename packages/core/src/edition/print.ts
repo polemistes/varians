@@ -83,7 +83,7 @@ export function printSegment(
   const following = stream.items[index + 2];
   let op: Op;
   if (isBreak(next) && next.type === 'line' && (following === undefined || isBreak(following))) {
-    // An empty line directly after, as taking a whole line out of the text leaves one: the words fill it.
+    // An empty line directly after (one left in the text, as an editor leaves a blank line): the words fill it.
     op = { t: 'insert', after: next.id, items: line };
   } else {
     const lineBreak = (): Break => ({ kind: 'break', id: ids(), type: 'line' });

@@ -11,6 +11,7 @@ import {
   siteTokenIds,
   touchedIds,
   type Id,
+  type Item,
   type Op,
   type Reading,
   type Site,
@@ -39,6 +40,29 @@ export function segmentWindow(order: Id[], active: Id | null, radius = WINDOW_RA
   const from = Math.max(0, at - radius);
   const to = Math.min(order.length, from + radius * 2 + 1);
   return order.slice(Math.max(0, to - (radius * 2 + 1)), to);
+}
+
+/**
+ * The items of the stream from the first word of the segments on show to the
+ * last, which is all the edition's text a variant of those segments quotes
+ * (the words, and the lacuna marks among them). Scanning once and indexing
+ * only this stretch keeps what an edit costs the band small in a long text.
+ */
+export function itemsAround(
+  stream: Stream,
+  segments: readonly Pick<SegmentViewClient, 'baseUnits'>[],
+): Item[] {
+  const wanted = new Set<Id>();
+  for (const segment of segments)
+    for (const unit of segment.baseUnits) for (const id of unit.tokenIds) wanted.add(id);
+  let from = -1;
+  let to = -1;
+  stream.items.forEach((item, i) => {
+    if (!wanted.has(item.id)) return;
+    if (from < 0) from = i;
+    to = i;
+  });
+  return from < 0 ? [] : stream.items.slice(from, to + 1);
 }
 
 /** The segment an item belongs to, by id; null when it is unassigned or unknown. */

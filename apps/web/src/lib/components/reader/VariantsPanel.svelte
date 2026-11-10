@@ -10,9 +10,9 @@
   import X from '@lucide/svelte/icons/x';
   import { whereText, type SegmentVariants } from '$lib/reader/variant';
   import { reader as r } from '$lib/strings/reader';
-  import PlaceWords from './PlaceWords.svelte';
+  import PlaceWords from '../variant/PlaceWords.svelte';
+  import VariantRows from '../variant/VariantRows.svelte';
   import ReaderNotes from './ReaderNotes.svelte';
-  import VariantRows from './VariantRows.svelte';
   import VariantWindow from './VariantWindow.svelte';
 
   interface Props {

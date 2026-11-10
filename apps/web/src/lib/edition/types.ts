@@ -13,6 +13,7 @@ import type {
   Unit,
 } from '@varians/core';
 import type { EditionConventions } from '@varians/db';
+import type { ReaderSiglumState } from '$lib/reader/types';
 
 export interface SegmentViewClient {
   segmentId: string;
@@ -44,6 +45,10 @@ export interface SiglumClient {
   witnessName: string;
   transcriptionId: string | null;
   description: string | null;
+  /** The further states of the witness the edition collates under sigla of their own. */
+  states?: ReaderSiglumState[];
+  /** The siglum of the variants the witness notes ("A v.l."), when the edition collates them. */
+  variantSiglum?: string | null;
 }
 
 export interface EditionViewClient {

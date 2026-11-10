@@ -748,6 +748,36 @@ describe('reported readings and conjectures', () => {
   });
 });
 
+describe('what a row can be taken from', () => {
+  it('names the reading, the report or the conjecture of each row but the edition’s, and of what stands at no variant', () => {
+    const report: Attachment = { kind: 'reported', id: 'r', text: 'θεαί', name: 'T' };
+    const guess = conjecture({ id: 'c', name: 'Bentley', text: 'θεός' });
+    const adopted = conjecture({ id: 'a', name: 'Zenodotus', text: 'θεῶν', adopted: true });
+    const seg = segment(
+      [
+        {
+          index: 0,
+          baseFrom: 2,
+          baseTo: 3,
+          readings: [reading('θεά', ['ed', 'ta']), reading('θεοί', ['tb'])],
+        },
+      ],
+      { attachments: { 0: [report, guess, adopted] }, unplaced: [report, guess] },
+    );
+    const rows = variant(seg).rows;
+    expect(rows.map((row) => row.kind)).toEqual(['edition', 'witnesses', 'reported', 'conjecture']);
+    expect(rows[0]!.origin).toBeUndefined();
+    expect(rows[1]!.origin).toEqual({
+      kind: 'reading',
+      reading: seg.collation.sites[0]!.readings[1],
+    });
+    expect(rows[2]!.origin).toEqual({ kind: 'attachment', attachment: report });
+    expect(rows[3]!.origin).toEqual({ kind: 'attachment', attachment: guess });
+    const unplaced = variantsOf(['s1'], { s1: seg }, { has: () => false }, context)[0]!.unplaced;
+    expect(unplaced.map((row) => row.origin)).toEqual([undefined, undefined]);
+  });
+});
+
 describe('groups', () => {
   const many: ReaderSiglum[] = [
     siglum('A', 'Venetus A'),

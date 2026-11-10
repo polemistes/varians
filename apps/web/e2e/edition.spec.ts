@@ -94,7 +94,7 @@ test('adopts a reading, takes it back, and adopts a conjecture', async ({ page }
   await page.locator('.apparatus-band button[title="Adopt"]', { hasText: 'μυρία' }).first().click();
   await saved(page);
   expect(await line(page, 1)).toBe('οὐλομένην, ἣ μυρία Ἀχαιοῖς ἄλγε᾽ ἔθηκε,');
-  await expect(page.locator('.apparatus-band section').nth(1)).toContainText('μυρί᾽ A C');
+  await expect(page.locator('.apparatus-band section').nth(1)).toContainText(/μυρί᾽\s*A\s*C/);
 
   await page.getByRole('button', { name: /Undo adoption/ }).click();
   await saved(page);
@@ -127,10 +127,75 @@ test('moves a line with its label and reports the order of the witnesses', async
   await page.keyboard.press('Alt+Shift+ArrowUp');
   await saved(page);
   await expect(page.locator('.cm-segment-gutter')).toContainText(/1\.7\s*1\.9\s*1\.8/);
-  await expect(page.locator('.apparatus-band')).toContainText('A has it after 1.8');
+  // The order of whole lines is a variant of its own, at the first of its lines, in rows of labels.
+  const order = page.locator('.apparatus-band [data-order]');
+  await expect(order).toHaveCount(1);
+  await expect(order.getByRole('button', { name: '1.9–1.8' })).toBeVisible();
+  const orderRows = order.locator('.row');
+  await expect(orderRows).toHaveCount(2);
+  await expect(orderRows.first()).toHaveClass(/edition/);
+  await expect(orderRows.first().locator('.words')).toHaveText('1.9 1.8');
+  await expect(orderRows.nth(1).locator('.words')).toHaveText('1.8 1.9');
+  await expect(orderRows.nth(1).getByRole('button', { name: 'Venetus A' })).toBeVisible();
+  // The editor moves lines with Line ↑ and Line ↓, so no row of it is adopted.
+  await expect(order.locator('button[title="Adopt"]')).toHaveCount(0);
   await page.keyboard.press('Alt+Shift+ArrowDown');
   await saved(page);
-  await expect(page.locator('.apparatus-band')).not.toContainText('has it after');
+  await expect(page.locator('.apparatus-band [data-order]')).toHaveCount(0);
+});
+
+test('lists a variant in the band as the reader does, adopts from a row, and shows a witness from its siglum', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto('/editions/iliad-1-working-edition/edit');
+  await expect(page.locator('.cm-content')).toBeVisible();
+  const band = page.locator('.apparatus-band');
+  const section = (label: string) =>
+    band.locator('section').filter({
+      has: page.locator('h3', { hasText: new RegExp(`^${label.replace('.', '\\.')}$`) }),
+    });
+  const entry = section('1.2').locator('.entry').first();
+  await expect(entry).toBeVisible();
+
+  // The head is the edition's words, which bring the caret to them; then who is there, then the rows.
+  await entry.getByRole('button', { name: 'μυρί᾽', exact: true }).click();
+  await expect(entry).toHaveClass(/bg-accent-soft/);
+  await expect(page.locator('.cm-content .vs-active')).toContainText('μυρί᾽');
+  await expect(entry.getByText(rd.variant.thereAll(3))).toBeVisible();
+  const rows = entry.locator('.row');
+  await expect(rows).toHaveCount(2);
+  // The edition's reading comes first, set apart by its weight, with nothing to adopt.
+  await expect(rows.first()).toHaveClass(/edition/);
+  await expect(rows.first().locator('.words')).toHaveText('μυρί᾽');
+  await expect(rows.first().locator('.words')).toHaveCSS('font-weight', '700');
+  await expect(rows.first().locator('button[title="Adopt"]')).toHaveCount(0);
+  await expect(rows.nth(1).locator('button[title="Adopt"]')).toHaveText('μυρία');
+  await expect(rows.nth(1).getByRole('button', { name: 'Venetus B' })).toHaveText('B');
+  // A conjecture the edition prints is shown as adopted, in the row of the edition's reading.
+  const three = section('1.3').locator('.entry').first();
+  await expect(three.locator('.row.edition')).toContainText('Tester, conjecture');
+  await expect(three.locator('.row.edition')).toContainText(ed.adopted);
+  // Nothing in an abbreviation or in a word that judges.
+  await expect(band).not.toContainText(/\b(coni|del|lac|suppl|transp)\./);
+  await expect(band).not.toContainText(/omitted|added/);
+
+  // A siglum shows the witness in the pane.
+  const chooser = page.getByRole('combobox', { name: ed.witness.choose, exact: true });
+  await expect(chooser).toHaveValue('A');
+  await rows.nth(1).getByRole('button', { name: 'Venetus B' }).click();
+  await expect(chooser).toHaveValue('B');
+
+  // The reading of a row adopts it, and Undo takes it back.
+  await rows.nth(1).locator('button[title="Adopt"]').click();
+  await saved(page);
+  expect(await line(page, 1)).toBe('οὐλομένην, ἣ μυρία Ἀχαιοῖς ἄλγε᾽ ἔθηκε,');
+  const adopted = section('1.2').locator('.entry').first();
+  await expect(adopted.locator('.row').first().locator('.words')).toHaveText('μυρία');
+  await expect(adopted.locator('.row').nth(1).locator('button[title="Adopt"]')).toHaveText('μυρί᾽');
+  await page.getByRole('button', { name: ed.workspace.undoAdoption('1.2') }).click();
+  await saved(page);
+  expect(await line(page, 1)).toBe('οὐλομένην, ἣ μυρί᾽ Ἀχαιοῖς ἄλγε᾽ ἔθηκε,');
 });
 
 test('shows the page where a witness’s words stand, mapped to the image or not', async ({

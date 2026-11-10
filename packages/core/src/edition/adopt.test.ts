@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { collate, type CollationText } from '../collate/collate.ts';
 import { sequentialIds } from '../ids.ts';
 import { applyOps } from '../stream/ops.ts';
+import type { Stream } from '../stream/items.ts';
 import { fromText, toText } from '../stream/text.ts';
 import { units, type Unit } from '../stream/words.ts';
 import { adoptConjecture, adoptReading, replaceAtSite } from './adopt.ts';
@@ -82,8 +83,76 @@ describe('adopting', () => {
     const site = c.sites.find((x) => x.wanting)!;
     const omission = site.readings.find((r) => r.omission)!;
     const { stream } = applyOps(edition, adoptReading(edition, site, baseUnits, omission, 'B'));
-    expect(toText(stream)).toBe('\njumps over');
-    expect((stream.items[1] as { segment?: unknown }).segment).toEqual({ segmentId: 's2' });
+    expect(toText(stream)).toBe('jumps over');
+    expect((stream.items[0] as { segment?: unknown }).segment).toEqual({ segmentId: 's2' });
+  });
+
+  describe('the absence of a whole line', () => {
+    /** The stream with these items starting segments `s1`, `s2`…, and what adopting that B has nothing at items `from` to `to` leaves of it. */
+    function absent(edition: Stream, starts: number[], from: number, to: number): Stream {
+      starts.forEach((at, k) => {
+        (edition.items[at] as { segment?: unknown }).segment = { segmentId: `s${k + 1}` };
+      });
+      const baseUnits = units(edition, from, to);
+      const c = collate({ id: 'E', siglum: 'ed', units: baseUnits }, [
+        { id: 'B', siglum: 'B', units: [], present: true },
+      ]);
+      const site = c.sites.find((x) => x.wanting)!;
+      const omission = site.readings.find((r) => r.omission)!;
+      return applyOps(edition, adoptReading(edition, site, baseUnits, omission, 'B')).stream;
+    }
+    const lines = () => fromText('one two\nthree four\nfive', { ids: sequentialIds('e') });
+    // one(0) two(1) /(2) three(3) four(4) /(5) five(6)
+
+    it('takes its line break with it, from the middle, the start and the end of the text', () => {
+      expect(toText(absent(lines(), [0, 3, 6], 3, 5))).toBe('one two\nfive');
+      expect(toText(absent(lines(), [0, 3, 6], 0, 2))).toBe('three four\nfive');
+      expect(toText(absent(lines(), [0, 3, 6], 6, 7))).toBe('one two\nthree four');
+    });
+
+    it('leaves nothing of a text that is that one line', () => {
+      expect(toText(absent(fromText('one two', { ids: sequentialIds('e') }), [0], 0, 2))).toBe('');
+    });
+
+    it('takes a line at the end of a page and one at the start of the next, as the page breaks stand', () => {
+      const pages = (): Stream => ({
+        items: [
+          { kind: 'token', id: 'a1', form: 'a1' },
+          { kind: 'break', id: 'l1', type: 'line' },
+          { kind: 'token', id: 'b1', form: 'b1' },
+          { kind: 'break', id: 'p2', type: 'page', pageId: 'P2' },
+          { kind: 'token', id: 'c1', form: 'c1' },
+          { kind: 'break', id: 'l2', type: 'line' },
+          { kind: 'token', id: 'd1', form: 'd1' },
+        ],
+      });
+      const ids = (stream: Stream) => stream.items.map((item) => item.id);
+      expect(ids(absent(pages(), [0, 2, 4, 6], 2, 3))).toEqual(['a1', 'p2', 'c1', 'l2', 'd1']);
+      expect(ids(absent(pages(), [0, 2, 4, 6], 4, 5))).toEqual(['a1', 'l1', 'b1', 'p2', 'd1']);
+    });
+
+    it('leaves the line breaks where other words stand on the line', () => {
+      const shared = () => fromText('one two three\nfour', { ids: sequentialIds('e') });
+      // one(0) two(1) three(2) /(3) four(4), where s2 is the last word of the first line.
+      expect(toText(absent(shared(), [0, 2, 4], 2, 3))).toBe('one two\nfour');
+      expect(toText(absent(shared(), [0, 2, 4], 0, 2))).toBe('three\nfour');
+    });
+
+    it('leaves a line holding something besides the words as a line', () => {
+      const marked = (): Stream => ({
+        items: [
+          { kind: 'token', id: 'a1', form: 'a1' },
+          { kind: 'object', id: 'o1', type: 'lacuna' },
+          { kind: 'break', id: 'l1', type: 'line' },
+          { kind: 'token', id: 'b1', form: 'b1' },
+        ],
+      });
+      expect(absent(marked(), [0, 3], 0, 1).items.map((item) => item.id)).toEqual([
+        'o1',
+        'l1',
+        'b1',
+      ]);
+    });
   });
 
   it('adopts an addition by inserting after the preceding word', () => {

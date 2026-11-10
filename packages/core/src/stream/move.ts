@@ -38,6 +38,27 @@ function isPageBreakItem(item: Item | undefined): item is Break {
   return isBreak(item) && item.type === 'page';
 }
 
+/**
+ * The line break that text leaving a place orphans, given the items now
+ * either side of the place: at the start of a page's text (or of the text),
+ * a break that would leave an empty first line, and at the end of one, the
+ * break before it, so that the empty line the text left is not kept. Null
+ * when no line break is left over. `leaving` holds ids of items that go with
+ * the text, which are not left over.
+ */
+export function orphanedLineBreak(
+  previous: Item | undefined,
+  next: Item | undefined,
+  leaving: ReadonlySet<Id> = new Set(),
+): Id | null {
+  const plainLine = (item: Item | undefined): item is Break =>
+    isBreak(item) && item.type === 'line' && !leaving.has(item.id);
+  if ((previous === undefined || isBreak(previous)) && plainLine(next) && !next.rend)
+    return next.id;
+  if (plainLine(previous) && (next === undefined || isPageBreakItem(next))) return previous.id;
+  return null;
+}
+
 /** The segment of every token and object by flow, and its place in its segment's content order. */
 function membership(stream: Stream): { segment: Map<Id, Id | null>; rank: Map<Id, number> } {
   const segment = new Map<Id, Id | null>();
@@ -328,13 +349,8 @@ export function moveToPage(
   const prevIndex = oldPrevious === null ? -1 : items.findIndex((item) => item.id === oldPrevious);
   const prev = prevIndex >= 0 ? items[prevIndex] : undefined;
   const next = items[prevIndex + 1];
-  const plainLine = (item: Item | undefined) =>
-    isBreak(item) && item.type === 'line' && !moving.has(item.id);
-  if ((prev === undefined || isBreak(prev)) && plainLine(next) && !(next as Break).rend) {
-    push([{ t: 'delete', ids: [next!.id] }]);
-  } else if (plainLine(prev) && (next === undefined || isPageBreakItem(next))) {
-    push([{ t: 'delete', ids: [prev!.id] }]);
-  }
+  const orphan = orphanedLineBreak(prev, next, moving);
+  if (orphan !== null) push([{ t: 'delete', ids: [orphan] }]);
   return [...ops, ...repairSegmentStarts(stream, current)];
 }
 

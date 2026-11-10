@@ -88,6 +88,16 @@ export interface RowLink {
   where: Where;
 }
 
+/**
+ * What a row was made from, for a surface that acts on rows: the edition
+ * editor adopts a witness's reading, a reported reading or a conjecture.
+ * Rows of the edition's own reading have none, nor those that stand at no
+ * variant.
+ */
+export type RowOrigin =
+  | { kind: 'reading'; reading: Reading }
+  | { kind: 'attachment'; attachment: Attachment };
+
 export interface Row {
   kind: 'edition' | 'witnesses' | 'reported' | 'conjecture';
   /** Said before the words, or in their place when there are none. */
@@ -100,6 +110,8 @@ export interface Row {
   /** What the row rests on, printed after it: "West 1998, 45". */
   references: string[];
   links: RowLink[];
+  /** What the row was made from, where it is a reading that can be taken in a variant of a segment. */
+  origin?: RowOrigin;
 }
 
 export interface Variant extends Where {
@@ -602,6 +614,7 @@ export function variantOf(
         rests: [],
         references: [],
         links: [],
+        origin: { kind: 'reading', reading },
       },
       textIds: reading.textIds,
       plain: reading.text,
@@ -617,7 +630,10 @@ export function variantOf(
   for (const attachment of attached) {
     if (attachment.adopted) continue;
     if (attachment.kind === 'conjecture') {
-      conjectures.push(conjectureRow(attachment, cites));
+      conjectures.push({
+        ...conjectureRow(attachment, cites),
+        origin: { kind: 'attachment', attachment },
+      });
       continue;
     }
     const same = [edition, ...witnessRows].find(
@@ -626,7 +642,10 @@ export function variantOf(
         (attachment.text !== '' || entry.row.lead === 'notIn'),
     );
     if (!same) {
-      own.push(reportedRow(attachment, conspectus, cites));
+      own.push({
+        ...reportedRow(attachment, conspectus, cites),
+        origin: { kind: 'attachment', attachment },
+      });
       continue;
     }
     const chip = reportedChip(attachment, conspectus);

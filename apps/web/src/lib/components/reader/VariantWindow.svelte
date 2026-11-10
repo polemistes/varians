@@ -6,11 +6,10 @@
    * notes. The popover on a word or a point and the list of variants both
    * show it, from the same structure, the list in a compact form.
    */
-  import { reader as r } from '$lib/strings/reader';
   import type { Variant } from '$lib/reader/variant';
+  import VariantRows from '../variant/VariantRows.svelte';
+  import VariantThere from '../variant/VariantThere.svelte';
   import ReaderNotes from './ReaderNotes.svelte';
-  import Sigla from './Sigla.svelte';
-  import VariantRows from './VariantRows.svelte';
 
   interface Props {
     variant: Variant;
@@ -30,22 +29,7 @@
 </script>
 
 <div class={['window', compact && 'compact']}>
-  {#if variant.there}
-    <p class="there">
-      {#if variant.there.all}
-        {r.variant.thereAll(variant.there.total)}
-      {:else}
-        {r.variant.thereSome(variant.there.count, variant.there.total)}:
-        <span class="chips"><Sigla chips={variant.there.chips} onwitness={open} /></span>
-      {/if}
-    </p>
-  {/if}
-  {#if variant.addition}
-    <p class="addition">
-      {r.variant.addition}
-      <span class="chips"><Sigla chips={variant.addition} onwitness={open} /></span>
-    </p>
-  {/if}
+  <VariantThere {variant} onwitness={open} />
 
   <VariantRows rows={variant.rows} {lang} onwitness={open} {onopen} />
 
@@ -68,10 +52,5 @@
   .compact {
     gap: 0.4rem;
     font-size: 0.8125rem;
-  }
-
-  .there,
-  .addition {
-    color: var(--color-ink);
   }
 </style>

@@ -5,11 +5,12 @@
    * proposer of a conjecture, the editor), its references, and a link to the
    * variant where the same witnesses have the words in another place. The
    * edition's reading is set apart by its weight alone, and read out as the
-   * edition's by screen readers.
+   * edition's by screen readers. Where the page can act on a row (the edition
+   * editor adopts it), the row's reading is the button.
    */
   import ArrowRight from '@lucide/svelte/icons/arrow-right';
   import { reader as r } from '$lib/strings/reader';
-  import { whereText, type Row } from '$lib/reader/variant';
+  import { whereText, type Row, type RowOrigin } from '$lib/reader/variant';
   import Sigla from './Sigla.svelte';
 
   interface Props {
@@ -20,18 +21,40 @@
     onwitness?: (siglum: string) => void;
     /** A row's link was activated: the variant it names. */
     onopen?: (key: string, from: HTMLElement) => void;
+    /** A row's reading was activated, for a row that has an origin: the reading is then a button. */
+    onadopt?: (origin: RowOrigin) => void;
+    /** The title of that button. */
+    adoptTitle?: string;
+    /** Said beside the conjecture the edition prints, where the page marks it. */
+    adoptedLabel?: string;
   }
 
-  let { rows, lang, onwitness, onopen }: Props = $props();
+  let { rows, lang, onwitness, onopen, onadopt, adoptTitle, adoptedLabel }: Props = $props();
 </script>
+
+{#snippet said(row: Row)}
+  {#if row.lead}<span class="lead">{r.variant[row.lead]}</span>{/if}
+  {#if row.words}{' '}<span class="words" {lang} dir="auto">{row.words}</span>{/if}
+{/snippet}
 
 <ul class="rows">
   {#each rows as row, k (k)}
     <li class={['row', row.kind]}>
       <span class="reading">
         {#if row.kind === 'edition'}<span class="sr-only">{r.variant.edition}: </span>{/if}
-        {#if row.lead}<span class="lead">{r.variant[row.lead]}</span>{/if}
-        {#if row.words}{' '}<span class="words" {lang} dir="auto">{row.words}</span>{/if}
+        {#if onadopt && row.origin}
+          <button
+            type="button"
+            class="take"
+            title={adoptTitle}
+            onclick={(event) => {
+              event.stopPropagation();
+              onadopt(row.origin!);
+            }}>{@render said(row)}</button
+          >
+        {:else}
+          {@render said(row)}
+        {/if}
       </span>
       <span class="who">
         {#if row.chips.length}<span class="chips"><Sigla chips={row.chips} {onwitness} /></span
@@ -41,7 +64,9 @@
             >{#if rest.kind === 'editor'}{row.lead === 'notIn'
                 ? r.variant.theEdition
                 : r.variant.theEditor}{:else}{rest.name}, {r.variant[rest.what]}{/if}</span
-          >
+          >{#if adoptedLabel && row.kind === 'edition' && rest.kind === 'conjecture'}<span
+              class="adopted">{adoptedLabel}</span
+            >{/if}
         {/each}
         {#if row.references.length}
           <span class="refs">{row.references.join('; ')}</span>
@@ -122,6 +147,33 @@
 
   .rest {
     color: var(--color-ink);
+  }
+
+  .adopted {
+    border-radius: 0.2rem;
+    padding: 0 0.3em;
+    font-size: 0.85em;
+    background: var(--color-success-soft);
+    color: var(--color-ink-muted);
+  }
+
+  /* A reading that can be taken: the words themselves, with the weight and the colour of the row. */
+  .take {
+    display: inline;
+    border-radius: 0.2rem;
+    padding: 0;
+    text-align: start;
+    font: inherit;
+    color: inherit;
+  }
+
+  .take:hover {
+    background: var(--color-sunken);
+  }
+
+  .take:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
   }
 
   .refs {

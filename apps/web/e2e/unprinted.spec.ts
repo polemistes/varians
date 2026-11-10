@@ -11,6 +11,7 @@ import { createDatabase, editions, referenceSchemes, users, witnesses, works } f
 import { segmentAt, type Stream } from '@varians/core';
 import { eq, inArray } from 'drizzle-orm';
 import { editor as ed } from '../src/lib/strings/editor';
+import { reader as rd } from '../src/lib/strings/reader';
 import { seedSample } from '../src/lib/server/seed/sample.ts';
 import { s } from '../src/lib/strings/en';
 
@@ -106,14 +107,19 @@ test('a line the edition does not print is marked, stepped to, adopted, taken ba
   await expect(page.locator('.cm-content')).toBeVisible();
   const printedFrom = await sourcesOf('1.6');
   expect(printedFrom.length).toBeGreaterThan(0);
+  const lineCount = (await lines(page)).length;
   const marks = page.locator('.cm-margin-mark');
   await expect(page.locator('.apparatus-band')).toBeVisible();
   await expect(marks).toHaveCount(0);
 
   // B and C run on without 1.6: adopting their reading takes the line out of the text.
-  await section(page, '1.6').locator('button[title="Adopt"]', { hasText: 'B C' }).click();
+  await section(page, '1.6')
+    .locator('button[title="Adopt"]', { hasText: rd.variant.notIn })
+    .click();
   await saved(page);
   expect(await lines(page)).not.toContain(LINE_6);
+  // Taking a line out takes its line break with it: no empty line is left.
+  expect(await lines(page)).toHaveLength(lineCount - 1);
 
   // The line is now one the edition does not print: a mark at the foot of 1.5, which opens its variant.
   await expect(marks).toHaveCount(1, { timeout: 15_000 });
@@ -133,7 +139,8 @@ test('a line the edition does not print is marked, stepped to, adopted, taken ba
       clip: { x: 0, y: fiveBox.y - 70, width: 640, height: 170 },
     });
 
-  // The band has it after the section of 1.5: nothing in the edition and in B C, A's words, which adopt.
+  // The band has it after the section of 1.5, as the reader's window lists it: the head says where it stands,
+  // then who is there and who has the words as an addition, then the edition's row (nothing, in B and C) and A's.
   const entry = page.locator('.apparatus-band section[data-unprinted]');
   await expect(entry).toHaveCount(1);
   const order = await page
@@ -141,10 +148,22 @@ test('a line the edition does not print is marked, stepped to, adopted, taken ba
     .evaluateAll((all) => all.map((el) => el.querySelector('h3')?.textContent?.trim()));
   expect(order[order.indexOf('1.5') + 1]).toBe('1.6');
   await expect(entry.locator('.entry')).toHaveClass(/bg-accent-soft/);
-  await expect(entry.locator('.entry')).toContainText(new RegExp(`^${ed.notIn}\\s*B C`));
-  await expect(entry.locator('.entry')).not.toContainText(ed.omitted);
+  await expect(entry.locator('.entry').getByRole('button').first()).toHaveText(
+    `${rd.variant.after} 1.5`,
+  );
+  await expect(entry.getByText(rd.variant.thereAll(3))).toBeVisible();
+  await expect(entry.locator('.addition')).toContainText(`${rd.variant.addition} A`);
+  const rows = entry.locator('.row');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first()).toHaveClass(/edition/);
+  await expect(rows.first()).toContainText(
+    new RegExp(`^\\s*${rd.variant.edition}: ${rd.variant.notIn}\\s*B\\s*C`),
+  );
+  await expect(rows.first().locator('button[title="Adopt"]')).toHaveCount(0);
+  await expect(entry.locator('.entry')).not.toContainText(/omitted|added/);
   const adoptLine = entry.locator('button[title="Adopt"]', { hasText: LINE_6 });
-  await expect(adoptLine).toContainText('A');
+  await expect(rows.nth(1)).toContainText('A');
+  await expect(rows.nth(1).locator('button[title="Adopt"]')).toHaveText(LINE_6);
   // The controls every variant has.
   await expect(entry.getByRole('button', { name: ed.minor, exact: true })).toBeVisible();
   await expect(entry.getByRole('button', { name: ed.register })).toBeVisible();
@@ -179,6 +198,7 @@ test('a line the edition does not print is marked, stepped to, adopted, taken ba
     LINE_6,
     LINE_7,
   ]);
+  expect(await lines(page)).toHaveLength(lineCount);
   await expect(marks).toHaveCount(0);
   await expect(page.locator('.apparatus-band section[data-unprinted]')).toHaveCount(0);
   await expect(page.locator('.cm-segment-gutter')).toContainText(/1\.5\s*1\.6\s*1\.7/);
@@ -186,9 +206,10 @@ test('a line the edition does not print is marked, stepped to, adopted, taken ba
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/editor-after-adopting.png` });
 
   // Undo takes it back: the line is not printed again, and its mark is back.
-  await page.getByRole('button', { name: /Undo adoption at 1\.6/ }).click();
+  await page.getByRole('button', { name: ed.workspace.undoAdoption('1.6') }).click();
   await saved(page);
   expect(await lines(page)).not.toContain(LINE_6);
+  expect(await lines(page)).toHaveLength(lineCount - 1);
   await expect(marks).toHaveCount(1, { timeout: 15_000 });
   // What the editor had said of it is said again: here, that it is to review.
   await expect(
@@ -209,6 +230,7 @@ test('a line the edition does not print is marked, stepped to, adopted, taken ba
     LINE_6,
     LINE_7,
   ]);
+  expect(text).toHaveLength(lineCount);
   await expect(marks).toHaveCount(0);
   expect(await sourcesOf('1.6')).toEqual(printedFrom);
 });

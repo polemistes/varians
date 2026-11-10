@@ -44,11 +44,15 @@
   import SegmentDialog from './SegmentDialog.svelte';
   import WitnessPane from './WitnessPane.svelte';
   import { keyOfSite, opsForAttachment, opsForReading } from '$lib/edition/adopt-client';
+  import { EditionText } from '$lib/reader/edition-text';
+  import { DEFAULT_SIGLA } from '$lib/reader/marks';
+  import { variantOf, type VariantContext } from '$lib/reader/variant';
   import { countNeeding, outlineOf, type SegmentOutline } from '$lib/edition/outline';
   import {
     activeSiteFor,
     insertedIds,
     insertionSite,
+    itemsAround,
     moveLinesOps,
     claimTypedWords,
     takeCurrentOps,
@@ -118,7 +122,9 @@
   let caretSegment = $state<Id | null>(null);
   let selection = $state.raw<{ ids: Id[]; caret: Id | null }>({ ids: [], caret: null });
   let stale = $state.raw<Set<Id>>(new Set());
-  let order = $state.raw<EditionViewClient['order']>(untrack(() => view.order ?? []));
+  let orderVariants = $state.raw<EditionViewClient['orderVariants']>(
+    untrack(() => view.orderVariants ?? []),
+  );
   let api = $state<EditorApi | null>(null);
   let witnessSiglum = $state<string | null>(
     untrack(() => view.sigla.find((x) => x.transcriptionId)?.siglum ?? null),
@@ -220,10 +226,10 @@
       if (!response.ok) throw new Error(response.statusText);
       const data = (await response.json()) as {
         segments: Record<Id, SegmentViewClient>;
-        order?: EditionViewClient['order'];
+        orderVariants?: EditionViewClient['orderVariants'];
         unprinted?: EditionViewClient['unprinted'];
       };
-      if (data.order) order = data.order;
+      if (data.orderVariants) orderVariants = data.orderVariants;
       const nextViews = { ...views };
       const nextOutlines = { ...outlines };
       const nextLabels = { ...labelOf };
@@ -330,10 +336,10 @@
       if (!response.ok) throw new Error(response.statusText);
       const data = (await response.json()) as {
         segments: Record<Id, SegmentViewClient>;
-        order?: EditionViewClient['order'];
+        orderVariants?: EditionViewClient['orderVariants'];
         unprinted?: EditionViewClient['unprinted'];
       };
-      if (data.order) order = data.order;
+      if (data.orderVariants) orderVariants = data.orderVariants;
       const nextViews = { ...views };
       const nextOutlines = { ...outlines };
       for (const [id, segment] of Object.entries(data.segments)) {
@@ -420,19 +426,25 @@
   const windowIds = $derived(
     windowWithUnprinted(sequence, outlines, caretSegment ?? active?.segmentId ?? null),
   );
-  const orderNotes = $derived.by(() => {
-    const notes: Record<Id, string[]> = {};
-    for (const statement of order) {
-      const text = statement.after
-        ? s.orderAfter(statement.siglum, labelOf[statement.after] ?? statement.after)
-        : s.orderFirst(statement.siglum);
-      for (const id of statement.moved) (notes[id] ??= []).push(text);
-    }
-    return notes;
-  });
   const windowSegments = $derived(
     windowIds.map((id) => views[id]).filter((v): v is SegmentViewClient => v !== undefined),
   );
+  /** The edition's words as it prints them, for the first row of a variant and its head. */
+  const editionText = $derived(
+    new EditionText(
+      itemsAround(stream, windowSegments),
+      view.edition.conventions.sigla ?? DEFAULT_SIGLA,
+    ),
+  );
+  /** What a variant reads, as the reader's window does: the conspectus, the edition's groups and words, the labels of the segments, and where witnesses order lines otherwise. */
+  const variantContext = $derived<VariantContext>({
+    sigla,
+    groups: view.edition.conventions.groups,
+    edition: editionText,
+    labelOf,
+    order: sequence,
+    orders: orderVariants,
+  });
   const tokenClasses = $derived(
     tokenClassesFor(Object.values(outlines), { active, colourBySource, stream }),
   );
@@ -483,6 +495,19 @@
     if (!segment) return;
     selectionWaiting = false;
     active = activeSiteFor([segment], selection.ids, selection.caret);
+  }
+
+  /** Bring the text to the first of the lines a variant over their order concerns. */
+  function focusLines(segmentId: Id) {
+    caretSegment = segmentId;
+    const first = views[segmentId]?.baseUnits[0]?.tokenIds[0];
+    if (first) api?.scrollToToken(first);
+  }
+
+  /** Show a witness beside the text: the chosen one in the witness pane. */
+  function showWitness(siglum: string) {
+    witnessSiglum = siglum;
+    side = 'witnesses';
   }
 
   function focusSite(segmentId: Id, site: Site) {
@@ -690,18 +715,15 @@
     }
   }
 
+  /** Adopt the nth reading the band lists for the active variant, the edition's own left out. */
   function adoptNth(n: number) {
     if (!active) return;
     const segment = views[active.segmentId];
     const site = segment?.collation.sites.find((x) => x.index === active!.siteIndex);
     if (!segment || !site) return;
-    const readings = site.readings.filter((r) => !r.base);
-    const attachments = (segment.attachments[site.index] ?? []).filter((a) => !a.adopted);
-    const options: Choice[] = [
-      ...readings.map((reading) => ({ kind: 'reading' as const, reading })),
-      ...attachments.map((attachment) => ({ kind: 'attachment' as const, attachment })),
-    ];
-    const choice = options[n - 1];
+    const choice = variantOf(segment, site.index, variantContext)?.rows.filter((row) => row.origin)[
+      n - 1
+    ]?.origin;
     if (choice) void adopt(segment.segmentId, site, choice);
   }
 
@@ -1379,7 +1401,7 @@
       </span>
       {#if lastAdoption}
         <Button size="sm" variant="ghost" onclick={undoAdoption}
-          >Undo adoption at {lastAdoption.label}</Button
+          >{s.workspace.undoAdoption(lastAdoption.label)}</Button
         >
       {/if}
       <span class="ml-auto flex items-center gap-4">
@@ -1392,14 +1414,16 @@
         {active}
         {reviewed}
         {canEdit}
+        context={variantContext}
+        lang={view.work.language}
         busy={[...stale]}
-        {orderNotes}
         onadopt={(segmentId, site, choice) => void adopt(segmentId, site, choice)}
         onkeep={(segmentId, site, flag) => void setReviewed(segmentId, site, flag)}
         onkind={(segmentId, site) => void setKind(segmentId, site)}
         onminor={(segmentId, site) => void setMinor(segmentId, site)}
         onregister={(segmentId, site) => openConjecture(segmentId, site)}
-        onfocus={focusSite}
+        onfocus={(segmentId, site) => (site ? focusSite(segmentId, site) : focusLines(segmentId))}
+        onwitness={showWitness}
         onnote={(segmentId) => {
           noteSegment = segmentId;
           noteOpen = true;

@@ -8,6 +8,7 @@
 import { newId } from '../ids.ts';
 import type { Reading, Site } from '../collate/collate.ts';
 import type { Id, Item, Stream, Token, TokenSource } from '../stream/items.ts';
+import { orphanedLineBreak } from '../stream/move.ts';
 import type { Op } from '../stream/ops.ts';
 import type { Unit } from '../stream/words.ts';
 
@@ -87,9 +88,25 @@ export function tokensFromConjecture(
 }
 
 /**
+ * The line break that stays behind when these words are all there is on their
+ * line: a removal that left it would keep an empty line in the text. Null
+ * where the words are not one unbroken stretch, or where something else
+ * stands on their line.
+ */
+function emptiedLineBreak(stream: Stream, ids: readonly Id[]): Id | null {
+  const gone = new Set(ids);
+  const first = stream.items.findIndex((item) => item.id === ids[0]);
+  const last = stream.items.findIndex((item) => item.id === ids[ids.length - 1]);
+  if (first < 0 || last < first || last - first + 1 !== gone.size) return null;
+  if (!stream.items.slice(first, last + 1).every((item) => gone.has(item.id))) return null;
+  return orphanedLineBreak(stream.items[first - 1], stream.items[last + 1], gone);
+}
+
+/**
  * Replace the edition's words at a site by new items. With no new items the
- * site's words are removed (an omission or a deletion adopted). The first
- * base token's segment start, if any, moves onto the first new item.
+ * site's words are removed (the absence of a reading adopted), and with them
+ * the line break that would leave an empty line, as moving text away does.
+ * The first base token's segment start, if any, moves onto the first new item.
  */
 export function replaceAtSite(stream: Stream, site: Site, baseUnits: Unit[], items: Item[]): Op[] {
   const ids = siteTokenIds(site, baseUnits);
@@ -106,19 +123,20 @@ export function replaceAtSite(stream: Stream, site: Site, baseUnits: Unit[], ite
     return newItems.length ? [{ t: 'insert', after, items: newItems }] : [];
   }
   if (newItems.length === 0) {
+    const ops: Op[] = [{ t: 'delete', ids }];
     if (carried) {
       // Keep the segment start alive on the item that follows the removed words.
       const lastIndex = stream.items.findIndex((i) => i.id === ids[ids.length - 1]);
       const next = stream.items
         .slice(lastIndex + 1)
         .find((i) => i.kind === 'token' || i.kind === 'object');
-      const ops: Op[] = [{ t: 'delete', ids }];
       // Not onto the start of the next segment: an omission of the whole segment leaves the segment without words.
       if (next && (next.kind === 'token' || next.kind === 'object') && !next.segment)
         ops.push({ t: 'set', id: next.id, fields: { segment: carried } });
-      return ops;
     }
-    return [{ t: 'delete', ids }];
+    const orphan = emptiedLineBreak(stream, ids);
+    if (orphan !== null) ops.push({ t: 'delete', ids: [orphan] });
+    return ops;
   }
   // Contiguous base tokens are replaced in one operation; a discontinuous site is replaced piecewise.
   const indexes = ids.map((id) => stream.items.findIndex((i) => i.id === id));

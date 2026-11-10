@@ -181,8 +181,8 @@ describe('printing a segment the edition does not print', () => {
     expect(print('a1@s1 /', 's1', 'n1')).toBe('a1@s1 / n1@new');
   });
 
-  it('gives back a line taken out of the text, as it stood, with its words from the witness chosen', () => {
-    // The edition prints s1 s2 s3; A has them all, B runs on without s2.
+  describe('a line taken out of the text', () => {
+    // The edition prints s1 s2 s3; A has them all, B runs on without the one at issue.
     const segmentOf = (spec: string, id: string, segmentId: string) => {
       const stream = fromText(spec, { ids: sequentialIds(id) });
       (stream.items[0] as Token).segment = { segmentId };
@@ -195,40 +195,73 @@ describe('printing a segment the edition does not print', () => {
           : [{ kind: 'break' as const, id: `br${k}`, type: 'line' as const }, ...s.items],
       ),
     });
-    const edition = lines(
-      segmentOf('alpha beta', 'e1-', 's1'),
-      segmentOf('gamma delta', 'e2-', 's2'),
-      segmentOf('epsilon', 'e3-', 's3'),
-    );
-    const a = fromText('gamma delta', { ids: sequentialIds('A') });
-    const witnesses = [{ id: 'A', siglum: 'A', units: units(a, 0, a.items.length) }];
-    const absent = { id: 'B', siglum: 'B', units: [], present: true };
-    const two = runsOfSegment(edition, 's2')[0]!;
-    const baseUnits = units(edition, two.from, two.to);
-    const whole = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [...witnesses, absent]);
-    const wanting = whole.sites.find((site) => site.wanting)!;
-    const notIn = wanting.readings.find((r) => r.textIds.includes('B'))!;
-    const without = applyOps(edition, adoptReading(edition, wanting, baseUnits, notIn, 'B')).stream;
-    expect(toText(without)).not.toContain('gamma');
-    // Not printed, the line is a variant with nothing in the edition and A's words.
-    const unprinted = collate({ id: 'E', siglum: 'ed.', units: [] }, [...witnesses, absent]);
-    const reading = unprinted.sites[0]!.readings.find((r) => r.textIds.includes('A'))!;
-    const back = applyOps(
-      without,
-      printReading(without, 's2', 's1', reading, 'A', { ids: sequentialIds('n') }),
-    ).stream;
-    expect(toText(back)).toBe(toText(edition));
-    expect(back.items.map((i) => i.kind)).toEqual(edition.items.map((i) => i.kind));
-    const printed = runsOfSegment(back, 's2');
-    expect(printed).toHaveLength(1);
-    expect(
-      back.items
-        .slice(printed[0]!.from, printed[0]!.to)
-        .flatMap((t) => (t.kind === 'token' ? [t.source] : [])),
-    ).toEqual([
-      { kind: 'witness', transcriptionId: 'A', tokenIds: ['A1'] },
-      { kind: 'witness', transcriptionId: 'A', tokenIds: ['A2'] },
-    ]);
+    const text = { s1: 'alpha beta', s2: 'gamma delta', s3: 'epsilon' } as const;
+    const edition = () =>
+      lines(
+        segmentOf(text.s1, 'e1-', 's1'),
+        segmentOf(text.s2, 'e2-', 's2'),
+        segmentOf(text.s3, 'e3-', 's3'),
+      );
+
+    /** Take the line `segmentId` out of the edition by adopting that B has nothing there. */
+    function takeOut(segmentId: 's2' | 's3') {
+      const stream = edition();
+      const a = fromText(text[segmentId], { ids: sequentialIds('A') });
+      const witnesses = [{ id: 'A', siglum: 'A', units: units(a, 0, a.items.length) }];
+      const absent = { id: 'B', siglum: 'B', units: [], present: true };
+      const run = runsOfSegment(stream, segmentId)[0]!;
+      const baseUnits = units(stream, run.from, run.to);
+      const whole = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [...witnesses, absent]);
+      const wanting = whole.sites.find((site) => site.wanting)!;
+      const notIn = wanting.readings.find((r) => r.textIds.includes('B'))!;
+      const applied = applyOps(stream, adoptReading(stream, wanting, baseUnits, notIn, 'B'));
+      const unprinted = collate({ id: 'E', siglum: 'ed.', units: [] }, [...witnesses, absent]);
+      return {
+        stream,
+        without: applied.stream,
+        reverse: applied.reverse,
+        reading: unprinted.sites[0]!.readings.find((r) => r.textIds.includes('A'))!,
+      };
+    }
+
+    it('leaves no empty line, and is given back as it stood, with its words from the witness chosen', () => {
+      const { stream, without, reading } = takeOut('s2');
+      expect(toText(without)).toBe('alpha beta\nepsilon');
+      const back = applyOps(
+        without,
+        printReading(without, 's2', 's1', reading, 'A', { ids: sequentialIds('n') }),
+      ).stream;
+      expect(toText(back)).toBe(toText(stream));
+      expect(back.items.map((i) => i.kind)).toEqual(stream.items.map((i) => i.kind));
+      const printed = runsOfSegment(back, 's2');
+      expect(printed).toHaveLength(1);
+      expect(
+        back.items
+          .slice(printed[0]!.from, printed[0]!.to)
+          .flatMap((t) => (t.kind === 'token' ? [t.source] : [])),
+      ).toEqual([
+        { kind: 'witness', transcriptionId: 'A', tokenIds: ['A1'] },
+        { kind: 'witness', transcriptionId: 'A', tokenIds: ['A2'] },
+      ]);
+    });
+
+    it('is given back at the end of the text as it stood', () => {
+      const { stream, without, reading } = takeOut('s3');
+      expect(toText(without)).toBe('alpha beta\ngamma delta');
+      const back = applyOps(
+        without,
+        printReading(without, 's3', 's2', reading, 'A', { ids: sequentialIds('n') }),
+      ).stream;
+      expect(toText(back)).toBe(toText(stream));
+      expect(back.items.map((i) => i.kind)).toEqual(stream.items.map((i) => i.kind));
+    });
+
+    it('is taken back by the reverse of the operations that took it out', () => {
+      for (const which of ['s2', 's3'] as const) {
+        const { stream, without, reverse } = takeOut(which);
+        expect(applyOps(without, reverse).stream).toEqual(stream);
+      }
+    });
   });
 
   it('is taken back by the reverse of its operations', () => {

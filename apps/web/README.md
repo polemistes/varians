@@ -92,7 +92,7 @@ src/
       bibliography.ts       the shared biblatex list and citations
       archive/              the open-format git archive per work, its scheduler and import
       import/               TEI and CTS import
-    components/<feature>/   ui, shell, library, registry, pages, editor, workbench, edition, reader, history, bibliography, facsimile
+    components/<feature>/   ui, shell, library, registry, pages, editor, workbench, edition, reader, history, bibliography, facsimile; variant (what the reader's window and the editor's band share: sigla, the rows of a variant, who is there)
     editor/                 the CodeMirror bridge between text and token streams
     edition/, workbench/, reader/, history/, bibliography/, registry/
                             pure helpers of each screen, with tests

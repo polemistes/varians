@@ -23,7 +23,7 @@
   import ScrollText from '@lucide/svelte/icons/scroll-text';
   import ImageIcon from '@lucide/svelte/icons/image';
   import { reader as r } from '$lib/strings/reader';
-  import PlaceWords from './PlaceWords.svelte';
+  import PlaceWords from '../variant/PlaceWords.svelte';
   import VariantWindow from './VariantWindow.svelte';
 
   interface Props {

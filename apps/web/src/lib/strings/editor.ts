@@ -22,20 +22,12 @@ export const editor = {
   minorTitle:
     'A minor variant is left out of the print apparatus, and readers see it only when they ask for minor variants.',
   register: 'Conjecture…',
-  omitted: 'omitted',
-  added: 'added',
-  nothing: '⟨nothing⟩',
-  /** The edition's reading at a line it does not print, before the witnesses whose text runs on without it. */
-  notIn: 'not in',
   /** The mark between two lines where a line stands that witnesses have and the edition does not print. */
   notPrinted: (label: string) => `${label}, not printed`,
   /** Witnesses without this segment: their transcripts begin after it or end before it, or have lost it. */
   absent: (sigla: string) => `No text here: ${sigla}`,
   noSites: 'The witnesses agree with the text here.',
   saving: 'saving…',
-  order: 'order',
-  orderAfter: (siglum: string, after: string) => `${siglum} has it after ${after}`,
-  orderFirst: (siglum: string) => `${siglum} has it first`,
   note: 'Note…',
   removeNote: 'Remove',
   noteTitle: 'Note on',
@@ -214,6 +206,7 @@ export const editor = {
     previousSite: 'Previous site',
     nextSite: 'Next site',
     keys: 'Alt+↑ ↓ sites · Alt+N next to review · Alt+1–9 adopt · Alt+K keep · Alt+C conjecture · Alt+I insert · Alt+Shift+↑ ↓ move line',
+    undoAdoption: (label: string) => `Undo adoption at ${label}`,
     lineUp: 'Line ↑',
     lineDown: 'Line ↓',
     saved: 'Saved',

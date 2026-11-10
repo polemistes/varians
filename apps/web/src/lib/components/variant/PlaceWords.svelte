@@ -4,7 +4,7 @@
    * has none (witnesses have words at a point between two words), the word
    * the point follows or precedes; for whole lines, the line they follow or
    * the labels of the lines; and the kinds the editor gave the variant, where
-   * they are not the common one.
+   * they are not the common one (unless the page shows them as controls).
    */
   import { reader as r } from '$lib/strings/reader';
   import type { Variant } from '$lib/reader/variant';
@@ -13,9 +13,11 @@
     variant: Pick<Variant, 'words' | 'place' | 'lines' | 'minor' | 'interpretative'>;
     lang: string;
     class?: string;
+    /** Say the kinds the variant has; a page that sets them shows them itself. */
+    kinds?: boolean;
   }
 
-  let { variant, lang, class: className }: Props = $props();
+  let { variant, lang, class: className, kinds = true }: Props = $props();
 </script>
 
 {#if variant.words}
@@ -32,7 +34,7 @@
     >{variant.place.side === 'after' ? r.variant.after : r.variant.before}
     <span class="place-word" {lang} dir="auto">{variant.place.word}</span></span
   >
-{/if}{#if variant.interpretative || variant.minor}<span class="kinds"
+{/if}{#if kinds && (variant.interpretative || variant.minor)}<span class="kinds"
     >{#if variant.interpretative}<span class="kind">{r.variant.interpretative}</span
       >{/if}{#if variant.minor}<span class="kind">{r.variant.minor}</span>{/if}</span
   >{/if}
