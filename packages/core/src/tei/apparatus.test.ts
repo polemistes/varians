@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collate, type CollationText } from '../collate/collate.ts';
+import { applySiteKinds, collate, siteKey, type CollationText } from '../collate/collate.ts';
 import { sequentialIds } from '../ids.ts';
 import { fromText } from '../stream/text.ts';
 import { units } from '../stream/words.ts';
@@ -108,6 +108,34 @@ describe('exportEditionTei', () => {
       segments: [{ label: '1', items: edition.items, baseUnits, sites: c.sites }],
     });
     expect(xml).toContain('<app type="interpretative"><lem>ἦ</lem><rdg wit="#wit-A">ἢ</rdg></app>');
+  });
+
+  it('does not write a place the editor does not report, and leaves its words as the edition has them', () => {
+    const edition = fromText('red fox runs', { ids: sequentialIds('e') });
+    const baseUnits = units(edition, 0, edition.items.length);
+    const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [
+      text('A', 'A', 'red dog runs'),
+      text('B', 'B', 'red fox walks'),
+    ]);
+    const marked = applySiteKinds(
+      c,
+      baseUnits,
+      new Map([
+        [
+          siteKey(c.sites.find((s) => s.readings.some((r) => r.text === 'dog'))!, baseUnits),
+          'unreported',
+        ],
+      ]),
+    );
+    const xml = exportEditionTei({
+      title: 't',
+      witnesses: [{ siglum: 'A' }, { siglum: 'B' }],
+      segments: [{ label: '1', items: edition.items, baseUnits, sites: marked.sites }],
+    });
+    expect(xml).toContain(
+      '<ab n="1">red fox <app><lem wit="#wit-A">runs</lem><rdg wit="#wit-B">walks</rdg></app></ab>',
+    );
+    expect(xml).not.toContain('dog');
   });
 
   it('writes speakers, headings and marginal notes as typed labels, leaves out variants noted in a carrier, and has no empty witness list', () => {

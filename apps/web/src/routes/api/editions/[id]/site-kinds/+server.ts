@@ -1,11 +1,14 @@
 /**
  * POST /api/editions/[id]/site-kinds        { segmentId, siteKey, kind }
  *
- * The editor's word on whether a place of variation is textual or
- * interpretative, over what the letters say; kind null goes back to the letters.
+ * The editor's word on a place of variation: whether it is textual or
+ * interpretative, over what the letters say, or that it is not reported (the
+ * apparatus leaves it out and readers are given nothing of it). One word
+ * stands for a place at a time, the last; kind null goes back to the letters
+ * and to reporting it.
  */
 import { error, json } from '@sveltejs/kit';
-import { segments } from '@varians/db';
+import { SITE_KIND_MARKS, segments } from '@varians/db';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { RequestHandler } from './$types';
@@ -15,7 +18,7 @@ import { loadEditionAccess } from '$lib/server/edition-access';
 const body = z.object({
   segmentId: z.string().min(1).max(64),
   siteKey: z.string().min(1).max(2000),
-  kind: z.enum(['textual', 'interpretative']).nullable(),
+  kind: z.enum(SITE_KIND_MARKS).nullable(),
 });
 
 export const POST: RequestHandler = async ({ locals, params, request }) => {

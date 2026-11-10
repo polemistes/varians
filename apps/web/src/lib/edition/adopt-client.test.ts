@@ -95,6 +95,17 @@ describe('adopt-client', () => {
     expect(needsReview(seg, after[0]!, reviewed.get('s1')!)).toBe(false);
   });
 
+  it('does not count a place the editor leaves out of the apparatus', () => {
+    const { seg } = segment('the quick fox', { C: 'the quick brown fox', D: 'the slow fox' });
+    expect(countUnreviewed([seg], new Map())).toBe(2);
+    const sites = seg.collation.sites.map((site, i) =>
+      i === 0 ? { ...site, unreported: true } : site,
+    );
+    const left = { ...seg, collation: { ...seg.collation, sites } };
+    expect(countUnreviewed([left], new Map())).toBe(1);
+    expect(needsReview(left, sites[0]!, new Set())).toBe(false);
+  });
+
   it('does not count orthographic differences as needing review', () => {
     const { seg } = segment('μῆνιν ἄειδε θεὰ', { A: 'μῆνιν ἄειδε θεά' });
     expect(countUnreviewed([seg], new Map())).toBe(0);

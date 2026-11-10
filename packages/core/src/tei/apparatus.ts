@@ -38,6 +38,7 @@ export interface EditionSegmentExport {
   items: Item[];
   /** The edition's collation units for the segment (as given to collate). */
   baseUnits: Unit[];
+  /** The places of variation; one the editor does not report (`unreported`) is not written. */
   sites: Site[];
   /** Conjectures and reported readings by site index. */
   attachments?: Record<number, Attachment[]>;
@@ -212,6 +213,8 @@ function segmentXml(segment: EditionSegmentExport, refs: WitnessRefs): string {
   const insertionBefore = new Map<string, Site[]>();
   const insertionsAtEnd: Site[] = [];
   for (const site of segment.sites) {
+    // A place the editor does not report is not written: its words stand as the edition's own.
+    if (site.unreported) continue;
     if (site.baseTo > site.baseFrom) {
       for (let i = site.baseFrom; i < site.baseTo; i++)
         for (const id of segment.baseUnits[i]?.tokenIds ?? []) siteOfToken.set(id, site);

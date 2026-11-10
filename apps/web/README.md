@@ -82,6 +82,7 @@ src/
       collation.ts          an edition's collation context and the collation cache
       loaded-streams.ts     the texts of transcriptions and editions as loaded, kept while their rows are unchanged
       reader.ts             the view of an edition (whole, by stretch, or its outline): lines, sites, apparatus entries, drift
+      site-marks.ts         the editors' marks on places (a kind, or not reported) as a published version fixes them
       registry.ts           works, witnesses, transcriptions, maintainers, search
       pages.ts, images/     witness pages, uploads, tiles, IIIF manifests
       workbench.ts          the transcription workbench's loads and imports

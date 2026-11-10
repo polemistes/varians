@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { newId, toText } from '@varians/core';
+import { newId, siteKey, toText } from '@varians/core';
 import * as schema from '@varians/db/schema';
 import {
   createDatabase,
@@ -17,12 +17,15 @@ import os from 'node:os';
 import path from 'node:path';
 import pg from 'pg';
 import { seedSample } from '../seed/sample.ts';
+import { setSiteKind } from '../collation.ts';
 import { adoptConjecture } from '../conjectures.ts';
 import { publishEdition } from '../publish.ts';
+import { editionView } from '../reader.ts';
 import { conjectures, registryMerges } from '@varians/db';
 import { writeArchive } from './archive.ts';
 import { ARCHIVED_TABLES } from './coverage.ts';
 import { importArchive, removeWorkCompletely } from './import.ts';
+import { validateArchiveDir } from './validate.ts';
 
 const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329/varians_test';
 let db: Database;
@@ -54,6 +57,21 @@ async function snapshot(): Promise<Record<string, unknown[]>> {
       .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
   }
   return out;
+}
+
+/** A place of a segment where some witness has these words, as the editor's view has it, with the key a mark on it goes by. */
+async function placeOf(editionId: string, label: string, reading: string) {
+  const view = await editionView(db, editionId, null, {
+    kind: 'editor',
+    viewer: { id: userId, role: 'member' },
+  });
+  const segment = Object.values(view.segments).find((s) => s.label === label)!;
+  const site = segment.collation.sites.find((s) => s.readings.some((r) => r.text === reading))!;
+  return {
+    segmentId: segment.segmentId,
+    index: site.index,
+    key: siteKey(site, segment.baseUnits),
+  };
 }
 
 async function clean(): Promise<void> {
@@ -129,6 +147,9 @@ describe('archive round trip', () => {
       .where(eq(conjectures.workId, sample.workId))
       .limit(1);
     await adoptConjecture(db, sample.editionId, conjecture!.id);
+    // A place the editor leaves out of the apparatus: the mark is archived as data, and so is the basis of the publication that fixes it.
+    const eight = await placeOf(sample.editionId, '1.8', 'συνέηκε');
+    await setSiteKind(db, sample.editionId, eight.segmentId, eight.key, 'unreported', userId);
     await publishEdition(db, sample.editionId, userId);
     // A witness that was merged into A here: the merged id travels with A.
     await db.insert(registryMerges).values({
@@ -144,6 +165,21 @@ describe('archive round trip', () => {
       expect(original[name]!.length, `the sample has no row in ${name}`).toBeGreaterThan(0);
     }
     const dir = await writeArchive(db, sample.workId, root);
+    const editionDir = path.join(dir, 'editions', sample.editionSlug);
+    const written = JSON.parse(await readFile(path.join(editionDir, 'edition.json'), 'utf8'));
+    expect(written.siteKinds).toContainEqual(
+      expect.objectContaining({ segmentId: eight.segmentId, kind: 'unreported' }),
+    );
+    const moment = JSON.parse(await readFile(path.join(editionDir, 'moments.json'), 'utf8'));
+    expect(
+      moment.moments.find((m: { kind: string }) => m.kind === 'published').basis.siteKinds,
+    ).toContainEqual(expect.objectContaining({ segmentId: eight.segmentId, kind: 'unreported' }));
+    expect(await validateArchiveDir(dir)).toEqual([]);
+    // The archive's texts leave the place out; its words stand.
+    expect(await readFile(path.join(editionDir, 'edition.txt'), 'utf8')).not.toContain('συνέηκε');
+    expect(await readFile(path.join(editionDir, 'edition.tei.xml'), 'utf8')).not.toContain(
+      'συνέηκε',
+    );
     await removeWorkCompletely(db, sample.workId);
     const removed = await snapshot();
     // The removal took the work's rows out of every table (entries and schemes others share may stay), so the import has to bring each back.
@@ -159,6 +195,15 @@ describe('archive round trip', () => {
     await importArchive(db, dir, userId);
     const restored = await snapshot();
     for (const name of ARCHIVED_TABLES) expect(restored[name], name).toEqual(original[name]);
+    // The mark is read back as a mark: the editor's view has the place, flagged.
+    const back = await editionView(db, sample.editionId, null, {
+      kind: 'editor',
+      viewer: { id: userId, role: 'member' },
+    });
+    expect(
+      back.segments[eight.segmentId]!.collation.sites.find((s) => s.index === eight.index)!
+        .unreported,
+    ).toBe(true);
     await clean();
   }, 120_000);
 });

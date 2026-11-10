@@ -18,6 +18,8 @@ import {
 } from '@varians/db';
 import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { nameMoment } from './documents/service.ts';
+import { siteKindsOf } from './collation.ts';
+import { marksForBasis } from './site-marks.ts';
 import { dataLicence } from './settings.ts';
 
 export interface PublishResult {
@@ -121,7 +123,9 @@ export async function publishEdition(
           ).map((t) => [t.id, t.version]),
         )
       : {};
-    const basis: MomentBasis = { sigla: conspectus, versions };
+    // The editors' word on places is part of what the version fixes.
+    const siteKinds = marksForBasis(await siteKindsOf(tx, editionId));
+    const basis: MomentBasis = { sigla: conspectus, versions, siteKinds };
     await tx.update(moments).set({ basis }).where(eq(moments.id, momentId));
     // The licence is fixed at the first publication, from the installation's data licence, and never changes after.
     const licence = dataLicence();

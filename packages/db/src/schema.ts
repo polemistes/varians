@@ -715,7 +715,11 @@ export const editionSiteReviews = pgTable(
   (t) => [primaryKey({ columns: [t.editionId, t.segmentId, t.siteKey] })],
 );
 
-/** An editor's word on the kind of a place of variation, over the classification by letters. */
+/** What an editor may say of a place of variation: its kind over the letters', or that it is not reported. */
+export const SITE_KIND_MARKS = ['textual', 'interpretative', 'unreported'] as const;
+export type SiteKindMark = (typeof SITE_KIND_MARKS)[number];
+
+/** An editor's word on a place of variation: its kind over the classification by letters, or that it is not reported. */
 export const editionSiteKinds = pgTable(
   'edition_site_kinds',
   {
@@ -727,7 +731,7 @@ export const editionSiteKinds = pgTable(
       .references(() => segments.id, { onDelete: 'cascade' }),
     siteKey: text().notNull(),
     // The kind the editor gives the place over what its letters say, or that the place is not reported.
-    kind: text({ enum: ['textual', 'interpretative', 'unreported'] }).notNull(),
+    kind: text({ enum: SITE_KIND_MARKS }).notNull(),
     setBy: text().references(() => users.id, { onDelete: 'set null' }),
     setAt: createdAt(),
   },
@@ -890,6 +894,12 @@ export interface MomentBasis {
   }[];
   /** Transcription id to the version the apparatus was collated against. */
   versions: Record<string, number>;
+  /**
+   * The editors' word on places of variation as it stood at the publication:
+   * a kind over the letters' or that the place is not reported. A basis from
+   * before it was recorded lacks it; the marks set before the publication stand.
+   */
+  siteKinds?: { segmentId: string; siteKey: string; kind: SiteKindMark }[];
 }
 
 export const moments = pgTable(

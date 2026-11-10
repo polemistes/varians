@@ -190,7 +190,7 @@ In the list of a segment's places, a place lying within another stands before it
 - a word for **the other witnesses** (cett., rell.) stands for the witnesses of the most widely attested reading of an entry, when they would be three sigla or more; where that reading is not the lemma's, the lemma's witnesses are named, in a negative apparatus too;
 - a word for **all the witnesses** (codd.) stands where the lemma is in no witness and all of them have one reading against it.
 
-The editor may give a place a kind over what its letters say (section 3.6), or mark it **not reported**: the place then stays in the editor's view and is left out of the apparatus.
+The editor may give a place a kind over what its letters say (section 3.6), or mark it **not reported**. A place has one such word at a time: marking it not reported replaces a kind, and reporting it again gives it the kind its letters say. A place not reported stays in the editor's band, set apart and saying so, and is given to no reader: no entry in the reading page or the print apparatus, no marked words, no place in the list of variants, nothing in the plain text, and in the TEI none of its apparatus, its words standing as the edition's own. It is not counted among the places left to review, and the editor's text does not dot its words. A place that only a conjecture opens can be marked like any other. The mark is archived as data.
 
 **What a page is given of an edition.** No page needs the whole edition collated before it opens. The collation of a segment is large (every witness's words at every place), the places where the text varies are small, and what each surface does with them differs.
 
@@ -214,7 +214,7 @@ Alignment constraints (these witness words correspond to these edition words) ar
 
 **Visibility.** A work is public by default or private; a private work is private throughout. Owned records are drafts until published. Publishing an edition publishes the owner's transcripts in its conspectus and the owner's conjectures and reported readings on the work, and is refused while the conspectus names another person's unpublished transcript. Readers see published conjectures and reported readings only. In a public work, published conjectures are a commons any edition may adopt.
 
-**A published version is fixed.** It records the conspectus and the version of every transcript it compares, and collates against exactly those. Correcting a witness later changes the draft's apparatus, never a published one.
+**A published version is fixed.** It records the conspectus, the version of every transcript it compares, and the editors' word on places of variation (their kinds, and which places are not reported), and collates against exactly those. Correcting a witness or changing a mark later changes the draft's apparatus, never a published one.
 
 **Copies.** A published edition or transcript can be copied into a draft of one's own, with its origin recorded. Registry entries are shared, never copied.
 

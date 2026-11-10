@@ -184,10 +184,7 @@
             "type": "string"
           },
           "kind": {
-            "enum": [
-              "textual",
-              "interpretative"
-            ]
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/siteKind"
           },
           "personId": {
             "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"

@@ -52,6 +52,28 @@
                 "additionalProperties": {
                   "type": "integer"
                 }
+              },
+              "siteKinds": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "segmentId": {
+                      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+                    },
+                    "siteKey": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/siteKind"
+                    }
+                  },
+                  "required": [
+                    "segmentId",
+                    "siteKey",
+                    "kind"
+                  ]
+                }
               }
             }
           },

@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { attachToSites, collate, type CollationText, type Unit } from '@varians/core';
+import {
+  applySiteKinds,
+  attachToSites,
+  collate,
+  siteKey as coreSiteKey,
+  type Attachment,
+  type CollationText,
+  type Unit,
+} from '@varians/core';
 import {
   alignedUnits,
   editionTokensAt,
@@ -9,6 +17,7 @@ import {
   parseSiteKey,
   siteByToken,
   siteKey,
+  withoutUnreported,
   witnessTokensAt,
   type SegmentSites,
 } from './sites';
@@ -159,5 +168,59 @@ describe('markSites', () => {
         expect(marking.keysOf.get(word)!.split(' ')).toContain(key);
       }
     }
+  });
+});
+
+describe('a place the editor does not report', () => {
+  /** Two places, the first of which is marked not reported. */
+  function marked() {
+    const ed = text('e', 'ed.', 'red fox runs');
+    const seg = segment(ed, [text('a', 'A', 'red dog runs'), text('b', 'B', 'red fox walks')]);
+    const dog = seg.collation.sites.find((site) => site.readings.some((r) => r.text === 'dog'))!;
+    const collation = applySiteKinds(
+      seg.collation,
+      ed.units,
+      new Map([[coreSiteKey(dog, ed.units), 'unreported']]),
+    );
+    const attachment: Attachment = { kind: 'conjecture', id: 'c1', text: 'cat', name: 'Quill' };
+    return {
+      dog,
+      segments: {
+        s1: {
+          ...seg,
+          collation,
+          attachments: { [dog.index]: [attachment] },
+          relations: { [dog.index]: [null, 'word' as const] },
+        },
+      },
+    };
+  }
+  const conventions = {
+    form: 'positive' as const,
+    latin: true,
+    interpretative: 'separate' as const,
+  };
+
+  it('has no entry and no marked words, though its site is still in the data', () => {
+    const { dog, segments } = marked();
+    const entries = entryBySite(entriesBySegment(segments, conventions, ['A', 'B']));
+    expect([...entries.keys()]).toHaveLength(1);
+    expect(entries.has(siteKey('s1', dog.index))).toBe(false);
+    const marking = markSites(siteByToken({ segments }), entries, segments);
+    expect(marking.marked.has('e1')).toBe(false);
+    expect(marking.marked.has('e2')).toBe(true);
+  });
+
+  it('is left out, with what stood at it, of a segment given to a reader', () => {
+    const { dog, segments } = marked();
+    const given = withoutUnreported(segments.s1);
+    expect(given.collation.sites.map((site) => site.index)).not.toContain(dog.index);
+    expect(given.collation.sites).toHaveLength(segments.s1.collation.sites.length - 1);
+    expect(given.attachments).toEqual({});
+    expect(given.relations).toEqual({});
+    // The editor's own segment is left as it is, and a segment with no such place is the same object.
+    expect(segments.s1.collation.sites.some((site) => site.unreported)).toBe(true);
+    const plain = segment(text('e', 'ed.', 'a b'), [text('a', 'A', 'a c')]);
+    expect(withoutUnreported(plain)).toBe(plain);
   });
 });

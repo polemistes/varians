@@ -634,6 +634,28 @@
     views = { ...views, [segmentId]: { ...current, collation: { ...current.collation, sites } } };
   }
 
+  /** Leave a place out of the apparatus, or report it again; the place is collated again to take the kind it then has. */
+  async function setReported(segmentId: Id, site: Site) {
+    const segment = views[segmentId];
+    if (!segment) return;
+    const response = await fetch(`/api/editions/${editionId}/site-kinds`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({
+        segmentId,
+        siteKey: keyOfSite(segment, site),
+        kind: site.unreported ? null : 'unreported',
+      }),
+    });
+    if (!response.ok) return;
+    const sites = segment.collation.sites.map((x) =>
+      x.index === site.index ? { ...x, unreported: !site.unreported } : x,
+    );
+    views = { ...views, [segmentId]: { ...segment, collation: { ...segment.collation, sites } } };
+    stale = new Set([...stale, segmentId]);
+    await refreshStale();
+  }
+
   // Conjectures
 
   let conjectureOpen = $state(false);
@@ -1248,6 +1270,7 @@
         onadopt={(segmentId, site, choice) => void adopt(segmentId, site, choice)}
         onkeep={(segmentId, site, flag) => void setReviewed(segmentId, site, flag)}
         onkind={(segmentId, site) => void setKind(segmentId, site)}
+        onreport={(segmentId, site) => void setReported(segmentId, site)}
         onregister={(segmentId, site) => openConjecture(segmentId, site)}
         onfocus={focusSite}
         onnote={(segmentId) => {

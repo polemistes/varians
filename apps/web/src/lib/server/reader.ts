@@ -54,6 +54,7 @@ import {
   segmentOrderOf,
   type EditionContext,
 } from './collation.ts';
+import { marksAtPublication } from './site-marks.ts';
 import { collationStateOf, normalizeSiglum, type ConspectusEntry } from './sigla.ts';
 import { handLabel } from '../registry/witness.ts';
 import type { ReaderSiglumState } from '../reader/types.ts';
@@ -520,11 +521,8 @@ export async function contextAt(
     if (published?.basis) {
       await applyBasis(db, context, published.basis);
       asOf = published.at;
-      // The kinds as the editors had set them when it was published.
-      const at = published.at;
-      for (const [segmentId, bySite] of context.siteKinds) {
-        context.siteKinds.set(segmentId, new Map([...bySite].filter(([, k]) => k.setAt <= at)));
-      }
+      // The kinds, and the places left out, as the editors had them when it was published.
+      context.siteKinds = marksAtPublication(context.siteKinds, published.basis, published.at);
     }
   }
   return { context, asOf };

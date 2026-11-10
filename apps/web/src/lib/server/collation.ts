@@ -19,7 +19,7 @@ import {
   type CollationText,
   type NormalizationProfile,
   type SegmentRun,
-  type SiteKind,
+  type SiteMark,
   type Stream,
   type Unit,
 } from '@varians/core';
@@ -51,7 +51,7 @@ export interface EditionContext {
   /** The transcriptions named by the conspectus, by id. */
   transcriptions: Map<string, { id: string; content: Stream; version: number; witnessId: string }>;
   /** The editor's word on the kind of some sites: by segment, by site key. */
-  siteKinds: Map<string, Map<string, { kind: SiteKind; setAt: Date }>>;
+  siteKinds: Map<string, Map<string, { kind: SiteMark; setAt: Date }>>;
   /** The sort key of every segment of the work, by id. */
   segmentKeys?: Map<string, string>;
   /** How much of the work each transcription covers, by transcription id (B5). */
@@ -196,7 +196,7 @@ export async function loadWitnessHands(
   return new Map(rows.map((r) => [r.id, r.hands] as const));
 }
 
-/** The kinds the editors have set on an edition's sites, by segment and site key. */
+/** The kinds the editors have set on an edition's sites and the sites they have left out, by segment and site key. */
 export async function siteKindsOf(
   db: Database,
   editionId: string,
@@ -219,13 +219,13 @@ export async function siteKindsOf(
   return out;
 }
 
-/** Set (or, with null, clear) the editor's word on the kind of a site. */
+/** Set (or, with null, clear) the editor's word on a site: its kind, or that it is not reported. */
 export async function setSiteKind(
   db: Database,
   editionId: string,
   segmentId: string,
   siteKey: string,
-  kind: SiteKind | null,
+  kind: SiteMark | null,
   userId: string | null,
 ): Promise<void> {
   const where = and(

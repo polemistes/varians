@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { newId, type Token } from '@varians/core';
+import { newId, siteKey, type Token } from '@varians/core';
 import {
   createDatabase,
+  editionSiteKinds,
   referenceSchemes,
   transcriptions,
   users,
@@ -18,8 +19,10 @@ import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import pg from 'pg';
 import { seedSample } from '../seed/sample.ts';
+import { setSiteKind } from '../collation.ts';
 import { saveOps } from '../documents/service.ts';
 import { publishEdition } from '../publish.ts';
+import { editionView } from '../reader.ts';
 import { removeWorkCompletely } from './import.ts';
 import { importPackage } from './import-package.ts';
 import { buildPackage, extractZip, openPackage, PackageError } from './package.ts';
@@ -161,6 +164,54 @@ describe('packages', () => {
       expect(
         existsSync(path.join(data, 'editions', 'iliad-1-working-edition', 'reviews.json')),
       ).toBe(false);
+    } finally {
+      await pkg.cleanup();
+    }
+  }, 120_000);
+
+  it('carry the places a published edition leaves out as it left them, and come back by import with them', async () => {
+    await clean();
+    const sample = await seedSample(db, owner);
+    const view = await editionView(db, sample.editionId, null, {
+      kind: 'editor',
+      viewer: { id: owner, role: 'member' },
+    });
+    const segment = Object.values(view.segments).find((s) => s.label === '1.8')!;
+    const site = segment.collation.sites.find((s) => s.readings.some((r) => r.text === 'συνέηκε'))!;
+    const key = siteKey(site, segment.baseUnits);
+    await setSiteKind(db, sample.editionId, segment.segmentId, key, 'unreported', owner);
+    await publishEdition(db, sample.editionId, owner);
+    // Reported again in the draft: the published version, and so its package, still leaves it out.
+    await setSiteKind(db, sample.editionId, segment.segmentId, key, null, owner);
+    const pkg = await buildPackage(db, null, [{ kind: 'edition', editionId: sample.editionId }]);
+    try {
+      const dir = await unpack(pkg.file);
+      const data = path.join(dir, 'iliad-1-working-edition', 'data', 'iliad');
+      const edition = JSON.parse(
+        await readFile(
+          path.join(data, 'editions', 'iliad-1-working-edition', 'edition.json'),
+          'utf8',
+        ),
+      ) as { siteKinds: { segmentId: string; siteKey: string; kind: string }[] };
+      expect(edition.siteKinds).toContainEqual(
+        expect.objectContaining({ segmentId: segment.segmentId, siteKey: key, kind: 'unreported' }),
+      );
+      const text = await readFile(
+        path.join(data, 'editions', 'iliad-1-working-edition', 'edition.txt'),
+        'utf8',
+      );
+      expect(text).not.toContain('συνέηκε');
+
+      await removeWorkCompletely(db, sample.workId);
+      const report = await importPackage(db, pkg.file, owner);
+      expect(report.refused).toBeNull();
+      const kinds = await db
+        .select()
+        .from(editionSiteKinds)
+        .where(eq(editionSiteKinds.editionId, sample.editionId));
+      expect(kinds).toContainEqual(
+        expect.objectContaining({ segmentId: segment.segmentId, siteKey: key, kind: 'unreported' }),
+      );
     } finally {
       await pkg.cleanup();
     }

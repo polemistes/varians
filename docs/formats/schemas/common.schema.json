@@ -162,6 +162,14 @@
         }
       ]
     },
+    "siteKind": {
+      "enum": [
+        "textual",
+        "interpretative",
+        "unreported"
+      ],
+      "description": "What an editor says of a place of variation: its kind, over what its letters say, or that it is not reported."
+    },
     "siglum": {
       "type": "object",
       "properties": {

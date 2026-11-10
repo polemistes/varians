@@ -17,6 +17,8 @@ import {
   segmentWindow,
   segmentsTouched,
   siteForTokens,
+  siteShows,
+  sitesInOrder,
   stepSite,
   tokenClassesFor,
   witnessIndex,
@@ -291,5 +293,31 @@ describe('takeCurrentOps', () => {
   it('does nothing when the witness no longer has the word or already agrees', () => {
     expect(takeCurrentOps(stream, { tokenId: 'a', now: '' })).toEqual([]);
     expect(takeCurrentOps(stream, { tokenId: 'a', now: 'μῆνιν' })).toEqual([]);
+  });
+});
+
+describe('a place the editor leaves out of the apparatus', () => {
+  it('is not dotted in the text, nor stepped to, nor counted', () => {
+    const { segment } = view('s', 'the quick fox jumps', {
+      A: 'the slow fox jumps',
+      B: 'the quick fox leaps',
+    });
+    const sites = segment.collation.sites;
+    expect(sites).toHaveLength(2);
+    expect(sitesInOrder(['s'], { s: segment })).toHaveLength(2);
+    const left = {
+      ...segment,
+      collation: {
+        ...segment.collation,
+        sites: sites.map((site, i) => (i === 0 ? { ...site, unreported: true } : site)),
+      },
+    };
+    expect(siteShows(left, left.collation.sites[0]!)).toBe(false);
+    expect(siteShows(left, left.collation.sites[1]!)).toBe(true);
+    expect(sitesInOrder(['s'], { s: left }).map((r) => r.site.index)).toEqual([
+      left.collation.sites[1]!.index,
+    ]);
+    const classes = tokenClassesFor([left], { active: null });
+    expect(Object.keys(classes)).toHaveLength(1);
   });
 });

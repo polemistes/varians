@@ -46,6 +46,34 @@ export interface SegmentSites {
   attachments: Record<number, Attachment[]>;
 }
 
+/**
+ * A segment as a reader is given it, without the places the editor does not
+ * report: their sites, what was attached to them, and how their readings
+ * stand to the edition's words. The editor's own view keeps them.
+ */
+export function withoutUnreported<
+  T extends {
+    collation: Pick<Collation, 'sites'>;
+    attachments: Record<number, Attachment[]>;
+    relations?: Record<number, unknown>;
+  },
+>(segment: T): T {
+  const left = new Set(segment.collation.sites.filter((s) => s.unreported).map((s) => s.index));
+  if (left.size === 0) return segment;
+  const kept = <V>(record: Record<number, V>): Record<number, V> =>
+    Object.fromEntries(Object.entries(record).filter(([index]) => !left.has(Number(index))));
+  const out = {
+    ...segment,
+    collation: {
+      ...segment.collation,
+      sites: segment.collation.sites.filter((s) => !s.unreported),
+    },
+    attachments: kept(segment.attachments),
+  };
+  if (segment.relations) out.relations = kept(segment.relations);
+  return out;
+}
+
 /** The key of a site in maps and data attributes: `segmentId:siteIndex`. */
 export function siteKey(segmentId: string, siteIndex: number): string {
   return `${segmentId}:${siteIndex}`;

@@ -8,7 +8,7 @@
  * nothing of the installation it runs on reaches it.
  */
 
-import { newId } from '@varians/core';
+import { newId, siteKey } from '@varians/core';
 import { conjectures, createDatabase, pages, users } from '@varians/db';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -20,8 +20,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import sharp from 'sharp';
+import { setSiteKind } from '../collation.ts';
 import { adoptConjecture } from '../conjectures.ts';
 import { publishEdition } from '../publish.ts';
+import { editionView } from '../reader.ts';
 import { seedSample } from '../seed/sample.ts';
 import { writeArchive } from './archive.ts';
 import { buildPackage } from './package.ts';
@@ -31,7 +33,7 @@ export const EXAMPLE_ORIGIN = 'https://varians.eu';
 
 const EXAMPLE_README = `# The example archive
 
-\`iliad/\` is a complete archive in the Varians Data Format, version 2: the opening of Iliad 1 in three transcribed witnesses and one known from a reported reading, an edition with its apparatus, a conjecture adopted and one not, a note citing the literature, a zone on a page with a small image, an alignment constraint, sites looked at and classed, review positions, a named and a published moment, and a collaborator.
+\`iliad/\` is a complete archive in the Varians Data Format, version 2: the opening of Iliad 1 in three transcribed witnesses and one known from a reported reading, an edition with its apparatus, a conjecture adopted and one not, a note citing the literature, a zone on a page with a small image, an alignment constraint, sites looked at and classed, one place left out of the apparatus, review positions, a named and a published moment, and a collaborator.
 
 \`iliad.zip\` is the same work as a package: a BagIt bag with RO-Crate metadata, as one installation sends a work to another.
 
@@ -92,6 +94,23 @@ export async function writeExample(serverUrl: string, outDir: string): Promise<s
         .where(eq(conjectures.workId, sample.workId))
         .limit(1);
       await adoptConjecture(db, sample.editionId, conjecture!.id);
+      // One place the editor leaves out of the apparatus, as a spelling of the same word that the edition does not record.
+      const view = await editionView(db, sample.editionId, null, {
+        kind: 'editor',
+        viewer: { id: editor, role: 'member' },
+      });
+      const left = Object.values(view.segments).find((s) => s.label === '1.8')!;
+      const place = left.collation.sites.find((site) =>
+        site.readings.some((r) => r.text === 'συνέηκε'),
+      )!;
+      await setSiteKind(
+        db,
+        sample.editionId,
+        left.segmentId,
+        siteKey(place, left.baseUnits),
+        'unreported',
+        editor,
+      );
       await publishEdition(db, sample.editionId, editor);
       // One small image on A's first page, so that the archive shows how images travel.
       const [page] = await db

@@ -54,6 +54,7 @@ import {
   registryMerges,
   reportedReadings,
   reviewState,
+  SITE_KIND_MARKS,
   segments,
   transcriptionWorks,
   transcriptions,
@@ -67,6 +68,7 @@ import {
   type Database,
   type MomentBasis,
   type SiglumState,
+  type SiteKindMark,
 } from '@varians/db';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -1257,7 +1259,7 @@ async function importInto(
       siteKinds?: {
         segmentId: string;
         siteKey: string;
-        kind: 'textual' | 'interpretative';
+        kind: SiteKindMark;
         personId?: string | null;
         setBy?: string | null;
         setAt?: string | null;
@@ -1372,9 +1374,7 @@ async function importInto(
       ctx.imported.add(n.id);
     }
     await db.delete(editionSiteKinds).where(eq(editionSiteKinds.editionId, e.id));
-    const kinds = (e.siteKinds ?? []).filter(
-      (k) => k.kind === 'textual' || k.kind === 'interpretative',
-    );
+    const kinds = (e.siteKinds ?? []).filter((k) => SITE_KIND_MARKS.includes(k.kind));
     if (kinds.length) {
       await db
         .insert(editionSiteKinds)

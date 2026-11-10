@@ -30,6 +30,8 @@ The format becomes a specification ([specification.md](specification.md)) with J
 - A gap that touches the letters of a word is a point mark of that word.
 - In an edition's `conventions`: `groups`, sigla that stand for several witnesses of the conspectus together (`[ { siglum, members, note } ]`), `rest`, the word the apparatus prints for the other witnesses (Varians offers `cett.` and `rell.`), and `all`, the word for all the witnesses (Varians offers `codd.`). Both are absent where the apparatus names every witness.
 
+- A place of variation can be marked not reported: `kind` of an edition's `siteKinds` takes `unreported` besides `textual` and `interpretative`, a reader that validates against the enumeration has to know it, and the TEI does not write such a place. The `basis` of a published moment of an edition records the marks as they stood (`siteKinds`), so that a published version does not change when they do.
+
 **Clarified, November 2026**
 
 - Reconciling two histories (5.3): a merge is also a conflict when it would carry a word into a segment that neither side gave it, which operations on disjoint ids can do. Nothing in the files changes.

@@ -23,6 +23,12 @@ export const editor = {
     (byEditor
       ? ' Set by an editor; click to go back to what the letters say.'
       : ` Click to call it ${kind === 'textual' ? 'interpretative' : 'textual'}.`),
+  notReported: 'Not reported',
+  leaveOut: 'Leave out',
+  leaveOutTitle:
+    'Leave this place out of the apparatus and of everything readers see. It stays here.',
+  report: 'Report',
+  reportTitle: 'Report this place again.',
   register: 'Conjecture…',
   omitted: 'omitted',
   added: 'added',
