@@ -119,6 +119,63 @@ describe('attachToSites', () => {
     expect(attached.bySite[0]!.map((a) => a.id)).toEqual(['r', 'k']);
   });
 
+  it('keeps a record on one word off the site over the whole segment', () => {
+    const edition = fromText('a b c', { ids: sequentialIds('e') });
+    const baseUnits = units(edition, 0, edition.items.length);
+    // B's text runs on without the segment, which makes the site over all of it.
+    const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [
+      witness('A', 'A', 'a b c'),
+      { id: 'B', siglum: 'B', units: [], present: true },
+    ]);
+    const whole = c.sites.find((site) => site.wanting)!;
+    expect(whole).toBeDefined();
+    const attached = attachToSites(c, baseUnits, [
+      {
+        id: 'k',
+        kind: 'conjecture',
+        lemma: 'b',
+        reading: 'z',
+        name: 'K',
+        conjectureKind: 'substitution',
+        anchorTokenIds: ['e2'],
+      },
+      // Its lemma no longer stands in the text: it is listed at the segment, not placed on the whole of it.
+      {
+        id: 'm',
+        kind: 'conjecture',
+        lemma: 'other',
+        reading: 'y',
+        name: 'M',
+        anchorTokenIds: ['e3'],
+      },
+      // A record on the whole segment is placed on it.
+      {
+        id: 'w',
+        kind: 'conjecture',
+        lemma: 'a b c',
+        reading: '',
+        name: 'W',
+        anchorTokenIds: ['e1'],
+      },
+    ]);
+    expect(attached.bySite[whole.index]?.map((a) => a.id)).toEqual(['w']);
+    const opened = attached.collation.sites[attached.collation.sites.length - 1]!;
+    expect([opened.baseFrom, opened.baseTo]).toEqual([1, 2]);
+    expect(attached.bySite[opened.index]!.map((a) => a.id)).toEqual(['k']);
+    expect(attached.unplaced.map((a) => a.id)).toEqual(['m']);
+  });
+
+  it('opens the site at the occurrence the anchor names when the words stand twice', () => {
+    const edition = fromText('a b a c', { ids: sequentialIds('e') });
+    const baseUnits = units(edition, 0, edition.items.length);
+    const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [witness('A', 'A', 'a b a c')]);
+    const attached = attachToSites(c, baseUnits, [
+      { id: 'k', kind: 'conjecture', lemma: 'a', reading: 'z', name: 'K', anchorTokenIds: ['e3'] },
+    ]);
+    const opened = attached.collation.sites[attached.collation.sites.length - 1]!;
+    expect([opened.baseFrom, opened.baseTo]).toEqual([2, 3]);
+  });
+
   it('finds where a lemma occurs in a segment', () => {
     const edition = fromText('the quick brown fox', { ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);

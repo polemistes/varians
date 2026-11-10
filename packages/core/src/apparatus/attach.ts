@@ -137,23 +137,29 @@ export function attachToSites(
       .filter((w) => w)
       .map((w) => foldText(w, fold))
       .join(' ');
-  const siteTokens = (site: Site): Set<string> => {
-    const ids = new Set<string>();
-    for (let i = site.baseFrom; i < site.baseTo; i++)
-      for (const id of baseUnits[i]?.tokenIds ?? []) ids.add(id);
-    return ids;
-  };
   const baseKeys = baseUnits.map((u) => (u.gap ? '' : foldText(u.text, fold)));
   const baseFoldOver = (from: number, to: number) => baseKeys.slice(from, to).join(' ');
   for (const candidate of candidates) {
     const lemma = key(candidate.lemma);
     const reading = key(candidate.reading);
     let found: number | null = null;
+    const anchored = (from: number, to: number): boolean => {
+      for (let i = from; i < to; i++)
+        if (baseUnits[i]?.tokenIds.some((id) => candidate.anchorTokenIds!.includes(id)))
+          return true;
+      return false;
+    };
     if (candidate.anchorTokenIds?.length) {
-      found = sites.findIndex((site) =>
-        candidate.anchorTokenIds!.some((id) => siteTokens(site).has(id)),
+      const covering = sites
+        .map((site, k) => ({ site, k }))
+        .filter(({ site }) => anchored(site.baseFrom, site.baseTo));
+      // The site over the lemma's own words first. The site over the whole segment, for the
+      // witnesses without it, holds every word of the segment: a record on some of its words is
+      // not placed there, or adopting it would replace the whole segment.
+      const exact = covering.find(
+        ({ site }) => lemma !== '' && baseFoldOver(site.baseFrom, site.baseTo) === lemma,
       );
-      if (found < 0) found = null;
+      found = (exact ?? covering.find(({ site }) => !site.wanting))?.k ?? null;
     }
     if (found === null && lemma !== '') {
       found = sites.findIndex((site) =>
@@ -174,13 +180,18 @@ export function attachToSites(
       if (found < 0) found = null;
     }
     if (found === null) {
-      // Words the witnesses agree on: open a site for the conjecture there.
-      const where =
+      // Words the witnesses agree on: open a site for the conjecture there, at the occurrence
+      // its anchor names where the words stand more than once.
+      const occurrences =
         lemma !== ''
-          ? lemmaOccursIn(baseUnits, candidate.lemma, fold)[0]
+          ? lemmaOccursIn(baseUnits, candidate.lemma, fold)
           : reading !== ''
-            ? lemmaOccursIn(baseUnits, candidate.reading, fold)[0]
-            : undefined;
+            ? lemmaOccursIn(baseUnits, candidate.reading, fold)
+            : [];
+      const where =
+        (candidate.anchorTokenIds?.length
+          ? occurrences.find((o) => anchored(o.from, o.to))
+          : undefined) ?? occurrences[0];
       if (where) {
         sites.push(siteOver(collation, baseUnits, where.from, where.to, sites.length));
         found = sites.length - 1;
