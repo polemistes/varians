@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Setting the segment that begins at a word (PLAN 4.3, 5.5), in a small
+   * Setting the segment that begins at a word, in a small
    * popover at the word: the label (the one shown, else the one after the
    * previous start), the work, and the two other answers, "unassigned from
    * here" and "remove this start".

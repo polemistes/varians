@@ -1,6 +1,6 @@
 /**
  * Who an edition view is for, and which conjectures and reported readings
- * it may show (PLAN 4.10).
+ * it may show.
  */
 import { workMaintainers, type Database } from '@varians/db';
 import { eq } from 'drizzle-orm';

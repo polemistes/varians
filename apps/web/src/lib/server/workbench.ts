@@ -1,5 +1,5 @@
 /**
- * The transcription workbench on the server (PLAN 6.2): what the page loads,
+ * The transcription workbench on the server: what the page loads,
  * the imports (TEI, plain text, Leiden, PAGE and ALTO), matching imported
  * pages to the witness's pages, the TEI download, the settings and the
  * deletion. Every import is one changeset; pages it creates and zones it
@@ -340,7 +340,7 @@ export interface PlacedImport {
 }
 
 /**
- * Put an imported stream into a transcription (PLAN-3 B4). The import's
+ * Put an imported stream into a transcription. The import's
  * page breaks that name a page of the witness (matched or created) send
  * their text to that page, appended to what it has; a page break naming no
  * page is dropped and its text goes to Not on a page, in the order of the
@@ -459,7 +459,7 @@ export interface PlainTextInput {
   hyphenJoins?: boolean;
 }
 
-/** Plain text with its numbering stripped and attached as segment starts (PLAN 5.5). */
+/** Plain text with its numbering stripped and attached as segment starts. */
 export async function importPlainTextInto(db: Database, target: Target, input: PlainTextInput): Promise<ImportOutcome> {
   const scheme = input.workId ? (await schemeOfWork(db, input.workId)).scheme : null;
   const result = importPlainText(input.text, {

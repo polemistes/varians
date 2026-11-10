@@ -1,8 +1,8 @@
 <script lang="ts">
   /**
    * The transcription's settings: its name, whether it keeps a written form
-   * beside the read form (PLAN 5.1), and whether the written form is shown
-   * without word division (PLAN 5.4). Switching the written form changes
+   * beside the read form, and whether the written form is shown
+   * without word division. Switching the written form changes
    * the text as one change in the history.
    */
   import type { SubmitFunction } from '@sveltejs/kit';

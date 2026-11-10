@@ -1,5 +1,5 @@
 /**
- * Sync between two installations (PLAN-2 G5): two databases, varians_test
+ * Sync between two installations: two databases, varians_test
  * (A) and a second made here (B), a work exported from A, divergent edits on
  * both sides, a pull into B and a push back to A, checking texts, histories
  * and persons. The transport calls the other installation directly instead

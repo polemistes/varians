@@ -96,7 +96,7 @@ export function describeSetAside(ops: Op[]): SetAside {
 }
 
 /**
- * The written form without word division (PLAN 5.4): the words of each line
+ * The written form without word division: the words of each line
  * run together as the witness writes them, with a space or an interpunct
  * only where one is recorded before a word.
  */

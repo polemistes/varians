@@ -310,8 +310,8 @@ export function claimTypedWords(before: Stream, ops: Op[]): Op[] {
 }
 
 /**
- * Take a witness's current reading for a word the edition took from it
- * (PLAN 4.7): the word gets the witness's present read form, as one word or
+ * Take a witness's current reading for a word the edition took from it:
+ * the word gets the witness's present read form, as one word or
  * several, keeping its source, its segment start and its place. Nothing when
  * the witness no longer has the word: that is a matter for the apparatus.
  */

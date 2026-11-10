@@ -1,5 +1,5 @@
 /**
- * Every table of the schema under one of three heads (PLAN-2 A1). The test
+ * Every table of the schema under one of three heads. The test
  * beside this file fails when a table is added without being classified here.
  */
 

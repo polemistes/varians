@@ -1,8 +1,8 @@
 /**
- * Tools for the diacritics and the case of a transcription's words (PLAN
- * 4.4), each run only when asked: removing one kind of mark from the
- * diplomatic text; making words lower or upper case; and normalizing the
- * diacritics of the normalized text from the analyser's forms. Pure; the
+ * Tools for the diacritics and the case of a transcription's words, each run
+ * only when asked: removing one kind of mark from the diplomatic text; making
+ * words lower or upper case; and normalizing the diacritics of the
+ * normalized text from the analyser's forms. Pure; the
  * workbench runs the operations and keeps the words left to choose.
  */
 import { collate, greekLower, isAllCaps, isToken, looseKey, type Id, type Op, type Stream, type Token, type Unit } from '@varians/core';

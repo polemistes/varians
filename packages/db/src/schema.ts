@@ -68,7 +68,7 @@ export const users = pgTable(
     passwordHash: text().notNull(),
     role: text({ enum: ROLES }).notNull().default('member'),
     emailVerifiedAt: timestamp({ withTimezone: true }),
-    /** The version of the terms of contribution the person accepted, and when (PLAN-2 D4). */
+    /** The version of the terms of contribution the person accepted, and when. */
     termsVersion: integer(),
     termsAcceptedAt: timestamp({ withTimezone: true }),
     preferences: jsonb().$type<{ font?: string; theme?: 'light' | 'dark' | 'system' }>().notNull().default({}),
@@ -79,7 +79,7 @@ export const users = pgTable(
 );
 
 /**
- * A person who made or did something recorded here (PLAN-2 C1): authorship
+ * A person who made or did something recorded here: authorship
  * points at persons, who may have an ORCID and need not have an account.
  * Every account has a person whose id is the account's id (made by a trigger,
  * migration 0013); persons from imports may have none.
@@ -100,7 +100,7 @@ export const persons = pgTable(
   ],
 );
 
-/** A canonical identifier of a work or witness (PLAN-2 C7). */
+/** A canonical identifier of a work or witness. */
 export const IDENTIFIER_SCHEMES = ['cts', 'diktyon', 'trismegistos', 'wikidata', 'viaf', 'url', 'other'] as const;
 export type IdentifierScheme = (typeof IDENTIFIER_SCHEMES)[number];
 export interface CanonicalIdentifier {
@@ -253,7 +253,7 @@ export const witnesses = pgTable(
     description: text(),
     /** The IIIF manifest the pages were imported from, when they were. */
     iiifManifest: text(),
-    /** The rights statement and credit line new pages of the witness get (PLAN-2 D5). */
+    /** The rights statement and credit line new pages of the witness get. */
     imageRights: text(),
     imageAttribution: text(),
     createdBy: text().references(() => users.id, { onDelete: 'set null' }),
@@ -297,7 +297,7 @@ export const pages = pgTable(
     imageHeight: integer(),
     /** Path of the Deep Zoom descriptor for an uploaded image, once tiled. */
     tilesPath: text(),
-    /** The image's rights statement: a Creative Commons or RightsStatements.org address (PLAN-2 D5). */
+    /** The image's rights statement: a Creative Commons or RightsStatements.org address. */
     rights: text(),
     /** The credit line the rights holder asks for. */
     attribution: text(),
@@ -351,7 +351,7 @@ export const transcriptions = pgTable(
     description: text(),
     /** What the transcription rests on or was made from, as its maker states it; printed with the other sources. */
     sources: text(),
-    /** The data licence fixed at publication, an SPDX identifier (PLAN-2 D3); never edited. */
+    /** The data licence fixed at publication, an SPDX identifier; never edited. */
     licenceId: text(),
     /** A note on rights the maker adds, shown with the licence. */
     rightsNote: text(),
@@ -581,7 +581,7 @@ export const editions = pgTable(
     copiedFrom: jsonb().$type<EditionOrigin>(),
     /** What the edition rests on, as its editors state it; printed with the other sources. */
     sources: text(),
-    /** The data licence fixed at publication, an SPDX identifier (PLAN-2 D3); never edited. */
+    /** The data licence fixed at publication, an SPDX identifier; never edited. */
     licenceId: text(),
     /** A note on rights the maker adds, shown with the licence. */
     rightsNote: text(),
@@ -871,7 +871,7 @@ export const archiveCommits = pgTable(
   (t) => [index('archive_commits_work_idx').on(t.workId, t.at)],
 );
 
-/** A token for another installation or a script to act as an account (PLAN-2 G2): accepted by the sync and import endpoints only. */
+/** A token for another installation or a script to act as an account: accepted by the sync and import endpoints only. */
 export const apiTokens = pgTable(
   'api_tokens',
   {
@@ -889,7 +889,7 @@ export const apiTokens = pgTable(
   (t) => [uniqueIndex('api_tokens_hash_idx').on(t.tokenHash), index('api_tokens_user_idx').on(t.userId)],
 );
 
-/** Another installation's copy of a work, to pull from and push to (PLAN-2 G3). */
+/** Another installation's copy of a work, to pull from and push to. */
 export const workRemotes = pgTable(
   'work_remotes',
   {
@@ -918,7 +918,7 @@ export const workRemotes = pgTable(
 /** What an archive queue entry names: which records' files to rewrite. */
 export const ARCHIVE_QUEUE_KINDS = ['work-all', 'work', 'work-editions', 'scheme', 'bibliography', 'witness', 'transcription', 'edition', 'person'] as const;
 
-/** A registry entry merged into another (PLAN-2 C8): its id still resolves, and imports naming it land on the survivor. */
+/** A registry entry merged into another: its id still resolves, and imports naming it land on the survivor. */
 export const registryMerges = pgTable(
   'registry_merges',
   {

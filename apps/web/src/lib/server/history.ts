@@ -1,5 +1,5 @@
 /**
- * The history of a document (PLAN 4.11): its sessions and named moments,
+ * The history of a document: its sessions and named moments,
  * the text as it stood at any version with what changed since marked,
  * bringing the text back, undoing one change, and reviewing the changes of
  * others.

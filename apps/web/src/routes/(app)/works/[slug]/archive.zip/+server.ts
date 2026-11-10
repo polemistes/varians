@@ -1,6 +1,6 @@
 /**
  * GET /works/[slug]/archive.zip
- * The server's own archive of the work (PLAN 4.12), its git repository with
+ * The server's own archive of the work, its git repository with
  * its history, for administrators. Everyone else is sent to the work's
  * package (package.zip), which holds what they may see: the server's archive
  * holds every draft, other people's included.

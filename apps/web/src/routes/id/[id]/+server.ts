@@ -1,5 +1,5 @@
 /**
- * GET /id/<id>: the address of every record (PLAN-2 C9, Data Format 2,
+ * GET /id/<id>: the address of every record (Data Format 2,
  * section 8). Redirects to the record's page; with `Accept:
  * application/json`, or at /id/<id>.json, answers the record as the archive
  * represents it. A record the visitor may not see is not found.

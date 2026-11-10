@@ -1,5 +1,5 @@
 /**
- * Identifiers and merging (PLAN-2 C7, C8): register two witnesses, give one
+ * Identifiers and merging: register two witnesses, give one
  * a Diktyon number, find it by that number, and merge the other into it
  * from its edit page; the survivor lists the merged witness.
  */

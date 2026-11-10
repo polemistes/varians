@@ -1,6 +1,6 @@
 /**
  * Editorial notes of an edition: free text about a segment or some of its
- * words (PLAN 4.7). The reader prints them with the apparatus.
+ * words. The reader prints them with the apparatus.
  */
 import { newId } from '@varians/core';
 import { notes, users, type Database } from '@varians/db';

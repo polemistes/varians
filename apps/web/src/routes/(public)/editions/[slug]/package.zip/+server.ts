@@ -1,5 +1,5 @@
 /**
- * GET /editions/[slug]/package.zip: the edition as a package (PLAN-2 E3):
+ * GET /editions/[slug]/package.zip: the edition as a package:
  * the work's own files, the witnesses and transcriptions of its conspectus
  * at the versions its apparatus needs, as the visitor may see them.
  */

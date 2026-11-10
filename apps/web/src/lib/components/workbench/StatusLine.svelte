@@ -1,5 +1,5 @@
 <script lang="ts">
-  /** The status line (PLAN 6.2): saving, a passing message, the page, its lines, words not on a page, unmapped and to check, read forms proposed. */
+  /** The status line: saving, a passing message, the page, its lines, words not on a page, unmapped and to check, read forms proposed. */
   import { UNPLACED } from '$lib/workbench/pages';
   import { Spinner } from '$lib/components/ui';
   import { workbench as t } from '$lib/strings/workbench';

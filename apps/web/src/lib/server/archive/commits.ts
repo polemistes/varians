@@ -1,5 +1,5 @@
 /**
- * Commits of the archive at the moments that matter (PLAN-2 A3): a named
+ * Commits of the archive at the moments that matter: a named
  * moment and a publication are committed in every work the document belongs
  * to, authored by the person who named or published it. The rest is
  * committed by the nightly pass, authored by Varians.

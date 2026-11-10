@@ -1,5 +1,5 @@
 /**
- * ORCID iDs (PLAN-2 C1): sixteen characters, the last a check character by
+ * ORCID iDs: sixteen characters, the last a check character by
  * ISO 7064 MOD 11-2, stored in the 19-character form with hyphens.
  */
 

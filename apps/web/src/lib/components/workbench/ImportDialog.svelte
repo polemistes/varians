@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Import (PLAN 5.5, 5.6, 7.7): TEI by file, URL or CTS URN with the
+   * Import: TEI by file, URL or CTS URN with the
    * structure mapped onto the work's scheme; plain text with its numbering;
    * Leiden notation; PAGE XML or ALTO with pages and zones. Every import is
    * one change in the history; what is pending is saved first.

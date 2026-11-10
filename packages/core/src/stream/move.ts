@@ -1,6 +1,6 @@
 /**
  * Moving text in a stream, and keeping a transcript's pages in shape
- * (PLAN-3 3.3 and 3.4).
+ * (docs/design.md, sections 3.4 and 3.5).
  *
  * A transcript's stream has a fixed shape: the items before the first page
  * break are the text on no page ("Not on a page"); then each page break,

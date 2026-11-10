@@ -1,5 +1,5 @@
 /**
- * Every record has an address, /id/<id> (PLAN-2 C9): this module finds
+ * Every record has an address, /id/<id>: this module finds
  * which record an id names, wherever it is kept, and whether a viewer may
  * see it. Ids merged away resolve to their survivor. Words have no table of
  * their own: a token id is looked up inside the texts.

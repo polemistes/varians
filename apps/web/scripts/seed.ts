@@ -52,7 +52,7 @@ async function seedAdministrator(db: Database): Promise<void> {
 // Works, witnesses and texts
 //
 // Milestone 2 onwards seeds the registry here: the opening of Iliad 1 with
-// three witnesses that differ as an apparatus expects (PLAN section 8), a
+// three witnesses that differ as an apparatus expects, a
 // prose work on Stephanus pages, and a right-to-left sample. Look entries up
 // by slug before inserting so that the script stays idempotent.
 // ---------------------------------------------------------------------------

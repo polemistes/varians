@@ -3,8 +3,8 @@ import { inline, render, slug } from './markdown';
 
 describe('the guide renderer', () => {
   it('renders inline marks and keeps only links the site can serve', () => {
-    expect(inline('**bold**, *italic*, `a < b` and [here](#pages) or [plan](../PLAN.md)')).toBe(
-      '<strong>bold</strong>, <em>italic</em>, <code>a &lt; b</code> and <a href="#pages">here</a> or plan',
+    expect(inline('**bold**, *italic*, `a < b` and [here](#pages) or [notes](../notes.md)')).toBe(
+      '<strong>bold</strong>, <em>italic</em>, <code>a &lt; b</code> and <a href="#pages">here</a> or notes',
     );
     expect(inline('γρ. in **Variant…** 2 * 3')).toBe('γρ. in <strong>Variant…</strong> 2 * 3');
     // A page of the site is a link; another site's path without a scheme is not.

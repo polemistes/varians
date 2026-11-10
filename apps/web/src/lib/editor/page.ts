@@ -1,5 +1,5 @@
 /**
- * One page of a transcript in the editor (PLAN-3 3.1, A3).
+ * One page of a transcript in the editor.
  *
  * A transcript's stream begins with the text on no page ("Not on a page"),
  * then each page break, naming a page of the witness in the witness's

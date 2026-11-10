@@ -1,5 +1,5 @@
 /**
- * The shape of operations a client may send (PLAN 7.3). The core applies
+ * The shape of operations a client may send. The core applies
  * whatever it is given; this keeps malformed items, unknown fields and
  * oversized values out of the stored documents.
  */

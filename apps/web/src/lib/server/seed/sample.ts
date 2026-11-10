@@ -235,7 +235,7 @@ export async function seedSample(db: Database, ownerId: string, options: SampleO
   });
   await db.insert(editionSigla).values({ editionId, witnessId: dId, transcriptionId: null, siglum: 'T', position: 3 });
 
-  // The record of the work on the edition, so that every kind of archived record has one (PLAN-2 A5):
+  // The record of the work on the edition, so that every kind of archived record has one:
   // a citation and a note citing the literature, a zone on A's first page, an alignment constraint,
   // a site looked at and classed, review positions, a named moment, and a collaborator when one is given.
   const allen = await bibliographyItem(db, ownerId, {

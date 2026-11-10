@@ -1,6 +1,6 @@
 /**
  * GET /works/[slug]/sync.json: what this installation holds of a work, for
- * another to compare with (PLAN-2 G1, Data Format 2 section 11). A public
+ * another to compare with (Data Format 2 section 11). A public
  * work answers anyone; drafts and private works answer the accounts that may
  * see them, by session or by bearer token.
  */

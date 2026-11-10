@@ -59,7 +59,7 @@ export const handle: Handle = async ({ event, resolve }) => {
     }
   }
 
-  // Another installation or a script, with a token: on the sync and import endpoints only (PLAN-2 G2).
+  // Another installation or a script, with a token: on the sync and import endpoints only.
   const bearer = /^Bearer\s+(\S+)$/u.exec(request.headers.get('authorization') ?? '')?.[1];
   if (bearer && acceptsBearer(request.method, url.pathname)) {
     const user = await userForToken(db, bearer);
@@ -78,7 +78,7 @@ export const handle: Handle = async ({ event, resolve }) => {
     }
   }
 
-  // An account that has not accepted the current terms of contribution reads, and changes nothing (PLAN-2 D4).
+  // An account that has not accepted the current terms of contribution reads, and changes nothing.
   const user = event.locals.user;
   if (user && !hasAcceptedTerms(user)) {
     const gate = termsGate(request.method, url.pathname, url.search);

@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * The rights of an image as a form gives them (PLAN-2 D5): the statement,
+   * The rights of an image as a form gives them: the statement,
    * chosen from the listed ones, the credit line, and, where it belongs, the
    * address the image was obtained from. The fields post under `names`.
    */

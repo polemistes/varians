@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * The transcription workbench (PLAN 6.2, PLAN-3 C): the text one page at
+   * The transcription workbench: the text one page at
    * a time with its segment gutter and the bar above it, the facsimile or
    * the other form or the history or the pages beside it, on the side the
    * editor chooses, the toolbar under a selection, and the status line.

@@ -21,7 +21,7 @@
 
 <script lang="ts">
   /**
-   * An image for one page, with its rights (PLAN-2 D5): the file (unless one
+   * An image for one page, with its rights: the file (unless one
    * was dropped), the rights statement, preselected from the witness's
    * default or else the page's own, the credit line and the source. When the
    * page's present image carries zones, says what becomes of them. The

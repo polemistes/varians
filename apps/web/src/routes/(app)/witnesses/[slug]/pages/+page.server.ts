@@ -1,6 +1,6 @@
 /**
  * The pages of a witness: listed in order, added by label or from images,
- * given images (upload or IIIF), renamed, moved and removed (PLAN 4.2, 6.1).
+ * given images (upload or IIIF), renamed, moved and removed.
  * Maintainers only; every action checks again, since actions run without
  * the load.
  */

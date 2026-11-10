@@ -1,4 +1,4 @@
-/** GET /admin/package.zip: the whole installation as a package (PLAN-2 E3), for administrators. */
+/** GET /admin/package.zip: the whole installation as a package, for administrators. */
 import { error, redirect } from '@sveltejs/kit';
 import { buildPackage } from '$lib/server/archive/package';
 import { isAdministrator } from '$lib/server/authz';

@@ -1,5 +1,5 @@
 <script lang="ts">
-  /** A zone that marks no words (PLAN 4.2): what kind of feature it is, and a description. */
+  /** A zone that marks no words: what kind of feature it is, and a description. */
   import { Button, Dialog, Field, Input, Select } from '$lib/components/ui';
   import { workbench as t } from '$lib/strings/workbench';
 

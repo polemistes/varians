@@ -2,7 +2,7 @@
  * Changesets: the unit of a document's history. Every save is one; the
  * server stores the operations and their reverse. Everything here is pure.
  *
- * The history is a graph (PLAN-2 decision 5): every changeset names the
+ * The history is a graph: every changeset names the
  * changeset it was made on, its parent, and a merge changeset also names the
  * incoming changesets it folds in. The version number is only this
  * installation's order of application.

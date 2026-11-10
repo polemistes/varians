@@ -1,5 +1,5 @@
 /**
- * Between our zone geometry (fractions of the image, PLAN 4.2) and the
+ * Between our zone geometry (fractions of the image) and the
  * image-pixel shapes Annotorious uses. Pure; tested without a browser.
  */
 

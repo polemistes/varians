@@ -1,6 +1,6 @@
 /**
  * The edition's text as printed: its tokens with the editorial sigla the
- * edition's conventions choose (PLAN 4.7), and its objects (lacunae, gaps,
+ * edition's conventions choose, and its objects (lacunae, gaps,
  * paratext). Pure, so that the page, the print and the plain-text export
  * print the same thing.
  *

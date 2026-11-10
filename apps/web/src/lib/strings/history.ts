@@ -1,5 +1,5 @@
 /**
- * Every user-facing string of the history panel (PLAN 4.11). Plain English,
+ * Every user-facing string of the history panel. Plain English,
  * no em dashes. Components import `historyStrings` from '$lib/strings/history'.
  */
 

@@ -1,7 +1,7 @@
 /**
  * A document session on the client: the stream the editor shows, the
- * version it rests on, the operations not yet saved, and the save protocol
- * (PLAN 7.3). Framework-agnostic; the page subscribes to its state.
+ * version it rests on, the operations not yet saved, and the save protocol.
+ * Framework-agnostic; the page subscribes to its state.
  *
  * Saves are debounced and sent one at a time. A version conflict brings the
  * server's current content and the changesets since our version: pending

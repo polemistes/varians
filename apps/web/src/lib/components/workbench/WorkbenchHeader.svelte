@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * The workbench's header (PLAN 6.2, PLAN-3 C3): the witness and the
+   * The workbench's header: the witness and the
    * transcript, and at the right the side pane's toggle and the menu of
    * whole-text actions, with the side the facsimile stands on. The page
    * chooser and the text's tools are in the bar above the text.

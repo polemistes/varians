@@ -1,6 +1,6 @@
 /**
  * The difference between two states of a stream, by item id: what the
- * history panel marks when a moment is looked at (PLAN 4.11). Items keep
+ * history panel marks when a moment is looked at. Items keep
  * their ids through edits, so a changed word is one change, not a deletion
  * beside an insertion, and a moved line is one move.
  */

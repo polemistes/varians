@@ -1,5 +1,5 @@
 /**
- * The form actions that take rights of images (PLAN-2 D5): uploads refused
+ * The form actions that take rights of images: uploads refused
  * without a statement, the rights of a page, and the witness's defaults,
  * each for the maintainers of the witness only.
  */

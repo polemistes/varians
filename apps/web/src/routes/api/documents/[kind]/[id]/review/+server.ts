@@ -1,5 +1,5 @@
 /**
- * Reviewing the changes others made to a document (PLAN 4.11).
+ * Reviewing the changes others made to a document.
  *
  *   GET                  ReviewChanges: { fromVersion, currentVersion, items, remaining, people, labels, truncated },
  *                        the changes by others since the user's review point, in the order of the text

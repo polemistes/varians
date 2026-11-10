@@ -1,5 +1,5 @@
 /**
- * The shared bibliography (PLAN 4.9): biblatex entries anyone signed in may
+ * The shared bibliography: biblatex entries anyone signed in may
  * add, kept by whoever added them and by site editors, and the citations
  * that conjectures, reported readings, notes and editions make of them.
  */

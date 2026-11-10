@@ -1,8 +1,8 @@
 /**
- * GET /works/[slug]/package.zip: the work as a package (PLAN-2 E3), with
+ * GET /works/[slug]/package.zip: the work as a package, with
  * what the visitor may see of it: anyone for a public work, the accounts
  * that see it for a private one (by session, or by token for another
- * installation pulling it, PLAN-2 G1).
+ * installation pulling it).
  */
 import { error, redirect } from '@sveltejs/kit';
 import { buildPackage } from '$lib/server/archive/package';

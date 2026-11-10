@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Reviewing the changes of others (PLAN 4.11): from a chosen moment, by
+   * Reviewing the changes of others: from a chosen moment, by
    * default where the reviewer last left off, the changes since in the order
    * of the text, each accepted, rejected (undone by a new change of the
    * reviewer's) or left for later; with how many are left.

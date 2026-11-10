@@ -1,6 +1,6 @@
 /**
- * GET /transcriptions/[id]/package.zip: the transcription as a package
- * (PLAN-2 E3), with its works' own files, its witness, pages and images.
+ * GET /transcriptions/[id]/package.zip: the transcription as a package,
+ * with its works' own files, its witness, pages and images.
  */
 import { error } from '@sveltejs/kit';
 import { transcriptions } from '@varians/db';

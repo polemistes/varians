@@ -1,14 +1,14 @@
 /**
- * The pages of a witness (PLAN 4.2): an ordered list of folio sides, pages,
+ * The pages of a witness: an ordered list of folio sides, pages,
  * columns or fragments, each with a label and an image or none. Images are
  * uploads, kept on disk with a Deep Zoom pyramid, or IIIF Image API services
  * shown straight from the library's server. Maintainers manage the list on
- * the pages screen (PLAN 4.10, 6.1).
+ * the pages screen.
  *
  * Other records refer to pages by id: zones are drawn on them, and the page
  * breaks of a transcription name the page they begin. Removing a page moves
  * its text to Not on a page in every transcript; reordering pages reorders
- * the transcripts' text (PLAN-3 B1, B2).
+ * the transcripts' text.
  *
  * Mutations of a witness's list lock the witness row, so that positions stay
  * consistent when two maintainers work at once.
@@ -346,7 +346,7 @@ export async function removePage(
   return { ok: true, ...result };
 }
 
-// Rights of images (PLAN-2 D5)
+// Rights of images
 
 /** The longest credit line taken. */
 export const MAX_ATTRIBUTION_LENGTH = 500;

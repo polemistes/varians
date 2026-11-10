@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * The side pane (PLAN 6.2): the facsimile of the page, the other form of
+   * The side pane: the facsimile of the page, the other form of
    * the text (read only, the caret's word lit in both), the history, and the
    * pages of the witness, chosen by a tab. The history panel is loaded when
    * it exists.

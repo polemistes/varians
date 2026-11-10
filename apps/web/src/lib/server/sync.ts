@@ -1,5 +1,5 @@
 /**
- * Sync between installations (PLAN-2 milestone G, Data Format 2 section 11):
+ * Sync between installations (Data Format 2 section 11):
  * explicit, by a maintainer. An installation exposes what it holds of a
  * work (sync.json) and the work's package; another compares, pulls the
  * package and imports it as section 5.3 says, or pushes its own package to

@@ -1,7 +1,7 @@
 /**
  * IIIF manifests: a library's description of a book as canvases with images.
  * Importing one turns its canvases into pages whose images are shown straight
- * from the library's Image API server (PLAN 4.2). Presentation API 2 and 3 are
+ * from the library's Image API server. Presentation API 2 and 3 are
  * both read; the output is one plain shape.
  */
 

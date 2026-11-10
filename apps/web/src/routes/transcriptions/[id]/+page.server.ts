@@ -1,5 +1,5 @@
 /**
- * The transcription workbench (PLAN 6.2). Outside the (app) group: a visitor
+ * The transcription workbench. Outside the (app) group: a visitor
  * may read a published transcription; only those who may edit get the
  * tools. Loads the transcription with its witness, pages, works and segment
  * labels; the actions are the imports, the settings and the deletion. The

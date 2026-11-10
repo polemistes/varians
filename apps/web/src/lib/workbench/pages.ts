@@ -1,5 +1,5 @@
 /**
- * Pages as the workbench navigates them (PLAN-3 C1, C2). A transcript's
+ * Pages as the workbench navigates them. A transcript's
  * text is the text on no page ("Not on a page") followed by the text of
  * each page of the witness, in the witness's order. The workbench shows one
  * of them, or the whole text read only:

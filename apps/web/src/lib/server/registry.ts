@@ -1,7 +1,7 @@
 /**
  * The registry on the server: works and witnesses as shared entries with
  * their maintainers, the transcriptions that hang off them, and the queries
- * the registry pages load (PLAN 4.1, 4.2, 4.6, 4.10, 5.2). Conjectures and
+ * the registry pages load. Conjectures and
  * reported readings are created through conjectures.ts; their catalogue
  * queries, and the update of a reported reading, are here.
  *
@@ -1470,7 +1470,7 @@ export async function ownRepository(dir: string): Promise<void> {
 }
 
 /**
- * Brings a work's archive up to date (PLAN 4.12) and answers its HEAD as a
+ * Brings a work's archive up to date and answers its HEAD as a
  * zip, streamed from `git archive` with the work's slug as the top folder.
  * Throws when the archive cannot be written or has no commit.
  */

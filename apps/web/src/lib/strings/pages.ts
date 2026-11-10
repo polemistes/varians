@@ -141,7 +141,7 @@ export const pageStrings = {
         : `${(bytes / (1024 * 1024)).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`,
   },
 
-  /** The rights statement, credit line and source of an image (PLAN-2 D5). */
+  /** The rights statement, credit line and source of an image. */
   rights: {
     statement: 'Rights statement',
     choose: 'Choose a statement',

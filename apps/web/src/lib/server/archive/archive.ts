@@ -1,6 +1,6 @@
 /**
  * The archive: a work's records as open files in a git repository, kept
- * current by the server (PLAN 4.12, PLAN-2 milestone A). This module writes
+ * current by the server. This module writes
  * the files from the database and commits. Format: docs/formats.
  *
  * The writing is split by level, so that a change to one document rewrites
@@ -132,7 +132,7 @@ export interface ArchiveFilter {
   reported(row: typeof reportedReadings.$inferSelect): boolean;
   /** Whether the person sees an edition's working state; otherwise the archive holds its published version only. */
   editionWorking(row: typeof editions.$inferSelect): boolean;
-  /** The version of a transcription to write, when not its current one: for a package of a published edition, the version its apparatus was collated against (PLAN-2 E2). */
+  /** The version of a transcription to write, when not its current one: for a package of a published edition, the version its apparatus was collated against. */
   transcriptionVersion?(row: typeof transcriptions.$inferSelect): number | null;
 }
 
@@ -407,7 +407,7 @@ async function historyFiles(ctx: WorkContext, dir: string, kind: 'transcription'
   );
 }
 
-/** Each person's review position on a document: process state, kept in the server's archive and left out of exports for others (PLAN-2 Open 5). */
+/** Each person's review position on a document: process state, kept in the server's archive and left out of exports for others. */
 async function reviewStates(ctx: WorkContext, kind: 'transcription' | 'edition', documentId: string) {
   if (ctx.writers.only) return [];
   const rows = await ctx.db
@@ -493,7 +493,7 @@ function teiRights(licenceId: string | null, rightsNote: string | null): { licen
 }
 
 /**
- * The persons responsible for a document, for its TEI header (PLAN-2 D6):
+ * The persons responsible for a document, for its TEI header:
  * those whose changesets made its text, and those who wrote its notes.
  */
 async function contributorsOf(ctx: WorkContext, kind: 'transcription' | 'edition', documentId: string, upTo: number | null): Promise<Contributor[]> {
@@ -590,7 +590,7 @@ async function writeWitnessFiles(ctx: WorkContext, witness: WitnessRow): Promise
   const imagesDir = path.join(wdir, 'images');
   if (writers.storageRoot) {
     for (const p of pageRows) {
-      // Only an image whose rights statement allows copying goes into the archive (PLAN-2 D5).
+      // Only an image whose rights statement allows copying goes into the archive.
       if (p.imageKind !== 'upload' || !p.imagePath || !isCopyable(p.rights)) continue;
       const ext = path.extname(p.imagePath) || '.jpg';
       const target = path.join('images', `${slugify(p.label)}-${p.id.slice(-6)}${ext}`);

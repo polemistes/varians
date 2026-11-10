@@ -4,7 +4,7 @@
  * breaks, text lines become line breaks, words become tokens, and every
  * word with coordinates gets a zone in fractions of the page size. A line
  * whose words have no coordinates of their own is divided horizontally in
- * proportion to the words' letter counts (PLAN 5.6).
+ * proportion to the words' letter counts.
  */
 
 import { newId } from '../ids.ts';

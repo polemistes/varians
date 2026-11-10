@@ -1,5 +1,5 @@
 /**
- * The bibliography is biblatex (PLAN 4.9): entries are read from and
+ * The bibliography is biblatex: entries are read from and
  * written to `.bib` text, and the apparatus cites them by an author-year
  * label derived here. The reader is hand-written for the standard shape:
  * braced, quoted and bare values, `#` concatenation, `@string` macros,

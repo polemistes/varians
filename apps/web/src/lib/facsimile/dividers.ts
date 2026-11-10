@@ -1,5 +1,5 @@
 /**
- * Word dividers (PLAN 5.6): the boundary between two adjacent word boxes on
+ * Word dividers: the boundary between two adjacent word boxes on
  * a line, dragged as one vertical line instead of resizing two boxes.
  * All values are fractions of the image width.
  */

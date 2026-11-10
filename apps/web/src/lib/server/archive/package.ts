@@ -1,5 +1,5 @@
 /**
- * Packages (PLAN-2 milestone E, Data Format 2 section 9): one or more
+ * Packages (Data Format 2 section 9): one or more
  * archives in a BagIt bag (RFC 8493) with RO-Crate 1.2 metadata, zipped.
  * A package is made for a scope (a work, an edition, a transcription, a set
  * of these, or the whole installation) as one person may see it, and carries

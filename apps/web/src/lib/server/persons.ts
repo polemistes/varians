@@ -1,5 +1,5 @@
 /**
- * Persons (PLAN-2 C1): who made or did something recorded here. Every
+ * Persons: who made or did something recorded here. Every
  * account has one, under the account's id; persons from imports may have
  * none, and are claimed by the account that gives their ORCID iD.
  */

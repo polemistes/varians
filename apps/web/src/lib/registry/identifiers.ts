@@ -1,5 +1,5 @@
 /**
- * The canonical identifiers of works and witnesses (PLAN-2 C7; Varians Data
+ * The canonical identifiers of works and witnesses (Varians Data
  * Format 2, section 7): a scheme and a value, checked and normalized here,
  * with the address of a resolver where the scheme has one. Pure, and safe in
  * the browser: the form shows the rows, the server checks them.

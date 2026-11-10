@@ -1,6 +1,6 @@
 /**
- * Collaborators of an edition: the people the owner invites to edit it
- * (PLAN 4.10). Granting reaches the transcriptions the conspectus names and
+ * Collaborators of an edition: the people the owner invites to edit it.
+ * Granting reaches the transcriptions the conspectus names and
  * the owner's conjectures on the work; authz derives that from these rows.
  */
 import { editionCollaborators, editions, users, type Database } from '@varians/db';

@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * The reader of an edition (PLAN 5.8, 6.4): the critical text with labels
+   * The reader of an edition: the critical text with labels
    * in the margin, words at variant places marked with a dotted line that
    * explain what varies there when opened, the variants of the lines on
    * screen, the witnesses and the facsimile in panels, search, and a print

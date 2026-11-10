@@ -1,7 +1,7 @@
 /**
  * Code points against UTF-16 units.
  *
- * Mark offsets count code points of a token's written form (PLAN 4.5);
+ * Mark offsets count code points of a token's written form;
  * CodeMirror positions count UTF-16 units. Polytonic Greek sits in the
  * basic plane, but papyrological and epigraphic scripts do not, so the two
  * are never assumed equal.

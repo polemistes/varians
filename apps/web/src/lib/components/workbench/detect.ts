@@ -1,6 +1,6 @@
 /**
  * Reading a region of a page image in the browser, for finding its lines
- * with the projection profile (PLAN 5.6): a IIIF service is asked for the
+ * with the projection profile: a IIIF service is asked for the
  * region itself; an uploaded original is drawn into a canvas once and cut.
  * Returns null when the image cannot be read (a server without CORS taints
  * the canvas); the caller then divides evenly.

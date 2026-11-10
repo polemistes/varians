@@ -1,5 +1,5 @@
 /**
- * Written and read forms in the workbench (PLAN 4.4, 5.1): the profile in
+ * Written and read forms in the workbench: the profile in
  * force, the read forms the user typed (for the memory), confirming
  * unchecked words, and what switching the written form on or off does to
  * the text. Pure; removals in operations are null, which survives JSON.

@@ -1,5 +1,5 @@
 /**
- * Copying an edition (PLAN 4.10): a draft of one's own, made from the
+ * Copying an edition: a draft of one's own, made from the
  * edition as the copier may see it. Its editors copy the draft as it
  * stands; anyone else copies the published version, with the conspectus
  * it was published with. What comes along: the text with its sources, the

@@ -756,7 +756,7 @@ async function importInto(db: Database, dir: string, userId: string, options: Im
       });
       documents.push(outcome);
       if (!applies(outcome)) continue;
-      // Its page breaks name pages of the witness here, once each, in their order (PLAN-3 3.4).
+      // Its page breaks name pages of the witness here, once each, in their order.
       await conformStored(db, t.id, ctx.userId, pageStrings.history.reorganized);
       // Its works, as far as this installation knows them.
       const named = t.workIds ?? [];

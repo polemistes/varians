@@ -1,5 +1,5 @@
 /**
- * Merging registry entries (PLAN-2 C8): one witness into another, or one
+ * Merging registry entries: one witness into another, or one
  * work into another. A preview says what moves and what prevents the merge;
  * the merge moves everything in one transaction, removes the merged entry
  * and records it in registry_merges, so that its id still leads to the

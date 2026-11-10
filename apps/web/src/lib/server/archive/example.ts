@@ -1,5 +1,5 @@
 /**
- * The example archive of the format (PLAN-2 B6): the seed sample, with one
+ * The example archive of the format: the seed sample, with one
  * small image, written as an archive into docs/formats/example/. It is the
  * conformance target for other implementations, regenerated whenever the
  * format changes (`cli write-example`).

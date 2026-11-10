@@ -69,7 +69,7 @@ export interface SegmentView {
   notes: { id: string; tokenIds: string[]; text: string; author: string | null; cites: string[] }[];
   /** What the conjectures and reported readings attached here cite, by attachment id: "cf. West 1998, 45". */
   cites: Record<string, string[]>;
-  /** Words of the edition taken from a witness that now reads differently there (PLAN 4.7). `now` is empty when the witness no longer has them. */
+  /** Words of the edition taken from a witness that now reads differently there. `now` is empty when the witness no longer has them. */
   drift: Drift[];
   /**
    * How each reading of a textual place stands to the edition's words, by
@@ -175,7 +175,7 @@ export function apparatusConventionsOf(conventions: EditionConventions): Apparat
   return { form: conventions.apparatus, latin: conventions.latin, interpretative: conventions.interpretative ?? 'separate' };
 }
 
-/** Where a witness orders whole segments otherwise than the edition prints them (PLAN 4.8). */
+/** Where a witness orders whole segments otherwise than the edition prints them. */
 export interface OrderStatement {
   siglum: string;
   /** The segments the witness has elsewhere, in its order. */
@@ -364,7 +364,7 @@ async function buildSegmentViews(
   const conventions = apparatusConventionsOf(row.conventions);
   const segmentIds = [...collations.keys()];
   const adopted = new Set((await db.select().from(editionAdoptions).where(eq(editionAdoptions.editionId, editionId))).map((a) => a.conjectureId));
-  // The work's published records are a commons every reader sees; drafts only those who may see them, in the editor (PLAN 4.10).
+  // The work's published records are a commons every reader sees; drafts only those who may see them, in the editor.
   const sees = await recordFilter(db, row.workId, audience);
   const conjectureRows = segmentIds.length
     ? (

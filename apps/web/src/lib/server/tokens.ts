@@ -1,5 +1,5 @@
 /**
- * API tokens (PLAN-2 G2): an account's token lets another installation or a
+ * API tokens: an account's token lets another installation or a
  * script use the sync and import endpoints as that account, and nothing
  * else. A token is shown once; only its hash is kept. Tokens of accounts on
  * other installations, kept for the remotes of a work, are encrypted with

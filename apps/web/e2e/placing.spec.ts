@@ -1,5 +1,5 @@
 /**
- * Pages as containers of text (PLAN-3): a transcript whose text is all on
+ * Pages as containers of text: a transcript whose text is all on
  * no page is placed page by page with Move to Page…, the facsimile
  * proposing the next page without text; a later page is placed before an
  * earlier one; every word keeps its segment; removing a page with text

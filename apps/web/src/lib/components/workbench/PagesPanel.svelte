@@ -6,7 +6,7 @@
    * witness's pages screen: images added, pages added by their labels, a
    * IIIF manifest imported, and each card's menu. The changes go to that
    * screen's form actions; after each the list is read again, and the text
-   * too, since a page removed or moved moves text (PLAN-3 C9). Each card
+   * too, since a page removed or moved moves text. Each card
    * says whether the page has text in this transcript, and how many lines.
    */
   import { onMount, tick } from 'svelte';

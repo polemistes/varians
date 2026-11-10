@@ -1,4 +1,4 @@
-/** Finding registry entries by a canonical identifier (PLAN-2 C7). */
+/** Finding registry entries by a canonical identifier. */
 import { sql, type SQL, type witnesses, type works } from '@varians/db';
 
 /**

@@ -1,5 +1,5 @@
 /**
- * The write-through of the archive (PLAN-2 A3). Triggers on every archived
+ * The write-through of the archive. Triggers on every archived
  * table record in `archive_queue` which record changed (migration 0012); this
  * module turns the entries that have been quiet long enough into a plan per
  * work and rewrites those parts of the archive. Commits are not made here:

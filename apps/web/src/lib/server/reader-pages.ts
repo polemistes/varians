@@ -1,5 +1,5 @@
 /**
- * The reader's server side (PLAN 5.8): which state of an edition a visitor
+ * The reader's server side: which state of an edition a visitor
  * may see at a URL, the page data for it, and the plain-text and TEI
  * downloads of the same state.
  *

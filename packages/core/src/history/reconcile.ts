@@ -1,5 +1,5 @@
 /**
- * Reconciling a document's history with an incoming copy of it (PLAN-2 C5):
+ * Reconciling a document's history with an incoming copy of it:
  * what import and sync do when the same document arrives from another
  * installation. Pure: it reads two histories and our current content and
  * says what to do; the caller stores the result.

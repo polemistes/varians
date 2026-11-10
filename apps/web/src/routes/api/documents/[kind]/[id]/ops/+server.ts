@@ -1,5 +1,5 @@
 /**
- * The save endpoint of both editors (PLAN 7.3).
+ * The save endpoint of both editors.
  *
  *   GET                                  { version, content }
  *   POST { fromVersion, ops, message? }  { version, changesetId }

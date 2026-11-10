@@ -1,7 +1,7 @@
 /**
- * Installation settings shared by the server and the command line (PLAN-2
- * D2). The server's modules that read SvelteKit's environment pass the
- * value in; the archive and the scripts read the process environment.
+ * Installation settings shared by the server and the command line. The
+ * server's modules that read SvelteKit's environment pass the value in; the
+ * archive and the scripts read the process environment.
  */
 
 import { isDataLicence, type DataLicence } from '@varians/core';

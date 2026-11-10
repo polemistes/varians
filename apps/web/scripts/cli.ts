@@ -79,7 +79,7 @@ async function main(): Promise<void> {
       case 'export-all': {
         const archived = await archiveChangedWorks(db, root, 'manual export', { storageRoot: storage });
         console.log(`${archived.length} work(s) committed`);
-        // With --package, the whole installation as a package as well (PLAN-2 E3).
+        // With --package, the whole installation as a package as well.
         const out = flag(args, 'package');
         if (out) await writePackage(db, [{ kind: 'installation' }], out, storage);
         break;
@@ -243,7 +243,7 @@ async function main(): Promise<void> {
         break;
       }
       case 'conform-pages': {
-        // Once after the deploy of PLAN-3: every transcript's page breaks name its witness's pages, once, in order. A second run does nothing.
+        // Once after updating to pages as containers of text: every transcript's page breaks name its witness's pages, once, in order. A second run does nothing.
         const outcomes = await conformAll(db, pageStrings.history.reorganized);
         for (const outcome of outcomes) console.log(formatConformance(outcome));
         break;

@@ -1,5 +1,5 @@
 /**
- * Undo and redo for the boxes on the images (PLAN 5.6): making, moving,
+ * Undo and redo for the boxes on the images: making, moving,
  * resizing and deleting them. Each page has its own history; an entry
  * carries what undoes it and what does it again. Pure: the owner keeps the
  * history in its state and runs the entries.

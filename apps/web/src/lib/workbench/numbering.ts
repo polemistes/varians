@@ -1,5 +1,5 @@
 /**
- * "Number lines from here" (PLAN 5.5): for verse, every line from the
+ * "Number lines from here": for verse, every line from the
  * caret's to the end of the page gets the next label in sequence on its
  * first word. Pure: which tokens, which labels, which operations.
  */

@@ -1,4 +1,4 @@
-/** What a merge of registry entries moves and what prevents it (PLAN-2 C8), as the preview shows it. */
+/** What a merge of registry entries moves and what prevents it, as the preview shows it. */
 
 export type MergeKind = 'work' | 'witness';
 

@@ -1,5 +1,5 @@
 /**
- * Making a copy of an edition (PLAN 4.10): posted from the reader or the
+ * Making a copy of an edition: posted from the reader or the
  * editor, it makes a draft of the user's own and opens it in the editor.
  * There is no page to show here.
  */

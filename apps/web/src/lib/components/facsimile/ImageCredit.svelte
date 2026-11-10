@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * The line under a page image (PLAN-2 D5): the credit line the rights
+   * The line under a page image: the credit line the rights
    * holder asks for, and the image's rights statement by its label, linked to
    * its address. Nothing when the image has neither.
    */

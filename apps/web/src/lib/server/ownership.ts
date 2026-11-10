@@ -1,5 +1,5 @@
 /**
- * Handing an edition or a transcription to another user (PLAN 4.10): the
+ * Handing an edition or a transcription to another user: the
  * owner offers it, the user named accepts or declines. Only the user named
  * can accept; an administrator cannot accept on their behalf.
  */

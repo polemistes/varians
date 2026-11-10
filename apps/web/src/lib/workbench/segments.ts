@@ -1,5 +1,5 @@
 /**
- * Segment starts in the workbench (PLAN 4.3, 5.5): the label proposed for a
+ * Segment starts in the workbench: the label proposed for a
  * token, the part number of a segment that already has a run elsewhere, and
  * the operation that sets or removes a start. Pure.
  */

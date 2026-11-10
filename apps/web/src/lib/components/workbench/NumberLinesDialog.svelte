@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * "Number lines from here" for verse (PLAN 5.5): from the caret's line to
+   * "Number lines from here" for verse: from the caret's line to
    * the end of the page, or for a number of lines, each line's first word
    * begins the next segment. The labels are resolved in one request and the
    * starts set in one batch.

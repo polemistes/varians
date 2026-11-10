@@ -1,5 +1,5 @@
 /**
- * Who may see and do what, after PLAN 4.10.
+ * Who may see and do what (docs/design.md, section 3.11).
  *
  * Two tiers. The shared registry (works, witnesses) has maintainers: the
  * creator, whom they add, and site editors. Owned records (transcriptions,
@@ -107,7 +107,7 @@ export function canMaintainWitness(
 }
 
 /**
- * Merging one registry entry into another (PLAN-2 C8): administrators, and
+ * Merging one registry entry into another: administrators, and
  * whoever maintains both entries (as creator or maintainer). A site editor's
  * right to edit anything does not reach this: a merge removes an entry.
  */

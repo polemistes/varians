@@ -1,5 +1,5 @@
 /**
- * POST /api/import: a package pushed by another installation (PLAN-2 G3),
+ * POST /api/import: a package pushed by another installation,
  * with a bearer token of an account here. It is imported as that account,
  * restricted as on the import page, keeping the text here where the two
  * conflict; the report comes back as JSON.

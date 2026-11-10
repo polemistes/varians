@@ -1,7 +1,7 @@
 /**
  * Publishing an edition: a numbered, named moment readers link to; the
  * transcriptions of its conspectus and the conjectures it adopts become
- * public with it (PLAN 4.7, 4.10). Unpublishing takes them back unless
+ * public with it. Unpublishing takes them back unless
  * another published edition still needs them.
  */
 
@@ -68,7 +68,7 @@ export async function publishEdition(db: Database, editionId: string, userId: st
       : {};
     const basis: MomentBasis = { sigla: conspectus, versions };
     await tx.update(moments).set({ basis }).where(eq(moments.id, momentId));
-    // The licence is fixed at the first publication, from the installation's data licence, and never changes after (PLAN-2 D3).
+    // The licence is fixed at the first publication, from the installation's data licence, and never changes after.
     const licence = dataLicence();
     await tx
       .update(editions)

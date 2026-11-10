@@ -1,5 +1,5 @@
 /**
- * Keeping transcripts in the shape of their witness's pages (PLAN-3 3.4, B).
+ * Keeping transcripts in the shape of their witness's pages.
  *
  * A transcript's page breaks name pages of its witness, once each, in the
  * witness's order, without labels. Whatever changes a witness's pages (a

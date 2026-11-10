@@ -1,5 +1,5 @@
 /**
- * Every user-facing string of the reader (PLAN 5.8, 6.4): the public page
+ * Every user-facing string of the reader: the public page
  * of an edition, its panels, its settings, its plain-text export. Imported
  * as `reader` from '$lib/strings/reader'. Plain English, no em dashes.
  */

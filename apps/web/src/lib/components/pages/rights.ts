@@ -1,5 +1,5 @@
 /**
- * The rights statements an image may carry (PLAN-2 D5), as the forms offer
+ * The rights statements an image may carry, as the forms offer
  * them: the listed statements by their labels, after an empty choice.
  */
 

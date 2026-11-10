@@ -1,5 +1,5 @@
 /**
- * The format specification as the site serves it (PLAN-2 B3): docs/formats
+ * The format specification as the site serves it: docs/formats
  * read-only at /formats/<version>/, so that the `$id` of every schema
  * resolves on every installation. Only the current version is served.
  */

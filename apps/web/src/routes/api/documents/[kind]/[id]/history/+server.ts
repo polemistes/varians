@@ -1,5 +1,5 @@
 /**
- * The history of a document (PLAN 4.11).
+ * The history of a document.
  *
  *   GET   DocumentHistory: { kind, id, currentVersion, sessions, moments, people, truncated },
  *         sessions and named moments newest first

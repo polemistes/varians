@@ -1,5 +1,5 @@
 /**
- * Mapping words to images, the geometric part (PLAN 5.6): dividing a line box
+ * Mapping words to images, the geometric part: dividing a line box
  * into word boxes, and finding text lines on an image with a projection
  * profile. Pure functions; the caller supplies ImageData from a canvas, so
  * this runs in the browser on a downscaled copy of the page.

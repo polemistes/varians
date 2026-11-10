@@ -1,5 +1,5 @@
 /**
- * Mapping words to the image (PLAN 5.6), the part that needs no browser:
+ * Mapping words to the image, the part that needs no browser:
  * which words of a page have no zone, which zones a set of words lights,
  * the lines a selection covers, and a guide box drawn over several lines
  * divided into one band per line and each band into word boxes by letter

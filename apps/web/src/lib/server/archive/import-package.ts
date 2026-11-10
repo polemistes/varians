@@ -1,5 +1,5 @@
 /**
- * Importing a package, a zipped archive or an archive directory (PLAN-2 E4):
+ * Importing a package, a zipped archive or an archive directory:
  * open it (checking a bag's checksums), check its files against the schemas,
  * and import each of its works, or preview the import without changing
  * anything.

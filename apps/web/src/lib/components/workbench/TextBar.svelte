@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * The bar above the text (PLAN-3 C3): the page chooser with its arrows,
+   * The bar above the text: the page chooser with its arrows,
    * the form shown where the transcript keeps both, and the Insert and
    * Tools menus. The chooser lists Not on a page (with its words when it
    * has any), every page of the witness with a mark where it has text in

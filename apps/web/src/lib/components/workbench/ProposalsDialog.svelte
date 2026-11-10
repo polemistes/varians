@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Read forms proposed (PLAN 4.4): from the profile where the step is
+   * Read forms proposed: from the profile where the step is
    * mechanical and from the memory of pairs confirmed before. The editor
    * picks which to accept; each accepted pair is remembered.
    */

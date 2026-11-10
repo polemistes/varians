@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Word boxes edited together (PLAN 5.6), drawn over the facsimile while
+   * Word boxes edited together, drawn over the facsimile while
    * two or more are selected. Each handle has its own look and one meaning:
    *
    * - a box: dragging it moves all the boxes; a click picks that box alone;

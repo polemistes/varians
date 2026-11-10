@@ -1,5 +1,5 @@
 <script lang="ts">
-  /** After a conflict (PLAN 7.3): the other editor's text stands, and what of ours was set aside is named. */
+  /** After a conflict: the other editor's text stands, and what of ours was set aside is named. */
   import type { Op } from '@varians/core';
   import { Button, Notice } from '$lib/components/ui';
   import { describeSetAside } from '$lib/workbench/view';

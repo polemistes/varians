@@ -1,4 +1,4 @@
-/** Bearer tokens on requests (PLAN-2 G2): the account a token stands for. Used by the request hook. */
+/** Bearer tokens on requests: the account a token stands for. Used by the request hook. */
 
 import { apiTokens, users, type Database } from '@varians/db';
 import { eq } from 'drizzle-orm';

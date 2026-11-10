@@ -38,7 +38,7 @@ export function startBackgroundWork(): void {
   // Changes made while the server was down, or before the queue existed, are written too.
   void markChangedWorks(db).catch((cause) => console.error('archive: marking changed works failed', cause));
   startArchiveWriter(db, { root: archiveRoot(), storageRoot: storageRoot(), delaySeconds });
-  // Remotes set to be pulled every so many hours (PLAN-2 G3): looked at hourly.
+  // Remotes set to be pulled every so many hours: looked at hourly.
   const pulls = setInterval(() => void pullDueRemotes(db).catch((cause) => console.error('sync: scheduled pulls failed', cause)), 60 * 60 * 1000);
   pulls.unref?.();
 }

@@ -1,5 +1,5 @@
 /**
- * What a crafted archive must not do (PLAN-2 F9, the review of the import):
+ * What a crafted archive must not do (the review of the import):
  * name a file of the server as an image, a folder outside the archive as a
  * slug, move or rewrite records of others by their ids, publish or grant on
  * someone else's edition, reach a private work, or credit its records to

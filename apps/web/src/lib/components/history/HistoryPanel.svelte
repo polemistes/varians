@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * The history panel of both editors (PLAN 4.11, 6.2, 6.3). Self-contained:
+   * The history panel of both editors. Self-contained:
    * given a document it fetches its own data.
    *
    * Moments: the history newest first, as sessions (one person's work before

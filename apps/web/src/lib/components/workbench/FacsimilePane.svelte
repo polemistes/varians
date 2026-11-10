@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * The facsimile of the page shown, with its zones (PLAN 5.6). The caret's
+   * The facsimile of the page shown, with its zones. The caret's
    * and the selection's words light their zones; the pointer on a zone
    * lights its words; a click on a zone selects them. Tools: map the
    * selected words to a drawn shape, map whole lines through one guide box
@@ -10,7 +10,7 @@
    * between two words), undo such edits, mark a feature, delete a zone.
    * Words are mapped on their own page only: in Not on a page the pane
    * shows a page chosen in a chooser of its own (by default the page Move
-   * to Page… proposes), with the mapping tools disabled (PLAN-3 C5).
+   * to Page… proposes), with the mapping tools disabled.
    */
   import { onMount, tick, untrack } from 'svelte';
   import ChevronDown from '@lucide/svelte/icons/chevron-down';

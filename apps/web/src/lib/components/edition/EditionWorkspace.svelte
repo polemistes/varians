@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * The edition editor (PLAN 5.7, 6.3): the critical text in an ordinary
+   * The edition editor: the critical text in an ordinary
    * editor, the apparatus of the segments around the caret in a band at the
    * foot, one witness beside it. Adopting a reading replaces the edition's
    * words at a site with that reading's words, which remember where they

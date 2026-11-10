@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
-   * Draggable vertical dividers between adjacent word boxes on one line
-   * (PLAN 5.6): one gesture per boundary instead of resizing two boxes.
+   * Draggable vertical dividers between adjacent word boxes on one line:
+   * one gesture per boundary instead of resizing two boxes.
    * Rendered inside FacsimileViewer's children snippet, positioned from the
    * api and re-placed whenever the view moves. On release it reports the new
    * boundary; the owner updates both rects (see applyBoundary in

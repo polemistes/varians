@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * The toolbar under a selection (PLAN 6.2, PLAN-3 C5, C7): the marks of
+   * The toolbar under a selection: the marks of
    * the editor's toolbar, with the workbench's own actions beside them: move
    * the words to a page, set their segment, map them, confirm their read
    * forms, note a variant the manuscript gives for them. Shown only while

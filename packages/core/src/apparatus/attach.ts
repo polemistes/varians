@@ -1,6 +1,6 @@
 /**
  * Placing conjectures and reported readings at the sites of a segment's
- * collation, by the words they concern (PLAN 4.6).
+ * collation, by the words they concern.
  */
 
 import type { Collation } from '../collate/collate.ts';

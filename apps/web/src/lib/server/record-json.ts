@@ -1,6 +1,6 @@
 /**
  * A record as the archive represents it (Varians Data Format 2), for its
- * address with `Accept: application/json` (PLAN-2 C9). Records the archive
+ * address with `Accept: application/json`. Records the archive
  * writes as files of their own (works, witnesses, transcriptions, editions)
  * are written for the viewer, by the archive writer, and read back; the
  * others are given in the shape their archive file lists them in.

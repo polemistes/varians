@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * A variant the manuscript notes for the selected words (PLAN 4.5): its
+   * A variant the manuscript notes for the selected words: its
    * reading, where it stands and, if known, the hand. The words keep their
    * text; the variant is a mark on them.
    */

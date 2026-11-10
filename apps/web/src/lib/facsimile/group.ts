@@ -1,5 +1,5 @@
 /**
- * Boxes edited together (PLAN 5.6): the word boxes of one or more lines,
+ * Boxes edited together: the word boxes of one or more lines,
  * moved as one, stretched or squeezed as one, turned as one, or one box
  * resized with the boxes after it on its line following without changing
  * their size. Pure functions.

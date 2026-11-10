@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * The facsimile: a page image in OpenSeadragon with zones drawn and edited
-   * through Annotorious. Zones come in as fractions of the image (PLAN 4.2)
+   * through Annotorious. Zones come in as fractions of the image
    * and go out the same way; the `zones` prop is the record, the overlay
    * follows it. Everything the owner needs to drive the view is handed over
    * through `onviewready` and to the children snippet as a FacsimileApi.

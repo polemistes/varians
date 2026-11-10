@@ -1,5 +1,5 @@
 /**
- * The terms of contribution (PLAN-2 D4): docs/terms.md, with its version in
+ * The terms of contribution: docs/terms.md, with its version in
  * the front matter, rendered as the guide is. An account that has not
  * accepted the current version may read everything and change nothing until
  * it does.

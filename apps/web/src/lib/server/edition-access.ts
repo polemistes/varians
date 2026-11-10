@@ -26,7 +26,7 @@ export async function loadEditionAccess(db: Database, user: Actor | null, idOrSl
   );
   const canEdit = canEditEdition(user, edition, collaboratorIds);
   let canView = canViewEdition(user, edition, collaboratorIds);
-  // An edition of a private work is seen only by those who see the work, published or not (PLAN 4.10).
+  // An edition of a private work is seen only by those who see the work, published or not.
   if (canView && !canEdit) canView = await seesWork(db, user, edition.workId);
   return { edition, collaboratorIds, canView, canEdit, canPublish: canPublishEdition(user, edition) };
 }

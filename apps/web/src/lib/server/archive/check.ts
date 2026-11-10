@@ -1,5 +1,5 @@
 /**
- * A check of the archive (PLAN-2 A4): write a work afresh into a temporary
+ * A check of the archive: write a work afresh into a temporary
  * directory and compare it file by file with the stored archive, so that the
  * write-through can be shown to produce the same files as a full write.
  */

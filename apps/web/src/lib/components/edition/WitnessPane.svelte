@@ -73,7 +73,7 @@
 
   const lit = $derived(new Set(highlightTokenIds));
 
-  // Facsimile (PLAN-3 D1): the page the words stand on, mapped or not: the page of the run holding the
+  // Facsimile: the page the words stand on, mapped or not: the page of the run holding the
   // first lit word, else of the first run on screen. The arrows browse the witness's pages; a new site
   // returns the pane to following the words.
   type Shown =

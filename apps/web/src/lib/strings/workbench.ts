@@ -1,5 +1,5 @@
 /**
- * Every user-facing string of the transcription workbench (PLAN 6.2).
+ * Every user-facing string of the transcription workbench.
  * Plain English, no em dashes. Components import `workbench` from
  * '$lib/strings/workbench'.
  */
@@ -38,7 +38,7 @@ export const workbench = {
     manageHint: 'Every page of the witness, with its image, in the side pane',
   },
 
-  /** Moving text between pages (PLAN-3 C5). */
+  /** Moving text between pages. */
   move: {
     to: (label: string) => `Move to ${label}`,
     toTitle: 'Move the selected words to the end of this page’s text',

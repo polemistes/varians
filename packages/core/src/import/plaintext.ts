@@ -1,7 +1,7 @@
 /**
  * Plain text with segment numbering: find the numbering patterns a text
  * uses, then import it as a stream with the numbers stripped and their
- * labels attached to the tokens they govern (PLAN 5.5).
+ * labels attached to the tokens they govern.
  */
 
 import { newId } from '../ids.ts';
