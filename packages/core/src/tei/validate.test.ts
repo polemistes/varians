@@ -14,15 +14,21 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
+import type { Attachment } from '../apparatus/render.ts';
+import { collate, type Site } from '../collate/collate.ts';
 import { sequentialIds } from '../ids.ts';
-import { NOT_TRANSCRIBED_ATTRS, type Item, type Stream } from '../stream/items.ts';
+import { NOT_TRANSCRIBED_ATTRS, type Item, type Stream, type Token } from '../stream/items.ts';
+import { fromText } from '../stream/text.ts';
+import { units } from '../stream/words.ts';
 import { exportEditionTei } from './apparatus.ts';
 import { exportTranscriptionTei, type TranscriptionExport } from './export.ts';
 import {
+  collatedLines,
   collationText,
   editionInput,
   editionSegment,
   exportInput,
+  passageSegments,
   richPages,
   richSegmentLabels,
   richStream,
@@ -503,6 +509,101 @@ describe.skipIf(!xmllint)('edition TEI is valid', slow, () => {
     });
     expect(xml).toContain('<app type="interpretative" subtype="minor">');
     expect(xml).toContain('<app type="textual" subtype="minor">');
+    expect(errors(xml)).toEqual([]);
+  });
+
+  it('with a variant written in parts across three segments: xml:id, prev and next on the app', () => {
+    const edition = ['s1: alpha beta gamma', 's2: delta', 's3: epsilon zeta eta'];
+    const crossing = collatedLines(edition, {
+      A: edition,
+      B: ['s1: alpha beta kappa', 's2: lambda', 's3: mu zeta eta'],
+    });
+    const attachments = {
+      0: [
+        { kind: 'conjecture', id: 'c1', text: 'rho sigma tau', name: 'Bentley', source: '(Ath.)' },
+        { kind: 'reported', id: 'r1', text: 'nu xi omicron', name: 'D' },
+      ] satisfies Attachment[],
+    };
+    for (const mark of [(site: Site) => site, (site: Site) => ({ ...site, minor: true })]) {
+      const xml = exportEditionTei({
+        title: 't',
+        witnesses: [{ siglum: 'A' }, { siglum: 'B' }],
+        segments: passageSegments(crossing, { attachments, mark }),
+      });
+      expect(xml).toContain('<app xml:id="app-p-0-1"');
+      expect(xml).toContain('prev="#app-p-0-1" next="#app-p-0-3"');
+      expect(errors(xml)).toEqual([]);
+    }
+  });
+
+  it('with a line break inside a lemma, over a divided word and between two words', () => {
+    const edition = fromText('the won der grows alpha beta gamma', { ids: sequentialIds('e') });
+    (edition.items[1] as Token).joinNext = true;
+    edition.items.splice(2, 0, { kind: 'break', id: 'b1', type: 'line' });
+    edition.items.splice(6, 0, { kind: 'break', id: 'b2', type: 'line' });
+    const baseUnits = units(edition, 0, edition.items.length);
+    const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [
+      collationText('B', 'B', 'the wander grows kappa lambda gamma'),
+    ]);
+    const xml = exportEditionTei({
+      title: 't',
+      witnesses: [{ siglum: 'B' }],
+      segments: [{ label: '1', items: edition.items, baseUnits, sites: c.sites }],
+    });
+    expect(xml).toContain('<lem>won<lb/>der</lem>');
+    expect(xml).toContain('<lem>alpha<lb/>beta</lem>');
+    expect(errors(xml)).toEqual([]);
+  });
+
+  it('with a part in which every witness stands with the lemma, an app that has no rdg', () => {
+    const edition = ['s1: alpha beta gamma', 's2: delta epsilon'];
+    const crossing = collatedLines(edition, {
+      A: edition,
+      B: ['s1: alpha beta kappa', 's2: lambda epsilon'],
+    });
+    const xml = exportEditionTei({
+      title: 't',
+      witnesses: [{ siglum: 'A' }, { siglum: 'B' }],
+      segments: passageSegments(crossing, {
+        // B’s second word has the edition’s letters.
+        mark: (site) => ({
+          ...site,
+          readings: site.readings.map((r) =>
+            r.base
+              ? r
+              : {
+                  ...r,
+                  units: {
+                    B: r.units.B!.map((u) => ({
+                      ...u,
+                      text: u.text === 'lambda' ? 'delta' : u.text,
+                    })),
+                  },
+                },
+          ),
+        }),
+      }),
+    });
+    expect(xml).toContain('<lem wit="#wit-A #wit-B">delta</lem></app>');
+    expect(errors(xml)).toEqual([]);
+  });
+
+  it('with an adopted conjecture and the same letters read otherwise across the boundary of two segments', () => {
+    const edition = ['s1: μῆνιν ἦ', 's2: μέγα ἔργον'];
+    const crossing = collatedLines(edition, {
+      A: edition,
+      B: ['s1: μῆνιν ἢ', 's2: μέγᾱ ἔργον'],
+    });
+    const xml = exportEditionTei({
+      title: 't',
+      witnesses: [{ siglum: 'A' }, { siglum: 'B' }],
+      segments: passageSegments(crossing, {
+        attachments: {
+          0: [{ kind: 'conjecture', id: 'c1', text: 'ἦ μέγα', name: 'Bentley', adopted: true }],
+        },
+      }),
+    });
+    expect(xml).toContain('<app xml:id="app-p-0-1" type="interpretative" next="#app-p-0-2">');
     expect(errors(xml)).toEqual([]);
   });
 

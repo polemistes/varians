@@ -25,6 +25,7 @@ import {
   passageUrn,
   REGISTRY_LICENCE,
   segmentRuns,
+  tokenSegments,
   serializeBiblatex,
   toText,
   units,
@@ -82,7 +83,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { and, asc, desc, eq, inArray, isNotNull, lte, or } from 'drizzle-orm';
 import { collateEdition } from '../passages.ts';
-import { segmentShares } from '../../reader/export.ts';
+import { segmentShares, teiShares } from '../../reader/export.ts';
 import { documentAt } from '../documents/service.ts';
 import { exportHands, teiForm } from '../witness-format.ts';
 import { apparatusConventionsOf, contextAt, segmentsOfSites } from '../reader.ts';
@@ -1370,16 +1371,21 @@ export async function editionText(
   const leading = context.edition.content.items[0];
   const passages = await collateEdition(db, context);
   const labels = Object.fromEntries(labelOf);
-  const shares = segmentShares(
-    passages.map((p) => ({
-      segmentId: p.segmentId,
-      label: labelOf.get(p.segmentId) ?? p.segmentId,
-      segments: p.segments,
-      siteSegments: segmentsOfSites(p.collation.sites, p.baseUnits, p.segments),
-      collation: p.collation,
-      baseUnits: p.baseUnits,
-      attachments: {},
-    })),
+  const exported = passages.map((p) => ({
+    segmentId: p.segmentId,
+    label: labelOf.get(p.segmentId) ?? p.segmentId,
+    segments: p.segments,
+    siteSegments: segmentsOfSites(p.collation.sites, p.baseUnits, p.segments),
+    collation: p.collation,
+    baseUnits: p.baseUnits,
+    attachments: {},
+  }));
+  // The apparatus of the plain text is kept as built; the TEI writes a variant across segments in parts.
+  const shares = segmentShares(exported);
+  const teiParts = teiShares(
+    exported,
+    context.profile.fold,
+    tokenSegments(context.edition.content),
   );
   const plain: string[] = [];
   const markdown: string[] = [];
@@ -1432,7 +1438,8 @@ export async function editionText(
           ? [leading, ...items]
           : items,
       baseUnits,
-      sites: share?.sites ?? [],
+      sites: teiParts.get(segmentId)?.sites ?? [],
+      links: teiParts.get(segmentId)?.links ?? {},
     });
   }
   return {

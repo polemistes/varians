@@ -72,6 +72,43 @@ describe('exportEditionTei', () => {
     expect(xml).toContain('<ab n="1">ἀνα<lb/>στασις δε<lb/><lb type="prose"/>μῦθος<lb/><lb/></ab>');
   });
 
+  it('writes a lemma over a word that a line break divides with the break inside it, as text outside a variant is written', () => {
+    const edition = fromText('the won der grows', { ids: sequentialIds('e') });
+    (edition.items[1] as Token).joinNext = true;
+    edition.items.splice(2, 0, { kind: 'break', id: 'b1', type: 'line' });
+    const baseUnits = units(edition, 0, edition.items.length);
+    const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [
+      text('B', 'B', 'the wander grows'),
+    ]);
+    expect(c.sites).toHaveLength(1);
+    const xml = exportEditionTei({
+      title: 't',
+      witnesses: [{ siglum: 'B' }],
+      segments: [{ label: '1', items: edition.items, baseUnits, sites: c.sites }],
+    });
+    expect(xml).toContain(
+      '<ab n="1">the <app><lem>won<lb/>der</lem><rdg wit="#wit-B">wander</rdg></app> grows</ab>',
+    );
+  });
+
+  it('writes a lemma of two words with a line break between them with the break inside it', () => {
+    const edition = fromText('alpha beta gamma', { ids: sequentialIds('e') });
+    edition.items.splice(1, 0, { kind: 'break', id: 'b1', type: 'line' });
+    const baseUnits = units(edition, 0, edition.items.length);
+    const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [
+      text('B', 'B', 'kappa lambda gamma'),
+    ]);
+    expect(c.sites).toHaveLength(1);
+    const xml = exportEditionTei({
+      title: 't',
+      witnesses: [{ siglum: 'B' }],
+      segments: [{ label: '1', items: edition.items, baseUnits, sites: c.sites }],
+    });
+    expect(xml).toContain(
+      '<ab n="1"><app><lem>alpha<lb/>beta</lem><rdg wit="#wit-B">kappa lambda</rdg></app> gamma</ab>',
+    );
+  });
+
   it('writes words joined without a break between them as one', () => {
     const edition = fromText('ἀνα στασις δε', { ids: sequentialIds('e') });
     (edition.items[0] as Token).joinNext = true;

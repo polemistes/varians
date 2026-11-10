@@ -17,6 +17,7 @@ import {
   type Attachment,
   type AttachmentCandidate,
   type Collation,
+  type FoldOptions,
   type Item,
   type LayoutLine,
   type OrderVariant,
@@ -414,6 +415,8 @@ export interface EditionView {
     states: ReaderSiglumState[];
     variantSiglum: string | null;
   }[];
+  /** How the work compares words: the fold the collation was made under. */
+  fold: FoldOptions;
   /** The passages made, by their first segment. */
   segments: Record<string, SegmentView>;
   labelOf: Record<string, string>;
@@ -576,6 +579,7 @@ export async function editionView(
             }),
           ),
     sigla,
+    fold: context.profile.fold,
     segments: views,
     labelOf,
     order: order?.statements ?? [],

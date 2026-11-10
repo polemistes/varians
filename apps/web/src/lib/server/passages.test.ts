@@ -9,6 +9,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   SCHEME_PRESETS,
+  exportEditionTei,
   defaultProfile,
   newId,
   type Item,
@@ -29,7 +30,9 @@ import {
 import { eq, inArray } from 'drizzle-orm';
 import type pg from 'pg';
 import { replaceContent, saveOps } from './documents/service.ts';
+import { editionText } from './archive/archive.ts';
 import { publishEdition } from './publish.ts';
+import { readerTei } from './reader-pages.ts';
 import { editionOutline, editionView, refreshView, type Audience } from './reader.ts';
 import { DEFAULT_CONVENTIONS } from './seed/sample.ts';
 import { resolveLabels, schemeOfWork } from './segments.ts';
@@ -336,5 +339,117 @@ describe('collation in passages', () => {
     const then = await editionView(db, editionId, published.version);
     expect(plan(then)).toEqual(plan(before));
     expect(variants(then)).toEqual(variants(before));
+  });
+});
+
+/**
+ * What a witness has in each segment, as the TEI says it: the words outside
+ * any variant, and at each variant the words of the reading the witness is
+ * in. The edition's own words are the lemma's. A witness in no reading of a
+ * variant is not there, and has nothing from it.
+ */
+function readBack(tei: string, siglum: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const ab of tei.matchAll(/<ab n="([^"]+)"[^>]*>(.*?)<\/ab>/gu)) {
+    const words: string[] = [];
+    for (const piece of ab[2]!.replace(/<lb\/>/gu, ' ').split(/(<app[^>]*>.*?<\/app>)/gu)) {
+      if (!piece.startsWith('<app')) {
+        words.push(piece);
+        continue;
+      }
+      const lem = /<lem([^>]*?)(?:\/>|>(.*?)<\/lem>)/u.exec(piece)!;
+      const stands = (attrs: string) => attrs.split(/wit="([^"]*)"/u)[1]?.split(' ') ?? [];
+      const mine = `#wit-${siglum}`;
+      if (siglum === 'ed.' || stands(lem[1]!).includes(mine)) {
+        words.push(lem[2] ?? '');
+        continue;
+      }
+      for (const rdg of piece.matchAll(/<rdg([^>]*?)(?:\/>|>(.*?)<\/rdg>)/gu))
+        if (stands(rdg[1]!).includes(mine)) words.push(rdg[2] ?? '');
+    }
+    out[ab[1]!] = words.join(' ').split(/\s+/u).filter(Boolean).join(' ');
+  }
+  return out;
+}
+
+describe('the TEI of a variant across a boundary', () => {
+  /** The TEI as the reader is given it and as the archive writes it. */
+  async function teiFiles(editionId: string) {
+    const view = await editionView(db, editionId, null, owner);
+    const archived = await editionText(db, editionId, new Map(Object.entries(view.labelOf)));
+    return {
+      view,
+      files: {
+        reader: readerTei(view),
+        archive: exportEditionTei({
+          title: view.edition.title,
+          baseSiglum: 'ed.',
+          witnesses: view.sigla.map((s) => ({ siglum: s.siglum })),
+          segments: archived.segments,
+        }),
+      },
+    };
+  }
+  const words = (rows: string[]) =>
+    Object.fromEntries(rows.map((row) => row.split(': ') as [string, string]));
+
+  it('gives each witness its own words of each segment, in the reader’s file and in the archive’s', async () => {
+    const own = {
+      A: ['1.1: alpha beta gamma delta', '1.2: epsilon zeta eta theta'],
+      // B has a word in each segment; C has both in the first, where the edition has the one.
+      B: ['1.1: alpha beta gamma kappa', '1.2: lambda zeta eta theta'],
+      C: ['1.1: alpha beta gamma kappa lambda', '1.2: zeta eta theta'],
+    };
+    const { editionId } = await editionWith(
+      stream('1.1: alpha beta gamma delta', '1.2: epsilon zeta eta theta'),
+      Object.fromEntries(Object.entries(own).map(([siglum, rows]) => [siglum, stream(...rows)])),
+    );
+    const { view, files } = await teiFiles(editionId);
+    expect(plan(view)).toEqual([['1.1', '1.2']]);
+    expect(variants(view)).toEqual(['1.1–1.2 *delta epsilon: ed. A | kappa lambda: B C']);
+    for (const tei of Object.values(files)) {
+      expect(readBack(tei, 'ed.')).toEqual(
+        words(['1.1: alpha beta gamma delta', '1.2: epsilon zeta eta theta']),
+      );
+      for (const [siglum, rows] of Object.entries(own))
+        expect(readBack(tei, siglum), siglum).toEqual(words(rows));
+      // The two parts name each other, and stand in the two segments.
+      const apps = [...tei.matchAll(/<app xml:id="([^"]+)"([^>]*)>/gu)];
+      expect(apps).toHaveLength(2);
+      expect(apps[0]![2]).toBe(` next="#${apps[1]![1]}"`);
+      expect(apps[1]![2]).toBe(` prev="#${apps[0]![1]}"`);
+    }
+  });
+
+  it('gives a word the edition divides across the two segments, inside a variant, in a part in each', async () => {
+    const edition = ['1.1: alpha beta gam-', '1.2: ma delta epsilon theta'];
+    const own = {
+      A: edition,
+      // B has another word where the edition has the divided one; C has a divided word of its own,
+      // which stays whole in the segment where it begins.
+      B: ['1.1: alpha beta kappa', '1.2: delta epsilon theta'],
+      C: ['1.1: alpha beta kap-', '1.2: pa delta epsilon theta'],
+    };
+    const { editionId } = await editionWith(
+      stream(...edition),
+      Object.fromEntries(Object.entries(own).map(([siglum, rows]) => [siglum, stream(...rows)])),
+    );
+    const { view, files } = await teiFiles(editionId);
+    expect(plan(view)).toEqual([['1.1', '1.2']]);
+    expect(variants(view)).toEqual(['1.1 *gamma: ed. A | kappa: B C']);
+    for (const tei of Object.values(files)) {
+      // The edition has the two parts of its word in the two segments.
+      expect(readBack(tei, 'ed.')).toEqual(
+        words(['1.1: alpha beta gam', '1.2: ma delta epsilon theta']),
+      );
+      expect(readBack(tei, 'A')).toEqual(readBack(tei, 'ed.'));
+      for (const siglum of ['B', 'C'])
+        expect(readBack(tei, siglum), siglum).toEqual(
+          words(['1.1: alpha beta kappa', '1.2: delta epsilon theta']),
+        );
+      const apps = [...tei.matchAll(/<app xml:id="([^"]+)"([^>]*)>/gu)];
+      expect(apps).toHaveLength(2);
+      expect(tei).toContain('<lem wit="#wit-A">ma</lem><rdg wit="#wit-B #wit-C"/>');
+    }
   });
 });

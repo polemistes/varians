@@ -2,7 +2,10 @@
  * TEI export of an edition: the critical text with its apparatus encoded
  * by the parallel-segmentation method. Every site becomes an `<app>` whose
  * `<lem>` is the edition's words and whose `<rdg>` elements are the
- * witnesses' readings, with the conjectures attached to the site.
+ * witnesses' readings, with the conjectures attached to the site. A variant
+ * whose words lie in several segments is written in parts, one `<app>` in the
+ * `<ab>` of each, each given as it stands in its own segment and linked to
+ * the others by `next` and `prev` (see `variantParts`, which makes them).
  */
 
 import { printedKind, type Attachment } from '../apparatus/render.ts';
@@ -18,6 +21,7 @@ import {
   sourcesBibl,
   type Contributor,
 } from './export.ts';
+import type { VariantLink } from './parts.ts';
 import { escapeAttr, escapeText, ncName } from './xml.ts';
 
 export interface EditionWitness {
@@ -42,6 +46,14 @@ export interface EditionSegmentExport {
   sites: Site[];
   /** Conjectures and reported readings by site index. */
   attachments?: Record<number, Attachment[]>;
+  /**
+   * By site index, the sites that are one part of a variant written across
+   * segments (`variantParts`): the part is written with its `xml:id`, `prev`
+   * and `next`, and the kind of the whole variant, and with the later tokens of
+   * a word of the edition that begins in the segment before in its lemma. A
+   * site not here stands alone.
+   */
+  links?: Record<number, VariantLink>;
 }
 
 export interface EditionExport {
@@ -212,24 +224,13 @@ function witAttr(sigla: string[], refs: WitnessRefs): string {
   return ids.length ? ` wit="${ids.map((id) => `#${id}`).join(' ')}"` : '';
 }
 
-function segmentXml(segment: EditionSegmentExport, refs: WitnessRefs): string {
-  // Which tokens each site covers, and where insertion sites stand.
-  const siteOfToken = new Map<string, Site>();
-  const insertionBefore = new Map<string, Site[]>();
-  const insertionsAtEnd: Site[] = [];
-  for (const site of segment.sites) {
-    if (site.baseTo > site.baseFrom) {
-      for (let i = site.baseFrom; i < site.baseTo; i++)
-        for (const id of segment.baseUnits[i]?.tokenIds ?? []) siteOfToken.set(id, site);
-    } else {
-      const next = segment.baseUnits[site.baseFrom]?.tokenIds[0];
-      if (next) insertionBefore.set(next, [...(insertionBefore.get(next) ?? []), site]);
-      else insertionsAtEnd.push(site);
-    }
-  }
-  const emitted = new Set<Site>();
+/**
+ * Items written as the text of an `<ab>` is: a space between two words, none
+ * where a break stands or where a word is joined to the next (as where a line
+ * break divides it).
+ */
+function textWriter(refs: WitnessRefs) {
   const parts: string[] = [];
-  /** The last token written joins the next one: no space between them, as where a line break divides the word. */
   let joinNext = false;
   const push = (xml: string) => {
     if (xml === '') return;
@@ -244,56 +245,120 @@ function segmentXml(segment: EditionSegmentExport, refs: WitnessRefs): string {
     parts.push(xml);
     joinNext = false;
   };
-  for (const item of segment.items) {
-    if (item.kind === 'token') {
-      for (const site of insertionBefore.get(item.id) ?? []) {
-        if (!emitted.has(site)) {
-          emitted.add(site);
-          push(appXml(site, [], segment, refs));
-        }
-      }
-      const site = siteOfToken.get(item.id);
-      if (site) {
-        if (emitted.has(site)) continue;
-        emitted.add(site);
-        const covered = segment.items.filter(
-          (i): i is Token => i.kind === 'token' && siteOfToken.get(i.id) === site,
-        );
-        push(appXml(site, covered, segment, refs));
-        continue;
-      }
-      push(tokenXml(item, refs));
-      joinNext = item.joinNext === true;
+  return {
+    push,
+    /** An item of the text: a word that joins the next stays against it. */
+    item(item: Item) {
+      if (item.kind === 'token') {
+        push(tokenXml(item, refs));
+        joinNext = item.joinNext === true;
+      } else push(itemXml(item, refs));
+    },
+    xml: () => parts.join(''),
+  };
+}
+
+function segmentXml(segment: EditionSegmentExport, refs: WitnessRefs): string {
+  // Which tokens each site covers, and where insertion sites stand.
+  const siteOfToken = new Map<string, Site>();
+  const insertionBefore = new Map<string, Site[]>();
+  const insertionsAtEnd: Site[] = [];
+  for (const site of segment.sites) {
+    // The later tokens of a word of the edition that begins in the segment before are this place's too.
+    const tail = segment.links?.[site.index]?.tail ?? [];
+    if (site.baseTo > site.baseFrom || tail.length > 0) {
+      if (site.baseTo > site.baseFrom)
+        for (let i = site.baseFrom; i < site.baseTo; i++)
+          for (const id of segment.baseUnits[i]?.tokenIds ?? []) siteOfToken.set(id, site);
+      for (const id of tail) siteOfToken.set(id, site);
+    } else {
+      const next = segment.baseUnits[site.baseFrom]?.tokenIds[0];
+      if (next) insertionBefore.set(next, [...(insertionBefore.get(next) ?? []), site]);
+      else insertionsAtEnd.push(site);
+    }
+  }
+  // Where the tokens of each site stand among the items.
+  const span = new Map<Site, { first: number; last: number }>();
+  segment.items.forEach((item, k) => {
+    const site = item.kind === 'token' ? siteOfToken.get(item.id) : undefined;
+    if (!site) return;
+    const known = span.get(site);
+    if (known) known.last = k;
+    else span.set(site, { first: k, last: k });
+  });
+  const emitted = new Set<Site>();
+  const out = textWriter(refs);
+  for (let k = 0; k < segment.items.length; k++) {
+    const item = segment.items[k]!;
+    if (item.kind !== 'token') {
+      out.item(item);
       continue;
     }
-    push(itemXml(item, refs));
+    for (const site of insertionBefore.get(item.id) ?? []) {
+      if (!emitted.has(site)) {
+        emitted.add(site);
+        out.push(appXml(site, '', segment, refs));
+      }
+    }
+    const site = siteOfToken.get(item.id);
+    if (!site) {
+      out.item(item);
+      continue;
+    }
+    if (emitted.has(site)) continue;
+    emitted.add(site);
+    const { first, last } = span.get(site)!;
+    const within = segment.items.slice(first, last + 1);
+    // The lemma is the stretch of the text from its first word to its last, breaks and objects between them
+    // included, as the text outside a variant is written. Another place's word among them, or a place that
+    // is to stand inside the stretch, would be lost in it: the lemma is then the words alone.
+    const whole =
+      within.every((i) => i.kind !== 'token' || siteOfToken.get(i.id) === site) &&
+      within.slice(1).every((i) => i.kind !== 'token' || !insertionBefore.has(i.id));
+    if (whole) {
+      const lemma = textWriter(refs);
+      for (const i of within) lemma.item(i);
+      out.push(appXml(site, lemma.xml(), segment, refs));
+      k = last;
+    } else {
+      const lemma = within
+        .filter((i): i is Token => i.kind === 'token' && siteOfToken.get(i.id) === site)
+        .map((t) => tokenXml(t, refs))
+        .join(' ');
+      out.push(appXml(site, lemma, segment, refs));
+    }
   }
   for (const site of insertionsAtEnd) {
     if (!emitted.has(site)) {
       emitted.add(site);
-      push(appXml(site, [], segment, refs));
+      out.push(appXml(site, '', segment, refs));
     }
   }
   const id = segment.id ? ` xml:id="${ncName(segment.id, 'seg-')}"` : '';
   const corresp = segment.urn ? ` corresp="${escapeAttr(segment.urn)}"` : '';
-  return `        <ab n="${escapeAttr(segment.label)}"${id}${corresp}>${parts.join('')}</ab>`;
+  return `        <ab n="${escapeAttr(segment.label)}"${id}${corresp}>${out.xml()}</ab>`;
+}
+
+/** The name of a part of a variant: a name of the file's own, which no word, segment or witness has. */
+function partName(id: string): string {
+  return ncName(id, 'app-');
 }
 
 function appXml(
   site: Site,
-  lemmaTokens: Token[],
+  lemmaXml: string,
   segment: EditionSegmentExport,
   refs: WitnessRefs,
 ): string {
   const base = site.readings.find((r) => r.base);
   const attachments = segment.attachments?.[site.index] ?? [];
+  const link = segment.links?.[site.index];
   const adopted = attachments.find((a) => a.adopted);
-  const lemmaText = lemmaTokens.map((t) => tokenXml(t, refs)).join(' ');
   const lemWit = base ? witAttr(base.sigla, refs) : '';
   const lemResp = adopted ? ` resp="${escapeAttr(adopted.name)}"` : '';
   const out: string[] = [];
   out.push(
-    lemmaText === '' ? `<lem${lemWit}${lemResp}/>` : `<lem${lemWit}${lemResp}>${lemmaText}</lem>`,
+    lemmaXml === '' ? `<lem${lemWit}${lemResp}/>` : `<lem${lemWit}${lemResp}>${lemmaXml}</lem>`,
   );
   for (const reading of site.readings) {
     if (reading.base) continue;
@@ -311,11 +376,15 @@ function appXml(
     else out.push(`<rdg type="${type}"${resp}${source}>${escapeText(attachment.text)}</rdg>`);
   }
   // A minor place says its kind besides: a subtype stands only beside a type.
-  const kind = printedKind(site, attachments);
+  const kind = link?.kind ?? printedKind(site, attachments);
   const typed = site.minor
     ? ` type="${kind}" subtype="minor"`
     : kind === 'interpretative'
       ? ' type="interpretative"'
       : '';
-  return `<app${typed}>${out.join('')}</app>`;
+  // The parts of one variant name themselves and each other, as TEI's global linking attributes do.
+  const linked = link
+    ? ` xml:id="${partName(link.id)}"${typed}${link.prev ? ` prev="#${partName(link.prev)}"` : ''}${link.next ? ` next="#${partName(link.next)}"` : ''}`
+    : typed;
+  return `<app${linked}>${out.join('')}</app>`;
 }

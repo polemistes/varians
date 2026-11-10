@@ -306,7 +306,7 @@ function nameWitnesses(
  * reported reading there has the lemma's letters too: a conjecture of other
  * words makes it textual, whatever the witnesses have.
  */
-export function printedKind(site: Site, attached: Pick<Attachment, 'text'>[]): SiteKind {
+export function printedKind(site: Site, attached: readonly Pick<Attachment, 'text'>[]): SiteKind {
   if (site.kind === 'textual') return 'textual';
   if (attached.length === 0) return 'interpretative';
   const letters = archetypeLetters(site.readings.find((r) => r.base)?.text ?? '');

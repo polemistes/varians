@@ -5,13 +5,15 @@
  */
 
 import type { Attachment } from '../apparatus/render.ts';
-import { collate, type CollationText } from '../collate/collate.ts';
+import { collate, type CollationText, type Site } from '../collate/collate.ts';
+import { collatePassages, siteSegments, type Passage } from '../collate/passage.ts';
 import { sequentialIds } from '../ids.ts';
-import type { Mark, Stream } from '../stream/items.ts';
+import type { Item, Mark, Stream } from '../stream/items.ts';
 import { fromText } from '../stream/text.ts';
 import { units } from '../stream/words.ts';
 import type { EditionExport, EditionSegmentExport } from './apparatus.ts';
 import type { ExportPage, ExportZone, TranscriptionExport } from './export.ts';
+import { tokenSegments, variantParts } from './parts.ts';
 
 /** A short transcription with a witness described in full, a page with its image and two zones, and a segment label. */
 export function exportInput(): TranscriptionExport & { pages: ExportPage[]; zones: ExportZone[] } {
@@ -322,4 +324,127 @@ export function editionInput(): EditionExport {
       ),
     ],
   };
+}
+
+/**
+ * A stream from lines: `s1: a b`, a line that begins the segment s1; `: c`,
+ * one that goes on in the segment before; `[]` is a gap, the words lost; a
+ * word that ends in `-` is divided, its next part beginning the next line.
+ */
+export function linesStream(prefix: string, ...lines: string[]): Stream {
+  const items: Item[] = [];
+  let n = 0;
+  for (const line of lines) {
+    const [label, text] = line.split(':') as [string, string];
+    let starts = label.trim();
+    for (const word of text.split(/\s+/u).filter(Boolean)) {
+      const id = `${prefix}${++n}`;
+      if (word === '[]') items.push({ kind: 'object', id, type: 'gap', attrs: { reason: 'lost' } });
+      else {
+        const joins = word.endsWith('-');
+        items.push({
+          kind: 'token',
+          id,
+          form: joins ? word.slice(0, -1) : word,
+          ...(joins ? { joinNext: true } : {}),
+          ...(starts ? { segment: { segmentId: starts } } : {}),
+        });
+        starts = '';
+      }
+    }
+  }
+  return { items };
+}
+
+/** The edition's items of a segment: from the token that begins it up to the one that begins the next. */
+function itemsOfSegment(edition: Stream, segmentId: string): Item[] {
+  const out: Item[] = [];
+  let current: string | null | undefined;
+  for (const item of edition.items) {
+    if (item.kind === 'token' && item.segment) current = item.segment.segmentId;
+    if (current === segmentId) out.push(item);
+  }
+  return out;
+}
+
+/** A passage of an edition collated, and the edition's stream. */
+export interface CollatedLines {
+  passage: Passage;
+  edition: Stream;
+}
+
+/** The edition and its witnesses given as lines, collated in passages; the passage looked at is the first unless another is asked for. */
+export function collatedLines(
+  edition: string[],
+  texts: Record<string, string[]>,
+  passageAt = 0,
+): CollatedLines {
+  const stream = linesStream('E', ...edition);
+  const { passages } = collatePassages(
+    { id: 'E', siglum: 'ed.', stream },
+    Object.entries(texts).map(([siglum, rows]) => ({
+      id: siglum,
+      siglum,
+      stream: linesStream(siglum, ...rows),
+    })),
+  );
+  return { passage: passages[passageAt]!, edition: stream };
+}
+
+/**
+ * The segments of a passage as the exporter is given them: each printed
+ * segment's items and units, with the variants of the passage in parts where
+ * they lie across segments (`variantParts`) and whole in the first segment
+ * of their words, or in the printed segment before an unprinted one, where
+ * they do not.
+ */
+export function passageSegments(
+  { passage, edition }: CollatedLines,
+  options: { attachments?: Record<number, Attachment[]>; mark?: (site: Site) => Site } = {},
+): EditionSegmentExport[] {
+  const shares = new Map<string, EditionSegmentExport>();
+  const tokens = tokenSegments(edition);
+  for (const part of passage.segments)
+    if (part.printed)
+      shares.set(part.segmentId, {
+        label: part.segmentId,
+        items: itemsOfSegment(edition, part.segmentId),
+        baseUnits: passage.base.units.slice(part.from, part.to),
+        sites: [],
+        attachments: {},
+        links: {},
+      });
+  for (const site of passage.collation.sites.map(options.mark ?? ((s: Site) => s))) {
+    const attached = options.attachments?.[site.index] ?? [];
+    const split = variantParts(
+      site,
+      { segments: passage.segments, baseUnits: passage.base.units },
+      attached,
+      { key: `p-${site.index}`, tokens },
+    );
+    if (split) {
+      for (const part of split) {
+        const share = shares.get(part.segmentId)!;
+        share.sites.push(part.site);
+        share.attachments![site.index] = part.attachments;
+        share.links![site.index] = part.link;
+      }
+      continue;
+    }
+    const ids = siteSegments(site, passage.base.units);
+    let at = passage.segments.findIndex((s) => s.printed && ids.includes(s.segmentId));
+    if (at < 0) {
+      at = passage.segments.findIndex((s) => s.segmentId === ids[0]);
+      while (!passage.segments[at]!.printed) at--;
+    }
+    const home = passage.segments[at]!;
+    const share = shares.get(home.segmentId)!;
+    share.sites.push({
+      ...site,
+      baseFrom: Math.max(0, site.baseFrom - home.from),
+      baseTo: Math.max(0, site.baseTo - home.from),
+    });
+    share.attachments![site.index] = attached;
+  }
+  return [...shares.values()];
 }

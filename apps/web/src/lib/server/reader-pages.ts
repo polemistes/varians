@@ -402,7 +402,7 @@ export function readerTei(view: EditionView): string {
       siglum: s.siglum,
       ...(s.witnessName ? { name: s.witnessName } : {}),
     })),
-    segments: teiSegments(view.content, view.segments, view.labelOf),
+    segments: teiSegments(view.content, view.segments, view.labelOf, view.fold),
   });
 }
 

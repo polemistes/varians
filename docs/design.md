@@ -231,7 +231,7 @@ A note on the edition's words at a variant is shown with the variant, with its r
 
 **The editor's word on a variant.** The editor may give a variant a kind over what its letters say (section 3.6), and may mark it **minor**. A minor variant is in the edition's data and its TEI, marked as minor, and is shown to a reader who asks for the minor variants; otherwise the reader's page neither marks nor lists it, and the print apparatus leaves it out. No variant is withheld from readers altogether. Marking a variant minor is a judgement on it, so it is no longer among the variants left to review. The kind and the grade are separate words; a variant that only a conjecture opens can be given either like any other, and both are archived as data.
 
-**The print apparatus** is a rendition of the variants in the conventions of printed editions: lemma and sigla in a positive or a negative form, Latin abbreviations, a group's siglum in place of its members, a word for the other witnesses (cett., rell.) and for all of them (codd.), a long lemma abridged to its first and last word. Printing and the plain-text export give it. It says nothing of a loss, of a segment the edition does not print, or of the order of segments. It is kept as built and is not developed until a printed version of an edition is taken up. Nothing on screen is derived from it, and none of its devices is a rule for the screen.
+**The print apparatus** is a rendition of the variants in the conventions of printed editions: lemma and sigla in a positive or a negative form, Latin abbreviations, a group's siglum in place of its members, a word for the other witnesses (cett., rell.) and for all of them (codd.), a long lemma abridged to its first and last word. Printing and the plain-text export give it. A variant across a boundary stands once, under the segment it begins in, labelled by both; a segment the edition does not print is given as words added, under that segment's label. It says nothing of a loss or of the order of segments. It is kept as built and is not developed until a printed version of an edition is taken up. Nothing on screen is derived from it, and none of its devices is a rule for the screen.
 
 **What a page is given of an edition.** No page needs the whole edition collated before it opens. A page asks by segments and is given passages: a segment collated with others comes with the first of them, which holds the variants of them all. The collation of a segment is large (every witness's words at every variant), the variants themselves are small, and what each surface does with them differs.
 
@@ -272,6 +272,8 @@ The server keeps a git repository of open files per work: TEI, JSON with schemas
 The files conform to the **Varians Data Format, version 2**, specified in [formats/specification.md](formats/specification.md). The specification changes before the code. Within a version, readers ignore what they do not know and a field never changes meaning. The importer reads version 1.
 
 The TEI carries the scholarship: edition words point at the witness tokens or conjecture they came from, segments carry passage URNs, headers carry the licence and the contributors. Process state (reviews, history, unchecked flags) stays in JSON.
+
+An edition's TEI has one element for each segment, with the variants in place among its words. A variant whose words lie in more than one segment (section 3.10) is written in parts, one in each segment, each true of that segment read alone and all linked as one variant: the edition's words of the segment against each witness's own words of it, a word of the edition that the boundary divides in a part on either side. A lemma is written as the text outside a variant is, with the breaks that stand inside it.
 
 Every record has an address, `/id/<id>`, which resolves to its page, or as JSON to its archive representation, under the same visibility rules as the pages.
 
@@ -346,7 +348,7 @@ Designed or wanted, and not there:
   - The reader finds which variants to mark through the entries of the print apparatus, so the print setting for interpretative variants governs the screen as well.
   - A reading cannot be shown in the text.
   - A note cannot be added from a variant, only on a selection or a segment.
-  - The order of segments as a variant cannot be marked minor or reviewed, and neither it nor a segment the edition does not print is in the TEI or the plain text, which follow the edition's own words.
+  - The order of segments as a variant cannot be marked minor or reviewed, and is not in the TEI or the plain text. A segment the edition does not print is in the TEI as a reading at the end of the segment before it, without its label.
   - A segment that a witness has before the first or after the last segment the edition prints is not reported.
   - The print conventions are offered among the edition's settings and the reader's as if they were the apparatus.
 - Further ways of reading the variants in the text: the readings of a chosen witness or group shown in the line, chosen witnesses in parallel, the variants filtered by witness, group and kind.
@@ -369,7 +371,8 @@ Known gaps in what is built:
 - Undoing a move of text to another page does not bring back the boxes the move detached.
 - The pages endpoint of a witness reads every transcript to count the words on each page, which will be slow for many long transcripts. A count kept with the segment index is the remedy.
 - In the edition's TEI an adopted conjecture's name and a conjecture's source are text in pointer attributes; they should be `conj:` pointers.
-- A merged or deleted work's archive directory stays on disk.
+- In the edition's TEI a word divided across two segments is written as two words, one in each segment's element, with nothing that joins them, unless a variant is over it. The segment is a container there and a milestone in a transcript's TEI.
+- The archive's TEI of an edition has no conjectures or reported readings; the reader's has them.- A merged or deleted work's archive directory stays on disk.
 - Client-only packages are runtime dependencies, which enlarges the production install.
 - Records published before licences existed have none until published again; images uploaded before rights statements existed stay out of archives until given one.
 - Narrow screens are unchecked.

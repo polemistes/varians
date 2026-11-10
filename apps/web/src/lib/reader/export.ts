@@ -10,16 +10,22 @@ import {
   formatApparatus,
   segmentRuns,
   shownBreaks,
+  tokenSegments,
+  variantParts,
+  DEFAULT_FOLD,
   type ApparatusConventions,
   type Attachment,
   type Collation,
   type EditionSegmentExport,
+  type FoldOptions,
+  type Id,
   type Item,
   type Lineation,
   type Shown,
   type Site,
   type Stream,
   type Unit,
+  type VariantLink,
 } from '@varians/core';
 import { plainLine, printLine, type EditionSigla } from './marks';
 import { labelOfSegments } from './sites';
@@ -47,6 +53,8 @@ export interface SegmentShare {
   /** The variants that begin in the segment, placed among its own units: a variant that runs on into the next segment reaches past them. */
   sites: Site[];
   attachments: Record<number, Attachment[]>;
+  /** The sites that are one part of a variant written across segments, by site index (`teiShares`). */
+  links: Record<number, VariantLink>;
   notes: { text: string; author: string | null }[];
 }
 
@@ -58,6 +66,32 @@ export interface SegmentShare {
  * boundary under the segment it begins in.
  */
 export function segmentShares(passages: Iterable<ExportSegment>): Map<string, SegmentShare> {
+  return sharesOf(passages, null);
+}
+
+/**
+ * Each segment's share of the passages as the TEI writes them. A variant
+ * whose words lie in several of the edition's printed segments is given in
+ * parts, to each of those segments as it stands in that segment alone
+ * (`variantParts`); every other variant is placed as `segmentShares` places it.
+ * `tokens` is the segment of each of the edition's tokens (`tokenSegments`),
+ * which puts a variant over a word the edition divides across segments in a
+ * part in each.
+ */
+export function teiShares(
+  passages: Iterable<ExportSegment>,
+  fold: FoldOptions = DEFAULT_FOLD,
+  tokens?: ReadonlyMap<Id, Id>,
+): Map<string, SegmentShare> {
+  return sharesOf(passages, fold, tokens);
+}
+
+/** The shares, the variants across segments in parts where a fold is given and whole where it is not. */
+function sharesOf(
+  passages: Iterable<ExportSegment>,
+  fold: FoldOptions | null,
+  tokens?: ReadonlyMap<Id, Id>,
+): Map<string, SegmentShare> {
   const out = new Map<string, SegmentShare>();
   for (const passage of passages) {
     const parts = passage.segments;
@@ -77,12 +111,31 @@ export function segmentShares(passages: Iterable<ExportSegment>): Map<string, Se
         baseUnits: passage.baseUnits.slice(part.from, part.to),
         sites: [],
         attachments: {},
+        links: {},
         notes: (passage.notes ?? []).filter(
           (n) => (n.segmentId ?? passage.segmentId) === part.segmentId,
         ),
       });
     }
     for (const site of passage.collation.sites) {
+      const split =
+        fold &&
+        variantParts(
+          site,
+          { segments: parts, baseUnits: passage.baseUnits },
+          passage.attachments[site.index] ?? [],
+          { key: `${passage.segmentId}-${site.index}`, fold, ...(tokens ? { tokens } : {}) },
+        );
+      if (split) {
+        for (const part of split) {
+          const share = out.get(part.segmentId);
+          if (!share) continue;
+          share.sites.push(part.site);
+          share.attachments[site.index] = part.attachments;
+          share.links[site.index] = part.link;
+        }
+        continue;
+      }
       const id = home(site);
       const share = id ? out.get(id) : undefined;
       const part = parts.find((p) => p.segmentId === id);
@@ -246,8 +299,9 @@ export function teiSegments(
   content: Stream,
   segments: Record<string, ExportSegment>,
   labelOf: Record<string, string>,
+  fold: FoldOptions = DEFAULT_FOLD,
 ): EditionSegmentExport[] {
-  const shares = segmentShares(Object.values(segments));
+  const shares = teiShares(Object.values(segments), fold, tokenSegments(content));
   return segmentItems(content).map(({ segmentId, items }) => {
     const share = shares.get(segmentId);
     return {
@@ -256,6 +310,7 @@ export function teiSegments(
       baseUnits: share?.baseUnits ?? [],
       sites: share?.sites ?? [],
       attachments: share?.attachments ?? {},
+      links: share?.links ?? {},
     };
   });
 }
