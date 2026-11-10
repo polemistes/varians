@@ -44,6 +44,8 @@ function segmentOf(segmentId: string, label: string, witnessWords: string): Expo
   return {
     segmentId,
     label,
+    segments: [{ segmentId, from: 0, to: baseUnits.length, printed: true }],
+    siteSegments: Object.fromEntries(attached.collation.sites.map((s) => [s.index, [segmentId]])),
     collation: attached.collation,
     baseUnits,
     attachments: attached.bySite,

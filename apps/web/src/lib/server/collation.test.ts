@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { fromText, sequentialIds, type Stream, type Token } from '@varians/core';
 import type { SiglumState } from '@varians/db';
-import { coverageOf, inputHash, inputsFor, type EditionContext } from './collation.ts';
+import {
+  collationTexts,
+  coverageOf,
+  inputHash,
+  inputsFor,
+  segmentTexts,
+  type EditionContext,
+} from './collation.ts';
 
 function segmented(text: string, prefix: string): Stream {
   const stream = fromText(text, { ids: sequentialIds(prefix) });
@@ -80,6 +87,36 @@ describe('inputsFor', () => {
       ['A v.l.', 'the quick brown'],
     ]);
     expect(inputHash(ctx, base, witnesses)).not.toBe(inputHash(ctx, base, witnesses.slice(0, 2)));
+  });
+});
+
+describe('segmentTexts: the further states of a witness, for a passage', () => {
+  it('gives every state with whether it differs, so that a passage can give one that differs anywhere in it everywhere', () => {
+    const witness = segmented('the quick brown fox', 'a');
+    (witness.items.find((i) => i.id === 'a2') as Token).marks = [
+      { kind: 'add', attrs: { place: 'above' } },
+    ];
+    const ctx = context(witness, { states: [{ kind: 'original', siglum: 'A¹' }] });
+    const { texts } = segmentTexts(ctx, 's1');
+    expect(texts.map((t) => [t.id, t.state?.differs ?? null])).toEqual([
+      ['ta', null],
+      ['ta:s0', true],
+    ]);
+    // Collated alone a state is given where it differs; in a passage, where it differs in any segment of it.
+    expect(collationTexts(texts).map((t) => t.id)).toEqual(['ta', 'ta:s0']);
+    const same = segmentTexts(
+      context(segmented('the quick brown fox', 'b'), {
+        states: [{ kind: 'original', siglum: 'A¹' }],
+      }),
+      's1',
+    ).texts;
+    expect(collationTexts(same).map((t) => t.id)).toEqual(['ta']);
+    expect(collationTexts(same, () => true).map((t) => [t.id, t.units.length])).toEqual([
+      ['ta', 4],
+      ['ta:s0', 4],
+    ]);
+    // A segment the edition does not print concerns only the witnesses that have it.
+    expect(segmentTexts(ctx, 's9', true).texts).toEqual([]);
   });
 });
 

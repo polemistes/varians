@@ -57,12 +57,12 @@ import { opsForAttachment, type SegmentForAdoption } from '../../edition/adopt-c
 import { claimTypedWords, moveLinesOps } from '../../edition/workspace.ts';
 import { setCitations } from '../bibliography.ts';
 import {
-  collateSegment,
   editionUnits,
   loadEditionContext,
   setSiteKind,
   type EditionContext,
 } from '../collation.ts';
+import { collateSegment } from '../passages.ts';
 import { addCollaborator } from '../collaborators.ts';
 import {
   adoptConjecture as recordAdoption,

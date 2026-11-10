@@ -5,16 +5,18 @@
    * and the editor's notes; the interpretative variants in a tier of their
    * own when the conventions in force say so.
    */
-  import { splitEntries, type ApparatusConventions, type ApparatusEntry } from '@varians/core';
-  import { siteKey } from '$lib/reader/sites';
-  import type { ReaderSegment } from '$lib/reader/types';
+  import { splitEntries, type ApparatusConventions, type Attachment } from '@varians/core';
+  import type { KeyedEntry, SegmentPart } from '$lib/reader/sites';
+  import type { ReaderNote } from '$lib/reader/types';
   import { reader as r } from '$lib/strings/reader';
   import ApparatusEntryView from './ApparatusEntryView.svelte';
 
   interface Props {
     segmentIds: string[];
-    entries: Map<string, ApparatusEntry[]>;
-    segments: Record<string, ReaderSegment>;
+    /** The entries by the segment each variant stands in. */
+    entries: Map<string, KeyedEntry[]>;
+    /** What belongs to each segment as a whole, by segment id. */
+    segments: Record<string, SegmentPart<Attachment, ReaderNote>>;
     labelOf: Record<string, string>;
     conventions: ApparatusConventions;
     /** Beside the text, where the column is wide enough. */
@@ -44,7 +46,7 @@
         <ApparatusEntryView
           {entry}
           {conventions}
-          siteKey={siteKey(segmentId, entry.siteIndex)}
+          siteKey={(entry as KeyedEntry).key}
           layout={side ? 'stacked' : 'inline'}
         />
       {/each}
@@ -67,7 +69,7 @@
           <ApparatusEntryView
             {entry}
             {conventions}
-            siteKey={siteKey(segmentId, entry.siteIndex)}
+            siteKey={(entry as KeyedEntry).key}
             layout={side ? 'stacked' : 'inline'}
           />
         {/each}

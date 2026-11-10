@@ -389,7 +389,7 @@ describe('seedPage, with a page of made-up Greek', () => {
       expect(readerLine(view.content, id).replace(/[⟨⟩]/gu, ''), line.n).toBe(expectedLine(line));
     }
     expect(view.lines.filter((l) => l.label !== null).map((l) => l.label)).toEqual(['1', '5']);
-    expect(Object.keys(view.segments)).toHaveLength(5);
+    expect(Object.values(view.segments).flatMap((p) => p.segments)).toHaveLength(5);
   });
 
   it('puts the lines in the printed order whatever order the base has them', async () => {
@@ -615,7 +615,12 @@ describe.skipIf(localPages.length === 0)('the descriptions under local/', () => 
           kind: 'editor',
           viewer: { id: owner, role: 'member' },
         });
-        expect(Object.keys(view.segments)).toHaveLength(parsed.lines.length);
+        // The view is given in passages: every line of the page is a segment of one of them.
+        expect(
+          Object.values(view.segments)
+            .flatMap((p) => p.segments)
+            .filter((part) => part.printed),
+        ).toHaveLength(parsed.lines.length);
       } finally {
         await removePage(db, parsed.work.slug);
         await db.delete(users).where(eq(users.id, owner));

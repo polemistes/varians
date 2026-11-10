@@ -6,7 +6,7 @@
  * kind and the grade are separate words.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { formatEntry, newId, siteKey, siteTokenIds } from '@varians/core';
+import { formatEntry, newId, siteKey, siteTokenIds, type Site } from '@varians/core';
 import {
   conjectures,
   createDatabase,
@@ -71,7 +71,10 @@ afterAll(async () => {
 /** The place of a segment where some witness has these words, as the editor's view has it. */
 async function placeOf(label: string, reading: string) {
   const view = await editionView(db, sample.editionId, null, owner);
-  const segment = Object.values(view.segments).find((s) => s.label === label)!;
+  // The passage that holds the segment; its variant whose words stand in it.
+  const segment = Object.values(view.segments).find((s) =>
+    s.segments.some((part) => part.label === label),
+  )!;
   const site = segment.collation.sites.find((x) => x.readings.some((r) => r.text === reading))!;
   return { segment, site, key: siteKey(site, segment.baseUnits) };
 }
@@ -133,7 +136,7 @@ describe('a minor variant', () => {
     const editors = await editionView(db, sample.editionId, null, owner);
     const there = editors.segments[id]!.collation.sites.find((x) => x.index === p.site.index)!;
     expect(there.minor).toBe(true);
-    expect(editors.segments[id]!.entries).toEqual([]);
+    expect(editors.segments[id]!.entries.filter((e) => e.siteIndex === p.site.index)).toEqual([]);
     const other = Object.values(editors.segments).find((s) => s.label === '1.2')!;
     expect(other.entries.length).toBeGreaterThan(0);
 
@@ -215,10 +218,16 @@ describe('a minor variant', () => {
 
   it('can be a variant that only a conjecture opens', async () => {
     const view = await editionView(db, sample.editionId, null, owner);
-    const segment = Object.values(view.segments).find((s) => s.label === '1.7')!;
-    const id = segment.segmentId;
+    const passage = Object.values(view.segments).find((s) =>
+      s.segments.some((part) => part.label === '1.7'),
+    )!;
+    const seven = passage.segments.find((part) => part.label === '1.7')!;
+    const id = seven.segmentId;
+    const pid = passage.segmentId;
+    const over = (sites: Site[]) =>
+      sites.filter((x) => x.baseFrom >= seven.from && x.baseTo <= seven.to && !x.wanting);
     // The witnesses agree here: there is no place until a conjecture opens one.
-    expect(segment.collation.sites).toEqual([]);
+    expect(over(passage.collation.sites)).toEqual([]);
     const conjecture = await registerConjecture(
       db,
       {
@@ -233,25 +242,27 @@ describe('a minor variant', () => {
     );
     let key: string | null = null;
     try {
-      const opened = (await editionView(db, sample.editionId, null, owner)).segments[id]!;
-      expect(opened.collation.sites).toHaveLength(1);
-      const site = opened.collation.sites[0]!;
+      const opened = (await editionView(db, sample.editionId, null, owner)).segments[pid]!;
+      expect(over(opened.collation.sites)).toHaveLength(1);
+      const site = over(opened.collation.sites)[0]!;
       key = siteKey(site, opened.baseUnits);
       expect(opened.attachments[site.index]).toHaveLength(1);
+      expect(opened.siteSegments[site.index]).toEqual([id]);
       const lines = printed(await reader(DRAFT), id);
       expect(lines).toHaveLength(1);
       expect(lines[0]).toContain('ἄνακτος Quill (coni.)');
 
       await setSiteMinor(db, sample.editionId, id, key, true, userId);
+      const at = (sites: Site[]) => sites.find((x) => x.index === site.index)!;
       // The editor keeps the place and what was attached to it.
-      const editors = (await editionView(db, sample.editionId, null, owner)).segments[id]!;
-      expect(editors.collation.sites[0]!.minor).toBe(true);
+      const editors = (await editionView(db, sample.editionId, null, owner)).segments[pid]!;
+      expect(at(editors.collation.sites).minor).toBe(true);
       expect(editors.attachments[site.index]).toHaveLength(1);
-      expect(editors.entries).toEqual([]);
+      expect(editors.entries.filter((e) => e.siteIndex === site.index)).toEqual([]);
       // A reader is given both, flagged; the print apparatus and the plain text leave it out.
       const data = await reader(DRAFT);
-      expect(data.segments[id]!.collation.sites[0]!.minor).toBe(true);
-      expect(data.segments[id]!.attachments[site.index]).toHaveLength(1);
+      expect(at(data.segments[pid]!.collation.sites).minor).toBe(true);
+      expect(data.segments[pid]!.attachments[site.index]).toHaveLength(1);
       expect(printed(data, id)).toEqual([]);
       expect(await download('text')).not.toContain('Quill');
       expect(await download('tei')).toContain('Quill');

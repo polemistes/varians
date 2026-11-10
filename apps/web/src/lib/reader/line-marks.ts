@@ -10,7 +10,8 @@
 import type { OrderVariant } from '@varians/core';
 import { reader as r } from '$lib/strings/reader';
 import { labelsOf, type VariantContext } from './variant';
-import { orderKey, siteKey, type SegmentSites } from './sites';
+import { asPassage, orderKey, siteKey, type SegmentSites } from './sites';
+import { unprintedAt } from './passages';
 
 /**
  * A line some witnesses do not have is a plain rule along it; lines in another
@@ -50,10 +51,10 @@ interface Mark {
 export interface LineMarkInput {
   /** For each line, the segments whose words stand on it. */
   segmentsOfLine: readonly (readonly string[])[];
+  /** The passages, by their first segment. */
   segments: Readonly<Record<string, SegmentSites | undefined>>;
   /** The keys of the sites the reader is shown. */
   shown: { has(key: string): boolean };
-  unprinted: readonly { segmentId: string; after: string }[];
   orders: readonly OrderVariant[];
   /** The labels and the order of the segments, for the marks' names. */
   context: Pick<VariantContext, 'labelOf' | 'order'>;
@@ -73,32 +74,32 @@ export function lineMarks(input: LineMarkInput): Map<number, MarginPart[]> {
       else extent.set(id, [line, line]);
     }
   });
-  const shownKeys = (segmentId: string, wanting: boolean) =>
-    (segments[segmentId]?.collation.sites ?? [])
-      .filter((site) => !!site.wanting === wanting)
-      .map((site) => siteKey(segmentId, site.index))
-      .filter((key) => shown.has(key));
-
   const marks: Mark[] = [];
-  // A line some witnesses do not have: along its lines.
-  for (const segmentId of Object.keys(segments)) {
-    const lines = extent.get(segmentId);
-    if (!lines) continue;
-    for (const key of shownKeys(segmentId, true))
-      marks.push({
-        keys: [key],
-        kind: 'wanting',
-        from: lines[0],
-        to: lines[1],
-        name: r.variant.lineAt(label(segmentId)),
-      });
-  }
-
   // Lines the edition does not print: one mark after each line, for all that follow it.
   const after = new Map<string, string[]>();
-  for (const { segmentId, after: previous } of input.unprinted) {
-    const keys = shownKeys(segmentId, false);
-    if (keys.length) after.set(previous, [...(after.get(previous) ?? []), ...keys]);
+  for (const passage of Object.values(segments)) {
+    if (!passage) continue;
+    const of = asPassage(passage);
+    for (const site of passage.collation.sites) {
+      const key = siteKey(passage.segmentId, site.index);
+      if (!shown.has(key)) continue;
+      if (site.wanting) {
+        // Lines some witnesses do not have: along the lines of the segments the variant's words lie in.
+        const ids = (of.siteSegments[site.index] ?? []).filter((id) => extent.has(id));
+        if (ids.length === 0) continue;
+        const lines = ids.map((id) => extent.get(id)!);
+        marks.push({
+          keys: [key],
+          kind: 'wanting',
+          from: Math.min(...lines.map((l) => l[0])),
+          to: Math.max(...lines.map((l) => l[1])),
+          name: r.variant.lineAt(labelsOf(ids, context)),
+        });
+        continue;
+      }
+      const unprinted = unprintedAt(of, site.index);
+      if (unprinted) after.set(unprinted.after, [...(after.get(unprinted.after) ?? []), key]);
+    }
   }
   for (const [previous, keys] of after) {
     const lines = extent.get(previous);

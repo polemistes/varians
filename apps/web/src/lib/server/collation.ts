@@ -1,14 +1,12 @@
 /**
- * Collation of an edition's segments against the witnesses of its conspectus.
- *
- * Gathers the words of one segment from the edition's stream and from each
- * transcription the conspectus names, runs the core's collate, and caches
- * the result under a hash of its inputs.
+ * What the collation of an edition reads: its context (the edition's text,
+ * the conspectus, the transcriptions, the editor's marks), and the words of
+ * one segment from the edition's stream and from each transcription the
+ * conspectus names, with the hashes the cache keeps results under. The
+ * collation itself, in passages, is `passages.ts`.
  */
 
 import {
-  applySiteKinds,
-  collate,
   fold,
   isObj,
   isToken,
@@ -16,15 +14,16 @@ import {
   segmentRuns,
   units,
   type Collation,
+  type CollationState,
   type CollationText,
   type NormalizationProfile,
+  type PassageInputs,
   type SegmentRun,
   type SiteKind,
   type Stream,
   type Unit,
 } from '@varians/core';
 import {
-  collationCache,
   editionSigla,
   editionSiteKinds,
   editions,
@@ -40,7 +39,7 @@ import { collationStateOf, normalizeSiglum, stateTextId, type ConspectusEntry } 
 import { loadEditionText, loadTranscriptions } from './loaded-streams.ts';
 import type { Marks } from './site-marks.ts';
 import { createHash } from 'node:crypto';
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 export interface EditionContext {
   edition: { id: string; workId: string; content: Stream; version: number };
@@ -401,76 +400,125 @@ export function editionUnits(content: Stream, segmentId: string): Unit[] {
   return out;
 }
 
-/** The collation inputs of one segment: base and witnesses. */
-export function inputsFor(
+/**
+ * A text of one segment as collation may take it: a witness's corrected
+ * text, or a further state of it (one collated under a siglum of its own,
+ * or the variants it notes) with whether it differs there from the
+ * corrected text.
+ */
+export interface SegmentText extends CollationText {
+  /** A further state of a witness: given only where it differs, in this segment or (in a passage) in another. */
+  state?: { differs: boolean };
+}
+
+/**
+ * Every text of one segment: the edition's and each witness's, every
+ * further state of a witness included, in the order of the conspectus. A
+ * segment the edition does not print (`unprinted`) has no words of the
+ * edition, and its witnesses are those that have it.
+ */
+export function segmentTexts(
   context: EditionContext,
   segmentId: string,
-): { base: CollationText; witnesses: CollationText[] } {
+  unprinted = false,
+): { base: CollationText; texts: SegmentText[] } {
   const base: CollationText = {
     id: context.edition.id,
     siglum: 'ed.',
-    units: editionUnits(context.edition.content, segmentId),
+    units: unprinted ? [] : editionUnits(context.edition.content, segmentId),
   };
-  const witnessTexts: CollationText[] = [];
+  const texts: SegmentText[] = [];
   for (const s of context.sigla) {
     if (!s.transcriptionId) continue;
     const transcription = context.transcriptions.get(s.transcriptionId);
     if (!transcription) continue;
     const runs = runsOf(transcription.content, segmentId);
-    const words: Unit[] = [];
-    for (const run of runs)
-      words.push(...units(transcription.content, run.from, run.to, 'corrected'));
+    const hands = context.witnessHands.get(s.witnessId) ?? [];
+    const readIn = (state: CollationState) => {
+      const out: Unit[] = [];
+      for (const run of runs) out.push(...units(transcription.content, run.from, run.to, state));
+      return out;
+    };
+    const further: { id: string; siglum: string; state: CollationState }[] = [
+      ...s.states.map((state, k) => ({
+        id: stateTextId(transcription.id, k),
+        siglum: state.siglum,
+        state: collationStateOf(state, hands),
+      })),
+      // The variants the manuscript notes in its margins or between its lines, read in place of the words they concern.
+      ...(s.variantSiglum
+        ? [
+            {
+              id: `${transcription.id}:variant`,
+              siglum: s.variantSiglum,
+              state: 'variant' as const,
+            },
+          ]
+        : []),
+    ];
     if (runs.length > 0) {
-      witnessTexts.push({ id: transcription.id, siglum: s.siglum, units: words, present: true });
-    } else {
-      // Without the segment: within the stretch it covers, its text runs on without it, unless a gap
-      // stands there (of whatever reason, a stretch not transcribed included); outside, or where it
-      // has lost the segment, the witness is not there and stands in no variant.
-      const key = context.segmentKeys?.get(segmentId);
-      const covered = context.coverage?.get(transcription.id);
-      const runsOn =
-        key !== undefined &&
-        covered !== undefined &&
-        key > covered.first &&
-        key < covered.last &&
-        !covered.lost.has(segmentId);
-      witnessTexts.push({
-        id: transcription.id,
-        siglum: s.siglum,
-        units: [],
-        ...(runsOn ? { present: true } : {}),
-      });
+      const words = readIn('corrected');
+      texts.push({ id: transcription.id, siglum: s.siglum, units: words, present: true });
+      // A further state of the witness is only worth a siglum of its own where it differs from the corrected text.
+      const differs = (other: Unit[]) =>
+        other.length !== words.length || other.some((u, i) => u.text !== words[i]!.text);
+      for (const f of further) {
+        const text = readIn(f.state);
+        // Without `present`: a state that has none of the segment's words has no text of it.
+        texts.push({ id: f.id, siglum: f.siglum, units: text, state: { differs: differs(text) } });
+      }
       continue;
     }
-    // A second state of the witness is only worth a siglum of its own where it differs from the corrected text.
-    const differs = (other: Unit[]) =>
-      other.length !== words.length || other.some((u, i) => u.text !== words[i]!.text);
-    const hands = context.witnessHands.get(s.witnessId) ?? [];
-    s.states.forEach((state, k) => {
-      const text: Unit[] = [];
-      const which = collationStateOf(state, hands);
-      for (const run of runs) text.push(...units(transcription.content, run.from, run.to, which));
-      if (differs(text))
-        witnessTexts.push({
-          id: stateTextId(transcription.id, k),
-          siglum: state.siglum,
-          units: text,
-        });
-    });
-    if (s.variantSiglum) {
-      // The variants the manuscript notes in its margins or between its lines, read in place of the words they concern.
-      const variant: Unit[] = [];
-      for (const run of runs)
-        variant.push(...units(transcription.content, run.from, run.to, 'variant'));
-      if (differs(variant))
-        witnessTexts.push({
-          id: `${transcription.id}:variant`,
-          siglum: s.variantSiglum,
-          units: variant,
-        });
-    }
+    // A segment the edition does not print concerns only the witnesses that have it.
+    if (unprinted) continue;
+    // Without the segment: within the stretch it covers, its text runs on without it, unless a gap
+    // stands there (of whatever reason, a stretch not transcribed included); outside, or where it
+    // has lost the segment, the witness is not there and stands in no variant.
+    const key = context.segmentKeys?.get(segmentId);
+    const covered = context.coverage?.get(transcription.id);
+    const runsOn =
+      key !== undefined &&
+      covered !== undefined &&
+      key > covered.first &&
+      key < covered.last &&
+      !covered.lost.has(segmentId);
+    const without = { units: [], ...(runsOn ? { present: true } : {}) };
+    texts.push({ id: transcription.id, siglum: s.siglum, ...without });
+    for (const f of further)
+      texts.push({ id: f.id, siglum: f.siglum, ...without, state: { differs: false } });
   }
-  return { base, witnesses: witnessTexts };
+  return { base, texts };
+}
+
+/** The texts as collation is given them: a further state of a witness where `keep` says so, and nothing of the bookkeeping. */
+export function collationTexts(
+  texts: readonly SegmentText[],
+  keep: (text: SegmentText) => boolean = (text) => text.state?.differs === true,
+): CollationText[] {
+  const out: CollationText[] = [];
+  for (const { state, ...text } of texts) {
+    if (state && !keep({ ...text, state })) continue;
+    out.push(text);
+  }
+  return out;
+}
+
+/** The collation inputs of one segment collated alone: base and witnesses. */
+export function inputsFor(
+  context: EditionContext,
+  segmentId: string,
+): { base: CollationText; witnesses: CollationText[] } {
+  const { base, texts } = segmentTexts(context, segmentId);
+  return { base, witnesses: collationTexts(texts) };
+}
+
+/** The shape of the cached results: bump when the collation's output changes. */
+export const COLLATION_VERSION = 'collation-v15';
+
+/** A text as the hashes describe it: everything collation reads of it. */
+function describeText(t: CollationText): string {
+  const away = (t.notThere ?? []).map((r) => `${r.from}-${r.to}`).join(',');
+  return `${t.id}|${t.siglum}|${t.present ? 'p' : ''}|${away}|${t.units.map((u) => (u.gap ? '[gap]' : `${u.text}#${u.tokenIds.join(',')}@${u.segmentId ?? ''}`)).join(' ')}`;
 }
 
 /** A hash of everything a segment's collation reads. */
@@ -480,142 +528,25 @@ export function inputHash(
   witnesses: CollationText[],
 ): string {
   const hash = createHash('sha256');
-  // The shape of the cached result: bump when the collation's output changes.
-  hash.update('collation-v14');
+  hash.update(COLLATION_VERSION);
   hash.update(JSON.stringify(context.profile.fold));
-  const describe = (t: CollationText) =>
-    `${t.id}|${t.siglum}|${t.present ? 'p' : ''}|${t.units.map((u) => (u.gap ? '[gap]' : `${u.text}#${u.tokenIds.join(',')}`)).join(' ')}`;
-  hash.update(describe(base));
-  for (const w of witnesses) hash.update('\n' + describe(w));
+  hash.update(describeText(base));
+  for (const w of witnesses) hash.update('\n' + describeText(w));
   return hash.digest('hex').slice(0, 32);
 }
 
-/** How many cache rows one statement reads, and how many collations are written at a time. */
-const CACHE_READ = 1000;
-const CACHE_WRITE = 25;
-
-/**
- * Collate some segments of an edition, from the cache where the inputs are
- * unchanged: the cache is read in one go, what it lacks is collated and
- * written back in one go. The result is in the order asked.
- */
-export async function collateSegments(
-  db: Database,
-  context: EditionContext,
-  segmentIds: string[],
-  /**
-   * With a budget, at most that many segments are collated afresh, those
-   * nearest `near` (a segment id) among the segments asked for first; the
-   * others the cache lacks are left out of the result.
-   */
-  options: { budget?: number; near?: string } = {},
-): Promise<Map<string, Collation>> {
-  const wanted = [...new Set(segmentIds)];
-  const gathered = wanted.map((segmentId) => {
-    const { base, witnesses: witnessTexts } = inputsFor(context, segmentId);
-    return { segmentId, base, witnessTexts, hash: inputHash(context, base, witnessTexts) };
-  });
-  const cached = new Map<string, { inputHash: string; result: unknown }>();
-  for (let i = 0; i < gathered.length; i += CACHE_READ) {
-    const rows = await db
-      .select({
-        segmentId: collationCache.segmentId,
-        inputHash: collationCache.inputHash,
-        result: collationCache.result,
-      })
-      .from(collationCache)
-      .where(
-        and(
-          eq(collationCache.editionId, context.edition.id),
-          inArray(
-            collationCache.segmentId,
-            gathered.slice(i, i + CACHE_READ).map((g) => g.segmentId),
-          ),
-        ),
-      );
-    for (const row of rows) cached.set(row.segmentId, row);
-  }
-  const results = new Map<string, Collation>();
-  let fresh: { segmentId: string; hash: string; result: Collation }[] = [];
-  /** Write what has been collated: the wait lets other requests run between the stretches of collating. */
-  const write = async () => {
-    if (fresh.length === 0) return;
-    const rows = fresh.map((f) => ({
-      editionId: context.edition.id,
-      segmentId: f.segmentId,
-      inputHash: f.hash,
-      result: serializeCollation(f.result),
-    }));
-    fresh = [];
-    await db
-      .insert(collationCache)
-      .values(rows)
-      .onConflictDoUpdate({
-        target: [collationCache.editionId, collationCache.segmentId],
-        set: {
-          inputHash: sql`excluded.input_hash`,
-          result: sql`excluded.result`,
-          computedAt: new Date(),
-        },
-      });
-  };
-  // Which of the segments the cache lacks are collated now: all of them, or the budget's worth nearest the one named.
-  const lacking = gathered.filter((g) => {
-    const hit = cached.get(g.segmentId);
-    return !hit || hit.inputHash !== g.hash;
-  });
-  const position = new Map(wanted.map((id, i) => [id, i] as const));
-  const nearAt = Math.max(0, options.near !== undefined ? (position.get(options.near) ?? 0) : 0);
-  const now = new Set(
-    options.budget === undefined || options.budget >= lacking.length
-      ? lacking.map((g) => g.segmentId)
-      : [...lacking]
-          .sort(
-            (a, b) =>
-              Math.abs(position.get(a.segmentId)! - nearAt) -
-              Math.abs(position.get(b.segmentId)! - nearAt),
-          )
-          .slice(0, options.budget)
-          .map((g) => g.segmentId),
+/** A hash of everything a passage's collation reads: its segments, where each begins, and every text over them. */
+export function passageHash(context: EditionContext, inputs: PassageInputs): string {
+  const hash = createHash('sha256');
+  hash.update(`${COLLATION_VERSION}:passage`);
+  hash.update(JSON.stringify(context.profile.fold));
+  hash.update(
+    inputs.segments.map((s) => `${s.segmentId}:${s.from}-${s.to}${s.printed ? '' : 'u'}`).join(','),
   );
-  for (const { segmentId, base, witnessTexts, hash } of gathered) {
-    const hit = cached.get(segmentId);
-    if (hit && hit.inputHash === hash) {
-      results.set(segmentId, reviveCollation(hit.result));
-      continue;
-    }
-    if (!now.has(segmentId)) continue;
-    const result = collate(base, witnessTexts, { fold: context.profile.fold });
-    fresh.push({ segmentId, hash, result });
-    results.set(segmentId, result);
-    if (fresh.length >= CACHE_WRITE) await write();
-  }
-  await write();
-  // The editor's marks are put over the cached result, so that setting one does not collate again.
-  const out = new Map<string, Collation>();
-  for (const { segmentId, base } of gathered) {
-    const collation = results.get(segmentId);
-    if (!collation) continue;
-    out.set(segmentId, applySiteKinds(collation, base.units, context.siteKinds.get(segmentId)));
-  }
-  return out;
-}
-
-/** Collate one segment of an edition, from the cache when the inputs are unchanged. */
-export async function collateSegment(
-  db: Database,
-  context: EditionContext,
-  segmentId: string,
-): Promise<Collation> {
-  return (await collateSegments(db, context, [segmentId])).get(segmentId)!;
-}
-
-/** Collate every segment the edition has, in the edition's order. */
-export async function collateEdition(
-  db: Database,
-  context: EditionContext,
-): Promise<Map<string, Collation>> {
-  return collateSegments(db, context, segmentOrderOf(context.edition.content));
+  hash.update(`|${inputs.segmentStarts.join(',')}`);
+  hash.update('\n' + describeText(inputs.base));
+  for (const w of inputs.witnesses) hash.update('\n' + describeText(w));
+  return hash.digest('hex').slice(0, 32);
 }
 
 /** Maps cannot be stored as JSON; columns are serialized as arrays of [textId, cell] pairs. */

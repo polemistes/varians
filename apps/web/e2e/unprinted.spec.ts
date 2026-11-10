@@ -97,6 +97,9 @@ test.afterAll(async () => {
 test('a line the edition does not print is marked, stepped to, adopted, taken back and printed again', async ({
   page,
 }) => {
+  // Nothing the page does while the text and the server's answer differ may throw.
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/login');
   await page.getByLabel(s.auth.email).fill(email);
   await page.getByLabel(s.auth.password).fill(password);
@@ -191,6 +194,8 @@ test('a line the edition does not print is marked, stepped to, adopted, taken ba
 
   // Adopting A's words prints the line after 1.5, on a line of its own.
   await adoptLine.click();
+  // The text takes the line before the save is under way: wait for it, then for the save.
+  await expect.poll(async () => (await lines(page)).length).toBe(lineCount);
   await saved(page);
   let text = await lines(page);
   expect(text.slice(text.indexOf(LINE_5), text.indexOf(LINE_5) + 3)).toEqual([
@@ -233,4 +238,5 @@ test('a line the edition does not print is marked, stepped to, adopted, taken ba
   expect(text).toHaveLength(lineCount);
   await expect(marks).toHaveCount(0);
   expect(await sourcesOf('1.6')).toEqual(printedFrom);
+  expect(errors).toEqual([]);
 });

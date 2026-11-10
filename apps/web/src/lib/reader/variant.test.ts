@@ -21,7 +21,6 @@ import {
   variantOf,
   variantsOf,
   whereText,
-  withUnprinted,
   type Chip,
   type Row,
   type Variant,
@@ -91,11 +90,13 @@ function segment(sites: SiteInput[], extra: Partial<ReaderSegment> = {}): Reader
     sigla: SIGLUM,
     sites: sites.map((s) => ({ columnFrom: 0, columnTo: 0, kind: 'textual', ...s })),
   } as unknown as Collation;
-  return {
+  const out: ReaderSegment = {
     segmentId: 's1',
     label: '1.1',
+    segments: [],
     collation,
     baseUnits: units('μῆνιν ἄειδε θεὰ Πηληϊάδεω'),
+    siteSegments: {},
     attachments: {},
     aligned: {},
     unplaced: [],
@@ -104,6 +105,18 @@ function segment(sites: SiteInput[], extra: Partial<ReaderSegment> = {}): Reader
     cites: {},
     ...extra,
   };
+  // A passage of one segment unless said otherwise.
+  if (!extra.segments)
+    out.segments = [
+      {
+        segmentId: out.segmentId,
+        label: out.label,
+        from: 0,
+        to: out.baseUnits.length,
+        printed: true,
+      },
+    ];
+  return out;
 }
 
 function variant(seg: ReaderSegment, index = 0, ctx: VariantContext = context): Variant {
@@ -1117,18 +1130,30 @@ describe('variantsOf', () => {
 const labelOf = { s0: '1.2', s1: '1.3', s2: '1.4', s3: '1.5', s4: '1.6', s5: '1.14', s6: '1.15' };
 const order = ['s0', 's2', 's3', 's4', 's5', 's6'];
 
-/** A line the edition does not print: B's text runs on without it and A has it. */
+/**
+ * A line the edition does not print (1.3): B's text runs on without it and A has it. It stands in
+ * the passage of 1.2, after its words; the passage's first variant is over a word of 1.2.
+ */
 function unprintedLine(): ReaderSegment {
   return segment(
     [
       {
         index: 0,
-        baseFrom: 0,
-        baseTo: 0,
+        baseFrom: 4,
+        baseTo: 4,
         readings: [reading('', ['ed', 'tb']), reading('ἄλγε᾽ ἔθηκε', ['ta', 'tc'])],
       },
+      { index: 1, baseFrom: 0, baseTo: 1, readings: [reading('μῆνιν', ['ed', 'ta'])] },
     ],
-    { segmentId: 's1', label: '1.3', baseUnits: [], unprinted: { after: 's0' } },
+    {
+      segmentId: 's0',
+      label: '1.2',
+      segments: [
+        { segmentId: 's0', label: '1.2', from: 0, to: 4, printed: true },
+        { segmentId: 's1', label: '1.3', from: 4, to: 4, printed: false },
+      ],
+      siteSegments: { 0: ['s1'], 1: ['s0'] },
+    },
   );
 }
 
@@ -1157,10 +1182,11 @@ describe('a line the edition does not print', () => {
     expect(lines(v)[1]).toBe('ἄλγε᾽ ἔθηκε | A');
   });
 
-  it('is named by its own label where the label of the line before it is not known', () => {
+  it('is named by the labels its passage gives, whatever labels the page has', () => {
     const v = variant(unprintedLine(), 0, { sigla });
-    expect(v.lines).toEqual({ labels: '1.3' });
-    expect(whereText(v)).toBe('1.3');
+    expect(v.lines).toEqual({ labels: '1.3', after: '1.2' });
+    expect(v.label).toBe('1.3');
+    expect(v.stands).toBe('s1');
   });
 
   it('has the conjectures and the notes attached to its segment, as any variant has', () => {
@@ -1287,14 +1313,14 @@ describe('the variants of lines on screen, with lines the edition does not print
         segmentId: id,
         label,
       });
-    const segments = { s0: printed('s0', '1.2'), s1: unprintedLine(), s2: printed('s2', '1.4') };
-    const unprinted = [{ segmentId: 's1', after: 's0' }];
-    const ids = withUnprinted(['s0', 's2', 's3'], unprinted);
-    expect(ids).toEqual(['s0', 's1', 's2', 's3']);
-    const shown = new Set(['s0:0', 's1:0', 's2:0']);
-    const groups = variantsOf(ids, segments, shown, ctx);
+    // 1.3 is in the passage of 1.2: it is listed after 1.2 without being asked for.
+    const segments = { s0: unprintedLine(), s2: printed('s2', '1.4') };
+    const shown = new Set(['s0:0', 's0:1', 's2:0']);
+    const groups = variantsOf(['s0', 's2', 's3'], segments, shown, ctx);
     expect(groups.map((g) => g.segmentId)).toEqual(['s0', 's1', 's2']);
     expect(groups.map((g) => g.label)).toEqual(['1.2', '1.3', '1.4']);
+    expect(groups.map((g) => g.passage)).toEqual(['s0', 's0', 's2']);
+    expect(groups[0]!.places.map((p) => p.key)).toEqual(['s0:1']);
     // The order of 1.4 and 1.5 stands in the card of 1.4, after its own places, though 1.5 is listed too.
     expect(groups[2]!.places.map((p) => p.key)).toEqual(['s2:0', 'order:0']);
     expect(groups[1]!.places[0]!.lines).toEqual({ labels: '1.3', after: '1.2' });
@@ -1306,8 +1332,61 @@ describe('the variants of lines on screen, with lines the edition does not print
     expect(groups[0]!.places.map((p) => p.key)).toEqual(['order:0']);
     expect(variantsOf(['s4'], {}, new Set<string>(), ctx)).toEqual([]);
   });
+});
 
-  it('adds nothing where no line is unprinted', () => {
-    expect(withUnprinted(['s0'], [])).toEqual(['s0']);
+describe('a variant across the boundary between two segments', () => {
+  /** A passage of 1.1 (two words) and 1.2 (two words); its first variant is over the second word of each. */
+  function passage(): ReaderSegment {
+    return segment(
+      [
+        {
+          index: 0,
+          baseFrom: 1,
+          baseTo: 3,
+          readings: [reading('ἄειδε θεὰ', ['ed', 'ta']), reading('ἄειδε θεά μοι', ['tb'])],
+        },
+        { index: 1, baseFrom: 3, baseTo: 4, readings: [reading('Πηληϊάδεω', ['ed', 'ta'])] },
+      ],
+      {
+        segments: [
+          { segmentId: 's1', label: '1.1', from: 0, to: 2, printed: true },
+          { segmentId: 's2', label: '1.2', from: 2, to: 4, printed: true },
+        ],
+        siteSegments: { 0: ['s1', 's2'], 1: ['s2'] },
+      },
+    );
+  }
+
+  it('is labelled by the segments of its words, and listed under the first', () => {
+    const v = variant(passage(), 0);
+    expect(v.label).toBe('1.1–1.2');
+    expect(v.stands).toBe('s1');
+    const groups = variantsOf(['s1', 's2'], { s1: passage() }, new Set(['s1:0', 's1:1']), context);
+    expect(groups.map((g) => [g.segmentId, g.places.map((p) => p.key)])).toEqual([
+      ['s1', ['s1:0']],
+      ['s2', ['s1:1']],
+    ]);
+  });
+
+  it('leads to the variant a witness has the words at in another passage', () => {
+    const here = passage();
+    here.collation.sites[0]!.transposition = { withSite: 0, textIds: ['tb'], inPassage: 's3' };
+    const there = segment(
+      [
+        {
+          index: 0,
+          baseFrom: 1,
+          baseTo: 1,
+          readings: [reading('', ['ed', 'ta']), reading('μοι', ['tb'])],
+        },
+      ],
+      { segmentId: 's3', label: '1.3' },
+    );
+    const v = variantOf(here, 0, { ...context, passages: { s1: here, s3: there } })!;
+    const row = v.rows.find((r) => r.chips.some((c) => c.kind === 'witness' && c.siglum === 'B'))!;
+    expect(row.links.map((l) => l.key)).toEqual(['s3:0']);
+    expect(row.links[0]!.where.place).toEqual({ side: 'after', word: 'μῆνιν' });
+    // Without the other passage at hand there is nothing to lead to.
+    expect(variantOf(here, 0, context)!.rows.flatMap((r) => r.links)).toEqual([]);
   });
 });

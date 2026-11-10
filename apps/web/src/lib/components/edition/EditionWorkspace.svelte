@@ -49,6 +49,14 @@
   import { EditionText } from '$lib/reader/edition-text';
   import { DEFAULT_SIGLA } from '$lib/reader/marks';
   import { variantOf, type VariantContext } from '$lib/reader/variant';
+  import {
+    mergePassages,
+    passageIndex,
+    passagesOf,
+    standsIn,
+    unprintedAt,
+  } from '$lib/reader/passages';
+  import { parseSiteKey, siteKey as keyOfVariant, siteLabel } from '$lib/reader/sites';
   import { countNeeding, outlineOf, type SegmentOutline } from '$lib/edition/outline';
   import {
     activeSiteFor,
@@ -66,7 +74,7 @@
     stepSite,
     tokenClassesFor,
     unprintedMarks,
-    windowWithUnprinted,
+    windowAround,
     witnessIndex,
     witnessTokensAt,
   } from '$lib/edition/workspace';
@@ -211,15 +219,24 @@
   let refreshing = false;
   let refreshAgain = false;
   /** Sites to mark as reviewed once their segment has been collated again. */
-  let reviewAfter: { segmentId: Id; ids: Id[]; before: Id | null; printed?: boolean }[] = [];
+  let reviewAfter: { segmentId: Id; ids: Id[]; before: Id | null; printed?: Id | null }[] = [];
 
   async function refreshStale(): Promise<void> {
     if (refreshing) {
       refreshAgain = true;
       return;
     }
-    const ids = [...stale];
-    if (ids.length === 0) return;
+    const touched = [...stale];
+    if (touched.length === 0) return;
+    // Every segment of the passages the edit touched: the passages around it may be drawn otherwise now.
+    const ids = [
+      ...new Set([
+        ...touched,
+        ...passagesOf(touched, passageOf).flatMap(
+          (id) => views[id]?.segments.map((x) => x.segmentId) ?? [],
+        ),
+      ]),
+    ];
     refreshing = true;
     try {
       const response = await fetch(
@@ -229,21 +246,9 @@
       const data = (await response.json()) as {
         segments: Record<Id, SegmentViewClient>;
         orderVariants?: EditionViewClient['orderVariants'];
-        unprinted?: EditionViewClient['unprinted'];
       };
       if (data.orderVariants) orderVariants = data.orderVariants;
-      const nextViews = { ...views };
-      const nextOutlines = { ...outlines };
-      const nextLabels = { ...labelOf };
-      for (const [id, segment] of Object.entries(data.segments)) {
-        nextViews[id] = segment;
-        nextOutlines[id] = outlineOf(segment);
-        nextLabels[id] = segment.label;
-      }
-      if (data.unprinted) takeUnprinted(data.unprinted, nextViews, nextOutlines);
-      views = nextViews;
-      outlines = nextOutlines;
-      labelOf = nextLabels;
+      take(data.segments);
       // Edits made while the answer travelled are newer than it: those segments stay stale.
       if (session.state.pending === 0 && !session.state.saving) {
         const left = new Set(stale);
@@ -263,30 +268,25 @@
   }
 
   /**
-   * Where the segments the edition does not print stand, as the server now
-   * says: each after the segment it follows, which an edit elsewhere can
-   * change. One that is neither in the text nor among them is no variant now.
+   * Take in passages that have come: each takes the place of the passages
+   * given before that hold any of its segments, in the views and in the
+   * outline, since an edit can draw the passages around it otherwise.
    */
-  function takeUnprinted(
-    list: EditionViewClient['unprinted'],
-    nextViews: Record<Id, SegmentViewClient>,
-    nextOutlines: Record<Id, SegmentOutline>,
-  ) {
-    const after = new Map(list.map((u) => [u.segmentId, u.after] as const));
-    const inText = new Set(sequence);
-    for (const [id, outline] of Object.entries(nextOutlines)) {
-      const at = after.get(id);
-      if (at !== undefined) {
-        if (outline.unprinted?.after !== at)
-          nextOutlines[id] = { ...outline, unprinted: { after: at } };
-        const segment = nextViews[id];
-        if (segment && segment.unprinted?.after !== at)
-          nextViews[id] = { ...segment, unprinted: { after: at } };
-      } else if (outline.unprinted && !inText.has(id)) {
-        delete nextOutlines[id];
-        delete nextViews[id];
-      }
-    }
+  function take(incoming: Record<Id, SegmentViewClient>) {
+    if (Object.keys(incoming).length === 0) return;
+    views = mergePassages(views, incoming);
+    const taken = new Set(
+      Object.values(incoming).flatMap((p) => p.segments.map((x) => x.segmentId)),
+    );
+    const nextOutlines: Record<Id, SegmentOutline> = {};
+    for (const [id, outline] of Object.entries(outlines))
+      if (!outline.segments.some((x) => taken.has(x.segmentId))) nextOutlines[id] = outline;
+    for (const [id, segment] of Object.entries(incoming)) nextOutlines[id] = outlineOf(segment);
+    outlines = nextOutlines;
+    const nextLabels = { ...labelOf };
+    for (const segment of Object.values(incoming))
+      for (const part of segment.segments) nextLabels[part.segmentId] = part.label;
+    labelOf = nextLabels;
   }
 
   /** Start again from what the server has: the segments on show are asked for anew, and the outline. */
@@ -311,22 +311,22 @@
 
   /** Ask for the segments of the window that have not been given, and those around it. */
   async function ensureShown(): Promise<void> {
-    const missing = windowIds.filter((id) => !views[id] && !loading.has(id));
+    const missing = windowIds.filter((id) => !viewOf(id) && !loading.has(id));
     if (missing.length === 0) return;
-    const center = caretSegment ?? active?.segmentId ?? null;
+    const center = caretSegment ?? centreOfActive();
     await ensure(
-      windowWithUnprinted(sequence, outlines, center, PREFETCH_RADIUS).filter(
-        (id) => !views[id] && !loading.has(id),
+      windowAround(sequence, outlines, center, PREFETCH_RADIUS).filter(
+        (id) => !viewOf(id) && !loading.has(id),
       ),
     );
   }
 
-  /** Have these segments in full: asked for in one request, and put among the others. */
+  /** Have the passages that hold these segments in full: asked for in one request, and put among the others. */
   async function ensure(ids: Id[]): Promise<void> {
-    const wanted = ids.filter((id) => !views[id] && !loading.has(id));
+    const wanted = ids.filter((id) => !viewOf(id) && !loading.has(id));
     if (wanted.length === 0) {
       // Another request is bringing them: wait for it.
-      while (ids.some((id) => loading.has(id) && !views[id]))
+      while (ids.some((id) => loading.has(id) && !viewOf(id)))
         await new Promise((r) => setTimeout(r, 50));
       return;
     }
@@ -339,20 +339,17 @@
       const data = (await response.json()) as {
         segments: Record<Id, SegmentViewClient>;
         orderVariants?: EditionViewClient['orderVariants'];
-        unprinted?: EditionViewClient['unprinted'];
       };
       if (data.orderVariants) orderVariants = data.orderVariants;
-      const nextViews = { ...views };
-      const nextOutlines = { ...outlines };
+      // A passage given meanwhile, or one of whose segments was edited meanwhile, is newer than this.
+      const fresh: Record<Id, SegmentViewClient> = {};
       for (const [id, segment] of Object.entries(data.segments)) {
-        // A segment given meanwhile, or edited meanwhile, is newer than this.
-        if (views[id] || stale.has(id)) continue;
-        nextViews[id] = segment;
-        nextOutlines[id] = outlineOf(segment);
+        const parts = segment.segments.map((x) => x.segmentId);
+        if (parts.some((x) => stale.has(x))) continue;
+        if (parts.every((x) => viewOf(x))) continue;
+        fresh[id] = segment;
       }
-      if (data.unprinted) takeUnprinted(data.unprinted, nextViews, nextOutlines);
-      views = nextViews;
-      outlines = nextOutlines;
+      take(fresh);
       settleSelection();
     } catch {
       // The window asks again when it moves.
@@ -371,7 +368,12 @@
         labelOf: Record<Id, string>;
       };
       // What the editor has in full is at least as new as the outline.
-      const next = { ...data.outline };
+      const given = new Set(
+        Object.values(views).flatMap((p) => p.segments.map((x) => x.segmentId)),
+      );
+      const next: Record<Id, SegmentOutline> = {};
+      for (const [id, outline] of Object.entries(data.outline))
+        if (!outline.segments.some((x) => given.has(x.segmentId))) next[id] = outline;
       for (const [id, segment] of Object.entries(views)) next[id] = outlineOf(segment);
       outlines = next;
       labelOf = { ...data.labelOf, ...labelOf };
@@ -390,10 +392,10 @@
         reviewAfter.push(entry);
         continue;
       }
-      const segment = views[entry.segmentId];
+      const segment = viewOf(entry.segmentId);
       if (!segment) continue;
       const site = siteAfterAdoption(segment, entry.ids, entry.before, entry.printed);
-      if (site) void setReviewed(entry.segmentId, site, true);
+      if (site) void setReviewed(segment.segmentId, site, true);
     }
   }
 
@@ -407,10 +409,15 @@
     segment: SegmentViewClient,
     ids: Id[],
     before: Id | null,
-    printed = false,
+    printed: Id | null = null,
   ): Site | null {
     const wanted = new Set(ids);
-    const whole = printed ? segment.collation.sites.find((site) => site.wanting) : undefined;
+    const whole =
+      printed !== null
+        ? segment.collation.sites.find(
+            (site) => site.wanting && (segment.siteSegments[site.index] ?? []).includes(printed),
+          )
+        : undefined;
     if (whole) return whole;
     for (const site of segment.collation.sites) {
       if (siteTokenIds(site, segment.baseUnits).some((id) => wanted.has(id))) return site;
@@ -425,12 +432,45 @@
   // What is on show
 
   const sequence = $derived(segmentOrder(stream));
-  const windowIds = $derived(
-    windowWithUnprinted(sequence, outlines, caretSegment ?? active?.segmentId ?? null),
-  );
+  /** The passage that holds each segment the editor has in full, by its first segment. */
+  const passageOf = $derived(passageIndex(Object.values(views)));
+  /** The passage the editor has in full that holds a segment. */
+  function viewOf(segmentId: Id | null): SegmentViewClient | undefined {
+    if (segmentId === null) return undefined;
+    const at = passageOf.get(segmentId);
+    return at === undefined ? undefined : views[at];
+  }
+  /** The segment the active variant stands in. */
+  function centreOfActive(): Id | null {
+    if (!active) return null;
+    const segment = views[active.segmentId];
+    return segment ? standsIn(segment, active.siteIndex) : active.segmentId;
+  }
+  const windowIds = $derived(windowAround(sequence, outlines, caretSegment ?? centreOfActive()));
+  /** The passages that hold the segments on show. */
   const windowSegments = $derived(
-    windowIds.map((id) => views[id]).filter((v): v is SegmentViewClient => v !== undefined),
+    passagesOf(windowIds, passageOf)
+      .map((id) => views[id])
+      .filter((v): v is SegmentViewClient => v !== undefined),
   );
+  /** The segments on show, each followed by those its passage holds that the edition does not print: what the witness beside the text shows. */
+  const shownWithUnprinted = $derived.by(() => {
+    const parts = new Map<Id, Id[]>();
+    for (const outline of Object.values(outlines)) {
+      let last: Id | null = null;
+      for (const part of outline.segments) {
+        if (part.printed) last = part.segmentId;
+        else if (last !== null) parts.set(last, [...(parts.get(last) ?? []), part.segmentId]);
+      }
+    }
+    // A segment just adopted is in the text already while the outline still has it as not printed
+    // (until the server has answered), and an outline may name one twice: each segment is shown once.
+    const seen = new Set<Id>(windowIds);
+    return windowIds.flatMap((id) => [
+      id,
+      ...(parts.get(id) ?? []).filter((part) => !seen.has(part) && seen.add(part)),
+    ]);
+  });
   /** The edition's words as it prints them, for the first row of a variant and its head. */
   const editionText = $derived(
     new EditionText(
@@ -446,6 +486,7 @@
     labelOf,
     order: sequence,
     orders: orderVariants,
+    passages: views,
   });
   const tokenClasses = $derived(
     tokenClassesFor(Object.values(outlines), { active, colourBySource, stream }),
@@ -453,17 +494,17 @@
   // A line the edition does not print is marked between the lines it stands between, while its variant shows.
   const marginMarks = $derived(
     unprintedMarks(stream, sequence, outlines).map((mark) => ({
-      key: mark.segmentId,
+      key: keyOfVariant(mark.passage, mark.site.index),
       after: mark.after,
       title: s.notPrinted(labelOf[mark.segmentId] ?? ''),
-      active: active?.segmentId === mark.segmentId,
+      active: active?.segmentId === mark.passage && active.siteIndex === mark.site.index,
     })),
   );
   const reviewedMap = $derived(
     new Map(Object.entries(reviewed).map(([id, keys]) => [id, new Set(keys)] as const)),
   );
   const allSites = $derived(sitesInOrder(sequence, outlines).length);
-  const unreviewed = $derived(countNeeding(sequence, outlines, reviewedMap));
+  const unreviewed = $derived(countNeeding(outlines, reviewedMap));
   const witnessIdx = $derived(witnessIndex(windowSegments));
   const witnessTextId = $derived(
     sigla.find((x) => x.siglum === witnessSiglum)?.transcriptionId ?? null,
@@ -484,7 +525,7 @@
     if (!anchor) return;
     const segmentId = segmentOfItem(stream, anchor);
     caretSegment = segmentId;
-    const segment = segmentId ? views[segmentId] : undefined;
+    const segment = viewOf(segmentId);
     active = segment ? activeSiteFor([segment], ids, caret) : null;
     // A segment not yet given has no places to find: the selection is read again when it comes.
     selectionWaiting = !segment && segmentId !== null;
@@ -493,7 +534,7 @@
   /** Read the selection again, if it reached a segment before that was given. */
   function settleSelection() {
     if (!selectionWaiting || !caretSegment) return;
-    const segment = views[caretSegment];
+    const segment = viewOf(caretSegment);
     if (!segment) return;
     selectionWaiting = false;
     active = activeSiteFor([segment], selection.ids, selection.caret);
@@ -502,7 +543,9 @@
   /** Bring the text to the first of the lines a variant over their order concerns. */
   function focusLines(segmentId: Id) {
     caretSegment = segmentId;
-    const first = views[segmentId]?.baseUnits[0]?.tokenIds[0];
+    const segment = viewOf(segmentId);
+    const part = segment?.segments.find((x) => x.segmentId === segmentId);
+    const first = part ? segment?.baseUnits[part.from]?.tokenIds[0] : undefined;
     if (first) api?.scrollToToken(first);
   }
 
@@ -514,17 +557,18 @@
 
   function focusSite(segmentId: Id, site: Site) {
     active = { segmentId, siteIndex: site.index };
-    caretSegment = segmentId;
     const segment = views[segmentId];
+    caretSegment = segment ? standsIn(segment, site.index) : segmentId;
     if (!segment || !api) return;
-    if (segment.unprinted && !sequence.includes(segmentId)) {
+    const unprinted = unprintedAt(segment, site.index);
+    if (unprinted) {
       // A line the edition does not print: the text is brought to where it would stand. A selection
       // of other words is let go, the caret staying where it is, and the variant stays the active one.
       api.clearSelection();
       selectionTick++;
       active = { segmentId, siteIndex: site.index };
-      caretSegment = segmentId;
-      const place = printPlace(stream, segment.unprinted.after);
+      caretSegment = unprinted.segmentId;
+      const place = printPlace(stream, unprinted.after);
       if (place) api.scrollToToken(place);
       return;
     }
@@ -539,15 +583,16 @@
     }
   }
 
-  /** Open the variant of a line the edition does not print, from its mark in the text. */
-  async function openUnprinted(segmentId: Id) {
-    const index = outlines[segmentId]?.sites[0]?.index;
-    if (index === undefined) return;
-    caretSegment = segmentId;
-    active = { segmentId, siteIndex: index };
-    await ensure([segmentId]);
-    const site = views[segmentId]?.collation.sites.find((x) => x.index === index);
-    if (site) focusSite(segmentId, site);
+  /** Open the variant of a line the edition does not print, from its mark in the text (by the variant's key). */
+  async function openUnprinted(key: string) {
+    const ref = parseSiteKey(key);
+    if (!ref) return;
+    const outline = outlines[ref.segmentId]?.sites.find((x) => x.index === ref.siteIndex);
+    caretSegment = outline?.unprinted?.segmentId ?? ref.segmentId;
+    active = { segmentId: ref.segmentId, siteIndex: ref.siteIndex };
+    await ensure([ref.segmentId]);
+    const site = views[ref.segmentId]?.collation.sites.find((x) => x.index === ref.siteIndex);
+    if (site) focusSite(ref.segmentId, site);
   }
 
   async function step(direction: 1 | -1, unreviewedOnly: boolean) {
@@ -562,7 +607,7 @@
     );
     if (!ref) return;
     // The place may be in a segment not yet given: the window moves there, and the place is found once it comes.
-    caretSegment = ref.segmentId;
+    caretSegment = ref.site.unprinted?.segmentId ?? ref.site.segments[0] ?? ref.segmentId;
     active = { segmentId: ref.segmentId, siteIndex: ref.site.index };
     await ensure([ref.segmentId]);
     const site = views[ref.segmentId]?.collation.sites.find((x) => x.index === ref.site.index);
@@ -591,14 +636,20 @@
     });
   }
 
+  /** Whether an edit of a passage is still being saved and collated. */
+  function isStale(segment: SegmentViewClient): boolean {
+    return segment.segments.some((x) => stale.has(x.segmentId));
+  }
+
   async function adopt(segmentId: Id, site: Site, choice: Choice, textId?: Id) {
     if (!canEdit) return;
-    if (stale.has(segmentId)) {
+    const segment = views[segmentId];
+    if (!segment) return;
+    if (isStale(segment)) {
       toasts.info(s.workspace.stillSaving);
       return;
     }
-    const segment = views[segmentId];
-    if (!segment) return;
+    const unprinted = unprintedAt(segment, site.index);
     const before = stream;
     let ops: Op[];
     let next: Stream;
@@ -613,7 +664,13 @@
               choice.reading,
               textId ?? choice.reading.textIds[0]!,
             )
-          : opsForAttachment(before, segment, site, choice.attachment);
+          : opsForAttachment(
+              before,
+              segment,
+              site,
+              choice.attachment,
+              (choice.attachment as { segmentId?: Id }).segmentId ?? unprinted?.segmentId,
+            );
       if (ops.length === 0) return;
       const applied = applyOps(before, ops);
       next = applied.stream;
@@ -623,7 +680,7 @@
       return;
     }
     const siteIds = siteTokenIds(site, segment.baseUnits);
-    const printing = segment.unprinted !== undefined && !sequence.includes(segmentId);
+    const printing = unprinted !== null;
     const restore = printing ? await clearUnprintedWord(segmentId, site) : undefined;
     // The conjectures the site printed until now are no longer printed, unless it is the one chosen.
     for (const attachment of segment.attachments[site.index] ?? []) {
@@ -634,17 +691,21 @@
     if (choice.kind === 'attachment' && choice.attachment.kind === 'conjecture')
       await postAdoption(choice.attachment.id, true);
     reviewAfter.push({
-      segmentId,
+      segmentId: unprinted?.segmentId ?? standsIn(segment, site.index),
       ids: insertedIds(ops).concat(
         choice.kind === 'attachment' && choice.attachment.conjectureKind === 'deletion'
           ? siteIds
           : [],
       ),
       before: tokenBefore(siteIds, segment, site),
-      printed: printing,
+      printed: unprinted?.segmentId ?? null,
     });
     commit(ops, next, before);
-    lastAdoption = { reverse, label: segment.label, ...(restore ? { restore } : {}) };
+    lastAdoption = {
+      reverse,
+      label: siteLabel(segment, site.index, labelOf),
+      ...(restore ? { restore } : {}),
+    };
     await session.flush();
   }
 
@@ -662,7 +723,9 @@
     const segment = views[segmentId];
     if (!segment) return undefined;
     const key = keyOfSite(segment, site);
-    const wasReviewed = (reviewed[segmentId] ?? []).includes(key);
+    // Kept under the segment the variant is: the one not printed.
+    const at = standsIn(segment, site.index);
+    const wasReviewed = segment.segments.some((x) => (reviewed[x.segmentId] ?? []).includes(key));
     const said = {
       ...(site.kindByEditor ? { kind: site.kind } : {}),
       ...(site.minor ? { minor: true } : {}),
@@ -673,12 +736,12 @@
       fetch(`/api/editions/${editionId}/site-kinds`, {
         method: 'POST',
         headers: json,
-        body: JSON.stringify({ segmentId, siteKey: key, ...body }),
+        body: JSON.stringify({ segmentId: at, siteKey: key, ...body }),
       });
-    if (wasReviewed) await setReviewedKey(segmentId, key, false);
+    if (wasReviewed) await setReviewedKey(at, key, false);
     if (marked) await mark({ kind: null, minor: false });
     return async () => {
-      if (wasReviewed) await setReviewedKey(segmentId, key, true);
+      if (wasReviewed) await setReviewedKey(at, key, true);
       if (marked) await mark(said);
     };
   }
@@ -743,7 +806,13 @@
   async function setReviewed(segmentId: Id, site: Site, flag: boolean) {
     const segment = views[segmentId];
     if (!segment) return;
-    await setReviewedKey(segmentId, keyOfSite(segment, site), flag);
+    const key = keyOfSite(segment, site);
+    // Kept under the segment the variant stands in; taken back from whichever segment of the passage holds it.
+    const at = flag
+      ? standsIn(segment, site.index)
+      : (segment.segments.find((x) => (reviewed[x.segmentId] ?? []).includes(key))?.segmentId ??
+        standsIn(segment, site.index));
+    await setReviewedKey(at, key, flag);
   }
 
   async function setReviewedKey(segmentId: Id, key: string, flag: boolean) {
@@ -768,7 +837,7 @@
       method: 'POST',
       headers: json,
       body: JSON.stringify({
-        segmentId,
+        segmentId: standsIn(segment, site.index),
         siteKey: keyOfSite(segment, site),
         kind: site.kindByEditor ? null : kind,
       }),
@@ -790,7 +859,11 @@
     const response = await fetch(`/api/editions/${editionId}/site-kinds`, {
       method: 'POST',
       headers: json,
-      body: JSON.stringify({ segmentId, siteKey: keyOfSite(segment, site), minor }),
+      body: JSON.stringify({
+        segmentId: standsIn(segment, site.index),
+        siteKey: keyOfSite(segment, site),
+        minor,
+      }),
     });
     if (!response.ok) return;
     const current = views[segmentId];
@@ -810,12 +883,14 @@
   let conjectureOpen = $state(false);
   let conjectureDraft = $state.raw<ConjectureDraft | null>(null);
   let conjectureBusy = $state(false);
-  let conjectureTarget: { segmentId: Id; site: Site; anchor: Id[] } | null = null;
+  /** Where a conjecture is registered: its passage, the segment it names, the site and the words it is anchored to. */
+  let conjectureTarget: { passage: Id; segmentId: Id; site: Site; anchor: Id[] } | null = null;
 
   function openConjecture(segmentId?: Id, site?: Site) {
     if (!canEdit) return;
     let segment: SegmentViewClient | undefined;
     let target: Site | null = null;
+    let named: Id | null = null;
     if (segmentId && site) {
       segment = views[segmentId];
       target = site;
@@ -825,17 +900,26 @@
     } else {
       const anchor = selection.caret ?? selection.ids[0] ?? null;
       const id = anchor ? segmentOfItem(stream, anchor) : caretSegment;
-      segment = id ? views[id] : undefined;
+      segment = viewOf(id);
+      named = id;
       if (segment)
         target = selection.ids.length
           ? siteForTokens(segment, selection.ids)
           : insertionSite(segment, selection.caret);
     }
     if (!segment || !target) return;
-    if (stale.has(segment.segmentId)) {
+    if (isStale(segment)) {
       toasts.info(s.workspace.stillSaving);
       return;
     }
+    // The segment the conjecture names: the one its words begin in, or the one the variant is.
+    const firstWord = siteTokenIds(target, segment.baseUnits)[0];
+    const segmentOfTarget =
+      (target.index >= 0 ? unprintedAt(segment, target.index)?.segmentId : undefined) ??
+      (target.index >= 0 ? standsIn(segment, target.index) : undefined) ??
+      (firstWord ? segmentOfItem(stream, firstWord) : null) ??
+      named ??
+      segment.segmentId;
     let lemma = segment.baseUnits
       .slice(target.baseFrom, target.baseTo)
       .map((u) => u.text)
@@ -855,9 +939,14 @@
       reading = lemma;
       lemma = witnessed?.text ?? lemma;
     }
-    conjectureTarget = { segmentId: segment.segmentId, site: target, anchor };
+    conjectureTarget = {
+      passage: segment.segmentId,
+      segmentId: segmentOfTarget,
+      site: target,
+      anchor,
+    };
     conjectureDraft = {
-      segmentLabel: segment.label,
+      segmentLabel: labelOf[segmentOfTarget] ?? segment.label,
       lemma,
       kind: lemma ? 'substitution' : 'addition',
       reading,
@@ -898,7 +987,7 @@
       const { conjecture } = (await response.json()) as { conjecture: { id: Id } };
       conjectureOpen = false;
       refocus();
-      const segment = views[target.segmentId];
+      const segment = views[target.passage];
       if (adoptIt && segment) {
         // A lacuna is posited after the words, not instead of them.
         const site =
@@ -913,7 +1002,7 @@
           conjectureKind: draft.kind,
         };
         const before = stream;
-        const ops = opsForAttachment(before, segment, site, attachment);
+        const ops = opsForAttachment(before, segment, site, attachment, target.segmentId);
         const applied = applyOps(before, ops);
         reviewAfter.push({
           segmentId: target.segmentId,
@@ -921,7 +1010,10 @@
           before: tokenBefore(target.anchor, segment, site),
         });
         commit(ops, applied.stream, before);
-        lastAdoption = { reverse: applied.reverse, label: segment.label };
+        lastAdoption = {
+          reverse: applied.reverse,
+          label: labelOf[target.segmentId] ?? segment.label,
+        };
         await session.flush();
       } else {
         stale = new Set([...stale, target.segmentId]);
@@ -1039,11 +1131,14 @@
       if (!response.ok) throw new Error(response.statusText);
       const { note } = (await response.json()) as { note: SegmentViewClient['notes'][number] };
       const cites = citations.map((c) => formatCitation(c.label, c.prenote, c.postnote));
-      const segment = views[segmentId];
+      const segment = viewOf(segmentId);
       if (segment)
         views = {
           ...views,
-          [segmentId]: { ...segment, notes: [...segment.notes, { ...note, cites }] },
+          [segment.segmentId]: {
+            ...segment,
+            notes: [...segment.notes, { ...note, segmentId, cites }],
+          },
         };
       noteOpen = false;
     } catch {
@@ -1060,11 +1155,11 @@
       body: JSON.stringify({ id: noteId }),
     });
     if (!response.ok) return;
-    const segment = views[segmentId];
+    const segment = viewOf(segmentId);
     if (segment)
       views = {
         ...views,
-        [segmentId]: { ...segment, notes: segment.notes.filter((n) => n.id !== noteId) },
+        [segment.segmentId]: { ...segment, notes: segment.notes.filter((n) => n.id !== noteId) },
       };
   }
 
@@ -1247,7 +1342,7 @@
         segmentLabels={labelOf}
         {tokenClasses}
         {marginMarks}
-        onmarginmark={(segmentId) => void openUnprinted(segmentId)}
+        onmarginmark={(key) => void openUnprinted(key)}
         onops={onEditorOps}
         onselection={onSelection}
         onrequestsegment={(id, current) => void requestSegment(id, current)}
@@ -1377,7 +1472,7 @@
         {:else}
           <WitnessPane
             {sigla}
-            segmentIds={windowIds}
+            segmentIds={shownWithUnprinted}
             {labelOf}
             highlightTokenIds={witnessHighlight}
             bind:selected={witnessSiglum}
@@ -1439,6 +1534,7 @@
     </div>
     <div class="min-h-0 flex-1">
       <ApparatusBand
+        segmentIds={windowIds}
         segments={windowSegments}
         {active}
         {reviewed}
@@ -1451,7 +1547,7 @@
         onkind={(segmentId, site) => void setKind(segmentId, site)}
         onminor={(segmentId, site) => void setMinor(segmentId, site)}
         onregister={(segmentId, site) => openConjecture(segmentId, site)}
-        onfocus={(segmentId, site) => (site ? focusSite(segmentId, site) : focusLines(segmentId))}
+        onfocus={(id, site) => (site ? focusSite(id, site) : focusLines(id))}
         onwitness={showWitness}
         onnote={(segmentId) => {
           noteSegment = segmentId;

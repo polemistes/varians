@@ -13,19 +13,34 @@ import type {
   Unit,
 } from '@varians/core';
 import type { EditionConventions } from '@varians/db';
-import type { ReaderSiglumState } from '$lib/reader/types';
+import type { PassagePart, ReaderSiglumState } from '$lib/reader/types';
 
+/**
+ * A passage of the edition as the editor has it: one segment, or several
+ * collated together, known by its first.
+ */
 export interface SegmentViewClient {
+  /** The passage's first segment. */
   segmentId: string;
+  /** That segment's label. */
   label: string;
+  /** The segments of the passage in order, each with the edition's units it holds; one the edition does not print holds none. */
+  segments: PassagePart[];
   collation: Collation;
+  /** The edition's units of the passage, each naming the segment its word begins in. */
   baseUnits: Unit[];
+  /** The segments each variant's words lie in, by site index, in the order of the passage: the first is where it stands. */
+  siteSegments: Record<number, string[]>;
   entries: ApparatusEntry[];
-  attachments: Record<number, Attachment[]>;
-  unplaced: Attachment[];
+  /** Conjectures and reported readings by site index, each with the segment it names. */
+  attachments: Record<number, (Attachment & { segmentId?: string })[]>;
+  /** What no variant took, each with the segment it names. */
+  unplaced: (Attachment & { segmentId?: string })[];
   absent: string[];
   notes: {
     id: string;
+    /** The segment the note is on. */
+    segmentId?: string;
     tokenIds: string[];
     text: string;
     author: string | null;
@@ -35,8 +50,6 @@ export interface SegmentViewClient {
   cites?: Record<string, string[]>;
   /** Words taken from a witness that now reads otherwise there; `now` is empty when it no longer has them. */
   drift?: { tokenId: string; siglum: string; transcriptionId: string; now: string }[];
-  /** A segment the edition does not print and witnesses have: its variant stands after the edition's segment `after`. */
-  unprinted?: { after: string };
 }
 
 export interface SiglumClient {
@@ -66,18 +79,17 @@ export interface EditionViewClient {
   content: Stream;
   lines: LayoutLine[];
   sigla: SiglumClient[];
+  /** The passages given, by their first segment. */
   segments: Record<string, SegmentViewClient>;
   labelOf: Record<string, string>;
   /** Witnesses that order whole segments otherwise than the edition. */
   order: { siglum: string; moved: string[]; after: string | null }[];
   /** The same as variants: over a stretch of the edition's segments, the segments in each order, the edition's first. */
   orderVariants: OrderVariant[];
-  /** The segments the edition does not print that witnesses have, in the work's order, each after the edition's segment it follows. */
-  unprinted: { segmentId: string; after: string }[];
   atVersion: number | null;
 }
 
-/** Which site the editor is looking at. */
+/** Which site the editor is looking at: by its passage's first segment and its index there. */
 export interface ActiveSite {
   segmentId: string;
   siteIndex: number;

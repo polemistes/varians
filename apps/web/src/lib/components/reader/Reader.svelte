@@ -25,13 +25,8 @@
   import { DEFAULT_SIGLA, printLine } from '$lib/reader/marks';
   import { findHits, searchIndex, type SearchHit, type SearchLine } from '$lib/reader/search';
   import { EditionText } from '$lib/reader/edition-text';
-  import {
-    orderVariantOf,
-    variantOf,
-    variantsOf,
-    withUnprinted,
-    type VariantContext,
-  } from '$lib/reader/variant';
+  import { orderVariantOf, variantOf, variantsOf, type VariantContext } from '$lib/reader/variant';
+  import { mergePassages, passageIndex, passagesOf, unprintedAt } from '$lib/reader/passages';
   import { lineMarks } from '$lib/reader/line-marks';
   import {
     DEFAULT_SETTINGS,
@@ -42,6 +37,7 @@
   } from '$lib/reader/settings';
   import {
     anyMinor,
+    asPassage,
     entriesBySegment,
     entryBySite,
     listingMinor,
@@ -49,6 +45,7 @@
     orderKey,
     parseOrderKey,
     parseSiteKey,
+    segmentParts,
     siteByToken,
     siglaOrderOf,
     siteOf,
@@ -89,13 +86,17 @@
   let settings = $state<ReaderSettings>({ ...DEFAULT_SETTINGS });
   let live = $state(false);
 
-  // The places of the segments the page was not sent when it opened, as they have come.
+  // The passages of the segments the page was not sent when it opened, as they have come.
   let arrived = $state.raw<Record<string, ReaderSegment>>({});
   const sent = $derived(
-    Object.keys(arrived).length > 0 ? { ...data.segments, ...arrived } : data.segments,
+    Object.keys(arrived).length > 0 ? mergePassages(data.segments, arrived) : data.segments,
   );
   /** What the page works with: a minor variant is in it, like any other, only when the reader asks for them. */
   const segments = $derived(withMinor(sent, settings.showMinor));
+  /** The passage of each segment, by its first segment. */
+  const passageOf = $derived(passageIndex(Object.values(sent).map(asPassage)));
+  /** What belongs to each segment as a whole: its unplaced records and notes, and who is without its passage. */
+  const parts = $derived(segmentParts(segments));
 
   // What the edition is: fixed for a page.
   const conventionsOfEdition = $derived(data.edition.conventions);
@@ -119,7 +120,7 @@
   const order = $derived(
     blocks
       .flatMap((block) => block.segmentIds)
-      .map((id) => ({ label: data.labelOf[id] ?? id, absent: segments[id]?.absent ?? [] })),
+      .map((id) => ({ label: data.labelOf[id] ?? id, absent: parts[id]?.absent ?? [] })),
   );
   const speakerDisplay = $derived(conventionsOfEdition.speakerDisplay ?? 'margin');
   const marginSpeakers = $derived(
@@ -201,6 +202,7 @@
     labelOf: data.labelOf,
     order: segmentOrder,
     orders: data.orderVariants,
+    passages: segments,
   });
   /** The marks in the margin of the lines: for variants over whole lines. */
   const margin = $derived(
@@ -208,7 +210,6 @@
       segmentsOfLine,
       segments,
       shown: entryMap,
-      unprinted: data.unprinted,
       orders: data.orderVariants,
       context: variantContext,
     }),
@@ -234,8 +235,8 @@
     return block.segmentIds.some(
       (id) =>
         (printEntries.get(id)?.length ?? 0) > 0 ||
-        (segments[id]?.unplaced.length ?? 0) > 0 ||
-        (segments[id]?.notes.length ?? 0) > 0,
+        (parts[id]?.unplaced.length ?? 0) > 0 ||
+        (parts[id]?.notes.length ?? 0) > 0,
     );
   }
 
@@ -338,11 +339,23 @@
     untrack(() => void fetchPending(ids, url, baseId));
   });
 
-  /** A segment with its detail, when that has come: the words each text has at each place. */
+  /** A passage with its detail, when that has come: the words each text has at each place. */
   function fullSegment(id: string) {
     const segment = segments[id];
     const detail = details.get(data.detail, id);
     return segment && detail ? withDetail(segment, detail) : segment;
+  }
+
+  /** A witness's units over the segments of a passage, in the passage's order, as its alignment counts them. */
+  function unitsOver(textId: string, passage: ReaderSegment | undefined) {
+    if (!passage) return undefined;
+    const out = [];
+    for (const part of passage.segments) {
+      const got = texts.get(textId, part.segmentId);
+      if (!got) return undefined;
+      out.push(...got.units);
+    }
+    return out;
   }
 
   // The segments on screen, while a panel needs them.
@@ -395,7 +408,7 @@
       const segment = fullSegment(ref.segmentId);
       const fallback = {
         aligned: segment?.aligned?.[textId],
-        units: texts.get(textId, ref.segmentId)?.units,
+        units: unitsOver(textId, segment),
       };
       for (const id of witnessTokensAt(siteOf(segment, ref.siteIndex), textId, fallback))
         if (!ids.includes(id)) ids.push(id);
@@ -413,7 +426,7 @@
     if (!panelsOpen) return;
     const ids = [
       ...[...activeKeys, ...hoveredKeys].flatMap((key) => parseSiteKey(key)?.segmentId ?? []),
-      ...visibleSegments.slice(0, 40),
+      ...passagesOf(visibleSegments.slice(0, 40), passageOf),
     ];
     if (ids.length) untrack(() => void details.load(data.detail, ids));
   });
@@ -422,7 +435,11 @@
   $effect(() => {
     const tid = transcriptionId;
     if (!panelsOpen || !tid || activeKeys.length === 0) return;
-    const ids = activeKeys.flatMap((key) => parseSiteKey(key)?.segmentId ?? []);
+    // Every segment of the passages of the open entries: the witness's words of a variant may lie in any.
+    const ids = activeKeys.flatMap((key) => {
+      const passage = segments[parseSiteKey(key)?.segmentId ?? ''];
+      return passage ? passage.segments.map((s) => s.segmentId) : [];
+    });
     untrack(() => void texts.load(tid, ids));
   });
 
@@ -438,22 +455,17 @@
       const variant =
         segment && entryMap.has(key) ? variantOf(segment, ref!.siteIndex, variantContext) : null;
       if (!variant) return [];
-      // A line the edition does not print is at no address of the edition's.
-      const permalink = segment?.unprinted ? null : segmentHref(variant.label);
+      // A line the edition does not print is at no address of the edition's; another goes to its first segment.
+      const permalink = unprintedAt(asPassage(segment!), ref!.siteIndex)
+        ? null
+        : segmentHref(data.labelOf[variant.stands] ?? variant.label);
       return [{ key, label: variant.label, variant, permalink }];
     }),
   );
 
   /** The variants of the lines on screen, with the lines the edition does not print that follow them, while the list of variants is open. */
   const variantGroups = $derived(
-    variantsOpen
-      ? variantsOf(
-          withUnprinted(visibleSegments, data.unprinted),
-          segments,
-          entryMap,
-          variantContext,
-        )
-      : [],
+    variantsOpen ? variantsOf(visibleSegments, segments, entryMap, variantContext) : [],
   );
 
   /** Light the words and entries of some sites, by a data attribute the components style. */
@@ -778,7 +790,7 @@
                   <ApparatusBlock
                     segmentIds={block.segmentIds}
                     entries={printEntries}
-                    {segments}
+                    segments={parts}
                     labelOf={data.labelOf}
                     {conventions}
                     {side}

@@ -6,10 +6,7 @@ import {
   newId,
   adoptConjecture,
   adoptReading,
-  printReading,
-  printSegment,
   replaceAtSite,
-  tokensFromConjecture,
   siteKey,
   siteTokenIds,
   type Attachment,
@@ -22,17 +19,17 @@ import {
   type Unit,
 } from '@varians/core';
 
-/** The part of a segment view the client needs for adopting. */
+/** The part of a passage's view the client needs for adopting. */
 export interface SegmentForAdoption {
+  /** The passage's first segment. */
   segmentId: Id;
   collation: Collation;
+  /** The edition's units of the passage, each naming the segment its word begins in. */
   baseUnits: Unit[];
   attachments: Record<number, Attachment[]>;
-  /** A segment the edition does not print: adopting a reading of it prints it after the segment `after`. */
-  unprinted?: { after: Id };
 }
 
-/** A map from token id to the site that covers it, over several segments. */
+/** A map from token id to the site that covers it, over several passages. */
 export function sitesByToken(
   segments: Iterable<SegmentForAdoption>,
 ): Map<Id, { segmentId: Id; site: Site }> {
@@ -53,7 +50,11 @@ export function insertionSitesAfter(segment: SegmentForAdoption, tokenId: Id): S
   return segment.collation.sites.filter((s) => s.baseFrom === s.baseTo && s.baseFrom === index + 1);
 }
 
-/** Operations adopting a witness reading of a site. */
+/**
+ * Operations adopting a witness reading of a site: its words, each in the
+ * segment the witness gives it. Words of a segment the edition does not
+ * have (at a segment it does not print) stand on a line of their own.
+ */
 export function opsForReading(
   stream: Stream,
   segment: SegmentForAdoption,
@@ -61,9 +62,7 @@ export function opsForReading(
   reading: Reading,
   textId: Id,
 ): Op[] {
-  if (segment.unprinted)
-    return printReading(stream, segment.segmentId, segment.unprinted.after, reading, textId);
-  return adoptReading(stream, site, segment.baseUnits, reading, textId);
+  return adoptReading(stream, site, segment.baseUnits, reading, textId, { ownLine: true });
 }
 
 /**
@@ -90,15 +89,17 @@ export function opsForDeletion(
   return ops;
 }
 
-/** Operations adopting a conjecture or reported reading attached to a site. */
+/**
+ * Operations adopting a conjecture or reported reading attached to a site.
+ * Its words take the segment the record names (`segmentId`), where given.
+ */
 export function opsForAttachment(
   stream: Stream,
   segment: SegmentForAdoption,
   site: Site,
   attachment: Attachment,
+  segmentId?: Id,
 ): Op[] {
-  if (segment.unprinted)
-    return opsPrintingAttachment(stream, segment.segmentId, segment.unprinted.after, attachment);
   if (attachment.kind === 'conjecture' && attachment.conjectureKind === 'deletion') {
     return opsForDeletion(stream, segment, site, attachment.id);
   }
@@ -112,49 +113,23 @@ export function opsForAttachment(
         form,
         source: { kind: 'editor' as const },
       }));
-    return replaceAtSite(stream, site, segment.baseUnits, tokens);
+    return replaceAtSite(stream, site, segment.baseUnits, tokens, {
+      ownLine: true,
+      ...(segmentId !== undefined ? { segments: tokens.map(() => segmentId) } : {}),
+    });
   }
-  return adoptConjecture(stream, site, segment.baseUnits, {
-    id: attachment.id,
-    reading: attachment.text,
-    kind: attachment.conjectureKind ?? 'substitution',
-  });
-}
-
-/**
- * A conjecture or reported reading adopted at a segment the edition does not
- * print: its words printed as the segment, or a lacuna mark where a lacuna
- * is posited. A deletion of what is not printed changes nothing.
- */
-function opsPrintingAttachment(
-  stream: Stream,
-  segmentId: Id,
-  after: Id,
-  attachment: Attachment,
-): Op[] {
-  const print = (items: Parameters<typeof printSegment>[3]) =>
-    printSegment(stream, segmentId, after, items);
-  if (attachment.kind === 'reported')
-    return print(
-      attachment.text
-        .split(/\s+/u)
-        .filter((w) => w)
-        .map((form) => ({ kind: 'token', id: newId(), form, source: { kind: 'editor' } })),
-    );
-  switch (attachment.conjectureKind) {
-    case 'deletion':
-      return [];
-    case 'lacuna':
-      return print([
-        { kind: 'object', id: newId(), type: 'lacuna', attrs: { conjectureId: attachment.id } },
-      ]);
-    default:
-      return print(
-        tokensFromConjecture(attachment.text, attachment.id, {
-          supplied: attachment.conjectureKind === 'supplement',
-        }),
-      );
-  }
+  return adoptConjecture(
+    stream,
+    site,
+    segment.baseUnits,
+    {
+      id: attachment.id,
+      reading: attachment.text,
+      kind: attachment.conjectureKind ?? 'substitution',
+      ...(segmentId !== undefined ? { segmentId } : {}),
+    },
+    { ownLine: true },
+  );
 }
 
 /** The review key of a site, from the edition's tokens it covers. */
@@ -174,14 +149,18 @@ export function needsReview(
   return substantive || pending;
 }
 
-/** How many sites of the given segments still need attention. */
+/** How many sites of the given passages still need attention, by the review keys kept under each segment. */
 export function countUnreviewed(
   segments: Iterable<SegmentForAdoption>,
   reviewed: Map<Id, Set<string>>,
 ): number {
   let n = 0;
   for (const segment of segments) {
-    const set = reviewed.get(segment.segmentId) ?? new Set<string>();
+    const ids = new Set([
+      segment.segmentId,
+      ...segment.baseUnits.flatMap((u) => u.segmentId ?? []),
+    ]);
+    const set = new Set([...ids].flatMap((id) => [...(reviewed.get(id) ?? [])]));
     for (const site of segment.collation.sites) if (needsReview(segment, site, set)) n++;
   }
   return n;

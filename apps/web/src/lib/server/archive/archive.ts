@@ -13,6 +13,7 @@
 import { materialLabel } from '$lib/registry/witness';
 import {
   apparatusEntries,
+  type Collation,
   splitEntries,
   exportEditionTei,
   shownBreaks,
@@ -80,12 +81,13 @@ import {
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { and, asc, desc, eq, inArray, isNotNull, lte, or } from 'drizzle-orm';
-import { collateEdition } from '../collation.ts';
+import { collateEdition } from '../passages.ts';
+import { segmentShares } from '../../reader/export.ts';
 import { documentAt } from '../documents/service.ts';
 import { exportHands, teiForm } from '../witness-format.ts';
-import { apparatusConventionsOf, contextAt } from '../reader.ts';
+import { apparatusConventionsOf, contextAt, segmentsOfSites } from '../reader.ts';
 import { basisForArchive } from '../site-marks.ts';
-import { siglaOrderOf } from '../../reader/sites.ts';
+import { labelOfSegments, siglaOrderOf } from '../../reader/sites.ts';
 import { chosenWorksOf } from '../transcription-works.ts';
 import { safeJoin } from '../images/safe-join.ts';
 import { dataLicence, siteName } from '../settings.ts';
@@ -1366,7 +1368,19 @@ export async function editionText(
   // The text as the edition shows it: the lines of a prose paragraph run on, and a divided word is hyphenated where a shown line ends.
   const shown = shownBreaks(context.edition.content.items, row!.conventions.lineation ?? 'verse');
   const leading = context.edition.content.items[0];
-  const collations = await collateEdition(db, context);
+  const passages = await collateEdition(db, context);
+  const labels = Object.fromEntries(labelOf);
+  const shares = segmentShares(
+    passages.map((p) => ({
+      segmentId: p.segmentId,
+      label: labelOf.get(p.segmentId) ?? p.segmentId,
+      segments: p.segments,
+      siteSegments: segmentsOfSites(p.collation.sites, p.baseUnits, p.segments),
+      collation: p.collation,
+      baseUnits: p.baseUnits,
+      attachments: {},
+    })),
+  );
   const plain: string[] = [];
   const markdown: string[] = [];
   const segmentsOut: Parameters<typeof exportEditionTei>[0]['segments'] = [];
@@ -1382,10 +1396,21 @@ export async function editionText(
       context.edition.content.items.slice(run.from, run.to),
     );
     const text = toText({ items }, { form: 'read', shown });
-    const collation = collations.get(segmentId);
-    const { main, interpretative } = collation
-      ? splitEntries(apparatusEntries(collation, label, {}, conventions, siglaOrder), conventions)
-      : { main: [], interpretative: [] };
+    const share = shares.get(segmentId);
+    // A variant stands under the segment its words begin in, labelled by the segments they lie in.
+    const entries = share
+      ? apparatusEntries(
+          { ...share.passage.collation, sites: share.sites } as Collation,
+          label,
+          {},
+          conventions,
+          siglaOrder,
+        ).map((entry) => {
+          const ids = share.passage.siteSegments[entry.siteIndex] ?? [];
+          return ids.length ? { ...entry, label: labelOfSegments(ids, labels) } : entry;
+        })
+      : [];
+    const { main, interpretative } = splitEntries(entries, conventions);
     const app = [
       ...formatApparatus(main, conventions),
       ...formatApparatus(interpretative, conventions).map((line) => `Interpretative: ${line}`),
@@ -1394,9 +1419,9 @@ export async function editionText(
     for (const line of app) plain.push(`    ${line}`);
     markdown.push(`**${label}** ${text}  `);
     for (const line of app) markdown.push(`> ${line}  `);
-    const baseUnits = segmentRunsHere.flatMap((run) =>
-      units(context.edition.content, run.from, run.to),
-    );
+    const baseUnits =
+      share?.baseUnits ??
+      segmentRunsHere.flatMap((run) => units(context.edition.content, run.from, run.to));
     segmentsOut.push({
       label,
       id: segmentId,
@@ -1407,7 +1432,7 @@ export async function editionText(
           ? [leading, ...items]
           : items,
       baseUnits,
-      sites: collation?.sites ?? [],
+      sites: share?.sites ?? [],
     });
   }
   return {

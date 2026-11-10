@@ -21,11 +21,14 @@ import {
   type LayoutLine,
   type OrderVariant,
   type OrderWitness,
+  type PassageSegment,
+  type Site,
   type Stream,
   type Token,
   type Unit,
   units,
   licenceInfo,
+  siteSegments,
 } from '@varians/core';
 import {
   conjectures,
@@ -48,43 +51,63 @@ import { createHash } from 'node:crypto';
 import { MAX_REFRESH, PUBLIC, recordFilter, type Audience } from './audience.ts';
 import { citationsByRecord } from './bibliography.ts';
 import {
-  collateSegments,
-  editionUnits,
   loadEditionContext,
   loadWitnessHands,
   segmentOrderOf,
-  unprintedSegments,
-  withUnprinted,
   type EditionContext,
-  type Unprinted,
 } from './collation.ts';
+import { collatePassagesFor, marksOf, type PassageResult } from './passages.ts';
 import { marksAtPublication } from './site-marks.ts';
 import { collationStateOf, normalizeSiglum, type ConspectusEntry } from './sigla.ts';
 import { handLabel } from '../registry/witness.ts';
 import type { ReaderSiglumState } from '../reader/types.ts';
 import { reader as r } from '../strings/reader.ts';
 import { documentAt } from './documents/service.ts';
-import { siglaOrderOf } from '../reader/sites.ts';
+import { labelOfSegments, siglaOrderOf } from '../reader/sites.ts';
 import { outlineOf, type SegmentOutline } from '../edition/outline.ts';
 
+/**
+ * The view of one passage of the edition (section 3.10 of the design): one
+ * segment, or several consecutive segments collated together, known by its
+ * first. It holds the variants of all its segments, the edition's words of
+ * them in one list, and where each segment begins among those words.
+ */
 export interface SegmentView {
+  /** The passage's first segment, by which the view is known. */
   segmentId: string;
+  /** The label of that segment. */
   label: string;
+  /**
+   * The segments of the passage in order, each with its label and the
+   * edition's units it holds, [from, to); a segment the edition does not
+   * print and witnesses have stands after the segment it follows, and holds
+   * none.
+   */
+  segments: (PassageSegment & { label: string })[];
   collation: Collation;
+  /** The edition's units of the passage, each naming the segment its word begins in. */
   baseUnits: Unit[];
+  /** The segments each variant's words lie in, by site index, in the order of the passage: the first is where it stands. */
+  siteSegments: Record<number, string[]>;
   entries: ApparatusEntry[];
-  /** Attachments by site index, for the editor's adopt buttons. */
-  attachments: Record<number, Attachment[]>;
-  unplaced: Attachment[];
-  /** Sigla of witnesses without this segment at all. */
+  /** Attachments by site index, for the editor's adopt buttons, each with the segment it names. */
+  attachments: Record<number, (Attachment & { segmentId?: string })[]>;
+  /** Conjectures and reported readings no variant took, each with the segment it names. */
+  unplaced: (Attachment & { segmentId?: string })[];
+  /** Sigla of witnesses without any of the passage. */
   absent: string[];
-  notes: { id: string; tokenIds: string[]; text: string; author: string | null; cites: string[] }[];
+  notes: {
+    id: string;
+    segmentId: string;
+    tokenIds: string[];
+    text: string;
+    author: string | null;
+    cites: string[];
+  }[];
   /** What the conjectures and reported readings attached here cite, by attachment id: "cf. West 1998, 45". */
   cites: Record<string, string[]>;
   /** Words of the edition taken from a witness that now reads differently there. `now` is empty when the witness no longer has them. */
   drift: Drift[];
-  /** A segment the edition does not print and witnesses have: its variant stands after the edition's segment `after`. */
-  unprinted?: { after: string };
 }
 
 export interface Drift {
@@ -391,19 +414,13 @@ export interface EditionView {
     states: ReaderSiglumState[];
     variantSiglum: string | null;
   }[];
+  /** The passages made, by their first segment. */
   segments: Record<string, SegmentView>;
   labelOf: Record<string, string>;
   /** Witnesses that order whole segments otherwise than the edition. */
   order: OrderStatement[];
   /** The same as variants: over a stretch of the edition's segments, the segments in each order. */
   orderVariants: OrderVariant[];
-  /**
-   * The segments the edition does not print that witnesses have, in the
-   * work's order, each with the edition's segment it stands after: all of
-   * them, whether or not their views were made. Their views are among
-   * `segments` like any other's.
-   */
-  unprinted: Unprinted[];
   /** The version shown, when not the current one. */
   atVersion: number | null;
   /** Segments wanted whose views were not made, for want of the collation budget: nearest the one asked for first. */
@@ -494,38 +511,27 @@ export async function editionView(
     variantSiglum: s.variantSiglum,
   }));
   const inEdition = segmentOrderOf(context.edition.content);
-  // The segments the edition does not print are made like any other, each after the one it follows.
-  const unprinted = unprintedSegments(context);
-  const sequence = withUnprinted(inEdition, unprinted);
-  const present = new Set(sequence);
+  // Asked by segments, given passages: a segment the edition does not print comes in the passage of the one it follows.
   const wanted = options.segments
-    ? options.segments.filter((id) => present.has(id))
-    : options.first !== undefined
-      ? options.first < inEdition.length
-        ? sequence.slice(0, sequence.indexOf(inEdition[options.first]!))
-        : sequence
-      : sequence;
+    ? options.segments
+    : options.first !== undefined && options.first < inEdition.length
+      ? inEdition.slice(0, options.first)
+      : null;
   const near =
     options.near === undefined
       ? undefined
       : labelOf[options.near] !== undefined
         ? options.near
         : Object.keys(labelOf).find((id) => labelOf[id] === options.near);
-  const collations = await collateSegments(db, context, wanted, {
+  const { passages, pending } = await collatePassagesFor(db, context, wanted, {
     ...(options.budget !== undefined ? { budget: options.budget } : {}),
     ...(near !== undefined ? { near } : {}),
   });
-  const pending = wanted.filter((id) => !collations.has(id));
-  if (near !== undefined && pending.length > 1) {
-    const position = new Map(wanted.map((id, i) => [id, i] as const));
-    const at = position.get(near) ?? 0;
-    pending.sort((a, b) => Math.abs(position.get(a)! - at) - Math.abs(position.get(b)! - at));
-  }
   const views = await buildSegmentViews(
     db,
     context,
     row,
-    collations,
+    passages,
     labelOf,
     witnessById,
     asOf,
@@ -536,7 +542,6 @@ export async function editionView(
       notes: options.detail !== false,
     },
   );
-  markUnprinted(views, unprinted);
   const order = options.order === false ? null : orderOf(context);
   const lineation = row.conventions.lineation ?? 'verse';
   return {
@@ -575,7 +580,6 @@ export async function editionView(
     labelOf,
     order: order?.statements ?? [],
     orderVariants: order?.variants ?? [],
-    unprinted,
     atVersion: atVersion !== null && atVersion !== row.version ? atVersion : null,
     pending,
   };
@@ -691,36 +695,42 @@ export async function editionOutline(
     loadEditionContext(db, editionId),
     editionMeta(db, editionId),
   ]);
-  const ids = withUnprinted(segmentOrderOf(context.edition.content), unprintedSegments(context));
-  const [collations, witnessById, segmentRows] = await Promise.all([
-    collateSegments(db, context, ids),
+  const [{ passages }, witnessById, labelOf] = await Promise.all([
+    collatePassagesFor(db, context, null),
     witnessesOf(db, context),
-    db
-      .select({ id: segments.id, label: segments.label })
-      .from(segments)
-      .where(eq(segments.workId, row.workId)),
+    labelsOfWork(db, row.workId),
   ]);
-  const labelOf: Record<string, string> = {};
-  for (const s of segmentRows) labelOf[s.id] = s.label;
   const views = await buildSegmentViews(
     db,
     context,
     row,
-    collations,
+    passages,
     labelOf,
     witnessById,
     null,
     audience,
     { entries: false, notes: false },
   );
-  markUnprinted(views, unprintedSegments(context));
   return {
-    outline: Object.fromEntries(ids.map((id) => [id, outlineOf(views[id]!)] as const)),
+    outline: Object.fromEntries(
+      passages.map((p) => [p.segmentId, outlineOf(views[p.segmentId]!)] as const),
+    ),
     labelOf,
   };
 }
 
-/** The views of some segments only, for the editor after a change: collated from the current content. */
+/** The labels of a work's segments, by id. */
+async function labelsOfWork(db: Database, workId: string): Promise<Record<string, string>> {
+  const rows = await db
+    .select({ id: segments.id, label: segments.label })
+    .from(segments)
+    .where(eq(segments.workId, workId));
+  const labelOf: Record<string, string> = {};
+  for (const s of rows) labelOf[s.id] = s.label;
+  return labelOf;
+}
+
+/** The views of the passages that hold some segments, for the editor after a change: collated from the current content. */
 export async function segmentViewsFor(
   db: Database,
   editionId: string,
@@ -730,7 +740,12 @@ export async function segmentViewsFor(
   return (await refreshView(db, editionId, segmentIds, audience)).segments;
 }
 
-/** The views of some segments, and how the whole edition's segments stand to the witnesses', from the current content. */
+/**
+ * The views of the passages that hold some segments, and how the whole
+ * edition's segments stand to the witnesses', from the current content. The
+ * plan of passages around the segments is made again, so that an edit that
+ * joins two passages or parts them gives the passages as they now are.
+ */
 export async function refreshView(
   db: Database,
   editionId: string,
@@ -740,7 +755,6 @@ export async function refreshView(
   segments: Record<string, SegmentView>;
   order: OrderStatement[];
   orderVariants: OrderVariant[];
-  unprinted: Unprinted[];
 }> {
   const [context, row] = await Promise.all([
     loadEditionContext(db, editionId),
@@ -748,46 +762,29 @@ export async function refreshView(
   ]);
   // Segments of this work only, and a bounded number of them: the editor asks for those it has on screen.
   const asked = [...new Set(segmentIds)].slice(0, MAX_REFRESH);
-  const segmentRows = asked.length
-    ? await db
-        .select()
-        .from(segments)
-        .where(and(inArray(segments.id, asked), eq(segments.workId, row.workId)))
-    : [];
-  const wanted = segmentRows.map((s) => s.id);
-  const labelOf: Record<string, string> = {};
-  for (const s of segmentRows) labelOf[s.id] = s.label;
+  const labelOf = await labelsOfWork(db, row.workId);
+  const wanted = asked.filter((id) => labelOf[id] !== undefined);
   const witnessById = await witnessesOf(db, context);
-  const collations = await collateSegments(db, context, wanted);
+  const { passages } = await collatePassagesFor(db, context, wanted);
   const views = await buildSegmentViews(
     db,
     context,
     row,
-    collations,
+    passages,
     labelOf,
     witnessById,
     null,
     audience,
   );
-  const unprinted = unprintedSegments(context);
-  markUnprinted(views, unprinted);
   const order = orderOf(context);
-  return { segments: views, order: order.statements, orderVariants: order.variants, unprinted };
-}
-
-/** Say of the views of segments the edition does not print which segment they stand after. */
-function markUnprinted(views: Record<string, SegmentView>, unprinted: readonly Unprinted[]): void {
-  for (const u of unprinted) {
-    const view = views[u.segmentId];
-    if (view) view.unprinted = { after: u.after };
-  }
+  return { segments: views, order: order.statements, orderVariants: order.variants };
 }
 
 async function buildSegmentViews(
   db: Database,
   context: EditionContext,
   row: EditionMeta,
-  collations: Map<string, Collation>,
+  passages: readonly PassageResult[],
   labelOf: Record<string, string>,
   witnessById: Map<string, typeof witnesses.$inferSelect>,
   asOf: Date | null = null,
@@ -797,7 +794,8 @@ async function buildSegmentViews(
   const editionId = row.id;
   const siglumOfWitness = new Map(context.sigla.map((s) => [s.witnessId, s.siglum] as const));
   const conventions = apparatusConventionsOf(row.conventions);
-  const segmentIds = [...collations.keys()];
+  // The records of every segment of the passages: those the edition does not print among them.
+  const segmentIds = passages.flatMap((p) => p.segments.map((s) => s.segmentId));
   const adopted = new Set(
     (await db.select().from(editionAdoptions).where(eq(editionAdoptions.editionId, editionId))).map(
       (a) => a.conjectureId,
@@ -900,12 +898,20 @@ async function buildSegmentViews(
     if (s.transcriptionId && !siglumOfText.has(s.transcriptionId))
       siglumOfText.set(s.transcriptionId, s.siglum);
   const views: Record<string, SegmentView> = {};
-  for (const [segmentId, collation] of collations) {
-    const baseUnits = editionUnits(context.edition.content, segmentId);
-    const conjecturesHere = conjecturesAt.get(segmentId) ?? [];
-    const reportedHere = reportedAt.get(segmentId) ?? [];
+  for (const passage of passages) {
+    const { segmentId, baseUnits, collation } = passage;
+    const here = passage.segments.map((s) => s.segmentId);
+    const conjecturesHere = here.flatMap((id) => conjecturesAt.get(id) ?? []);
+    const reportedHere = here.flatMap((id) => reportedAt.get(id) ?? []);
+    // A record is looked for in its own segment only, so that the same words in a neighbouring one are not taken.
+    const rangeOf = (id: string) => {
+      const part = passage.segments.find((s) => s.segmentId === id);
+      return part ? { range: { from: part.from, to: part.to } } : {};
+    };
+    const segmentOfRecord = new Map<string, string>();
     const candidates: AttachmentCandidate[] = [
       ...conjecturesHere.map((c) => {
+        segmentOfRecord.set(c.id, c.segmentId);
         const candidate: AttachmentCandidate = {
           id: c.id,
           kind: 'conjecture',
@@ -913,18 +919,21 @@ async function buildSegmentViews(
           reading: c.reading,
           name: c.proposer ?? 'this edition',
           conjectureKind: c.kind,
+          ...rangeOf(c.segmentId),
         };
         if (adopted.has(c.id)) candidate.adopted = true;
         if (c.anchor && 'tokenIds' in c.anchor) candidate.anchorTokenIds = c.anchor.tokenIds;
         return candidate;
       }),
       ...reportedHere.map((r) => {
+        segmentOfRecord.set(r.id, r.segmentId);
         const candidate: AttachmentCandidate = {
           id: r.id,
           kind: 'reported',
           lemma: r.lemma,
           reading: r.reading,
           name: siglumOfWitness.get(r.witnessId) ?? witnessById.get(r.witnessId)?.siglum ?? '?',
+          ...rangeOf(r.segmentId),
         };
         if (r.source) candidate.source = `(${r.source})`;
         return candidate;
@@ -932,32 +941,50 @@ async function buildSegmentViews(
     ];
     const attached = attachToSites(collation, baseUnits, candidates, context.profile.fold);
     // The places a conjecture or reported reading makes take the editor's marks too.
-    attached.collation = applySiteKinds(
-      attached.collation,
-      baseUnits,
-      context.siteKinds.get(segmentId),
-    );
+    attached.collation = applySiteKinds(attached.collation, baseUnits, marksOf(context, passage));
+    const siteSegments = segmentsOfSites(attached.collation.sites, baseUnits, passage.segments);
     const label = labelOf[segmentId] ?? segmentId;
     const absent = collation.absent.map((id) => siglumOfText.get(id) ?? id);
     views[segmentId] = {
       segmentId,
       label,
+      segments: passage.segments.map((s) => ({ ...s, label: labelOf[s.segmentId] ?? s.segmentId })),
       collation: attached.collation,
       baseUnits,
+      siteSegments,
       entries:
         parts.entries === false
           ? []
-          : apparatusEntries(attached.collation, label, attached.bySite, conventions, siglaOrder),
-      attachments: attached.bySite,
-      unplaced: attached.unplaced,
+          : labelledEntries(
+              apparatusEntries(attached.collation, label, attached.bySite, conventions, siglaOrder),
+              siteSegments,
+              labelOf,
+            ),
+      // Each record with the segment it names, which an adopted conjecture's words take.
+      attachments: Object.fromEntries(
+        Object.entries(attached.bySite).map(([index, list]) => [
+          index,
+          list.map((a) => {
+            const at = segmentOfRecord.get(a.id);
+            return at ? { ...a, segmentId: at } : a;
+          }),
+        ]),
+      ),
+      unplaced: attached.unplaced.map((a) => {
+        const at = segmentOfRecord.get(a.id);
+        return at ? { ...a, segmentId: at } : a;
+      }),
       absent,
-      notes: (notesAt.get(segmentId) ?? []).map((n) => ({
-        id: n.id,
-        tokenIds: n.tokenIds,
-        text: n.text,
-        author: n.author,
-        cites: noteCites.get(n.id) ?? [],
-      })),
+      notes: here.flatMap((id) =>
+        (notesAt.get(id) ?? []).map((n) => ({
+          id: n.id,
+          segmentId: n.segmentId,
+          tokenIds: n.tokenIds,
+          text: n.text,
+          author: n.author,
+          cites: noteCites.get(n.id) ?? [],
+        })),
+      ),
       drift:
         parts.drift === false
           ? []
@@ -973,6 +1000,33 @@ async function buildSegmentViews(
     };
   }
   return views;
+}
+
+/** The segments of each site's words, by site index, in the order of the passage. */
+export function segmentsOfSites(
+  sites: readonly Site[],
+  baseUnits: readonly Unit[],
+  segments: readonly PassageSegment[],
+): Record<number, string[]> {
+  const rank = new Map(segments.map((s, k) => [s.segmentId, k] as const));
+  const out: Record<number, string[]> = {};
+  for (const site of sites)
+    out[site.index] = siteSegments(site, baseUnits as Unit[]).sort(
+      (a, b) => (rank.get(a) ?? 0) - (rank.get(b) ?? 0),
+    );
+  return out;
+}
+
+/** The entries of a passage, each under the label of the segments its words lie in ("1.5", "1.5–1.6"). */
+function labelledEntries(
+  entries: ApparatusEntry[],
+  siteSegments: Record<number, string[]>,
+  labelOf: Record<string, string>,
+): ApparatusEntry[] {
+  return entries.map((entry) => {
+    const ids = siteSegments[entry.siteIndex];
+    return ids?.length ? { ...entry, label: labelOfSegments(ids, labelOf) } : entry;
+  });
 }
 
 export type { EditionContext };

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   applyOps,
   collate,
+  collatePassages,
   fromText,
+  siteSegments,
   sequentialIds,
   toText,
   units,
@@ -11,7 +13,8 @@ import {
 } from '@varians/core';
 import { opsForAttachment, opsForReading } from './adopt-client.ts';
 import type { SegmentViewClient } from './types.ts';
-import { outlineOf } from './outline.ts';
+import { outlineOf, type SegmentOutline } from './outline.ts';
+import { unprintedAt } from '$lib/reader/passages';
 import {
   activeSiteFor,
   insertedIds,
@@ -25,7 +28,7 @@ import {
   stepSite,
   tokenClassesFor,
   unprintedMarks,
-  windowWithUnprinted,
+  windowAround,
   witnessIndex,
   witnessTokensAt,
   moveLinesOps,
@@ -51,8 +54,10 @@ function view(
     segment: {
       segmentId,
       label: segmentId,
+      segments: [{ segmentId, label: segmentId, from: 0, to: baseUnits.length, printed: true }],
       collation,
       baseUnits,
+      siteSegments: Object.fromEntries(collation.sites.map((s) => [s.index, [segmentId]])),
       entries: [],
       attachments: {},
       unplaced: [],
@@ -116,8 +121,10 @@ describe('sites and selections', () => {
     const lacking: SegmentViewClient = {
       segmentId: 'w1',
       label: 'w1',
+      segments: [{ segmentId: 'w1', label: 'w1', from: 0, to: baseUnits.length, printed: true }],
       collation,
       baseUnits,
+      siteSegments: { 0: ['w1'] },
       entries: [],
       attachments: {},
       unplaced: [],
@@ -167,12 +174,18 @@ describe('sites and selections', () => {
   it('steps from the caret’s segment when no place is open, not from the start of the text', () => {
     // Three lines with the same places; the caret is in the second, on a word that has no place.
     const outline = outlineOf(segment);
-    const views = { a: outline, b: outline, c: outline };
+    const as = (id: string): SegmentOutline => ({
+      ...outline,
+      segmentId: id,
+      segments: [{ segmentId: id, printed: true }],
+      sites: outline.sites.map((site) => ({ ...site, segments: [id] })),
+    });
+    const views = { a: as('a'), b: as('b'), c: as('c') };
     const order = ['a', 'b', 'c'];
     expect(stepSite(order, views, null, 1, {}, false, 'b')?.segmentId).toBe('b');
     expect(stepSite(order, views, null, -1, {}, false, 'b')?.segmentId).toBe('a');
     // With nothing after the caret the step goes round to the start, as it does from the last place.
-    expect(stepSite(['a', 'x'], { a: outline }, null, 1, {}, false, 'x')?.segmentId).toBe('a');
+    expect(stepSite(['a', 'x'], { a: as('a') }, null, 1, {}, false, 'x')?.segmentId).toBe('a');
     // Without a caret it starts at the first place, as before.
     expect(stepSite(order, views, null, 1, {})?.segmentId).toBe('a');
   });
@@ -372,114 +385,156 @@ describe('a variant the editor judges minor', () => {
 });
 
 describe('a line the edition does not print', () => {
-  /** Lines `l1`, `l2`, `l4` in the edition, each a segment; `l3` only in A, standing after `l2`. */
+  /**
+   * Lines `l1`, `l2`, `l4` in the edition, each a segment; A reads otherwise at the end of `l1` and
+   * of `l4`, and has `l3`, which stands after `l2`: all of it one passage.
+   */
   function edition() {
-    const items: Stream['items'] = [];
-    for (const [k, label] of ['l1', 'l2', 'l4'].entries()) {
-      if (k > 0) items.push({ kind: 'break', id: `br${k}`, type: 'line' });
-      const line = fromText(`${label}a ${label}b`, { ids: sequentialIds(`${label}e`) });
-      (line.items[0] as Token).segment = { segmentId: label };
-      items.push(...line.items);
-    }
-    const stream: Stream = { items };
-    const outlines = Object.fromEntries(
-      ['l1', 'l2', 'l4'].map((id) => [id, outlineOf(view(id, 'a b c', { A: 'a x c' }).segment)]),
-    );
-    const witness = fromText('eta theta', { ids: sequentialIds('A') });
-    const collation = collate({ id: 'E', siglum: 'ed.', units: [] }, [
-      { id: 'A', siglum: 'A', units: units(witness, 0, witness.items.length) },
+    const lines = (prefix: string, text: [string, string][]) => {
+      const items: Stream['items'] = [];
+      for (const [k, [label, words]] of text.entries()) {
+        if (k > 0) items.push({ kind: 'break', id: `${prefix}br${k}`, type: 'line' });
+        const line = fromText(words, { ids: sequentialIds(`${prefix}${label}`) });
+        (line.items[0] as Token).segment = { segmentId: label };
+        items.push(...line.items);
+      }
+      return { items };
+    };
+    const stream = lines('e', [
+      ['l1', 'l1a l1b'],
+      ['l2', 'l2a l2b'],
+      ['l4', 'l4a l4b'],
     ]);
-    const unprinted: SegmentViewClient = {
-      segmentId: 'l3',
-      label: 'l3',
-      collation,
-      baseUnits: [],
+    const witness = lines('A', [
+      ['l1', 'l1a x'],
+      ['l2', 'l2a l2b'],
+      ['l3', 'eta theta'],
+      ['l4', 'l4a y'],
+    ]);
+    const { passages } = collatePassages({ id: 'E', siglum: 'ed.', stream }, [
+      { id: 'A', siglum: 'A', stream: witness },
+    ]);
+    expect(passages).toHaveLength(1);
+    const passage = passages[0]!;
+    const segment: SegmentViewClient = {
+      segmentId: passage.segments[0]!.segmentId,
+      label: passage.segments[0]!.segmentId,
+      segments: passage.segments.map((s) => ({ ...s, label: s.segmentId })),
+      collation: passage.collation,
+      baseUnits: passage.base.units,
+      siteSegments: Object.fromEntries(
+        passage.collation.sites.map((s) => [s.index, siteSegments(s, passage.base.units)]),
+      ),
       entries: [],
       attachments: {},
       unplaced: [],
       absent: [],
       notes: [],
-      unprinted: { after: 'l2' },
     };
-    outlines.l3 = outlineOf(unprinted);
-    return { stream, outlines, unprinted, order: ['l1', 'l2', 'l4'] };
+    const outlines = { [segment.segmentId]: outlineOf(segment) };
+    const site = segment.collation.sites.find((s) => unprintedAt(segment, s.index))!;
+    return { stream, outlines, segment, site, order: ['l1', 'l2', 'l4'] };
   }
+
+  it('is a variant at a point of the passage of the line it follows', () => {
+    const { segment, site, outlines } = edition();
+    expect(segment.segments.map((s) => [s.segmentId, s.printed])).toEqual([
+      ['l1', true],
+      ['l2', true],
+      ['l3', false],
+      ['l4', true],
+    ]);
+    expect([site.baseFrom, site.baseTo]).toEqual([4, 4]);
+    expect(unprintedAt(segment, site.index)).toEqual({ segmentId: 'l3', after: 'l2' });
+    const outline = outlines.l1!.sites.find((s) => s.index === site.index)!;
+    expect(outline.unprinted).toEqual({ segmentId: 'l3', after: 'l2' });
+    expect(outline.segments).toEqual(['l3']);
+  });
 
   it('is stepped to in its place, after the line it follows', () => {
     const { outlines, order } = edition();
-    expect(outlines.l3!.sites).toHaveLength(1);
+    const where = (ref: ReturnType<typeof stepSite>) =>
+      ref!.site.unprinted?.segmentId ?? ref!.site.segments[0];
     const seen: string[] = [];
     let active: { segmentId: string; siteIndex: number } | null = null;
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 3; i++) {
       const next = stepSite(order, outlines, active, 1, {});
-      seen.push(next!.segmentId);
+      seen.push(where(next));
       active = { segmentId: next!.segmentId, siteIndex: next!.site.index };
     }
-    expect(seen).toEqual(['l1', 'l2', 'l3', 'l4']);
+    expect(seen).toEqual(['l1', 'l3', 'l4']);
     // Back from the line after it, and on from the caret in the line before it.
-    const fromFour = { segmentId: 'l4', siteIndex: outlines.l4!.sites[0]!.index };
-    expect(stepSite(order, outlines, fromFour, -1, {})?.segmentId).toBe('l3');
-    expect(stepSite(order, outlines, null, 1, {}, false, 'l3')?.segmentId).toBe('l3');
-    // To review: it is reached like any other, and passed over once reviewed.
-    const reviewed = { l1: [outlines.l1!.sites[0]!.key], l2: [outlines.l2!.sites[0]!.key] };
-    expect(stepSite(order, outlines, null, 1, reviewed, true)?.segmentId).toBe('l3');
-    const done = { ...reviewed, l3: [outlines.l3!.sites[0]!.key] };
-    expect(stepSite(order, outlines, null, 1, done, true)?.segmentId).toBe('l4');
+    const four = outlines.l1!.sites.find((s) => s.segments[0] === 'l4')!;
+    const fromFour = { segmentId: 'l1', siteIndex: four.index };
+    expect(where(stepSite(order, outlines, fromFour, -1, {}))).toBe('l3');
+    expect(where(stepSite(order, outlines, null, 1, {}, false, 'l2'))).toBe('l3');
+    expect(where(stepSite(order, outlines, null, 1, {}, false, 'l3'))).toBe('l3');
+    // To review: it is reached like any other, and passed over once reviewed, under its own segment.
+    const one = outlines.l1!.sites.find((s) => s.segments[0] === 'l1')!;
+    const three = outlines.l1!.sites.find((s) => s.unprinted)!;
+    const reviewed = { l1: [one.key] };
+    expect(where(stepSite(order, outlines, null, 1, reviewed, true))).toBe('l3');
+    const done = { ...reviewed, l3: [three.key] };
+    expect(where(stepSite(order, outlines, null, 1, done, true))).toBe('l4');
   });
 
-  it('is shown in the window around the line it follows, after it, and the window around it is that one', () => {
+  it('is shown in the window around the line it follows, and the window around it is that one', () => {
     const { outlines, order } = edition();
-    expect(windowWithUnprinted(order, outlines, 'l1', 1)).toEqual(['l1', 'l2', 'l3', 'l4']);
-    expect(windowWithUnprinted(order, outlines, 'l1', 0)).toEqual(['l1']);
-    expect(windowWithUnprinted(order, outlines, 'l3', 1)).toEqual(
-      windowWithUnprinted(order, outlines, 'l2', 1),
-    );
-    expect(windowWithUnprinted(order, outlines, 'l4', 0)).toEqual(['l4']);
+    expect(windowAround(order, outlines, 'l1', 1)).toEqual(['l1', 'l2', 'l4']);
+    expect(windowAround(order, outlines, 'l1', 0)).toEqual(['l1']);
+    expect(windowAround(order, outlines, 'l3', 0)).toEqual(['l2']);
+    expect(windowAround(order, outlines, 'l3', 1)).toEqual(windowAround(order, outlines, 'l2', 1));
   });
 
   it('is marked after the last word of the line it follows, unless its variant is minor', () => {
-    const { stream, outlines, order, unprinted } = edition();
+    const { stream, outlines, order, segment, site } = edition();
+    const three = outlines.l1!.sites.find((s) => s.unprinted)!;
     expect(unprintedMarks(stream, order, outlines)).toEqual([
-      { segmentId: 'l3', after: 'l2e2', site: outlines.l3!.sites[0] },
+      { passage: 'l1', segmentId: 'l3', after: 'el22', site: three },
     ]);
     const minor = {
-      ...unprinted,
+      ...segment,
       collation: {
-        ...unprinted.collation,
-        sites: unprinted.collation.sites.map((s) => ({ ...s, minor: true })),
+        ...segment.collation,
+        sites: segment.collation.sites.map((s) =>
+          s.index === site.index ? { ...s, minor: true } : s,
+        ),
       },
     };
-    expect(unprintedMarks(stream, order, { ...outlines, l3: outlineOf(minor) })).toEqual([]);
+    expect(unprintedMarks(stream, order, { l1: outlineOf(minor) })).toEqual([]);
   });
 
-  it('is printed by adopting its reading, after the line it follows, with its words from the witness', () => {
-    const { stream, unprinted } = edition();
-    const site = unprinted.collation.sites[0]!;
+  it('is printed by the ordinary adoption of its reading, after the line it follows, with its words from the witness', () => {
+    const { stream, segment, site } = edition();
     const reading = site.readings.find((r) => !r.base)!;
-    const next = applyOps(stream, opsForReading(stream, unprinted, site, reading, 'A')).stream;
+    const next = applyOps(stream, opsForReading(stream, segment, site, reading, 'A')).stream;
     expect(toText(next)).toBe('l1a l1b\nl2a l2b\neta theta\nl4a l4b');
     const printed = next.items.filter((i) => i.kind === 'token' && i.source?.kind === 'witness');
     expect(printed.map((t) => (t as Token).source)).toEqual([
-      { kind: 'witness', transcriptionId: 'A', tokenIds: ['A1'] },
-      { kind: 'witness', transcriptionId: 'A', tokenIds: ['A2'] },
+      { kind: 'witness', transcriptionId: 'A', tokenIds: ['Al31'] },
+      { kind: 'witness', transcriptionId: 'A', tokenIds: ['Al32'] },
     ]);
     expect((printed[0] as Token).segment).toEqual({ segmentId: 'l3' });
     // A deletion of what is not printed changes nothing; a conjecture's words are printed as the line.
     const conjecture = { kind: 'conjecture' as const, id: 'c1', name: 'X' };
     expect(
-      opsForAttachment(stream, unprinted, site, {
-        ...conjecture,
-        text: '',
-        conjectureKind: 'deletion',
-      }),
+      opsForAttachment(
+        stream,
+        segment,
+        site,
+        { ...conjecture, text: '', conjectureKind: 'deletion' },
+        'l3',
+      ),
     ).toEqual([]);
     const conjectured = applyOps(
       stream,
-      opsForAttachment(stream, unprinted, site, {
-        ...conjecture,
-        text: 'zeta eta',
-        conjectureKind: 'substitution',
-      }),
+      opsForAttachment(
+        stream,
+        segment,
+        site,
+        { ...conjecture, text: 'zeta eta', conjectureKind: 'substitution' },
+        'l3',
+      ),
     ).stream;
     expect(toText(conjectured)).toBe('l1a l1b\nl2a l2b\nzeta eta\nl4a l4b');
   });

@@ -28,8 +28,10 @@ function packable(
     segment: {
       segmentId,
       label: segmentId,
+      segments: [{ segmentId, label: segmentId, from: 0, to: baseUnits.length, printed: true }],
       collation,
       baseUnits,
+      siteSegments: Object.fromEntries(collation.sites.map((x) => [x.index, [segmentId]])),
       attachments: {},
       unplaced: [],
       absent: [],
@@ -85,10 +87,31 @@ describe('packSegments and unpackSegments', () => {
         });
       });
       expect(back[id]!.baseUnits).toEqual(original.segment.baseUnits);
+      expect(back[id]!.segments).toEqual(original.segment.segments);
+      expect(back[id]!.siteSegments).toEqual(original.segment.siteSegments);
       expect(back[id]!.collation.baseId).toBe('E');
       expect(back[id]!.notes).toEqual(original.segment.notes);
       expect(back[id]!.cites).toEqual(original.segment.cites);
     }
+  });
+
+  it('carries a link to a variant in another passage', () => {
+    const linked = {
+      ...one.segment,
+      collation: {
+        ...one.collation,
+        sites: one.collation.sites.map((x, i) =>
+          i === 0 ? { ...x, transposition: { withSite: 2, textIds: ['tB'], inPassage: 's9' } } : x,
+        ),
+      },
+    };
+    const { segments, texts } = packSegments([linked]);
+    const back = unpackSegment(segments.s1!, texts, 'E');
+    expect(back.collation.sites[0]!.transposition).toEqual({
+      withSite: 2,
+      textIds: ['tB'],
+      inPassage: 's9',
+    });
   });
 
   it('prints the same apparatus from what was sent as from the full collation', () => {

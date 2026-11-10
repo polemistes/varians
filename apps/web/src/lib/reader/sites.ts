@@ -14,6 +14,8 @@ import {
   type Site,
   type Unit,
 } from '@varians/core';
+import { standsIn, unprintedAt, type PassageLike } from './passages';
+import type { ReaderNote } from './types';
 
 /**
  * The order of sigla in the apparatus: the conspectus, each witness followed
@@ -29,21 +31,106 @@ export function siglaOrderOf(
   );
 }
 
-/** A site of a segment, as the words of the text point at it. */
+/**
+ * The label of the segments a variant's words lie in, in the order of the
+ * text: one segment's own label, or for several the first and the last
+ * ("1.5–1.6").
+ */
+export function labelOfSegments(
+  ids: readonly string[],
+  labelOf: Readonly<Record<string, string>>,
+): string {
+  const first = ids[0];
+  if (first === undefined) return '';
+  const last = ids[ids.length - 1]!;
+  const label = (id: string) => labelOf[id] ?? id;
+  return ids.length === 1 ? label(first) : `${label(first)}–${label(last)}`;
+}
+
+/** A site of a passage, as the words of the text point at it: by the passage's first segment and the site's index. */
 export interface SiteRef {
   segmentId: string;
   siteIndex: number;
 }
 
-/** The parts of a segment view this module reads. */
+/** The parts of a passage's view this module reads. */
 export interface SegmentSites {
+  /** The passage's first segment. */
   segmentId: string;
   label: string;
+  /** The segments of the passage, with their labels; a passage of one segment where not given. */
+  segments?: readonly (PassageLike['segments'][number] & { label?: string })[];
+  /** The segments of each site's words, by site index; the passage's first where not given. */
+  siteSegments?: PassageLike['siteSegments'];
   /** Only the sites are read; a collation without its columns will do. */
   collation: Pick<Collation, 'sites'>;
   baseUnits: Unit[];
   attachments: Record<number, Attachment[]>;
 }
+
+/** A passage as `passages.ts` reads it, one of one segment where the view does not say. */
+export function asPassage(segment: SegmentSites): PassageLike {
+  return {
+    segmentId: segment.segmentId,
+    segments: segment.segments ?? [
+      { segmentId: segment.segmentId, from: 0, to: segment.baseUnits.length, printed: true },
+    ],
+    siteSegments: segment.siteSegments ?? {},
+  };
+}
+
+/** The label of a site: of the segments its words lie in ("1.5", "1.5–1.6"). */
+export function siteLabel(
+  segment: SegmentSites,
+  siteIndex: number,
+  labelOf: Readonly<Record<string, string>> = {},
+): string {
+  const ids = segment.siteSegments?.[siteIndex];
+  if (!ids?.length) return segment.label;
+  const labels: Record<string, string> = { ...labelOf };
+  for (const part of segment.segments ?? []) if (part.label) labels[part.segmentId] = part.label;
+  return labelOfSegments(ids, labels);
+}
+
+/** What belongs to one segment of a passage as a whole: the records no variant took, the notes, and who is without the passage. */
+export interface SegmentPart<A, N> {
+  passage: string;
+  unplaced: A[];
+  notes: N[];
+  absent: string[];
+}
+
+/** Each segment's part of the passages, by segment id: its unplaced records and its notes. */
+export function segmentParts(
+  segments: Readonly<
+    Record<
+      string,
+      | (SegmentSites & {
+          unplaced: (Attachment & { segmentId?: string })[];
+          notes: ReaderNote[];
+          absent: string[];
+        })
+      | undefined
+    >
+  >,
+): Record<string, SegmentPart<Attachment & { segmentId?: string }, ReaderNote>> {
+  const out: Record<string, SegmentPart<Attachment & { segmentId?: string }, ReaderNote>> = {};
+  for (const passage of Object.values(segments)) {
+    if (!passage) continue;
+    const own = (id: string | undefined, part: string) => (id ?? passage.segmentId) === part;
+    for (const { segmentId } of asPassage(passage).segments)
+      out[segmentId] = {
+        passage: passage.segmentId,
+        unplaced: passage.unplaced.filter((a) => own(a.segmentId, segmentId)),
+        notes: passage.notes.filter((n) => own(n.segmentId, segmentId)),
+        absent: passage.absent,
+      };
+  }
+  return out;
+}
+
+/** An entry of the apparatus with the key of its variant. */
+export type KeyedEntry = ApparatusEntry & { key: string };
 
 /** What the minor variants of a segment concern: its sites, what is attached to them, how their readings stand to the edition's words. */
 interface MinorSegment {
@@ -146,7 +233,7 @@ export function isOrderKey(key: string): boolean {
 
 /**
  * Every edition token that stands at a variant site, with the sites it
- * stands at. A site's words come from `siteTokenIds`; a site with no words
+ * stands at: the words of a variant across a boundary in both segments. A site's words come from `siteTokenIds`; a site with no words
  * of the edition (a witness adds something) marks none: it is marked at the
  * point between two words (`markSites`). The site over a whole line that
  * some witnesses do not have (`wanting`) marks none either: it is marked in
@@ -173,29 +260,48 @@ export function siteByToken(view: {
   return map;
 }
 
-/** The apparatus entries of each segment under the given conventions, by segment id. */
+/**
+ * The apparatus entries under the given conventions, by the segment each
+ * variant stands in (the first its words lie in), each labelled by the
+ * segments of its words and keyed by its passage. A segment the edition does
+ * not print has the entry of its variant under its own id.
+ */
 export function entriesBySegment(
   segments: Record<string, SegmentSites>,
   conventions: ApparatusConventions,
   siglaOrder: string[],
-): Map<string, ApparatusEntry[]> {
-  const out = new Map<string, ApparatusEntry[]>();
+): Map<string, KeyedEntry[]> {
+  const out = new Map<string, KeyedEntry[]>();
   for (const segment of Object.values(segments)) {
     // apparatusEntries reads the sites only.
     const collation = segment.collation as Collation;
-    out.set(
-      segment.segmentId,
-      apparatusEntries(collation, segment.label, segment.attachments, conventions, siglaOrder),
-    );
+    const passage = asPassage(segment);
+    for (const part of passage.segments) if (!out.has(part.segmentId)) out.set(part.segmentId, []);
+    for (const entry of apparatusEntries(
+      collation,
+      segment.label,
+      segment.attachments,
+      conventions,
+      siglaOrder,
+    )) {
+      const at = standsIn(passage, entry.siteIndex);
+      const keyed: KeyedEntry = {
+        ...entry,
+        label: siteLabel(segment, entry.siteIndex),
+        key: siteKey(segment.segmentId, entry.siteIndex),
+      };
+      const list = out.get(at);
+      if (list) list.push(keyed);
+      else out.set(at, [keyed]);
+    }
   }
   return out;
 }
 
 /** Entries by site key, for the popover and the hover links. */
-export function entryBySite(entries: Map<string, ApparatusEntry[]>): Map<string, ApparatusEntry> {
-  const out = new Map<string, ApparatusEntry>();
-  for (const [segmentId, list] of entries)
-    for (const entry of list) out.set(siteKey(segmentId, entry.siteIndex), entry);
+export function entryBySite(entries: Map<string, KeyedEntry[]>): Map<string, KeyedEntry> {
+  const out = new Map<string, KeyedEntry>();
+  for (const list of entries.values()) for (const entry of list) out.set(entry.key, entry);
   return out;
 }
 
@@ -313,6 +419,8 @@ export function markSites(
     const segment = ref ? segments[ref.segmentId] : undefined;
     const site = ref ? siteOf(segment, ref.siteIndex) : undefined;
     if (!segment || !site || site.wanting) continue;
+    // A segment the edition does not print is marked between two lines, in the margin.
+    if (unprintedAt(asPassage(segment), site.index)) continue;
     if (site.baseFrom !== site.baseTo) {
       const first = siteTokenIds(site, segment.baseUnits)[0];
       if (first) tabStops.add(first);

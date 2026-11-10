@@ -22,14 +22,115 @@ import {
   type Unit,
 } from '@varians/core';
 import { plainLine, printLine, type EditionSigla } from './marks';
+import { labelOfSegments } from './sites';
 
+/** A passage of the edition as the files are made from it. */
 export interface ExportSegment {
+  /** The passage's first segment. */
   segmentId: string;
   label: string;
-  collation: Pick<Collation, 'sites'>;
+  /** Its segments, each with the edition's units it holds. */
+  segments: readonly { segmentId: string; from: number; to: number; printed: boolean }[];
+  /** The segments of each site's words, by site index, in the order of the passage. */
+  siteSegments: Record<number, string[]>;
+  collation: Pick<Collation, 'sites'> & Partial<Collation>;
   baseUnits: Unit[];
   attachments: Record<number, Attachment[]>;
-  notes?: { text: string; author: string | null }[];
+  notes?: { segmentId?: string; text: string; author: string | null }[];
+}
+
+/** What one segment of the edition prints of the passage it is in: its own words, and the variants that begin in it. */
+export interface SegmentShare {
+  passage: ExportSegment;
+  /** The edition's units of the segment. */
+  baseUnits: Unit[];
+  /** The variants that begin in the segment, placed among its own units: a variant that runs on into the next segment reaches past them. */
+  sites: Site[];
+  attachments: Record<number, Attachment[]>;
+  notes: { text: string; author: string | null }[];
+}
+
+/**
+ * Each segment's share of the passages, by segment id. A variant belongs to
+ * the segment its words begin in; one at a segment the edition does not
+ * print, to the edition's segment it stands after. The print apparatus is
+ * kept as built, segment by segment, and so gives a variant across a
+ * boundary under the segment it begins in.
+ */
+export function segmentShares(passages: Iterable<ExportSegment>): Map<string, SegmentShare> {
+  const out = new Map<string, SegmentShare>();
+  for (const passage of passages) {
+    const parts = passage.segments;
+    const home = (site: Site): string | undefined => {
+      const ids = passage.siteSegments[site.index] ?? [];
+      const printed = ids.find((id) => parts.some((p) => p.segmentId === id && p.printed));
+      if (printed) return printed;
+      // A segment the edition does not print: the edition's segment before it.
+      const at = parts.findIndex((p) => p.segmentId === ids[0]);
+      for (let k = at; k >= 0; k--) if (parts[k]!.printed) return parts[k]!.segmentId;
+      return parts.find((p) => p.printed)?.segmentId;
+    };
+    for (const part of parts) {
+      if (!part.printed) continue;
+      out.set(part.segmentId, {
+        passage,
+        baseUnits: passage.baseUnits.slice(part.from, part.to),
+        sites: [],
+        attachments: {},
+        notes: (passage.notes ?? []).filter(
+          (n) => (n.segmentId ?? passage.segmentId) === part.segmentId,
+        ),
+      });
+    }
+    for (const site of passage.collation.sites) {
+      const id = home(site);
+      const share = id ? out.get(id) : undefined;
+      const part = parts.find((p) => p.segmentId === id);
+      if (!share || !part) continue;
+      share.sites.push({
+        ...site,
+        baseFrom: Math.max(0, site.baseFrom - part.from),
+        baseTo: Math.max(0, site.baseTo - part.from),
+      });
+      const attached = passage.attachments[site.index];
+      if (attached) share.attachments[site.index] = attached;
+    }
+  }
+  return out;
+}
+
+/** The label of a segment: as the labels give it, or as its passage does. */
+function labelIn(
+  segmentId: string,
+  share: SegmentShare | undefined,
+  labelOf: Record<string, string>,
+): string {
+  const part = share?.passage.segments.find((p) => p.segmentId === segmentId) as
+    | { label?: string }
+    | undefined;
+  return (
+    labelOf[segmentId] ??
+    part?.label ??
+    (share?.passage.segmentId === segmentId ? share.passage.label : undefined) ??
+    segmentId
+  );
+}
+
+/** The entries of a segment's share, each under the label of the segments its words lie in. */
+function shareEntries(
+  share: SegmentShare,
+  label: string,
+  labelOf: Record<string, string>,
+  conventions: ApparatusConventions,
+  siglaOrder: string[],
+) {
+  const collation = { ...share.passage.collation, sites: share.sites } as Collation;
+  return apparatusEntries(collation, label, share.attachments, conventions, siglaOrder).map(
+    (entry) => {
+      const ids = share.passage.siteSegments[entry.siteIndex];
+      return ids?.length ? { ...entry, label: labelOfSegments(ids, labelOf) } : entry;
+    },
+  );
 }
 
 /**
@@ -120,26 +221,21 @@ export function plainText(input: PlainTextInput): string {
   const out: string[] = [...input.heading];
   if (out.length) out.push('');
   const shown = shownBreaks(input.content.items, input.lineation ?? 'verse');
+  const shares = segmentShares(Object.values(input.segments));
   for (const { segmentId, items } of segmentItems(input.content)) {
-    const segment = input.segments[segmentId];
-    const label = segment?.label ?? input.labelOf[segmentId] ?? segmentId;
+    const share = shares.get(segmentId);
+    const label = labelIn(segmentId, share, input.labelOf);
     const lines = printedLines(items, input.sigla, shown);
     const indent = ' '.repeat(label.length + 2);
     lines.forEach((line, i) => out.push(i === 0 ? `${label}  ${line}` : `${indent}${line}`));
     if (lines.length === 0) out.push(label);
-    if (!segment) continue;
-    const entries = apparatusEntries(
-      segment.collation as Collation,
-      label,
-      segment.attachments,
-      input.conventions,
-      input.siglaOrder,
-    );
+    if (!share) continue;
+    const entries = shareEntries(share, label, input.labelOf, input.conventions, input.siglaOrder);
     const { main, interpretative } = splitEntries(entries, input.conventions);
     for (const line of formatApparatus(main, input.conventions)) out.push(`    ${line}`);
     for (const line of formatApparatus(interpretative, input.conventions))
       out.push(`    ${input.interpretativeWord}: ${line}`);
-    for (const note of segment.notes ?? [])
+    for (const note of share.notes)
       out.push(`    ${input.noteWord}: ${note.text}${note.author ? ` (${note.author})` : ''}`);
   }
   return out.join('\n') + '\n';
@@ -151,15 +247,15 @@ export function teiSegments(
   segments: Record<string, ExportSegment>,
   labelOf: Record<string, string>,
 ): EditionSegmentExport[] {
+  const shares = segmentShares(Object.values(segments));
   return segmentItems(content).map(({ segmentId, items }) => {
-    const segment = segments[segmentId];
-    const sites: Site[] = segment?.collation.sites ?? [];
+    const share = shares.get(segmentId);
     return {
-      label: segment?.label ?? labelOf[segmentId] ?? segmentId,
+      label: labelIn(segmentId, share, labelOf),
       items,
-      baseUnits: segment?.baseUnits ?? [],
-      sites,
-      attachments: segment?.attachments ?? {},
+      baseUnits: share?.baseUnits ?? [],
+      sites: share?.sites ?? [],
+      attachments: share?.attachments ?? {},
     };
   });
 }

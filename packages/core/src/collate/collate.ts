@@ -100,6 +100,8 @@ export interface CollationOptions {
 
 /** How far apart, in the base's units, two places may be and still name each other: two dozen words. */
 export const FAR_REACH = 24;
+/** How far, in the base's units, a word may stand from its place and the two still be one transposition. */
+export const TRANSPOSITION_REACH = 3;
 
 export interface Cell {
   unitIndex: number;
@@ -259,7 +261,7 @@ export function collate(
 ): Collation {
   const fold = options.fold ?? DEFAULT_FOLD;
   const near = options.nearThreshold ?? 0.6;
-  const reach = options.transpositionReach ?? 3;
+  const reach = options.transpositionReach ?? TRANSPOSITION_REACH;
   const farReach = options.farReach ?? FAR_REACH;
   // Words are placed by their letters, so that ἦ stands against ἤ; whether they agree is decided by their accents too.
   const bareOf = (text: CollationText) =>

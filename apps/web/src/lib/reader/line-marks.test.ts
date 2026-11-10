@@ -18,10 +18,13 @@ const labelOf: Record<string, string> = {
 const order = ['s0', 's1', 's2', 's3', 's4', 's5'];
 const context = { labelOf, order };
 
+/** A passage of one segment (three words) with these sites, each over the segment's words. */
 function segment(id: string, sites: Partial<Site>[]): SegmentSites {
   return {
     segmentId: id,
     label: labelOf[id] ?? id,
+    segments: [{ segmentId: id, from: 0, to: 3, printed: true }],
+    siteSegments: Object.fromEntries(sites.map((_, index) => [index, [id]])),
     collation: {
       sites: sites.map((site, index) => ({ index, baseFrom: 0, baseTo: 1, ...site }) as Site),
     },
@@ -31,7 +34,24 @@ function segment(id: string, sites: Partial<Site>[]): SegmentSites {
 }
 
 const wanting = (id: string) => segment(id, [{ baseFrom: 0, baseTo: 3, wanting: true }]);
-const unprintedLine = (id: string) => segment(id, [{ baseFrom: 0, baseTo: 0 }]);
+
+/** A passage of the segment `after` (three words) and the segments the edition does not print after it, a variant at the point of each. */
+function withUnprinted(after: string, ...ids: string[]): SegmentSites {
+  return {
+    segmentId: after,
+    label: labelOf[after] ?? after,
+    segments: [
+      { segmentId: after, from: 0, to: 3, printed: true },
+      ...ids.map((id) => ({ segmentId: id, from: 3, to: 3, printed: false })),
+    ],
+    siteSegments: Object.fromEntries(ids.map((id, index) => [index, [id]])),
+    collation: {
+      sites: ids.map((_, index) => ({ index, baseFrom: 3, baseTo: 3 }) as Site),
+    },
+    baseUnits: [],
+    attachments: {},
+  };
+}
 
 function order_(segments: string[], far = false): OrderVariant {
   const reading = { base: false, textIds: ['t'], sigla: ['A'] };
@@ -45,7 +65,6 @@ const all = { has: () => true };
 function marks(
   input: {
     segments?: Record<string, SegmentSites>;
-    unprinted?: { segmentId: string; after: string }[];
     orders?: OrderVariant[];
     shown?: { has(key: string): boolean };
     segmentsOfLine?: string[][];
@@ -55,7 +74,6 @@ function marks(
     segmentsOfLine: input.segmentsOfLine ?? segmentsOfLine,
     segments: input.segments ?? {},
     shown: input.shown ?? all,
-    unprinted: input.unprinted ?? [],
     orders: input.orders ?? [],
     context,
   });
@@ -99,41 +117,47 @@ describe('a line that some witnesses do not have', () => {
       '3 wanting end 0 next s1:0',
     ]);
   });
+
+  it('runs along the lines of every segment its words lie in, in a passage of several, named for them', () => {
+    const passage: SegmentSites = {
+      segmentId: 's1',
+      label: '1.2',
+      segments: [
+        { segmentId: 's1', from: 0, to: 3, printed: true },
+        { segmentId: 's2', from: 3, to: 6, printed: true },
+        { segmentId: 's3', from: 6, to: 9, printed: true },
+      ],
+      // A witness is without 1.3 and 1.4: the variant over their words.
+      siteSegments: { 0: ['s2', 's3'] },
+      collation: { sites: [{ index: 0, baseFrom: 3, baseTo: 9, wanting: true } as Site] },
+      baseUnits: [],
+      attachments: {},
+    };
+    const map = marks({ segments: { s1: passage } });
+    expect(listed(map)).toEqual(['2 wanting start 0 first s1:0', '3 wanting end 0 next s1:0']);
+    expect(map.get(2)![0]!.name).toBe('Variant at 1.3–1.4');
+  });
 });
 
 describe('a line the edition does not print', () => {
   it('has a caret on the line it follows, named for that line', () => {
-    const map = marks({
-      segments: { u: unprintedLine('u') },
-      unprinted: [{ segmentId: 'u', after: 's1' }],
-    });
-    expect(listed(map)).toEqual(['1 unprinted solo 0 first u:0']);
+    const map = marks({ segments: { s1: withUnprinted('s1', 'u') } });
+    expect(listed(map)).toEqual(['1 unprinted solo 0 first s1:0']);
     expect(map.get(1)![0]!.name).toBe('Variant after 1.2');
   });
 
   it('has one caret for the lines that follow the same line, opening all their variants', () => {
-    const map = marks({
-      segments: { u: unprintedLine('u'), v: unprintedLine('v') },
-      unprinted: [
-        { segmentId: 'u', after: 's1' },
-        { segmentId: 'v', after: 's1' },
-      ],
-    });
-    expect(listed(map)).toEqual(['1 unprinted solo 0 first u:0 v:0']);
+    const map = marks({ segments: { s1: withUnprinted('s1', 'u', 'v') } });
+    expect(listed(map)).toEqual(['1 unprinted solo 0 first s1:0 s1:1']);
   });
 
   it('is left unmarked where the line it follows is not in the text, or its variant is not shown', () => {
-    const segments = { u: unprintedLine('u') };
-    expect(marks({ segments, unprinted: [{ segmentId: 'u', after: 'gone' }] }).size).toBe(0);
+    expect(marks({ segments: { gone: withUnprinted('gone', 'u') } }).size).toBe(0);
     expect(
-      marks({
-        segments,
-        unprinted: [{ segmentId: 'u', after: 's1' }],
-        shown: { has: () => false },
-      }).size,
+      marks({ segments: { s1: withUnprinted('s1', 'u') }, shown: { has: () => false } }).size,
     ).toBe(0);
-    // A segment that has not come yet has no site to open.
-    expect(marks({ unprinted: [{ segmentId: 'u', after: 's1' }] }).size).toBe(0);
+    // A passage that has not come yet has no site to open.
+    expect(marks({}).size).toBe(0);
   });
 });
 
@@ -200,13 +224,12 @@ describe('marks that would stand over one another', () => {
 
   it('move a caret over the line a bracket stands on, which it also touches below', () => {
     const map = marks({
-      segments: { u: unprintedLine('u') },
-      unprinted: [{ segmentId: 'u', after: 's1' }],
+      segments: { s1: withUnprinted('s1', 'u') },
       orders: [order_(['s2', 's3'])],
     });
     // The caret is below line 1, where the bracket begins on line 2: they take two lanes.
     expect(listed(map)).toEqual([
-      '1 unprinted solo 1 first u:0',
+      '1 unprinted solo 1 first s1:0',
       '2 order start 0 first order:0',
       '3 order end 0 next order:0',
     ]);

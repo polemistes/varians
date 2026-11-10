@@ -27,6 +27,8 @@ export const editor = {
   /** Witnesses without this segment: their transcripts begin after it or end before it, or have lost it. */
   absent: (sigla: string) => `No text here: ${sigla}`,
   noSites: 'The witnesses agree with the text here.',
+  /** In the section of a segment whose words lie in a variant listed under the segment it begins in. */
+  variantAt: (labels: string) => `See ${labels}`,
   saving: 'saving…',
   note: 'Note…',
   removeNote: 'Remove',

@@ -27,11 +27,14 @@ function segment(
     const s = fromText(text, { ids: sequentialIds(`${segmentId}${siglum}`) });
     return { id: siglum, siglum, units: units(s, 0, s.items.length) };
   });
+  const collation = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, texts);
   return {
     segmentId,
     label: segmentId,
-    collation: collate({ id: 'E', siglum: 'ed.', units: baseUnits }, texts),
+    segments: [{ segmentId, label: segmentId, from: 0, to: baseUnits.length, printed: true }],
+    collation,
     baseUnits,
+    siteSegments: Object.fromEntries(collation.sites.map((s) => [s.index, [segmentId]])),
     entries: [],
     attachments: {},
     unplaced: [],
@@ -122,10 +125,8 @@ describe('outlineOf', () => {
     expect(new Set(Object.keys(classes))).toEqual(expected);
     // The count of places needing attention is the one the segments gave.
     const reviewed = new Map([['s1', new Set([outlines.s1!.sites[0]!.key])]]);
-    expect(countNeeding(['s1', 's2', 's3'], outlines, reviewed)).toBe(
-      countUnreviewed(segments, reviewed),
-    );
-    expect(countNeeding(['s1', 's2', 's3'], outlines, new Map())).toBe(
+    expect(countNeeding(outlines, reviewed)).toBe(countUnreviewed(segments, reviewed));
+    expect(countNeeding(outlines, new Map())).toBe(
       segments.reduce(
         (n, s) =>
           n + s.collation.sites.filter((site) => needsReview(s, site, new Set<string>())).length,

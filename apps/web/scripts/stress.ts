@@ -18,6 +18,7 @@
 import {
   apparatusEntries,
   collate,
+  collatePassages,
   formatApparatus,
   isToken,
   segmentIds,
@@ -66,9 +67,8 @@ const { editionText, writeArchive, writeWorkParts } = await import(
 );
 const { importPackage } = await import('../src/lib/server/archive/import-package.ts');
 const { buildPackage } = await import('../src/lib/server/archive/package.ts');
-const { collateEdition, inputsFor, loadEditionContext } = await import(
-  '../src/lib/server/collation.ts'
-);
+const { inputsFor, loadEditionContext } = await import('../src/lib/server/collation.ts');
+const { collateEdition, forgetCollations } = await import('../src/lib/server/passages.ts');
 const { documentAt, loadDocument, rebuildSegmentIndex, saveOps } = await import(
   '../src/lib/server/documents/service.ts'
 );
@@ -83,7 +83,7 @@ const { refuseDevelopmentDatabase } = await import('../src/lib/server/seed/stres
 const { makeRandom } = await import('../src/lib/server/seed/stress-text.ts');
 const { loadWorkbench } = await import('../src/lib/server/workbench.ts');
 const { DEFAULT_SIGLA } = await import('../src/lib/reader/marks.ts');
-const { plainText, segmentItems } = await import('../src/lib/reader/export.ts');
+const { plainText, segmentItems, segmentShares } = await import('../src/lib/reader/export.ts');
 const { siglaOrderOf } = await import('../src/lib/reader/sites.ts');
 const { reader: r } = await import('../src/lib/strings/reader.ts');
 
@@ -297,7 +297,11 @@ async function collation(c: Context, keepCache: boolean): Promise<Collated> {
     note(
       '--keep-cache: the collation cache was not emptied, so the first view below is as warm as the cache is.',
     );
-  else await c.db.delete(collationCache).where(eq(collationCache.editionId, c.editionId));
+  else {
+    await c.db.delete(collationCache).where(eq(collationCache.editionId, c.editionId));
+    // What the process remembers of collations goes too, so that the view is cold.
+    forgetCollations();
+  }
   const cold = await timed(() => editionView(c.db, c.editionId, null, audience));
   report(
     keepCache ? 'editionView, first call (cache as it was)' : 'editionView, cold (cache emptied)',
@@ -318,7 +322,26 @@ async function collation(c: Context, keepCache: boolean): Promise<Collated> {
     'places of variation in all',
     sites.length,
     '',
-    `${Object.keys(view.segments).length} segments of the view`,
+    `${Object.keys(view.segments).length} passages of the view`,
+  );
+  const passages = Object.values(view.segments);
+  const lengths = passages.map((p) => p.segments.filter((x) => x.printed).length);
+  report(
+    'passages of several segments',
+    lengths.filter((n) => n > 1).length,
+    '',
+    `of ${passages.length}; ${lengths.reduce((a, b) => a + b, 0)} segments in all`,
+  );
+  report('segments in the longest passage', Math.max(...lengths), '', 'the plan of passages');
+  report(
+    'places across a boundary',
+    passages.reduce(
+      (n, p) =>
+        n + p.collation.sites.filter((x) => (p.siteSegments[x.index] ?? []).length > 1).length,
+      0,
+    ),
+    '',
+    'their words in two segments or more',
   );
   report('  textual', sites.filter((s) => s.kind === 'textual' && !s.wanting).length, '', 'sites');
   report(
@@ -378,6 +401,30 @@ async function collation(c: Context, keepCache: boolean): Promise<Collated> {
     's',
     'core collate',
   );
+  // The whole of it in passages, as the core does it in one go: alone, planned, in passages, linked.
+  const streams = context.sigla
+    .filter((x) => x.transcriptionId && context.transcriptions.has(x.transcriptionId))
+    .map((x) => ({
+      id: x.transcriptionId!,
+      siglum: x.siglum,
+      stream: context.transcriptions.get(x.transcriptionId!)!.content,
+    }));
+  const whole = await timed(async () =>
+    collatePassages(
+      { id: context.edition.id, siglum: 'ed.', stream: context.edition.content },
+      streams,
+      {
+        fold: context.profile.fold,
+        ...(context.segmentKeys ? { segmentKeys: context.segmentKeys } : {}),
+      },
+    ),
+  );
+  report(
+    'collatePassages of the whole text (core, corrected states only)',
+    whole.ms / 1000,
+    's',
+    `${whole.result.passages.length} passages`,
+  );
   data.collate = {
     median: median(ms),
     p95: percentile(ms, 0.95),
@@ -399,6 +446,8 @@ async function sent(c: Context, view: EditionView): Promise<void> {
   );
   // The edit page opens on its first segments; the outline of the whole text is asked for once it is open.
   await c.db.delete(collationCache).where(eq(collationCache.editionId, c.editionId));
+  // What the process remembers of collations goes too, so that the view is cold.
+  forgetCollations();
   const openingCold = await timed(() =>
     editionView(c.db, c.editionId, null, audience, { first: OPENING_SEGMENTS, lines: false }),
   );
@@ -572,14 +621,16 @@ function singleWordReadings(
 async function apparatus(c: Context, view: EditionView): Promise<void> {
   section('4. The apparatus, as numbers');
   const segs = Object.values(view.segments);
-  const perLine = segs.map((s) => s.collation.sites.length);
-  report('places per line: mean', mean(perLine), '', `${segs.length} lines`);
+  // A place counts for the segment its words begin in.
+  const shares = [...segmentShares(segs)];
+  const perLine = shares.map(([, share]) => share.sites.length);
+  report('places per line: mean', mean(perLine), '', `${shares.length} lines`);
   report('places per line: 95th percentile', percentile(perLine, 0.95), '', 'lines');
   report(
     'places per line: most',
     Math.max(...perLine),
     '',
-    `line ${segs.find((s) => s.collation.sites.length === Math.max(...perLine))?.label}`,
+    `line ${view.labelOf[shares.find(([, share]) => share.sites.length === Math.max(...perLine))?.[0] ?? '']}`,
   );
   report('lines with no place', perLine.filter((n) => n === 0).length, '', 'lines');
   const readings = segs.flatMap((s) => s.collation.sites.map((site) => site.readings.length));
@@ -589,13 +640,25 @@ async function apparatus(c: Context, view: EditionView): Promise<void> {
 
   // The printed apparatus, as the plain-text export of an edition renders it.
   const context = await loadEditionContext(c.db, c.editionId);
-  const collations = await collateEdition(c.db, context);
+  const collated = await collateEdition(c.db, context);
   const conventions = apparatusConventionsOf(view.edition.conventions);
   const siglaOrder = siglaOrderOf(context.sigla);
   const lengths: number[] = [];
   const counts: number[] = [];
-  for (const [segmentId, collation] of collations) {
+  const printedShares = segmentShares(
+    collated.map((p) => ({
+      segmentId: p.segmentId,
+      label: view.labelOf[p.segmentId] ?? p.segmentId,
+      segments: p.segments,
+      siteSegments: {},
+      collation: p.collation,
+      baseUnits: p.baseUnits,
+      attachments: {},
+    })),
+  );
+  for (const [segmentId, share] of printedShares) {
     const label = view.labelOf[segmentId] ?? segmentId;
+    const collation = { ...share.passage.collation, sites: share.sites };
     const { main, interpretative } = splitEntries(
       apparatusEntries(collation as Collation, label, {}, conventions, siglaOrder),
       conventions,
@@ -662,7 +725,7 @@ async function apparatus(c: Context, view: EditionView): Promise<void> {
   );
   for (const [kind, n] of [...byKind].sort())
     report(`  ${kind}`, n, '', 'unplaced at their segment');
-  const inEdition = new Set(Object.keys(view.segments));
+  const inEdition = new Set(segs.flatMap((p) => p.segments.map((x) => x.segmentId)));
   const elsewhere = (
     await c.db
       .select({ segmentId: conjectures.segmentId })
@@ -729,7 +792,11 @@ function readable(c: Context, view: EditionView): void {
     '5. The apparatus, to read: fifteen lines as a reader gets them (the plain-text download, the draft)',
   );
   const order = segmentIds(view.content);
-  const sitesOf = (id: string) => view.segments[id]?.collation.sites.length ?? 0;
+  const shares = segmentShares(Object.values(view.segments));
+  const sitesOf = (id: string) => shares.get(id)?.sites.length ?? 0;
+  const passageOf = new Map(
+    Object.values(view.segments).flatMap((p) => p.segments.map((x) => [x.segmentId, p] as const)),
+  );
   const first = order.slice(0, 5);
   const most = [...order]
     .filter((id) => !first.includes(id))
@@ -744,7 +811,7 @@ function readable(c: Context, view: EditionView): void {
     const text = plainText({
       heading: [],
       content: { items: items.get(id) ?? [] },
-      segments: { [id]: view.segments[id]! },
+      segments: passageOf.has(id) ? { [id]: passageOf.get(id)! } : {},
       labelOf: view.labelOf,
       conventions: view.apparatus,
       siglaOrder: siglaOrderOf(view.sigla),

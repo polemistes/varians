@@ -1,11 +1,11 @@
 /**
- * A segment that witnesses have and the edition does not print is a
- * variant: after the edition's segment that precedes it in the work's
- * numbering, with nothing in the edition, the segment's words in the
- * witnesses that have it, and with the edition the witnesses whose text runs
- * on without it. Lines outside the stretch the edition has are not reported.
- * The order of whole segments is a variant too, given to the editor and the
- * reader alike.
+ * A segment that witnesses have and the edition does not print is a variant
+ * at a point: in the passage of the edition's segment that precedes it in
+ * the work's numbering, after that segment's words, with nothing in the
+ * edition, the segment's words in the witnesses that have it, and with the
+ * edition the witnesses whose text runs on without it. Lines outside the
+ * stretch the edition has are not reported. The order of whole segments is a
+ * variant too, given to the editor and the reader alike.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -20,7 +20,9 @@ import {
   type Item,
   type Op,
   type Stream,
+  type Site,
   type Token,
+  type Unit,
 } from '@varians/core';
 import {
   collationCache,
@@ -38,6 +40,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import type pg from 'pg';
 import { opsForReading } from '../edition/adopt-client.ts';
 import { countNeeding } from '../edition/outline.ts';
+import { unprintedAt } from '../reader/passages.ts';
 import { sitesInOrder, stepSite } from '../edition/workspace.ts';
 import { unpackReader } from '../reader/wire.ts';
 import { setSiteMinor } from './collation.ts';
@@ -202,12 +205,37 @@ afterAll(async () => {
   await pool.end();
 });
 
-/** The one variant of line 3 as a view has it: each reading's words with its sigla. */
-function readingsOf(segment: {
-  collation: { sites: { readings: { text: string; sigla: string[]; base: boolean }[] }[] };
-}) {
-  return segment.collation.sites.map((site) =>
+/** Each reading of each variant given: its words with its sigla. */
+function readingsOf(sites: { readings: { text: string; sigla: string[]; base: boolean }[] }[]) {
+  return sites.map((site) =>
     site.readings.map((r) => `${r.base ? '*' : ''}${r.text || '(nothing)'}: ${r.sigla.join(' ')}`),
+  );
+}
+
+type Passage = {
+  segmentId: string;
+  segments: { segmentId: string; from: number; to: number; printed: boolean }[];
+  siteSegments: Record<number, string[]>;
+  collation: { sites: Site[] };
+  baseUnits: Unit[];
+};
+
+/** The variant at a segment the edition does not print, with the passage it is in; null when there is none. */
+function unprintedVariant<T extends Passage>(
+  segments: Record<string, T>,
+  segmentId: string,
+): { passage: T; site: Site } | null {
+  for (const passage of Object.values(segments))
+    for (const site of passage.collation.sites)
+      if (unprintedAt(passage, site.index)?.segmentId === segmentId) return { passage, site };
+  return null;
+}
+
+/** The variants over the words of a segment of a passage. */
+function sitesOver(passage: Passage, segmentId: string): Site[] {
+  const part = passage.segments.find((s) => s.segmentId === segmentId)!;
+  return passage.collation.sites.filter(
+    (site) => site.baseFrom >= part.from && site.baseTo <= part.to && site.baseTo > site.baseFrom,
   );
 }
 
@@ -215,56 +243,86 @@ describe('a segment the edition does not print', () => {
   it('is a variant after the line before it, with the witnesses that are there', async () => {
     const view = await editionView(db, editionId, null, owner);
     const three = segmentIdOf('1.3');
-    expect(view.unprinted).toEqual([{ segmentId: three, after: segmentIdOf('1.2') }]);
-    const segment = view.segments[three]!;
-    expect(segment.label).toBe('1.3');
-    expect(segment.unprinted).toEqual({ after: segmentIdOf('1.2') });
-    expect(segment.baseUnits).toEqual([]);
-    // A has the words; B runs on without them and stands with the edition; C has lost them and is not there.
-    expect(readingsOf(segment)).toEqual([['*(nothing): ed. B', 'eta theta iota: A']]);
-    const site = segment.collation.sites[0]!;
-    expect(additionIn(site, editionId, false)).toEqual([transcriptionOf.A]);
-    // A line outside the edition's stretch is not reported.
-    expect(view.unprinted.map((u) => u.segmentId)).not.toContain(segmentIdOf('1.6'));
-    expect(view.segments[segmentIdOf('1.6')]).toBeUndefined();
-    // The line stands among the edition's lines in the order of the work.
-    expect(Object.keys(view.segments)).toEqual(
-      ['1.1', '1.2', '1.3', '1.4', '1.5'].map(segmentIdOf),
+    const found = unprintedVariant(view.segments, three)!;
+    expect(found).not.toBeNull();
+    const { passage, site } = found;
+    // In the passage of 1.2, after its words, at a point; the edition has no words of it.
+    expect(passage.segments.map((s) => [s.label, s.printed])).toEqual(
+      expect.arrayContaining([
+        ['1.2', true],
+        ['1.3', false],
+      ]),
     );
-    // It is cached like any other segment's collation.
+    const two = passage.segments.find((s) => s.label === '1.2')!;
+    expect(site.baseFrom).toBe(two.to);
+    expect(site.baseTo).toBe(two.to);
+    expect(passage.siteSegments[site.index]).toEqual([three]);
+    // A has the words; B runs on without them and stands with the edition; C has lost them and is not there.
+    expect(readingsOf([site])).toEqual([['*(nothing): ed. B', 'eta theta iota: A']]);
+    expect(additionIn(site, editionId, false)).toEqual([transcriptionOf.A]);
+    // Each of A's words names the segment it is in.
+    const a = site.readings.find((r) => r.sigla.includes('A'))!;
+    expect(a.units[transcriptionOf.A!]!.map((u) => u.segmentId)).toEqual([three, three, three]);
+    // A line outside the edition's stretch is not reported.
+    expect(unprintedVariant(view.segments, segmentIdOf('1.6'))).toBeNull();
+    expect(
+      Object.values(view.segments).some((p) =>
+        p.segments.some((s) => s.segmentId === segmentIdOf('1.6')),
+      ),
+    ).toBe(false);
+    // The passages hold the edition's lines in their order, the line not printed among them in the order of the work.
+    expect(Object.values(view.segments).flatMap((p) => p.segments.map((s) => s.label))).toEqual([
+      '1.1',
+      '1.2',
+      '1.3',
+      '1.4',
+      '1.5',
+    ]);
+    // It is cached with its passage, under the passage's first segment.
     const cached = await db
       .select()
       .from(collationCache)
-      .where(and(eq(collationCache.editionId, editionId), eq(collationCache.segmentId, three)));
+      .where(
+        and(
+          eq(collationCache.editionId, editionId),
+          eq(collationCache.segmentId, passage.segmentId),
+        ),
+      );
     expect(cached).toHaveLength(1);
+    expect(cached[0]!.result).toHaveProperty('passage');
   });
 
   it('is given to the editor among the first segments, again after a change, and in the outline it counts', async () => {
     const three = segmentIdOf('1.3');
     const first = await editionView(db, editionId, null, owner, { first: 2, lines: false });
-    expect(Object.keys(first.segments)).toEqual(['1.1', '1.2', '1.3'].map(segmentIdOf));
+    expect(unprintedVariant(first.segments, three)).not.toBeNull();
     const fresh = await refreshView(db, editionId, [three], owner);
-    expect(fresh.segments[three]!.unprinted).toEqual({ after: segmentIdOf('1.2') });
-    expect(fresh.unprinted).toEqual([{ segmentId: three, after: segmentIdOf('1.2') }]);
+    const passage = unprintedVariant(fresh.segments, three)!.passage;
+    expect(Object.keys(fresh.segments)).toEqual([passage.segmentId]);
 
     const { outline } = await editionOutline(db, editionId, owner);
-    expect(outline[three]!.unprinted).toEqual({ after: segmentIdOf('1.2') });
-    expect(outline[three]!.sites).toHaveLength(1);
+    const sites = outline[passage.segmentId]!.sites.filter((s) => s.unprinted);
+    expect(sites).toHaveLength(1);
+    expect(sites[0]!.unprinted).toEqual({ segmentId: three, after: segmentIdOf('1.2') });
+    expect(sites[0]!.segments).toEqual([three]);
     const order = ['1.1', '1.2', '1.4', '1.5'].map(segmentIdOf);
     const all = sitesInOrder(order, outline);
-    expect(all.map((ref) => ref.segmentId)).toContain(three);
-    const key = outline[three]!.sites[0]!.key;
-    expect(countNeeding(order, outline, new Map())).toBe(all.filter((r) => r.site.needs).length);
-    expect(countNeeding(order, outline, new Map([[three, new Set([key])]]))).toBe(
+    const at = all.findIndex((ref) => ref.site.unprinted?.segmentId === three);
+    expect(at).toBeGreaterThanOrEqual(0);
+    const key = sites[0]!.key;
+    expect(countNeeding(outline, new Map())).toBe(all.filter((r) => r.site.needs).length);
+    // Reviewed under the segment it is.
+    expect(countNeeding(outline, new Map([[three, new Set([key])]]))).toBe(
       all.filter((r) => r.site.needs).length - 1,
     );
     // Stepping reaches it in its place: on from the line it follows, and back from the next place after it.
-    expect(stepSite(order, outline, null, 1, {}, false, segmentIdOf('1.2'))?.segmentId).toBe(three);
-    const at = all.findIndex((ref) => ref.segmentId === three);
+    expect(
+      stepSite(order, outline, null, 1, {}, false, segmentIdOf('1.2'))?.site.unprinted,
+    ).toEqual({ segmentId: three, after: segmentIdOf('1.2') });
     const after = all[at + 1];
     if (after) {
       const back = { segmentId: after.segmentId, siteIndex: after.site.index };
-      expect(stepSite(order, outline, back, -1, {})?.segmentId).toBe(three);
+      expect(stepSite(order, outline, back, -1, {})?.site.unprinted?.segmentId).toBe(three);
     }
   });
 
@@ -296,41 +354,48 @@ describe('a segment the edition does not print', () => {
 
     const before = await editionView(db, editionId, null, owner);
     const original = before.content;
-    const variant = before.segments[three]!;
-    const site = variant.collation.sites[0]!;
+    const { passage: variant, site } = unprintedVariant(before.segments, three)!;
     const reading = site.readings.find((r) => r.sigla.includes('A'))!;
+    // The ordinary adoption: each word in the segment A gives it, the line on a line of its own.
     await save(opsForReading(original, variant, site, reading, transcriptionOf.A!));
 
     // Printed from A, after 1.2: collated as a printed line, the variant over the whole of it says B has it not.
     const printed = await editionView(db, editionId, null, owner);
-    expect(printed.unprinted).toEqual([]);
+    expect(unprintedVariant(printed.segments, three)).toBeNull();
     expect(toText(printed.content).split('\n')).toEqual(
       ['1.1', '1.2', '1.3', '1.4', '1.5'].map((l) => LINES[l]),
     );
     expect(sourcesOf(printed.content)).toEqual(fromA);
-    const line = printed.segments[three]!;
-    expect(line.unprinted).toBeUndefined();
-    expect(line.baseUnits.map((u) => u.text)).toEqual(['eta', 'theta', 'iota']);
-    expect(readingsOf(line)).toEqual([['*eta theta iota: ed. A', '(nothing): B']]);
+    const line = Object.values(printed.segments).find((p) =>
+      p.segments.some((s) => s.segmentId === three && s.printed),
+    )!;
+    const part = line.segments.find((s) => s.segmentId === three)!;
+    expect(line.baseUnits.slice(part.from, part.to).map((u) => u.text)).toEqual([
+      'eta',
+      'theta',
+      'iota',
+    ]);
+    expect(readingsOf(sitesOver(line, three))).toEqual([
+      ['*eta theta iota: ed. A', '(nothing): B'],
+    ]);
 
     // Its absence adopted: not printed, and a variant after 1.2 again.
-    const wanting = line.collation.sites.find((s) => s.wanting)!;
+    const wanting = sitesOver(line, three).find((s) => s.wanting)!;
     const notIn = wanting.readings.find((r) => r.sigla.includes('B'))!;
     await save(opsForReading(printed.content, line, wanting, notIn, transcriptionOf.B!));
     const without = await editionView(db, editionId, null, owner);
-    expect(without.unprinted).toEqual([{ segmentId: three, after: segmentIdOf('1.2') }]);
+    expect(unprintedVariant(without.segments, three)).not.toBeNull();
     expect(toText(without.content)).not.toContain('theta');
 
     // Adopted back from its variant: the line as it was printed, its words from A.
-    const again = without.segments[three]!;
-    const fromVariant = again.collation.sites[0]!;
-    const its = fromVariant.readings.find((r) => r.sigla.includes('A'))!;
-    await save(opsForReading(without.content, again, fromVariant, its, transcriptionOf.A!));
+    const again = unprintedVariant(without.segments, three)!;
+    const its = again.site.readings.find((r) => r.sigla.includes('A'))!;
+    await save(opsForReading(without.content, again.passage, again.site, its, transcriptionOf.A!));
     const back = await editionView(db, editionId, null, owner);
     expect(toText(back.content)).toBe(toText(printed.content));
     expect(back.content.items.map((i) => i.kind)).toEqual(printed.content.items.map((i) => i.kind));
     expect(sourcesOf(back.content)).toEqual(fromA);
-    expect(back.unprinted).toEqual([]);
+    expect(unprintedVariant(back.segments, three)).toBeNull();
 
     // The edition as it was, for what follows.
     const [row] = await db
@@ -343,29 +408,28 @@ describe('a segment the edition does not print', () => {
   it('takes the editor’s marks by its segment and its site key', async () => {
     const three = segmentIdOf('1.3');
     const view = await editionView(db, editionId, null, owner);
-    const segment = view.segments[three]!;
-    const key = siteKey(segment.collation.sites[0]!, segment.baseUnits);
+    const { passage, site } = unprintedVariant(view.segments, three)!;
+    const key = siteKey(site, passage.baseUnits);
     await setSiteMinor(db, editionId, three, key, true, userId);
     const after = await editionView(db, editionId, null, owner);
-    expect(after.segments[three]!.collation.sites[0]!.minor).toBe(true);
+    expect(unprintedVariant(after.segments, three)!.site.minor).toBe(true);
     await setSiteMinor(db, editionId, three, key, false, userId);
     const again = await editionView(db, editionId, null, owner);
-    expect(again.segments[three]!.collation.sites[0]!.minor).toBeUndefined();
+    expect(unprintedVariant(again.segments, three)!.site.minor).toBeUndefined();
   });
 
   it('is sent to the reader with the page, or when the page asks for it', async () => {
     const three = segmentIdOf('1.3');
     const data = unpackReader(await loadReader(db, actor, EDITION, { draft: true }));
-    expect(data.unprinted).toEqual([{ segmentId: three, after: segmentIdOf('1.2') }]);
     expect(data.labelOf[three]).toBe('1.3');
-    expect(data.segments[three]!.unprinted).toEqual({ after: segmentIdOf('1.2') });
-    expect(readingsOf(data.segments[three]!)).toEqual([['*(nothing): ed. B', 'eta theta iota: A']]);
+    const found = unprintedVariant(data.segments, three)!;
+    expect(readingsOf([found.site])).toEqual([['*(nothing): ed. B', 'eta theta iota: A']]);
     const asked = unpackReader({
       ...(await loadReader(db, actor, EDITION, { draft: true })),
       ...(await readerSites(db, actor, EDITION, { draft: true }, [three, segmentIdOf('1.6')])),
     });
-    expect(Object.keys(asked.segments)).toEqual([three]);
-    expect(asked.segments[three]!.unprinted).toEqual({ after: segmentIdOf('1.2') });
+    expect(Object.keys(asked.segments)).toEqual([found.passage.segmentId]);
+    expect(unprintedVariant(asked.segments, three)).not.toBeNull();
   });
 
   it('stays in a published version as it was published when the transcripts change later', async () => {
@@ -375,18 +439,24 @@ describe('a segment the edition does not print', () => {
     await setContent('A', stream(of(['1.1', '1.2', '1.4', '1.5', '1.6'])));
     await setContent('B', stream(of(['1.1', '1.2', '1.3', '1.4', '1.5', '1.6'])));
     const now = await editionView(db, editionId, null, owner);
-    expect(readingsOf(now.segments[three]!)).toEqual([['*(nothing): ed. A', 'eta theta iota: B']]);
+    expect(readingsOf([unprintedVariant(now.segments, three)!.site])).toEqual([
+      ['*(nothing): ed. A', 'eta theta iota: B'],
+    ]);
     const then = await editionView(db, editionId, published.version);
-    expect(then.unprinted).toEqual([{ segmentId: three, after: segmentIdOf('1.2') }]);
-    expect(readingsOf(then.segments[three]!)).toEqual([['*(nothing): ed. B', 'eta theta iota: A']]);
+    expect(readingsOf([unprintedVariant(then.segments, three)!.site])).toEqual([
+      ['*(nothing): ed. B', 'eta theta iota: A'],
+    ]);
     // A line no witness has any more is no variant.
     await setContent('B', stream(of(['1.1', '1.2', '1.4', '1.5', '1.6'])));
     const none = await editionView(db, editionId, null, owner);
-    expect(none.unprinted).toEqual([]);
-    expect(none.segments[three]).toBeUndefined();
+    expect(unprintedVariant(none.segments, three)).toBeNull();
     expect(
-      readingsOf((await editionView(db, editionId, published.version)).segments[three]!),
-    ).toEqual([['*(nothing): ed. B', 'eta theta iota: A']]);
+      Object.values(none.segments).some((p) => p.segments.some((s) => s.segmentId === three)),
+    ).toBe(false);
+    const still = await editionView(db, editionId, published.version);
+    expect(readingsOf([unprintedVariant(still.segments, three)!.site])).toEqual([
+      ['*(nothing): ed. B', 'eta theta iota: A'],
+    ]);
   });
 });
 

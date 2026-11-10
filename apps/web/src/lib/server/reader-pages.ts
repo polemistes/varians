@@ -240,9 +240,10 @@ export async function loadReader(
       if (start.segmentId && view.labelOf[start.segmentId])
         labelOf[start.segmentId] = view.labelOf[start.segmentId]!;
   }
-  for (const segment of Object.values(view.segments)) labelOf[segment.segmentId] = segment.label;
-  for (const { segmentId } of view.unprinted)
-    if (view.labelOf[segmentId]) labelOf[segmentId] = view.labelOf[segmentId]!;
+  // And of every segment of the passages sent, those the edition does not print among them.
+  for (const segment of Object.values(view.segments))
+    for (const { segmentId } of segment.segments)
+      if (view.labelOf[segmentId]) labelOf[segmentId] = view.labelOf[segmentId]!;
 
   return {
     edition: view.edition,
@@ -256,7 +257,6 @@ export async function loadReader(
     pending: view.pending,
     worksCited: await editionWorksCited(db, access.edition.id, audience),
     labelOf,
-    unprinted: view.unprinted,
     orderVariants: view.orderVariants,
     mode,
     versions: readerVersions(access.edition.slug, moments, currentNumber),

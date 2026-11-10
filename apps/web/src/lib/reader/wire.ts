@@ -9,7 +9,7 @@
  * Pure, so that the page can use it.
  */
 import type { Attachment, Collation, Reading, Site, SiteKind, Unit } from '@varians/core';
-import type { ReaderData, ReaderNote, ReaderSegment } from './types.ts';
+import type { PassagePart, ReaderData, ReaderNote, ReaderSegment } from './types.ts';
 
 /** What the reader's page is sent: the page data with its segments as they travel. */
 export interface ReaderWireData extends Omit<ReaderData, 'segments'> {
@@ -42,22 +42,27 @@ export interface WireSite {
   /** The editor judges the place minor: a reader's page shows it only when asked. */
   minor?: true;
   readings: WireReading[];
-  /** The texts whose words exchange places with those of another site, by place in the list. */
-  transposition?: { withSite: number; t: number[] };
+  /**
+   * The texts whose words exchange places with those of another site, by
+   * place in the list: of this passage, or of the passage `inPassage` (its
+   * first segment).
+   */
+  transposition?: { withSite: number; t: number[]; inPassage?: string };
 }
 
+/** A passage as it travels: known by its first segment. */
 export interface WireSegment {
   segmentId: string;
   label: string;
+  segments: PassagePart[];
   sites: WireSite[];
   baseUnits: Unit[];
+  siteSegments: Record<number, string[]>;
   attachments: Record<number, Attachment[]>;
-  unplaced: Attachment[];
+  unplaced: (Attachment & { segmentId?: string })[];
   absent: string[];
   notes: ReaderNote[];
   cites?: Record<string, string[]>;
-  /** A segment the edition does not print: the edition's segment its variant stands after. */
-  unprinted?: { after: string };
 }
 
 /**
@@ -80,19 +85,20 @@ export function detailOf(
   return { units, aligned };
 }
 
-/** The parts of a segment view the wire is made from. */
+/** The parts of a passage's view the wire is made from. */
 export interface PackableSegment {
   segmentId: string;
   label: string;
+  segments: PassagePart[];
   /** The siglum of each text, for a reading that does not carry it. */
   collation: Pick<Collation, 'sites'> & Partial<Pick<Collation, 'sigla'>>;
   baseUnits: Unit[];
+  siteSegments: Record<number, string[]>;
   attachments: Record<number, Attachment[]>;
-  unplaced: Attachment[];
+  unplaced: (Attachment & { segmentId?: string })[];
   absent: string[];
   notes: ReaderNote[];
   cites?: Record<string, string[]>;
-  unprinted?: { after: string };
 }
 
 /** The segments made ready to send, with the list of texts they name. */
@@ -140,20 +146,24 @@ export function packSegments(segments: Iterable<PackableSegment>): {
         wire.transposition = {
           withSite: site.transposition.withSite,
           t: site.transposition.textIds.map((id) => placeOf(id, names[id] ?? id)),
+          ...(site.transposition.inPassage !== undefined
+            ? { inPassage: site.transposition.inPassage }
+            : {}),
         };
       return wire;
     });
     out[segment.segmentId] = {
       segmentId: segment.segmentId,
       label: segment.label,
+      segments: segment.segments,
       sites,
       baseUnits: segment.baseUnits,
+      siteSegments: segment.siteSegments,
       attachments: segment.attachments,
       unplaced: segment.unplaced,
       absent: segment.absent,
       notes: segment.notes,
       ...(segment.cites ? { cites: segment.cites } : {}),
-      ...(segment.unprinted ? { unprinted: segment.unprinted } : {}),
     };
   }
   return { segments: out, texts };
@@ -189,20 +199,24 @@ export function unpackSegment(wire: WireSegment, texts: WireText[], baseId: stri
       unpacked.transposition = {
         withSite: site.transposition.withSite,
         textIds: site.transposition.t.map((at) => texts[at]![0]),
+        ...(site.transposition.inPassage !== undefined
+          ? { inPassage: site.transposition.inPassage }
+          : {}),
       };
     return unpacked;
   });
   return {
     segmentId: wire.segmentId,
     label: wire.label,
+    segments: wire.segments,
     collation: { columns: [], sites, anchors: [], baseId, absent: [], sigla: {} },
     baseUnits: wire.baseUnits,
+    siteSegments: wire.siteSegments,
     attachments: wire.attachments,
     unplaced: wire.unplaced,
     absent: wire.absent,
     notes: wire.notes,
     ...(wire.cites ? { cites: wire.cites } : {}),
-    ...(wire.unprinted ? { unprinted: wire.unprinted } : {}),
   };
 }
 

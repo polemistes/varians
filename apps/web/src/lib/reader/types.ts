@@ -13,12 +13,32 @@ import type {
 } from '@varians/core';
 import type { EditionConventions } from '@varians/db';
 
-export interface ReaderSegment {
+/** A segment of a passage: its label, and the edition's units it holds, [from, to); one the edition does not print holds none. */
+export interface PassagePart {
   segmentId: string;
   label: string;
+  from: number;
+  to: number;
+  printed: boolean;
+}
+
+/**
+ * A passage of the edition as the reader has it: one segment, or several
+ * collated together, known by its first.
+ */
+export interface ReaderSegment {
+  /** The passage's first segment. */
+  segmentId: string;
+  /** That segment's label. */
+  label: string;
+  /** The segments of the passage in order. */
+  segments: PassagePart[];
   /** The collation with its columns left out: the reader needs the sites only. */
   collation: Collation;
+  /** The edition's units of the passage, each naming the segment its word begins in. */
   baseUnits: Unit[];
+  /** The segments each variant's words lie in, by site index, in the order of the passage: the first is where it stands. */
+  siteSegments: Record<number, string[]>;
   /** Conjectures and reported readings by site index. */
   attachments: Record<number, Attachment[]>;
   /**
@@ -28,18 +48,19 @@ export interface ReaderSegment {
    * page: it comes with the detail of the segment (`SegmentDetail`).
    */
   aligned?: Record<string, number[]>;
-  unplaced: Attachment[];
-  /** Sigla of the witnesses without this segment at all. */
+  /** What no variant took, each with the segment it names. */
+  unplaced: (Attachment & { segmentId?: string })[];
+  /** Sigla of the witnesses without any of the passage. */
   absent: string[];
   notes: ReaderNote[];
   /** What attached conjectures and reported readings cite, by attachment id: "cf. West 1998, 45". */
   cites?: Record<string, string[]>;
-  /** A segment the edition does not print and witnesses have: its variant stands after the edition's segment `after`. */
-  unprinted?: { after: string };
 }
 
 export interface ReaderNote {
   id: string;
+  /** The segment the note is on. */
+  segmentId?: string;
   tokenIds: string[];
   text: string;
   author: string | null;
@@ -105,17 +126,12 @@ export interface ReaderData {
   apparatus: ApparatusConventions;
   lines: LayoutLine[];
   sigla: ReaderSiglum[];
+  /** The passages sent, by their first segment. */
   segments: Record<string, ReaderSegment>;
   /** The bibliography of the edition: what its apparatus and notes cite. */
   worksCited: { id: string; key: string; label: string; reference: string }[];
-  /** Labels of the segments the edition has, and of those it does not print that witnesses have, by id. */
+  /** Labels of the segments the edition has, and of those it does not print that witnesses have in the passages sent, by id. */
   labelOf: Record<string, string>;
-  /**
-   * The segments the edition does not print that witnesses have, in the
-   * work's order, each with the edition's segment it stands after. Their
-   * variants come among `segments`, or, when not sent, with the `pending`.
-   */
-  unprinted: { segmentId: string; after: string }[];
   /**
    * Where witnesses order the edition's segments otherwise, as variants: over
    * a stretch of the edition's segments, the segments in each order, the
@@ -140,9 +156,10 @@ export interface ReaderData {
   /** Where the places of some segments are asked for (`sites.json`), those in `pending`. */
   sites: string;
   /**
-   * Segments of the text whose places were not sent, because their collation
-   * was not at hand and the page did not wait for it: nearest the segment
-   * asked for first. The page asks for them as it opens.
+   * Segments of the text whose passages were not sent, because their
+   * collation was not at hand and the page did not wait for it: nearest the
+   * segment asked for first. The page asks for them as it opens, and is given
+   * the passages that hold them.
    */
   pending: string[];
   links: {

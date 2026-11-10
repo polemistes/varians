@@ -25,6 +25,7 @@ import { DEFAULT_FOLD, fold as foldText } from '../normalize/fold.ts';
 import {
   collate,
   FAR_REACH,
+  TRANSPOSITION_REACH,
   type Collation,
   type CollationOptions,
   type CollationText,
@@ -71,6 +72,8 @@ export interface PassageOptions {
 
 export const MAX_PASSAGE_SEGMENTS = 12;
 export const MAX_PASSAGE_UNITS = 240;
+/** The zone on either side of a boundary: the reach of a transposition and one more. */
+export const BOUNDARY_ZONE = TRANSPOSITION_REACH + 1;
 
 /** Why a boundary is left uncut: the first witness found (or the edition) and what it does there. */
 export type BoundaryReason =
@@ -158,7 +161,9 @@ export function boundaryReason(
   at: number,
   options: PassageOptions = {},
 ): BoundaryReason | null {
-  const zone = options.zone ?? (options.transpositionReach ?? 3) + 1;
+  const zone =
+    options.zone ??
+    (options.transpositionReach === undefined ? BOUNDARY_ZONE : options.transpositionReach + 1);
   const left = segments[at - 1];
   const right = segments[at];
   if (!left || !right) return null;

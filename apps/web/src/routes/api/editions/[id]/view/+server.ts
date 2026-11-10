@@ -1,9 +1,9 @@
 /**
  * GET /api/editions/[id]/view?segments=a,b,c
- * For the editor: the apparatus views of some segments (at most a hundred,
- * of the edition's work), collated from the current content, with the drafts
- * the editor may see, and how the edition's segments stand to the witnesses'
- * (their order, and the segments the edition does not print). Without
+ * For the editor: the views of the passages that hold some segments (at most
+ * a hundred, of the edition's work), each under its first segment, collated
+ * from the current content, with the drafts the editor may see, and the
+ * order in which the witnesses have the edition's segments. Without
  * `segments`, the whole edition view. Readers
  * see published versions through the reader, not here.
  */
@@ -33,7 +33,6 @@ export const GET: RequestHandler = async ({ locals, params, url }) => {
       segments: forJson(fresh.segments),
       order: fresh.order,
       orderVariants: fresh.orderVariants,
-      unprinted: fresh.unprinted,
     });
   }
   const view = await editionView(locals.db, access.edition.id, null, audience);

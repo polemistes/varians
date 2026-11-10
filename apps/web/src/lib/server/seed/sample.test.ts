@@ -10,7 +10,10 @@ import {
 } from '@varians/db';
 import { eq, inArray } from 'drizzle-orm';
 import pg from 'pg';
-import { collateEdition, loadEditionContext } from '../collation.ts';
+import { loadEditionContext } from '../collation.ts';
+import { collateEdition } from '../passages.ts';
+import { segmentsOfSites } from '../reader.ts';
+import { labelOfSegments } from '../../reader/sites.ts';
 import { apparatusEntries, formatApparatus } from '@varians/core';
 import { seedSample } from './sample.ts';
 
@@ -50,17 +53,21 @@ describe('seedSample', () => {
     expect(toText(context.edition.content).startsWith('μῆνιν ἄειδε θεὰ Πηληϊάδεω Ἀχιλῆος')).toBe(
       true,
     );
-    const collations = await collateEdition(db, context);
-    expect(collations.size).toBe(10);
+    const passages = await collateEdition(db, context);
+    expect(passages.flatMap((p) => p.segments.map((s) => s.segmentId))).toHaveLength(10);
     const labels = await db.query.segments.findMany({
       where: (t, { eq }) => eq(t.workId, result.workId),
     });
-    const labelOf = new Map(labels.map((s) => [s.id, s.label]));
+    const labelOf = Object.fromEntries(labels.map((s) => [s.id, s.label]));
     const lines: string[] = [];
-    for (const [segmentId, collation] of collations) {
+    for (const passage of passages) {
+      const of = segmentsOfSites(passage.collation.sites, passage.baseUnits, passage.segments);
       lines.push(
         ...formatApparatus(
-          apparatusEntries(collation, labelOf.get(segmentId)!, {}, undefined, ['A', 'B', 'C']),
+          apparatusEntries(passage.collation, '', {}, undefined, ['A', 'B', 'C']).map((e) => ({
+            ...e,
+            label: labelOfSegments(of[e.siteIndex] ?? [], labelOf),
+          })),
         ),
       );
     }
@@ -72,11 +79,11 @@ describe('seedSample', () => {
     // C has lost words of 1.5: it is not there, and the apparatus says nothing of the loss.
     expect(lines.some((l) => l.startsWith('1.5') && / C\b/u.test(l))).toBe(false);
     // B and C are without line 6 within the stretch they cover: one site over the whole line, which is not in them.
-    const six = [...collations.entries()].find(([id]) => labelOf.get(id) === '1.6')![1];
-    expect(six.absent).toEqual([]);
+    const six = passages.find((p) => p.segments.some((s) => labelOf[s.segmentId] === '1.6'))!;
+    expect(six.collation.absent).toEqual([]);
     expect(lines).toContain('1.6 ἐξ … ἐρίσαντε A : om. B C');
     // The cache answers the second time.
     const again = await collateEdition(db, context);
-    expect(again.size).toBe(10);
+    expect(again.map((p) => p.segments)).toEqual(passages.map((p) => p.segments));
   });
 });
