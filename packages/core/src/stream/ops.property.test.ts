@@ -62,15 +62,9 @@ describe('operations (random)', () => {
     });
   });
 
-  // Counterexample (shrunk): the stream `t1:a` and the single operation
-  // `{"t":"replace","ids":["t1"],"items":[]}`. `replace` accepts an empty list
-  // of new items (the run is simply removed), but the reverse it returns is
-  // `{"t":"replace","ids":[],"items":[t1]}`, and `replace` refuses an empty
-  // list of ids ("replace needs at least one item"), so the history holds a
-  // reverse that cannot be applied. Either `replace` should refuse an empty
-  // `items` (the message suggests that was meant) or its reverse should be an
-  // `insert`.
-  it.fails('also when a replace puts nothing in place of the items it takes out', () => {
+  // A replace that puts nothing in place of the run it takes out has an
+  // `insert` of the run for its reverse (a `replace` needs ids to name).
+  it('also when a replace puts nothing in place of the items it takes out', () => {
     runProperty('ops: apply then reverse restores the stream (replace by nothing allowed)', {
       generate: generator(true),
       show: showOpsCase,
@@ -200,13 +194,8 @@ describe('operations naming an id that is not there (random)', () => {
     runProperty('ops: a missing id throws StreamError', missingCase(false));
   });
 
-  // Counterexample (shrunk): the stream `t1:a`, the operation
-  // `{"t":"insert","after":"no-such-id","items":[]}` (likewise
-  // `{"t":"move","ids":[],"after":"no-such-id"}`). `insert` and `move` return
-  // before they look at `after` when there is nothing to insert or move, so
-  // an operation that names an item that is not there is accepted. No state
-  // is changed by it; the fault is only that the anchor is not checked.
-  it.fails('also when there is nothing to insert or to move', () => {
+  // An empty `insert` or `move` changes nothing, but its anchor is still looked up.
+  it('also when there is nothing to insert or to move', () => {
     runProperty(
       'ops: a missing anchor throws, even for an empty insert or move',
       missingCase(true),

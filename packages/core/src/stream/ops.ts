@@ -93,7 +93,11 @@ export function touchedIds(op: Op): Id[] {
 }
 
 function insert(stream: Stream, after: Id | null, items: Item[]): Applied {
-  if (items.length === 0) return { stream, reverse: [] };
+  // The anchor is checked even when there is nothing to put after it.
+  if (items.length === 0) {
+    if (after !== null) requireIndex(stream, after);
+    return { stream, reverse: [] };
+  }
   const present = new Set(stream.items.map((i) => i.id));
   const seen = new Set<Id>();
   for (const item of items) {
@@ -157,7 +161,11 @@ function set(stream: Stream, id: Id, fields: Record<string, unknown>): Applied {
 }
 
 function move(stream: Stream, ids: Id[], after: Id | null): Applied {
-  if (ids.length === 0) return { stream, reverse: [] };
+  // The anchor is checked even when there is nothing to move to it.
+  if (ids.length === 0) {
+    if (after !== null) requireIndex(stream, after);
+    return { stream, reverse: [] };
+  }
   const first = requireIndex(stream, ids[0]!);
   for (let k = 0; k < ids.length; k++) {
     const item = stream.items[first + k];
@@ -296,6 +304,12 @@ function replace(stream: Stream, ids: Id[], items: Item[]): Applied {
     ...items,
     ...stream.items.slice(first + ids.length),
   ];
+  // A replace needs ids to name the run it undoes, so one that puts nothing in
+  // place is undone by inserting the old items where they stood.
+  if (items.length === 0) {
+    const predecessor = first > 0 ? stream.items[first - 1]!.id : null;
+    return { stream: { items: next }, reverse: [{ t: 'insert', after: predecessor, items: old }] };
+  }
   return {
     stream: { items: next },
     reverse: [{ t: 'replace', ids: items.map((i) => i.id), items: old }],
