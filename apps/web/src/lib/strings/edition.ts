@@ -45,6 +45,9 @@ export const edition = {
     workMissing: 'No work was given.',
     rangeUnknown: (label: string) => `There is no segment ${label} in this work.`,
     duplicateSiglum: (siglum: string) => `The siglum ${siglum} is used twice.`,
+    groupSiglumRequired: 'Give every group a siglum.',
+    groupTooFew: (siglum: string) => `The group ${siglum} needs at least two witnesses.`,
+    groupsUnreadable: 'The groups could not be read.',
     baseUnknown: 'Choose a transcript from the list.',
   },
 } as const;

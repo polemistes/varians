@@ -3,12 +3,14 @@
    * The conspectus: which transcripts the apparatus compares, in which
    * order, under which sigla; the further states of each witness collated
    * under sigla of their own; and witnesses known only from reported readings.
+   * Beside them, the groups: sigla that stand for several witnesses together.
    */
   import { enhance } from '$app/forms';
   import Plus from '@lucide/svelte/icons/plus';
   import X from '@lucide/svelte/icons/x';
   import type { SiglumState, WitnessHand } from '@varians/db';
   import { Button, Checkbox, Dialog, IconButton, Input, Notice, Select } from '$lib/components/ui';
+  import type { GroupDraft } from '$lib/edition/groups';
   import { editor } from '$lib/strings/editor';
   import { workbench } from '$lib/strings/workbench';
   import { handOptions } from '$lib/workbench/hands';
@@ -40,6 +42,8 @@
     reportedOnly: { id: string; name: string; siglum: string }[];
     /** The hands of the witnesses, by witness id, for states that name a hand. */
     witnessHands: Record<string, WitnessHand[]>;
+    /** The edition's groups, by the witnesses they stand for. */
+    groups: GroupDraft[];
     onsaved?: () => void;
   }
 
@@ -49,6 +53,7 @@
     candidates,
     reportedOnly,
     witnessHands,
+    groups,
     onsaved,
   }: Props = $props();
 
@@ -68,7 +73,15 @@
     withVariants: boolean;
   };
 
+  /** A group as the dialog edits it: its members are witnesses, shown under the siglum they have in the rows. */
+  interface GroupRow {
+    siglum: string;
+    note: string;
+    witnessIds: string[];
+  }
+
   let rows = $state<Row[]>([]);
+  let groupRows = $state<GroupRow[]>([]);
   let message = $state<string | null>(null);
   let saving = $state(false);
   let form = $state<HTMLFormElement | null>(null);
@@ -131,7 +144,18 @@
         withVariants: false,
       }));
     rows = [...present, ...more, ...reported];
+    groupRows = groups.map((g) => ({
+      siglum: g.siglum,
+      note: g.note ?? '',
+      witnessIds: [...g.witnessIds],
+    }));
   });
+
+  function toggleMember(group: GroupRow, witnessId: string) {
+    group.witnessIds = group.witnessIds.includes(witnessId)
+      ? group.witnessIds.filter((id) => id !== witnessId)
+      : [...group.witnessIds, witnessId];
+  }
 
   function move(index: number, delta: -1 | 1) {
     const target = index + delta;
@@ -217,6 +241,19 @@
     ),
   );
 
+  /** The groups as the form carries them; a row with nothing in it is no group. */
+  const groupsPayload = $derived(
+    JSON.stringify(
+      groupRows
+        .filter((g) => g.siglum.trim() !== '' || g.note.trim() !== '' || g.witnessIds.length > 0)
+        .map((g) => ({
+          siglum: g.siglum.trim(),
+          ...(g.note.trim() ? { note: g.note.trim() } : {}),
+          witnessIds: g.witnessIds,
+        })),
+    ),
+  );
+
   const kindOptions = Object.entries(t.stateKinds).map(([value, label]) => ({ value, label }));
 </script>
 
@@ -240,6 +277,7 @@
     }}
   >
     <input type="hidden" name="sigla" value={payload} />
+    <input type="hidden" name="groups" value={groupsPayload} />
     {#if message}<Notice kind="error">{message}</Notice>{/if}
     <table class="mt-2 w-full border-collapse font-sans text-sm">
       <thead>
@@ -345,6 +383,51 @@
         {/each}
       </tbody>
     </table>
+    <section class="mt-4 font-sans text-sm" aria-labelledby="sigla-groups">
+      <h3 id="sigla-groups" class="text-xs font-medium text-ink-soft" title={t.groupsHint}>
+        {t.groups}
+      </h3>
+      <ul class="mt-1 flex flex-col gap-2">
+        {#each groupRows as group, g (g)}
+          <li class="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-line pt-2">
+            <Input
+              bind:value={group.siglum}
+              class="w-20 font-serif"
+              aria-label={t.groupSiglum}
+              maxlength={20}
+            />
+            <span class="flex flex-wrap gap-x-3 gap-y-1" role="group" aria-label={t.groupWitnesses}>
+              {#each rows.filter((r) => r.included) as row (row.witnessId)}
+                <Checkbox
+                  class="font-serif"
+                  checked={group.witnessIds.includes(row.witnessId)}
+                  onchange={() => toggleMember(group, row.witnessId)}>{row.siglum}</Checkbox
+                >
+              {/each}
+            </span>
+            <Input
+              bind:value={group.note}
+              class="min-w-40 flex-1"
+              aria-label={t.groupNote}
+              maxlength={200}
+            />
+            <IconButton label={t.removeGroup} size="sm" onclick={() => groupRows.splice(g, 1)}
+              ><X aria-hidden="true" /></IconButton
+            >
+          </li>
+        {/each}
+      </ul>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        class="mt-1"
+        onclick={() => groupRows.push({ siglum: '', note: '', witnessIds: [] })}
+      >
+        <Plus class="size-4" aria-hidden="true" />
+        {t.addGroup}
+      </Button>
+    </section>
   </form>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (open = false)}>{d.cancel}</Button>

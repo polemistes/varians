@@ -15,6 +15,8 @@
 
   interface Props {
     sigla: ReaderSiglum[];
+    /** The edition's groups of sigla, each standing for several witnesses together. */
+    groups?: { siglum: string; members: string[]; note?: string }[];
     /** The edition's segments in order, with the sigla absent from each. */
     order: { label: string; absent: string[] }[];
     siglum: string | null;
@@ -28,8 +30,23 @@
     onclose: () => void;
   }
 
-  let { sigla, order, siglum, texts, segmentIds, labelOf, lit, onselect, onclose }: Props =
-    $props();
+  let {
+    sigla,
+    groups = [],
+    order,
+    siglum,
+    texts,
+    segmentIds,
+    labelOf,
+    lit,
+    onselect,
+    onclose,
+  }: Props = $props();
+
+  /** The groups whose members are all in the conspectus shown. */
+  const shownGroups = $derived(
+    groups.filter((g) => g.members.every((m) => sigla.some((x) => x.siglum === m))),
+  );
 
   const current = $derived(sigla.find((x) => x.siglum === siglum) ?? null);
   const transcriptionId = $derived(current?.transcriptionId ?? null);
@@ -110,6 +127,20 @@
         </li>
       {/each}
     </ul>
+    {#if shownGroups.length}
+      <h3 class="panel-title groups-title">{r.panels.groups}</h3>
+      <ul class="conspectus" aria-label={r.panels.groups}>
+        {#each shownGroups as group (group.siglum)}
+          <li class="group-row">
+            <span class="siglum">{group.siglum}</span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-sm text-ink">{group.members.join(' ')}</span>
+              {#if group.note}<span class="block text-xs text-ink-soft">{group.note}</span>{/if}
+            </span>
+          </li>
+        {/each}
+      </ul>
+    {/if}
   {/if}
 
   {#if sigla.length}
@@ -221,6 +252,10 @@
     color: var(--color-ink-muted);
   }
 
+  .groups-title {
+    padding: 0.25rem 1rem 0.25rem;
+  }
+
   .panel-close {
     margin-left: auto;
     display: inline-flex;
@@ -251,6 +286,13 @@
     padding: 0.35rem 0.5rem;
     border-radius: 0.375rem;
     text-align: start;
+  }
+
+  .group-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    padding: 0.35rem 0.5rem;
   }
 
   .conspectus-row:hover {

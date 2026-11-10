@@ -176,6 +176,7 @@
   candidates={data.candidates}
   reportedOnly={data.reportedOnly}
   witnessHands={data.witnessHands}
+  groups={data.groups}
   onsaved={() => toasts.success(s.dialogs.saved)}
 />
 {#if data.can.grant}

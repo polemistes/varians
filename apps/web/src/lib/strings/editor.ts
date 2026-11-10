@@ -142,6 +142,13 @@ export const editor = {
       moveUp: 'Move up',
       moveDown: 'Move down',
       reportedOnly: 'reported readings only',
+      groups: 'Groups',
+      groupsHint: 'A group’s siglum is printed where all its witnesses have a reading.',
+      groupSiglum: 'Siglum of the group',
+      groupWitnesses: 'Witnesses of the group',
+      groupNote: 'Note',
+      addGroup: 'Add group',
+      removeGroup: 'Remove this group',
     },
     insert: {
       menu: 'Insert',

@@ -16,6 +16,7 @@ import {
   type SiglumState,
 } from '@varians/db';
 import { and, asc, eq, inArray } from 'drizzle-orm';
+import { draftsOf, settleGroups, type GroupDraft, type GroupProblem } from '../edition/groups.ts';
 import { replaceContent } from './documents/service.ts';
 import { canViewTranscription, type Actor, type Grants, type Maybe } from './authz.ts';
 import { DEFAULT_CONVENTIONS } from './seed/sample.ts';
@@ -188,7 +189,23 @@ export async function updateEditionMeta(
   await db.update(editions).set(fields).where(eq(editions.id, editionId));
 }
 
-/** Replace the conspectus. */
+/** A group of family sigla that cannot be kept: what is wrong with it. */
+export class GroupsRefused extends Error {
+  constructor(readonly problem: GroupProblem) {
+    super(`The groups of sigla cannot be kept (${problem.kind})`);
+    this.name = 'GroupsRefused';
+  }
+}
+
+/**
+ * Replace the conspectus, and with it the edition's groups of sigla. Groups
+ * given are the editor's: they name witnesses, are checked as they stand, and
+ * replace the stored ones. Without them the stored groups are kept true to
+ * the new conspectus: a member whose siglum changed is renamed in its group,
+ * a witness that left the conspectus leaves its groups, and a group left with
+ * fewer than two members goes. Throws GroupsRefused, changing nothing, when a
+ * group cannot be kept.
+ */
 export async function setSigla(
   db: Database,
   editionId: string,
@@ -199,8 +216,25 @@ export async function setSigla(
     states?: SiglumState[];
     variantSiglum?: string | null;
   }[],
+  groups?: GroupDraft[],
 ): Promise<void> {
   await db.transaction(async (tx) => {
+    const [edition] = await tx
+      .select({ conventions: editions.conventions })
+      .from(editions)
+      .where(eq(editions.id, editionId))
+      .for('update');
+    if (!edition) throw new Error(`no edition ${editionId}`);
+    const before = await tx
+      .select({ witnessId: editionSigla.witnessId, siglum: editionSigla.siglum })
+      .from(editionSigla)
+      .where(eq(editionSigla.editionId, editionId));
+    const settled = settleGroups(
+      groups ?? draftsOf(edition.conventions.groups, before),
+      sigla.map((s) => ({ ...s, siglum: s.siglum.trim() })),
+      { strict: groups !== undefined },
+    );
+    if ('problem' in settled) throw new GroupsRefused(settled.problem);
     await tx.delete(editionSigla).where(eq(editionSigla.editionId, editionId));
     if (sigla.length) {
       await tx.insert(editionSigla).values(
@@ -215,6 +249,12 @@ export async function setSigla(
         })),
       );
     }
+    const { groups: _stored, ...conventions } = edition.conventions;
+    const next: EditionConventions = settled.groups.length
+      ? { ...conventions, groups: settled.groups }
+      : conventions;
+    if (JSON.stringify(next.groups ?? null) !== JSON.stringify(edition.conventions.groups ?? null))
+      await tx.update(editions).set({ conventions: next }).where(eq(editions.id, editionId));
   });
 }
 

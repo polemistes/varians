@@ -28,7 +28,7 @@ The format becomes a specification ([specification.md](specification.md)) with J
 
 - In the TEI: `<num>`, `<foreign>`, `<q>`, `<g>` for a sign that is not a letter, `<ex>` in the `<expan>` of a symbol, `<desc>` in a `<gap>`, and `<milestone unit="undefined" rend>` for a paragraphos, a rule or a coronis, as EpiDoc writes them. In the stream: the mark kinds `num`, `foreign` and `q`, `symbol` on an abbreviation, `cert` on a mark or object, `desc` on a gap, and mark objects named by `g`.
 - A gap that touches the letters of a word is a point mark of that word.
-- In an edition's `conventions`: `rest`, the word the apparatus prints for the other witnesses (Varians offers `cett.` and `rell.`), and `all`, the word for all the witnesses (Varians offers `codd.`). Both are absent where the apparatus names every witness.
+- In an edition's `conventions`: `groups`, sigla that stand for several witnesses of the conspectus together (`[ { siglum, members, note } ]`), `rest`, the word the apparatus prints for the other witnesses (Varians offers `cett.` and `rell.`), and `all`, the word for all the witnesses (Varians offers `codd.`). Both are absent where the apparatus names every witness.
 
 **Clarified, November 2026**
 

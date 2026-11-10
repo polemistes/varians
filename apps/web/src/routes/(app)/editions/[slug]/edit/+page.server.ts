@@ -1,6 +1,7 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { ALL_WORDS, REST_WORDS, withWords } from '$lib/edition/conventions';
 import { editorNames } from '$lib/edition/editors';
+import { draftsOf, type GroupProblem } from '$lib/edition/groups';
 import {
   editionSigla,
   editions,
@@ -19,7 +20,12 @@ import { offerOwnership } from '$lib/server/ownership';
 import { deleteHistory } from '$lib/server/registry';
 import { reviewedSites } from '$lib/server/conjectures';
 import { loadEditionAccess } from '$lib/server/edition-access';
-import { candidateWitnesses, setSigla, updateEditionMeta } from '$lib/server/editions';
+import {
+  GroupsRefused,
+  candidateWitnesses,
+  setSigla,
+  updateEditionMeta,
+} from '$lib/server/editions';
 import { requireUser } from '$lib/server/guards';
 import { publishedVersions } from '$lib/server/publish';
 import { editionView, type SegmentView } from '$lib/server/reader';
@@ -119,6 +125,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     },
     work: { slug: work?.slug ?? '', title: work?.title ?? '' },
     reviewed,
+    groups: draftsOf(edition.conventions.groups, sigla),
     sigla: sigla.map((x) => ({
       witnessId: x.witnessId,
       transcriptionId: x.transcriptionId,
@@ -178,6 +185,24 @@ const siglaSchema = z
     }),
   )
   .max(200);
+
+/** The groups of sigla the conspectus dialog sends, by the witnesses they stand for. */
+const groupsSchema = z
+  .array(
+    z.object({
+      siglum: z.string().trim().max(20),
+      note: z.string().trim().max(200).optional(),
+      witnessIds: z.array(z.string().min(1).max(64)).max(200),
+    }),
+  )
+  .max(50);
+
+/** What is wrong with a group, in words. */
+function groupMessage(problem: GroupProblem): string {
+  if (problem.kind === 'siglum') return s.errors.groupSiglumRequired;
+  if (problem.kind === 'too-few') return s.errors.groupTooFew(problem.siglum);
+  return s.errors.duplicateSiglum(problem.siglum);
+}
 
 /** The hands of some witnesses, by id, for the states of the conspectus. */
 async function handsOf(
@@ -261,6 +286,20 @@ export const actions: Actions = {
     const parsed = siglaSchema.safeParse(raw);
     if (!parsed.success)
       return fail(400, { form: 'sigla' as const, message: 'Every witness needs a siglum.' });
+    // Without groups in the form, the edition's own are kept true to the new conspectus.
+    let groups: z.infer<typeof groupsSchema> | undefined;
+    if (form.has('groups')) {
+      let rawGroups: unknown;
+      try {
+        rawGroups = JSON.parse(String(form.get('groups')));
+      } catch {
+        rawGroups = null;
+      }
+      const parsedGroups = groupsSchema.safeParse(rawGroups);
+      if (!parsedGroups.success)
+        return fail(400, { form: 'sigla' as const, message: s.errors.groupsUnreadable });
+      groups = parsedGroups.data;
+    }
     const seen = new Set<string>();
     for (const entry of parsed.data) {
       for (const siglum of [
@@ -309,17 +348,24 @@ export const actions: Actions = {
         message: 'A transcription does not belong to its witness or to this work.',
       });
     }
-    await setSigla(
-      locals.db,
-      access.edition.id,
-      parsed.data.map((e) => ({
-        witnessId: e.witnessId,
-        transcriptionId: e.transcriptionId,
-        siglum: e.siglum,
-        states: e.transcriptionId ? (e.states ?? []) : [],
-        variantSiglum: e.variantSiglum || null,
-      })),
-    );
+    try {
+      await setSigla(
+        locals.db,
+        access.edition.id,
+        parsed.data.map((e) => ({
+          witnessId: e.witnessId,
+          transcriptionId: e.transcriptionId,
+          siglum: e.siglum,
+          states: e.transcriptionId ? (e.states ?? []) : [],
+          variantSiglum: e.variantSiglum || null,
+        })),
+        groups,
+      );
+    } catch (cause) {
+      if (cause instanceof GroupsRefused)
+        return fail(400, { form: 'sigla' as const, message: groupMessage(cause.problem) });
+      throw cause;
+    }
     return { form: 'sigla' as const, ok: true };
   },
 

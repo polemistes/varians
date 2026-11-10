@@ -752,6 +752,7 @@
         {#if witnessOpen}
           <WitnessPanel
             sigla={data.sigla}
+            groups={data.edition.conventions.groups}
             {order}
             {siglum}
             {texts}
