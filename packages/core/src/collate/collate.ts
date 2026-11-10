@@ -34,7 +34,8 @@
  * witness has nothing for on either side, a place over any of those words
  * leaves the witness out, and the gap is no departure and makes no place.
  * A witness whose text runs on without words is there, and its reading is
- * nothing.
+ * nothing. So it is where the base has nothing of a segment some witness has
+ * (a segment the edition does not print): the witness stands with the base.
  *
  * Nothing here is stored: the result is recomputed whenever a text changes
  * and cached by a hash of its inputs.
@@ -216,7 +217,7 @@ interface Aligned {
   lost: Set<number>;
   /** Words the witness has in one place and lacks in another, too far apart to be one place. */
   far: [Atom, Atom][];
-  /** The witness lacks a segment in which the base has no words either: it stands nowhere. */
+  /** The witness lacks a segment in which the base has no words either, and which is no segment the base leaves unprinted: it stands nowhere. */
   outside?: boolean;
 }
 
@@ -237,6 +238,10 @@ export function collate(
   const baseKeys = keysOf(base);
   const n = base.units.length;
   const baseHasWords = base.units.some((u) => !u.gap);
+  // A segment the base does not have at all and some witness has: a witness whose text runs on
+  // without it is there, and stands with the base, whose reading is nothing. A base that marks
+  // the segment lost has units (its gaps), and such a witness stands nowhere there as before.
+  const unprinted = n === 0 && witnesses.some((w) => w.units.some((u) => !u.gap));
   // Whether two words are near enough to stand against each other: asked for the same pair by every witness, so kept.
   const likeness = new Map<string, boolean>();
   const alike = (a: string, b: string): boolean => {
@@ -259,7 +264,7 @@ export function collate(
       continue;
     }
     if (witness.units.length === 0) {
-      aligned.push(lacking(witness, n, baseHasWords));
+      aligned.push(lacking(witness, n, baseHasWords, unprinted));
       continue;
     }
     aligned.push(
@@ -346,9 +351,16 @@ export function collate(
 /**
  * A witness whose text runs on without the segment: one departure over all
  * of it, beside which every other place of the segment stands without the
- * witness.
+ * witness. Where the base has no words either, the witness stands with the
+ * base when the base has nothing of the segment and some witness has its
+ * words (a segment the base does not print), and nowhere otherwise.
  */
-function lacking(witness: CollationText, n: number, baseHasWords: boolean): Aligned {
+function lacking(
+  witness: CollationText,
+  n: number,
+  baseHasWords: boolean,
+  unprinted: boolean,
+): Aligned {
   const out: Aligned = {
     text: witness,
     keys: [],
@@ -368,7 +380,7 @@ function lacking(witness: CollationText, n: number, baseHasWords: boolean): Alig
       whole: true,
       steps: [],
     });
-  else out.outside = true;
+  else if (!unprinted) out.outside = true;
   return out;
 }
 

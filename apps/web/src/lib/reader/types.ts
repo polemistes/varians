@@ -3,7 +3,14 @@
  * version the visitor may see, trimmed for the browser. Only types here, so
  * that components never import server modules.
  */
-import type { ApparatusConventions, Attachment, Collation, LayoutLine, Unit } from '@varians/core';
+import type {
+  ApparatusConventions,
+  Attachment,
+  Collation,
+  LayoutLine,
+  OrderVariant,
+  Unit,
+} from '@varians/core';
 import type { EditionConventions } from '@varians/db';
 
 export interface ReaderSegment {
@@ -27,6 +34,8 @@ export interface ReaderSegment {
   notes: ReaderNote[];
   /** What attached conjectures and reported readings cite, by attachment id: "cf. West 1998, 45". */
   cites?: Record<string, string[]>;
+  /** A segment the edition does not print and witnesses have: its variant stands after the edition's segment `after`. */
+  unprinted?: { after: string };
 }
 
 export interface ReaderNote {
@@ -99,8 +108,20 @@ export interface ReaderData {
   segments: Record<string, ReaderSegment>;
   /** The bibliography of the edition: what its apparatus and notes cite. */
   worksCited: { id: string; key: string; label: string; reference: string }[];
-  /** Labels of the segments the edition has, by id. */
+  /** Labels of the segments the edition has, and of those it does not print that witnesses have, by id. */
   labelOf: Record<string, string>;
+  /**
+   * The segments the edition does not print that witnesses have, in the
+   * work's order, each with the edition's segment it stands after. Their
+   * variants come among `segments`, or, when not sent, with the `pending`.
+   */
+  unprinted: { segmentId: string; after: string }[];
+  /**
+   * Where witnesses order the edition's segments otherwise, as variants: over
+   * a stretch of the edition's segments, the segments in each order, the
+   * edition's first; a block far from its place by the segment it follows.
+   */
+  orderVariants: OrderVariant[];
   mode: ReaderMode;
   /** Published versions, newest first. */
   versions: ReaderVersion[];

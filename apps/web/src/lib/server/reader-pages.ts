@@ -220,9 +220,9 @@ export async function loadReader(
   const resolved = await resolveReader(db, user, slug, request);
   const { access, mode, moments } = resolved;
   const audience = audienceOf(mode, user);
+  // The order of whole segments is given as variants: comparing two orders is quick, and remembered for the pair.
   const view = await editionView(db, access.edition.id, resolved.atVersion, audience, {
     lean: true,
-    order: false,
     budget: READER_BUDGET,
     ...(request.focus ? { near: request.focus } : {}),
   });
@@ -241,6 +241,8 @@ export async function loadReader(
         labelOf[start.segmentId] = view.labelOf[start.segmentId]!;
   }
   for (const segment of Object.values(view.segments)) labelOf[segment.segmentId] = segment.label;
+  for (const { segmentId } of view.unprinted)
+    if (view.labelOf[segmentId]) labelOf[segmentId] = view.labelOf[segmentId]!;
 
   return {
     edition: view.edition,
@@ -254,6 +256,8 @@ export async function loadReader(
     pending: view.pending,
     worksCited: await editionWorksCited(db, access.edition.id, audience),
     labelOf,
+    unprinted: view.unprinted,
+    orderVariants: view.orderVariants,
     mode,
     versions: readerVersions(access.edition.slug, moments, currentNumber),
     canEdit: access.canEdit,

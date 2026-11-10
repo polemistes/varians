@@ -294,6 +294,38 @@ describe('who is there', () => {
   });
 });
 
+describe('a segment the base does not print', () => {
+  it('stands a witness whose text runs on without it with the base, and one without it nowhere', () => {
+    const runsOn = { ...text('B', 'B', ''), present: true };
+    const c = collate(text('E', 'ed', ''), [
+      text('A', 'A', 'μῆνιν ἄειδε'),
+      runsOn,
+      text('C', 'C', ''),
+      text('P', 'P', '[gap]'),
+      text('D', 'D', 'μῆνιν ἄειδε'),
+    ]);
+    expect(c.absent).toEqual(['C', 'P']);
+    expect(summary(c)).toEqual(['om. edB : μῆνιν ἄειδε AD']);
+    const site = c.sites[0]!;
+    expect([site.baseFrom, site.baseTo, site.wanting]).toEqual([0, 0, undefined]);
+    expect(witnessesAt(site, 'E')).toEqual(['B', 'A', 'D']);
+    expect(additionIn(site, 'E', false)).toEqual(['A', 'D']);
+  });
+
+  it('keeps a witness without words nowhere where no witness has words either', () => {
+    const runsOn = { ...text('B', 'B', ''), present: true };
+    const c = collate(text('E', 'ed', ''), [runsOn, text('P', 'P', '[gap]')]);
+    expect(c.sites).toEqual([]);
+    expect(c.absent).toEqual(['P']);
+  });
+
+  it('keeps a witness whose text runs on out of a segment the base marks as lost', () => {
+    const runsOn = { ...text('B', 'B', ''), present: true };
+    const c = collate(text('E', 'ed', '[gap]'), [text('A', 'A', 'a b'), runsOn]);
+    expect(c.sites.flatMap((s) => s.readings.flatMap((r) => r.textIds))).not.toContain('B');
+  });
+});
+
 describe('addition', () => {
   it('names the witnesses with words where the base has none', () => {
     const c = collate(text('E', 'ed', 'a b'), [

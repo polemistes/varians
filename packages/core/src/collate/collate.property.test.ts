@@ -478,6 +478,40 @@ describe('collation: every word is accounted for, places nested and in order (ra
   });
 });
 
+// A segment the base does not print: the base has no units, the witnesses have
+// the segment's words, lose some of them, or run on without it.
+describe('collation: a segment the base does not print (random)', () => {
+  const unprinted: Property<TextsCase> = {
+    generate(rng, size) {
+      const c = randomTexts(rng, size, { gaps: true, witnesses: [1, 4] });
+      return {
+        base: [],
+        witnesses: c.witnesses.map((w) => (rng.chance(0.3) ? { ...w, words: [] } : w)),
+      };
+    },
+    show: showTexts,
+    *shrink(c) {
+      for (const smaller of shrinkTexts(c)) if (smaller.base.length === 0) yield smaller;
+    },
+    check(c) {
+      covered(c);
+      reportedOnce(c);
+      whoIsThere(c);
+      placesAreNestedAndInOrder(c);
+      // A witness whose text runs on without the segment stands with the base wherever some witness has words.
+      const { built, collation } = run(c);
+      for (const site of collation.sites) {
+        const base = site.readings.find((r) => r.base)!;
+        for (const w of built.witnesses)
+          if (w.units.length === 0) expect(base.textIds).toContain(w.id);
+      }
+    },
+  };
+  it('accounts for every word and stands the witnesses without it with the base', () => {
+    runProperty('collate: a segment the base does not print', unprinted);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // The order of the witnesses
 

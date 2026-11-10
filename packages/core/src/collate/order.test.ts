@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compareOrder, lcs, sameOrder } from './order.ts';
+import { compareOrder, lcs, lcsOfOrderings, sameOrder } from './order.ts';
 
 describe('compareOrder', () => {
   it('finds nothing when the orders agree', () => {
@@ -25,5 +25,26 @@ describe('compareOrder', () => {
 
   it('computes the longest common subsequence', () => {
     expect(lcs(['a', 'b', 'c', 'd'], ['b', 'a', 'c', 'd'])).toHaveLength(3);
+  });
+});
+
+describe('lcsOfOrderings', () => {
+  it('gives what the table gives, for orderings of distinct elements', () => {
+    let seed = 7;
+    const next = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+    for (let run = 0; run < 3000; run++) {
+      const n = 1 + Math.floor(next() * 12);
+      const reference = Array.from({ length: n }, (_, i) => `s${i}`);
+      const compared = [...reference];
+      // A few moves, or many.
+      const moves = next() < 0.3 ? n * 2 : 1 + Math.floor(next() * 3);
+      for (let k = 0; k < moves; k++) {
+        const [x] = compared.splice(Math.floor(next() * n), 1);
+        compared.splice(Math.floor(next() * n), 0, x!);
+      }
+      expect(lcsOfOrderings(reference, compared), compared.join(' ')).toEqual(
+        lcs(reference, compared),
+      );
+    }
   });
 });

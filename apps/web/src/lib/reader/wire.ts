@@ -56,6 +56,8 @@ export interface WireSegment {
   absent: string[];
   notes: ReaderNote[];
   cites?: Record<string, string[]>;
+  /** A segment the edition does not print: the edition's segment its variant stands after. */
+  unprinted?: { after: string };
 }
 
 /**
@@ -90,6 +92,7 @@ export interface PackableSegment {
   absent: string[];
   notes: ReaderNote[];
   cites?: Record<string, string[]>;
+  unprinted?: { after: string };
 }
 
 /** The segments made ready to send, with the list of texts they name. */
@@ -150,6 +153,7 @@ export function packSegments(segments: Iterable<PackableSegment>): {
       absent: segment.absent,
       notes: segment.notes,
       ...(segment.cites ? { cites: segment.cites } : {}),
+      ...(segment.unprinted ? { unprinted: segment.unprinted } : {}),
     };
   }
   return { segments: out, texts };
@@ -198,6 +202,7 @@ export function unpackSegment(wire: WireSegment, texts: WireText[], baseId: stri
     absent: wire.absent,
     notes: wire.notes,
     ...(wire.cites ? { cites: wire.cites } : {}),
+    ...(wire.unprinted ? { unprinted: wire.unprinted } : {}),
   };
 }
 

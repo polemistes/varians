@@ -308,6 +308,92 @@ export function segmentOrderOf(stream: Stream): string[] {
   return [...runIndexOf(stream).keys()];
 }
 
+/**
+ * A segment of the work that some witness of the conspectus has and the
+ * edition's text does not, and where it stands: after the edition's segment
+ * that precedes it in the work's numbering.
+ */
+export interface Unprinted {
+  segmentId: string;
+  after: string;
+}
+
+const unprintedOf = new WeakMap<EditionContext, { content: Stream; list: Unprinted[] }>();
+
+/**
+ * The segments the edition does not print and some transcription of the
+ * conspectus has words for, within the stretch of the work the edition has
+ * (between its first and its last segment by sort key, so that an edition
+ * of one book reports nothing of another), in the order of the work. Found
+ * from the runs of the texts the context holds, which a collation finds
+ * anyway, and which for a published version are the texts of its basis.
+ */
+export function unprintedSegments(context: EditionContext): Unprinted[] {
+  const known = unprintedOf.get(context);
+  if (known && known.content === context.edition.content) return known.list;
+  const keys = context.segmentKeys;
+  const list: Unprinted[] = [];
+  if (keys) {
+    const printed = new Set(segmentOrderOf(context.edition.content));
+    const printedKeys = [...printed]
+      .map((id) => [keys.get(id), id] as const)
+      .filter((pair): pair is readonly [string, string] => pair[0] !== undefined)
+      .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    if (printedKeys.length >= 2) {
+      const first = printedKeys[0]![0];
+      const last = printedKeys[printedKeys.length - 1]![0];
+      const found = new Map<string, string>();
+      for (const s of context.sigla) {
+        const transcription = s.transcriptionId
+          ? context.transcriptions.get(s.transcriptionId)
+          : undefined;
+        if (!transcription) continue;
+        for (const [segmentId, runs] of runIndexOf(transcription.content)) {
+          if (printed.has(segmentId) || found.has(segmentId)) continue;
+          const key = keys.get(segmentId);
+          if (key === undefined || key <= first || key >= last) continue;
+          const content = transcription.content;
+          const hasWords = runs.some((run) => {
+            for (let i = run.from; i < run.to; i++) if (isToken(content.items[i]!)) return true;
+            return false;
+          });
+          if (hasWords) found.set(segmentId, key);
+        }
+      }
+      for (const [segmentId, key] of [...found].sort((a, b) =>
+        a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0,
+      )) {
+        // The edition's segment with the greatest key below this one's.
+        let lo = 0;
+        let hi = printedKeys.length - 1;
+        while (lo < hi) {
+          const mid = (lo + hi + 1) >> 1;
+          if (printedKeys[mid]![0] < key) lo = mid;
+          else hi = mid - 1;
+        }
+        list.push({ segmentId, after: printedKeys[lo]![1] });
+      }
+    }
+  }
+  unprintedOf.set(context, { content: context.edition.content, list });
+  return list;
+}
+
+/** The edition's segments in its order with the segments it does not print set after the ones they follow. */
+export function withUnprinted(
+  editionOrder: readonly string[],
+  unprinted: readonly Unprinted[],
+): string[] {
+  if (unprinted.length === 0) return [...editionOrder];
+  const following = new Map<string, string[]>();
+  for (const u of unprinted) {
+    const list = following.get(u.after);
+    if (list) list.push(u.segmentId);
+    else following.set(u.after, [u.segmentId]);
+  }
+  return editionOrder.flatMap((id) => [id, ...(following.get(id) ?? [])]);
+}
+
 /** The edition's collation units for a segment: every run in content order. */
 export function editionUnits(content: Stream, segmentId: string): Unit[] {
   const out: Unit[] = [];
@@ -395,7 +481,7 @@ export function inputHash(
 ): string {
   const hash = createHash('sha256');
   // The shape of the cached result: bump when the collation's output changes.
-  hash.update('collation-v12');
+  hash.update('collation-v13');
   hash.update(JSON.stringify(context.profile.fold));
   const describe = (t: CollationText) =>
     `${t.id}|${t.siglum}|${t.present ? 'p' : ''}|${t.units.map((u) => (u.gap ? '[gap]' : `${u.text}#${u.tokenIds.join(',')}`)).join(' ')}`;

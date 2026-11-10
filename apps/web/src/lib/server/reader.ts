@@ -10,6 +10,7 @@ import {
   attachToSites,
   compareOrder,
   layoutLines,
+  orderVariants,
   type ApparatusConventions,
   type ApparatusEntry,
   type Attachment,
@@ -17,6 +18,8 @@ import {
   type Collation,
   type Item,
   type LayoutLine,
+  type OrderVariant,
+  type OrderWitness,
   type Stream,
   type Unit,
   units,
@@ -48,7 +51,10 @@ import {
   loadEditionContext,
   loadWitnessHands,
   segmentOrderOf,
+  unprintedSegments,
+  withUnprinted,
   type EditionContext,
+  type Unprinted,
 } from './collation.ts';
 import { marksAtPublication } from './site-marks.ts';
 import { collationStateOf, normalizeSiglum, type ConspectusEntry } from './sigla.ts';
@@ -75,6 +81,8 @@ export interface SegmentView {
   cites: Record<string, string[]>;
   /** Words of the edition taken from a witness that now reads differently there. `now` is empty when the witness no longer has them. */
   drift: Drift[];
+  /** A segment the edition does not print and witnesses have: its variant stands after the edition's segment `after`. */
+  unprinted?: { after: string };
 }
 
 export interface Drift {
@@ -238,32 +246,67 @@ function orderDigest(order: string[]): string {
 
 /** Order statements for every witness of the conspectus with a transcription. */
 export function orderStatements(context: EditionContext): OrderStatement[] {
+  return orderOf(context).statements;
+}
+
+/**
+ * Where the witnesses order the edition's segments otherwise: as statements
+ * (a block a witness has elsewhere, and what it follows there), and as the
+ * variants the screens report, over stretches of the edition's segments.
+ * Comparing the orders is remembered for each pair of orders; the variants
+ * are made from what it gave, once for each context.
+ */
+export function orderOf(context: EditionContext): {
+  statements: OrderStatement[];
+  variants: OrderVariant[];
+} {
+  const known = ordersOf.get(context);
+  if (known && known.content === context.edition.content) return known.result;
   const editionOrder = segmentOrderOf(context.edition.content);
   const inEdition = new Set(editionOrder);
   let editionKey: string | null = null;
-  const out: OrderStatement[] = [];
+  const statements: OrderStatement[] = [];
+  const compared: OrderWitness[] = [];
   for (const siglum of context.sigla) {
     if (!siglum.transcriptionId) continue;
     const transcription = context.transcriptions.get(siglum.transcriptionId);
     if (!transcription) continue;
     const witnessOrder = segmentOrderOf(transcription.content).filter((id) => inEdition.has(id));
+    const witness: OrderWitness = {
+      id: transcription.id,
+      siglum: siglum.siglum,
+      order: witnessOrder,
+    };
+    compared.push(witness);
     // A witness that has the segments it shares with the edition in the edition's order moves none.
     const shared = new Set(witnessOrder);
     const reference = editionOrder.filter((id) => shared.has(id));
-    if (reference.every((id, i) => id === witnessOrder[i])) continue;
+    if (reference.every((id, i) => id === witnessOrder[i])) {
+      witness.statements = [];
+      continue;
+    }
     const key = `${(editionKey ??= orderDigest(editionOrder))}:${orderDigest(witnessOrder)}`;
-    let statements = orderMemo.get(key);
-    if (!statements) {
-      statements = compareOrder(editionOrder, witnessOrder);
-      orderMemo.set(key, statements);
+    let found = orderMemo.get(key);
+    if (!found) {
+      found = compareOrder(editionOrder, witnessOrder);
+      orderMemo.set(key, found);
       if (orderMemo.size > ORDER_MEMO_KEPT) orderMemo.delete(orderMemo.keys().next().value!);
     }
-    for (const statement of statements) {
-      out.push({ siglum: siglum.siglum, moved: statement.moved, after: statement.after });
+    witness.statements = found;
+    for (const statement of found) {
+      statements.push({ siglum: siglum.siglum, moved: statement.moved, after: statement.after });
     }
   }
-  return out;
+  const variants = statements.length === 0 ? [] : orderVariants(editionOrder, compared);
+  const result = { statements, variants };
+  ordersOf.set(context, { content: context.edition.content, result });
+  return result;
 }
+
+const ordersOf = new WeakMap<
+  EditionContext,
+  { content: Stream; result: { statements: OrderStatement[]; variants: OrderVariant[] } }
+>();
 
 /** An edition's row without its text, which a collation context holds already. */
 type EditionMeta = Omit<typeof editions.$inferSelect, 'content'>;
@@ -305,6 +348,15 @@ export interface EditionView {
   labelOf: Record<string, string>;
   /** Witnesses that order whole segments otherwise than the edition. */
   order: OrderStatement[];
+  /** The same as variants: over a stretch of the edition's segments, the segments in each order. */
+  orderVariants: OrderVariant[];
+  /**
+   * The segments the edition does not print that witnesses have, in the
+   * work's order, each with the edition's segment it stands after: all of
+   * them, whether or not their views were made. Their views are among
+   * `segments` like any other's.
+   */
+  unprinted: Unprinted[];
   /** The version shown, when not the current one. */
   atVersion: number | null;
   /** Segments wanted whose views were not made, for want of the collation budget: nearest the one asked for first. */
@@ -350,7 +402,7 @@ export interface ViewOptions {
   lean?: boolean;
   /** Lay out the lines of the text for the reader (default), or leave them out. */
   lines?: boolean;
-  /** Say where the witnesses order whole segments otherwise (default), or leave it out. */
+  /** Say where the witnesses order whole segments otherwise, as statements and as variants (default), or leave it out. */
   order?: boolean;
   /** The notes and what the records cite (default), or leave them out. */
   detail?: boolean;
@@ -395,12 +447,17 @@ export async function editionView(
     variantSiglum: s.variantSiglum,
   }));
   const inEdition = segmentOrderOf(context.edition.content);
-  const present = new Set(inEdition);
+  // The segments the edition does not print are made like any other, each after the one it follows.
+  const unprinted = unprintedSegments(context);
+  const sequence = withUnprinted(inEdition, unprinted);
+  const present = new Set(sequence);
   const wanted = options.segments
     ? options.segments.filter((id) => present.has(id))
     : options.first !== undefined
-      ? inEdition.slice(0, options.first)
-      : inEdition;
+      ? options.first < inEdition.length
+        ? sequence.slice(0, sequence.indexOf(inEdition[options.first]!))
+        : sequence
+      : sequence;
   const near =
     options.near === undefined
       ? undefined
@@ -432,6 +489,8 @@ export async function editionView(
       notes: options.detail !== false,
     },
   );
+  markUnprinted(views, unprinted);
+  const order = options.order === false ? null : orderOf(context);
   const lineation =
     row.conventions.lineation === 'prose' ? 1 : Number(row.conventions.numberEvery ?? 5);
   return {
@@ -464,7 +523,9 @@ export async function editionView(
     sigla,
     segments: views,
     labelOf,
-    order: options.order === false ? [] : orderStatements(context),
+    order: order?.statements ?? [],
+    orderVariants: order?.variants ?? [],
+    unprinted,
     atVersion: atVersion !== null && atVersion !== row.version ? atVersion : null,
     pending,
   };
@@ -580,7 +641,7 @@ export async function editionOutline(
     loadEditionContext(db, editionId),
     editionMeta(db, editionId),
   ]);
-  const ids = segmentOrderOf(context.edition.content);
+  const ids = withUnprinted(segmentOrderOf(context.edition.content), unprintedSegments(context));
   const [collations, witnessById, segmentRows] = await Promise.all([
     collateSegments(db, context, ids),
     witnessesOf(db, context),
@@ -602,6 +663,7 @@ export async function editionOutline(
     audience,
     { entries: false, notes: false },
   );
+  markUnprinted(views, unprintedSegments(context));
   return {
     outline: Object.fromEntries(ids.map((id) => [id, outlineOf(views[id]!)] as const)),
     labelOf,
@@ -618,13 +680,18 @@ export async function segmentViewsFor(
   return (await refreshView(db, editionId, segmentIds, audience)).segments;
 }
 
-/** The views of some segments and the order statements of the whole edition, from the current content. */
+/** The views of some segments, and how the whole edition's segments stand to the witnesses', from the current content. */
 export async function refreshView(
   db: Database,
   editionId: string,
   segmentIds: string[],
   audience: Audience = PUBLIC,
-): Promise<{ segments: Record<string, SegmentView>; order: OrderStatement[] }> {
+): Promise<{
+  segments: Record<string, SegmentView>;
+  order: OrderStatement[];
+  orderVariants: OrderVariant[];
+  unprinted: Unprinted[];
+}> {
   const [context, row] = await Promise.all([
     loadEditionContext(db, editionId),
     editionMeta(db, editionId),
@@ -642,19 +709,28 @@ export async function refreshView(
   for (const s of segmentRows) labelOf[s.id] = s.label;
   const witnessById = await witnessesOf(db, context);
   const collations = await collateSegments(db, context, wanted);
-  return {
-    segments: await buildSegmentViews(
-      db,
-      context,
-      row,
-      collations,
-      labelOf,
-      witnessById,
-      null,
-      audience,
-    ),
-    order: orderStatements(context),
-  };
+  const views = await buildSegmentViews(
+    db,
+    context,
+    row,
+    collations,
+    labelOf,
+    witnessById,
+    null,
+    audience,
+  );
+  const unprinted = unprintedSegments(context);
+  markUnprinted(views, unprinted);
+  const order = orderOf(context);
+  return { segments: views, order: order.statements, orderVariants: order.variants, unprinted };
+}
+
+/** Say of the views of segments the edition does not print which segment they stand after. */
+function markUnprinted(views: Record<string, SegmentView>, unprinted: readonly Unprinted[]): void {
+  for (const u of unprinted) {
+    const view = views[u.segmentId];
+    if (view) view.unprinted = { after: u.after };
+  }
 }
 
 async function buildSegmentViews(

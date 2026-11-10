@@ -9,7 +9,7 @@
  */
 import { siteKey, siteTokenIds, type Id } from '@varians/core';
 import { needsReview, type SegmentForAdoption } from './adopt-client.ts';
-import { siteShows } from './workspace.ts';
+import { reviewOrder, siteShows } from './workspace.ts';
 
 /** A place of variation that shows in the text. */
 export interface SiteOutline {
@@ -30,10 +30,15 @@ export interface SegmentOutline {
   sites: SiteOutline[];
   /** The edition's words taken from a witness that now reads otherwise there. */
   drift: Id[];
+  /** A segment the edition does not print: its variant stands after the edition's segment `after`. */
+  unprinted?: { after: Id };
 }
 
 /** The parts of a segment view an outline is made from. */
-export type SegmentForOutline = SegmentForAdoption & { drift?: { tokenId: Id }[] };
+export type SegmentForOutline = SegmentForAdoption & {
+  drift?: { tokenId: Id }[];
+  unprinted?: { after: Id };
+};
 
 /** The outline of a segment. */
 export function outlineOf(segment: SegmentForOutline): SegmentOutline {
@@ -55,6 +60,7 @@ export function outlineOf(segment: SegmentForOutline): SegmentOutline {
     segmentId: segment.segmentId,
     sites,
     drift: (segment.drift ?? []).map((d) => d.tokenId),
+    ...(segment.unprinted ? { unprinted: { after: segment.unprinted.after } } : {}),
   };
 }
 
@@ -65,7 +71,7 @@ export function countNeeding(
   reviewed: Map<Id, Set<string>>,
 ): number {
   let n = 0;
-  for (const segmentId of order) {
+  for (const segmentId of reviewOrder(order, outlines)) {
     const outline = outlines[segmentId];
     if (!outline) continue;
     const done = reviewed.get(segmentId);

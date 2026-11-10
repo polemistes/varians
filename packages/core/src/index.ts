@@ -7,6 +7,7 @@ export * from './image/zones.ts';
 export * from './collate/similarity.ts';
 export * from './collate/collate.ts';
 export * from './collate/order.ts';
+export * from './collate/order-variants.ts';
 export * from './history/changeset.ts';
 export * from './apparatus/render.ts';
 export * from './edition/adopt.ts';

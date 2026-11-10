@@ -8,6 +8,7 @@ import type {
   Attachment,
   Collation,
   LayoutLine,
+  OrderVariant,
   Stream,
   Unit,
 } from '@varians/core';
@@ -33,6 +34,8 @@ export interface SegmentViewClient {
   cites?: Record<string, string[]>;
   /** Words taken from a witness that now reads otherwise there; `now` is empty when it no longer has them. */
   drift?: { tokenId: string; siglum: string; transcriptionId: string; now: string }[];
+  /** A segment the edition does not print and witnesses have: its variant stands after the edition's segment `after`. */
+  unprinted?: { after: string };
 }
 
 export interface SiglumClient {
@@ -62,6 +65,10 @@ export interface EditionViewClient {
   labelOf: Record<string, string>;
   /** Witnesses that order whole segments otherwise than the edition. */
   order: { siglum: string; moved: string[]; after: string | null }[];
+  /** The same as variants: over a stretch of the edition's segments, the segments in each order, the edition's first. */
+  orderVariants: OrderVariant[];
+  /** The segments the edition does not print that witnesses have, in the work's order, each after the edition's segment it follows. */
+  unprinted: { segmentId: string; after: string }[];
   atVersion: number | null;
 }
 

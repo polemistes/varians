@@ -230,9 +230,28 @@ export interface SiteRef {
 /** Every site that shows, in the edition's order. */
 export function sitesInOrder(order: Id[], outlines: Record<Id, SegmentOutline>): SiteRef[] {
   const out: SiteRef[] = [];
-  for (const segmentId of order)
+  for (const segmentId of reviewOrder(order, outlines))
     for (const site of outlines[segmentId]?.sites ?? []) out.push({ segmentId, site });
   return out;
+}
+
+/**
+ * The segments whose variants are reviewed, in order: the edition's, each
+ * followed by the segments it does not print that stand after it, as their
+ * outlines say. One whose segment is no longer in the text comes at the end.
+ */
+export function reviewOrder(order: Id[], outlines: Record<Id, SegmentOutline>): Id[] {
+  const inText = new Set(order);
+  const following = new Map<Id, Id[]>();
+  const loose: Id[] = [];
+  for (const outline of Object.values(outlines)) {
+    if (!outline.unprinted || inText.has(outline.segmentId)) continue;
+    const after = outline.unprinted.after;
+    if (!inText.has(after)) loose.push(outline.segmentId);
+    else following.set(after, [...(following.get(after) ?? []), outline.segmentId]);
+  }
+  if (following.size === 0 && loose.length === 0) return order;
+  return [...order.flatMap((id) => [id, ...(following.get(id) ?? [])]), ...loose];
 }
 
 /** The next (or previous) site from the active one; with `unreviewedOnly`, skipping reviewed ones. */
@@ -246,7 +265,9 @@ export function stepSite(
   /** The segment the caret is in: where the step starts when no place is open. */
   from?: Id | null,
 ): SiteRef | null {
-  const all = sitesInOrder(order, outlines);
+  // A step goes to the places the window can show: those of the segments in the text.
+  const inText = new Set(order);
+  const all = sitesInOrder(order, outlines).filter((ref) => inText.has(ref.segmentId));
   if (all.length === 0) return null;
   let at = active
     ? all.findIndex((r) => r.segmentId === active.segmentId && r.site.index === active.siteIndex)

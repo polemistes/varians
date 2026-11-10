@@ -2,7 +2,9 @@
  * GET /api/editions/[id]/view?segments=a,b,c
  * For the editor: the apparatus views of some segments (at most a hundred,
  * of the edition's work), collated from the current content, with the drafts
- * the editor may see. Without `segments`, the whole edition view. Readers
+ * the editor may see, and how the edition's segments stand to the witnesses'
+ * (their order, and the segments the edition does not print). Without
+ * `segments`, the whole edition view. Readers
  * see published versions through the reader, not here.
  */
 import { error, json } from '@sveltejs/kit';
@@ -27,7 +29,12 @@ export const GET: RequestHandler = async ({ locals, params, url }) => {
   if (wanted) {
     const ids = wanted.split(',').filter((s) => s.length > 0 && s.length <= 64);
     const fresh = await refreshView(locals.db, access.edition.id, ids, audience);
-    return json({ segments: forJson(fresh.segments), order: fresh.order });
+    return json({
+      segments: forJson(fresh.segments),
+      order: fresh.order,
+      orderVariants: fresh.orderVariants,
+      unprinted: fresh.unprinted,
+    });
   }
   const view = await editionView(locals.db, access.edition.id, null, audience);
   return json({ ...view, segments: forJson(view.segments) });
