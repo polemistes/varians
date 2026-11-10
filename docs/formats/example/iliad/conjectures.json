@@ -2,9 +2,9 @@
   "$schema": "https://varians.eu/formats/2/conjectures.schema.json",
   "conjectures": [
     {
-      "id": "01M71ZVR8TV4M7CD9ABSEEEZSD",
-      "workId": "01M71ZVR4V9ZC4C6ADBQ48D0MN",
-      "segmentId": "01M71ZVR5GVT76X6AWN222XXJG",
+      "id": "01M7273QH4MF88NXJ552KKN8Z5",
+      "workId": "01M7273QCA50WFCCHRR18J5763",
+      "segmentId": "01M7273QD4W29TSP6SSZV8KRF8",
       "kind": "substitution",
       "lemma": "πᾶσι",
       "reading": "δαῖτα",
@@ -14,16 +14,16 @@
       "sequence": null,
       "supplementsId": null,
       "anchor": null,
-      "ownerId": "01M71ZVR465SWSG0Z3MHV53H1W",
+      "ownerId": "01M7273QBJJ56GX1J8M6MNS2HE",
       "visibility": "published",
-      "createdAt": "2026-11-10T05:45:57.787Z",
-      "updatedAt": "2026-11-10T05:45:57.865Z",
+      "createdAt": "2026-11-10T07:52:39.205Z",
+      "updatedAt": "2026-11-10T07:52:39.281Z",
       "segmentLabel": "1.5"
     },
     {
-      "id": "01M71ZVR8TV4M7CD9ABSEEEZSE",
-      "workId": "01M71ZVR4V9ZC4C6ADBQ48D0MN",
-      "segmentId": "01M71ZVR5EWX577PX7FMT6Q1M3",
+      "id": "01M7273QH4MF88NXJ552KKN8Z6",
+      "workId": "01M7273QCA50WFCCHRR18J5763",
+      "segmentId": "01M7273QD1DP038XDXGRWJ78WV",
       "kind": "substitution",
       "lemma": "ἑλώρια",
       "reading": "ἑλώριον",
@@ -33,10 +33,10 @@
       "sequence": null,
       "supplementsId": null,
       "anchor": null,
-      "ownerId": "01M71ZVR465SWSG0Z3MHV53H1W",
+      "ownerId": "01M7273QBJJ56GX1J8M6MNS2HE",
       "visibility": "published",
-      "createdAt": "2026-11-10T05:45:57.787Z",
-      "updatedAt": "2026-11-10T05:45:57.865Z",
+      "createdAt": "2026-11-10T07:52:39.205Z",
+      "updatedAt": "2026-11-10T07:52:39.281Z",
       "segmentLabel": "1.4"
     }
   ]
