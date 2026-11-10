@@ -21,7 +21,7 @@ import { setSiteKind } from '../collation.ts';
 import { adoptConjecture } from '../conjectures.ts';
 import { publishEdition } from '../publish.ts';
 import { editionView } from '../reader.ts';
-import { conjectures, registryMerges } from '@varians/db';
+import { conjectures, editions, registryMerges } from '@varians/db';
 import { writeArchive } from './archive.ts';
 import { ARCHIVED_TABLES } from './coverage.ts';
 import { importArchive, removeWorkCompletely } from './import.ts';
@@ -147,6 +147,19 @@ describe('archive round trip', () => {
       .where(eq(conjectures.workId, sample.workId))
       .limit(1);
     await adoptConjecture(db, sample.editionId, conjecture!.id);
+    // The words for the other witnesses and for all of them, and a group of sigla, are in the edition's conventions.
+    const [edition] = await db.select().from(editions).where(eq(editions.id, sample.editionId));
+    await db
+      .update(editions)
+      .set({
+        conventions: {
+          ...edition!.conventions,
+          rest: 'cett.',
+          all: 'codd.',
+          groups: [{ siglum: 'p', members: ['B', 'C'], note: 'consensus codicum BC' }],
+        },
+      })
+      .where(eq(editions.id, sample.editionId));
     // A place the editor leaves out of the apparatus: the mark is archived as data, and so is the basis of the publication that fixes it.
     const eight = await placeOf(sample.editionId, '1.8', 'συνέηκε');
     await setSiteKind(db, sample.editionId, eight.segmentId, eight.key, 'unreported', userId);

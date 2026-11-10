@@ -112,7 +112,8 @@ export const editor = {
       positive: 'Positive',
       negative: 'Negative',
       rest: 'The other witnesses',
-      restHint: 'Printed for the most widely attested reading of a place, from three sigla.',
+      restHint:
+        'Printed for the most widely attested reading of a place, when it has three sigla or more.',
       all: 'All the witnesses',
       allHint: 'Printed where the lemma is in no witness and all have one reading.',
       wordNone: 'None',
@@ -149,7 +150,7 @@ export const editor = {
       moveDown: 'Move down',
       reportedOnly: 'reported readings only',
       groups: 'Groups',
-      groupsHint: 'A group’s siglum is printed where all its witnesses have a reading.',
+      groupsHint: "A group's siglum is printed where all its witnesses have a reading.",
       groupSiglum: 'Siglum of the group',
       groupWitnesses: 'Witnesses of the group',
       groupNote: 'Note',
