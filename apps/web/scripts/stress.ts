@@ -73,10 +73,11 @@ const { documentAt, loadDocument, rebuildSegmentIndex, saveOps } = await import(
   '../src/lib/server/documents/service.ts'
 );
 const { pageViewsOf } = await import('../src/lib/server/pages.ts');
-const { loadReader } = await import('../src/lib/server/reader-pages.ts');
-const { apparatusConventionsOf, editionView, refreshView } = await import(
+const { loadReader, readerDetail } = await import('../src/lib/server/reader-pages.ts');
+const { apparatusConventionsOf, editionOutline, editionView, refreshView } = await import(
   '../src/lib/server/reader.ts'
 );
+const { OPENING_SEGMENTS } = await import('../src/lib/edition/workspace.ts');
 const { resolveId } = await import('../src/lib/server/resolver.ts');
 const { refuseDevelopmentDatabase } = await import('../src/lib/server/seed/stress.ts');
 const { makeRandom } = await import('../src/lib/server/seed/stress-text.ts');
@@ -396,11 +397,55 @@ async function sent(c: Context, view: EditionView): Promise<void> {
     'MB',
     'the whole view, collation columns left out',
   );
+  // The edit page opens on its first segments; the outline of the whole text is asked for once it is open.
+  await c.db.delete(collationCache).where(eq(collationCache.editionId, c.editionId));
+  const openingCold = await timed(() =>
+    editionView(c.db, c.editionId, null, audience, { first: OPENING_SEGMENTS, lines: false }),
+  );
+  report(
+    'editor, edit page load, cold cache: time',
+    openingCold.ms / 1000,
+    's',
+    `the first ${OPENING_SEGMENTS} segments, collation cache emptied`,
+  );
+  const outlineCold = await timed(() => editionOutline(c.db, c.editionId, audience));
+  report(
+    'editor, the outline of the whole text, cold cache: time',
+    outlineCold.ms / 1000,
+    's',
+    'editionOutline, asked once the editor is open; fills the cache',
+  );
+  const opening = await timed(() =>
+    editionView(c.db, c.editionId, null, audience, { first: OPENING_SEGMENTS, lines: false }),
+  );
+  const openingMs = await medianOf(5, () =>
+    editionView(c.db, c.editionId, null, audience, { first: OPENING_SEGMENTS, lines: false }),
+  );
+  report(
+    'editor, edit page load: time',
+    openingMs,
+    'ms',
+    `the view of the first ${OPENING_SEGMENTS} segments, warm cache, median of 5`,
+  );
   report(
     'editor, edit page load: the view (JSON)',
-    mb(bytesOf({ ...view, lines: [], segments: lighten(view.segments) })),
+    mb(bytesOf({ ...opening.result, segments: lighten(opening.result.segments) })),
     'MB',
-    'the view without the reader lines',
+    'what the page is sent: the text, its first segments and what goes with them',
+  );
+  const outlineMs = await medianOf(3, () => editionOutline(c.db, c.editionId, audience));
+  const outline = await editionOutline(c.db, c.editionId, audience);
+  report(
+    'editor, the outline of the whole text: time',
+    outlineMs,
+    'ms',
+    'editionOutline, warm cache, median of 3',
+  );
+  report(
+    'editor, the outline of the whole text: JSON',
+    mb(bytesOf(outline)),
+    'MB',
+    `${Object.values(outline.outline).reduce((n, o) => n + o.sites.length, 0)} places`,
   );
   const parts: Record<string, number> = {};
   for (const v of Object.values(view.segments))
@@ -438,7 +483,7 @@ async function sent(c: Context, view: EditionView): Promise<void> {
     'reader, the draft: load time',
     reader.ms / 1000,
     's',
-    'loadReader, the only loader: the whole edition',
+    'loadReader: the whole text, the places without the words of each text',
   );
   report('reader, the draft: JSON', mb(bytesOf(reader.result)), 'MB', 'loadReader data');
   const published = await timed(() =>
@@ -460,8 +505,22 @@ async function sent(c: Context, view: EditionView): Promise<void> {
       'loadReader data',
     );
   }
-  note(
-    'There is no reader function for a stretch of segments: loadReader returns the whole edition and the page picks a segment on the client.',
+  const detailIds = window;
+  const detailMs = await medianOf(5, () =>
+    readerDetail(c.db, c.owner, c.editionSlug, { draft: true }, detailIds),
+  );
+  const detail = await readerDetail(c.db, c.owner, c.editionSlug, { draft: true }, detailIds);
+  report(
+    'reader, the detail of a stretch of 17 segments (readerDetail): time',
+    detailMs,
+    'ms',
+    'what the page asks as it opens a place, median of 5',
+  );
+  report(
+    'reader, the detail of a stretch of 17 segments: JSON',
+    bytesOf(detail) / 1024,
+    'KB',
+    'readerDetail',
   );
   data.sent = { stretchSegments: window.length };
 }

@@ -22,7 +22,9 @@ import { editionWorksCited } from './bibliography.ts';
 import { plainText, teiSegments } from '$lib/reader/export';
 import { alignedUnits, siglaOrderOf } from '$lib/reader/sites';
 import { DEFAULT_SIGLA } from '$lib/reader/marks';
-import type { ReaderData, ReaderMode, ReaderSegment, ReaderVersion } from '$lib/reader/types';
+import type { ReaderData, ReaderMode, ReaderVersion } from '$lib/reader/types';
+import { detailOf, packSegments, type ReaderWireData, type SegmentDetail } from '$lib/reader/wire';
+import { MAX_REFRESH } from './audience';
 import { reader as r } from '$lib/strings/reader';
 
 /** What the URL asks for: a published version by number, or the draft. */
@@ -157,7 +159,7 @@ export function readerLinks(
   mode: ReaderMode,
   rights: { canEdit: boolean },
   published: boolean,
-): Pick<ReaderData, 'basePath' | 'query' | 'exports' | 'links'> {
+): Pick<ReaderData, 'basePath' | 'query' | 'exports' | 'detail' | 'links'> {
   const base = `/editions/${encodeURIComponent(slug)}`;
   const basePath = mode.kind === 'version' ? `${base}/v/${mode.number}` : base;
   const query = mode.kind === 'preview' ? '?draft=1' : '';
@@ -170,6 +172,7 @@ export function readerLinks(
       tei: `${base}.tei.xml${exportQuery}`,
       package: `${base}/package.zip`,
     },
+    detail: `${base}/detail.json${exportQuery}`,
     links: {
       current: base,
       preview: published && rights.canEdit ? `${base}?draft=1` : null,
@@ -193,40 +196,32 @@ export function readerVersions(
   }));
 }
 
-/** The page data: the view at the decided version, trimmed for the browser. */
+/**
+ * The page data: the view at the decided version, trimmed for the browser.
+ * Of the segments it sends what the page prints and marks (their places of
+ * variation and what is attached), without the words each text has at each
+ * place; those come, by `readerDetail`, for the segments the visitor opens.
+ */
 export async function loadReader(
   db: Database,
   user: Actor | null,
   slug: string,
   request: ReaderRequest,
-): Promise<ReaderData> {
+): Promise<ReaderWireData> {
   const resolved = await resolveReader(db, user, slug, request);
   const { access, mode, moments } = resolved;
   const audience = audienceOf(mode, user);
-  const view = await editionView(db, access.edition.id, resolved.atVersion, audience);
+  const view = await editionView(db, access.edition.id, resolved.atVersion, audience, {
+    lean: true,
+    order: false,
+  });
   const published =
     access.edition.visibility === 'published' && access.edition.publishedVersion !== null;
   const currentNumber = published
     ? (moments.find((m) => m.version === access.edition.publishedVersion)?.number ?? null)
     : null;
 
-  const segments: Record<string, ReaderSegment> = {};
-  for (const [id, segment] of Object.entries(view.segments)) {
-    segments[id] = {
-      segmentId: segment.segmentId,
-      label: segment.label,
-      // Columns hold Maps the page has no use for.
-      collation: { ...segment.collation, columns: [] },
-      baseUnits: segment.baseUnits,
-      attachments: segment.attachments,
-      aligned: alignedUnits(segment.collation, segment.baseUnits.length),
-      unplaced: segment.unplaced,
-      absent: segment.absent,
-      notes: segment.notes,
-      cites: segment.cites,
-      ...(segment.relations ? { relations: segment.relations } : {}),
-    };
-  }
+  const { segments, texts } = packSegments(Object.values(view.segments));
   // Labels of the segments this edition has, not of the whole work.
   const labelOf: Record<string, string> = {};
   for (const line of view.lines) {
@@ -234,7 +229,7 @@ export async function loadReader(
       if (start.segmentId && view.labelOf[start.segmentId])
         labelOf[start.segmentId] = view.labelOf[start.segmentId]!;
   }
-  for (const segment of Object.values(segments)) labelOf[segment.segmentId] = segment.label;
+  for (const segment of Object.values(view.segments)) labelOf[segment.segmentId] = segment.label;
 
   return {
     edition: view.edition,
@@ -243,6 +238,8 @@ export async function loadReader(
     lines: view.lines.map(trimLine),
     sigla: view.sigla,
     segments,
+    texts,
+    baseId: access.edition.id,
     worksCited: await editionWorksCited(db, access.edition.id, audience),
     labelOf,
     mode,
@@ -255,6 +252,41 @@ export async function loadReader(
     origin: await originOf(db, access.edition.copiedFrom),
     ...readerLinks(access.edition.slug, mode, access, published),
   };
+}
+
+/**
+ * What the page was not sent of some segments: the words each text has at
+ * each place, and where each stands against the edition's words. For the state
+ * of the edition the visitor sees, and nothing the visitor may not see.
+ */
+export async function readerDetail(
+  db: Database,
+  user: Actor | null,
+  slug: string,
+  request: ReaderRequest,
+  segmentIds: string[],
+): Promise<Record<string, SegmentDetail>> {
+  const resolved = await resolveReader(db, user, slug, request);
+  const view = await editionView(
+    db,
+    resolved.access.edition.id,
+    resolved.atVersion,
+    audienceOf(resolved.mode, user),
+    {
+      segments: [...new Set(segmentIds)].slice(0, MAX_REFRESH),
+      lean: true,
+      lines: false,
+      order: false,
+      detail: false,
+    },
+  );
+  const out: Record<string, SegmentDetail> = {};
+  for (const segment of Object.values(view.segments))
+    out[segment.segmentId] = detailOf(
+      segment.collation,
+      alignedUnits(segment.collation, segment.baseUnits.length),
+    );
+  return out;
 }
 
 /** Where a copied edition came from, linked while the original is still published. */

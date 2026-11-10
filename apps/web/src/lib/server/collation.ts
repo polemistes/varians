@@ -37,6 +37,7 @@ import {
   type WitnessHand,
 } from '@varians/db';
 import { collationStateOf, normalizeSiglum, stateTextId, type ConspectusEntry } from './sigla.ts';
+import { loadEditionText, loadTranscriptions } from './loaded-streams.ts';
 import { createHash } from 'node:crypto';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
@@ -118,18 +119,16 @@ function lostUnit(segmentId: string): Unit {
 
 /** Load everything a collation of an edition needs, once. */
 export async function loadEditionContext(db: Database, editionId: string): Promise<EditionContext> {
-  const [row] = await db
-    .select({
-      id: editions.id,
-      workId: editions.workId,
-      content: editions.content,
-      version: editions.version,
-      profile: works.profile,
-    })
-    .from(editions)
-    .innerJoin(works, eq(works.id, editions.workId))
-    .where(eq(editions.id, editionId));
-  if (!row) throw new Error(`no edition ${editionId}`);
+  const [[meta], text] = await Promise.all([
+    db
+      .select({ id: editions.id, workId: editions.workId, profile: works.profile })
+      .from(editions)
+      .innerJoin(works, eq(works.id, editions.workId))
+      .where(eq(editions.id, editionId)),
+    loadEditionText(db, editionId),
+  ]);
+  if (!meta || !text) throw new Error(`no edition ${editionId}`);
+  const row = { ...meta, ...text };
   const sigla = await db
     .select({
       siglum: editionSigla.siglum,
@@ -147,17 +146,7 @@ export async function loadEditionContext(db: Database, editionId: string): Promi
     .filter((id): id is string => id !== null);
   // What the rest needs is asked at once.
   const [rows, keyRows, witnessHands, siteKinds] = await Promise.all([
-    transcriptionIds.length
-      ? db
-          .select({
-            id: transcriptions.id,
-            content: transcriptions.content,
-            version: transcriptions.version,
-            witnessId: transcriptions.witnessId,
-          })
-          .from(transcriptions)
-          .where(inArray(transcriptions.id, transcriptionIds))
-      : [],
+    loadTranscriptions(db, transcriptionIds),
     db
       .select({ id: segments.id, sortKey: segments.sortKey })
       .from(segments)
@@ -375,8 +364,9 @@ export function inputHash(
   return hash.digest('hex').slice(0, 32);
 }
 
-/** How many cache rows one statement reads or writes. */
-const CACHE_CHUNK = 200;
+/** How many cache rows one statement reads, and how many collations are written at a time. */
+const CACHE_READ = 1000;
+const CACHE_WRITE = 25;
 
 /**
  * Collate some segments of an edition, from the cache where the inputs are
@@ -394,7 +384,7 @@ export async function collateSegments(
     return { segmentId, base, witnessTexts, hash: inputHash(context, base, witnessTexts) };
   });
   const cached = new Map<string, { inputHash: string; result: unknown }>();
-  for (let i = 0; i < gathered.length; i += CACHE_CHUNK * 5) {
+  for (let i = 0; i < gathered.length; i += CACHE_READ) {
     const rows = await db
       .select({
         segmentId: collationCache.segmentId,
@@ -407,14 +397,36 @@ export async function collateSegments(
           eq(collationCache.editionId, context.edition.id),
           inArray(
             collationCache.segmentId,
-            gathered.slice(i, i + CACHE_CHUNK * 5).map((g) => g.segmentId),
+            gathered.slice(i, i + CACHE_READ).map((g) => g.segmentId),
           ),
         ),
       );
     for (const row of rows) cached.set(row.segmentId, row);
   }
   const results = new Map<string, Collation>();
-  const fresh: { segmentId: string; hash: string; result: Collation }[] = [];
+  let fresh: { segmentId: string; hash: string; result: Collation }[] = [];
+  /** Write what has been collated: the wait lets other requests run between the stretches of collating. */
+  const write = async () => {
+    if (fresh.length === 0) return;
+    const rows = fresh.map((f) => ({
+      editionId: context.edition.id,
+      segmentId: f.segmentId,
+      inputHash: f.hash,
+      result: serializeCollation(f.result),
+    }));
+    fresh = [];
+    await db
+      .insert(collationCache)
+      .values(rows)
+      .onConflictDoUpdate({
+        target: [collationCache.editionId, collationCache.segmentId],
+        set: {
+          inputHash: sql`excluded.input_hash`,
+          result: sql`excluded.result`,
+          computedAt: new Date(),
+        },
+      });
+  };
   for (const { segmentId, base, witnessTexts, hash } of gathered) {
     const hit = cached.get(segmentId);
     if (hit && hit.inputHash === hash) {
@@ -424,27 +436,9 @@ export async function collateSegments(
     const result = collate(base, witnessTexts, { fold: context.profile.fold });
     fresh.push({ segmentId, hash, result });
     results.set(segmentId, result);
+    if (fresh.length >= CACHE_WRITE) await write();
   }
-  for (let i = 0; i < fresh.length; i += CACHE_CHUNK / 4) {
-    await db
-      .insert(collationCache)
-      .values(
-        fresh.slice(i, i + CACHE_CHUNK / 4).map((f) => ({
-          editionId: context.edition.id,
-          segmentId: f.segmentId,
-          inputHash: f.hash,
-          result: serializeCollation(f.result),
-        })),
-      )
-      .onConflictDoUpdate({
-        target: [collationCache.editionId, collationCache.segmentId],
-        set: {
-          inputHash: sql`excluded.input_hash`,
-          result: sql`excluded.result`,
-          computedAt: new Date(),
-        },
-      });
-  }
+  await write();
   // The editor's kinds are put over the cached result, so that setting one does not collate again.
   const out = new Map<string, Collation>();
   for (const { segmentId, base } of gathered) {

@@ -7,7 +7,6 @@
 import {
   segmentAt,
   segmentIds as segmentIdsOf,
-  siteKey,
   siteTokenIds,
   touchedIds,
   type Id,
@@ -18,6 +17,7 @@ import {
   type Token,
   newId,
 } from '@varians/core';
+import type { SegmentOutline, SiteOutline } from './outline.ts';
 import type { ActiveSite, SegmentViewClient } from './types.ts';
 
 /** The segments of the stream in the edition's order. */
@@ -25,8 +25,14 @@ export function segmentOrder(stream: Stream): Id[] {
   return segmentIdsOf(stream);
 }
 
+/** How many segments each side of the active one are on show. */
+export const WINDOW_RADIUS = 8;
+
+/** How many segments the editor opens with: the window around the first. */
+export const OPENING_SEGMENTS = WINDOW_RADIUS * 2 + 1;
+
 /** A window of segment ids around the active one: `radius` before and after. */
-export function segmentWindow(order: Id[], active: Id | null, radius = 8): Id[] {
+export function segmentWindow(order: Id[], active: Id | null, radius = WINDOW_RADIUS): Id[] {
   if (order.length === 0) return [];
   const at = active ? Math.max(0, order.indexOf(active)) : 0;
   const from = Math.max(0, at - radius);
@@ -152,7 +158,7 @@ export function witnessTokensAt(site: Site, textId: Id): Id[] {
 }
 
 /** Whether a site deserves a mark in the text: a different reading or something attached. */
-export function siteShows(segment: SegmentViewClient, site: Site): boolean {
+export function siteShows(segment: Pick<SegmentViewClient, 'attachments'>, site: Site): boolean {
   if ((segment.attachments[site.index] ?? []).length > 0) return true;
   return site.readings.some((r) => !r.base);
 }
@@ -166,25 +172,25 @@ export interface ClassOptions {
 
 /** Classes for the edition's words: variant sites dotted, the active site lit, sources tinted on request. */
 export function tokenClassesFor(
-  segments: Iterable<SegmentViewClient>,
+  outlines: Iterable<SegmentOutline>,
   options: ClassOptions,
 ): Record<Id, string> {
   const out: Record<Id, string> = {};
   const add = (id: Id, className: string) => {
     out[id] = out[id] ? `${out[id]} ${className}` : className;
   };
-  for (const segment of segments) {
-    for (const site of segment.collation.sites) {
-      if (!siteShows(segment, site)) continue;
+  const all = [...outlines];
+  for (const outline of all) {
+    for (const site of outline.sites) {
       const active =
-        options.active?.segmentId === segment.segmentId && options.active.siteIndex === site.index;
-      for (const id of siteTokenIds(site, segment.baseUnits)) {
+        options.active?.segmentId === outline.segmentId && options.active.siteIndex === site.index;
+      for (const id of site.tokens) {
         add(id, 'vs-site');
         if (active) add(id, 'vs-active');
       }
     }
   }
-  for (const segment of segments) for (const d of segment.drift ?? []) add(d.tokenId, 'vs-drift');
+  for (const outline of all) for (const id of outline.drift) add(id, 'vs-drift');
   if (options.colourBySource && options.stream) {
     for (const item of options.stream.items) {
       if (item.kind !== 'token' || !item.source) continue;
@@ -217,39 +223,32 @@ export function activeSiteFor(
 
 export interface SiteRef {
   segmentId: Id;
-  site: Site;
+  site: SiteOutline;
 }
 
 /** Every site that shows, in the edition's order. */
-export function sitesInOrder(order: Id[], views: Record<Id, SegmentViewClient>): SiteRef[] {
+export function sitesInOrder(order: Id[], outlines: Record<Id, SegmentOutline>): SiteRef[] {
   const out: SiteRef[] = [];
-  for (const segmentId of order) {
-    const segment = views[segmentId];
-    if (!segment) continue;
-    const sites = segment.collation.sites
-      .filter((site) => siteShows(segment, site))
-      .sort((a, b) => a.baseFrom - b.baseFrom || a.baseTo - b.baseTo);
-    for (const site of sites) out.push({ segmentId, site });
-  }
+  for (const segmentId of order)
+    for (const site of outlines[segmentId]?.sites ?? []) out.push({ segmentId, site });
   return out;
 }
 
 /** The next (or previous) site from the active one; with `unreviewedOnly`, skipping reviewed ones. */
 export function stepSite(
   order: Id[],
-  views: Record<Id, SegmentViewClient>,
+  outlines: Record<Id, SegmentOutline>,
   active: ActiveSite | null,
   direction: 1 | -1,
   reviewed: Record<Id, string[]>,
   unreviewedOnly = false,
 ): SiteRef | null {
-  const all = sitesInOrder(order, views);
+  const all = sitesInOrder(order, outlines);
   if (all.length === 0) return null;
   const at = active
     ? all.findIndex((r) => r.segmentId === active.segmentId && r.site.index === active.siteIndex)
     : -1;
-  const isDone = (ref: SiteRef) =>
-    (reviewed[ref.segmentId] ?? []).includes(siteKey(ref.site, views[ref.segmentId]!.baseUnits));
+  const isDone = (ref: SiteRef) => (reviewed[ref.segmentId] ?? []).includes(ref.site.key);
   for (let step = 1; step <= all.length; step++) {
     const index =
       at < 0

@@ -59,6 +59,8 @@
   import { Splitter } from '$lib/components/ui';
   import { PaneSize } from '$lib/layout/pane-size.svelte';
   import { WitnessTexts } from './witness-texts.svelte';
+  import { SegmentDetails } from './segment-details.svelte';
+  import { withDetail } from '$lib/reader/wire';
 
   interface Props {
     data: ReaderPageData;
@@ -241,6 +243,15 @@
     data.sigla.find((x) => x.siglum === siglum)?.transcriptionId ?? null,
   );
   const texts = new WitnessTexts();
+  /** What the page was not sent of the segments, once asked for. */
+  const details = new SegmentDetails();
+
+  /** A segment with its detail, when that has come: the words each text has at each place. */
+  function fullSegment(id: string) {
+    const segment = data.segments[id];
+    const detail = details.get(data.detail, id);
+    return segment && detail ? withDetail(segment, detail) : segment;
+  }
 
   // The segments on screen, while a panel needs them.
   let visibleSegments = $state<string[]>([]);
@@ -289,7 +300,7 @@
     for (const key of keys) {
       const ref = parseSiteKey(key);
       if (!ref) continue;
-      const segment = data.segments[ref.segmentId];
+      const segment = fullSegment(ref.segmentId);
       const fallback = {
         aligned: segment?.aligned?.[textId],
         units: texts.get(textId, ref.segmentId)?.units,
@@ -304,6 +315,16 @@
     new Set(witnessTokens(hoveredKeys.length ? hoveredKeys : activeKeys, transcriptionId)),
   );
   const facsimileLit = $derived(witnessTokens(activeKeys, transcriptionId));
+
+  // The panels light a witness's words at the places in view, which the page was not sent: they are asked for as the places come into view.
+  $effect(() => {
+    if (!panelsOpen) return;
+    const ids = [
+      ...[...activeKeys, ...hoveredKeys].flatMap((key) => parseSiteKey(key)?.segmentId ?? []),
+      ...visibleSegments.slice(0, 40),
+    ];
+    if (ids.length) untrack(() => void details.load(data.detail, ids));
+  });
 
   // The witness's words of the open entry's segments, for the panels to light them.
   $effect(() => {

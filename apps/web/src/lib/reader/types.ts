@@ -24,9 +24,10 @@ export interface ReaderSegment {
   /**
    * For each witness text, the index of its unit aligned with each unit of the
    * edition (-1 where none): how a witness's words are found at a site opened
-   * for a conjecture on words every witness agrees about.
+   * for a conjecture on words every witness agrees about. Not sent with the
+   * page: it comes with the detail of the segment (`SegmentDetail`).
    */
-  aligned: Record<string, number[]>;
+  aligned?: Record<string, number[]>;
   unplaced: Attachment[];
   /** Sigla of the witnesses without this segment at all. */
   absent: string[];
@@ -122,6 +123,8 @@ export interface ReaderData {
   /** The query links within this view keep: `?draft=1` in a preview, else empty. */
   query: string;
   exports: { text: string; tei: string; package: string };
+  /** Where the detail of some segments is asked for, as a query is added to it: `/editions/slug/detail.json` with the state of the edition kept. */
+  detail: string;
   links: {
     /** The edition as readers see it now. */
     current: string;

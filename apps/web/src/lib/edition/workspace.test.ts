@@ -9,6 +9,7 @@ import {
   type Token,
 } from '@varians/core';
 import type { SegmentViewClient } from './types.ts';
+import { outlineOf } from './outline.ts';
 import {
   activeSiteFor,
   insertedIds,
@@ -119,10 +120,12 @@ describe('sites and selections', () => {
   });
 
   it('puts classes on site words and the active site', () => {
-    const classes = tokenClassesFor([segment], { active: { segmentId: 's1', siteIndex: 0 } });
+    const classes = tokenClassesFor([outlineOf(segment)], {
+      active: { segmentId: 's1', siteIndex: 0 },
+    });
     expect(classes.s1e2).toBe('vs-site vs-active');
     expect(classes.s1e1).toBeUndefined();
-    const withSources = tokenClassesFor([segment], {
+    const withSources = tokenClassesFor([outlineOf(segment)], {
       active: null,
       colourBySource: true,
       stream: { items: [{ kind: 'token', id: 'x', form: 'a', source: { kind: 'editor' } }] },
@@ -131,7 +134,7 @@ describe('sites and selections', () => {
   });
 
   it('steps through sites and skips reviewed ones on request', () => {
-    const views = { s1: segment };
+    const views = { s1: outlineOf(segment) };
     const first = stepSite(['s1'], views, null, 1, {});
     expect(first?.site.baseFrom).toBe(1);
     const second = stepSite(

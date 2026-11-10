@@ -42,12 +42,8 @@
   import ObjectDialog, { type InsertKind } from './ObjectDialog.svelte';
   import SegmentDialog from './SegmentDialog.svelte';
   import WitnessPane from './WitnessPane.svelte';
-  import {
-    countUnreviewed,
-    keyOfSite,
-    opsForAttachment,
-    opsForReading,
-  } from '$lib/edition/adopt-client';
+  import { keyOfSite, opsForAttachment, opsForReading } from '$lib/edition/adopt-client';
+  import { countNeeding, outlineOf, type SegmentOutline } from '$lib/edition/outline';
   import {
     activeSiteFor,
     insertedIds,
@@ -105,7 +101,15 @@
   const json = { 'content-type': 'application/json' };
 
   let stream = $state.raw<Stream>(untrack(() => view.content));
+  // The segments the editor has been given in full (those it has shown), and the outline of every segment of the text.
   let views = $state.raw<Record<Id, SegmentViewClient>>(untrack(() => view.segments));
+  let outlines = $state.raw<Record<Id, SegmentOutline>>(
+    untrack(() =>
+      Object.fromEntries(Object.values(view.segments).map((v) => [v.segmentId, outlineOf(v)])),
+    ),
+  );
+  /** The outline of the whole text has come: until then the marks, the count and the steps cover what has been given. */
+  let outlineReady = $state(false);
   let labelOf = $state.raw<Record<Id, string>>(untrack(() => view.labelOf));
   let reviewed = $state.raw<Record<Id, string[]>>(untrack(() => initialReviewed));
   let active = $state.raw<ActiveSite | null>(null);
@@ -211,12 +215,15 @@
       };
       if (data.order) order = data.order;
       const nextViews = { ...views };
+      const nextOutlines = { ...outlines };
       const nextLabels = { ...labelOf };
       for (const [id, segment] of Object.entries(data.segments)) {
         nextViews[id] = segment;
+        nextOutlines[id] = outlineOf(segment);
         nextLabels[id] = segment.label;
       }
       views = nextViews;
+      outlines = nextOutlines;
       labelOf = nextLabels;
       // Edits made while the answer travelled are newer than it: those segments stay stale.
       if (session.state.pending === 0 && !session.state.saving) {
@@ -236,14 +243,94 @@
     }
   }
 
+  /** Start again from what the server has: the segments on show are asked for anew, and the outline. */
   async function reloadAll(): Promise<void> {
-    const response = await fetch(`/api/editions/${editionId}/view`);
-    if (!response.ok) return;
-    const data = (await response.json()) as EditionViewClient;
-    views = data.segments;
-    labelOf = data.labelOf;
-    order = data.order ?? [];
+    views = {};
+    outlines = {};
+    outlineReady = false;
+    loading = new Set();
+    await Promise.all([ensureShown(), loadOutline()]);
     if (session.state.pending === 0) stale = new Set();
+  }
+
+  // Giving the editor the segments it shows
+
+  /** Segments asked for and not yet given. */
+  let loading = new Set<Id>();
+  /** What the caret's segment shows once it has been given, when the caret reached it before. */
+  let selectionWaiting = false;
+
+  /** How far each side of the caret segments are asked for, so that moving on does not ask again at once. */
+  const PREFETCH_RADIUS = 16;
+
+  /** Ask for the segments of the window that have not been given, and those around it. */
+  async function ensureShown(): Promise<void> {
+    const missing = windowIds.filter((id) => !views[id] && !loading.has(id));
+    if (missing.length === 0) return;
+    const center = caretSegment ?? active?.segmentId ?? null;
+    await ensure(
+      segmentWindow(sequence, center, PREFETCH_RADIUS).filter(
+        (id) => !views[id] && !loading.has(id),
+      ),
+    );
+  }
+
+  /** Have these segments in full: asked for in one request, and put among the others. */
+  async function ensure(ids: Id[]): Promise<void> {
+    const wanted = ids.filter((id) => !views[id] && !loading.has(id));
+    if (wanted.length === 0) {
+      // Another request is bringing them: wait for it.
+      while (ids.some((id) => loading.has(id) && !views[id]))
+        await new Promise((r) => setTimeout(r, 50));
+      return;
+    }
+    for (const id of wanted) loading.add(id);
+    try {
+      const response = await fetch(
+        `/api/editions/${editionId}/view?segments=${encodeURIComponent(wanted.join(','))}`,
+      );
+      if (!response.ok) throw new Error(response.statusText);
+      const data = (await response.json()) as {
+        segments: Record<Id, SegmentViewClient>;
+        order?: EditionViewClient['order'];
+      };
+      if (data.order) order = data.order;
+      const nextViews = { ...views };
+      const nextOutlines = { ...outlines };
+      for (const [id, segment] of Object.entries(data.segments)) {
+        // A segment given meanwhile, or edited meanwhile, is newer than this.
+        if (views[id] || stale.has(id)) continue;
+        nextViews[id] = segment;
+        nextOutlines[id] = outlineOf(segment);
+      }
+      views = nextViews;
+      outlines = nextOutlines;
+      settleSelection();
+    } catch {
+      // The window asks again when it moves.
+    } finally {
+      for (const id of wanted) loading.delete(id);
+    }
+  }
+
+  /** The outline of the whole text, asked for once the editor is open. */
+  async function loadOutline(): Promise<void> {
+    try {
+      const response = await fetch(`/api/editions/${editionId}/outline`);
+      if (!response.ok) throw new Error(response.statusText);
+      const data = (await response.json()) as {
+        outline: Record<Id, SegmentOutline>;
+        labelOf: Record<Id, string>;
+      };
+      // What the editor has in full is at least as new as the outline.
+      const next = { ...data.outline };
+      for (const [id, segment] of Object.entries(views)) next[id] = outlineOf(segment);
+      outlines = next;
+      labelOf = { ...data.labelOf, ...labelOf };
+      outlineReady = true;
+    } catch {
+      // The marks of the segments given so far stay; the next change of the text asks again.
+    }
   }
 
   function markReviewedAfterRefresh(refreshed: Id[]) {
@@ -296,19 +383,15 @@
   const windowSegments = $derived(
     windowIds.map((id) => views[id]).filter((v): v is SegmentViewClient => v !== undefined),
   );
-  const allViews = $derived(Object.values(views));
-  const tokenClasses = $derived(tokenClassesFor(allViews, { active, colourBySource, stream }));
+  const tokenClasses = $derived(
+    tokenClassesFor(Object.values(outlines), { active, colourBySource, stream }),
+  );
   const reviewedMap = $derived(
     new Map(Object.entries(reviewed).map(([id, keys]) => [id, new Set(keys)] as const)),
   );
-  const allSites = $derived(sitesInOrder(sequence, views).length);
-  const unreviewed = $derived(
-    countUnreviewed(
-      sequence.map((id) => views[id]).filter((v): v is SegmentViewClient => v !== undefined),
-      reviewedMap,
-    ),
-  );
-  const witnessIdx = $derived(witnessIndex(allViews));
+  const allSites = $derived(sitesInOrder(sequence, outlines).length);
+  const unreviewed = $derived(countNeeding(sequence, outlines, reviewedMap));
+  const witnessIdx = $derived(witnessIndex(windowSegments));
   const witnessTextId = $derived(
     sigla.find((x) => x.siglum === witnessSiglum)?.transcriptionId ?? null,
   );
@@ -330,6 +413,17 @@
     caretSegment = segmentId;
     const segment = segmentId ? views[segmentId] : undefined;
     active = segment ? activeSiteFor([segment], ids, caret) : null;
+    // A segment not yet given has no places to find: the selection is read again when it comes.
+    selectionWaiting = !segment && segmentId !== null;
+  }
+
+  /** Read the selection again, if it reached a segment before that was given. */
+  function settleSelection() {
+    if (!selectionWaiting || !caretSegment) return;
+    const segment = views[caretSegment];
+    if (!segment) return;
+    selectionWaiting = false;
+    active = activeSiteFor([segment], selection.ids, selection.caret);
   }
 
   function focusSite(segmentId: Id, site: Site) {
@@ -348,9 +442,15 @@
     }
   }
 
-  function step(direction: 1 | -1, unreviewedOnly: boolean) {
-    const ref = stepSite(sequence, views, active, direction, reviewed, unreviewedOnly);
-    if (ref) focusSite(ref.segmentId, ref.site);
+  async function step(direction: 1 | -1, unreviewedOnly: boolean) {
+    const ref = stepSite(sequence, outlines, active, direction, reviewed, unreviewedOnly);
+    if (!ref) return;
+    // The place may be in a segment not yet given: the window moves there, and the place is found once it comes.
+    caretSegment = ref.segmentId;
+    active = { segmentId: ref.segmentId, siteIndex: ref.site.index };
+    await ensure([ref.segmentId]);
+    const site = views[ref.segmentId]?.collation.sites.find((x) => x.index === ref.site.index);
+    if (site) focusSite(ref.segmentId, site);
   }
 
   // Adopting
@@ -845,6 +945,15 @@
     if (session.state.pending > 0 || session.state.saving) event.preventDefault();
   }
 
+  // Segments come as the window reaches them, and the outline of the whole text once the editor is open.
+  $effect(() => {
+    void windowIds;
+    untrack(() => void ensureShown());
+  });
+  onMount(() => {
+    void loadOutline();
+  });
+
   onMount(() => {
     window.addEventListener('keydown', onKey, true);
     window.addEventListener('beforeunload', onBeforeUnload);
@@ -1084,7 +1193,13 @@
       class="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-4 py-1.5 font-sans text-xs text-ink-soft"
     >
       <span class="font-semibold text-ink">{s.apparatus}</span>
-      <span>{unreviewed === 0 ? s.allReviewed : s.workspace.toReview(unreviewed, allSites)}</span>
+      <span
+        >{!outlineReady
+          ? s.workspace.counting
+          : unreviewed === 0
+            ? s.allReviewed
+            : s.workspace.toReview(unreviewed, allSites)}</span
+      >
       <span class="flex items-center gap-1">
         <Button
           size="sm"
@@ -1101,7 +1216,7 @@
         <Button
           size="sm"
           variant="secondary"
-          disabled={unreviewed === 0}
+          disabled={!outlineReady || unreviewed === 0}
           onclick={() => step(1, true)}>{s.workspace.nextUnreviewed}</Button
         >
       </span>

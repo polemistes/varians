@@ -47,8 +47,7 @@ import { createHash } from 'node:crypto';
 import { MAX_REFRESH, PUBLIC, recordFilter, type Audience } from './audience.ts';
 import { citationsByRecord } from './bibliography.ts';
 import {
-  collateEdition,
-  collateSegment,
+  collateSegments,
   editionUnits,
   loadEditionContext,
   loadWitnessHands,
@@ -62,6 +61,7 @@ import { reader as r } from '../strings/reader.ts';
 import { documentAt } from './documents/service.ts';
 import { analyseWords } from './lexicon.ts';
 import { siglaOrderOf } from '../reader/sites.ts';
+import { outlineOf, type SegmentOutline } from '../edition/outline.ts';
 
 export interface SegmentView {
   segmentId: string;
@@ -319,25 +319,12 @@ export interface EditionView {
   atVersion: number | null;
 }
 
-/**
- * Assemble the view of an edition, at its current content or as it stood at
- * a version. A published version is collated against the witnesses as they
- * stood when it was published, with the conjectures, reported readings and
- * notes there were then, so that it reads the same for as long as it is cited.
- */
-export async function editionView(
+/** The witnesses of the conspectus, by id. */
+async function witnessesOf(
   db: Database,
-  editionId: string,
-  atVersion: number | null = null,
-  audience: Audience = PUBLIC,
-): Promise<EditionView> {
-  const { context, asOf } = await contextAt(db, editionId, atVersion);
-  const row = await editionMeta(db, editionId);
-  const work = await db.query.works.findFirst({ where: (t, { eq }) => eq(t.id, row.workId) });
-  const segmentRows = await db.select().from(segments).where(eq(segments.workId, row.workId));
-  const labelOf: Record<string, string> = {};
-  for (const s of segmentRows) labelOf[s.id] = s.label;
-  const witnessRows = context.sigla.length
+  context: EditionContext,
+): Promise<Map<string, typeof witnesses.$inferSelect>> {
+  const rows = context.sigla.length
     ? await db
         .select()
         .from(witnesses)
@@ -348,7 +335,59 @@ export async function editionView(
           ),
         )
     : [];
-  const witnessById = new Map(witnessRows.map((w) => [w.id, w] as const));
+  return new Map(rows.map((w) => [w.id, w] as const));
+}
+
+/** The parts of a segment's view that are made; all of them unless said otherwise. */
+interface ViewParts {
+  /** The apparatus entries, which the reader's page makes for itself under the reader's settings. */
+  entries?: boolean;
+  /** Which words have drifted from their source witness. */
+  drift?: boolean;
+  /** The notes and what the records cite. */
+  notes?: boolean;
+  /** How the readings of Greek places stand to the edition's words. */
+  relations?: boolean;
+}
+
+/** What an edition's view is made of, when a page needs less than all of it. */
+export interface ViewOptions {
+  /** The segments to make views of: every segment of the edition when neither this nor `first` is given. */
+  segments?: string[];
+  /** Views of this many segments, from the start of the text. */
+  first?: number;
+  /** Leave out the apparatus entries and the drift of words, which the reader's page makes for itself or has no use for. */
+  lean?: boolean;
+  /** Lay out the lines of the text for the reader (default), or leave them out. */
+  lines?: boolean;
+  /** Say where the witnesses order whole segments otherwise (default), or leave it out. */
+  order?: boolean;
+  /** The notes and what the records cite, and the relations of Greek readings to the edition's words (default), or leave them out. */
+  detail?: boolean;
+}
+
+/**
+ * Assemble the view of an edition, at its current content or as it stood at
+ * a version. A published version is collated against the witnesses as they
+ * stood when it was published, with the conjectures, reported readings and
+ * notes there were then, so that it reads the same for as long as it is cited.
+ * Views are made of every segment unless some are named, and only those are
+ * collated.
+ */
+export async function editionView(
+  db: Database,
+  editionId: string,
+  atVersion: number | null = null,
+  audience: Audience = PUBLIC,
+  options: ViewOptions = {},
+): Promise<EditionView> {
+  const { context, asOf } = await contextAt(db, editionId, atVersion);
+  const row = await editionMeta(db, editionId);
+  const work = await db.query.works.findFirst({ where: (t, { eq }) => eq(t.id, row.workId) });
+  const segmentRows = await db.select().from(segments).where(eq(segments.workId, row.workId));
+  const labelOf: Record<string, string> = {};
+  for (const s of segmentRows) labelOf[s.id] = s.label;
+  const witnessById = await witnessesOf(db, context);
   const sigla = context.sigla.map((s) => ({
     siglum: s.siglum,
     witnessId: s.witnessId,
@@ -358,7 +397,14 @@ export async function editionView(
     states: s.states.map((state) => readerState(state, witnessById.get(s.witnessId)?.hands ?? [])),
     variantSiglum: s.variantSiglum,
   }));
-  const collations = await collateEdition(db, context);
+  const inEdition = segmentOrderOf(context.edition.content);
+  const present = new Set(inEdition);
+  const wanted = options.segments
+    ? options.segments.filter((id) => present.has(id))
+    : options.first !== undefined
+      ? inEdition.slice(0, options.first)
+      : inEdition;
+  const collations = await collateSegments(db, context, wanted);
   const views = await buildSegmentViews(
     db,
     context,
@@ -368,6 +414,12 @@ export async function editionView(
     witnessById,
     asOf,
     audience,
+    {
+      entries: options.lean !== true,
+      drift: options.lean !== true,
+      notes: options.detail !== false,
+      relations: options.detail !== false,
+    },
   );
   const lineation =
     row.conventions.lineation === 'prose' ? 1 : Number(row.conventions.numberEvery ?? 5);
@@ -392,13 +444,16 @@ export async function editionView(
       language: work?.language ?? 'grc',
     },
     content: context.edition.content,
-    lines: layoutLines(context.edition.content, (id) => labelOf[id] ?? id, {
-      numberEvery: lineation,
-    }),
+    lines:
+      options.lines === false
+        ? []
+        : layoutLines(context.edition.content, (id) => labelOf[id] ?? id, {
+            numberEvery: lineation,
+          }),
     sigla,
     segments: views,
     labelOf,
-    order: orderStatements(context),
+    order: options.order === false ? [] : orderStatements(context),
     atVersion: atVersion !== null && atVersion !== row.version ? atVersion : null,
   };
 }
@@ -463,17 +518,23 @@ async function applyBasis(
     context.sigla.map((s) => s.witnessId),
   );
   const ids = basis.sigla.map((s) => s.transcriptionId).filter((id): id is string => id !== null);
-  const rows = ids.length
-    ? await db
-        .select({
-          id: transcriptions.id,
-          content: transcriptions.content,
-          version: transcriptions.version,
-          witnessId: transcriptions.witnessId,
-        })
-        .from(transcriptions)
-        .where(inArray(transcriptions.id, ids))
-    : [];
+  // What the context holds of the transcriptions, as they are now, is not read again.
+  const held = context.transcriptions;
+  const absent = ids.filter((id) => !held.has(id));
+  const rows = [
+    ...ids.flatMap((id) => held.get(id) ?? []),
+    ...(absent.length
+      ? await db
+          .select({
+            id: transcriptions.id,
+            content: transcriptions.content,
+            version: transcriptions.version,
+            witnessId: transcriptions.witnessId,
+          })
+          .from(transcriptions)
+          .where(inArray(transcriptions.id, absent))
+      : []),
+  ];
   const loaded = new Map<
     string,
     { id: string; content: Stream; version: number; witnessId: string }
@@ -492,6 +553,50 @@ async function applyBasis(
     (s) => s.transcriptionId === null || loaded.has(s.transcriptionId),
   );
   context.transcriptions = loaded;
+}
+
+/**
+ * The outline of every segment of the current text: where the places of
+ * variation stand and which words have drifted, which the editor needs of the
+ * whole text at once (to mark its words, to count the places and to step from
+ * one to the next), with the labels of the work's segments. Whatever the cache
+ * lacks is collated, and a page asks for this after it has opened.
+ */
+export async function editionOutline(
+  db: Database,
+  editionId: string,
+  audience: Audience = PUBLIC,
+): Promise<{ outline: Record<string, SegmentOutline>; labelOf: Record<string, string> }> {
+  const [context, row] = await Promise.all([
+    loadEditionContext(db, editionId),
+    editionMeta(db, editionId),
+  ]);
+  const ids = segmentOrderOf(context.edition.content);
+  const [collations, witnessById, segmentRows] = await Promise.all([
+    collateSegments(db, context, ids),
+    witnessesOf(db, context),
+    db
+      .select({ id: segments.id, label: segments.label })
+      .from(segments)
+      .where(eq(segments.workId, row.workId)),
+  ]);
+  const labelOf: Record<string, string> = {};
+  for (const s of segmentRows) labelOf[s.id] = s.label;
+  const views = await buildSegmentViews(
+    db,
+    context,
+    row,
+    collations,
+    labelOf,
+    witnessById,
+    null,
+    audience,
+    { entries: false, notes: false, relations: false },
+  );
+  return {
+    outline: Object.fromEntries(ids.map((id) => [id, outlineOf(views[id]!)] as const)),
+    labelOf,
+  };
 }
 
 /** The views of some segments only, for the editor after a change: collated from the current content. */
@@ -526,20 +631,8 @@ export async function refreshView(
   const wanted = segmentRows.map((s) => s.id);
   const labelOf: Record<string, string> = {};
   for (const s of segmentRows) labelOf[s.id] = s.label;
-  const witnessRows = context.sigla.length
-    ? await db
-        .select()
-        .from(witnesses)
-        .where(
-          inArray(
-            witnesses.id,
-            context.sigla.map((s) => s.witnessId),
-          ),
-        )
-    : [];
-  const witnessById = new Map(witnessRows.map((w) => [w.id, w] as const));
-  const collations = new Map<string, Collation>();
-  for (const id of wanted) collations.set(id, await collateSegment(db, context, id));
+  const witnessById = await witnessesOf(db, context);
+  const collations = await collateSegments(db, context, wanted);
   return {
     segments: await buildSegmentViews(
       db,
@@ -564,6 +657,7 @@ async function buildSegmentViews(
   witnessById: Map<string, typeof witnesses.$inferSelect>,
   asOf: Date | null = null,
   audience: Audience = PUBLIC,
+  parts: ViewParts = {},
 ): Promise<Record<string, SegmentView>> {
   const editionId = row.id;
   const siglumOfWitness = new Map(context.sigla.map((s) => [s.witnessId, s.siglum] as const));
@@ -604,74 +698,102 @@ async function buildSegmentViews(
           )
       ).filter(sees)
     : [];
-  const noteRows = await db
-    .select({
-      id: notes.id,
-      segmentId: notes.segmentId,
-      tokenIds: notes.tokenIds,
-      text: notes.text,
-      author: users.name,
-    })
-    .from(notes)
-    .leftJoin(users, eq(users.id, notes.authorId))
-    .where(and(eq(notes.editionId, editionId), asOf ? lte(notes.createdAt, asOf) : undefined));
+  const withNotes = parts.notes !== false;
+  const noteRows = withNotes
+    ? await db
+        .select({
+          id: notes.id,
+          segmentId: notes.segmentId,
+          tokenIds: notes.tokenIds,
+          text: notes.text,
+          author: users.name,
+        })
+        .from(notes)
+        .leftJoin(users, eq(users.id, notes.authorId))
+        .where(
+          and(
+            eq(notes.editionId, editionId),
+            segmentIds.length ? inArray(notes.segmentId, segmentIds) : undefined,
+            asOf ? lte(notes.createdAt, asOf) : undefined,
+          ),
+        )
+    : [];
   const texts = (map: Map<string, { text: string }[]>) =>
     new Map([...map].map(([id, list]) => [id, list.map((c) => c.text)] as const));
-  const noteCites = texts(
-    await citationsByRecord(
-      db,
-      'note',
-      noteRows.map((n) => n.id),
-    ),
-  );
-  const recordCites = new Map([
-    ...texts(
-      await citationsByRecord(
-        db,
-        'conjecture',
-        conjectureRows.map((c) => c.id),
-      ),
-    ),
-    ...texts(
-      await citationsByRecord(
-        db,
-        'reported',
-        reportedRows.map((r) => r.id),
-      ),
-    ),
-  ]);
+  const noteCites = withNotes
+    ? texts(
+        await citationsByRecord(
+          db,
+          'note',
+          noteRows.map((n) => n.id),
+        ),
+      )
+    : new Map<string, string[]>();
+  const recordCites = withNotes
+    ? new Map([
+        ...texts(
+          await citationsByRecord(
+            db,
+            'conjecture',
+            conjectureRows.map((c) => c.id),
+          ),
+        ),
+        ...texts(
+          await citationsByRecord(
+            db,
+            'reported',
+            reportedRows.map((r) => r.id),
+          ),
+        ),
+      ])
+    : new Map<string, string[]>();
+  const bySegment = <T extends { segmentId: string }>(rows: T[]) => {
+    const out = new Map<string, T[]>();
+    for (const row of rows) {
+      const list = out.get(row.segmentId);
+      if (list) list.push(row);
+      else out.set(row.segmentId, [row]);
+    }
+    return out;
+  };
+  const conjecturesAt = bySegment(conjectureRows);
+  const reportedAt = bySegment(reportedRows);
+  const notesAt = bySegment(noteRows);
+  const siglaOrder = siglaOrderOf(context.sigla);
+  const siglumOfText = new Map<string, string>();
+  for (const s of context.sigla)
+    if (s.transcriptionId && !siglumOfText.has(s.transcriptionId))
+      siglumOfText.set(s.transcriptionId, s.siglum);
   const views: Record<string, SegmentView> = {};
   for (const [segmentId, collation] of collations) {
     const baseUnits = editionUnits(context.edition.content, segmentId);
+    const conjecturesHere = conjecturesAt.get(segmentId) ?? [];
+    const reportedHere = reportedAt.get(segmentId) ?? [];
     const candidates: AttachmentCandidate[] = [
-      ...conjectureRows
-        .filter((c) => c.segmentId === segmentId)
-        .map((c) => {
-          const candidate: AttachmentCandidate = {
-            id: c.id,
-            kind: 'conjecture',
-            lemma: c.lemma,
-            reading: c.reading,
-            name: c.proposer ?? 'this edition',
-            conjectureKind: c.kind,
-          };
-          if (adopted.has(c.id)) candidate.adopted = true;
-          if (c.anchor && 'tokenIds' in c.anchor) candidate.anchorTokenIds = c.anchor.tokenIds;
-          return candidate;
-        }),
-      ...reportedRows
-        .filter((r) => r.segmentId === segmentId)
-        .map((r) => {
-          const candidate: AttachmentCandidate = {
-            id: r.id,
-            kind: 'reported',
-            lemma: r.lemma,
-            reading: r.reading,
-            name: siglumOfWitness.get(r.witnessId) ?? witnessById.get(r.witnessId)?.siglum ?? '?',
-          };
-          if (r.source) candidate.source = `(${r.source})`;
-          return candidate;
-        }),
+      ...conjecturesHere.map((c) => {
+        const candidate: AttachmentCandidate = {
+          id: c.id,
+          kind: 'conjecture',
+          lemma: c.lemma,
+          reading: c.reading,
+          name: c.proposer ?? 'this edition',
+          conjectureKind: c.kind,
+        };
+        if (adopted.has(c.id)) candidate.adopted = true;
+        if (c.anchor && 'tokenIds' in c.anchor) candidate.anchorTokenIds = c.anchor.tokenIds;
+        return candidate;
+      }),
+      ...reportedHere.map((r) => {
+        const candidate: AttachmentCandidate = {
+          id: r.id,
+          kind: 'reported',
+          lemma: r.lemma,
+          reading: r.reading,
+          name: siglumOfWitness.get(r.witnessId) ?? witnessById.get(r.witnessId)?.siglum ?? '?',
+        };
+        if (r.source) candidate.source = `(${r.source})`;
+        return candidate;
+      }),
     ];
     const attached = attachToSites(collation, baseUnits, candidates, context.profile.fold);
     // The places a conjecture or reported reading makes take the editor's kind too.
@@ -680,48 +802,41 @@ async function buildSegmentViews(
     );
     attached.collation = applySiteKinds(attached.collation, baseUnits, kinds);
     const label = labelOf[segmentId] ?? segmentId;
-    const siglaOrder = siglaOrderOf(context.sigla);
-    const absent = collation.absent.map(
-      (id) => context.sigla.find((s) => s.transcriptionId === id)?.siglum ?? id,
-    );
+    const absent = collation.absent.map((id) => siglumOfText.get(id) ?? id);
     views[segmentId] = {
       segmentId,
       label,
       collation: attached.collation,
       baseUnits,
-      entries: apparatusEntries(
-        attached.collation,
-        label,
-        attached.bySite,
-        conventions,
-        siglaOrder,
-      ),
+      entries:
+        parts.entries === false
+          ? []
+          : apparatusEntries(attached.collation, label, attached.bySite, conventions, siglaOrder),
       attachments: attached.bySite,
       unplaced: attached.unplaced,
       absent,
-      notes: noteRows
-        .filter((n) => n.segmentId === segmentId)
-        .map((n) => ({
-          id: n.id,
-          tokenIds: n.tokenIds,
-          text: n.text,
-          author: n.author,
-          cites: noteCites.get(n.id) ?? [],
-        })),
-      drift: driftOf(
-        context,
-        baseUnits.flatMap((u) => u.tokenIds),
-      ),
+      notes: (notesAt.get(segmentId) ?? []).map((n) => ({
+        id: n.id,
+        tokenIds: n.tokenIds,
+        text: n.text,
+        author: n.author,
+        cites: noteCites.get(n.id) ?? [],
+      })),
+      drift:
+        parts.drift === false
+          ? []
+          : driftOf(
+              context,
+              baseUnits.flatMap((u) => u.tokenIds),
+            ),
       cites: Object.fromEntries(
-        [
-          ...conjectureRows.filter((c) => c.segmentId === segmentId),
-          ...reportedRows.filter((r) => r.segmentId === segmentId),
-        ]
+        [...conjecturesHere, ...reportedHere]
           .filter((r) => recordCites.has(r.id))
           .map((r) => [r.id, recordCites.get(r.id)!] as const),
       ),
     };
   }
+  if (parts.relations === false) return views;
   const [work] = await db
     .select({ language: works.language })
     .from(works)

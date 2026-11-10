@@ -195,6 +195,7 @@ export const editor = {
       'Delete this edition? Its text, notes and history go with it. The witnesses and conjectures stay.',
     colourBySource: 'Colour words by source',
     toReview: (left: number, all: number) => `${left} of ${all} sites to review`,
+    counting: 'Counting sites…',
     nextUnreviewed: 'Next to review',
     previousSite: 'Previous site',
     nextSite: 'Next site',

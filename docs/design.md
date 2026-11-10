@@ -192,6 +192,12 @@ In the list of a segment's places, a place lying within another stands before it
 
 The editor may give a place a kind over what its letters say (section 3.6), or mark it **not reported**: the place then stays in the editor's view and is left out of the apparatus.
 
+**What a page is given of an edition.** No page needs the whole edition collated before it opens. The collation of a segment is large (every witness's words at every place), the places where the text varies are small, and what each surface does with them differs.
+
+- The **editor** opens with the text, the apparatus of the first segments, and the order statements. It asks for the apparatus of the segments around the caret as the caret reaches them (a stretch each way, so that moving on does not ask again at once), and, once open, for the **outline** of the whole text: for each segment, the places that show (their words, review key and whether they need attention) and the words that have drifted. The outline marks the words, counts the places still to review and steps from one place to the next, which the editor does over the whole text; a place in a segment not yet given is found by asking for that segment first. What an edit touches is asked for again and the outline of those segments made again from it.
+- The **reader** is sent the whole text and, for each segment, its places with their readings, the texts that have each named by place in one list of the page's texts, and what is attached. It prints the apparatus, marks the words and opens a place from that. It is not sent the words each text has at each place, nor how each text lines up with the edition; those come, for the segments in view, when a panel needs to light a witness's words.
+- A **published version** is fixed, and every one of these is asked for at the version the visitor sees, with what the visitor may see.
+
 **Coverage.** A transcript covers the span from its first to its last segment of the work. Within that span, a segment it has no words for is an omission, and one lying across a gap or lacuna object is lost. Outside the span the witness is not transcribed, and the apparatus is silent.
 
 **A witness lacking a whole segment** departs over all of it: the place over the whole segment is flagged _wanting_ and reads "om. B", or "deest in B" where lost, and the witness stands in no other place of the segment. It is taken as the active place only when the whole segment is selected, so a conjecture on one word stays on that word. Its lemma is abridged to the first and last word when the segment has more than three.
@@ -267,6 +273,7 @@ The Greek forms and the two dictionaries are not part of Varians. They are built
 ## 5. Operations
 
 - **Authorization is on the server**, for every request. Addresses the server is asked to fetch must be public ones, checked at every redirect. Authentication, mail, downloads, imports and record addresses are rate limited.
+- **The texts read are kept.** The server keeps the parsed text of the transcriptions and editions it has read, up to three hundred thousand items (about sixty megabytes), and hands it out again while the row it came from is unchanged, known by the transaction that wrote the row's current version. A text is never changed once loaded. Inside a transaction nothing is kept or handed out.
 - **Migrations run on real data** and add. A migration that drops or changes a column says so in the changelog, and a backup is taken first.
 - **Installation**: Docker Compose is the primary path, a native install from the same release tarball the second. Releases are tagged, built by CI, and published as an image and tarballs. Mail goes over plain SMTP and is optional.
 - **Versions**: the application's version is semantic, with the commit as build metadata; the format's version is separate.

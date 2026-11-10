@@ -23,6 +23,7 @@ import { requireUser } from '$lib/server/guards';
 import { publishedVersions } from '$lib/server/publish';
 import { editionView, type SegmentView } from '$lib/server/reader';
 import { edition as s } from '$lib/strings/edition';
+import { OPENING_SEGMENTS } from '$lib/edition/workspace';
 import type { Actions, PageServerLoad } from './$types';
 import { licenceInfo } from '@varians/core';
 import { dataLicence } from '$lib/server/settings';
@@ -49,7 +50,14 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
   if (!access || !access.canView) throw error(404, 'No such edition');
   if (!access.canEdit) throw redirect(303, `/editions/${access.edition.slug}`);
   const edition = access.edition;
-  const view = await editionView(locals.db, edition.id, null, { kind: 'editor', viewer: user });
+  // The editor opens on the first segments, and asks for the others as the caret reaches them, and for the outline of the whole text once it is open.
+  const view = await editionView(
+    locals.db,
+    edition.id,
+    null,
+    { kind: 'editor', viewer: user },
+    { first: OPENING_SEGMENTS, lines: false },
+  );
   const [work] = await locals.db
     .select({ slug: works.slug, title: works.title })
     .from(works)
@@ -93,7 +101,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     crumb: { label: work?.title ?? s.newTitle, href: work ? `/works/${work.slug}` : '/' },
     revision,
     // The editor lays out its own lines from the content; the reader's layout would only double the page's weight.
-    view: { ...view, lines: [], segments: lighten(view.segments) },
+    view: { ...view, segments: lighten(view.segments) },
     edition: {
       id: edition.id,
       slug: edition.slug,

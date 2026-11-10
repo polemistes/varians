@@ -15,7 +15,18 @@ import { eq, inArray } from 'drizzle-orm';
 import pg from 'pg';
 import { setSiteKind } from './collation.ts';
 import { registerConjecture } from './conjectures.ts';
-import { PUBLIC, editionView, segmentViewsFor, type Audience } from './reader.ts';
+import {
+  PUBLIC,
+  editionOutline,
+  editionView,
+  refreshView,
+  segmentViewsFor,
+  type Audience,
+} from './reader.ts';
+import { loadReader, readerDetail } from './reader-pages.ts';
+import { outlineOf } from '../edition/outline.ts';
+import { alignedUnits } from '../reader/sites.ts';
+import { detailOf, unpackReader, withDetail } from '../reader/wire.ts';
 import { seedSample } from './seed/sample.ts';
 
 const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329/varians_test';
@@ -198,5 +209,109 @@ describe('editionView', () => {
         .set({ content: row!.content })
         .where(eq(transcriptions.id, row!.id));
     }
+  });
+});
+
+describe('what a page needs of an edition, by stretches', () => {
+  const asJson = (x: unknown) => JSON.parse(JSON.stringify(x)) as unknown;
+
+  it('makes the views of the first segments only, as the whole edition would have them', async () => {
+    const sample = await seedSample(db, userId);
+    const whole = await editionView(db, sample.editionId, null, owner);
+    const ids = Object.keys(whole.segments);
+    expect(ids.length).toBeGreaterThan(4);
+    const some = await editionView(db, sample.editionId, null, owner, { first: 3, lines: false });
+    expect(Object.keys(some.segments)).toEqual(ids.slice(0, 3));
+    expect(some.lines).toEqual([]);
+    for (const id of ids.slice(0, 3))
+      expect(asJson(some.segments[id])).toEqual(asJson(whole.segments[id]));
+    // The words of the text and its apparatus conventions come whole.
+    expect(some.content).toEqual(whole.content);
+    expect(some.order).toEqual(whole.order);
+    const named = await editionView(db, sample.editionId, null, owner, {
+      segments: [ids[4]!, ids[1]!, 'no-such-segment'],
+      order: false,
+    });
+    expect(Object.keys(named.segments).sort()).toEqual([ids[1]!, ids[4]!].sort());
+    expect(named.order).toEqual([]);
+    expect(asJson(named.segments[ids[4]!])).toEqual(asJson(whole.segments[ids[4]!]));
+  });
+
+  it('leaves out of a lean view what the reader makes for itself, and nothing else', async () => {
+    const sample = await seedSample(db, userId);
+    const whole = await editionView(db, sample.editionId, null, owner);
+    const lean = await editionView(db, sample.editionId, null, owner, { lean: true });
+    for (const [id, view] of Object.entries(whole.segments)) {
+      const other = lean.segments[id]!;
+      expect(other.entries).toEqual([]);
+      expect(other.drift).toEqual([]);
+      expect(asJson({ ...other, entries: view.entries, drift: view.drift })).toEqual(asJson(view));
+    }
+  });
+
+  it('gives the outline of every segment as the segment itself gives it, with the labels', async () => {
+    const sample = await seedSample(db, userId);
+    const whole = await editionView(db, sample.editionId, null, owner);
+    const { outline, labelOf } = await editionOutline(db, sample.editionId, owner);
+    expect(Object.keys(outline)).toEqual(Object.keys(whole.segments));
+    for (const [id, view] of Object.entries(whole.segments))
+      expect(asJson(outline[id])).toEqual(asJson(outlineOf(view)));
+    expect(labelOf).toEqual(whole.labelOf);
+    expect(Object.values(outline).some((o) => o.sites.length > 0)).toBe(true);
+    // What the editor refreshes after a change gives the same outline.
+    const [id] = Object.keys(whole.segments);
+    const fresh = await refreshView(db, sample.editionId, [id!], owner);
+    expect(asJson(outlineOf(fresh.segments[id!]!))).toEqual(asJson(outline[id!]));
+  });
+
+  it('sends the reader the places of every segment without the words of each text, and the detail of a segment brings them', async () => {
+    const sample = await seedSample(db, userId);
+    const actor = { id: userId, role: 'member' as const };
+    const wire = await loadReader(db, actor, sample.editionSlug, {});
+    const page = unpackReader(wire);
+    const whole = await editionView(db, sample.editionId, null, owner);
+    expect(Object.keys(page.segments)).toEqual(Object.keys(whole.segments));
+    for (const [id, view] of Object.entries(whole.segments)) {
+      const got = page.segments[id]!;
+      expect(
+        got.collation.sites.map((x) => x.readings.map((r) => [r.text, r.textIds, r.sigla])),
+      ).toEqual(
+        view.collation.sites.map((x) => x.readings.map((r) => [r.text, r.textIds, r.sigla])),
+      );
+      expect(
+        got.collation.sites.every((x) =>
+          x.readings.every((r) => Object.keys(r.units).length === 0),
+        ),
+      ).toBe(true);
+      expect(got.aligned).toBeUndefined();
+      expect(got.baseUnits).toEqual(view.baseUnits);
+      expect(got.attachments).toEqual(view.attachments);
+    }
+    expect(page.detail).toBe(`/editions/${sample.editionSlug}/detail.json`);
+    // The detail of some segments is what was left out, and puts it back.
+    const ids = Object.keys(whole.segments).slice(0, 3);
+    const detail = await readerDetail(db, actor, sample.editionSlug, {}, ids);
+    expect(Object.keys(detail).sort()).toEqual([...ids].sort());
+    for (const id of ids) {
+      const view = whole.segments[id]!;
+      expect(detail[id]).toEqual(
+        asJson(detailOf(view.collation, alignedUnits(view.collation, view.baseUnits.length))),
+      );
+      const full = withDetail(page.segments[id]!, detail[id]!);
+      expect(full.collation.sites.map((x) => x.readings.map((r) => r.units))).toEqual(
+        asJson(view.collation.sites.map((x) => x.readings.map((r) => r.units))),
+      );
+    }
+  });
+
+  it('shows a stranger neither the reader nor the detail of a draft', async () => {
+    const sample = await seedSample(db, userId);
+    const stranger = { id: strangerId, role: 'member' as const };
+    await expect(loadReader(db, stranger, sample.editionSlug, {})).rejects.toMatchObject({
+      status: 404,
+    });
+    await expect(readerDetail(db, stranger, sample.editionSlug, {}, ['x'])).rejects.toMatchObject({
+      status: 404,
+    });
   });
 });
