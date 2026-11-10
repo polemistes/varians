@@ -160,17 +160,20 @@ describe('the conformance run', () => {
     expect(shape(saved.content)).toBe('q #p1 a #p2 b');
 
     // A version from when a page break named a page that is gone now comes back conformed.
+    const gone = newId();
+    await db.insert(pages).values({ id: gone, witnessId: ids.witness, label: '0v', position: 0.5 });
     const before = await saveOps(db, 'transcription', ids.t, ids.user, saved.version, [
-      { t: 'insert', after: null, items: [pb('old', 'gone-too'), token('r')] },
+      { t: 'insert', after: 'q', items: [pb('old', gone), token('r')] },
     ]);
-    expect(shape(before.content)).toBe('#? r q #p1 a #p2 b');
-    const after = await saveOps(db, 'transcription', ids.t, ids.user, before.version, [
-      { t: 'delete', ids: ['old', 'r'] },
-    ]);
+    expect(before.conformed).toBeUndefined();
+    expect(shape(before.content)).toBe('q #? r #p1 a #p2 b');
+    await db.delete(pages).where(eq(pages.id, gone));
+    const [after] = await conformWitness(db, ids.witness, ids.user, 'Page 0v removed');
+    expect(after!.version).toBeGreaterThan(before.version);
+    expect(shape(await content(ids.t))).toBe('q / r #p1 a #p2 b');
     await revertTo(db, 'transcription', ids.t, ids.user, before.version);
     const reverted = await content(ids.t);
-    expect(after.version).toBeGreaterThan(before.version);
-    expect(shape(reverted)).toBe('r q #p1 a #p2 b');
+    expect(shape(reverted)).toBe('q / r #p1 a #p2 b');
     expect(wordsOnPage(reverted, ids.p1)).toBe(1);
   });
 });

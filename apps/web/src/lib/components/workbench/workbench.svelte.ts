@@ -429,7 +429,18 @@ export class Workbench {
           this.saveError = state.error;
         },
         onConflict: ({ dropped }) => {
-          if (current()) this.setAside = dropped.length ? dropped : null;
+          if (!current()) return;
+          this.setAside = dropped.length ? dropped : null;
+          // What was changed elsewhere may be the witness's pages.
+          void this.refreshPages();
+        },
+        // The server put the pages back in shape after a save: a page was removed or moved meanwhile.
+        onAdjusted: ({ dropped, stream }) => {
+          if (!current()) return;
+          if (dropped.length) this.setAside = dropped;
+          if (wordsUnplaced(stream) > this.unplacedWords) this.say(t.pages.pageGone, UNPLACED);
+          else this.say(t.pages.reorganized);
+          void this.refreshPages();
         },
         onExternalContent: (stream) => {
           if (current()) this.stream = stream;

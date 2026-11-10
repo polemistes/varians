@@ -3,19 +3,21 @@
  * no page is placed page by page with Move to Page…, the facsimile
  * proposing the next page without text; a later page is placed before an
  * earlier one; every word keeps its segment; removing a page with text
- * sends the text to Not on a page.
+ * sends the text to Not on a page; and text typed on a page that was
+ * removed elsewhere meanwhile is saved on no page, the workbench following.
  */
 import { expect, test, type Page } from '@playwright/test';
 import { fromText, newId, segmentAt, type Item, type Stream, type Token } from '@varians/core';
 import {
   createDatabase,
+  pages,
   referenceSchemes,
   transcriptions,
   users,
   witnesses,
   works,
 } from '@varians/db';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { s } from '../src/lib/strings/en';
 import { pageStrings as t } from '../src/lib/strings/pages';
 import { registry as reg } from '../src/lib/strings/registry';
@@ -312,6 +314,34 @@ test('text on no page is placed page by page, and goes back when its page is rem
       name: new RegExp(`${w.pages.unplaced}.*${w.pages.unplacedWords(6)}`),
     }),
   ).toBeVisible();
+
+  // A page removed elsewhere while this workbench still lists it: what is typed on it is saved,
+  // put on no page by the server, and the workbench takes up the text as it now stands.
+  await page.keyboard.press('Escape');
+  await pane.getByRole('button', { name: t.panel.addPages }).click();
+  await pane.getByLabel(t.add.labels).fill('3r');
+  await pane.getByRole('button', { name: t.add.submit(1), exact: true }).click();
+  await expect(pane.getByRole('list', { name: t.gridLabel }).getByRole('listitem')).toHaveCount(3);
+  const { db: db4, pool: pool4 } = createDatabase(DATABASE_URL);
+  await db4.delete(pages).where(and(eq(pages.witnessId, witnessRow!.id), eq(pages.label, '3r')));
+  await pool4.end();
+  await page.getByRole('button', { name: w.pages.choose }).click();
+  await page.getByRole('menuitem', { name: '3r' }).click();
+  await page.locator('.cm-content').click();
+  await page.keyboard.type('ignotum');
+  await expect(page.getByText(w.pages.pageGone)).toBeVisible({ timeout: 15_000 });
+  await saved(page);
+  expect(shape(await content(), pageLabels)).toBe(
+    'Italiam fato profugus / litora multum ille / ignotum #1r arma virumque cano #2r vi superum saevae',
+  );
+  await page.getByRole('button', { name: w.move.show, exact: true }).click();
+  await expect(page.getByRole('button', { name: w.pages.choose })).toHaveText(w.pages.unplaced);
+  await expect(page.locator('.cm-content .cm-line')).toHaveCount(3);
+  await expect(page.locator('.cm-content .cm-line').nth(2)).toHaveText('ignotum');
+  await page.getByRole('button', { name: w.pages.choose }).click();
+  await expect(page.getByRole('menuitem', { name: '3r' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await shot(page, '4-page-gone');
 
   // The witness is deleted from its own page, with its pages and the transcript of its creator.
   await page.goto(`/witnesses/${witnessSlug}`);

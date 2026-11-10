@@ -8,6 +8,10 @@
  * operations that touch none of the items those changed are replayed on the
  * server's content and sent again; the rest are reported through
  * `onConflict`, and the server's content stands.
+ *
+ * A save may also succeed and be adjusted: the server put a transcript's
+ * pages back in shape after our operations. Its content is then taken up
+ * in the same way, with what was typed meanwhile replayed on it.
  */
 
 import { applyOps, conflictingIds, type Changeset, type Op, type Stream } from '@varians/core';
@@ -16,6 +20,8 @@ export interface SaveOk {
   ok: true;
   version: number;
   changesetId: string;
+  /** The server changed the document after our operations: its content now, and the changesets that did it. */
+  adjusted?: { content: Stream; since: Changeset[] };
 }
 
 export interface SaveConflict {
@@ -53,6 +59,8 @@ export interface SessionOptions {
   debounceMs?: number;
   onChange?: (state: SessionState) => void;
   onConflict?: (info: { dropped: Op[]; replayed: Op[]; since: Changeset[] }) => void;
+  /** The server adjusted the document after a save of ours; `dropped` are later local changes it left no place for. */
+  onAdjusted?: (info: { dropped: Op[]; since: Changeset[]; stream: Stream }) => void;
   /** Called with the server's content when the editor must re-render from it. */
   onExternalContent?: (stream: Stream) => void;
 }
@@ -149,8 +157,16 @@ export class DocumentSession {
         this.version = response.version;
         this.error = null;
         this.inFlight = [];
+        if (response.adjusted) {
+          const { content, since } = response.adjusted;
+          const { dropped } = this.rebase({ version: response.version, content }, since);
+          this.options.onAdjusted?.({ dropped, since, stream: this.stream });
+          this.options.onExternalContent?.(this.stream);
+        }
       } else if ('conflict' in response && response.conflict) {
-        this.resolveConflict(response);
+        const { dropped, replayed } = this.rebase(response.current, response.since);
+        this.options.onConflict?.({ dropped, replayed, since: response.since });
+        this.options.onExternalContent?.(this.stream);
       } else {
         // Keep the operations for another try; the page shows the error.
         this.queue = [...this.inFlight, ...this.queue];
@@ -164,13 +180,19 @@ export class DocumentSession {
     await this.current;
   }
 
-  /** Replay what does not overlap with the changes made elsewhere; drop what does. */
-  private resolveConflict(response: SaveConflict): void {
-    const theirs = response.since.flatMap((c) => c.ops);
+  /**
+   * Take the server's content, and replay on it what is not yet saved and
+   * does not overlap with the changes made there; drop what does.
+   */
+  private rebase(
+    current: { version: number; content: Stream },
+    since: Changeset[],
+  ): { dropped: Op[]; replayed: Op[] } {
+    const theirs = since.flatMap((c) => c.ops);
     const mine = [...this.inFlight, ...this.queue];
     this.inFlight = [];
     this.queue = [];
-    let stream = response.current.content;
+    let stream = current.content;
     const replayed: Op[] = [];
     const dropped: Op[] = [];
     for (const op of mine) {
@@ -186,12 +208,11 @@ export class DocumentSession {
       }
     }
     this.stream = stream;
-    this.version = response.current.version;
+    this.version = current.version;
     this.dropped = dropped;
     this.queue = replayed;
     this.error = null;
-    this.options.onConflict?.({ dropped, replayed, since: response.since });
-    this.options.onExternalContent?.(stream);
+    return { dropped, replayed };
   }
 
   private notify(): void {
@@ -236,7 +257,16 @@ export function fetchTransport(url: string): Transport {
       }
       return { ok: false, status: response.status, message };
     }
-    const data = (await response.json()) as { version: number; changesetId: string };
-    return { ok: true, version: data.version, changesetId: data.changesetId };
+    const data = (await response.json()) as {
+      version: number;
+      changesetId: string;
+      adjusted?: { content: Stream; since: Changeset[] };
+    };
+    return {
+      ok: true,
+      version: data.version,
+      changesetId: data.changesetId,
+      ...(data.adjusted ? { adjusted: data.adjusted } : {}),
+    };
   };
 }

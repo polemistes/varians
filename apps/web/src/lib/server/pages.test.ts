@@ -25,6 +25,7 @@ import {
 } from '$lib/components/pages/labels';
 import type { IiifManifest } from '$lib/server/images/iiif';
 import { loadManifest } from '$lib/server/images/iiif';
+import { undoChangeset } from '$lib/server/history';
 import { UploadError } from '$lib/server/images/tiles';
 import {
   PageError,
@@ -402,6 +403,25 @@ describe('the list of pages', () => {
       .limit(1);
     expect(log!.message).toBe('Page 1v removed from the witness; its text is not on a page');
     expect(log!.userId).toBe(ids.user);
+
+    // Undoing that changeset cannot bring back a page break for the page that is gone: the save keeps the shape.
+    const undone = await undoChangeset(db, 'transcription', ids.transcription, ids.user, log!.id);
+    expect(undone.ok).toBe(true);
+    const [again] = await db
+      .select({ content: transcriptions.content })
+      .from(transcriptions)
+      .where(eq(transcriptions.id, ids.transcription));
+    expect(
+      again!.content.items.flatMap((i) =>
+        i.kind === 'break' && i.type === 'page' ? [i.pageId] : [],
+      ),
+    ).toEqual([p2r!.id]);
+    expect(again!.content.items.flatMap((i) => (i.kind === 'token' ? [i.id] : []))).toEqual([
+      'u0',
+      't1',
+      't2',
+      't3',
+    ]);
 
     const free = await removePage(db, p2v!.id, root, ids.user);
     expect(free.ok).toBe(true);

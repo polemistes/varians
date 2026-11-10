@@ -36,6 +36,9 @@ export const workbench = {
     hasText: 'Has text in this transcript',
     manage: 'Pages…',
     manageHint: 'Every page of the witness, with its image, in the side pane',
+    /** After a save: the witness's pages changed meanwhile, and the text was made to follow them. */
+    reorganized: 'Pages reorganized',
+    pageGone: 'A page was removed from the witness; its text is in Not on a page',
   },
 
   /** Moving text between pages. */

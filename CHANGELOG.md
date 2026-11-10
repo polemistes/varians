@@ -20,6 +20,7 @@ What changed in each release of Varians, for those who run it. The section of a 
 - **The apparatus names what a witness lacks**: a passage missing from a witness within the stretch its transcript covers is printed as "om. B" (or "deest in B" where the transcript marks a gap there) in a place of its own beside the passage's other variants, its lemma the first and last words for a passage longer than three.
 - **The edition editor and the reader show the page where a witness's words stand**, whether the words are mapped to the image or not; arrows in the editor browse the witness's pages.
 - **A witness is deleted from its own page** (⋯, **Delete Witness…**), where the menu says why when it cannot be.
+- **A transcript keeps the shape of its pages whatever happens meanwhile.** Text typed on a page that someone removed in the meantime, a page begun by two people at once, or the undoing of a page's removal no longer leaves a page break without its page: the save puts the text in order, the status line says so, and the History shows it as _Pages reorganized_.
 
 ## 0.2.0
 

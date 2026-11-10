@@ -82,7 +82,7 @@ The stream keeps this shape, which the system maintains and the editor never see
 
 So the order of the text is the order of the pages, with Not on a page first. Reordering pages reorders text.
 
-Edits in the editor keep the invariants by construction. Every path that writes a transcript's whole content or changes a witness's pages **conforms** the stream (`conformPages` in the core): replacing content, bringing back a version, importing an archive, removing or reordering pages. The format still allows page breaks without a page; Varians conforms them on import.
+The invariants are kept at the one place every change to a transcript's text passes: the save. The editor makes edits that keep them, but it works from the pages it knows, and a page may be removed or moved meanwhile, a change undone, or the same page begun by two people at once. So when the operations of a save leave the stream out of shape, the server **conforms** it (`conformPages` in the core) as a second changeset, "Pages reorganized", and answers with the text as it now stands, which the editor takes up as it takes up a conflict. A save is never refused for its shape. Whatever writes a transcript's whole content or changes a witness's pages conforms as well: replacing content, bringing back a version, importing an archive, removing or reordering pages. The format still allows page breaks without a page; Varians conforms them on import.
 
 **Text is placed by moving it**: Move to Page… on a selection, and cut and paste within one workbench, move words with their ids, features, segments and history. Copy and paste makes new words. Words that move to another page lose their boxes.
 

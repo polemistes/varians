@@ -3,9 +3,20 @@
  * migrated (DATABASE_URL_TEST or the default below).
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { defaultProfile, fromText, newId, sequentialIds, toText, type Stream } from '@varians/core';
+import {
+  applyOps,
+  defaultProfile,
+  fromText,
+  newId,
+  sequentialIds,
+  toText,
+  type Item,
+  type Op,
+  type Stream,
+} from '@varians/core';
 import {
   createDatabase,
+  pages,
   referenceSchemes,
   segments,
   transcriptions,
@@ -132,5 +143,94 @@ describe('saveOps', () => {
     expect(checkpoint?.version).toBe(CHECKPOINT_EVERY);
     const at = await documentAt(db, 'transcription', ids.transcription, CHECKPOINT_EVERY + 1);
     expect(toText(at).startsWith(`v${CHECKPOINT_EVERY + 1}`)).toBe(true);
+  });
+});
+
+describe("saveOps keeps a transcript in the shape of its witness's pages", () => {
+  const shaped = newId();
+  const p1 = newId();
+  const p2 = newId();
+  let version = 0;
+  /** Page breaks by the page they name, everything else by its id. */
+  const shape = (stream: Stream) =>
+    stream.items.map((i) =>
+      i.kind === 'break' ? `#${i.type === 'page' ? i.pageId : i.type}` : i.id,
+    );
+  const word = (id: string): Item => ({ kind: 'token', id, form: id });
+  const pageBreak = (id: string, pageId: string): Item => ({
+    kind: 'break',
+    id,
+    type: 'page',
+    pageId,
+  });
+  const save = async (ops: Op[]) => {
+    const saved = await saveOps(db, 'transcription', shaped, ids.user, version, ops);
+    version = saved.version;
+    return saved;
+  };
+
+  beforeAll(async () => {
+    await db
+      .insert(transcriptions)
+      .values({ id: shaped, witnessId: ids.witness, name: 'Shaped', ownerId: ids.user });
+    await db.insert(pages).values([
+      { id: p1, witnessId: ids.witness, label: '1r', position: 1 },
+      { id: p2, witnessId: ids.witness, label: '1v', position: 2 },
+    ]);
+  });
+
+  it('adds nothing to a save that leaves the pages in shape', async () => {
+    const saved = await save([
+      { t: 'insert', after: null, items: [word('u1'), pageBreak('b1', p1), word('a1')] },
+    ]);
+    expect(saved.version).toBe(1);
+    expect(saved.conformed).toBeUndefined();
+    expect(shape(saved.content)).toEqual(['u1', `#${p1}`, 'a1']);
+  });
+
+  it('sends the text under a break naming no page of the witness to Not on a page, as a changeset of its own', async () => {
+    const before = (await save([{ t: 'set', id: 'u1', fields: { form: 'u1' } }])).content;
+    const dead = newId();
+    const ops: Op[] = [{ t: 'insert', after: 'a1', items: [pageBreak('gone', dead), word('x1')] }];
+    const saved = await save(ops);
+    expect(saved.version).toBe(4);
+    expect(shape(saved.content)).toEqual(['u1', '#line', 'x1', `#${p1}`, 'a1']);
+    // Whoever sent the operations can follow: theirs, then the changeset handed back.
+    expect(saved.conformed?.version).toBe(4);
+    expect(applyOps(applyOps(before, ops).stream, saved.conformed!.ops).stream).toEqual(
+      saved.content,
+    );
+    const [last, mine] = await history(db, 'transcription', shaped);
+    expect(last).toMatchObject({
+      version: 4,
+      message: 'Pages reorganized',
+      id: saved.conformed!.id,
+    });
+    expect(last!.userId).toBeFalsy();
+    expect(mine).toMatchObject({ version: 3, id: saved.changesetId, userId: ids.user });
+    // The stored document and its past versions agree with what was answered.
+    expect(await documentAt(db, 'transcription', shaped, 4)).toEqual(saved.content);
+    expect(shape(await documentAt(db, 'transcription', shaped, 3))).toContain(`#${dead}`);
+  });
+
+  it('joins a second break for a page to the first, and puts pages back in the order of the witness', async () => {
+    // Two editors each began the text of 1v, and one placed it before 1r.
+    const saved = await save([
+      { t: 'insert', after: 'x1', items: [pageBreak('b2', p2), word('c1')] },
+      { t: 'insert', after: 'a1', items: [pageBreak('b2bis', p2), word('c2')] },
+    ]);
+    expect(saved.conformed).toBeDefined();
+    const pagesNamed = shape(saved.content).filter((s) => s.startsWith('#') && s !== '#line');
+    expect(pagesNamed).toEqual([`#${p1}`, `#${p2}`]);
+    const text = shape(saved.content).filter((s) => !s.startsWith('#'));
+    expect(text).toEqual(['u1', 'x1', 'a1', 'c1', 'c2']);
+  });
+
+  it('adds nothing again once the text is in shape', async () => {
+    const saved = await saveOps(db, 'transcription', shaped, ids.user, version, [
+      { t: 'set', id: 'c2', fields: { form: 'c2!' } },
+    ]);
+    expect(saved.version).toBe(version + 1);
+    expect(saved.conformed).toBeUndefined();
   });
 });

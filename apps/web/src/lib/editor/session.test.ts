@@ -99,6 +99,53 @@ describe('DocumentSession', () => {
     expect(toText(session.state.stream)).toBe('Z b C');
   });
 
+  it('takes up a save the server adjusted, and replays on it what was typed meanwhile', async () => {
+    const initial = fromText('a b c', { ids: sequentialIds() });
+    let content = initial;
+    let version = 0;
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    // After the first save the server removes the third word, as a changeset of its own.
+    const transport: Transport = async (body) => {
+      if (body.fromVersion !== version)
+        return { ok: false, conflict: true, current: { version, content }, since: [] };
+      content = applyOps(content, body.ops).stream;
+      version++;
+      if (version > 1) return { ok: true, version, changesetId: `c${version}` };
+      await held;
+      const follow: Op[] = [{ t: 'delete', ids: ['t3'] }];
+      content = applyOps(content, follow).stream;
+      version++;
+      const since = [
+        { id: 's', documentId: 'd', version, userId: '', at: '', ops: follow, reverse: [] },
+      ];
+      return { ok: true, version, changesetId: 'c1', adjusted: { content, since } };
+    };
+    const adjusted: Op[][] = [];
+    const shown: string[] = [];
+    const session = new DocumentSession({ content: initial, version: 0 }, transport, {
+      debounceMs: 5,
+      onAdjusted: ({ dropped }) => adjusted.push(dropped),
+      onExternalContent: (stream) => shown.push(toText(stream)),
+    });
+    const first: Op[] = [{ t: 'set', id: 't1', fields: { form: 'A' } }];
+    session.apply(first, applyOps(initial, first).stream);
+    const saving = session.flush();
+    // Typed while the save is under way: one change the adjustment leaves room for, one it does not.
+    const second: Op[] = [{ t: 'set', id: 't2', fields: { form: 'B' } }];
+    session.apply(second, applyOps(session.state.stream, second).stream);
+    const third: Op[] = [{ t: 'set', id: 't3', fields: { form: 'C' } }];
+    session.apply(third, applyOps(session.state.stream, third).stream);
+    release();
+    await saving;
+    expect(adjusted).toEqual([third]);
+    expect(shown).toEqual(['A B']);
+    expect(session.state.pending).toBe(0);
+    expect(session.state.version).toBe(3);
+    expect(toText(session.state.stream)).toBe('A B');
+    expect(toText(content)).toBe('A B');
+  });
+
   it('keeps operations and reports an error when the server fails', async () => {
     const initial = fromText('a', { ids: sequentialIds() });
     let fail = true;

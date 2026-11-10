@@ -7,10 +7,18 @@
  * recorded with its reverse, a checkpoint written every so often, and for a
  * transcription the derived segment index rebuilt. A version mismatch is
  * answered with the current document, never by overwriting.
+ *
+ * This is the one place every change to a transcript's text passes, so it
+ * is where the shape of its pages is kept (docs/design.md, section 3.4):
+ * when the operations leave a page break naming no page of the witness, a
+ * second break for a page, or the pages out of order, the save puts the
+ * text in shape as a second changeset and hands it back, so that whoever
+ * sent the operations can follow.
  */
 
 import {
   applyOps,
+  conformPages,
   fold,
   newId,
   segmentRuns,
@@ -33,6 +41,7 @@ import {
   type DocumentKind,
 } from '@varians/db';
 import { and, desc, eq, gt, inArray, lte, sql } from 'drizzle-orm';
+import { pageStrings } from '../../strings/pages.ts';
 import { conformed, transcriptionPageOrder } from '../conform.ts';
 
 export const CHECKPOINT_EVERY = 50;
@@ -48,9 +57,13 @@ export class VersionConflict extends Error {
 }
 
 export interface SaveResult {
+  /** The document's version after the save, and after `conformed` when there is one. */
   version: number;
   content: Stream;
+  /** The changeset of the operations given. */
   changesetId: string;
+  /** The changeset that followed, putting a transcript's pages back in shape, when the operations left them out of it. */
+  conformed?: Changeset;
 }
 
 function table(kind: DocumentKind) {
@@ -107,27 +120,66 @@ export async function saveOps(
       );
     }
     const applied = applyOps(row.content, ops);
-    const version = row.version + 1;
-    await tx.update(t).set({ content: applied.stream, version }).where(eq(t.id, documentId));
+    let version = row.version + 1;
+    let content = applied.stream;
+    const record = async (
+      id: string,
+      author: string | null,
+      made: { ops: Op[]; reverse: Op[] },
+      note?: string,
+    ) => {
+      await tx.insert(changesets).values({
+        id,
+        documentKind: kind,
+        documentId,
+        version,
+        userId: author,
+        ops: made.ops,
+        reverse: made.reverse,
+        ...(note ? { message: note } : {}),
+      });
+      if (version % CHECKPOINT_EVERY === 0) {
+        await tx
+          .insert(checkpoints)
+          .values({ documentKind: kind, documentId, version, content })
+          .onConflictDoNothing();
+      }
+    };
     const changesetId = newId();
-    await tx.insert(changesets).values({
-      id: changesetId,
-      documentKind: kind,
-      documentId,
-      version,
-      userId,
-      ops,
-      reverse: applied.reverse,
-      ...(message ? { message } : {}),
-    });
-    if (version % CHECKPOINT_EVERY === 0) {
-      await tx
-        .insert(checkpoints)
-        .values({ documentKind: kind, documentId, version, content: applied.stream })
-        .onConflictDoNothing();
+    await record(changesetId, userId, { ops, reverse: applied.reverse }, message);
+
+    // A transcript keeps the shape of its witness's pages whatever the operations did.
+    let conformed: Changeset | undefined;
+    if (kind === 'transcription') {
+      const repair = conformPages(content, await transcriptionPageOrder(tx, documentId));
+      if (repair.length > 0) {
+        const shaped = applyOps(content, repair);
+        const parentId = changesetId;
+        content = shaped.stream;
+        version++;
+        conformed = {
+          id: newId(),
+          documentId,
+          version,
+          parentId,
+          userId: '',
+          at: new Date().toISOString(),
+          ops: repair,
+          reverse: shaped.reverse,
+          message: pageStrings.history.reorganized,
+        };
+        await record(
+          conformed.id,
+          null,
+          { ops: repair, reverse: shaped.reverse },
+          conformed.message,
+        );
+      }
     }
-    if (kind === 'transcription') await rebuildSegmentIndex(tx, documentId, applied.stream);
-    return { version, content: applied.stream, changesetId };
+
+    await tx.update(t).set({ content, version }).where(eq(t.id, documentId));
+    if (kind === 'transcription') await rebuildSegmentIndex(tx, documentId, content);
+    return { version, content, changesetId, ...(conformed ? { conformed } : {}) };
   });
 }
 

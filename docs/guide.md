@@ -336,7 +336,7 @@ The owner of an edition invites collaborators from the **⋯** menu with **Colla
 
 **Offer Ownership…** hands an edition to someone else. Ownership moves when that person accepts the offer on their account page; the former owner stays on as a collaborator.
 
-Two people may edit the same text at the same time. When both change the same words, the change saved first stands, and the other person is told that theirs was set aside.
+Two people may edit the same text at the same time. When both change the same words, the change saved first stands, and the other person is told that theirs was set aside. When a page is removed from the witness, or the pages are put in another order, while you are typing, what you typed is saved all the same and follows the pages: the text of a page that is gone is in Not on a page, the status line says so, and the History shows the change as _Pages reorganized_.
 
 ## The bibliography
 

@@ -2,8 +2,13 @@
  * The save endpoint of both editors.
  *
  *   GET                                  { version, content }
- *   POST { fromVersion, ops, message? }  { version, changesetId }
+ *   POST { fromVersion, ops, message? }  { version, changesetId, adjusted? }
  *                                        409 { current: { version, content }, since: Changeset[] } when the document moved on
+ *
+ * A transcript's save may be followed by a changeset that puts its pages
+ * back in shape (see the documents service); the answer then carries
+ * `adjusted: { content, since }`, the content as it now stands and that
+ * changeset, for the client to take up as it takes up a conflict.
  *
  * Operations name items by id; the server applies them through the core,
  * which refuses anything malformed (a missing id, a duplicate id, a split
@@ -55,7 +60,13 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
       ops.ops,
       parsed.data.message,
     );
-    return json({ version: saved.version, changesetId: saved.changesetId });
+    return json({
+      version: saved.version,
+      changesetId: saved.changesetId,
+      ...(saved.conformed
+        ? { adjusted: { content: saved.content, since: [saved.conformed] } }
+        : {}),
+    });
   } catch (cause) {
     if (cause instanceof VersionConflict) {
       return json({ current: cause.current, since: cause.since }, { status: 409 });
