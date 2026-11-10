@@ -1505,11 +1505,8 @@ function verify(s: Seeding): void {
 // The conventions
 
 /**
- * NOT YET. The conventions of an edition cannot hold a family siglum (the
- * description's `groups`) or the words for "all the manuscripts" and "the
- * rest" (`conventions`): that is being built in the core and the schema. This
- * is the one place where they will be written to the edition; until then it
- * does nothing, and the seeder returns both in its result.
+ * The family sigla of the description and its words for "all the
+ * manuscripts" and "the rest", written to the edition's conventions.
  */
 export async function writeGroupsAndConventions(
   db: Database,
@@ -1517,5 +1514,19 @@ export async function writeGroupsAndConventions(
   groups: PageDescription['groups'],
   conventions: PageDescription['conventions'],
 ): Promise<void> {
-  void [db, editionId, groups, conventions];
+  const [row] = await db
+    .select({ conventions: editions.conventions })
+    .from(editions)
+    .where(eq(editions.id, editionId));
+  if (!row) return;
+  const next = { ...row.conventions };
+  if (groups?.length)
+    next.groups = groups.map((g) => ({
+      siglum: g.siglum,
+      members: g.members,
+      ...(g.note ? { note: g.note } : {}),
+    }));
+  if (conventions?.rest) next.rest = conventions.rest;
+  if (conventions?.all) next.all = conventions.all;
+  await db.update(editions).set({ conventions: next }).where(eq(editions.id, editionId));
 }
