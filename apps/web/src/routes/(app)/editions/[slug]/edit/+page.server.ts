@@ -1,4 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
+import { ALL_WORDS, REST_WORDS, withWords } from '$lib/edition/conventions';
 import { editorNames } from '$lib/edition/editors';
 import {
   editionSigla,
@@ -155,6 +156,8 @@ const settingsSchema = z.object({
   apparatus: z.enum(['positive', 'negative']),
   latin: z.boolean(),
   interpretative: z.enum(['apparatus', 'separate', 'none']),
+  rest: z.enum(['', ...REST_WORDS]),
+  all: z.enum(['', ...ALL_WORDS]),
   speakerDisplay: z.enum(['inline', 'margin', 'own-line']),
 });
 
@@ -206,6 +209,8 @@ export const actions: Actions = {
       apparatus: text('apparatus') || 'positive',
       latin: form.get('latin') === 'on',
       interpretative: text('interpretative') || 'separate',
+      rest: text('rest'),
+      all: text('all'),
       speakerDisplay: text('speakerDisplay') || 'margin',
     });
     if (!parsed.success)
@@ -214,15 +219,22 @@ export const actions: Actions = {
         errors: z.flattenError(parsed.error).fieldErrors,
       });
     const data = parsed.data;
-    const conventions: EditionConventions = {
-      ...access.edition.conventions,
-      lineation: data.lineation,
-      numberEvery: data.numberEvery,
-      apparatus: data.apparatus,
-      latin: data.latin,
-      interpretative: data.interpretative,
-      speakerDisplay: data.speakerDisplay,
-    };
+    const conventions: EditionConventions = withWords(
+      {
+        ...access.edition.conventions,
+        lineation: data.lineation,
+        numberEvery: data.numberEvery,
+        apparatus: data.apparatus,
+        latin: data.latin,
+        interpretative: data.interpretative,
+        speakerDisplay: data.speakerDisplay,
+      },
+      // A form that does not carry the words leaves them as they are.
+      {
+        rest: form.has('rest') ? data.rest : (access.edition.conventions.rest ?? ''),
+        all: form.has('all') ? data.all : (access.edition.conventions.all ?? ''),
+      },
+    );
     await updateEditionMeta(locals.db, access.edition.id, {
       title: data.title,
       editors: data.editors,

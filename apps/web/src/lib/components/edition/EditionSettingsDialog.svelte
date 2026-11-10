@@ -3,6 +3,7 @@
   import { enhance } from '$app/forms';
   import type { EditionConventions } from '@varians/db';
   import { Button, Checkbox, Dialog, Field, Input, Select, Textarea } from '$lib/components/ui';
+  import { ALL_WORDS, REST_WORDS } from '$lib/edition/conventions';
   import { edition as e } from '$lib/strings/edition';
   import EditorsField from './EditorsField.svelte';
   import { editor } from '$lib/strings/editor';
@@ -33,6 +34,11 @@
   $effect(() => {
     if (open) lineation = edition.conventions.lineation;
   });
+
+  const wordOptions = (words: readonly string[]) => [
+    { value: '', label: t.wordNone },
+    ...words.map((word) => ({ value: word, label: word })),
+  ];
 </script>
 
 <Dialog bind:open title={t.title} size="lg">
@@ -165,6 +171,28 @@
         {/each}
         <p class="text-xs text-ink-muted">{e.interpretativeHint}</p>
       </fieldset>
+    </div>
+    <div class="grid gap-4 sm:grid-cols-2">
+      <Field label={t.rest} hint={t.restHint} error={errors.rest}>
+        {#snippet children(control)}
+          <Select
+            {...control}
+            name="rest"
+            value={edition.conventions.rest ?? ''}
+            options={wordOptions(REST_WORDS)}
+          />
+        {/snippet}
+      </Field>
+      <Field label={t.all} hint={t.allHint} error={errors.all}>
+        {#snippet children(control)}
+          <Select
+            {...control}
+            name="all"
+            value={edition.conventions.all ?? ''}
+            options={wordOptions(ALL_WORDS)}
+          />
+        {/snippet}
+      </Field>
     </div>
     <Field label={t.speakers}>
       {#snippet children(control)}

@@ -91,6 +91,19 @@ describe('effectiveConventions', () => {
       interpretative: 'separate',
     });
   });
+  it('keeps how the edition names its witnesses', () => {
+    const naming = {
+      ...edition,
+      groups: [{ siglum: 'p', members: ['V', 'H'] }],
+      rest: 'cett.',
+      all: 'codd.',
+    };
+    expect(effectiveConventions(naming, DEFAULT_SETTINGS)).toEqual(naming);
+    expect(effectiveConventions(naming, { ...DEFAULT_SETTINGS, form: 'positive' })).toEqual({
+      ...naming,
+      form: 'positive',
+    });
+  });
 });
 
 describe('loadSettings and saveSettings', () => {

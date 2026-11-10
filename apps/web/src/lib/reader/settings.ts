@@ -89,14 +89,19 @@ export function isDefault(settings: ReaderSettings): boolean {
   return serializeSettings(settings) === '{}';
 }
 
-/** The apparatus conventions in force: the edition's, with the reader's choices over them. */
+/**
+ * The apparatus conventions in force: the edition's, with the reader's
+ * choices of form and of where interpretative variants stand over them. The
+ * edition's family sigla and its words for the other witnesses and for all
+ * of them are how it names witnesses, not a choice of the reader's.
+ */
 export function effectiveConventions(
   edition: ApparatusConventions,
   settings: ReaderSettings,
 ): ApparatusConventions {
   return {
+    ...edition,
     form: settings.form ?? edition.form,
-    latin: edition.latin,
     interpretative: settings.interpretative ?? edition.interpretative,
   };
 }
