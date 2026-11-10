@@ -53,7 +53,7 @@ Playwright starts the server itself (and reuses one already listening on 4173). 
 A made-up verse work in thirty witnesses, with every kind of element a real edition has, to measure how Varians copes with one. Both commands refuse `varians_dev`; give them a database of their own.
 
 ```sh
-pnpm --filter @varians/web cli seed-stress --user you@example.org [--lines 1300] [--witnesses 30] [--seed 1] [--slug stress] [--replace]
+pnpm --filter @varians/web cli seed-stress --user you@example.org [--lines 1300] [--witnesses 30] [--seed 1] [--history 300] [--slug stress] [--replace]
 pnpm --filter @varians/web exec tsx scripts/stress.ts --slug stress [--json FILE] [--keep-cache] [--seed 1]
 ```
 

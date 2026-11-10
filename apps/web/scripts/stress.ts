@@ -958,7 +958,15 @@ async function main(): Promise<void> {
     console.log(
       `Varians stress measurements: work "${slug}" in ${name} (${redactUrl(url)}), ${new Date().toISOString()}`,
     );
+    // Timings mean little on a machine that is busy with something else.
+    const load = () =>
+      os
+        .loadavg()
+        .map((x) => x.toFixed(1))
+        .join(' ');
+    console.log(`Machine: ${os.cpus().length} cores, load average at the start ${load()}`);
     data.notes = [];
+    data.machine = { cores: os.cpus().length, loadAtStart: os.loadavg() };
     const [work] = await db
       .select({ id: works.id, title: works.title })
       .from(works)
@@ -1029,7 +1037,8 @@ async function main(): Promise<void> {
     await working(c);
     await archive(c);
     await address(c);
-    console.log('');
+    console.log(`\nLoad average at the end ${load()}`);
+    (data.machine as Record<string, unknown>).loadAtEnd = os.loadavg();
     if (jsonFile) {
       const { writeFile } = await import('node:fs/promises');
       await writeFile(

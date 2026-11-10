@@ -11,7 +11,7 @@
  *   pnpm --filter @varians/web cli push <work-slug> <address there> --user <email> --token T
  *   pnpm --filter @varians/web cli import-archive <dir> --user <email> [--on-conflict keep|take] [--dry-run]
  *   pnpm --filter @varians/web cli seed-sample --user <email>
- *   pnpm --filter @varians/web cli seed-stress --user <email> [--lines N] [--witnesses N] [--seed N] [--slug stress] [--replace]
+ *   pnpm --filter @varians/web cli seed-stress --user <email> [--lines N] [--witnesses N] [--seed N] [--history N] [--slug stress] [--replace]
  *   pnpm --filter @varians/web cli make-admin <email>
  *   pnpm --filter @varians/web cli reset-password <email>
  *   pnpm --filter @varians/web cli confirm-email <email>
@@ -302,7 +302,7 @@ async function main(): Promise<void> {
         const email = flag(args, 'user');
         if (!email)
           throw new Error(
-            'usage: seed-stress --user <email> [--lines N] [--witnesses N] [--seed N] [--slug stress] [--replace]',
+            'usage: seed-stress --user <email> [--lines N] [--witnesses N] [--seed N] [--history N] [--slug stress] [--replace]',
           );
         const number = (name: string): number | undefined => {
           const value = flag(args, name);
@@ -315,12 +315,14 @@ async function main(): Promise<void> {
         const lines = number('lines');
         const witnessCount = number('witnesses');
         const seed = number('seed');
+        const history = number('history');
         const slug = flag(args, 'slug');
         if (args.includes('--replace')) await removeStress(db, slug ?? STRESS_SLUG);
         const result = await seedStress(db, user.id, {
           ...(lines !== undefined ? { lines } : {}),
           ...(witnessCount !== undefined ? { witnesses: witnessCount } : {}),
           ...(seed !== undefined ? { seed } : {}),
+          ...(history !== undefined ? { longHistory: history } : {}),
           ...(slug ? { slug } : {}),
           log: (message) => console.error(message),
         });
@@ -367,7 +369,7 @@ async function main(): Promise<void> {
       }
       default:
         console.log(
-          'commands: pull <slug> <address> --user <email>, push <slug> <address> --user <email> --token <t>, export-archive <slug>, export-all [--package <file>], export-package --work|--edition|--transcription|--all --out <file>, check-archive [<slug>], write-example, import-archive <dir> --user <email> [--on-conflict keep|take] [--dry-run], seed-sample --user <email>, seed-stress --user <email> [--lines N] [--witnesses N] [--seed N] [--slug stress] [--replace], make-admin <email>, reset-password <email>, confirm-email <email>, conform-pages, version',
+          'commands: pull <slug> <address> --user <email>, push <slug> <address> --user <email> --token <t>, export-archive <slug>, export-all [--package <file>], export-package --work|--edition|--transcription|--all --out <file>, check-archive [<slug>], write-example, import-archive <dir> --user <email> [--on-conflict keep|take] [--dry-run], seed-sample --user <email>, seed-stress --user <email> [--lines N] [--witnesses N] [--seed N] [--history N] [--slug stress] [--replace], make-admin <email>, reset-password <email>, confirm-email <email>, conform-pages, version',
         );
     }
   } finally {
