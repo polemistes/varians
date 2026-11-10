@@ -137,6 +137,7 @@ export const workbench = {
     objectsHeading: 'At the caret',
     gap: 'Gap',
     gapHint: 'Text lost or illegible',
+    notTranscribed: 'Not Transcribed',
     space: 'Space',
     spaceHint: 'Left blank by the scribe',
     figure: 'Figure',

@@ -7,7 +7,7 @@
 
 import { printedKind, type Attachment } from '../apparatus/render.ts';
 import type { Site } from '../collate/collate.ts';
-import type { Item, Token } from '../stream/items.ts';
+import { isNotTranscribed, NOT_TRANSCRIBED_ATTRS, type Item, type Token } from '../stream/items.ts';
 import type { Unit } from '../stream/words.ts';
 import {
   encodingDesc,
@@ -181,6 +181,8 @@ function itemXml(item: Item, refs?: WitnessRefs): string {
       return item.type === 'paragraph' ? '<lb/><lb/>' : '<lb/>';
     case 'object': {
       const attrs = item.attrs ?? {};
+      if (item.type === 'gap' && isNotTranscribed(attrs))
+        return `<gap reason="${NOT_TRANSCRIBED_ATTRS.reason}"><desc>${escapeText(NOT_TRANSCRIBED_ATTRS.desc)}</desc></gap>`;
       if (item.type === 'gap' || item.type === 'lacuna') {
         const parts = ['reason="lost"'];
         if (typeof attrs.quantity === 'number')

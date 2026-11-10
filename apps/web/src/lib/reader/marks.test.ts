@@ -89,6 +89,36 @@ describe('printLine', () => {
   });
 });
 
+describe('a gap that is not transcribed', () => {
+  const items: Item[] = [
+    t('a', 'ἰώ'),
+    {
+      kind: 'object',
+      id: 'n',
+      type: 'gap',
+      attrs: { reason: 'ellipsis', desc: 'non transcribed' },
+    },
+    {
+      kind: 'object',
+      id: 'm',
+      type: 'gap',
+      attrs: { reason: 'ellipsis', quantity: 3, unit: 'line' },
+    },
+    { kind: 'object', id: 'g', type: 'gap', attrs: { reason: 'lost', quantity: 3 } },
+    t('b', 'μοί'),
+  ];
+
+  it('prints as what it is, not as text lost', () => {
+    const pieces = printLine(items, LEIDEN_SIGLA);
+    expect(pieces.filter((p) => p.kind === 'gap')).toMatchObject([
+      { untranscribed: true },
+      { untranscribed: true, quantity: 3, unit: 'line' },
+      { untranscribed: false },
+    ]);
+    expect(plainLine(pieces)).toBe('ἰώ (not transcribed) (not transcribed) […] μοί');
+  });
+});
+
 describe('tokenParts', () => {
   it('dots every marked letter that is unclear', () => {
     expect(tokenParts(t('a', 'θεά', { marks: [{ kind: 'unclear' }] }))).toEqual([{ text: 'θ̣ε̣ά̣' }]);

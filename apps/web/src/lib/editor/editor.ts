@@ -41,8 +41,10 @@ import {
 } from '@codemirror/view';
 import {
   applyOps,
+  isNotTranscribed,
   isToken,
   newId,
+  NOT_TRANSCRIBED_ATTRS,
   type Break,
   type Id,
   type Item,
@@ -52,6 +54,7 @@ import {
   type Stream,
   type Token,
 } from '@varians/core';
+import { editor as editorText } from '../strings/editor.ts';
 import { minimalChange } from './align.ts';
 import { setJoin, spanOf, type Form } from './bridge.ts';
 import {
@@ -368,6 +371,12 @@ export function tooltipRows(
     }
     if (item.unchecked) rows.push([editorStrings.unchecked, '']);
     if (item.joinNext) rows.push([editorStrings.joined, '']);
+  } else if (item.kind === 'object' && item.type === 'gap' && isNotTranscribed(item.attrs)) {
+    // Its reason and the words EpiDoc gives it are what the row's label already says.
+    const { reason: _reason, desc, ...rest } = item.attrs ?? {};
+    void _reason;
+    const shown = desc === NOT_TRANSCRIBED_ATTRS.desc ? rest : { ...rest, desc };
+    rows.push([editorText.gapNotTranscribed, attrsText(shown)]);
   } else if (item.kind === 'object') {
     const detail = [attrsText(item.attrs), item.text ?? ''].filter((s) => s.length).join('; ');
     rows.push([objectLabels[item.type] ?? item.type, detail || objectLabel(item)]);

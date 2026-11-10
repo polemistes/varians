@@ -1,5 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { newId, siteKey, toText } from '@varians/core';
+import {
+  NOT_TRANSCRIBED_ATTRS,
+  isObj,
+  isToken,
+  newId,
+  siteKey,
+  toText,
+  type Obj,
+} from '@varians/core';
 import * as schema from '@varians/db/schema';
 import {
   createDatabase,
@@ -18,6 +26,7 @@ import path from 'node:path';
 import pg from 'pg';
 import { seedSample } from '../seed/sample.ts';
 import { setSiteKind } from '../collation.ts';
+import { saveOps } from '../documents/service.ts';
 import { adoptConjecture } from '../conjectures.ts';
 import { publishEdition } from '../publish.ts';
 import { editionView } from '../reader.ts';
@@ -137,6 +146,59 @@ describe('archive round trip', () => {
       .values({ id: userId, email: `${userId}@test`, name: 'Exporter', passwordHash: 'x' });
     await clean();
   });
+
+  it('keeps a stretch marked as not transcribed in a transcript, with its reason', async () => {
+    const sample = await seedSample(db, userId);
+    const [before] = await db
+      .select()
+      .from(transcriptions)
+      .where(eq(transcriptions.witnessId, sample.witnessIds.B!));
+    const words = before!.content.items.filter(isToken);
+    const marked: Obj = {
+      kind: 'object',
+      id: newId(),
+      type: 'gap',
+      attrs: { ...NOT_TRANSCRIBED_ATTRS },
+    };
+    const quantified: Obj = {
+      kind: 'object',
+      id: newId(),
+      type: 'gap',
+      attrs: { ...NOT_TRANSCRIBED_ATTRS, quantity: 2, unit: 'line' },
+    };
+    await saveOps(
+      db,
+      'transcription',
+      before!.id,
+      userId,
+      before!.version,
+      [
+        { t: 'insert', after: words[2]!.id, items: [marked] },
+        { t: 'insert', after: words[5]!.id, items: [quantified] },
+      ],
+      'stretches not transcribed',
+    );
+    const [saved] = await db.select().from(transcriptions).where(eq(transcriptions.id, before!.id));
+
+    const dir = await writeArchive(db, sample.workId, root);
+    expect(await validateArchiveDir(dir)).toEqual([]);
+    await removeWorkCompletely(db, sample.workId);
+    await importArchive(db, dir, userId);
+
+    const [restored] = await db
+      .select()
+      .from(transcriptions)
+      .where(eq(transcriptions.id, before!.id));
+    const gaps = restored!.content.items.filter((i): i is Obj => isObj(i) && i.type === 'gap');
+    expect(gaps.filter((g) => g.attrs?.reason === 'ellipsis').map((g) => [g.id, g.attrs])).toEqual([
+      [marked.id, marked.attrs],
+      [quantified.id, quantified.attrs],
+    ]);
+    // Nothing else of the text moved, and it is told as it was told before.
+    expect(restored!.content).toEqual(saved!.content);
+    expect(toText(restored!.content)).toContain('(not transcribed)');
+    await clean();
+  }, 60_000);
 
   it('brings back every archived row, column by column', async () => {
     const sample = await seedSample(db, userId, { collaboratorId: collaborator });

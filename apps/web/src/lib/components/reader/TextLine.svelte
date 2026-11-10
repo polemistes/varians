@@ -8,7 +8,7 @@
    */
   import type { LayoutLine } from '@varians/core';
   import type { Printed } from '$lib/reader/marks';
-  import { GAP_TEXT, VACAT_TEXT } from '$lib/reader/marks';
+  import { gapSign, VACAT_TEXT } from '$lib/reader/marks';
   import { reader as r } from '$lib/strings/reader';
 
   interface Props {
@@ -82,6 +82,7 @@
   );
 
   function gapTitle(piece: Extract<Printed, { kind: 'gap' }>): string {
+    if (piece.untranscribed) return r.text.notTranscribed;
     return piece.quantity !== null
       ? r.text.gapOf(piece.quantity, piece.unit ?? 'characters')
       : r.text.gap;
@@ -153,7 +154,9 @@
           >{piece.after}{:else if piece.kind === 'lacuna'}<span
             class="lacuna"
             title={piece.extent ? r.text.lacunaOf(piece.extent) : r.text.lacuna}>{piece.text}</span
-          >{:else if piece.kind === 'gap'}<span class="gap" title={gapTitle(piece)}>{GAP_TEXT}</span
+          >{:else if piece.kind === 'gap'}<span
+            class={['gap', piece.untranscribed && 'untranscribed']}
+            title={gapTitle(piece)}>{gapSign(piece)}</span
           >{:else if piece.kind === 'space'}<span class="vacat" title={r.text.space}
             >{VACAT_TEXT}</span
           >{:else if piece.kind === 'note'}<span
@@ -306,7 +309,8 @@
     color: var(--color-ink-muted);
   }
 
-  .vacat {
+  .vacat,
+  .untranscribed {
     font-style: italic;
   }
 

@@ -9,6 +9,7 @@ import type { Range } from '@codemirror/state';
 import { Decoration, WidgetType, type DecorationSet } from '@codemirror/view';
 import {
   isBreak,
+  isNotTranscribed,
   isToken,
   variantGroup,
   type Break,
@@ -18,6 +19,7 @@ import {
   type Obj,
   type SegmentStart,
 } from '@varians/core';
+import { editor as editorText } from '../strings/editor.ts';
 import { breakLabels, editorStrings, objectLabels } from './labels.ts';
 import { lineIndex, type LineInfo } from './lines.ts';
 import type { Model } from './model.ts';
@@ -65,6 +67,8 @@ export function pageLabel(model: Model, brk: Break): string {
 }
 
 export function gapLabel(obj: Obj): string {
+  // A stretch not transcribed is not a loss in the carrier: it does not wear the brackets of one.
+  if (isNotTranscribed(obj.attrs)) return editorText.gapNotTranscribed;
   const quantity = obj.attrs?.quantity;
   if (typeof quantity === 'number') {
     const unit = obj.attrs?.unit === 'line' ? editorStrings.gapLines : '';
@@ -101,6 +105,8 @@ class ObjectWidget extends WidgetType {
   toDOM(): HTMLElement {
     const span = document.createElement('span');
     span.className = `cm-object cm-object-${this.obj.type}`;
+    if (this.obj.type === 'gap' && isNotTranscribed(this.obj.attrs))
+      span.classList.add('cm-object-untranscribed');
     span.textContent = this.label;
     span.dataset.id = this.obj.id;
     return span;

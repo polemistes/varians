@@ -96,6 +96,19 @@ export interface Obj {
 
 export type Item = Token | Break | Obj;
 
+/**
+ * What a gap carries when its transcriber marks a stretch as not transcribed:
+ * the reason `ellipsis` of EpiDoc, with the words EpiDoc and Leiden+ give it.
+ * Such a gap says nothing of the carrier, which is neither lost nor illegible
+ * there; it says that the transcript stops short of the witness's own text.
+ */
+export const NOT_TRANSCRIBED_ATTRS = { reason: 'ellipsis', desc: 'non transcribed' } as const;
+
+/** Whether a gap marks a stretch as not transcribed, and not as text lost or illegible in the carrier. */
+export function isNotTranscribed(attrs: Record<string, unknown> | undefined): boolean {
+  return attrs?.reason === NOT_TRANSCRIBED_ATTRS.reason;
+}
+
 export interface Stream {
   items: Item[];
 }

@@ -7,10 +7,11 @@
    */
   import ChevronLeft from '@lucide/svelte/icons/chevron-left';
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
-  import type { Item, ZoneGeometry } from '@varians/core';
+  import { isNotTranscribed, type Item, type ZoneGeometry } from '@varians/core';
   import ImageCredit from '$lib/components/facsimile/ImageCredit.svelte';
   import { IconButton, Select, Spinner, Tabs, type Tab } from '$lib/components/ui';
   import type { FacsimileSource, FacsimileZone } from '$lib/facsimile/types';
+  import { gapSign } from '$lib/reader/marks';
   import type { SiglumClient, WitnessSegment } from '$lib/edition/types';
   import { editor as s } from '$lib/strings/editor';
 
@@ -230,7 +231,10 @@
 
   function shown(item: Item): string {
     if (item.kind === 'token') return form === 'read' ? (item.norm ?? item.form) : item.form;
-    if (item.kind === 'object') return item.type === 'gap' ? '[…]' : (item.text ?? '');
+    if (item.kind === 'object')
+      return item.type === 'gap'
+        ? gapSign({ untranscribed: isNotTranscribed(item.attrs) })
+        : (item.text ?? '');
     return '';
   }
 
@@ -315,7 +319,12 @@
                       onmouseleave={() => onhover?.(null)}>{shown(item)}</button
                     >{' '}
                   {:else if item.kind === 'object'}
-                    <span class="text-ink-muted">{shown(item)}</span>{' '}
+                    <span
+                      class={[
+                        'text-ink-muted',
+                        item.type === 'gap' && isNotTranscribed(item.attrs) && 'italic',
+                      ]}>{shown(item)}</span
+                    >{' '}
                   {/if}
                 {/each}
               {/each}

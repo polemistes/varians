@@ -15,7 +15,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import { sequentialIds } from '../ids.ts';
-import type { Item, Stream } from '../stream/items.ts';
+import { NOT_TRANSCRIBED_ATTRS, type Item, type Stream } from '../stream/items.ts';
 import { exportEditionTei } from './apparatus.ts';
 import { exportTranscriptionTei, type TranscriptionExport } from './export.ts';
 import {
@@ -351,6 +351,13 @@ describe.skipIf(!xmllint)('transcription TEI is valid', slow, () => {
       { kind: 'object', id: ids(), type: 'mark', attrs: { function: 'insertion' }, text: '⸓' },
       { kind: 'object', id: ids(), type: 'lacuna', attrs: { extent: 'several lines' } },
       { kind: 'object', id: ids(), type: 'gap', attrs: { reason: 'lost', extent: 'unknown' } },
+      { kind: 'object', id: ids(), type: 'gap', attrs: { ...NOT_TRANSCRIBED_ATTRS } },
+      {
+        kind: 'object',
+        id: ids(),
+        type: 'gap',
+        attrs: { ...NOT_TRANSCRIBED_ATTRS, quantity: 3, unit: 'line' },
+      },
       { kind: 'object', id: ids(), type: 'space', attrs: { quantity: 1, unit: 'line' } },
       { kind: 'break', id: ids(), type: 'column', label: 'b' },
       { kind: 'token', id: ids(), form: 'end' },
@@ -447,6 +454,7 @@ describe.skipIf(!xmllint)('edition TEI is valid', slow, () => {
         type: 'gap',
         attrs: { reason: 'lost', quantity: 3, unit: 'character' },
       },
+      { kind: 'object', id: ids(), type: 'gap', attrs: { ...NOT_TRANSCRIBED_ATTRS } },
       { kind: 'object', id: ids(), type: 'note', text: 'a note' },
       { kind: 'object', id: ids(), type: 'space' },
       { kind: 'object', id: ids(), type: 'figure', text: 'a drawing' },

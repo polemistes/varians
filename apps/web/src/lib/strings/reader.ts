@@ -111,6 +111,7 @@ export const reader = {
     noteBy: (author: string) => `by ${author}`,
     lacuna: 'Lacuna',
     lacunaOf: (extent: string) => `Lacuna: ${extent}`,
+    notTranscribed: 'Not transcribed',
     gap: 'Text lost',
     gapOf: (quantity: number, unit: string) => `Text lost: about ${quantity} ${unit}`,
     space: 'Blank space',

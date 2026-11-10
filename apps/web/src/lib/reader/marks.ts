@@ -14,7 +14,14 @@
  * Adjacent words with the same mark share one pair of brackets. Runs close
  * at the end of a line.
  */
-import { wholeTokenMark, type Item, type Mark, type Token } from '@varians/core';
+import {
+  isNotTranscribed,
+  NOT_TRANSCRIBED_TEXT,
+  wholeTokenMark,
+  type Item,
+  type Mark,
+  type Token,
+} from '@varians/core';
 
 export interface EditionSigla {
   supplied: [string, string];
@@ -52,7 +59,13 @@ interface Spaced {
 export type Printed =
   | (Spaced & { kind: 'token'; before: string; parts: TextPart[]; after: string })
   | (Spaced & { kind: 'lacuna'; text: string; extent: string | null })
-  | (Spaced & { kind: 'gap'; quantity: number | null; unit: string | null })
+  | (Spaced & {
+      kind: 'gap';
+      quantity: number | null;
+      unit: string | null;
+      /** The transcript stops short here: the gap says nothing of the carrier. */
+      untranscribed: boolean;
+    })
   | (Spaced & { kind: 'paratext'; type: string; text: string })
   | (Spaced & { kind: 'space' })
   | (Spaced & { kind: 'note'; text: string });
@@ -216,6 +229,7 @@ export function printLine(
           space,
           quantity: typeof quantity === 'number' ? quantity : null,
           unit: typeof unit === 'string' ? unit : null,
+          untranscribed: isNotTranscribed(item.attrs),
         });
         return;
       }
@@ -244,8 +258,13 @@ export function printLine(
   return out;
 }
 
-/** What a gap prints: brackets around an ellipsis. */
+/** What a gap prints: brackets around an ellipsis; a gap marked as not transcribed prints so. */
 export const GAP_TEXT = '[…]';
+
+/** What a gap prints, by whether it marks a stretch as not transcribed. */
+export function gapSign(piece: { untranscribed: boolean }): string {
+  return piece.untranscribed ? NOT_TRANSCRIBED_TEXT : GAP_TEXT;
+}
 export const VACAT_TEXT = 'vac.';
 
 /** A line as plain text, as the plain-text export and the search print it. */
@@ -261,7 +280,7 @@ export function plainLine(pieces: Printed[]): string {
         text = piece.text;
         break;
       case 'gap':
-        text = GAP_TEXT;
+        text = gapSign(piece);
         break;
       case 'paratext':
         text = piece.text;

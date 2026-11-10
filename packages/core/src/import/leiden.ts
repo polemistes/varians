@@ -22,6 +22,7 @@
 import { newId } from '../ids.ts';
 import {
   isBreak,
+  isNotTranscribed,
   isObj,
   type Break,
   type Item,
@@ -30,6 +31,7 @@ import {
   type Stream,
   type Token,
 } from '../stream/items.ts';
+import { NOT_TRANSCRIBED_TEXT } from '../stream/text.ts';
 
 export interface LeidenOptions {
   ids?: () => string;
@@ -578,6 +580,8 @@ export function toLeiden(stream: Stream): string {
 function objectLeiden(obj: Obj): string | null {
   const attrs = obj.attrs ?? {};
   if (obj.type === 'gap') {
+    // Leiden has no sign for it: the words say that the transcript stops short here.
+    if (isNotTranscribed(attrs)) return NOT_TRANSCRIBED_TEXT;
     const quantity = typeof attrs.quantity === 'number' ? attrs.quantity : null;
     if (attrs.reason === 'illegible')
       return quantity === null ? '---' : '.'.repeat(Math.min(quantity, 12));

@@ -12,7 +12,7 @@
   import type { BreakChoices } from '$lib/editor/editor';
   import type { BreakType } from '$lib/editor/lines';
   import type { MarkAttrs } from '$lib/editor/marks';
-  import type { ObjectType } from '@varians/core';
+  import { NOT_TRANSCRIBED_ATTRS, type ObjectType } from '@varians/core';
   import { workbench } from '$lib/strings/workbench';
   import type { Workbench } from './workbench.svelte';
 
@@ -29,6 +29,7 @@
 
   const objects: { type: ObjectType; label: string; hint?: string; attrs?: MarkAttrs }[] = [
     { type: 'gap', label: t.gap, hint: t.gapHint, attrs: { reason: 'lost' } },
+    { type: 'gap', label: t.notTranscribed, attrs: { ...NOT_TRANSCRIBED_ATTRS } },
     { type: 'space', label: t.space, hint: t.spaceHint },
     { type: 'figure', label: t.figure },
     { type: 'note', label: t.note },
@@ -99,7 +100,7 @@
           <DropdownMenu.GroupHeading class={headingClass}
             >{t.objectsHeading}</DropdownMenu.GroupHeading
           >
-          {#each objects as item (item.type)}
+          {#each objects as item (item.label)}
             <DropdownMenu.Item
               class={itemClass}
               onfocus={() => wb.api?.previewBreak(null)}

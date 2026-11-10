@@ -5,6 +5,7 @@
 import { newId } from '../ids.ts';
 import {
   isBreak,
+  isNotTranscribed,
   isObj,
   isToken,
   readForm,
@@ -73,7 +74,11 @@ function separatorBefore(token: Token, asWritten: boolean): string {
   }
 }
 
+/** What a gap prints when it marks a stretch as not transcribed. */
+export const NOT_TRANSCRIBED_TEXT = '(not transcribed)';
+
 export function gapText(attrs: Record<string, unknown>): string {
+  if (isNotTranscribed(attrs)) return NOT_TRANSCRIBED_TEXT;
   const quantity = typeof attrs.quantity === 'number' ? attrs.quantity : null;
   const reason = typeof attrs.reason === 'string' ? attrs.reason : 'lost';
   if (reason === 'illegible') return quantity ? `{${'.'.repeat(Math.min(quantity, 12))}}` : '{...}';

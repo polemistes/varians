@@ -1,5 +1,7 @@
 /** Strings of the edition editor and the transcription workbench. */
 export const editor = {
+  /** What a gap shows in the text of a transcript when it marks a stretch as not transcribed. */
+  gapNotTranscribed: 'not transcribed',
   apparatus: 'Apparatus',
   printed: 'printed',
   adopt: 'Adopt',

@@ -348,6 +348,11 @@
     vertical-align: baseline;
   }
 
+  /* Words, not brackets: set apart from the witness's letters by their slant. */
+  .varians-editor :global(.cm-object-untranscribed) {
+    font-style: italic;
+  }
+
   /* Breaks. Block widgets and lines carry no vertical margins: CodeMirror's
      height map does not see margins, and positions below would drift. */
   .varians-editor :global(.cm-break-widget) {

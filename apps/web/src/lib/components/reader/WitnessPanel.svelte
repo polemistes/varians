@@ -8,7 +8,7 @@
   import type { Item } from '@varians/core';
   import { Select, Spinner } from '$lib/components/ui';
   import { absentRanges, formatRanges } from '$lib/reader/blocks';
-  import { GAP_TEXT, LEIDEN_SIGLA, printLine, type Printed } from '$lib/reader/marks';
+  import { gapSign, LEIDEN_SIGLA, printLine, type Printed } from '$lib/reader/marks';
   import type { ReaderSiglum } from '$lib/reader/types';
   import { reader as r } from '$lib/strings/reader';
   import type { WitnessTexts } from './witness-texts.svelte';
@@ -214,8 +214,10 @@
                           data-witness-token={piece.id}
                           >{#each piece.parts as part, p (p)}{#if part.struck}<s>{part.text}</s
                               >{:else}{part.text}{/if}{/each}</span
-                        >{piece.after}{:else if piece.kind === 'gap'}<span class="text-ink-muted"
-                          >{GAP_TEXT}</span
+                        >{piece.after}{:else if piece.kind === 'gap'}<span
+                          class={['text-ink-muted', piece.untranscribed && 'italic']}
+                          title={piece.untranscribed ? r.text.notTranscribed : undefined}
+                          >{gapSign(piece)}</span
                         >{:else if piece.kind === 'paratext'}<span class="text-ink-soft italic"
                           >{piece.text}</span
                         >{:else if piece.kind === 'lacuna'}<span class="text-ink-muted"
