@@ -235,13 +235,18 @@ export function isOrderKey(key: string): boolean {
  * Every edition token that stands at a variant site, with the sites it
  * stands at: the words of a variant across a boundary in both segments. A site's words come from `siteTokenIds`; a site with no words
  * of the edition (a witness adds something) marks none: it is marked at the
- * point between two words (`markSites`). The site over a whole line that
- * some witnesses do not have (`wanting`) marks none either: it is marked in
- * the margin (`lineMarks`), and its words keep only their own variants.
+ * point between two words (`markSites`). The site over whole segments that
+ * some witnesses do not have (`wanting`) marks the words that stand in a
+ * prose paragraph (`prose`, the ids of those words), as any variant is
+ * marked on its words; in a verse paragraph it is marked in the margin
+ * (`lineMarks`), and its words there keep only their own variants.
  */
-export function siteByToken(view: {
-  segments: Record<string, SegmentSites> | SegmentSites[];
-}): Map<string, SiteRef[]> {
+export function siteByToken(
+  view: {
+    segments: Record<string, SegmentSites> | SegmentSites[];
+  },
+  prose: ReadonlySet<string> = NO_WORDS,
+): Map<string, SiteRef[]> {
   const map = new Map<string, SiteRef[]>();
   const add = (tokenId: string, ref: SiteRef) => {
     const list = map.get(tokenId);
@@ -252,13 +257,16 @@ export function siteByToken(view: {
   const list = Array.isArray(view.segments) ? view.segments : Object.values(view.segments);
   for (const segment of list) {
     for (const site of segment.collation.sites) {
-      if (site.wanting) continue;
-      for (const id of siteTokenIds(site, segment.baseUnits))
+      for (const id of siteTokenIds(site, segment.baseUnits)) {
+        if (site.wanting && !prose.has(id)) continue;
         add(id, { segmentId: segment.segmentId, siteIndex: site.index });
+      }
     }
   }
   return map;
 }
+
+const NO_WORDS: ReadonlySet<string> = new Set();
 
 /**
  * The apparatus entries under the given conventions, by the segment each
@@ -391,11 +399,17 @@ export interface SiteMarking {
   before: Map<string, PointMark>;
 }
 
-/** Which words open an entry under the entries in force. */
+/**
+ * Which words open an entry under the entries in force. A segment the
+ * edition does not print is marked at the point after the word before it
+ * where that word stands in a prose paragraph (`prose`, the ids of the words
+ * that do); in a verse paragraph it is marked between two lines, in the margin.
+ */
 export function markSites(
   sitesOfToken: Map<string, SiteRef[]>,
   entries: Map<string, unknown>,
   segments: Record<string, SegmentSites | undefined>,
+  prose: ReadonlySet<string> = NO_WORDS,
 ): SiteMarking {
   const marked = new Set<string>();
   const keysOf = new Map<string, string>();
@@ -418,11 +432,14 @@ export function markSites(
     const ref = parseSiteKey(key);
     const segment = ref ? segments[ref.segmentId] : undefined;
     const site = ref ? siteOf(segment, ref.siteIndex) : undefined;
-    if (!segment || !site || site.wanting) continue;
-    // A segment the edition does not print is marked between two lines, in the margin.
-    if (unprintedAt(asPassage(segment), site.index)) continue;
+    if (!ref || !segment || !site) continue;
     if (site.baseFrom !== site.baseTo) {
-      const first = siteTokenIds(site, segment.baseUnits)[0];
+      // The first of its words that is marked takes the keyboard's focus: of a variant over whole segments, the first that stands in prose.
+      const first = siteTokenIds(site, segment.baseUnits).find((id) =>
+        sitesOfToken
+          .get(id)
+          ?.some((r) => r.segmentId === ref.segmentId && r.siteIndex === ref.siteIndex),
+      );
       if (first) tabStops.add(first);
       continue;
     }
@@ -431,6 +448,8 @@ export function markSites(
     const next = segment.baseUnits[site.baseFrom];
     const last = previous?.tokenIds[previous.tokenIds.length - 1];
     const first = next?.tokenIds[0];
+    // A segment the edition does not print stands at the point after the last word of the segment before it.
+    if (unprintedAt(asPassage(segment), site.index) && !(last && prose.has(last))) continue;
     if (last)
       place(after, last, { keys: key, side: 'after', word: trimPunctuation(previous!.text) });
     else if (first)

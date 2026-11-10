@@ -2,7 +2,8 @@
  * Printing a segment the edition does not print (docs/design.md, section
  * 3.10, "Whole segments"): the variant of such a segment stands after the
  * edition's segment the work's numbering puts it after, and adopting one of
- * its readings puts the segment's words there, on a line of their own.
+ * its readings puts the segment's words there: on a line of their own in a
+ * verse paragraph, in the run of the text in prose.
  */
 
 import type { Reading } from '../collate/collate.ts';
@@ -11,7 +12,7 @@ import { isBreak, isToken, type Id, type Obj, type Stream, type Token } from '..
 import { repairSegmentStartsFrom } from '../stream/move.ts';
 import { applyOp, type Op } from '../stream/ops.ts';
 import { runsOfSegment } from '../stream/words.ts';
-import { ownLineInsert, tokensFromReading, type AdoptOptions } from './adopt.ts';
+import { ownLineInsert, standsOnOwnLine, tokensFromReading, type AdoptOptions } from './adopt.ts';
 
 /**
  * The item a segment printed after the segment `after` follows: the last
@@ -43,9 +44,10 @@ export function printPlace(stream: Stream, after: Id): Id | null {
 
 /**
  * Print a segment after the segment `after`: the items go after the item
- * `printPlace` names, on a line of their own (a line break before them, and
- * one after them where text follows on the same line; where an empty line
- * follows directly, they fill it), the first of them
+ * `printPlace` names, in a verse paragraph on a line of their own (a line
+ * break before them, and one after them where text follows on the same line;
+ * where an empty line follows directly, they fill it) and in a prose
+ * paragraph in the run of the text (`standsOnOwnLine`), the first of them
  * starting the segment and the others in it. No other word changes segment:
  * where something of `after` follows on a later line (an object before the
  * next segment's start), the inserted line would take it into the new
@@ -68,7 +70,9 @@ export function printSegment(
     void _segment;
     return (k === 0 ? { ...rest, segment: { segmentId } } : rest) as Token | Obj;
   });
-  const op = ownLineInsert(stream, at, line, options.ids ?? newId);
+  const op: Op = standsOnOwnLine(stream, at, options)
+    ? ownLineInsert(stream, at, line, options.ids ?? newId)
+    : { t: 'insert', after: at, items: line };
   const printed = applyOp(stream, op).stream;
   return [op, ...repairSegmentStartsFrom([stream, { items: line }], printed)];
 }

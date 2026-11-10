@@ -6,6 +6,7 @@ import {
   siteKey as coreSiteKey,
   type Attachment,
   type CollationText,
+  type Site,
   type Unit,
 } from '@varians/core';
 import {
@@ -127,6 +128,70 @@ describe('siteByToken', () => {
     expect(marking.keysOf.get('e2')).toBe(siteKey('s1', own.index));
     // The first word of the line is no stop for the variant over the whole of it.
     expect([...marking.tabStops]).toEqual(['e2']);
+  });
+});
+
+describe('variants over whole segments in prose', () => {
+  const ed = text('e', 'ed.', 'μῆνιν ἄειδε θεὰ');
+  const wholeSegment = () =>
+    segment(ed, [text('a', 'A', 'μῆνιν ἄειδε θεὰ'), { ...text('b', 'B', ''), present: true }]);
+
+  it('marks the words of the segment that stand in prose, with one stop, and leaves those in verse to the margin', () => {
+    const seg = wholeSegment();
+    const whole = seg.collation.sites.find((site) => site.wanting)!;
+    const key = siteKey('s1', whole.index);
+    // The first two words stand in verse, the last in prose.
+    const prose = new Set(['e2']);
+    const map = siteByToken({ segments: { s1: seg } }, prose);
+    expect([...map.keys()]).toEqual(['e2']);
+    expect(map.get('e2')).toEqual([{ segmentId: 's1', siteIndex: whole.index }]);
+    const marking = markSites(map, new Map([[key, {}]]), { s1: seg }, prose);
+    expect([...marking.marked]).toEqual(['e2']);
+    expect(marking.keysOf.get('e2')).toBe(key);
+    expect([...marking.tabStops]).toEqual(['e2']);
+    // All in prose: every word, the first the stop.
+    const all = siteByToken({ segments: { s1: seg } }, new Set(['e0', 'e1', 'e2']));
+    expect([...all.keys()]).toEqual(['e0', 'e1', 'e2']);
+    const every = markSites(all, new Map([[key, {}]]), { s1: seg }, new Set(['e0', 'e1', 'e2']));
+    expect([...every.tabStops]).toEqual(['e0']);
+  });
+
+  /** A passage of the segment s1 (words e0 to e2) and the segment u the edition does not print after it. */
+  function withUnprintedSegment(): SegmentSites {
+    return {
+      segmentId: 's1',
+      label: '1.1',
+      segments: [
+        { segmentId: 's1', from: 0, to: 3, printed: true },
+        { segmentId: 'u', from: 3, to: 3, printed: false },
+      ],
+      siteSegments: { 0: ['u'] },
+      collation: { sites: [{ index: 0, baseFrom: 3, baseTo: 3 } as Site] },
+      baseUnits: ed.units,
+      attachments: {},
+    };
+  }
+
+  it('marks a segment the edition does not print at the point after the last word of the segment before it, in prose only', () => {
+    const seg = withUnprintedSegment();
+    const entries = new Map([['s1:0', {}]]);
+    const margin = markSites(siteByToken({ segments: [seg] }), entries, { s1: seg });
+    expect(margin.after.size + margin.before.size).toBe(0);
+    const found = markSites(
+      siteByToken({ segments: [seg] }),
+      entries,
+      { s1: seg },
+      new Set(['e2']),
+    );
+    expect([...found.after]).toEqual([['e2', { keys: 's1:0', side: 'after', word: 'θεὰ' }]]);
+    // A segment before it that ends in verse is marked in the margin, whatever else is prose.
+    const elsewhere = markSites(
+      siteByToken({ segments: [seg] }),
+      entries,
+      { s1: seg },
+      new Set(['e0']),
+    );
+    expect(elsewhere.after.size).toBe(0);
   });
 });
 

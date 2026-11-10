@@ -2,17 +2,22 @@
  * Placing a diff on a text for display: the lines of the stream as laid out,
  * each item a cell carrying what happened to it and who did it, and the
  * removed items put back where they stood (after the kept item the diff
- * names, or at the start of the line their break opened). Pure; the view
- * only renders the result.
+ * names, or at the start of the line their break opened). A paragraph of an
+ * edition that is prose runs on, as the reader shows it: its line breaks
+ * stay in the text but are not drawn as the end of a line (one that a change
+ * touched is drawn as the mark of that change), and no word of it is
+ * hyphenated. Pure; the view only renders the result.
  */
 
 import {
   gapText,
   layoutLines,
+  runOn,
   type Change,
   type Id,
   type Item,
   type LayoutOptions,
+  type Lineation,
   type Stream,
 } from '@varians/core';
 import type { Cell, SerializedDiff } from './types.ts';
@@ -30,6 +35,12 @@ export interface RenderLine {
   /** Holds only removed items: a stretch whose words and breaks were all removed. */
   ghost: boolean;
   paragraph: boolean;
+  /** Whether the line is verse, as the stream's breaks make it, or a paragraph of prose that runs on. */
+  lineation: Lineation;
+  /** The last word runs on into the next line, which is shown: a hyphen is drawn after it. */
+  hyphen: boolean;
+  /** The labels of the segments that begin in the run of a prose paragraph, by the id of the item each begins at. */
+  inlineLabels: Map<Id, string>;
   /** The break that opened the line, when it was added or moved. */
   opener: LineOpener | null;
 }
@@ -97,7 +108,12 @@ export function markedCell(
   return cell;
 }
 
-/** Lay a stream out and mark the diff on it. Without a diff every cell is plain. */
+/**
+ * Lay a stream out and mark the diff on it. Without a diff every cell is
+ * plain. `options.lineation` is the edition's kind of a paragraph that is not
+ * marked: the paragraphs that are prose run on, with a label in the run where
+ * a segment begins; a transcript, whose lines are all shown, gives none.
+ */
 export function renderLines(
   stream: Stream,
   diff: Pick<SerializedDiff, 'changes'> | null,
@@ -105,7 +121,7 @@ export function renderLines(
   options: LayoutOptions = {},
   authors: Record<Id, string> = {},
 ): RenderLine[] {
-  const lines = layoutLines(stream, labelOf, options);
+  const lines = runOn(stream, layoutLines(stream, labelOf, options));
   const indexOf = new Map<Id, number>();
   stream.items.forEach((item, i) => indexOf.set(item.id, i));
   const marks = indexDiff(diff);
@@ -131,13 +147,25 @@ export function renderLines(
     }));
   };
 
+  const touched = (id: Id) => marks.added.has(id) || marks.moved.has(id) || marks.changed.has(id);
   const out: RenderLine[] = [];
   for (const line of lines) {
+    const prose = line.lineation === 'prose';
     const cells: Cell[] = [...take(line.from - 1)];
     for (let i = line.from; i < line.to; i++) {
-      cells.push(markedCell(stream.items[i]!, i, marks, authors));
+      const item = stream.items[i]!;
+      // The line breaks of a prose paragraph stay in the text and are not drawn, unless a change touched one.
+      if (!(prose && item.kind === 'break' && !touched(item.id)))
+        cells.push(markedCell(item, i, marks, authors));
       cells.push(...take(i));
     }
+    const inlineLabels = new Map<Id, string>();
+    if (prose)
+      for (const start of line.starts) {
+        const item = stream.items[start.itemIndex];
+        if (start.segmentId !== null && start.itemIndex !== line.from && item)
+          inlineLabels.set(item.id, labelOf(start.segmentId));
+      }
     let opener: LineOpener | null = null;
     const openerItem = line.from > 0 ? stream.items[line.from - 1] : undefined;
     if (
@@ -156,6 +184,9 @@ export function renderLines(
       cells,
       ghost: false,
       paragraph: line.paragraph,
+      lineation: line.lineation,
+      hyphen: line.hyphen,
+      inlineLabels,
       opener,
     });
   }
@@ -170,6 +201,9 @@ export function renderLines(
       cells: take(anchor),
       ghost: true,
       paragraph: false,
+      lineation: options.lineation ?? 'verse',
+      hyphen: false,
+      inlineLabels: new Map(),
       opener: null,
     };
     const at = out.findIndex((l) => !l.ghost && firstIndex(l) > anchor);
@@ -197,7 +231,12 @@ export function cellText(item: Item, form: 'written' | 'read' = 'written'): stri
   }
 }
 
-/** Whether a space separates this cell from the next: not inside a word divided by joinNext. */
-export function spaceAfter(cell: Cell): boolean {
-  return !(cell.item.kind === 'token' && cell.item.joinNext);
+/**
+ * Whether a space separates this cell from the next: not inside a word
+ * divided by joinNext, nor after the mark of a line break that stands in one
+ * (`previous` is the cell before).
+ */
+export function spaceAfter(cell: Cell, previous?: Cell | null): boolean {
+  if (cell.item.kind === 'token') return !cell.item.joinNext;
+  return !(cell.item.kind === 'break' && previous?.item.kind === 'token' && previous.item.joinNext);
 }

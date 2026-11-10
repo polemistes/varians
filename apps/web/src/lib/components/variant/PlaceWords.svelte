@@ -2,7 +2,7 @@
   /**
    * The edition's words at a variant, in the text's serif; where the edition
    * has none (witnesses have words at a point between two words), the word
-   * the point follows or precedes; for whole lines, the line they follow or
+   * the point follows or precedes; for whole segments, the line they follow or
    * the labels of the lines; and the kinds the editor gave the variant, where
    * they are not the common one (unless the page shows them as controls).
    */

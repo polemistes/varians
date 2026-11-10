@@ -272,6 +272,44 @@
     background: var(--color-accent-soft, var(--_tint));
   }
 
+  /* A segment the edition does not print, where the text before it is prose: a small caret in the
+     space after the word before it, as the reader marks a point between two words. Its box is as
+     wide as the space and the same width is taken off its margin, so that the words stay where
+     they are. */
+  .varians-editor :global(.cm-point-mark) {
+    position: relative;
+    display: inline-block;
+    width: 0.32em;
+    height: 0.8em;
+    margin-inline-end: -0.32em;
+    vertical-align: -0.3em;
+    cursor: pointer;
+    color: color-mix(in srgb, var(--_accent) 70%, transparent);
+  }
+
+  .varians-editor :global(.cm-point-mark::before) {
+    content: '';
+    position: absolute;
+    bottom: 0.04em;
+    inset-inline-start: 50%;
+    width: 0.26em;
+    height: 0.26em;
+    border-top: 1px solid currentColor;
+    border-inline-start: 1px solid currentColor;
+    transform: translateX(-50%) rotate(45deg);
+    transform-origin: center;
+  }
+
+  .varians-editor :global(.cm-point-mark:hover),
+  .varians-editor :global(.cm-point-mark-active) {
+    color: var(--_accent);
+  }
+
+  .varians-editor :global(.cm-point-mark-active) {
+    background: var(--color-accent-soft, var(--_tint));
+    border-radius: 0.2em;
+  }
+
   .varians-editor :global(.cm-lineNumbers .cm-gutterElement) {
     min-width: 2rem;
     padding: 0 0.5rem 0 0.25rem;

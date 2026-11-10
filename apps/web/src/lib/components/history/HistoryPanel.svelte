@@ -18,6 +18,7 @@
    * whenever currentVersion moves.
    */
   import { tick, untrack } from 'svelte';
+  import type { Lineation } from '@varians/core';
   import Bookmark from '@lucide/svelte/icons/bookmark';
   import BookmarkCheck from '@lucide/svelte/icons/bookmark-check';
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
@@ -52,6 +53,8 @@
     onchanged?: () => void;
     /** Print a label every n lines (verse). */
     numberEvery?: number;
+    /** An edition's kind of a paragraph that is not marked: verse, or prose, which runs on. */
+    lineation?: Lineation;
   }
 
   let {
@@ -62,6 +65,7 @@
     canEdit,
     onchanged,
     numberEvery = 1,
+    lineation,
   }: Props = $props();
 
   const uid = $props.id();
@@ -262,6 +266,7 @@
         {timeline}
         {labelOf}
         {numberEvery}
+        {lineation}
         {canEdit}
         {colorOf}
         {nameOf}

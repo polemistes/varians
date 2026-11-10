@@ -490,7 +490,7 @@ describe('a line the edition does not print', () => {
     const { stream, outlines, order, segment, site } = edition();
     const three = outlines.l1!.sites.find((s) => s.unprinted)!;
     expect(unprintedMarks(stream, order, outlines)).toEqual([
-      { passage: 'l1', segmentId: 'l3', after: 'el22', site: three },
+      { passage: 'l1', segmentId: 'l3', after: 'el22', site: three, inText: false },
     ]);
     const minor = {
       ...segment,
@@ -502,6 +502,46 @@ describe('a line the edition does not print', () => {
       },
     };
     expect(unprintedMarks(stream, order, { l1: outlineOf(minor) })).toEqual([]);
+  });
+
+  it('is marked in the text, a point after the last word, where the line it follows is in a prose paragraph, and between two lines in verse', () => {
+    const { stream, outlines, order } = edition();
+    const paragraph = (lineation?: 'verse' | 'prose'): Stream => ({
+      items: [
+        { kind: 'break', id: 'pb', type: 'paragraph', ...(lineation ? { lineation } : {}) },
+        ...stream.items,
+      ],
+    });
+    const inText = (text: Stream, convention?: 'verse' | 'prose') =>
+      unprintedMarks(text, order, outlines, convention).map((mark) => mark.inText);
+    // The paragraph's own kind decides, whatever the edition says.
+    expect(inText(paragraph('prose'))).toEqual([true]);
+    expect(inText(paragraph('verse'), 'prose')).toEqual([false]);
+    // A paragraph that is not marked is the edition's kind.
+    expect(inText(paragraph(), 'prose')).toEqual([true]);
+    expect(inText(paragraph(), 'verse')).toEqual([false]);
+    expect(inText(stream, 'prose')).toEqual([true]);
+  });
+
+  it('is printed in the run of the text where the segment it follows is in prose, as the paragraph says or as the edition does', () => {
+    const { stream, segment, site } = edition();
+    const reading = site.readings.find((r) => !r.base)!;
+    const printed = (text: Stream, lineation?: 'verse' | 'prose') =>
+      toText(
+        applyOps(text, opsForReading(text, segment, site, reading, 'A', lineation)).stream,
+      ).replace(/\n+/g, '/');
+    const paragraph = (lineation: 'verse' | 'prose'): Stream => ({
+      items: [{ kind: 'break', id: 'pb', type: 'paragraph', lineation }, ...stream.items],
+    });
+    // In verse, on a line of its own; in prose, in the run, with the line breaks left where they were.
+    expect(printed(stream)).toBe('l1a l1b/l2a l2b/eta theta/l4a l4b');
+    expect(printed(paragraph('verse'), 'prose')).toBe('/l1a l1b/l2a l2b/eta theta/l4a l4b');
+    expect(printed(paragraph('prose'), 'verse')).toBe('/l1a l1b/l2a l2b eta theta/l4a l4b');
+    expect(printed(stream, 'prose')).toBe('l1a l1b/l2a l2b eta theta/l4a l4b');
+    // The words are the same, and are of the segment the witness gives them.
+    const next = applyOps(stream, opsForReading(stream, segment, site, reading, 'A', 'prose'));
+    const first = next.stream.items.find((item) => item.kind === 'token' && item.form === 'eta');
+    expect((first as Token).segment).toEqual({ segmentId: 'l3' });
   });
 
   it('is printed by the ordinary adoption of its reading, after the line it follows, with its words from the witness', () => {

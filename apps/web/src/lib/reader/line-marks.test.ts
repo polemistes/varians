@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { OrderVariant, Site } from '@varians/core';
-import { lineMarks, MARGIN_LANES, type MarginPart } from './line-marks';
+import type { Lineation, OrderVariant, Site } from '@varians/core';
+import { labelMarks, lineMarks, MARGIN_LANES, type LabelLine, type MarginPart } from './line-marks';
 import type { SegmentSites } from './sites';
 
 // Lines 0 to 5 hold the segments s0 to s5, one each; labels 1.1 to 1.6.
@@ -68,10 +68,12 @@ function marks(
     orders?: OrderVariant[];
     shown?: { has(key: string): boolean };
     segmentsOfLine?: string[][];
+    lineation?: Lineation[];
   } = {},
 ) {
   return lineMarks({
     segmentsOfLine: input.segmentsOfLine ?? segmentsOfLine,
+    ...(input.lineation ? { lineation: input.lineation } : {}),
     segments: input.segments ?? {},
     shown: input.shown ?? all,
     orders: input.orders ?? [],
@@ -243,5 +245,116 @@ describe('marks that would stand over one another', () => {
     const lanes = [...map.values()].flat().map((p) => p.lane);
     expect(Math.max(...lanes)).toBe(MARGIN_LANES - 1);
     expect(lanes.length).toBe(2 + 2 + 1);
+  });
+});
+
+describe('by the kind of the paragraph', () => {
+  // Lines 3 and 4 are prose; the others are verse.
+  const lineation: Lineation[] = ['verse', 'verse', 'verse', 'prose', 'prose', 'verse'];
+
+  /** A passage of s1, s2 and s3 (three words each) with a variant over the words of the segments `from` to `to` of those. */
+  function wide(from: number, to: number): SegmentSites {
+    const ids = ['s1', 's2', 's3'];
+    return {
+      segmentId: 's1',
+      label: '1.2',
+      segments: ids.map((segmentId, k) => ({
+        segmentId,
+        from: k * 3,
+        to: k * 3 + 3,
+        printed: true,
+      })),
+      siteSegments: { 0: ids.slice(from, to + 1) },
+      collation: {
+        sites: [{ index: 0, baseFrom: from * 3, baseTo: to * 3 + 3, wanting: true } as Site],
+      },
+      baseUnits: [],
+      attachments: {},
+    };
+  }
+
+  it('leaves a segment some witnesses do not have to its words in prose, and marks it in the margin in verse', () => {
+    expect(listed(marks({ segments: { s3: wanting('s3') }, lineation }))).toEqual([]);
+    expect(listed(marks({ segments: { s2: wanting('s2') }, lineation }))).toEqual([
+      '2 wanting solo 0 first s2:0',
+    ]);
+    // The same text, all verse, is marked as it was.
+    expect(listed(marks({ segments: { s3: wanting('s3') } }))).toEqual([
+      '3 wanting solo 0 first s3:0',
+    ]);
+  });
+
+  it('marks a stretch over both kinds in the verse and leaves the prose to its words', () => {
+    // 1.3 (verse, line 2) and 1.4 (prose, line 3): the rule is along line 2 only.
+    expect(listed(marks({ segments: { s1: wide(1, 2) }, lineation }))).toEqual([
+      '2 wanting solo 0 first s1:0',
+    ]);
+  });
+
+  it('breaks a mark where a paragraph of the other kind comes between, with one stop for the whole', () => {
+    // Lines 1 and 3 are verse, line 2 prose: two strokes, the first the stop.
+    const kinds: Lineation[] = ['verse', 'verse', 'prose', 'verse', 'verse', 'verse'];
+    expect(listed(marks({ segments: { s1: wide(0, 2) }, lineation: kinds }))).toEqual([
+      '1 wanting solo 0 first s1:0',
+      '3 wanting solo 0 next s1:0',
+    ]);
+  });
+
+  it('marks a segment the edition does not print in the margin after a line of verse, and not after prose', () => {
+    expect(listed(marks({ segments: { s1: withUnprinted('s1', 'u') }, lineation }))).toEqual([
+      '1 unprinted solo 0 first s1:0',
+    ]);
+    expect(listed(marks({ segments: { s3: withUnprinted('s3', 'u') }, lineation }))).toEqual([]);
+  });
+
+  it('puts a bracket along the lines of verse of segments in another order, and leaves their labels in prose to labelMarks', () => {
+    const map = marks({ orders: [order_(['s2', 's3', 's4'])], lineation });
+    expect(listed(map)).toEqual(['2 order solo 0 first order:0']);
+    expect(listed(marks({ orders: [order_(['s3', 's4'])], lineation }))).toEqual([]);
+  });
+});
+
+describe('the labels in prose that mark segments in another order', () => {
+  // A prose paragraph (line 0) in which 1.1 begins at its first item and 1.2, 1.3 in it; a verse line (line 1) for 1.4.
+  const lines: LabelLine[] = [
+    {
+      lineation: 'prose',
+      from: 10,
+      items: [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }],
+      starts: [
+        { segmentId: 's0', itemIndex: 10 },
+        { segmentId: 's1', itemIndex: 12 },
+        { segmentId: 's2', itemIndex: 13 },
+      ],
+    },
+    {
+      lineation: 'verse',
+      from: 14,
+      items: [{ id: 'e' }],
+      starts: [{ segmentId: 's3', itemIndex: 14 }],
+    },
+  ];
+
+  it('stand on the label in the margin of the paragraph that begins with the segment, and on each in the text', () => {
+    const found = labelMarks(lines, [order_(['s0', 's1'])]);
+    expect([...found.margin]).toEqual([[0, 'order:0']]);
+    expect([...found.inline]).toEqual([['c', 'order:0']]);
+    // The first of the variant's labels is its stop.
+    expect([...found.stops.margin]).toEqual([0]);
+    expect([...found.stops.inline]).toEqual([]);
+  });
+
+  it('are the stop of the first label only, and keep the keys of two variants on one label together', () => {
+    const found = labelMarks(lines, [order_(['s1', 's2']), order_(['s2'])]);
+    expect([...found.inline]).toEqual([
+      ['c', 'order:0'],
+      ['d', 'order:0 order:1'],
+    ]);
+    expect([...found.stops.inline].sort()).toEqual(['c', 'd']);
+  });
+
+  it('leave the segments in verse to the bracket in the margin', () => {
+    const found = labelMarks(lines, [order_(['s3'])]);
+    expect(found.margin.size + found.inline.size).toBe(0);
   });
 });

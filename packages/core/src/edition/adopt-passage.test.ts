@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { collatePassages, type Passage, type StreamText } from '../collate/passage.ts';
 import { sequentialIds } from '../ids.ts';
-import { isBreak, isToken, type Id, type Item, type Stream } from '../stream/items.ts';
+import {
+  isBreak,
+  isToken,
+  type Id,
+  type Item,
+  type Lineation,
+  type Stream,
+} from '../stream/items.ts';
 import { applyOps } from '../stream/ops.ts';
 import { segmentRuns } from '../stream/words.ts';
 import { adoptConjecture, adoptReading } from './adopt.ts';
@@ -49,14 +56,26 @@ function show(s: Stream): string {
 }
 
 /** Adopt the reading of `textId` at the passage's only site (or the one given). */
-function adopt(edition: StreamText, passage: Passage, textId: Id, ownLine?: boolean, site = 0) {
+function adopt(
+  edition: StreamText,
+  passage: Passage,
+  textId: Id,
+  options: { ownLine?: boolean; lineation?: Lineation } = {},
+  site = 0,
+) {
   const at = passage.collation.sites[site]!;
   const reading = at.readings.find((r) => r.textIds.includes(textId))!;
   const ops = adoptReading(edition.stream, at, passage.base.units, reading, textId, {
     ids: sequentialIds('n'),
-    ...(ownLine === undefined ? {} : { ownLine }),
+    ...options,
   });
   return applyOps(edition.stream, ops).stream;
+}
+
+/** The edition with its first paragraph marked as verse or prose, by a paragraph break that opens the text. */
+function marked(edition: StreamText, lineation: Lineation): StreamText {
+  const opening: Item = { kind: 'break', id: 'p0', type: 'paragraph', lineation };
+  return { ...edition, stream: { items: [opening, ...edition.stream.items] } };
 }
 
 describe('adopting across a segment boundary', () => {
@@ -91,7 +110,53 @@ describe('adopting across a segment boundary', () => {
       text('A', 's1: a b', 's2: c d', 's3: e f'),
     ]).passages;
     expect(show(adopt(edition, passage!, 'A'))).toBe('a@s1 b@s1 / c@s2 d@s2 / e@s3 f@s3');
-    expect(show(adopt(edition, passage!, 'A', false))).toBe('a@s1 b@s1 c@s2 d@s2 / e@s3 f@s3');
+    expect(show(adopt(edition, passage!, 'A', { ownLine: false }))).toBe(
+      'a@s1 b@s1 c@s2 d@s2 / e@s3 f@s3',
+    );
+  });
+
+  it('prints it by the kind of the paragraph where it goes: on a line of its own in verse, in the run of the text in prose', () => {
+    const plain = text('E', 's1: a b', 's3: e f');
+    const witness = text('A', 's1: a b', 's2: c d', 's3: e f');
+    const printed = (edition: StreamText, options?: { ownLine?: boolean; lineation?: Lineation }) =>
+      show(adopt(edition, collatePassages(edition, [witness]).passages[0]!, 'A', options));
+    // The paragraph's own mark decides, whatever the edition's convention is.
+    expect(printed(marked(plain, 'verse'), { lineation: 'prose' })).toBe(
+      '/ a@s1 b@s1 / c@s2 d@s2 / e@s3 f@s3',
+    );
+    expect(printed(marked(plain, 'prose'), { lineation: 'verse' })).toBe(
+      '/ a@s1 b@s1 c@s2 d@s2 / e@s3 f@s3',
+    );
+    // Where a paragraph is not marked, the edition's convention does.
+    expect(printed(plain, { lineation: 'prose' })).toBe('a@s1 b@s1 c@s2 d@s2 / e@s3 f@s3');
+    expect(printed(plain, { lineation: 'verse' })).toBe('a@s1 b@s1 / c@s2 d@s2 / e@s3 f@s3');
+    expect(printed(plain)).toBe('a@s1 b@s1 / c@s2 d@s2 / e@s3 f@s3');
+    // Said outright, it is as said.
+    expect(printed(marked(plain, 'prose'), { ownLine: true })).toBe(
+      '/ a@s1 b@s1 / c@s2 d@s2 / e@s3 f@s3',
+    );
+  });
+
+  it('prints each segment by the paragraph it goes in, in one text of a prose paragraph and a verse paragraph', () => {
+    // A prose paragraph (1.1, 1.3), then a verse paragraph (1.4, 1.6); the witness has 1.2 and 1.5 as well.
+    const edition = text('E', 's1: a b', 's3: e f', 's4: g h', 's6: k l');
+    const items = edition.stream.items;
+    items[items.findIndex((item) => item.id === 'El2')] = {
+      kind: 'break',
+      id: 'p1',
+      type: 'paragraph',
+      lineation: 'verse',
+    };
+    items.unshift({ kind: 'break', id: 'p0', type: 'paragraph', lineation: 'prose' });
+    const witness = text('A', 's1: a b', 's2: c d', 's3: e f', 's4: g h', 's5: x y', 's6: k l');
+    // Nothing crosses the boundary between 1.3 and 1.4: two passages, a variant at a point in each.
+    const [inProse, inVerse] = collatePassages(edition, [witness]).passages;
+    expect(show(adopt(edition, inProse!, 'A'))).toBe(
+      '/ a@s1 b@s1 c@s2 d@s2 / e@s3 f@s3 / g@s4 h@s4 / k@s6 l@s6',
+    );
+    expect(show(adopt(edition, inVerse!, 'A'))).toBe(
+      '/ a@s1 b@s1 / e@s3 f@s3 / g@s4 h@s4 / x@s5 y@s5 / k@s6 l@s6',
+    );
   });
 
   it('takes out the words of a whole segment a witness is without, its line with them', () => {

@@ -6,6 +6,7 @@ import {
   formatRanges,
   inlineStarts,
   lineLabels,
+  proseTokens,
   resolveFocus,
   segmentOfItems,
   segmentsByLine,
@@ -168,6 +169,11 @@ describe('blocksOf, verse and prose in one text', () => {
       ['b', '2'],
       ['g', '7'],
     ]);
+  });
+
+  it('knows the words that stand in prose, line breaks inside it notwithstanding', () => {
+    const { lines } = mixed();
+    expect([...proseTokens(lines)].sort()).toEqual(['a', 'b', 'f', 'g']);
   });
 });
 

@@ -40,6 +40,36 @@ export function paragraphKinds(
 }
 
 /**
+ * The kind of the paragraph each of the items asked for stands in, by one
+ * pass over the text: for the few items that a mark or an adoption concerns.
+ * A paragraph break stands in the paragraph it opens. An item that is not in
+ * the text is not in the answer.
+ */
+export function lineationsAt(
+  items: readonly Item[],
+  ids: ReadonlySet<Id>,
+  convention: Lineation = 'verse',
+): Map<Id, Lineation> {
+  const out = new Map<Id, Lineation>();
+  if (ids.size === 0) return out;
+  let kind = convention;
+  for (const item of items) {
+    if (item.kind === 'break' && item.type === 'paragraph') kind = lineationOf(item, convention);
+    if (ids.has(item.id)) out.set(item.id, kind);
+  }
+  return out;
+}
+
+/** The kind of the paragraph an item stands in; the edition's convention for an item that is not in the text. */
+export function lineationAt(
+  items: readonly Item[],
+  id: Id,
+  convention: Lineation = 'verse',
+): Lineation {
+  return lineationsAt(items, new Set([id]), convention).get(id) ?? convention;
+}
+
+/**
  * What a text shows of its breaks, by the kind of each paragraph: the words
  * that are divided by the end of a line that is shown, and so are written
  * with a hyphen there (a joined token that a break follows, in a verse

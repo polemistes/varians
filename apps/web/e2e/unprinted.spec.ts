@@ -8,7 +8,7 @@
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { createDatabase, editions, referenceSchemes, users, witnesses, works } from '@varians/db';
-import { segmentAt, type Stream } from '@varians/core';
+import { segmentAt, type Item, type Stream, type Token } from '@varians/core';
 import { eq, inArray } from 'drizzle-orm';
 import { editor as ed } from '../src/lib/strings/editor';
 import { reader as rd } from '../src/lib/strings/reader';
@@ -46,6 +46,42 @@ async function sourcesOf(label: string): Promise<unknown[]> {
   return content.items.flatMap((item, i) =>
     item.kind === 'token' && segmentAt(content, i)?.segmentId === segment!.id ? [item.source] : [],
   );
+}
+
+/** What stands before the words of a segment in the edition's stored text, and after them: `token`, or the kind of the break. */
+async function standsBetween(label: string): Promise<[string | undefined, string | undefined]> {
+  const { db, pool } = createDatabase(DATABASE_URL);
+  const [edition] = await db
+    .select({ content: editions.content, workId: editions.workId })
+    .from(editions)
+    .where(eq(editions.slug, 'iliad-1-working-edition'));
+  const segment = await db.query.segments.findFirst({
+    where: (t, { and, eq }) => and(eq(t.workId, edition!.workId), eq(t.label, label)),
+  });
+  await pool.end();
+  const items = (edition!.content as Stream).items;
+  const first = items.findIndex(
+    (item) => item.kind === 'token' && item.segment?.segmentId === segment!.id,
+  );
+  let last = first;
+  while (items[last + 1]?.kind === 'token' && !(items[last + 1] as Token).segment) last++;
+  const name = (item: Item | undefined) =>
+    item === undefined ? undefined : item.kind === 'break' ? `${item.type} break` : item.kind;
+  return [name(items[first - 1]), name(items[last + 1])];
+}
+
+/** Make the edition's paragraphs verse or prose, the kind it has where no paragraph is marked. */
+async function setLineation(lineation: 'verse' | 'prose') {
+  const { db, pool } = createDatabase(DATABASE_URL);
+  const [edition] = await db
+    .select({ conventions: editions.conventions })
+    .from(editions)
+    .where(eq(editions.slug, 'iliad-1-working-edition'));
+  await db
+    .update(editions)
+    .set({ conventions: { ...edition!.conventions, lineation } })
+    .where(eq(editions.slug, 'iliad-1-working-edition'));
+  await pool.end();
 }
 
 async function lines(page: Page): Promise<string[]> {
@@ -94,7 +130,7 @@ test.afterAll(async () => {
   await pool.end();
 });
 
-test('a line the edition does not print is marked, stepped to, adopted, taken back and printed again', async ({
+test('a segment the edition does not print is marked, stepped to, adopted, taken back and printed again', async ({
   page,
 }) => {
   // Nothing the page does while the text and the server's answer differ may throw.
@@ -238,5 +274,88 @@ test('a line the edition does not print is marked, stepped to, adopted, taken ba
   expect(text).toHaveLength(lineCount);
   await expect(marks).toHaveCount(0);
   expect(await sourcesOf('1.6')).toEqual(printedFrom);
+  expect(errors).toEqual([]);
+});
+
+test('in a prose paragraph a segment the edition does not print is marked by a point in the text, not between two lines', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await setLineation('prose');
+  await page.goto('/login');
+  await page.getByLabel(s.auth.email).fill(email);
+  await page.getByLabel(s.auth.password).fill(password);
+  await page.getByRole('button', { name: s.auth.logInAction }).click();
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'));
+  await page.setViewportSize({ width: 1500, height: 950 });
+  await page.goto('/editions/iliad-1-working-edition/edit');
+  await expect(page.locator('.cm-content')).toBeVisible();
+  await expect(page.locator('.apparatus-band')).toBeVisible();
+  // The text runs on: its lines are not shown.
+  await expect(page.locator('.cm-content .cm-line')).toHaveCount(1);
+  await expect(page.locator('.cm-point-mark')).toHaveCount(0);
+  const printedFrom = await sourcesOf('1.6');
+  expect(printedFrom.length).toBeGreaterThan(0);
+
+  // B and C run on without 1.6: adopting their reading takes it out of the text.
+  await section(page, '1.6')
+    .locator('button[title="Adopt"]', { hasText: rd.variant.notIn })
+    .click();
+  await saved(page);
+  expect(await lines(page)).toHaveLength(1);
+  expect((await lines(page))[0]).not.toContain(LINE_6);
+
+  // It is now a segment the edition does not print: a point in the text after the last word of 1.5, and no mark between lines.
+  const mark = page.locator('.cm-point-mark');
+  await expect(mark).toHaveCount(1, { timeout: 15_000 });
+  await expect(page.locator('.cm-margin-mark')).toHaveCount(0);
+  await expect(mark).toHaveAttribute('title', ed.notPrinted('1.6'));
+  const before = await mark.evaluate((el) => {
+    const range = document.createRange();
+    range.setStart(el.closest('.cm-line')!, 0);
+    range.setEndBefore(el);
+    return range.toString();
+  });
+  expect(before).toMatch(/βουλή,?$/);
+  await mark.click();
+  await expect(mark).toHaveClass(/cm-point-mark-active/);
+  const entry = page.locator('.apparatus-band section[data-unprinted]');
+  await expect(entry).toHaveCount(1);
+  await expect(entry.locator('.entry')).toHaveClass(/bg-accent-soft/);
+  if (SHOTS)
+    await page.locator('.cm-content').screenshot({ path: `${SHOTS}/editor-prose-point.png` });
+
+  // Stepping reaches it in its place.
+  await page.locator('.cm-content .cm-line').first().click();
+  await expect(mark).not.toHaveClass(/cm-point-mark-active/);
+  const step = page.getByTitle(ed.workspace.nextSite, { exact: true });
+  let reached = false;
+  for (let k = 0; k < 30 && !reached; k++) {
+    await step.click();
+    reached = (await mark.getAttribute('class'))?.includes('cm-point-mark-active') ?? false;
+  }
+  expect(reached, 'the step reaches the point').toBe(true);
+
+  // Adopting A's words prints the segment in the run of the text: no line of its own, and no line break before it.
+  await entry.locator('button[title="Adopt"]', { hasText: LINE_6 }).click();
+  await expect(mark).toHaveCount(0, { timeout: 15_000 });
+  await saved(page);
+  expect(await lines(page)).toHaveLength(1);
+  expect((await lines(page))[0]).toMatch(
+    /βουλή,\s*1\.6\s*ἐξ οὗ δὴ τὰ πρῶτα διαστήτην ἐρίσαντε\s*1\.7\s*Ἀτρεΐδης/,
+  );
+  // Stored, its words follow the last word of 1.5 directly, and the line break of the text stays after them.
+  expect(await standsBetween('1.6')).toEqual(['token', 'line break']);
+  expect(await sourcesOf('1.6')).toEqual(printedFrom);
+  await expect(page.locator('.apparatus-band section[data-unprinted]')).toHaveCount(0);
+  if (SHOTS)
+    await page.locator('.cm-content').screenshot({ path: `${SHOTS}/editor-prose-adopted.png` });
+
+  // Undo takes it back, the point with it returning.
+  await page.getByRole('button', { name: ed.workspace.undoAdoption('1.6') }).click();
+  await saved(page);
+  expect((await lines(page))[0]).not.toContain(LINE_6);
+  await expect(mark).toHaveCount(1, { timeout: 15_000 });
   expect(errors).toEqual([]);
 });

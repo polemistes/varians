@@ -284,6 +284,35 @@ test('draws a hyphen where a shown line divides a word, and runs a prose paragra
   await page.screenshot({ path: `${SHOTS}/reader-phone.png`, fullPage: true });
 });
 
+test('shows the history of the edition with the prose paragraph run on and a hyphen only where a shown line ends inside a word', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1300, height: 900 });
+  await signIn(page);
+  await openEditor(page);
+  await page.getByRole('tab', { name: ed.workspace.history }).click();
+  // The text as the first save made it, with its changes marked: every word and break is an addition.
+  await page.locator('[data-history-entry]').first().click();
+  const text = page.getByRole('region', { name: /^The text at version/ });
+  await expect(text).toBeVisible();
+  await expect(text.locator('[data-lineation="verse"]')).toHaveCount(8);
+  const prose = text.locator('[data-lineation="prose"]');
+  await expect(prose).toHaveCount(1);
+  // The words the line ends divide have a hyphen, in verse only: ana- across two segments, kap- within one.
+  await expect(text.locator('[data-lineation="verse"] .hyphen')).toHaveCount(2);
+  await expect(prose.locator('.hyphen')).toHaveCount(0);
+  // The prose runs on: the stored lines are not shown, and the divided word is one word, with the label of each segment in the run.
+  const run = await prose.locator('p').evaluate((p) => {
+    const copy = p.cloneNode(true) as HTMLElement;
+    for (const hidden of copy.querySelectorAll('.sr-only, .seg-label')) hidden.remove();
+    return (copy.textContent ?? '').replaceAll('¶', '').replace(/\s+/g, ' ').trim();
+  });
+  expect(run).toBe('nu xi omicron pi rho megalon sigma tau upsilon phi');
+  await expect(prose.locator('.seg-label')).toHaveText(['1.6', '1.7']);
+  await expect(prose.locator(':scope > span').first()).toHaveText('1.5');
+  await page.screenshot({ path: `${SHOTS}/history-verse-prose.png` });
+});
+
 test('shows a prose paragraph of the edition as one line in the editor, where Enter makes a paragraph', async ({
   page,
 }) => {

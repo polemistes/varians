@@ -88,6 +88,15 @@ export function segmentsByLine(lines: LayoutLine[]): string[][] {
   });
 }
 
+/** The words of the paragraphs that are prose: where a variant over whole segments is marked on the words, in the text. */
+export function proseTokens(lines: readonly LayoutLine[]): Set<string> {
+  const out = new Set<string>();
+  for (const line of lines)
+    if (line.lineation === 'prose')
+      for (const item of line.items) if (item.kind === 'token') out.add(item.id);
+  return out;
+}
+
 /** The segment each item of the text belongs to, null where the text is unassigned. */
 export function segmentOfItems(lines: LayoutLine[]): Map<string, string | null> {
   const out = new Map<string, string | null>();

@@ -4,13 +4,18 @@
    * who did it: added underlined on a tint, removed struck through where they
    * stood, re-spelt faintly underlined with the old spelling in the title,
    * moved with a small arrow. Null cells are clipped stretches (an ellipsis).
+   * In the run of a prose paragraph the label of a segment stands before the
+   * word it begins at.
    */
+  import type { Id } from '@varians/core';
   import type { Cell } from '$lib/history/types';
   import { cellText, spaceAfter } from '$lib/history/placement';
   import { historyStrings as t } from '$lib/strings/history';
 
   interface Props {
     cells: (Cell | null)[];
+    /** The labels of the segments that begin in the run, by the id of the item each begins at. */
+    labels?: Map<Id, string>;
     /** The CSS colour of a person's marks. */
     colorOf: (userId: string | null) => string;
     nameOf: (userId: string | null) => string;
@@ -21,7 +26,7 @@
     author?: string | null;
   }
 
-  let { cells, colorOf, nameOf, form = 'written', color, author }: Props = $props();
+  let { cells, labels, colorOf, nameOf, form = 'written', color, author }: Props = $props();
 
   function who(cell: Cell): string {
     return nameOf(cell.author ?? author ?? null);
@@ -59,7 +64,9 @@
   {:else}
     {@const text = cellText(cell.item, form)}
     {@const tint = color ?? colorOf(cell.author ?? author ?? null)}
-    {#if cell.removed}
+    {#if !cell.removed && labels?.has(cell.item.id)}<sup class="seg-label"
+        >{labels.get(cell.item.id)}</sup
+      >{/if}{#if cell.removed}
       <del class="mark-removed" style:--c={tint} title={title(cell)}
         ><span class="sr-only">{t.markRemoved}: </span>{text}</del
       >
@@ -81,11 +88,20 @@
       >
     {:else}
       <span class={cell.item.kind === 'token' ? undefined : 'text-ink-soft'}>{text}</span>
-    {/if}{#if spaceAfter(cell)}{' '}{/if}
+    {/if}{#if spaceAfter(cell, cells[i - 1])}{' '}{/if}
   {/if}
 {/each}
 
 <style>
+  .seg-label {
+    margin-inline: 0.15em 0.2em;
+    font-family: var(--font-sans);
+    font-size: 0.6em;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ink-muted);
+    user-select: none;
+  }
+
   .mark-added {
     text-decoration: underline;
     text-decoration-color: var(--c);

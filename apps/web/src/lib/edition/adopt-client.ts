@@ -12,6 +12,7 @@ import {
   type Attachment,
   type Collation,
   type Id,
+  type Lineation,
   type Op,
   type Reading,
   type Site,
@@ -53,7 +54,9 @@ export function insertionSitesAfter(segment: SegmentForAdoption, tokenId: Id): S
 /**
  * Operations adopting a witness reading of a site: its words, each in the
  * segment the witness gives it. Words of a segment the edition does not
- * have (at a segment it does not print) stand on a line of their own.
+ * have (at a segment it does not print) follow the paragraph of the
+ * variant: in verse they stand on a line of their own, in prose in the run of
+ * the text. `lineation` is the edition's kind of a paragraph that is not marked.
  */
 export function opsForReading(
   stream: Stream,
@@ -61,8 +64,9 @@ export function opsForReading(
   site: Site,
   reading: Reading,
   textId: Id,
+  lineation: Lineation = 'verse',
 ): Op[] {
-  return adoptReading(stream, site, segment.baseUnits, reading, textId, { ownLine: true });
+  return adoptReading(stream, site, segment.baseUnits, reading, textId, { lineation });
 }
 
 /**
@@ -91,7 +95,9 @@ export function opsForDeletion(
 
 /**
  * Operations adopting a conjecture or reported reading attached to a site.
- * Its words take the segment the record names (`segmentId`), where given.
+ * Its words take the segment the record names (`segmentId`), where given;
+ * where that is a segment the edition does not have they follow the paragraph
+ * of the variant, as `opsForReading` says.
  */
 export function opsForAttachment(
   stream: Stream,
@@ -99,6 +105,7 @@ export function opsForAttachment(
   site: Site,
   attachment: Attachment,
   segmentId?: Id,
+  lineation: Lineation = 'verse',
 ): Op[] {
   if (attachment.kind === 'conjecture' && attachment.conjectureKind === 'deletion') {
     return opsForDeletion(stream, segment, site, attachment.id);
@@ -114,7 +121,7 @@ export function opsForAttachment(
         source: { kind: 'editor' as const },
       }));
     return replaceAtSite(stream, site, segment.baseUnits, tokens, {
-      ownLine: true,
+      lineation,
       ...(segmentId !== undefined ? { segments: tokens.map(() => segmentId) } : {}),
     });
   }
@@ -128,7 +135,7 @@ export function opsForAttachment(
       kind: attachment.conjectureKind ?? 'substitution',
       ...(segmentId !== undefined ? { segmentId } : {}),
     },
-    { ownLine: true },
+    { lineation },
   );
 }
 

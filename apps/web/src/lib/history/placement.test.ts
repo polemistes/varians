@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { applyOps, fromText, sequentialIds, type Op, type Stream, type Token } from '@varians/core';
+import {
+  applyOps,
+  fromText,
+  sequentialIds,
+  type Item,
+  type Op,
+  type Stream,
+  type Token,
+} from '@varians/core';
 import { diffStates } from './diff.ts';
 import { cellText, renderLines, spaceAfter, type RenderLine } from './placement.ts';
 import { serializeDiff } from './types.ts';
@@ -97,6 +105,128 @@ describe('renderLines', () => {
     expect(lines[0]!.label).toBe('Ls1');
     expect(spaceAfter(lines[0]!.cells[1]!)).toBe(false);
     expect(spaceAfter(lines[0]!.cells[0]!)).toBe(true);
+  });
+});
+
+describe('renderLines, an edition with prose', () => {
+  /** `/` a line break, `//` a paragraph break (`//p` marked as prose, `//v` as verse), `+` a joined word, `@s` where a segment begins. */
+  function edition(spec: string): Stream {
+    const items: Item[] = [];
+    let n = 0;
+    for (const word of spec.split(/\s+/u)) {
+      if (word === '/' || word.startsWith('//')) {
+        const paragraph = word.startsWith('//');
+        const lineation = word === '//p' ? 'prose' : word === '//v' ? 'verse' : undefined;
+        items.push({
+          kind: 'break',
+          id: `b${++n}`,
+          type: paragraph ? 'paragraph' : 'line',
+          ...(lineation ? { lineation } : {}),
+        });
+        continue;
+      }
+      const [form, start] = word.split('@');
+      const joined = form!.endsWith('+');
+      items.push({
+        kind: 'token',
+        id: `t${++n}`,
+        form: joined ? form!.slice(0, -1) : form!,
+        ...(joined ? { joinNext: true } : {}),
+        ...(start ? { segment: { segmentId: start } } : {}),
+      });
+    }
+    return { items };
+  }
+  const label = (id: string) => `L${id}`;
+  const words = (line: RenderLine) => line.cells.map((c) => cellText(c.item)).join(' ');
+
+  it('runs a prose paragraph on as one line, its labels in the run, and breaks no word', () => {
+    // t1 a@s1, t2 b ana+, / , stasis@s2, c, / , d@s3 e
+    const stream = edition('a@s1 b ana+ / stasis c / d@s3 e');
+    const lines = renderLines(stream, null, label, { lineation: 'prose' });
+    expect(lines).toHaveLength(1);
+    expect(lines[0]!.lineation).toBe('prose');
+    // The line breaks are in the text and are not drawn; the divided word has no hyphen, and no space inside it.
+    expect(words(lines[0]!)).toBe('a b ana stasis c d e');
+    expect(lines[0]!.hyphen).toBe(false);
+    expect(spaceAfter(lines[0]!.cells[2]!)).toBe(false);
+    // The paragraph's first segment has its label in the margin, the others stand in the run where they begin.
+    expect(lines[0]!.label).toBe('Ls1');
+    expect([...lines[0]!.inlineLabels]).toEqual([['t8', 'Ls3']]);
+  });
+
+  it('shows verse in the lines the breaks make, a word divided where a line ends with its hyphen', () => {
+    const stream = edition('a@s1 ana+ / stasis@s2 c');
+    const lines = renderLines(stream, null, label, { lineation: 'verse' });
+    expect(lines.map(words)).toEqual(['a ana', 'stasis c']);
+    expect(lines.map((l) => l.hyphen)).toEqual([true, false]);
+    expect(lines.every((l) => l.lineation === 'verse' && l.inlineLabels.size === 0)).toBe(true);
+  });
+
+  it('takes each paragraph by its own kind: prose runs on, verse in lines, a hyphen only in verse', () => {
+    const stream = edition('a b / c d+ //p e f / g h+ / i j //v k l+ / m');
+    const lines = renderLines(stream, null, label, { lineation: 'verse' });
+    expect(lines.map((l) => `${l.lineation}: ${words(l)}`)).toEqual([
+      'verse: a b',
+      'verse: c d',
+      'prose: e f g h i j',
+      'verse: k l',
+      'verse: m',
+    ]);
+    expect(lines.map((l) => l.hyphen)).toEqual([false, true, false, true, false]);
+    expect(lines[2]!.paragraph).toBe(true);
+  });
+
+  it('draws a line break of a prose paragraph only where a change touched it, and says so', () => {
+    const before = edition('a b / c d');
+    const added = applyOps(before, [
+      { t: 'insert', after: 't4', items: [{ kind: 'break', id: 'nb', type: 'line' }] },
+    ]).stream;
+    const lines = renderLines(
+      added,
+      serializeDiff(diffStates(before, added)),
+      label,
+      { lineation: 'prose' },
+      { nb: 'ann' },
+    );
+    expect(lines).toHaveLength(1);
+    // The break that was there stays out of sight; the one added is marked in the run.
+    expect(lines[0]!.cells.map((c) => (c.added ? '+¶+' : cellText(c.item)))).toEqual([
+      'a',
+      'b',
+      'c',
+      '+¶+',
+      'd',
+    ]);
+    expect(lines[0]!.cells[3]!.author).toBe('ann');
+    // A break removed is put back as one, as it is in verse.
+    const removed = applyOps(before, [{ t: 'delete', ids: ['b3'] }]).stream;
+    const gone = renderLines(removed, serializeDiff(diffStates(before, removed)), label, {
+      lineation: 'prose',
+    });
+    expect(gone[0]!.cells.map((c) => (c.removed ? '-¶-' : cellText(c.item)))).toEqual([
+      'a',
+      'b',
+      '-¶-',
+      'c',
+      'd',
+    ]);
+  });
+
+  it('puts no space after the mark of a break that stands inside a divided word', () => {
+    const before = edition('a ana+ stasis b');
+    const divided = applyOps(before, [
+      { t: 'insert', after: 't2', items: [{ kind: 'break', id: 'nb', type: 'line' }] },
+    ]).stream;
+    const [line] = renderLines(divided, serializeDiff(diffStates(before, divided)), label, {
+      lineation: 'prose',
+    });
+    const cells = line!.cells;
+    expect(cells.map((c) => cellText(c.item))).toEqual(['a', 'ana', '¶', 'stasis', 'b']);
+    expect(spaceAfter(cells[1]!)).toBe(false);
+    expect(spaceAfter(cells[2]!, cells[1])).toBe(false);
+    // Between two words, the mark of a break is followed by a space as a word is.
+    expect(spaceAfter(cells[2]!, cells[0])).toBe(true);
   });
 });
 

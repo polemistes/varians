@@ -20,6 +20,7 @@
   } from '$lib/components/ui';
   import { compareOptions, type TimelineEntry } from '$lib/history/timeline';
   import { formatSpan } from '$lib/history/time';
+  import type { Lineation } from '@varians/core';
   import type { DocumentAtVersion } from '$lib/history/types';
   import { historyStrings as t } from '$lib/strings/history';
   import type { HistoryApi } from './api';
@@ -36,6 +37,8 @@
     timeline: TimelineEntry[];
     labelOf: Record<string, string>;
     numberEvery: number;
+    /** An edition's kind of a paragraph that is not marked. */
+    lineation?: Lineation;
     canEdit: boolean;
     colorOf: (userId: string | null) => string;
     nameOf: (userId: string | null) => string;
@@ -56,6 +59,7 @@
     timeline,
     labelOf,
     numberEvery,
+    lineation,
     canEdit,
     colorOf,
     nameOf,
@@ -244,6 +248,7 @@
         authors={data.authors}
         labelOf={labels}
         {numberEvery}
+        {lineation}
         {colorOf}
         nameOf={nameFor}
         label={t.textLabel(data.version)}

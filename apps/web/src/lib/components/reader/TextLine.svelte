@@ -6,8 +6,10 @@
    * carry the keys of their sites, and once the page is live the first word
    * of each site is a stop for the keyboard. A variant at a point between
    * two words has a small mark there, which opens it like a word and takes
-   * the keyboard's focus. A variant over whole lines has a mark in the margin
-   * before the line's words, the part of it that stands on this line.
+   * the keyboard's focus. In verse, a variant over whole segments has a mark in
+   * the margin before the line's words, the part of it that stands on this
+   * line. In prose the same variants are marked in the text: on the words, at
+   * the point, and for the order of segments on the labels of the segments.
    */
   import type { LayoutLine } from '@varians/core';
   import type { MarginPart } from '$lib/reader/line-marks';
@@ -37,6 +39,14 @@
     pointsBefore: Map<string, PointMark>;
     /** The parts of the marks in the margin that stand on this line. */
     margin: MarginPart[];
+    /** The keys of the variants over the order of segments that the label in the margin of this prose paragraph opens. */
+    labelKeys: string | undefined;
+    /** The label in the margin is the first of its variant: it takes the keyboard's focus. */
+    labelStop: boolean;
+    /** The keys of the variants over the order of segments that each label in the text opens, by the item it stands before. */
+    inlineKeys: Map<string, string>;
+    /** The labels in the text that take the keyboard's focus. */
+    inlineStops: Set<string>;
     underline: boolean;
     interactive: boolean;
     /** Mid-line segment starts, labelled in the line: item id to label. */
@@ -66,6 +76,10 @@
     pointsAfter,
     pointsBefore,
     margin,
+    labelKeys,
+    labelStop,
+    inlineKeys,
+    inlineStops,
     underline,
     interactive,
     inlineLabels,
@@ -147,7 +161,15 @@
   {dir}
 >
   <span class="label"
-    >{#if label}{#if labelHref}<a
+    >{#if label}{#if labelKeys}<!-- The label of a segment in another order opens its variant, in the place of its link. --><!-- svelte-ignore a11y_no_noninteractive_tabindex --><span
+          class={['label-mark', underline && 'dotted']}
+          data-sites={labelKeys}
+          role={interactive ? 'button' : undefined}
+          tabindex={interactive ? (labelStop ? 0 : -1) : undefined}
+          aria-haspopup={interactive ? 'dialog' : undefined}
+          aria-label={interactive ? r.variant.segmentAt(label) : undefined}
+          title={r.variant.segmentAt(label)}>{label}</span
+        >{:else if labelHref}<a
           href={labelHref}
           data-sveltekit-noscroll
           aria-label={r.text.permalink(label)}>{label}</a
@@ -158,8 +180,17 @@
     >{/if}
   <span class="words"
     ><span class="run" data-focus={focusLine ? '' : undefined}
-      >{#each flow as piece, n (piece.id)}{#if n > 0 && piece.space && !(piece.kind === 'paratext' && piece.type === 'head')}{' '}{/if}{#if inlineLabels.has(piece.id)}<sup
-            class="inline-label">{inlineLabels.get(piece.id)}</sup
+      >{#each flow as piece, n (piece.id)}{#if n > 0 && piece.space && !(piece.kind === 'paratext' && piece.type === 'head')}{' '}{/if}{#if inlineLabels.has(piece.id)}{@const keys =
+            inlineKeys.get(piece.id)}{@const named = r.variant.segmentAt(
+            inlineLabels.get(piece.id) ?? '',
+          )}<!-- svelte-ignore a11y_no_noninteractive_tabindex --><sup
+            class={['inline-label', keys && 'label-mark', keys && underline && 'dotted']}
+            data-sites={keys}
+            role={interactive && keys ? 'button' : undefined}
+            tabindex={interactive && keys ? (inlineStops.has(piece.id) ? 0 : -1) : undefined}
+            aria-haspopup={interactive && keys ? 'dialog' : undefined}
+            aria-label={interactive && keys ? named : undefined}
+            title={keys ? named : undefined}>{inlineLabels.get(piece.id)}</sup
           >{/if}{#if piece.kind === 'token'}{@const keys = sitesOf.get(piece.id)}{@const live =
             interactive && marked.has(piece.id)}{#if pointsBefore.has(piece.id)}{@render point(
               pointsBefore.get(piece.id)!,
@@ -254,6 +285,27 @@
   .label a:hover {
     color: var(--color-accent);
     text-decoration: underline;
+  }
+
+  /* A label that opens a variant, as a word does: dotted, and lit while its variant is. */
+  .label-mark {
+    cursor: pointer;
+    border-radius: 0.15em;
+  }
+
+  .label-mark:hover {
+    color: var(--color-accent);
+    text-decoration-color: var(--color-accent);
+  }
+
+  .label-mark:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+  }
+
+  .label-mark:global([data-lit]),
+  .label-mark:global([data-active]) {
+    background-color: var(--color-accent-soft);
   }
 
   .speaker-margin {
@@ -400,15 +452,15 @@
   }
 
   /*
-   * The marks of variants over whole lines stand in the margin on the start
+   * The marks of variants over whole segments stand in the margin on the start
    * side, in the space between the labels and the words, so that they are
    * beside the lines they mark and the labels are not crowded: the label's
    * padding leaves room for one lane, and the text makes room for a second
    * (`--marks-room`) where two marks meet. Each part is a box as tall as its
    * line, one lane wide, with the stroke drawn inside it: a plain rule for a
-   * line some witnesses do not have, a bracket opening toward the text for
-   * lines in another order, a caret pointing into the text between two lines
-   * for a line the edition does not print. The parts of one mark are on
+   * segment some witnesses do not have, a bracket opening toward the text for
+   * segments in another order, a caret pointing into the text between two lines
+   * for a segment the edition does not print. The parts of one mark are on
    * consecutive lines and join.
    */
   .mm {

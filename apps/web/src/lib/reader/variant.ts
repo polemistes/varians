@@ -57,8 +57,8 @@ export type Chip = WitnessChip | GroupChip;
 
 /**
  * What stands in place of a reading's words where they are not there to be
- * quoted, or before them: where a block of lines stands is said "after" the
- * line it follows, or "first" where it opens the text.
+ * quoted, or before them: where a block of segments stands is said "after" the
+ * segment it follows, or "first" where it opens the text.
  */
 export type Lead = 'notIn' | 'delete' | 'lacuna' | 'add' | 'move' | 'after' | 'first';
 
@@ -69,16 +69,16 @@ export type Rest =
 
 /**
  * Where a variant stands: its words, or the word a point between two words
- * follows or precedes; for whole lines, their labels. In a link, only the
+ * follows or precedes; for whole segments, their labels. In a link, only the
  * word it follows or precedes.
  */
 export interface Where {
   words: string;
   place: { side: 'after' | 'before'; word: string } | null;
   /**
-   * A variant over whole lines has no words to quote and is named by labels:
-   * those of the lines it concerns ("1.4–1.5"), and, for a line the edition
-   * does not print, the label of the line it stands after.
+   * A variant over whole segments has no words to quote and is named by labels:
+   * those of the segments it concerns ("1.4–1.5"), and, for a segment the edition
+   * does not print, the label of the segment it stands after.
    */
   lines?: { labels: string; after?: string };
 }
@@ -149,9 +149,9 @@ export interface VariantContext {
   groups?: readonly EditionGroup[];
   /** How the edition prints its words; without it the words are the collation's. */
   edition?: EditionPrint;
-  /** The labels of the segments, those the edition does not print included, for variants over whole lines. */
+  /** The labels of the segments, those the edition does not print included, for variants over whole segments. */
   labelOf?: Readonly<Record<string, string>>;
-  /** The edition's segments in the order of its text, to tell a run of lines from lines apart. */
+  /** The edition's segments in the order of its text, to tell a run of segments from segments apart. */
   order?: readonly string[];
   /** Where witnesses have whole segments in another order, as the page was sent them: a variant is at its place in the list. */
   orders?: readonly OrderVariant[];
@@ -467,8 +467,8 @@ function placeOf(segment: ReaderSegment, from: number, to: number): Where['place
 
 /**
  * The edition's words at a site, and where it stands, as the head of the
- * window says it. A line the edition does not print has no words of the
- * edition: it stands after the line before it.
+ * window says it. A segment the edition does not print has no words of the
+ * edition: it stands after the segment before it.
  */
 function whereOf(segment: ReaderSegment, site: Site, context: VariantContext): Where {
   const base = site.readings.find((reading) => reading.base);
@@ -745,7 +745,7 @@ export function labelsOf(
  * A variant over the order of whole segments as the window lists it, by its
  * place among the page's (`context.orders`), or null when there is none. The
  * rows are the segments' labels in each order, the edition's first; for a
- * block far from its place, after which line each reading has it, or "first"
+ * block far from its place, after which segment each reading has it, or "first"
  * where it opens the text. The witnesses that are there are those in its
  * readings.
  */

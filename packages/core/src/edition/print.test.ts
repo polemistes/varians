@@ -72,6 +72,35 @@ describe('printing a segment the edition does not print', () => {
     expect(print('a1@s1 a2 / b1@s2 b2', 's1', 'n1', 'n2')).toBe('a1@s1 a2 / n1@new n2 / b1@s2 b2');
   });
 
+  it('goes in the run of the text where the word it follows stands in prose', () => {
+    const verse = build('a1@s1 a2 / b1@s2 b2');
+    const prose: Stream = {
+      items: [{ kind: 'break', id: 'pp', type: 'paragraph', lineation: 'prose' }, ...verse.items],
+    };
+    const printed = (stream: Stream, options: Parameters<typeof printSegment>[4]) =>
+      show(
+        applyOps(
+          stream,
+          printSegment(stream, 'new', 's1', words('n1', 'n2'), {
+            ids: sequentialIds('brk'),
+            ...options,
+          }),
+        ).stream,
+      );
+    // The paragraph's mark decides; where there is none, the edition's convention; said outright, as said.
+    expect(printed(prose, {})).toBe('/ a1@s1 a2 n1@new n2 / b1@s2 b2');
+    expect(printed(prose, { lineation: 'verse' })).toBe('/ a1@s1 a2 n1@new n2 / b1@s2 b2');
+    expect(printed(verse, { lineation: 'prose' })).toBe('a1@s1 a2 n1@new n2 / b1@s2 b2');
+    expect(printed(verse, {})).toBe('a1@s1 a2 / n1@new n2 / b1@s2 b2');
+    expect(printed(prose, { ownLine: true })).toBe('/ a1@s1 a2 / n1@new n2 / b1@s2 b2');
+    // No other word changes segment.
+    const next = applyOps(
+      prose,
+      printSegment(prose, 'new', 's1', words('n1', 'n2'), { ids: sequentialIds('brk') }),
+    ).stream;
+    expect(members(next)).toMatchObject({ a1: 's1', a2: 's1', n1: 'new', n2: 'new', b1: 's2' });
+  });
+
   it('after the last line of the text, ends the text', () => {
     expect(print('a1@s1 / b1@s2 b2', 's2', 'n1')).toBe('a1@s1 / b1@s2 b2 / n1@new');
   });

@@ -94,7 +94,13 @@ import {
   type VariantFound,
 } from './marks.ts';
 import { setTokenClasses, tokenClassField, type TokenClasses } from './highlight.ts';
-import { marginGutter, marginMarksField, setMarginMarks, type MarginMark } from './margin.ts';
+import {
+  marginGutter,
+  marginMarksField,
+  pointMarks,
+  setMarginMarks,
+  type MarginMark,
+} from './margin.ts';
 import { buildModel, type Model, type ModelOptions } from './model.ts';
 import { hiddenBreakAt, lineationIn, markLineation, paragraphAt } from './paragraphs.ts';
 import { breakAt, breakPreview, setBreakPreview, type BreakPreview } from './preview.ts';
@@ -133,7 +139,7 @@ export interface EditorProps {
   lineation?: Lineation | null;
   /** Classes to put on tokens: highlights the host decides (variant sites, a hovered zone's words). */
   tokenClasses?: TokenClasses;
-  /** Marks in a margin between lines, each after the line of an item; no margin when absent. */
+  /** Marks of what stands after an item and has no words: in a margin between lines, or in prose a point after the item; none when absent. */
   marginMarks?: MarginMark[];
   /** The name of a hand as a mark records it, for tooltips; the value itself when absent. */
   handLabel?: (value: string) => string;
@@ -592,7 +598,9 @@ export class VariansEditor implements EditorApi {
   }
 
   private marginExtension(shown: boolean): Extension {
-    return shown ? marginGutter((key) => this.callbacks.onmarginmark?.(key)) : [];
+    if (!shown) return [];
+    const open = (key: string) => this.callbacks.onmarginmark?.(key);
+    return [marginGutter(open), pointMarks(open)];
   }
 
   private lineNumberGutter(): Extension {

@@ -14,6 +14,7 @@ import {
   type Break,
   type Id,
   type Item,
+  type Lineation,
   type Stream,
   type Token,
   type TokenSource,
@@ -21,15 +22,38 @@ import {
 import { orphanedLineBreak, repairSegmentStartsFrom } from '../stream/move.ts';
 import { applyOp, type Op } from '../stream/ops.ts';
 import { segmentRuns, type Unit } from '../stream/words.ts';
+import { lineationAt } from './layout.ts';
 
 export interface AdoptOptions {
   ids?: () => Id;
   /**
    * Where adopted words are of a segment the edition does not have, they
-   * stand on a line of their own, as a line of verse (true, the default),
-   * or in the run of the text, as prose (false).
+   * stand on a line of their own, as a line of verse (true), or in the run of
+   * the text, as prose (false). Where it is not given, the paragraph decides:
+   * the words stand on a line of their own where the place they go after is
+   * in a verse paragraph, and in the run of the text where it is in prose.
    */
   ownLine?: boolean;
+  /** The edition's kind of a paragraph that is not marked, for deciding by the paragraph; verse where absent. */
+  lineation?: Lineation;
+}
+
+/**
+ * Whether words printed after the item `at` (null: at the start of the text)
+ * stand on a line of their own: as `ownLine` says, else where that item is in
+ * a verse paragraph (`options.lineation` is the edition's kind of a paragraph
+ * that is not marked).
+ */
+export function standsOnOwnLine(
+  stream: Stream,
+  at: Id | null,
+  options: Pick<AdoptOptions, 'ownLine' | 'lineation'>,
+): boolean {
+  if (options.ownLine !== undefined) return options.ownLine;
+  const item = at ?? stream.items[0]?.id;
+  return (
+    item === undefined || lineationAt(stream.items, item, options.lineation ?? 'verse') !== 'prose'
+  );
 }
 
 export interface ReplaceOptions extends AdoptOptions {
@@ -181,7 +205,8 @@ type Place =
  * stands in that segment (so that at a boundary between two segments the
  * words go to their own side of it); and where the segment is one the
  * edition does not have at all, on a line of their own after what precedes
- * them (`ownLine`, the default), or in the run of the text. No other word of
+ * them where that is in a verse paragraph, or in the run of the text where it
+ * is in prose (`standsOnOwnLine`). No other word of
  * the edition changes segment: the segment starts are repaired as a move
  * repairs them, and the parts of a segment numbered in content order.
  */
@@ -318,7 +343,7 @@ export function replaceAtSite(
           ? place.id
           : itemBefore(place.kind === 'words' ? place.ids[0]! : place.id));
       const fresh = group.segment !== null && !known.has(group.segment);
-      if (fresh && options.ownLine !== false) {
+      if (fresh && standsOnOwnLine(current, anchor, options)) {
         const end =
           anchor !== null && !isBreak(current.items.find((i) => i.id === anchor))
             ? lineEnd(anchor)

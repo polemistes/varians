@@ -127,7 +127,7 @@ test('moves a line with its label and reports the order of the witnesses', async
   await page.keyboard.press('Alt+Shift+ArrowUp');
   await saved(page);
   await expect(page.locator('.cm-segment-gutter')).toContainText(/1\.7\s*1\.9\s*1\.8/);
-  // The order of whole lines is a variant of its own, at the first of its lines, in rows of labels.
+  // The order of whole segments is a variant of its own, at the first of its lines, in rows of labels.
   const order = page.locator('.apparatus-band [data-order]');
   await expect(order).toHaveCount(1);
   await expect(order.getByRole('button', { name: '1.9–1.8' })).toBeVisible();
@@ -392,8 +392,8 @@ test('opens a variant as a list, and a variant at a point between two words by i
   await expect(page.locator('.conspectus-row.selected')).toContainText('Venetus B');
   await page.getByRole('button', { name: rd.panels.close(rd.toolbar.witnesses) }).click();
 
-  // A line some witnesses do not have: its mark is in the margin, and their row reads "not in", whatever the reason.
-  await reader.getByRole('button', { name: rd.variant.lineAt('1.6') }).click();
+  // A segment some witnesses do not have: its mark is in the margin, and their row reads "not in", whatever the reason.
+  await reader.getByRole('button', { name: rd.variant.segmentAt('1.6') }).click();
   const lacking = page.getByRole('dialog', { name: rd.entry.title('1.6') });
   await expect(lacking.locator('.row').first()).toContainText('ἐξ οὗ δὴ τὰ πρῶτα');
   const notIn = lacking.locator('.row', { hasText: rd.variant.notIn });

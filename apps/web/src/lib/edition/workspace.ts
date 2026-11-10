@@ -5,6 +5,7 @@
  * on the edition's words.
  */
 import {
+  lineationsAt,
   printPlace,
   segmentAt,
   segmentIds as segmentIdsOf,
@@ -12,6 +13,7 @@ import {
   touchedIds,
   type Id,
   type Item,
+  type Lineation,
   type Op,
   type Reading,
   type Site,
@@ -320,27 +322,32 @@ export function windowAround(
 /**
  * Where the mark of a segment the edition does not print stands in the
  * text: after the item the line would be printed after (`printPlace`), for
- * each such variant that shows. In the order of the text.
+ * each such variant that shows. In the order of the text. Where that item
+ * stands in a prose paragraph (`convention` is the edition's kind of a
+ * paragraph that is not marked) the mark is the point after it, in the text;
+ * in verse it stands between two lines, in the margin.
  */
 export function unprintedMarks(
   stream: Stream,
   order: Id[],
   outlines: Record<Id, SegmentOutline>,
-): { passage: Id; segmentId: Id; after: Id; site: SiteOutline }[] {
-  const out: { passage: Id; segmentId: Id; after: Id; site: SiteOutline }[] = [];
+  convention: Lineation = 'verse',
+): { passage: Id; segmentId: Id; after: Id; site: SiteOutline; inText: boolean }[] {
+  const found: { passage: Id; segmentId: Id; after: Id; site: SiteOutline }[] = [];
   for (const ref of sitesInOrder(order, outlines)) {
     const unprinted = ref.site.unprinted;
     if (!unprinted) continue;
     const place = printPlace(stream, unprinted.after);
     if (place)
-      out.push({
+      found.push({
         passage: ref.segmentId,
         segmentId: unprinted.segmentId,
         after: place,
         site: ref.site,
       });
   }
-  return out;
+  const kinds = lineationsAt(stream.items, new Set(found.map((mark) => mark.after)), convention);
+  return found.map((mark) => ({ ...mark, inText: kinds.get(mark.after) === 'prose' }));
 }
 
 /** The next (or previous) site from the active one; with `unreviewedOnly`, skipping reviewed ones. */

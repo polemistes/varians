@@ -22,7 +22,7 @@ export const editor = {
   minorTitle:
     'A minor variant is left out of the print apparatus, and readers see it only when they ask for minor variants.',
   register: 'Conjecture…',
-  /** The mark between two lines where a line stands that witnesses have and the edition does not print. */
+  /** The mark of a segment that witnesses have and the edition does not print: between two lines in verse, a point in the text in prose. */
   notPrinted: (label: string) => `${label}, not printed`,
   /** Witnesses without this segment: their transcripts begin after it or end before it, or have lost it. */
   absent: (sigla: string) => `No text here: ${sigla}`,

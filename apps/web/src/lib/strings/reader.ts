@@ -97,9 +97,9 @@ export const reader = {
     minor: 'Minor variants',
     minorShown: 'Shown',
     minorHidden: 'Not shown',
-    labels: 'Line labels',
+    labels: 'Segment labels',
     labelsEdition: 'As in the edition',
-    labelsEvery: 'Every line',
+    labelsEvery: 'Every segment',
     underline: 'Mark words with variants',
     reset: 'Reset',
   },
@@ -154,7 +154,7 @@ export const reader = {
     /** Where a variant stands that has no words of the edition. */
     after: 'after',
     before: 'before',
-    /** Where a block of lines opens the text, in the row that says which line it follows. */
+    /** Where a block of segments opens the text, in the row that says which segment it follows. */
     first: 'first',
     /** Read before the row of the edition's reading, which is set apart by its weight alone. */
     edition: 'Edition',
@@ -188,8 +188,8 @@ export const reader = {
     /** The point between two words, for the mark in the text. */
     pointAfter: (word: string) => `Variant after ${word}`,
     pointBefore: (word: string) => `Variant before ${word}`,
-    /** The mark in the margin of a line, or of lines (their labels). A line the edition does not print has the point's name: "Variant after 1.2". */
-    lineAt: (labels: string) => `Variant at ${labels}`,
+    /** The mark of a variant over whole segments (in verse in the margin, in prose on their labels), by their labels. A segment the edition does not print has the point's name: "Variant after 1.2". */
+    segmentAt: (labels: string) => `Variant at ${labels}`,
   },
 
   /** The panels. */
@@ -221,7 +221,7 @@ export const reader = {
     facsimileFailed: 'The image could not be found.',
     facsimileHint: 'Open a word with variants to see it on the page.',
     variants: 'Variants',
-    variantsNone: 'Nothing varies in the lines on screen.',
+    variantsNone: 'Nothing varies in the segments on screen.',
     variantsNothingOnScreen: 'Scroll to some text to see its variants.',
     variantsShow: (words: string, label: string) => `Show ${words} at ${label} in the text`,
     page: (label: string) => `Page ${label}`,

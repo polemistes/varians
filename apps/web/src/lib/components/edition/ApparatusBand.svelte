@@ -53,7 +53,7 @@
     /** Judge the variant minor, or not. */
     onminor?: (passageId: string, site: Site) => void;
     onregister?: (passageId: string, site: Site) => void;
-    /** Bring the text to a variant: to its words (by its passage), or, for a variant over whole lines (no site), to the first of them (by its segment). */
+    /** Bring the text to a variant: to its words (by its passage), or, for a variant over whole segments (no site), to the first of them (by its segment). */
     onfocus?: (id: string, site: Site | null) => void;
     /** A siglum was activated: the siglum of the conspectus. */
     onwitness?: (siglum: string) => void;

@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { sequentialIds } from '../ids.ts';
 import type { Break, Item, Token } from '../stream/items.ts';
 import { fromText } from '../stream/text.ts';
-import { hyphenatedWords, layoutLines, lineationOf, paragraphKinds, runOn } from './layout.ts';
+import {
+  hyphenatedWords,
+  layoutLines,
+  lineationAt,
+  lineationOf,
+  lineationsAt,
+  paragraphKinds,
+  runOn,
+} from './layout.ts';
 
 function verse(): ReturnType<typeof fromText> {
   const lines = Array.from({ length: 12 }, (_, i) => `word${i + 1} more`);
@@ -87,6 +95,33 @@ describe('lineationOf and paragraphKinds', () => {
     expect(paragraphKinds(s.items, 'verse').get(null)).toBe('prose');
     const lines = layoutLines(s, (id) => id);
     expect(lines.map((l) => l.lineation)).toEqual(['prose']);
+  });
+});
+
+describe('lineationsAt', () => {
+  it('gives the kind of the paragraph each item stands in, a paragraph break in the one it opens', () => {
+    // a b / c // d e // f: t1 t2 b3 t4 b5 t6 t7 b8 t9
+    const s = text('a b / c // d e // f');
+    (s.items[4] as Break).lineation = 'prose';
+    const found = lineationsAt(s.items, new Set(['t1', 't4', 'b5', 't6', 't9', 'gone']), 'verse');
+    expect([...found]).toEqual([
+      ['t1', 'verse'],
+      ['t4', 'verse'],
+      ['b5', 'prose'],
+      ['t6', 'prose'],
+      ['t9', 'verse'],
+    ]);
+    expect(lineationAt(s.items, 't7')).toBe('prose');
+    // The convention applies to a paragraph that is not marked, and to an item that is not there.
+    expect(lineationAt(s.items, 't1', 'prose')).toBe('prose');
+    expect(lineationAt(s.items, 'gone', 'prose')).toBe('prose');
+    expect(lineationsAt(s.items, new Set()).size).toBe(0);
+  });
+
+  it('lets a paragraph break at the start of the text give the first paragraph its kind', () => {
+    const s = text('// a b');
+    (s.items[0] as Break).lineation = 'prose';
+    expect(lineationAt(s.items, 't2')).toBe('prose');
   });
 });
 

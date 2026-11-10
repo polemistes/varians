@@ -162,7 +162,7 @@ An edition's text is a stream of the same shape as a transcript's, with the edit
 
 - An edition starts by copying a witness's text for a range of segments, with its line and paragraph breaks and its divided words, which are the edition's own from then on. It is independent of the witness; where a source transcript is corrected later, the word is marked and the current reading offered.
 - **Verse and prose.** Every paragraph of an edition's text is verse or prose: the edition says which its text is, and a paragraph can be marked as verse or as prose, which it then is whatever the edition says. The mark stands on the paragraph break that opens the paragraph, and a text may begin with such a break for its first paragraph. This settles how the text is shown and nothing else. In verse the lines are shown as the editor breaks them, whatever the segments, so that the colometry of a lyric passage is the editor's, and a word that a line break divides is shown with its hyphen. In prose the line breaks are not shown: the text runs on to the width of the page and breaks at paragraphs, which are a reader's convenience, and no word is hyphenated. The breaks stay in the text and show again if the paragraph is marked as verse. In the editor, Enter in verse breaks the line, and inside a word divides it; joining the lines gives the word back whole. In prose Enter begins a paragraph.
-- Adopting a reading replaces the edition's words at the variant with that reading's words and their source. A word the editor retypes becomes the edition's own, so that no witness is credited with an emendation. Words adopted where the edition had none each take the segment their witness gives them; where they are a segment the edition did not have, in verse they stand on a line of their own, in prose in the run of the text. Adopting that words are not in the text takes them out, and where they were a whole line of verse, its line break with them.
+- Adopting a reading replaces the edition's words at the variant with that reading's words and their source. A word the editor retypes becomes the edition's own, so that no witness is credited with an emendation. Words adopted where the edition had none each take the segment their witness gives them; where they are a segment the edition did not have, in verse they stand on a line of their own, in prose in the run of the text. Adopting that words are not in the text takes them out, and where they were all that stood on a line, its line break with them, in prose as in verse, so that no empty line is kept.
 - Transpositions are cut and paste; the report of them is derived.
 - Editorial sigla in the printed text are features rendered by the edition's convention, never typed characters.
 - The review state of a variant names the edition's tokens there, so a later change there makes it unreviewed again. A variant where the edition has no words is known by the edition's words on either side of it. The review, and the editor's kind and grade of a variant (section 3.10), are kept under the segment the variant begins in, and read for every segment of its passage, so that they hold however the passages are drawn.
@@ -339,10 +339,6 @@ Decided against, and not to be proposed again without a new reason:
 
 Designed or wanted, and not there:
 
-- Passages (section 3.10), the divided word (3.3) and verse and prose by paragraph (3.9). What is built differs in these ways:
-  - The marks in the margin for whole segments, and a segment adopted into the text, assume verse.
-  - The history of an edition shows the stored lines of a prose paragraph.
-  - The guide, the changelog and the interface say "line" for a segment.
 - The reporting of variants as sections 3.10 and 4 state it. What is built differs in these ways:
   - The editor's text marks only words and the segments the edition does not print.
   - The reader finds which variants to mark through the entries of the print apparatus, so the print setting for interpretative variants governs the screen as well.
@@ -366,7 +362,8 @@ Known gaps in what is built:
 - Where the edition has the same word twice beside a boundary between segments, which of the two a witness is taken to have can depend on where the passage is cut: about one random case in a thousand, kept as expected failures in the tests of the passages.
 - A link between two variants in different passages is found among the passages planned around what a page asks for. At the far edge of that stretch a link may be wanting that the whole text collated at once would give.
 - A draft and a published version of an edition share the rows of the cache, so that reading the one after the other collates again.
-- At the width of a phone, the Paragraph and Insert buttons of the edition editor stand over its first line.
+- The Review tab of an edition's history shows the stored lines of a prose paragraph, where the moments show it run on.
+- In the reader, the label of a prose paragraph's first segment is a link to the segment; where the order of segments is marked on it, it opens the variant and is no link.
 - Adopting the absence of a whole segment removes the segment from the edition's text, where it then stands as a variant the edition does not print, unless it was the first or the last segment. A segment the edition leaves out cannot yet be printed in brackets.
 - Undoing a move of text to another page does not bring back the boxes the move detached.
 - The pages endpoint of a witness reads every transcript to count the words on each page, which will be slow for many long transcripts. A count kept with the segment index is the remedy.

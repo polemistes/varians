@@ -491,13 +491,16 @@
   const tokenClasses = $derived(
     tokenClassesFor(Object.values(outlines), { active, colourBySource, stream }),
   );
-  // A line the edition does not print is marked between the lines it stands between, while its variant shows.
+  /** The edition's kind of a paragraph that is not marked: verse or prose. */
+  const lineation = $derived(view.edition.conventions.lineation ?? 'verse');
+  // A segment the edition does not print is marked while its variant shows: between the lines it stands between in verse, in prose by the point after the words before it.
   const marginMarks = $derived(
-    unprintedMarks(stream, sequence, outlines).map((mark) => ({
+    unprintedMarks(stream, sequence, outlines, lineation).map((mark) => ({
       key: keyOfVariant(mark.passage, mark.site.index),
       after: mark.after,
       title: s.notPrinted(labelOf[mark.segmentId] ?? ''),
       active: active?.segmentId === mark.passage && active.siteIndex === mark.site.index,
+      inText: mark.inText,
     })),
   );
   const reviewedMap = $derived(
@@ -562,7 +565,7 @@
     if (!segment || !api) return;
     const unprinted = unprintedAt(segment, site.index);
     if (unprinted) {
-      // A line the edition does not print: the text is brought to where it would stand. A selection
+      // A segment the edition does not print: the text is brought to where it would stand. A selection
       // of other words is let go, the caret staying where it is, and the variant stays the active one.
       api.clearSelection();
       selectionTick++;
@@ -583,7 +586,7 @@
     }
   }
 
-  /** Open the variant of a line the edition does not print, from its mark in the text (by the variant's key). */
+  /** Open the variant of a segment the edition does not print, from its mark in the text (by the variant's key). */
   async function openUnprinted(key: string) {
     const ref = parseSiteKey(key);
     if (!ref) return;
@@ -663,6 +666,7 @@
               site,
               choice.reading,
               textId ?? choice.reading.textIds[0]!,
+              lineation,
             )
           : opsForAttachment(
               before,
@@ -670,6 +674,7 @@
               site,
               choice.attachment,
               (choice.attachment as { segmentId?: Id }).segmentId ?? unprinted?.segmentId,
+              lineation,
             );
       if (ops.length === 0) return;
       const applied = applyOps(before, ops);
@@ -710,7 +715,7 @@
   }
 
   /**
-   * The editor's word on the variant of a line the edition does not print
+   * The editor's word on the variant of a segment the edition does not print
    * (reviewed, its kind, minor) is kept under a key that names no word of
    * the edition, so it would hold again whenever the line is not printed.
    * Printing the line clears it; the function returned says it again, for
@@ -1002,7 +1007,14 @@
           conjectureKind: draft.kind,
         };
         const before = stream;
-        const ops = opsForAttachment(before, segment, site, attachment, target.segmentId);
+        const ops = opsForAttachment(
+          before,
+          segment,
+          site,
+          attachment,
+          target.segmentId,
+          lineation,
+        );
         const applied = applyOps(before, ops);
         reviewAfter.push({
           segmentId: target.segmentId,
@@ -1327,30 +1339,15 @@
     bind:this={upperEl}
   >
     <div
-      class="relative min-h-0"
+      class="relative flex min-h-0 flex-col"
       bind:this={editorColumn}
       onpointerup={() => setTimeout(() => selectionTick++, 0)}
       onkeyup={() => selectionTick++}
       role="presentation"
     >
-      <TextEditor
-        {stream}
-        form="written"
-        readonly={!canEdit}
-        lineNumbers={false}
-        lineation={view.edition.conventions.lineation ?? 'verse'}
-        segmentLabels={labelOf}
-        {tokenClasses}
-        {marginMarks}
-        onmarginmark={(key) => void openUnprinted(key)}
-        onops={onEditorOps}
-        onselection={onSelection}
-        onrequestsegment={(id, current) => void requestSegment(id, current)}
-        bind:api
-        class="h-full px-2"
-      />
       {#if canEdit}
-        <div class="absolute top-2 right-3 z-10 flex items-center gap-1">
+        <!-- A row of its own above the text: prose runs to the right edge, where menus laid over the text would cover it. -->
+        <div class="flex shrink-0 items-center justify-end gap-1 px-3 pt-2">
           <Menu
             bind:open={paragraphMenuOpen}
             label={s.dialogs.paragraph.menu}
@@ -1381,6 +1378,22 @@
           </Menu>
         </div>
       {/if}
+      <TextEditor
+        {stream}
+        form="written"
+        readonly={!canEdit}
+        lineNumbers={false}
+        {lineation}
+        segmentLabels={labelOf}
+        {tokenClasses}
+        {marginMarks}
+        onmarginmark={(key) => void openUnprinted(key)}
+        onops={onEditorOps}
+        onselection={onSelection}
+        onrequestsegment={(id, current) => void requestSegment(id, current)}
+        bind:api
+        class="min-h-0 flex-1 px-2"
+      />
       {#if toolbarAt}
         <div
           class="absolute z-20 flex items-center gap-1 rounded-md border border-line bg-surface px-1.5 py-1 font-sans text-xs shadow-pop"
@@ -1468,6 +1481,7 @@
             {canEdit}
             onchanged={onHistoryChanged}
             numberEvery={view.edition.conventions.numberEvery}
+            {lineation}
           />
         {:else}
           <WitnessPane

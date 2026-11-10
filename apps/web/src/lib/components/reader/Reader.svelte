@@ -3,9 +3,10 @@
    * The reader of an edition: the critical text with labels
    * in the margin, words at variants marked with a dotted line, the points
    * between two words where a witness has words the edition has not marked
-   * with a small caret, and variants over whole lines marked in the margin
-   * beside them, each opening the variant window, the variants of the
-   * lines on screen, the witnesses and the facsimile in panels, search, and a print
+   * with a small caret, and in verse variants over whole segments marked in
+   * the margin beside the lines (in prose they are marked in the text: on
+   * the words, at the point, and on the labels), each opening the variant
+   * window, the variants of the lines on screen, the witnesses and the facsimile in panels, search, and a print
    * stylesheet. The print apparatus is in the page for printing, for readers
    * without JavaScript, and on screen when the reader asks for it in the
    * gear (at the foot of each block or beside it). Server-rendered: the
@@ -18,6 +19,7 @@
     blocksOf,
     inlineStarts,
     lineLabels,
+    proseTokens,
     segmentOfItems,
     segmentsByLine,
     type Block,
@@ -27,7 +29,7 @@
   import { EditionText } from '$lib/reader/edition-text';
   import { orderVariantOf, variantOf, variantsOf, type VariantContext } from '$lib/reader/variant';
   import { mergePassages, passageIndex, passagesOf, unprintedAt } from '$lib/reader/passages';
-  import { lineMarks } from '$lib/reader/line-marks';
+  import { labelMarks, lineMarks } from '$lib/reader/line-marks';
   import {
     DEFAULT_SETTINGS,
     effectiveConventions,
@@ -110,7 +112,9 @@
   );
   const segmentsOfLine = $derived(segmentsByLine(data.lines));
   const segmentOf = $derived(segmentOfItems(data.lines));
-  const sitesOfToken = $derived(siteByToken({ segments }));
+  /** The words of the paragraphs that are prose: variants over whole segments are marked on them, in the text. */
+  const prose = $derived(proseTokens(data.lines));
+  const sitesOfToken = $derived(siteByToken({ segments }, prose));
   const startsOfLine = $derived(
     data.lines.map((line) =>
       line.starts.flatMap((start) => (start.segmentId ? [start.segmentId] : [])),
@@ -184,7 +188,7 @@
   );
   const entryMap = $derived(entryBySite(entries));
 
-  const marking = $derived(markSites(sitesOfToken, entryMap, segments));
+  const marking = $derived(markSites(sitesOfToken, entryMap, segments, prose));
   /** The edition's words as it prints them, for the first row of a variant window. */
   const editionText = $derived(
     new EditionText(
@@ -204,21 +208,24 @@
     orders: data.orderVariants,
     passages: segments,
   });
-  /** The marks in the margin of the lines: for variants over whole lines. */
+  /** The marks in the margin of the lines of verse: for variants over whole segments. */
   const margin = $derived(
     lineMarks({
       segmentsOfLine,
+      lineation: data.lines.map((line) => line.lineation),
       segments,
       shown: entryMap,
       orders: data.orderVariants,
       context: variantContext,
     }),
   );
+  /** The labels in prose that mark the order of segments, in the margin and in the text. */
+  const labelMark = $derived(labelMarks(data.lines, data.orderVariants));
   /** Whether two marks meet in the margin: the text then makes room for a second lane. */
   const marginLanes = $derived(
     [...margin.values()].some((parts) => parts.some((part) => part.lane > 0)),
   );
-  /** The keys of the variants over the order of whole lines, which the reader always has. */
+  /** The keys of the variants over the order of whole segments, which the reader always has. */
   const orderKeys = $derived(new Set(data.orderVariants.map((_, k) => orderKey(k))));
 
   const labels = $derived(lineLabels(data.lines, data.labelOf, settings.labels));
@@ -455,7 +462,7 @@
       const variant =
         segment && entryMap.has(key) ? variantOf(segment, ref!.siteIndex, variantContext) : null;
       if (!variant) return [];
-      // A line the edition does not print is at no address of the edition's; another goes to its first segment.
+      // A segment the edition does not print is at no address of the edition's; another goes to its first segment.
       const permalink = unprintedAt(asPassage(segment!), ref!.siteIndex)
         ? null
         : segmentHref(data.labelOf[variant.stands] ?? variant.label);
@@ -463,7 +470,7 @@
     }),
   );
 
-  /** The variants of the lines on screen, with the lines the edition does not print that follow them, while the list of variants is open. */
+  /** The variants of the lines on screen, with the segments the edition does not print that follow them, while the list of variants is open. */
   const variantGroups = $derived(
     variantsOpen ? variantsOf(visibleSegments, segments, entryMap, variantContext) : [],
   );
@@ -771,6 +778,10 @@
                     pointsAfter={marking.after}
                     pointsBefore={marking.before}
                     margin={margin.get(i) ?? []}
+                    labelKeys={labelMark.margin.get(i)}
+                    labelStop={labelMark.stops.margin.has(i)}
+                    inlineKeys={labelMark.inline}
+                    inlineStops={labelMark.stops.inline}
                     underline={settings.underline}
                     interactive={live}
                     {inlineLabels}
