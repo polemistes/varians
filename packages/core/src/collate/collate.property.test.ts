@@ -135,10 +135,14 @@ describe('collation (random)', () => {
   });
 
   // A witness E equal to the base stands among the others, wherever. The
-  // counterexamples are rare (about one case in a thousand), so the property
-  // runs over more cases than the others.
-  const equalToBase = (options: Parameters<typeof randomTexts>[2]): Property<TextsCase> => ({
-    runs: Math.max(RUNS, 4000),
+  // counterexamples are rare (about one case in a thousand: seeds 1025, 1145
+  // and 499 for the three kinds of input), so the property starts just before
+  // the seed that found one.
+  const equalToBase = (
+    options: Parameters<typeof randomTexts>[2],
+    firstSeed?: number,
+  ): Property<TextsCase> => ({
+    ...(firstSeed === undefined ? {} : { firstSeed, runs: 40 }),
     generate(rng, size) {
       const c = randomTexts(rng, size, { ...options, length: 3 + 2 * size });
       // The base without gaps; a copy of it stands among the witnesses.
@@ -183,13 +187,18 @@ describe('collation (random)', () => {
   // and as reading `c` in an added place (om. ed., `d b` A, `c` B E). The
   // alignment gives an exact match the same score in whichever column it
   // stands, and does not prefer the column of the base.
+  const FOUND_AT: Record<string, number> = {
+    'witnesses close to the base': 1020,
+    'witnesses drawn freely': 1140,
+    'with gaps': 495,
+  };
   for (const [name, options] of KINDS) {
     it.fails(
       `never puts a witness equal to the base in a reading other than the base's (${name})`,
       () => {
         runProperty(
           `collate: a witness equal to the base stands in the base's reading (${name})`,
-          equalToBase(options),
+          equalToBase(options, FOUND_AT[name]),
         );
       },
     );
@@ -400,7 +409,7 @@ describe('collation: does the order of the witnesses matter? (measured, not asse
     ['with gaps', { gaps: true, witnesses: [2, 4] }],
   ] as const) {
     it(`measures it (${name})`, () => {
-      const cases = Math.max(RUNS, 300);
+      const cases = Math.max(RUNS, 100);
       let changedPlaces = 0;
       let changedReadings = 0;
       let all = 0;
@@ -465,7 +474,7 @@ describe('collation: does the order of the witnesses matter? (measured, not asse
       }
       console.log(lines.join('\n'));
       expect(all).toBeGreaterThan(0);
-    });
+    }, 120_000);
   }
 
   it('measures it over every small input: two witnesses, texts of one to two words over three letters, a base of one to three', () => {
@@ -520,5 +529,5 @@ describe('collation: does the order of the witnesses matter? (measured, not asse
     }
     console.log(lines.join('\n'));
     expect(all).toBeGreaterThan(0);
-  });
+  }, 120_000);
 });

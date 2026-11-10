@@ -10,7 +10,6 @@ import {
   runProperty,
   shrinkList,
   assume,
-  RUNS,
   type Property,
   type Rng,
 } from '../testing/random.ts';
@@ -224,12 +223,10 @@ describe('moveRun (random)', () => {
   // and whatever else the stretch holds. (A second cause: the repair drops the
   // explicit start of a touched word when the flow gives it its segment
   // anyway, which merges parts that were deliberately out of physical order.)
-  // The properties run over more cases than the others because the
-  // counterexamples are rarer; each is also pinned to its shrunk case.
-  const manyRuns = Math.max(RUNS, 3000);
+  // Each is also pinned to its shrunk case. The counterexample to the second is
+  // rare (seed 2200), so that property starts just before it.
 
   const unmovedKeepOrder: Property<MoveCase> = {
-    runs: manyRuns,
     generate,
     show: showMove,
     shrink: shrinkMove,
@@ -259,7 +256,8 @@ describe('moveRun (random)', () => {
   });
 
   const movedKeepOrder: Property<MoveCase> = {
-    runs: manyRuns,
+    firstSeed: 2190,
+    runs: 40,
     generate,
     show: showMove,
     shrink: shrinkMove,

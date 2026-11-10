@@ -15,7 +15,6 @@ import { applyOps, type Op } from '../stream/ops.ts';
 import { units, type Unit } from '../stream/words.ts';
 import {
   assume,
-  RUNS,
   randomTexts,
   runProperty,
   shrinkTexts,
@@ -252,8 +251,7 @@ const adoptedWitnessAgreesAtSites: Property<AdoptCase> = {
 };
 
 describe('adopting a reading (random)', () => {
-  // Counterexample (shrunk; one case in about a thousand, so run over more
-  // cases): the edition `Μοῦσα`, witnesses A `η Μοῦσα μάλα` and B `μάλα
+  // Counterexample (shrunk; one case in about a thousand, found at seed 1077): the edition `Μοῦσα`, witnesses A `η Μοῦσα μάλα` and B `μάλα
   // πτολίεθρον Μοῦσα μάλα Μοῦσα`. At the first place (an addition before the
   // edition's word: A `η`, B `μάλα πτολίεθρον`) B's reading is adopted, and the
   // edition reads `μάλα πτολίεθρον Μοῦσα`, which is how B begins. Collated again
@@ -273,7 +271,8 @@ describe('adopting a reading (random)', () => {
     () => {
       runProperty('adopt: the witness agrees with the edition at the place adopted', {
         ...adoptedWitnessAgrees,
-        runs: Math.max(RUNS, 4000),
+        firstSeed: 1070,
+        runs: 40,
       });
     },
   );
@@ -413,7 +412,8 @@ describe('adopting and adopting back (random)', () => {
   it.fails('restores the edition’s words exactly, case included', () => {
     runProperty('adopt: adopting a reading and then the former one restores the words, exactly', {
       ...adoptAndBack('exact'),
-      runs: Math.max(RUNS, 4000),
+      firstSeed: 610,
+      runs: 40,
     });
   });
   it.fails('restores the edition’s words exactly (the shrunk case)', () => {

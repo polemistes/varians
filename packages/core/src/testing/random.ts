@@ -109,6 +109,12 @@ export interface Property<C> {
   show?(c: C): string;
   runs?: number;
   maxSize?: number;
+  /**
+   * The seed of the first case, instead of the default one. A property kept as
+   * an expected failure whose counterexample is rare starts a little before
+   * the seed that found it, so that the suite stays fast.
+   */
+  firstSeed?: number;
 }
 
 export interface PropertyResult {
@@ -146,7 +152,7 @@ export function runProperty<C>(name: string, property: Property<C>): PropertyRes
     }
   };
   for (let run = 0; run < runs; run++) {
-    const seed = FIRST_SEED + run;
+    const seed = (property.firstSeed ?? FIRST_SEED) + run;
     const size = 1 + (seed % maxSize);
     const original = property.generate(new Rng(seed), size);
     let verdict: unknown;
