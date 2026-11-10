@@ -5,6 +5,7 @@ A platform for making and reading digital scholarly editions of ancient texts: t
 - [docs/guide.md](docs/guide.md) is how to use it, for editors.
 - [docs/install.md](docs/install.md) is how to install and run it, for operators.
 - [docs/formats/](docs/formats/) specifies the archive and the TEI subset.
+- [docs/design.md](docs/design.md) is how it is designed, and why: the model and the decisions behind it.
 - [docs/web-conventions.md](docs/web-conventions.md) is how code in the web app is written.
 - [deploy/](deploy/) holds the systemd units, proxy snippets and scripts of the native installation, and how varians.eu itself is deployed.
 - [CHANGELOG.md](CHANGELOG.md) is what changed in each release; [SECURITY.md](SECURITY.md) is how to report a vulnerability.

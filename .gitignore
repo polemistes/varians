@@ -22,11 +22,10 @@ playwright-report/
 /tools/
 
 # The owner's correspondence with Claude: the plans and the brief stay on this machine
-/PLAN.md
-/PLAN-2.md
-/PLAN-*.md
+/PLAN*.md
 /docs/brief.md
 /docs/notes/
+/CLAUDE.md
 
 # The cache of the lexicon sources, copied or downloaded (docs/lexicon.md)
 /apps/web/lexicon-sources/
