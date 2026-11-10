@@ -186,6 +186,54 @@ function point(mark: Mark): string {
   return '';
 }
 
+/** The openers that begin with another opener: the reader takes the longer one when it sees it. */
+const EXTENDED = ['\\|', '~||', '〚/', '〚X', '¯_', '<|', '<_', '<#', '<:'];
+
+/**
+ * Whether a mark written directly inside another one, the two opening at the
+ * same place, reads as something else. Three ways: the outer mark's opener
+ * and the inner one's make a longer opener (`~|` and `|^` make `~||`, `\` and
+ * `|^` make `\|`); the inner opener begins with the outer closer, so that the
+ * outer mark looks closed (`\` and `//`, `¯` and `¯_`, `||left:` and
+ * `||right:`); or the outer mark is an original form, which holds only
+ * letters.
+ */
+function clashes(outer: Ranged, inner: Ranged): boolean {
+  if (outer.open === '!') return inner.open !== '!';
+  if (inner.open.startsWith(outer.close)) return true;
+  const joined = outer.open + inner.open;
+  return EXTENDED.some((longer) => longer.length > outer.open.length && joined.startsWith(longer));
+}
+
+/**
+ * The ranges that cover one stretch of letters, outermost first, given those
+ * already open before it. The ranges still open stay where they are. The
+ * others are put as they were sorted, except that a mark is written outside
+ * another when the two open together and it cannot be written inside it. The
+ * outer range then closes where the inner one does and is opened again after
+ * it, which is how ranges that overlap are written. Two that clash either way
+ * (two additions of the `||place:` kind) stay as they were: Leiden+ has no way
+ * to write them nested.
+ */
+function nest(active: Ranged[], open: readonly Ranged[]): Ranged[] {
+  let kept = 0;
+  while (kept < open.length && active.includes(open[kept]!)) kept++;
+  const stack = [...open.slice(0, kept), ...active.filter((r) => !open.slice(0, kept).includes(r))];
+  for (let swapped = true, rounds = 0; swapped && rounds < stack.length * stack.length; rounds++) {
+    swapped = false;
+    for (let k = kept; k + 1 < stack.length; k++) {
+      const outer = stack[k]!;
+      const inner = stack[k + 1]!;
+      if (clashes(outer, inner) && !clashes(inner, outer)) {
+        stack[k] = inner;
+        stack[k + 1] = outer;
+        swapped = true;
+      }
+    }
+  }
+  return stack;
+}
+
 interface Ranged {
   mark: Mark;
   from: number;
@@ -236,7 +284,10 @@ function marked(form: string, marks: readonly Mark[]): string {
   for (let k = 0; k < bounds.length - 1; k++) {
     const a = bounds[k]!;
     const b = bounds[k + 1]!;
-    const active = ranges.filter((r) => r.from <= a && r.to >= b);
+    const active = nest(
+      ranges.filter((r) => r.from <= a && r.to >= b),
+      open,
+    );
     let common = 0;
     while (common < open.length && common < active.length && open[common] === active[common])
       common++;
@@ -297,6 +348,16 @@ function word(token: Token): string {
   return written;
 }
 
+/**
+ * Whether a written item ends in a space that the reader looks for: a figure
+ * (`#seal `) and a trace of letters of unknown number (`vestig `) are closed
+ * by it, where the notation after other items ends without one. At the end of
+ * a line it is kept, or the item reads as a word.
+ */
+function endsWithSpaceRead(text: string): boolean {
+  return /^(?:#[^\s#>=]+|vestig(?:\(\?\))?) $/u.test(text);
+}
+
 /** A label as a division's name: Leiden+ divides its names at dots and spaces. */
 function divisionName(label: string): string {
   return label.trim().replace(/[.\s<>=#]+/gu, '_') || '_';
@@ -313,14 +374,17 @@ export function toLeidenPlus(stream: Stream, options: LeidenPlusWriteOptions = {
   /** Whether the line being written has its number. */
   let numbered = false;
   let line = '';
+  /** Whether the last thing on the line ends in a space that the reader needs to see it. */
+  let closing = false;
   let lastNumber = 0;
   /** The join of a word that runs on, waiting for the number of the line it runs on to. */
   let runsOn = false;
   let glue = true;
 
   const flushLine = (): void => {
-    if (line.trim() !== '') out.push(line.trimEnd());
+    if (line.trim() !== '') out.push(line.trimEnd() + (closing ? ' ' : ''));
     line = '';
+    closing = false;
   };
   const openBlock = (): void => {
     if (block) return;
@@ -349,6 +413,7 @@ export function toLeidenPlus(stream: Stream, options: LeidenPlusWriteOptions = {
     const join = runsOn ? '.-' : '';
     line +=
       brk?.rend !== undefined ? `(${n}${join}, ${brk.rend}) ` : `${n}.${join === '' ? '' : '-'} `;
+    closing = false;
     numbered = true;
     runsOn = false;
     glue = true;
@@ -358,6 +423,7 @@ export function toLeidenPlus(stream: Stream, options: LeidenPlusWriteOptions = {
     openBlock();
     if (!numbered) number();
     line += (glue ? '' : ' ') + text;
+    closing = endsWithSpaceRead(text);
     glue = false;
   };
 

@@ -227,12 +227,8 @@ function generate(rng: Rng, size: number, combos: boolean): Stream {
 
 /** The cases already found, left out so that the next kind can be looked for (each has a test of its own). */
 interface Tidy {
-  /** No figure as the last thing on a line. */
-  figures?: boolean;
   /** No page or column break (written as divisions, which read back as paragraphs). */
   divisions?: boolean;
-  /** No word with two marks that have delimiters, which meet and read as something else (`~||^`, `\\|^`). */
-  delimiters?: boolean;
 }
 
 /**
@@ -249,29 +245,6 @@ function shape(stream: Stream, how: Tidy = {}): Stream {
     kept.push(item);
   }
   while (kept.length > 0 && isBreak(kept[kept.length - 1]!)) kept.pop();
-  if (how.delimiters) {
-    // At most one mark with delimiters of its own (all but unclear, gap and a change of hand).
-    const bare = new Set(['unclear', 'gap', 'handShift']);
-    kept.forEach((item, i) => {
-      if (!isToken(item) || !item.marks) return;
-      let seen = false;
-      const marks = item.marks.filter((m) => {
-        if (bare.has(m.kind)) return true;
-        if (seen) return false;
-        seen = true;
-        return true;
-      });
-      if (marks.length !== item.marks.length) kept[i] = { ...item, marks };
-    });
-  }
-  if (how.figures) {
-    // A figure that ends a line: put a glyph there instead.
-    kept.forEach((item, i) => {
-      const next = kept[i + 1];
-      if (item.kind === 'object' && item.type === 'figure' && (next === undefined || isBreak(next)))
-        kept[i] = { kind: 'object', id: item.id, type: 'mark', attrs: { g: 'stauros' } };
-    });
-  }
   // The scribe's correction is two words, the added and then the deleted one; a half left alone is a plain word.
   const whole = (item: Item | undefined, kind: string): boolean =>
     isToken(item) &&
@@ -384,26 +357,23 @@ const word = (form: string, extra: Partial<Token> = {}): Token => ({
 
 describe('Leiden+ round trip (random)', () => {
   it('writes a transcript and reads it back as it was, and writes the same text again (tidy)', () => {
-    runProperty('leiden+: write, read, write (tidy)', property({ figures: true, divisions: true }));
+    runProperty('leiden+: write, read, write (tidy)', property({ divisions: true }));
   });
 
   it('with several marks on a word, over ranges of its letters', () => {
-    runProperty(
-      'leiden+: write, read, write (several marks)',
-      property({ figures: true, divisions: true, delimiters: true }, true),
-    );
+    runProperty('leiden+: write, read, write (several marks)', property({ divisions: true }, true));
   });
 
   // Every stream that is made of what the writer says, with nothing left out,
-  // does not come back. Each kind has a pinned case below.
+  // does not come back: a page break and a column break come back as paragraph
+  // breaks (pinned below), and they are the only kind left.
   it.fails('writes a transcript and reads it back as it was, whatever it is made of', () => {
     runProperty('leiden+: write, read, write', property({}, true));
   });
 
-  // A figure that ends a line is written `#seal` without the space that ends
-  // it (the writer trims the end of the line), and the reader takes `#seal` for
-  // a word: the figure comes back as a token `#seal`.
-  it.fails('a figure at the end of a line comes back as a figure', () => {
+  // The reader takes a figure for a word unless a space ends it, so a line
+  // that ends in a figure keeps the space.
+  it('a figure at the end of a line comes back as a figure', () => {
     property().check({
       stream: stream({ kind: 'object', id: '', type: 'figure', text: 'seal' }),
     });
@@ -424,12 +394,10 @@ describe('Leiden+ round trip (random)', () => {
     });
   });
 
-  // Marks whose delimiters touch are read as other constructs. Shrunk: a word
-  // with a foreign phrase mark and a superscript is written `~||^word^||~la` and
-  // the reader finds `||` and takes it for an addition (a warning, and the word
-  // read as `^word^`); a word added above that is also a superscript is written
-  // `\|^word^|/`, which is a subscript `\|...|/` with the text `^word^`.
-  it.fails('a word with a foreign phrase mark and a superscript comes back as it was', () => {
+  // Where the delimiters of two marks touch they can read as another
+  // construct: `~|` then `|^` as `~||`, `\` then `|^` as `\|`. The writer
+  // nests such marks the other way round.
+  it('a word with a foreign phrase mark and a superscript comes back as it was', () => {
     property().check({
       stream: stream(
         word('αειδε', {
@@ -441,7 +409,7 @@ describe('Leiden+ round trip (random)', () => {
       ),
     });
   });
-  it.fails('a word added above that is also a superscript comes back as it was', () => {
+  it('a word added above that is also a superscript comes back as it was', () => {
     property().check({
       stream: stream(
         word('αειδε', {

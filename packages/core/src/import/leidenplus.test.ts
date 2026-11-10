@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sequentialIds } from '../ids.ts';
-import { isBreak, isToken, type Item } from '../stream/items.ts';
+import { isBreak, isToken, type Item, type Mark, type Token } from '../stream/items.ts';
 import { isElement, parseXml, type XmlNode } from '../tei/xml.ts';
 import { units } from '../stream/words.ts';
 import { importLeidenPlus, isLeidenPlus, leidenPlusToEpiDoc } from './leidenplus.ts';
@@ -544,6 +544,87 @@ describe('a transcript written as Leiden+', () => {
         '',
       ].join('\n'),
     );
+  });
+
+  it('keeps the space that closes a figure or a trace of letters at the end of a line', () => {
+    const stream = {
+      items: [
+        { kind: 'token', id: 'a', form: 'αειδε' },
+        { kind: 'object', id: 'f', type: 'figure', text: 'seal' },
+        { kind: 'break', id: 'l1', type: 'line' },
+        { kind: 'object', id: 'v', type: 'gap', attrs: { reason: 'illegible', desc: 'vestiges' } },
+      ],
+    } as { items: Item[] };
+    const written = toLeidenPlus(stream);
+    expect(written.split('\n')).toEqual(['<S=.grc<=', '1. αειδε #seal ', '2. vestig ', '=>', '']);
+    const read = importLeidenPlus(written, { ids: sequentialIds() });
+    expect(read.warnings).toEqual([]);
+    expect(
+      read.stream.items.map((item) => (item.kind === 'object' ? item.type : item.kind)),
+    ).toEqual(['token', 'figure', 'break', 'gap']);
+  });
+
+  describe('marks over the same word', () => {
+    const marks: Record<string, Mark> = {
+      deleted: { kind: 'del', attrs: { rend: 'erasure' } },
+      'deleted by slashes': { kind: 'del', attrs: { rend: 'slashes' } },
+      'added above': { kind: 'add', attrs: { place: 'above' } },
+      'added below': { kind: 'add', attrs: { place: 'below' } },
+      'added in the margin': { kind: 'add', attrs: { place: 'margin', rend: 'sling' } },
+      'added at the left': { kind: 'add', attrs: { place: 'left' } },
+      superscript: { kind: 'hi', attrs: { rend: 'superscript' } },
+      subscript: { kind: 'hi', attrs: { rend: 'subscript' } },
+      tall: { kind: 'hi', attrs: { rend: 'tall' } },
+      'under a line': { kind: 'hi', attrs: { rend: 'supraline' } },
+      'under a line and underlined': { kind: 'hi', attrs: { rend: 'supraline-underline' } },
+      number: { kind: 'num', attrs: { value: '5' } },
+      foreign: { kind: 'foreign', attrs: { lang: 'la' } },
+      quoted: { kind: 'q' },
+      'in its original form': { kind: 'orig' },
+      abbreviated: { kind: 'abbr' },
+    };
+
+    const trip = (form: string, list: Mark[]) => {
+      const written = toLeidenPlus({ items: [{ kind: 'token', id: 'a', form, marks: list }] });
+      const read = importLeidenPlus(written, { ids: sequentialIds() });
+      return { written, read };
+    };
+    const canonical = (list: Mark[] | undefined) =>
+      (list ?? [])
+        .map((mark) =>
+          JSON.stringify(mark, ['kind', 'attrs', 'from', 'to', 'place', 'rend', 'lang', 'value']),
+        )
+        .sort();
+
+    it('are written so that each pair reads back, in whichever order they are given', () => {
+      for (const [a, first] of Object.entries(marks))
+        for (const [b, second] of Object.entries(marks)) {
+          if (a === b) continue;
+          const { written, read } = trip('αειδε', [first, second]);
+          expect(read.warnings, `${a} and ${b}: ${written}`).toEqual([]);
+          const token = read.stream.items[0] as Token;
+          expect(canonical(token.marks), `${a} and ${b}: ${written}`).toEqual(
+            canonical([first, second]),
+          );
+        }
+    });
+
+    it('are written so that marks that begin together but end apart read back', () => {
+      const { written, read } = trip('αειδε', [
+        { kind: 'foreign', attrs: { lang: 'la' } },
+        { kind: 'add', attrs: { place: 'bottom' }, from: 0, to: 3 },
+        { kind: 'hi', attrs: { rend: 'superscript' }, from: 0, to: 2 },
+      ]);
+      expect(read.warnings, written).toEqual([]);
+      const token = read.stream.items[0] as Token;
+      expect(canonical(token.marks), written).toEqual(
+        canonical([
+          { kind: 'foreign', attrs: { lang: 'la' } },
+          { kind: 'add', attrs: { place: 'bottom' }, from: 0, to: 3 },
+          { kind: 'hi', attrs: { rend: 'superscript' }, from: 0, to: 2 },
+        ]),
+      );
+    });
   });
 
   it('gives the scribe’s correction as two words, read one before and one after it', () => {
