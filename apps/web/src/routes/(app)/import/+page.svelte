@@ -69,7 +69,7 @@
               <li>
                 <span class="font-serif text-ink">{d.name}</span>
                 <span class="text-ink-soft"
-                  >{t.results[d.result] ?? d.result}{d.segments.length
+                  >{t.result(d.result, d.reason)}{d.segments.length
                     ? `, ${t.segments(d.segments.join(', '))}`
                     : ''}</span
                 >

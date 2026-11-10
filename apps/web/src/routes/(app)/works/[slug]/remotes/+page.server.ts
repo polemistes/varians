@@ -122,7 +122,13 @@ export const actions: Actions = {
         preview: report.dryRun,
         report: summary(report) as {
           refused: string | null;
-          documents: { name: string; kind: string; result: string; segments: string[] }[];
+          documents: {
+            name: string;
+            kind: string;
+            result: string;
+            segments: string[];
+            reason?: string;
+          }[];
         },
       };
     } catch (cause) {

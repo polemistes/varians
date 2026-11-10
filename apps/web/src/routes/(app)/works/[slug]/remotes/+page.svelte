@@ -8,7 +8,6 @@
 
   let { data, form }: PageProps = $props();
   const t = site.remotes;
-  const results = site.import.results;
 </script>
 
 <PageFrame title={t.title} lead={t.lead} width="reading">
@@ -83,7 +82,7 @@
             <ul class="text-ink-soft">
               {#each form.report.documents as d (d.kind + d.name)}<li>
                   <span class="font-serif text-ink">{d.name}</span>
-                  {results[d.result] ?? d.result}{d.segments.length
+                  {site.import.result(d.result, d.reason)}{d.segments.length
                     ? `, ${site.import.segments(d.segments.join(', '))}`
                     : ''}
                 </li>{/each}

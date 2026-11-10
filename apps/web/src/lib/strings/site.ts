@@ -102,7 +102,7 @@ export const site = {
     file: 'Package or archive (zip)',
     preview: 'Look at what it would do',
     previewing: 'This is what the import would do. Nothing has been changed yet.',
-    policy: 'Where a text has been changed both here and in the package in the same words',
+    policy: 'Where the changes made to a text here and in the package cannot be taken together',
     policyReport: 'Leave it as it is, and report it',
     policyKeep: 'Keep the text here; keep the other history beside it',
     policyTake: 'Take the text of the package; keep the text here as a moment',
@@ -119,10 +119,28 @@ export const site = {
       'fast-forward': 'brought up to date',
       merged: 'changes on both sides taken together',
       conflict: 'changed on both sides in the same words: left as it is',
+      'conflict:missing-anchor': 'changed there in words removed here: left as it is',
+      'conflict:segments':
+        'changed on both sides so that words would pass into another segment: left as it is',
+      'conflict:history': 'with a history there that does not continue the one here: left as it is',
       kept: 'kept as it is here',
       taken: 'replaced by the text of the package',
       refused: 'not yours to change here: left as it is',
     } as Record<string, string>,
+    /**
+     * What became of a transcript or edition, in the report's words. A
+     * conflict is worded by its reason, as the core's `reconcile` names it:
+     * the same words changed on both sides, words changed there that are
+     * removed here, words that would pass into another segment, and any
+     * other reason, which is a history that does not fit this one.
+     */
+    result(result: string, reason?: string): string {
+      const words = this.results;
+      if (result !== 'conflict') return words[result] ?? result;
+      if (reason === undefined || reason === 'overlap' || reason === 'inapplicable')
+        return words.conflict!;
+      return words[`conflict:${reason}`] ?? words['conflict:history']!;
+    },
     segments: (labels: string) => `segments ${labels}`,
     matched: (kind: string, by: string) =>
       `${kind === 'work' ? 'Work' : 'Witness'} found here by ${by === 'merge' ? 'an earlier merge' : 'its identifier'}`,

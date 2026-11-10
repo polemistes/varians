@@ -46,6 +46,7 @@ import { confirmEmailDirectly, makeResetLinkFor } from '../src/lib/server/accoun
 import { seedSample } from '../src/lib/server/seed/sample.ts';
 import { conformAll, formatConformance } from '../src/lib/server/conform.ts';
 import { pageStrings } from '../src/lib/strings/pages.ts';
+import { site } from '../src/lib/strings/site.ts';
 import { formatVersion } from '../src/lib/version-format.ts';
 import { loadEnv } from './env.ts';
 
@@ -191,7 +192,9 @@ async function main(): Promise<void> {
           console.log(`work ${report.workId}`);
           for (const d of report.documents) {
             const where = d.segments.length ? ` (segments ${d.segments.join(', ')})` : '';
-            console.log(`  ${d.result.padEnd(12)} ${d.kind} ${d.name}${where}`);
+            const why =
+              d.result === 'conflict' ? `: ${site.import.result(d.result, d.reason)}` : '';
+            console.log(`  ${d.result.padEnd(12)} ${d.kind} ${d.name}${where}${why}`);
           }
           for (const m of report.matches)
             console.log(
@@ -278,7 +281,7 @@ async function main(): Promise<void> {
         for (const w of report.works)
           for (const d of w.documents)
             console.log(
-              `  ${d.result.padEnd(12)} ${d.kind} ${d.name}${d.segments.length ? ` (segments ${d.segments.join(', ')})` : ''}`,
+              `  ${d.result.padEnd(12)} ${d.kind} ${d.name}${d.segments.length ? ` (segments ${d.segments.join(', ')})` : ''}${d.result === 'conflict' ? `: ${site.import.result(d.result, d.reason)}` : ''}`,
             );
         if (report.works.some((w) => w.documents.some((d) => d.result === 'conflict')))
           process.exitCode = 2;

@@ -399,6 +399,8 @@ export function summary(report: PackageImportReport): unknown {
         kind: d.kind,
         result: d.result,
         segments: d.segments,
+        // Why two texts conflict, for the wording of the report; other reasons stay here.
+        ...(d.result === 'conflict' && d.reason ? { reason: d.reason } : {}),
       })),
     ),
   };
