@@ -1,6 +1,6 @@
 {
   "$schema": "https://varians.eu/formats/2/witness.schema.json",
-  "id": "01M71YF5P66CEHXQ2651673BA3",
+  "id": "01M71ZVR8X2Q4ZVPMAHM5EX0ZN",
   "slug": "townleianus-t",
   "siglum": "T",
   "name": "Townleianus",
@@ -22,14 +22,14 @@
   "iiifManifest": null,
   "imageRights": null,
   "imageAttribution": null,
-  "createdBy": "01M71YF5HJW782RDP0MXDPH25T",
-  "createdAt": "2026-11-10T05:21:36.967Z",
-  "updatedAt": "2026-11-10T05:21:36.967Z",
+  "createdBy": "01M71ZVR465SWSG0Z3MHV53H1W",
+  "createdAt": "2026-11-10T05:45:57.790Z",
+  "updatedAt": "2026-11-10T05:45:57.790Z",
   "maintainers": [
     {
-      "id": "01M71YF5HJW782RDP0MXDPH25T",
+      "id": "01M71ZVR465SWSG0Z3MHV53H1W",
       "name": "Example Editor",
-      "since": "2026-11-10T05:21:36.968Z"
+      "since": "2026-11-10T05:45:57.793Z"
     }
   ],
   "mergedIds": []

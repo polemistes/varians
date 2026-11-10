@@ -21,7 +21,11 @@ What Varians reads from and writes to TEI P5 (`packages/core/src/tei/`). Everyth
 
 ## What a transcript keeps of an edition
 
-A transcript holds its witness and nothing an editor added to it. Read into the transcript of a carrier (a manuscript, a papyrus, an inscription), the elements by which the source's editor supplied or struck out are therefore not kept as marks:
+A TEI document is read in one of two ways, chosen by whoever imports it (`importTei`, option `as`).
+
+As **a text to start from** (`as: 'text'`) it gives its words and their numbering and nothing else: the word it prints where it gives a choice (the regularized, corrected or expanded one), its lines and paragraphs, and the numbered structure for the segments. Its marks, gaps, notes, figures and paratext are left behind, and its `<pb>` and `<cb>` are passed over as if not there: they are the pages of its own edition, not of the witness to be transcribed.
+
+As **a transcript of the witness** (`as: 'transcript'`, the default) it is read with its features and its pages, as the rest of this document describes. A transcript holds its witness and nothing an editor added to it, so the elements by which the source's editor supplied or struck out are not kept as marks:
 
 | TEI                                                        | In the stream                                                                                                                                                                                           |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -32,7 +36,7 @@ A transcript holds its witness and nothing an editor added to it. Read into the 
 | `<app type="editorial">`, `<app type="alternative">`       | the `<lem>`: the reading the source prints                                                                                                                                                              |
 | `<num value/>` without letters, `<gap reason="omitted">`   | left out                                                                                                                                                                                                |
 
-A witness registered as a printed edition is read otherwise: these are its own text, kept as the marks `supplied`, `surplus` and `corr` of the table below. `importTei` takes the choice as `supplements: 'drop' | 'keep'`.
+What Varians itself wrote is read back with `as: 'verbatim'`, which keeps every element as its mark, the marks `supplied`, `surplus` and `corr` of the table below among them; they belong to editions' texts.
 
 A `<gap>` that touches the letters of a word, before, inside or after them, is a point mark of that word; one that touches none is an object. Collation does not read a word with such a mark: it counts with the gap.
 

@@ -2,17 +2,17 @@
   "$schema": "https://varians.eu/formats/2/moments.schema.json",
   "moments": [
     {
-      "id": "01M71YF5QPJYM5Z0EXN4TA2CRZ",
+      "id": "01M71ZVRAPGCEEFJCRX181VQKX",
       "version": 1,
       "name": "Collated against A, B and C",
       "kind": "named",
       "number": null,
       "basis": null,
-      "personId": "01M71YF5HJW782RDP0MXDPH25T",
-      "at": "2026-11-10T05:21:37.015Z"
+      "personId": "01M71ZVR465SWSG0Z3MHV53H1W",
+      "at": "2026-11-10T05:45:57.847Z"
     },
     {
-      "id": "01M71YF5R2QNRXSZD0F8719HXY",
+      "id": "01M71ZVRB46AWFM34266WVKG6S",
       "version": 1,
       "name": "Version 1 (2026-11-10)",
       "kind": "published",
@@ -22,40 +22,40 @@
           {
             "siglum": "A",
             "states": [],
-            "witnessId": "01M71YF5KBX16SQT0VZ6JNBYJD",
+            "witnessId": "01M71ZVR5ZPEWSBV1DKY9DBEXB",
             "variantSiglum": null,
-            "transcriptionId": "01M71YF5KNH6HWJ51NPPNCDVQM"
+            "transcriptionId": "01M71ZVR6946BPVZTC77P3HC61"
           },
           {
             "siglum": "B",
             "states": [],
-            "witnessId": "01M71YF5MHKKRDT8S2VTX8ZCF2",
+            "witnessId": "01M71ZVR761FS5JG60NE07WNF2",
             "variantSiglum": null,
-            "transcriptionId": "01M71YF5MN03BZAHFG3XHSDCVB"
+            "transcriptionId": "01M71ZVR7APHXWNQN4ZG81Y59H"
           },
           {
             "siglum": "C",
             "states": [],
-            "witnessId": "01M71YF5N3TM3TD26C5BH7PWXZ",
+            "witnessId": "01M71ZVR7RBP5VKWF6CDCXCHCA",
             "variantSiglum": null,
-            "transcriptionId": "01M71YF5N8GV2WK4REPVGY6VY8"
+            "transcriptionId": "01M71ZVR7WH68SD0D6JD1WGJB4"
           },
           {
             "siglum": "T",
             "states": [],
-            "witnessId": "01M71YF5P66CEHXQ2651673BA3",
+            "witnessId": "01M71ZVR8X2Q4ZVPMAHM5EX0ZN",
             "variantSiglum": null,
             "transcriptionId": null
           }
         ],
         "versions": {
-          "01M71YF5KNH6HWJ51NPPNCDVQM": 1,
-          "01M71YF5MN03BZAHFG3XHSDCVB": 1,
-          "01M71YF5N8GV2WK4REPVGY6VY8": 1
+          "01M71ZVR6946BPVZTC77P3HC61": 1,
+          "01M71ZVR7APHXWNQN4ZG81Y59H": 1,
+          "01M71ZVR7WH68SD0D6JD1WGJB4": 1
         }
       },
-      "personId": "01M71YF5HJW782RDP0MXDPH25T",
-      "at": "2026-11-10T05:21:37.023Z"
+      "personId": "01M71ZVR465SWSG0Z3MHV53H1W",
+      "at": "2026-11-10T05:45:57.856Z"
     }
   ]
 }

@@ -1,13 +1,13 @@
 {
   "$schema": "https://varians.eu/formats/2/transcription.schema.json",
-  "id": "01M71YF5N8GV2WK4REPVGY6VY8",
+  "id": "01M71ZVR7WH68SD0D6JD1WGJB4",
   "name": "Iliad 1",
-  "witnessId": "01M71YF5N3TM3TD26C5BH7PWXZ",
-  "ownerId": "01M71YF5HJW782RDP0MXDPH25T",
+  "witnessId": "01M71ZVR7RBP5VKWF6CDCXCHCA",
+  "ownerId": "01M71ZVR465SWSG0Z3MHV53H1W",
   "ownerName": "Example Editor",
   "visibility": "published",
   "version": 1,
-  "head": "01M71YF5NF48CC8FG7SYS1A62G",
+  "head": "01M71ZVR84P1S24X59WFXP76H4",
   "keepsWrittenForm": false,
   "displayAsWritten": false,
   "profile": null,
@@ -16,140 +16,140 @@
   "licence": "CC-BY-SA-4.0",
   "rightsNote": null,
   "workIds": [
-    "01M71YF5J5KZ0P41CWA50HBNRX"
+    "01M71ZVR4V9ZC4C6ADBQ48D0MN"
   ],
-  "createdAt": "2026-11-10T05:21:36.936Z",
+  "createdAt": "2026-11-10T05:45:57.757Z",
   "content": {
     "items": [
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FTH",
+        "id": "01M71ZVR7VJAW55V4QZB59AQDB",
         "form": "μῆνιν",
         "kind": "token",
         "segment": {
-          "segmentId": "01M71YF5JDR7YYD3T6EWQ5RMWT"
+          "segmentId": "01M71ZVR54W83V64BKB6KC4S02"
         }
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FTJ",
+        "id": "01M71ZVR7VJAW55V4QZB59AQDC",
         "form": "ἄειδε",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FTK",
+        "id": "01M71ZVR7VJAW55V4QZB59AQDD",
         "form": "θεὰ",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FTM",
+        "id": "01M71ZVR7VJAW55V4QZB59AQDE",
         "form": "Πηληϊάδεω",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FTN",
+        "id": "01M71ZVR7VJAW55V4QZB59AQDF",
         "form": "Ἀχιλῆος",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FTP",
+        "id": "01M71ZVR7VJAW55V4QZB59AQDG",
         "kind": "break",
         "type": "line"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FTQ",
+        "id": "01M71ZVR7VJAW55V4QZB59AQDH",
         "form": "οὐλομένην,",
         "kind": "token",
         "segment": {
-          "segmentId": "01M71YF5JH0MS9040T6ARDHD60"
+          "segmentId": "01M71ZVR58GTV3TPFA68AJW5G2"
         }
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FTR",
+        "id": "01M71ZVR7VJAW55V4QZB59AQDJ",
         "form": "ἣ",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FTS",
+        "id": "01M71ZVR7VJAW55V4QZB59AQDK",
         "form": "μυρί᾽",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FTT",
+        "id": "01M71ZVR7VJAW55V4QZB59AQDM",
         "form": "Ἀχαιοῖς",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FTV",
+        "id": "01M71ZVR7VJAW55V4QZB59AQDN",
         "form": "ἄλγε᾽",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FTW",
+        "id": "01M71ZVR7VJAW55V4QZB59AQDP",
         "form": "ἔθηκε,",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FTX",
+        "id": "01M71ZVR7VJAW55V4QZB59AQDQ",
         "kind": "break",
         "type": "line"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FTY",
+        "id": "01M71ZVR7VJAW55V4QZB59AQDR",
         "form": "ἡρώων,",
         "kind": "token",
         "segment": {
-          "segmentId": "01M71YF5JQVDYXZPQK6K6SK2V8"
+          "segmentId": "01M71ZVR5EWX577PX7FMT6Q1M3"
         }
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FTZ",
+        "id": "01M71ZVR7VJAW55V4QZB59AQDS",
         "form": "αὐτοὺς",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FV0",
+        "id": "01M71ZVR7VJAW55V4QZB59AQDT",
         "form": "δὲ",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FV1",
+        "id": "01M71ZVR7VJAW55V4QZB59AQDV",
         "form": "ἑλώρια",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FV2",
+        "id": "01M71ZVR7VJAW55V4QZB59AQDW",
         "form": "τεῦχε",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FV3",
+        "id": "01M71ZVR7VJAW55V4QZB59AQDX",
         "form": "κύνεσσιν",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FV4",
+        "id": "01M71ZVR7VJAW55V4QZB59AQDY",
         "kind": "break",
         "type": "line"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FV5",
+        "id": "01M71ZVR7VJAW55V4QZB59AQDZ",
         "form": "οἰωνοῖσί",
         "kind": "token",
         "segment": {
-          "segmentId": "01M71YF5JVX7AXC8YSYVX5XJZQ"
+          "segmentId": "01M71ZVR5GVT76X6AWN222XXJG"
         }
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FV6",
+        "id": "01M71ZVR7VJAW55V4QZB59AQE0",
         "form": "τε",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FV7",
+        "id": "01M71ZVR7VJAW55V4QZB59AQE1",
         "form": "πᾶσι,",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N8GV2WK4REPVGY6VY7",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJB3",
         "kind": "object",
         "type": "gap",
         "attrs": {
@@ -159,199 +159,199 @@
         }
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVA",
+        "id": "01M71ZVR7VJAW55V4QZB59AQE4",
         "form": "ἐτελείετο",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVB",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJ9Z",
         "form": "βουλή,",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVC",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJA0",
         "kind": "break",
         "type": "line"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVD",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJA1",
         "form": "Ἀτρεΐδης",
         "kind": "token",
         "segment": {
-          "segmentId": "01M71YF5K0ZEM07J8DNY39WEY4"
+          "segmentId": "01M71ZVR5NDX9X38CB68D1Y4YF"
         }
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVE",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJA2",
         "form": "τε",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVF",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJA3",
         "form": "ἄναξ",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVG",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJA4",
         "form": "ἀνδρῶν",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVH",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJA5",
         "form": "καὶ",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVJ",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJA6",
         "form": "δῖος",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVK",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJA7",
         "form": "Ἀχιλλεύς.",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVM",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJA8",
         "kind": "break",
         "type": "line"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVN",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJA9",
         "form": "τίς",
         "kind": "token",
         "segment": {
-          "segmentId": "01M71YF5K20GC82BBA8R2GC1QQ"
+          "segmentId": "01M71ZVR5RBCZHCXVNZCR7KRMD"
         }
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVP",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAA",
         "form": "τ᾽",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVQ",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAB",
         "form": "ἄρ",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVR",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAC",
         "form": "σφωε",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVS",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAD",
         "form": "θεῶν",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVT",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAE",
         "form": "ἔριδι",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVV",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAF",
         "form": "ξυνέηκε",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVW",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAG",
         "form": "μάχεσθαι;",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVX",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAH",
         "kind": "break",
         "type": "line"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVY",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAJ",
         "form": "Λητοῦς",
         "kind": "token",
         "segment": {
-          "segmentId": "01M71YF5K50RQ77GQCCSNEBK01"
+          "segmentId": "01M71ZVR5TER2GAMBKT32CMPKB"
         }
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FVZ",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAK",
         "form": "καὶ",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FW0",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAM",
         "form": "Διὸς",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FW1",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAN",
         "form": "υἱός·",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FW2",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAP",
         "form": "ὁ",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FW3",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAQ",
         "form": "γὰρ",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FW4",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAR",
         "form": "βασιλῆϊ",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FW5",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAS",
         "form": "χολωθεὶς",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FW6",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAT",
         "kind": "break",
         "type": "line"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FW7",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAV",
         "form": "νοῦσον",
         "kind": "token",
         "segment": {
-          "segmentId": "01M71YF5K8S9JVN7K5P4N438N9"
+          "segmentId": "01M71ZVR5XDT3JN88R4F5QESXN"
         }
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FW8",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAW",
         "form": "ἀνὰ",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FW9",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAX",
         "form": "στρατὸν",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FWA",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAY",
         "form": "ὄρσε",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FWB",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJAZ",
         "form": "κακά,",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FWC",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJB0",
         "form": "ὀλέκοντο",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FWD",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJB1",
         "form": "δὲ",
         "kind": "token"
       },
       {
-        "id": "01M71YF5N7C1CMYG5HMKBT1FWE",
+        "id": "01M71ZVR7WH68SD0D6JD1WGJB2",
         "form": "λαοί,",
         "kind": "token"
       }
