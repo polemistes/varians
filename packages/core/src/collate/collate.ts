@@ -218,6 +218,17 @@ export function collate(
   const baseKeys = keysOf(base);
   const n = base.units.length;
   const baseHasWords = base.units.some((u) => !u.gap);
+  // Whether two words are near enough to stand against each other: asked for the same pair by every witness, so kept.
+  const likeness = new Map<string, boolean>();
+  const alike = (a: string, b: string): boolean => {
+    const key = `${a}\u0001${b}`;
+    let known = likeness.get(key);
+    if (known === undefined) {
+      known = similarity(a, b) >= near;
+      likeness.set(key, known);
+    }
+    return known;
+  };
 
   const absent: Id[] = [];
   const aligned: Aligned[] = [];
@@ -240,7 +251,7 @@ export function collate(
         witness,
         bareOf(witness),
         keysOf(witness),
-        near,
+        alike,
         reach,
       ),
     );
@@ -346,7 +357,7 @@ function alignSteps(
   witness: CollationText,
   bare: string[],
   keys: string[],
-  near: number,
+  alike: (a: string, b: string) => boolean,
 ): Step[] {
   const n = base.units.length;
   const m = witness.units.length;
@@ -357,7 +368,7 @@ function alignSteps(
     if (b && w) return AGREE;
     if (b || w) return GAP_UNIT;
     if (baseBare[i] === bare[j]) return baseKeys[i] === keys[j] ? AGREE : SAME_LETTERS;
-    return similarity(baseBare[i]!, bare[j]!) >= near ? NEAR : MISMATCH;
+    return alike(baseBare[i]!, bare[j]!) ? NEAR : MISMATCH;
   };
   // dp[i][j] is the best score aligning the base's units[0..i) with the witness's units[0..j).
   const dp: number[][] = [];
@@ -411,11 +422,11 @@ function alignWitness(
   witness: CollationText,
   bare: string[],
   keys: string[],
-  near: number,
+  alike: (a: string, b: string) => boolean,
   reach: number,
 ): Aligned {
   const n = base.units.length;
-  const steps = alignSteps(base, baseBare, baseKeys, witness, bare, keys, near);
+  const steps = alignSteps(base, baseBare, baseKeys, witness, bare, keys, alike);
   const pairOf = new Array<number>(n).fill(-1);
   const inserted: number[][] = Array.from({ length: n + 1 }, () => []);
   /** For each step, the units of the base before it: where what the witness adds there stands. */
