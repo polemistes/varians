@@ -18,6 +18,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { writeArchive } from '../archive/archive.ts';
 import { hasXmllint, validateArchiveDir, validateTeiFiles } from '../archive/validate.ts';
@@ -528,6 +529,8 @@ describe('seedPage, with a page of made-up Greek', () => {
     expect(again.workId).toBe(result.workId);
     expect(again.editionId).toBe(result.editionId);
     expect(again.transcriptionIds).toEqual(result.transcriptionIds);
+    expect(again.segmentIds).toEqual(result.segmentIds);
+    expect(again.witnessIds).toEqual(result.witnessIds);
   });
 
   it('is an archive that the application writes and validates, the TEI too', async () => {
@@ -585,7 +588,7 @@ describe('seedPage, with a page of made-up Greek', () => {
 
 // Every description under local/ (kept out of the repository), when there is one: it must seed and its view run.
 
-const here = path.dirname(new URL(import.meta.url).pathname);
+const here = path.dirname(fileURLToPath(import.meta.url));
 const localRoot = process.env.VARIANS_LOCAL ?? path.resolve(here, '../../../../../../local');
 const localPages = existsSync(localRoot)
   ? readdirSync(localRoot, { withFileTypes: true })

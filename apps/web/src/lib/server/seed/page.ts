@@ -43,6 +43,7 @@ import {
   moments,
   referenceSchemes,
   reviewState,
+  segments,
   sql,
   transcriptions,
   users,
@@ -76,7 +77,7 @@ import { refuseDevelopmentDatabase } from './stress.ts';
 
 const text = z.string().transform((s) => s.normalize('NFC'));
 const optionalText = text.optional();
-const line = z.string().min(1);
+const lineRef = z.string().min(1);
 
 const descriptionSchema = z.object({
   work: z.object({
@@ -103,11 +104,11 @@ const descriptionSchema = z.object({
     .array(z.object({ siglum: text, members: z.array(text), note: optionalText }))
     .default([]),
   conventions: z.object({ all: optionalText, rest: optionalText }).default({}),
-  lines: z.array(z.object({ n: line, text })).min(1),
+  lines: z.array(z.object({ n: lineRef, text })).min(1),
   variants: z
     .array(
       z.object({
-        line,
+        line: lineRef,
         from: text,
         to: text,
         witnesses: z.array(text).min(1),
@@ -119,8 +120,8 @@ const descriptionSchema = z.object({
     .array(
       z.object({
         witnesses: z.array(text).min(1),
-        move: z.array(line).min(1),
-        after: line,
+        move: z.array(lineRef).min(1),
+        after: lineRef,
         printed: optionalText,
       }),
     )
@@ -128,7 +129,7 @@ const descriptionSchema = z.object({
   marginalia: z
     .array(
       z.object({
-        line,
+        line: lineRef,
         witness: text,
         state: text,
         on: text,
@@ -140,7 +141,7 @@ const descriptionSchema = z.object({
   conjectures: z
     .array(
       z.object({
-        line,
+        line: lineRef,
         lemma: optionalText,
         after: optionalText,
         reading: optionalText,
@@ -159,8 +160,8 @@ const descriptionSchema = z.object({
   reported: z
     .array(
       z.object({
-        line,
-        lines: z.array(line).optional(),
+        line: lineRef,
+        lines: z.array(lineRef).optional(),
         lemma: optionalText,
         reading: text,
         source: text,
@@ -171,7 +172,7 @@ const descriptionSchema = z.object({
       }),
     )
     .default([]),
-  speakerNotes: z.array(z.object({ line, printed: text, note: optionalText })).default([]),
+  speakerNotes: z.array(z.object({ line: lineRef, printed: text, note: optionalText })).default([]),
   printed: z.record(z.string(), text).default({}),
 });
 
@@ -349,7 +350,7 @@ export function placesOfFor(
 
 /** The reading of a conjecture as it stands in the line: it takes over the punctuation that ended the words it replaces. */
 export function readingInPlace(replacedLast: string | undefined, reading: string): string {
-  const edge = /[,.;:!?··;…\-–—)\]»”"]+$/u;
+  const edge = /[,.;:!?\u00b7\u0387\u037e…\-–—)\]»”"]+$/u;
   const trailing = replacedLast === undefined ? null : edge.exec(replacedLast)?.[0];
   return trailing && !edge.test(reading) ? reading + trailing : reading;
 }
@@ -862,13 +863,12 @@ export async function seedPage(
  */
 export async function removePage(db: Database, slug: string): Promise<void> {
   await refuseDevelopmentDatabase(db);
-  const escaped = slug.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
   const workRows = await db.select({ id: works.id }).from(works).where(eq(works.slug, slug));
   const workIds = workRows.map((w) => w.id);
   const witnessRows = await db
     .select({ id: witnesses.id })
     .from(witnesses)
-    .where(sql`${witnesses.slug} ~ ${`^${escaped}-[wr][0-9]+$`}`);
+    .where(sql`${witnesses.slug} ~ ${`^${escapeRegex(slug)}-[wr][0-9]+$`}`);
   const witnessIds = witnessRows.map((w) => w.id);
   const editionRows = workIds.length
     ? await db.select({ id: editions.id }).from(editions).where(inArray(editions.workId, workIds))
@@ -892,6 +892,8 @@ export async function removePage(db: Database, slug: string): Promise<void> {
   await db.delete(referenceSchemes).where(eq(referenceSchemes.name, schemeName(slug)));
 }
 
+const escapeRegex = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+
 const schemeName = (slug: string) => `${SCHEME_PRESETS[1]!.name} (${slug})`;
 
 async function describeExisting(db: Database, plan: Plan, workId: string): Promise<PageSeedResult> {
@@ -903,7 +905,7 @@ async function describeExisting(db: Database, plan: Plan, workId: string): Promi
   const witnessRows = await db
     .select({ id: witnesses.id, siglum: witnesses.siglum })
     .from(witnesses)
-    .where(sql`${witnesses.slug} like ${`${slug}-w%`}`);
+    .where(sql`${witnesses.slug} ~ ${`^${escapeRegex(slug)}-[wr][0-9]+$`}`);
   const transcriptionRows = witnessRows.length
     ? await db
         .select({ id: transcriptions.id, witnessId: transcriptions.witnessId })
@@ -916,6 +918,10 @@ async function describeExisting(db: Database, plan: Plan, workId: string): Promi
         )
     : [];
   const siglumOf = new Map(witnessRows.map((w) => [w.id, w.siglum] as const));
+  const segmentRows = await db
+    .select({ id: segments.id, label: segments.label })
+    .from(segments)
+    .where(eq(segments.workId, workId));
   return {
     workId,
     slug,
@@ -925,7 +931,7 @@ async function describeExisting(db: Database, plan: Plan, workId: string): Promi
     transcriptionIds: Object.fromEntries(
       transcriptionRows.map((t) => [siglumOf.get(t.witnessId)!, t.id]),
     ),
-    segmentIds: {},
+    segmentIds: Object.fromEntries(segmentRows.map((r) => [r.label, r.id])),
     conjectureIds: [],
     reportedIds: [],
     groups: plan.description.groups,
