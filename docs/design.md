@@ -13,7 +13,10 @@ It does not repeat what is specified elsewhere:
 ## 1. Principles
 
 - **Show the text, hide the machinery.** The main screens are a text with a margin. Tools appear at the selection or in a side pane.
-- **Follow the conventions scholars know.** Line numbers in the margin, the apparatus at the foot, a caret, undo, cut and paste. Nothing invents an interaction where a known one exists.
+- **The screen is the edition.** A digital edition can say of its witnesses and their variants what a printed page has no room for, and Varians is made for that. A convention of printed editions is kept where it carries information or is a name scholars use: sigla, line numbers in the margin, the critical signs in the text. It is not kept where its reason is the space of a page or the flatness of paper: abbreviations, Latin formulae, a negative apparatus, a word for "the other witnesses", abridged lemmata, variants left out for want of room. A print apparatus is one rendition of an edition, made when a printed version is wanted (section 3.10).
+- **Report text, not meaning.** The apparatus says what each witness has, and what follows from the text the edition prints. It says nothing of what a reading means or of how it is formed: that is for interpreters, and for the editor's notes.
+- **Neutral terms.** Varians says what a witness has and does not measure it against an original. Words are an addition, not an interpolation, and nothing is called corrupt, spurious or inauthentic. What an edition prints is its editor's judgement, and is reported as that.
+- **Known interactions.** A caret, undo, cut and paste. Nothing invents an interaction where a known one exists.
 - **Derive, do not record.** What can be computed from the texts (variants, agreement, order, coverage) is computed. Only decisions are stored.
 - **Stable identities.** Tokens, segments, witnesses and conjectures have ids that never change meaning. Whatever points at text points at a token. Character offsets are stored nowhere, except inside one token for a feature that covers part of it.
 - **One core.** Domain logic lives once, in a library with no dependency on the browser or the database, used unchanged by both.
@@ -104,7 +107,7 @@ A token belongs to the segment whose start last preceded it in the stream, acros
 
 The profile proposes a normalized form only where that is mechanical. Nothing adds accents or breathings automatically. A normalization memory per transcript remembers confirmed pairs. A normalized form that differs from its diplomatic form by more than the profile's rules is unchecked until confirmed.
 
-Every place of variation has a **kind**: _textual_ where the readings have different letters, _interpretative_ where they have the same letters read otherwise (accents, breathings, punctuation, word division). The kind is computed, and the editor can override it per place. The edition chooses how interpretative variants are printed; the reader may choose otherwise. In Greek works a textual reading is further labelled by the analyser of forms as a help, never as a filter. The apparatus has no layer of orthographic variants: how a witness writes is its diplomatic text.
+Every variant has a **kind**: _textual_ where the readings have different letters, _interpretative_ where they have the same letters read otherwise (accents, breathings, punctuation, word division). The kind is computed, and the editor can override it per variant. The edition says whether interpretative variants are shown to begin with; the reader may choose otherwise. A reading is never labelled by its grammar or its sense (section 1): the analyser of Greek forms serves the dictionary, not the apparatus. The apparatus has no layer of orthographic variants: how a witness writes is its diplomatic text.
 
 Word division is the editor's analysis. What the manuscript has between two words is recorded separately and can be shown as written.
 
@@ -136,12 +139,12 @@ A deletion or an addition is a **correction** and may name its **hand** (one of 
 
 Collation reads words, not features, and each kind of feature has its rule:
 
-| Features                                                                        | What the apparatus reads                                                       |
-| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| unclear, damage, highlighting, glyphs, numbers                                  | the word as read                                                               |
-| regularization, correction, abbreviation with its expansion                     | the normalized form                                                            |
-| gap, illegible                                                                  | nothing: the witness is lacunose there, and a gap absorbs what the others have |
-| deletion, addition, the scribe's correction of a word, hands, marginal variants | the state asked for                                                            |
+| Features                                                                        | What the apparatus reads                         |
+| ------------------------------------------------------------------------------- | ------------------------------------------------ |
+| unclear, damage, highlighting, glyphs, numbers                                  | the word as read                                 |
+| regularization, correction, abbreviation with its expansion                     | the normalized form                              |
+| gap, illegible                                                                  | nothing: the witness is not there (section 3.10) |
+| deletion, addition, the scribe's correction of a word, hands, marginal variants | the state asked for                              |
 
 A word that a gap breaks is not read: what is left of it counts with the gap. The scribe's own correction of a word is two words, one added and one deleted, so that the witness reads the one after correction and the other before it.
 
@@ -151,58 +154,74 @@ A reading the manuscript itself offers as an alternative is entered as a variant
 
 A **conjecture** belongs to the work and names a segment: its kind, the lemma as text, the proposed reading, the proposer as free text (distinct from the user who entered it), references, a note. It is anchored by its lemma, matched by fold within the segment, with a token anchor to resolve a lemma that occurs twice. A conjecture whose lemma no longer matches is listed at its segment for re-anchoring.
 
-A **reported reading** is what a witness is reported to have at a place without being transcribed there. It is stored like a conjecture and takes part in collation as a witness present at that site only.
+A **reported reading** is what a witness is reported to have at some words without being transcribed there. It is stored like a conjecture and takes part in collation as a witness that is there at that variant only.
 
 ### 3.9 The edition
 
 An edition's text is a stream of the same shape as a transcript's, with the edition's own lineation and objects (speaker labels, headings, lacuna marks, marginal notes). In an ancient text the assignment of speakers is interpretation, not text: it is an annotation of the edition and never part of a transcript's words. In a modern play, where the speakers are text, they are written as text. Every word carries its **source**: the witness tokens it was taken from, the conjecture it realizes, or the edition itself. Adopted conjectures are also listed on the edition, so that deletions, lacunae and transpositions are attributed.
 
 - An edition starts by copying a witness's text for a range of segments. From then on it is independent; where a source transcript is corrected later, the word is marked and the current reading offered.
-- Adopting a reading replaces the edition's words at the site with that reading's words and their source. A word the editor retypes becomes the edition's own, so that no witness is credited with an emendation.
+- Adopting a reading replaces the edition's words at the variant with that reading's words and their source. A word the editor retypes becomes the edition's own, so that no witness is credited with an emendation.
 - Transpositions are cut and paste; the report of them is derived.
 - Editorial sigla in the printed text are features rendered by the edition's convention, never typed characters.
-- Site review state names the edition's tokens at the site, so a later change there makes it unreviewed again.
+- The review state of a variant names the edition's tokens there, so a later change there makes it unreviewed again.
 
 ### 3.10 Collation and the apparatus
 
-Collation is a pure function in the core: given the words of one segment in the edition and in each witness, it returns the segment's **places** of variation (in the code, sites). It references nothing stored. The server caches results under a hash of the inputs, one row for each segment of an edition: the cache is read for the segments asked for in one statement, and what it lacks is collated and written back together. The runs of a text are found once for the text, not for every segment asked. Which witnesses order whole segments otherwise than the edition is worked out when the orders differ, and remembered for the pair of orders.
+Collation is a pure function in the core: given the words of one segment in the edition and in each witness, it returns the segment's **variants** (in the code, sites): the stretches over which the witnesses differ, each with its readings. It references nothing stored. The server caches results under a hash of the inputs, one row for each segment of an edition: the cache is read for the segments asked for in one statement, and what it lacks is collated and written back together. The runs of a text are found once for the text, not for every segment asked. Which witnesses order whole segments otherwise than the edition is worked out when the orders differ, and remembered for the pair of orders.
 
 Per segment, every witness is aligned with the edition's words alone, by dynamic programming over the letters of the words. What one witness reads therefore never depends on another witness, nor on the order of the sigla. Where a witness departs from the edition it does so over an extent of its own:
 
 - a word read otherwise, together with the words the witness adds beside it (one word against several is one reading);
-- words added between two of the edition's;
-- words left out: a word left out beside one read otherwise is a departure by itself, unless the letters show the edition's two words to be the witness's one (φί λος against φίλος);
-- a stretch lost: a gap in the witness reaches over the words it has nothing for on either side;
-- a stretch whose words stand in another order, a transposition, the shortest such stretch being taken.
+- words it has between two of the edition's, which the edition does not have;
+- words it does not have: a word wanting beside one read otherwise is a departure by itself, unless the letters show the edition's two words to be the witness's one (φί λος against φίλος);
+- a stretch whose words stand in another order, the shortest such stretch being taken.
 
-**A place is an extent over which some witness departs.** The witnesses departing over that extent are its readings, grouped by fold and keeping the token ids they were read from; every other witness that has the segment stands with the edition there. Three rules settle how places stand to one another:
+**A variant is an extent over which some witness departs.** The witnesses departing over that extent are its readings, grouped by fold and keeping the token ids they were read from; every other witness that is there stands with the edition. Three rules settle how variants stand to one another:
 
-- **A reading in words accounts for every witness over its whole stretch.** Where a witness has a transposition or a phrase for a phrase, any other witness that departs within that stretch (a word spelt otherwise, a word left out) is given its words over the whole of it, with what it adds at either end; and two such readings that overlap without one lying within the other are one place over both. So the entry says of every witness what it has for the phrase, as a printed apparatus does: "νὴ τὸν Δία καὶ] καὶ νὴ Δία A B : νὴ τὸν Δία C".
-- **An omission or a loss swallows nothing.** What a witness leaves out or has lost keeps its own extent, and what others read otherwise inside that stretch are places of their own, in which the witness of the omission does not stand: "quick … jumps] om. B" beside "brown] red C". A witness that has lost something within a reading in words is not drawn into it either: its loss and what it reads beside it keep their places. A witness that departs only within a place, in places of its own, stands with the edition at that place.
-- Neighbouring places that divide the witnesses in the same way are one place, so that a phrase a family reads otherwise is one variant and not a row of single words. A place where only the reading of the letters differs is not joined to one where the letters do.
+- **A reading in words accounts for every witness over its whole stretch.** Where a witness has the words in another order or a phrase for a phrase, any other witness that departs within that stretch (a word spelt otherwise, a word it does not have) is given its words over the whole of it, with what it adds at either end; and two such readings that overlap without one lying within the other are one variant over both. So the variant says of every witness what it has for the phrase. A witness that has lost part of the stretch is not drawn into it: it stands only in the variants over the words it has.
+- **Words a witness does not have swallow nothing.** The stretch a witness is without keeps its own extent, and what others read otherwise inside it are variants of their own, in which that witness does not stand. A witness that departs only within a variant, in variants of its own, stands with the edition at the wider one.
+- Neighbouring variants that divide the witnesses in the same way are one, so that a phrase a family reads otherwise is one variant and not a row of single words. A variant where only the reading of the letters differs is not joined to one where the letters do.
 
-In the list of a segment's places, a place lying within another stands before it, so that the first place found for a word is the narrowest. Conjectures and reported readings are attached to places by lemma. Whole-segment order is compared outside the aligner.
+In the list of a segment's variants, one lying within another stands before it, so that the first found for a word is the narrowest. Conjectures and reported readings are attached to variants by lemma. Alignment constraints (these witness words correspond to these edition words) are stored and archived as data that names tokens.
 
-**What the apparatus prints.** An entry is a place with its lemma (the edition's words there), the witnesses of each reading, and the conjectures and reported readings attached to it. Entries stand in the order of the text, a wide place before the places within it. A lemma of more than three words against which nothing is read (the witnesses of the place leave it out or have lost it, or only conjectures concern it) is abridged to its first and last word. The edition's conventions settle how the witnesses are named:
+**Who is there.** A variant concerns the witnesses whose text runs through its stretch, and says nothing of the others. A witness is not there:
 
-- a positive apparatus names the witnesses that agree with the lemma, a negative one only those that differ;
-- a **family siglum** stands for its members wherever all of them have a reading ("p" for the agreement of two manuscripts). The editor makes it with the conspectus, from at least two of its witnesses and with a note if wanted ("consensus codicum Vp2H"), under a siglum that no witness, state or other group has. It follows its members through every change of the conspectus: a member whose siglum changes is renamed in it, a witness that leaves the conspectus leaves its groups, and a group left with fewer than two members goes. The reader's conspectus lists the groups with their members and notes;
-- a word for **the other witnesses** (cett., rell.) stands for the witnesses of the most widely attested reading of an entry, when they would be three sigla or more; where that reading is not the lemma's, the lemma's witnesses are named, in a negative apparatus too;
-- a word for **all the witnesses** (codd.) stands where the lemma is in no witness and all of them have one reading against it.
+- where its transcript marks a gap: the carrier is lost or illegible, and the gap reaches over the words the witness has nothing for on either side;
+- where its transcript marks a stretch as not transcribed (a gap whose reason is that, the ellipsis of EpiDoc);
+- outside the span from the first to the last segment of the work that its transcript has.
 
-The editor may give a place a kind over what its letters say (section 3.6), or mark it **not reported**. A place has one such word at a time: marking it not reported replaces a kind, and reporting it again gives it the kind its letters say. A place not reported stays in the editor's band, set apart and saying so, and is given to no reader: no entry in the reading page or the print apparatus, no marked words, no place in the list of variants, nothing in the plain text, and in the TEI none of its apparatus, its words standing as the edition's own. It is not counted among the places left to review, and the editor's text does not dot its words. A place that only a conjecture opens can be marked like any other. The mark is archived as data.
+A loss is therefore not a reading and makes no variant. A witness whose text runs on without the words is there, and its reading is nothing: the words are **not in** it. Varians does not call that an omission, and never infers a loss from the length of what is wanting, be it one line or a hundred. The transcriber sees whether the text runs on within a page or breaks off where a leaf is gone, and marks the gap; a marked gap alone is a loss. Whether an absence is the scribe's own or his exemplar's is interpretation, for a note.
 
-**What a page is given of an edition.** No page needs the whole edition collated before it opens. The collation of a segment is large (every witness's words at every place), the places where the text varies are small, and what each surface does with them differs.
+A witness without a whole segment, which it has not lost, is there in one variant only: the one over the whole segment, in which the words are not in it. It stands in no variant within the segment. That variant is taken as the active one only when the whole segment is selected, so a conjecture on one word stays on that word.
 
-- The **editor** opens with the text, the apparatus of the first segments, and the order statements. It asks for the apparatus of the segments around the caret as the caret reaches them (a stretch each way, so that moving on does not ask again at once), and, once open, for the **outline** of the whole text: for each segment, the places that show (their words, review key and whether they need attention) and the words that have drifted. The outline marks the words, counts the places still to review and steps from one place to the next, which the editor does over the whole text; a place in a segment not yet given is found by asking for that segment first. What an edit touches is asked for again and the outline of those segments made again from it.
-- The **reader** is sent the whole text and, for each segment, its places with their readings, the texts that have each named by place in one list of the page's texts, and what is attached. It prints the apparatus, marks the words and opens a place from that. It is not sent the words each text has at each place, nor how each text lines up with the edition; those come, for the segments in view, when a panel needs to light a witness's words. A reader does not wait for the whole text to be collated either: of the segments the cache lacks it takes a hundred, those nearest the one the visitor came to, and names the rest, whose places the page asks for as it opens and sets in the text as they come (so that for a visitor without scripts, or one who prints at once, those places lack their apparatus until the cache is filled).
+**Whole segments.** Two things are compared outside the aligner, and each is a variant like the others:
+
+- A segment that some witnesses have and the edition does not print is a variant at the point between two of the edition's segments where the work's numbering puts it: nothing in the edition, the segment's words in the witnesses that have it.
+- Segments that a witness has in another order than the edition are a variant over those segments, whose readings are the segments in each order. A segment standing far from its place is given by the segment it follows.
+
+**Addition.** Words that the edition does not print and some witnesses have are, in the editor's judgement, an addition in those witnesses: had the editor held them to belong to the text, the edition would print them. So are words the edition prints as deleted, in every witness that has them. The variant says so. This is derived from the edition's text and needs no mark of the editor's. The word is the same whether the words came in by design or by a slip, and says nothing of their worth (section 1). Nothing of the kind is said of an absence, which a loss that no one marked would explain as well.
+
+**How a variant is reported.** In English, in words written out, with the sigla. A variant is a list:
+
+- first the witnesses that are there, a group under its siglum with its members beside it;
+- then one row for each reading, with the witnesses that have it: the edition's reading first, set apart by its weight and not by a label, then the readings of the other witnesses, then the readings that are only reported, with the source of the report, and the conjectures, each with its proposer and its references. A reported reading that a row already gives joins that row.
+
+A row's reading is the words themselves. Where a witness has none, the row says "not in". Where the words are the same in another order, the rows are the words in each order, and no word for a transposition is needed; for whole segments they are the segments' labels in each order. Every witness that is there is named in a row, and nothing stands for "the others". A reading can be shown in the text itself, as the line reads with it.
+
+A note on the edition's words at a variant is shown with the variant, with its references, so that every variant and any of its readings can have its discussion and its bibliography. Conjectures and reported readings carry their own.
+
+**Groups.** The conspectus holds groups: a siglum for at least two of its witnesses (a family, or the agreement of two manuscripts), with a note if wanted ("consensus codicum Vp2H"), under a siglum that no witness, state or other group has. Where all the members have a reading they are listed under the group's siglum, which gathers them and does not hide them. A group follows its members through every change of the conspectus: a member whose siglum changes is renamed in it, a witness that leaves the conspectus leaves its groups, and a group left with fewer than two members goes.
+
+**The editor's word on a variant.** The editor may give a variant a kind over what its letters say (section 3.6), and may mark it **minor**. A minor variant is in everything the edition gives out, and is shown to a reader who asks for all the variants; otherwise the reader's page neither marks nor lists it. No variant is withheld from readers altogether. Marking a variant minor is a judgement on it, so it is no longer among the variants left to review. The kind and the grade are separate words; a variant that only a conjecture opens can be given either like any other, and both are archived as data.
+
+**The print apparatus** is a rendition of the variants in the conventions of printed editions: lemma and sigla in a positive or a negative form, Latin abbreviations, a group's siglum in place of its members, a word for the other witnesses (cett., rell.) and for all of them (codd.), a long lemma abridged to its first and last word. Printing and the plain-text export give it. It is kept as built and is not developed until a printed version of an edition is taken up. Nothing on screen is derived from it, and none of its devices is a rule for the screen.
+
+**What a page is given of an edition.** No page needs the whole edition collated before it opens. The collation of a segment is large (every witness's words at every variant), the variants themselves are small, and what each surface does with them differs.
+
+- The **editor** opens with the text, the apparatus of the first segments, and the order statements. It asks for the apparatus of the segments around the caret as the caret reaches them (a stretch each way, so that moving on does not ask again at once), and, once open, for the **outline** of the whole text: for each segment, the variants that show (their words, review key and whether they need attention) and the words that have drifted. The outline marks the words, counts the variants still to review and steps from one variant to the next, which the editor does over the whole text; a variant in a segment not yet given is found by asking for that segment first. What an edit touches is asked for again and the outline of those segments made again from it.
+- The **reader** is sent the whole text and, for each segment, its variants with their readings, the texts that have each named by their position in one list of the page's texts, and what is attached. It marks the variants in the text and opens one from that. It is not sent the words each text has at each variant, nor how each text lines up with the edition; those come, for the segments in view, when a panel needs to light a witness's words. A reader does not wait for the whole text to be collated either: of the segments the cache lacks it takes a hundred, those nearest the one the visitor came to, and names the rest, whose variants the page asks for as it opens and sets in the text as they come (so that for a visitor without scripts, or one who prints at once, those segments lack their variants until the cache is filled).
 - A **published version** is fixed, and every one of these is asked for at the version the visitor sees, with what the visitor may see.
-
-**Coverage.** A transcript covers the span from its first to its last segment of the work. Within that span, a segment it has no words for is an omission, and one lying across a gap or lacuna object is lost. Outside the span the witness is not transcribed, and the apparatus is silent.
-
-**A witness lacking a whole segment** departs over all of it: the place over the whole segment is flagged _wanting_ and reads "om. B", or "deest in B" where lost, and the witness stands in no other place of the segment. It is taken as the active place only when the whole segment is selected, so a conjecture on one word stays on that word. Its lemma is abridged to the first and last word when the segment has more than three.
-
-Alignment constraints (these witness words correspond to these edition words) are stored and archived as data that names tokens.
 
 ### 3.11 People, ownership, visibility
 
@@ -214,7 +233,7 @@ Alignment constraints (these witness words correspond to these edition words) ar
 
 **Visibility.** A work is public by default or private; a private work is private throughout. Owned records are drafts until published. Publishing an edition publishes the owner's transcripts in its conspectus and the owner's conjectures and reported readings on the work, and is refused while the conspectus names another person's unpublished transcript. Readers see published conjectures and reported readings only. In a public work, published conjectures are a commons any edition may adopt.
 
-**A published version is fixed.** It records the conspectus, the version of every transcript it compares, and the editors' word on places of variation (their kinds, and which places are not reported), and collates against exactly those. Correcting a witness or changing a mark later changes the draft's apparatus, never a published one.
+**A published version is fixed.** It records the conspectus, the version of every transcript it compares, and the editors' word on the variants (their kinds, and which are minor), and collates against exactly those. Correcting a witness or changing a mark later changes the draft's apparatus, never a published one.
 
 **Copies.** A published edition or transcript can be copied into a draft of one's own, with its origin recorded. Registry entries are shared, never copied.
 
@@ -262,11 +281,12 @@ The Greek forms and the two dictionaries are not part of Varians. They are built
 ## 4. The interface
 
 - **Written for scholars of textual criticism.** No lead paragraph under a heading, no hint under a field unless it states a convention of Varians that cannot be inferred (an identifier's form, what visibility does, what a deletion takes with it). Explanations belong in the guide, which every installation serves at `/guide`.
-- **Fixed terms**: work, witness, transcript, edition, segment, page, siglum, conjecture, reading, diplomatic and normalized, interpretative variants, Not on a page. "Text" is never a synonym for a work.
+- **Fixed terms**: work, witness, transcript, edition, segment, page, siglum, group, conjecture, variant, reading, diplomatic and normalized, interpretative and minor variants, addition, Not on a page. A variant is a stretch where the witnesses differ, with its readings. "Text" is never a synonym for a work.
 - **Labels** are nouns and short verbs, without example placeholders. Menu items are in Title Case; buttons, labels and headings in sentence case.
 - **One search**, in the header.
 - **Arranged by the work a scholar does**, not by kinds of data. For a witness: describe it, add its pages and images, transcribe, segment, map. For a work: register it, gather its witnesses, make the edition, publish. The workbench is arranged this way; the other screens are still to follow (section 7).
 - **The workbench**: above the text, the page chooser with its arrows, the form, Insert and Tools; in the header, the witness and transcript, the pane toggle and the ⋯ menu; under a selection, the toolbar with the features, Move to Page…, Segment… and Map. The facsimile stands on the side the editor chooses. The whole text is a read-only view. Words are mapped only in a page's own view. What the browser remembers (the view, the side, the pane's width) is kept in the browser, not in the account.
+- **Variants are shown where they stand.** A variant is marked in the text: on its words; at the point between two words, where the edition has nothing and a witness has words; in the margin for whole lines (a line that some witnesses do not have, a line the edition does not print, lines in another order). Kinds of variant may be marked differently, and the reader chooses which are marked. Opening a mark opens the **variant window**, which holds the list of section 3.10. The editor's band holds the same list, with what an editor does to it (adopt, keep, mark). An apparatus at the foot of the text is one way of showing the variants among others, not the form from which the others are made.
 - **The edition editor and the reader** show the page a witness's words stand on, whether or not the words are mapped.
 - Editor and reader are separate surfaces over one model. The reader is citable to the segment, with a lasting address for every published version, and prints.
 
@@ -290,15 +310,29 @@ Decided against, and not to be proposed again without a new reason:
 - Text recognition inside Varians. PAGE and ALTO output is imported.
 - Page breaks as things in the text: the page break command, a rule with a page's label, an editable whole text, a page's removal refused or forced.
 - A layer of orthographic variants in the apparatus.
+- On screen, the devices by which a printed apparatus saves space: Latin abbreviations, a negative form, a word for the other witnesses, an abridged lemma, a siglum in place of a group's members, a variant withheld from readers.
+- A word beside a reading on what it means or how it is formed.
+- Words that measure a witness against an original: interpolation, corruption, spurious, inauthentic.
+- Calling an absence an omission, and inferring a loss from the length of what is wanting.
 - An interface language other than English, though every string is in one place.
 
 ## 7. Not built, and known gaps
 
 Designed or wanted, and not there:
 
-- The arrangement of the witness, work and edition screens along the workflows of section 4. This is the next piece of design.
+- The reporting of variants as sections 3.10 and 4 state it. What is built differs in these ways:
+  - The reader's window explains a variant in sentences, without the list and without groups, and says of a Greek reading that it is another form of the same word. The editor's band is a line in the print form, with Latin abbreviations.
+  - A loss is a reading of its own, an absence is called an omission, and a gap marked as not transcribed counts as a loss. The workbench has no way to mark a stretch as not transcribed.
+  - "Not reported" stands where minor should: it withholds a variant from every reader and from the TEI, and takes the place of the kind.
+  - A segment the edition does not print is reported nowhere, since only the edition's segments are collated. The order of whole segments is told to the editor alone.
+  - Nothing is called an addition in the witnesses that have it.
+  - The only mark in the text is a dotted line under words. Words the edition does not have hang on the word before them, whole lines have no mark of their own, and a reading cannot be shown in the text.
+  - A note cannot be added from a variant, only on a selection or a segment.
+  - The interface says "site" and the guide "place" for a variant, and the print conventions are offered among the edition's settings and the reader's as if they were the apparatus.
+- Further ways of reading the variants in the text: the readings of a chosen witness or group shown in the line, chosen witnesses in parallel, the variants filtered by witness, group and kind.
+- The arrangement of the witness, work and edition screens along the workflows of section 4.
 - Dissemination: DTS, IIIF Presentation manifests with word annotations, a CollateX export.
-- An interface for alignment constraints, and for splitting and merging sites.
+- An interface for alignment constraints, and for splitting and merging variants.
 - Thinning of old history (the core has the function; nothing applies it).
 - Comments on other people's records; typeset PDF export (the reader prints through the browser); virtualized long lists; re-encoding of uploads.
 - Works are still deleted from their Edit page, not from their own page as witnesses are.
@@ -307,7 +341,7 @@ Designed or wanted, and not there:
 
 Known gaps in what is built:
 
-- Adopting a whole-segment omission removes the segment from the edition's text, apparatus entry included. An omitted line cannot yet be printed in brackets.
+- Adopting the absence of a whole segment removes the segment from the edition's text, and with it every report of the segment. A line the edition leaves out cannot yet be printed in brackets.
 - Undoing a move of text to another page does not bring back the boxes the move detached.
 - The pages endpoint of a witness reads every transcript to count the words on each page, which will be slow for many long transcripts. A count kept with the segment index is the remedy.
 - In the edition's TEI an adopted conjecture's name and a conjecture's source are text in pointer attributes; they should be `conj:` pointers.
