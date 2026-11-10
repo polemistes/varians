@@ -317,6 +317,8 @@ export interface EditionView {
   order: OrderStatement[];
   /** The version shown, when not the current one. */
   atVersion: number | null;
+  /** Segments wanted whose views were not made, for want of the collation budget: nearest the one asked for first. */
+  pending: string[];
 }
 
 /** The witnesses of the conspectus, by id. */
@@ -364,6 +366,13 @@ export interface ViewOptions {
   order?: boolean;
   /** The notes and what the records cite, and the relations of Greek readings to the edition's words (default), or leave them out. */
   detail?: boolean;
+  /**
+   * Collate afresh at most this many of the segments the cache lacks, those
+   * nearest `near` (a segment's label or id) first; the others are named in
+   * `pending` and made when asked for.
+   */
+  budget?: number;
+  near?: string;
 }
 
 /**
@@ -404,7 +413,22 @@ export async function editionView(
     : options.first !== undefined
       ? inEdition.slice(0, options.first)
       : inEdition;
-  const collations = await collateSegments(db, context, wanted);
+  const near =
+    options.near === undefined
+      ? undefined
+      : labelOf[options.near] !== undefined
+        ? options.near
+        : Object.keys(labelOf).find((id) => labelOf[id] === options.near);
+  const collations = await collateSegments(db, context, wanted, {
+    ...(options.budget !== undefined ? { budget: options.budget } : {}),
+    ...(near !== undefined ? { near } : {}),
+  });
+  const pending = wanted.filter((id) => !collations.has(id));
+  if (near !== undefined && pending.length > 1) {
+    const position = new Map(wanted.map((id, i) => [id, i] as const));
+    const at = position.get(near) ?? 0;
+    pending.sort((a, b) => Math.abs(position.get(a)! - at) - Math.abs(position.get(b)! - at));
+  }
   const views = await buildSegmentViews(
     db,
     context,
@@ -455,6 +479,7 @@ export async function editionView(
     labelOf,
     order: options.order === false ? [] : orderStatements(context),
     atVersion: atVersion !== null && atVersion !== row.version ? atVersion : null,
+    pending,
   };
 }
 

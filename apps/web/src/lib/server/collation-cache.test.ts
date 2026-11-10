@@ -126,3 +126,22 @@ describe('collateSegments', () => {
     expect((await cacheRows()).map((r) => r.segmentId)).toContain(row!.segmentId);
   });
 });
+
+describe('collateSegments with a budget', () => {
+  it('collates the budget of segments nearest the one named, and leaves the others for later', async () => {
+    const context = await loadEditionContext(db, editionId);
+    const ids = [...(await collateEdition(db, context)).keys()];
+    expect(ids.length).toBeGreaterThan(6);
+    await db.delete(collationCache).where(eq(collationCache.editionId, editionId));
+    const first = await collateSegments(db, context, ids, { budget: 3, near: ids[5]! });
+    expect([...first.keys()].sort()).toEqual([ids[4]!, ids[5]!, ids[6]!].sort());
+    expect((await cacheRows()).map((r) => r.segmentId).sort()).toEqual([...first.keys()].sort());
+    // What is cached is given besides the budget's worth more.
+    const second = await collateSegments(db, context, ids, { budget: 2, near: ids[5]! });
+    expect(second.size).toBe(5);
+    expect([...first.keys()].every((id) => second.has(id))).toBe(true);
+    // A budget the lacking fit in gives everything, as without one.
+    const all = await collateSegments(db, context, ids, { budget: 100 });
+    expect([...all.keys()]).toEqual(ids);
+  });
+});

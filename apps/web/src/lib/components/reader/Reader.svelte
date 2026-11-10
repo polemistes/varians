@@ -40,7 +40,7 @@
     siteOf,
     witnessTokensAt,
   } from '$lib/reader/sites';
-  import type { ReaderPageData } from '$lib/reader/types';
+  import type { ReaderPageData, ReaderSegment } from '$lib/reader/types';
   import { reader as r } from '$lib/strings/reader';
   import { s } from '$lib/strings';
   import ApparatusBlock from './ApparatusBlock.svelte';
@@ -60,7 +60,7 @@
   import { PaneSize } from '$lib/layout/pane-size.svelte';
   import { WitnessTexts } from './witness-texts.svelte';
   import { SegmentDetails } from './segment-details.svelte';
-  import { withDetail } from '$lib/reader/wire';
+  import { unpackSegments, withDetail, type WireSegment, type WireText } from '$lib/reader/wire';
 
   interface Props {
     data: ReaderPageData;
@@ -69,6 +69,12 @@
   let { data }: Props = $props();
 
   let copyOpen = $state(false);
+
+  // The places of the segments the page was not sent when it opened, as they have come.
+  let arrived = $state.raw<Record<string, ReaderSegment>>({});
+  const segments = $derived(
+    Object.keys(arrived).length > 0 ? { ...data.segments, ...arrived } : data.segments,
+  );
 
   // What the edition is: fixed for a page.
   const conventionsOfEdition = $derived(data.edition.conventions);
@@ -83,7 +89,7 @@
   );
   const segmentsOfLine = $derived(segmentsByLine(data.lines));
   const segmentOf = $derived(segmentOfItems(data.lines));
-  const sitesOfToken = $derived(siteByToken(data));
+  const sitesOfToken = $derived(siteByToken({ segments }));
   const startsOfLine = $derived(
     data.lines.map((line) =>
       line.starts.flatMap((start) => (start.segmentId ? [start.segmentId] : [])),
@@ -93,7 +99,7 @@
   const order = $derived(
     blocks
       .flatMap((block) => block.segmentIds)
-      .map((id) => ({ label: data.labelOf[id] ?? id, absent: data.segments[id]?.absent ?? [] })),
+      .map((id) => ({ label: data.labelOf[id] ?? id, absent: segments[id]?.absent ?? [] })),
   );
   const speakerDisplay = $derived(conventionsOfEdition.speakerDisplay ?? 'margin');
   const marginSpeakers = $derived(
@@ -151,10 +157,10 @@
 
   // The apparatus under the settings in force.
   const conventions = $derived(effectiveConventions(data.apparatus, settings));
-  const entries = $derived(entriesBySegment(data.segments, conventions, siglaOrder));
+  const entries = $derived(entriesBySegment(segments, conventions, siglaOrder));
   const entryMap = $derived(entryBySite(entries));
 
-  const marking = $derived(markSites(sitesOfToken, entryMap, data.segments));
+  const marking = $derived(markSites(sitesOfToken, entryMap, segments));
   /** What the explanations of variant places read: the conspectus and the conventions in force. */
   const explainContext = $derived<ExplainContext>({ sigla: data.sigla });
 
@@ -175,8 +181,8 @@
     return block.segmentIds.some(
       (id) =>
         (entries.get(id)?.length ?? 0) > 0 ||
-        (data.segments[id]?.unplaced.length ?? 0) > 0 ||
-        (data.segments[id]?.notes.length ?? 0) > 0,
+        (segments[id]?.unplaced.length ?? 0) > 0 ||
+        (segments[id]?.notes.length ?? 0) > 0,
     );
   }
 
@@ -246,9 +252,42 @@
   /** What the page was not sent of the segments, once asked for. */
   const details = new SegmentDetails();
 
+  /** How many segments are asked for at once, of those the page was not sent. */
+  const PENDING_CHUNK = 100;
+
+  /** Ask for the places of the segments the page was not sent, nearest the one asked for first; they take their place in the text as they come. */
+  async function fetchPending(ids: string[], url: string, baseId: string) {
+    for (let i = 0; i < ids.length; i += PENDING_CHUNK) {
+      const chunk = ids.slice(i, i + PENDING_CHUNK);
+      try {
+        const response = await fetch(
+          `${url}${url.includes('?') ? '&' : '?'}segments=${encodeURIComponent(chunk.join(','))}`,
+        );
+        if (!response.ok) return;
+        const wire = (await response.json()) as {
+          segments: Record<string, WireSegment>;
+          texts: WireText[];
+        };
+        arrived = { ...arrived, ...unpackSegments(wire.segments, wire.texts, baseId) };
+      } catch {
+        return;
+      }
+      // Each stretch that comes makes the apparatus again: the page takes a breath between.
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+  }
+
+  $effect(() => {
+    const ids = data.pending;
+    const url = data.sites;
+    const baseId = data.edition.id;
+    if (!live || ids.length === 0) return;
+    untrack(() => void fetchPending(ids, url, baseId));
+  });
+
   /** A segment with its detail, when that has come: the words each text has at each place. */
   function fullSegment(id: string) {
-    const segment = data.segments[id];
+    const segment = segments[id];
     const detail = details.get(data.detail, id);
     return segment && detail ? withDetail(segment, detail) : segment;
   }
@@ -337,7 +376,7 @@
   const popoverEntries = $derived<PopoverEntry[]>(
     activeKeys.flatMap((key) => {
       const ref = parseSiteKey(key);
-      const segment = ref ? data.segments[ref.segmentId] : undefined;
+      const segment = ref ? segments[ref.segmentId] : undefined;
       const explanation =
         segment && entryMap.has(key) ? explainSite(segment, ref!.siteIndex, explainContext) : null;
       if (!explanation) return [];
@@ -349,7 +388,7 @@
 
   /** The variant places of the lines on screen, explained, while the list of variants is open. */
   const variantGroups = $derived(
-    variantsOpen ? variantsOf(visibleSegments, data.segments, entryMap, explainContext) : [],
+    variantsOpen ? variantsOf(visibleSegments, segments, entryMap, explainContext) : [],
   );
 
   /** Light the words and entries of some sites, by a data attribute the components style. */
@@ -533,6 +572,7 @@
     void data.basePath;
     void data.edition.version;
     untrack(() => {
+      arrived = {};
       popoverOpen = false;
       activeKeys = [];
       hoveredKeys = [];
@@ -656,7 +696,7 @@
                   <ApparatusBlock
                     segmentIds={block.segmentIds}
                     {entries}
-                    segments={data.segments}
+                    {segments}
                     labelOf={data.labelOf}
                     {conventions}
                     {side}

@@ -91,6 +91,7 @@ describe('readerLinks', () => {
         package: '/editions/iliad-1/package.zip',
       },
       detail: '/editions/iliad-1/detail.json',
+      sites: '/editions/iliad-1/sites.json',
       links: { current: '/editions/iliad-1', preview: null, editor: null },
     });
     expect(
@@ -105,6 +106,7 @@ describe('readerLinks', () => {
       query: '',
       exports: { text: '/editions/iliad-1.txt?v=1', tei: '/editions/iliad-1.tei.xml?v=1' },
       detail: '/editions/iliad-1/detail.json?v=1',
+      sites: '/editions/iliad-1/sites.json?v=1',
       links: { preview: '/editions/iliad-1?draft=1', editor: '/editions/iliad-1/edit' },
     });
     expect(
@@ -113,6 +115,7 @@ describe('readerLinks', () => {
       query: '?draft=1',
       exports: { text: '/editions/iliad-1.txt?draft=1' },
       detail: '/editions/iliad-1/detail.json?draft=1',
+      sites: '/editions/iliad-1/sites.json?draft=1',
     });
     expect(
       readerLinks('iliad-1', { kind: 'draft', version: 4 }, editor, false).links.preview,

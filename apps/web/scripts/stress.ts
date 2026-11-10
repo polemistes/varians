@@ -73,7 +73,7 @@ const { documentAt, loadDocument, rebuildSegmentIndex, saveOps } = await import(
   '../src/lib/server/documents/service.ts'
 );
 const { pageViewsOf } = await import('../src/lib/server/pages.ts');
-const { loadReader, readerDetail } = await import('../src/lib/server/reader-pages.ts');
+const { loadReader, readerDetail, readerSites } = await import('../src/lib/server/reader-pages.ts');
 const { apparatusConventionsOf, editionOutline, editionView, refreshView } = await import(
   '../src/lib/server/reader.ts'
 );
@@ -407,6 +407,30 @@ async function sent(c: Context, view: EditionView): Promise<void> {
     openingCold.ms / 1000,
     's',
     `the first ${OPENING_SEGMENTS} segments, collation cache emptied`,
+  );
+  // The reader does not wait for the whole text to be collated: it takes what the cache has and a budget more, and the rest comes as asked.
+  const readerCold = await timed(() => loadReader(c.db, c.owner, c.editionSlug, { draft: true }));
+  report(
+    'reader, the draft: load time, cold cache',
+    readerCold.ms / 1000,
+    's',
+    `loadReader, cache emptied: ${readerCold.result.pending.length} segments left to ask for`,
+  );
+  report(
+    'reader, the draft: JSON, cold cache',
+    mb(bytesOf(readerCold.result)),
+    'MB',
+    'loadReader data',
+  );
+  const pendingIds = readerCold.result.pending.slice(0, 100);
+  const sitesCold = await timed(() =>
+    readerSites(c.db, c.owner, c.editionSlug, { draft: true }, pendingIds),
+  );
+  report(
+    'reader, 100 of those segments asked for, cold cache: time',
+    sitesCold.ms / 1000,
+    's',
+    'readerSites',
   );
   const outlineCold = await timed(() => editionOutline(c.db, c.editionId, audience));
   report(

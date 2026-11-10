@@ -377,6 +377,12 @@ export async function collateSegments(
   db: Database,
   context: EditionContext,
   segmentIds: string[],
+  /**
+   * With a budget, at most that many segments are collated afresh, those
+   * nearest `near` (a segment id) among the segments asked for first; the
+   * others the cache lacks are left out of the result.
+   */
+  options: { budget?: number; near?: string } = {},
 ): Promise<Map<string, Collation>> {
   const wanted = [...new Set(segmentIds)];
   const gathered = wanted.map((segmentId) => {
@@ -427,12 +433,32 @@ export async function collateSegments(
         },
       });
   };
+  // Which of the segments the cache lacks are collated now: all of them, or the budget's worth nearest the one named.
+  const lacking = gathered.filter((g) => {
+    const hit = cached.get(g.segmentId);
+    return !hit || hit.inputHash !== g.hash;
+  });
+  const position = new Map(wanted.map((id, i) => [id, i] as const));
+  const nearAt = Math.max(0, options.near !== undefined ? (position.get(options.near) ?? 0) : 0);
+  const now = new Set(
+    options.budget === undefined || options.budget >= lacking.length
+      ? lacking.map((g) => g.segmentId)
+      : [...lacking]
+          .sort(
+            (a, b) =>
+              Math.abs(position.get(a.segmentId)! - nearAt) -
+              Math.abs(position.get(b.segmentId)! - nearAt),
+          )
+          .slice(0, options.budget)
+          .map((g) => g.segmentId),
+  );
   for (const { segmentId, base, witnessTexts, hash } of gathered) {
     const hit = cached.get(segmentId);
     if (hit && hit.inputHash === hash) {
       results.set(segmentId, reviveCollation(hit.result));
       continue;
     }
+    if (!now.has(segmentId)) continue;
     const result = collate(base, witnessTexts, { fold: context.profile.fold });
     fresh.push({ segmentId, hash, result });
     results.set(segmentId, result);
@@ -442,10 +468,12 @@ export async function collateSegments(
   // The editor's kinds are put over the cached result, so that setting one does not collate again.
   const out = new Map<string, Collation>();
   for (const { segmentId, base } of gathered) {
+    const collation = results.get(segmentId);
+    if (!collation) continue;
     const kinds = new Map(
       [...(context.siteKinds.get(segmentId) ?? [])].map(([key, k]) => [key, k.kind] as const),
     );
-    out.set(segmentId, applySiteKinds(results.get(segmentId)!, base.units, kinds));
+    out.set(segmentId, applySiteKinds(collation, base.units, kinds));
   }
   return out;
 }

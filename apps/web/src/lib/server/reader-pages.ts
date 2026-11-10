@@ -31,7 +31,15 @@ import { reader as r } from '$lib/strings/reader';
 export interface ReaderRequest {
   version?: number | null;
   draft?: boolean;
+  /** The segment the visitor came to, by label: the places of the segments nearest it are made first. */
+  focus?: string;
 }
+
+/**
+ * How many segments the page waits to have collated afresh, when the cache
+ * lacks more: the others come as the page asks for them.
+ */
+export const READER_BUDGET = 100;
 
 export interface PublishedMoment {
   number: number;
@@ -159,7 +167,7 @@ export function readerLinks(
   mode: ReaderMode,
   rights: { canEdit: boolean },
   published: boolean,
-): Pick<ReaderData, 'basePath' | 'query' | 'exports' | 'detail' | 'links'> {
+): Pick<ReaderData, 'basePath' | 'query' | 'exports' | 'detail' | 'sites' | 'links'> {
   const base = `/editions/${encodeURIComponent(slug)}`;
   const basePath = mode.kind === 'version' ? `${base}/v/${mode.number}` : base;
   const query = mode.kind === 'preview' ? '?draft=1' : '';
@@ -173,6 +181,7 @@ export function readerLinks(
       package: `${base}/package.zip`,
     },
     detail: `${base}/detail.json${exportQuery}`,
+    sites: `${base}/sites.json${exportQuery}`,
     links: {
       current: base,
       preview: published && rights.canEdit ? `${base}?draft=1` : null,
@@ -214,6 +223,8 @@ export async function loadReader(
   const view = await editionView(db, access.edition.id, resolved.atVersion, audience, {
     lean: true,
     order: false,
+    budget: READER_BUDGET,
+    ...(request.focus ? { near: request.focus } : {}),
   });
   const published =
     access.edition.visibility === 'published' && access.edition.publishedVersion !== null;
@@ -240,6 +251,7 @@ export async function loadReader(
     segments,
     texts,
     baseId: access.edition.id,
+    pending: view.pending,
     worksCited: await editionWorksCited(db, access.edition.id, audience),
     labelOf,
     mode,
@@ -252,6 +264,34 @@ export async function loadReader(
     origin: await originOf(db, access.edition.copiedFrom),
     ...readerLinks(access.edition.slug, mode, access, published),
   };
+}
+
+/**
+ * The places of some segments, as the page is sent them, for those the page
+ * did not wait for (`pending` of the page data). What is not in the edition
+ * is left out.
+ */
+export async function readerSites(
+  db: Database,
+  user: Actor | null,
+  slug: string,
+  request: ReaderRequest,
+  segmentIds: string[],
+): Promise<Pick<ReaderWireData, 'segments' | 'texts'>> {
+  const resolved = await resolveReader(db, user, slug, request);
+  const view = await editionView(
+    db,
+    resolved.access.edition.id,
+    resolved.atVersion,
+    audienceOf(resolved.mode, user),
+    {
+      segments: [...new Set(segmentIds)].slice(0, MAX_REFRESH),
+      lean: true,
+      lines: false,
+      order: false,
+    },
+  );
+  return packSegments(Object.values(view.segments));
 }
 
 /**

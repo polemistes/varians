@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { formatEntry, newId, siteKey, type Token } from '@varians/core';
 import {
+  collationCache,
   conjectures,
   createDatabase,
   editionCollaborators,
@@ -23,10 +24,10 @@ import {
   segmentViewsFor,
   type Audience,
 } from './reader.ts';
-import { loadReader, readerDetail } from './reader-pages.ts';
+import { loadReader, readerDetail, readerSites } from './reader-pages.ts';
 import { outlineOf } from '../edition/outline.ts';
 import { alignedUnits } from '../reader/sites.ts';
-import { detailOf, unpackReader, withDetail } from '../reader/wire.ts';
+import { detailOf, unpackReader, unpackSegments, withDetail } from '../reader/wire.ts';
 import { seedSample } from './seed/sample.ts';
 
 const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329/varians_test';
@@ -313,5 +314,38 @@ describe('what a page needs of an edition, by stretches', () => {
     await expect(readerDetail(db, stranger, sample.editionSlug, {}, ['x'])).rejects.toMatchObject({
       status: 404,
     });
+  });
+});
+
+describe('a page that does not wait for the whole edition to be collated', () => {
+  it('makes the views of the segments nearest the one asked for, names the others, and gives them when asked', async () => {
+    const sample = await seedSample(db, userId);
+    const whole = await editionView(db, sample.editionId, null, owner);
+    const ids = Object.keys(whole.segments);
+    const labels = ids.map((id) => whole.labelOf[id]!);
+    await db.delete(collationCache).where(eq(collationCache.editionId, sample.editionId));
+    const some = await editionView(db, sample.editionId, null, owner, {
+      lean: true,
+      lines: false,
+      order: false,
+      budget: 3,
+      near: labels[5]!,
+    });
+    expect(Object.keys(some.segments).sort()).toEqual([ids[4]!, ids[5]!, ids[6]!].sort());
+    // The rest are named, nearest the one asked for first.
+    expect(some.pending).toHaveLength(ids.length - 3);
+    expect([...some.pending.slice(0, 2)].sort()).toEqual([ids[3]!, ids[7]!].sort());
+    expect(new Set([...some.pending, ...Object.keys(some.segments)])).toEqual(new Set(ids));
+    // Without a budget nothing is left.
+    expect((await editionView(db, sample.editionId, null, owner)).pending).toEqual([]);
+    // And the places of those left come as the page asks, as it would have been sent them.
+    const actor = { id: userId, role: 'member' as const };
+    const sites = await readerSites(db, actor, sample.editionSlug, {}, some.pending);
+    const arrived = unpackSegments(sites.segments, sites.texts, sample.editionId);
+    expect(Object.keys(arrived).sort()).toEqual([...some.pending].sort());
+    const page = unpackReader(await loadReader(db, actor, sample.editionSlug, {}));
+    for (const id of some.pending)
+      expect(arrived[id]!.collation.sites).toEqual(page.segments[id]!.collation.sites);
+    expect(page.pending).toEqual([]);
   });
 });

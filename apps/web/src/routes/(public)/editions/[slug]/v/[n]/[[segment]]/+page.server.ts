@@ -8,6 +8,7 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals, params }) => {
   const data = await loadReader(locals.db, locals.user, params.slug, {
     version: parseVersionNumber(params.n),
+    ...(params.segment ? { focus: params.segment } : {}),
   });
   return { ...data, crumb: { label: data.edition.title } };
 };

@@ -10,6 +10,7 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals, params, url }) => {
   const data = await loadReader(locals.db, locals.user, params.slug, {
     draft: url.searchParams.get('draft') === '1',
+    ...(params.segment ? { focus: params.segment } : {}),
   });
   return { ...data, crumb: { label: data.edition.title } };
 };

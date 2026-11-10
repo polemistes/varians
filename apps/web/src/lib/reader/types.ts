@@ -125,6 +125,14 @@ export interface ReaderData {
   exports: { text: string; tei: string; package: string };
   /** Where the detail of some segments is asked for, as a query is added to it: `/editions/slug/detail.json` with the state of the edition kept. */
   detail: string;
+  /** Where the places of some segments are asked for (`sites.json`), those in `pending`. */
+  sites: string;
+  /**
+   * Segments of the text whose places were not sent, because their collation
+   * was not at hand and the page did not wait for it: nearest the segment
+   * asked for first. The page asks for them as it opens.
+   */
+  pending: string[];
   links: {
     /** The edition as readers see it now. */
     current: string;
