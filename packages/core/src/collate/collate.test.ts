@@ -342,4 +342,38 @@ describe('addition', () => {
     expect(additionIn(c.sites[0]!, 'E', true)).toEqual(['B']);
     expect(additionIn(c.sites[0]!, 'E', false)).toEqual([]);
   });
+
+  it('leaves out a witness that has a word of the segment in another place of it, where it has it', () => {
+    const words = 'a b c d e f g h i j';
+    const c = collate(text('E', 'ed', words), [
+      text('A', 'A', words),
+      text('B', 'B', 'b c d e f g h i j a'),
+      text('C', 'C', 'b c d e f g h i x j a'),
+    ]);
+    const point = c.sites.find((s) => s.baseFrom === 10)!;
+    const first = c.sites.find((s) => s.baseFrom === 0)!;
+    expect(first.transposition?.withSite).toBe(point.index);
+    expect(point.transposition?.withSite).toBe(first.index);
+    expect(point.transposition?.textIds).toEqual(['B', 'C']);
+    // B and C have the edition's word at the end of the segment: they have added nothing there.
+    expect(additionIn(point, 'E', false)).toEqual([]);
+    // C also adds a word of its own, at a point that no other site names.
+    const own = c.sites.find((s) => s.baseFrom === 9 && s.baseTo === 9)!;
+    expect(own.transposition).toBeUndefined();
+    expect(additionIn(own, 'E', false)).toEqual(['C']);
+  });
+
+  it('keeps a witness that adds words at a point where another has a word of its own', () => {
+    const point = {
+      index: 1,
+      baseFrom: 3,
+      baseTo: 3,
+      transposition: { withSite: 0, textIds: ['B'] },
+      readings: [
+        { text: '', omission: true, base: true, textIds: ['E', 'A'] },
+        { text: 'a', omission: false, base: false, textIds: ['B', 'D'] },
+      ],
+    };
+    expect(additionIn(point as never, 'E', false)).toEqual(['D']);
+  });
 });

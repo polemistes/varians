@@ -123,17 +123,34 @@ export function siteKey(segmentId: string, siteIndex: number): string {
 }
 
 export function parseSiteKey(key: string): { segmentId: string; siteIndex: number } | null {
+  if (isOrderKey(key)) return null;
   const at = key.lastIndexOf(':');
   if (at <= 0) return null;
   const siteIndex = Number(key.slice(at + 1));
   return Number.isInteger(siteIndex) ? { segmentId: key.slice(0, at), siteIndex } : null;
 }
 
+/** The key of a variant over the order of whole segments, which stands at no site: `order:k`, k its place among the edition's. */
+export function orderKey(index: number): string {
+  return `order:${index}`;
+}
+
+export function parseOrderKey(key: string): number | null {
+  const found = /^order:(\d+)$/.exec(key);
+  return found ? Number(found[1]) : null;
+}
+
+export function isOrderKey(key: string): boolean {
+  return parseOrderKey(key) !== null;
+}
+
 /**
  * Every edition token that stands at a variant site, with the sites it
  * stands at. A site's words come from `siteTokenIds`; a site with no words
  * of the edition (a witness adds something) marks none: it is marked at the
- * point between two words (`markSites`).
+ * point between two words (`markSites`). The site over a whole line that
+ * some witnesses do not have (`wanting`) marks none either: it is marked in
+ * the margin (`lineMarks`), and its words keep only their own variants.
  */
 export function siteByToken(view: {
   segments: Record<string, SegmentSites> | SegmentSites[];
@@ -148,6 +165,7 @@ export function siteByToken(view: {
   const list = Array.isArray(view.segments) ? view.segments : Object.values(view.segments);
   for (const segment of list) {
     for (const site of segment.collation.sites) {
+      if (site.wanting) continue;
       for (const id of siteTokenIds(site, segment.baseUnits))
         add(id, { segmentId: segment.segmentId, siteIndex: site.index });
     }
@@ -294,7 +312,7 @@ export function markSites(
     const ref = parseSiteKey(key);
     const segment = ref ? segments[ref.segmentId] : undefined;
     const site = ref ? siteOf(segment, ref.siteIndex) : undefined;
-    if (!segment || !site) continue;
+    if (!segment || !site || site.wanting) continue;
     if (site.baseFrom !== site.baseTo) {
       const first = siteTokenIds(site, segment.baseUnits)[0];
       if (first) tabStops.add(first);

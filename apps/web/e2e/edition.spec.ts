@@ -327,8 +327,8 @@ test('opens a variant as a list, and a variant at a point between two words by i
   await expect(page.locator('.conspectus-row.selected')).toContainText('Venetus B');
   await page.getByRole('button', { name: rd.panels.close(rd.toolbar.witnesses) }).click();
 
-  // A line some witnesses do not have: their row reads "not in", whatever the reason.
-  await reader.locator('[data-line="5"] [data-sites]').first().click();
+  // A line some witnesses do not have: its mark is in the margin, and their row reads "not in", whatever the reason.
+  await reader.getByRole('button', { name: rd.variant.lineAt('1.6') }).click();
   const lacking = page.getByRole('dialog', { name: rd.entry.title('1.6') });
   await expect(lacking.locator('.row').first()).toContainText('ἐξ οὗ δὴ τὰ πρῶτα');
   const notIn = lacking.locator('.row', { hasText: rd.variant.notIn });

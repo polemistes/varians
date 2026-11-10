@@ -154,6 +154,8 @@ export const reader = {
     /** Where a variant stands that has no words of the edition. */
     after: 'after',
     before: 'before',
+    /** Where a block of lines opens the text, in the row that says which line it follows. */
+    first: 'first',
     /** Read before the row of the edition's reading, which is set apart by its weight alone. */
     edition: 'Edition',
     /** What stands in place of a reading's words where a witness has none, or where a conjecture proposes none. */
@@ -186,6 +188,8 @@ export const reader = {
     /** The point between two words, for the mark in the text. */
     pointAfter: (word: string) => `Variant after ${word}`,
     pointBefore: (word: string) => `Variant before ${word}`,
+    /** The mark in the margin of a line, or of lines (their labels). A line the edition does not print has the point's name: "Variant after 1.2". */
+    lineAt: (labels: string) => `Variant at ${labels}`,
   },
 
   /** The panels. */

@@ -2,14 +2,15 @@
   /**
    * The edition's words at a variant, in the text's serif; where the edition
    * has none (witnesses have words at a point between two words), the word
-   * the point follows or precedes; and the kinds the editor gave the variant,
-   * where they are not the common one.
+   * the point follows or precedes; for whole lines, the line they follow or
+   * the labels of the lines; and the kinds the editor gave the variant, where
+   * they are not the common one.
    */
   import { reader as r } from '$lib/strings/reader';
   import type { Variant } from '$lib/reader/variant';
 
   interface Props {
-    variant: Pick<Variant, 'words' | 'place' | 'minor' | 'interpretative'>;
+    variant: Pick<Variant, 'words' | 'place' | 'lines' | 'minor' | 'interpretative'>;
     lang: string;
     class?: string;
   }
@@ -19,6 +20,13 @@
 
 {#if variant.words}
   <span class={['words', className]} {lang} dir="auto">{variant.words}</span>
+{:else if variant.lines}
+  <span class={['where', className]}
+    >{#if variant.lines.after}{r.variant.after}
+      <span class="line-label">{variant.lines.after}</span>{:else}<span class="line-label"
+        >{variant.lines.labels}</span
+      >{/if}</span
+  >
 {:else if variant.place}
   <span class={['where', className]}
     >{variant.place.side === 'after' ? r.variant.after : r.variant.before}
@@ -39,6 +47,12 @@
     font-family: var(--font-sans);
     font-size: 0.8em;
     color: var(--color-ink-muted);
+  }
+
+  .line-label {
+    font-variant-numeric: tabular-nums;
+    font-size: 1.1em;
+    color: var(--color-ink);
   }
 
   .place-word {

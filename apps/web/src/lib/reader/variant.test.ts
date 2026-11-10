@@ -5,6 +5,7 @@ import {
   type Collation,
   type CollationText,
   type Item,
+  type OrderVariant,
   type Reading,
   type Site,
   type Unit,
@@ -13,11 +14,14 @@ import { EditionText } from './edition-text';
 import {
   chipText,
   gather,
+  labelsOf,
   notesAt,
+  orderVariantOf,
   unplacedRow,
   variantOf,
   variantsOf,
   whereText,
+  withUnprinted,
   type Chip,
   type Row,
   type Variant,
@@ -1024,7 +1028,8 @@ describe('a word in another place of its segment, on a real collation', () => {
     ]);
     // The witness that did not move has no link, and no word is said of any move.
     expect(first.rows[0]!.links).toEqual([]);
-    expect(second.addition).toEqual([expect.objectContaining({ siglum: 'B' })]);
+    // B has the word in another place of the segment: it has added nothing here.
+    expect(second.addition).toBeNull();
   });
 });
 
@@ -1076,5 +1081,203 @@ describe('variantsOf', () => {
       { index: 0, baseFrom: 0, baseTo: 1, readings: [reading('μῆνιν', ['ed', 'ta'])] },
     ]);
     expect(variantsOf(['s1'], { s1: seg }, new Set<string>(), context)).toEqual([]);
+  });
+});
+
+const labelOf = { s0: '1.2', s1: '1.3', s2: '1.4', s3: '1.5', s4: '1.6', s5: '1.14', s6: '1.15' };
+const order = ['s0', 's2', 's3', 's4', 's5', 's6'];
+
+/** A line the edition does not print: B's text runs on without it and A has it. */
+function unprintedLine(): ReaderSegment {
+  return segment(
+    [
+      {
+        index: 0,
+        baseFrom: 0,
+        baseTo: 0,
+        readings: [reading('', ['ed', 'tb']), reading('ἄλγε᾽ ἔθηκε', ['ta', 'tc'])],
+      },
+    ],
+    { segmentId: 's1', label: '1.3', baseUnits: [], unprinted: { after: 's0' } },
+  );
+}
+
+describe('a line the edition does not print', () => {
+  const ctx: VariantContext = { sigla, labelOf, order };
+
+  it('is named by its label and the line it stands after, with the edition not in it first', () => {
+    const v = variant(unprintedLine(), 0, ctx);
+    expect(v.label).toBe('1.3');
+    expect(v.words).toBe('');
+    expect(v.lines).toEqual({ labels: '1.3', after: '1.2' });
+    expect(whereText(v)).toBe('after 1.2');
+    expect(lines(v)).toEqual(['not in | B', 'ἄλγε᾽ ἔθηκε | A C']);
+    expect(v.rows[0]!.kind).toBe('edition');
+    expect(v.there).toMatchObject({ count: 3, total: 3, all: true });
+    expect(sigs(v.addition ?? [])).toEqual(['A', 'C']);
+  });
+
+  it('rests the edition on its editor where no witness runs on without the line, which the window reads as "not in the edition"', () => {
+    const seg = unprintedLine();
+    const site = seg.collation.sites[0]!;
+    site.readings = [reading('', ['ed']), reading('ἄλγε᾽ ἔθηκε', ['ta'])];
+    const v = variant(seg, 0, ctx);
+    expect(v.rows[0]).toMatchObject({ kind: 'edition', lead: 'notIn', chips: [] });
+    expect(v.rows[0]!.rests).toEqual([{ kind: 'editor' }]);
+    expect(lines(v)[1]).toBe('ἄλγε᾽ ἔθηκε | A');
+  });
+
+  it('is named by its own label where the label of the line before it is not known', () => {
+    const v = variant(unprintedLine(), 0, { sigla });
+    expect(v.lines).toEqual({ labels: '1.3' });
+    expect(whereText(v)).toBe('1.3');
+  });
+
+  it('has the conjectures and the notes attached to its segment, as any variant has', () => {
+    const seg = unprintedLine();
+    seg.attachments = { 0: [conjecture({ id: 'c', name: 'Bentley', text: 'ἄλγεα' })] };
+    const v = variant(seg, 0, ctx);
+    expect(lines(v)).toEqual(['not in | B', 'ἄλγε᾽ ἔθηκε | A C', 'ἄλγεα | Bentley, conjecture']);
+  });
+});
+
+describe('lines in another order', () => {
+  const near: OrderVariant = {
+    far: false,
+    segments: ['s2', 's3'],
+    readings: [
+      { segments: ['s2', 's3'], base: true, textIds: ['ta', 'tb'], sigla: ['A', 'B'] },
+      { segments: ['s3', 's2'], base: false, textIds: ['tc'], sigla: ['C'] },
+    ],
+  };
+  const far: OrderVariant = {
+    far: true,
+    segments: ['s5', 's6'],
+    readings: [
+      { moved: ['s5', 's6'], after: 's4', base: true, textIds: ['ta'], sigla: ['A'] },
+      { moved: ['s5', 's6'], after: 's0', base: false, textIds: ['tb'], sigla: ['B'] },
+      { moved: ['s5', 's6'], after: null, base: false, textIds: ['tc'], sigla: ['C'] },
+    ],
+  };
+  const ctx: VariantContext = {
+    sigla,
+    labelOf,
+    order,
+    orders: [near, far],
+    groups: [{ siglum: 'β', members: ['B', 'C'] }],
+  };
+
+  it('is named by the labels of its stretch, with the rows the labels in each order, the edition first', () => {
+    const v = orderVariantOf(0, { ...ctx, groups: [] })!;
+    expect(v.key).toBe('order:0');
+    expect(v.label).toBe('1.4');
+    expect(v.lines).toEqual({ labels: '1.4–1.5' });
+    expect(whereText(v)).toBe('1.4–1.5');
+    expect(lines(v)).toEqual(['1.4 1.5 | A B', '1.5 1.4 | C']);
+    expect(v.rows.map((row) => row.kind)).toEqual(['edition', 'witnesses']);
+    expect(v.there).toMatchObject({ count: 3, total: 3, all: true });
+    expect(v.addition).toBeNull();
+    expect(v.notes).toEqual([]);
+  });
+
+  it('counts the witnesses in its readings, and names them where they are not all there', () => {
+    const v = orderVariantOf(0, { ...ctx, sigla: [...sigla, siglum('D', 'Codex D')], groups: [] })!;
+    expect(v.there).toMatchObject({ count: 3, total: 4, all: false });
+    expect(sigs(v.there!.chips)).toEqual(['A', 'B', 'C']);
+  });
+
+  it('gathers a group in a row, as everywhere', () => {
+    const swapped: OrderVariant = {
+      far: false,
+      segments: ['s2', 's3'],
+      readings: [
+        { segments: ['s2', 's3'], base: true, textIds: ['ta'], sigla: ['A'] },
+        { segments: ['s3', 's2'], base: false, textIds: ['tb', 'tc'], sigla: ['B', 'C'] },
+      ],
+    };
+    const v = orderVariantOf(0, { ...ctx, orders: [swapped] })!;
+    expect(lines(v)).toEqual(['1.4 1.5 | A', '1.5 1.4 | β (B C)']);
+  });
+
+  it('says of a block far from its place after which line each reading has it, and "first" where it opens the text', () => {
+    const v = orderVariantOf(1, ctx)!;
+    expect(v.lines).toEqual({ labels: '1.14–1.15' });
+    expect(v.label).toBe('1.14');
+    expect(v.rows.map((row) => row.lead)).toEqual(['after', 'after', 'first']);
+    expect(lines(v)).toEqual(['after 1.6 | A', 'after 1.2 | B', 'first | C']);
+  });
+
+  it('says that the edition stands on its editor where no witness has its order', () => {
+    const alone: OrderVariant = {
+      far: false,
+      segments: ['s2', 's3'],
+      readings: [
+        { segments: ['s2', 's3'], base: true, textIds: [], sigla: [] },
+        { segments: ['s3', 's2'], base: false, textIds: ['ta'], sigla: ['A'] },
+      ],
+    };
+    expect(lines(orderVariantOf(0, { ...ctx, orders: [alone] })!)).toEqual([
+      '1.4 1.5 | the editor',
+      '1.5 1.4 | A',
+    ]);
+  });
+
+  it('has none for a place the page was not sent', () => {
+    expect(orderVariantOf(2, ctx)).toBeNull();
+  });
+});
+
+describe('the labels of lines', () => {
+  it('are a run from the first to the last, or a list where the lines are not a run', () => {
+    expect(labelsOf(['s2', 's3'], { labelOf, order })).toBe('1.4–1.5');
+    expect(labelsOf(['s2', 's3', 's4'], { labelOf, order })).toBe('1.4–1.6');
+    expect(labelsOf(['s2', 's4'], { labelOf, order })).toBe('1.4, 1.6');
+    expect(labelsOf(['s3'], { labelOf, order })).toBe('1.5');
+    // Without the order of the text, the lines of a stretch are taken for a run.
+    expect(labelsOf(['s2', 's4'], { labelOf })).toBe('1.4–1.6');
+    // A segment with no label is named by its id.
+    expect(labelsOf(['x', 'y'], {})).toBe('x–y');
+  });
+});
+
+describe('the variants of lines on screen, with lines the edition does not print and lines in another order', () => {
+  const near: OrderVariant = {
+    far: false,
+    segments: ['s2', 's3'],
+    readings: [
+      { segments: ['s2', 's3'], base: true, textIds: ['ta'], sigla: ['A'] },
+      { segments: ['s3', 's2'], base: false, textIds: ['tb'], sigla: ['B'] },
+    ],
+  };
+  const ctx: VariantContext = { sigla, labelOf, order, orders: [near] };
+
+  it('puts a line the edition does not print after the line it follows, and a variant over the order with the first of its lines listed', () => {
+    const printed = (id: string, label: string) =>
+      segment([{ index: 0, baseFrom: 0, baseTo: 1, readings: [reading('μῆνιν', ['ed', 'ta'])] }], {
+        segmentId: id,
+        label,
+      });
+    const segments = { s0: printed('s0', '1.2'), s1: unprintedLine(), s2: printed('s2', '1.4') };
+    const unprinted = [{ segmentId: 's1', after: 's0' }];
+    const ids = withUnprinted(['s0', 's2', 's3'], unprinted);
+    expect(ids).toEqual(['s0', 's1', 's2', 's3']);
+    const shown = new Set(['s0:0', 's1:0', 's2:0']);
+    const groups = variantsOf(ids, segments, shown, ctx);
+    expect(groups.map((g) => g.segmentId)).toEqual(['s0', 's1', 's2']);
+    expect(groups.map((g) => g.label)).toEqual(['1.2', '1.3', '1.4']);
+    // The order of 1.4 and 1.5 stands in the card of 1.4, after its own places, though 1.5 is listed too.
+    expect(groups[2]!.places.map((p) => p.key)).toEqual(['s2:0', 'order:0']);
+    expect(groups[1]!.places[0]!.lines).toEqual({ labels: '1.3', after: '1.2' });
+  });
+
+  it('lists a variant over the order where the first of its lines that is listed has no variants of its own', () => {
+    const groups = variantsOf(['s3'], {}, new Set<string>(), ctx);
+    expect(groups.map((g) => [g.segmentId, g.label])).toEqual([['s3', '1.5']]);
+    expect(groups[0]!.places.map((p) => p.key)).toEqual(['order:0']);
+    expect(variantsOf(['s4'], {}, new Set<string>(), ctx)).toEqual([]);
+  });
+
+  it('adds nothing where no line is unprinted', () => {
+    expect(withUnprinted(['s0'], [])).toEqual(['s0']);
   });
 });

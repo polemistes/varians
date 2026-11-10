@@ -19,13 +19,14 @@ import {
   trimPunctuation,
   witnessesAt,
   type Attachment,
+  type OrderVariant,
   type Reading,
   type Site,
 } from '@varians/core';
 import { reader as r } from '$lib/strings/reader';
 import { DEFAULT_SIGLA } from './marks';
 import type { EditionPrint } from './edition-text';
-import { editionTokensAt, siteKey, siteOf } from './sites';
+import { editionTokensAt, orderKey, siteKey, siteOf } from './sites';
 import type { ReaderNote, ReaderSegment, ReaderSiglum } from './types';
 
 /** A witness shown by its siglum, which opens the witness. */
@@ -53,8 +54,12 @@ export interface GroupChip {
 
 export type Chip = WitnessChip | GroupChip;
 
-/** What stands in place of a reading's words where they are not there to be quoted. */
-export type Lead = 'notIn' | 'delete' | 'lacuna' | 'add' | 'move';
+/**
+ * What stands in place of a reading's words where they are not there to be
+ * quoted, or before them: where a block of lines stands is said "after" the
+ * line it follows, or "first" where it opens the text.
+ */
+export type Lead = 'notIn' | 'delete' | 'lacuna' | 'add' | 'move' | 'after' | 'first';
 
 /** What a row's reading rests on, after its sigla. */
 export type Rest =
@@ -63,11 +68,18 @@ export type Rest =
 
 /**
  * Where a variant stands: its words, or the word a point between two words
- * follows or precedes. In a link, only the word it follows or precedes.
+ * follows or precedes; for whole lines, their labels. In a link, only the
+ * word it follows or precedes.
  */
 export interface Where {
   words: string;
   place: { side: 'after' | 'before'; word: string } | null;
+  /**
+   * A variant over whole lines has no words to quote and is named by labels:
+   * those of the lines it concerns ("1.4–1.5"), and, for a line the edition
+   * does not print, the label of the line it stands after.
+   */
+  lines?: { labels: string; after?: string };
 }
 
 /** A link from a row to the variant where the same witnesses have the words in another place. */
@@ -121,6 +133,12 @@ export interface VariantContext {
   groups?: readonly EditionGroup[];
   /** How the edition prints its words; without it the words are the collation's. */
   edition?: EditionPrint;
+  /** The labels of the segments, those the edition does not print included, for variants over whole lines. */
+  labelOf?: Readonly<Record<string, string>>;
+  /** The edition's segments in the order of its text, to tell a run of lines from lines apart. */
+  order?: readonly string[];
+  /** Where witnesses have whole segments in another order, as the page was sent them: a variant is at its place in the list. */
+  orders?: readonly OrderVariant[];
 }
 
 /** The name the server gives a conjecture without a proposer. */
@@ -429,18 +447,29 @@ function placeOf(segment: ReaderSegment, from: number, to: number): Where['place
   return null;
 }
 
-/** The edition's words at a site, and where it stands, as the head of the window says it. */
-function whereOf(segment: ReaderSegment, site: Site): Where {
+/**
+ * The edition's words at a site, and where it stands, as the head of the
+ * window says it. A line the edition does not print has no words of the
+ * edition: it stands after the line before it.
+ */
+function whereOf(segment: ReaderSegment, site: Site, context: VariantContext): Where {
   const base = site.readings.find((reading) => reading.base);
-  return {
+  const where: Where = {
     words: base && base.text !== '' ? trimPunctuation(base.text) : '',
     place: site.baseFrom === site.baseTo ? placeOf(segment, site.baseFrom, site.baseTo) : null,
   };
+  if (segment.unprinted) {
+    const after = context.labelOf?.[segment.unprinted.after];
+    where.lines = { labels: segment.label, ...(after ? { after } : {}) };
+  }
+  return where;
 }
 
 /** Where a variant stands as plain text, for labels. */
 export function whereText(where: Where): string {
   if (where.words) return where.words;
+  if (where.lines)
+    return where.lines.after ? `${r.variant.after} ${where.lines.after}` : where.lines.labels;
   if (!where.place) return '';
   return `${where.place.side === 'after' ? r.variant.after : r.variant.before} ${where.place.word}`;
 }
@@ -631,7 +660,7 @@ export function variantOf(
   const added = additionIn(site, baseId, deleted);
   const additionChips = added.length ? gather(conspectus.ofTexts(added), groups) : null;
 
-  const where = whereOf(segment, site);
+  const where = whereOf(segment, site, context);
   return {
     key: siteKey(segment.segmentId, siteIndex),
     segmentId: segment.segmentId,
@@ -651,6 +680,99 @@ export function variantOf(
     addition: additionChips,
     rows: [edition.row, ...witnessRows.map((w) => w.row), ...own, ...conjectures],
     notes: notesAt(segment, siteIndex),
+  };
+}
+
+/** The label of a segment as the head of a window says it. */
+function labelOfSegment(id: string, context: Pick<VariantContext, 'labelOf'>): string {
+  return context.labelOf?.[id] ?? id;
+}
+
+/** The labels of some segments as a head says them: a run is "1.4–1.5", segments apart are listed. */
+export function labelsOf(
+  ids: readonly string[],
+  context: Pick<VariantContext, 'labelOf' | 'order'>,
+): string {
+  const label = (id: string) => labelOfSegment(id, context);
+  if (ids.length < 2) return ids.map(label).join('');
+  const at = context.order ? new Map(context.order.map((id, k) => [id, k] as const)) : null;
+  const run =
+    at === null ||
+    ids.every((id, i) => {
+      if (i === 0) return true;
+      const here = at.get(id);
+      const before = at.get(ids[i - 1]!);
+      return here !== undefined && before !== undefined && here === before + 1;
+    });
+  return run ? `${label(ids[0]!)}–${label(ids[ids.length - 1]!)}` : ids.map(label).join(', ');
+}
+
+/**
+ * A variant over the order of whole segments as the window lists it, by its
+ * place among the page's (`context.orders`), or null when there is none. The
+ * rows are the segments' labels in each order, the edition's first; for a
+ * block far from its place, after which line each reading has it, or "first"
+ * where it opens the text. The witnesses that are there are those in its
+ * readings.
+ */
+export function orderVariantOf(index: number, context: VariantContext): Variant | null {
+  const order = context.orders?.[index];
+  if (!order || order.segments.length === 0) return null;
+  const conspectus = new Conspectus(context.sigla);
+  const groups = context.groups ?? [];
+  const label = (id: string) => labelOfSegment(id, context);
+
+  const rowOf = (
+    reading: { base: boolean; textIds: readonly string[] },
+    lead: Lead | null,
+    words: string,
+  ): Row => {
+    const chips = gather(conspectus.ofTexts(reading.textIds), groups);
+    return {
+      kind: reading.base ? 'edition' : 'witnesses',
+      lead,
+      words,
+      chips,
+      // The edition's order stands on the editor's judgement where no witness has it.
+      rests: reading.base && chips.length === 0 ? [{ kind: 'editor' }] : [],
+      references: [],
+      links: [],
+    };
+  };
+  const rows = order.far
+    ? order.readings.map((reading) =>
+        rowOf(
+          reading,
+          reading.after === null ? 'first' : 'after',
+          reading.after === null ? '' : label(reading.after),
+        ),
+      )
+    : order.readings.map((reading) => rowOf(reading, null, reading.segments.map(label).join(' ')));
+
+  const ids = [...new Set(order.readings.flatMap((reading) => reading.textIds))];
+  const thereChips = conspectus.ofTexts(ids.filter((id) => conspectus.isWitnessText(id)));
+  const first = order.segments[0]!;
+  return {
+    key: orderKey(index),
+    segmentId: first,
+    siteIndex: -1,
+    label: label(first),
+    words: '',
+    place: null,
+    lines: { labels: labelsOf(order.segments, context) },
+    minor: false,
+    interpretative: false,
+    there: thereChips.length
+      ? {
+          count: thereChips.length,
+          total: conspectus.total,
+          all: thereChips.length >= conspectus.total,
+          chips: gather(thereChips, groups),
+        }
+      : null,
+    addition: null,
+    rows,
+    notes: [],
   };
 }
 
@@ -685,6 +807,9 @@ function textOrder(site: Site): number {
  * The variants of some segments in the order of the text: the sites `shown`
  * names (by site key; those the reader marks), with the segment's unplaced
  * conjectures and its other notes. Segments with none of these are left out.
+ * A segment the edition does not print stands where the ids put it, after
+ * the line it follows. A variant over the order of whole segments stands with
+ * the first of its segments that is listed, after that segment's own.
  */
 export function variantsOf(
   segmentIds: string[],
@@ -692,21 +817,52 @@ export function variantsOf(
   shown: { has(key: string): boolean },
   context: VariantContext,
 ): SegmentVariants[] {
+  const hosted = new Map<string, Variant[]>();
+  (context.orders ?? []).forEach((order, index) => {
+    const host = segmentIds.find((id) => order.segments.includes(id));
+    const variant = host === undefined ? null : orderVariantOf(index, context);
+    if (host !== undefined && variant) hosted.set(host, [...(hosted.get(host) ?? []), variant]);
+  });
   const out: SegmentVariants[] = [];
   for (const segmentId of segmentIds) {
     const segment = segments[segmentId];
-    if (!segment) continue;
-    const sites = segment.collation.sites
+    const orders = hosted.get(segmentId) ?? [];
+    if (!segment && orders.length === 0) continue;
+    const sites = (segment?.collation.sites ?? [])
       .filter((site) => shown.has(siteKey(segmentId, site.index)))
       .sort((a, b) => textOrder(a) - textOrder(b) || a.baseTo - b.baseTo || a.index - b.index);
-    const places = sites.flatMap((site) => variantOf(segment, site.index, context) ?? []);
+    const places = [
+      ...sites.flatMap((site) => (segment ? (variantOf(segment, site.index, context) ?? []) : [])),
+      ...orders,
+    ];
     const placed = new Set(places.flatMap((place) => place.notes.map((note) => note.id)));
-    const notes = (segment.notes ?? []).filter((note) => !placed.has(note.id));
-    const unplaced = (segment.unplaced ?? []).map((a) =>
-      unplacedRow(a, context, segment.cites ?? {}),
+    const notes = (segment?.notes ?? []).filter((note) => !placed.has(note.id));
+    const unplaced = (segment?.unplaced ?? []).map((a) =>
+      unplacedRow(a, context, segment?.cites ?? {}),
     );
     if (places.length || notes.length || unplaced.length)
-      out.push({ segmentId, label: segment.label, places, unplaced, notes });
+      out.push({
+        segmentId,
+        label: segment?.label ?? labelOfSegment(segmentId, context),
+        places,
+        unplaced,
+        notes,
+      });
   }
   return out;
+}
+
+/**
+ * The segments to list variants of: those on screen, and after each the
+ * segments the edition does not print that stand after it.
+ */
+export function withUnprinted(
+  visible: readonly string[],
+  unprinted: readonly { segmentId: string; after: string }[],
+): string[] {
+  if (unprinted.length === 0) return [...visible];
+  const standing = new Map<string, string[]>();
+  for (const { segmentId, after } of unprinted)
+    standing.set(after, [...(standing.get(after) ?? []), segmentId]);
+  return visible.flatMap((id) => [id, ...(standing.get(id) ?? [])]);
 }

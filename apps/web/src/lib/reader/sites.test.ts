@@ -15,8 +15,11 @@ import {
   entriesBySegment,
   entryBySite,
   listingMinor,
+  isOrderKey,
   markSites,
   minorAsOthers,
+  orderKey,
+  parseOrderKey,
   parseSiteKey,
   siteByToken,
   siteKey,
@@ -91,6 +94,39 @@ describe('siteByToken', () => {
     expect(siteKey('01ABC', 3)).toBe('01ABC:3');
     expect(parseSiteKey('01ABC:3')).toEqual({ segmentId: '01ABC', siteIndex: 3 });
     expect(parseSiteKey('nonsense')).toBeNull();
+  });
+
+  it('keys the variants over the order of whole segments apart from the sites', () => {
+    expect(orderKey(2)).toBe('order:2');
+    expect(parseOrderKey('order:2')).toBe(2);
+    expect(isOrderKey('order:0')).toBe(true);
+    expect(isOrderKey('01ABC:3')).toBe(false);
+    expect(parseOrderKey('order:x')).toBeNull();
+    expect(parseSiteKey('order:2')).toBeNull();
+  });
+
+  it('leaves out the site over a whole line that some witnesses do not have: it is marked in the margin, and its words keep their own variants', () => {
+    const ed = text('e', 'ed.', 'μῆνιν ἄειδε θεὰ');
+    const seg = segment(ed, [
+      text('a', 'A', 'μῆνιν ἄειδε θεός'),
+      { ...text('b', 'B', ''), present: true },
+    ]);
+    const whole = seg.collation.sites.find((site) => site.wanting)!;
+    const own = seg.collation.sites.find((site) => !site.wanting)!;
+    expect(whole).toBeDefined();
+    const map = siteByToken({ segments: { s1: seg } });
+    expect([...map.keys()]).toEqual(['e2']);
+    expect(map.get('e2')).toEqual([{ segmentId: 's1', siteIndex: own.index }]);
+
+    const entries = new Map([
+      [siteKey('s1', whole.index), {}],
+      [siteKey('s1', own.index), {}],
+    ]);
+    const marking = markSites(map, entries, { s1: seg });
+    expect([...marking.marked]).toEqual(['e2']);
+    expect(marking.keysOf.get('e2')).toBe(siteKey('s1', own.index));
+    // The first word of the line is no stop for the variant over the whole of it.
+    expect([...marking.tabStops]).toEqual(['e2']);
   });
 });
 

@@ -1,9 +1,10 @@
 <script lang="ts">
   /**
    * The reader of an edition: the critical text with labels
-   * in the margin, words at variants marked with a dotted line and the points
+   * in the margin, words at variants marked with a dotted line, the points
    * between two words where a witness has words the edition has not marked
-   * with a small caret, each opening the variant window, the variants of the
+   * with a small caret, and variants over whole lines marked in the margin
+   * beside them, each opening the variant window, the variants of the
    * lines on screen, the witnesses and the facsimile in panels, search, and a print
    * stylesheet. The print apparatus is in the page for printing, for readers
    * without JavaScript, and on screen when the reader asks for it in the
@@ -24,7 +25,14 @@
   import { DEFAULT_SIGLA, printLine } from '$lib/reader/marks';
   import { findHits, searchIndex, type SearchHit, type SearchLine } from '$lib/reader/search';
   import { EditionText } from '$lib/reader/edition-text';
-  import { variantOf, variantsOf, type VariantContext } from '$lib/reader/variant';
+  import {
+    orderVariantOf,
+    variantOf,
+    variantsOf,
+    withUnprinted,
+    type VariantContext,
+  } from '$lib/reader/variant';
+  import { lineMarks } from '$lib/reader/line-marks';
   import {
     DEFAULT_SETTINGS,
     effectiveConventions,
@@ -38,6 +46,8 @@
     entryBySite,
     listingMinor,
     markSites,
+    orderKey,
+    parseOrderKey,
     parseSiteKey,
     siteByToken,
     siglaOrderOf,
@@ -182,12 +192,34 @@
       sigla,
     ),
   );
-  /** What a variant window reads: the conspectus, the edition's groups and its text. */
+  /** The edition's segments in the order of its text. */
+  const segmentOrder = $derived(blocks.flatMap((block) => block.segmentIds));
+  /** What a variant window reads: the conspectus, the edition's groups and its text, the labels of the segments and where witnesses order them otherwise. */
   const variantContext = $derived<VariantContext>({
     sigla: data.sigla,
     groups: conventionsOfEdition.groups,
     edition: editionText,
+    labelOf: data.labelOf,
+    order: segmentOrder,
+    orders: data.orderVariants,
   });
+  /** The marks in the margin of the lines: for variants over whole lines. */
+  const margin = $derived(
+    lineMarks({
+      segmentsOfLine,
+      segments,
+      shown: entryMap,
+      unprinted: data.unprinted,
+      orders: data.orderVariants,
+      context: variantContext,
+    }),
+  );
+  /** Whether two marks meet in the margin: the text then makes room for a second lane. */
+  const marginLanes = $derived(
+    [...margin.values()].some((parts) => parts.some((part) => part.lane > 0)),
+  );
+  /** The keys of the variants over the order of whole lines, which the reader always has. */
+  const orderKeys = $derived(new Set(data.orderVariants.map((_, k) => orderKey(k))));
 
   const labels = $derived(lineLabels(data.lines, data.labelOf, settings.labels));
   /** Segments that begin within a line are labelled where they begin: in prose, or when every line is labelled. */
@@ -400,18 +432,32 @@
 
   const popoverEntries = $derived<PopoverEntry[]>(
     activeKeys.flatMap((key) => {
+      const order = parseOrderKey(key);
+      if (order !== null) {
+        const variant = orderVariantOf(order, variantContext);
+        return variant ? [{ key, label: variant.label, variant, permalink: null }] : [];
+      }
       const ref = parseSiteKey(key);
       const segment = ref ? segments[ref.segmentId] : undefined;
       const variant =
         segment && entryMap.has(key) ? variantOf(segment, ref!.siteIndex, variantContext) : null;
       if (!variant) return [];
-      return [{ key, label: variant.label, variant, permalink: segmentHref(variant.label) }];
+      // A line the edition does not print is at no address of the edition's.
+      const permalink = segment?.unprinted ? null : segmentHref(variant.label);
+      return [{ key, label: variant.label, variant, permalink }];
     }),
   );
 
-  /** The variants of the lines on screen, while the list of variants is open. */
+  /** The variants of the lines on screen, with the lines the edition does not print that follow them, while the list of variants is open. */
   const variantGroups = $derived(
-    variantsOpen ? variantsOf(visibleSegments, segments, entryMap, variantContext) : [],
+    variantsOpen
+      ? variantsOf(
+          withUnprinted(visibleSegments, data.unprinted),
+          segments,
+          entryMap,
+          variantContext,
+        )
+      : [],
   );
 
   /** Light the words and entries of some sites, by a data attribute the components style. */
@@ -434,7 +480,9 @@
 
   /** Open the popover on a word: for all its sites, or for the ones given. */
   function openEntry(word: HTMLElement, only?: string[]) {
-    const keys = (only ?? (word.dataset.sites ?? '').split(' ')).filter((key) => entryMap.has(key));
+    const keys = (only ?? (word.dataset.sites ?? '').split(' ')).filter(
+      (key) => entryMap.has(key) || orderKeys.has(key),
+    );
     if (keys.length === 0) return;
     activeKeys = keys;
     popoverAnchor = word;
@@ -689,6 +737,7 @@
             'text-root',
             side && 'side',
             marginSpeakers && 'margin-speakers',
+            marginLanes && 'margin-lanes',
             !hasLabels && 'no-labels',
           ]}
           bind:this={textRoot}
@@ -713,6 +762,7 @@
                     tabStops={marking.tabStops}
                     pointsAfter={marking.after}
                     pointsBefore={marking.before}
+                    margin={margin.get(i) ?? []}
                     underline={settings.underline}
                     interactive={live}
                     {inlineLabels}
@@ -859,7 +909,7 @@
 
   /* The text: serif at the reading size, labels in a margin column on the start side. */
   .text-root {
-    --label-column: 2.75rem;
+    --label-column: calc(2.75rem + var(--marks-room, 0rem));
     container-type: inline-size;
     font-family: var(--font-serif);
     font-size: var(--reader-size);
@@ -875,9 +925,14 @@
     --speaker-column: 5.5rem;
   }
 
+  /* A second lane of marks in the margin before the words. */
+  .text-root.margin-lanes {
+    --marks-room: 0.65rem;
+  }
+
   @media (min-width: 40rem) {
     .text-root {
-      --label-column: 3.5rem;
+      --label-column: calc(3.5rem + var(--marks-room, 0rem));
     }
   }
 

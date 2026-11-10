@@ -6,9 +6,11 @@
    * carry the keys of their sites, and once the page is live the first word
    * of each site is a stop for the keyboard. A variant at a point between
    * two words has a small mark there, which opens it like a word and takes
-   * the keyboard's focus.
+   * the keyboard's focus. A variant over whole lines has a mark in the margin
+   * before the line's words, the part of it that stands on this line.
    */
   import type { LayoutLine } from '@varians/core';
+  import type { MarginPart } from '$lib/reader/line-marks';
   import type { Printed } from '$lib/reader/marks';
   import type { PointMark } from '$lib/reader/sites';
   import { gapSign, VACAT_TEXT } from '$lib/reader/marks';
@@ -33,6 +35,8 @@
     pointsAfter: Map<string, PointMark>;
     /** The marks that precede the first word of a segment, by that word. */
     pointsBefore: Map<string, PointMark>;
+    /** The parts of the marks in the margin that stand on this line. */
+    margin: MarginPart[];
     underline: boolean;
     interactive: boolean;
     /** Mid-line segment starts, labelled in the line: item id to label. */
@@ -61,6 +65,7 @@
     tabStops,
     pointsAfter,
     pointsBefore,
+    margin,
     underline,
     interactive,
     inlineLabels,
@@ -200,10 +205,22 @@
             >{/if}{/if}{/each}</span
     ></span
   >
+  {#each margin as part, n (n)}<!-- The first part of a mark is its button, once the page is live; the others answer the pointer and stay out of the way of a screen reader. --><!-- svelte-ignore a11y_no_noninteractive_tabindex --><span
+      class={['mm', part.kind, part.edge, underline && 'drawn']}
+      style:--lane={part.lane}
+      data-sites={part.keys}
+      role={interactive && part.first ? 'button' : undefined}
+      tabindex={interactive && part.first ? 0 : undefined}
+      aria-haspopup={interactive && part.first ? 'dialog' : undefined}
+      aria-label={interactive && part.first ? part.name : undefined}
+      aria-hidden={part.first ? undefined : 'true'}
+      title={part.name}><span class="stroke"></span></span
+    >{/each}
 </div>
 
 <style>
   .line {
+    position: relative;
     display: grid;
     grid-template-columns: var(--label-column) var(--speaker-column, 0) minmax(0, 1fr);
     align-items: baseline;
@@ -216,7 +233,7 @@
 
   .label {
     grid-column: 1;
-    padding-inline-end: 1rem;
+    padding-inline-end: calc(1rem + var(--marks-room, 0rem));
     font-family: var(--font-sans);
     font-size: 0.7em;
     font-variant-numeric: tabular-nums;
@@ -369,6 +386,111 @@
     color: var(--color-accent);
   }
 
+  /*
+   * The marks of variants over whole lines stand in the margin on the start
+   * side, in the space between the labels and the words, so that they are
+   * beside the lines they mark and the labels are not crowded: the label's
+   * padding leaves room for one lane, and the text makes room for a second
+   * (`--marks-room`) where two marks meet. Each part is a box as tall as its
+   * line, one lane wide, with the stroke drawn inside it: a plain rule for a
+   * line some witnesses do not have, a bracket opening toward the text for
+   * lines in another order, a caret pointing into the text between two lines
+   * for a line the edition does not print. The parts of one mark are on
+   * consecutive lines and join.
+   */
+  .mm {
+    --lane-width: 0.65rem;
+    position: absolute;
+    /* Above the next line, which the caret reaches into. */
+    z-index: 1;
+    inset-block: 0;
+    inset-inline-start: calc(
+      var(--label-column) - 0.15rem - var(--lane-width) * (var(--lane, 0) + 1)
+    );
+    width: var(--lane-width);
+    cursor: pointer;
+    color: transparent;
+    border-radius: 0.2em;
+    text-indent: 0;
+  }
+
+  .mm .stroke {
+    position: absolute;
+    inset-block: 0.3em;
+    inset-inline: 0.2rem 0.1rem;
+    border-inline-start: 1px solid currentColor;
+  }
+
+  .mm.wanting .stroke {
+    inset-inline: 0.325rem 0.2rem;
+  }
+
+  .mm.order.start .stroke,
+  .mm.order.solo .stroke {
+    border-block-start: 1px solid currentColor;
+  }
+
+  .mm.order.end .stroke,
+  .mm.order.solo .stroke {
+    border-block-end: 1px solid currentColor;
+  }
+
+  /* A mark over several lines is drawn through the space between blocks, so that it stays one. */
+  .mm.start .stroke {
+    inset-block-end: -0.4em;
+  }
+
+  .mm.end .stroke {
+    inset-block-start: 0;
+  }
+
+  .mm.middle .stroke {
+    inset-block: 0 -0.4em;
+  }
+
+  /* The caret stands on the boundary below its line. */
+  .mm.unprinted {
+    inset-block: auto -0.7em;
+    height: 1.4em;
+  }
+
+  .mm.unprinted .stroke {
+    inset: auto;
+    top: 50%;
+    inset-inline-start: 50%;
+    width: 0.42em;
+    height: 0.42em;
+    border-inline-start: 0;
+    border-inline-end: 1px solid currentColor;
+    border-block-end: 1px solid currentColor;
+    transform: translate(-70%, -50%) rotate(-45deg);
+  }
+
+  .mm.unprinted .stroke:dir(rtl) {
+    transform: translate(70%, -50%) rotate(45deg);
+  }
+
+  .mm.drawn {
+    color: color-mix(in srgb, var(--color-ink-muted) 80%, transparent);
+  }
+
+  .mm:hover,
+  .mm:global([data-active]),
+  .mm:global([data-lit]),
+  .mm:focus-visible {
+    color: var(--color-accent);
+  }
+
+  .mm:global([data-active]),
+  .mm:global([data-lit]) {
+    background-color: var(--color-accent-soft);
+  }
+
+  .mm:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 0;
+  }
+
   .w:global([data-lit]) {
     background-color: var(--color-accent-soft);
   }
@@ -471,7 +593,8 @@
       color: inherit;
     }
 
-    .point {
+    .point,
+    .mm {
       display: none;
     }
 

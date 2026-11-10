@@ -1142,9 +1142,14 @@ export function witnessesAt(site: Pick<Site, 'readings'>, baseId: Id, order?: re
  * words as deleted (`deleted`, which the caller tells from the edition's
  * tokens), those that have the base's words. Otherwise none. In the order
  * the readings name them.
+ *
+ * Where the site is one of two that name each other, because a witness has a
+ * word in another place of the segment, that witness has added nothing at
+ * this one: the word is the edition's, standing elsewhere.
  */
 export function additionIn(
-  site: Pick<Site, 'baseFrom' | 'baseTo' | 'readings'>,
+  site: Pick<Site, 'baseFrom' | 'baseTo' | 'readings'> &
+    Partial<Pick<Site, 'index' | 'transposition'>>,
   baseId: Id,
   deleted: boolean,
 ): Id[] {
@@ -1154,5 +1159,7 @@ export function additionIn(
       : deleted
         ? site.readings.filter((r) => r.base)
         : [];
-  return readings.flatMap((r) => r.textIds).filter((id) => id !== baseId);
+  const standingElsewhere = site.transposition && site.transposition.withSite !== site.index;
+  const moved = new Set<Id>(standingElsewhere ? site.transposition!.textIds : []);
+  return readings.flatMap((r) => r.textIds).filter((id) => id !== baseId && !moved.has(id));
 }
