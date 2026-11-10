@@ -310,16 +310,63 @@ export function brokenByGap(tokens: readonly Token[]): Obj | undefined {
 export interface Unit {
   /** The normalized form. */
   text: string;
-  /** Ids of the tokens the unit was read from (all tokens of its word). */
+  /** Ids of the tokens the unit was read from (all tokens of its word, in whatever segments they stand). */
   tokenIds: Id[];
   /** The gap object this unit stands for, when it is a gap. */
   gap?: Obj;
+  /**
+   * The segment the unit's word begins in, where the units were taken from
+   * several segments together (`runUnits`); absent where the stretch read is
+   * of one segment or of none.
+   */
+  segmentId?: Id;
 }
 
 /**
- * The collation units of a stretch of a stream: the words of `[from, to)` in
- * the chosen state, read through their normalized forms, with gaps kept as
- * units that absorb whatever other witnesses have there.
+ * Whether the token at `index` continues a word begun before it: the token
+ * before it, breaks passed over, joins the next. An object between them ends
+ * the word, as `words` reads it.
+ */
+export function continuesWord(stream: Stream, index: number): boolean {
+  for (let i = index - 1; i >= 0; i--) {
+    const item = stream.items[i]!;
+    if (isBreak(item)) continue;
+    return isToken(item) && item.joinNext === true;
+  }
+  return false;
+}
+
+/** The word that begins with the token at `index`, read to its end wherever that is: across breaks and segment starts. */
+function wordFrom(stream: Stream, index: number): Word {
+  return words(stream, index, wordEnd(stream, index))[0]!;
+}
+
+/** The exclusive end of the word that begins with the token at `index`: after its last token. */
+function wordEnd(stream: Stream, index: number): number {
+  let end = index + 1;
+  let current = stream.items[index] as Token;
+  for (let j = index + 1; current.joinNext && j < stream.items.length; j++) {
+    const next = stream.items[j]!;
+    if (isToken(next)) {
+      current = next;
+      end = j + 1;
+    } else if (!isBreak(next)) break;
+  }
+  return end;
+}
+
+/**
+ * The collation units of a stretch of a stream: the words that begin in
+ * `[from, to)` in the chosen state, read through their normalized forms,
+ * with gaps kept as units that absorb whatever other witnesses have there.
+ *
+ * A word belongs to the stretch where it begins. A word divided across the
+ * end of the stretch (its last token in the stretch joins the next) is read
+ * whole, its parts beyond `to` included; the parts at the start of a stretch
+ * that continue a word begun before it are not read there. So the units of
+ * the runs of a stream, taken one after another, are the units of the whole
+ * stream, and a word divided between two segments is read once, whole, in
+ * the first.
  */
 export function units(
   stream: Stream,
@@ -329,26 +376,30 @@ export function units(
 ): Unit[] {
   const out: Unit[] = [];
   let i = from;
-  const wordsHere = words(stream, from, to);
-  let w = 0;
+  // The item index after which the last unit was read: a gap is merged with the one before it only within one segment's run.
+  let lastAt = from - 1;
+  const startSince = (at: number): boolean => {
+    for (let k = Math.max(lastAt + 1, from); k <= at; k++) {
+      const item = stream.items[k]!;
+      if ((isToken(item) || isObj(item)) && item.segment) return true;
+    }
+    return false;
+  };
   while (i < to) {
     const item = stream.items[i]!;
     if (isObj(item) && item.type === 'gap') {
       out.push({ text: '', tokenIds: [], gap: item });
+      lastAt = i;
       i++;
       continue;
     }
-    if (!isToken(item)) {
+    if (!isToken(item) || continuesWord(stream, i)) {
       i++;
       continue;
     }
-    const word = wordsHere[w];
-    if (!word || word.index !== i) {
-      i++;
-      continue;
-    }
-    w++;
+    const word = wordFrom(stream, i);
     const last = word.tokens[word.tokens.length - 1]!;
+    const begin = i;
     i = stream.items.indexOf(last, i) + 1;
     if (state === 'variant') {
       const marked = word.tokens.find((t) => variantGroup(t) !== undefined);
@@ -364,25 +415,30 @@ export function units(
           .split(/\s+/u)
           .filter((p) => p.length > 0);
         for (const part of parts) out.push({ text: part, tokenIds });
+        if (parts.length > 0) lastAt = begin;
         continue;
       }
     }
     if (excludedInState(word.tokens, state)) continue;
-    // A word that a gap breaks is not read: what is left of it counts with the gap.
+    // A word that a gap breaks is not read: what is left of it counts with the gap, one gap
+    // with a gap directly before it, unless a segment begins between them.
     const broken = brokenByGap(word.tokens);
     if (broken) {
-      if (!out[out.length - 1]?.gap) out.push({ text: '', tokenIds: [], gap: broken });
+      if (!out[out.length - 1]?.gap || startSince(begin))
+        out.push({ text: '', tokenIds: [], gap: broken });
+      lastAt = begin;
       continue;
     }
     const tokenIds = word.tokens.map((t) => t.id);
     const parts = word.norm.split(/\s+/u).filter((p) => p.length > 0);
     if (parts.length === 0) continue;
     for (const part of parts) out.push({ text: part, tokenIds });
+    lastAt = begin;
   }
   return out;
 }
 
-/** The collation units of one segment, every run in content order. */
+/** The collation units of one segment, every run in content order. A word that begins in it and runs on into the next is read whole here and not again there. */
 export function segmentUnits(
   stream: Stream,
   segmentId: Id,
@@ -391,5 +447,54 @@ export function segmentUnits(
   const out: Unit[] = [];
   for (const run of runsOfSegment(stream, segmentId))
     out.push(...units(stream, run.from, run.to, state));
+  return out;
+}
+
+/**
+ * The units of a list of runs taken together, in the order given (the runs
+ * of a passage's segments, each segment's in content order): each unit
+ * carries the segment of the run its word begins in, and `starts` gives for
+ * each run the index of its first unit (the length of `units` where a run
+ * has none). A word divided across the end of one run is one unit, read in
+ * that run with the token ids of all its parts, and not again in the run its
+ * later parts stand in.
+ */
+export function runUnits(
+  stream: Stream,
+  runs: readonly SegmentRun[],
+  state: CollationState = 'corrected',
+): { units: Unit[]; starts: number[] } {
+  const out: Unit[] = [];
+  const starts: number[] = [];
+  for (const run of runs) {
+    starts.push(out.length);
+    for (const unit of units(stream, run.from, run.to, state))
+      out.push(run.segmentId === null ? unit : { ...unit, segmentId: run.segmentId });
+  }
+  return { units: out, starts };
+}
+
+/**
+ * For each segment, the segments that a word begun in it runs on into: the
+ * later parts of a word divided across a segment boundary. Every token of a
+ * word counts, in whatever order the segments stand.
+ */
+export function segmentsJoined(stream: Stream): Map<Id, Set<Id>> {
+  const out = new Map<Id, Set<Id>>();
+  const segmentOf = new Map<Id, Id | null>();
+  for (const run of segmentRuns(stream))
+    for (let i = run.from; i < run.to; i++) segmentOf.set(stream.items[i]!.id, run.segmentId);
+  for (const word of words(stream)) {
+    if (word.tokens.length < 2) continue;
+    const first = segmentOf.get(word.tokens[0]!.id) ?? null;
+    if (first === null) continue;
+    for (const token of word.tokens.slice(1)) {
+      const other = segmentOf.get(token.id) ?? null;
+      if (other === null || other === first) continue;
+      const set = out.get(first) ?? new Set<Id>();
+      set.add(other);
+      out.set(first, set);
+    }
+  }
   return out;
 }

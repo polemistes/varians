@@ -12,6 +12,7 @@ import {
 } from '../testing/random.ts';
 import { isObj, isToken, type Id, type Mark, type Stream, type Token } from './items.ts';
 import {
+  runUnits,
   runsBySegment,
   runsOfSegment,
   segmentRuns,
@@ -98,25 +99,19 @@ function wholeEqualsRuns({ stream, state }: StateCase, collapse = false): void {
 }
 
 describe('units over a stream and over its segments (random)', () => {
-  // Counterexamples (shrunk; pinned below). A word divided across the boundary of two segments (`joinNext`
-  // on the last token of one run) is one unit over the whole stream and two
-  // over the runs: `words` stops at the end of the stretch it is given.
-  // Also, a word broken by a gap that follows a gap unit is merged into it, so a
-  // gap at the end of one run and a broken word at the start of the next are
-  // one gap unit over the whole stream and two over the runs.
-  it.fails(
-    'equal the units of the whole stream, for a stream whose segments are each in one run',
-    () => {
-      runProperty('units: whole stream equals the concatenation over its segments', {
-        generate: (rng, size) => generateSegmented(rng, size, true),
-        show: showStateCase,
-        shrink: shrinkStateCase,
-        check: wholeEqualsRuns,
-      });
-    },
-  );
+  // A word belongs to the segment where it begins and is read whole there, so a word divided
+  // across the boundary of two segments is one unit over the whole stream and over the runs
+  // alike; and a gap is merged with the gap before it only within one segment's run.
+  it('equal the units of the whole stream, for a stream whose segments are each in one run', () => {
+    runProperty('units: whole stream equals the concatenation over its segments', {
+      generate: (rng, size) => generateSegmented(rng, size, true),
+      show: showStateCase,
+      shrink: shrinkStateCase,
+      check: wholeEqualsRuns,
+    });
+  });
 
-  it.fails('(a word divided across two segments)', () => {
+  it('(a word divided across two segments)', () => {
     const stream: Stream = {
       items: [
         { kind: 'token', id: 'a', form: 'ἄλ', joinNext: true, segment: { segmentId: 'u1' } },
@@ -124,9 +119,11 @@ describe('units over a stream and over its segments (random)', () => {
       ],
     };
     wholeEqualsRuns({ stream, state: 'corrected' });
+    expect(segmentUnits(stream, 'u1')).toEqual([{ text: 'ἄλγε', tokenIds: ['a', 'b'] }]);
+    expect(segmentUnits(stream, 'u2')).toEqual([]);
   });
 
-  it.fails('(a gap object, then a word broken by a gap in the next segment)', () => {
+  it('(a gap object, then a word broken by a gap in the next segment)', () => {
     const stream: Stream = {
       items: [
         { kind: 'object', id: 'g', type: 'gap', segment: { segmentId: 'u1' } },
@@ -143,7 +140,7 @@ describe('units over a stream and over its segments (random)', () => {
   });
 
   // The same property for streams in which no word is divided across the
-  // start of a segment, with consecutive gaps counted as one: there it holds.
+  // start of a segment, with consecutive gaps counted as one.
   it('equal the units of the whole stream, where no word is divided across a segment, consecutive gaps counted as one', () => {
     runProperty('units: whole stream equals the concatenation over its segments (tidy)', {
       generate(rng, size) {
@@ -153,6 +150,29 @@ describe('units over a stream and over its segments (random)', () => {
       show: showStateCase,
       shrink: (c) => shrinkTidy(c),
       check: (c) => wholeEqualsRuns(c, true),
+    });
+  });
+
+  it('are those of the runs taken together, each unit naming the segment its word begins in', () => {
+    runProperty('units: runUnits over all runs equals the whole stream', {
+      generate: (rng, size) => generateSegmented(rng, size, true),
+      show: showStateCase,
+      shrink: shrinkStateCase,
+      check({ stream, state }) {
+        const runs = segmentRuns(stream);
+        const together = runUnits(stream, runs, state);
+        expect(together.units.map(unitKey)).toStrictEqual(
+          units(stream, 0, stream.items.length, state).map(unitKey),
+        );
+        runs.forEach((run, k) => {
+          const end = k + 1 < runs.length ? together.starts[k + 1]! : together.units.length;
+          const own = together.units.slice(together.starts[k]!, end);
+          expect(own.map(unitKey)).toStrictEqual(
+            units(stream, run.from, run.to, state).map(unitKey),
+          );
+          for (const u of own) expect(u.segmentId).toBe(run.segmentId ?? undefined);
+        });
+      },
     });
   });
 });

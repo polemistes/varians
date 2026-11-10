@@ -1,8 +1,8 @@
 /**
- * Collation: a pure function from the words of one segment in a base text
- * and in each witness to the places where they differ: different words, not
- * different ways of writing them, which the normalized forms have already
- * evened out.
+ * Collation: a pure function from the words of a stretch (one segment, or a
+ * passage of several taken together) in a base text and in each witness to
+ * the places where they differ: different words, not different ways of
+ * writing them, which the normalized forms have already evened out.
  *
  * Words are compared by their normalized forms as the editor typed them,
  * under the work's fold (case, punctuation): a different accent or
@@ -65,6 +65,15 @@ export interface CollationText {
    * stands in no site. A text whose units are all gaps is absent too.
    */
   present?: boolean;
+  /**
+   * Stretches of the base's units, [from, to), for which the text has no
+   * text at all: segments of a passage that it has lost or that lie outside
+   * what its transcript covers. It is aligned with the rest of the base
+   * only, and is not there over these units, nor at a point beside them.
+   * Words of a segment it simply does not have are no such stretch: that is
+   * an absence like any other.
+   */
+  notThere?: readonly { from: number; to: number }[];
 }
 
 export interface CollationOptions {
@@ -73,7 +82,24 @@ export interface CollationOptions {
   nearThreshold?: number;
   /** Anchor columns between two transposed sites at or below which the sites are merged into one. */
   transpositionReach?: number;
+  /**
+   * The base's units within which a word a witness has in one spot and is
+   * without in another, too far apart to be one place, makes two places
+   * that name each other; farther apart, they are an absence and an
+   * addition with no link. `FAR_REACH` by default.
+   */
+  farReach?: number;
+  /**
+   * The index of the base's unit at which each segment of the stretch
+   * begins, in order (a passage of several segments). A place is `wanting`
+   * where it covers exactly the units of one or more whole segments and a
+   * witness has none of them. Without it the stretch is one segment.
+   */
+  segmentStarts?: readonly number[];
 }
+
+/** How far apart, in the base's units, two places may be and still name each other: two dozen words. */
+export const FAR_REACH = 24;
 
 export interface Cell {
   unitIndex: number;
@@ -117,8 +143,14 @@ export interface Site {
   baseFrom: number;
   baseTo: number;
   readings: Reading[];
-  /** The witness texts whose words here exchange places with those of another site. */
-  transposition?: { withSite: number; textIds: Id[] };
+  /**
+   * The witness texts whose words here exchange places with those of
+   * another site: `withSite` is the index of that site among the sites of
+   * this collation, or among those of the passage `inPassage` names (by its
+   * first segment) where the other site lies in a neighbouring passage. A
+   * site that names itself is a transposition within its own stretch.
+   */
+  transposition?: { withSite: number; textIds: Id[]; inPassage?: Id };
   /**
    * Textual: the readings have different letters (different words, or the
    * same in another order). Interpretative: the same letters read
@@ -129,11 +161,10 @@ export interface Site {
   /** The editor set the kind, over what the letters say. */
   kindByEditor?: boolean;
   /**
-   * The site over the whole segment, for the witnesses whose text runs on
-   * without any of it: it stands beside the segment's other sites, which
-   * are found without those witnesses, and overlaps them. Every other
-   * witness with a word of the segment is there, a witness that has lost
-   * some of it included.
+   * The site covers exactly the units of one or more whole segments, and
+   * some witness is without all of them: its text runs on without them. It
+   * may stand beside other sites over the same words, which are found
+   * without that witness, and overlap them.
    */
   wanting?: boolean;
   /** The editor judges the place minor: the print apparatus leaves it out, and a reader sees it on asking for all the variants. */
@@ -229,6 +260,7 @@ export function collate(
   const fold = options.fold ?? DEFAULT_FOLD;
   const near = options.nearThreshold ?? 0.6;
   const reach = options.transpositionReach ?? 3;
+  const farReach = options.farReach ?? FAR_REACH;
   // Words are placed by their letters, so that ἦ stands against ἤ; whether they agree is decided by their accents too.
   const bareOf = (text: CollationText) =>
     text.units.map((u) => (u.gap ? '' : foldText(u.text, { ...fold, stripDiacritics: true })));
@@ -259,11 +291,12 @@ export function collate(
   for (const witness of witnesses) {
     // A text without the segment at all, or that has lost all of it, is absent: it stands in no place.
     const lost = witness.units.length > 0 && witness.units.every((u) => u.gap);
-    if ((witness.units.length === 0 && !witness.present) || lost) {
+    const away = notThereUnits(witness, n);
+    if ((witness.units.length === 0 && !witness.present) || lost || (n > 0 && away.size === n)) {
       absent.push(witness.id);
       continue;
     }
-    if (witness.units.length === 0) {
+    if (witness.units.length === 0 && away.size === 0) {
       aligned.push(lacking(witness, n, baseHasWords, unprinted));
       continue;
     }
@@ -277,6 +310,8 @@ export function collate(
         keysOf(witness),
         alike,
         reach,
+        farReach,
+        away,
       ),
     );
   }
@@ -319,7 +354,7 @@ export function collate(
     );
     const transposed = own.filter((o) => o.atom.transposed).map((o) => o.a.text.id);
     if (transposed.length > 0) site.transposition = { withSite: index, textIds: transposed };
-    if (from === 0 && to === n && own.some((o) => o.atom.whole)) site.wanting = true;
+    if (wholeSegments(from, to) && readings.some((r) => !r.base && r.omission)) site.wanting = true;
     return site;
   });
   // A word a witness has in one place and lacks in another, too far apart to be one place: each half names the other.
@@ -346,6 +381,21 @@ export function collate(
   const sigla: Record<Id, string> = {};
   for (const text of [base, ...witnesses]) sigla[text.id] = text.siglum;
   return { columns, sites, anchors, baseId: base.id, absent, sigla };
+
+  /** Whether the base's units [from, to) are those of one or more whole segments of the stretch. */
+  function wholeSegments(from: number, to: number): boolean {
+    if (to <= from) return false;
+    const starts = options.segmentStarts ?? [0];
+    return starts.includes(from) && (to === n || starts.includes(to));
+  }
+}
+
+/** The base's units for which a text has no text (`CollationText.notThere`). */
+function notThereUnits(text: CollationText, n: number): Set<number> {
+  const out = new Set<number>();
+  for (const { from, to } of text.notThere ?? [])
+    for (let b = Math.max(0, from); b < Math.min(n, to); b++) out.add(b);
+  return out;
 }
 
 /**
@@ -384,7 +434,11 @@ function lacking(
   return out;
 }
 
-/** Needleman-Wunsch, global alignment of a witness's units with the base's, by the letters of their words. */
+/**
+ * Needleman-Wunsch, global alignment of a witness's units with the base's,
+ * by the letters of their words: with the base's units `rows` (indexes, in
+ * order), all of them where not given.
+ */
 function alignSteps(
   base: CollationText,
   baseBare: string[],
@@ -393,10 +447,13 @@ function alignSteps(
   bare: string[],
   keys: string[],
   alike: (a: string, b: string) => boolean,
+  rows?: readonly number[],
 ): Step[] {
-  const n = base.units.length;
+  const row = (r: number) => (rows ? rows[r]! : r);
+  const n = rows ? rows.length : base.units.length;
   const m = witness.units.length;
-  const score = (i: number, j: number): number => {
+  const score = (r: number, j: number): number => {
+    const i = row(r);
     const b = base.units[i]!.gap !== undefined;
     const w = witness.units[j]!.gap !== undefined;
     // Two losses at the same point stand together; a loss against a word says nothing either way.
@@ -443,8 +500,8 @@ function alignSteps(
   let j = m;
   while (i > 0 || j > 0) {
     const mv = i === 0 ? 2 : j === 0 ? 1 : move[i]![j]!;
-    if (mv === 0) steps.push({ b: --i, w: --j });
-    else if (mv === 1) steps.push({ b: --i, w: -1 });
+    if (mv === 0) steps.push({ b: row(--i), w: --j });
+    else if (mv === 1) steps.push({ b: row(--i), w: -1 });
     else steps.push({ b: -1, w: --j });
   }
   return steps.reverse();
@@ -459,9 +516,29 @@ function alignWitness(
   keys: string[],
   alike: (a: string, b: string) => boolean,
   reach: number,
+  farReach: number,
+  away: ReadonlySet<number>,
 ): Aligned {
   const n = base.units.length;
-  const steps = alignSteps(base, baseBare, baseKeys, witness, bare, keys, alike);
+  // Where the witness has no text, it is aligned with the rest of the base, and the units there are lost to it.
+  const rows =
+    away.size > 0 ? Array.from({ length: n }, (_, b) => b).filter((b) => !away.has(b)) : undefined;
+  const steps: Step[] = [];
+  const absentStep: boolean[] = [];
+  const missing = [...away].sort((x, y) => x - y);
+  let next = 0;
+  for (const step of alignSteps(base, baseBare, baseKeys, witness, bare, keys, alike, rows)) {
+    while (step.b >= 0 && next < missing.length && missing[next]! < step.b) {
+      steps.push({ b: missing[next++]!, w: -1 });
+      absentStep.push(true);
+    }
+    steps.push(step);
+    absentStep.push(false);
+  }
+  while (next < missing.length) {
+    steps.push({ b: missing[next++]!, w: -1 });
+    absentStep.push(true);
+  }
   const pairOf = new Array<number>(n).fill(-1);
   const inserted: number[][] = Array.from({ length: n + 1 }, () => []);
   /** For each step, the units of the base before it: where what the witness adds there stands. */
@@ -483,7 +560,7 @@ function alignWitness(
     return s.w < 0 && baseGap(s);
   };
   // A loss in the witness reaches over the base's words it has nothing for on either side: lost, not left out.
-  const lost = new Array<boolean>(steps.length).fill(false);
+  const lost = absentStep.slice();
   steps.forEach((step, k) => {
     if (!witnessGap(step) || agrees(step)) return;
     lost[k] = true;
@@ -558,6 +635,8 @@ function alignWitness(
     }
   }
   const farSteps: [number, number][] = [];
+  // Where a step stands among the base's units: its unit, or the point before which it adds.
+  const placeOf = (k: number) => (steps[k]!.b >= 0 ? steps[k]!.b : slotOf[k]!);
   for (const k of added) {
     const candidates = omitted.get(bare[steps[k]!.w]!);
     if (!candidates || candidates.length === 0) continue;
@@ -567,15 +646,18 @@ function alignWitness(
     const b = runAt(other);
     if (a < 0 || b < 0) continue;
     const [first, second] = a < b ? [a, b] : [b, a];
-    if (lostIn(runs[first]!.s0, runs[second]!.s1)) farSteps.push([k, other]);
-    else if (a === b) runs[a]!.transposed = true;
+    // Farther apart than `farReach`, the two are an absence in one spot and an addition in the other.
+    const near = Math.abs(placeOf(k) - placeOf(other)) <= farReach;
+    if (lostIn(runs[first]!.s0, runs[second]!.s1)) {
+      if (near) farSteps.push([k, other]);
+    } else if (a === b) runs[a]!.transposed = true;
     else if (runs[second]!.s0 - runs[first]!.s1 <= reach)
       runs.splice(first, second - first + 1, {
         s0: runs[first]!.s0,
         s1: runs[second]!.s1,
         transposed: true,
       });
-    else farSteps.push([k, other]);
+    else if (near) farSteps.push([k, other]);
   }
 
   // Each run as the witness's departures. A transposition is one, whole. A loss is one. Otherwise
@@ -720,24 +802,55 @@ function departures(a: Aligned): Atom[] {
 }
 
 /**
+ * Whether the place over the base's units [from, to) has no reading but
+ * the absence of its words: every witness departing over exactly this
+ * extent is without them.
+ */
+function absenceOnlyAt(aligned: Aligned[], from: number, to: number): boolean {
+  if (to <= from) return false;
+  let any = false;
+  for (const a of aligned)
+    for (const atom of departures(a)) {
+      if (atom.from !== from || atom.to !== to) continue;
+      if (atom.units.length > 0 || atom.transposed) return false;
+      any = true;
+    }
+  return any;
+}
+
+/** Whether a witness has a word of its own standing with one of the base's units [from, to). */
+function hasWordsIn(a: Aligned, from: number, to: number): boolean {
+  if (a.outside || a.atoms.some((atom) => atom.whole)) return false;
+  for (let b = from; b < to; b++) {
+    const i = a.pairOf[b]!;
+    if (i >= 0 && !a.text.units[i]!.gap) return true;
+  }
+  return false;
+}
+
+/**
  * How a witness stands to a place: with a reading of its own there; not
  * there, or reported at a wider place that holds this one, where its words
  * here are part of its reading (both "elsewhere"); or with the base. With
  * the base it stands also where it departs only within the place, or over a
  * stretch that merely overlaps it: those departures have places of their
- * own. At the place over the whole segment that some text runs on without
- * (`wanting`), every witness with a word of the segment is there.
+ * own. At the place over the whole stretch that some text runs on without
+ * (`wanting`), every witness with a word of the stretch is there. At a place
+ * whose only other readings are that the words are not in a witness
+ * (`absenceOnly`), a witness that has lost some of the words and has others
+ * is there, since part of the words is evidence of them.
  */
 function standing(
   a: Aligned,
   from: number,
   to: number,
   wanting: boolean,
+  absenceOnly: boolean,
 ): Atom | 'elsewhere' | 'with' {
   if (a.outside) return 'elsewhere';
   if (wanting && from === 0 && to === a.pairOf.length)
     return a.atoms.find((atom) => atom.from === from && atom.to === to && !atom.lacunose) ?? 'with';
-  if (!there(a, from, to)) return 'elsewhere';
+  if (!there(a, from, to) && !(absenceOnly && hasWordsIn(a, from, to))) return 'elsewhere';
   let covered = false;
   for (const atom of a.atoms) {
     if (atom.lacunose) continue;
@@ -781,8 +894,9 @@ function readingsAt(
     base: true,
   };
   const groups = new Map<string, Reading>();
+  const absenceOnly = absenceOnlyAt(aligned, from, to);
   for (const a of aligned) {
-    const stands = standing(a, from, to, wanting);
+    const stands = standing(a, from, to, wanting, absenceOnly);
     if (stands === 'elsewhere') continue;
     const units =
       stands === 'with'
@@ -953,8 +1067,9 @@ function joinPlaces(
   const division = (from: number, to: number): string | null => {
     const groups = new Map<string, number>();
     const out: string[] = [];
+    const absenceOnly = absenceOnlyAt(aligned, from, to);
     for (const a of aligned) {
-      const stands = standing(a, from, to, wanting);
+      const stands = standing(a, from, to, wanting, absenceOnly);
       if (stands === 'elsewhere') out.push('e');
       else if (stands === 'with') out.push('b');
       else {
@@ -1144,8 +1259,9 @@ export function witnessesAt(site: Pick<Site, 'readings'>, baseId: Id, order?: re
  * the readings name them.
  *
  * Where the site is one of two that name each other, because a witness has a
- * word in another place of the segment, that witness has added nothing at
- * this one: the word is the edition's, standing elsewhere.
+ * word in another place nearby (of this stretch, or of the neighbouring
+ * passage), that witness has added nothing at this one: the word is the
+ * edition's, standing elsewhere.
  */
 export function additionIn(
   site: Pick<Site, 'baseFrom' | 'baseTo' | 'readings'> &
@@ -1159,7 +1275,9 @@ export function additionIn(
       : deleted
         ? site.readings.filter((r) => r.base)
         : [];
-  const standingElsewhere = site.transposition && site.transposition.withSite !== site.index;
+  const standingElsewhere =
+    site.transposition &&
+    (site.transposition.inPassage !== undefined || site.transposition.withSite !== site.index);
   const moved = new Set<Id>(standingElsewhere ? site.transposition!.textIds : []);
   return readings.flatMap((r) => r.textIds).filter((id) => id !== baseId && !moved.has(id));
 }

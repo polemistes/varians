@@ -206,7 +206,10 @@ export function apparatusEntries(
     if (named.lemmaNamed || (support.length > 0 && named.lemma.length > 0)) entry.lemmaNamed = true;
     if (adopted) entry.adopted = adopted;
     if (support.length > 0) entry.support = support;
-    if (site.transposition && site.transposition.withSite !== site.index) {
+    if (
+      site.transposition &&
+      (site.transposition.inPassage !== undefined || site.transposition.withSite !== site.index)
+    ) {
       entry.transposition =
         `${word('transp', conventions.latin)} ${site.transposition.textIds.length} `.trim();
     }

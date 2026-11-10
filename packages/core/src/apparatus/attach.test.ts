@@ -184,3 +184,32 @@ describe('attachToSites', () => {
     expect(lemmaOccursIn(baseUnits, 'cat')).toEqual([]);
   });
 });
+
+describe('attachToSites in a passage of several segments', () => {
+  it('looks for a lemma among the units of its own segment only', () => {
+    // Two segments, the same word in each; a witness reads it otherwise in both.
+    const edition = fromText('a b c a d', { ids: sequentialIds('e') });
+    const baseUnits = units(edition, 0, edition.items.length);
+    const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [
+      witness('A', 'A', 'x b c x d'),
+    ]);
+    const candidate = { id: 'k', kind: 'conjecture' as const, lemma: 'a', reading: 'y', name: 'K' };
+    const where = (range?: { from: number; to: number }) => {
+      const attached = attachToSites(c, baseUnits, [range ? { ...candidate, range } : candidate]);
+      return Object.keys(attached.bySite).map((k) => {
+        const site = attached.collation.sites[Number(k)]!;
+        return [site.baseFrom, site.baseTo];
+      });
+    };
+    expect(where()).toEqual([[0, 1]]);
+    expect(where({ from: 0, to: 3 })).toEqual([[0, 1]]);
+    expect(where({ from: 3, to: 5 })).toEqual([[3, 4]]);
+    // Words the witnesses agree on: a site is opened within the segment, and not in another.
+    const agreed = attachToSites(c, baseUnits, [
+      { ...candidate, lemma: 'd', range: { from: 3, to: 5 } },
+      { ...candidate, id: 'm', lemma: 'd', range: { from: 0, to: 3 } },
+    ]);
+    expect(agreed.collation.sites.at(-1)).toMatchObject({ baseFrom: 4, baseTo: 5 });
+    expect(agreed.unplaced.map((a) => a.id)).toEqual(['m']);
+  });
+});

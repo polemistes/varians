@@ -25,6 +25,15 @@ export interface AttachmentCandidate {
   adopted?: boolean;
   /** Token ids of the edition's or a witness's words the record was anchored to when registered. */
   anchorTokenIds?: string[];
+  /**
+   * The base's units of the record's own segment, [from, to), where the
+   * collation is of a passage of several segments: its lemma is looked for
+   * among these units only, so that the same words in a neighbouring
+   * segment are not taken. A site is within it when its units are, or, at a
+   * point, when the point lies from `from` to `to`. All the units where not
+   * given.
+   */
+  range?: { from: number; to: number };
 }
 
 export interface Attached {
@@ -143,6 +152,13 @@ export function attachToSites(
     const lemma = key(candidate.lemma);
     const reading = key(candidate.reading);
     let found: number | null = null;
+    const range = candidate.range;
+    const inRange = (from: number, to: number) => !range || (range.from <= from && to <= range.to);
+    // The first site within the candidate's own segment that meets the test.
+    const first = (test: (site: Site) => boolean): number | null => {
+      const k = sites.findIndex((site) => inRange(site.baseFrom, site.baseTo) && test(site));
+      return k < 0 ? null : k;
+    };
     const anchored = (from: number, to: number): boolean => {
       for (let i = from; i < to; i++)
         if (baseUnits[i]?.tokenIds.some((id) => candidate.anchorTokenIds!.includes(id)))
@@ -162,32 +178,32 @@ export function attachToSites(
       found = (exact ?? covering.find(({ site }) => !site.wanting))?.k ?? null;
     }
     if (found === null && lemma !== '') {
-      found = sites.findIndex((site) =>
-        site.readings.some(
-          (r) => r.base && (r.fold === lemma || baseFoldOver(site.baseFrom, site.baseTo) === lemma),
-        ),
-      );
-      if (found < 0) found = sites.findIndex((site) => site.readings.some((r) => r.fold === lemma));
-      if (found < 0) found = null;
+      found =
+        first((site) =>
+          site.readings.some(
+            (r) =>
+              r.base && (r.fold === lemma || baseFoldOver(site.baseFrom, site.baseTo) === lemma),
+          ),
+        ) ?? first((site) => site.readings.some((r) => r.fold === lemma));
     }
     if (found === null && reading !== '') {
-      found = sites.findIndex((site) =>
+      found = first((site) =>
         site.readings.some(
           (r) =>
             r.base && (r.fold === reading || baseFoldOver(site.baseFrom, site.baseTo) === reading),
         ),
       );
-      if (found < 0) found = null;
     }
     if (found === null) {
       // Words the witnesses agree on: open a site for the conjecture there, at the occurrence
       // its anchor names where the words stand more than once.
-      const occurrences =
+      const occurrences = (
         lemma !== ''
           ? lemmaOccursIn(baseUnits, candidate.lemma, fold)
           : reading !== ''
             ? lemmaOccursIn(baseUnits, candidate.reading, fold)
-            : [];
+            : []
+      ).filter((o) => inRange(o.from, o.to));
       const where =
         (candidate.anchorTokenIds?.length
           ? occurrences.find((o) => anchored(o.from, o.to))

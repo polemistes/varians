@@ -374,14 +374,37 @@ function placesAreNestedAndInOrder(c: TextsCase): void {
   }
 }
 
+/** A place over words whose only readings besides the base's are that the words are not in a witness. */
+function absenceOnly(site: Site): boolean {
+  return site.baseTo > site.baseFrom && site.readings.every((r) => r.base || r.omission);
+}
+
+/** Whether a witness has a word of its own standing with one of the base's words a place covers. */
+function hasWordsAt(built: Built, collation: Collation, site: Site, textId: string): boolean {
+  return collation.columns.some((column) => {
+    const baseCell = column.cells.get(built.base.id);
+    const cell = column.cells.get(textId);
+    return (
+      baseCell !== undefined &&
+      baseCell.unitIndex >= site.baseFrom &&
+      baseCell.unitIndex < site.baseTo &&
+      cell !== undefined &&
+      !cell.lacunose &&
+      cell.unitIndex >= 0
+    );
+  });
+}
+
 /**
  * Who is there: no reading but the base's is lacunose; a witness is in at
  * most one reading of a place; a witness that has lost a unit of the base,
  * or has a gap of its own at a point, is in no reading of a place over it
  * (the place over the whole segment aside, where every witness with a word
- * of the segment is there); a text with no word of the segment is absent;
- * and the witnesses a place names are those of its readings, in the order
- * they were given.
+ * of the segment is there, and a place whose only other readings are
+ * absence, where a witness with some of the words is there and stands with
+ * the base); a text with no word of the segment is absent; and the
+ * witnesses a place names are those of its readings, in the order they
+ * were given.
  */
 function whoIsThere(c: TextsCase): void {
   const { built, collation } = run(c);
@@ -400,8 +423,15 @@ function whoIsThere(c: TextsCase): void {
         continue;
       }
       if (site.wanting) continue;
-      if (!thereAt(site, lossesOf(built, collation, text.id)))
-        expect(named.includes(text.id), `${text.id} is not there, at ${where}`).toBe(false);
+      if (thereAt(site, lossesOf(built, collation, text.id))) continue;
+      // Where the only other readings are that the words are not in a witness, a witness that has
+      // lost some of the words and has others is there, and stands with the base.
+      if (absenceOnly(site) && hasWordsAt(built, collation, site, text.id)) {
+        const reading = site.readings.find((r) => r.textIds.includes(text.id));
+        expect(reading?.base, `${text.id} has some of the words, at ${where}`).toBe(true);
+        continue;
+      }
+      expect(named.includes(text.id), `${text.id} is not there, at ${where}`).toBe(false);
     }
   }
   for (const text of built.witnesses) {

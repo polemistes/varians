@@ -7,20 +7,11 @@
 
 import type { Reading } from '../collate/collate.ts';
 import { newId } from '../ids.ts';
-import {
-  isBreak,
-  isToken,
-  type Break,
-  type Id,
-  type Item,
-  type Obj,
-  type Stream,
-  type Token,
-} from '../stream/items.ts';
+import { isBreak, isToken, type Id, type Obj, type Stream, type Token } from '../stream/items.ts';
 import { repairSegmentStartsFrom } from '../stream/move.ts';
 import { applyOp, type Op } from '../stream/ops.ts';
 import { runsOfSegment } from '../stream/words.ts';
-import { tokensFromReading, type AdoptOptions } from './adopt.ts';
+import { ownLineInsert, tokensFromReading, type AdoptOptions } from './adopt.ts';
 
 /**
  * The item a segment printed after the segment `after` follows: the last
@@ -72,25 +63,12 @@ export function printSegment(
   if (items.length === 0) return [];
   const at = printPlace(stream, after);
   if (at === null) return [];
-  const ids = options.ids ?? newId;
   const line: (Token | Obj)[] = items.map((item, k) => {
     const { segment: _segment, ...rest } = item;
     void _segment;
     return (k === 0 ? { ...rest, segment: { segmentId } } : rest) as Token | Obj;
   });
-  const index = stream.items.findIndex((item) => item.id === at);
-  const next = stream.items[index + 1];
-  const following = stream.items[index + 2];
-  let op: Op;
-  if (isBreak(next) && next.type === 'line' && (following === undefined || isBreak(following))) {
-    // An empty line directly after (one left in the text, as an editor leaves a blank line): the words fill it.
-    op = { t: 'insert', after: next.id, items: line };
-  } else {
-    const lineBreak = (): Break => ({ kind: 'break', id: ids(), type: 'line' });
-    const inserted: Item[] = [lineBreak(), ...line];
-    if (next && !isBreak(next)) inserted.push(lineBreak());
-    op = { t: 'insert', after: at, items: inserted };
-  }
+  const op = ownLineInsert(stream, at, line, options.ids ?? newId);
   const printed = applyOp(stream, op).stream;
   return [op, ...repairSegmentStartsFrom([stream, { items: line }], printed)];
 }

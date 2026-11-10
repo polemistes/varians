@@ -292,6 +292,62 @@ describe('who is there', () => {
     const c = collate(text('E', 'ed', 'a b c d'), [text('P', 'P', 'a [gap] x d')]);
     expect(summary(c)).toEqual(['c ed : x P']);
   });
+
+  it('stands a witness with some of the words with the base where the only other reading is that they are not in a witness', () => {
+    const c = collate(text('E', 'ed', 'a b c d'), [
+      text('A', 'A', 'a d'),
+      text('P', 'P', 'a [gap] c d'),
+      text('Q', 'Q', 'a [gap] d'),
+    ]);
+    // P has lost b and has c: it is there. Q has lost both: it is not.
+    expect(summary(c)).toEqual(['b c edP : om. A']);
+    // Where another witness reads the words otherwise, a witness that has lost some of them is not there.
+    const other = collate(text('E', 'ed', 'a b c d'), [
+      text('A', 'A', 'a d'),
+      text('B', 'B', 'a c b d'),
+      text('P', 'P', 'a [gap] c d'),
+    ]);
+    expect(summary(other)).toEqual(['b c ed : om. A : c b B']);
+  });
+});
+
+describe('a stretch of several segments', () => {
+  it('aligns a text with the base where it has text, and leaves it out where it has none', () => {
+    const base = text('E', 'ed', 'a b c d e');
+    // W has no text for the base's units 2 to 4 (a segment it has lost); it has `a x` for the rest.
+    const w = { ...text('W', 'W', 'a x'), present: true, notThere: [{ from: 2, to: 5 }] };
+    const c = collate(base, [w, text('A', 'A', 'a b c y e')]);
+    expect(summary(c)).toEqual(['b edA : x W', 'd ed : y A']);
+    const without = collate(base, [{ ...text('W', 'W', 'a b'), notThere: [{ from: 0, to: 5 }] }]);
+    expect(without.absent).toEqual(['W']);
+  });
+
+  it('marks the place over the words of whole segments that a witness is without as wanting', () => {
+    const base = text('E', 'ed', 'a b c d e');
+    const c = collate(base, [text('A', 'A', 'a b e'), text('B', 'B', 'c d e')], {
+      segmentStarts: [0, 2, 4],
+    });
+    expect(summary(c)).toEqual(['a b edA : om. B', 'c d edB : om. A']);
+    expect(c.sites.map((s) => s.wanting ?? false)).toEqual([true, true]);
+    // The same words without the segments: only the place over the whole stretch would be.
+    const one = collate(base, [text('A', 'A', 'a b e'), text('B', 'B', 'c d e')]);
+    expect(one.sites.map((s) => s.wanting ?? false)).toEqual([false, false]);
+  });
+
+  it('links a word a witness has in one spot and is without in another only within two dozen words', () => {
+    const words = Array.from({ length: 30 }, (_, k) => `w${k}`);
+    const near = [...words.slice(1, 20), 'w0', ...words.slice(20)];
+    const far = [...words.slice(1), 'w0'];
+    const linked = (list: string[], farReach?: number) =>
+      collate(
+        text('E', 'ed', words.join(' ')),
+        [text('B', 'B', list.join(' '))],
+        farReach === undefined ? {} : { farReach },
+      ).sites.filter((s) => s.transposition).length;
+    expect(linked(near)).toBe(2);
+    expect(linked(far)).toBe(0);
+    expect(linked(far, 40)).toBe(2);
+  });
 });
 
 describe('a segment the base does not print', () => {
