@@ -31,11 +31,15 @@ import {
 } from '@varians/core';
 import {
   bibliographyItems,
+  changesets,
+  checkpoints,
+  editionCollaborators,
   editionSigla,
   editions,
+  moments,
   pages,
   referenceSchemes,
-  reportedReadings,
+  reviewState,
   sql,
   transcriptions,
   users,
@@ -217,6 +221,7 @@ function tokensOf(stream: Stream, segmentId: string): Token[] {
 
 interface Seeding {
   db: Database;
+  slug: string;
   ownerId: string;
   collaboratorId: string | null;
   text: StressText;
@@ -261,6 +266,7 @@ export async function seedStress(
   const text = generateStress(options);
   const s: Seeding = {
     db,
+    slug,
     ownerId,
     collaboratorId: null,
     text,
@@ -305,6 +311,76 @@ export async function seedStress(
   };
 }
 
+const escapeRegex = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+
+/**
+ * Take a stress edition out of the database again, with everything made for
+ * it: the works, the witnesses and their transcripts, the histories, the
+ * schemes, the bibliography and the account that was its collaborator. For
+ * a seeding that was interrupted, or to seed again.
+ */
+export async function removeStress(db: Database, slug: string): Promise<void> {
+  await refuseDevelopmentDatabase(db);
+  const workRows = await db
+    .select({ id: works.id })
+    .from(works)
+    .where(sql`${works.slug} in (${slug}, ${`${slug}-scholia`})`);
+  const workIds = workRows.map((w) => w.id);
+  const witnessRows = await db
+    .select({ id: witnesses.id })
+    .from(witnesses)
+    .where(sql`${witnesses.slug} ~ ${`^${escapeRegex(slug)}-(ms|pap|rep)[0-9]+$`}`);
+  const witnessIds = witnessRows.map((w) => w.id);
+  const editionRows = workIds.length
+    ? await db.select({ id: editions.id }).from(editions).where(inArray(editions.workId, workIds))
+    : [];
+  const transcriptionRows = witnessIds.length
+    ? await db
+        .select({ id: transcriptions.id })
+        .from(transcriptions)
+        .where(inArray(transcriptions.witnessId, witnessIds))
+    : [];
+  const documentIds = [...editionRows, ...transcriptionRows].map((d) => d.id);
+  const collaborators = editionRows.length
+    ? await db
+        .select({ id: editionCollaborators.userId })
+        .from(editionCollaborators)
+        .innerJoin(users, eq(users.id, editionCollaborators.userId))
+        .where(
+          sql`${editionCollaborators.editionId} in (${sql.join(
+            editionRows.map((e) => sql`${e.id}`),
+            sql`, `,
+          )}) and ${users.email} like '%-collaborator-%@stress.invalid'`,
+        )
+    : [];
+  // History and the rest that points at documents by id alone, with no key to follow.
+  if (documentIds.length) {
+    await db.delete(changesets).where(inArray(changesets.documentId, documentIds));
+    await db.delete(checkpoints).where(inArray(checkpoints.documentId, documentIds));
+    await db.delete(moments).where(inArray(moments.documentId, documentIds));
+    await db.delete(reviewState).where(inArray(reviewState.documentId, documentIds));
+  }
+  if (workIds.length) await db.delete(works).where(inArray(works.id, workIds));
+  if (witnessIds.length) await db.delete(witnesses).where(inArray(witnesses.id, witnessIds));
+  await db
+    .delete(referenceSchemes)
+    .where(
+      sql`${referenceSchemes.name} in (${`${SCHEME_PRESETS[1]!.name} (${slug})`}, ${`Scholium (${slug})`})`,
+    );
+  await db
+    .delete(bibliographyItems)
+    .where(
+      sql`${bibliographyItems.citationKey} ~ ${`^${escapeRegex(slug)}-[a-z]+[0-9]{4}-[0-9]+$`}`,
+    );
+  if (collaborators.length)
+    await db.delete(users).where(
+      inArray(
+        users.id,
+        collaborators.map((u) => u.id),
+      ),
+    );
+}
+
 async function describeExisting(
   db: Database,
   slug: string,
@@ -343,7 +419,9 @@ async function describeExisting(
     collaboratorId: null,
     witnessIds: Object.fromEntries(witnessRows.map((w) => [keyOf.get(w.id)!, w.id])),
     transcriptionIds: Object.fromEntries(
-      transcriptionRows.filter((t) => keyOf.has(t.witnessId)).map((t) => [keyOf.get(t.witnessId)!, t.id]),
+      transcriptionRows
+        .filter((t) => keyOf.has(t.witnessId))
+        .map((t) => [keyOf.get(t.witnessId)!, t.id]),
     ),
     longHistories: [],
     done: {},
@@ -448,7 +526,9 @@ async function makeWitnesses(s: Seeding, slug: string): Promise<void> {
       s.pageIds.set(w.key, ids);
       await db
         .insert(pages)
-        .values(w.pages.map((label, i) => ({ id: ids[i]!, witnessId: id, label, position: i + 1 })));
+        .values(
+          w.pages.map((label, i) => ({ id: ids[i]!, witnessId: id, label, position: i + 1 })),
+        );
       count(s, 'pages', ids.length);
     } else s.pageIds.set(w.key, []);
     count(s, 'witnesses');
@@ -483,7 +563,11 @@ async function makeTranscripts(s: Seeding, longHistory: number): Promise<string[
       visibility: 'draft',
     });
     const scholia = w.entries.some((e) => e.kind === 'line' && e.work === 'scholia');
-    await setChosenWorks(db, id, s.scholiaWorkId && scholia ? [s.workId, s.scholiaWorkId] : [s.workId]);
+    await setChosenWorks(
+      db,
+      id,
+      s.scholiaWorkId && scholia ? [s.workId, s.scholiaWorkId] : [s.workId],
+    );
     const plan = streamOf(
       w,
       (work, n) => (work === 'main' ? s.segmentOf.get(n)! : s.scholiaSegmentOf.get(n)!),
@@ -513,7 +597,10 @@ async function writeInPieces(s: Seeding, transcriptionId: string, plan: StreamPl
   const { db, ownerId } = s;
   const entries = plan.starts.length - 1;
   const pieces = Math.max(1, Math.min(FIRST_WRITING_CHANGESETS, entries));
-  const bounds = Array.from({ length: pieces + 1 }, (_, k) => plan.starts[Math.round((k * entries) / pieces)]!);
+  const bounds = Array.from(
+    { length: pieces + 1 },
+    (_, k) => plan.starts[Math.round((k * entries) / pieces)]!,
+  );
   let version = 0;
   let lastId: Id | null = null;
   for (let k = 0; k < pieces; k++) {
@@ -521,7 +608,15 @@ async function writeInPieces(s: Seeding, transcriptionId: string, plan: StreamPl
     if (items.length === 0) continue;
     const result =
       version === 0
-        ? await replaceContent(db, 'transcription', transcriptionId, ownerId, 0, { items }, 'first sitting')
+        ? await replaceContent(
+            db,
+            'transcription',
+            transcriptionId,
+            ownerId,
+            0,
+            { items },
+            'first sitting',
+          )
         : await saveOps(
             db,
             'transcription',
@@ -560,7 +655,8 @@ async function smallChanges(
   let version = row!.version;
   let made = 0;
   const save = async (ops: Op[], message: string) => {
-    version = (await saveOps(db, 'transcription', transcriptionId, ownerId, version, ops, message)).version;
+    version = (await saveOps(db, 'transcription', transcriptionId, ownerId, version, ops, message))
+      .version;
     made++;
     count(s, 'changesets');
   };
@@ -593,7 +689,7 @@ async function makeBibliography(s: Seeding): Promise<void> {
     await db.insert(bibliographyItems).values({
       id,
       entryType: entry.entryType,
-      citationKey: entry.key,
+      citationKey: `${s.slug}-${entry.key}`,
       fields: entry.fields,
       label: entry.label,
       createdBy: ownerId,
@@ -751,7 +847,14 @@ async function editorsWork(
     s.log(`  lines ${from} to ${to} done`);
     if (!moment && from > text.lines / 4) {
       moment = true;
-      await nameMoment(db, 'edition', editionId, context.edition.version, 'First quarter collated', ownerId);
+      await nameMoment(
+        db,
+        'edition',
+        editionId,
+        context.edition.version,
+        'First quarter collated',
+        ownerId,
+      );
       count(s, 'moments');
     }
     // Published half-way; the work goes on after it.
@@ -780,7 +883,8 @@ async function makeCollaborator(s: Seeding, editionId: string): Promise<string> 
 function touching(ops: Op[]): Set<Id> {
   const ids = new Set<Id>();
   for (const op of ops) {
-    if (op.t === 'delete' || op.t === 'replace' || op.t === 'move') for (const id of op.ids) ids.add(id);
+    if (op.t === 'delete' || op.t === 'replace' || op.t === 'move')
+      for (const id of op.ids) ids.add(id);
     if (op.t === 'set') ids.add(op.id);
     if (op.t === 'insert' && op.after) ids.add(op.after);
   }
@@ -806,7 +910,15 @@ async function workOn(work: Work, from: number, to: number): Promise<void> {
   const baseTranscription = s.transcriptionId.get(text.baseWitness)!;
   const save = async (ops: Op[], message: string): Promise<boolean> => {
     if (ops.length === 0) return false;
-    const result = await saveOps(db, 'edition', editionId, work.userId, context.edition.version, ops, message);
+    const result = await saveOps(
+      db,
+      'edition',
+      editionId,
+      work.userId,
+      context.edition.version,
+      ops,
+      message,
+    );
     context.edition = { ...context.edition, content: result.content, version: result.version };
     count(s, 'edition changesets');
     return true;
@@ -871,13 +983,25 @@ async function workOn(work: Work, from: number, to: number): Promise<void> {
   };
   for (const speaker of text.editors.speakers.filter((x) => x.line >= from && x.line <= to)) {
     placeBefore(speaker.line, [
-      { kind: 'object', id: newId(), type: 'paratext', attrs: { type: 'speaker' }, text: speaker.text },
+      {
+        kind: 'object',
+        id: newId(),
+        type: 'paratext',
+        attrs: { type: 'speaker' },
+        text: speaker.text,
+      },
     ]);
     count(s, 'speaker labels');
   }
   for (const heading of text.editors.headings.filter((x) => x.line >= from && x.line <= to)) {
     placeBefore(heading.line, [
-      { kind: 'object', id: newId(), type: 'paratext', attrs: { type: 'head' }, text: heading.text },
+      {
+        kind: 'object',
+        id: newId(),
+        type: 'paratext',
+        attrs: { type: 'head' },
+        text: heading.text,
+      },
       { kind: 'break', id: newId(), type: 'line' },
     ]);
     count(s, 'headings');
@@ -897,7 +1021,12 @@ async function workOn(work: Work, from: number, to: number): Promise<void> {
     if (!token || crossed.has(token.id) || token.form === emendation.reading) continue;
     const change: Op[] = [{ t: 'set', id: token.id, fields: { form: emendation.reading } }];
     structure.push(...change, ...claimTypedWords(stream, change));
-    typed.push({ line: emendation.line, token, reading: emendation.reading, register: emendation.register });
+    typed.push({
+      line: emendation.line,
+      token,
+      reading: emendation.reading,
+      register: emendation.register,
+    });
   }
   await save(structure, `speakers, headings and emendations, lines ${from} to ${to}`);
   for (const t of typed) {
@@ -1044,7 +1173,14 @@ async function finish(work: Work): Promise<void> {
         count(s, 'places reviewed');
       }
       if (overruled < wanted && s.rng.chance(0.02)) {
-        await setSiteKind(db, editionId, segmentId, key, site.kind === 'textual' ? 'interpretative' : 'textual', ownerId);
+        await setSiteKind(
+          db,
+          editionId,
+          segmentId,
+          key,
+          site.kind === 'textual' ? 'interpretative' : 'textual',
+          ownerId,
+        );
         overruled++;
         count(s, 'kinds of places overruled');
       }

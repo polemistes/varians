@@ -1365,7 +1365,7 @@ function makeBibliography(rng: Random, lines: number): StressBibliography[] {
             };
     out.push({
       index: i,
-      key: `stress-${surname.toLowerCase()}${year}-${i}`,
+      key: `${surname.toLowerCase()}${year}-${i}`,
       entryType,
       fields,
       label: `${surname} ${year}`,

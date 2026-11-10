@@ -1,10 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { conformPages, newId, segmentIds } from '@varians/core';
 import {
-  bibliographyItems,
+  changesets,
   createDatabase,
   editions,
-  referenceSchemes,
   transcriptions,
   users,
   witnesses,
@@ -21,7 +20,7 @@ import { hasXmllint, validateArchiveDir, validateTeiFiles } from '../archive/val
 import { transcriptionPageOrder } from '../conform.ts';
 import { loadDocument } from '../documents/service.ts';
 import { editionView } from '../reader.ts';
-import { seedStress, streamOf, type StressSeedResult } from './stress.ts';
+import { removeStress, seedStress, streamOf, type StressSeedResult } from './stress.ts';
 import { generateStress } from './stress-text.ts';
 
 const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329/varians_test';
@@ -32,13 +31,7 @@ let root: string;
 const ownerId = newId();
 let result: StressSeedResult;
 
-async function clean(): Promise<void> {
-  await db.delete(works).where(like(works.slug, `${SLUG}%`));
-  await db.delete(witnesses).where(like(witnesses.slug, `${SLUG}-%`));
-  await db.delete(referenceSchemes).where(eq(referenceSchemes.createdBy, ownerId));
-  await db.delete(bibliographyItems).where(like(bibliographyItems.citationKey, 'stress-%'));
-  await db.delete(users).where(like(users.email, '%-collaborator-%@stress.invalid'));
-}
+const clean = () => removeStress(db, SLUG);
 
 beforeAll(async () => {
   ({ db, pool } = createDatabase(url));
@@ -94,7 +87,10 @@ describe('seedStress at a small size', () => {
   });
 
   it('has an edition whose view runs and finds places of variation', async () => {
-    const view = await editionView(db, result.editionId, null, { kind: 'editor', viewer: { id: ownerId, role: 'member' } });
+    const view = await editionView(db, result.editionId, null, {
+      kind: 'editor',
+      viewer: { id: ownerId, role: 'member' },
+    });
     const sites = Object.values(view.segments).flatMap((s) => s.collation.sites);
     expect(Object.keys(view.segments).length).toBeGreaterThan(30);
     expect(sites.length).toBeGreaterThan(10);
@@ -142,5 +138,47 @@ describe('seedStress at a small size', () => {
     expect(await validateArchiveDir(dir)).toEqual([]);
     if (hasXmllint()) expect(await validateTeiFiles(dir)).toEqual([]);
     else console.warn('xmllint is not installed: the archive TEI is NOT validated.');
+  }, 120_000);
+
+  it('is taken out again with everything made for it, history and collaborator too', async () => {
+    await removeStress(db, SLUG);
+    expect(
+      await db
+        .select({ id: works.id })
+        .from(works)
+        .where(like(works.slug, `${SLUG}%`)),
+    ).toEqual([]);
+    expect(
+      await db
+        .select({ id: witnesses.id })
+        .from(witnesses)
+        .where(like(witnesses.slug, `${SLUG}-%`)),
+    ).toEqual([]);
+    expect(
+      await db
+        .select({ id: changesets.id })
+        .from(changesets)
+        .where(
+          inArray(changesets.documentId, [
+            result.editionId,
+            ...Object.values(result.transcriptionIds),
+          ]),
+        ),
+    ).toEqual([]);
+    expect(
+      await db.select({ id: users.id }).from(users).where(eq(users.id, result.collaboratorId!)),
+    ).toEqual([]);
+    expect(await db.select({ id: users.id }).from(users).where(eq(users.id, ownerId))).toHaveLength(
+      1,
+    );
+    // And it can be seeded again.
+    const again = await seedStress(db, ownerId, {
+      lines: 12,
+      witnesses: 3,
+      seed: 2,
+      slug: SLUG,
+      longHistory: 3,
+    });
+    expect(again.existed).toBe(false);
   }, 120_000);
 });

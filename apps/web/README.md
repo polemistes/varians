@@ -48,6 +48,17 @@ E2E_BUILD=1 pnpm --filter @varians/web test:e2e  # against the production build
 
 Playwright starts the server itself (and reuses one already listening on 4173). Every run registers a fresh account; nothing in `varians_test` is cleaned up, so drop and recreate the database when it grows.
 
+## The stress edition
+
+A made-up verse work in thirty witnesses, with every kind of element a real edition has, to measure how Varians copes with one. Both commands refuse `varians_dev`; give them a database of their own.
+
+```sh
+pnpm --filter @varians/web cli seed-stress --user you@example.org [--lines 1300] [--witnesses 30] [--seed 1] [--slug stress] [--replace]
+pnpm --filter @varians/web exec tsx scripts/stress.ts --slug stress [--json FILE] [--keep-cache] [--seed 1]
+```
+
+The seeder writes everything but the registry rows through the application's own services. The script prints a table of timings and sizes, and fifteen lines with their apparatus to read; it empties the edition's collation cache first (derived data) and puts back every transcript it saves to.
+
 ## Where things are
 
 ```
@@ -64,6 +75,7 @@ src/
       registry.ts           works, witnesses, transcriptions, maintainers, search
       pages.ts, images/     witness pages, uploads, tiles, IIIF manifests
       workbench.ts          the transcription workbench's loads and imports
+      seed/                 the sample edition; the stress edition (stress-text.ts makes its text, stress.ts writes it)
       history.ts            sessions, moments, undo, bringing back, review
       publish.ts            publishing and the published versions
       bibliography.ts       the shared biblatex list and citations
@@ -79,7 +91,7 @@ src/
     (app)/                  everything that needs a user: editors, new records, pages, account, admin
     transcriptions/[id]     the workbench, also the read-only view of a published transcription
     api/                    JSON endpoints of the editors
-scripts/                    seed, cli, perf-edition (timing of a long edition)
+scripts/                    seed, cli, perf-edition (timing of a long edition), stress (measures the stress edition)
 e2e/                        Playwright tests
 static/fonts/               EB Garamond and Cardo, self-hosted
 ```
