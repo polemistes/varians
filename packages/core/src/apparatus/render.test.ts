@@ -288,6 +288,21 @@ describe('how the witnesses are named', () => {
     ]);
   });
 
+  it('does not say "the others" at a place inside a stretch that one of them leaves out', () => {
+    const c = collate(text('E', 'ed', 'the quick red fox runs'), [
+      // R leaves three words out; inside that stretch the others divide over one word.
+      text('R', 'R', 'the runs'),
+      text('G', 'G', 'the quick red dog runs'),
+      text('V', 'V', 'the quick red dog runs'),
+      text('H', 'H', 'the quick red dog runs'),
+      text('B', 'B', 'the quick red fox runs'),
+    ]);
+    expect(print(c, { ...negative, rest: 'cett.' })).toEqual([
+      '1 quick red fox : om. R',
+      '1 fox : dog G V H',
+    ]);
+  });
+
   it('names every witness when the conventions have no such words', () => {
     const c = collate(
       text('E', 'ed', 'red fox'),

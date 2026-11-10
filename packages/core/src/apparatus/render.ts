@@ -140,6 +140,10 @@ export function apparatusEntries(
   const baseCount = collation.columns.filter(
     (c) => (c.cells.get(collation.baseId)?.unitIndex ?? -1) >= 0,
   ).length;
+  // The witnesses proper that have the segment.
+  const everyone = Object.keys(collation.sigla ?? {}).filter(
+    (id) => id !== collation.baseId && !isState(id) && !collation.absent.includes(id),
+  );
   for (const site of collation.sites) {
     // A place the editor has chosen not to report.
     if (site.unreported) continue;
@@ -169,7 +173,10 @@ export function apparatusEntries(
         main: mainWitnesses(others[k]!, collation.baseId),
         states: stateSigla(others[k]!, siglaOrder),
       })),
-      conventions,
+      // Where a witness stands at a wider place around this one, "the others" and "all" would wrongly take it in.
+      everyone.some((id) => !site.readings.some((r) => r.textIds.includes(id)))
+        ? { ...conventions, rest: '', all: '' }
+        : conventions,
     );
     variants.forEach((variant, k) => (variant.sigla = named.variants[k]!));
     for (const attachment of attached) {
