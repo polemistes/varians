@@ -12,6 +12,7 @@
  *   pnpm --filter @varians/web cli import-archive <dir> --user <email> [--on-conflict keep|take] [--dry-run]
  *   pnpm --filter @varians/web cli seed-sample --user <email>
  *   pnpm --filter @varians/web cli seed-stress --user <email> [--lines N] [--witnesses N] [--seed N] [--history N] [--slug stress] [--replace]
+ *   pnpm --filter @varians/web cli seed-page <file> --user <email> [--replace]
  *   pnpm --filter @varians/web cli make-admin <email>
  *   pnpm --filter @varians/web cli reset-password <email>
  *   pnpm --filter @varians/web cli confirm-email <email>
@@ -26,7 +27,7 @@
 
 import { createDatabase, editions, sql, users, works } from '@varians/db';
 import { eq } from 'drizzle-orm';
-import { copyFile } from 'node:fs/promises';
+import { copyFile, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { archiveChangedWorks } from '../src/lib/server/archive/schedule.ts';
 import { archiveWork } from '../src/lib/server/archive/archive.ts';
@@ -45,7 +46,13 @@ import {
 } from '../src/lib/server/sync.ts';
 import { confirmEmailDirectly, makeResetLinkFor } from '../src/lib/server/account-mail.ts';
 import { seedSample } from '../src/lib/server/seed/sample.ts';
-import { STRESS_SLUG, removeStress, seedStress } from '../src/lib/server/seed/stress.ts';
+import { parseDescription, removePage, seedPage } from '../src/lib/server/seed/page.ts';
+import {
+  STRESS_SLUG,
+  refuseDevelopmentDatabase,
+  removeStress,
+  seedStress,
+} from '../src/lib/server/seed/stress.ts';
 import { conformAll, formatConformance } from '../src/lib/server/conform.ts';
 import { pageStrings } from '../src/lib/strings/pages.ts';
 import { site } from '../src/lib/strings/site.ts';
@@ -329,6 +336,23 @@ async function main(): Promise<void> {
         console.log(JSON.stringify(result, null, 2));
         break;
       }
+      case 'seed-page': {
+        // A printed page worked backwards from a description file, to set Varians' apparatus beside the print; never in the owner's own database.
+        const file = args[0] && !args[0].startsWith('--') ? args[0] : null;
+        const email = flag(args, 'user');
+        if (!file || !email) throw new Error('usage: seed-page <file> --user <email> [--replace]');
+        await refuseDevelopmentDatabase(db);
+        const user = await userByEmail(db, email);
+        const description = parseDescription(
+          JSON.parse(await readFile(path.resolve(file), 'utf8')),
+        );
+        if (args.includes('--replace')) await removePage(db, description.work.slug);
+        const result = await seedPage(db, user.id, description, {
+          log: (message) => console.error(message),
+        });
+        console.log(JSON.stringify(result, null, 2));
+        break;
+      }
       case 'make-admin': {
         const email = args[0];
         if (!email) throw new Error('usage: make-admin <email>');
@@ -369,7 +393,7 @@ async function main(): Promise<void> {
       }
       default:
         console.log(
-          'commands: pull <slug> <address> --user <email>, push <slug> <address> --user <email> --token <t>, export-archive <slug>, export-all [--package <file>], export-package --work|--edition|--transcription|--all --out <file>, check-archive [<slug>], write-example, import-archive <dir> --user <email> [--on-conflict keep|take] [--dry-run], seed-sample --user <email>, seed-stress --user <email> [--lines N] [--witnesses N] [--seed N] [--history N] [--slug stress] [--replace], make-admin <email>, reset-password <email>, confirm-email <email>, conform-pages, version',
+          'commands: pull <slug> <address> --user <email>, push <slug> <address> --user <email> --token <t>, export-archive <slug>, export-all [--package <file>], export-package --work|--edition|--transcription|--all --out <file>, check-archive [<slug>], write-example, import-archive <dir> --user <email> [--on-conflict keep|take] [--dry-run], seed-sample --user <email>, seed-stress --user <email> [--lines N] [--witnesses N] [--seed N] [--history N] [--slug stress] [--replace], seed-page <file> --user <email> [--replace], make-admin <email>, reset-password <email>, confirm-email <email>, conform-pages, version',
         );
     }
   } finally {

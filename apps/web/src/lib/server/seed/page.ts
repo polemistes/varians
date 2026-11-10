@@ -274,6 +274,8 @@ export interface PlanReported {
   witness: string | null;
   /** For a source that is no witness of the description: the source, as the name of an indirect witness. */
   indirect: string | null;
+  /** What the print says of the reading beside it ("but elsewhere otherwise"). */
+  note: string | null;
 }
 
 export interface Plan {
@@ -634,6 +636,7 @@ export function planPage(d: PageDescription): Plan {
         source: r.witness === undefined || r.source === r.witness ? null : r.source,
         witness: r.witness ?? null,
         indirect: r.witness === undefined ? r.source : null,
+        note: r.note ?? null,
       });
     }
   });
@@ -1444,6 +1447,7 @@ async function registerTheRest(s: Seeding): Promise<void> {
         lemma: r.lemma,
         reading: r.reading,
         source: r.source,
+        note: r.note,
       },
       ownerId,
     );

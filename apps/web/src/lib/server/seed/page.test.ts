@@ -136,7 +136,14 @@ const description = (): unknown => ({
   ],
   reported: [
     { line: '2', lemma: 'πολίταις', reading: 'πολίτας', source: 'schol. in loc.' },
-    { line: '3', lemma: 'ἐκείνη', reading: 'ἐκείνη', source: 'Lex. s.v.', withLemma: true },
+    {
+      line: '3',
+      lemma: 'ἐκείνη',
+      reading: 'ἐκείνη',
+      source: 'Lex. s.v.',
+      withLemma: true,
+      note: 'but elsewhere otherwise',
+    },
     { line: '4', lemma: 'θάλατταν', reading: 'θάλασσαν', source: 'D', witness: 'D' },
     { line: '4', lines: ['4', '5'], reading: '', source: 'Epit.' },
   ],
@@ -488,6 +495,11 @@ describe('seedPage, with a page of made-up Greek', () => {
     const toD = rows.find((r) => r.witnessId === result.witnessIds.D)!;
     // The source that is the witness's own siglum is not printed twice.
     expect(toD.source).toBeNull();
+    expect(
+      rows.find((r) => r.source === null && r.note === 'but elsewhere otherwise'),
+    ).toBeDefined();
+    // A source that is no witness of the description is the siglum of the witness made for it, and is not printed twice either.
+    expect(rows.filter((r) => r.source !== null)).toEqual([]);
     const placed = Object.values(view.segments).flatMap((s) =>
       Object.values(s.attachments)
         .flat()
