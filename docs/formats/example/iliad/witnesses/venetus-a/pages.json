@@ -2,13 +2,13 @@
   "$schema": "https://varians.eu/formats/2/pages.schema.json",
   "pages": [
     {
-      "id": "01M6ZBS32EF0V50KF3C3RS6FQB",
+      "id": "01M71YF5KGPCKEQKS7B2G1ZKJB",
       "label": "12r",
       "position": 1,
       "image": {
         "kind": "upload",
-        "path": "images/01M6ZBS32EF0V50KF3C3RS6FQB/original.jpg",
-        "file": "images/12r-RS6FQB.jpg",
+        "path": "images/01M71YF5KGPCKEQKS7B2G1ZKJB/original.jpg",
+        "file": "images/12r-G1ZKJB.jpg",
         "iiif": null,
         "width": 64,
         "height": 96,
@@ -17,21 +17,21 @@
         "attribution": "An example image, made by Varians",
         "source": null
       },
-      "createdAt": "2026-11-09T05:16:30.159Z"
+      "createdAt": "2026-11-10T05:21:36.881Z"
     },
     {
-      "id": "01M6ZBS32EF0V50KF3C3RS6FQC",
+      "id": "01M71YF5KGPCKEQKS7B2G1ZKJC",
       "label": "12v",
       "position": 2,
       "image": null,
-      "createdAt": "2026-11-09T05:16:30.159Z"
+      "createdAt": "2026-11-10T05:21:36.881Z"
     },
     {
-      "id": "01M6ZBS32EF0V50KF3C3RS6FQD",
+      "id": "01M71YF5KGPCKEQKS7B2G1ZKJD",
       "label": "13r",
       "position": 3,
       "image": null,
-      "createdAt": "2026-11-09T05:16:30.159Z"
+      "createdAt": "2026-11-10T05:21:36.881Z"
     }
   ]
 }
