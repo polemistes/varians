@@ -59,6 +59,15 @@ pnpm --filter @varians/web exec tsx scripts/stress.ts --slug stress [--json FILE
 
 The seeder writes everything but the registry rows through the application's own services. The script prints a table of timings and sizes, and fifteen lines with their apparatus to read; it empties the edition's collation cache first (derived data) and puts back every transcript it saves to.
 
+## A printed page worked backwards
+
+To see whether Varians can say what a printed apparatus says, a description file (the printed lines, which witness reads what where, the conjectures and the readings reported from sources that are not transcribed; `src/lib/server/seed/page.ts` has its fields) is worked backwards into transcripts, an edition that reads the printed text, and the records an editor would enter. The second command prints, line by line, the printed apparatus and the one Varians derives, in the positive and the negative form, then what found no place. Both refuse `varians_dev`; the description may be in copyright, so keep it outside the repository (`local/` is ignored).
+
+```sh
+pnpm --filter @varians/web cli seed-page <file> --user you@example.org [--replace]
+pnpm --filter @varians/web exec tsx scripts/page.ts <file> [--json FILE]
+```
+
 ## Where things are
 
 ```
@@ -75,7 +84,7 @@ src/
       registry.ts           works, witnesses, transcriptions, maintainers, search
       pages.ts, images/     witness pages, uploads, tiles, IIIF manifests
       workbench.ts          the transcription workbench's loads and imports
-      seed/                 the sample edition; the stress edition (stress-text.ts makes its text, stress.ts writes it)
+      seed/                 the sample edition; the stress edition (stress-text.ts makes its text, stress.ts writes it); a printed page worked backwards (page.ts)
       history.ts            sessions, moments, undo, bringing back, review
       publish.ts            publishing and the published versions
       bibliography.ts       the shared biblatex list and citations
@@ -91,7 +100,7 @@ src/
     (app)/                  everything that needs a user: editors, new records, pages, account, admin
     transcriptions/[id]     the workbench, also the read-only view of a published transcription
     api/                    JSON endpoints of the editors
-scripts/                    seed, cli, perf-edition (timing of a long edition), stress (measures the stress edition)
+scripts/                    seed, cli, perf-edition (timing of a long edition), stress (measures the stress edition), page (a printed apparatus beside Varians')
 e2e/                        Playwright tests
 static/fonts/               EB Garamond and Cardo, self-hosted
 ```
