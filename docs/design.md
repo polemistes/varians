@@ -97,7 +97,7 @@ The invariants are kept at the one place every change to a transcript's text pas
 
 A token belongs to the segment whose start last preceded it in the stream, across page breaks and across the boundary of the unplaced stretch. A token before any start, or after a start naming no segment, is unassigned. A segment standing in several places has several runs, ordered by part number. Labels show in the gutter, never as objects in the text; a page's first line shows, muted, the segment it continues.
 
-**No move changes the segment any word belongs to**: not Move to Page…, not cut and paste, not the removal or reordering of pages, not conforming. Where the flow would give a word another segment, the move writes an explicit start, and part numbers keep the content order (`moveRun` and the one start repair in `packages/core/src/stream/move.ts`).
+**No move changes the segment any word belongs to**: not Move to Page…, not cut and paste, not the removal or reordering of pages, not conforming. Where the flow would give a word another segment, the move writes an explicit start, and part numbers keep the content order (`moveRun` and the one start repair in `packages/core/src/stream/move.ts`). There is one exception. Where an edition is made from a witness and the normalized form of a divided word cannot be divided where the witness divides it (the letters do not correspond), the word stands whole with its first part, and a segment that its second part began begins with the next word.
 
 ### 3.6 Diplomatic form, normalized form, fold
 
@@ -161,7 +161,7 @@ A **reported reading** is what a witness is reported to have at some words witho
 An edition's text is a stream of the same shape as a transcript's, with the edition's own lineation and objects (speaker labels, headings, lacuna marks, marginal notes). In an ancient text the assignment of speakers is interpretation, not text: it is an annotation of the edition and never part of a transcript's words. In a modern play, where the speakers are text, they are written as text. Every word carries its **source**: the witness tokens it was taken from, the conjecture it realizes, or the edition itself. Adopted conjectures are also listed on the edition, so that deletions, lacunae and transpositions are attributed.
 
 - An edition starts by copying a witness's text for a range of segments, with its line and paragraph breaks and its divided words, which are the edition's own from then on. It is independent of the witness; where a source transcript is corrected later, the word is marked and the current reading offered.
-- **Verse and prose.** Every paragraph of an edition's text is verse or prose: the edition says which its text is, and a paragraph can be marked as the other. This settles how the text is shown and nothing else. In verse the lines are shown as the editor breaks them, whatever the segments, so that the colometry of a lyric passage is the editor's, and a word that a line break divides is shown with its hyphen. In prose the line breaks are not shown: the text runs on to the width of the page and breaks at paragraphs, which are a reader's convenience, and no word is hyphenated. The breaks stay in the text and show again if the paragraph is marked as verse.
+- **Verse and prose.** Every paragraph of an edition's text is verse or prose: the edition says which its text is, and a paragraph can be marked as verse or as prose, which it then is whatever the edition says. The mark stands on the paragraph break that opens the paragraph, and a text may begin with such a break for its first paragraph. This settles how the text is shown and nothing else. In verse the lines are shown as the editor breaks them, whatever the segments, so that the colometry of a lyric passage is the editor's, and a word that a line break divides is shown with its hyphen. In prose the line breaks are not shown: the text runs on to the width of the page and breaks at paragraphs, which are a reader's convenience, and no word is hyphenated. The breaks stay in the text and show again if the paragraph is marked as verse. In the editor, Enter in verse breaks the line, and inside a word divides it; joining the lines gives the word back whole. In prose Enter begins a paragraph.
 - Adopting a reading replaces the edition's words at the variant with that reading's words and their source. A word the editor retypes becomes the edition's own, so that no witness is credited with an emendation. Words adopted where the edition had none each take the segment their witness gives them; where they are a segment the edition did not have, in verse they stand on a line of their own, in prose in the run of the text. Adopting that words are not in the text takes them out, and where they were a whole line of verse, its line break with them.
 - Transpositions are cut and paste; the report of them is derived.
 - Editorial sigla in the printed text are features rendered by the edition's convention, never typed characters.
@@ -176,7 +176,7 @@ Collation is a pure function in the core: given the words of a stretch of the ed
 - a word is divided across the boundary, in the witness or in the edition;
 - the witness has words at the boundary that the edition does not have, whether its transcript sets them at the end of the one segment, at the start of the other, or in a segment the edition does not print;
 - the witness is without all the words of the segment on one side;
-- the witness departs from the edition close to the boundary on both sides, within the reach of a transposition.
+- the witness departs from the edition close to the boundary on both sides, within the reach of a transposition, counted in words through segments shorter than that.
 
 Each segment is first collated alone to find this out, and a passage of several segments is then collated whole. A passage is no longer than twelve segments or 240 words; a longer run is cut where the limit falls. A witness's words for a passage are those of its segments in the edition's order, the words of a segment the edition does not print standing after those of the segment that precedes it in the work's numbering.
 
@@ -189,7 +189,7 @@ Over a passage, every witness is aligned with the edition's words alone, by dyna
 - a word read otherwise, together with the words the witness adds beside it (one word against several is one reading);
 - words it has between two of the edition's, which the edition does not have;
 - words it does not have: a word wanting beside one read otherwise is a departure by itself, unless the letters show the edition's two words to be the witness's one (φί λος against φίλος);
-- a stretch whose words stand in another order, the shortest such stretch being taken. A word that the witness has in one spot and is without in another, beyond the reach of a transposition and within two dozen words, makes two variants that lead to each other, also where they lie in neighbouring passages.
+- a stretch whose words stand in another order, the shortest such stretch being taken. A word that the witness has in one spot and is without in another, beyond the reach of a transposition and within two dozen words, makes two variants that lead to each other, also where they lie in different passages.
 
 **A variant is an extent over which some witness departs.** The witnesses departing over that extent are its readings, grouped by fold and keeping the token ids they were read from; every other witness that is there stands with the edition. Three rules settle how variants stand to one another:
 
@@ -340,8 +340,8 @@ Designed or wanted, and not there:
 - Passages (section 3.10), the divided word (3.3) and verse and prose by paragraph (3.9). What is built differs in these ways:
   - Every segment is collated alone. A word divided across two segments is compared as two words, and its normalized form is read once whole and once again in part. What a witness moves or adds across a boundary is two variants without a link.
   - A witness without a whole segment, and a segment the edition does not print, are variants of kinds of their own, the second standing in a unit of its own.
-  - An edition made from a witness loses its divided words. The workbench draws a hyphen after every joined part, whether or not a line break follows, and the reader draws none.
-  - Verse or prose is a setting of the whole edition that changes only how labels are printed; line breaks are always shown, and the marks in the margin and a segment adopted into the text assume verse.
+  - The marks in the margin for whole segments, and a segment adopted into the text, assume verse.
+  - The history of an edition shows the stored lines of a prose paragraph.
   - The guide, the changelog and the interface say "line" for a segment.
 - The reporting of variants as sections 3.10 and 4 state it. What is built differs in these ways:
   - The editor's text marks only words and the segments the edition does not print.
@@ -363,6 +363,8 @@ Designed or wanted, and not there:
 
 Known gaps in what is built:
 
+- Where the edition has the same word twice beside a boundary between segments, which of the two a witness is taken to have can depend on where the passage is cut: about one random case in a thousand, kept as expected failures in the tests of the passages.
+- At the width of a phone, the Paragraph and Insert buttons of the edition editor stand over its first line.
 - Adopting the absence of a whole segment removes the segment from the edition's text, where it then stands as a variant the edition does not print, unless it was the first or the last segment. A segment the edition leaves out cannot yet be printed in brackets.
 - Undoing a move of text to another page does not bring back the boxes the move detached.
 - The pages endpoint of a witness reads every transcript to count the words on each page, which will be slow for many long transcripts. A count kept with the segment index is the remedy.
