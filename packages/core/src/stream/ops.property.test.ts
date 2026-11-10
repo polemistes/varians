@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   clone,
   idsIn,
+  membershipOf,
   pageIds,
   picture,
+  randomOp,
   randomOps,
   randomStream,
   runProperty,
@@ -209,5 +211,46 @@ describe('operations naming an id that is not there (random)', () => {
       'ops: a missing anchor throws, even for an empty insert or move',
       missingCase(true),
     );
+  });
+});
+
+describe('join and the segments (random)', () => {
+  // Not in the design's wording; it follows from 3.5, where a word belongs to
+  // the segment whose start last preceded it. Counterexample (shrunk): `a@s1
+  // b@s2 c` (c in s2 by flow), `join a`: the joined token keeps a's start and
+  // `join` drops b's, so c, which flowed from b, is now in s1. The word that
+  // follows a joined pair changes segment when the second half began one. (A
+  // `delete` of a word that begins a segment does the same; adoption keeps the
+  // start alive on the word that follows, `delete` itself does not.)
+  it.fails('a join changes the segment of no word that is left', () => {
+    runProperty('ops: join keeps the segment of every word that is left', {
+      generate(rng, size) {
+        for (;;) {
+          const stream = randomStream(rng, { size, segmentRate: 0.3, joins: false });
+          const op = randomOp(rng, stream, { kinds: ['join'], fresh: () => 'n1' });
+          if (op) return { stream, ops: [op] } satisfies OpsCase;
+        }
+      },
+      show: showOpsCase,
+      shrink: shrinkOpsCase,
+      check({ stream, ops }) {
+        const before = membershipOf(stream);
+        const after = membershipOf(applyOps(stream, ops).stream);
+        for (const [id, segment] of after) expect(segment, id).toBe(before.get(id));
+      },
+    });
+  });
+
+  it.fails('a join changes the segment of no word that is left (the shrunk case)', () => {
+    const stream: Stream = {
+      items: [
+        { kind: 'token', id: 'a', form: 'ab', segment: { segmentId: 's1' } },
+        { kind: 'token', id: 'b', form: 'cd', segment: { segmentId: 's2' } },
+        { kind: 'token', id: 'c', form: 'ef' },
+      ],
+    };
+    const before = membershipOf(stream);
+    const after = membershipOf(applyOp(stream, { t: 'join', id: 'a' }).stream);
+    expect(after.get('c')).toBe(before.get('c'));
   });
 });
