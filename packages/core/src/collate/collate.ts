@@ -1,6 +1,6 @@
 /**
  * Collation: a pure function from the words of one segment in a base text
- * and in each witness to the sites where they differ: different words, not
+ * and in each witness to the places where they differ: different words, not
  * different ways of writing them, which the normalized forms have already
  * evened out.
  *
@@ -10,15 +10,25 @@
  * diplomatic forms play no part: whatever differs between a witness's
  * diplomatic and normalized text is normalization.
  *
- * The base (an edition's text, or the first witness when transcriptions are
- * compared among themselves) seeds a sequence of columns. Each witness in
- * turn is aligned to the columns by dynamic programming over fold keys,
- * rewarding exact matches, rewarding near matches less, and penalising
- * gaps; words of the witness that match nothing open new columns. Columns
- * where every present witness agrees with the base are anchors; every
- * maximal run between anchors is a site, whose readings are each witness's
- * words there, grouped by fold. Nothing here is stored: the result is
- * recomputed whenever a text changes and cached by a hash of its inputs.
+ * Every witness is aligned with the base alone (the edition's text, or the
+ * first witness when transcriptions are compared among themselves), by
+ * dynamic programming over the letters of the words: exact matches are
+ * rewarded, near matches less, and gaps penalised. What one witness reads
+ * therefore never depends on another, nor on the order they are given in.
+ *
+ * Where a witness departs from the base it does so over an extent of its
+ * own: one word read otherwise, with whatever it adds or leaves out beside
+ * it; words added between two of the base's; a stretch left out or lost; a
+ * stretch whose words stand in another order. Each such extent is a place.
+ * Witnesses departing over the same extent are readings of one place; a
+ * small variant inside a wide one (a word spelt otherwise within a stretch
+ * that another witness transposes or omits) is a place of its own, in which
+ * the witness of the wide variant does not stand. Neighbouring places that
+ * divide the witnesses in the same way are one place, so that a phrase a
+ * family reads otherwise is one variant and not a row of single words.
+ *
+ * Nothing here is stored: the result is recomputed whenever a text changes
+ * and cached by a hash of its inputs.
  */
 
 import {
@@ -136,11 +146,55 @@ export interface Collation {
   sigla: Record<Id, string>;
 }
 
-const EXACT = 3;
-const NEAR = 1;
+// The scores of the alignment. A word standing against the same word scores most; against the same
+// letters with other accents a little less, so that where either is possible the witness is placed
+// where it agrees.
+const AGREE = 6;
+const SAME_LETTERS = 5;
+const NEAR = 2;
 const GAP_UNIT = 0;
-const MISMATCH = -2;
-const INDEL = -1;
+const MISMATCH = -4;
+const INDEL = -2;
+
+/** One step of a witness's alignment with the base: a unit of each, or -1 where one has nothing. */
+interface Step {
+  b: number;
+  w: number;
+}
+
+/** A witness's departure from the base: the base's units it covers and the witness's words there. */
+interface Atom {
+  /** The base's units covered: [from, to); from === to for words added before unit `from`. */
+  from: number;
+  to: number;
+  /** Indexes of the witness's words here, in its own order. */
+  units: number[];
+  /** The witness is lost here and has no reading. */
+  lacunose: boolean;
+  /** The base's words in another order. */
+  transposed: boolean;
+  /** The witness lacks the whole segment. */
+  whole?: boolean;
+  /** The steps of the alignment the atom was made from, for naming the two halves of a distant transposition. */
+  steps: number[];
+}
+
+/** A witness aligned with the base. */
+interface Aligned {
+  text: CollationText;
+  keys: string[];
+  atoms: Atom[];
+  /** For each unit of the base, the witness's unit standing with it, or -1. */
+  pairOf: number[];
+  /** For each point before a unit of the base (and after the last), the witness's units added there. */
+  inserted: number[][];
+  /** Units of the base the witness has lost. */
+  lost: Set<number>;
+  /** Words the witness has in one place and lacks in another, too far apart to be one place. */
+  far: [Atom, Atom][];
+  /** The witness lacks a segment in which the base has no words either: it stands nowhere. */
+  outside?: boolean;
+}
 
 export function collate(
   base: CollationText,
@@ -151,157 +205,156 @@ export function collate(
   const near = options.nearThreshold ?? 0.6;
   const reach = options.transpositionReach ?? 3;
   // Words are placed by their letters, so that ἦ stands against ἤ; whether they agree is decided by their accents too.
-  const bare = new Map<Id, string[]>();
-  const keys = new Map<Id, string[]>();
-  const texts = [base, ...witnesses];
-  for (const text of texts) {
-    bare.set(
-      text.id,
-      text.units.map((u) => (u.gap ? '' : foldText(u.text, { ...fold, stripDiacritics: true }))),
-    );
-    keys.set(
-      text.id,
-      text.units.map((u) => (u.gap ? '' : agreementFold(u.text, fold))),
-    );
-  }
+  const bareOf = (text: CollationText) =>
+    text.units.map((u) => (u.gap ? '' : foldText(u.text, { ...fold, stripDiacritics: true })));
+  const keysOf = (text: CollationText) =>
+    text.units.map((u) => (u.gap ? '' : agreementFold(u.text, fold)));
+  const baseBare = bareOf(base);
+  const baseKeys = keysOf(base);
+  const n = base.units.length;
+  const baseHasWords = base.units.some((u) => !u.gap);
 
-  let columns: Column[] = base.units.map((_, i) => ({
-    cells: new Map([[base.id, { unitIndex: i }]]),
-  }));
   const absent: Id[] = [];
-  const transpositions: { textId: Id; insertedColumn: number; omittedColumn: number }[] = [];
-  // Witnesses that lack the whole segment: present without words, or with nothing but a gap.
-  const omitting = witnesses.filter((w) => w.present && w.units.length === 0);
-  const lost = witnesses.filter((w) => w.units.length > 0 && w.units.every((u) => u.gap));
-  const wanting = new Set([...omitting, ...lost].map((w) => w.id));
-
+  const aligned: Aligned[] = [];
   for (const witness of witnesses) {
-    if (wanting.has(witness.id)) continue;
-    if (witness.units.length === 0) {
-      if (!witness.present) absent.push(witness.id);
+    if (witness.units.length === 0 && !witness.present) {
+      // A text without the segment at all is absent, not omitting: it stands in no place.
+      absent.push(witness.id);
       continue;
     }
-    const result = alignWitness(columns, witness, bare, near);
-    columns = result.columns;
-    markLacunae(columns, witness.id, witness.units);
-    for (const link of findTranspositions(columns, witness.id, base.id, bare))
-      transpositions.push(link);
+    const lost = witness.units.length > 0 && witness.units.every((u) => u.gap);
+    if (witness.units.length === 0 || lost) {
+      aligned.push(lacking(witness, n, lost, baseHasWords));
+      continue;
+    }
+    aligned.push(
+      alignWitness(
+        base,
+        baseBare,
+        baseKeys,
+        witness,
+        bareOf(witness),
+        keysOf(witness),
+        near,
+        reach,
+      ),
+    );
   }
 
-  // A text without the segment at all is absent, not omitting: it stands in no site.
-  // A text that lacks the whole segment stands in one site of its own over all of it.
-  const absentSet = new Set(absent);
-  const present = texts.filter((t) => !absentSet.has(t.id) && !wanting.has(t.id));
-  const anchors = anchorColumns(
-    columns,
-    base.id,
-    keys,
-    present.map((t) => t.id),
-  );
-  const sites = buildSites(columns, anchors, base, present, keys, bare, transpositions, reach);
-  if (wanting.size > 0 && base.units.some((u) => !u.gap))
-    sites.push(wantingSite(sites.length, columns.length, base, present, keys, omitting, lost));
+  // Uniting may make neighbours of places that divide the witnesses alike, and joining may make two readings overlap: until neither does.
+  for (;;) {
+    const united = uniteOverlapping(aligned);
+    const joined = joinPlaces(base, baseKeys, aligned);
+    if (!united && !joined) break;
+  }
+
+  const { columns, baseColumn, slotColumn } = buildColumns(base, aligned);
+  const inColumns = aligned.filter((a) => !a.atoms.some((atom) => atom.whole) && !a.outside);
+  const anchors = anchorColumns(columns, base, baseKeys, inColumns);
+
+  // The places: every extent over which some witness departs, a place nested in another before it.
+  const ranges = new Map<string, { from: number; to: number }>();
+  for (const a of aligned) for (const atom of a.atoms) ranges.set(`${atom.from}:${atom.to}`, atom);
+  const places = [...ranges.values()]
+    .map(({ from, to }) => ({ from, to }))
+    .sort(
+      (p, q) => p.to - q.to || Number(p.from === p.to) - Number(q.from === q.to) || q.from - p.from,
+    );
+  const sites: Site[] = places.map(({ from, to }, index) => {
+    const readings = readingsAt(base, baseKeys, aligned, from, to);
+    const site: Site = {
+      index,
+      columnFrom: to > from ? baseColumn[from]! : slotColumn[from]!,
+      columnTo: to > from ? baseColumn[to - 1]! + 1 : (baseColumn[from] ?? columns.length),
+      baseFrom: from,
+      baseTo: to,
+      readings,
+      kind: siteKindOf(readings),
+    };
+    const own = aligned.flatMap((a) =>
+      a.atoms.filter((atom) => atom.from === from && atom.to === to).map((atom) => ({ a, atom })),
+    );
+    const transposed = own.filter((o) => o.atom.transposed).map((o) => o.a.text.id);
+    if (transposed.length > 0) site.transposition = { withSite: index, textIds: transposed };
+    if (from === 0 && to === n && own.some((o) => o.atom.whole)) site.wanting = true;
+    return site;
+  });
+  // A word a witness has in one place and lacks in another, too far apart to be one place: each half names the other.
+  const siteOfAtom = (atom: Atom) =>
+    sites.find((s) => s.baseFrom === atom.from && s.baseTo === atom.to);
+  for (const a of aligned) {
+    for (const [one, other] of a.far) {
+      const first = siteOfAtom(one);
+      const second = siteOfAtom(other);
+      if (!first || !second || first === second) continue;
+      for (const [site, partner] of [
+        [first, second],
+        [second, first],
+      ] as const) {
+        if (site.transposition && site.transposition.withSite === site.index) continue;
+        const textIds = new Set(site.transposition?.textIds ?? []);
+        textIds.add(a.text.id);
+        site.transposition = { withSite: partner.index, textIds: [...textIds] };
+      }
+    }
+  }
+
   const sigla: Record<Id, string> = {};
-  for (const text of texts) sigla[text.id] = text.siglum;
+  for (const text of [base, ...witnesses]) sigla[text.id] = text.siglum;
   return { columns, sites, anchors, baseId: base.id, absent, sigla };
 }
 
 /**
- * The site over the whole segment for the witnesses that lack it: the base
- * with every witness that has the passage (whatever its words there, which
- * the other sites report), against an omission and a loss.
+ * A witness that lacks the whole segment, by leaving it out or by having
+ * lost it: one departure over all of it, beside which every other place of
+ * the segment stands without the witness.
  */
-function wantingSite(
-  index: number,
-  columnCount: number,
-  base: CollationText,
-  present: CollationText[],
-  keys: Map<Id, string[]>,
-  omitting: CollationText[],
-  lost: CollationText[],
-): Site {
-  const words = base.units.filter((u) => !u.gap);
-  const having: Reading = {
-    text: words.map((u) => u.text).join(' '),
-    fold: base.units
-      .map((u, i) => (u.gap ? '' : keyOf(keys, base.id, i)))
-      .filter((k) => k !== '')
-      .join(' '),
-    textIds: present.map((t) => t.id),
-    sigla: present.map((t) => t.siglum),
-    units: Object.fromEntries(present.map((t) => [t.id, t.units.filter((u) => !u.gap)] as const)),
-    omission: false,
-    lacunose: false,
-    base: true,
+function lacking(witness: CollationText, n: number, lost: boolean, baseHasWords: boolean): Aligned {
+  const out: Aligned = {
+    text: witness,
+    keys: [],
+    atoms: [],
+    pairOf: new Array<number>(n).fill(-1),
+    inserted: Array.from({ length: n + 1 }, () => []),
+    lost: new Set(),
+    far: [],
   };
-  const lacking = (texts: CollationText[], lacunose: boolean): Reading => ({
-    text: '',
-    fold: '',
-    textIds: texts.map((t) => t.id),
-    sigla: texts.map((t) => t.siglum),
-    units: Object.fromEntries(texts.map((t) => [t.id, []] as const)),
-    omission: !lacunose,
-    lacunose,
-    base: false,
-  });
-  const readings = [
-    having,
-    ...(omitting.length ? [lacking(omitting, false)] : []),
-    ...(lost.length ? [lacking(lost, true)] : []),
-  ];
-  return {
-    index,
-    columnFrom: 0,
-    columnTo: columnCount,
-    baseFrom: 0,
-    baseTo: base.units.length,
-    readings,
-    kind: 'textual',
-    wanting: true,
-  };
-}
-
-function keyOf(keys: Map<Id, string[]>, textId: Id, unitIndex: number): string {
-  return keys.get(textId)?.[unitIndex] ?? '';
-}
-
-/** The fold keys standing in a column, base first. */
-function columnKeys(column: Column, keys: Map<Id, string[]>, baseId: Id): string[] {
-  const out: string[] = [];
-  const baseCell = column.cells.get(baseId);
-  if (baseCell) out.push(keyOf(keys, baseId, baseCell.unitIndex));
-  for (const [textId, cell] of column.cells) {
-    if (textId === baseId) continue;
-    const key = keyOf(keys, textId, cell.unitIndex);
-    if (key !== '' && !out.includes(key)) out.push(key);
-  }
+  if (baseHasWords)
+    out.atoms.push({
+      from: 0,
+      to: n,
+      units: [],
+      lacunose: lost,
+      transposed: false,
+      whole: true,
+      steps: [],
+    });
+  else out.outside = true;
   return out;
 }
 
-function alignWitness(
-  columns: Column[],
+/** Needleman-Wunsch, global alignment of a witness's units with the base's, by the letters of their words. */
+function alignSteps(
+  base: CollationText,
+  baseBare: string[],
+  baseKeys: string[],
   witness: CollationText,
-  keys: Map<Id, string[]>,
+  bare: string[],
+  keys: string[],
   near: number,
-): { columns: Column[] } {
-  const n = columns.length;
+): Step[] {
+  const n = base.units.length;
   const m = witness.units.length;
-  const wKeys = keys.get(witness.id)!;
-  // Score of placing witness unit j in column i.
   const score = (i: number, j: number): number => {
-    const unit = witness.units[j]!;
-    if (unit.gap) return GAP_UNIT;
-    const column = columns[i]!;
-    let best = MISMATCH;
-    for (const [textId, cell] of column.cells) {
-      const key = keyOf(keys, textId, cell.unitIndex);
-      if (key === '') continue;
-      if (key === wKeys[j]) return EXACT;
-      if (similarity(key, wKeys[j]!) >= near) best = Math.max(best, NEAR);
-    }
-    return best;
+    const b = base.units[i]!.gap !== undefined;
+    const w = witness.units[j]!.gap !== undefined;
+    // Two losses at the same point stand together; a loss against a word says nothing either way.
+    if (b && w) return AGREE;
+    if (b || w) return GAP_UNIT;
+    if (baseBare[i] === bare[j]) return baseKeys[i] === keys[j] ? AGREE : SAME_LETTERS;
+    return similarity(baseBare[i]!, bare[j]!) >= near ? NEAR : MISMATCH;
   };
-  // Needleman-Wunsch, global alignment. dp[i][j] is the best score aligning columns[0..i) with units[0..j).
+  // dp[i][j] is the best score aligning the base's units[0..i) with the witness's units[0..j).
   const dp: number[][] = [];
   const move: Uint8Array[] = [];
   for (let i = 0; i <= n; i++) {
@@ -310,388 +363,578 @@ function alignWitness(
   }
   for (let i = 1; i <= n; i++) {
     dp[i]![0] = i * INDEL;
-    move[i]![0] = 1; // up: column without witness unit
+    move[i]![0] = 1; // up: a unit of the base without one of the witness
   }
   for (let j = 1; j <= m; j++) {
     dp[0]![j] = j * INDEL;
-    move[0]![j] = 2; // left: witness unit without column
+    move[0]![j] = 2; // left: a unit of the witness without one of the base
   }
   for (let i = 1; i <= n; i++) {
     for (let j = 1; j <= m; j++) {
-      const diag = dp[i - 1]![j - 1]! + score(i - 1, j - 1);
+      let best = dp[i - 1]![j - 1]! + score(i - 1, j - 1);
+      let mv = 0;
       const up = dp[i - 1]![j]! + INDEL;
-      const left = dp[i]![j - 1]! + INDEL;
-      let best = diag;
-      let m = 0;
       if (up > best) {
         best = up;
-        m = 1;
+        mv = 1;
       }
+      const left = dp[i]![j - 1]! + INDEL;
       if (left > best) {
         best = left;
-        m = 2;
+        mv = 2;
       }
       dp[i]![j] = best;
-      move[i]![j] = m;
+      move[i]![j] = mv;
     }
   }
-  // Traceback into a new column list.
-  const placed: { column: number | null; unit: number }[] = [];
+  const steps: Step[] = [];
   let i = n;
   let j = m;
   while (i > 0 || j > 0) {
     const mv = i === 0 ? 2 : j === 0 ? 1 : move[i]![j]!;
-    if (mv === 0) {
-      placed.push({ column: i - 1, unit: j - 1 });
-      i--;
-      j--;
-    } else if (mv === 1) {
-      i--;
-    } else {
-      placed.push({ column: null, unit: j - 1 });
-      j--;
-    }
+    if (mv === 0) steps.push({ b: --i, w: --j });
+    else if (mv === 1) steps.push({ b: --i, w: -1 });
+    else steps.push({ b: -1, w: --j });
   }
-  placed.reverse();
-  const out: Column[] = [];
-  let nextColumn = 0;
-  const copy = (column: Column): Column => ({ cells: new Map(column.cells) });
-  for (const p of placed) {
-    if (p.column === null) {
-      // An insertion: a new column after whatever column the previous unit stood in.
-      out.push({ cells: new Map([[witness.id, { unitIndex: p.unit }]]) });
+  return steps.reverse();
+}
+
+function alignWitness(
+  base: CollationText,
+  baseBare: string[],
+  baseKeys: string[],
+  witness: CollationText,
+  bare: string[],
+  keys: string[],
+  near: number,
+  reach: number,
+): Aligned {
+  const n = base.units.length;
+  const steps = alignSteps(base, baseBare, baseKeys, witness, bare, keys, near);
+  const pairOf = new Array<number>(n).fill(-1);
+  const inserted: number[][] = Array.from({ length: n + 1 }, () => []);
+  /** For each step, the units of the base before it: where what the witness adds there stands. */
+  const slotOf: number[] = [];
+  let consumed = 0;
+  for (const step of steps) {
+    slotOf.push(consumed);
+    if (step.b >= 0) {
+      if (step.w >= 0) pairOf[step.b] = step.w;
+      consumed++;
+    } else inserted[consumed]!.push(step.w);
+  }
+  const baseGap = (s: Step) => s.b >= 0 && base.units[s.b]!.gap !== undefined;
+  const witnessGap = (s: Step) => s.w >= 0 && witness.units[s.w]!.gap !== undefined;
+  // The witness reads what the base reads; where the base itself is lost, a witness with nothing there says nothing against it.
+  const agrees = (s: Step): boolean => {
+    if (s.b >= 0 && s.w >= 0)
+      return baseGap(s) ? witnessGap(s) : !witnessGap(s) && baseKeys[s.b] === keys[s.w];
+    return s.w < 0 && baseGap(s);
+  };
+  // A loss in the witness reaches over the base's words it has nothing for on either side: lost, not left out.
+  const lost = new Array<boolean>(steps.length).fill(false);
+  steps.forEach((step, k) => {
+    if (!witnessGap(step) || agrees(step)) return;
+    lost[k] = true;
+    for (let p = k - 1; p >= 0 && steps[p]!.w < 0 && !baseGap(steps[p]!); p--) lost[p] = true;
+    for (let p = k + 1; p < steps.length && steps[p]!.w < 0 && !baseGap(steps[p]!); p++)
+      lost[p] = true;
+  });
+
+  // The stretches where the witness does not read with the base.
+  interface Run {
+    s0: number;
+    s1: number;
+    transposed: boolean;
+  }
+  const runs: Run[] = [];
+  for (let k = 0; k < steps.length; ) {
+    if (agrees(steps[k]!)) {
+      k++;
       continue;
     }
-    while (nextColumn < p.column) out.push(copy(columns[nextColumn++]!));
-    const column = copy(columns[nextColumn++]!);
-    column.cells.set(witness.id, { unitIndex: p.unit });
-    out.push(column);
+    let e = k;
+    while (e < steps.length && !agrees(steps[e]!)) e++;
+    runs.push({ s0: k, s1: e, transposed: false });
+    k = e;
   }
-  while (nextColumn < n) out.push(copy(columns[nextColumn++]!));
-  return { columns: out };
-}
 
-/**
- * A gap unit of a witness makes the witness lacunose from its previous word
- * to its next: every column between them that the witness lacks is marked,
- * so that it is reported as lacunose rather than as omitting.
- */
-function markLacunae(columns: Column[], textId: Id, units: Unit[]): void {
-  const gapColumns: number[] = [];
-  columns.forEach((column, index) => {
-    const cell = column.cells.get(textId);
-    if (cell && units[cell.unitIndex]?.gap) gapColumns.push(index);
-  });
-  for (const at of gapColumns) {
-    columns[at]!.cells.get(textId)!.lacunose = true;
-    for (let i = at - 1; i >= 0 && !columns[i]!.cells.has(textId); i--) {
-      columns[i]!.cells.set(textId, { unitIndex: -1, lacunose: true });
+  // A stretch whose words are the base's in another order is a transposition: its
+  // runs and the words between them become one, so that the apparatus reads
+  // "swift red] red swift B" and not an omission beside an addition.
+  const wordsOver = (s0: number, s1: number): { b: string[]; w: string[] } => {
+    const b: string[] = [];
+    const w: string[] = [];
+    for (let k = s0; k < s1; k++) {
+      const step = steps[k]!;
+      if (step.b >= 0 && !baseGap(step)) b.push(baseBare[step.b]!);
+      if (step.w >= 0 && !witnessGap(step)) w.push(bare[step.w]!);
     }
-    for (let i = at + 1; i < columns.length && !columns[i]!.cells.has(textId); i++) {
-      columns[i]!.cells.set(textId, { unitIndex: -1, lacunose: true });
+    return { b, w };
+  };
+  const SEP = '\u0001';
+  const sameWords = (a: string[], b: string[]) =>
+    a.length === b.length && [...a].sort().join(SEP) === [...b].sort().join(SEP);
+  // The shortest stretches first, so that a word read otherwise near a transposition is not drawn into it.
+  for (let span = 0; span <= reach; span++) {
+    for (let i = 0; i + span < runs.length; i++) {
+      const j = i + span;
+      const stretch = runs.slice(i, j + 1);
+      if (stretch.some((r) => r.transposed)) continue;
+      if (stretch.some((r, k) => k > 0 && r.s0 - stretch[k - 1]!.s1 > reach)) continue;
+      const { b, w } = wordsOver(runs[i]!.s0, runs[j]!.s1);
+      if (b.length < 2 || !sameWords(b, w) || b.join(SEP) === w.join(SEP)) continue;
+      runs.splice(i, span + 1, { s0: runs[i]!.s0, s1: runs[j]!.s1, transposed: true });
     }
   }
-}
-
-/**
- * A word of the witness that opened a column of its own, while a column
- * where the witness is absent carries the same word, is a transposition.
- */
-function findTranspositions(
-  columns: Column[],
-  textId: Id,
-  baseId: Id,
-  keys: Map<Id, string[]>,
-): { textId: Id; insertedColumn: number; omittedColumn: number }[] {
-  const out: { textId: Id; insertedColumn: number; omittedColumn: number }[] = [];
+  // A word the witness adds in one place and lacks in another has changed places.
+  const runAt = (step: number) => runs.findIndex((r) => step >= r.s0 && step < r.s1);
   const omitted = new Map<string, number[]>();
-  columns.forEach((column, index) => {
-    if (column.cells.has(textId)) return;
-    for (const key of columnKeys(column, keys, baseId)) {
-      if (key === '') continue;
-      const list = omitted.get(key) ?? [];
-      list.push(index);
-      omitted.set(key, list);
+  const added: number[] = [];
+  for (const run of runs) {
+    if (run.transposed) continue;
+    for (let k = run.s0; k < run.s1; k++) {
+      const step = steps[k]!;
+      if (lost[k]) continue;
+      if (step.w < 0 && !baseGap(step)) {
+        const list = omitted.get(baseBare[step.b]!) ?? [];
+        list.push(k);
+        omitted.set(baseBare[step.b]!, list);
+      } else if (step.b < 0 && !witnessGap(step)) added.push(k);
     }
+  }
+  const farSteps: [number, number][] = [];
+  for (const k of added) {
+    const candidates = omitted.get(bare[steps[k]!.w]!);
+    if (!candidates || candidates.length === 0) continue;
+    candidates.sort((x, y) => Math.abs(x - k) - Math.abs(y - k));
+    const other = candidates.shift()!;
+    const a = runAt(k);
+    const b = runAt(other);
+    if (a < 0 || b < 0) continue;
+    if (a === b) {
+      runs[a]!.transposed = true;
+      continue;
+    }
+    const [first, second] = a < b ? [a, b] : [b, a];
+    if (runs[second]!.s0 - runs[first]!.s1 <= reach)
+      runs.splice(first, second - first + 1, {
+        s0: runs[first]!.s0,
+        s1: runs[second]!.s1,
+        transposed: true,
+      });
+    else farSteps.push([k, other]);
+  }
+
+  // Each run as the witness's departures. A transposition is one, whole. A loss is one. Otherwise
+  // each word read otherwise is one, with the words the witness adds beside it; a word it leaves
+  // out beside one it reads otherwise is a departure by itself, unless the letters say that the
+  // base's two words are the witness's one (φί λος against φίλος).
+  const atoms: Atom[] = [];
+  const push = (list: number[], lacunose: boolean, transposed: boolean) => {
+    if (list.length === 0) return;
+    let from = -1;
+    let to = -1;
+    for (const k of list) {
+      const b = steps[k]!.b;
+      if (b < 0) continue;
+      if (from < 0 || b < from) from = b;
+      if (b + 1 > to) to = b + 1;
+    }
+    if (from < 0) from = to = slotOf[list[0]!]!;
+    const units = lacunose
+      ? []
+      : list
+          .filter((k) => steps[k]!.w >= 0 && !witnessGap(steps[k]!))
+          .map((k) => steps[k]!.w)
+          .sort((x, y) => x - y);
+    const same = atoms.find((a) => a.from === from && a.to === to);
+    if (same) {
+      // What is added and what is lost at one point is one departure there.
+      same.units = [...same.units, ...units].sort((x, y) => x - y);
+      same.lacunose ||= lacunose;
+      same.steps.push(...list);
+    } else atoms.push({ from, to, units, lacunose, transposed, steps: [...list] });
+  };
+  const range = (s0: number, s1: number) => Array.from({ length: s1 - s0 }, (_, k) => s0 + k);
+  const lettersOf = (list: number[], side: 'b' | 'w') =>
+    list
+      .filter((k) => steps[k]![side] >= 0)
+      .sort((x, y) => steps[x]![side] - steps[y]![side])
+      .map((k) => (side === 'b' ? baseBare[steps[k]!.b]! : bare[steps[k]!.w]!))
+      .join('');
+  const likeness = (list: number[]) => similarity(lettersOf(list, 'b'), lettersOf(list, 'w'));
+  const stretch = (s0: number, s1: number) => {
+    const isPair = (k: number) => steps[k]!.b >= 0 && steps[k]!.w >= 0;
+    const pairs = range(s0, s1).filter(isPair);
+    if (pairs.length === 0) {
+      push(range(s0, s1), false, false);
+      return;
+    }
+    const groups = new Map<number, number[]>(pairs.map((k) => [k, [k]]));
+    const alone: number[][] = [];
+    // The steps between two pairs (or before the first, after the last) that pair nothing.
+    for (let p = -1; p < pairs.length; p++) {
+      const left = p >= 0 ? pairs[p]! : null;
+      const right = p + 1 < pairs.length ? pairs[p + 1]! : null;
+      const between = range(left === null ? s0 : left + 1, right === null ? s1 : right);
+      if (between.length === 0) continue;
+      const added = between.filter((k) => steps[k]!.b < 0);
+      const left_out = between.filter((k) => steps[k]!.w < 0);
+      const toward = (list: number[], gain: boolean): number | null => {
+        let best: number | null = null;
+        let bestScore = -Infinity;
+        for (const pair of [left, right]) {
+          if (pair === null) continue;
+          const group = groups.get(pair)!;
+          const score = likeness([...group, ...list]) - (gain ? likeness(group) : 0);
+          if (score > bestScore) {
+            best = pair;
+            bestScore = score;
+          }
+        }
+        return gain && bestScore <= 0 ? null : best;
+      };
+      if (added.length > 0 && left_out.length > 0) {
+        // Words added and words left out at one point, with nothing paired: one reading with the neighbouring word.
+        groups.get((left ?? right)!)!.push(...between);
+        continue;
+      }
+      if (added.length > 0) groups.get(toward(added, false)!)!.push(...added);
+      if (left_out.length > 0) {
+        const pair = toward(left_out, true);
+        if (pair === null) alone.push(left_out);
+        else groups.get(pair)!.push(...left_out);
+      }
+    }
+    for (const group of [...groups.values(), ...alone]) push(group, false, false);
+  };
+  for (const run of runs) {
+    if (run.transposed) {
+      push(range(run.s0, run.s1), false, true);
+      continue;
+    }
+    let k = run.s0;
+    while (k < run.s1) {
+      let e = k;
+      if (lost[k]) {
+        while (e < run.s1 && lost[e]) e++;
+        push(range(k, e), true, false);
+      } else {
+        while (e < run.s1 && !lost[e]) e++;
+        stretch(k, e);
+      }
+      k = e;
+    }
+  }
+  atoms.sort((x, y) => x.from - y.from || x.to - y.to);
+  const atomAt = (step: number) => atoms.find((a) => a.steps.includes(step));
+  const far: [Atom, Atom][] = [];
+  for (const [x, y] of farSteps) {
+    const one = atomAt(x);
+    const other = atomAt(y);
+    if (one && other && one !== other) far.push([one, other]);
+  }
+  const lostUnits = new Set<number>();
+  steps.forEach((step, k) => {
+    if (lost[k] && step.b >= 0) lostUnits.add(step.b);
   });
-  columns.forEach((column, index) => {
-    const cell = column.cells.get(textId);
-    if (!cell || cell.unitIndex < 0) return;
-    if (column.cells.size !== 1) return;
-    const key = keyOf(keys, textId, cell.unitIndex);
-    const candidates = omitted.get(key);
-    if (!candidates || candidates.length === 0) return;
-    // The nearest omitted column with the same word.
-    candidates.sort((a, b) => Math.abs(a - index) - Math.abs(b - index));
-    out.push({ textId, insertedColumn: index, omittedColumn: candidates.shift()! });
-  });
+  return { text: witness, keys, atoms, pairOf, inserted, lost: lostUnits, far };
+}
+
+/**
+ * How a witness stands to a place: with a reading of its own there; reported
+ * at a wider place that holds this one, where its words here are part of its
+ * reading; or with the base. With the base it stands also where it departs
+ * only within the place, or over a stretch that merely overlaps it: those
+ * departures have places of their own.
+ */
+function standing(a: Aligned, from: number, to: number): Atom | 'elsewhere' | 'with' {
+  if (a.outside) return 'elsewhere';
+  let covered = false;
+  for (const atom of a.atoms) {
+    if (atom.from === from && atom.to === to) return atom;
+    if (atom.whole) covered = true;
+    else if (atom.to === atom.from) continue;
+    else if (from === to) covered ||= atom.from < from && from < atom.to;
+    else covered ||= atom.from <= from && to <= atom.to;
+  }
+  return covered ? 'elsewhere' : 'with';
+}
+
+const LOST = '\u0000lost';
+
+/**
+ * The readings of a place: the base's, with every witness that has no
+ * departure of this extent (whatever narrower ones it has inside, which
+ * their own places report); then each other reading with its witnesses.
+ */
+function readingsAt(
+  base: CollationText,
+  baseKeys: string[],
+  aligned: Aligned[],
+  from: number,
+  to: number,
+): Reading[] {
+  const baseUnits = base.units.slice(from, to);
+  const baseWords = baseUnits.filter((u) => !u.gap);
+  const baseReading: Reading = {
+    text: baseWords.map((u) => u.text).join(' '),
+    fold: baseKeys
+      .slice(from, to)
+      .filter((k) => k !== '')
+      .join(' '),
+    textIds: [base.id],
+    sigla: [base.siglum],
+    units: { [base.id]: baseWords },
+    // Where witnesses add words, the base has none.
+    omission: to === from,
+    lacunose: baseWords.length === 0 && baseUnits.length > 0,
+    base: true,
+  };
+  const groups = new Map<string, Reading>();
+  for (const a of aligned) {
+    const stands = standing(a, from, to);
+    if (stands === 'elsewhere') continue;
+    const units =
+      stands === 'with'
+        ? projected(a, from, to).map((i) => a.text.units[i]!)
+        : stands.units.map((i) => a.text.units[i]!);
+    const lost = stands !== 'with' && stands.lacunose;
+    const key =
+      stands === 'with'
+        ? baseReading.fold
+        : lost && units.length === 0
+          ? LOST
+          : stands.units.map((i) => a.keys[i]!).join(' ');
+    let reading = key === baseReading.fold && !lost ? baseReading : groups.get(key);
+    if (!reading) {
+      reading = {
+        text: units.map((u) => u.text).join(' '),
+        fold: key === LOST ? '' : key,
+        textIds: [],
+        sigla: [],
+        units: {},
+        omission: units.length === 0 && !lost,
+        lacunose: false,
+        base: false,
+      };
+      groups.set(key, reading);
+    }
+    reading.textIds.push(a.text.id);
+    reading.sigla.push(a.text.siglum);
+    reading.units[a.text.id] = units;
+    if (lost) reading.lacunose = true;
+  }
+  return [baseReading, ...groups.values()];
+}
+
+/** A witness's words standing with the base's units [from, to): those paired with them and those added between them. */
+function projected(a: Aligned, from: number, to: number): number[] {
+  const out: number[] = [];
+  for (let b = from; b < to; b++) {
+    if (b > from) for (const i of a.inserted[b]!) if (!a.text.units[i]!.gap) out.push(i);
+    const i = a.pairOf[b]!;
+    if (i >= 0 && !a.text.units[i]!.gap) out.push(i);
+  }
   return out;
 }
 
+/**
+ * Readings that overlap without one lying within the other (two witnesses
+ * transposing stretches that share a word) are one place over all of them:
+ * each of their witnesses is given its words over the whole of it. What a
+ * witness leaves out or has lost is not drawn in: an omission or a loss
+ * keeps its own extent whatever it overlaps. The extents are taken together,
+ * all that hang on one another at once, so that the outcome does not depend
+ * on the order of the witnesses.
+ */
+function uniteOverlapping(aligned: Aligned[]): boolean {
+  const wide = (atom: Atom) => atom.to > atom.from && !atom.whole && atom.units.length > 0;
+  const key = (r: { from: number; to: number }) => `${r.from}:${r.to}`;
+  let changed = false;
+  for (;;) {
+    const extents = new Map<string, { from: number; to: number }>();
+    for (const a of aligned)
+      for (const atom of a.atoms) if (wide(atom)) extents.set(key(atom), atom);
+    const list = [...extents.values()].map(({ from, to }) => ({ from, to }));
+    // The groups of extents hanging on one another.
+    const group = list.map((_, k) => k);
+    const find = (k: number): number => (group[k] === k ? k : (group[k] = find(group[k]!)));
+    let any = false;
+    for (let x = 0; x < list.length; x++) {
+      for (let y = x + 1; y < list.length; y++) {
+        const p = list[x]!;
+        const q = list[y]!;
+        const overlaps = Math.max(p.from, q.from) < Math.min(p.to, q.to);
+        const nested = (p.from <= q.from && q.to <= p.to) || (q.from <= p.from && p.to <= q.to);
+        if (!overlaps || nested) continue;
+        group[find(x)] = find(y);
+        any = true;
+      }
+    }
+    if (!any) return changed;
+    changed = true;
+    const united = new Map<number, { from: number; to: number; members: Set<string> }>();
+    list.forEach((r, k) => {
+      const g = find(k);
+      const u = united.get(g) ?? { from: r.from, to: r.to, members: new Set<string>() };
+      u.from = Math.min(u.from, r.from);
+      u.to = Math.max(u.to, r.to);
+      u.members.add(key(r));
+      united.set(g, u);
+    });
+    for (const { from, to, members } of united.values()) {
+      if (members.size < 2) continue;
+      for (const a of aligned) {
+        if (!a.atoms.some((atom) => wide(atom) && members.has(key(atom)))) continue;
+        // The witness's departure over the whole, with everything of its own that lies inside.
+        const inside = a.atoms.filter((atom) => !atom.whole && from <= atom.from && atom.to <= to);
+        const units = new Set<number>(projected(a, from, to));
+        for (const atom of inside) for (const i of atom.units) units.add(i);
+        a.atoms = a.atoms.filter((atom) => !inside.includes(atom));
+        a.atoms.push({
+          from,
+          to,
+          units: [...units].sort((x, y) => x - y),
+          lacunose: inside.some((atom) => atom.lacunose),
+          transposed: inside.some((atom) => atom.transposed),
+          steps: inside.flatMap((atom) => atom.steps),
+        });
+        a.atoms.sort((x, y) => x.from - y.from || x.to - y.to);
+      }
+    }
+  }
+}
+
+/**
+ * Neighbouring places that divide the witnesses in the same way become one:
+ * the same witnesses depart at both, in the same groups, and the others
+ * stand with the base at both. Transpositions, losses and whole segments
+ * stay as they are, and a place where only the reading of the letters
+ * differs is not joined to one where the letters do.
+ */
+function joinPlaces(base: CollationText, baseKeys: string[], aligned: Aligned[]): boolean {
+  const division = (from: number, to: number): string | null => {
+    const groups = new Map<string, number>();
+    const out: string[] = [];
+    for (const a of aligned) {
+      const stands = standing(a, from, to);
+      if (stands === 'elsewhere') out.push('e');
+      else if (stands === 'with') out.push('b');
+      else {
+        if (stands.transposed || stands.whole || stands.lacunose) return null;
+        const key = stands.units.map((i) => a.keys[i]!).join(' ');
+        if (!groups.has(key)) groups.set(key, groups.size);
+        out.push(String(groups.get(key)));
+      }
+    }
+    return out.join(',') + '|' + siteKindOf(readingsAt(base, baseKeys, aligned, from, to));
+  };
+  let changed = false;
+  for (;;) {
+    const byExtent = new Map<string, { from: number; to: number }>();
+    for (const a of aligned)
+      for (const atom of a.atoms) byExtent.set(`${atom.from}:${atom.to}`, atom);
+    // In the order of the text, so that the result does not depend on the order of the witnesses.
+    const places = [...byExtent.values()].sort((p, q) => p.from - q.from || p.to - q.to);
+    let joined = false;
+    for (const p of places) {
+      for (const q of places) {
+        if (p === q || p.to !== q.from || (p.from === q.from && p.to === q.to)) continue;
+        // Two stretches with words added between them by someone are neighbours only through that point.
+        if (p.to > p.from && q.to > q.from && byExtent.has(`${p.to}:${p.to}`)) continue;
+        const one = division(p.from, p.to);
+        if (one === null || one !== division(q.from, q.to)) continue;
+        const [from, mid, end] = [p.from, p.to, q.to];
+        const first = (atom: Atom) => atom.from === from && atom.to === mid;
+        const second = (atom: Atom) => atom.from === mid && atom.to === end;
+        for (const a of aligned) {
+          const left = a.atoms.find(first);
+          const right = a.atoms.find(second);
+          if (!left || !right || left === right) continue;
+          left.to = end;
+          left.units = [...left.units, ...right.units].sort((x, y) => x - y);
+          left.steps.push(...right.steps);
+          a.atoms.splice(a.atoms.indexOf(right), 1);
+        }
+        joined = true;
+        break;
+      }
+      if (joined) break;
+    }
+    if (!joined) return changed;
+    changed = true;
+  }
+}
+
+/**
+ * The table of the alignment, in the base's order: a column for each unit
+ * of the base, and before each (and after the last) as many columns as the
+ * witness adding most there has words.
+ */
+function buildColumns(
+  base: CollationText,
+  aligned: Aligned[],
+): { columns: Column[]; baseColumn: number[]; slotColumn: number[] } {
+  const n = base.units.length;
+  const shown = aligned.filter((a) => !a.outside && !a.atoms.some((atom) => atom.whole));
+  const columns: Column[] = [];
+  const baseColumn: number[] = [];
+  const slotColumn: number[] = [];
+  for (let s = 0; s <= n; s++) {
+    slotColumn.push(columns.length);
+    const most = Math.max(0, ...shown.map((a) => a.inserted[s]!.length));
+    for (let k = 0; k < most; k++) {
+      const cells = new Map<Id, Cell>();
+      for (const a of shown) {
+        const i = a.inserted[s]![k];
+        if (i === undefined) continue;
+        cells.set(
+          a.text.id,
+          a.text.units[i]!.gap ? { unitIndex: i, lacunose: true } : { unitIndex: i },
+        );
+      }
+      columns.push({ cells });
+    }
+    if (s === n) break;
+    baseColumn.push(columns.length);
+    const cells = new Map<Id, Cell>([[base.id, { unitIndex: s }]]);
+    for (const a of shown) {
+      const i = a.pairOf[s]!;
+      if (i >= 0)
+        cells.set(
+          a.text.id,
+          a.text.units[i]!.gap ? { unitIndex: i, lacunose: true } : { unitIndex: i },
+        );
+      else if (a.lost.has(s)) cells.set(a.text.id, { unitIndex: -1, lacunose: true });
+    }
+    columns.push({ cells });
+  }
+  return { columns, baseColumn, slotColumn };
+}
+
+/** The columns where every text that has the segment reads with the base. */
 function anchorColumns(
   columns: Column[],
-  baseId: Id,
-  keys: Map<Id, string[]>,
-  presentIds: Id[],
+  base: CollationText,
+  baseKeys: string[],
+  present: Aligned[],
 ): number[] {
   const anchors: number[] = [];
-  const present = new Set<Id>(presentIds);
   columns.forEach((column, index) => {
-    const baseCell = column.cells.get(baseId);
+    const baseCell = column.cells.get(base.id);
     if (!baseCell) return;
-    const baseKey = keyOf(keys, baseId, baseCell.unitIndex);
+    const baseKey = baseKeys[baseCell.unitIndex] ?? '';
     if (baseKey === '') return;
-    for (const textId of present) {
-      if (textId === baseId) continue;
-      const cell = column.cells.get(textId);
-      if (!cell) return; // omitted here
+    for (const a of present) {
+      const cell = column.cells.get(a.text.id);
       // A lacunose witness neither agrees nor disagrees; the apparatus still reports it.
-      if (cell.lacunose) return;
-      if (keyOf(keys, textId, cell.unitIndex) !== baseKey) return;
+      if (!cell || cell.lacunose || a.keys[cell.unitIndex] !== baseKey) return;
     }
     anchors.push(index);
   });
   return anchors;
-}
-
-function buildSites(
-  columns: Column[],
-  anchors: number[],
-  base: CollationText,
-  texts: CollationText[],
-  keys: Map<Id, string[]>,
-  /** Letters only: a transposed word is recognised by them, wherever it stands. */
-  bare: Map<Id, string[]>,
-  transpositions: { textId: Id; insertedColumn: number; omittedColumn: number }[],
-  reach: number,
-): Site[] {
-  const anchorSet = new Set(anchors);
-  // The texts that disagree with the base in a column: absent, lacunose or
-  // reading otherwise; in a column without the base, everyone present adds.
-  const present = new Set<Id>(texts.map((t) => t.id));
-  const disagreeing = (column: Column): Set<Id> => {
-    const out = new Set<Id>();
-    const baseCell = column.cells.get(base.id);
-    if (!baseCell || baseCell.unitIndex < 0) {
-      for (const textId of column.cells.keys()) if (textId !== base.id) out.add(textId);
-      return out;
-    }
-    const baseKey = keyOf(keys, base.id, baseCell.unitIndex);
-    for (const textId of present) {
-      if (textId === base.id) continue;
-      const cell = column.cells.get(textId);
-      if (!cell || cell.lacunose || keyOf(keys, textId, cell.unitIndex) !== baseKey)
-        out.add(textId);
-    }
-    return out;
-  };
-  // Runs of non-anchor columns, divided where the disagreeing texts of
-  // adjacent columns have nobody in common: an omission by B followed by an
-  // addition by C are two sites, a word B reads as three is one.
-  const runs: [number, number][] = [];
-  let start: number | null = null;
-  let current = new Set<Id>();
-  for (let i = 0; i <= columns.length; i++) {
-    const isAnchor = i === columns.length || anchorSet.has(i);
-    if (isAnchor) {
-      if (start !== null) runs.push([start, i]);
-      start = null;
-      current = new Set();
-      continue;
-    }
-    const here = disagreeing(columns[i]!);
-    if (start === null) {
-      start = i;
-      current = here;
-      continue;
-    }
-    const shared = [...here].some((id) => current.has(id));
-    if (!shared) {
-      runs.push([start, i]);
-      start = i;
-      current = here;
-    } else {
-      for (const id of here) current.add(id);
-    }
-  }
-  // A witness whose words over a stretch are the base's words in another
-  // order has transposed them: the sites of the stretch, anchors between
-  // them included, become one site, so that the apparatus reads
-  // "swift red] red swift B" and not an omission beside an addition.
-  const linked = new Map<number, Set<Id>>();
-  const foldsOver = (textId: Id, from: number, to: number): string[] => {
-    const cells: { unitIndex: number; key: string }[] = [];
-    for (let c = from; c < to; c++) {
-      const cell = columns[c]!.cells.get(textId);
-      if (!cell || cell.unitIndex < 0) continue;
-      const key = keyOf(bare, textId, cell.unitIndex);
-      if (key !== '') cells.push({ unitIndex: cell.unitIndex, key });
-    }
-    return cells.sort((a, b) => a.unitIndex - b.unitIndex).map((c) => c.key);
-  };
-  const baseOrderOver = (from: number, to: number): string[] => {
-    const out: string[] = [];
-    for (let c = from; c < to; c++) {
-      const cell = columns[c]!.cells.get(base.id);
-      if (cell && cell.unitIndex >= 0) {
-        const key = keyOf(bare, base.id, cell.unitIndex);
-        if (key !== '') out.push(key);
-      }
-    }
-    return out;
-  };
-  const sameMultiset = (a: string[], b: string[]): boolean =>
-    a.length === b.length && [...a].sort().join('\u0001') === [...b].sort().join('\u0001');
-  for (const text of texts) {
-    if (text.id === base.id) continue;
-    let i = 0;
-    while (i < runs.length) {
-      let merged = false;
-      for (let j = i; j < runs.length && j <= i + reach; j++) {
-        const from = runs[i]![0];
-        const to = runs[j]![1];
-        if (j > i && runs[j]![0] - runs[j - 1]![1] > reach) break;
-        const baseWords = baseOrderOver(from, to);
-        const textWords = foldsOver(text.id, from, to);
-        if (baseWords.length < 2 || !sameMultiset(baseWords, textWords)) continue;
-        if (baseWords.join('\u0001') === textWords.join('\u0001')) continue;
-        if (j > i) {
-          runs.splice(i, j - i + 1, [from, to]);
-          const shifted = new Map<number, Set<Id>>();
-          for (const [k, v] of linked) shifted.set(k > j ? k - (j - i) : k > i ? i : k, v);
-          linked.clear();
-          for (const [k, v] of shifted) linked.set(k, v);
-        }
-        linked.set(i, (linked.get(i) ?? new Set<Id>()).add(text.id));
-        merged = true;
-        break;
-      }
-      i++;
-      void merged;
-    }
-  }
-
-  // Merge runs linked by a transposition within reach.
-  const runOf = (column: number): number => runs.findIndex(([a, b]) => column >= a && column < b);
-  for (const t of transpositions) {
-    const a = runOf(t.insertedColumn);
-    const b = runOf(t.omittedColumn);
-    if (a < 0 || b < 0 || a === b) {
-      if (a >= 0 && a === b) linked.set(a, (linked.get(a) ?? new Set()).add(t.textId));
-      continue;
-    }
-    const [first, second] = a < b ? [a, b] : [b, a];
-    const between = runs[second]![0] - runs[first]![1];
-    if (between <= reach) {
-      const merged: [number, number] = [runs[first]![0], runs[second]![1]];
-      runs.splice(second, 1);
-      runs.splice(first, 1, merged);
-      const set = linked.get(first) ?? new Set<Id>();
-      set.add(t.textId);
-      // Shift link indexes after the removed run.
-      const shifted = new Map<number, Set<Id>>();
-      for (const [k, v] of linked) shifted.set(k > second ? k - 1 : k === second ? first : k, v);
-      linked.clear();
-      for (const [k, v] of shifted) linked.set(k, v);
-      linked.set(first, new Set([...(linked.get(first) ?? []), ...set]));
-    } else {
-      linked.set(a, (linked.get(a) ?? new Set()).add(t.textId));
-      linked.set(b, (linked.get(b) ?? new Set()).add(t.textId));
-    }
-  }
-
-  const sites: Site[] = [];
-  runs.forEach(([from, to], siteIndex) => {
-    const perText = new Map<Id, { units: Unit[]; indexes: number[]; lacunose: boolean }>();
-    for (const text of texts) perText.set(text.id, { units: [], indexes: [], lacunose: false });
-    for (let c = from; c < to; c++) {
-      for (const [textId, cell] of columns[c]!.cells) {
-        const entry = perText.get(textId);
-        if (!entry) continue;
-        if (cell.lacunose) entry.lacunose = true;
-        if (cell.unitIndex >= 0) entry.indexes.push(cell.unitIndex);
-      }
-    }
-    // A text's words in its own order.
-    for (const text of texts) {
-      const entry = perText.get(text.id)!;
-      entry.indexes.sort((a, b) => a - b);
-      entry.units = entry.indexes.map((i) => text.units[i]!).filter((u) => !u.gap);
-    }
-    const baseEntry = perText.get(base.id)!;
-    const baseIndexes = baseEntry.indexes.filter((i) => !base.units[i]!.gap);
-    const groups = new Map<string, Reading>();
-    const order: string[] = [];
-    for (const text of texts) {
-      const entry = perText.get(text.id)!;
-      const wordIndexes = entry.indexes.filter((i) => !text.units[i]!.gap);
-      const key = wordIndexes.map((i) => keys.get(text.id)![i] ?? '').join(' ');
-      const groupKey = entry.lacunose && wordIndexes.length === 0 ? `\u0000lac:${text.id}` : key;
-      let reading = groups.get(groupKey);
-      if (!reading) {
-        reading = {
-          text: entry.units.map((u) => u.text).join(' '),
-          fold: key,
-          textIds: [],
-          sigla: [],
-          units: {},
-          omission: wordIndexes.length === 0 && !entry.lacunose,
-          lacunose: false,
-          base: false,
-        };
-        groups.set(groupKey, reading);
-        order.push(groupKey);
-      }
-      reading.textIds.push(text.id);
-      reading.sigla.push(text.siglum);
-      reading.units[text.id] = entry.units;
-      if (entry.lacunose) reading.lacunose = true;
-      if (text.id === base.id) reading.base = true;
-    }
-    const readings = order.map((k) => groups.get(k)!);
-    const baseReading = readings.find((r) => r.base);
-    if (baseReading) {
-      readings.splice(readings.indexOf(baseReading), 1);
-      readings.unshift(baseReading);
-    }
-    const site: Site = {
-      index: siteIndex,
-      columnFrom: from,
-      columnTo: to,
-      baseFrom: baseIndexes.length ? baseIndexes[0]! : baseInsertionPoint(columns, from, base.id),
-      baseTo: baseIndexes.length
-        ? baseIndexes[baseIndexes.length - 1]! + 1
-        : baseInsertionPoint(columns, from, base.id),
-      readings,
-      kind: siteKindOf(readings),
-    };
-    const link = linked.get(siteIndex);
-    if (link && link.size > 0) {
-      // Find the site holding the other half, if the halves were not merged.
-      const other = transpositions.find(
-        (t) =>
-          link.has(t.textId) &&
-          (runOf(t.insertedColumn) === siteIndex || runOf(t.omittedColumn) === siteIndex),
-      );
-      const otherSite = other
-        ? runOf(other.insertedColumn) === siteIndex
-          ? runOf(other.omittedColumn)
-          : runOf(other.insertedColumn)
-        : siteIndex;
-      site.transposition = { withSite: otherSite, textIds: [...link] };
-    }
-    sites.push(site);
-  });
-  return sites;
-}
-
-/** Where in the base's units an insertion site falls: after the base's last word before the site. */
-function baseInsertionPoint(columns: Column[], column: number, baseId: Id): number {
-  for (let c = column - 1; c >= 0; c--) {
-    const cell = columns[c]!.cells.get(baseId);
-    if (cell && cell.unitIndex >= 0) return cell.unitIndex + 1;
-  }
-  return 0;
 }
 
 /**

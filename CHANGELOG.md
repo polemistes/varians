@@ -12,6 +12,7 @@ What changed in each release of Varians, for those who run it. The section of a 
 
 ### For editors
 
+- **The apparatus reports each variant over its own words.** Every witness is now compared with the edition by itself, so the order of the sigla no longer changes the apparatus, and a witness that agrees with the edition is never reported as differing. Variants that stand next to each other are separate entries; a wide variant (a transposition, a long omission) no longer swallows a small one inside it, which has an entry of its own. Review marks on places whose extent has changed are gone: those places count as not yet looked at.
 - **Pages hold their text.** In the workbench each page of the witness has its own text, typed on that page; there are no page breaks to make. Text on no page has a place of its own, **Not on a page**, where imports without pages land; **Move to 12r** in the toolbar under a selection puts text on its page, proposing the page the facsimile shows, and cut and paste moves words with their features and segments. **Whole text** shows everything, read only, a page under each label.
 - **Removing a page never deletes text**: its text goes to Not on a page in every transcript of the witness, and the dialog says how many words that is. Moving a page moves its text with it.
 - **Segments are independent of pages**: moving text never changes a word's segment, and a page's first line shows in grey the segment it continues.

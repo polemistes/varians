@@ -165,13 +165,27 @@ An edition's text is a stream of the same shape as a transcript's, with the edit
 
 ### 3.10 Collation and the apparatus
 
-Collation is a pure function in the core: given the words of one segment in the edition and in each witness, it returns the segment's **sites**. It references nothing stored. The server caches results under a hash of the inputs.
+Collation is a pure function in the core: given the words of one segment in the edition and in each witness, it returns the segment's **places** of variation (in the code, sites). It references nothing stored. The server caches results under a hash of the inputs.
 
-Per segment: the edition's words form the initial graph; each witness is aligned to it progressively by dynamic programming over fold keys; words unmatched on both sides with the same key are a transposition; each maximal run between positions of full agreement is one site, with readings grouped by fold key and keeping the token ids they were read from. Conjectures and reported readings are attached to sites by lemma. Whole-segment order is compared outside the aligner.
+Per segment, every witness is aligned with the edition's words alone, by dynamic programming over the letters of the words. What one witness reads therefore never depends on another witness, nor on the order of the sigla. Where a witness departs from the edition it does so over an extent of its own:
+
+- a word read otherwise, together with the words the witness adds beside it (one word against several is one reading);
+- words added between two of the edition's;
+- words left out: a word left out beside one read otherwise is a departure by itself, unless the letters show the edition's two words to be the witness's one (φί λος against φίλος);
+- a stretch lost: a gap in the witness reaches over the words it has nothing for on either side;
+- a stretch whose words stand in another order, a transposition, the shortest such stretch being taken.
+
+**A place is an extent over which some witness departs.** The witnesses departing over that extent are its readings, grouped by fold and keeping the token ids they were read from; every other witness that has the segment stands with the edition there. Three rules settle how places stand to one another:
+
+- A small variant inside a wide one (a word spelt otherwise within a stretch that another witness transposes or omits) is a place of its own, and the witness of the wide variant does not stand in it: its words there are part of its reading at the wide place. A witness that departs only within a place stands with the edition at that place.
+- Neighbouring places that divide the witnesses in the same way are one place, so that a phrase a family reads otherwise is one variant and not a row of single words. A place where only the reading of the letters differs is not joined to one where the letters do.
+- Two readings that overlap without one lying within the other are one place over both. An omission or a loss is never drawn in: it keeps its own extent whatever it overlaps.
+
+In the list of a segment's places, a place lying within another stands before it, so that the first place found for a word is the narrowest. Conjectures and reported readings are attached to places by lemma. Whole-segment order is compared outside the aligner.
 
 **Coverage.** A transcript covers the span from its first to its last segment of the work. Within that span, a segment it has no words for is an omission, and one lying across a gap or lacuna object is lost. Outside the span the witness is not transcribed, and the apparatus is silent.
 
-**A witness lacking a whole segment** is left out of that segment's alignment, and the segment gets one further site of its own, flagged _wanting_, covering the whole segment: "om. B", or "deest in B" where lost. It overlaps the segment's other sites and is taken as the active site only when the whole segment is selected, so a conjecture on one word stays on that word. Its lemma is abridged to the first and last word when the segment has more than three.
+**A witness lacking a whole segment** departs over all of it: the place over the whole segment is flagged _wanting_ and reads "om. B", or "deest in B" where lost, and the witness stands in no other place of the segment. It is taken as the active place only when the whole segment is selected, so a conjecture on one word stays on that word. Its lemma is abridged to the first and last word when the segment has more than three.
 
 Alignment constraints (these witness words correspond to these edition words) are stored and archived as data that names tokens.
 

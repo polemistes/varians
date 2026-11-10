@@ -38,8 +38,6 @@ function run(c: TextsCase, order?: readonly number[]): { built: Built; collation
   return { built, collation: collate(built.base, built.witnesses) };
 }
 
-const nonWanting = (collation: Collation): Site[] => collation.sites.filter((s) => !s.wanting);
-
 function describeSites(collation: Collation): string {
   return collation.sites
     .map(
@@ -98,16 +96,8 @@ describe('collation (random)', () => {
     });
   });
 
-  // Counterexample (shrunk): the base `a [gap] b` and a witness that is the
-  // same: one site at the gap, with the base's reading ("om. ed.") and the
-  // witness's ("lac. A"). A gap in the base is never an anchor, so its column
-  // is always a site, and the witness's gap marks it lacunose there. Smaller
-  // still: the base `[gap]` alone, with a witness that is the same gap (a lost
-  // witness, left out of the alignment) or none: one site that holds only the
-  // base's own reading. Where gaps are only the witnesses' (an edition has none
-  // as units) this does not arise; whether a base's gap should be read as
-  // agreed with is for the design.
-  it.fails('gives no place of variation when every witness is the base, gaps included', () => {
+  // A loss at the same point in the base and in a witness is no difference between them.
+  it('gives no place of variation when every witness is the base, gaps included', () => {
     runProperty('collate: witnesses identical to a base with gaps give no places', {
       generate(rng, size) {
         const c = randomTexts(rng, size, { witnesses: [1, 3] });
@@ -126,7 +116,7 @@ describe('collation (random)', () => {
     });
   });
 
-  it.fails('(the shrunk case: a base gap and a witness with the same gap)', () => {
+  it('(the shrunk case: a base gap and a witness with the same gap)', () => {
     const c: TextsCase = {
       base: [null],
       witnesses: [{ siglum: 'A', words: [null], present: true }],
@@ -179,32 +169,23 @@ describe('collation (random)', () => {
     },
   });
 
-  // Counterexample (shrunk by a search of many small random cases): the base
-  // `c`, witnesses A `c d b`, B `c c` and E `c`, E being equal to the base and
-  // aligned last. B's second `c` opened a column of its own, which E's `c`
-  // matches exactly as well as the base's column: the tie goes to the new
-  // column. So E is reported as omitting the base's word (`c`: ed. A B, om. E)
-  // and as reading `c` in an added place (om. ed., `d b` A, `c` B E). The
-  // alignment gives an exact match the same score in whichever column it
-  // stands, and does not prefer the column of the base.
+  // Each witness is aligned with the base alone: what another witness adds cannot draw it away.
+  // The seeds are those at which the alignment of one witness after another failed.
   const FOUND_AT: Record<string, number> = {
     'witnesses close to the base': 1020,
     'witnesses drawn freely': 1140,
     'with gaps': 495,
   };
   for (const [name, options] of KINDS) {
-    it.fails(
-      `never puts a witness equal to the base in a reading other than the base's (${name})`,
-      () => {
-        runProperty(
-          `collate: a witness equal to the base stands in the base's reading (${name})`,
-          equalToBase(options, FOUND_AT[name]),
-        );
-      },
-    );
+    it(`never puts a witness equal to the base in a reading other than the base's (${name})`, () => {
+      runProperty(
+        `collate: a witness equal to the base stands in the base's reading (${name})`,
+        equalToBase(options, FOUND_AT[name]),
+      );
+    });
   }
 
-  it.fails('never puts a witness equal to the base in another reading (the shrunk case)', () => {
+  it('never puts a witness equal to the base in another reading (the shrunk case)', () => {
     equalToBase({}).check({
       base: ['c'],
       witnesses: [
@@ -216,15 +197,23 @@ describe('collation (random)', () => {
   });
 });
 
+/** One place lies within the other: it covers a stretch of it, or a point strictly inside it. */
+function within(inner: Site, outer: Site): boolean {
+  if (inner === outer || outer.baseTo === outer.baseFrom) return false;
+  if (inner.baseTo === inner.baseFrom)
+    return outer.baseFrom < inner.baseFrom && inner.baseFrom < outer.baseTo;
+  return (
+    outer.baseFrom <= inner.baseFrom &&
+    inner.baseTo <= outer.baseTo &&
+    !(outer.baseFrom === inner.baseFrom && outer.baseTo === inner.baseTo)
+  );
+}
+
 /**
- * Every word of every text is accounted for: it stands in exactly one site's
- * reading, or at an anchor (a position of full agreement). The property is
- * checked in three parts: `covered` (every word is in a site or at an
- * anchor), `once` (no word is in the readings of two sites) and `exclusive`
- * (the two together, with "or" read as exclusive: a word at an anchor stands in
- * no site).
+ * Every word of every text is accounted for: it stands in a reading of some
+ * place, or at a position where every text reads with the base.
  */
-function accounted(c: TextsCase, mode: 'covered' | 'once' | 'exclusive'): void {
+function covered(c: TextsCase): void {
   const { built, collation } = run(c);
   const anchored = new Map<string, Set<number>>();
   for (const column of collation.anchors.map((a) => collation.columns[a]!)) {
@@ -234,155 +223,174 @@ function accounted(c: TextsCase, mode: 'covered' | 'once' | 'exclusive'): void {
       anchored.set(textId, set);
     }
   }
-  const texts = [built.base, ...built.witnesses];
-  for (const text of texts) {
+  for (const text of [built.base, ...built.witnesses]) {
     if (collation.absent.includes(text.id)) continue;
     text.units.forEach((u, index) => {
       if (u.gap) return;
-      const sites = nonWanting(collation).filter((site) =>
+      const sites = collation.sites.filter((site) =>
         site.readings.some((r) => r.units[text.id]?.includes(u)),
       );
       const here = anchored.get(text.id)?.has(index) ? 1 : 0;
-      const where = `${text.id} unit ${index + 1} "${u.text}"`;
-      const message = `${where}: in ${sites.length} sites and ${here} anchors\n${describeSites(collation)}`;
-      if (mode === 'exclusive') expect(sites.length + here, message).toBe(1);
-      else if (mode === 'once') expect(sites.length, message).toBeLessThanOrEqual(1);
-      else expect(sites.length + here, message).toBeGreaterThanOrEqual(1);
+      const message = `${text.id} unit ${index + 1} "${u.text}": in ${sites.length} places and ${here} positions of agreement\n${describeSites(collation)}`;
+      expect(sites.length + here, message).toBeGreaterThanOrEqual(1);
     });
   }
 }
 
-function placesStandInOrder(c: TextsCase): void {
+/**
+ * A witness's departure from the base is reported once: none of its words
+ * stands in two readings other than the base's, and where one place lies
+ * within another, a witness with a reading of its own at the wider one
+ * stands in no reading of the narrower.
+ */
+function reportedOnce(c: TextsCase): void {
+  const { built, collation } = run(c);
+  for (const text of built.witnesses) {
+    text.units.forEach((u, index) => {
+      if (u.gap) return;
+      const sites = collation.sites.filter((site) =>
+        site.readings.some((r) => !r.base && r.units[text.id]?.includes(u)),
+      );
+      const message = `${text.id} unit ${index + 1} "${u.text}": in ${sites.length} readings other than the base's\n${describeSites(collation)}`;
+      expect(sites.length, message).toBeLessThanOrEqual(1);
+    });
+  }
+  // A witness that lacks the whole segment stands in the place over all of it and nowhere else.
+  for (const whole of collation.sites.filter((s) => s.wanting)) {
+    const lacking = whole.readings
+      .filter((r) => !r.base && r.text === '' && (r.omission || r.lacunose))
+      .flatMap((r) => r.textIds)
+      .filter((id) => built.witnesses.find((w) => w.id === id)!.units.every((u) => u.gap));
+    for (const site of collation.sites) {
+      if (site === whole) continue;
+      for (const reading of site.readings)
+        for (const id of reading.textIds)
+          expect(lacking.includes(id), `${id} lacks the segment\n${describeSites(collation)}`).toBe(
+            false,
+          );
+    }
+  }
+  for (const outer of collation.sites) {
+    const own = new Set(outer.readings.filter((r) => !r.base).flatMap((r) => r.textIds));
+    for (const inner of collation.sites) {
+      if (!within(inner, outer)) continue;
+      for (const reading of inner.readings)
+        for (const id of reading.textIds)
+          expect(
+            own.has(id),
+            `${id} at places ${outer.index} and ${inner.index}\n${describeSites(collation)}`,
+          ).toBe(false);
+    }
+  }
+}
+
+/**
+ * No two places have the same extent. Two places that share a word of the
+ * base lie one within the other, unless one of them is only an omission or a
+ * loss, which keeps its extent whatever it overlaps. A place within another
+ * stands before it, and otherwise the places stand in the order of the text.
+ */
+function placesAreNestedAndInOrder(c: TextsCase): void {
   const { collation } = run(c);
   const sites = collation.sites;
   sites.forEach((site, k) => expect(site.index).toBe(k));
-  const plain = nonWanting(collation);
-  for (let k = 0; k + 1 < plain.length; k++) {
-    const a = plain[k]!;
-    const b = plain[k + 1]!;
-    const where = `sites ${a.index} and ${b.index}\n${describeSites(collation)}`;
-    expect(a.columnFrom, where).toBeLessThanOrEqual(a.columnTo);
-    expect(a.columnTo, `columns overlap: ${where}`).toBeLessThanOrEqual(b.columnFrom);
-    expect(a.baseFrom, where).toBeLessThanOrEqual(a.baseTo);
-    expect(a.baseTo, `base words overlap: ${where}`).toBeLessThanOrEqual(b.baseFrom);
+  const wordless = (site: Site) => site.readings.every((r) => r.base || r.text === '');
+  for (const a of sites) {
+    expect(a.baseFrom).toBeLessThanOrEqual(a.baseTo);
+    for (const b of sites) {
+      if (a.index >= b.index) continue;
+      const where = `places ${a.index} and ${b.index}\n${describeSites(collation)}`;
+      expect(a.baseFrom === b.baseFrom && a.baseTo === b.baseTo, `one extent twice: ${where}`).toBe(
+        false,
+      );
+      if (within(a, b)) continue;
+      expect(within(b, a), `the wider place first: ${where}`).toBe(false);
+      expect(a.baseTo, `the later place first: ${where}`).toBeLessThanOrEqual(b.baseTo);
+      if (a.baseTo > b.baseFrom && a.baseTo > a.baseFrom && b.baseTo > b.baseFrom)
+        expect(
+          wordless(a) || wordless(b),
+          `two readings overlapping without one within the other: ${where}`,
+        ).toBe(true);
+    }
   }
-  // The only site that overlaps is the one of the witnesses lacking the segment, and it comes last.
-  const wanting = sites.filter((s) => s.wanting);
-  expect(wanting.length).toBeLessThanOrEqual(1);
-  if (wanting.length === 1) expect(sites[sites.length - 1]!.wanting).toBe(true);
 }
 
-describe('collation: every word is accounted for, places in order (random)', () => {
+describe('collation: every word is accounted for, places nested and in order (random)', () => {
   for (const [name, options] of KINDS) {
     it(`every word stands in a reading or at a position of full agreement (${name})`, () => {
       runProperty(
-        `collate: every word is in a site or at an anchor (${name})`,
-        textsProperty(options, (c) => accounted(c, 'covered')),
+        `collate: every word is in a place or at a position of agreement (${name})`,
+        textsProperty(options, covered),
       );
     });
-  }
 
-  // "In exactly one reading or at a position of full agreement", read with an
-  // inclusive "or", also needs that no word is in two sites' readings. That
-  // fails, from the fault shown at the overlapping places below.
-  for (const [name, options] of KINDS) {
-    it.fails(`no word stands in the readings of two sites (${name})`, () => {
+    it(`a departure from the base is reported once (${name})`, () => {
+      runProperty(`collate: reported once (${name})`, textsProperty(options, reportedOnce));
+    });
+
+    it(`places share words only by lying one within another, and stand in order (${name})`, () => {
       runProperty(
-        `collate: no word is in two sites (${name})`,
-        textsProperty(options, (c) => accounted(c, 'once')),
+        `collate: places nested and in order (${name})`,
+        textsProperty(options, placesAreNestedAndInOrder),
       );
     });
   }
 
-  // Read with an exclusive "or" (a word at an anchor is in no site) it fails
-  // more easily. Counterexample (shrunk): the base `a b` and a witness `b a`.
-  // The two words are transposed, so the one site covers both and the anchor
-  // between them (the column where the witness agrees with the base on `b`)
-  // lies inside it: `b` is at an anchor and in the site's reading. That is how
-  // a transposition is built ("the sites of the stretch, anchors between them
-  // included, become one site"), so I take it for a feature of the model and
-  // the exclusive reading for too strict.
-  for (const [name, options] of KINDS) {
-    it.fails(
-      `a word stands in exactly one reading or at a position of full agreement, not both (${name})`,
-      () => {
-        runProperty(
-          `collate: every word accounted for, exclusively (${name})`,
-          textsProperty(options, (c) => accounted(c, 'exclusive')),
-        );
-      },
-    );
-  }
-
-  it.fails('a word at an anchor is not in a site too (the shrunk case)', () => {
-    accounted(
-      {
-        base: ['a', 'b'],
-        witnesses: [{ siglum: 'A', words: ['b', 'a'], present: true }],
-      },
-      'exclusive',
-    );
+  // The words of a transposition that keep their place read with the base and
+  // lie inside the place all the same: `a b c` against `c b a` is one place.
+  it('a word that keeps its place inside a transposition stands in the place', () => {
+    const { collation } = run({
+      base: ['a', 'b', 'c'],
+      witnesses: [{ siglum: 'A', words: ['c', 'b', 'a'], present: true }],
+    });
+    expect(collation.sites.map((s) => [s.baseFrom, s.baseTo])).toEqual([[0, 3]]);
   });
 
-  // Counterexample (shrunk; found by trying every text of up to three words
-  // over three letters): the base `a b`, a witness A `b` and a witness B
-  // `c b a`. Site 0 covers base[0,2) and columns [0,4) (B's transposition of
-  // `a` and `b`), and site 1, base[0,1), columns [2,3), lies inside it: the
-  // sites overlap and `a` is in the readings of both. `buildSites` joins the
-  // runs a transposition links, and when other runs lie between them it
-  // replaces the first by the union and removes only the second, so the runs
-  // between stay and overlap the union. A fault of the core.
-  for (const [name, options] of KINDS) {
-    it.fails(`places do not overlap and stand in order (${name})`, () => {
-      runProperty(`collate: places in order (${name})`, textsProperty(options, placesStandInOrder));
-    });
-  }
-
-  it.fails('places do not overlap (the shrunk case)', () => {
-    placesStandInOrder({
+  // The case at which the places once overlapped: B transposes `a` and `b`
+  // (with a word added before), and A leaves `a` out. A's omission is a place
+  // of its own within B's, and B does not stand in it.
+  it('a small variant inside a wide one is a place of its own, without the witness of the wide one', () => {
+    const c: TextsCase = {
       base: ['a', 'b'],
       witnesses: [
         { siglum: 'A', words: ['b'], present: true },
         { siglum: 'B', words: ['c', 'b', 'a'], present: true },
       ],
-    });
-  });
-
-  it.fails('a word stands in one reading only (the shrunk case)', () => {
-    accounted(
-      {
-        base: ['a', 'b'],
-        witnesses: [
-          { siglum: 'A', words: ['b'], present: true },
-          { siglum: 'B', words: ['c', 'b', 'a'], present: true },
-        ],
-      },
-      'once',
-    );
+    };
+    placesAreNestedAndInOrder(c);
+    reportedOnce(c);
+    const { collation } = run(c);
+    expect(
+      collation.sites.map(
+        (s) =>
+          `[${s.baseFrom},${s.baseTo}) ${s.readings.map((r) => `${r.text || 'om.'} ${r.sigla.join(' ')}`).join(' | ')}`,
+      ),
+    ).toEqual(['[0,1) a ed. | om. A', '[0,2) a b ed. A | c b a B']);
   });
 });
 
 // ---------------------------------------------------------------------------
-// The order of the witnesses: measured, not asserted
+// The order of the witnesses
 
-/** A place and its readings, with the sigla of each reading in order of name. */
+/**
+ * A place and its readings, with the sigla of each reading in order of name.
+ * A reading is told by its fold: where two witnesses write one reading with a
+ * grave and an acute, it is printed as the first of them in the order given
+ * has it, which is the one thing the order decides.
+ */
 function signature(collation: Collation): string[] {
   return collation.sites
     .map((s) => {
       const readings = s.readings
         .map(
           (r) =>
-            `${r.base ? '*' : ''}${r.text}${r.omission ? '[om]' : ''}${r.lacunose ? '[lac]' : ''}<-${[...r.sigla].sort().join('')}`,
+            `${r.base ? '*' : ''}${r.fold}${r.omission ? '[om]' : ''}${r.lacunose ? '[lac]' : ''}<-${[...r.sigla].sort().join('')}`,
         )
         .sort()
         .join(' | ');
       return `${s.wanting ? 'W' : ''}[${s.baseFrom},${s.baseTo}) ${readings}`;
     })
     .sort();
-}
-
-function places(collation: Collation): string[] {
-  return collation.sites.map((s) => `${s.wanting ? 'W' : ''}[${s.baseFrom},${s.baseTo})`).sort();
 }
 
 function permutations(n: number): number[][] {
@@ -398,136 +406,40 @@ function permutations(n: number): number[][] {
   return out;
 }
 
-function size(c: TextsCase): number {
-  return c.base.length + c.witnesses.reduce((n, w) => n + w.words.length, 0);
-}
-
-describe('collation: does the order of the witnesses matter? (measured, not asserted)', () => {
+describe('collation: the order of the witnesses does not matter (random)', () => {
   for (const [name, options] of [
     ['witnesses close to the base', { witnesses: [2, 4] }],
     ['witnesses drawn freely', { free: true, witnesses: [2, 4] }],
     ['with gaps', { gaps: true, witnesses: [2, 4] }],
   ] as const) {
-    it(`measures it (${name})`, () => {
+    it(`gives the same places and readings in whatever order the witnesses come (${name})`, () => {
       const cases = Math.max(RUNS, 100);
-      let changedPlaces = 0;
-      let changedReadings = 0;
-      let all = 0;
-      const examples: {
-        c: TextsCase;
-        a: number[];
-        b: number[];
-        first: Collation;
-        second: Collation;
-      }[] = [];
       for (let seed = 1; seed <= cases; seed++) {
         const c = randomTexts(new Rng(seed), 1 + (seed % 8), options);
-        all++;
         const orders = permutations(c.witnesses.length);
         const reference = run(c, orders[0]).collation;
-        let differs = false;
-        let placesDiffer = false;
-        let other: number[] | undefined;
         for (const order of orders.slice(1)) {
-          const second = run(c, order).collation;
-          if (JSON.stringify(signature(second)) !== JSON.stringify(signature(reference))) {
-            if (!differs) other = order;
-            differs = true;
-          }
-          if (JSON.stringify(places(second)) !== JSON.stringify(places(reference)))
-            placesDiffer = true;
+          const other = run(c, order).collation;
+          expect(
+            signature(other),
+            `seed ${seed}, order ${order.join('')}\n${showTexts(c)}\n${describeSites(reference)}\nagainst\n${describeSites(other)}`,
+          ).toEqual(signature(reference));
         }
-        if (differs) {
-          changedReadings++;
-          examples.push({
-            c,
-            a: orders[0]!,
-            b: other!,
-            first: reference,
-            second: run(c, other!).collation,
-          });
-        }
-        if (placesDiffer) changedPlaces++;
       }
-      examples.sort((x, y) => size(x.c) - size(y.c));
-      const pct = (n: number) => `${((100 * n) / all).toFixed(1)}%`;
-      const lines = [
-        `[measure] order of witnesses, ${name}: ${all} random inputs (2 to 4 witnesses, every permutation tried)`,
-        `[measure]   some permutation changes the set of places: ${changedPlaces} (${pct(changedPlaces)})`,
-        `[measure]   some permutation changes the places or their readings: ${changedReadings} (${pct(changedReadings)})`,
-      ];
-      for (const e of examples.slice(0, 2)) {
-        lines.push(
-          `[measure]   example (${size(e.c)} words), the witnesses in order ${e.a.map((k) => e.c.witnesses[k]!.siglum).join('')} then ${e.b.map((k) => e.c.witnesses[k]!.siglum).join('')}`,
-          ...showTexts(e.c)
-            .split('\n')
-            .map((l) => `[measure]     ${l}`),
-          '[measure]     first order:',
-          ...describeSites(e.first)
-            .split('\n')
-            .map((l) => `[measure]       ${l}`),
-          '[measure]     second order:',
-          ...describeSites(e.second)
-            .split('\n')
-            .map((l) => `[measure]       ${l}`),
-        );
-      }
-      console.log(lines.join('\n'));
-      expect(all).toBeGreaterThan(0);
-    }, 120_000);
+    });
   }
 
-  it('measures it over every small input: two witnesses, texts of one to two words over three letters, a base of one to three', () => {
-    const letters = ['a', 'b', 'c'];
-    const texts = (max: number): string[][] => {
-      const out: string[][] = [];
-      let layer: string[][] = [[]];
-      for (let n = 1; n <= max; n++) {
-        layer = layer.flatMap((w) => letters.map((l) => [...w, l]));
-        out.push(...layer);
-      }
-      return out;
-    };
-    let all = 0;
-    let changed = 0;
-    let smallest: TextsCase | undefined;
-    for (const base of texts(3))
-      for (const a of texts(2))
-        for (const b of texts(2)) {
-          const c: TextsCase = {
-            base,
-            witnesses: [
-              { siglum: 'A', words: a, present: true },
-              { siglum: 'B', words: b, present: true },
-            ],
-          };
-          all++;
-          const first = signature(run(c, [0, 1]).collation);
-          const second = signature(run(c, [1, 0]).collation);
-          if (JSON.stringify(first) !== JSON.stringify(second)) {
-            changed++;
-            if (!smallest || size(c) < size(smallest)) smallest = c;
-          }
-        }
-    const lines = [
-      `[measure] order of two witnesses over every small input: ${all} inputs, ${changed} (${((100 * changed) / all).toFixed(1)}%) read differently when the witnesses are given in the other order`,
-    ];
-    if (smallest) {
-      lines.push(
-        ...showTexts(smallest)
-          .split('\n')
-          .map((l) => `[measure]     ${l}`),
-        '[measure]     A then B:',
-        ...describeSites(run(smallest, [0, 1]).collation)
-          .split('\n')
-          .map((l) => `[measure]       ${l}`),
-        '[measure]     B then A:',
-        ...describeSites(run(smallest, [1, 0]).collation)
-          .split('\n')
-          .map((l) => `[measure]       ${l}`),
-      );
+  // The two cases in which the order once changed the apparatus.
+  it('the cases that once differed', () => {
+    for (const c of [
+      { base: ['a'], witnesses: [words('A', ['b']), words('B', ['a', 'c'])] },
+      { base: ['ἔπερσεν'], witnesses: [words('A', ['ἔπερσεν', 'ὃς']), words('B', ['πολλὰ'])] },
+    ] satisfies TextsCase[]) {
+      expect(signature(run(c, [1, 0]).collation)).toEqual(signature(run(c, [0, 1]).collation));
     }
-    console.log(lines.join('\n'));
-    expect(all).toBeGreaterThan(0);
-  }, 120_000);
+  });
 });
+
+function words(siglum: string, list: string[]): TextsCase['witnesses'][number] {
+  return { siglum, words: list, present: true };
+}

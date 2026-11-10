@@ -266,18 +266,15 @@ describe('adopting a reading (random)', () => {
   // an exact match scores the same wherever it stands. (Aligned in the other
   // order, B first, all is as it should be.) The same fault as the
   // witness equal to the base in the collation tests.
-  it.fails(
-    'makes the edition read as the witness does, and collating again shows the witness agreeing there, word by word',
-    () => {
-      runProperty('adopt: the witness agrees with the edition at the place adopted', {
-        ...adoptedWitnessAgrees,
-        firstSeed: 1070,
-        runs: 40,
-      });
-    },
-  );
+  it('makes the edition read as the witness does, and collating again shows the witness agreeing there, word by word', () => {
+    runProperty('adopt: the witness agrees with the edition at the place adopted', {
+      ...adoptedWitnessAgrees,
+      firstSeed: 1070,
+      runs: 40,
+    });
+  });
 
-  it.fails('(the shrunk case)', () => {
+  it('(the shrunk case)', () => {
     adoptedWitnessAgrees.check({
       base: ['Μοῦσα'],
       witnesses: [
@@ -288,21 +285,20 @@ describe('adopting a reading (random)', () => {
     });
   });
 
-  // The same at the level of sites. Counterexample (shrunk): the edition `ἄνδρα ἦ`,
-  // witnesses B `ἄνδρα ἦ Μοῦσα` and C `Μοῦσα ἦ ἀνδρα`. The sites are `ἄνδρα`
-  // (C: `Μοῦσα`) and, after `ἦ`, an addition (B: `Μοῦσα`, C: `ἀνδρα`). C's reading
-  // at the first is adopted, and the edition reads `Μοῦσα ἦ`; C's `Μοῦσα ἦ`
-  // agrees with it. But B now has the edition's two words in the other order,
-  // so one site covers both words (a transposition, anchors included), and C,
-  // who differs from the edition at its end (`ἀνδρα`), is in a reading other
-  // than the edition's at that site. Agreeing "at the place" cannot be read off the
-  // site that covers it, since sites grow over what stands beside the place;
-  // the statement above, by word, is the one that holds.
+  // The same at the level of places does not hold, and need not. Counterexample
+  // (shrunk, seed 502): the edition `ἔπερσεν ἤ ἱερὸν πολλὰ`, witnesses A
+  // `ἔπερσεν η ἤ` and B `πολλά ἱερὸν ὅς η`. B's `ὅς η` for `πολλὰ` is adopted. A
+  // then reads one word for the edition's second to fourth, B another for its
+  // first two: two readings that overlap without one lying within the other,
+  // which are one place over all four words, and there B is reported with its
+  // own words although it agrees at the word adopted. Agreeing "at the place"
+  // cannot be read off the place that covers it; the statement above, by word,
+  // is the one that holds.
   it.fails('also at the level of sites, where the sites over the place may cover more', () => {
-    runProperty(
-      'adopt: the witness is in the base reading at the sites over the place',
-      adoptedWitnessAgreesAtSites,
-    );
+    runProperty('adopt: the witness is in the base reading at the sites over the place', {
+      ...adoptedWitnessAgreesAtSites,
+      firstSeed: 495,
+    });
   });
 });
 

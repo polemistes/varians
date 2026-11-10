@@ -325,7 +325,7 @@ export function inputHash(
 ): string {
   const hash = createHash('sha256');
   // The shape of the cached result: bump when the collation's output changes.
-  hash.update('collation-v10');
+  hash.update('collation-v11');
   hash.update(JSON.stringify(context.profile.fold));
   const describe = (t: CollationText) =>
     `${t.id}|${t.siglum}|${t.present ? 'p' : ''}|${t.units.map((u) => (u.gap ? '[gap]' : `${u.text}#${u.tokenIds.join(',')}`)).join(' ')}`;
