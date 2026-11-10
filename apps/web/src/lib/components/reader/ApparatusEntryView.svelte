@@ -31,7 +31,11 @@
   }
 
   const lemmaSource = $derived(
-    entry.adopted ? null : conventions.form === 'positive' ? entry.lemmaSigla : [],
+    entry.adopted
+      ? null
+      : conventions.form === 'positive' || entry.lemmaNamed
+        ? entry.lemmaSigla
+        : [],
   );
   /** Whether anything stands before the readings; an addition with nothing to name opens with its reading. */
   const head = $derived(

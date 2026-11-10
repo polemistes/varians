@@ -591,6 +591,16 @@ export interface EditionConventions {
    * under it, or not printed. Absent in editions made before: a list of their own.
    */
   interpretative?: 'apparatus' | 'separate' | 'none';
+  /**
+   * Sigla that stand for several witnesses of the conspectus together (a
+   * family, the agreement of two manuscripts): the apparatus prints one for
+   * its members wherever all of them have a reading.
+   */
+  groups?: { siglum: string; members: string[]; note?: string }[];
+  /** The word the apparatus prints for "the other witnesses" ("cett.", "rell."); absent or empty, every witness is named. */
+  rest?: string;
+  /** The word the apparatus prints for "all the witnesses" ("codd."); absent or empty, they are named. */
+  all?: string;
   /** Brackets for supplements, deletions and lacunae. */
   sigla: { supplied: [string, string]; deleted: [string, string]; lacuna: string; crux: string };
 }
@@ -716,7 +726,8 @@ export const editionSiteKinds = pgTable(
       .notNull()
       .references(() => segments.id, { onDelete: 'cascade' }),
     siteKey: text().notNull(),
-    kind: text({ enum: ['textual', 'interpretative'] }).notNull(),
+    // The kind the editor gives the place over what its letters say, or that the place is not reported.
+    kind: text({ enum: ['textual', 'interpretative', 'unreported'] }).notNull(),
     setBy: text().references(() => users.id, { onDelete: 'set null' }),
     setAt: createdAt(),
   },

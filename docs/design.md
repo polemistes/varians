@@ -183,6 +183,15 @@ Per segment, every witness is aligned with the edition's words alone, by dynamic
 
 In the list of a segment's places, a place lying within another stands before it, so that the first place found for a word is the narrowest. Conjectures and reported readings are attached to places by lemma. Whole-segment order is compared outside the aligner.
 
+**What the apparatus prints.** An entry is a place with its lemma (the edition's words there), the witnesses of each reading, and the conjectures and reported readings attached to it. Entries stand in the order of the text, a wide place before the places within it. A lemma of more than three words against which nothing is read (the witnesses of the place leave it out or have lost it, or only conjectures concern it) is abridged to its first and last word. The edition's conventions settle how the witnesses are named:
+
+- a positive apparatus names the witnesses that agree with the lemma, a negative one only those that differ;
+- a **family siglum** stands for its members wherever all of them have a reading ("p" for the agreement of two manuscripts);
+- a word for **the other witnesses** (cett., rell.) stands for the witnesses of the most widely attested reading of an entry, when they would be three sigla or more; where that reading is not the lemma's, the lemma's witnesses are named, in a negative apparatus too;
+- a word for **all the witnesses** (codd.) stands where the lemma is in no witness and all of them have one reading against it.
+
+The editor may give a place a kind over what its letters say (section 3.6), or mark it **not reported**: the place then stays in the editor's view and is left out of the apparatus.
+
 **Coverage.** A transcript covers the span from its first to its last segment of the work. Within that span, a segment it has no words for is an omission, and one lying across a gap or lacuna object is lost. Outside the span the witness is not transcribed, and the apparatus is silent.
 
 **A witness lacking a whole segment** departs over all of it: the place over the whole segment is flagged _wanting_ and reads "om. B", or "deest in B" where lost, and the witness stands in no other place of the segment. It is taken as the active place only when the whole segment is selected, so a conjecture on one word stays on that word. Its lemma is abridged to the first and last word when the segment has more than three.

@@ -119,9 +119,14 @@ export interface Site {
    * which are found without those witnesses, and overlaps them.
    */
   wanting?: boolean;
+  /** The editor has chosen not to report the place: the apparatus leaves it out. */
+  unreported?: boolean;
 }
 
 export type SiteKind = 'textual' | 'interpretative';
+
+/** What an editor may say of a place: its kind, over what the letters say, or that it is not to be reported. */
+export type SiteMark = SiteKind | 'unreported';
 
 /**
  * Whether readings differ in their letters, or only in how the same letters
@@ -938,20 +943,22 @@ function anchorColumns(
 }
 
 /**
- * The editor's word on the kind of some sites, by site key, put over the
- * classification by letters. A key that no longer names a site is ignored.
+ * The editor's word on some sites, by site key: the kind of a place, put
+ * over the classification by letters, or that the place is not reported. A
+ * key that no longer names a site is ignored.
  */
 export function applySiteKinds(
   collation: Collation,
   baseUnits: Unit[],
-  kinds: ReadonlyMap<string, SiteKind> | undefined,
+  kinds: ReadonlyMap<string, SiteMark> | undefined,
 ): Collation {
   if (!kinds || kinds.size === 0) return collation;
   return {
     ...collation,
     sites: collation.sites.map((site) => {
-      const kind = kinds.get(siteKey(site, baseUnits));
-      return kind && kind !== site.kind ? { ...site, kind, kindByEditor: true } : site;
+      const mark = kinds.get(siteKey(site, baseUnits));
+      if (mark === 'unreported') return { ...site, unreported: true };
+      return mark && mark !== site.kind ? { ...site, kind: mark, kindByEditor: true } : site;
     }),
   };
 }

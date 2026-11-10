@@ -8,6 +8,7 @@ import {
   formatEntry,
   printedTextIds,
   splitEntries,
+  type ApparatusConventions,
   type Attachment,
 } from './render.ts';
 
@@ -211,9 +212,120 @@ describe('a whole segment a witness lacks', () => {
       text('A', 'A', 'a x c d'),
       { ...text('B', 'B', ''), present: true },
     ]);
+    // The place over the whole line first, as it stands first in the text.
     expect(formatApparatus(apparatusEntries(c, '5', {}))).toEqual([
-      '5 b : x A',
       '5 a … d A : om. B',
+      '5 b : x A',
+    ]);
+  });
+});
+
+describe('how the witnesses are named', () => {
+  const negative = { ...DEFAULT_CONVENTIONS, form: 'negative' as const };
+  const family = [{ siglum: 'p', members: ['V', 'H'] }];
+  const five = (r: string, g: string, v: string, h: string, b: string) => [
+    text('R', 'R', r),
+    text('G', 'G', g),
+    text('V', 'V', v),
+    text('H', 'H', h),
+    text('B', 'B', b),
+  ];
+  const order = ['R', 'G', 'V', 'H', 'B'];
+  const print = (c: ReturnType<typeof collate>, conventions: ApparatusConventions = negative) =>
+    formatApparatus(apparatusEntries(c, '1', {}, conventions, order), conventions);
+
+  it('prints a family by its siglum where all its members have the reading', () => {
+    const c = collate(
+      text('E', 'ed', 'red fox'),
+      five('red fox', 'red dog', 'red dog', 'red dog', 'red fox'),
+    );
+    expect(print(c, { ...negative, groups: family })).toEqual(['1 fox : dog G p']);
+    // Not where one of them reads otherwise.
+    const d = collate(
+      text('E', 'ed', 'red fox'),
+      five('red fox', 'red dog', 'red dog', 'red fox', 'red fox'),
+    );
+    expect(print(d, { ...negative, groups: family })).toEqual(['1 fox : dog G V']);
+    expect(print(c, { ...DEFAULT_CONVENTIONS, groups: family })).toEqual(['1 fox R B : dog G p']);
+  });
+
+  it('prints "the others" for the most widely attested reading, and then names the lemma’s witnesses', () => {
+    const c = collate(
+      text('E', 'ed', 'red fox'),
+      five('red fox', 'red dog', 'red dog', 'red dog', 'red dog'),
+    );
+    expect(print(c, { ...negative, groups: family, rest: 'cett.' })).toEqual([
+      '1 fox R : dog cett.',
+    ]);
+    // Two sigla are as short as the word: they are named.
+    const d = collate(
+      text('E', 'ed', 'red fox'),
+      five('red fox', 'red dog', 'red dog', 'red dog', 'red fox'),
+    );
+    expect(print(d, { ...negative, groups: family, rest: 'cett.' })).toEqual(['1 fox : dog G p']);
+    // Where the lemma is the most widely attested, a positive apparatus prints the word for its witnesses.
+    const e = collate(
+      text('E', 'ed', 'red fox'),
+      five('red fox', 'red fox', 'red fox', 'red fox', 'red dog'),
+    );
+    expect(print(e, { ...DEFAULT_CONVENTIONS, rest: 'rell.' })).toEqual(['1 fox rell. : dog B']);
+    expect(print(e, { ...negative, rest: 'rell.' })).toEqual(['1 fox : dog B']);
+  });
+
+  it('prints "all the witnesses" where the lemma is in none of them and they have one reading', () => {
+    const c = collate(
+      text('E', 'ed', 'red fox'),
+      five('red dog', 'red dog', 'red dog', 'red dog', 'red dog'),
+    );
+    expect(print(c, { ...negative, all: 'codd.', rest: 'cett.' })).toEqual(['1 fox : dog codd.']);
+    // Two readings among them: the wider is "the others".
+    const d = collate(
+      text('E', 'ed', 'red fox'),
+      five('red dog', 'red dog', 'red dog', 'red dog', 'red cat'),
+    );
+    expect(print(d, { ...negative, all: 'codd.', rest: 'cett.' })).toEqual([
+      '1 fox : dog cett. : cat B',
+    ]);
+  });
+
+  it('names every witness when the conventions have no such words', () => {
+    const c = collate(
+      text('E', 'ed', 'red fox'),
+      five('red dog', 'red dog', 'red dog', 'red dog', 'red dog'),
+    );
+    expect(print(c)).toEqual(['1 fox : dog R G V H B']);
+  });
+});
+
+describe('the order and extent of entries', () => {
+  const negative = { ...DEFAULT_CONVENTIONS, form: 'negative' as const };
+
+  it('prints the entries in the order of the text, a wide place before those within it', () => {
+    const c = collate(text('E', 'ed', 'the quick brown fox jumps over'), [
+      text('A', 'A', 'the quick brown fox jumps over'),
+      // B leaves four words out; C has another word inside that stretch, D another before it.
+      text('B', 'B', 'the over'),
+      text('C', 'C', 'the quick red fox jumps over'),
+      text('D', 'D', 'a quick brown fox jumps over'),
+    ]);
+    expect(formatApparatus(apparatusEntries(c, '1', {}, negative), negative)).toEqual([
+      '1 the : a D',
+      '1 quick … jumps : om. B',
+      '1 brown : red C',
+    ]);
+  });
+
+  it('leaves out a place the editor does not report', () => {
+    const base = text('E', 'ed', 'red fox runs');
+    const c = collate(base, [text('A', 'A', 'red dog runs'), text('B', 'B', 'red fox walks')]);
+    const site = c.sites.find((s) => s.readings.some((r) => r.text === 'dog'))!;
+    const marked = applySiteKinds(
+      c,
+      base.units,
+      new Map([[siteKey(site, base.units), 'unreported']]),
+    );
+    expect(formatApparatus(apparatusEntries(marked, '1', {}, negative), negative)).toEqual([
+      '1 runs : walks B',
     ]);
   });
 });

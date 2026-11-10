@@ -212,11 +212,16 @@ function readerState(
 
 /** The apparatus renderer's conventions from an edition's stored conventions. */
 export function apparatusConventionsOf(conventions: EditionConventions): ApparatusConventions {
-  return {
+  const out: ApparatusConventions = {
     form: conventions.apparatus,
     latin: conventions.latin,
     interpretative: conventions.interpretative ?? 'separate',
   };
+  if (conventions.groups?.length)
+    out.groups = conventions.groups.map((g) => ({ siglum: g.siglum, members: g.members }));
+  if (conventions.rest) out.rest = conventions.rest;
+  if (conventions.all) out.all = conventions.all;
+  return out;
 }
 
 /** Where a witness orders whole segments otherwise than the edition prints them. */

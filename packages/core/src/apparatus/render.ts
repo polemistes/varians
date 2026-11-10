@@ -17,6 +17,32 @@ export interface ApparatusConventions {
    * others, in a list of their own under the apparatus, or not printed.
    */
   interpretative: InterpretativePlacement;
+  /**
+   * Sigla that stand for several witnesses together (a family, or "p" for
+   * the agreement of two manuscripts): printed in place of the members'
+   * sigla wherever all of them have a reading.
+   */
+  groups?: SiglumGroup[];
+  /**
+   * The word for "the other witnesses" ("cett.", "rell."): printed in place
+   * of the sigla of the most widely attested reading of an entry, when it
+   * has three sigla or more to print. Where that reading is not the lemma's,
+   * the lemma's witnesses are named, in a negative apparatus too. Empty or
+   * absent: every witness is named.
+   */
+  rest?: string;
+  /**
+   * The word for "all the witnesses" ("codd."): printed where the lemma is
+   * in no witness and all of them have one reading against it. Empty or
+   * absent: they are named.
+   */
+  all?: string;
+}
+
+export interface SiglumGroup {
+  siglum: string;
+  /** The sigla of the witnesses it stands for. */
+  members: string[];
 }
 
 export type InterpretativePlacement = 'apparatus' | 'separate' | 'none';
@@ -55,8 +81,10 @@ export interface ApparatusEntry {
   label: string;
   /** The lemma: the edition's words, or empty for an addition site. */
   lemma: string;
-  /** Sigla agreeing with the lemma (positive form), base excluded. */
+  /** The sigla printed for the witnesses agreeing with the lemma, base excluded, as the conventions name them. */
   lemmaSigla: string[];
+  /** The lemma's witnesses are named whatever the form, since a reading here is given to "the others". */
+  lemmaNamed?: boolean;
   /** Each printed alternative, in order. */
   variants: ApparatusVariant[];
   /** A conjecture the edition adopted here, printed as the lemma's source. */
@@ -104,25 +132,40 @@ export function apparatusEntries(
   conventions: ApparatusConventions = DEFAULT_CONVENTIONS,
   siglaOrder: string[] = [],
 ): ApparatusEntry[] {
-  const entries: ApparatusEntry[] = [];
+  const entries: { entry: ApparatusEntry; site: Site }[] = [];
   const baseCount = collation.columns.filter(
     (c) => (c.cells.get(collation.baseId)?.unitIndex ?? -1) >= 0,
   ).length;
   for (const site of collation.sites) {
+    // A place the editor has chosen not to report.
+    if (site.unreported) continue;
     const base = site.readings.find((r) => r.base);
     const others = site.readings.filter((r) => !r.base);
     const attached = attachments[site.index] ?? [];
     if (others.length === 0 && attached.length === 0) continue;
     const kind = printedKind(site, attached);
     if (kind === 'interpretative' && conventions.interpretative === 'none') continue;
-    const printable = others;
     const adopted = attached.find((a) => a.adopted);
     // A site over the whole segment: what a witness lacks there it lacks entirely.
     const whole =
       base !== undefined && baseCount > 0 && site.baseFrom === 0 && site.baseTo === baseCount;
-    const variants: ApparatusVariant[] = printable.map((reading) =>
+    const variants: ApparatusVariant[] = others.map((reading) =>
       renderReading(reading, base, conventions, siglaOrder, whole),
     );
+    // The edition's own siglum comes first and is not printed.
+    const named = nameWitnesses(
+      {
+        sigla: base ? sortSigla(printedSigla(base).slice(1), siglaOrder) : [],
+        main: base ? mainWitnesses(base, collation.baseId) : 0,
+      },
+      variants.map((variant, k) => ({
+        sigla: variant.sigla,
+        main: mainWitnesses(others[k]!, collation.baseId),
+        states: stateSigla(others[k]!, siglaOrder),
+      })),
+      conventions,
+    );
+    variants.forEach((variant, k) => (variant.sigla = named.variants[k]!));
     for (const attachment of attached) {
       if (attachment.adopted) continue;
       variants.push(renderAttachment(attachment, conventions));
@@ -130,22 +173,109 @@ export function apparatusEntries(
     const entry: ApparatusEntry = {
       siteIndex: site.index,
       label,
+      // A long lemma against which the witnesses have nothing (they omit or have lost it) is abridged.
       lemma: base
-        ? lemmaOf(base, whole && others.every((r) => r.text === '' && (r.omission || r.lacunose)))
+        ? lemmaOf(
+            base,
+            others.every((r) => r.text === ''),
+          )
         : '',
-      // The edition's own siglum comes first and is not printed.
-      lemmaSigla: base ? sortSigla(printedSigla(base).slice(1), siglaOrder) : [],
+      lemmaSigla: named.lemma,
       variants,
       kind,
     };
+    if (named.lemmaNamed) entry.lemmaNamed = true;
     if (adopted) entry.adopted = adopted;
     if (site.transposition && site.transposition.withSite !== site.index) {
       entry.transposition =
         `${word('transp', conventions.latin)} ${site.transposition.textIds.length} `.trim();
     }
-    entries.push(entry);
+    entries.push({ entry, site });
   }
-  return entries;
+  // In the order of the text: what is added before a word, then the word; a wide place before the places within it.
+  return entries
+    .sort(
+      (a, b) =>
+        a.site.baseFrom - b.site.baseFrom ||
+        Number(a.site.baseTo > a.site.baseFrom) - Number(b.site.baseTo > b.site.baseFrom) ||
+        b.site.baseTo - a.site.baseTo ||
+        a.site.index - b.site.index,
+    )
+    .map((e) => e.entry);
+}
+
+/** A second state of a witness (its text before correction, a later hand's, the variants it notes) collated as a text of its own. */
+function isState(textId: string): boolean {
+  return /:(original|variant|s\d+)$/u.test(textId);
+}
+
+/** How many witnesses proper have a reading: the base and the further states of witnesses left out. */
+function mainWitnesses(reading: Pick<Reading, 'textIds'>, baseId: string): number {
+  return printedTextIds(reading).filter((id) => id !== baseId && !isState(id)).length;
+}
+
+/** The sigla of the states among a reading's texts. */
+function stateSigla(reading: Pick<Reading, 'textIds' | 'sigla'>, order: string[]): string[] {
+  const kept = new Set(printedTextIds(reading).filter(isState));
+  return sortSigla(
+    reading.sigla.filter((_, i) => kept.has(reading.textIds[i]!)),
+    order,
+  );
+}
+
+/** The sigla with each group's members replaced by the group's siglum, where all of them are there. */
+export function groupSigla(sigla: string[], groups: SiglumGroup[] | undefined): string[] {
+  if (!groups || groups.length === 0) return sigla;
+  let out = [...sigla];
+  for (const group of [...groups].sort((a, b) => b.members.length - a.members.length)) {
+    if (group.members.length < 2 || !group.members.every((m) => out.includes(m))) continue;
+    const at = Math.min(...group.members.map((m) => out.indexOf(m)));
+    out = out.flatMap((s, i) => (i === at ? [group.siglum] : group.members.includes(s) ? [] : [s]));
+  }
+  return out;
+}
+
+interface NamedReading {
+  sigla: string[];
+  /** Witnesses proper among them. */
+  main: number;
+  /** The sigla among them that are further states of witnesses. */
+  states?: string[];
+}
+
+/**
+ * The sigla as the conventions print them: families by their siglum, all
+ * the witnesses by one word where they stand together against a lemma none
+ * of them has, the witnesses of the most widely attested reading by "the
+ * others".
+ */
+function nameWitnesses(
+  lemma: NamedReading,
+  variants: NamedReading[],
+  conventions: ApparatusConventions,
+): { lemma: string[]; variants: string[][]; lemmaNamed: boolean } {
+  const grouped = (r: NamedReading) => groupSigla(r.sigla, conventions.groups);
+  const out = { lemma: grouped(lemma), variants: variants.map(grouped), lemmaNamed: false };
+  const attested = variants.map((v, k) => ({ v, k })).filter((x) => x.v.main > 0);
+  if (conventions.all && lemma.main === 0 && attested.length === 1 && attested[0]!.v.main >= 2) {
+    const { v, k } = attested[0]!;
+    out.variants[k] = [conventions.all, ...(v.states ?? [])];
+    return out;
+  }
+  if (!conventions.rest) return out;
+  const readings = [lemma, ...variants];
+  const most = Math.max(...readings.map((r) => r.main));
+  const widest = readings.filter((r) => r.main === most);
+  if (widest.length !== 1 || readings.filter((r) => r.main > 0).length < 2) return out;
+  const index = readings.indexOf(widest[0]!);
+  const printed = index === 0 ? out.lemma : out.variants[index - 1]!;
+  if (printed.length < 3) return out;
+  if (index === 0) out.lemma = [conventions.rest];
+  else {
+    out.variants[index - 1] = [conventions.rest, ...(variants[index - 1]!.states ?? [])];
+    out.lemmaNamed = lemma.sigla.length > 0;
+  }
+  return out;
 }
 
 /**
@@ -181,9 +311,10 @@ export function splitEntries(
 }
 
 /**
- * The lemma: the base's words; for a site over a whole segment of more than
- * three words where every witness lacks it, its first and last words with
- * an ellipsis between.
+ * The lemma: the base's words; where it has more than three and nothing is
+ * read against it (the witnesses of the place leave it out or have lost it,
+ * or only conjectures concern it), its first and last words with an
+ * ellipsis between.
  */
 function lemmaOf(base: Reading, abridge: boolean): string {
   const text = trimPunctuation(base.text);
@@ -282,7 +413,7 @@ export function formatEntry(
   const lemma = entry.lemma === '' ? (conventions.latin ? '' : '') : entry.lemma;
   const lemmaSource = entry.adopted
     ? `${entry.adopted.name}${entry.adopted.source ? ` ${entry.adopted.source}` : ''}`
-    : conventions.form === 'positive'
+    : conventions.form === 'positive' || entry.lemmaNamed
       ? entry.lemmaSigla.join(' ')
       : '';
   parts.push(
