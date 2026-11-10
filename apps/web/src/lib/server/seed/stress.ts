@@ -11,6 +11,7 @@
 import {
   SCHEME_PRESETS,
   adoptReading,
+  archetypeLetters,
   attachToSites,
   defaultProfile,
   isToken,
@@ -18,6 +19,7 @@ import {
   runsOfSegment,
   segmentRuns,
   siteKey,
+  similarity,
   type AttachmentCandidate,
   type Collation,
   type Id,
@@ -1153,8 +1155,9 @@ async function finish(work: Work): Promise<void> {
   const { s, context, editionId } = work;
   const { db, ownerId, text } = s;
   const total = text.lines;
-  let overruled = 0;
   const wanted = Math.max(3, Math.round((20 * total) / 1300));
+  // Places where an editor might say otherwise than the letters do: an accent or a division that matters to the sense, or a word that is only another spelling.
+  const arguable: { segmentId: string; key: string; kind: 'textual' | 'interpretative' }[] = [];
   for (let line = 1; line <= total; line++) {
     const segmentId = s.segmentOf.get(line)!;
     const collation = await collateSegment(db, context, segmentId);
@@ -1172,19 +1175,33 @@ async function finish(work: Work): Promise<void> {
         );
         count(s, 'places reviewed');
       }
-      if (overruled < wanted && s.rng.chance(0.02)) {
-        await setSiteKind(
-          db,
-          editionId,
-          segmentId,
-          key,
-          site.kind === 'textual' ? 'interpretative' : 'textual',
-          ownerId,
+      const base = site.readings.find((r) => r.base);
+      const others = site.readings.filter((r) => !r.base && !r.omission && r.text !== '');
+      const near =
+        base !== undefined &&
+        others.length > 0 &&
+        others.every(
+          (r) => similarity(archetypeLetters(r.text), archetypeLetters(base.text)) >= 0.7,
         );
-        overruled++;
-        count(s, 'kinds of places overruled');
-      }
+      if (site.kind === 'interpretative' || near)
+        arguable.push({ segmentId, key, kind: site.kind });
     }
+  }
+  // Spread over the text, as many as were wanted.
+  const stride = Math.max(1, Math.floor(arguable.length / wanted));
+  let overruled = 0;
+  for (let k = 0; k < arguable.length && overruled < wanted; k += stride) {
+    const place = arguable[k]!;
+    await setSiteKind(
+      db,
+      editionId,
+      place.segmentId,
+      place.key,
+      place.kind === 'textual' ? 'interpretative' : 'textual',
+      ownerId,
+    );
+    overruled++;
+    count(s, 'kinds of places overruled');
   }
   await setReviewFrom(db, 'edition', editionId, ownerId, 1);
   await nameMoment(db, 'edition', editionId, context.edition.version, 'Reviewed', ownerId);

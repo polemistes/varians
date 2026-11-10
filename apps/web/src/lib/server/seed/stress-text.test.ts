@@ -285,6 +285,15 @@ describe('the stress text at the default size', () => {
     expect(objects.some((i) => i.kind === 'object' && i.type === 'note' && i.text)).toBe(true);
   });
 
+  it('does not write a circumflex or an iota subscript on a short vowel', () => {
+    const impossible = /[εο][\u0313\u0314\u0301\u0300]*[\u0342\u0345]/u;
+    for (const w of full.witnesses)
+      for (const e of w.entries)
+        if (e.kind === 'line')
+          for (const i of wordsOf(e.items))
+            expect(impossible.test((i.norm ?? i.form).normalize('NFD'))).toBe(false);
+  });
+
   it('has papyri broken in every line, in columns or fragments, with lines lost between', () => {
     const papyri = full.witnesses.filter((w) => w.type === 'papyrus');
     expect(papyri).toHaveLength(4);

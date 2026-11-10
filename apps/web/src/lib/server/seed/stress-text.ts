@@ -435,13 +435,21 @@ function letters(word: string): string {
   return splitPunctuation(word).bare;
 }
 
+/** The letter that carries the first of a mark in a decomposed word. */
+function carrierOf(nfd: string, mark: string): string | undefined {
+  for (let i = nfd.indexOf(mark) - 1; i >= 0; i--) if (!/\p{M}/u.test(nfd[i]!)) return nfd[i];
+  return undefined;
+}
+
 /** Another accent or breathing on the same letters; where there is none to change, the punctuation. */
 export function accentVariant(word: string, rng: Random): string {
   const { bare, punctuation } = splitPunctuation(word);
   const nfd = bare.normalize('NFD');
   const options: string[] = [];
+  // A circumflex stands on a long vowel only.
   if (nfd.includes(PERISPOMENI)) options.push(nfd.replace(PERISPOMENI, ACUTE));
-  else if (nfd.includes(ACUTE)) options.push(nfd.replace(ACUTE, PERISPOMENI));
+  else if (nfd.includes(ACUTE) && 'αιυηω'.includes(carrierOf(nfd, ACUTE) ?? '-'))
+    options.push(nfd.replace(ACUTE, PERISPOMENI));
   if (/[\u0301\u0300\u0342]/u.test(nfd)) options.push(nfd.replace(/[\u0301\u0300\u0342]/u, ''));
   if (nfd.includes(SMOOTH)) options.push(nfd.replace(SMOOTH, ROUGH));
   else if (nfd.includes(ROUGH)) options.push(nfd.replace(ROUGH, SMOOTH));
@@ -472,10 +480,13 @@ export function nearWord(word: string, rng: Random): string {
   const tries: string[] = [];
   if (text.endsWith('ν')) tries.push(text.slice(0, -1));
   else if (/[αεηιουω]$/u.test(stripDiacritics(text))) tries.push(`${text}ν`);
-  // The last vowel, with the marks that follow it, becomes another.
+  // The last vowel, with the marks that follow it, becomes another, where it can bear them.
   for (let i = nfd.length - 1; i >= 0; i--) {
     const swap = VOWEL_SWAP[nfd[i]!];
     if (!swap) continue;
+    let end = i + 1;
+    while (end < nfd.length && /\p{M}/u.test(nfd[end]!)) end++;
+    if (nfd.slice(i + 1, end).some((m) => /[\u0342\u0308\u0345]/u.test(m))) continue;
     const next = [...nfd];
     next[i] = swap;
     tries.push(next.join('').normalize('NFC'));
