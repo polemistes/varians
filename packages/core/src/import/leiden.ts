@@ -11,12 +11,12 @@
  *   -       at a line end: the word continues on the next line
  *   vac.    a blank left by the scribe   ...    standalone dots: illegible
  *
- * As everywhere a text is read into the transcript of a carrier
- * (docs/design.md, section 3.7), what its editor supplied or struck out is
- * not kept as the carrier's: letters supplied in [ ] become the gap they
- * fill, letters added in < > or bracketed in { } inside a word make its
- * read form, a whole word added is left out and a whole word bracketed
- * stays. A printed edition used as a witness keeps them all.
+ * A text in this notation is a transcript of its carrier, and is read as
+ * every transcript is (docs/design.md, section 3.7): what its editor
+ * supplied or struck out is not kept as the carrier's. Letters supplied in
+ * [ ] become the gap they fill, letters added in < > or bracketed in { }
+ * inside a word make its read form, a whole word added is left out and a
+ * whole word bracketed stays.
  */
 
 import { newId } from '../ids.ts';
@@ -33,8 +33,8 @@ import {
 
 export interface LeidenOptions {
   ids?: () => string;
-  /** What the editor supplied or struck out: `drop` (the default) for the transcript of a carrier, `keep` for a printed edition used as a witness. */
-  supplements?: 'drop' | 'keep';
+  /** `transcript`, the default, reads the text as the transcript of its carrier; `verbatim` keeps every bracket as its mark. */
+  as?: 'transcript' | 'verbatim';
 }
 
 export interface LeidenImport {
@@ -88,7 +88,7 @@ interface Context {
   warnings: string[];
   depth: Record<RangeKind, number>;
   building: Building | null;
-  /** A printed edition used as a witness: its supplements and deletions are its text. */
+  /** Every bracket is kept as its mark. */
   keep: boolean;
   /** The gap last made from supplied words, which the next supplied word joins. */
   lastLostGap: Obj | null;
@@ -105,7 +105,7 @@ export function fromLeiden(text: string, options: LeidenOptions = {}): LeidenImp
     warnings: [],
     depth: { supplied: 0, surplus: 0, del: 0, add: 0, corr: 0, unclear: 0 },
     building: null,
-    keep: options.supplements === 'keep',
+    keep: options.as === 'verbatim',
     lastLostGap: null,
   };
   for (const i of [...matching.unmatched].sort((a, b) => a - b)) {

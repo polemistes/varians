@@ -352,13 +352,33 @@ describe('imports', () => {
       { kind: 'token', form: 'προιαψεν', norm: 'προΐαψεν' },
       { kind: 'object', type: 'gap', attrs: { reason: 'lost', quantity: 3 } },
     ]);
+  });
 
-    // A printed edition used as a witness keeps what its editor supplied: it is that edition's text.
-    await db.update(witnesses).set({ category: 'edition' }).where(eq(witnesses.id, ids.witness));
-    const edition = await importLeidenInto(db, target(plus.version), 'ἡρώων [αὐτοὺς]');
-    await db.update(witnesses).set({ category: 'manuscript' }).where(eq(witnesses.id, ids.witness));
-    const supplied = edition.content.items.find((i) => isToken(i) && i.form === 'αὐτοὺς') as Token;
-    expect(supplied.marks?.[0]?.kind).toBe('supplied');
+  it('takes a TEI file given as a text to start from as words and their numbering, without its pages or its marks', async () => {
+    const xml = `<TEI xmlns="http://www.tei-c.org/ns/1.0"><text><body><div type="textpart" subtype="book" n="9">
+      <pb n="77"/><l n="1">ἄνδρα <supplied reason="omitted">μοι</supplied> <unclear>ἔννεπε</unclear></l><pb n="78"/><l n="2">Μοῦσα <note>cf. Od.</note> πολύτροπον</l></div></body></text></TEI>`;
+    const pagesBefore = (await db.select().from(pages).where(eq(pages.witnessId, ids.witness)))
+      .length;
+    const result = await importTeiInto(
+      db,
+      { ...target(await version(), true), replace: true },
+      { xml, workId: ids.work, mapping: { book: 'book', line: 'line' }, as: 'text' },
+    );
+    expect(result.content.items.map((i) => (isToken(i) ? i.form : `/${i.kind}`))).toEqual([
+      'ἄνδρα',
+      'μοι',
+      'ἔννεπε',
+      '/break',
+      'Μοῦσα',
+      'πολύτροπον',
+    ]);
+    expect(result.content.items.some((i) => isToken(i) && i.marks)).toBe(false);
+    expect(result.segments).toBe(2);
+    // The pages of the edition it came from are not pages of the witness.
+    expect(result.pagesMatched + result.pagesCreated).toBe(0);
+    expect((await db.select().from(pages).where(eq(pages.witnessId, ids.witness))).length).toBe(
+      pagesBefore,
+    );
   });
 
   it('refuses an import against an old version', async () => {
@@ -372,6 +392,7 @@ describe('imports', () => {
       xml,
       workId: ids.work,
       mapping: { book: 'book', line: 'line' },
+      as: 'transcript',
     });
     expect(result.segments).toBe(3);
     expect(result.pagesMatched).toBe(1);

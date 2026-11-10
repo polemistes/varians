@@ -11,10 +11,17 @@
  * a hand shift) become point marks (from equal to to) at that character;
  * between words a gap or a space is an object.
  *
- * A transcript holds its witness and nothing an editor added to it
- * (docs/design.md, section 3.7). So, unless the witness is itself a printed
- * edition, what the source's editor supplied or struck out is not read as
- * the witness's text: letters supplied where the carrier is lost become the
+ * A document is read in one of two ways (docs/design.md, section 3.7).
+ *
+ * As a text to start from, it is words and their numbering and nothing
+ * else: what a transcriber would have typed in, to be corrected against the
+ * witness. Its marks, its pages and its notes are its own edition's and are
+ * left behind.
+ *
+ * As a transcript of the witness, it is read with its features, and a
+ * transcript holds its witness and nothing an editor added to it. So what
+ * the source's editor supplied or struck out is not read as the witness's
+ * text: letters supplied where the carrier is lost become the
  * gap they fill; letters the editor adds as left out by the scribe, or
  * brackets as written in error, are normalization within a word and are
  * otherwise ignored (a whole word added is left out, a whole word bracketed
@@ -44,12 +51,15 @@ export interface TeiImportOptions {
   /** Source of item ids; defaults to new ULIDs. */
   ids?: () => string;
   /**
-   * What the source's editor supplied or struck out (`<supplied>`,
-   * `<surplus>`, the `<corr>` of a `<sic>`): `drop`, the default, for the
-   * transcript of a carrier, which holds only what the carrier has; `keep`
-   * for a printed edition used as a witness, whose own text they are.
+   * What the document is read as:
+   *
+   * - `transcript`, the default: a transcript of the witness, with its
+   *   features and pages, and without what its editor supplied or struck out;
+   * - `text`: a text to start from, its words and their numbering only;
+   * - `verbatim`: every element as its mark, which is how what Varians itself
+   *   wrote is read back.
    */
-  supplements?: 'drop' | 'keep';
+  as?: 'transcript' | 'text' | 'verbatim';
 }
 
 /** One component of an address found in the TEI structure: a div's subtype or type with its n, a line's n, a milestone's unit and n. */
@@ -454,8 +464,10 @@ class Importer {
   constructor(
     private readonly ids: () => string,
     private readonly surfaces: ReadonlyMap<string, string>,
-    /** A printed edition used as a witness: its supplements and deletions are its text. */
+    /** Every element is read as its mark, what an editor supplied or struck out with the rest. */
     private readonly keep: boolean,
+    /** A text to start from: its pages and columns are its own edition's, and are passed over as if not there. */
+    private readonly pageless: boolean,
   ) {}
 
   walk(nodes: XmlNode[]): void {
@@ -599,6 +611,7 @@ class Importer {
   }
 
   private pb(element: XmlElement): void {
+    if (this.pageless) return;
     this.flush(this.wordDepth > 0 || attr(element, 'break') === 'no');
     const facs = attr(element, 'facs');
     const label = attr(element, 'n') ?? String(this.pages.length + 1);
@@ -620,6 +633,7 @@ class Importer {
   }
 
   private cb(element: XmlElement): void {
+    if (this.pageless) return;
     this.flush(this.wordDepth > 0 || attr(element, 'break') === 'no');
     const brk: Break = { kind: 'break', id: this.ids(), type: 'column' };
     const n = attr(element, 'n');
@@ -1302,10 +1316,12 @@ function readWitness(root: XmlElement): ImportedWitness | undefined {
  */
 export function importTei(xml: string, options: TeiImportOptions = {}): TeiImport {
   const root = parseXml(xml);
+  const reading = options.as ?? 'transcript';
   const importer = new Importer(
     options.ids ?? newId,
     surfaceImages(root),
-    options.supplements === 'keep',
+    reading !== 'transcript',
+    reading === 'text',
   );
   const found = bodies(root);
   if (found.length === 0) {
@@ -1324,7 +1340,59 @@ export function importTei(xml: string, options: TeiImportOptions = {}): TeiImpor
   };
   const witness = readWitness(root);
   if (witness) result.witness = witness;
-  return result;
+  return reading === 'text' ? startingText(result) : result;
+}
+
+/**
+ * A document as a text to start from: its words as it prints them (the
+ * regularized, corrected or expanded word where it gives one), its lines and
+ * paragraphs, and the starts of its numbered parts. Its marks, gaps, notes,
+ * figures and paratext are left behind, and so are its pages and columns,
+ * which are those of its own edition and not of the witness to be
+ * transcribed.
+ */
+function startingText(read: TeiImport): TeiImport {
+  const items: Item[] = [];
+  /** Where each item of the reading now stands; -1 for one left behind. */
+  const now: number[] = [];
+  for (const item of read.stream.items) {
+    now.push(-1);
+    if (item.kind === 'object') continue;
+    if (item.kind === 'break') {
+      if (item.type === 'page' || item.type === 'column') continue;
+      const last = items.at(-1);
+      // No line is empty: a break after a break is one break, the stronger of the two.
+      if (!last) continue;
+      if (last.kind === 'break') {
+        if (item.type === 'paragraph') last.type = 'paragraph';
+        continue;
+      }
+      items.push({ kind: 'break', id: item.id, type: item.type });
+      continue;
+    }
+    const corrected = item.marks?.find((m) => m.kind === 'corr')?.attrs?.corr;
+    const expanded = item.marks?.find((m) => m.kind === 'abbr')?.attrs?.expan;
+    const word =
+      typeof corrected === 'string'
+        ? corrected
+        : typeof expanded === 'string'
+          ? expanded
+          : (item.norm ?? item.form);
+    if (word === '') continue;
+    const token: Token = { kind: 'token', id: item.id, form: word };
+    if (item.joinNext) token.joinNext = true;
+    now[now.length - 1] = items.length;
+    items.push(token);
+  }
+  while (items.at(-1)?.kind === 'break') items.pop();
+  // A start that stood on something left behind goes to the next word.
+  const segmentStarts: SegmentStartHint[] = [];
+  for (const hint of read.segmentStarts) {
+    let index = hint.itemIndex;
+    while (index < now.length && now[index]! < 0) index++;
+    if (index < now.length) segmentStarts.push({ itemIndex: now[index]!, parts: hint.parts });
+  }
+  return { ...read, stream: { items }, segmentStarts, pages: [] };
 }
 
 /**

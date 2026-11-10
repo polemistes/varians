@@ -5,9 +5,9 @@ import { toText } from '../stream/text.ts';
 import { words } from '../stream/words.ts';
 import { fromLeiden, toLeiden } from './leiden.ts';
 
-/** As a printed edition is read, with its brackets kept as marks: these tests are of the notation. */
+/** With every bracket kept as its mark: these tests are of the notation. */
 function read(text: string) {
-  return fromLeiden(text, { ids: sequentialIds(), supplements: 'keep' });
+  return fromLeiden(text, { ids: sequentialIds(), as: 'verbatim' });
 }
 
 function tokens(text: string): Token[] {

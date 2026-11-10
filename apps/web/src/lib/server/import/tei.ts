@@ -13,7 +13,7 @@ import {
   type Stream,
   type UnitMapping,
 } from '@varians/core';
-import { eq, transcriptions, witnesses, type Database } from '@varians/db';
+import type { Database } from '@varians/db';
 import { replaceContent } from '../documents/service.ts';
 import { resolveLabels, schemeOfWork } from '../segments.ts';
 
@@ -36,10 +36,11 @@ export async function previewTei(
   workId: string,
   xml: string,
   mapping?: UnitMapping,
+  as: 'text' | 'transcript' = 'transcript',
 ): Promise<TeiPreview> {
   const work = await schemeOfWork(db, workId);
   const structure = detectStructure(xml);
-  const result = importTei(xml);
+  const result = importTei(xml, { as });
   const units = structure.units.map((u) => u.unit);
   const proposed = mapping ?? proposeMapping(units, work.scheme);
   const { resolved, unresolved } = resolveStarts(result.segmentStarts, proposed, work.scheme);
@@ -79,15 +80,7 @@ export async function importTeiIntoTranscription(
   },
 ): Promise<TeiImportResult> {
   const work = await schemeOfWork(db, input.workId);
-  // A printed edition used as a witness keeps what its editor supplied; a carrier's transcript does not.
-  const [of] = await db
-    .select({ category: witnesses.category })
-    .from(transcriptions)
-    .innerJoin(witnesses, eq(witnesses.id, transcriptions.witnessId))
-    .where(eq(transcriptions.id, input.transcriptionId));
-  const result = importTei(input.xml, {
-    supplements: of?.category === 'edition' ? 'keep' : 'drop',
-  });
+  const result = importTei(input.xml);
   const { resolved, unresolved } = resolveStarts(result.segmentStarts, input.mapping, work.scheme);
   const labels = await resolveLabels(
     db,

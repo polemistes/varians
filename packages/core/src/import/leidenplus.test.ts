@@ -464,14 +464,6 @@ describe('Leiden+ read into a transcript', () => {
     ]);
   });
 
-  it('keeps it all for a printed edition used as a witness', () => {
-    const result = importLeidenPlus('<S=.grc<=1. [μῆνιν] ἄειδε <καὶ> {θεὰ}=>', {
-      ids: sequentialIds(),
-      supplements: 'keep',
-    });
-    expect(brief(result.stream.items)).toBe('μῆνιν<supplied> ἄειδε καὶ<supplied> θεὰ<surplus>');
-  });
-
   it('reads the signs of the papyrus', () => {
     const result = importLeidenPlus(
       '<S=.grc<=1. ((ἔτους)) <#ιϛ=16#> *stauros* (στρατηγ(ός)) $m2 ~|comes|~la vac.3 ---- .2 α=>',

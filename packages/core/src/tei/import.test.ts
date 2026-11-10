@@ -5,8 +5,8 @@ import { detectStructure, importTei } from './import.ts';
 
 const TEI = 'xmlns="http://www.tei-c.org/ns/1.0"';
 
-function read(xml: string, supplements: 'drop' | 'keep' = 'drop') {
-  return importTei(xml, { ids: sequentialIds(), supplements });
+function read(xml: string, as: 'transcript' | 'text' | 'verbatim' = 'transcript') {
+  return importTei(xml, { ids: sequentialIds(), as });
 }
 
 /** Items as short comparable records: forms with their marks and joins, break types, object types. */
@@ -333,7 +333,7 @@ describe('importTei: tokens and marks', () => {
   it('merges adjacent pieces of one mark', () => {
     const result = read(
       `<ab><unclear>ab<supplied>c</supplied></unclear><supplied>de</supplied></ab>`,
-      'keep',
+      'verbatim',
     );
     const marks = (result.stream.items[0] as { marks: Mark[] }).marks;
     expect(marks).toEqual([
@@ -487,16 +487,87 @@ describe('importTei: what its editor added to a carrier', () => {
     expect(notices(result)).toEqual([]);
   });
 
-  it('keeps all of it for a printed edition used as a witness, whose text it is', () => {
+  it('reads every element as its mark when asked to read verbatim, as what Varians wrote is read back', () => {
     const result = read(
       `<ab><supplied reason="lost">μῆνιν</supplied> ὁμο<surplus>μο</surplus>λογῶ <choice><corr>τιμὴν</corr><sic>τμμὴν</sic></choice></ab>`,
-      'keep',
+      'verbatim',
     );
     expect(sketch(result.stream.items)).toEqual([
       { form: 'μῆνιν', marks: [{ kind: 'supplied', attrs: { reason: 'lost' } }] },
       { form: 'ὁμομολογῶ', marks: [{ kind: 'surplus', from: 3, to: 5 }] },
       { form: 'τμμὴν', marks: [{ kind: 'corr', attrs: { corr: 'τιμὴν' } }] },
     ]);
+  });
+});
+
+describe('importTei: a text to start from', () => {
+  const EDITION = `<TEI ${TEI}><text><body>
+    <div type="edition" n="urn:cts:greekLit:tlg0019.tlg007">
+      <pb n="1"/><head>ΛΥΣΙΣΤΡΑΤΗ</head>
+      <sp><speaker>Λυσιστράτη</speaker>
+        <l n="1">ἀλλ᾽ εἴ τις <supplied reason="omitted">ἐς</supplied> Βακχεῖον αὐτὰς <del>ἐκάλεσεν</del>,</l>
+        <l n="2">ἢ ᾽ς Πανὸς <note>cf. Hsch.</note> ἢ ᾽πὶ <choice><sic>Κωλιάδα</sic><corr>Κωλιάδ᾽</corr></choice> <gap reason="lost"/></l>
+      </sp>
+      <pb n="2"/><cb n="b"/>
+      <sp><speaker>Καλονίκη</speaker>
+        <l n="3"><unclear>οὐδ᾽</unclear> ἂν διελθεῖν <choice><orig>ην</orig><reg>ἦν</reg></choice> ἂν</l>
+      </sp>
+    </div>
+  </body></text></TEI>`;
+  const result = read(EDITION, 'text');
+
+  it('takes the words as the edition prints them, its lines, and nothing else', () => {
+    expect(sketch(result.stream.items)).toEqual([
+      { form: 'ἀλλ᾽' },
+      { form: 'εἴ' },
+      { form: 'τις' },
+      { form: 'ἐς' },
+      { form: 'Βακχεῖον' },
+      { form: 'αὐτὰς' },
+      { form: 'ἐκάλεσεν,' },
+      { break: 'line' },
+      { form: 'ἢ' },
+      { form: '᾽ς' },
+      { form: 'Πανὸς' },
+      { form: 'ἢ' },
+      { form: '᾽πὶ' },
+      { form: 'Κωλιάδ᾽' },
+      { break: 'line' },
+      { form: 'οὐδ᾽' },
+      { form: 'ἂν' },
+      { form: 'διελθεῖν' },
+      { form: 'ἦν' },
+      { form: 'ἂν' },
+    ]);
+  });
+
+  it('passes over the pages of the edition as if they were not there: a line ends where the text says, not where a page does', () => {
+    const verse = read(`<ab><l n="1">ἄνδρα μοι</l><pb n="78"/><l n="2">Μοῦσα</l></ab>`, 'text');
+    expect(sketch(verse.stream.items)).toEqual([
+      { form: 'ἄνδρα' },
+      { form: 'μοι' },
+      { break: 'line' },
+      { form: 'Μοῦσα' },
+    ]);
+    const prose = read(`<p>ὅτι μὲν <pb n="18"/>ὑμεῖς, ὦ ἄν<pb n="19"/>δρες</p>`, 'text');
+    expect(sketch(prose.stream.items)).toEqual([
+      { form: 'ὅτι' },
+      { form: 'μὲν' },
+      { form: 'ὑμεῖς,' },
+      { form: 'ὦ' },
+      { form: 'ἄνδρες' },
+    ]);
+  });
+
+  it('keeps the numbering for the segments, on the words, and leaves the edition’s pages behind', () => {
+    const at = (form: string) =>
+      result.stream.items.findIndex((i) => isToken(i) && i.form === form);
+    expect(result.segmentStarts.map((s) => [s.itemIndex, s.parts.at(-1)])).toEqual([
+      [at('ἀλλ᾽'), { unit: 'line', n: '1' }],
+      [at('ἢ'), { unit: 'line', n: '2' }],
+      [at('οὐδ᾽'), { unit: 'line', n: '3' }],
+    ]);
+    expect(result.pages).toEqual([]);
   });
 });
 

@@ -19,6 +19,7 @@ import {
   importPlainTextInto,
   importTeiInto,
   type Placement,
+  type TeiKind,
   layoutKind,
   loadWorkbench,
   saveSettings,
@@ -110,6 +111,12 @@ function placementOf(data: WorkbenchData, form: FormData): Placement {
   return data.pages.some((p) => p.id === id) ? { to: 'page', pageId: id } : { to: 'unplaced' };
 }
 
+/** What a TEI file is taken as: a text to start from, or a transcript of this witness. It must be said. */
+function teiKindOf(form: FormData): TeiKind | null {
+  const as = text(form, 'as');
+  return as === 'text' || as === 'transcript' ? as : null;
+}
+
 /** The work an import names: one of the transcription's works, or none. */
 function workOf(data: WorkbenchData, form: FormData): string | null {
   const id = text(form, 'workId');
@@ -125,18 +132,20 @@ async function fileOrText(form: FormData, file: string, field: string): Promise<
 
 /** After an import: what changed and what the page must now know (pages may have been added, segments named). */
 /**
- * An import run, with what the page needs after it. When the importer named
- * the source of the text, it is added to the transcription's sources; most
- * imports are only a starting point, and then nothing is added.
+ * An import run, with what the page needs after it. A transcript of the
+ * witness made elsewhere has a source, which is added to the transcription's
+ * sources when it is named. A text to start from has none: where it came
+ * from is of no account once it is corrected against the witness.
  */
 async function imported(
   event: RequestEvent<{ id: string }>,
   form: FormData,
   run: () => Promise<ImportOutcome>,
+  transcript = true,
 ) {
   try {
     const outcome = await run();
-    const source = text(form, 'source').trim().slice(0, 1000);
+    const source = transcript ? text(form, 'source').trim().slice(0, 1000) : '';
     if (source) await appendSources(event.locals.db, event.params.id, source);
     const fresh = await loadWorkbench(event.locals.db, event.locals.user, event.params.id);
     return {
@@ -267,8 +276,16 @@ export const actions: Actions = {
     const { data } = await editable(event);
     const form = await event.request.formData();
     try {
+      const as = teiKindOf(form);
+      if (!as) return fail(400, { message: t.importer.tei.needKind });
       const xml = await teiText(form);
-      const preview = await teiPreview(event.locals.db, workOf(data, form), xml, mappingOf(form));
+      const preview = await teiPreview(
+        event.locals.db,
+        workOf(data, form),
+        xml,
+        mappingOf(form),
+        as,
+      );
       return { teiPreview: preview };
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
@@ -281,14 +298,22 @@ export const actions: Actions = {
   importTei: async (event) => {
     const { data, user } = await editable(event);
     const form = await event.request.formData();
-    return imported(event, form, async () => {
-      const xml = await teiText(form);
-      return importTeiInto(event.locals.db, target(data, form, user.id), {
-        xml,
-        workId: workOf(data, form),
-        mapping: mappingOf(form) ?? {},
-      });
-    });
+    const as = teiKindOf(form);
+    if (!as) return fail(400, { message: t.importer.tei.needKind });
+    return imported(
+      event,
+      form,
+      async () => {
+        const xml = await teiText(form);
+        return importTeiInto(event.locals.db, target(data, form, user.id), {
+          xml,
+          workId: workOf(data, form),
+          mapping: mappingOf(form) ?? {},
+          as,
+        });
+      },
+      as === 'transcript',
+    );
   },
 
   importText: async (event) => {
@@ -300,15 +325,20 @@ export const actions: Actions = {
     const kind = text(form, 'pattern');
     const pattern = kind ? (detectNumbering(body).find((p) => p.kind === kind) ?? null) : null;
     const startLabel = text(form, 'startLabel').trim();
-    return imported(event, form, () =>
-      importPlainTextInto(event.locals.db, target(data, form, user.id), {
-        text: body,
-        pattern,
-        workId: workOf(data, form),
-        paragraphs: flag(form, 'paragraphs'),
-        hyphenJoins: flag(form, 'hyphenJoins'),
-        ...(startLabel ? { startLabel } : {}),
-      }),
+    // Plain text is a text to start from: it has no source to record.
+    return imported(
+      event,
+      form,
+      () =>
+        importPlainTextInto(event.locals.db, target(data, form, user.id), {
+          text: body,
+          pattern,
+          workId: workOf(data, form),
+          paragraphs: flag(form, 'paragraphs'),
+          hyphenJoins: flag(form, 'hyphenJoins'),
+          ...(startLabel ? { startLabel } : {}),
+        }),
+      false,
     );
   },
 

@@ -434,8 +434,16 @@ export const workbench = {
     placementPage: (label: string) => `On ${label}`,
     placementTei:
       'The text of page breaks that name pages of the witness goes to those pages; the rest goes here.',
-    source: 'Source to record (optional)',
+    source: 'Source of the transcript (optional)',
     sourceHint: "Added to the transcript's sources.",
+    /** What the file is: the two are read differently. */
+    kind: 'The file is',
+    kindText: 'A text to start from',
+    kindTextHint:
+      'Its words and their numbering are taken and nothing else, as if typed in: it is yet to be corrected against the witness.',
+    kindTranscript: 'A transcript of this witness',
+    kindTranscriptHint:
+      'Its features and pages are kept. What its editor supplied is left out, and the gap kept.',
     work: 'Work',
     noWork: 'No work: the text comes in without segment labels.',
     file: 'File',
@@ -457,6 +465,7 @@ export const workbench = {
       pageBreaks: (n: number) => plural(n, 'page break', 'page breaks'),
       titleFound: (title: string) => `Title: ${title}`,
       needSource: 'Choose a file, or give a URL or a CTS URN.',
+      needKind: 'Say what the file is: a text to start from, or a transcript of this witness.',
     },
     text: {
       text: 'Text',
@@ -477,7 +486,7 @@ export const workbench = {
     },
     leiden: {
       text: 'Text in Leiden notation',
-      hint: 'Leiden+ as papyri.info writes it, or the conventions as printed. What its editor supplied in [ ] or < > is not the witness’s: a gap is left where letters are lost. A witness registered as an edition keeps it.',
+      hint: 'A transcript of this witness in Leiden+, as papyri.info writes it, or in the conventions as printed. What its editor supplied in [ ] or < > is left out, and the gap kept.',
     },
     layout: {
       file: 'PAGE XML or ALTO file',

@@ -114,7 +114,15 @@ A **feature** is a typed annotation on tokens, on characters within one token, o
 
 **Leiden+** is the notation of papyri.info, defined as another way of writing EpiDoc: every construct of it stands for one element. Varians reads it by writing that EpiDoc and reading the EpiDoc, and writes a transcript out as Leiden+. It is a way in and out, and the conventions a transcript may be shown and typed in; it is never what is stored, since boxes, segments, an edition's sources and the history point at words by identity, which a string of notation does not keep.
 
-**A transcript holds its witness and nothing an editor added to it.** There are no conjectures in a transcript. When a text is read in from TEI, EpiDoc or Leiden notation into the transcript of a carrier:
+**Two things are imported, and they are not alike.**
+
+_A text to start from_ is not a source of the text and not a witness. It is what a transcriber would otherwise type in: an earlier edition's text, taken so that it can be corrected against the witness, after which the witness is the only source there is. Only its words and their numbering are taken, with its lines and paragraphs: no features, none of its editor's marks or notes, no speakers or headings, and not its pages, which are its own edition's and not the witness's. Where it came from is not recorded. Plain text is always this.
+
+_A transcript of the witness made elsewhere_ is a source, and where it came from is recorded. It comes in a transcript's format (TEI, EpiDoc, Leiden notation, the output of text recognition) and is read with its features and its pages.
+
+A TEI file may be either, and the person importing says which before anything is read.
+
+**A transcript holds its witness and nothing an editor added to it.** There are no conjectures in a transcript. When a transcript of the witness is read in:
 
 - Letters supplied where the carrier is lost are left out, and the gap they fill is kept: an object between words, a point mark in a word that the gap breaks. The brackets are the gap.
 - A regularization or correction of the scribe's spelling is the word's normalized form. A correction waits unchecked for the editor's confirmation; a regularization does not.
@@ -122,7 +130,7 @@ A **feature** is a typed annotation on tokens, on characters within one token, o
 - Where the source gives several readings of the carrier (an alternative, a reading corrected since the edition), the one it prints is taken.
 - None of what is left out is offered as a conjecture.
 
-**A printed edition used as a witness is the exception**: its supplements and deletions are its own text, and are kept as marks. Which rule applies follows from the witness's category.
+A witness registered as a printed edition has no rule of its own: its transcript is made from a text to start from like any other, and what that edition prints is then simply its words.
 
 A deletion or an addition is a **correction** and may name its **hand** (one of the witness's hands, the scribe, or another) and its **stage**. An edition's conspectus can give a witness several **states**, each under a siglum of its own: the original, a stage, a hand. Collation reads the transcript in the state asked for, so the recording differs per witness without a different model per witness.
 

@@ -50,7 +50,6 @@ import {
   transcriptionSegments,
   transcriptions,
   witnessMaintainers,
-  witnesses,
   works,
   zones,
   type Database,
@@ -555,29 +554,16 @@ export async function importPlainTextInto(
 }
 
 /**
- * What an import keeps of what the source's editor supplied or struck out
- * (docs/design.md, section 3.7): nothing for the transcript of a carrier,
- * which holds only what the carrier has; all of it for a printed edition
- * used as a witness, whose own text it is.
+ * Leiden notation read into words, marks and gaps: Leiden+ as papyri.info
+ * writes it, or the conventions as they are printed. A text in it is a
+ * transcript of its carrier, and is read as one.
  */
-export async function supplementsFor(db: Database, witnessId: string): Promise<'drop' | 'keep'> {
-  const [witness] = await db
-    .select({ category: witnesses.category })
-    .from(witnesses)
-    .where(eq(witnesses.id, witnessId));
-  return witness?.category === 'edition' ? 'keep' : 'drop';
-}
-
-/** Leiden notation read into words, marks and gaps: Leiden+ as papyri.info writes it, or the conventions as they are printed. */
 export async function importLeidenInto(
   db: Database,
   target: Target,
   text: string,
 ): Promise<ImportOutcome> {
-  const supplements = await supplementsFor(db, target.witnessId);
-  const result = isLeidenPlus(text)
-    ? importLeidenPlus(text, { supplements })
-    : fromLeiden(text, { supplements });
+  const result = isLeidenPlus(text) ? importLeidenPlus(text) : fromLeiden(text);
   return inTransaction(db, async (tx) => {
     const saved = await save(tx, target, result.stream, 'Leiden import');
     return outcome(saved, { set: 0, unresolved: [] }, result.warnings);
@@ -612,10 +598,19 @@ function outcome(
 
 // TEI
 
+/**
+ * What a TEI file is taken as (docs/design.md, section 3.7): a text to start
+ * from, which gives its words and their numbering and is otherwise as if
+ * typed in; or a transcript of this witness, read with its features and its
+ * pages.
+ */
+export type TeiKind = 'text' | 'transcript';
+
 export interface TeiInput {
   xml: string;
   workId: string | null;
   mapping: UnitMapping;
+  as: TeiKind;
 }
 
 /**
@@ -629,9 +624,7 @@ export async function importTeiInto(
   target: Target,
   input: TeiInput,
 ): Promise<ImportOutcome> {
-  const result = importTei(input.xml, {
-    supplements: await supplementsFor(db, target.witnessId),
-  });
+  const result = importTei(input.xml, { as: input.as });
   return inTransaction(db, async (tx) => {
     let starts: { itemIndex: number; label: string }[] = [];
     let unresolvedHints = 0;
@@ -688,9 +681,10 @@ export async function teiPreview(
   workId: string | null,
   xml: string,
   mapping?: UnitMapping,
+  as: TeiKind = 'transcript',
 ): Promise<TeiPreviewData> {
   if (workId) {
-    const preview = await previewTei(db, workId, xml, mapping);
+    const preview = await previewTei(db, workId, xml, mapping, as);
     return {
       units: preview.structure.units,
       mapping: preview.mapping,
@@ -698,13 +692,13 @@ export async function teiPreview(
       unresolved: preview.unresolved,
       examples: preview.examples,
       words: preview.words,
-      pageBreaks: preview.structure.pageBreaks,
+      pageBreaks: as === 'text' ? 0 : preview.structure.pageBreaks,
       title: preview.header.title ?? null,
       warnings: preview.warnings,
     };
   }
   const structure = detectStructure(xml);
-  const result = importTei(xml);
+  const result = importTei(xml, { as });
   return {
     units: structure.units,
     mapping: {},
@@ -712,7 +706,7 @@ export async function teiPreview(
     unresolved: result.segmentStarts.length,
     examples: [],
     words: result.stream.items.filter(isToken).length,
-    pageBreaks: structure.pageBreaks,
+    pageBreaks: as === 'text' ? 0 : structure.pageBreaks,
     title: result.header.title ?? null,
     warnings: result.warnings,
   };

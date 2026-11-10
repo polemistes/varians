@@ -60,7 +60,7 @@
   $effect(() => {
     if (!placements.some((p) => p.value === placement)) placement = UNPLACED;
   });
-  /** The source of the text, to be recorded with the transcription's sources; empty when it is only a starting point. */
+  /** Where a transcript of this witness was made, to be recorded with the transcription's sources. A text to start from has no source. */
   let source = $state('');
   let workId = $state('');
   let busy = $state(false);
@@ -72,6 +72,12 @@
   let teiPreviewButton = $state<HTMLButtonElement>();
   let teiSource = $state('');
   let teiFiles = $state<FileList | undefined>();
+  /** What the TEI file is: a text to start from, or a transcript of this witness. Nothing is read before it is said. */
+  let teiAs = $state<'' | 'text' | 'transcript'>('');
+  /** Plain text is a text to start from; the other formats are transcripts of the witness. */
+  const transcript = $derived(
+    tab === 'leiden' || tab === 'layout' || (tab === 'tei' && teiAs === 'transcript'),
+  );
   let preview = $state.raw<TeiPreviewData | null>(null);
   let mapping = $state<Record<string, string>>({});
 
@@ -111,6 +117,7 @@
     void teiSource;
     void teiFiles;
     void workId;
+    void teiAs;
     preview = null;
   });
 
@@ -138,7 +145,8 @@
     formData.set('workId', workId);
     formData.set('replace', replace && !empty ? 'true' : 'false');
     formData.set('placement', placement);
-    if (!isPreview) formData.set('source', source);
+    if (!isPreview && transcript) formData.set('source', source);
+    if (action.search.includes('Tei') || isPreview) formData.set('as', teiAs);
     // Before the first reading the server proposes the mapping; afterwards it is the one chosen here.
     if ((action.search.includes('Tei') || isPreview) && preview)
       formData.set('mapping', JSON.stringify(mapping));
@@ -216,7 +224,10 @@
     </Field>
   {/if}
   {#if wb.pages.length > 0 && tab !== 'layout'}
-    <Field label={t.importer.placement} hint={tab === 'tei' ? t.importer.placementTei : undefined}>
+    <Field
+      label={t.importer.placement}
+      hint={tab === 'tei' && teiAs === 'transcript' ? t.importer.placementTei : undefined}
+    >
       {#snippet children(control)}
         <Select {...control} bind:value={placement} options={placements} />
       {/snippet}
@@ -225,11 +236,13 @@
   {#if !empty}
     <Checkbox bind:checked={replace} hint={t.importer.replaceHint}>{t.importer.replace}</Checkbox>
   {/if}
-  <Field label={t.importer.source} hint={t.importer.sourceHint}>
-    {#snippet children(control)}
-      <Input {...control} bind:value={source} maxlength={1000} />
-    {/snippet}
-  </Field>
+  {#if transcript}
+    <Field label={t.importer.source} hint={t.importer.sourceHint}>
+      {#snippet children(control)}
+        <Input {...control} bind:value={source} maxlength={1000} />
+      {/snippet}
+    </Field>
+  {/if}
 {/snippet}
 
 {#snippet outcome()}
@@ -278,6 +291,18 @@
           </Field>
         </div>
         <p class="-mt-2 text-xs text-ink-soft">{t.importer.tei.sourceHint}</p>
+        <fieldset class="flex flex-col gap-2">
+          <legend class="mb-1 text-sm font-medium text-ink">{t.importer.kind}</legend>
+          {#each [{ value: 'text', label: t.importer.kindText, hint: t.importer.kindTextHint }, { value: 'transcript', label: t.importer.kindTranscript, hint: t.importer.kindTranscriptHint }] as const as kind (kind.value)}
+            <label class="flex items-start gap-2 text-sm">
+              <input type="radio" class="mt-1" value={kind.value} bind:group={teiAs} />
+              <span>
+                <span class="text-ink">{kind.label}</span>
+                <span class="block text-xs text-ink-soft">{kind.hint}</span>
+              </span>
+            </label>
+          {/each}
+        </fieldset>
         {@render common()}
         <div>
           <button
@@ -285,7 +310,7 @@
             class={buttonClasses('secondary', 'sm')}
             formaction="?/teiPreview"
             bind:this={teiPreviewButton}
-            disabled={busy || (!teiSource.trim() && !teiFiles?.length)}
+            disabled={busy || !teiAs || (!teiSource.trim() && !teiFiles?.length)}
           >
             {#if busy && !preview}<Spinner size="sm" />{t.importer.tei.reading}{:else}{t.importer
                 .tei.preview}{/if}
