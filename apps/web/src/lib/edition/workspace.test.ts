@@ -304,7 +304,7 @@ describe('a place the editor leaves out of the apparatus', () => {
     });
     const sites = segment.collation.sites;
     expect(sites).toHaveLength(2);
-    expect(sitesInOrder(['s'], { s: segment })).toHaveLength(2);
+    expect(sitesInOrder(['s'], { s: outlineOf(segment) })).toHaveLength(2);
     const left = {
       ...segment,
       collation: {
@@ -314,10 +314,10 @@ describe('a place the editor leaves out of the apparatus', () => {
     };
     expect(siteShows(left, left.collation.sites[0]!)).toBe(false);
     expect(siteShows(left, left.collation.sites[1]!)).toBe(true);
-    expect(sitesInOrder(['s'], { s: left }).map((r) => r.site.index)).toEqual([
+    expect(sitesInOrder(['s'], { s: outlineOf(left) }).map((r) => r.site.index)).toEqual([
       left.collation.sites[1]!.index,
     ]);
-    const classes = tokenClassesFor([left], { active: null });
+    const classes = tokenClassesFor([outlineOf(left)], { active: null });
     expect(Object.keys(classes)).toHaveLength(1);
   });
 });

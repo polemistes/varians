@@ -8,6 +8,7 @@ import { expect, test, type Page } from '@playwright/test';
 import sharp from 'sharp';
 import {
   createDatabase,
+  editions,
   referenceSchemes,
   transcriptions,
   users,
@@ -181,4 +182,71 @@ test('shows the page where a witness’s words stand, mapped to the image or not
   // The arrows browse the witness's pages: 12v has no image.
   await pane.getByRole('button', { name: ed.witness.nextPage }).click();
   await expect(pane.getByText(ed.witness.noImageOf('12v'))).toBeVisible();
+});
+
+test('names a family by one siglum and the other witnesses by a word, and leaves a place out', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto('/editions/iliad-1-working-edition/edit');
+  await expect(page.locator('.cm-content')).toBeVisible();
+
+  // A family siglum for B and C, set with the conspectus.
+  await page.getByRole('button', { name: ed.dialogs.more }).click();
+  await page.getByRole('menuitem', { name: ed.workspace.witnessList }).click();
+  const sigla = page.getByRole('dialog');
+  await sigla.getByRole('button', { name: ed.dialogs.sigla.addGroup }).click();
+  await sigla.getByLabel(ed.dialogs.sigla.groupSiglum).fill('β');
+  const members = sigla.getByRole('group', { name: ed.dialogs.sigla.groupWitnesses });
+  await members.getByRole('checkbox', { name: 'B', exact: true }).check();
+  await members.getByRole('checkbox', { name: 'C', exact: true }).check();
+  await sigla.getByLabel(ed.dialogs.sigla.groupNote, { exact: true }).fill('consensus codicum BC');
+  await sigla.getByRole('button', { name: ed.dialogs.save, exact: true }).click();
+  await expect(sigla).toBeHidden({ timeout: 15_000 });
+
+  // The words for the other witnesses and for all of them, in the edition's settings.
+  await page.getByRole('button', { name: ed.dialogs.more }).click();
+  await page.getByRole('menuitem', { name: ed.workspace.settings }).click();
+  const settings = page.getByRole('dialog');
+  await settings.locator('select[name=rest]').selectOption('cett.');
+  await settings.locator('select[name=all]').selectOption('codd.');
+  await settings.getByRole('button', { name: ed.dialogs.save, exact: true }).click();
+  await expect(settings).toBeHidden({ timeout: 15_000 });
+
+  const { db, pool } = createDatabase(DATABASE_URL);
+  const [stored] = await db
+    .select({ conventions: editions.conventions })
+    .from(editions)
+    .where(eq(editions.slug, 'iliad-1-working-edition'));
+  await pool.end();
+  expect(stored!.conventions.groups).toEqual([
+    { siglum: 'β', members: ['B', 'C'], note: 'consensus codicum BC' },
+  ]);
+  expect(stored!.conventions.rest).toBe('cett.');
+  expect(stored!.conventions.all).toBe('codd.');
+
+  // A place left out stays in the band, set apart, and can be reported again.
+  await page.reload();
+  await expect(page.locator('.cm-content')).toBeVisible();
+  const band = page.locator('.apparatus-band');
+  await expect(band.getByText(ed.notReported)).toHaveCount(0);
+  await band.getByRole('button', { name: ed.leaveOut, exact: true }).first().click();
+  await expect(band.getByText(ed.notReported).first()).toBeVisible({ timeout: 15_000 });
+
+  // The reader's conspectus lists the family.
+  await page.goto('/editions/iliad-1-working-edition?draft=1');
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: 'Witnesses', exact: true }).first().click();
+  await expect(page.getByText('consensus codicum BC')).toBeVisible();
+
+  await page.goto('/editions/iliad-1-working-edition/edit');
+  await expect(page.locator('.cm-content')).toBeVisible();
+  await page
+    .locator('.apparatus-band')
+    .getByRole('button', { name: ed.report, exact: true })
+    .first()
+    .click();
+  await expect(page.locator('.apparatus-band').getByText(ed.notReported)).toHaveCount(0, {
+    timeout: 15_000,
+  });
 });

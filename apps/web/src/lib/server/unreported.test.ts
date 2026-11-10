@@ -25,6 +25,7 @@ import {
   siteByToken,
 } from '$lib/reader/sites';
 import type { ReaderData } from '$lib/reader/types';
+import { unpackReader } from '$lib/reader/wire';
 import { setSiteKind } from './collation.ts';
 import { registerConjecture } from './conjectures.ts';
 import { publishEdition } from './publish.ts';
@@ -76,8 +77,9 @@ const mark = (p: Place, kind: 'unreported' | null) =>
 const leaveOut = (p: Place) => mark(p, 'unreported');
 const reportAgain = (p: Place) => mark(p, null);
 
-const reader = (request: ReaderRequest) =>
-  loadReader(db, request.draft ? actor : null, sample.editionSlug, request);
+/** The reader's data as the page has it once it has unpacked what it was sent. */
+const reader = async (request: ReaderRequest) =>
+  unpackReader(await loadReader(db, request.draft ? actor : null, sample.editionSlug, request));
 
 /** What a reader's page prints for a segment, as the page works it out from its data. */
 function printed(data: ReaderData, segmentId: string): string[] {

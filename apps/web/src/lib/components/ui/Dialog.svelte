@@ -43,11 +43,12 @@
     <Dialog.Overlay class="fixed inset-0 z-50 bg-ink/30 animate-fade-in" />
     <Dialog.Content
       class={[
-        'fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-line bg-surface p-6 font-sans shadow-pop outline-none animate-rise-in',
+        // Never taller than the window: the title and the buttons stay, and what is between them scrolls.
+        'fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-line bg-surface p-6 font-sans shadow-pop outline-none animate-rise-in',
         sizes[size],
       ]}
     >
-      <div class="flex items-start justify-between gap-4">
+      <div class="flex shrink-0 items-start justify-between gap-4">
         <div class="min-w-0">
           <Dialog.Title class="text-base font-semibold text-ink">{title}</Dialog.Title>
           {#if description}
@@ -63,10 +64,12 @@
         </Dialog.Close>
       </div>
       {#if children}
-        <div class="mt-4 text-sm text-ink">{@render children()}</div>
+        <div class="-mx-1 mt-4 min-h-0 overflow-y-auto px-1 pb-1 text-sm text-ink">
+          {@render children()}
+        </div>
       {/if}
       {#if footer}
-        <div class="mt-6 flex flex-wrap justify-end gap-2">{@render footer()}</div>
+        <div class="mt-6 flex shrink-0 flex-wrap justify-end gap-2">{@render footer()}</div>
       {/if}
     </Dialog.Content>
   </Dialog.Portal>
