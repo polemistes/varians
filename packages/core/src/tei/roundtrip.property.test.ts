@@ -343,9 +343,7 @@ describe('TEI round trip (random)', () => {
   });
 
   // The streams as they come, with nothing left out, do not all come back. Each
-  // kind that does not has a pinned case below. Counterexample from the first
-  // run (shrunk): the stream `t5:ἣ+`, a word joined to a next one that is not
-  // there (the stretch ends).
+  // kind that does not has a pinned case below.
   it.fails('gives back the same items apart from ids, with every word written as <w>', () => {
     runProperty('tei: round trip with words', property(true));
   });
@@ -354,12 +352,19 @@ describe('TEI round trip (random)', () => {
     runProperty('tei: round trip as plain text', property(false));
   });
 
-  // A word joined to the next, with nothing after it, loses the join. The join
-  // is written on the break that follows (`<lb break="no"/>`), and there is
-  // none. A transcript that ends in a divided word (one page of a text) holds
-  // exactly this.
-  it.fails('a join at the end of the stretch is kept', () => {
+  // A word joined to the next, with nothing after it, is a transcript that ends
+  // in a divided word (one page of a text). The join is written on the break that
+  // follows (`<lb break="no"/>`), so the export puts one at the end, and the import
+  // does not make a line of it. A line break that does stand there is written
+  // as a second one.
+  it('a join at the end of the stretch is kept', () => {
     property(true).check({ stream: spec('a+'), words: true });
+    property(true).check({ stream: spec('a b+'), words: true });
+    property(false).check({ stream: spec('a b+'), words: false });
+  });
+  it('a join before a line break at the end of the stretch is kept', () => {
+    property(true).check({ stream: spec('a+ /'), words: true });
+    property(false).check({ stream: spec('a b+ /'), words: false });
   });
 
   // A `space` mark (a vacat inside a word) at the start or the end of a word
@@ -401,7 +406,7 @@ describe('TEI round trip (random)', () => {
   it.fails('two directly joined tokens stay two tokens in the plain text form', () => {
     property(false).check({ stream: spec('a+ b'), words: false });
   });
-  it.fails('the start of a segment on the second of two joined tokens stays there', () => {
+  it('the start of a segment on the second of two joined tokens stays there', () => {
     property(true).check({ stream: spec('a+ b@s1'), words: true });
   });
 

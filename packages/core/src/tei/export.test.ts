@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { exportTranscriptionTei, handRefFor, markupToken } from './export.ts';
+import type { Item } from '../stream/items.ts';
+import {
+  exportTranscriptionTei,
+  handRefFor,
+  markupToken,
+  type TranscriptionExport,
+} from './export.ts';
 import { exportInput } from './fixtures.ts';
 import { importTei } from './import.ts';
 import { parseXml } from './xml.ts';
@@ -96,6 +102,23 @@ describe('exportTranscriptionTei', () => {
       '<msName>P</msName>',
     );
     expect(xml).not.toContain('<msName>');
+  });
+
+  it('ends a text that ends in a divided word with the break that divides a word', () => {
+    const items = (...list: Item[]): TranscriptionExport => ({
+      stream: { items: list },
+      title: 'T',
+      words: true,
+    });
+    const a: Item = { kind: 'token', id: 'a', form: 'ἄνδ', joinNext: true };
+    const line: Item = { kind: 'break', id: 'l', type: 'line' };
+    expect(exportTranscriptionTei(items(a))).toContain(
+      '<w xml:id="w-a">ἄνδ</w><lb break="no"/></ab>',
+    );
+    // With a line break of its own after it, a second break says so.
+    expect(exportTranscriptionTei(items(a, line))).toContain(
+      '<w xml:id="w-a">ἄνδ</w><lb break="no"/>\n      <lb/></ab>',
+    );
   });
 
   it('writes plain text without w elements or regularizations when not asked for them', () => {

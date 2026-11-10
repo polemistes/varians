@@ -445,6 +445,16 @@ function body(input: TranscriptionExport): string {
       separator = ' ';
     }
   });
+  // A word divided with nothing after it is told by a break that divides a word. When a line break
+  // stands there already, a second one is its own, so that the first is not taken for the join alone.
+  const last = items.at(-1);
+  if (last?.kind === 'token' && last.joinNext === true)
+    out += breakXml({ kind: 'break', id: '', type: 'line' }, true, pagesById);
+  else if (last?.kind === 'break' && last.type === 'line') {
+    const before = items.at(-2);
+    if (before?.kind === 'token' && before.joinNext === true)
+      out += '\n      ' + breakXml({ kind: 'break', id: '', type: 'line' }, false, pagesById);
+  }
   return `${out}</${block}>`;
 }
 

@@ -450,12 +450,16 @@ class Importer {
   private readonly divParts: AddressPart[] = [];
   private readonly milestones = new Map<string, string>();
   private pending: AddressPart[][] = [];
+  /** Starts met after a word that is not yet a token: they wait for the item that follows it. */
+  private deferred: AddressPart[][] = [];
   private pendingMarks: Mark[] = [];
   private readonly frames: Frame[] = [];
   private builder = new TokenBuilder();
   private wordDepth = 0;
   private expanDepth = 0;
   private afterWord = false;
+  /** The line break made by a break that divides a word (`break="no"`), until something after it confirms it. */
+  private joinBreak: Break | null = null;
   /** Inside what the source's editor supplied, in the transcript of a carrier: objects met there are the editor's too. */
   private suppliedDepth = 0;
   /** The gap last made from supplied words, which the next supplied word joins. */
@@ -480,6 +484,8 @@ class Importer {
   /** Flush the last token and collect the warnings. */
   finish(): void {
     this.flush(false);
+    // A break that only said the last word is divided, with nothing after it, is not a line of its own.
+    if (this.joinBreak !== null && this.items.at(-1) === this.joinBreak) this.items.pop();
     if (this.unknown.size > 0) {
       this.warnings.push(
         `Unknown elements were kept as text: ${[...this.unknown].sort().join(', ')}.`,
@@ -660,7 +666,11 @@ class Importer {
       unit: unit === '' ? null : unit,
       n: value,
     }));
-    this.addPending([...this.divParts, ...parts]);
+    const start = [...this.divParts, ...parts];
+    // After a word that is closed but not yet made a token the start is the next token's: it would else
+    // be given to the word, which is made when the next one begins.
+    if (this.afterWord && this.builder.length > 0) this.deferred.push(start);
+    else this.addPending(start);
   }
 
   private word(element: XmlElement): void {
@@ -938,16 +948,20 @@ class Importer {
   private lineBreak(join = false, label?: string, rend?: string): void {
     this.flush(join);
     const last = this.items.at(-1);
+    // A break just after a break that divides a word is the line's own break.
+    this.joinBreak = null;
     if (!last || last.kind === 'break') return;
     const brk: Break = { kind: 'break', id: this.ids(), type: 'line' };
     if (label !== undefined) brk.label = label;
     if (rend !== undefined) brk.rend = rend;
     this.items.push(brk);
+    if (join) this.joinBreak = brk;
   }
 
   /** A paragraph break; a line break just before it is upgraded, and no empty line is made after another break. */
   private paragraphBreak(): void {
     this.flush(false);
+    this.joinBreak = null;
     const last = this.items.at(-1);
     if (!last) return;
     if (last.kind === 'break') {
@@ -1086,6 +1100,8 @@ class Importer {
   private resetBuilder(): void {
     this.builder = new TokenBuilder();
     for (const frame of this.frames) this.builder.ranges.push({ frame, from: 0, to: null });
+    for (const start of this.deferred) this.addPending(start);
+    this.deferred = [];
   }
 
   private joinLastToken(): void {

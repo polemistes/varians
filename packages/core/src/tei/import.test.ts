@@ -354,6 +354,33 @@ describe('importTei: tokens and marks', () => {
     ]);
   });
 
+  it('joins the last word to a next one that is not there by a break that divides a word, and makes no line of it', () => {
+    const divided = read(`<ab><w>ἄνδ</w> <w>ρα</w><lb break="no"/></ab>`);
+    expect(sketch(divided.stream.items)).toEqual([{ form: 'ἄνδ' }, { form: 'ρα', join: true }]);
+    // A line break that follows is the line's own.
+    const line = read(`<ab><w>ἄνδ</w><lb break="no"/><lb/></ab>`);
+    expect(sketch(line.stream.items)).toEqual([{ form: 'ἄνδ', join: true }, { break: 'line' }]);
+    // And one that something follows stays, as before.
+    const inside = read(`<ab><w>ἄνδ</w><lb break="no"/><w>ρα</w></ab>`);
+    expect(sketch(inside.stream.items)).toEqual([
+      { form: 'ἄνδ', join: true },
+      { break: 'line' },
+      { form: 'ρα' },
+    ]);
+  });
+
+  it('begins a segment at the word after a milestone that stands between two words, not at the one before', () => {
+    const result = read(
+      `<ab><w>ἄνδ</w><milestone unit="segment" n="2"/><w>ρα</w> <milestone unit="segment" n="3"/><w>μοι</w></ab>`,
+    );
+    expect(sketch(result.stream.items)).toEqual([
+      { form: 'ἄνδ', join: true },
+      { form: 'ρα' },
+      { form: 'μοι' },
+    ]);
+    expect(result.segmentStarts.map((start) => start.itemIndex)).toEqual([1, 2]);
+  });
+
   it('reads a correction and a regularization as the read form, and a space between words', () => {
     const result = read(
       `<ab><choice><sic>θεος</sic><corr>θεὸς</corr></choice> πρ<choice><orig>ο</orig><reg>ω</reg></choice>τος <space quantity="2" unit="character"/> x</ab>`,
