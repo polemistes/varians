@@ -53,12 +53,22 @@ function siteOver(
   const siglumOf = new Map<string, string>(Object.entries(collation.sigla ?? {}));
   for (const site of collation.sites)
     for (const r of site.readings) r.textIds.forEach((id, k) => siglumOf.set(id, r.sigla[k]!));
-  // Every text present in the columns the base units occupy.
+  // A text that reads otherwise somewhere within these words does not have them: its own places say what it has.
+  const departing = new Set<string>();
+  for (const site of collation.sites) {
+    const overlaps =
+      site.baseTo > site.baseFrom
+        ? site.baseFrom < to && from < site.baseTo
+        : from < site.baseFrom && site.baseFrom < to;
+    if (!overlaps) continue;
+    for (const r of site.readings) if (!r.base) for (const id of r.textIds) departing.add(id);
+  }
+  // Every other text present in the columns the base units occupy.
   for (const column of collation.columns) {
     const baseCell = column.cells.get(collation.baseId);
     if (!baseCell || baseCell.unitIndex < from || baseCell.unitIndex >= to) continue;
     for (const [textId] of column.cells) {
-      if (!textIds.includes(textId)) textIds.push(textId);
+      if (!textIds.includes(textId) && !departing.has(textId)) textIds.push(textId);
     }
   }
   if (!textIds.includes(collation.baseId)) textIds.unshift(collation.baseId);

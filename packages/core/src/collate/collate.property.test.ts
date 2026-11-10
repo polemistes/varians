@@ -347,9 +347,9 @@ describe('collation: every word is accounted for, places nested and in order (ra
   });
 
   // The case at which the places once overlapped: B transposes `a` and `b`
-  // (with a word added before), and A leaves `a` out. A's omission is a place
-  // of its own within B's, and B does not stand in it.
-  it('a small variant inside a wide one is a place of its own, without the witness of the wide one', () => {
+  // (with a word added before), and A leaves `a` out. B's reading in words is
+  // one place, in which A is accounted for over the whole stretch.
+  it('a reading in words accounts for every witness over its whole stretch', () => {
     const c: TextsCase = {
       base: ['a', 'b'],
       witnesses: [
@@ -359,13 +359,22 @@ describe('collation: every word is accounted for, places nested and in order (ra
     };
     placesAreNestedAndInOrder(c);
     reportedOnce(c);
-    const { collation } = run(c);
-    expect(
-      collation.sites.map(
-        (s) =>
-          `[${s.baseFrom},${s.baseTo}) ${s.readings.map((r) => `${r.text || 'om.'} ${r.sigla.join(' ')}`).join(' | ')}`,
-      ),
-    ).toEqual(['[0,1) a ed. | om. A', '[0,2) a b ed. A | c b a B']);
+    expect(show(run(c).collation)).toEqual(['[0,2) a b ed. | b A | c b a B']);
+  });
+
+  // An omission swallows nothing: what another witness reads otherwise inside
+  // the stretch is a place of its own, in which the omitting witness does not stand.
+  it('a small variant inside an omission is a place of its own, without the omitting witness', () => {
+    const c: TextsCase = {
+      base: ['a', 'b', 'c', 'd'],
+      witnesses: [
+        { siglum: 'A', words: ['a', 'd'], present: true },
+        { siglum: 'B', words: ['a', 'x', 'c', 'd'], present: true },
+      ],
+    };
+    placesAreNestedAndInOrder(c);
+    reportedOnce(c);
+    expect(show(run(c).collation)).toEqual(['[1,2) b ed. | x B', '[1,3) b c ed. B | om. A']);
   });
 });
 
@@ -439,6 +448,13 @@ describe('collation: the order of the witnesses does not matter (random)', () =>
     }
   });
 });
+
+function show(collation: Collation): string[] {
+  return collation.sites.map(
+    (s) =>
+      `[${s.baseFrom},${s.baseTo}) ${s.readings.map((r) => `${r.text || 'om.'} ${r.sigla.join(' ')}`).join(' | ')}`,
+  );
+}
 
 function words(siglum: string, list: string[]): TextsCase['witnesses'][number] {
   return { siglum, words: list, present: true };

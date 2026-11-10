@@ -6,7 +6,12 @@
    * the names of proposers as names. The order of the parts is that of
    * formatEntry, so the page reads as the plain text does.
    */
-  import type { ApparatusConventions, ApparatusEntry, ApparatusVariant } from '@varians/core';
+  import {
+    adoptedNote,
+    type ApparatusConventions,
+    type ApparatusEntry,
+    type ApparatusVariant,
+  } from '@varians/core';
   import { reader as r } from '$lib/strings/reader';
 
   interface Props {
@@ -39,18 +44,26 @@
   );
   /** Whether anything stands before the readings; an addition with nothing to name opens with its reading. */
   const head = $derived(
-    entry.lemma !== '' || Boolean(entry.adopted) || (lemmaSource?.length ?? 0) > 0,
+    entry.lemma !== '' ||
+      Boolean(entry.adopted) ||
+      (lemmaSource?.length ?? 0) > 0 ||
+      (entry.support?.length ?? 0) > 0,
   );
 </script>
 
 <span class={['entry', layout === 'stacked' && 'entry-stacked']} data-site={siteKey} dir="auto">
   {#if showLabel}<b class="entry-label">{entry.label}</b>{'\u00a0'}{/if}{#if entry.lemma}<span
       class="lemma">{entry.lemma}</span
-    >{/if}{#if entry.adopted}{' '}<span class="name">{entry.adopted.name}</span
-    >{#if entry.adopted.source}{' '}<span class="source">{entry.adopted.source}</span
+    >{/if}{#if entry.adopted}{#if adoptedNote(entry.adopted, conventions)}{' '}<i class="note"
+        >{adoptedNote(entry.adopted, conventions)}</i
+      >{/if}{' '}<span class="name">{entry.adopted.name}</span>{#if entry.adopted.source}{' '}<span
+        class="source">{entry.adopted.source}</span
       >{/if}{:else if lemmaSource && lemmaSource.length}{' '}<span class="sigla"
       >{lemmaSource.join(' ')}</span
-    >{/if}{#each entry.variants as variant, k (k)}{#if k > 0 || head}<span class="colon"
+    >{/if}{#each entry.support ?? [] as source, k (k)}{#if k > 0 || entry.adopted || (lemmaSource && lemmaSource.length)},{/if}{' '}<span
+      class="name">{source.name}</span
+    >{#if source.source}{' '}<span class="source">{source.source}</span
+      >{/if}{/each}{#each entry.variants as variant, k (k)}{#if k > 0 || head}<span class="colon"
         >{' '}:{' '}</span
       >{/if}<span class="variant"
       >{#if conjectureWithText(variant)}<span class="reading">{variant.text}</span>{' '}<span
@@ -63,7 +76,10 @@
           >{/if}{' '}{#if variant.attachment}<span class="name">{variant.attachment.name}</span
           >{#if variant.attachment.source}{' '}<span class="source"
               >{variant.attachment.source}</span
-            >{/if}{:else}<span class="sigla">{variant.sigla.join(' ')}</span>{/if}{/if}</span
+            >{/if}{:else}<span class="sigla">{variant.sigla.join(' ')}</span
+          >{/if}{/if}{#each variant.reported ?? [] as source, n (n)}{#if n > 0 || variant.sigla.length > 0 || variant.attachment},{' '}{/if}<span
+          class="name">{source.name}</span
+        >{#if source.source}{' '}<span class="source">{source.source}</span>{/if}{/each}</span
     >{/each}{#if entry.transposition}{' '}<i class="note">{entry.transposition}</i>{/if}
 </span>
 

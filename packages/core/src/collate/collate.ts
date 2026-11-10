@@ -746,13 +746,20 @@ function projected(a: Aligned, from: number, to: number): number[] {
 }
 
 /**
- * Readings that overlap without one lying within the other (two witnesses
- * transposing stretches that share a word) are one place over all of them:
- * each of their witnesses is given its words over the whole of it. What a
- * witness leaves out or has lost is not drawn in: an omission or a loss
- * keeps its own extent whatever it overlaps. The extents are taken together,
- * all that hang on one another at once, so that the outcome does not depend
- * on the order of the witnesses.
+ * A reading in words over a stretch of the base is a place in which every
+ * witness is accounted for over the whole stretch. So:
+ *
+ * - readings that overlap without one lying within the other (two witnesses
+ *   transposing stretches that share a word) are one place over all of them;
+ * - a witness that departs within such a place (a word spelt otherwise or
+ *   left out inside a stretch another witness transposes) is given its words
+ *   over the whole of it, with what it adds at either end.
+ *
+ * What a witness leaves out or has lost makes no such place: an omission or
+ * a loss keeps its own extent, and what others read otherwise inside it
+ * keeps theirs. A loss inside a reading in words stays a place of its own
+ * too. The extents are taken together, all that hang on one another at
+ * once, so that the outcome does not depend on the order of the witnesses.
  */
 function uniteOverlapping(aligned: Aligned[]): boolean {
   const wide = (atom: Atom) => atom.to > atom.from && !atom.whole && atom.units.length > 0;
@@ -766,20 +773,15 @@ function uniteOverlapping(aligned: Aligned[]): boolean {
     // The groups of extents hanging on one another.
     const group = list.map((_, k) => k);
     const find = (k: number): number => (group[k] === k ? k : (group[k] = find(group[k]!)));
-    let any = false;
     for (let x = 0; x < list.length; x++) {
       for (let y = x + 1; y < list.length; y++) {
         const p = list[x]!;
         const q = list[y]!;
         const overlaps = Math.max(p.from, q.from) < Math.min(p.to, q.to);
         const nested = (p.from <= q.from && q.to <= p.to) || (q.from <= p.from && p.to <= q.to);
-        if (!overlaps || nested) continue;
-        group[find(x)] = find(y);
-        any = true;
+        if (overlaps && !nested) group[find(x)] = find(y);
       }
     }
-    if (!any) return changed;
-    changed = true;
     const united = new Map<number, { from: number; to: number; members: Set<string> }>();
     list.forEach((r, k) => {
       const g = find(k);
@@ -789,26 +791,63 @@ function uniteOverlapping(aligned: Aligned[]): boolean {
       u.members.add(key(r));
       united.set(g, u);
     });
-    for (const { from, to, members } of united.values()) {
-      if (members.size < 2) continue;
+    // The widest first: what lies within a place is drawn into it before it can draw in anything itself.
+    const places = [...united.values()].sort(
+      (p, q) => q.to - q.from - (p.to - p.from) || p.from - q.from,
+    );
+    let any = false;
+    for (const { from, to } of places) {
       for (const a of aligned) {
-        if (!a.atoms.some((atom) => wide(atom) && members.has(key(atom)))) continue;
-        // The witness's departure over the whole, with everything of its own that lies inside.
-        const inside = a.atoms.filter((atom) => !atom.whole && from <= atom.from && atom.to <= to);
-        const units = new Set<number>(projected(a, from, to));
+        if (a.outside) continue;
+        // A witness with a departure over the place, or over a stretch that holds it, stays as it is.
+        if (
+          a.atoms.some(
+            (atom) => atom.whole || (atom.from <= from && to <= atom.to && atom.to > atom.from),
+          )
+        )
+          continue;
+        const touches = (atom: Atom, lo: number, hi: number) =>
+          atom.to > atom.from
+            ? Math.max(atom.from, lo) < Math.min(atom.to, hi)
+            : lo < atom.from && atom.from < hi;
+        // A witness that has lost something here is not drawn in: its loss and what it reads beside it keep their places.
+        if (a.atoms.some((atom) => atom.lacunose && touches(atom, from, to))) continue;
+        const within = a.atoms.filter(
+          (atom) => from <= atom.from && atom.to <= to && touches(atom, from, to),
+        );
+        if (within.length === 0) continue;
+        // What the witness leaves out across an end of the place carries the place's end with it for this witness.
+        let lo = from;
+        let hi = to;
+        for (const atom of a.atoms) {
+          if (!touches(atom, from, to)) continue;
+          lo = Math.min(lo, atom.from);
+          hi = Math.max(hi, atom.to);
+        }
+        if (a.atoms.some((atom) => atom.lacunose && touches(atom, lo, hi))) continue;
+        // With it, the words it adds at either end.
+        const inside = a.atoms.filter(
+          (atom) =>
+            touches(atom, lo, hi) ||
+            (atom.from === atom.to && (atom.from === lo || atom.from === hi)),
+        );
+        const units = new Set<number>(projected(a, lo, hi));
         for (const atom of inside) for (const i of atom.units) units.add(i);
         a.atoms = a.atoms.filter((atom) => !inside.includes(atom));
         a.atoms.push({
-          from,
-          to,
+          from: lo,
+          to: hi,
           units: [...units].sort((x, y) => x - y),
-          lacunose: inside.some((atom) => atom.lacunose),
+          lacunose: false,
           transposed: inside.some((atom) => atom.transposed),
           steps: inside.flatMap((atom) => atom.steps),
         });
         a.atoms.sort((x, y) => x.from - y.from || x.to - y.to);
+        any = true;
       }
     }
+    if (!any) return changed;
+    changed = true;
   }
 }
 
