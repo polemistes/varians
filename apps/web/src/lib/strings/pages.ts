@@ -31,7 +31,7 @@ export const pageStrings = {
 
   card: {
     noImage: 'No image',
-    addImage: 'Add an image',
+    addImage: 'Add an Image…',
     dropHere: 'Drop the image here',
     current: 'The page shown',
     open: (label: string) => `Go to ${label}`,
@@ -61,20 +61,20 @@ export const pageStrings = {
     moveTo: 'Move to Position…',
     addImage: 'Add an Image…',
     replaceImage: 'Replace Image…',
-    removeImage: 'Remove Image',
+    removeImage: 'Remove Image…',
     moveImage: 'Move Image to Another Page…',
     shiftImages: 'Shift Images from Here…',
     rights: 'Rights of the Image…',
-    remove: 'Remove Page',
+    remove: 'Remove Page…',
   },
 
   /** The pages tab of the transcription workbench. */
   panel: {
     loading: 'Loading the pages',
     failed: 'The pages could not be loaded.',
-    retry: 'Try again',
-    addImages: 'Add images',
-    addPages: 'Add pages',
+    retry: 'Try Again',
+    addImages: 'Add Images',
+    addPages: 'Add Pages',
     close: 'Close',
     readOnly: 'Only the maintainers of the witness may change its pages.',
     empty: 'This witness has no pages yet.',
@@ -84,14 +84,14 @@ export const pageStrings = {
   },
 
   add: {
-    title: 'Add pages',
+    title: 'Add Pages',
     labels: 'Labels',
     labelsHint: 'A range such as 1r-12v, 1-20, p. 1-20 or col. i-iv, or a list: 12r, 12v, 13r.',
     placeholder: '1r-12v',
     placeholderRoll: 'col. i-xii',
     preview: (count: number, first: string, last: string) =>
       count === 1 ? `1 page: ${first}` : `${count} pages: ${first} … ${last}`,
-    submit: (count: number) => (count > 1 ? `Add ${count} pages` : 'Add'),
+    submit: (count: number) => (count > 1 ? `Add ${count} Pages` : 'Add'),
     added: (count: number, first: string, last: string) =>
       count === 1 ? `Added the page ${first}.` : `Added ${count} pages, ${first} to ${last}.`,
   },
@@ -108,21 +108,21 @@ export const pageStrings = {
   },
 
   upload: {
-    title: 'Add images',
+    title: 'Add Images',
     hint: (maxMb: number) =>
       `JPEG, PNG, TIFF or WebP, up to ${maxMb} MB each. One page per file, in the order of the file names.`,
     drop: 'Drop images here',
     dropOr: 'Drop images here, or',
-    choose: 'Choose files',
+    choose: 'Choose Files',
     files: 'Images',
     labelsFrom: 'Labels',
     byName: 'From the file names, without their extensions',
     bySequence: (next: string) => `Continuing the pages: ${next}, …`,
     submit: (count: number) =>
-      count === 0 ? 'Upload' : count === 1 ? 'Upload 1 image' : `Upload ${count} images`,
+      count === 0 ? 'Upload' : count === 1 ? 'Upload 1 Image' : `Upload ${count} Images`,
     stop: 'Stop',
-    clear: 'Clear the list',
-    remove: (name: string) => `Leave out ${name}`,
+    clear: 'Clear the List',
+    remove: (name: string) => `Leave Out ${name}`,
     queued: 'Waiting',
     uploading: (percent: number) => `Uploading ${percent}%`,
     processing: 'Making tiles',
@@ -169,7 +169,7 @@ export const pageStrings = {
     sourceInvalid:
       'Enter a full address beginning with http:// or https://, or leave the source empty.',
     missing: 'No rights statement',
-    title: (label: string) => `Rights of the image of ${label}`,
+    title: (label: string) => `Rights of the Image of ${label}`,
     submit: 'Save',
     saved: (label: string) => `The rights of the image of ${label} have been saved.`,
     noImage: (label: string) => `${label} has no image.`,
@@ -177,8 +177,8 @@ export const pageStrings = {
 
   /** Giving one page an image, with its rights. */
   image: {
-    addTitle: (label: string) => `An image for ${label}`,
-    replaceTitle: (label: string) => `Replace the image of ${label}`,
+    addTitle: (label: string) => `An Image for ${label}`,
+    replaceTitle: (label: string) => `Replace the Image of ${label}`,
     file: 'Image',
     submit: 'Upload',
   },
@@ -203,7 +203,7 @@ export const pageStrings = {
   },
 
   moveImage: {
-    title: (label: string) => `Move the image of ${label}`,
+    title: (label: string) => `Move the Image of ${label}`,
     description:
       'The image goes to the page chosen. If that page has an image, the two change places.',
     target: 'To the page',
@@ -211,7 +211,7 @@ export const pageStrings = {
     swaps: (label: string) => `${label} has an image: the two images change places.`,
     zones: (n: number, label: string) =>
       `${n === 1 ? 'A zone is' : `${n} zones are`} drawn on ${label}. Zones stay with their page and will be shown on the image that comes to it.`,
-    submit: 'Move image',
+    submit: 'Move Image',
     moved: (from: string, to: string) => `The image of ${from} is now on ${to}.`,
     swapped: (from: string, to: string) => `The images of ${from} and ${to} have changed places.`,
     choose: 'Choose the page the image goes to.',
@@ -221,7 +221,7 @@ export const pageStrings = {
   },
 
   shiftImages: {
-    title: (label: string) => `Shift the images from ${label} on`,
+    title: (label: string) => `Shift the Images from ${label} On`,
     description:
       'For a run of images that began one page too early or too late: every image from this page to the end moves one page.',
     later: 'One page later',
@@ -236,7 +236,7 @@ export const pageStrings = {
     occupied: (before: string) => `${before} has an image of its own; remove or move it first.`,
     nothing: 'No page from here on has an image.',
     zones: 'Zones stay with their pages and will be shown on the images that come to them.',
-    submit: 'Shift images',
+    submit: 'Shift Images',
     shifted: (n: number, added: string | null) =>
       added
         ? `${plural(n, 'image', 'images')} moved one page; ${added} was added at the end.`
@@ -244,12 +244,12 @@ export const pageStrings = {
   },
 
   removeImage: {
-    title: (label: string) => `Remove the image of ${label}?`,
+    title: (label: string) => `Remove the Image of ${label}?`,
     description:
       'The page stays, without an image. An uploaded image is deleted; a IIIF image is only unlinked.',
     zones: (n: number) =>
       `${n === 1 ? 'The zone drawn on it stays' : `The ${n} zones drawn on it stay`} and will be shown on any image that takes its place.`,
-    submit: 'Remove image',
+    submit: 'Remove Image',
     removed: (label: string) => `The image of ${label} has been removed.`,
   },
 
@@ -276,7 +276,7 @@ export const pageStrings = {
       parts.push('This cannot be undone.');
       return parts.join(' ');
     },
-    submit: 'Remove page',
+    submit: 'Remove Page',
     removed: (label: string) => `${label} has been removed.`,
     /** After the removal, when text moved. */
     moved: (label: string, words: number, transcripts: number) =>
@@ -292,8 +292,8 @@ export const pageStrings = {
   },
 
   manifest: {
-    open: 'Import IIIF manifest',
-    title: 'Import a IIIF manifest',
+    open: 'Import IIIF Manifest…',
+    title: 'Import a IIIF Manifest',
     description:
       'Each canvas of the manifest becomes a page with its label, its image shown from the library’s IIIF server.',
     url: 'Manifest URL',
@@ -324,7 +324,7 @@ export const pageStrings = {
     modeReplace: 'Replace them with the canvases',
     modeReplaceHint:
       'Pages that no zone or transcript refers to are removed first, with their uploaded images.',
-    import: (n: number) => (n === 1 ? 'Import 1 canvas' : `Import ${n} canvases`),
+    import: (n: number) => (n === 1 ? 'Import 1 Canvas' : `Import ${n} Canvases`),
     imported: (summary: {
       added: number;
       attached: number;
@@ -368,10 +368,10 @@ export const pageStrings = {
   viewer: {
     title: (label: string) => label,
     of: (n: number, total: number) => `${n} of ${total}`,
-    previous: 'Previous page (Page Up)',
-    next: 'Next page (Page Down)',
+    previous: 'Previous Page (Page Up)',
+    next: 'Next Page (Page Down)',
     loading: 'Loading the viewer',
-    labels: { zoomIn: 'Zoom in', zoomOut: 'Zoom out', fit: 'Fit the page', controls: 'Zoom' },
+    labels: { zoomIn: 'Zoom In', zoomOut: 'Zoom Out', fit: 'Fit the Page', controls: 'Zoom' },
   },
 
   errors: {
