@@ -117,7 +117,7 @@ describe('packSegments and unpackSegments', () => {
   it('prints the same apparatus from what was sent as from the full collation', () => {
     const { segments, texts } = packSegments([one.segment]);
     const back = unpackSegment(segments.s1!, texts, 'E');
-    const conventions = { form: 'positive', latin: true, interpretative: 'separate' } as const;
+    const conventions = { form: 'positive', interpretative: 'separate' } as const;
     const order = ['A', 'B', 'C', 'D', 'E'];
     const printed = (segment: PackableSegment) =>
       entriesBySegment({ s1: { ...segment, attachments: {} } }, conventions, order).get('s1');

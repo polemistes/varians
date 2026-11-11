@@ -198,10 +198,7 @@ describe('variants over whole segments in prose', () => {
 describe('the marks at points between two words', () => {
   const printed = (segments: Record<string, ReturnType<typeof segment>>) => {
     const entries = entryBySite(
-      entriesBySegment(segments, { form: 'positive', latin: true, interpretative: 'separate' }, [
-        'A',
-        'B',
-      ]),
+      entriesBySegment(segments, { form: 'positive', interpretative: 'separate' }, ['A', 'B']),
     );
     return markSites(siteByToken({ segments }), entries, segments);
   };
@@ -273,19 +270,17 @@ describe('entries under the reader settings', () => {
     const ed = text('e', 'ed.', 'ἄειδε θεὰ');
     const same = segment(ed, [text('a', 'A', 'ἄειδε θεὰ'), text('b', 'B', 'ἄειδε θεά')]);
     expect(
-      entriesBySegment(
-        { s1: same },
-        { form: 'positive', latin: true, interpretative: 'separate' },
-        ['A', 'B'],
-      ).get('s1'),
+      entriesBySegment({ s1: same }, { form: 'positive', interpretative: 'separate' }, [
+        'A',
+        'B',
+      ]).get('s1'),
     ).toEqual([]);
     const seg = segment(ed, [text('a', 'A', 'ἄειδε θεὰ'), text('b', 'B', 'ἄειδε θεοί')]);
     const segments = { s1: seg };
-    const shown = entriesBySegment(
-      segments,
-      { form: 'negative', latin: true, interpretative: 'separate' },
-      ['A', 'B'],
-    );
+    const shown = entriesBySegment(segments, { form: 'negative', interpretative: 'separate' }, [
+      'A',
+      'B',
+    ]);
     expect(shown.get('s1')).toHaveLength(1);
     const byKey = entryBySite(shown);
     expect([...byKey.keys()]).toEqual([siteKey('s1', shown.get('s1')![0]!.siteIndex)]);
@@ -327,9 +322,7 @@ describe('markSites', () => {
     expect(seg.collation.sites).toHaveLength(2);
     const segments = { s1: seg };
     const all = entryBySite(
-      entriesBySegment(segments, { form: 'positive', latin: true, interpretative: 'separate' }, [
-        'A',
-      ]),
+      entriesBySegment(segments, { form: 'positive', interpretative: 'separate' }, ['A']),
     );
     expect(all.size).toBe(2);
     const marking = markSites(siteByToken({ segments }), all, segments);
@@ -370,7 +363,6 @@ describe('a minor variant', () => {
   }
   const conventions = {
     form: 'positive' as const,
-    latin: true,
     interpretative: 'separate' as const,
   };
 

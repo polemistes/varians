@@ -10,6 +10,7 @@
  * longer belongs to the work, or now belongs at another path, goes.
  */
 
+import { withoutLatin } from '$lib/edition/conventions';
 import { materialLabel } from '$lib/registry/witness';
 import {
   apparatusEntries,
@@ -1121,7 +1122,7 @@ async function writeEditionFiles(ctx: WorkContext, edition: EditionRow): Promise
       version: shown.edition.version,
       head: await headOf(db, 'edition', edition.id, shownVersion),
       publishedVersion: edition.publishedVersion,
-      conventions: edition.conventions,
+      conventions: withoutLatin(edition.conventions),
       copiedFrom: edition.copiedFrom,
       sources: edition.sources,
       licence: edition.licenceId,

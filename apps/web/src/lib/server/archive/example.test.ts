@@ -124,7 +124,7 @@ describe('the example archive of the format', () => {
     expect(source).not.toBeNull();
     expect(tei).toContain(`<rdg type="reported" wit="#wit-T" source="#${source![1]}">θεά</rdg>`);
     const text = await readFile(path.join(edition, 'edition.txt'), 'utf8');
-    expect(text).toMatch(/1\.4 ἑλώρια A C : ἕλωρα B : ἑλώριον \S+ \(coni\.\)/u);
+    expect(text).toMatch(/1\.4 ἑλώρια A C : ἕλωρα B : ἑλώριον \S+ \(conjectured\)/u);
     expect(text).toContain('Zenodotus');
     expect(text).toContain('θεά T');
   });

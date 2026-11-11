@@ -81,7 +81,7 @@ describe('seedSample', () => {
     // B and C are without line 6 within the stretch they cover: one site over the whole line, which is not in them.
     const six = passages.find((p) => p.segments.some((s) => labelOf[s.segmentId] === '1.6'))!;
     expect(six.collation.absent).toEqual([]);
-    expect(lines).toContain('1.6 ἐξ … ἐρίσαντε A : om. B C');
+    expect(lines).toContain('1.6 ἐξ … ἐρίσαντε A : omitted B C');
     // The cache answers the second time.
     const again = await collateEdition(db, context);
     expect(again.map((p) => p.segments)).toEqual(passages.map((p) => p.segments));

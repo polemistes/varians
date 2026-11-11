@@ -49,7 +49,6 @@ export const edition = {
   apparatusForm: 'Form',
   positive: 'Positive',
   negative: 'Negative',
-  latin: 'Latin abbreviations (om., add., del.)',
   interpretative: 'Interpretative variants',
   interpretativeHint:
     'Accents, breathings, punctuation and word division: the same letters read otherwise.',

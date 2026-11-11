@@ -4,7 +4,7 @@
  * form action.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { newId } from '@varians/core';
+import { formatEntry, newId } from '@varians/core';
 import {
   createDatabase,
   editions,
@@ -64,7 +64,6 @@ const form = (extra: Record<string, string> = {}): Record<string, string> => ({
   lineation: 'verse',
   numberEvery: '5',
   apparatus: 'positive',
-  latin: 'on',
   interpretative: 'separate',
   speakerDisplay: 'margin',
   ...extra,
@@ -135,5 +134,56 @@ describe('the words for the other witnesses and for all of them', () => {
     await run(settingsActions.save, sample.editionSlug, form({ numberEvery: '10' }));
     expect(await conventionsOf()).toMatchObject({ rest: 'cett.', all: 'codd.', numberEvery: 10 });
     await run(settingsActions.save, sample.editionSlug, form({ rest: '', all: '' }));
+  });
+});
+
+describe('an edition stored with the setting for Latin abbreviations, which editions no longer have', () => {
+  /** The row as an edition made before had it. */
+  async function storeLatin(latin: boolean): Promise<void> {
+    const old = { ...(await conventionsOf()), latin };
+    await db.update(editions).set({ conventions: old }).where(eq(editions.id, sample.editionId));
+  }
+  /** What the print apparatus says at 1.6, where two witnesses are without the words the others have. */
+  async function printedAtSix(): Promise<string[]> {
+    const view = await editionView(db, sample.editionId, null, audience);
+    return Object.values(view.segments)
+      .flatMap((p) => p.entries)
+      .filter((e) => e.label === '1.6')
+      .map((e) => formatEntry(e, view.apparatus));
+  }
+
+  it('loads, and prints in English words whatever the stored member says', async () => {
+    for (const latin of [true, false]) {
+      await storeLatin(latin);
+      const view = await editionView(db, sample.editionId, null, audience);
+      expect(view.apparatus).not.toHaveProperty('latin');
+      expect(await printedAtSix()).toEqual(['1.6 ἐξ … ἐρίσαντε A : omitted B C']);
+    }
+  });
+
+  it('saves without error and drops the member, keeping every other convention', async () => {
+    await storeLatin(true);
+    await run(settingsActions.save, sample.editionSlug, form({ rest: 'cett.', all: 'codd.' }));
+    await storeLatin(true);
+    const saved = await run(settingsActions.save, sample.editionSlug, form({ numberEvery: '10' }));
+    expect(saved).toMatchObject({ ok: true });
+    const conventions = await conventionsOf();
+    expect(conventions).not.toHaveProperty('latin');
+    expect(conventions).toMatchObject({
+      apparatus: 'positive',
+      lineation: 'verse',
+      numberEvery: 10,
+      rest: 'cett.',
+      all: 'codd.',
+    });
+    await run(settingsActions.save, sample.editionSlug, form({ rest: '', all: '' }));
+  });
+
+  it('is saved by a page that still sends the setting, which is ignored', async () => {
+    await storeLatin(false);
+    const saved = await run(settingsActions.save, sample.editionSlug, form({ latin: 'on' }));
+    expect(saved).toMatchObject({ ok: true });
+    expect(await conventionsOf()).not.toHaveProperty('latin');
+    expect(await printedAtSix()).toEqual(['1.6 ἐξ … ἐρίσαντε A : omitted B C']);
   });
 });

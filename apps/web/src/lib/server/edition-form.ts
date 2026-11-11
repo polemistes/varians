@@ -17,7 +17,7 @@ import {
 import { and, asc, countDistinct, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import type { ConspectusRow, ConspectusWitness, SuggestedWitness } from '$lib/edition/conspectus';
-import { ALL_WORDS, REST_WORDS, withWords } from '$lib/edition/conventions';
+import { ALL_WORDS, REST_WORDS, withWords, withoutLatin } from '$lib/edition/conventions';
 import { editorNames } from '$lib/edition/editors';
 import { draftsOf, type GroupDraft, type GroupProblem } from '$lib/edition/groups';
 import { edition as s } from '$lib/strings/edition';
@@ -386,7 +386,6 @@ const settingsSchema = nameSchema.extend({
   lineation: z.enum(['verse', 'prose']),
   numberEvery: z.coerce.number().int().min(1).max(100),
   apparatus: z.enum(['positive', 'negative']),
-  latin: z.boolean(),
   interpretative: z.enum(['apparatus', 'separate', 'none']),
   rest: z.enum(['', ...REST_WORDS]),
   all: z.enum(['', ...ALL_WORDS]),
@@ -402,7 +401,8 @@ export type SettingsFields = Pick<
  * The fields of Edition Settings over the edition's conventions as they
  * are: the name, editors, preface, sources, note on rights, and how the
  * text and the print apparatus are laid out. A form that does not carry the
- * words for the other witnesses and for all of them leaves them.
+ * words for the other witnesses and for all of them leaves them. A stored
+ * `latin`, which editions made before had, is dropped.
  */
 export function parseSettings(
   form: FormData,
@@ -420,7 +420,6 @@ export function parseSettings(
     lineation: text('lineation') || 'verse',
     numberEvery: text('numberEvery') || '5',
     apparatus: text('apparatus') || 'positive',
-    latin: form.get('latin') === 'on',
     interpretative: text('interpretative') || 'separate',
     rest: text('rest'),
     all: text('all'),
@@ -438,11 +437,10 @@ export function parseSettings(
       rightsNote: data.rightsNote || null,
       conventions: withWords(
         {
-          ...conventions,
+          ...withoutLatin(conventions),
           lineation: data.lineation,
           numberEvery: data.numberEvery,
           apparatus: data.apparatus,
-          latin: data.latin,
           interpretative: data.interpretative,
           speakerDisplay: data.speakerDisplay,
         },

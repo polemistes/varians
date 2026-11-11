@@ -2,7 +2,7 @@
   /**
    * One apparatus entry, from the structured entry the core renders: the
    * label in bold, the lemma in the text's serif, sigla in small sans
-   * capitals, readings separated by a colon, words such as om. in italics,
+   * capitals, readings separated by a colon, words such as "omitted" in italics,
    * the names of proposers as names. The order of the parts is that of
    * formatEntry, so the page reads as the plain text does.
    */
@@ -26,7 +26,7 @@
 
   let { entry, conventions, siteKey, layout = 'inline', showLabel = true }: Props = $props();
 
-  /** A conjecture with words prints its kind after the name, in brackets: "δαῖτα Zenodotus (coni.)". */
+  /** A conjecture with words prints its kind after the name, in brackets: "δαῖτα Zenodotus (conjectured)". */
   function conjectureWithText(variant: ApparatusVariant): boolean {
     return (
       variant.attachment?.kind === 'conjecture' &&
@@ -54,8 +54,8 @@
 <span class={['entry', layout === 'stacked' && 'entry-stacked']} data-site={siteKey} dir="auto">
   {#if showLabel}<b class="entry-label">{entry.label}</b>{'\u00a0'}{/if}{#if entry.lemma}<span
       class="lemma">{entry.lemma}</span
-    >{/if}{#if entry.adopted}{#if adoptedNote(entry.adopted, conventions)}{' '}<i class="note"
-        >{adoptedNote(entry.adopted, conventions)}</i
+    >{/if}{#if entry.adopted}{#if adoptedNote(entry.adopted)}{' '}<i class="note"
+        >{adoptedNote(entry.adopted)}</i
       >{/if}{' '}<span class="name">{entry.adopted.name}</span>{#if entry.adopted.source}{' '}<span
         class="source">{entry.adopted.source}</span
       >{/if}{:else if lemmaSource && lemmaSource.length}{' '}<span class="sigla"

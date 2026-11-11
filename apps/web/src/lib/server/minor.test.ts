@@ -250,7 +250,7 @@ describe('a minor variant', () => {
       expect(opened.siteSegments[site.index]).toEqual([id]);
       const lines = printed(await reader(DRAFT), id);
       expect(lines).toHaveLength(1);
-      expect(lines[0]).toContain('ἄνακτος Quill (coni.)');
+      expect(lines[0]).toContain('ἄνακτος Quill (conjectured)');
 
       await setSiteMinor(db, sample.editionId, id, key, true, userId);
       const at = (sites: Site[]) => sites.find((x) => x.index === site.index)!;

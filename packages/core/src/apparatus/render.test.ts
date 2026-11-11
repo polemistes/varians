@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { applySiteKinds, collate, siteKey, type CollationText } from '../collate/collate.ts';
 import type { Unit } from '../stream/words.ts';
 import {
+  adoptedNote,
   apparatusEntries,
   DEFAULT_CONVENTIONS,
   formatApparatus,
@@ -29,7 +30,7 @@ describe('apparatus', () => {
       text('C', 'C', 'the quick brown red fox'),
     ]);
     const lines = formatApparatus(apparatusEntries(c, '1.1', {}));
-    expect(lines).toEqual(['1.1 brown A C : om. B', '1.1 A B : red add. C']);
+    expect(lines).toEqual(['1.1 brown A C : omitted B', '1.1 A B : red added C']);
   });
 
   it('prints a negative apparatus of different words only', () => {
@@ -39,7 +40,6 @@ describe('apparatus', () => {
     ]);
     const negative = {
       form: 'negative' as const,
-      latin: true,
       interpretative: 'separate' as const,
     };
     expect(formatApparatus(apparatusEntries(c, '1.1', {}, negative), negative)).toEqual([
@@ -69,18 +69,84 @@ describe('apparatus', () => {
       conjectureKind: 'substitution',
     };
     const lines = formatApparatus(apparatusEntries(c, '1.5', { 0: [adopted, other] }));
-    expect(lines).toEqual(['1.5 δαῖτα Zenodotus (Ath. 1.12e) : πᾶσι A B : πάντα Berge (coni.)']);
+    expect(lines).toEqual([
+      '1.5 δαῖτα Zenodotus (Ath. 1.12e) : πᾶσι A B : πάντα Berge (conjectured)',
+    ]);
   });
 
-  it('prints English words when asked', () => {
+  it('says what a reading is in English words, whatever the conventions', () => {
     const c = collate(text('E', 'ed', 'a b c'), [text('B', 'B', 'a c')]);
-    const english = {
-      form: 'positive' as const,
-      latin: false,
-      interpretative: 'separate' as const,
-    };
-    expect(formatApparatus(apparatusEntries(c, '2', {}, english), english)).toEqual([
+    expect(formatApparatus(apparatusEntries(c, '2', {}))).toEqual(['2 b : omitted B']);
+    const negative = { form: 'negative' as const, interpretative: 'separate' as const };
+    expect(formatApparatus(apparatusEntries(c, '2', {}, negative), negative)).toEqual([
       '2 b : omitted B',
+    ]);
+    // Where the edition has no words, the reading is an addition.
+    const added = collate(text('E', 'ed', 'a c'), [text('A', 'A', 'a c'), text('B', 'B', 'a b c')]);
+    expect(formatApparatus(apparatusEntries(added, '3', {}))).toEqual(['3 A : b added B']);
+  });
+
+  it('says what a conjecture does in English words, in brackets after a reading that has words', () => {
+    const c = collate(text('E', 'ed', 'a b c'), [text('A', 'A', 'a x c')]);
+    const conjecture = (
+      conjectureKind: NonNullable<Attachment['conjectureKind']>,
+      text: string,
+      name: string,
+    ): Attachment => ({ kind: 'conjecture', id: name, conjectureKind, text, name });
+    const print = (...attachments: Attachment[]) =>
+      formatApparatus(apparatusEntries(c, '2', { 0: attachments }));
+    expect(print(conjecture('substitution', 'y', 'Berge'))).toEqual([
+      '2 b : x A : y Berge (conjectured)',
+    ]);
+    expect(print(conjecture('supplement', 'd', 'Meineke'))).toEqual([
+      '2 b : x A : d Meineke (supplied)',
+    ]);
+    expect(print(conjecture('transposition', 'c b', 'Bentley'))).toEqual([
+      '2 b : x A : c b Bentley (transposed)',
+    ]);
+    // Where it has no words, the word stands before the name.
+    expect(print(conjecture('deletion', '', 'Hermann'))).toEqual(['2 b : x A : deleted Hermann']);
+    expect(print(conjecture('lacuna', '', 'Hermann'))).toEqual([
+      '2 b : x A : posits a lacuna Hermann',
+    ]);
+    // A source that is only reported to have nothing here.
+    expect(print({ kind: 'reported', id: 'r', text: '', name: 'Pellam' })).toEqual([
+      '2 b : x A : omitted Pellam',
+    ]);
+  });
+
+  it('says what an adopted conjecture did in English words before its proposer', () => {
+    const c = collate(text('E', 'ed', 'a b c'), [text('A', 'A', 'a x c')]);
+    const adopted = (conjectureKind: NonNullable<Attachment['conjectureKind']>): Attachment => ({
+      kind: 'conjecture',
+      id: 'c',
+      conjectureKind,
+      text: '',
+      name: 'Hermann',
+      adopted: true,
+    });
+    const print = (kind: NonNullable<Attachment['conjectureKind']>) =>
+      formatApparatus(apparatusEntries(c, '2', { 0: [adopted(kind)] }));
+    expect(print('supplement')).toEqual(['2 b supplied Hermann : x A']);
+    expect(print('deletion')).toEqual(['2 b deleted Hermann : x A']);
+    expect(print('transposition')).toEqual(['2 b transposed Hermann : x A']);
+    expect(print('lacuna')).toEqual(['2 b posits a lacuna Hermann : x A']);
+    expect(print('substitution')).toEqual(['2 b Hermann : x A']);
+    expect(adoptedNote({})).toBe('');
+  });
+
+  it('says how many witnesses have a word of the place elsewhere, in words', () => {
+    const words = 'a b c d e f g h i j';
+    const c = collate(text('E', 'ed', words), [
+      text('A', 'A', words),
+      text('B', 'B', 'b c d e f g h i j a'),
+      text('C', 'C', 'b c d e f g h i x j a'),
+    ]);
+    const entries = apparatusEntries(c, '1', {});
+    expect(entries.map((e) => e.transposition)).toEqual([
+      'transposed 2',
+      undefined,
+      'transposed 2',
     ]);
   });
 });
@@ -100,11 +166,11 @@ describe('second states of a witness', () => {
       collation,
       '1.1',
       {},
-      { form: 'positive', latin: true, interpretative: 'separate' },
+      { form: 'positive', interpretative: 'separate' },
       ['A', 'A v.l.', 'B'],
     );
     const lines = entries.map((e) =>
-      formatEntry(e, { form: 'positive', latin: true, interpretative: 'separate' }),
+      formatEntry(e, { form: 'positive', interpretative: 'separate' }),
     );
     expect(lines.join(' | ')).toContain('A v.l.');
     expect(lines.every((l) => !/\bA A v\.l\./u.test(l))).toBe(true);
@@ -173,17 +239,17 @@ describe('a whole segment a witness lacks', () => {
     units: [{ text: '', tokenIds: [], gap: { kind: 'object', id: `${id}-gap`, type: 'gap' } }],
   });
 
-  it('prints "om." with the first and last word for a long segment, the whole lemma for a short one', () => {
+  it('prints "omitted" with the first and last word for a long segment, the whole lemma for a short one', () => {
     const long = collate(text('E', 'ed', 'μῆνιν ἄειδε θεὰ Πηληϊάδεω Ἀχιλῆος'), [
       text('A', 'A', 'μῆνιν ἄειδε θεὰ Πηληϊάδεω Ἀχιλῆος'),
       { ...text('B', 'B', ''), present: true },
       text('C', 'C', 'μῆνιν ἄειδε θεὰ Πηληϊάδεω Ἀχιλῆος'),
     ]);
     expect(formatApparatus(apparatusEntries(long, '1.1', {}))).toEqual([
-      '1.1 μῆνιν … Ἀχιλῆος A C : om. B',
+      '1.1 μῆνιν … Ἀχιλῆος A C : omitted B',
     ]);
     const short = collate(text('E', 'ed', 'a b c'), [{ ...text('B', 'B', ''), present: true }]);
-    expect(formatApparatus(apparatusEntries(short, '2', {}))).toEqual(['2 a b c : om. B']);
+    expect(formatApparatus(apparatusEntries(short, '2', {}))).toEqual(['2 a b c : omitted B']);
   });
 
   it('says nothing of a loss: a lost passage is no entry, and a witness that has lost the words is not named', () => {
@@ -218,7 +284,7 @@ describe('a whole segment a witness lacks', () => {
     ]);
     // The place over the whole line first, as it stands first in the text.
     expect(formatApparatus(apparatusEntries(c, '5', {}))).toEqual([
-      '5 a … d A : om. B',
+      '5 a … d A : omitted B',
       '5 b : x A',
     ]);
   });
@@ -302,7 +368,7 @@ describe('how the witnesses are named', () => {
       text('B', 'B', 'the quick red fox runs'),
     ]);
     expect(print(c, { ...negative, rest: 'cett.' })).toEqual([
-      '1 quick red fox : om. R',
+      '1 quick red fox : omitted R',
       '1 fox : dog G V H',
     ]);
   });
@@ -329,7 +395,7 @@ describe('the order and extent of entries', () => {
     ]);
     expect(formatApparatus(apparatusEntries(c, '1', {}, negative), negative)).toEqual([
       '1 the : a D',
-      '1 quick … jumps : om. B',
+      '1 quick … jumps : omitted B',
       '1 brown : red C',
     ]);
   });
