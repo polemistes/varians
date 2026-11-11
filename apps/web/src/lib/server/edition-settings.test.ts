@@ -1,7 +1,7 @@
 /**
- * What the edition editor's forms do to an edition's apparatus conventions:
- * the words for the other witnesses and for all of them (the settings), and
- * the family sigla (the conspectus), through the page's own form actions.
+ * What Edition Settings does to an edition's apparatus conventions: the
+ * words for the other witnesses and for all of them, through the page's own
+ * form action.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newId } from '@varians/core';
@@ -17,7 +17,7 @@ import {
 import { eq, inArray } from 'drizzle-orm';
 import type pg from 'pg';
 import type { CurrentUser } from '$lib/types';
-import { actions } from '../../routes/(app)/editions/[slug]/edit/+page.server';
+import { actions as settingsActions } from '../../routes/(app)/editions/[slug]/settings/+page.server';
 import { editionView, type Audience } from './reader.ts';
 import { seedSample, type SampleResult } from './seed/sample.ts';
 
@@ -105,7 +105,7 @@ describe('the words for the other witnesses and for all of them', () => {
 
   it('are saved by the settings and read back by the view', async () => {
     const saved = await run(
-      actions.settings,
+      settingsActions.save,
       sample.editionSlug,
       form({ rest: 'rell.', all: 'codd.' }),
     );
@@ -117,8 +117,8 @@ describe('the words for the other witnesses and for all of them', () => {
   });
 
   it('go back to none, which stores nothing', async () => {
-    await run(actions.settings, sample.editionSlug, form({ rest: 'cett.', all: 'codd.' }));
-    await run(actions.settings, sample.editionSlug, form({ rest: '', all: '' }));
+    await run(settingsActions.save, sample.editionSlug, form({ rest: 'cett.', all: 'codd.' }));
+    await run(settingsActions.save, sample.editionSlug, form({ rest: '', all: '' }));
     const conventions = await conventionsOf();
     expect('rest' in conventions).toBe(false);
     expect('all' in conventions).toBe(false);
@@ -128,12 +128,12 @@ describe('the words for the other witnesses and for all of them', () => {
   });
 
   it('are refused when they are none of the offered words, and a form without them leaves them', async () => {
-    await run(actions.settings, sample.editionSlug, form({ rest: 'cett.', all: 'codd.' }));
-    const refused = await run(actions.settings, sample.editionSlug, form({ rest: 'ceteri' }));
+    await run(settingsActions.save, sample.editionSlug, form({ rest: 'cett.', all: 'codd.' }));
+    const refused = await run(settingsActions.save, sample.editionSlug, form({ rest: 'ceteri' }));
     expect(refused.status).toBe(400);
     expect(await conventionsOf()).toMatchObject({ rest: 'cett.', all: 'codd.' });
-    await run(actions.settings, sample.editionSlug, form({ numberEvery: '10' }));
+    await run(settingsActions.save, sample.editionSlug, form({ numberEvery: '10' }));
     expect(await conventionsOf()).toMatchObject({ rest: 'cett.', all: 'codd.', numberEvery: 10 });
-    await run(actions.settings, sample.editionSlug, form({ rest: '', all: '' }));
+    await run(settingsActions.save, sample.editionSlug, form({ rest: '', all: '' }));
   });
 });
