@@ -182,7 +182,7 @@ describe('publishing and conjectures', () => {
       .flatMap((p) => p.entries)
       .filter((e) => e.label === '1.6');
     expect(six.map((e) => formatEntry(e, view.apparatus))).toEqual([
-      '1.6 ἐξ … ἐρίσαντε A : omitted B C',
+      '1.6 ἐξ … ἐρίσαντε A : not in B C',
     ]);
     // A published version records the sigla, the versions of the witnesses and the marks on its places, and no conventions: they are the edition's.
     const [moment] = await db.select().from(moments).where(eq(moments.id, published.momentId));

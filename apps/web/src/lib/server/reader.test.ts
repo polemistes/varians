@@ -104,7 +104,7 @@ describe('editionView', () => {
     expect(six.segments.map((s) => s.label)).toEqual(expect.arrayContaining(['1.5', '1.6', '1.7']));
     expect(six.absent).toEqual([]);
     expect(at('1.6').map((e) => formatEntry(e, view.apparatus))).toEqual([
-      '1.6 ἐξ … ἐρίσαντε A : omitted B C',
+      '1.6 ἐξ … ἐρίσαντε A : not in B C',
     ]);
     expect(at('1.4').some((e) => e.variants.some((v) => v.attachment?.name === 'Berge'))).toBe(
       true,

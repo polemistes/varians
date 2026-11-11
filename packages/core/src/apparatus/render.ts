@@ -127,7 +127,8 @@ export interface ApparatusVariant {
  * "all the witnesses" are its conventions' (`rest`, `all`), not these.
  */
 const words = {
-  omitted: 'omitted',
+  /** A reading without words: they are not in the witnesses, which says nothing of a loss or of an omission. */
+  notIn: 'not in',
   added: 'added',
   deleted: 'deleted',
   conjectured: 'conjectured',
@@ -197,7 +198,7 @@ export function apparatusEntries(
               (v) =>
                 v.attachment?.kind !== 'conjecture' &&
                 sameWords(v.text, attachment.text) &&
-                (v.text !== '' || v.note === words.omitted),
+                (v.text !== '' || v.note === words.notIn),
             )
           : undefined;
       if (same) (same.reported ??= []).push(attachment);
@@ -367,7 +368,7 @@ function renderReading(
 ): ApparatusVariant {
   const sigla = sortSigla(printedSigla(reading), siglaOrder);
   const variant: ApparatusVariant = { text: trimPunctuation(reading.text), sigla };
-  if (reading.omission) variant.note = words.omitted;
+  if (reading.omission) variant.note = words.notIn;
   else if (base && base.text === '') variant.note = words.added;
   return variant;
 }
@@ -378,8 +379,8 @@ function renderAttachment(attachment: Attachment): ApparatusVariant {
     sigla: [attachment.name + (attachment.source ? ` ${attachment.source}` : '')],
     attachment,
   };
-  // A source reported to have nothing here leaves the words out.
-  if (attachment.kind === 'reported' && attachment.text === '') variant.note = words.omitted;
+  // A source reported to have nothing here: the words are not in it.
+  if (attachment.kind === 'reported' && attachment.text === '') variant.note = words.notIn;
   if (attachment.kind === 'conjecture') {
     switch (attachment.conjectureKind) {
       case 'deletion':

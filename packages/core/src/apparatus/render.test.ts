@@ -30,7 +30,7 @@ describe('apparatus', () => {
       text('C', 'C', 'the quick brown red fox'),
     ]);
     const lines = formatApparatus(apparatusEntries(c, '1.1', {}));
-    expect(lines).toEqual(['1.1 brown A C : omitted B', '1.1 A B : red added C']);
+    expect(lines).toEqual(['1.1 brown A C : not in B', '1.1 A B : red added C']);
   });
 
   it('prints a negative apparatus of different words only', () => {
@@ -76,10 +76,10 @@ describe('apparatus', () => {
 
   it('says what a reading is in English words, whatever the conventions', () => {
     const c = collate(text('E', 'ed', 'a b c'), [text('B', 'B', 'a c')]);
-    expect(formatApparatus(apparatusEntries(c, '2', {}))).toEqual(['2 b : omitted B']);
+    expect(formatApparatus(apparatusEntries(c, '2', {}))).toEqual(['2 b : not in B']);
     const negative = { form: 'negative' as const, interpretative: 'separate' as const };
     expect(formatApparatus(apparatusEntries(c, '2', {}, negative), negative)).toEqual([
-      '2 b : omitted B',
+      '2 b : not in B',
     ]);
     // Where the edition has no words, the reading is an addition.
     const added = collate(text('E', 'ed', 'a c'), [text('A', 'A', 'a c'), text('B', 'B', 'a b c')]);
@@ -109,10 +109,22 @@ describe('apparatus', () => {
     expect(print(conjecture('lacuna', '', 'Hermann'))).toEqual([
       '2 b : x A : posits a lacuna Hermann',
     ]);
-    // A source that is only reported to have nothing here.
+    // A source that is only reported to have nothing here says the words are not in it, as a witness without them does; a conjecture that deletes is a scholar's act and is "deleted".
     expect(print({ kind: 'reported', id: 'r', text: '', name: 'Pellam' })).toEqual([
-      '2 b : x A : omitted Pellam',
+      '2 b : x A : not in Pellam',
     ]);
+    // Where a witness is without the words too, the source stands with its row.
+    const without = collate(text('E', 'ed', 'a b c'), [
+      text('A', 'A', 'a b c'),
+      text('B', 'B', 'a c'),
+    ]);
+    expect(
+      formatApparatus(
+        apparatusEntries(without, '2', {
+          0: [{ kind: 'reported', id: 'r', text: '', name: 'Pellam' }],
+        }),
+      ),
+    ).toEqual(['2 b A : not in B, Pellam']);
   });
 
   it('says what an adopted conjecture did in English words before its proposer', () => {
@@ -239,17 +251,17 @@ describe('a whole segment a witness lacks', () => {
     units: [{ text: '', tokenIds: [], gap: { kind: 'object', id: `${id}-gap`, type: 'gap' } }],
   });
 
-  it('prints "omitted" with the first and last word for a long segment, the whole lemma for a short one', () => {
+  it('prints "not in" with the first and last word for a long segment, the whole lemma for a short one', () => {
     const long = collate(text('E', 'ed', 'μῆνιν ἄειδε θεὰ Πηληϊάδεω Ἀχιλῆος'), [
       text('A', 'A', 'μῆνιν ἄειδε θεὰ Πηληϊάδεω Ἀχιλῆος'),
       { ...text('B', 'B', ''), present: true },
       text('C', 'C', 'μῆνιν ἄειδε θεὰ Πηληϊάδεω Ἀχιλῆος'),
     ]);
     expect(formatApparatus(apparatusEntries(long, '1.1', {}))).toEqual([
-      '1.1 μῆνιν … Ἀχιλῆος A C : omitted B',
+      '1.1 μῆνιν … Ἀχιλῆος A C : not in B',
     ]);
     const short = collate(text('E', 'ed', 'a b c'), [{ ...text('B', 'B', ''), present: true }]);
-    expect(formatApparatus(apparatusEntries(short, '2', {}))).toEqual(['2 a b c : omitted B']);
+    expect(formatApparatus(apparatusEntries(short, '2', {}))).toEqual(['2 a b c : not in B']);
   });
 
   it('says nothing of a loss: a lost passage is no entry, and a witness that has lost the words is not named', () => {
@@ -284,7 +296,7 @@ describe('a whole segment a witness lacks', () => {
     ]);
     // The place over the whole line first, as it stands first in the text.
     expect(formatApparatus(apparatusEntries(c, '5', {}))).toEqual([
-      '5 a … d A : omitted B',
+      '5 a … d A : not in B',
       '5 b : x A',
     ]);
   });
@@ -368,7 +380,7 @@ describe('how the witnesses are named', () => {
       text('B', 'B', 'the quick red fox runs'),
     ]);
     expect(print(c, { ...negative, rest: 'cett.' })).toEqual([
-      '1 quick red fox : omitted R',
+      '1 quick red fox : not in R',
       '1 fox : dog G V H',
     ]);
   });
@@ -395,7 +407,7 @@ describe('the order and extent of entries', () => {
     ]);
     expect(formatApparatus(apparatusEntries(c, '1', {}, negative), negative)).toEqual([
       '1 the : a D',
-      '1 quick … jumps : omitted B',
+      '1 quick … jumps : not in B',
       '1 brown : red C',
     ]);
   });

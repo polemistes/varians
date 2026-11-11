@@ -213,7 +213,7 @@ describe('archive round trip', () => {
     expect(written.conventions).not.toHaveProperty('latin');
     expect(written.conventions).toMatchObject({ apparatus: 'positive', numberEvery: 5 });
     // The plain text says its words in English, as the print apparatus does.
-    expect(await readFile(path.join(editionDir, 'edition.txt'), 'utf8')).toContain(': omitted B C');
+    expect(await readFile(path.join(editionDir, 'edition.txt'), 'utf8')).toContain(': not in B C');
     // An archive written before the setting went has it: it is read, and the member is not kept.
     written.conventions.latin = false;
     await writeFile(file, JSON.stringify(written));

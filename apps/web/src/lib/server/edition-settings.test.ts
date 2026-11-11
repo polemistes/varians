@@ -157,7 +157,7 @@ describe('an edition stored with the setting for Latin abbreviations, which edit
       await storeLatin(latin);
       const view = await editionView(db, sample.editionId, null, audience);
       expect(view.apparatus).not.toHaveProperty('latin');
-      expect(await printedAtSix()).toEqual(['1.6 ἐξ … ἐρίσαντε A : omitted B C']);
+      expect(await printedAtSix()).toEqual(['1.6 ἐξ … ἐρίσαντε A : not in B C']);
     }
   });
 
@@ -184,6 +184,6 @@ describe('an edition stored with the setting for Latin abbreviations, which edit
     const saved = await run(settingsActions.save, sample.editionSlug, form({ latin: 'on' }));
     expect(saved).toMatchObject({ ok: true });
     expect(await conventionsOf()).not.toHaveProperty('latin');
-    expect(await printedAtSix()).toEqual(['1.6 ἐξ … ἐρίσαντε A : omitted B C']);
+    expect(await printedAtSix()).toEqual(['1.6 ἐξ … ἐρίσαντε A : not in B C']);
   });
 });

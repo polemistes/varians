@@ -148,7 +148,7 @@ The **stream** is the text, `{ "items": [...] }`, an ordered list of items, each
 - `siteKinds`: the editors' word on a place of variation, `{ segmentId, siteKey, kind?, minor?, personId, setAt }`, one entry for a place, present while either word is said. `kind` is `textual` or `interpretative`, the place's kind over what its letters say, when the editor set one; without it the place has the kind its letters say. `minor: true` says that the editor judges the place minor: the print apparatus and the plain-text export leave it out as a printed edition would, a reader sees it when they ask for all the variants, and the TEI writes it with `subtype="minor"`. The two words are independent. An archive written before `minor` existed may give `kind: "unreported"` for a place left out of the apparatus; a reader takes it as `minor: true`, with no kind.
 - `content`: the edition's text as a stream (section 4.8), every token with its `source`.
 
-An edition has no setting for Latin abbreviations: the print apparatus, and so `edition.txt`, says what it says of a reading in English words (omitted, added, deleted, conjectured, supplied, transposed). Archives and packages written before 11 November 2026 may give `latin`, a boolean, in `conventions`; a reader ignores it, and a writer does not write it.
+An edition has no setting for Latin abbreviations: the print apparatus, and so `edition.txt`, says what it says of a reading in English words (not in, added, deleted, conjectured, supplied, transposed). Archives and packages written before 11 November 2026 may give `latin`, a boolean, in `conventions`; a reader ignores it, and a writer does not write it.
 
 ### 4.11 `alignment.json`
 

@@ -2,7 +2,7 @@
   /**
    * One apparatus entry, from the structured entry the core renders: the
    * label in bold, the lemma in the text's serif, sigla in small sans
-   * capitals, readings separated by a colon, words such as "omitted" in italics,
+   * capitals, readings separated by a colon, words such as "not in" in italics,
    * the names of proposers as names. The order of the parts is that of
    * formatEntry, so the page reads as the plain text does.
    */
