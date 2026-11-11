@@ -130,6 +130,8 @@ describe('a minor variant', () => {
     expect(words.length).toBeGreaterThan(0);
     const id = p.segment.segmentId;
     const before = await reader(DRAFT);
+    // The page is not given the edition's print conventions: nothing on screen is made from them.
+    expect(before).not.toHaveProperty('apparatus');
     expect(printed(before, id)).toEqual(['1.8 ξυνέηκε A C : συνέηκε B']);
     expect(words.every((w) => markedWords(before).has(w))).toBe(true);
 
