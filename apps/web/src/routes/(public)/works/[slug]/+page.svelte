@@ -4,7 +4,7 @@
   import Pencil from '@lucide/svelte/icons/pencil';
   import Plus from '@lucide/svelte/icons/plus';
   import { PageFrame } from '$lib/components/shell';
-  import { Badge, Button, buttonClasses } from '$lib/components/ui';
+  import { Button, buttonClasses } from '$lib/components/ui';
   import {
     ConfirmDialog,
     ConjectureForm,
@@ -204,12 +204,6 @@
           <dt class="text-ink-muted">{t.identifiers.label}</dt>
           <dd class="text-ink"><IdentifierList identifiers={work.identifiers} /></dd>
         {/if}
-        <dt class="text-ink-muted">{t.work.visibilityLabel}</dt>
-        <dd>
-          <Badge tone={work.visibility === 'private' ? 'warning' : 'neutral'}
-            >{work.visibility === 'private' ? t.work.private : t.work.public}</Badge
-          >
-        </dd>
         <dt class="text-ink-muted">{t.work.maintainersLabel}</dt>
         <dd class="text-ink">
           {data.maintainers.length

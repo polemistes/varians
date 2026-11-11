@@ -38,8 +38,6 @@ export interface Grants {
   collaboratingEditionIds: Set<string>;
   /** Transcriptions named in the conspectus of those editions and owned by the edition's owner. */
   transcriptionIds: Set<string>;
-  /** Works of those editions: a private work is visible to the collaborators of its editions. */
-  workIds: Set<string>;
   maintainedWorkIds: Set<string>;
   maintainedWitnessIds: Set<string>;
 }
@@ -49,7 +47,6 @@ export function emptyGrants(): Grants {
     editions: new Map(),
     collaboratingEditionIds: new Set(),
     transcriptionIds: new Set(),
-    workIds: new Set(),
     maintainedWorkIds: new Set(),
     maintainedWitnessIds: new Set(),
   };
@@ -121,31 +118,6 @@ export function canMergeEntries(
   const maintains = (entry: typeof from) =>
     entry.createdBy === user.id || has(entry.maintainerIds, user.id);
   return maintains(from) && maintains(into);
-}
-
-/**
- * A public work is visible to everyone. A private work is visible to its
- * creator, its maintainers, site editors, and the owners and collaborators
- * of editions of it.
- */
-export function canViewWork(
-  user: Maybe<Actor>,
-  work: Pick<Work, 'id' | 'visibility' | 'createdBy'>,
-  maintainerIds: Iterable<string>,
-  grants: Grants,
-): boolean {
-  if (work.visibility === 'public') return true;
-  if (!user) return false;
-  return (
-    canMaintainWork(user, work, maintainerIds) ||
-    grants.maintainedWorkIds.has(work.id) ||
-    grants.workIds.has(work.id)
-  );
-}
-
-/** Witnesses are registry entries without a private state. */
-export function canViewWitness(_user: Maybe<Actor>, _witness: Pick<Witness, 'id'>): boolean {
-  return true;
 }
 
 // Transcriptions
@@ -258,7 +230,7 @@ export function canEditConjecture(
   );
 }
 
-/** Published records are seen by everyone who sees the work (checked by the caller); drafts by those who may edit them. */
+/** Published records are seen by everyone; drafts by those who may edit them. */
 export function canViewConjecture(
   user: Maybe<Actor>,
   conjecture: Pick<Conjecture, 'id' | 'ownerId' | 'workId' | 'visibility'>,
@@ -300,7 +272,6 @@ export function foldGrants(rows: GrantRow[]): Grants {
       case 'collab':
         if (row.b && row.c) {
           grants.editions.set(row.a, { workId: row.b, ownerId: row.c });
-          grants.workIds.add(row.b);
           if (row.kind === 'collab') grants.collaboratingEditionIds.add(row.a);
         }
         break;

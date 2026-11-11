@@ -4,8 +4,7 @@
  * witnesses share it.
  */
 import { error, fail, redirect } from '@sveltejs/kit';
-import { canMergeEntries, grantsFor, isAdministrator, type Actor } from './authz';
-import { seesWork } from './edition-access.ts';
+import { canMergeEntries, isAdministrator, type Actor } from './authz';
 import { requireUser } from './guards';
 import { searchRegistry, witnessBySlug, workBySlug } from './registry';
 import {
@@ -94,9 +93,8 @@ export async function loadMergePage(
   const user = requireUser(locals, url.pathname + url.search);
   const entry = await mergeable(locals, kind, slug, user);
   const q = (url.searchParams.get('q') ?? '').trim().slice(0, 200);
-  const grants = await grantsFor(locals.db, user);
   const hits = q
-    ? (await searchRegistry(locals.db, kind, q, user, grants))
+    ? (await searchRegistry(locals.db, kind, q))
         .filter((hit) => hit.id !== entry.id)
         .map((hit) => ({ id: hit.id, slug: hit.slug, title: hit.title, detail: hitDetail(hit) }))
     : [];
@@ -106,15 +104,11 @@ export async function loadMergePage(
   if (intoSlug) {
     const into = await entryBySlug(locals, kind, intoSlug);
     if (into && into.id !== entry.id) {
-      // A private work the user may not see is not offered by the search, and not previewed either.
-      const visible = kind === 'witness' || (await seesWork(locals.db, user, into.id));
-      if (visible) {
-        preview =
-          kind === 'work'
-            ? await previewWorkMerge(locals.db, entry.id, into.id)
-            : await previewWitnessMerge(locals.db, entry.id, into.id);
-        allowed = canMergeEntries(user, entry, into);
-      }
+      preview =
+        kind === 'work'
+          ? await previewWorkMerge(locals.db, entry.id, into.id)
+          : await previewWitnessMerge(locals.db, entry.id, into.id);
+      allowed = canMergeEntries(user, entry, into);
     }
   }
   return {

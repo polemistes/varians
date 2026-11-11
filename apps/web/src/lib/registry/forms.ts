@@ -75,7 +75,6 @@ const workSchema = z.object({
     .regex(LANGUAGE_CODE, t.work.languageInvalid),
   identifier: optional(300, t.work.tooLong),
   description: optional(5000, t.work.tooLong),
-  visibility: z.enum(['public', 'private']).default('public'),
 });
 
 export type WorkForm = z.infer<typeof workSchema> & { identifiers: CanonicalIdentifier[] };
@@ -88,12 +87,11 @@ const WORK_FIELDS = [
   'identifier',
   'identifiers',
   'description',
-  'visibility',
 ] as const;
 
 /**
  * Title, author, language (a listed code, or Other with a code typed), the
- * primary identifier, the further identifiers, description, visibility.
+ * primary identifier, the further identifiers, description.
  */
 export function parseWorkForm(form: FormData): Parsed<WorkForm> {
   const choice = field(form, 'language');
@@ -107,7 +105,6 @@ export function parseWorkForm(form: FormData): Parsed<WorkForm> {
       language,
       identifier: field(form, 'identifier'),
       description: field(form, 'description'),
-      visibility: field(form, 'visibility') || 'public',
     },
     values(form, WORK_FIELDS),
   );

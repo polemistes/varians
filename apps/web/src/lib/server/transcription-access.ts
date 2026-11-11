@@ -16,8 +16,6 @@ import {
   grantsFor,
   type Actor,
 } from './authz';
-import { seesWork } from './edition-access';
-import { worksOfTranscription } from './transcription-works';
 
 export interface TranscriptionAccess {
   transcription: Transcription;
@@ -40,20 +38,10 @@ export async function loadTranscriptionAccess(
   if (!row) return null;
   const grants = await grantsFor(db, user);
   const canEdit = canEditTranscription(user, row.transcription, grants);
-  let canView = canViewTranscription(user, row.transcription, grants);
-  // A transcription of a private work, chosen for it or with text assigned to it, is seen only by those who see the work.
-  if (canView && !canEdit) {
-    for (const workId of await worksOfTranscription(db, row.transcription.id)) {
-      if (!(await seesWork(db, user, workId))) {
-        canView = false;
-        break;
-      }
-    }
-  }
   return {
     transcription: row.transcription,
     witness: row.witness,
-    canView,
+    canView: canViewTranscription(user, row.transcription, grants),
     canEdit,
     canDelete: canDeleteTranscription(user, row.transcription),
   };

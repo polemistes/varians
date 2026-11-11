@@ -83,7 +83,6 @@ import {
   canGrantOnEdition,
   canMaintainWitness,
   canMaintainWork,
-  canViewWork,
   grantsFor,
   isAdministrator,
   isSiteEditor,
@@ -447,8 +446,6 @@ interface Guard {
   ): Promise<boolean>;
   /** Whether the account may change who collaborates on an edition. */
   grantsOn(editionId: string): Promise<boolean>;
-  /** Whether the account sees a work here. */
-  seesWork(workId: string): Promise<boolean>;
   /** The account, for a restricted import. */
   actorId: string | null;
 }
@@ -463,7 +460,6 @@ async function guardFor(db: Database, actor: Actor | undefined): Promise<Guard> 
       editsDocument: yes,
       ownsOrEdits: yes,
       grantsOn: yes,
-      seesWork: yes,
       actorId: null,
     };
   }
@@ -477,20 +473,6 @@ async function guardFor(db: Database, actor: Actor | undefined): Promise<Guard> 
         .from(editions)
         .where(eq(editions.id, editionId));
       return !e || canGrantOnEdition(actor, e);
-    },
-    async seesWork(workId) {
-      const [w] = await db
-        .select({ id: works.id, visibility: works.visibility, createdBy: works.createdBy })
-        .from(works)
-        .where(eq(works.id, workId));
-      if (!w) return true;
-      const maintainers = (
-        await db
-          .select({ userId: workMaintainers.userId })
-          .from(workMaintainers)
-          .where(eq(workMaintainers.workId, workId))
-      ).map((m) => m.userId);
-      return canViewWork(actor, w, maintainers, grants);
     },
     async maintainsWork(workId) {
       const [w] = await db
@@ -608,11 +590,7 @@ async function importInto(
     ...(rawWork.identifier ? [{ scheme: 'cts' as const, value: rawWork.identifier }] : []),
   ];
   const guard = await guardFor(db, options.actor);
-  let workMatch = await resolveRegistry(db, 'work', rawWork.id, workIdentifiers);
-  // A work here that the account may not see is never matched, nor written to.
-  if (workMatch.by && !(await guard.seesWork(workMatch.id))) workMatch = { id: rawWork.id };
-  if (!(await guard.seesWork(workMatch.id)))
-    throw new ImportRefused('The package names a work that is kept here and not open to you.');
+  const workMatch = await resolveRegistry(db, 'work', rawWork.id, workIdentifiers);
   if (workMatch.id !== rawWork.id) {
     reader.remap(rawWork.id, workMatch.id);
     matches.push({
@@ -709,7 +687,6 @@ async function importInto(
     identifier: string | null;
     identifiers?: unknown;
     description: string | null;
-    visibility: 'public' | 'private';
     scheme: {
       id: string;
       name: string;
@@ -832,7 +809,6 @@ async function importInto(
         description: work.description,
         schemeId: work.scheme.id,
         profile: work.profile,
-        visibility: work.visibility,
         createdBy: work.createdBy === undefined ? userId : owner(ctx, work.createdBy),
         createdAt: when(work.createdAt),
       })
@@ -848,7 +824,6 @@ async function importInto(
           description: work.description,
           schemeId: work.scheme.id,
           profile: work.profile,
-          visibility: work.visibility,
         },
       });
   }

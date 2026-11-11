@@ -26,7 +26,6 @@ export { default as SchemeEditor } from './SchemeEditor.svelte';
 export { default as Section } from './Section.svelte';
 export { default as SegmentLabels } from './SegmentLabels.svelte';
 export { default as TranscriptionList } from './TranscriptionList.svelte';
-export { default as VisibilityField } from './VisibilityField.svelte';
 export { default as WitnessFields } from './WitnessFields.svelte';
 export { default as WitnessList } from './WitnessList.svelte';
 export { default as WitnessPicker } from './WitnessPicker.svelte';

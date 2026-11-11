@@ -20,8 +20,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
       bibliography: { items: [], total: 0 },
     };
   const [editions, works, witnesses, bibliography] = await Promise.all([
-    searchPublishedEditions(locals.db, locals.user, q),
-    searchWorks(locals.db, locals.user, q),
+    searchPublishedEditions(locals.db, q),
+    searchWorks(locals.db, q),
     searchWitnesses(locals.db, q),
     listBibliography(locals.db, { q, limit: BIBLIOGRAPHY_LIMIT }),
   ]);

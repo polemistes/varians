@@ -7,7 +7,7 @@
  */
 import { error, redirect } from '@sveltejs/kit';
 import { Readable } from 'node:stream';
-import { canViewWork, grantsFor, isAdministrator } from '$lib/server/authz';
+import { isAdministrator } from '$lib/server/authz';
 import { loginUrl } from '$lib/server/guards';
 import { limits } from '$lib/server/rate-limit';
 import { archiveZip, workBySlug } from '$lib/server/registry';
@@ -20,8 +20,6 @@ export const GET: RequestHandler = async ({ locals, params }) => {
   if (!user) redirect(303, loginUrl(`/works/${params.slug}`));
   const record = await workBySlug(locals.db, params.slug);
   if (!record) error(404, t.work.notFound);
-  const grants = await grantsFor(locals.db, user);
-  if (!canViewWork(user, record.work, record.maintainerIds, grants)) error(404, t.work.notFound);
   // Writing an archive is heavy work: a few downloads an hour per person.
   if (!limits.archiveByUser.take(user.id)) error(429, t.work.archiveTooOften);
 

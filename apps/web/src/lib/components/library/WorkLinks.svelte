@@ -1,7 +1,6 @@
 <script lang="ts">
-  /** Works as a list of links: author over title, a badge for a private work, and optionally a verb at the end of each row. */
+  /** Works as a list of links: author over title, and optionally a verb at the end of each row. */
   import ArrowRight from '@lucide/svelte/icons/arrow-right';
-  import { Badge } from '$lib/components/ui';
   import { site } from '$lib/strings/site';
 
   interface Item {
@@ -9,7 +8,6 @@
     slug: string;
     title: string;
     author: string | null;
-    visibility?: 'public' | 'private';
   }
 
   interface Props {
@@ -33,7 +31,6 @@
           >
           <span class="font-serif text-lg text-ink group-hover:text-accent">{work.title}</span>
         </span>
-        {#if work.visibility === 'private'}<Badge>{site.works.private}</Badge>{/if}
         {#if action}
           <span
             class="flex shrink-0 items-center gap-1 font-sans text-sm text-ink-soft group-hover:text-accent"

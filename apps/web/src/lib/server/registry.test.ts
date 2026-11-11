@@ -33,7 +33,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import pg from 'pg';
-import { grantsFor, type Actor } from './authz';
+import type { Actor } from './authz';
 import { replaceContent } from './documents/service.ts';
 import {
   addMaintainer,
@@ -222,7 +222,7 @@ describe('works', () => {
   it('creates a work from a preset with its scheme, profile and creator as maintainer', async () => {
     const row = await work('Odyssey');
     expect(row.slug).toBe(`odyssey-${tag}`);
-    expect(row.visibility).toBe('public');
+    expect(row).not.toHaveProperty('visibility');
     expect(row.profile.language).toBe('grc');
     const { scheme } = await schemeOfWork(db, row.id);
     expect(scheme.levels).toEqual(SCHEME_PRESETS[0]!.scheme.levels);
@@ -657,8 +657,8 @@ describe('the archive as a download', () => {
 });
 
 describe('search', () => {
-  it('finds works by title or author among those the user may see', async () => {
-    const open = await createWork(
+  it('finds works by title or author, for everyone alike', async () => {
+    const first = await createWork(
       db,
       {
         title: `Searchable ${tag} Alpha`,
@@ -668,83 +668,47 @@ describe('search', () => {
       },
       alice.id,
     );
-    const closed = await createWork(
+    const second = await createWork(
       db,
       {
         title: `Searchable ${tag} Beta`,
         language: 'la',
-        visibility: 'private',
         scheme: { preset: SCHEME_PRESETS[1]!.name },
       },
       alice.id,
     );
-    created.works.push(open.id, closed.id);
-    const forBob = await searchRegistry(
-      db,
-      'work',
-      `searchable ${tag}`,
-      bob,
-      await grantsFor(db, bob),
+    created.works.push(first.id, second.id);
+    expect((await searchRegistry(db, 'work', `searchable ${tag}`)).map((h) => h.id).sort()).toEqual(
+      [first.id, second.id].sort(),
     );
-    expect(forBob.map((h) => h.id)).toEqual([open.id]);
-    const forAlice = await searchRegistry(
-      db,
-      'work',
-      `Searchable ${tag}`,
-      alice,
-      await grantsFor(db, alice),
-    );
-    expect(forAlice.map((h) => h.id)).toEqual([open.id, closed.id]);
-    const forAdmin = await searchRegistry(
-      db,
-      'work',
-      `Searchable ${tag}`,
-      admin,
-      await grantsFor(db, admin),
-    );
-    expect(forAdmin).toHaveLength(2);
-    const byAuthor = await searchRegistry(
-      db,
-      'work',
-      `auctor${tag}`,
-      null,
-      await grantsFor(db, null),
-    );
+    const byAuthor = await searchRegistry(db, 'work', `auctor${tag}`);
     expect(byAuthor).toEqual([
       {
-        id: open.id,
-        slug: open.slug,
-        title: open.title,
+        id: first.id,
+        slug: first.slug,
+        title: first.title,
         author: `Auctor${tag}`,
         siglum: null,
         shelfmark: null,
         settlement: null,
       },
     ]);
-    expect(await searchRegistry(db, 'work', '   ', alice, await grantsFor(db, alice))).toEqual([]);
-    expect(
-      (await searchRegistry(db, 'work', `${tag}%Alpha`, alice, await grantsFor(db, alice))).length,
-    ).toBe(0);
+    expect(await searchRegistry(db, 'work', '   ')).toEqual([]);
+    expect((await searchRegistry(db, 'work', `${tag}%Alpha`)).length).toBe(0);
   });
 
   it('finds witnesses by name, siglum or shelfmark, eight at most', async () => {
     for (let i = 0; i < SEARCH_LIMIT + 1; i++) await witness(`Many ${i}`);
-    const hits = await searchRegistry(db, 'witness', `many`, alice, await grantsFor(db, alice));
+    const hits = await searchRegistry(db, 'witness', `many`);
     expect(hits.length).toBeLessThanOrEqual(SEARCH_LIMIT);
-    const mine = await searchRegistry(db, 'witness', `${tag}`, alice, await grantsFor(db, alice));
+    const mine = await searchRegistry(db, 'witness', `${tag}`);
     expect(mine).toHaveLength(SEARCH_LIMIT);
     const marked = await witness('Shelved', alice, {
       siglum: `Q${tag}`,
       shelfmark: `Shelf ${tag} 7`,
       settlement: 'Oxford',
     });
-    const byShelfmark = await searchRegistry(
-      db,
-      'witness',
-      `shelf ${tag}`,
-      alice,
-      await grantsFor(db, alice),
-    );
+    const byShelfmark = await searchRegistry(db, 'witness', `shelf ${tag}`);
     expect(byShelfmark).toEqual([
       {
         id: marked.id,
@@ -756,11 +720,7 @@ describe('search', () => {
         settlement: 'Oxford',
       },
     ]);
-    expect(
-      (await searchRegistry(db, 'witness', `q${tag}`, alice, await grantsFor(db, alice))).map(
-        (h) => h.id,
-      ),
-    ).toEqual([marked.id]);
+    expect((await searchRegistry(db, 'witness', `q${tag}`)).map((h) => h.id)).toEqual([marked.id]);
   });
 });
 
@@ -785,42 +745,43 @@ describe('transcriptions of several works, and copies', () => {
       expect((await transcriptionsOfWork(db, w.id)).map((t) => t.id)).toContain(row.id);
   });
 
-  it('hides a transcription with text of a private work from those who may not see that work', async () => {
+  it('shows a published transcription with text of a work someone else registered to everyone, and a draft only to those who may edit it', async () => {
     const open = await work('Open text');
-    const closed = await createWork(
+    const other = await createWork(
       db,
       {
-        title: `Closed text ${tag}`,
+        title: `Other text ${tag}`,
         language: 'grc',
-        visibility: 'private',
         scheme: { preset: SCHEME_PRESETS[0]!.name },
       },
       bob.id,
     );
-    created.works.push(closed.id);
+    created.works.push(other.id);
     const place = await witness('Shared codex');
     const row = await createTranscription(
       db,
       { witnessId: place.id, workIds: [open.id], name: 'Codex' },
       alice.id,
     );
+    await replaceContent(
+      db,
+      'transcription',
+      row.id,
+      alice.id,
+      0,
+      await textOf(other.id, { '1.1': 'some words' }),
+      'test',
+    );
+    created.documents.push(row.id);
+    // A draft: its owner and a site editor see it, nobody else.
+    expect((await loadTranscriptionAccess(db, null, row.id))!.canView).toBe(false);
+    expect((await loadTranscriptionAccess(db, bob, row.id))!.canView).toBe(false);
+    expect((await loadTranscriptionAccess(db, alice, row.id))!.canView).toBe(true);
     await db
       .update(transcriptions)
       .set({ visibility: 'published' })
       .where(eq(transcriptions.id, row.id));
     expect((await loadTranscriptionAccess(db, null, row.id))!.canView).toBe(true);
-    // Text assigned to the private work, though the work chosen is public.
-    await replaceContent(
-      db,
-      'transcription',
-      row.id,
-      bob.id,
-      0,
-      await textOf(closed.id, { '1.1': 'secret words' }),
-      'test',
-    );
-    created.documents.push(row.id);
-    expect((await loadTranscriptionAccess(db, null, row.id))!.canView).toBe(false);
     expect((await loadTranscriptionAccess(db, bob, row.id))!.canView).toBe(true);
   });
 

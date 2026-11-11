@@ -9,6 +9,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   return {
     crumb: { label: site.start.edition.title },
     q,
-    works: await searchWorks(locals.db, locals.user, q),
+    works: await searchWorks(locals.db, q),
   };
 };

@@ -9,7 +9,7 @@ import type { PageServerLoad } from './$types';
  */
 export const load: PageServerLoad = async ({ locals }) => {
   const user = locals.user;
-  const published = await publishedEditions(locals.db, user);
+  const published = await publishedEditions(locals.db);
   if (!user) return { published, recent: null };
   const recent = await recentWork(locals.db, user, await grantsFor(locals.db, user), 4);
   return { published, recent };

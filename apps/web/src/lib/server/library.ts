@@ -6,24 +6,20 @@ import {
   alias,
   and,
   desc,
-  editionCollaborators,
   editions,
   eq,
-  exists,
   ilike,
   inArray,
   ne,
   or,
-  sql,
   transcriptions,
   users,
   witnesses,
-  workMaintainers,
   works,
   type Database,
   type SQL,
 } from '@varians/db';
-import { isSiteEditor, type Actor, type Grants } from './authz';
+import type { Actor, Grants } from './authz';
 import { identifierMatches } from './identifier-search.ts';
 
 export interface EditionRow {
@@ -55,7 +51,6 @@ export interface WorkRow {
   title: string;
   author: string | null;
   language: string;
-  visibility: 'public' | 'private';
   createdByName: string | null;
   createdAt: string;
 }
@@ -165,29 +160,7 @@ async function selectTranscriptions(
   return rows.map(withIso);
 }
 
-/** The works a user may see: public ones, and private ones they created, maintain or reach through an edition. */
-function visibleWorks(user: Actor | null): SQL | undefined {
-  if (isSiteEditor(user)) return undefined;
-  const isPublic = eq(works.visibility, 'public');
-  if (!user) return isPublic;
-  const maintains = exists(
-    sql`(select 1 from ${workMaintainers}
-         where ${workMaintainers.workId} = ${works.id} and ${workMaintainers.userId} = ${user.id})`,
-  );
-  const collaborates = exists(
-    sql`(select 1 from ${editions}
-         left join ${editionCollaborators} on ${editionCollaborators.editionId} = ${editions.id}
-         where ${editions.workId} = ${works.id}
-           and (${editions.ownerId} = ${user.id} or ${editionCollaborators.userId} = ${user.id}))`,
-  );
-  return or(isPublic, eq(works.createdBy, user.id), maintains, collaborates);
-}
-
-export async function searchWorks(
-  db: Database,
-  user: Actor | null,
-  query: string,
-): Promise<WorkRow[]> {
+export async function searchWorks(db: Database, query: string): Promise<WorkRow[]> {
   const creator = alias(users, 'creator');
   const pattern = query ? likePattern(query) : null;
   const matches = pattern
@@ -200,13 +173,12 @@ export async function searchWorks(
       title: works.title,
       author: works.author,
       language: works.language,
-      visibility: works.visibility,
       createdByName: creator.name,
       createdAt: works.createdAt,
     })
     .from(works)
     .leftJoin(creator, eq(creator.id, works.createdBy))
-    .where(and(visibleWorks(user), matches))
+    .where(matches)
     .orderBy(works.author, works.title)
     .limit(LIMIT);
   return rows.map(withIsoCreated);
@@ -244,9 +216,9 @@ export async function searchWitnesses(db: Database, query: string): Promise<Witn
   return rows.map(withIsoCreated);
 }
 
-/** Published editions of the works the user may see: a private work's editions are not listed to others. */
-export function publishedEditions(db: Database, user: Actor | null = null): Promise<EditionRow[]> {
-  return selectEditions(db, and(eq(editions.visibility, 'published'), visibleWorks(user)));
+/** Published editions. A draft is listed only to those who may edit it, on their own pages. */
+export function publishedEditions(db: Database): Promise<EditionRow[]> {
+  return selectEditions(db, eq(editions.visibility, 'published'));
 }
 
 export function editionsOwnedBy(db: Database, userId: string): Promise<EditionRow[]> {
@@ -279,17 +251,13 @@ export async function sharedWith(
   return { editions: sharedEditions, transcriptions: sharedTranscriptions };
 }
 
-/** Published editions the user may see, matching a query on the edition's title, the work's title or its author. */
-export function searchPublishedEditions(
-  db: Database,
-  user: Actor | null,
-  query: string,
-): Promise<EditionRow[]> {
+/** Published editions matching a query on the edition's title, the work's title or its author. */
+export function searchPublishedEditions(db: Database, query: string): Promise<EditionRow[]> {
   const pattern = query.trim() ? likePattern(query) : null;
   const matches = pattern
     ? or(ilike(editions.title, pattern), ilike(works.title, pattern), ilike(works.author, pattern))
     : undefined;
-  return selectEditions(db, and(eq(editions.visibility, 'published'), visibleWorks(user), matches));
+  return selectEditions(db, and(eq(editions.visibility, 'published'), matches));
 }
 
 export type RecentItem =
@@ -326,9 +294,9 @@ export async function loadLibrary(
 ): Promise<Library> {
   const q = query.trim();
   const [worksFound, witnessesFound, published, yours] = await Promise.all([
-    searchWorks(db, user, q),
+    searchWorks(db, q),
     searchWitnesses(db, q),
-    publishedEditions(db, user),
+    publishedEditions(db),
     user
       ? Promise.all([
           editionsOwnedBy(db, user.id),

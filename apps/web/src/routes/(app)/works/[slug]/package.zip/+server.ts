@@ -1,13 +1,11 @@
 /**
- * GET /works/[slug]/package.zip: the work as a package, with
- * what the visitor may see of it: anyone for a public work, the accounts
- * that see it for a private one (by session, or by token for another
- * installation pulling it).
+ * GET /works/[slug]/package.zip: the work as a package, for anyone, with
+ * what the visitor may see of it: the published records, and the drafts
+ * of those who may edit them (by session, or by token for another
+ * installation pulling).
  */
-import { error, redirect } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import { buildPackage } from '$lib/server/archive/package';
-import { canViewWork, grantsFor } from '$lib/server/authz';
-import { loginUrl } from '$lib/server/guards';
 import { PACKAGE_AGENT, packageOrigin, packageResponse } from '$lib/server/package-response';
 import { limits } from '$lib/server/rate-limit';
 import { workBySlug } from '$lib/server/registry';
@@ -19,10 +17,6 @@ export const GET: RequestHandler = async ({ locals, params, url, getClientAddres
   const user = locals.user;
   const record = await workBySlug(locals.db, params.slug);
   if (!record) error(404, t.work.notFound);
-  if (!canViewWork(user, record.work, record.maintainerIds, await grantsFor(locals.db, user))) {
-    if (!user) redirect(303, loginUrl(`/works/${params.slug}`));
-    error(404, t.work.notFound);
-  }
   // Writing a package is heavy work: a few downloads an hour per person or address.
   if (!limits.archiveByUser.take(user?.id ?? `address:${getClientAddress()}`))
     error(429, t.work.archiveTooOften);

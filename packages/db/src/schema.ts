@@ -47,7 +47,6 @@ export const ROLES = ['member', 'editor', 'administrator'] as const;
 export type Role = (typeof ROLES)[number];
 export const VISIBILITIES = ['draft', 'published'] as const;
 export type Visibility = (typeof VISIBILITIES)[number];
-export const WORK_VISIBILITIES = ['public', 'private'] as const;
 /** What a witness's carrier is. The material (papyrus, parchment, paper) and the format (codex, roll) are fields of their own. */
 export const WITNESS_CATEGORIES = [
   'manuscript',
@@ -206,7 +205,6 @@ export const works = pgTable(
       .notNull()
       .references(() => referenceSchemes.id),
     profile: jsonb().$type<NormalizationProfile>().notNull(),
-    visibility: text({ enum: WORK_VISIBILITIES }).notNull().default('public'),
     createdBy: text().references(() => users.id, { onDelete: 'set null' }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

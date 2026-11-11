@@ -4,7 +4,6 @@
  */
 import type { ConjectureKind } from '@varians/db';
 
-export type WorkVisibility = 'public' | 'private';
 export type RecordVisibility = 'draft' | 'published';
 
 /** What a row of an owned record may be used for by the current user. */
@@ -35,13 +34,11 @@ export interface Maintainer {
   isCreator: boolean;
 }
 
-/** A work as a page links to it, with what deciding its visibility needs. */
+/** A work as a page links to it. */
 export interface WorkRef {
   id: string;
   slug: string;
   title: string;
-  visibility: WorkVisibility;
-  createdBy: string | null;
 }
 
 export interface EditionRef {

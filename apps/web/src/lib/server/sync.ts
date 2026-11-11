@@ -106,7 +106,7 @@ async function connectedTranscriptions(db: Database, workId: string) {
     : [];
 }
 
-/** What this installation holds of a work, as a viewer may see it: the documents with their heads. Null when the viewer sees nothing of it. */
+/** What this installation holds of a work, as a viewer may see it: the documents with their heads. Null when there is no such work. */
 export async function syncState(
   db: Database,
   viewer: Actor | null,

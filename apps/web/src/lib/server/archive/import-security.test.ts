@@ -2,8 +2,7 @@
  * What a crafted archive must not do (the review of the import):
  * name a file of the server as an image, a folder outside the archive as a
  * slug, move or rewrite records of others by their ids, publish or grant on
- * someone else's edition, reach a private work, or credit its records to
- * another account.
+ * someone else's edition, or credit its records to another account.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newId } from '@varians/core';
@@ -164,20 +163,28 @@ describe('a crafted archive', () => {
     expect(n!.editionId).toBe(sample.editionId);
   }, 120_000);
 
-  it('cannot reach a private work it may not see', async () => {
+  it('takes a work that an archive calls private as any other work, and no more than any other', async () => {
     await clean();
     const sample = await seedSample(db, owner);
     await publishEdition(db, sample.editionId, owner);
     const dir = await writeArchive(db, sample.workId, path.join(tmp, newId()));
-    await db.update(works).set({ visibility: 'private' }).where(eq(works.id, sample.workId));
-    await expect(importArchive(db, dir, attacker, asAttacker)).rejects.toThrow(/not open to you/);
-    // By its identifier under another id, it is not matched: a new work is made instead.
     const workFile = path.join(dir, 'work.json');
     const work = await json(workFile);
-    work.id = newId();
-    work.slug = 'stolen';
+    // The format no longer has the member; an archive written before it went still may.
+    expect(work).not.toHaveProperty('visibility');
+    work.visibility = 'private';
+    work.title = 'Renamed by the attacker';
     await writeFile(workFile, JSON.stringify(work));
-    const report = await importArchive(db, dir, attacker, { ...asAttacker, dryRun: true });
-    expect(report.matches.filter((m) => m.kind === 'work')).toEqual([]);
+    // The work is here, and the attacker does not maintain it: not refused, and its details are left.
+    const report = await importArchive(db, dir, attacker, asAttacker);
+    expect(report.warnings.join(' ')).toMatch(/maintained by others here/);
+    const [kept] = await db.select().from(works).where(eq(works.id, sample.workId));
+    expect(kept!.title).toBe('Iliad');
+    // Where the work is not here, it is registered, with no trace of a private state.
+    await removeWorkCompletely(db, sample.workId);
+    await importArchive(db, dir, attacker, asAttacker);
+    const [made] = await db.select().from(works).where(eq(works.id, sample.workId));
+    expect(made!.title).toBe('Renamed by the attacker');
+    expect(made).not.toHaveProperty('visibility');
   }, 120_000);
 });

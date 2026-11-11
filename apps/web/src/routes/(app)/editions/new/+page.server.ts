@@ -4,7 +4,7 @@ import { referenceSchemes, segments, workMaintainers, works } from '@varians/db'
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { editorNames } from '$lib/edition/editors';
-import { canViewWork, grantsFor } from '$lib/server/authz';
+import { grantsFor } from '$lib/server/authz';
 import { candidateWitnesses, createEdition } from '$lib/server/editions';
 import { requireUser } from '$lib/server/guards';
 import { edition as s } from '$lib/strings/edition';
@@ -33,8 +33,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const loaded = await loadWork(locals.db, slug);
   if (!loaded) throw error(404, 'No such work');
   const grants = await grantsFor(locals.db, user);
-  if (!canViewWork(user, loaded.work, loaded.maintainerIds, grants))
-    throw error(404, 'No such work');
   const candidates = await candidateWitnesses(locals.db, loaded.work.id, user, grants);
   return {
     crumb: { label: loaded.work.title, href: `/works/${loaded.work.slug}` },
@@ -68,8 +66,6 @@ export const actions: Actions = {
     const loaded = await loadWork(locals.db, slug);
     if (!loaded || !loaded.scheme) throw error(404, 'No such work');
     const grants = await grantsFor(locals.db, user);
-    if (!canViewWork(user, loaded.work, loaded.maintainerIds, grants))
-      throw error(404, 'No such work');
     const form = await request.formData();
     const text = (name: string) => String(form.get(name) ?? '');
     const editors = editorNames(form.getAll('editors'));

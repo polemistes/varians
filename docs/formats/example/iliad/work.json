@@ -8,7 +8,6 @@
   "language": "grc",
   "identifier": "urn:cts:greekLit:tlg0012.tlg001",
   "description": null,
-  "visibility": "public",
   "scheme": {
     "id": "01M74M31P9G40EMWX2DZ2GV1K9",
     "name": "Book and line (epic)",

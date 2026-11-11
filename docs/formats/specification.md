@@ -82,12 +82,13 @@ Each file below lists its members. The schema is the full statement; types are g
 | `identifier`             | The work's primary CTS URN, or null.                                                                                                                                                   |
 | `identifiers`            | Further canonical identifiers: a list of `{ scheme, value }` (section 7).                                                                                                              |
 | `description`            | Free text, or null.                                                                                                                                                                    |
-| `visibility`             | `public` or `private`.                                                                                                                                                                 |
 | `scheme`                 | The reference scheme: `{ id, name, levels, createdBy, createdAt }`, where `levels` is a list of `{ key, label, type, separator }` and `type` is `number`, `roman`, `letter` or `text`. |
 | `profile`                | The normalization profile: `language`, `fold` (the folding options: what collation ignores), `lowercaseCapitals`, `finalSigma`, `expandAbbreviations`, `latinUV`.                      |
 | `maintainers`            | The accounts that maintain the work here: `{ id, name, since }`.                                                                                                                       |
 | `licence`                | The licence of the records in this archive that have no licence of their own (conjectures, reported readings, notes), as an SPDX identifier (section 10).                              |
 | `createdBy`, `createdAt` | The account that registered the work, and when.                                                                                                                                        |
+
+A work has no visibility: every work is public, and what is not yet public is a transcription, an edition, a conjecture or a reported reading, each with its own `visibility` (`draft` or `published`). Archives and packages written before 11 November 2026 may give `visibility` in `work.json`, `public` or `private`; a reader ignores it and registers the work as public.
 
 ### 4.2 `persons.json`
 
@@ -285,7 +286,7 @@ The CC0 dedication, the Public Domain Mark, the Creative Commons licences and th
 
 ## 11. Sync between installations
 
-An installation exposes, for each public work, `GET <origin>/works/<slug>/sync.json`: `{ "$schema", "formatVersion", "origin", "workId", "licence", "documents": [ { "id", "kind", "head", "version" } ] }`, and the work's package. Another installation compares the heads with its own, downloads the package, and reconciles as section 5.3 says. Private works and drafts answer to a bearer token whose account may see them.
+An installation exposes, for each work, `GET <origin>/works/<slug>/sync.json`: `{ "$schema", "formatVersion", "origin", "workId", "licence", "documents": [ { "id", "kind", "head", "version" } ] }`, and the work's package. Another installation compares the heads with its own, downloads the package, and reconciles as section 5.3 says. The published records answer anyone; drafts answer to a bearer token whose account may see them.
 
 ## 12. Versioning
 

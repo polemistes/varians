@@ -10,7 +10,6 @@ import {
   canViewConjecture,
   canViewEdition,
   canViewTranscription,
-  canViewWork,
   grantsFor,
   type Actor,
   type ConjectureContext,
@@ -54,13 +53,11 @@ import type { Cited, RowRights, SearchHit } from '$lib/registry/types';
 import { registry as t } from '$lib/strings/registry';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 
-/** The work with what authorizing against it needs; 404 for a work the user may not see. */
+/** The work with what authorizing against it needs; 404 when there is no such work. */
 async function access(locals: App.Locals, slug: string) {
   const record = await workBySlug(locals.db, slug);
   if (!record) error(404, t.work.notFound);
   const grants = await grantsFor(locals.db, locals.user);
-  if (!canViewWork(locals.user, record.work, record.maintainerIds, grants))
-    error(404, t.work.notFound);
   const context: ConjectureContext = { workMaintainerIds: record.maintainerIds, grants };
   return { ...record, grants, context };
 }
@@ -160,7 +157,6 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
       identifier: work.identifier,
       identifiers: work.identifiers,
       description: work.description,
-      visibility: work.visibility,
     },
     merged,
     scheme,
