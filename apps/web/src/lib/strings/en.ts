@@ -14,8 +14,8 @@ export const s = {
     library: 'Library',
     account: 'Account',
     admin: 'Administration',
-    importPackage: 'Import…',
-    logIn: 'Log in',
+    importPackage: 'Import',
+    logIn: 'Log In',
     register: 'Register',
     logOut: 'Log Out',
     userMenu: 'Account menu',
@@ -26,14 +26,14 @@ export const s = {
   auth: {
     tooManyAttempts: (minutes: number) =>
       `Too many attempts. Try again in ${minutes === 1 ? 'a minute' : `${minutes} minutes`}.`,
-    logInTitle: 'Log in',
-    registerTitle: 'Create an account',
+    logInTitle: 'Log In',
+    registerTitle: 'Create an Account',
     email: 'Email',
     name: 'Name',
     password: 'Password',
     passwordHint: 'At least 8 characters.',
-    logInAction: 'Log in',
-    registerAction: 'Create account',
+    logInAction: 'Log In',
+    registerAction: 'Create Account',
     noAccount: 'No account yet?',
     haveAccount: 'Already have an account?',
     acceptTerms: 'I accept the',
@@ -48,9 +48,9 @@ export const s = {
     passwordTooLong: 'Use at most 200 characters.',
     nameRequired: 'Enter a name.',
     nameTooLong: 'Use at most 120 characters.',
-    forgotPassword: 'Forgotten your password?',
+    forgotPassword: 'Forgotten Your Password?',
     // Confirming the address.
-    confirmTitle: 'Confirm your address',
+    confirmTitle: 'Confirm Your Address',
     confirmSent: (email: string) =>
       `A link to confirm the address has been sent to ${email}. It is valid for a day; once the address is confirmed, you can log in.`,
     confirmNotSent:
@@ -59,13 +59,13 @@ export const s = {
       'This address has not been confirmed yet. A new link to confirm it has been sent to it.',
     unconfirmed:
       'This address has not been confirmed yet. Open the link in the message sent to it.',
-    confirmedTitle: 'Address confirmed',
+    confirmedTitle: 'Address Confirmed',
     confirmed: 'The address is confirmed.',
     confirmInvalid:
       'This link is no longer valid: a link can be used once, and for a day. Log in to have a new one sent.',
     // Setting a new password.
-    resetTitle: 'New password',
-    resetAction: 'Send link',
+    resetTitle: 'New Password',
+    resetAction: 'Send Link',
     resetSent:
       'If an account has this address, a link to set a new password has been sent to it. The link is valid for an hour.',
     resetWithoutMail:
@@ -73,10 +73,10 @@ export const s = {
     newPassword: 'New password',
     repeatPassword: 'Repeat the new password',
     passwordsDiffer: 'The two passwords differ.',
-    setPassword: 'Set password',
+    setPassword: 'Set Password',
     resetInvalid:
       'This link is no longer valid: a link can be used once, and only for a limited time.',
-    resetAgain: 'Ask for a new link',
+    resetAgain: 'Ask for a New Link',
   },
 
   account: {
@@ -95,7 +95,7 @@ export const s = {
     tokensHint:
       'A token lets another installation of Varians, or a script, read and send packages of the works you may see, as you.',
     tokenName: 'Name of a new token',
-    makeToken: 'Make a token',
+    makeToken: 'Make New Token',
     tokenMade: 'Copy the token now: it is not shown again.',
     revoke: 'Revoke',
     tokenRevoked: 'The token has been revoked.',
@@ -116,7 +116,7 @@ export const s = {
     newPassword: 'New password',
     confirmPassword: 'Repeat the new password',
     save: 'Save',
-    changePassword: 'Change password',
+    changePassword: 'Change Password',
     font: 'Text face',
     fontGaramond: 'EB Garamond',
     fontCardo: 'Cardo',
@@ -138,7 +138,7 @@ export const s = {
     usersTitle: 'Users',
     usersLead:
       'Editors may edit anything but not delete, publish or grant; administrators may do everything.',
-    exportInstallation: 'Export the installation as a package',
+    exportInstallation: 'Export the Installation as a Package',
     user: 'User',
     email: 'Email',
     role: 'Role',
@@ -155,8 +155,10 @@ export const s = {
     roleChanged: (name: string, role: string) => `${name} is now ${role.toLowerCase()}.`,
     noUsers: 'No users yet.',
     password: 'Password',
-    sendResetLink: 'Send reset link',
-    makeResetLink: 'Make reset link',
+    sendResetLink: 'Send Reset Link',
+    makeResetLink: 'Make Reset Link',
+    /** The label of the field that shows the link once made: a field's label is in sentence case, the button's is not. */
+    makeResetLinkLabel: 'Make reset link',
     resetLinkSent: (name: string) => `A link to set a new password has been sent to ${name}.`,
     resetLinkMade: (name: string) =>
       `A link to set a new password for ${name}, valid for a day and for one use. Give it to them by a means you trust.`,
@@ -176,21 +178,21 @@ export const s = {
     required: 'Required',
     optional: 'Optional',
     back: 'Back',
-    backToLibrary: 'Back to the library',
+    backToLibrary: 'Back to the Library',
     nothingHere: 'Nothing here yet.',
     openInNewTab: 'Opens in a new tab',
     invalidForm: 'Check the fields marked below.',
   },
 
   errors: {
-    notFoundTitle: 'Nothing here',
+    notFoundTitle: 'Nothing Here',
     notFoundText: 'The page you asked for does not exist, or it has moved.',
-    forbiddenTitle: 'Not allowed',
+    forbiddenTitle: 'Not Allowed',
     forbiddenText:
       'You are not allowed to see this. If someone shared it with you, ask them to check the grant.',
-    unauthorizedTitle: 'Log in first',
+    unauthorizedTitle: 'Log In First',
     unauthorizedText: 'This page needs an account.',
-    genericTitle: 'Something went wrong',
+    genericTitle: 'Something Went Wrong',
     genericText: 'An unexpected error occurred. Try again, and tell us if it keeps happening.',
     status: (status: number) => `Error ${status}`,
   },

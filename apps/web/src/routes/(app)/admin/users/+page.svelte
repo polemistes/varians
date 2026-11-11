@@ -27,7 +27,7 @@
   {#if madeLink}
     <Notice class="mb-6">
       <p>{s.admin.resetLinkMade(madeLink.name)}</p>
-      <label class="sr-only" for="reset-link">{s.admin.makeResetLink}</label>
+      <label class="sr-only" for="reset-link">{s.admin.makeResetLinkLabel}</label>
       <Input
         id="reset-link"
         class="mt-2 font-mono text-xs"
