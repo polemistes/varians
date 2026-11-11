@@ -17,6 +17,7 @@ import {
   zones,
 } from '@varians/db';
 import { eq, inArray } from 'drizzle-orm';
+import { edition as es } from '../src/lib/strings/edition';
 import { editor as ed } from '../src/lib/strings/editor';
 import { reader as rd } from '../src/lib/strings/reader';
 import { pageStrings as t } from '../src/lib/strings/pages';
@@ -261,23 +262,27 @@ test('names a family by one siglum and the other witnesses by a word, and marks 
   await page.getByRole('button', { name: ed.dialogs.more }).click();
   await page.getByRole('menuitem', { name: ed.workspace.witnessList }).click();
   const sigla = page.getByRole('dialog');
-  await sigla.getByRole('button', { name: ed.dialogs.sigla.addGroup }).click();
-  await sigla.getByLabel(ed.dialogs.sigla.groupSiglum).fill('β');
-  const members = sigla.getByRole('group', { name: ed.dialogs.sigla.groupWitnesses });
+  await sigla.getByRole('button', { name: es.conspectus.addGroup }).click();
+  await sigla.getByLabel(es.conspectus.groupSiglum).fill('β');
+  const members = sigla.getByRole('group', { name: es.conspectus.groupWitnesses });
   await members.getByRole('checkbox', { name: 'B', exact: true }).check();
   await members.getByRole('checkbox', { name: 'C', exact: true }).check();
-  await sigla.getByLabel(ed.dialogs.sigla.groupNote, { exact: true }).fill('consensus codicum BC');
+  await sigla.getByLabel(es.conspectus.groupNote, { exact: true }).fill('consensus codicum BC');
   await sigla.getByRole('button', { name: ed.dialogs.save, exact: true }).click();
   await expect(sigla).toBeHidden({ timeout: 15_000 });
 
-  // The words for the other witnesses and for all of them, in the edition's settings.
+  // The words for the other witnesses and for all of them, on Edition Settings.
   await page.getByRole('button', { name: ed.dialogs.more }).click();
   await page.getByRole('menuitem', { name: ed.workspace.settings }).click();
-  const settings = page.getByRole('dialog');
-  await settings.locator('select[name=rest]').selectOption('cett.');
-  await settings.locator('select[name=all]').selectOption('codd.');
-  await settings.getByRole('button', { name: ed.dialogs.save, exact: true }).click();
-  await expect(settings).toBeHidden({ timeout: 15_000 });
+  await page.waitForURL(/\/editions\/iliad-1-working-edition\/settings$/);
+  await page.waitForLoadState('networkidle');
+  await page.locator('select[name=rest]').selectOption('cett.');
+  await page.locator('select[name=all]').selectOption('codd.');
+  await page.getByRole('button', { name: es.save, exact: true }).click();
+  await expect(page.getByText(es.saved)).toBeVisible({ timeout: 15_000 });
+  // The groups stand on the page as the editor's window saved them.
+  await expect(page.getByLabel(es.conspectus.groupSiglum)).toHaveValue('β');
+  await page.goto('/editions/iliad-1-working-edition/edit');
 
   const { db, pool } = createDatabase(DATABASE_URL);
   const [stored] = await db

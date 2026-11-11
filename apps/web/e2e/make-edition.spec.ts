@@ -18,6 +18,7 @@ import {
 import { eq, inArray } from 'drizzle-orm';
 import { s } from '../src/lib/strings/en';
 import { edition as ed } from '../src/lib/strings/edition';
+import { editor as edr } from '../src/lib/strings/editor';
 import { registry as reg } from '../src/lib/strings/registry';
 
 const DATABASE_URL = 'postgres://varians@127.0.0.1:54329/varians_test';
@@ -186,6 +187,18 @@ test('an edition made from scratch on one page, which stays as Edition Settings'
   await page.getByRole('link', { name: ed.editText }).click();
   await page.waitForURL(/\/editions\/[^/]+\/edit$/);
   await expect(page.locator('.cm-content')).toBeVisible();
+
+  // The editor's Witnesses and Sigla window holds the same conspectus.
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: edr.dialogs.more }).click();
+  await page.getByRole('menuitem', { name: edr.workspace.witnessList }).click();
+  const window = page.getByRole('dialog', { name: edr.dialogs.sigla.title });
+  await expect(
+    window.getByLabel(`${ed.conspectus.siglum}: ${witnessName}`, { exact: true }),
+  ).toHaveValue('R');
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: `${SHOTS}/6-editor-witnesses.png` });
+  await window.getByRole('button', { name: edr.dialogs.cancel }).click();
 
   expect(problems).toEqual([]);
 });
