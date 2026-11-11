@@ -51,6 +51,7 @@ Varians has no users but its maker yet, and the TEI of an edition is changed wit
 **Removed, November 2026**
 
 - A work has no `visibility`: every work is public. `work.json` no longer has the member, the schema no longer describes it, and section 11 no longer speaks of private works. An archive or package that has it (`public` or `private`) is still read, the member ignored and the work registered as public. A transcription, an edition, a conjecture and a reported reading keep their `visibility`, `draft` or `published`. The version stays 2: the member was optional, and a reader ignores what it does not know.
+- An edition's `conventions` has no `latin`: the print apparatus and `edition.txt` always say what they say of a reading in English words (omitted, added, deleted, conjectured, supplied, transposed), and the specification no longer lists the member. An archive or package that has it (`true` or `false`) is still read, the member ignored and not kept. The schema of `edition.json` describes `conventions` as an object without naming its members, so it is as it was. The version stays 2: the member was optional, and a reader ignores what it does not know.
 
 **Clarified, November 2026**
 
