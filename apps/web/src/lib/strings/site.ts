@@ -93,7 +93,7 @@ export const site = {
   import: {
     title: 'Import',
     lead: 'A package or an archive from Varians, from this installation or another. What is already here is brought up to date, never overwritten.',
-    file: 'Package or archive (zip)',
+    file: 'Package or Archive (zip)',
     preview: 'Look at What It Would Do',
     previewing: 'This is what the import would do. Nothing has been changed yet.',
     policy: 'Where the changes made to a text here and in the package cannot be taken together',
@@ -151,9 +151,9 @@ export const site = {
   remotes: {
     title: 'Other Installations',
     lead: 'Copies of this work on other installations of Varians: compare, bring their changes here, or send yours there.',
-    address: 'Address of the work there',
+    address: 'Address of the Work There',
     addressHint: 'Such as https://example.org/works/iliad',
-    token: 'Token of your account there',
+    token: 'Token of Your Account There',
     tokenHint: 'Needed to send changes there, and to bring drafts here.',
     add: 'Add',
     none: 'No other installation has been added.',
