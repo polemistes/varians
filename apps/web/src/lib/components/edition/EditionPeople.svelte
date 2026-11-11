@@ -90,7 +90,7 @@
         <form
           method="POST"
           action="?/addCollaborator"
-          class="flex max-w-md flex-col gap-3"
+          class="flex flex-col gap-3"
           novalidate
           use:enhance={submitted(
             (v) => (inviting = v),
@@ -112,7 +112,7 @@
         <form
           method="POST"
           action="?/offerOwnership"
-          class="flex max-w-md flex-col gap-3"
+          class="flex flex-col gap-3"
           novalidate
           use:enhance={submitted(
             (v) => (offering = v),

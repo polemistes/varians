@@ -22,7 +22,6 @@
     }}
     rights={edition.can}
     place="list"
-    class="self-center"
   />
 {/snippet}
 

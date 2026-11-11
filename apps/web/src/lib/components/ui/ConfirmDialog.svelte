@@ -91,16 +91,20 @@
   }
 </script>
 
-<Dialog bind:open {title} {description} size="sm">
-  {#if action}
-    <form id={formId} method="post" {action} use:enhance={submit}>
-      {#each Object.entries(fields) as [name, value] (name)}
-        <input type="hidden" {name} {value} />
-      {/each}
-    </form>
-  {/if}
-  {#if refusal}<Notice kind="error">{refusal}</Notice>{/if}
+{#snippet refused()}
+  <Notice kind="error">{refusal}</Notice>
+{/snippet}
+
+<!-- The body is the description; a refusal, when there is one, stands under it. -->
+<Dialog bind:open {title} {description} size="sm" children={refusal ? refused : undefined}>
   {#snippet footer()}
+    {#if action}
+      <form id={formId} method="post" {action} use:enhance={submit} class="hidden">
+        {#each Object.entries(fields) as [name, value] (name)}
+          <input type="hidden" {name} {value} />
+        {/each}
+      </form>
+    {/if}
     <Button variant="ghost" onclick={() => (open = false)}>{recordActions.cancel}</Button>
     {#if action}
       <Button type="submit" form={formId} variant={tone} loading={submitting} disabled={!!refusal}>
