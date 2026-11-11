@@ -22,19 +22,19 @@ export const site = {
 
   home: {
     // For visitors.
-    title: 'Scholarly digital editions of ancient texts',
+    title: 'Scholarly Digital Editions of Ancient Texts',
     lead: 'Varians is a workbench for creating and presenting scholarly digital editions of ancient texts. It provides the fundamental tools for transcribing witnesses, collecting conjectures and assembling editions based on this.',
     editions: 'Editions',
     noEditions: 'There are no published editions yet.',
 
     // For someone signed in: a menu, then their recent work.
     menu: 'Start',
-    registerWork: 'Register Work',
-    registerWitness: 'Register Witness',
-    transcribeWitness: 'Transcribe Witness',
+    registerWork: 'Add New Work',
+    registerWitness: 'Add New Witness',
+    transcribeWitness: 'Make New Transcript',
     makeEdition: 'Make New Edition',
     continue: 'Continue',
-    allYourWork: (n: number) => `All your work (${n})`,
+    allYourWork: (n: number) => `All Your Work (${n})`,
     edition: 'Edition',
     transcription: 'Transcript',
     shared: 'shared with you',
@@ -57,7 +57,7 @@ export const site = {
     search: 'Search the works',
     placeholder: 'Title or author',
     none: 'No work has been registered yet.',
-    newWork: 'New work',
+    newWork: 'Add New Work',
     unknownAuthor: 'Unknown author',
   },
 
@@ -66,23 +66,23 @@ export const site = {
     search: 'Search the witnesses',
     placeholder: 'Name, siglum, place or shelfmark',
     none: 'No witness has been registered yet.',
-    newWitness: 'New witness',
+    newWitness: 'Add New Witness',
   },
 
   sources: {
-    title: 'Sources and licences',
+    title: 'Sources and Licences',
     lead: 'The licences of Varians itself, and the data and resources that come with it, with where they come from and the licences they are used under. Each edition and transcript names its own sources and licence in its description.',
     varians: 'Varians',
-    resources: 'Data and resources',
+    resources: 'Data and Resources',
     use: 'Used for',
     source: 'Source',
     licence: 'Licence',
-    footer: 'Sources and licences',
+    footer: 'Sources and Licences',
   },
 
   footer: {
     /** The link to the source of the running version. */
-    source: 'Source code',
+    source: 'Source Code',
   },
 
   guide: {
@@ -94,7 +94,7 @@ export const site = {
     title: 'Import',
     lead: 'A package or an archive from Varians, from this installation or another. What is already here is brought up to date, never overwritten.',
     file: 'Package or archive (zip)',
-    preview: 'Look at what it would do',
+    preview: 'Look at What It Would Do',
     previewing: 'This is what the import would do. Nothing has been changed yet.',
     policy: 'Where the changes made to a text here and in the package cannot be taken together',
     policyReport: 'Leave it as it is, and report it',
@@ -106,7 +106,7 @@ export const site = {
     checked: 'The checksums of the package are right.',
     unchecked: 'An archive without checksums.',
     work: (title: string) => `Work: ${title}`,
-    documents: 'Transcripts and editions',
+    documents: 'Transcripts and Editions',
     results: {
       created: 'new here',
       unchanged: 'unchanged',
@@ -141,7 +141,7 @@ export const site = {
     duplicate: (name: string, other: string) =>
       `The witness ${name} may be the same as ${other} here.`,
     newPersons: (names: string) => `New here, without an account: ${names}.`,
-    problems: 'Files that do not follow the format',
+    problems: 'Files That Do Not Follow the Format',
     expired: 'The upload is no longer here. Upload the package again.',
     noFile: 'Choose a zip file.',
     tooLarge: 'The file is too large for the web; use the command line.',
@@ -149,7 +149,7 @@ export const site = {
   },
 
   remotes: {
-    title: 'Other installations',
+    title: 'Other Installations',
     lead: 'Copies of this work on other installations of Varians: compare, bring their changes here, or send yours there.',
     address: 'Address of the work there',
     addressHint: 'Such as https://example.org/works/iliad',
@@ -158,9 +158,9 @@ export const site = {
     add: 'Add',
     none: 'No other installation has been added.',
     compare: 'Compare',
-    preview: 'Look at what a pull would do',
-    pull: 'Bring changes here',
-    push: 'Send changes there',
+    preview: 'Look at What a Pull Would Do',
+    pull: 'Bring Changes Here',
+    push: 'Send Changes There',
     remove: 'Remove',
     lastPulled: 'last brought here',
     never: 'not yet',
@@ -183,8 +183,8 @@ export const site = {
   },
 
   terms: {
-    title: 'Terms of contribution',
-    accept: 'Accept these terms',
+    title: 'Terms of Contribution',
+    accept: 'Accept These Terms',
     acceptedOn: (version: number) => `You accepted version ${version} of these terms`,
     changed:
       'The terms of contribution have changed since you last accepted them. Accept them to go on editing and publishing; reading needs nothing.',
@@ -194,12 +194,12 @@ export const site = {
   },
 
   formats: {
-    title: 'Data format',
+    title: 'Data Format',
     files: 'Files',
     schemas: 'JSON Schemas',
     tei: 'TEI customization (ODD) and RelaxNG schema',
     changelog: 'Changes',
-    example: 'Example archive',
+    example: 'Example Archive',
   },
 
   search: {
@@ -216,22 +216,22 @@ export const site = {
   },
 
   mine: {
-    title: 'Your work',
-    editions: 'Your editions',
-    transcriptions: 'Your transcripts',
-    shared: 'Shared with you',
+    title: 'Your Work',
+    editions: 'Your Editions',
+    transcriptions: 'Your Transcripts',
+    shared: 'Shared with You',
     noEditions: 'No editions yet.',
     noTranscriptions: 'No transcripts yet.',
     noShared: 'Nothing has been shared with you.',
     newEdition: 'Make New Edition',
-    newTranscription: 'Transcribe witness',
+    newTranscription: 'Make New Transcript',
   },
 
   start: {
     transcription: {
-      title: 'Transcribe a witness',
-      choose: 'Transcribe witness',
-      register: 'Register the witness',
+      title: 'Make New Transcript',
+      choose: 'Make New Transcript',
+      register: 'Add New Witness',
     },
     search: 'Search',
     noneFor: (q: string) => `Nothing matches “${q}”.`,

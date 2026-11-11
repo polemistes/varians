@@ -81,7 +81,7 @@
       case 'draft':
         return r.draft;
       case 'preview':
-        return r.notices.previewTitle;
+        return r.notices.previewLabel;
     }
   });
 </script>

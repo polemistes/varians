@@ -35,7 +35,7 @@
     [witness.settlement, witness.repository, witness.shelfmark].filter(Boolean).join(', '),
   );
 
-  // Arriving from "Transcribe a witness", the form is open at once.
+  // Arriving from the list of witnesses under Make New Transcript, the form is open at once.
   let creating = $state(page.url.searchParams.get('transcribe') === '1');
   let renameOpen = $state(false);
   let renaming = $state<TranscriptionItem | null>(null);

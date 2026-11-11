@@ -19,30 +19,32 @@ export const reader = {
   notices: {
     draftTitle: 'Draft',
     draftText: 'This edition is not published. Only its editors can see it.',
-    previewTitle: 'Preview of the draft',
+    previewTitle: 'Preview of the Draft',
+    /** The same words as the notice's title, as the reader bar says what is being read: a status, not a heading. */
+    previewLabel: 'Preview of the draft',
     previewText: 'This is the current draft, as readers will see it once it is published.',
     previewReaders: (n: number) => `Readers now see version ${n}.`,
-    showPublished: 'Show the published version',
+    showPublished: 'Show the Published Version',
     versionTitle: (n: number) => `Version ${n}, published`,
     versionText: 'You are reading the edition as it was published then.',
     versionIsCurrent: 'This is the current version.',
-    readCurrent: 'Read the current version',
+    readCurrent: 'Read the Current Version',
     segmentMissing: (label: string) => `This edition has no segment ${label}.`,
   },
 
   /** The toolbar. */
   toolbar: {
-    settings: 'Reading settings',
+    settings: 'Reading Settings',
     witnesses: 'Witnesses',
     facsimile: 'Facsimile',
     variants: 'Variants',
     dictionary: 'Dictionary',
-    more: 'Downloads and versions',
+    more: 'Downloads and Versions',
     search: 'Search the text',
     searchPlaceholder: 'Search',
-    searchNext: 'Next match',
-    searchPrevious: 'Previous match',
-    searchClear: 'Clear the search',
+    searchNext: 'Next Match',
+    searchPrevious: 'Previous Match',
+    searchClear: 'Clear the Search',
     searchCount: (current: number, total: number) => `${current} of ${total}`,
     searchNone: 'No match',
   },
@@ -63,7 +65,7 @@ export const reader = {
 
   /** The gear. */
   settings: {
-    title: 'Reading settings',
+    title: 'Reading Settings',
     textSize: 'Text size',
     sizes: { small: 'Small', normal: 'Normal', large: 'Large' },
     apparatus: 'Apparatus',
@@ -108,7 +110,7 @@ export const reader = {
   text: {
     label: 'The text',
     preface: 'Preface',
-    worksCited: 'Works cited',
+    worksCited: 'Works Cited',
     apparatus: (label: string) => `Apparatus to ${label}`,
     interpretative: 'Interpretative variants',
     noteBy: (author: string) => `by ${author}`,
@@ -127,7 +129,7 @@ export const reader = {
   entry: {
     title: (label: string) => `Variants at ${label}`,
     notes: 'Notes',
-    showWitness: 'Witness text',
+    showWitness: 'Witness Text',
     showFacsimile: 'Facsimile',
     close: 'Close',
   },
@@ -184,7 +186,7 @@ export const reader = {
     /** The variants a witness notes in its margins or between its lines, collated as a text of its own. */
     variantNoted: (name: string) => `Variant noted in ${name}`,
     /** From a row to the variant where the same witnesses have the words in another place. */
-    open: (where: string) => `Open the variant ${where}`,
+    open: (where: string) => `Open the Variant ${where}`,
     /** The point between two words, for the mark in the text. */
     pointAfter: (word: string) => `Variant after ${word}`,
     pointBefore: (word: string) => `Variant before ${word}`,
@@ -196,7 +198,7 @@ export const reader = {
   panels: {
     region: 'Panels',
     resize: 'Resize the panels',
-    close: (name: string) => `Close ${name.toLowerCase()}`,
+    close: (name: string) => `Close ${name}`,
     conspectus: 'Conspectus siglorum',
     conspectusEmpty: 'The edition names no witnesses.',
     groups: 'Groups',
@@ -223,9 +225,9 @@ export const reader = {
     variants: 'Variants',
     variantsNone: 'Nothing varies in the segments on screen.',
     variantsNothingOnScreen: 'Scroll to some text to see its variants.',
-    variantsShow: (words: string, label: string) => `Show ${words} at ${label} in the text`,
+    variantsShow: (words: string, label: string) => `Show ${words} at ${label} in the Text`,
     page: (label: string) => `Page ${label}`,
-    viewer: { zoomIn: 'Zoom in', zoomOut: 'Zoom out', fit: 'Fit the page', controls: 'Zoom' },
+    viewer: { zoomIn: 'Zoom In', zoomOut: 'Zoom Out', fit: 'Fit the Page', controls: 'Zoom' },
     dictionary: {
       title: 'Dictionary',
       placeholder: 'Look up a Greek word',
@@ -240,7 +242,7 @@ export const reader = {
 
   /** The colophon at the foot of the page. */
   colophon: {
-    title: 'About this edition',
+    title: 'About This Edition',
     sources: 'Sources',
     licence: 'Licence',
     rightsNote: 'Rights',
@@ -254,7 +256,7 @@ export const reader = {
       licence: string | null,
     ) =>
       `${editors ? `${editors}, ` : ''}${title}, ${version} (${date}), ${address}.${licence ? ` ${licence}.` : ''}`,
-    usedByVarians: 'Sources and licences of the data Varians uses',
+    usedByVarians: 'Sources and Licences of the Data Varians Uses',
     copiedFrom: 'Based on',
     copiedVersion: (n: number) => `version ${n}`,
     copiedDraft: 'a draft',

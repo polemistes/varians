@@ -97,7 +97,7 @@ test('adopts a reading, takes it back, and adopts a conjecture', async ({ page }
   expect(await line(page, 1)).toBe('οὐλομένην, ἣ μυρία Ἀχαιοῖς ἄλγε᾽ ἔθηκε,');
   await expect(page.locator('.apparatus-band section').nth(1)).toContainText(/μυρί᾽\s*A\s*C/);
 
-  await page.getByRole('button', { name: /Undo adoption/ }).click();
+  await page.getByRole('button', { name: /Undo Adoption/ }).click();
   await saved(page);
   expect(await line(page, 1)).toBe('οὐλομένην, ἣ μυρί᾽ Ἀχαιοῖς ἄλγε᾽ ἔθηκε,');
 
@@ -108,7 +108,7 @@ test('adopts a reading, takes it back, and adopts a conjecture', async ({ page }
     .click();
   await page.getByLabel('Reading').fill('ἰφθίμων');
   await page.getByLabel('Proposed by').fill('Tester');
-  await page.getByRole('button', { name: 'Register and adopt' }).click();
+  await page.getByRole('button', { name: ed.conjecture.registerAdopt }).click();
   await saved(page);
   expect(await line(page, 2)).toBe('πολλὰς δ᾽ ἰφθίμων ψυχὰς Ἄϊδι προΐαψεν');
 

@@ -132,7 +132,7 @@ test('text on no page is placed page by page, and goes back when its page is rem
   await page.locator('input[name=title]').fill(workTitle);
   await page.locator('input[name=author]').fill('Vergilius');
   await page.locator('select[name=language]').selectOption('la');
-  await page.getByRole('button', { name: 'Register the work' }).click();
+  await page.getByRole('button', { name: reg.work.create, exact: true }).click();
   await page.waitForURL(
     (url) => /^\/works\/[^/]+$/.test(url.pathname) && url.pathname !== '/works/new',
   );
@@ -142,17 +142,17 @@ test('text on no page is placed page by page, and goes back when its page is rem
   await page.waitForLoadState('networkidle');
   await page.locator('input[name=name]').fill(`Codex Paginatus ${stamp}`);
   await page.locator('input[name=siglum]').fill('Q');
-  await page.getByRole('button', { name: 'Register the witness' }).click();
+  await page.getByRole('button', { name: reg.witness.create, exact: true }).click();
   await page.waitForURL(
     (url) => /^\/witnesses\/[^/]+$/.test(url.pathname) && url.pathname !== '/witnesses/new',
   );
   witnessSlug = new URL(page.url()).pathname.split('/').pop()!;
   await page.waitForLoadState('networkidle');
-  await page.getByRole('button', { name: 'New transcript' }).first().click();
+  await page.getByRole('button', { name: reg.witness.newTranscription }).first().click();
   const create = page.getByRole('dialog');
   await create.locator('select[name=workId]').selectOption({ label: `${workTitle} (Vergilius)` });
   await create.locator('input[name=name]').fill('Liber 1');
-  await create.getByRole('button', { name: 'Create', exact: true }).click();
+  await create.getByRole('button', { name: reg.transcription.create, exact: true }).click();
   await page.waitForURL(/\/transcriptions\/[^/]+$/);
   transcriptionId = new URL(page.url()).pathname.split('/').pop()!;
   await page.waitForLoadState('networkidle');

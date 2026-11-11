@@ -36,7 +36,7 @@
 
   let {
     open = $bindable(false),
-    title = registry.witness.newTranscription,
+    title = registry.witness.newTranscriptionTitle,
     works = [],
     sources,
     action = '?/newTranscription',

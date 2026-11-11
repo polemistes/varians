@@ -1420,8 +1420,9 @@
             {#snippet trigger()}{s.dialogs.insert.menu}{/snippet}
             <MenuItem onSelect={() => openInsert('speaker')}>{s.dialogs.insert.speaker}…</MenuItem>
             <MenuItem onSelect={() => openInsert('head')}>{s.dialogs.insert.head}…</MenuItem>
-            <MenuItem onSelect={() => openInsert('stage')}>{s.dialogs.insert.stage}…</MenuItem>
-            <MenuItem onSelect={() => openInsert('margin')}>{s.dialogs.insert.margin}…</MenuItem>
+            <MenuItem onSelect={() => openInsert('stage')}>{s.dialogs.insert.stageMenu}…</MenuItem>
+            <MenuItem onSelect={() => openInsert('margin')}>{s.dialogs.insert.marginMenu}…</MenuItem
+            >
             <MenuItem onSelect={() => openInsert('lacuna')}>{s.dialogs.insert.lacuna}…</MenuItem>
             <MenuItem onSelect={() => openConjecture()}>{s.dialogs.insert.conjecture}</MenuItem>
             <MenuSeparator />

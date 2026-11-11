@@ -113,7 +113,7 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   await page.locator('input[name=title]').fill(workTitle);
   await page.locator('input[name=author]').fill('Vergilius');
   await page.locator('select[name=language]').selectOption('la');
-  await page.getByRole('button', { name: 'Register the work' }).click();
+  await page.getByRole('button', { name: reg.work.create, exact: true }).click();
   await page.waitForURL(
     (url) => /^\/works\/[^/]+$/.test(url.pathname) && url.pathname !== '/works/new',
   );
@@ -130,17 +130,17 @@ test('from a new work to a published edition and its archive', async ({ page }) 
     await page.waitForLoadState('networkidle');
     await page.locator('input[name=name]').fill(name);
     await page.locator('input[name=siglum]').fill(siglum);
-    await page.getByRole('button', { name: 'Register the witness' }).click();
+    await page.getByRole('button', { name: reg.witness.create, exact: true }).click();
     await page.waitForURL(
       (url) => /^\/witnesses\/[^/]+$/.test(url.pathname) && url.pathname !== '/witnesses/new',
     );
     witnessSlugs.push(new URL(page.url()).pathname.split('/').pop()!);
     await page.waitForLoadState('networkidle');
-    await page.getByRole('button', { name: 'New transcript' }).first().click();
+    await page.getByRole('button', { name: reg.witness.newTranscription }).first().click();
     const dialog = page.getByRole('dialog');
     await dialog.locator('select[name=workId]').selectOption({ label: `${workTitle} (Vergilius)` });
     await dialog.locator('input[name=name]').fill('Liber 1');
-    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+    await dialog.getByRole('button', { name: reg.transcription.create, exact: true }).click();
     await page.waitForURL(/\/transcriptions\/[^/]+$/);
     transcriptionIds.push(new URL(page.url()).pathname.split('/').pop()!);
   }
@@ -222,11 +222,11 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   await expect(reader.locator('main')).toContainText('Laviniaque');
   // The download links load the files, not an edition page of that name.
   for (const [name, ending] of [
-    ['Plain text with apparatus', '.txt'],
+    ['Plain Text with Apparatus', '.txt'],
     ['TEI XML', '.tei.xml'],
   ] as const) {
     await reader.waitForLoadState('networkidle');
-    await reader.getByRole('button', { name: 'Downloads and versions' }).click();
+    await reader.getByRole('button', { name: 'Downloads and Versions' }).click();
     const [answer] = await Promise.all([
       reader.waitForResponse((r) => new URL(r.url()).pathname.endsWith(ending)),
       reader.getByRole('menuitem', { name }).click(),
@@ -274,9 +274,9 @@ test('from a new work to a published edition and its archive', async ({ page }) 
 
   // A copy of the transcription, from the workbench's menu: a draft of one's own with the same text.
   await page.getByRole('button', { name: 'More actions' }).click();
-  await page.getByRole('menuitem', { name: 'Make a copy…' }).click();
+  await page.getByRole('menuitem', { name: w.menu.copy }).click();
   await expect(page.getByRole('dialog').locator('input[name=name]')).toHaveValue('Copy of Liber 1');
-  await page.getByRole('dialog').getByRole('button', { name: 'Make the copy' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: reg.copy.make }).click();
   await page.waitForURL(
     (url) =>
       /^\/transcriptions\/[^/]+$/.test(url.pathname) &&
@@ -299,8 +299,8 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   await page.waitForSelector('.cm-content');
   await page.waitForLoadState('networkidle');
   await page.getByRole('button', { name: 'More' }).click();
-  await page.getByRole('menuitem', { name: 'Make a copy…' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Make the copy' }).click();
+  await page.getByRole('menuitem', { name: editor.workspace.copyEdition }).click();
+  await page.getByRole('dialog').getByRole('button', { name: reg.copy.make }).click();
   await page.waitForURL(
     (url) => /\/edit$/.test(url.pathname) && !url.pathname.includes(`/${editionSlug}/`),
   );

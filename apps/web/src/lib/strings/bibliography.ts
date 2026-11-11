@@ -8,8 +8,8 @@ const plural = (n: number, one: string, many: string) => (n === 1 ? `1 ${one}` :
 
 export const bibStrings = {
   title: 'Bibliography',
-  add: 'Add entry',
-  import: 'Import .bib',
+  add: 'Add New Entry…',
+  import: 'Import .bib…',
   download: 'Download .bib',
   clear: 'Clear',
   count: (shown: number, total: number) =>
@@ -18,15 +18,15 @@ export const bibStrings = {
   noResults: (q: string) => `Nothing matches “${q}”.`,
   cited: (n: number) => (n === 0 ? 'Not cited yet' : `Cited ${plural(n, 'time', 'times')}`),
   actions: (label: string) => `Actions for ${label}`,
-  edit: 'Edit',
-  remove: 'Delete',
+  edit: 'Edit…',
+  remove: 'Delete…',
   previous: 'Previous',
   next: 'Next',
   page: (n: number, of: number) => `Page ${n} of ${of}`,
 
   entry: {
-    addTitle: 'Add an entry',
-    editTitle: 'Edit the entry',
+    addTitle: 'Add New Entry',
+    editTitle: 'Edit the Entry',
     description:
       'The label the apparatus cites by, such as “West 1998”, is made from the names and the year.',
     field: 'biblatex',
@@ -38,7 +38,7 @@ export const bibStrings = {
   },
 
   importDialog: {
-    title: 'Import a .bib file',
+    title: 'Import a .bib File',
     description:
       'Entries with new keys are added. Your own entries with a key that exists are updated; entries someone else added are kept as they are.',
     file: 'File',
@@ -78,8 +78,8 @@ export const bibStrings = {
     postnote: 'Pages',
     postnotePlaceholder: '45–47',
     remove: (label: string) => `Remove ${label}`,
-    manage: 'Open the bibliography',
+    manage: 'Open the Bibliography',
   },
 
-  worksCited: 'Works cited',
+  worksCited: 'Works Cited',
 };

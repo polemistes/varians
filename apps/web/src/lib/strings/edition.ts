@@ -19,14 +19,14 @@ export const edition = {
   title: 'Name of edition',
   editors: 'Editors',
   editorName: (n: number) => `Editor ${n}`,
-  addEditor: 'Add editor',
-  removeEditor: (name: string) => (name ? `Remove ${name}` : 'Remove this editor'),
+  addEditor: 'Add Editor',
+  removeEditor: (name: string) => (name ? `Remove ${name}` : 'Remove This Editor'),
 
   preface: 'Preface',
   prefaceHint: 'Printed above the text in the reader.',
   sourcesAndRights: 'Sources and Rights',
   sources: 'Sources',
-  sourcesHint: 'Printed under About this edition.',
+  sourcesHint: 'Printed under About This Edition.',
   rightsNote: 'Note on rights',
   licenceFixed: (name: string) => `Published under ${name}, fixed when it was first published.`,
   licenceToCome: (name: string) =>
@@ -69,7 +69,7 @@ export const edition = {
   saved: 'The edition has been saved.',
   notSaved: 'The edition has not been saved. Check the fields marked below.',
   leave: {
-    title: 'Leave Without Saving?',
+    title: 'Leave without Saving?',
     body: 'The changes on this page have not been saved.',
     leave: 'Leave',
     stay: 'Stay',
@@ -95,13 +95,13 @@ export const edition = {
     addNewWitness: 'Add New Witness',
     order: 'Order',
     remove: (name: string) => `Remove ${name}`,
-    moveUp: (name: string) => `Move ${name} up`,
-    moveDown: (name: string) => `Move ${name} down`,
+    moveUp: (name: string) => `Move ${name} Up`,
+    moveDown: (name: string) => `Move ${name} Down`,
     states: 'States',
     statesHint:
       'Further states of the witness, each collated under a siglum of its own: as first written, after a stage of correction, or with the corrections of one hand',
     addState: 'Add State',
-    removeState: 'Remove this state',
+    removeState: 'Remove This State',
     stateKinds: {
       original: 'Before correction',
       stage: 'After stage',
@@ -119,7 +119,7 @@ export const edition = {
     groupWitnesses: 'Witnesses of the group',
     groupNote: 'Note',
     addGroup: 'Add Group',
-    removeGroup: 'Remove this group',
+    removeGroup: 'Remove This Group',
     picker: {
       title: 'Add Witness',
       search: 'Search by name, siglum or shelfmark',
