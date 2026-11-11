@@ -494,16 +494,25 @@ describe('what is unfinished stays invisible', () => {
         404,
       );
       if (who) {
-        // A draft cannot be copied by someone who may not see it; a published edition can.
+        // A draft cannot be copied by someone who may not see it, and is answered as one that does not exist.
         const named = new FormData();
         named.set('name', 'A copy');
         const copy = await call(copyEditionPage.actions.default, who, slug, '', {
           method: 'POST',
           body: named,
         });
-        const refused = (copy.value as { status?: number } | undefined)?.status ?? copy.status;
-        expect(refused).toBeGreaterThanOrEqual(400);
-        expect(copy.status).not.toBe(303);
+        expect(copy.status).toBe(404);
+        const none = await call(
+          copyEditionPage.actions.default,
+          who,
+          { slug: 'no-such-edition' },
+          '',
+          {
+            method: 'POST',
+            body: named,
+          },
+        );
+        expect(none.status).toBe(404);
       }
       // The working text of the published edition is its editors' alone, as before: others get the published versions, through the reader.
       expect((await call(apiEditionView.GET, who, { id: publishedEdition.id })).status).not.toBe(

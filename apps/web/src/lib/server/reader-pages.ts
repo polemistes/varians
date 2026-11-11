@@ -19,7 +19,7 @@ import {
 } from '@varians/core';
 import { editions, type Database, type EditionOrigin } from '@varians/db';
 import { eq } from 'drizzle-orm';
-import type { Actor } from './authz';
+import { editionRights, type Actor } from './authz';
 import { loadEditionAccess, type EditionAccess } from './edition-access';
 import { publishedVersions } from './publish';
 import { PUBLIC, editionView, type Audience, type EditionView } from './reader';
@@ -190,7 +190,6 @@ export function readerLinks(
     links: {
       current: base,
       preview: published && rights.canEdit ? `${base}?draft=1` : null,
-      editor: rights.canEdit ? `${base}/edit` : null,
     },
   };
 }
@@ -266,10 +265,8 @@ export async function loadReader(
     mode,
     versions: readerVersions(access.edition.slug, moments, currentNumber),
     canEdit: access.canEdit,
-    copy:
-      user && (access.canEdit || published)
-        ? `/editions/${encodeURIComponent(access.edition.slug)}/copy`
-        : null,
+    published,
+    rights: editionRights(user, access.edition, access.collaboratorIds),
     origin: await originOf(db, access.edition.copiedFrom),
     ...readerLinks(access.edition.slug, mode, access, published),
   };

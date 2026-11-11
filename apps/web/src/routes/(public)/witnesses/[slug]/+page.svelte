@@ -5,9 +5,8 @@
   import Plus from '@lucide/svelte/icons/plus';
   import { page } from '$app/state';
   import { PageFrame } from '$lib/components/shell';
-  import { Button, Menu, MenuItem } from '$lib/components/ui';
+  import { Button, ConfirmDialog, Menu, MenuItem } from '$lib/components/ui';
   import {
-    ConfirmDialog,
     DescriptionItem,
     DescriptionList,
     EntryHeader,
@@ -248,6 +247,7 @@
 {/if}
 <RenameDialog bind:open={renameOpen} transcription={renaming} />
 <ConfirmDialog
+  confirmLabel={t.common.confirmDelete}
   bind:open={deleteOpen}
   title={t.transcription.deleteTitle}
   description={t.transcription.deleteConfirm(deleting?.name ?? '')}
@@ -258,6 +258,7 @@
 
 {#if data.deletion?.allowed}
   <ConfirmDialog
+    confirmLabel={t.common.confirmDelete}
     bind:open={deleteWitnessOpen}
     title={s.deleteTitle}
     description={s.deleteConfirm(witness.name)}

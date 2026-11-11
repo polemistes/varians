@@ -1,5 +1,5 @@
 import { grantsFor } from '$lib/server/authz';
-import { publishedEditions, recentWork } from '$lib/server/library';
+import { publishedEditions, recentWork, withEditionRights } from '$lib/server/library';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -9,8 +9,17 @@ import type { PageServerLoad } from './$types';
  */
 export const load: PageServerLoad = async ({ locals }) => {
   const user = locals.user;
-  const published = await publishedEditions(locals.db);
+  const grants = await grantsFor(locals.db, user);
+  const published = withEditionRights(await publishedEditions(locals.db), user, grants);
   if (!user) return { published, recent: null };
-  const recent = await recentWork(locals.db, user, await grantsFor(locals.db, user), 4);
-  return { published, recent };
+  const recent = await recentWork(locals.db, user, grants, 4);
+  return {
+    published,
+    recent: {
+      total: recent.total,
+      items: recent.items.map((item) =>
+        item.kind === 'edition' ? withEditionRights([item], user, grants)[0]! : item,
+      ),
+    },
+  };
 };

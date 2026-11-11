@@ -7,7 +7,7 @@
    * exists, the conventions of its text and of its print apparatus. One Save
    * for the whole page. Leaving it with changes unsaved asks first.
    */
-  import { untrack } from 'svelte';
+  import { untrack, type Snippet } from 'svelte';
   import { enhance } from '$app/forms';
   import { beforeNavigate, goto } from '$app/navigation';
   import { page } from '$app/state';
@@ -65,6 +65,10 @@
     sources: TranscriptionOption[];
     /** The errors of the last attempt to save, by field. */
     errors?: Record<string, string[] | undefined>;
+    /** Beside the title of Edition Settings: what may be done with the edition. */
+    headerActions?: Snippet;
+    /** After the form: what is saved on its own, not by the page's Save. */
+    after?: Snippet;
   }
 
   let {
@@ -78,6 +82,8 @@
     suggestions,
     sources,
     errors = {},
+    headerActions,
+    after,
   }: Props = $props();
 
   const here = $derived(mode === 'new' ? '/editions/new' : `/editions/${edition!.slug}/settings`);
@@ -152,12 +158,7 @@
 
 <PageFrame title={mode === 'new' ? s.newTitle : (edition?.title ?? '')} width="reading">
   {#snippet actions()}
-    {#if mode === 'settings' && edition}
-      <Button href={`/editions/${edition.slug}`} variant="secondary" size="sm">{s.read}</Button>
-      <Button href={`/editions/${edition.slug}/edit`} variant="secondary" size="sm"
-        >{s.editText}</Button
-      >
-    {/if}
+    {#if mode === 'settings'}{@render headerActions?.()}{/if}
   {/snippet}
   <form
     method="POST"
@@ -457,6 +458,7 @@
       >
     </div>
   </form>
+  {@render after?.()}
 </PageFrame>
 
 {#if mode === 'new'}

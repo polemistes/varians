@@ -6,6 +6,7 @@ export {
   type ButtonVariant,
 } from './Button.svelte';
 export { default as Checkbox } from './Checkbox.svelte';
+export { default as ConfirmDialog } from './ConfirmDialog.svelte';
 export { default as Dialog } from './Dialog.svelte';
 export { default as EmptyState } from './EmptyState.svelte';
 export { default as Field, type FieldControl } from './Field.svelte';
@@ -19,6 +20,7 @@ export { default as MenuLabel } from './MenuLabel.svelte';
 export { default as MenuSeparator } from './MenuSeparator.svelte';
 export { default as Notice } from './Notice.svelte';
 export { default as Popover } from './Popover.svelte';
+export { default as RecordActions } from './RecordActions.svelte';
 export { default as Select, type SelectOption } from './Select.svelte';
 export { default as Spinner } from './Spinner.svelte';
 export { default as Splitter } from './Splitter.svelte';

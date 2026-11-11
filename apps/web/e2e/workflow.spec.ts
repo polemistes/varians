@@ -21,10 +21,12 @@ import { eq, inArray } from 'drizzle-orm';
 import { s } from '../src/lib/strings/en';
 import { edition as ed } from '../src/lib/strings/edition';
 import { editor } from '../src/lib/strings/editor';
+import { recordActions as actions } from '../src/lib/strings/record-actions';
 import { pageStrings as t } from '../src/lib/strings/pages';
 import { workbench as w } from '../src/lib/strings/workbench';
 import { registry as reg } from '../src/lib/strings/registry';
 
+const ea = actions.edition;
 const DATABASE_URL = 'postgres://varians@127.0.0.1:54329/varians_test';
 const stamp = Date.now().toString(36);
 const email = `workflow-${stamp}@example.org`;
@@ -188,7 +190,7 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   editionSlug = new URL(page.url()).pathname.split('/')[2]!;
 
   // The edition starts empty; its text is copied from X's transcript, the first of the conspectus.
-  await page.getByRole('link', { name: ed.editText }).click();
+  await page.getByRole('link', { name: ea.edit, exact: true }).click();
   await page.waitForURL(/\/editions\/[^/]+\/edit$/);
   await page.getByRole('button', { name: editor.dialogs.copyText.menu }).click();
   const copy = page.getByRole('dialog', { name: editor.dialogs.copyText.title });
@@ -208,9 +210,12 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   await saved(page);
   await expect(page.locator('.cm-content .cm-line').nth(1)).toHaveText(/Lavinaque/);
 
-  // Publish.
-  page.once('dialog', (dialog) => void dialog.accept());
-  await page.getByRole('button', { name: 'Publish', exact: true }).click();
+  // Publish, in the application's window.
+  await page.getByRole('button', { name: ea.publishButton, exact: true }).click();
+  await page
+    .getByRole('dialog', { name: ea.publishTitle })
+    .getByRole('button', { name: ea.publishVerb, exact: true })
+    .click();
   await expect(page.getByText(/Published as version 1/)).toBeVisible({ timeout: 15_000 });
 
   // The reader, signed out: the published text with X's reading in the apparatus.
@@ -226,7 +231,7 @@ test('from a new work to a published edition and its archive', async ({ page }) 
     ['TEI XML', '.tei.xml'],
   ] as const) {
     await reader.waitForLoadState('networkidle');
-    await reader.getByRole('button', { name: 'Downloads and Versions' }).click();
+    await reader.getByRole('button', { name: actions.menu, exact: true }).click();
     const [answer] = await Promise.all([
       reader.waitForResponse((r) => new URL(r.url()).pathname.endsWith(ending)),
       reader.getByRole('menuitem', { name }).click(),
@@ -298,8 +303,8 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   await page.goto(`/editions/${editionSlug}/edit`);
   await page.waitForSelector('.cm-content');
   await page.waitForLoadState('networkidle');
-  await page.getByRole('button', { name: 'More' }).click();
-  await page.getByRole('menuitem', { name: editor.workspace.copyEdition }).click();
+  await page.getByRole('button', { name: actions.menu, exact: true }).click();
+  await page.getByRole('menuitem', { name: ea.copy }).click();
   await page.getByRole('dialog').getByRole('button', { name: reg.copy.make }).click();
   await page.waitForURL(
     (url) => /\/edit$/.test(url.pathname) && !url.pathname.includes(`/${editionSlug}/`),

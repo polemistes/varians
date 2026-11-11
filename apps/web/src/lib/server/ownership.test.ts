@@ -71,9 +71,13 @@ describe('ownership offers', () => {
     expect(
       (await offerOwnership(db, 'edition', ids.edition, ids.owner, `${ids.other}@test`)).ok,
     ).toBe(false);
-    const { incoming } = await offersOf(db, ids.other);
+    const { incoming } = await offersOf(db, { id: ids.other, role: 'member' });
     expect(incoming.map((o) => o.title)).toEqual(['E']);
-    expect((await offersOf(db, ids.owner)).outgoing).toHaveLength(1);
+    // The draft is not the recipient's to see yet: its name leads nowhere.
+    expect(incoming[0]!.href).toBeNull();
+    const { outgoing } = await offersOf(db, { id: ids.owner, role: 'member' });
+    expect(outgoing).toHaveLength(1);
+    expect(outgoing[0]!.href).toBe(`/editions/e-${ids.edition}`);
     // Only the user named can accept.
     expect(await answerOffer(db, incoming[0]!.id, ids.owner, 'accept')).toBe(false);
     expect(await answerOffer(db, incoming[0]!.id, ids.other, 'accept')).toBe(true);

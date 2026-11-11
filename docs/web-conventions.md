@@ -20,7 +20,7 @@ src/
       authz.ts              who may see or edit what
       <feature>/            server-only logic per feature (documents, images, archive, ...)
     components/
-      ui/                   primitives: Button, Field, Input, Select, Dialog, Menu, Popover, Toast, Tabs
+      ui/                   primitives: Button, Field, Input, Select, Dialog, ConfirmDialog, Menu, RecordActions, Popover, Toast, Tabs
       shell/                header, navigation, page frame
       <feature>/            feature components (editor, facsimile, apparatus, ...)
     strings/                every user-facing string: en.ts for the shell and common screens, one module per larger screen

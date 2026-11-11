@@ -2,8 +2,7 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { editions, works } from '@varians/db';
 import { eq } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
-import { canDeleteEdition, canGrantOnEdition, grantsFor } from '$lib/server/authz';
-import { addCollaborator, listCollaborators, removeCollaborator } from '$lib/server/collaborators';
+import { canDeleteEdition, editionRights, grantsFor } from '$lib/server/authz';
 import { reviewedSites } from '$lib/server/conjectures';
 import { loadEditionAccess } from '$lib/server/edition-access';
 import {
@@ -14,11 +13,11 @@ import {
   suggestedWitnesses,
 } from '$lib/server/edition-form';
 import { requireUser } from '$lib/server/guards';
-import { offerOwnership } from '$lib/server/ownership';
 import { publishedVersions } from '$lib/server/publish';
 import { editionView, type SegmentView } from '$lib/server/reader';
 import { deleteHistory, viewableTranscriptions } from '$lib/server/registry';
 import { OPENING_SEGMENTS } from '$lib/edition/workspace';
+import { recordActions } from '$lib/strings/record-actions';
 import type { Actions, PageServerLoad } from './$types';
 
 /** Collation columns are server-side only. */
@@ -94,14 +93,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     suggestions: await suggestedWitnesses(locals.db, user, grants, edition.workId),
     sources: await viewableTranscriptions(locals.db, user, grants),
     versions: await publishedVersions(locals.db, edition.id),
-    collaborators: canGrantOnEdition(user, edition)
-      ? await listCollaborators(locals.db, edition.id)
-      : [],
-    can: {
-      publish: access.canPublish,
-      grant: canGrantOnEdition(user, edition),
-      delete: canDeleteEdition(user, edition),
-    },
+    rights: editionRights(user, edition, access.collaboratorIds),
   };
 };
 
@@ -124,63 +116,16 @@ export const actions: Actions = {
     return { ok: true };
   },
 
-  addCollaborator: async ({ locals, params, request }) => {
-    const { user, access } = await editable(locals, params.slug);
-    if (!canGrantOnEdition(user, access.edition))
-      throw error(403, 'Only the owner may invite collaborators');
-    const email = String((await request.formData()).get('email') ?? '').trim();
-    if (!email)
-      return fail(400, { form: 'collaborators' as const, message: 'Give an email address.' });
-    const result = await addCollaborator(locals.db, access.edition.id, email, user.id);
-    if (!result.ok) {
-      const message =
-        result.error === 'no-user'
-          ? 'Nobody with that address has an account.'
-          : result.error === 'owner'
-            ? 'That is the owner.'
-            : 'Already a collaborator.';
-      return fail(400, { form: 'collaborators' as const, message });
-    }
-    return { form: 'collaborators' as const, ok: true, added: result.collaborator.name };
-  },
-
-  removeCollaborator: async ({ locals, params, request }) => {
-    const { user, access } = await editable(locals, params.slug);
-    if (!canGrantOnEdition(user, access.edition))
-      throw error(403, 'Only the owner may remove collaborators');
-    const userId = String((await request.formData()).get('userId') ?? '');
-    await removeCollaborator(locals.db, access.edition.id, userId);
-    return { form: 'collaborators' as const, ok: true };
-  },
-
-  offerOwnership: async ({ locals, params, request }) => {
-    const { user, access } = await editable(locals, params.slug);
-    if (!canGrantOnEdition(user, access.edition))
-      throw error(403, 'Only the owner may hand the edition on');
-    const email = String((await request.formData()).get('email') ?? '').trim();
-    const result = await offerOwnership(
-      locals.db,
-      'edition',
-      access.edition.id,
-      access.edition.ownerId,
-      email,
-    );
-    if (!result.ok) {
-      const message = {
-        'no-user': 'Nobody with that address has an account.',
-        self: 'You own it already.',
-        'open-offer': 'An offer is already open; withdraw it on your account page first.',
-        'not-owner': 'Only the owner may hand the edition on.',
-      }[result.error];
-      return fail(400, { form: 'ownership' as const, message });
-    }
-    return { form: 'ownership' as const, ok: true };
-  },
-
-  delete: async ({ locals, params }) => {
+  /**
+   * Delete the edition, from wherever its menu stands. From its own pages
+   * this leads to the work's page; from a list (`stay`) the list stays, and
+   * is told.
+   */
+  delete: async ({ locals, params, request }) => {
     const { user, access } = await editable(locals, params.slug);
     if (!canDeleteEdition(user, access.edition))
-      throw error(403, 'Only the owner may delete the edition');
+      return fail(403, { error: recordActions.edition.onlyOwner });
+    const stay = (await request.formData()).get('stay') === '1';
     const [work] = await locals.db
       .select({ slug: works.slug })
       .from(works)
@@ -190,6 +135,7 @@ export const actions: Actions = {
       await deleteHistory(tx, 'edition', [access.edition.id]);
       await tx.delete(editions).where(eq(editions.id, access.edition.id));
     });
+    if (stay) return { message: recordActions.edition.deleted(access.edition.title) };
     throw redirect(303, work ? `/works/${work.slug}` : '/');
   },
 };

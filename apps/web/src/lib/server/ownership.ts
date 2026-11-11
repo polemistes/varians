@@ -14,13 +14,15 @@ import {
   type DocumentKind,
 } from '@varians/db';
 import { and, eq, sql } from 'drizzle-orm';
+import { canViewEdition, type Actor } from './authz.ts';
 
 export interface OfferView {
   id: string;
   kind: DocumentKind;
   recordId: string;
   title: string;
-  href: string;
+  /** Where the name leads: an edition's reader, when the person may see it; a transcription's workbench. */
+  href: string | null;
   fromName: string;
   toName: string;
   createdAt: Date;
@@ -75,11 +77,32 @@ export async function offerOwnership(
   return { ok: true, offerId: id };
 }
 
+/** The open offer of a record, with the name of the person it is made to; null when there is none. */
+export async function openOfferOf(
+  db: Database,
+  kind: DocumentKind,
+  recordId: string,
+): Promise<{ id: string; toName: string } | null> {
+  const [row] = await db
+    .select({ id: ownershipOffers.id, toName: users.name })
+    .from(ownershipOffers)
+    .innerJoin(users, eq(users.id, ownershipOffers.toUserId))
+    .where(
+      and(
+        eq(ownershipOffers.kind, kind),
+        eq(ownershipOffers.recordId, recordId),
+        eq(ownershipOffers.status, 'open'),
+      ),
+    );
+  return row ?? null;
+}
+
 /** Offers waiting for this user, and those this user made that are still open. */
 export async function offersOf(
   db: Database,
-  userId: string,
+  user: Actor,
 ): Promise<{ incoming: OfferView[]; outgoing: OfferView[] }> {
+  const userId = user.id;
   const rows = await db
     .select()
     .from(ownershipOffers)
@@ -97,15 +120,28 @@ export async function offersOf(
   const views: (OfferView & { toUserId: string })[] = [];
   for (const row of rows) {
     let title = '';
-    let href = '/';
+    let href: string | null = null;
     if (row.kind === 'edition') {
       const [edition] = await db
-        .select({ title: editions.title, slug: editions.slug })
+        .select({
+          id: editions.id,
+          title: editions.title,
+          slug: editions.slug,
+          ownerId: editions.ownerId,
+          visibility: editions.visibility,
+        })
         .from(editions)
         .where(eq(editions.id, row.recordId));
       if (!edition) continue;
       title = edition.title;
-      href = `/editions/${edition.slug}/edit`;
+      const collaboratorIds = (
+        await db
+          .select({ userId: editionCollaborators.userId })
+          .from(editionCollaborators)
+          .where(eq(editionCollaborators.editionId, edition.id))
+      ).map((c) => c.userId);
+      if (canViewEdition(user, edition, collaboratorIds))
+        href = `/editions/${encodeURIComponent(edition.slug)}`;
     } else {
       const [transcription] = await db
         .select({ name: transcriptions.name })

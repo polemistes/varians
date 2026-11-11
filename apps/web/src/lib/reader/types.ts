@@ -12,6 +12,7 @@ import type {
   Unit,
 } from '@varians/core';
 import type { EditionConventions } from '@varians/db';
+import type { EditionRights } from '$lib/edition/actions';
 
 /** A segment of a passage: its label, and the edition's units it holds, [from, to); one the edition does not print holds none. */
 export interface PassagePart {
@@ -142,8 +143,10 @@ export interface ReaderData {
   /** Published versions, newest first. */
   versions: ReaderVersion[];
   canEdit: boolean;
-  /** Where a signed-in reader makes a copy of the edition (its editors the draft, others the published version); null when none may be made. */
-  copy: string | null;
+  /** The edition is published (whatever state of it is shown). */
+  published: boolean;
+  /** What the viewer may do with the edition: its buttons and menu. */
+  rights: EditionRights;
   /** The edition this one was copied from, as it was then, with a link while it is still published. */
   origin: { title: string; editors: string[]; number: number | null; href: string | null } | null;
   /** The path of this view without a segment: `/editions/slug` or `/editions/slug/v/2`. */
@@ -167,8 +170,6 @@ export interface ReaderData {
     current: string;
     /** The draft preview, for editors of a published edition. */
     preview: string | null;
-    /** The edition editor, for those who may edit. */
-    editor: string | null;
   };
 }
 

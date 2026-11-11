@@ -49,7 +49,7 @@ export const load: PageServerLoad = async ({ locals }) => {
   }));
   return {
     crumb: { label: s.account.title },
-    offers: await offersOf(locals.db, user.id),
+    offers: await offersOf(locals.db, user),
     orcid: person.orcid,
     tokens,
   };

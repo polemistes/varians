@@ -1,6 +1,12 @@
 import { referencePieces } from '$lib/bibliography/format';
 import { entryOf, listBibliography } from '$lib/server/bibliography';
-import { searchPublishedEditions, searchWitnesses, searchWorks } from '$lib/server/library';
+import { grantsFor } from '$lib/server/authz';
+import {
+  searchPublishedEditions,
+  searchWitnesses,
+  searchWorks,
+  withEditionRights,
+} from '$lib/server/library';
 import { site } from '$lib/strings/site';
 import type { PageServerLoad } from './$types';
 
@@ -19,16 +25,17 @@ export const load: PageServerLoad = async ({ locals, url }) => {
       witnesses: [],
       bibliography: { items: [], total: 0 },
     };
-  const [editions, works, witnesses, bibliography] = await Promise.all([
+  const [editions, works, witnesses, bibliography, grants] = await Promise.all([
     searchPublishedEditions(locals.db, q),
     searchWorks(locals.db, q),
     searchWitnesses(locals.db, q),
     listBibliography(locals.db, { q, limit: BIBLIOGRAPHY_LIMIT }),
+    grantsFor(locals.db, locals.user),
   ]);
   return {
     crumb,
     q,
-    editions,
+    editions: withEditionRights(editions, locals.user, grants),
     works,
     witnesses,
     bibliography: {

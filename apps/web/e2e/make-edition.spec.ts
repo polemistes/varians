@@ -3,7 +3,7 @@
  * New Edition, adds a new work in a window, names the edition, adds a new
  * witness in a window and makes a transcript of it in another, and saves.
  * The page stays as Edition Settings with the witness, its siglum and its
- * transcript, which a reload shows again; Edit Text opens the editor.
+ * transcript, which a reload shows again; Edit opens the editor.
  */
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -19,9 +19,11 @@ import { eq, inArray } from 'drizzle-orm';
 import { s } from '../src/lib/strings/en';
 import { edition as ed } from '../src/lib/strings/edition';
 import { editor as edr } from '../src/lib/strings/editor';
+import { recordActions } from '../src/lib/strings/record-actions';
 import { registry as reg } from '../src/lib/strings/registry';
 
 const DATABASE_URL = 'postgres://varians@127.0.0.1:54329/varians_test';
+const ea = recordActions.edition;
 const SHOTS = process.env.SHOTS_DIR ?? 'test-results/shots/make-edition';
 const stamp = Date.now().toString(36);
 const email = `make-edition-${stamp}@example.org`;
@@ -174,7 +176,7 @@ test('an edition made from scratch on one page, which stays as Edition Settings'
 
   // A change not saved is asked about before leaving; staying keeps it.
   await page.getByLabel(ed.title).fill(`${editionName}, altered`);
-  await page.getByRole('link', { name: ed.editText }).click();
+  await page.getByRole('link', { name: ea.edit, exact: true }).click();
   const leave = page.getByRole('dialog', { name: ed.leave.title });
   await expect(leave).toBeVisible();
   await leave.getByRole('button', { name: ed.leave.stay }).click();
@@ -183,15 +185,14 @@ test('an edition made from scratch on one page, which stays as Edition Settings'
   await page.getByRole('button', { name: ed.cancel, exact: true }).click();
   await expect(page.getByLabel(ed.title)).toHaveValue(editionName);
 
-  // Edit Text opens the editor.
-  await page.getByRole('link', { name: ed.editText }).click();
+  // Edit opens the editor.
+  await page.getByRole('link', { name: ea.edit, exact: true }).click();
   await page.waitForURL(/\/editions\/[^/]+\/edit$/);
   await expect(page.locator('.cm-content')).toBeVisible();
 
   // The editor's Witnesses and Sigla window holds the same conspectus.
   await page.waitForLoadState('networkidle');
-  await page.getByRole('button', { name: edr.dialogs.more }).click();
-  await page.getByRole('menuitem', { name: edr.workspace.witnessList }).click();
+  await page.getByRole('button', { name: edr.workspace.witnessList }).click();
   const window = page.getByRole('dialog', { name: edr.dialogs.sigla.title });
   await expect(
     window.getByLabel(`${ed.conspectus.siglum}: ${witnessName}`, { exact: true }),

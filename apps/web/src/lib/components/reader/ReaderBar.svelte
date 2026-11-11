@@ -1,20 +1,16 @@
 <script lang="ts">
   /**
    * The reader's header, kept in view: the edition and the state shown,
-   * search, the gear, the three panels (variants, witnesses, facsimile), and a menu with the downloads and the
-   * published versions (and, for its editors, the draft and the editor).
+   * search, the gear, the panels (variants, witnesses, facsimile, dictionary),
+   * the menu of the published versions (and, for its editors, the draft),
+   * then Edit and the edition's menu.
    */
-  import Copy from '@lucide/svelte/icons/copy';
-  import Ellipsis from '@lucide/svelte/icons/ellipsis';
   import Eye from '@lucide/svelte/icons/eye';
-  import FileCode from '@lucide/svelte/icons/file-code';
-  import FileText from '@lucide/svelte/icons/file-text';
   import History from '@lucide/svelte/icons/history';
   import ImageIcon from '@lucide/svelte/icons/image';
   import BookOpen from '@lucide/svelte/icons/book-open';
   import ScrollText from '@lucide/svelte/icons/scroll-text';
   import Split from '@lucide/svelte/icons/split';
-  import SquarePen from '@lucide/svelte/icons/square-pen';
   import {
     IconButton,
     LocalDate,
@@ -28,14 +24,13 @@
   import { reader as r } from '$lib/strings/reader';
   import ReaderGear from './ReaderGear.svelte';
   import ReaderSearch from './ReaderSearch.svelte';
+  import EditionActions from '$lib/components/edition/EditionActions.svelte';
 
   interface Props {
     data: Pick<
       ReaderData,
-      'edition' | 'apparatus' | 'mode' | 'versions' | 'exports' | 'links' | 'copy'
+      'edition' | 'apparatus' | 'mode' | 'versions' | 'exports' | 'links' | 'rights' | 'published'
     >;
-    /** Open the dialog that makes a copy; absent when none may be made. */
-    oncopy?: () => void;
     settings: ReaderSettings;
     onsettings: (settings: ReaderSettings) => void;
     query: string;
@@ -68,7 +63,6 @@
     dictionaryOpen = $bindable(false),
     hasDictionary = false,
     showTitle = true,
-    oncopy,
   }: Props = $props();
 
   const shown = $derived.by(() => {
@@ -131,24 +125,14 @@
         <BookOpen aria-hidden="true" />
       </IconButton>
     {/if}
-    <Menu label={r.toolbar.more} triggerSize="sm" triggerClass="w-8 px-0" class="min-w-60">
+    <Menu label={r.toolbar.versions} triggerSize="sm" triggerClass="px-2" class="min-w-60">
       {#snippet trigger()}
-        <Ellipsis class="size-4 text-ink-soft" aria-hidden="true" />
+        <History class="size-4 text-ink-soft" aria-hidden="true" />
+        <span class="hidden text-ink-soft md:inline">{r.toolbar.versions}</span>
       {/snippet}
-      <MenuLabel>{r.menu.downloads}</MenuLabel>
-      <MenuItem href={data.exports.text} file>
-        {#snippet icon()}<FileText aria-hidden="true" />{/snippet}
-        {r.menu.plainText}
-      </MenuItem>
-      <MenuItem href={data.exports.tei} file>
-        {#snippet icon()}<FileCode aria-hidden="true" />{/snippet}
-        {r.menu.tei}
-      </MenuItem>
-      <MenuSeparator />
       <MenuLabel>{r.menu.versions}</MenuLabel>
       {#each data.versions as version (version.number)}
         <MenuItem href={version.href}>
-          {#snippet icon()}<History aria-hidden="true" />{/snippet}
           <span class="flex-1"
             >{r.version(version.number)}{version.current ? ` (${r.menu.current})` : ''}</span
           >
@@ -157,7 +141,7 @@
       {:else}
         <MenuItem disabled>{r.menu.noVersions}</MenuItem>
       {/each}
-      {#if data.links.preview || data.links.editor}
+      {#if data.links.preview || data.mode.kind === 'preview'}
         <MenuSeparator />
         {#if data.links.preview && data.mode.kind !== 'preview'}
           <MenuItem href={data.links.preview}>
@@ -171,21 +155,20 @@
             {r.menu.published}
           </MenuItem>
         {/if}
-        {#if data.links.editor}
-          <MenuItem href={data.links.editor}>
-            {#snippet icon()}<SquarePen aria-hidden="true" />{/snippet}
-            {r.menu.editor}
-          </MenuItem>
-        {/if}
-      {/if}
-      {#if oncopy}
-        <MenuSeparator />
-        <MenuItem onSelect={oncopy}>
-          {#snippet icon()}<Copy aria-hidden="true" />{/snippet}
-          {r.menu.copy}
-        </MenuItem>
       {/if}
     </Menu>
+    <EditionActions
+      edition={{
+        id: data.edition.id,
+        slug: data.edition.slug,
+        title: data.edition.title,
+        published: data.published,
+      }}
+      rights={data.rights}
+      place="reader"
+      downloads={data.exports}
+      class="ml-1"
+    />
   </div>
 </div>
 

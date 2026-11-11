@@ -4,9 +4,8 @@
   import Pencil from '@lucide/svelte/icons/pencil';
   import Plus from '@lucide/svelte/icons/plus';
   import { PageFrame } from '$lib/components/shell';
-  import { Button, buttonClasses } from '$lib/components/ui';
+  import { Button, buttonClasses, ConfirmDialog } from '$lib/components/ui';
   import {
-    ConfirmDialog,
     ConjectureForm,
     ConjectureList,
     EditionList,
@@ -261,6 +260,7 @@
   canPublish={conjecture ? conjecture.can.publish : true}
 />
 <ConfirmDialog
+  confirmLabel={t.common.confirmDelete}
   bind:open={conjectureDeleteOpen}
   title={t.conjecture.deleteTitle}
   description={t.conjecture.deleteConfirm}
@@ -279,6 +279,7 @@
   canPublish={reading ? reading.can.publish : true}
 />
 <ConfirmDialog
+  confirmLabel={t.common.confirmDelete}
   bind:open={readingDeleteOpen}
   title={t.reading.deleteTitle}
   description={t.reading.deleteConfirm}

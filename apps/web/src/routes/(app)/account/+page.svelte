@@ -21,7 +21,9 @@
           {#each data.offers.incoming as offer (offer.id)}
             <li class="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span class="text-ink"
-                ><a class="font-serif hover:underline" href={offer.href}>{offer.title}</a>
+                >{#if offer.href}<a class="font-serif hover:underline" href={offer.href}
+                    >{offer.title}</a
+                  >{:else}<span class="font-serif">{offer.title}</span>{/if}
                 {s.account.offerFrom(offer.fromName)}</span
               >
               <span class="text-xs text-ink-muted"><LocalDate date={offer.createdAt} /></span>
@@ -39,7 +41,10 @@
           {#each data.offers.outgoing as offer (offer.id)}
             <li class="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span class="text-ink-soft"
-                ><span class="font-serif text-ink">{offer.title}</span>
+                >{#if offer.href && offer.kind === 'edition'}<a
+                    class="font-serif text-ink hover:underline"
+                    href={offer.href}>{offer.title}</a
+                  >{:else}<span class="font-serif text-ink">{offer.title}</span>{/if}
                 {s.account.offeredTo(offer.toName)}</span
               >
               <form method="POST" action="?/offer" use:enhance class="ml-auto">

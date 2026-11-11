@@ -48,11 +48,12 @@ export async function copyEdition(
   title: string,
 ): Promise<EditionCopy | CopyRefusal> {
   const access = await loadEditionAccess(db, user, sourceId);
-  if (!access) return 'not-found';
+  // A draft one may not see is answered as if there were none.
+  if (!access || !access.canView) return 'not-found';
   const source = access.edition;
   // Editors copy the draft; readers the published version, and only that.
   const asEditor = access.canEdit;
-  if (!asEditor && (!access.canView || source.publishedVersion === null)) return 'forbidden';
+  if (!asEditor && source.publishedVersion === null) return 'forbidden';
   const { context } = asEditor
     ? { context: await loadEditionContext(db, source.id) }
     : await contextAt(db, source.id, source.publishedVersion);

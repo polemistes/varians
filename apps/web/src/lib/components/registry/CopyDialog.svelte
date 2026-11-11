@@ -23,6 +23,8 @@
   let { open = $bindable(false), title, description, proposed, action, label }: Props = $props();
 
   const s = registry.copy;
+  const uid = $props.id();
+  const formId = `copy-${uid}`;
   let name = $state('');
   let busy = $state(false);
   let error = $state<string | null>(null);
@@ -36,7 +38,7 @@
 
 <Dialog bind:open {title} {description} size="sm">
   <form
-    id="copy-form"
+    id={formId}
     method="post"
     {action}
     class="flex flex-col gap-4"
@@ -67,7 +69,7 @@
   </form>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (open = false)}>{s.cancel}</Button>
-    <Button type="submit" form="copy-form" variant="primary" loading={busy} disabled={!name.trim()}
+    <Button type="submit" form={formId} variant="primary" loading={busy} disabled={!name.trim()}
       >{s.make}</Button
     >
   {/snippet}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import LibrarySection from '$lib/components/library/LibrarySection.svelte';
   import RecordRow from '$lib/components/library/RecordRow.svelte';
+  import EditionActions from '$lib/components/edition/EditionActions.svelte';
   import { PageFrame } from '$lib/components/shell';
   import { Button } from '$lib/components/ui';
   import { site } from '$lib/strings/site';
@@ -11,6 +12,19 @@
   const h = site.home;
 </script>
 
+{#snippet editionActions(edition: (typeof data.editions)[number])}
+  <EditionActions
+    edition={{
+      id: edition.id,
+      slug: edition.slug,
+      title: edition.title,
+      published: edition.visibility === 'published',
+    }}
+    rights={edition.can}
+    place="list"
+  />
+{/snippet}
+
 <PageFrame title={t.title}>
   {#snippet actions()}
     <Button href="/editions/new" variant="secondary" size="sm">{t.newEdition}</Button>
@@ -20,13 +34,15 @@
     <LibrarySection title={t.editions} count={data.editions.length} empty={t.noEditions}>
       {#each data.editions as edition (edition.id)}
         <RecordRow
-          href="/editions/{edition.slug}/edit"
+          href="/editions/{edition.slug}"
           title={edition.title}
           subtitle={h.editionOf(edition.workTitle)}
           subtitleHref="/works/{edition.workSlug}"
           date={edition.updatedAt}
           badge={edition.visibility === 'published' ? h.published : h.draft}
-        />
+        >
+          {#snippet actions()}{@render editionActions(edition)}{/snippet}
+        </RecordRow>
       {/each}
     </LibrarySection>
     <LibrarySection
@@ -52,13 +68,15 @@
     >
       {#each data.shared.editions as edition (edition.id)}
         <RecordRow
-          href="/editions/{edition.slug}/edit"
+          href="/editions/{edition.slug}"
           title={edition.title}
           subtitle={h.editionOf(edition.workTitle)}
           subtitleHref="/works/{edition.workSlug}"
           owner={edition.ownerName}
           date={edition.updatedAt}
-        />
+        >
+          {#snippet actions()}{@render editionActions(edition)}{/snippet}
+        </RecordRow>
       {/each}
       {#each data.shared.transcriptions as transcription (transcription.id)}
         <RecordRow

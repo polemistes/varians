@@ -1,6 +1,12 @@
 <script lang="ts">
-  /** A piece of one's own work, to go straight back into it: an edition opens in its editor, a transcription in the workbench. */
+  /**
+   * A piece of one's own work, to go straight back to it. An edition's name
+   * leads to the reader, with Read, Edit and its menu at the card's foot; a
+   * transcription's card is one link to the workbench.
+   */
+  import EditionActions from '$lib/components/edition/EditionActions.svelte';
   import { Badge, LocalDate } from '$lib/components/ui';
+  import type { EditionRights } from '$lib/edition/actions';
   import { site } from '$lib/strings/site';
 
   type Common = {
@@ -10,7 +16,13 @@
     shared: boolean;
   };
   type RecentItem =
-    | (Common & { kind: 'edition'; slug: string; title: string; workTitle: string })
+    | (Common & {
+        kind: 'edition';
+        slug: string;
+        title: string;
+        workTitle: string;
+        can: EditionRights;
+      })
     | (Common & { kind: 'transcription'; name: string; witnessName: string });
 
   interface Props {
@@ -20,29 +32,54 @@
   let { item }: Props = $props();
   const t = site.home;
 
-  const href = $derived(
-    item.kind === 'edition' ? `/editions/${item.slug}/edit` : `/transcriptions/${item.id}`,
-  );
-  const title = $derived(item.kind === 'edition' ? item.title : item.name);
-  const context = $derived(
-    item.kind === 'edition' ? t.editionOf(item.workTitle) : t.transcriptionOf(item.witnessName),
-  );
+  const cardClass =
+    'group flex h-full flex-col gap-1 rounded-lg border border-line bg-surface px-5 py-4 transition-colors hover:border-accent/50 hover:bg-sunken/40';
 </script>
 
-<a
-  {href}
-  class="group flex h-full flex-col gap-1 rounded-lg border border-line bg-surface px-5 py-4 transition-colors hover:border-accent/50 hover:bg-sunken/40"
->
+{#snippet head(kind: string)}
   <span class="flex flex-wrap items-center gap-2 font-sans text-xs text-ink-muted">
-    <span class="font-medium tracking-[0.08em] uppercase"
-      >{item.kind === 'edition' ? t.edition : t.transcription}</span
-    >
+    <span class="font-medium tracking-[0.08em] uppercase">{kind}</span>
     {#if item.visibility === 'published'}<Badge tone="success">{t.published}</Badge>{/if}
     {#if item.shared}<span>{t.shared}</span>{/if}
   </span>
-  <span class="font-serif text-lg leading-snug text-ink group-hover:text-accent">{title}</span>
-  <span class="font-sans text-sm text-ink-soft">{context}</span>
+{/snippet}
+
+{#snippet changed()}
   <span class="mt-auto pt-1 font-sans text-xs text-ink-muted"
     >{t.changed} <LocalDate date={item.updatedAt} /></span
   >
-</a>
+{/snippet}
+
+{#if item.kind === 'edition'}
+  <article class={['relative', cardClass]}>
+    {@render head(t.edition)}
+    <span class="font-serif text-lg leading-snug text-ink group-hover:text-accent">
+      <a
+        href="/editions/{item.slug}"
+        class="rounded-lg outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:after:ring-2 focus-visible:after:ring-accent"
+        >{item.title}</a
+      >
+    </span>
+    <span class="font-sans text-sm text-ink-soft">{t.editionOf(item.workTitle)}</span>
+    {@render changed()}
+    <EditionActions
+      edition={{
+        id: item.id,
+        slug: item.slug,
+        title: item.title,
+        published: item.visibility === 'published',
+      }}
+      rights={item.can}
+      place="list"
+      class="relative z-10 justify-end pt-2"
+    />
+  </article>
+{:else}
+  <a href="/transcriptions/{item.id}" class={cardClass}>
+    {@render head(t.transcription)}
+    <span class="font-serif text-lg leading-snug text-ink group-hover:text-accent">{item.name}</span
+    >
+    <span class="font-sans text-sm text-ink-soft">{t.transcriptionOf(item.witnessName)}</span>
+    {@render changed()}
+  </a>
+{/if}

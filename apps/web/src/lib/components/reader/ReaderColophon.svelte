@@ -8,6 +8,7 @@
   import type { ReaderData } from '$lib/reader/types';
   import { and } from '$lib/strings/names';
   import { reader as r } from '$lib/strings/reader';
+  import { recordActions } from '$lib/strings/record-actions';
 
   interface Props {
     exports: ReaderData['exports'];
@@ -31,6 +32,7 @@
     rightsNote = null,
     cite = null,
   }: Props = $props();
+  const e = recordActions.edition;
 
   /** A citation of a published version: editors, title, version and date, its lasting address, licence. */
   const citation = $derived.by(() => {
@@ -66,11 +68,11 @@
   {/if}
   <p class="mt-2">
     {r.colophon.downloads}:
-    <a href={exports.text} data-sveltekit-reload>{r.menu.plainText}</a>
+    <a href={exports.text} data-sveltekit-reload>{e.plainText}</a>
     <span class="text-ink-muted" aria-hidden="true">·</span>
-    <a href={exports.tei} data-sveltekit-reload>{r.menu.tei}</a>
+    <a href={exports.tei} data-sveltekit-reload>{e.tei}</a>
     <span class="text-ink-muted" aria-hidden="true">·</span>
-    <a href={exports.package} data-sveltekit-reload>{r.menu.package}</a>
+    <a href={exports.package} data-sveltekit-reload>{e.package}</a>
   </p>
   {#if versions.length}
     <p class="mt-1">

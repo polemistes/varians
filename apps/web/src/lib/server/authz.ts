@@ -22,6 +22,7 @@ import type {
   Work,
 } from '@varians/db';
 import { sql } from '@varians/db';
+import type { EditionRights } from '$lib/edition/actions';
 
 export interface Actor {
   id: string;
@@ -190,6 +191,30 @@ export function canDeleteEdition(user: Maybe<Actor>, edition: Pick<Edition, 'own
 /** Inviting collaborators and offering ownership. */
 export function canGrantOnEdition(user: Maybe<Actor>, edition: Pick<Edition, 'ownerId'>): boolean {
   return ownsOrAdministers(user, edition);
+}
+
+/** What a viewer may do with an edition, as its buttons and menu ask (lib/edition/actions.ts). */
+export function editionRights(
+  user: Maybe<Actor>,
+  edition: Pick<Edition, 'id' | 'ownerId'>,
+  collaboratorIds: Iterable<string>,
+): EditionRights {
+  return {
+    signedIn: !!user,
+    edit: canEditEdition(user, edition, collaboratorIds),
+    publish: canPublishEdition(user, edition),
+    delete: canDeleteEdition(user, edition),
+  };
+}
+
+/** The same from the user's grants, for every edition of a list at once without a query of each. */
+export function editionRightsFromGrants(
+  user: Maybe<Actor>,
+  edition: Pick<Edition, 'id' | 'ownerId'>,
+  grants: Grants,
+): EditionRights {
+  const collaborates = !!user && grants.collaboratingEditionIds.has(edition.id);
+  return editionRights(user, edition, collaborates ? [user.id] : []);
 }
 
 // Conjectures and reported readings

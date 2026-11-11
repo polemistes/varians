@@ -19,6 +19,7 @@ import {
 import { eq, inArray } from 'drizzle-orm';
 import { edition as es } from '../src/lib/strings/edition';
 import { editor as ed } from '../src/lib/strings/editor';
+import { recordActions } from '../src/lib/strings/record-actions';
 import { reader as rd } from '../src/lib/strings/reader';
 import { pageStrings as t } from '../src/lib/strings/pages';
 import { seedSample } from '../src/lib/server/seed/sample.ts';
@@ -259,8 +260,7 @@ test('names a family by one siglum and the other witnesses by a word, and marks 
   await expect(page.locator('.cm-content')).toBeVisible();
 
   // A family siglum for B and C, set with the conspectus.
-  await page.getByRole('button', { name: ed.dialogs.more }).click();
-  await page.getByRole('menuitem', { name: ed.workspace.witnessList }).click();
+  await page.getByRole('button', { name: ed.workspace.witnessList }).click();
   const sigla = page.getByRole('dialog');
   await sigla.getByRole('button', { name: es.conspectus.addGroup }).click();
   await sigla.getByLabel(es.conspectus.groupSiglum).fill('β');
@@ -272,8 +272,8 @@ test('names a family by one siglum and the other witnesses by a word, and marks 
   await expect(sigla).toBeHidden({ timeout: 15_000 });
 
   // The words for the other witnesses and for all of them, on Edition Settings.
-  await page.getByRole('button', { name: ed.dialogs.more }).click();
-  await page.getByRole('menuitem', { name: ed.workspace.settings }).click();
+  await page.getByRole('button', { name: recordActions.menu, exact: true }).click();
+  await page.getByRole('menuitem', { name: recordActions.edition.settings }).click();
   await page.waitForURL(/\/editions\/iliad-1-working-edition\/settings$/);
   await page.waitForLoadState('networkidle');
   await page.locator('select[name=rest]').selectOption('cett.');

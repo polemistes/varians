@@ -1,4 +1,3 @@
-export { default as ConfirmDialog } from './ConfirmDialog.svelte';
 export { default as ConjectureForm } from './ConjectureForm.svelte';
 export { default as ConjectureList } from './ConjectureList.svelte';
 export { default as CoverageBar } from './CoverageBar.svelte';
