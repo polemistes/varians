@@ -107,14 +107,8 @@ export const edition = {
     addGroup: 'Add Group',
     removeGroup: 'Remove This Group',
     picker: {
-      title: 'Add Witness',
-      search: 'Search by name, siglum or shelfmark',
-      results: 'Witnesses',
       transcribed: 'Transcribed for this work',
       reported: 'Readings reported',
-      present: 'In the conspectus',
-      noMatches: 'No witness matches.',
-      add: 'Add',
     },
   },
 

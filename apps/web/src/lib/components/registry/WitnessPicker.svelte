@@ -1,10 +1,7 @@
 <script lang="ts">
   /**
-   * A witness found in the registry. On a work's page it is transcribed: the
-   * form posts ?/transcribe. With `onchoose` it is handed over instead, for a
-   * conspectus: the witnesses suggested (those with a transcript of the work
-   * first) are listed before anything is typed, none of them chosen, and
-   * those already in the conspectus cannot be chosen again.
+   * A witness found in the registry, to be transcribed from a work's page:
+   * the form posts ?/transcribe.
    */
   import { untrack } from 'svelte';
   import { enhance } from '$app/forms';
@@ -12,10 +9,8 @@
   import Plus from '@lucide/svelte/icons/plus';
   import Search from '@lucide/svelte/icons/search';
   import { Button, Checkbox, Dialog, Input, Notice, Spinner, toasts } from '$lib/components/ui';
-  import type { SuggestedWitness } from '$lib/edition/conspectus';
   import { fetchMatches, hitDetail, SEARCH_DELAY, searchable } from '$lib/registry/search';
   import type { SearchHit } from '$lib/registry/types';
-  import { edition } from '$lib/strings/edition';
   import { registry } from '$lib/strings/registry';
   import { autofocus } from './focus';
 
@@ -25,29 +20,15 @@
     newWitnessHref?: string;
     /** A witness chosen from the start, such as one just registered. */
     initial?: SearchHit | null;
-    /** Hands the witness chosen over, in place of transcribing it; the window closes when it resolves. */
-    onchoose?: (hit: SearchHit) => void | Promise<void>;
-    /** Add New Witness, in place of the link to the New Witness page. */
-    onnew?: () => void;
-    /** Listed first, and before anything is typed. */
-    suggestions?: SuggestedWitness[];
-    /** Witnesses that cannot be chosen, being chosen already. */
-    present?: string[];
   }
 
   let {
     open = $bindable(false),
     newWitnessHref = '/witnesses/new',
     initial = null,
-    onchoose,
-    onnew,
-    suggestions = [],
-    present = [],
   }: Props = $props();
 
   const s = registry.picker;
-  const p = edition.conspectus.picker;
-  const choosing = $derived(!!onchoose);
   const uid = $props.id();
   const formId = `picker-${uid}`;
   const searchId = `picker-search-${uid}`;
@@ -59,34 +40,12 @@
   let submitting = $state(false);
   let error = $state<string | null>(null);
 
-  const asHit = (w: SuggestedWitness): SearchHit => ({
-    id: w.id,
-    slug: w.slug,
-    title: w.name,
-    author: null,
-    siglum: w.siglum,
-    shelfmark: null,
-    settlement: null,
-  });
-
   const typed = $derived(searchable([query]));
 
-  /** The rows: the suggestions that match what is typed, then the hits of the search. */
+  /** The rows: the hits of the search, and the witness chosen, which stays among them. */
   const shown = $derived.by(() => {
-    const needle = query.trim().toLocaleLowerCase();
-    const suggested = suggestions
-      .filter(
-        (w) =>
-          !needle ||
-          w.name.toLocaleLowerCase().includes(needle) ||
-          w.siglum.toLocaleLowerCase().includes(needle),
-      )
-      .map((w) => ({ hit: asHit(w), note: w.reason === 'reported' ? p.reported : p.transcribed }));
-    const seen = new Set(suggested.map((r) => r.hit.id));
-    const found = (typed.length ? hits : []).filter((h) => !seen.has(h.id));
-    const rows = [...suggested, ...found.map((hit) => ({ hit, note: null as string | null }))];
-    if (chosen && !rows.some((r) => r.hit.id === chosen!.id))
-      rows.unshift({ hit: chosen, note: null });
+    const rows = typed.length ? [...hits] : [];
+    if (chosen && !rows.some((hit) => hit.id === chosen!.id)) rows.unshift(chosen);
     return rows;
   });
 
@@ -126,23 +85,9 @@
     };
   });
 
-  async function hand(hit: SearchHit) {
-    submitting = true;
-    error = null;
-    try {
-      await onchoose!(hit);
-      open = false;
-    } catch (cause) {
-      error = cause instanceof Error ? cause.message : String(cause);
-    } finally {
-      submitting = false;
-    }
-  }
-
   const submit: SubmitFunction = ({ cancel }) => {
-    if (!chosen || choosing) {
+    if (!chosen) {
       cancel();
-      if (chosen && choosing) void hand(chosen);
       return;
     }
     const name = chosen.title;
@@ -162,7 +107,7 @@
   };
 </script>
 
-<Dialog bind:open title={choosing ? p.title : s.title} size="md">
+<Dialog bind:open title={s.title} size="md">
   <form
     id={formId}
     method="post"
@@ -194,22 +139,17 @@
       <legend class="sr-only">{s.results}</legend>
       {#if shown.length}
         <ul class="max-h-72 divide-y divide-line overflow-y-auto rounded-md border border-line">
-          {#each shown as { hit, note } (hit.id)}
+          {#each shown as hit (hit.id)}
             {@const detail = hitDetail(hit)}
-            {@const taken = present.includes(hit.id)}
             <li>
               <label
-                class={[
-                  'flex items-start gap-3 px-3 py-2 transition-colors has-[:checked]:bg-accent-soft',
-                  taken ? 'cursor-default opacity-60' : 'cursor-pointer hover:bg-sunken',
-                ]}
+                class="flex cursor-pointer items-start gap-3 px-3 py-2 transition-colors hover:bg-sunken has-[:checked]:bg-accent-soft"
               >
                 <input
                   type="radio"
                   name="witnessId"
                   value={hit.id}
                   checked={chosen?.id === hit.id}
-                  disabled={taken}
                   onchange={() => (chosen = hit)}
                   class="mt-1 size-4 shrink-0 accent-accent"
                 />
@@ -218,11 +158,6 @@
                   {#if detail}<span class="block font-sans text-xs text-ink-soft">{detail}</span
                     >{/if}
                 </span>
-                {#if taken || note}
-                  <span class="mt-0.5 shrink-0 font-sans text-xs text-ink-muted"
-                    >{taken ? p.present : note}</span
-                  >
-                {/if}
               </label>
             </li>
           {/each}
@@ -237,28 +172,17 @@
       {/if}
     </fieldset>
 
-    {#if !choosing}
-      <Checkbox name="keepsWrittenForm">
-        {registry.transcription.keepsWritten}
-      </Checkbox>
-    {/if}
+    <Checkbox name="keepsWrittenForm">
+      {registry.transcription.keepsWritten}
+    </Checkbox>
 
-    {#if onnew}
-      <div>
-        <Button type="button" variant="secondary" size="sm" onclick={onnew}>
-          <Plus class="size-4" aria-hidden="true" />
-          {edition.conspectus.addNewWitness}
-        </Button>
-      </div>
-    {:else}
-      <a
-        href={newWitnessHref}
-        class="inline-flex items-center gap-1.5 self-start font-sans text-sm text-accent hover:underline"
-      >
-        <Plus class="size-4" aria-hidden="true" />
-        {s.newWitness}
-      </a>
-    {/if}
+    <a
+      href={newWitnessHref}
+      class="inline-flex items-center gap-1.5 self-start font-sans text-sm text-accent hover:underline"
+    >
+      <Plus class="size-4" aria-hidden="true" />
+      {s.newWitness}
+    </a>
 
     {#if error}
       <Notice kind="error">{error}</Notice>
@@ -266,12 +190,8 @@
   </form>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (open = false)}>{registry.common.cancel}</Button>
-    <Button
-      type="submit"
-      form={formId}
-      variant="primary"
-      loading={submitting}
-      disabled={!chosen || present.includes(chosen.id)}>{choosing ? p.add : s.create}</Button
+    <Button type="submit" form={formId} variant="primary" loading={submitting} disabled={!chosen}
+      >{s.create}</Button
     >
   {/snippet}
 </Dialog>
