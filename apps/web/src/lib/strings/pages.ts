@@ -162,9 +162,9 @@ export const pageStrings = {
 
   /** The rights statement, credit line and source of an image. */
   rights: {
-    statement: 'Rights statement',
+    statement: 'Rights Statement',
     choose: 'Choose a statement',
-    credit: 'Credit line',
+    credit: 'Credit Line',
     source: 'Source',
     sourceHint: 'The address the image was obtained from.',
     notCopyable:
@@ -323,7 +323,7 @@ export const pageStrings = {
     noImage: 'No image',
     warnings: 'The manifest has some problems',
     moreWarnings: (n: number) => `and ${n} more`,
-    mode: 'Pages already here',
+    mode: 'Pages Already Here',
     modeNew: 'Keep them, and add the canvases that are not here yet',
     modeNewHint:
       'A canvas whose image a page already shows is skipped; a page without an image takes the image of the canvas with its label.',
@@ -351,7 +351,7 @@ export const pageStrings = {
     plainImage: (label: string) =>
       `Canvas "${label}" has a plain image without a IIIF image service; its page was made without an image.`,
     rights: 'Rights',
-    credit: 'Credit line',
+    credit: 'Credit Line',
     noRights: 'The manifest gives no rights statement; the pages are imported without one.',
     fallbackRights: (label: string) =>
       `The manifest gives no rights statement; the pages take the witness’s, ${label}.`,

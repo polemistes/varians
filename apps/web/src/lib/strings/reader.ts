@@ -60,17 +60,17 @@ export const reader = {
   /** The gear. */
   settings: {
     title: 'Reading Settings',
-    textSize: 'Text size',
+    textSize: 'Text Size',
     sizes: { small: 'Small', normal: 'Normal', large: 'Large' },
-    interpretative: 'Interpretative variants',
+    interpretative: 'Interpretative Variants',
     interpretativeShown: 'Shown',
-    interpretativeHidden: 'Not shown',
+    interpretativeHidden: 'Not Shown',
     interpretativeHint:
       'Accents, breathings, punctuation and word division: the same letters read otherwise.',
-    minor: 'Minor variants',
+    minor: 'Minor Variants',
     minorShown: 'Shown',
-    minorHidden: 'Not shown',
-    labels: 'Segment labels',
+    minorHidden: 'Not Shown',
+    labels: 'Segment Labels',
     labelsEdition: 'As in the edition',
     labelsEvery: 'Every segment',
     underline: 'Mark words with variants',
@@ -122,8 +122,8 @@ export const reader = {
     /** Before the witnesses in which the words are an addition. */
     addition: 'Addition in',
     /** The kinds of variant a head names. */
-    minor: 'minor',
-    interpretative: 'interpretative',
+    minor: 'Minor',
+    interpretative: 'Interpretative',
     /** Where a variant stands that has no words of the edition. */
     after: 'after',
     before: 'before',
@@ -168,9 +168,9 @@ export const reader = {
   /** The panels. */
   panels: {
     region: 'Panels',
-    resize: 'Resize the panels',
+    resize: 'Resize the Panels',
     close: (name: string) => `Close ${name}`,
-    conspectus: 'Conspectus siglorum',
+    conspectus: 'Conspectus Siglorum',
     conspectusEmpty: 'The edition names no witnesses.',
     groups: 'Groups',
     absentFrom: 'no text for',
@@ -179,7 +179,7 @@ export const reader = {
     chooseWitness: 'Witness',
     readForm: 'Normalized',
     writtenForm: 'Diplomatic',
-    formLabel: 'Form shown',
+    formLabel: 'Form Shown',
     noTranscription:
       'This witness has no transcript; it enters the apparatus through reported readings only.',
     absent: 'not in this witness',
@@ -233,7 +233,7 @@ export const reader = {
     copiedDraft: 'a draft',
     editedBy: (names: string) => `edited by ${names}`,
     downloads: 'Download',
-    versions: 'Published versions',
+    versions: 'Published Versions',
     current: 'current',
   },
 

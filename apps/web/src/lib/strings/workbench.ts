@@ -9,13 +9,13 @@ const plural = (n: number, one: string, many: string) => (n === 1 ? `1 ${one}` :
 export const workbench = {
   title: (siglum: string, witness: string, name: string) => `${siglum} · ${witness} · ${name}`,
   backToWitness: (witness: string) => `Back to ${witness}`,
-  readOnly: 'Read only',
+  readOnly: 'Read Only',
   readOnlyHint: 'You can read this transcript but not change it.',
   draft: 'Draft',
   published: 'Published',
 
   form: {
-    label: 'Form shown',
+    label: 'Form Shown',
     written: 'Diplomatic',
     read: 'Normalized',
     writtenHint: 'The text as the witness writes it',
@@ -30,7 +30,7 @@ export const workbench = {
     /** The text on no page of the witness. */
     unplaced: 'Not on a page',
     unplacedWords: (n: number) => plural(n, 'word', 'words'),
-    whole: 'Whole text',
+    whole: 'Whole Text',
     wholeHint: 'Every page in one view, read only; double-click a word to open its page',
     /** The title of the mark beside a page with text in this transcript. */
     hasText: 'Has text in this transcript',
@@ -50,7 +50,7 @@ export const workbench = {
     moved: (label: string) => `Moved to ${label}`,
     show: 'Show',
     /** The facsimile's own page chooser in Not on a page. */
-    facsimilePage: 'Page shown beside the text',
+    facsimilePage: 'Page Shown beside the Text',
     notMappable: 'Words not on a page cannot be mapped',
     notMappableWhole: 'Open the page to map its words',
   },
@@ -108,7 +108,7 @@ export const workbench = {
         `${plural(taken, 'word', 'words')} took the other text's form${differing ? `; ${plural(differing, 'word stands', 'words stand')} against other letters, left alone` : ''}.`,
     },
     choose: {
-      label: 'Choose the form',
+      label: 'Choose the Form',
       several: 'The letters can be several words:',
       disagrees: 'No form agrees with the accents the witness writes. Choose one:',
       unknown: 'The analyser does not know this word. Type its normalized form in the text.',
@@ -156,7 +156,7 @@ export const workbench = {
 
   pane: {
     label: 'Side pane',
-    resize: 'Resize the side pane',
+    resize: 'Resize the Side Pane',
     facsimile: 'Facsimile',
     otherForm: 'Other Form',
     history: 'History',
@@ -196,8 +196,8 @@ export const workbench = {
   },
 
   toolbar: {
-    label: 'Selection tools',
-    actions: 'Map and confirm',
+    label: 'Selection Tools',
+    actions: 'Map and Confirm',
     map: 'Map',
     mapTitle: 'Draw the selected words on the facsimile',
     confirm: 'Confirm',
@@ -273,7 +273,7 @@ export const workbench = {
     title: 'Number Lines',
     description:
       'Each line from the caret to the end of the page gets the next label on its first word.',
-    start: 'First label',
+    start: 'First Label',
     count: 'Lines',
     countHint: 'Leave empty to number to the end of the page.',
     work: 'Work',
@@ -289,8 +289,8 @@ export const workbench = {
     description:
       'From the normalization profile and the forms you confirmed before. Accepting remembers each pair.',
     scope: 'Where',
-    page: 'This page',
-    whole: 'Whole text',
+    page: 'This Page',
+    whole: 'Whole Text',
     written: 'Diplomatic',
     proposed: 'Normalized',
     source: 'From',
@@ -315,8 +315,8 @@ export const workbench = {
     allPages: 'All Pages',
     uploading: (percent: number) => `Uploading ${percent}%`,
     processing: 'Making tiles',
-    tools: 'Mapping tools',
-    shape: 'Shape to draw',
+    tools: 'Mapping Tools',
+    shape: 'Shape to Draw',
     pan: 'Move',
     rect: 'Rectangle',
     polygon: 'Polygon',
@@ -409,10 +409,10 @@ export const workbench = {
     save: 'Save',
     cancel: 'Cancel',
     kinds: {
-      figure: 'Figure or illustration',
-      decoration: 'Decorated initial or ornament',
-      damage: 'Damage or hole',
-      marginalia: 'Marginal mark or note',
+      figure: 'Figure or Illustration',
+      decoration: 'Decorated Initial or Ornament',
+      damage: 'Damage or Hole',
+      marginalia: 'Marginal Mark or Note',
       other: 'Other',
     } as Record<string, string>,
   },
@@ -429,7 +429,7 @@ export const workbench = {
     placementPage: (label: string) => `On ${label}`,
     placementTei:
       'The text of page breaks that name pages of the witness goes to those pages; the rest goes here.',
-    source: 'Source of the transcript (optional)',
+    source: 'Source of the Transcript (optional)',
     sourceHint: "Added to the transcript's sources.",
     /** What the file is: the two are read differently. */
     kind: 'The file is',
@@ -453,7 +453,7 @@ export const workbench = {
       count: 'Count',
       example: 'Example',
       level: 'Level',
-      ignore: 'Not used',
+      ignore: 'Not Used',
       resolved: (n: number, of: number) => `${n} of ${of} numbered places give labels`,
       examples: (list: string) => `for example ${list}`,
       words: (n: number) => plural(n, 'word', 'words'),
@@ -473,18 +473,18 @@ export const workbench = {
         'margin-every-n': 'Numbers in the margin every few lines',
       } as Record<string, string>,
       matches: (n: number, sample: string) => `${plural(n, 'match', 'matches')}, first ${sample}`,
-      start: 'First label',
+      start: 'First Label',
       startHint:
         'The label of the first line, for numbering every line or the lines before the first number.',
       paragraphs: 'A blank line is a paragraph',
       hyphens: 'A hyphen at the end of a line divides a word',
     },
     leiden: {
-      text: 'Text in Leiden notation',
+      text: 'Text in Leiden Notation',
       hint: 'A transcript of this witness in Leiden+, as papyri.info writes it, or in the conventions as printed. What its editor supplied in [ ] or < > is left out, and the gap kept.',
     },
     layout: {
-      file: 'PAGE XML or ALTO file',
+      file: 'PAGE XML or ALTO File',
       hint: 'From Transkribus, eScriptorium or another recognition tool. Pages are matched to the witness by label or file name.',
       createPages: 'Pages the witness lacks are added to it.',
       noCreatePages: 'Pages the witness lacks are not added: you do not maintain this witness.',
@@ -543,7 +543,7 @@ export const workbench = {
     asWritten: 'Show the diplomatic text without word division',
     sources: 'Sources',
     sourcesHint: 'Printed with the other sources.',
-    rightsNote: 'Note on rights',
+    rightsNote: 'Note on Rights',
     licenceFixed: (name: string) => `Published under ${name}, fixed when it was first published.`,
     licenceToCome: (name: string) =>
       `Publishing puts it under ${name}, the licence of this installation.`,
