@@ -179,11 +179,12 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   await page.waitForLoadState('networkidle');
   await page.getByRole('textbox', { name: ed.title }).fill(`Aeneis 1, ${stamp}`);
   for (const name of [`Codex Probandi ${stamp}`, `Codex Alter ${stamp}`]) {
-    await page.getByRole('button', { name: ed.conspectus.addWitness, exact: true }).click();
-    const picker = page.getByRole('dialog', { name: ed.conspectus.picker.title });
-    await picker.getByText(name).click();
-    await picker.getByRole('button', { name: ed.conspectus.picker.add, exact: true }).click();
-    await expect(picker).toBeHidden();
+    // Each witness is found in the list on the page and chosen there.
+    await page.getByPlaceholder(ed.conspectus.search).fill(name);
+    await page.getByRole('button', { name: `${ed.choose}: ${name}`, exact: true }).click();
+    await expect(
+      page.getByLabel(`${ed.conspectus.siglum}: ${name}`, { exact: true }),
+    ).toBeVisible();
   }
   await page.getByRole('button', { name: ed.save, exact: true }).click();
   await page.waitForURL(/\/editions\/[^/]+\/settings$/);

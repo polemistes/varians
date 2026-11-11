@@ -5,8 +5,9 @@
    * collated (or none, for a witness known from reported readings); the
    * further states of a witness collated under sigla of their own, and the
    * variants it notes; and the groups, sigla that stand for several
-   * witnesses together. Witnesses are added from the registry or registered
-   * in a window, transcripts made in a window, each saved with its window.
+   * witnesses together. Witnesses are chosen from the registry's list on the
+   * page or registered in a window, transcripts made in a window, each saved
+   * with its window.
    *
    * Placed inside a form, it sends the rows as `sigla` and the groups as
    * `groups`, both JSON. Make New Edition, Edition Settings and the editor's
@@ -18,7 +19,7 @@
   import Plus from '@lucide/svelte/icons/plus';
   import X from '@lucide/svelte/icons/x';
   import type { SiglumState } from '@varians/db';
-  import { NewTranscriptionForm, WitnessFields, WitnessPicker } from '$lib/components/registry';
+  import { NewTranscriptionForm, WitnessFields } from '$lib/components/registry';
   import { Button, Checkbox, IconButton, Input, Notice, Select } from '$lib/components/ui';
   import {
     newRow,
@@ -33,6 +34,7 @@
   import { workbench } from '$lib/strings/workbench';
   import { handOptions } from '$lib/workbench/hands';
   import RecordWindow from './RecordWindow.svelte';
+  import WitnessChooser from './WitnessChooser.svelte';
 
   const t = edition.conspectus;
 
@@ -53,6 +55,8 @@
     error?: string | null;
     /** Whether the conspectus differs from what it was given. */
     dirty?: boolean;
+    /** Add New Witness… above the list; false where the page has the button in the section's heading. */
+    newWitnessButton?: boolean;
   }
 
   let {
@@ -65,6 +69,7 @@
     actions,
     error = null,
     dirty = $bindable(false),
+    newWitnessButton = true,
   }: Props = $props();
 
   /** A state as the rows edit it: every field present, the kind deciding which count. */
@@ -125,8 +130,12 @@
     ),
   );
 
-  let picking = $state(false);
   let registering = $state(false);
+
+  /** Opens the window in which a witness is registered; for a button outside the component. */
+  export function addNewWitness() {
+    registering = true;
+  }
   let transcribing = $state(false);
   let transcriptFor = $state<string | null>(null);
 
@@ -438,16 +447,17 @@
         {/each}
       </tbody>
     </table>
-  {:else}
-    <p class="text-ink-soft">{t.none}</p>
   {/if}
 
-  <div>
-    <Button variant="secondary" size="sm" onclick={() => (picking = true)}>
-      <Plus class="size-4" aria-hidden="true" />
-      {t.addWitness}
-    </Button>
-  </div>
+  {#if newWitnessButton}
+    <div class="flex justify-end">
+      <Button variant="secondary" size="sm" onclick={addNewWitness}>
+        <Plus class="size-4" aria-hidden="true" />
+        {t.addNewWitness}
+      </Button>
+    </div>
+  {/if}
+  <WitnessChooser present={rows.map((r) => r.witnessId)} {suggestions} onchoose={choose} />
 
   {#if rows.length >= 2 || groupRows.length}
     <section class="flex flex-col gap-2" aria-labelledby="conspectus-groups">
@@ -503,17 +513,6 @@
     </section>
   {/if}
 </div>
-
-<WitnessPicker
-  bind:open={picking}
-  {suggestions}
-  present={rows.map((r) => r.witnessId)}
-  onchoose={choose}
-  onnew={() => {
-    picking = false;
-    registering = true;
-  }}
-/>
 
 <RecordWindow
   bind:open={registering}

@@ -93,6 +93,8 @@
   let saving = $state(false);
   let formDirty = $state(false);
   let conspectusDirty = $state(false);
+  /** The conspectus, for the button in its section's heading. */
+  let conspectusEditor = $state<{ addNewWitness: () => void } | null>(null);
   const dirty = $derived(formDirty || conspectusDirty);
   /** Bumped by Cancel on Edition Settings: the page starts again from what is saved. */
   let generation = $state(0);
@@ -186,6 +188,27 @@
   >
     <input type="hidden" name="workId" value={work?.id ?? ''} />
 
+    {#key generation}
+      <Section title={s.nameHeading}>
+        <div class="flex flex-col gap-1.5 font-sans">
+          <Input
+            name="title"
+            bind:value={title}
+            aria-label={s.title}
+            aria-invalid={errors.title ? 'true' : undefined}
+            aria-describedby={errors.title ? 'edition-name-error' : undefined}
+            autocomplete="off"
+            class="font-serif text-base"
+            maxlength={200}
+            required
+          />
+          {#if errors.title}<p id="edition-name-error" class="text-xs text-danger" role="alert">
+              {errors.title[0]}
+            </p>{/if}
+        </div>
+      </Section>
+    {/key}
+
     {#if work}
       <Section title={s.work}>
         {#snippet actions()}
@@ -236,7 +259,9 @@
             <p class="font-sans text-xs text-danger" role="alert">{errors.work[0]}</p>
           {/if}
           {#if works.length}
-            <ul class="divide-y divide-line rounded-lg border border-line bg-surface">
+            <ul
+              class="max-h-80 divide-y divide-line overflow-y-auto rounded-lg border border-line bg-surface"
+            >
               {#each works as item (item.id)}
                 <li class="flex items-center gap-4 px-4 py-2.5">
                   <span class="min-w-0 flex-1">
@@ -264,31 +289,16 @@
     {/if}
 
     {#key generation}
-      <Section title={s.nameHeading}>
-        <div class="flex flex-col gap-1.5 font-sans">
-          <Input
-            name="title"
-            bind:value={title}
-            aria-label={s.title}
-            aria-invalid={errors.title ? 'true' : undefined}
-            aria-describedby={errors.title ? 'edition-name-error' : undefined}
-            autocomplete="off"
-            class="font-serif text-base"
-            maxlength={200}
-            required
-          />
-          {#if errors.title}<p id="edition-name-error" class="text-xs text-danger" role="alert">
-              {errors.title[0]}
-            </p>{/if}
-        </div>
-      </Section>
-
-      <Section title={s.editors}>
-        <EditorsField names={editors} error={errors.editors} />
-      </Section>
-
       <Section title={s.witnesses}>
+        {#snippet actions()}
+          <Button variant="secondary" size="sm" onclick={() => conspectusEditor?.addNewWitness()}>
+            <Plus class="size-4" aria-hidden="true" />
+            {s.conspectus.addNewWitness}
+          </Button>
+        {/snippet}
         <ConspectusEditor
+          bind:this={conspectusEditor}
+          newWitnessButton={false}
           rows={conspectus.rows}
           witnesses={conspectus.witnesses}
           groups={conspectus.groups}
@@ -299,6 +309,10 @@
           error={errors.sigla?.[0] ?? null}
           bind:dirty={conspectusDirty}
         />
+      </Section>
+
+      <Section title={s.editors}>
+        <EditorsField names={editors} error={errors.editors} />
       </Section>
 
       {#if mode === 'settings' && edition}

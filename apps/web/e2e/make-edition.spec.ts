@@ -118,13 +118,10 @@ test('an edition made from scratch on one page, which stays as Edition Settings'
   await page.getByRole('textbox', { name: ed.title }).fill(editionName);
   await page.screenshot({ path: `${SHOTS}/2-work-chosen.png`, fullPage: true });
 
-  // Add Witness, then Add New Witness in its own window.
-  await page.getByRole('button', { name: ed.conspectus.addWitness, exact: true }).click();
-  const picker = page.getByRole('dialog', { name: ed.conspectus.picker.title });
-  await expect(picker).toBeVisible();
-  await page.waitForTimeout(400);
-  await page.screenshot({ path: `${SHOTS}/4-add-witness.png` });
-  await picker.getByRole('button', { name: ed.conspectus.addNewWitness }).click();
+  // The registry's witnesses are listed on the page; a new one is added in its own window.
+  await expect(page.getByPlaceholder(ed.conspectus.search)).toBeVisible();
+  await page.screenshot({ path: `${SHOTS}/4-witnesses-listed.png`, fullPage: true });
+  await page.getByRole('button', { name: ed.conspectus.addNewWitness }).click();
   const witnessWindow = page.getByRole('dialog', { name: ed.conspectus.addNewWitnessTitle });
   await witnessWindow.locator('input[name=name]').fill(witnessName);
   await witnessWindow.locator('input[name=siglum]').fill('R');
