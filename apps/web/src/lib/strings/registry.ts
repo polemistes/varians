@@ -351,6 +351,7 @@ export const registry = {
       `Started from the transcript ${name} of ${witness}.`,
     copiedFrom: (name: string) => `copied from ${name}`,
     work: 'Work',
+    witness: 'Witness',
     workNone: 'No work',
     renameTitle: 'Rename the Transcript',
     segmentCount: (n: number) => (n === 1 ? '1 segment' : `${n} segments`),

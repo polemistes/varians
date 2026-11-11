@@ -530,7 +530,7 @@
   title={t.makeTranscriptTitle}
   action={`${actions}?/newTranscript`}
   {work}
-  witnessId={transcriptFor ?? undefined}
+  witness={transcriptFor ? { id: transcriptFor, name: nameOf(transcriptFor) } : null}
   {sources}
   oncreated={transcriptMade}
 />

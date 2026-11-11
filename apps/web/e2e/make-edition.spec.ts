@@ -134,16 +134,17 @@ test('an edition made from scratch on one page, which stays as Edition Settings'
   });
   await expect(transcript).toHaveValue('');
 
-  // Make New Transcript, in a window, for the work chosen.
+  // Make New Transcript, in a window that names the witness, of which the transcript is, and no work.
   await page
     .getByRole('button', { name: `${ed.conspectus.makeTranscript}: ${witnessName}` })
     .click();
   const transcriptWindow = page.getByRole('dialog', { name: ed.conspectus.makeTranscriptTitle });
-  await expect(transcriptWindow).toContainText(workTitle);
-  await expect(transcriptWindow.locator('input[name=name]')).toHaveValue(workTitle);
+  await expect(transcriptWindow).toContainText(witnessName);
+  await expect(transcriptWindow).not.toContainText(workTitle);
+  await expect(transcriptWindow.locator('input[name=name]')).toHaveValue(witnessName);
   await transcriptWindow.getByRole('button', { name: reg.transcription.create }).click();
   await expect(transcriptWindow).toBeHidden();
-  await expect(transcript.locator('option:checked')).toHaveText(workTitle);
+  await expect(transcript.locator('option:checked')).toHaveText(witnessName);
   await expect(page.getByRole('link', { name: ed.conspectus.openTranscript })).toBeVisible();
 
   // Save: the page stays, now as Edition Settings.

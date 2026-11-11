@@ -20,16 +20,24 @@
     open?: boolean;
     /** The window's title. */
     title?: string;
-    /** Every work, to choose from; not needed when the work is given. */
+    /** Every work, to choose from; not needed where the window is opened for a witness. */
     works?: WorkOption[];
     /** The transcriptions the user may view, to start from. */
     sources: TranscriptionOption[];
     /** The form action; the witness page's own when omitted. */
     action?: string;
-    /** The work the transcript is made for, shown and not chosen. */
+    /**
+     * The witness transcribed, shown and not chosen, for a window opened
+     * away from the witness's page. A transcript is of its witness, and may
+     * hold text of any work, so the window names the witness and no work.
+     */
+    witness?: { id: string; name: string } | null;
+    /**
+     * The work whose segment labels and spelling rules the transcript is
+     * offered first, where the window is opened for a witness: the first of
+     * the works the transcript is for, changed in the transcript's settings.
+     */
     work?: { id: string; title: string } | null;
-    /** The witness transcribed, for an action that does not know it from its page. */
-    witnessId?: string;
     /** Called with the transcript made, in place of going to its workbench. */
     oncreated?: (transcript: TranscriptChoice) => void;
   }
@@ -40,8 +48,8 @@
     works = [],
     sources,
     action = '?/newTranscription',
+    witness = null,
     work = null,
-    witnessId,
     oncreated,
   }: Props = $props();
 
@@ -69,8 +77,8 @@
 
   $effect(() => {
     if (open) {
-      name = work?.title ?? '';
-      workId = work?.id ?? '';
+      name = witness?.name ?? '';
+      workId = witness ? (work?.id ?? '') : '';
       errors = {};
       formError = null;
     }
@@ -125,12 +133,12 @@
     {#if formError}
       <Notice kind="error">{formError}</Notice>
     {/if}
-    {#if witnessId}<input type="hidden" name="witnessId" value={witnessId} />{/if}
-    {#if work}
-      <input type="hidden" name="workId" value={work.id} />
+    {#if witness}
+      <input type="hidden" name="witnessId" value={witness.id} />
+      {#if work}<input type="hidden" name="workId" value={work.id} />{/if}
       <div class="flex flex-col gap-1.5 font-sans">
-        <span class="text-sm font-medium text-ink">{s.work}</span>
-        <span class="font-serif text-base text-ink">{work.title}</span>
+        <span class="text-sm font-medium text-ink">{s.witness}</span>
+        <span class="font-serif text-base text-ink">{witness.name}</span>
       </div>
     {:else}
       <Field label={s.work} error={errors.workId}>
@@ -156,7 +164,7 @@
           class="font-serif text-base"
           required
           {@attach (node: HTMLElement) => {
-            if (work) autofocus(node);
+            if (witness) autofocus(node);
           }}
         />
       {/snippet}
