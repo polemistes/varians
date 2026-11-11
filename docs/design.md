@@ -359,7 +359,6 @@ Designed or wanted, and not there:
   - A note cannot be added from a variant, only on a selection or a segment.
   - The order of segments as a variant cannot be marked minor or reviewed, and is not in the TEI or the plain text.
   - A segment that a witness has before the first or after the last segment the edition prints is not reported.
-- The names of fields and options in Title Case (section 4): they are in sentence case but on the page for making an edition and in the window for making a transcript.
 - Further ways of reading the variants in the text: the readings of a chosen witness or group shown in the line, chosen witnesses in parallel, the variants filtered by witness, group and kind.
 - The arrangement of the witness, work and edition screens along the workflows of section 4.
 - Of the name and the menu beside it (section 4): an edition's Publish… and a transcript's Delete Transcript… are not shown disabled with their reason, and in a list neither is Delete Work… or Delete Witness…, the refusal coming in the window; the offers of ownership, an administrator's change of a role and the witnesses of a conspectus are acted on by buttons of their own.
