@@ -135,7 +135,10 @@ async function menuOf(page: Page, trigger: Locator): Promise<string[]> {
   await trigger.click();
   const menu = page.getByRole('menu');
   await expect(menu).toBeVisible();
-  const items = (await menu.getByRole('menuitem').allInnerTexts()).map((t) => t.trim());
+  // An item that cannot be done now says why under its label: the label is the first line.
+  const items = (await menu.getByRole('menuitem').allInnerTexts()).map(
+    (t) => t.trim().split('\n')[0]!,
+  );
   await page.keyboard.press('Escape');
   await expect(menu).toBeHidden();
   return items;
@@ -451,7 +454,7 @@ test('the Works list and search give those who may change a work Edit and the me
   await shot(page, '4-works-list');
   await page.goto(`/search?q=${stamp}`);
   await page.waitForLoadState('networkidle');
-  const row = page.locator('li').filter({ hasText: WORK.title }).first();
+  const row = page.locator('main li').filter({ hasText: WORK.title }).first();
   await expect(row.getByRole('link', { name: ra.work.editOf(WORK.title) })).toHaveAttribute(
     'href',
     `/works/${WORK.slug}/edit`,
@@ -463,10 +466,7 @@ test('the Works list and search give those who may change a work Edit and the me
     ra.work.delete,
   ]);
   // The name still leads to the work.
-  await expect(row.getByRole('link', { name: WORK.title })).toHaveAttribute(
-    'href',
-    `/works/${WORK.slug}`,
-  );
+  await expect(row.locator(`a[href="/works/${WORK.slug}"]`)).toBeVisible();
 
   // Another person, who maintains nothing: no Edit and no menu in the list; the package on the page.
   const other = await browser.newPage();
@@ -482,7 +482,7 @@ test('the Works list and search give those who may change a work Edit and the me
       .getByRole('button', { name: /^Actions/ }),
   ).toHaveCount(0);
   await expect(
-    other.locator('li').filter({ hasText: WITNESS.name }).getByRole('link', { name: /^Edit/ }),
+    other.locator('main li').filter({ hasText: WITNESS.name }).getByRole('link', { name: /^Edit/ }),
   ).toHaveCount(0);
   await other.goto(`/witnesses/${WITNESS.slug}`);
   await other.waitForLoadState('networkidle');
@@ -530,7 +530,7 @@ test('a witness is deleted from a list through the window, and stays there', asy
   await signIn(page, OWNER);
   await page.goto(`/search?q=${stamp}`);
   await page.waitForLoadState('networkidle');
-  const row = page.locator('li').filter({ hasText: DOOMED_WITNESS.name });
+  const row = page.locator('main li').filter({ hasText: DOOMED_WITNESS.name });
   await row.getByRole('button', { name: ra.menuOf(DOOMED_WITNESS.name) }).click();
   await page.getByRole('menuitem', { name: ra.witness.delete }).click();
   const window = page.getByRole('dialog', { name: ra.witness.deleteTitle });
@@ -568,13 +568,13 @@ test('a transcript has the same menu in the workbench, on a witness and a work, 
   // The rows of a witness's page and of a work's page.
   await page.goto(`/witnesses/${WITNESS.slug}`);
   await page.waitForLoadState('networkidle');
-  const onWitness = page.locator('li').filter({ hasText: BOOK });
+  const onWitness = page.locator('main li').filter({ hasText: BOOK });
   expect(await menuOf(page, onWitness.getByRole('button', { name: ra.menuOf(BOOK) }))).toEqual(
     TRANSCRIPTION_MENU,
   );
   await page.goto(`/works/${WORK.slug}`);
   await page.waitForLoadState('networkidle');
-  const onWork = page.locator('li').filter({ hasText: BOOK });
+  const onWork = page.locator('main li').filter({ hasText: BOOK });
   expect(await menuOf(page, onWork.getByRole('button', { name: ra.menuOf(BOOK) }))).toEqual(
     TRANSCRIPTION_MENU,
   );
@@ -583,7 +583,7 @@ test('a transcript has the same menu in the workbench, on a witness and a work, 
   await page.goto('/mine');
   await page.waitForLoadState('networkidle');
   await shot(page, '7-your-work');
-  const onMine = page.locator('li').filter({ hasText: BOOK });
+  const onMine = page.locator('main li').filter({ hasText: BOOK });
   expect(await menuOf(page, onMine.getByRole('button', { name: ra.menuOf(BOOK) }))).toEqual(
     TRANSCRIPTION_MENU,
   );
@@ -616,7 +616,7 @@ test('Settings and Make a Copy from a list open the workbench with their window'
   await signIn(page, OWNER);
   await page.goto(`/witnesses/${WITNESS.slug}`);
   await page.waitForLoadState('networkidle');
-  const row = page.locator('li').filter({ hasText: SECOND });
+  const row = page.locator('main li').filter({ hasText: SECOND });
   await row.getByRole('button', { name: ra.menuOf(SECOND) }).click();
   await page.getByRole('menuitem', { name: ra.transcription.settings }).click();
   await page.waitForURL(`**/transcriptions/${ids.second}`);
@@ -651,7 +651,7 @@ test('a transcript is deleted from a list through the window; one an edition nam
   await page.waitForLoadState('networkidle');
 
   // Book 1 stands behind a siglum of two editions: the window says so.
-  const book = page.locator('li').filter({ hasText: BOOK });
+  const book = page.locator('main li').filter({ hasText: BOOK });
   await book.getByRole('button', { name: ra.menuOf(BOOK) }).click();
   await page.getByRole('menuitem', { name: ra.transcription.delete }).click();
   const window = page.getByRole('dialog', { name: ra.transcription.deleteTitle });
@@ -664,7 +664,7 @@ test('a transcript is deleted from a list through the window; one an edition nam
   ).toHaveLength(1);
 
   // The spare one goes, and Your Work stays.
-  const spare = page.locator('li').filter({ hasText: SPARE });
+  const spare = page.locator('main li').filter({ hasText: SPARE });
   await spare.getByRole('button', { name: ra.menuOf(SPARE) }).click();
   await page.getByRole('menuitem', { name: ra.transcription.delete }).click();
   await window.getByRole('button', { name: ra.transcription.deleteVerb, exact: true }).click();
@@ -698,7 +698,7 @@ test('a conjecture and a reported reading are edited and deleted from their rows
   await rowOfA.getByRole('button', { name: ra.menuOf('1.1 virumque') }).click();
   await page.getByRole('menuitem', { name: ra.conjecture.edit }).click();
   const edit = page.getByRole('dialog', { name: reg.conjecture.editTitle });
-  await edit.getByLabel(reg.conjecture.reading).fill('viroquam');
+  await edit.getByLabel(reg.conjecture.reading, { exact: true }).fill('viroquam');
   await edit.getByRole('button', { name: reg.conjecture.save, exact: true }).click();
   await expect(page.getByText(reg.conjecture.updated)).toBeVisible();
   await expect(conjectureRows.locator('li').filter({ hasText: 'viroquam' })).toBeVisible();
@@ -729,7 +729,7 @@ test('a conjecture and a reported reading are edited and deleted from their rows
   await rowOfRA.getByRole('button', { name: ra.menuOf(`1.1 ${WITNESS.siglum}`) }).click();
   await page.getByRole('menuitem', { name: ra.reading.edit }).click();
   const editReading = page.getByRole('dialog', { name: reg.reading.editTitle });
-  await editReading.getByLabel(reg.reading.reading).fill('armu');
+  await editReading.getByLabel(reg.reading.reading, { exact: true }).fill('armu');
   await editReading.getByRole('button', { name: reg.reading.save, exact: true }).click();
   await expect(page.getByText(reg.reading.updated)).toBeVisible();
   const rowOfRB = readingRows.locator('li').filter({ hasText: 'canto' });
@@ -759,7 +759,7 @@ test('a reported reading is edited and deleted from the witness page too', async
   await page.waitForURL(new RegExp(`/works/${WORK.slug}$`));
   const edit = page.getByRole('dialog', { name: reg.reading.editTitle });
   await expect(edit).toBeVisible();
-  await expect(edit.getByLabel(reg.reading.reading)).toHaveValue('fatu');
+  await expect(edit.getByLabel(reg.reading.reading, { exact: true })).toHaveValue('fatu');
   await edit.getByRole('button', { name: reg.common.cancel }).click();
 
   // Delete… asks here, and the row goes.

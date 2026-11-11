@@ -315,22 +315,12 @@ export const registry = {
     create: 'Save',
     created: 'The transcript has been created.',
     createdFor: (witness: string) => `A transcript of ${witness} has been created.`,
-    rename: 'Rename…',
-    /** The button of the window that Rename… opens. */
-    renameConfirm: 'Rename',
-    renamed: 'The transcript has been renamed.',
-    delete: 'Delete…',
-    deleted: 'The transcript has been deleted.',
-    deleteTitle: 'Delete This Transcript?',
-    deleteConfirm: (name: string) =>
-      `${name} and its history will be deleted. Editions that collate it would lose a witness, so this is refused while any edition names it.`,
+    /** The refusal to delete a transcript an edition names; the window is the application's (record-actions). */
     inConspectus: (d: { editions: string[]; hiddenEditions: number }) =>
       `This transcript cannot be deleted: it stands behind a siglum in ${and(editionParts(d))}. Remove it from the conspectus first.`,
     notOwner: 'Only the owner or an administrator may do this.',
     notFound: 'This transcript no longer exists.',
     sourceNotAllowed: 'You may not view the transcript to start from.',
-    open: 'Open',
-    menu: 'Actions',
     owner: (name: string) => `by ${name}`,
     draft: 'Draft',
     published: 'Published',
@@ -342,7 +332,6 @@ export const registry = {
     copiedFrom: (name: string) => `copied from ${name}`,
     work: 'Work',
     workNone: 'No work',
-    renameTitle: 'Rename the Transcript',
     segmentCount: (n: number) => (n === 1 ? '1 segment' : `${n} segments`),
   },
 

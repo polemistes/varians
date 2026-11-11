@@ -47,5 +47,5 @@
     <LocalDate {date} />
   </div>
   <!-- The room of a row's actions is one width for every row, so that the dates stand in line. -->
-  {#if actions}<div class="flex w-40 shrink-0 justify-end">{@render actions()}</div>{/if}
+  {#if actions}<div class="flex w-44 shrink-0 justify-end">{@render actions()}</div>{/if}
 </li>

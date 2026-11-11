@@ -60,6 +60,7 @@
         label={t.menu.paneLeft}
         size="sm"
         aria-pressed={paneLeft}
+        class="aria-pressed:bg-sunken aria-pressed:text-ink"
         onclick={() => onpaneleft(!paneLeft)}
       >
         <ArrowLeftRight aria-hidden="true" />
