@@ -899,8 +899,8 @@ describe('transcriptions of several works, and copies', () => {
       },
     ]);
 
-    // A reader may not copy a draft.
-    expect(await copyEdition(db, bob, id, 'Mine')).toBe('forbidden');
+    // A draft one may not see is, to them, no edition at all.
+    expect(await copyEdition(db, bob, id, 'Mine')).toBe('not-found');
 
     const own = await copyEdition(db, alice, id, 'Alice again');
     if (typeof own === 'string') throw new Error(own);
