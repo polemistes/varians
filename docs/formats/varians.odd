@@ -91,7 +91,10 @@
             the header or the edition's own <gi>editor</gi>; a conjecture or a reported reading
             points by <att>source</att> at the source stated for it, a <gi>bibl</gi> of that
             list, and a conjecture at its record besides. A reported reading names its witness
-            in <att>wit</att>.</item>
+            in <att>wit</att>. Where a record cites a work of the bibliography, the source is a
+            <gi>bibl</gi> with what is said before the work, a <gi>ref</gi> to it and the
+            <gi>citedRange</gi>; the works an edition cites are a second <gi>listBibl</gi> of
+            <gi>biblStruct</gi>.</item>
           <label>Manuscript description</label>
           <item><gi>objectDesc</gi> has the forms <val>codex</val>, <val>scroll</val> and
             <val>leaf</val>; <gi>altIdentifier</gi> carries the siglum only.</item>
@@ -113,11 +116,12 @@
 
         <!-- The header: title and contributors, the licence, the source
              (witness or witness list), the language, how the text is cited
-             (refsDecl with refState: by the milestones of unit segment), and
-             the prefixes that make tok:ID and the like resolvable. -->
+             (refsDecl with refState: by the milestones of unit segment), the
+             prefixes that make tok:ID and the like resolvable, and the
+             edition of a work cited. -->
         <moduleRef key="header"
           include="teiHeader fileDesc titleStmt publicationStmt authority availability licence
-                   sourceDesc idno extent handNote profileDesc langUsage language
+                   sourceDesc idno extent handNote profileDesc langUsage language edition
                    encodingDesc refsDecl refState listPrefixDef prefixDef"/>
 
         <!-- Core: header parts, breaks, the editorial and transcriptional
@@ -129,17 +133,25 @@
              at them by resp and source. num, foreign and q are what a
              papyrus edition marks in its text (a numeral with its value,
              words in another language, a quotation); desc is what is said
-             of a gap. Not included: other lists, names
-             other than persName (namesdates), bibliographic structure beyond
-             a plain bibl with an author. -->
+             of a gap. The works an edition cites are listed as biblStruct,
+             TEI's structured entry: analytic for what stands in a journal or
+             a book, monogr with its imprint, series, and in them title,
+             author, editor, edition, date, publisher, pubPlace, biblScope
+             and idno; ptr holds a work's address. A record's citation of a
+             work is a bibl with a ref to the work and the citedRange. Not
+             included: other lists, and names other than persName, surname
+             and forename (namesdates). -->
         <moduleRef key="core"
           include="title editor author respStmt resp p bibl listBibl head graphic
+                   biblStruct analytic monogr imprint series date publisher pubPlace
+                   biblScope citedRange ref ptr
                    milestone lb cb pb
                    choice orig reg abbr expan sic corr unclear del add hi gap note
                    label stage num foreign q desc"/>
 
-        <!-- persName for contributors, settlement in the manuscript identifier. -->
-        <moduleRef key="namesdates" include="persName settlement"/>
+        <!-- persName for contributors, settlement in the manuscript identifier,
+             surname and forename in the authors and editors of a work cited. -->
+        <moduleRef key="namesdates" include="persName settlement surname forename"/>
 
         <!-- The witness of a transcription. -->
         <moduleRef key="msdescription"

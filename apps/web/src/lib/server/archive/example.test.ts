@@ -105,9 +105,21 @@ describe('the example archive of the format', () => {
       /<rdg type="conjecture" resp="#resp-[^"]+" source="conj:[0-9A-Z]+">ἑλώριον<\/rdg>/u,
     );
     expect(tei).toMatch(
-      /<lem resp="#resp-Zenodotus" source="conj:[0-9A-Z]+"><w [^>]*source="conj:[0-9A-Z]+">δαῖτα<\/w>/u,
+      /<lem resp="#resp-Zenodotus" source="conj:[0-9A-Z]+[^"]*"><w [^>]*source="conj:[0-9A-Z]+">δαῖτα<\/w>/u,
     );
     expect(tei).toContain('<bibl><author xml:id="resp-Zenodotus">Zenodotus</author></bibl>');
+    // The work the adopted conjecture cites is a structured entry, and its citation, with the place cited, one of the sources.
+    const work =
+      /<biblStruct xml:id="(bib-[0-9A-Z]+)" type="book" n="Allen 1931"><monogr><author>/u.exec(tei);
+    expect(work).not.toBeNull();
+    const citation = new RegExp(
+      `<bibl xml:id="(src-\\d+)"><ref target="#${work![1]}">Allen 1931</ref>, <citedRange>ad 1\\.5</citedRange></bibl>`,
+      'u',
+    ).exec(tei);
+    expect(citation).not.toBeNull();
+    expect(tei).toMatch(
+      new RegExp(`<lem resp="#resp-Zenodotus" source="conj:[0-9A-Z]+ #${citation![1]}">`, 'u'),
+    );
     const source = /<bibl xml:id="(src-\d+)">Allen's apparatus \(1931\)<\/bibl>/u.exec(tei);
     expect(source).not.toBeNull();
     expect(tei).toContain(`<rdg type="reported" wit="#wit-T" source="#${source![1]}">θεά</rdg>`);

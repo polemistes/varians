@@ -10,6 +10,7 @@ import {
   parseBiblatex,
   serializeBiblatex,
   type BibEntry,
+  type EditionBibliography,
 } from '@varians/core';
 import {
   bibliographyItems,
@@ -401,39 +402,46 @@ export interface WorkCited {
   reference: string;
 }
 
+/** The conjectures and reported readings of an edition's work that an audience sees: for readers, the published ones. */
+async function recordsSeen(
+  db: Database,
+  workId: string,
+  audience: Audience,
+): Promise<{ conjectureIds: string[]; reportedIds: string[] }> {
+  const sees = await recordFilter(db, workId, audience);
+  return {
+    conjectureIds: (await db.select().from(conjectures).where(eq(conjectures.workId, workId)))
+      .filter(sees)
+      .map((r) => r.id),
+    reportedIds: (
+      await db.select().from(reportedReadings).where(eq(reportedReadings.workId, workId))
+    )
+      .filter(sees)
+      .map((r) => r.id),
+  };
+}
+
 /**
- * An edition's works cited: what its notes, its own citations, and the
- * conjectures and reported readings its apparatus prints for this audience
- * cite (for readers, the work's published records), in label order.
+ * The works an edition cites: what its notes, its own citations, and the
+ * conjectures and reported readings given cite, in label order, each with
+ * the label the edition prints, a and b where two would read alike.
  */
-export async function editionWorksCited(
+async function worksCitedBy(
   db: Database,
   editionId: string,
-  audience: Audience = PUBLIC,
-): Promise<WorkCited[]> {
-  const [edition] = await db
-    .select({ id: editions.id, workId: editions.workId, ownerId: editions.ownerId })
-    .from(editions)
-    .where(eq(editions.id, editionId));
-  if (!edition) return [];
-  const sees = await recordFilter(db, edition.workId, audience);
-  const conjectureIds = (
-    await db.select().from(conjectures).where(eq(conjectures.workId, edition.workId))
-  )
-    .filter(sees)
-    .map((r) => r.id);
-  const reportedIds = (
-    await db.select().from(reportedReadings).where(eq(reportedReadings.workId, edition.workId))
-  )
-    .filter(sees)
-    .map((r) => r.id);
+  records: { conjectureIds: string[]; reportedIds: string[] },
+): Promise<{ item: BibItem; label: string }[]> {
   const noteIds = (
     await db.select({ id: notes.id }).from(notes).where(eq(notes.editionId, editionId))
   ).map((r) => r.id);
   const conditions = [
     eq(citations.editionId, editionId),
-    conjectureIds.length ? inArray(citations.conjectureId, conjectureIds) : undefined,
-    reportedIds.length ? inArray(citations.reportedReadingId, reportedIds) : undefined,
+    records.conjectureIds.length
+      ? inArray(citations.conjectureId, records.conjectureIds)
+      : undefined,
+    records.reportedIds.length
+      ? inArray(citations.reportedReadingId, records.reportedIds)
+      : undefined,
     noteIds.length ? inArray(citations.noteId, noteIds) : undefined,
   ].filter((c) => c !== undefined);
   const itemIds = [
@@ -453,10 +461,69 @@ export async function editionWorksCited(
     .where(inArray(bibliographyItems.id, itemIds))
     .orderBy(asc(bibliographyItems.label), asc(bibliographyItems.citationKey));
   const labels = disambiguateLabels(items.map((i) => i.label));
-  return items.map((item, i) => ({
+  return items.map((item, i) => ({ item, label: labels[i]! }));
+}
+
+/**
+ * An edition's works cited: what its notes, its own citations, and the
+ * conjectures and reported readings its apparatus prints for this audience
+ * cite (for readers, the work's published records), in label order.
+ */
+export async function editionWorksCited(
+  db: Database,
+  editionId: string,
+  audience: Audience = PUBLIC,
+): Promise<WorkCited[]> {
+  const [edition] = await db
+    .select({ id: editions.id, workId: editions.workId })
+    .from(editions)
+    .where(eq(editions.id, editionId));
+  if (!edition) return [];
+  const works = await worksCitedBy(db, editionId, await recordsSeen(db, edition.workId, audience));
+  return works.map(({ item, label }) => ({
     id: item.id,
     key: item.citationKey,
-    label: labels[i]!,
+    label,
     reference: referenceText(entryOf(item)),
   }));
+}
+
+/**
+ * The bibliography of an edition as its TEI lists it: the works it cites,
+ * as `editionWorksCited` gives them, and what each of the conjectures and
+ * reported readings given cites of them, with what is said before and after.
+ */
+export async function editionBibliography(
+  db: Database,
+  editionId: string,
+  records: { conjectureIds: string[]; reportedIds: string[] },
+): Promise<EditionBibliography> {
+  const [works, byConjecture, byReported] = await Promise.all([
+    worksCitedBy(db, editionId, records),
+    citationsByRecord(db, 'conjecture', records.conjectureIds),
+    citationsByRecord(db, 'reported', records.reportedIds),
+  ]);
+  return {
+    works: works.map(({ item, label }) => ({ id: item.id, label, entry: entryOf(item) })),
+    citations: Object.fromEntries(
+      [...byConjecture, ...byReported].map(([id, list]) => [
+        id,
+        list.map((c) => ({ itemId: c.itemId, prenote: c.prenote, postnote: c.postnote })),
+      ]),
+    ),
+  };
+}
+
+/** The bibliography of an edition for the TEI an audience downloads: with the records that audience sees. */
+export async function editionBibliographyFor(
+  db: Database,
+  editionId: string,
+  audience: Audience = PUBLIC,
+): Promise<EditionBibliography> {
+  const [edition] = await db
+    .select({ workId: editions.workId })
+    .from(editions)
+    .where(eq(editions.id, editionId));
+  if (!edition) return { works: [], citations: {} };
+  return editionBibliography(db, editionId, await recordsSeen(db, edition.workId, audience));
 }

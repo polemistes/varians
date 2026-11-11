@@ -639,6 +639,111 @@ describe.skipIf(!xmllint)('edition TEI is valid', slow, () => {
     expect(errors(xml)).toEqual([]);
   });
 
+  it('with its bibliography: works of every kind as structured entries, and the citations of a conjecture and a report among the sources', () => {
+    const works = [
+      [
+        'book',
+        {
+          author: 'West, Martin L.',
+          editor: 'Allen, Thomas W. and others',
+          title: 'Homeri Ilias',
+          subtitle: 'Volumen prius',
+          edition: '2',
+          location: 'Stuttgart',
+          publisher: 'Teubner',
+          date: '1998',
+          series: 'Bibliotheca Teubneriana',
+          number: '12',
+          volume: '1',
+          isbn: '3-519-01431-9',
+          doi: '10.1515/9783110951561',
+          translator: 'Other, A. N.',
+        },
+      ],
+      [
+        'article',
+        {
+          author: 'Wilamowitz-Moellendorff, Ulrich von',
+          editor: 'Someone, Else',
+          title: 'Lesefrüchte',
+          journaltitle: 'Hermes',
+          volume: '62',
+          number: '3',
+          pages: '276--298',
+          year: '1927',
+          doi: '10.1000/example',
+          url: 'https://example.org/hermes/62',
+          issn: '0018-0777',
+        },
+      ],
+      [
+        'incollection',
+        {
+          author: 'Dover, K. J.',
+          title: 'The Chorus',
+          booktitle: 'Aristophanic Comedy',
+          editor: 'Henderson, Jeffrey',
+          pages: '10-20',
+          publisher: 'Clarendon Press',
+          location: 'Oxford',
+          date: '1987-05',
+          series: 'Studies',
+          volume: '2',
+        },
+      ],
+      ['thesis', { author: '{A Body}', title: 'T', institution: 'Oslo', date: 'forthcoming' }],
+      ['online', { title: 'A page', url: 'https://example.org/a?b=c&d=e', date: '2026-11-11' }],
+      ['misc', {}],
+      ['book', { author: 'Homer' }],
+      ['article', { title: 'Only a title' }],
+      ['inbook', { editor: 'Ed, A.', pages: 'xii' }],
+      ['my type', { title: 'A <b> & c', url: 'see the web' }],
+    ] as const;
+    const text = editionSegments({
+      label: '1',
+      text: 'the quick fox',
+      witnesses: [collationText('A', 'A', 'the slow fox')],
+      attachments: {
+        0: [
+          { kind: 'conjecture', id: 'c1', text: 'swift', name: 'Bentley', source: '(Ath.)' },
+          { kind: 'reported', id: 'r1', text: 'quick', name: 'D' },
+        ],
+      },
+    });
+    const xml = exportEditionTei({
+      title: 't',
+      editors: ['An Editor'],
+      witnesses: [{ siglum: 'A' }],
+      origin: 'https://varians.example',
+      ...text,
+      bibliography: {
+        works: works.map(([type, fields], k) => ({
+          id: `01JBIB${k}`,
+          label: `Work ${k}`,
+          entry: { type, key: `k${k}`, fields: { ...fields } },
+        })),
+        citations: {
+          c1: [
+            { itemId: '01JBIB0', prenote: 'cf.', postnote: '45 & n. 3' },
+            { itemId: '01JBIB1' },
+            { itemId: 'not listed' },
+          ],
+          r1: [{ itemId: '01JBIB0', prenote: 'cf.', postnote: '45 & n. 3' }],
+        },
+      },
+    });
+    expect(xml).toContain(
+      '<bibl xml:id="src-2">cf. <ref target="#bib-01JBIB0">Work 0</ref>, <citedRange>45 &amp; n. 3</citedRange></bibl>',
+    );
+    expect(xml).toContain('<bibl xml:id="src-3"><ref target="#bib-01JBIB1">Work 1</ref></bibl>');
+    // The stated source first, then what is cited; the same citation by two records is one source.
+    expect(xml).toContain(
+      '<rdg type="conjecture" resp="#resp-Bentley" source="conj:c1 #src-1 #src-2 #src-3">swift</rdg><rdg type="reported" wit="#wit-D" source="#src-2">quick</rdg>',
+    );
+    expect(xml.match(/<biblStruct /gu)).toHaveLength(works.length);
+    expect(errors(xml)).toEqual([]);
+  });
+
   it('with Greek sigla, sigla that differ only by a superscript, and a sub-siglum for the variants of a carrier', () => {
     const sigla = ['Π', 'Σ', 'A¹', 'A²', 'A v.l.', 'a', '1'];
     const witnesses = sigla.map((siglum, i) =>

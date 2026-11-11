@@ -10,6 +10,7 @@
 
 import { EDITION_ITSELF, printedKind, unbracketed, type Attachment } from '../apparatus/render.ts';
 import type { Reading, Site } from '../collate/collate.ts';
+import type { BibEntry } from '../bib/biblatex.ts';
 import { siteSegments } from '../collate/passage.ts';
 import {
   isNotTranscribed,
@@ -29,6 +30,7 @@ import {
   sourcesBibl,
   type Contributor,
 } from './export.ts';
+import { biblStructXml, bibXmlId } from './bibliography.ts';
 import { escapeAttr, escapeText, ncName } from './xml.ts';
 
 export interface EditionWitness {
@@ -71,6 +73,17 @@ export interface EditionPassageExport {
   segments?: readonly { segmentId: Id; printed: boolean; label?: string }[];
 }
 
+/** The bibliography of an edition: the works it cites, and what its conjectures and reported readings cite of them. */
+export interface EditionBibliography {
+  /** The works, in the order in which they are listed, each with the label it is cited by. */
+  works: { id: string; label: string; entry: BibEntry }[];
+  /** By the id of a conjecture or a reported reading: the works it cites, with what is said before and after each. */
+  citations: Record<
+    string,
+    { itemId: string; prenote?: string | null; postnote?: string | null }[]
+  >;
+}
+
 export interface EditionExport {
   title: string;
   editors?: string[];
@@ -98,6 +111,8 @@ export interface EditionExport {
   words?: boolean;
   /** The installation's address, for the prefixes that resolve record ids. */
   origin?: string;
+  /** The works the edition cites and the citations of its records: listed in the header, and pointed at by the readings. */
+  bibliography?: EditionBibliography;
 }
 
 /**
@@ -116,16 +131,60 @@ interface WitnessRefs {
   source: (attachment: Attachment) => string;
 }
 
-/** The scholars and the sources the apparatus names beside the witnesses, each once, in the order in which they are first named, with the xml:id of each. */
+/**
+ * The scholars and the sources the apparatus names beside the witnesses,
+ * each once, in the order in which they are first named. A source is what a
+ * record states as its source, or a work of the bibliography as the record
+ * cites it: with what is said before it and the place cited.
+ */
 interface Cited {
+  /** The xml:id of each scholar, by name. */
   scholars: Map<string, string>;
-  sources: Map<string, string>;
+  /** Each source by what it says: its xml:id and its `<bibl>`. */
+  sources: Map<string, { id: string; xml: string }>;
+  /** The pointers at the sources of a record, in order. */
+  of: (attachment: Attachment) => string[];
 }
 
-function citedIn(attachments: readonly Attachment[]): Cited {
+function citedIn(
+  attachments: readonly Attachment[],
+  bibliography: EditionBibliography | undefined,
+): Cited {
   const scholars = new Map<string, string>();
-  const sources = new Map<string, string>();
+  const sources = new Map<string, { id: string; xml: string }>();
   const taken = new Set<string>();
+  const labels = new Map((bibliography?.works ?? []).map((w) => [w.id, w.label] as const));
+  const source = (key: string, content: () => string): string => {
+    let known = sources.get(key);
+    if (!known) {
+      const id = `src-${sources.size + 1}`;
+      known = { id, xml: `<bibl xml:id="${id}">${content()}</bibl>` };
+      sources.set(key, known);
+    }
+    return `#${known.id}`;
+  };
+  const of = (attachment: Attachment): string[] => {
+    const out: string[] = [];
+    const stated = unbracketed(attachment.source);
+    if (stated !== '') out.push(source(`stated ${stated}`, () => escapeText(stated)));
+    for (const citation of bibliography?.citations[attachment.id] ?? []) {
+      const label = labels.get(citation.itemId);
+      // A work that is not among those listed cannot be pointed at.
+      if (label === undefined) continue;
+      const before = citation.prenote?.trim() ?? '';
+      const place = citation.postnote?.trim() ?? '';
+      out.push(
+        source(`cited ${citation.itemId}\u0001${before}\u0001${place}`, () =>
+          [
+            before === '' ? '' : `${escapeText(before)} `,
+            `<ref target="#${bibXmlId(citation.itemId)}">${escapeText(label)}</ref>`,
+            place === '' ? '' : `, <citedRange>${escapeText(place)}</citedRange>`,
+          ].join(''),
+        ),
+      );
+    }
+    return out;
+  };
   for (const attachment of attachments) {
     const { name } = attachment;
     if (
@@ -140,10 +199,9 @@ function citedIn(attachments: readonly Attachment[]): Cited {
       scholars.set(name, id);
       taken.add(id);
     }
-    const source = unbracketed(attachment.source);
-    if (source !== '' && !sources.has(source)) sources.set(source, `src-${sources.size + 1}`);
+    of(attachment);
   }
-  return { scholars, sources };
+  return { scholars, sources, of };
 }
 
 /**
@@ -194,7 +252,7 @@ export function exportEditionTei(input: EditionExport): string {
     ...input.witnesses,
     ...reportedOnly.map((siglum) => ({ siglum })),
   ];
-  const cited = citedIn(attachments);
+  const cited = citedIn(attachments, input.bibliography);
   const pointer = (id: string | undefined) => (id === undefined ? [] : [`#${id}`]);
   const refs: WitnessRefs = {
     ...witnessRefs(witnesses, input.baseSiglum ?? 'ed.'),
@@ -212,7 +270,7 @@ export function exportEditionTei(input: EditionExport): string {
         ...(attachment.kind === 'conjecture' && input.origin
           ? [`conj:${escapeAttr(attachment.id)}`]
           : []),
-        ...pointer(cited.sources.get(unbracketed(attachment.source))),
+        ...cited.of(attachment),
       ];
       return to.length ? ` source="${to.join(' ')}"` : '';
     },
@@ -237,12 +295,24 @@ export function exportEditionTei(input: EditionExport): string {
     out.push('          <head>Scholars and sources named in the apparatus</head>');
     for (const [name, id] of cited.scholars)
       out.push(`          <bibl><author xml:id="${id}">${escapeText(name)}</author></bibl>`);
-    for (const [source, id] of cited.sources)
-      out.push(`          <bibl xml:id="${id}">${escapeText(source)}</bibl>`);
+    for (const source of cited.sources.values()) out.push(`          ${source.xml}`);
+    out.push('        </listBibl>');
+  }
+  // The works the edition cites, each a structured entry: a citation above points at its work here.
+  const works = input.bibliography?.works ?? [];
+  if (works.length > 0) {
+    out.push('        <listBibl>');
+    out.push('          <head>Works cited</head>');
+    for (const work of works)
+      out.push(`          ${biblStructXml(work.entry, { id: work.id, label: work.label })}`);
     out.push('        </listBibl>');
   }
   // A source description must say something: an edition with no witnesses yet and no sources.
-  if (witnesses.length === 0 && !bibl && cited.scholars.size + cited.sources.size === 0)
+  if (
+    witnesses.length === 0 &&
+    !bibl &&
+    cited.scholars.size + cited.sources.size + works.length === 0
+  )
     out.push('        <p>Edition.</p>');
   out.push('      </sourceDesc>');
   out.push('    </fileDesc>');

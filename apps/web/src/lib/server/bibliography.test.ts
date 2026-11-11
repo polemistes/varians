@@ -19,6 +19,7 @@ import {
   citationsByRecord,
   citationsOf,
   deleteEntry,
+  editionBibliographyFor,
   editionWorksCited,
   importBibliography,
   listBibliography,
@@ -199,6 +200,20 @@ describe('the bibliography', () => {
     const cited = await editionWorksCited(db, ids.edition, asOwner);
     expect(cited.map((c) => c.label)).toEqual(['West 1998a', 'West 1998b']);
     expect(cited[0]!.reference).toContain('Homeri Ilias');
+    // The same bibliography as the edition's TEI lists it: the works under those labels, and what the conjecture cites of them.
+    const listed = await editionBibliographyFor(db, ids.edition, asOwner);
+    expect(listed.works.map((w) => [w.id, w.label])).toEqual([
+      [west!.id, 'West 1998a'],
+      [westb!.id, 'West 1998b'],
+    ]);
+    expect(listed.works[0]!.entry.fields.title).toContain('Homeri Ilias');
+    expect(listed.citations).toEqual({
+      [conjectureId]: [{ itemId: west!.id, prenote: null, postnote: '45' }],
+    });
+    // A reader is given neither the draft conjecture's citation nor the work only it cites.
+    const published = await editionBibliographyFor(db, ids.edition);
+    expect(published.works.map((w) => w.id)).toEqual([westb!.id]);
+    expect(published.citations).toEqual({});
     // Readers see the published record only: the owner's draft conjecture, and what it cites, is not theirs to see.
     expect((await editionWorksCited(db, ids.edition)).map((c) => c.key)).toEqual([
       key('west1998b'),

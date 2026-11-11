@@ -21,6 +21,7 @@ export * from './rights/rights.ts';
 export * from './edition/layout.ts';
 export * from './tei/index.ts';
 export * from './tei/apparatus.ts';
+export * from './tei/bibliography.ts';
 export * from './import/plaintext.ts';
 export * from './import/leiden.ts';
 export * from './import/leidenplus.ts';

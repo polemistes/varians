@@ -80,6 +80,7 @@ import {
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { and, asc, desc, eq, inArray, isNotNull, lte, or } from 'drizzle-orm';
+import { editionBibliography } from '../bibliography.ts';
 import { collateEdition } from '../passages.ts';
 import { segmentShares, teiText } from '../../reader/export.ts';
 import { documentAt } from '../documents/service.ts';
@@ -1214,6 +1215,11 @@ async function writeEditionFiles(ctx: WorkContext, edition: EditionRow): Promise
   }
   if (writers.tei !== false) {
     const witnessNames = new Map(ctx.witnessRows.map((w) => [w.id, w.name] as const));
+    // The works the edition cites, and what the conjectures and reports of the archive cite of them.
+    const bibliography = await editionBibliography(db, edition.id, {
+      conjectureIds: until(ctx.conjectureRows).map((c) => c.id),
+      reportedIds: until(ctx.reported).map((r) => r.id),
+    });
     await writeText(
       path.join(edir, 'edition.tei.xml'),
       exportEditionTei({
@@ -1231,6 +1237,7 @@ async function writeEditionFiles(ctx: WorkContext, edition: EditionRow): Promise
           ...(witnessNames.get(s.witnessId) ? { name: witnessNames.get(s.witnessId)! } : {}),
         })),
         ...text.tei,
+        bibliography,
         words: true,
         origin: originOf(writers),
       }),

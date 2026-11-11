@@ -11,14 +11,19 @@
  */
 import { and } from '$lib/strings/names';
 import { error } from '@sveltejs/kit';
-import { exportEditionTei, type Item, type LayoutLine } from '@varians/core';
+import {
+  exportEditionTei,
+  type EditionBibliography,
+  type Item,
+  type LayoutLine,
+} from '@varians/core';
 import { editions, type Database, type EditionOrigin } from '@varians/db';
 import { eq } from 'drizzle-orm';
 import type { Actor } from './authz';
 import { loadEditionAccess, type EditionAccess } from './edition-access';
 import { publishedVersions } from './publish';
 import { PUBLIC, editionView, type Audience, type EditionView } from './reader';
-import { editionWorksCited } from './bibliography.ts';
+import { editionBibliographyFor, editionWorksCited } from './bibliography.ts';
 import { plainText, teiText } from '$lib/reader/export';
 import { alignedUnits, siglaOrderOf } from '$lib/reader/sites';
 import { DEFAULT_SIGLA } from '$lib/reader/marks';
@@ -385,8 +390,8 @@ export function readerPlainText(view: EditionView, mode: ReaderMode): string {
   });
 }
 
-/** The TEI of a view, fed as the archive feeds it, with the conjectures and reports the reader sees. */
-export function readerTei(view: EditionView): string {
+/** The TEI of a view, fed as the archive feeds it, with the conjectures and reports the reader sees and, where given, the edition's bibliography. */
+export function readerTei(view: EditionView, bibliography?: EditionBibliography): string {
   return exportEditionTei({
     title: view.edition.title,
     ...(view.edition.editors.length ? { editors: view.edition.editors } : {}),
@@ -403,6 +408,7 @@ export function readerTei(view: EditionView): string {
       ...(s.witnessName ? { name: s.witnessName } : {}),
     })),
     ...teiText(view.content, Object.values(view.segments), view.labelOf),
+    ...(bibliography ? { bibliography } : {}),
   });
 }
 
@@ -415,12 +421,8 @@ export async function readerDownload(
   kind: 'text' | 'tei',
 ): Promise<Response> {
   const resolved = await resolveReader(db, user, slug, request);
-  const view = await editionView(
-    db,
-    resolved.access.edition.id,
-    resolved.atVersion,
-    audienceOf(resolved.mode, user),
-  );
+  const audience = audienceOf(resolved.mode, user);
+  const view = await editionView(db, resolved.access.edition.id, resolved.atVersion, audience);
   const draft = resolved.mode.kind === 'draft' || resolved.mode.kind === 'preview';
   const name =
     resolved.access.edition.slug +
@@ -437,7 +439,9 @@ export async function readerDownload(
         };
   // A draft must never be kept by a shared cache.
   if (draft) headers['cache-control'] = 'private, no-store';
-  return new Response(kind === 'text' ? readerPlainText(view, resolved.mode) : readerTei(view), {
-    headers,
-  });
+  const body =
+    kind === 'text'
+      ? readerPlainText(view, resolved.mode)
+      : readerTei(view, await editionBibliographyFor(db, resolved.access.edition.id, audience));
+  return new Response(body, { headers });
 }
