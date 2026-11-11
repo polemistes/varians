@@ -165,6 +165,56 @@ describe('collating in passages', () => {
   });
 });
 
+describe('a word that stands twice, on either side of a boundary', () => {
+  /** The variants with the segments their words lie in: `s2 μοι ed : om. A`. */
+  const placed = (passage: Passage) =>
+    summary(passage.collation).map(
+      (line, k) =>
+        `${siteSegments(passage.collation.sites[k]!, passage.base.units).join('+')} ${line}`,
+    );
+
+  it('takes a witness that has the word once to have the one of the segment its transcript gives the word to', () => {
+    const edition = text('E', 's1: πτολίεθρον', 's2: πολλὰ μοι', 's3: μοι πολύτροπον ἔνεπε');
+    // A has the word in the second segment, and reads otherwise before it: the two segments are collated together.
+    const second = collatePassages(edition, [
+      text('A', 's1: πτολίεθρον', 's2: ὃς μοι', 's3: πολύτροπον ἔνεπε'),
+    ]).passages;
+    expect(ids(second)).toEqual([['s1'], ['s2', 's3']]);
+    expect(placed(second[1]!)).toEqual(['s2 πολλὰ ed : ὃς A', 's3 μοι ed : om. A']);
+    // B has it in the third, and reads otherwise after it.
+    const third = collatePassages(edition, [
+      text('B', 's1: πτολίεθρον', 's2: πολλὰ', 's3: μοι ὃς ἔνεπε'),
+    ]).passages;
+    expect(ids(third)).toEqual([['s1'], ['s2', 's3']]);
+    expect(placed(third[1]!)).toEqual(['s2 μοι ed : om. B', 's3 πολύτροπον ed : ὃς B']);
+  });
+
+  it('takes a witness that has twice a word the edition has once to add the one of the other segment', () => {
+    const edition = text('E', 's1: πολλὰ μοι', 's2: πολύτροπον ἔνεπε');
+    const { passages } = collatePassages(edition, [
+      // A has the word again at the start of the second segment, and departs on both sides of the boundary.
+      text('A', 's1: ὃς μοι', 's2: μοι πολύτροπον ἄνδρα'),
+    ]);
+    expect(ids(passages)).toEqual([['s1', 's2']]);
+    const [passage] = passages;
+    const added = passage!.collation.sites.find((site) => site.baseTo === site.baseFrom)!;
+    expect(added.readings.find((r) => !r.base)!.units.A!.map((u) => [u.text, u.segmentId])).toEqual(
+      [['μοι', 's2']],
+    );
+  });
+
+  it('lets the letters decide first: a word of other accents stands against the word it agrees with, whatever its segment', () => {
+    const edition = text('E', 's1: πολλὰ ἦ', 's2: ἤ πολύτροπον ἔνεπε');
+    const { passages } = collatePassages(edition, [
+      // A has ἦ in the second segment, where the edition has ἤ, and nothing of it in the first.
+      text('A', 's1: ὃς', 's2: ἦ πολύτροπον ἄνδρα'),
+    ]);
+    expect(ids(passages)).toEqual([['s1', 's2']]);
+    // The word it has agrees with the edition's of the first segment, and it is without the second.
+    expect(placed(passages[0]!)).toContain('s2 ἤ ed : om. A');
+  });
+});
+
 describe('the plan of passages', () => {
   const alone = (segmentId: string, words: string, divided = false): SegmentAlone => {
     const base: CollationText = {

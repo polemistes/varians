@@ -440,6 +440,14 @@ function lacking(
  * Needleman-Wunsch, global alignment of a witness's units with the base's,
  * by the letters of their words: with the base's units `rows` (indexes, in
  * order), all of them where not given.
+ *
+ * Where the letters leave more than one way (the base has a word twice and
+ * the witness once), the segments settle it: the witness's word stands
+ * against the base's word of the segment its own transcript gives it to. A
+ * segment decides nothing else. The letters are counted in whole steps and a
+ * word against the same word of its own segment in a part of a step, so
+ * small that all such words together are less than one step: no alignment
+ * that is worse by its letters is ever taken for its segments.
  */
 function alignSteps(
   base: CollationText,
@@ -454,15 +462,22 @@ function alignSteps(
   const row = (r: number) => (rows ? rows[r]! : r);
   const n = rows ? rows.length : base.units.length;
   const m = witness.units.length;
+  // A step of the letters, in parts: one more than the words that can stand against each other.
+  const step = Math.min(n, m) + 1;
+  const indel = INDEL * step;
   const score = (r: number, j: number): number => {
     const i = row(r);
     const b = base.units[i]!.gap !== undefined;
     const w = witness.units[j]!.gap !== undefined;
     // Two losses at the same point stand together; a loss against a word says nothing either way.
-    if (b && w) return AGREE;
-    if (b || w) return GAP_UNIT;
-    if (baseBare[i] === bare[j]) return baseKeys[i] === keys[j] ? AGREE : SAME_LETTERS;
-    return alike(baseBare[i]!, bare[j]!) ? NEAR : MISMATCH;
+    if (b && w) return AGREE * step;
+    if (b || w) return GAP_UNIT * step;
+    if (baseBare[i] === bare[j]) {
+      const segment = base.units[i]!.segmentId;
+      const own = segment !== undefined && segment === witness.units[j]!.segmentId ? 1 : 0;
+      return (baseKeys[i] === keys[j] ? AGREE : SAME_LETTERS) * step + own;
+    }
+    return (alike(baseBare[i]!, bare[j]!) ? NEAR : MISMATCH) * step;
   };
   // dp[i][j] is the best score aligning the base's units[0..i) with the witness's units[0..j).
   const dp: number[][] = [];
@@ -472,23 +487,23 @@ function alignSteps(
     move.push(new Uint8Array(m + 1));
   }
   for (let i = 1; i <= n; i++) {
-    dp[i]![0] = i * INDEL;
+    dp[i]![0] = i * indel;
     move[i]![0] = 1; // up: a unit of the base without one of the witness
   }
   for (let j = 1; j <= m; j++) {
-    dp[0]![j] = j * INDEL;
+    dp[0]![j] = j * indel;
     move[0]![j] = 2; // left: a unit of the witness without one of the base
   }
   for (let i = 1; i <= n; i++) {
     for (let j = 1; j <= m; j++) {
       let best = dp[i - 1]![j - 1]! + score(i - 1, j - 1);
       let mv = 0;
-      const up = dp[i - 1]![j]! + INDEL;
+      const up = dp[i - 1]![j]! + indel;
       if (up > best) {
         best = up;
         mv = 1;
       }
-      const left = dp[i]![j - 1]! + INDEL;
+      const left = dp[i]![j - 1]! + indel;
       if (left > best) {
         best = left;
         mv = 2;

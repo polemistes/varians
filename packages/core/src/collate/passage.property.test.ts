@@ -5,6 +5,7 @@ import { isToken, type Id, type Item, type Stream } from '../stream/items.ts';
 import { applyOps } from '../stream/ops.ts';
 import { segmentRuns } from '../stream/words.ts';
 import {
+  assume,
   COLLATION_WORDS,
   runProperty,
   shrinkList,
@@ -13,6 +14,7 @@ import {
 } from '../testing/random.ts';
 import { DEFAULT_FOLD, fold } from '../normalize/fold.ts';
 import { collatePassages, type StreamText } from './passage.ts';
+import { similarity } from './similarity.ts';
 
 /**
  * A work in segments, an edition of it and witnesses, as words. Each word a
@@ -118,9 +120,9 @@ function build(c: Case, divide?: Divide): Built {
  * witness's word is linked to another spot: everything but the segments,
  * the passages and the indexes of sites. A variant at a point is told by
  * the edition's words on either side of it. Which of two equal words of the
- * edition a variant lies on is not told: where the edition has the same
- * word twice and a witness once, which of the two it is without is a tie of
- * the alignment that the context decides, and the segments are context.
+ * edition a variant lies on is not told here: where the edition has the same
+ * word twice and a witness once, the segments say which of the two the
+ * witness has where they part the two, and nothing does where they do not.
  */
 function variants({ edition, witnesses }: Built): string[] {
   const { passages } = collatePassages(edition, witnesses);
@@ -441,65 +443,104 @@ describe('passages: the segments name the variants and change nothing else (rand
   });
 });
 
+/** A word that the edition has on either side of a boundary and one witness has once. */
+interface Twice {
+  case: Case;
+  /** The index of the first of the two equal words; the boundary lies after it. */
+  at: number;
+  witness: number;
+  /** Which of the two the witness is without: the first (0) or the second (1). */
+  without: 0 | 1;
+  /** The index of the edition's word, beyond the other of the two, that the witness reads otherwise. */
+  otherwise: number;
+}
+
+/**
+ * Where the edition has a word at the end of one segment and again at the
+ * start of the next, and a witness has it once, the witness is without the
+ * one of the segment in which its transcript has no such word, and has the
+ * one of the segment in which it has it. The witness reads a word otherwise
+ * on the far side of the word it has, so that it departs on both sides of
+ * the boundary and the two segments are collated together: collated apart,
+ * each segment has only its own words to stand against.
+ */
+const twice: Property<Twice> = {
+  generate(rng, size) {
+    const c = generate(rng, size, { tidy: true, mutate: false });
+    const boundary = rng.int(c.bounds.length);
+    const at = c.bounds[boundary]!;
+    // Two words unlike every word of the edition and unlike each other, so that the letters say nothing
+    // but that the two are equal: one put on either side of the boundary, one the witness's own.
+    const unlike = (a: string, b: string) => similarity(bareLetters(a), bareLetters(b)) < 0.5;
+    const strange = rng
+      .shuffle(foreignTo(c, TIDY))
+      .filter((w) => c.base.every((b) => unlike(w, b)));
+    const word = strange[0] ?? '';
+    const own = strange.find((w) => unlike(w, word)) ?? '';
+    const base = [...c.base.slice(0, at), word, word, ...c.base.slice(at)];
+    const bounds = c.bounds.map((b, k) => (k < boundary ? b : k === boundary ? b + 1 : b + 2));
+    const witness = rng.int(c.witnesses.length);
+    const without = rng.pick([0, 1] as const);
+    // Without the second, it reads otherwise the word before the first; without the first, the word after the second.
+    const otherwise = without === 1 ? at - 1 : at + 2;
+    const witnesses = c.witnesses.map((w, k) => ({
+      ...w,
+      words: base
+        .map((text, key) => ({ text: k === witness && key === otherwise ? own : text, key }))
+        .filter((x) => k !== witness || x.key !== at + without),
+    }));
+    return { case: { base, bounds, witnesses }, at, witness, without, otherwise };
+  },
+  show: (t) =>
+    `${show(t.case)}\nwitness ${t.witness + 1} is without the ${t.without ? 'second' : 'first'} of the two at ${t.at}`,
+  check(t) {
+    assume(
+      !t.case.base.includes('') &&
+        t.case.witnesses.every((w) => w.words.every((x) => x.text !== '')),
+      'no two words unlike those of the edition and each other',
+    );
+    const { edition, witnesses } = build(t.case);
+    const { passages } = collatePassages(edition, witnesses);
+    const siglum = t.case.witnesses[t.witness]!.siglum;
+    const found: { from: number; to: number; without: string[] }[] = [];
+    let offset = 0;
+    for (const passage of passages) {
+      for (const site of passage.collation.sites)
+        found.push({
+          from: site.baseFrom + offset,
+          to: site.baseTo + offset,
+          without: site.readings.filter((r) => r.omission).flatMap((r) => r.sigla),
+        });
+      offset += passage.base.units.length;
+    }
+    // Two variants: the word read otherwise, and nothing where the edition has the word the witness is without.
+    expect(found.sort((x, y) => x.from - y.from)).toEqual(
+      [
+        { from: t.otherwise, to: t.otherwise + 1, without: [] },
+        { from: t.at + t.without, to: t.at + t.without + 1, without: [siglum] },
+      ].sort((x, y) => x.from - y.from),
+    );
+  },
+};
+
 describe('passages, where the edition has a word twice (random)', () => {
-  // Counterexamples (shrunk; pinned below), about one case in a thousand. Where the edition has
-  // the same word twice near a boundary (Τροίης Τροίης, ἦ | ἦ, ἐπεὶ | ἐπεὶ, ἀνδρα | ανδρα) and a
-  // witness has it once, or has words moved about, which of the two the witness has is a tie of
-  // the alignment, and a longer stretch resolves the tie otherwise than a shorter one. Where the
-  // segments are cut, or a word is divided, decides how long the stretch is, so the variants
-  // differ: not in what any witness reads, but in which of the equal words they are told
-  // against, and so in how the variants are drawn around them. The properties start just before
-  // the seeds that found them.
-  it.fails('moving a segment boundary changes no variant', () => {
-    runProperty('passages: a boundary moved changes no variant', {
-      ...principle({}),
-      firstSeed: 1120,
-      runs: 40,
-    });
+  // Where the edition has the same word twice (Τροίης Τροίης, ἦ | ἦ, ἐπεὶ | ἐπεὶ, ἀνδρα | ανδρα) and
+  // a witness has it once, or the reverse, the letters leave a tie: they cannot say which of the
+  // two stands against the one. The segments settle it where they part the two: a witness's word
+  // stands against the edition's word of the segment its own transcript gives it to. A boundary
+  // moved between two such words, or a word set on the other side of it, is then another
+  // statement of what the witness has, and may give another variant: the properties of the tidy
+  // cases above, that a boundary changes nothing, are not asked where a word stands twice. Where
+  // the two stand in one segment nothing settles it, and the alignment takes one of them.
+  it('a witness that has once a word the edition has on either side of a boundary has the one of its own segment', () => {
+    runProperty("passages: of a word twice, the one of the witness's own segment", twice);
   });
 
-  it.fails('moving a segment boundary changes no variant (the shrunk case)', () => {
-    principle({}).check({
-      case: {
-        base: ['ἀνδρα', 'πλάγχθη', 'ὃς', 'Τροίης', 'Τροίης', 'ἦ', 'ἦ', 'ἔννεπε', 'ὃς'],
-        bounds: [3, 4, 5, 6],
-        witnesses: [
-          {
-            siglum: 'A',
-            words: [
-              { text: 'ὃς', key: 2 },
-              { text: 'Τροίης', key: 3 },
-              { text: 'Τροίης', key: 4 },
-              { text: 'ἦ', key: 5 },
-              { text: 'ἔννεπε', key: 7 },
-            ],
-          },
-          {
-            siglum: 'B',
-            words: [
-              { text: 'ἦ', key: 5 },
-              { text: 'Τροίης', key: 4 },
-              { text: 'ἦ', key: 6 },
-              { text: 'ἔννεπε', key: 7 },
-              { text: 'ὃς', key: 8 },
-            ],
-          },
-        ],
-      },
-      boundary: 3,
-      by: 2,
-    });
+  it('a word divided across a boundary gives the variants of the same word undivided', () => {
+    runProperty('passages: a divided word is the word undivided', divided({}));
   });
 
-  it.fails('a word divided across a boundary gives the variants of the same word undivided', () => {
-    runProperty('passages: a divided word is the word undivided', {
-      ...divided({}),
-      firstSeed: 1080,
-      runs: 40,
-    });
-  });
-
-  it.fails('a word divided across a boundary (the shrunk case)', () => {
+  it('a word divided across a boundary, where a witness has moved a word the edition has twice', () => {
     divided({}).check({
       case: {
         base: ['ἐπεὶ', 'ἐπεὶ', 'πολλὰ', 'ἀνδρα', 'Τροίης', 'ἤ'],
@@ -517,37 +558,6 @@ describe('passages, where the edition has a word twice (random)', () => {
         ],
       },
       divide: { text: -1, boundary: 1, at: 3 },
-    });
-  });
-
-  it.fails('words a witness adds at a boundary give the same variant on either side of it', () => {
-    runProperty('passages: an addition at a boundary, on either side of it', {
-      ...added({}),
-      firstSeed: 60,
-      runs: 40,
-    });
-  });
-
-  it.fails('words a witness adds at a boundary (the shrunk case)', () => {
-    added({}).check({
-      case: {
-        base: ['ἀνδρα', 'ανδρα', 'πτολίεθρον', 'ἱερὸν'],
-        bounds: [1, 2],
-        witnesses: [
-          {
-            siglum: 'A',
-            words: [
-              { text: 'ἀνδρα', key: 0 },
-              { text: 'πτολίεθρον', key: 2 },
-              { text: 'ανδρα', key: 1 },
-              { text: 'ἤ', key: 3 },
-            ],
-          },
-        ],
-      },
-      witness: 0,
-      boundary: 1,
-      word: 'ἀνδρα',
     });
   });
 });

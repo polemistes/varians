@@ -513,7 +513,7 @@ export function inputsFor(
 }
 
 /** The shape of the cached results: bump when the collation's output changes. */
-export const COLLATION_VERSION = 'collation-v15';
+export const COLLATION_VERSION = 'collation-v16';
 
 /** A text as the hashes describe it: everything collation reads of it. */
 function describeText(t: CollationText): string {
