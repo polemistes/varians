@@ -540,7 +540,7 @@ export const workbench = {
 
   settings: {
     title: 'Settings',
-    name: 'Name',
+    name: 'Name of transcript',
     keepWritten: 'Keep a diplomatic form beside the normalized',
     keepWrittenHint:
       'The text as it stands becomes the normalized text; the diplomatic text starts as a copy of it.',

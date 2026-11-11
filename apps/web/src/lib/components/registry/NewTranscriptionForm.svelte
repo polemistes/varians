@@ -32,6 +32,8 @@
      * hold text of any work, so the window names the witness and no work.
      */
     witness?: { id: string; name: string } | null;
+    /** The witness's name where the window stands on the witness's own page, for the name proposed. */
+    witnessName?: string;
     /**
      * The work whose segment labels and spelling rules the transcript is
      * offered first, where the window is opened for a witness: the first of
@@ -49,6 +51,7 @@
     sources,
     action = '?/newTranscription',
     witness = null,
+    witnessName,
     work = null,
     oncreated,
   }: Props = $props();
@@ -77,20 +80,13 @@
 
   $effect(() => {
     if (open) {
-      name = witness?.name ?? '';
+      const of = witness?.name ?? witnessName;
+      name = of ? s.defaultName(of) : '';
       workId = witness ? (work?.id ?? '') : '';
       errors = {};
       formError = null;
     }
   });
-
-  /** A name still empty, or still the title of the work chosen before, follows the work. */
-  function chooseWork(id: string) {
-    const before = works.find((w) => w.id === workId)?.title ?? '';
-    const after = works.find((w) => w.id === id)?.title ?? '';
-    if (!name.trim() || name === before) name = after;
-    workId = id;
-  }
 
   /** A field's error goes as soon as the field is changed. */
   function forget(event: Event) {
@@ -148,7 +144,7 @@
             name="workId"
             value={workId}
             options={workOptions}
-            onchange={(e) => chooseWork(e.currentTarget.value)}
+            onchange={(e) => (workId = e.currentTarget.value)}
             {@attach autofocus}
           />
         {/snippet}

@@ -141,10 +141,14 @@ test('an edition made from scratch on one page, which stays as Edition Settings'
   const transcriptWindow = page.getByRole('dialog', { name: ed.conspectus.makeTranscriptTitle });
   await expect(transcriptWindow).toContainText(witnessName);
   await expect(transcriptWindow).not.toContainText(workTitle);
-  await expect(transcriptWindow.locator('input[name=name]')).toHaveValue(witnessName);
+  await expect(transcriptWindow.locator('input[name=name]')).toHaveValue(
+    reg.transcription.defaultName(witnessName),
+  );
   await transcriptWindow.getByRole('button', { name: reg.transcription.create }).click();
   await expect(transcriptWindow).toBeHidden();
-  await expect(transcript.locator('option:checked')).toHaveText(witnessName);
+  await expect(transcript.locator('option:checked')).toHaveText(
+    reg.transcription.defaultName(witnessName),
+  );
   await expect(page.getByRole('link', { name: ed.conspectus.openTranscript })).toBeVisible();
 
   // Save: the page stays, now as Edition Settings.

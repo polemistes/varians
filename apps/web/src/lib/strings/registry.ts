@@ -317,7 +317,9 @@ export const registry = {
       raiseLabel: (title: string) => `Move ${title} Up`,
       notFound: 'A work chosen does not exist.',
     },
-    name: 'Name',
+    name: 'Name of transcript',
+    /** The name proposed for a new transcript: it is of its witness, whatever works it has text of. */
+    defaultName: (witness: string) => `Transcript of ${witness}`,
     nameRequired: 'Give the transcript a name.',
     keepsWritten: 'Keep a diplomatic form beside the normalized',
     startFrom: 'Start from another transcript',

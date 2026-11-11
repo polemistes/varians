@@ -243,7 +243,12 @@
 </PageFrame>
 
 {#if data.can.newTranscription}
-  <NewTranscriptionForm bind:open={creating} works={data.workOptions} sources={data.sources} />
+  <NewTranscriptionForm
+    bind:open={creating}
+    works={data.workOptions}
+    sources={data.sources}
+    witnessName={witness.name}
+  />
 {/if}
 <RenameDialog bind:open={renameOpen} transcription={renaming} />
 <ConfirmDialog
