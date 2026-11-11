@@ -13,10 +13,12 @@
  */
 import {
   additionIn,
+  EDITION_ITSELF,
   printedKind,
   printedTextIds,
   siteTokenIds,
   trimPunctuation,
+  unbracketed,
   witnessesAt,
   type Attachment,
   type OrderVariant,
@@ -157,23 +159,6 @@ export interface VariantContext {
   orders?: readonly OrderVariant[];
   /** The passages at hand, by their first segment: where a variant that leads to one in another passage finds it. */
   passages?: Readonly<Record<string, ReaderSegment | undefined>>;
-}
-
-/** The name the server gives a conjecture without a proposer. */
-const EDITOR_NAME = 'this edition';
-
-/** "(Allen's apparatus (1931))" as a row quotes it: without the brackets round the whole. */
-function unbracket(source: string | undefined): string {
-  const value = (source ?? '').trim();
-  const inner = /^\((.*)\)$/s.exec(value)?.[1];
-  if (inner === undefined) return value;
-  // Only brackets that enclose the whole: "(a) and (b)" keeps its own.
-  let depth = 0;
-  for (const char of inner) {
-    if (char === '(') depth++;
-    else if (char === ')' && --depth < 0) return value;
-  }
-  return depth === 0 ? inner.trim() : value;
 }
 
 /** A second text of a witness: the variants it notes, or one of its states by its place in the list. */
@@ -377,7 +362,7 @@ function referencesOf(
   withSource: boolean,
 ): string[] {
   const out: string[] = [];
-  const source = unbracket(attachment.source);
+  const source = unbracketed(attachment.source);
   if (withSource && source) out.push(source);
   for (const cite of cites[attachment.id] ?? []) if (cite && !out.includes(cite)) out.push(cite);
   return out;
@@ -385,7 +370,7 @@ function referencesOf(
 
 /** The proposer of a conjecture as a row names it. */
 function proposer(name: string): string {
-  return name === EDITOR_NAME ? r.variant.theEditor : name;
+  return name === EDITION_ITSELF ? r.variant.theEditor : name;
 }
 
 /** What a conjecture does, where the words alone do not say it. */
@@ -435,7 +420,7 @@ function conjectureRow(attachment: Attachment, cites: Record<string, string[]>):
 function reportedChip(attachment: Attachment, conspectus: Conspectus): WitnessChip {
   return {
     ...conspectus.ofSiglum(attachment.name),
-    reported: { source: unbracket(attachment.source) },
+    reported: { source: unbracketed(attachment.source) },
   };
 }
 

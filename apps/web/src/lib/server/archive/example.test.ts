@@ -100,9 +100,17 @@ describe('the example archive of the format', () => {
     );
     expect(tei).not.toContain('<ab n=');
     // A conjecture that is not adopted, one whose word the edition prints, and a reading reported for a witness.
-    expect(tei).toMatch(/<rdg type="conjecture" resp="[^"]+">ἑλώριον<\/rdg>/u);
-    expect(tei).toMatch(/<lem resp="Zenodotus"><w [^>]*source="conj:[0-9A-Z]+">δαῖτα<\/w>/u);
-    expect(tei).toMatch(/<rdg type="reported" wit="#wit-T" source="[^"]+">θεά<\/rdg>/u);
+    // Each points at the entry of the header's list that names the scholar or the source, and a conjecture at its record.
+    expect(tei).toMatch(
+      /<rdg type="conjecture" resp="#resp-[^"]+" source="conj:[0-9A-Z]+">ἑλώριον<\/rdg>/u,
+    );
+    expect(tei).toMatch(
+      /<lem resp="#resp-Zenodotus" source="conj:[0-9A-Z]+"><w [^>]*source="conj:[0-9A-Z]+">δαῖτα<\/w>/u,
+    );
+    expect(tei).toContain('<bibl><author xml:id="resp-Zenodotus">Zenodotus</author></bibl>');
+    const source = /<bibl xml:id="(src-\d+)">Allen's apparatus \(1931\)<\/bibl>/u.exec(tei);
+    expect(source).not.toBeNull();
+    expect(tei).toContain(`<rdg type="reported" wit="#wit-T" source="#${source![1]}">θεά</rdg>`);
     const text = await readFile(path.join(edition, 'edition.txt'), 'utf8');
     expect(text).toMatch(/1\.4 ἑλώρια A C : ἕλωρα B : ἑλώριον \S+ \(coni\.\)/u);
     expect(text).toContain('Zenodotus');

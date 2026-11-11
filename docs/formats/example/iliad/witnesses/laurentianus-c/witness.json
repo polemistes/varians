@@ -1,6 +1,6 @@
 {
   "$schema": "https://varians.eu/formats/2/witness.schema.json",
-  "id": "01M74DME77WA613Q2EE23XSJXF",
+  "id": "01M74HP0CK25AZ6CTQEQAS6ECV",
   "slug": "laurentianus-c",
   "siglum": "C",
   "name": "Codex Laurentianus",
@@ -22,14 +22,14 @@
   "iiifManifest": null,
   "imageRights": null,
   "imageAttribution": null,
-  "createdBy": "01M74DME420ZQT3P3SGZEE2VZY",
-  "createdAt": "2026-11-11T04:25:07.048Z",
-  "updatedAt": "2026-11-11T04:25:07.048Z",
+  "createdBy": "01M74HP08PJ1B410PY3JWA70EB",
+  "createdAt": "2026-11-11T05:35:52.723Z",
+  "updatedAt": "2026-11-11T05:35:52.723Z",
   "maintainers": [
     {
-      "id": "01M74DME420ZQT3P3SGZEE2VZY",
+      "id": "01M74HP08PJ1B410PY3JWA70EB",
       "name": "Example Editor",
-      "since": "2026-11-11T04:25:07.049Z"
+      "since": "2026-11-11T05:35:52.725Z"
     }
   ],
   "mergedIds": []

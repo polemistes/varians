@@ -54,11 +54,28 @@ export const DEFAULT_CONVENTIONS: ApparatusConventions = {
 };
 
 /** A conjecture or reported reading attached to a site for printing. */
+/** The name a conjecture is given that names no proposer: it is the edition's own. */
+export const EDITION_ITSELF = 'this edition';
+
+/** "(Allen's apparatus (1931))" as it is quoted: the source of a record without the brackets round the whole. */
+export function unbracketed(source: string | undefined): string {
+  const value = (source ?? '').trim();
+  const inner = /^\((.*)\)$/s.exec(value)?.[1];
+  if (inner === undefined) return value;
+  // Only brackets that enclose the whole: "(a) and (b)" keeps its own.
+  let depth = 0;
+  for (const char of inner) {
+    if (char === '(') depth++;
+    else if (char === ')' && --depth < 0) return value;
+  }
+  return depth === 0 ? inner.trim() : value;
+}
+
 export interface Attachment {
   kind: 'conjecture' | 'reported';
   /** The reading proposed or reported; empty for a deletion or a lacuna. */
   text: string;
-  /** Proposer of a conjecture, or the siglum of the witness a reading is reported for. */
+  /** Proposer of a conjecture (`EDITION_ITSELF` where it names none), or the siglum of the witness a reading is reported for. */
   name: string;
   /** The kind of conjecture, when one. */
   conjectureKind?:

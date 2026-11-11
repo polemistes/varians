@@ -537,7 +537,7 @@ describe.skipIf(!xmllint)('edition TEI is valid', slow, () => {
         ...passageText(crossing, { attachments, mark }),
       });
       expect(xml).toContain(
-        '<lem wit="#wit-A">gamma <milestone unit="segment" n="s2"/>delta <milestone unit="segment" n="s3"/>epsilon</lem><rdg wit="#wit-B">kappa lambda mu</rdg><rdg type="conjecture" resp="Bentley" source="(Ath.)">rho sigma tau</rdg>',
+        '<lem wit="#wit-A">gamma <milestone unit="segment" n="s2"/>delta <milestone unit="segment" n="s3"/>epsilon</lem><rdg wit="#wit-B">kappa lambda mu</rdg><rdg type="conjecture" resp="#resp-Bentley" source="#src-1">rho sigma tau</rdg><rdg type="reported" wit="#wit-D">nu xi omicron</rdg>',
       );
       expect(errors(xml)).toEqual([]);
     }
@@ -634,7 +634,7 @@ describe.skipIf(!xmllint)('edition TEI is valid', slow, () => {
       }),
     });
     expect(xml).toContain(
-      '<app type="interpretative"><lem wit="#wit-A" resp="Bentley">ἦ <milestone unit="segment" n="s2"/>μέγα</lem>',
+      '<app type="interpretative"><lem wit="#wit-A" resp="#resp-Bentley">ἦ <milestone unit="segment" n="s2"/>μέγα</lem>',
     );
     expect(errors(xml)).toEqual([]);
   });

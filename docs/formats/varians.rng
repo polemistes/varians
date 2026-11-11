@@ -2361,22 +2361,28 @@ Sample values include: 1] rubbing; 2] mildew; 3] smoke</a:documentation>
    <define name="tei_model.biblLike">
       <choice>
          <ref name="tei_bibl"/>
+         <ref name="tei_listBibl"/>
          <ref name="tei_msDesc"/>
       </choice>
    </define>
    <define name="tei_model.biblLike_alternation">
       <choice>
          <ref name="tei_bibl"/>
+         <ref name="tei_listBibl"/>
          <ref name="tei_msDesc"/>
       </choice>
    </define>
    <define name="tei_model.biblLike_sequence">
       <ref name="tei_bibl"/>
+      <ref name="tei_listBibl"/>
       <ref name="tei_msDesc"/>
    </define>
    <define name="tei_model.biblLike_sequenceOptional">
       <optional>
          <ref name="tei_bibl"/>
+      </optional>
+      <optional>
+         <ref name="tei_listBibl"/>
       </optional>
       <optional>
          <ref name="tei_msDesc"/>
@@ -2387,12 +2393,18 @@ Sample values include: 1] rubbing; 2] mildew; 3] smoke</a:documentation>
          <ref name="tei_bibl"/>
       </zeroOrMore>
       <zeroOrMore>
+         <ref name="tei_listBibl"/>
+      </zeroOrMore>
+      <zeroOrMore>
          <ref name="tei_msDesc"/>
       </zeroOrMore>
    </define>
    <define name="tei_model.biblLike_sequenceRepeatable">
       <oneOrMore>
          <ref name="tei_bibl"/>
+      </oneOrMore>
+      <oneOrMore>
+         <ref name="tei_listBibl"/>
       </oneOrMore>
       <oneOrMore>
          <ref name="tei_msDesc"/>
@@ -2795,6 +2807,7 @@ Sample values include: 1] rubbing; 2] mildew; 3] smoke</a:documentation>
    </define>
    <define name="tei_model.respLike">
       <choice>
+         <ref name="tei_author"/>
          <ref name="tei_editor"/>
          <ref name="tei_respStmt"/>
       </choice>
@@ -2964,6 +2977,7 @@ Sample values include: 1] rubbing; 2] mildew; 3] smoke</a:documentation>
    <define name="tei_model.frontPart">
       <choice>
          <ref name="tei_model.frontPart.drama"/>
+         <ref name="tei_listBibl"/>
       </choice>
    </define>
    <define name="tei_model.pPart.data">
@@ -3754,6 +3768,16 @@ Elements]</a:documentation>
          <empty/>
       </element>
    </define>
+   <define name="tei_author">
+      <element name="author">
+         <a:documentation xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0">(author) in a bibliographic reference, contains the name(s) of an author, personal or corporate, of a work; for example in the same form as that provided by a recognized bibliographic name authority. [3.12.2.2. Titles, Authors, and Editors 2.2.1. The Title Statement]</a:documentation>
+         <ref name="tei_macro.phraseSeq"/>
+         <ref name="tei_att.global.attributes"/>
+         <ref name="tei_att.datable.attributes"/>
+         <ref name="tei_att.naming.attributes"/>
+         <empty/>
+      </element>
+   </define>
    <define name="tei_editor">
       <element name="editor">
          <a:documentation xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0">contains a secondary statement of responsibility for a bibliographic item, for example the name of an individual, institution or organization, (or of several such) acting as editor, compiler, translator, etc. [3.12.2.2. Titles, Authors, and Editors]</a:documentation>
@@ -3864,6 +3888,40 @@ Sample values include: 1] main; 2] sub (subordinate); 3] alt (alternate); 4] sho
          <ref name="tei_att.cmc.attributes"/>
          <ref name="tei_att.declarable.attributes"/>
          <ref name="tei_att.docStatus.attributes"/>
+         <ref name="tei_att.sortable.attributes"/>
+         <ref name="tei_att.typed.attributes"/>
+         <empty/>
+      </element>
+   </define>
+   <define name="tei_listBibl">
+      <element name="listBibl">
+         <a:documentation xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0">(citation list) contains a list of bibliographic citations of any kind. [3.12.1. Methods of Encoding Bibliographic References and Lists of References 2.2.7. The Source Description 16.3.2. Declarable Elements]</a:documentation>
+         <group>
+            <zeroOrMore>
+               <ref name="tei_model.headLike"/>
+            </zeroOrMore>
+            <zeroOrMore>
+               <ref name="tei_desc"/>
+            </zeroOrMore>
+            <zeroOrMore>
+               <choice>
+                  <ref name="tei_model.milestoneLike"/>
+               </choice>
+            </zeroOrMore>
+            <oneOrMore>
+               <oneOrMore>
+                  <ref name="tei_model.biblLike"/>
+               </oneOrMore>
+               <zeroOrMore>
+                  <choice>
+                     <ref name="tei_model.milestoneLike"/>
+                  </choice>
+               </zeroOrMore>
+            </oneOrMore>
+         </group>
+         <ref name="tei_att.global.attributes"/>
+         <ref name="tei_att.cmc.attributes"/>
+         <ref name="tei_att.declarable.attributes"/>
          <ref name="tei_att.sortable.attributes"/>
          <ref name="tei_att.typed.attributes"/>
          <empty/>

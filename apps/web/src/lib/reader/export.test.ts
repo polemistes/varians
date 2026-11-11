@@ -155,7 +155,8 @@ describe('teiText', () => {
       witnesses: [{ siglum: 'A' }],
       ...out,
     });
-    expect(tei).toContain('<rdg type="conjecture" resp="Bentley">θεά</rdg>');
+    expect(tei).toContain('<rdg type="conjecture" resp="#resp-Bentley">θεά</rdg>');
+    expect(tei).toContain('<bibl><author xml:id="resp-Bentley">Bentley</author></bibl>');
     expect(tei).toContain('<rdg wit="#wit-A">μυρία</rdg>');
     expect(blockLines(tei).map((line) => line.slice(0, M('1.1').length))).toEqual([
       M('1.1'),

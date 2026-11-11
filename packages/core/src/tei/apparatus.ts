@@ -8,7 +8,7 @@
  * with the conjectures attached to it (docs/formats/tei-subset.md).
  */
 
-import { printedKind, type Attachment } from '../apparatus/render.ts';
+import { EDITION_ITSELF, printedKind, unbracketed, type Attachment } from '../apparatus/render.ts';
 import type { Reading, Site } from '../collate/collate.ts';
 import { siteSegments } from '../collate/passage.ts';
 import {
@@ -100,21 +100,60 @@ export interface EditionExport {
   origin?: string;
 }
 
-/** How the witnesses are referred to: the base's siglum, left out of `wit`, and each siglum's xml:id. */
+/**
+ * How the file points at what its header lists: the witnesses (the base's
+ * siglum is left out of `wit`), the scholars who proposed conjectures, the
+ * sources stated for conjectures and reports, and the edition's own editors.
+ */
 interface WitnessRefs {
   baseSiglum: string;
   witId: (siglum: string) => string;
-  /** Whether a siglum is a witness of the edition's list. */
-  listed: (siglum: string) => boolean;
   /** Whether words are written as `<w>` with their provenance. */
   words: boolean;
+  /** ` resp="#…"` for who proposed a conjecture: the scholar's entry, or the edition's editors for one of its own; nothing where none is named. */
+  resp: (name: string) => string;
+  /** ` source="…"` for a record: the record itself where it has an address in the file, and the entry of the source stated for it. */
+  source: (attachment: Attachment) => string;
+}
+
+/** The scholars and the sources the apparatus names beside the witnesses, each once, in the order in which they are first named, with the xml:id of each. */
+interface Cited {
+  scholars: Map<string, string>;
+  sources: Map<string, string>;
+}
+
+function citedIn(attachments: readonly Attachment[]): Cited {
+  const scholars = new Map<string, string>();
+  const sources = new Map<string, string>();
+  const taken = new Set<string>();
+  for (const attachment of attachments) {
+    const { name } = attachment;
+    if (
+      attachment.kind === 'conjecture' &&
+      name !== EDITION_ITSELF &&
+      name.trim() !== '' &&
+      !scholars.has(name)
+    ) {
+      const base = ncName(name, 'resp-');
+      let id = base;
+      for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
+      scholars.set(name, id);
+      taken.add(id);
+    }
+    const source = unbracketed(attachment.source);
+    if (source !== '' && !sources.has(source)) sources.set(source, `src-${sources.size + 1}`);
+  }
+  return { scholars, sources };
 }
 
 /**
  * Distinct xml:ids for the witnesses, `wit-` and the siglum as a name; sigla
  * that give the same name (A¹ and A²) are told apart by a number.
  */
-function witnessRefs(witnesses: readonly EditionWitness[], baseSiglum: string): WitnessRefs {
+function witnessRefs(
+  witnesses: readonly EditionWitness[],
+  baseSiglum: string,
+): Pick<WitnessRefs, 'baseSiglum' | 'witId'> {
   const ids = new Map<string, string>();
   const taken = new Set<string>();
   for (const { siglum } of witnesses) {
@@ -125,12 +164,7 @@ function witnessRefs(witnesses: readonly EditionWitness[], baseSiglum: string): 
     ids.set(siglum, id);
     taken.add(id);
   }
-  return {
-    baseSiglum,
-    witId: (siglum) => ids.get(siglum) ?? ncName(siglum, 'wit-'),
-    listed: (siglum) => ids.has(siglum),
-    words: false,
-  };
+  return { baseSiglum, witId: (siglum) => ids.get(siglum) ?? ncName(siglum, 'wit-') };
 }
 
 /** A complete TEI document of the edition. */
@@ -141,20 +175,51 @@ export function exportEditionTei(input: EditionExport): string {
   out.push('<TEI xmlns="http://www.tei-c.org/ns/1.0">');
   out.push('  <teiHeader>');
   out.push('    <fileDesc>');
+  // The editors have names of the file's own: a conjecture of the edition itself points at them.
+  const editors = (input.editors ?? []).map((name, k) => ({ name, id: `editor-${k + 1}` }));
   out.push(
-    `      <titleStmt><title>${escapeText(input.title)}</title>${(input.editors ?? []).map((name) => `<editor>${escapeText(name)}</editor>`).join('')}${respStmts(input.contributors)}</titleStmt>`,
+    `      <titleStmt><title>${escapeText(input.title)}</title>${editors.map((e) => `<editor xml:id="${e.id}">${escapeText(e.name)}</editor>`).join('')}${respStmts(input.contributors)}</titleStmt>`,
   );
   out.push(
     `      ${publicationStmt(input.licence, { licenceUrl: input.licenceUrl, rightsNote: input.rightsNote, authority: input.authority })}`,
   );
   out.push('      <sourceDesc>');
-  const refs = {
-    ...witnessRefs(input.witnesses, input.baseSiglum ?? 'ed.'),
+  const attachments = input.passages.flatMap((p) => Object.values(p.attachments ?? {}).flat());
+  // A witness known only by a reading reported for it, outside the conspectus, is listed after it.
+  const conspectus = new Set(input.witnesses.map((w) => w.siglum));
+  const reportedOnly = [
+    ...new Set(attachments.filter((a) => a.kind === 'reported').map((a) => a.name)),
+  ].filter((siglum) => !conspectus.has(siglum));
+  const witnesses: EditionWitness[] = [
+    ...input.witnesses,
+    ...reportedOnly.map((siglum) => ({ siglum })),
+  ];
+  const cited = citedIn(attachments);
+  const pointer = (id: string | undefined) => (id === undefined ? [] : [`#${id}`]);
+  const refs: WitnessRefs = {
+    ...witnessRefs(witnesses, input.baseSiglum ?? 'ed.'),
     words: input.words ?? false,
+    resp(name) {
+      const to =
+        name === EDITION_ITSELF
+          ? editors.map((e) => `#${e.id}`)
+          : pointer(cited.scholars.get(name));
+      return to.length ? ` resp="${to.join(' ')}"` : '';
+    },
+    source(attachment) {
+      const to = [
+        // The record has an address where the file declares the prefix that resolves it.
+        ...(attachment.kind === 'conjecture' && input.origin
+          ? [`conj:${escapeAttr(attachment.id)}`]
+          : []),
+        ...pointer(cited.sources.get(unbracketed(attachment.source))),
+      ];
+      return to.length ? ` source="${to.join(' ')}"` : '';
+    },
   };
-  if (input.witnesses.length > 0) {
+  if (witnesses.length > 0) {
     out.push('        <listWit>');
-    for (const w of input.witnesses) {
+    for (const w of witnesses) {
       const text = [w.name, w.description].filter((x) => x && x.trim() !== '').join('. ');
       const corresp = w.id ? ` corresp="wit:${escapeAttr(w.id)}"` : '';
       out.push(
@@ -165,8 +230,20 @@ export function exportEditionTei(input: EditionExport): string {
   }
   const bibl = sourcesBibl(input.sources);
   if (bibl) out.push(`        ${bibl}`);
+  // Who proposed the conjectures and what is stated as the source of a conjecture or a report: the
+  // readings point here by `resp` and `source`, which are pointers in TEI.
+  if (cited.scholars.size + cited.sources.size > 0) {
+    out.push('        <listBibl>');
+    out.push('          <head>Scholars and sources named in the apparatus</head>');
+    for (const [name, id] of cited.scholars)
+      out.push(`          <bibl><author xml:id="${id}">${escapeText(name)}</author></bibl>`);
+    for (const [source, id] of cited.sources)
+      out.push(`          <bibl xml:id="${id}">${escapeText(source)}</bibl>`);
+    out.push('        </listBibl>');
+  }
   // A source description must say something: an edition with no witnesses yet and no sources.
-  if (input.witnesses.length === 0 && !bibl) out.push('        <p>Edition.</p>');
+  if (witnesses.length === 0 && !bibl && cited.scholars.size + cited.sources.size === 0)
+    out.push('        <p>Edition.</p>');
   out.push('      </sourceDesc>');
   out.push('    </fileDesc>');
   out.push(`    ${encodingDesc(input.origin, { apparatus: true })}`);
@@ -624,7 +701,7 @@ function appXml(
   const attachments = passage.attachments?.[site.index] ?? [];
   const adopted = attachments.find((a) => a.adopted);
   const lemWit = base ? witAttr(base.sigla, refs) : '';
-  const lemResp = adopted ? ` resp="${escapeAttr(adopted.name)}"` : '';
+  const lemResp = adopted ? `${refs.resp(adopted.name)}${refs.source(adopted)}` : '';
   const out: string[] = [];
   out.push(
     lemmaXml === '' ? `<lem${lemWit}${lemResp}/>` : `<lem${lemWit}${lemResp}>${lemmaXml}</lem>`,
@@ -639,12 +716,12 @@ function appXml(
   for (const attachment of attachments) {
     if (attachment.adopted) continue;
     const type = attachment.kind === 'conjecture' ? 'conjecture' : 'reported';
-    // A reading reported for a witness of the list is that witness's, as a reading collated is; a conjecture names who proposed it.
+    // A reading reported for a witness is that witness's, as a reading collated is; a conjecture points at who proposed it.
     const resp =
-      attachment.kind === 'reported' && refs.listed(attachment.name)
+      attachment.kind === 'reported'
         ? ` wit="#${refs.witId(attachment.name)}"`
-        : ` resp="${escapeAttr(attachment.name)}"`;
-    const source = attachment.source ? ` source="${escapeAttr(attachment.source)}"` : '';
+        : refs.resp(attachment.name);
+    const source = refs.source(attachment);
     // In a piece after the first the record is named without its words, so that it is not read as keeping the lemma there.
     if (attachment.text === '' || piece?.later) out.push(`<rdg type="${type}"${resp}${source}/>`);
     else out.push(`<rdg type="${type}"${resp}${source}>${escapeText(attachment.text)}</rdg>`);

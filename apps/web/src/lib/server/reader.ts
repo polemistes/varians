@@ -9,6 +9,7 @@ import {
   applySiteKinds,
   attachToSites,
   compareOrder,
+  EDITION_ITSELF,
   layoutLines,
   orderVariants,
   runOn,
@@ -853,7 +854,7 @@ export function attachRecords(
           kind: 'conjecture',
           lemma: c.lemma,
           reading: c.reading,
-          name: c.proposer ?? 'this edition',
+          name: c.proposer ?? EDITION_ITSELF,
           conjectureKind: c.kind,
           ...rangeOf(c.segmentId),
         };

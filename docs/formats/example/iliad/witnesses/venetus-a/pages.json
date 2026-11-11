@@ -2,13 +2,13 @@
   "$schema": "https://varians.eu/formats/2/pages.schema.json",
   "pages": [
     {
-      "id": "01M74DME5TV0K168M80M6RANX8",
+      "id": "01M74HP0ASY19XC440V8CMFXHX",
       "label": "12r",
       "position": 1,
       "image": {
         "kind": "upload",
-        "path": "images/01M74DME5TV0K168M80M6RANX8/original.jpg",
-        "file": "images/12r-6RANX8.jpg",
+        "path": "images/01M74HP0ASY19XC440V8CMFXHX/original.jpg",
+        "file": "images/12r-CMFXHX.jpg",
         "iiif": null,
         "width": 64,
         "height": 96,
@@ -17,21 +17,21 @@
         "attribution": "An example image, made by Varians",
         "source": null
       },
-      "createdAt": "2026-11-11T04:25:07.003Z"
+      "createdAt": "2026-11-11T05:35:52.666Z"
     },
     {
-      "id": "01M74DME5TV0K168M80M6RANX9",
+      "id": "01M74HP0ASY19XC440V8CMFXHY",
       "label": "12v",
       "position": 2,
       "image": null,
-      "createdAt": "2026-11-11T04:25:07.003Z"
+      "createdAt": "2026-11-11T05:35:52.666Z"
     },
     {
-      "id": "01M74DME5TV0K168M80M6RANXA",
+      "id": "01M74HP0ASY19XC440V8CMFXHZ",
       "label": "13r",
       "position": 3,
       "image": null,
-      "createdAt": "2026-11-11T04:25:07.003Z"
+      "createdAt": "2026-11-11T05:35:52.666Z"
     }
   ]
 }

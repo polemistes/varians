@@ -54,8 +54,17 @@ describe('exportEditionTei', () => {
       ],
     });
     expect(xml).toContain('<witness xml:id="wit-A" n="A">Codex A</witness>');
+    // Who proposed the conjecture is listed in the header, and the reading points there.
     expect(xml).toContain(
-      `${M('1.1')}the <app><lem wit="#wit-A #wit-C">quick brown</lem><rdg wit="#wit-B">slow</rdg><rdg type="conjecture" resp="Bentley">swift</rdg></app> <app><lem wit="#wit-A #wit-B"/><rdg wit="#wit-C">red</rdg></app> fox<lb/>jumps\n        </ab>`,
+      [
+        '        <listBibl>',
+        '          <head>Scholars and sources named in the apparatus</head>',
+        '          <bibl><author xml:id="resp-Bentley">Bentley</author></bibl>',
+        '        </listBibl>',
+      ].join('\n'),
+    );
+    expect(xml).toContain(
+      `${M('1.1')}the <app><lem wit="#wit-A #wit-C">quick brown</lem><rdg wit="#wit-B">slow</rdg><rdg type="conjecture" resp="#resp-Bentley">swift</rdg></app> <app><lem wit="#wit-A #wit-B"/><rdg wit="#wit-C">red</rdg></app> fox<lb/>jumps\n        </ab>`,
     );
   });
 
@@ -167,10 +176,11 @@ describe('exportEditionTei', () => {
         },
       ],
     });
-    expect(xml).toContain('<app><lem resp="Editor">b</lem><rdg wit="#wit-A">x</rdg></app>');
+    expect(xml).toContain('<bibl><author xml:id="resp-Editor">Editor</author></bibl>');
+    expect(xml).toContain('<app><lem resp="#resp-Editor">b</lem><rdg wit="#wit-A">x</rdg></app>');
   });
 
-  it('names the witness of a reported reading as a witness where the edition lists it, and its siglum as said where it does not', () => {
+  it('names the witness of a reported reading as a witness, listing one that the conspectus does not have, and points at the source stated', () => {
     const edition = fromText('a b c', { ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
     const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [text('A', 'A', 'a x c')]);
@@ -192,8 +202,65 @@ describe('exportEditionTei', () => {
       ],
     });
     expect(xml).toContain(
-      '<rdg wit="#wit-A">x</rdg><rdg type="reported" wit="#wit-T" source="(Allen)">y</rdg><rdg type="reported" resp="D">z</rdg>',
+      '<rdg wit="#wit-A">x</rdg><rdg type="reported" wit="#wit-T" source="#src-1">y</rdg><rdg type="reported" wit="#wit-D">z</rdg>',
     );
+    expect(xml).toContain('<witness xml:id="wit-D" n="D">D</witness>');
+    expect(xml).toContain('<bibl xml:id="src-1">Allen</bibl>');
+  });
+
+  it('points a conjecture of the edition itself at its editors, a conjecture with an address at its record, and two scholars whose names make one name at two', () => {
+    const edition = fromText('a b c', { ids: sequentialIds('e') });
+    const baseUnits = units(edition, 0, edition.items.length);
+    const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [text('A', 'A', 'a x c')]);
+    const input = {
+      title: 't',
+      editors: ['First Editor', 'Second Editor'],
+      witnesses: [{ siglum: 'A' }],
+      runs: [{ label: '1', items: edition.items }],
+      passages: [
+        {
+          baseUnits,
+          sites: c.sites,
+          attachments: {
+            0: [
+              { kind: 'conjecture' as const, id: 'c1', text: 'y', name: 'this edition' },
+              {
+                kind: 'conjecture' as const,
+                id: 'c2',
+                text: 'z',
+                name: 'West¹',
+                source: '(Ath. 1.12e)',
+              },
+              {
+                kind: 'conjecture' as const,
+                id: 'c3',
+                text: 'w',
+                name: 'West²',
+                source: 'Ath. 1.12e',
+              },
+            ],
+          },
+        },
+      ],
+    };
+    const xml = exportEditionTei(input);
+    expect(xml).toContain(
+      '<editor xml:id="editor-1">First Editor</editor><editor xml:id="editor-2">Second Editor</editor>',
+    );
+    expect(xml).toContain(
+      '<rdg type="conjecture" resp="#editor-1 #editor-2">y</rdg><rdg type="conjecture" resp="#resp-West_" source="#src-1">z</rdg><rdg type="conjecture" resp="#resp-West_-2" source="#src-1">w</rdg>',
+    );
+    expect(xml).toContain('<bibl><author xml:id="resp-West_-2">West²</author></bibl>');
+    // The source stated twice, with brackets and without, is one source.
+    expect(xml.match(/<bibl xml:id="src-/gu)).toHaveLength(1);
+    expect(xml).not.toContain('this edition');
+    // With the prefixes declared, a conjecture points at its record too.
+    const archived = exportEditionTei({ ...input, origin: 'https://varians.example' });
+    expect(archived).toContain(
+      '<rdg type="conjecture" resp="#resp-West_" source="conj:c2 #src-1">z</rdg>',
+    );
+    // Without editors, a conjecture of the edition itself names nobody.
+    expect(exportEditionTei({ ...input, editors: [] })).toContain('<rdg type="conjecture">y</rdg>');
   });
 
   it('types the places of the same letters read otherwise as interpretative', () => {
@@ -479,7 +546,7 @@ describe('the text of an edition in TEI, its segments begun by milestones', () =
       }),
     );
     expect(xml).toBe(
-      `${M('1')}alpha <app><lem wit="#wit-A">beta ${M('2')}<app xml:id="app-1-2-1" next="#app-1-2-2"><lem wit="#wit-A #wit-B">gamma</lem><rdg wit="#wit-C"/><rdg type="conjecture" resp="West">omega</rdg></app></lem><rdg wit="#wit-B">kappa lambda</rdg></app> <app xml:id="app-1-2-2" prev="#app-1-2-1"><lem wit="#wit-A #wit-B">delta</lem><rdg wit="#wit-C"/><rdg type="conjecture" resp="West"/></app>`,
+      `${M('1')}alpha <app><lem wit="#wit-A">beta ${M('2')}<app xml:id="app-1-2-1" next="#app-1-2-2"><lem wit="#wit-A #wit-B">gamma</lem><rdg wit="#wit-C"/><rdg type="conjecture" resp="#resp-West">omega</rdg></app></lem><rdg wit="#wit-B">kappa lambda</rdg></app> <app xml:id="app-1-2-2" prev="#app-1-2-1"><lem wit="#wit-A #wit-B">delta</lem><rdg wit="#wit-C"/><rdg type="conjecture" resp="#resp-West"/></app>`,
     );
   });
 });

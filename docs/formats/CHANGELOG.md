@@ -45,6 +45,7 @@ Varians has no users but its maker yet, and the TEI of an edition is changed wit
 - A variant at a point at the end of a segment stands before the break that ends the line, and a segment the edition does not print stands between the segments around it, its reading begun by its own milestone, which gives its label.
 - The header has `<refsDecl><refState unit="segment"/></refsDecl>`, and in an edition `<variantEncoding method="parallel-segmentation" location="internal"/>`; the ODD and `varians.rng` have the three elements.
 - The archive's `edition.tei.xml`, `edition.txt` and `edition.md` have the conjectures and the reported readings the archive holds, as the reader's downloads have those a reader sees; before, they had none.
+- In an edition's TEI `resp` and `source` on a reading are pointers, as TEI defines them, where they held a name and a statement as text. The header's `<sourceDesc>` has a `<listBibl>` of the scholars who proposed the conjectures (`<bibl><author xml:id="resp-…">`) and of the sources stated for conjectures and reported readings (`<bibl xml:id="src-…">`); a conjecture points at its proposer by `resp`, or at the edition's `<editor xml:id="editor-…">` elements where it is the edition's own, and a conjecture or a report at its source by `source`, a conjecture in the archive at its record besides (`conj:<id>`). A reading reported for a witness names the witness in `wit`, and a witness known only by such a reading is listed in `<listWit>`. The ODD and `varians.rng` have `listBibl` and `author`.
 
 **Clarified, November 2026**
 
