@@ -26,7 +26,9 @@ import { load as witnessPage } from '../../routes/(public)/witnesses/[slug]/+pag
 import { load as workPage } from '../../routes/(public)/works/[slug]/+page.server';
 import { actions as witnessEdit } from '../../routes/(app)/witnesses/[slug]/edit/+page.server';
 import { actions as workEdit } from '../../routes/(app)/works/[slug]/edit/+page.server';
+import { reportReading } from './conjectures';
 import { addMaintainer, createWitness, createWork } from './registry';
+import { resolveLabels, schemeOfWork } from './segments';
 import { DEFAULT_CONVENTIONS } from './seed/sample.ts';
 
 const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329/varians_test';
@@ -121,6 +123,19 @@ beforeAll(async () => {
   );
   ids.witness = witness.id;
   witnessSlug = witness.slug;
+  const segment = (await resolveLabels(db, await schemeOfWork(db, work.id), ['1.1'])).get('1.1')!;
+  await reportReading(
+    db,
+    {
+      workId: work.id,
+      segmentId: segment.id,
+      witnessId: witness.id,
+      lemma: 'arma',
+      reading: 'armo',
+      visibility: 'published',
+    },
+    creator.id,
+  );
   await addMaintainer(db, 'work', work.id, maintainer.email);
   await addMaintainer(db, 'witness', witness.id, maintainer.email);
 
@@ -230,6 +245,25 @@ describe('the rights a list gives each witness', () => {
       delete: false,
     });
     for (const who of [stranger, null]) expect(await rowRights('witnesses', who)).toEqual(none);
+  });
+});
+
+describe('the rights the witness’s page gives each reported reading', () => {
+  const rightsOf = async (who: CurrentUser | null) => {
+    const readings = (await run(witnessPage, who, { slug: witnessSlug })).data!.readings as {
+      can: Record<string, boolean>;
+    }[];
+    expect(readings).toHaveLength(1);
+    return readings[0]!.can;
+  };
+
+  it('are the same as the work’s page gives: the owner edits and deletes, a maintainer of the work edits', async () => {
+    expect(await rightsOf(creator)).toEqual({ edit: true, delete: true, publish: true });
+    expect(await rightsOf(administrator)).toEqual({ edit: true, delete: true, publish: true });
+    expect(await rightsOf(maintainer)).toEqual({ edit: true, delete: false, publish: false });
+    expect(await rightsOf(siteEditor)).toEqual({ edit: true, delete: false, publish: false });
+    for (const who of [stranger, null])
+      expect(await rightsOf(who)).toEqual({ edit: false, delete: false, publish: false });
   });
 });
 
