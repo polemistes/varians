@@ -117,7 +117,7 @@ let draftConjecture: Conjecture;
 let publishedReading: ReportedReading;
 let draftReading: ReportedReading;
 let witnessSlug: string;
-let witnessId: string;
+let reportedSlug: string;
 
 async function clean(): Promise<void> {
   for (const w of await db.select({ id: works.id }).from(works).where(eq(works.slug, 'iliad')))
@@ -233,7 +233,11 @@ beforeAll(async () => {
   );
   const [witness] = await db.select().from(witnesses).where(eq(witnesses.id, sample.witnessIds.A!));
   witnessSlug = witness!.slug;
-  witnessId = witness!.id;
+  const [reported] = await db
+    .select()
+    .from(witnesses)
+    .where(eq(witnesses.id, sample.witnessIds.T!));
+  reportedSlug = reported!.slug;
 }, 120_000);
 
 afterAll(async () => {
@@ -302,6 +306,11 @@ async function call(
 async function textOf(outcome: Outcome): Promise<string> {
   if (outcome.value instanceof Response) return await outcome.value.clone().text();
   return JSON.stringify(outcome.value ?? null);
+}
+
+interface WitnessWorkCounts {
+  transcriptionCount: number;
+  readingCount: number;
 }
 
 const visitor = null;
@@ -386,6 +395,16 @@ describe('what is unfinished stays invisible', () => {
       expect(witness.status).toBe(200);
       expect(await textOf(witness)).not.toContain(DRAFT_WORDS);
       expect(await textOf(witness)).not.toContain(draftTranscription.id);
+      // What the page counts for the work is what the viewer may see: the draft transcript and the draft reading are no trace of it.
+      const counted = async (slug: string, by: Actor | null) =>
+        ((await call(witnessPage.load, by, { slug })).value as { works: WitnessWorkCounts[] })
+          .works[0]!;
+      const forTranscript = await counted(witnessSlug, who);
+      const forOwner = await counted(witnessSlug, owner);
+      expect(forTranscript.transcriptionCount).toBe(forOwner.transcriptionCount - 1);
+      const forReading = await counted(reportedSlug, who);
+      const forOwnerReading = await counted(reportedSlug, owner);
+      expect(forReading.readingCount).toBe(forOwnerReading.readingCount - 1);
 
       // Lists and search.
       expect((await publishedEditions(db)).map((e) => e.id)).not.toContain(draftEdition.id);

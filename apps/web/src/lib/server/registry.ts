@@ -91,6 +91,8 @@ import { promisify } from 'node:util';
 import { archiveWork, folderName } from './archive/archive.ts';
 import {
   canDeleteTranscription,
+  canViewConjecture,
+  canViewTranscription,
   isAdministrator,
   isSiteEditor,
   type Actor,
@@ -1122,31 +1124,58 @@ export async function transcriptionsOfWitness(
   }));
 }
 
-/** The works a witness is connected to: through transcriptions made for them or assigning text to them, and through reported readings. */
-export async function worksOfWitness(db: Database, witnessId: string): Promise<WitnessWorkRow[]> {
-  const viaText = await db
-    .select({
-      workId: transcriptionSegments.workId,
-      transcriptionId: transcriptionSegments.transcriptionId,
-      n: countDistinct(transcriptionSegments.segmentId),
-    })
-    .from(transcriptionSegments)
-    .innerJoin(transcriptions, eq(transcriptions.id, transcriptionSegments.transcriptionId))
-    .where(eq(transcriptions.witnessId, witnessId))
-    .groupBy(transcriptionSegments.workId, transcriptionSegments.transcriptionId);
-  const declared = await db
-    .select({
-      workId: transcriptionWorks.workId,
-      transcriptionId: transcriptionWorks.transcriptionId,
-    })
-    .from(transcriptionWorks)
-    .innerJoin(transcriptions, eq(transcriptions.id, transcriptionWorks.transcriptionId))
-    .where(eq(transcriptions.witnessId, witnessId));
-  const viaReadings = await db
-    .select({ workId: reportedReadings.workId, n: sql<number>`count(*)::int` })
-    .from(reportedReadings)
-    .where(eq(reportedReadings.witnessId, witnessId))
-    .groupBy(reportedReadings.workId);
+/**
+ * The works a witness is connected to: through transcriptions made for them or assigning text to them, and through reported readings.
+ * Only what the viewer may see is counted and connects: another person's draft is no trace of a work on the witness's page.
+ */
+export async function worksOfWitness(
+  db: Database,
+  witnessId: string,
+  viewer: Actor | null | undefined,
+  grants: Grants,
+): Promise<WitnessWorkRow[]> {
+  const viaText = (
+    await db
+      .select({
+        workId: transcriptionSegments.workId,
+        transcriptionId: transcriptionSegments.transcriptionId,
+        ownerId: transcriptions.ownerId,
+        visibility: transcriptions.visibility,
+        n: countDistinct(transcriptionSegments.segmentId),
+      })
+      .from(transcriptionSegments)
+      .innerJoin(transcriptions, eq(transcriptions.id, transcriptionSegments.transcriptionId))
+      .where(eq(transcriptions.witnessId, witnessId))
+      .groupBy(
+        transcriptionSegments.workId,
+        transcriptionSegments.transcriptionId,
+        transcriptions.ownerId,
+        transcriptions.visibility,
+      )
+  ).filter((r) => canViewTranscription(viewer, { ...r, id: r.transcriptionId }, grants));
+  const declared = (
+    await db
+      .select({
+        workId: transcriptionWorks.workId,
+        transcriptionId: transcriptionWorks.transcriptionId,
+        ownerId: transcriptions.ownerId,
+        visibility: transcriptions.visibility,
+      })
+      .from(transcriptionWorks)
+      .innerJoin(transcriptions, eq(transcriptions.id, transcriptionWorks.transcriptionId))
+      .where(eq(transcriptions.witnessId, witnessId))
+  ).filter((r) => canViewTranscription(viewer, { ...r, id: r.transcriptionId }, grants));
+  const viaReadings = (
+    await db
+      .select({
+        id: reportedReadings.id,
+        workId: reportedReadings.workId,
+        ownerId: reportedReadings.ownerId,
+        visibility: reportedReadings.visibility,
+      })
+      .from(reportedReadings)
+      .where(eq(reportedReadings.witnessId, witnessId))
+  ).filter((r) => canViewConjecture(viewer, r, { workMaintainerIds: [], grants }));
 
   const tally = new Map<
     string,
@@ -1164,7 +1193,7 @@ export async function worksOfWitness(db: Database, witnessId: string): Promise<W
     e.segments = Math.max(e.segments, Number(row.n));
   }
   for (const row of declared) entry(row.workId).transcriptions.add(row.transcriptionId);
-  for (const row of viaReadings) entry(row.workId).readings = Number(row.n);
+  for (const row of viaReadings) entry(row.workId).readings++;
   const ids = [...tally.keys()];
   if (ids.length === 0) return [];
   const rows = await db

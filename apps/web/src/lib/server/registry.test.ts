@@ -33,7 +33,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import pg from 'pg';
-import type { Actor } from './authz';
+import { grantsFor, type Actor } from './authz';
 import { replaceContent } from './documents/service.ts';
 import {
   addMaintainer,
@@ -516,15 +516,22 @@ describe('transcriptions', () => {
     const mine = rows.find((r) => r.id === source)!;
     expect(mine.works.map((w) => w.id)).toEqual([poem.id]);
     expect(mine.assigned).toEqual([expect.objectContaining({ id: poem.id, segmentCount: 2 })]);
-    const connected = await worksOfWitness(db, first.id);
-    expect(connected).toEqual([
+    // Bob's draft is no trace of the work to anyone but Bob and those who may edit it.
+    const forAlice = await worksOfWitness(db, first.id, alice, await grantsFor(db, alice));
+    expect(forAlice).toEqual([
       expect.objectContaining({
         id: poem.id,
-        transcriptionCount: 2,
+        transcriptionCount: 1,
         segmentCount: 2,
         readingCount: 0,
       }),
     ]);
+    const forBob = await worksOfWitness(db, first.id, bob, await grantsFor(db, bob));
+    expect(forBob.map((w) => w.transcriptionCount)).toEqual([1]);
+    expect(forBob[0]!.segmentCount).toBe(0);
+    const forAdmin = await worksOfWitness(db, first.id, admin, await grantsFor(db, admin));
+    expect(forAdmin.map((w) => w.transcriptionCount)).toEqual([2]);
+    expect(await worksOfWitness(db, first.id, null, await grantsFor(db, null))).toEqual([]);
   });
 
   it('refuses to delete a transcription an edition names, or someone else’s', async () => {

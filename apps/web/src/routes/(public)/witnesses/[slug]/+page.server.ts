@@ -56,7 +56,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
     maintainersOf(db, 'witness', witness.id),
     pagesOfWitness(db, witness.id),
     transcriptionsOfWitness(db, witness.id),
-    worksOfWitness(db, witness.id),
+    worksOfWitness(db, witness.id, user, grants),
     readingsOfWitness(db, witness.id),
     user ? workOptions(db) : Promise.resolve([]),
     user ? viewableTranscriptions(db, user, grants) : Promise.resolve([]),
