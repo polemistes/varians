@@ -298,7 +298,6 @@ async function build(ownerId: string, otherId: string) {
       lemma,
       reading,
       ownerId,
-      visibility: 'published',
     });
   };
   await conjecture('conjectureA', 'virumque', 'viroque', '1.1');
@@ -314,7 +313,6 @@ async function build(ownerId: string, otherId: string) {
       reading: text,
       source: 'Apparatus of Probus',
       ownerId,
-      visibility: 'published',
     });
   };
   await reading('readingA', 'arma', 'armo', '1.1');

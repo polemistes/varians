@@ -149,9 +149,8 @@ describe('archive', () => {
     const only = {
       transcription: () => true,
       edition: () => false,
-      conjecture: (c: { id: string }) => c.id !== first!.id,
-      reported: () => true,
       editionWorking: () => true,
+      records: true,
     };
     const dir = await writeArchive(db, sample.workId, root, { only });
     const written = (
@@ -159,8 +158,16 @@ describe('archive', () => {
         conjectures: { id: string }[];
       }
     ).conjectures;
-    expect(written.map((c) => c.id)).not.toContain(first!.id);
-    expect(written.length).toBeGreaterThan(0);
+    expect(written.map((c) => c.id)).toContain(first!.id);
+    // A package of one transcript carries no conjectures and no reported readings.
+    const none = await writeArchive(db, sample.workId, root, { only: { ...only, records: false } });
+    expect(
+      (
+        JSON.parse(await readFile(path.join(none, 'conjectures.json'), 'utf8')) as {
+          conjectures: unknown[];
+        }
+      ).conjectures,
+    ).toEqual([]);
     expect(existsSync(path.join(dir, 'editions'))).toBe(false);
     const zip = await filteredArchiveZip(db, { id: sample.workId, slug: 'iliad' }, only, root);
     const chunks: Buffer[] = [];

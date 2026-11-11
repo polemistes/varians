@@ -172,10 +172,7 @@ describe('packages', () => {
   it('carry the variants a published edition judges minor as it judged them, and come back by import with them', async () => {
     await clean();
     const sample = await seedSample(db, owner);
-    const view = await editionView(db, sample.editionId, null, {
-      kind: 'editor',
-      viewer: { id: owner, role: 'member' },
-    });
+    const view = await editionView(db, sample.editionId, null);
     const segment = Object.values(view.segments).find((s) => s.label === '1.8')!;
     const site = segment.collation.sites.find((s) => s.readings.some((r) => r.text === 'συνέηκε'))!;
     const key = siteKey(site, segment.baseUnits);

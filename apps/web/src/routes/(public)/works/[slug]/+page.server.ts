@@ -6,8 +6,6 @@ import {
   canEditConjecture,
   conjectureRights,
   editionRights,
-  canPublishConjecture,
-  canViewConjecture,
   canViewEdition,
   canViewTranscription,
   grantsFor,
@@ -122,18 +120,16 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     if (w) pickedWitness = { ...w, author: null };
   }
 
-  const visibleConjectures = conjectureRows.filter((c) => canViewConjecture(user, c, context));
-  const visibleReadings = readingRows.filter((r) => canViewConjecture(user, r, context));
   const [conjectureCitations, readingCitations] = await Promise.all([
     citationsByRecord(
       db,
       'conjecture',
-      visibleConjectures.map((c) => c.id),
+      conjectureRows.map((c) => c.id),
     ),
     citationsByRecord(
       db,
       'reported',
-      visibleReadings.map((r) => r.id),
+      readingRows.map((r) => r.id),
     ),
   ]);
 
@@ -165,12 +161,12 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     transcriptions: transcriptionRows
       .filter((r) => canViewTranscription(user, r, grants))
       .map((r) => ({ ...r, can: transcriptionRights(user, r, grants) })),
-    conjectures: visibleConjectures.map((c) => ({
+    conjectures: conjectureRows.map((c) => ({
       ...c,
       can: conjectureRights(user, c, context),
       citations: cited(conjectureCitations.get(c.id)),
     })),
-    readings: visibleReadings.map((r) => ({
+    readings: readingRows.map((r) => ({
       ...r,
       can: conjectureRights(user, r, context),
       citations: cited(readingCitations.get(r.id)),
@@ -277,7 +273,6 @@ export const actions: Actions = {
         proposer: d.proposer,
         note: d.note,
         extent: d.extent,
-        visibility: d.published ? 'published' : 'draft',
       },
       user.id,
     );
@@ -308,9 +303,6 @@ export const actions: Actions = {
       proposer: d.proposer,
       note: d.note,
       extent: d.extent,
-      ...(canPublishConjecture(user, row)
-        ? { visibility: d.published ? ('published' as const) : ('draft' as const) }
-        : {}),
     });
     await setCitations(event.locals.db, { conjectureId: row.id }, read.citations);
     return { message: t.conjecture.updated };
@@ -353,7 +345,6 @@ export const actions: Actions = {
         reading: d.reading,
         source: d.source,
         note: d.note,
-        visibility: d.published ? 'published' : 'draft',
       },
       user.id,
     );
@@ -388,9 +379,6 @@ export const actions: Actions = {
       reading: d.reading,
       source: d.source,
       note: d.note,
-      ...(canPublishConjecture(user, row)
-        ? { visibility: d.published ? ('published' as const) : ('draft' as const) }
-        : {}),
     });
     await setCitations(event.locals.db, { reportedReadingId: row.id }, read.citations);
     return { message: t.reading.updated };

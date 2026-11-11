@@ -7,12 +7,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newId } from '@varians/core';
 import {
+  conjectures,
   createDatabase,
   editionCollaborators,
   editions,
   notes,
   pages,
   referenceSchemes,
+  reportedReadings,
   users,
   witnesses,
   works,
@@ -186,5 +188,46 @@ describe('a crafted archive', () => {
     const [made] = await db.select().from(works).where(eq(works.id, sample.workId));
     expect(made!.title).toBe('Renamed by the attacker');
     expect(made).not.toHaveProperty('visibility');
+  }, 120_000);
+
+  it('reads the state of publication that an archive still gives a conjecture or a reported reading, and registers the records as they are, public', async () => {
+    await clean();
+    const sample = await seedSample(db, owner);
+    const dir = await writeArchive(db, sample.workId, path.join(tmp, newId()));
+    const conjecturesFile = path.join(dir, 'conjectures.json');
+    const readingsFile = path.join(dir, 'reported-readings.json');
+    const conjectureList = await json(conjecturesFile);
+    const readingList = await json(readingsFile);
+    // The format no longer has the member; an archive written before it went has it, `draft` on every record here.
+    for (const record of conjectureList.conjectures as Record<string, unknown>[]) {
+      expect(record).not.toHaveProperty('visibility');
+      record.visibility = 'draft';
+    }
+    for (const record of readingList.readings as Record<string, unknown>[]) {
+      expect(record).not.toHaveProperty('visibility');
+      record.visibility = 'draft';
+    }
+    await writeFile(conjecturesFile, JSON.stringify(conjectureList));
+    await writeFile(readingsFile, JSON.stringify(readingList));
+    const ids = (conjectureList.conjectures as { id: string }[]).map((c) => c.id);
+    const readingIds = (readingList.readings as { id: string }[]).map((r) => r.id);
+    expect(ids.length).toBeGreaterThan(0);
+    // Imported by an operator, and again, the work being gone, by an account in a restricted import: the records are there either way.
+    await removeWorkCompletely(db, sample.workId);
+    await importArchive(db, dir, owner);
+    expect((await db.select().from(conjectures).where(inArray(conjectures.id, ids))).length).toBe(
+      ids.length,
+    );
+    expect(
+      (await db.select().from(reportedReadings).where(inArray(reportedReadings.id, readingIds)))
+        .length,
+    ).toBe(readingIds.length);
+    for (const row of await db.select().from(conjectures).where(inArray(conjectures.id, ids)))
+      expect(row).not.toHaveProperty('visibility');
+    await removeWorkCompletely(db, sample.workId);
+    await importArchive(db, dir, attacker, asAttacker);
+    expect((await db.select().from(conjectures).where(inArray(conjectures.id, ids))).length).toBe(
+      ids.length,
+    );
   }, 120_000);
 });

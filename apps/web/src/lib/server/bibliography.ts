@@ -24,7 +24,6 @@ import {
 import { and, asc, count, eq, ilike, inArray, isNotNull, or, sql } from 'drizzle-orm';
 import { formatCitation, referenceText } from '$lib/bibliography/format';
 import { isAdministrator, isSiteEditor, type Actor, type Maybe } from './authz.ts';
-import { PUBLIC, recordFilter, type Audience } from './audience.ts';
 
 export type BibItem = typeof bibliographyItems.$inferSelect;
 
@@ -402,22 +401,21 @@ export interface WorkCited {
   reference: string;
 }
 
-/** The conjectures and reported readings of an edition's work that an audience sees: for readers, the published ones. */
-async function recordsSeen(
+/** The conjectures and reported readings of an edition's work: all of them, being a commons. */
+async function recordsOfWork(
   db: Database,
   workId: string,
-  audience: Audience,
 ): Promise<{ conjectureIds: string[]; reportedIds: string[] }> {
-  const sees = await recordFilter(db, workId, audience);
+  const [conjectureRows, reportedRows] = await Promise.all([
+    db.select({ id: conjectures.id }).from(conjectures).where(eq(conjectures.workId, workId)),
+    db
+      .select({ id: reportedReadings.id })
+      .from(reportedReadings)
+      .where(eq(reportedReadings.workId, workId)),
+  ]);
   return {
-    conjectureIds: (await db.select().from(conjectures).where(eq(conjectures.workId, workId)))
-      .filter(sees)
-      .map((r) => r.id),
-    reportedIds: (
-      await db.select().from(reportedReadings).where(eq(reportedReadings.workId, workId))
-    )
-      .filter(sees)
-      .map((r) => r.id),
+    conjectureIds: conjectureRows.map((r) => r.id),
+    reportedIds: reportedRows.map((r) => r.id),
   };
 }
 
@@ -466,20 +464,15 @@ async function worksCitedBy(
 
 /**
  * An edition's works cited: what its notes, its own citations, and the
- * conjectures and reported readings its apparatus prints for this audience
- * cite (for readers, the work's published records), in label order.
+ * conjectures and reported readings of its work cite, in label order.
  */
-export async function editionWorksCited(
-  db: Database,
-  editionId: string,
-  audience: Audience = PUBLIC,
-): Promise<WorkCited[]> {
+export async function editionWorksCited(db: Database, editionId: string): Promise<WorkCited[]> {
   const [edition] = await db
     .select({ id: editions.id, workId: editions.workId })
     .from(editions)
     .where(eq(editions.id, editionId));
   if (!edition) return [];
-  const works = await worksCitedBy(db, editionId, await recordsSeen(db, edition.workId, audience));
+  const works = await worksCitedBy(db, editionId, await recordsOfWork(db, edition.workId));
   return works.map(({ item, label }) => ({
     id: item.id,
     key: item.citationKey,
@@ -514,16 +507,15 @@ export async function editionBibliography(
   };
 }
 
-/** The bibliography of an edition for the TEI an audience downloads: with the records that audience sees. */
+/** The bibliography of an edition for the TEI that is downloaded: with the records of its work. */
 export async function editionBibliographyFor(
   db: Database,
   editionId: string,
-  audience: Audience = PUBLIC,
 ): Promise<EditionBibliography> {
   const [edition] = await db
     .select({ workId: editions.workId })
     .from(editions)
     .where(eq(editions.id, editionId));
   if (!edition) return { works: [], citations: {} };
-  return editionBibliography(db, editionId, await recordsSeen(db, edition.workId, audience));
+  return editionBibliography(db, editionId, await recordsOfWork(db, edition.workId));
 }

@@ -41,7 +41,7 @@ import { setSiteKind, setSiteMark, setSiteMinor } from './collation.ts';
 import { registerConjecture } from './conjectures.ts';
 import { publishEdition } from './publish.ts';
 import { loadReader, readerDownload, type ReaderRequest } from './reader-pages.ts';
-import { editionView, type Audience } from './reader.ts';
+import { editionView } from './reader.ts';
 import { seedSample, type SampleResult } from './seed/sample.ts';
 
 const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329/varians_test';
@@ -49,7 +49,6 @@ let db: Database;
 let pool: pg.Pool;
 const userId = newId();
 const SLUGS = ['venetus-a', 'venetus-b', 'laurentianus-c', 'townleianus-t'];
-const owner: Audience = { kind: 'editor', viewer: { id: userId, role: 'member' } };
 const actor = { id: userId, role: 'member' as const };
 /** What the owner sees of the draft, and what everyone sees of the published version. */
 const DRAFT: ReaderRequest = { draft: true };
@@ -76,7 +75,7 @@ afterAll(async () => {
 
 /** The place of a segment where some witness has these words, as the editor's view has it. */
 async function placeOf(label: string, reading: string) {
-  const view = await editionView(db, sample.editionId, null, owner);
+  const view = await editionView(db, sample.editionId, null);
   // The passage that holds the segment; its variant whose words stand in it.
   const segment = Object.values(view.segments).find((s) =>
     s.segments.some((part) => part.label === label),
@@ -138,7 +137,7 @@ describe('a minor variant', () => {
     await markMinor(p);
 
     // The editor's view keeps the place, flagged, and the print apparatus has no entry for it.
-    const editors = await editionView(db, sample.editionId, null, owner);
+    const editors = await editionView(db, sample.editionId, null);
     const there = editors.segments[id]!.collation.sites.find((x) => x.index === p.site.index)!;
     expect(there.minor).toBe(true);
     expect(editors.segments[id]!.entries.filter((e) => e.siteIndex === p.site.index)).toEqual([]);
@@ -168,7 +167,7 @@ describe('a minor variant', () => {
     expect(printed(await reader(DRAFT), id)).toEqual(['1.8 ξυνέηκε A C : συνέηκε B']);
     expect(await download('text')).toContain('συνέηκε B');
     expect(await download('tei')).not.toContain('subtype="minor"');
-    const again = await editionView(db, sample.editionId, null, owner);
+    const again = await editionView(db, sample.editionId, null);
     expect(
       again.segments[id]!.collation.sites.find((x) => x.index === p.site.index)!.minor,
     ).toBeUndefined();
@@ -177,7 +176,7 @@ describe('a minor variant', () => {
   it('is a word apart from the kind: each is set and cleared without touching the other', async () => {
     const p = await placeOf('1.8', 'συνέηκε');
     const kindOf = async () =>
-      (await editionView(db, sample.editionId, null, owner)).segments[
+      (await editionView(db, sample.editionId, null)).segments[
         p.segment.segmentId
       ]!.collation.sites.find((x) => x.index === p.site.index)!;
     const letters = p.site.kind;
@@ -222,7 +221,7 @@ describe('a minor variant', () => {
   });
 
   it('can be a variant that only a conjecture opens', async () => {
-    const view = await editionView(db, sample.editionId, null, owner);
+    const view = await editionView(db, sample.editionId, null);
     const passage = Object.values(view.segments).find((s) =>
       s.segments.some((part) => part.label === '1.7'),
     )!;
@@ -247,7 +246,7 @@ describe('a minor variant', () => {
     );
     let key: string | null = null;
     try {
-      const opened = (await editionView(db, sample.editionId, null, owner)).segments[pid]!;
+      const opened = (await editionView(db, sample.editionId, null)).segments[pid]!;
       expect(over(opened.collation.sites)).toHaveLength(1);
       const site = over(opened.collation.sites)[0]!;
       key = siteKey(site, opened.baseUnits);
@@ -260,7 +259,7 @@ describe('a minor variant', () => {
       await setSiteMinor(db, sample.editionId, id, key, true, userId);
       const at = (sites: Site[]) => sites.find((x) => x.index === site.index)!;
       // The editor keeps the place and what was attached to it.
-      const editors = (await editionView(db, sample.editionId, null, owner)).segments[pid]!;
+      const editors = (await editionView(db, sample.editionId, null)).segments[pid]!;
       expect(at(editors.collation.sites).minor).toBe(true);
       expect(editors.attachments[site.index]).toHaveLength(1);
       expect(editors.entries.filter((e) => e.siteIndex === site.index)).toEqual([]);

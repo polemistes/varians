@@ -17,7 +17,6 @@ import {
   segments,
   transcriptions,
   witnesses,
-  workMaintainers,
   works,
   type Database,
 } from '@varians/db';
@@ -25,7 +24,6 @@ import { and, eq, sql } from 'drizzle-orm';
 import {
   canEditEdition,
   canEditTranscription,
-  canViewConjecture,
   canViewEdition,
   canViewTranscription,
   grantsFor,
@@ -159,14 +157,6 @@ export interface Visibility {
   edits: boolean;
 }
 
-async function maintainerIdsOf(db: Database, workId: string): Promise<string[]> {
-  const rows = await db
-    .select({ userId: workMaintainers.userId })
-    .from(workMaintainers)
-    .where(eq(workMaintainers.workId, workId));
-  return rows.map((r) => r.userId);
-}
-
 async function documentVisibility(
   db: Database,
   user: Actor | null,
@@ -214,35 +204,16 @@ export async function visibilityOf(
 ): Promise<Visibility> {
   const grants = await grantsFor(db, user);
   switch (resolved.kind) {
+    // The registry, and the records that are public from the moment they are entered.
     case 'witness':
     case 'page':
     case 'bibliography':
     case 'person':
-      return { visible: true, edits: false };
     case 'work':
     case 'segment':
-      return { visible: true, edits: false };
     case 'conjecture':
-    case 'reported-reading': {
-      const table = resolved.kind === 'conjecture' ? conjectures : reportedReadings;
-      const [row] = await db
-        .select({
-          id: table.id,
-          ownerId: table.ownerId,
-          workId: table.workId,
-          visibility: table.visibility,
-        })
-        .from(table)
-        .where(eq(table.id, resolved.id));
-      if (!row) return { visible: false, edits: false };
-      return {
-        visible: canViewConjecture(user, row, {
-          workMaintainerIds: await maintainerIdsOf(db, row.workId),
-          grants,
-        }),
-        edits: false,
-      };
-    }
+    case 'reported-reading':
+      return { visible: true, edits: false };
     case 'transcription':
       return documentVisibility(db, user, grants, 'transcription', resolved.id);
     case 'edition':

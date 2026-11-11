@@ -70,10 +70,7 @@ async function snapshot(): Promise<Record<string, unknown[]>> {
 
 /** A place of a segment where some witness has these words, as the editor's view has it, with the key a mark on it goes by. */
 async function placeOf(editionId: string, label: string, reading: string) {
-  const view = await editionView(db, editionId, null, {
-    kind: 'editor',
-    viewer: { id: userId, role: 'member' },
-  });
+  const view = await editionView(db, editionId, null);
   const segment = Object.values(view.segments).find((s) => s.label === label)!;
   const site = segment.collation.sites.find((s) => s.readings.some((r) => r.text === reading))!;
   return {
@@ -299,10 +296,7 @@ describe('archive round trip', () => {
     const restored = await snapshot();
     for (const name of ARCHIVED_TABLES) expect(restored[name], name).toEqual(original[name]);
     // The marks are read back as marks: the editor's view has the place, flagged.
-    const back = await editionView(db, sample.editionId, null, {
-      kind: 'editor',
-      viewer: { id: userId, role: 'member' },
-    });
+    const back = await editionView(db, sample.editionId, null);
     expect(
       back.segments[eight.segmentId]!.collation.sites.find((s) => s.index === eight.index),
     ).toMatchObject({ kind: 'textual', minor: true });

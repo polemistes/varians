@@ -19,7 +19,7 @@ import { eq, inArray } from 'drizzle-orm';
 import type pg from 'pg';
 import type { CurrentUser } from '$lib/types';
 import { actions } from '../../routes/(app)/editions/[slug]/edit/+page.server';
-import { editionView, type Audience } from './reader.ts';
+import { editionView } from './reader.ts';
 import { parseDescription, removePage, seedPage, type PageSeedResult } from './seed/page.ts';
 import { seedSample, type SampleResult } from './seed/sample.ts';
 
@@ -38,7 +38,6 @@ const owner: CurrentUser = {
   preferences: {} as CurrentUser['preferences'],
   termsVersion: 1,
 };
-const audience: Audience = { kind: 'editor', viewer: { id: userId, role: 'member' } };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Action = (event: any) => unknown;
@@ -80,7 +79,7 @@ const conventionsOf = async (editionId: string) =>
   (await db.select().from(editions).where(eq(editions.id, editionId)))[0]!.conventions;
 
 const printed = async (editionId: string) => {
-  const view = await editionView(db, editionId, null, audience);
+  const view = await editionView(db, editionId, null);
   return Object.values(view.segments).flatMap((segment) =>
     segment.entries.map((entry) => formatEntry(entry, view.apparatus)),
   );
@@ -139,7 +138,7 @@ describe('the family sigla of the sample edition', () => {
     expect((await conventions()).groups).toEqual([
       { siglum: 'p', members: ['B', 'C'], note: 'consensus codicum BC' },
     ]);
-    const view = await editionView(db, sample.editionId, null, audience);
+    const view = await editionView(db, sample.editionId, null);
     expect(view.apparatus.groups).toEqual([{ siglum: 'p', members: ['B', 'C'] }]);
     expect(view.edition.conventions.groups?.[0]?.note).toBe('consensus codicum BC');
     expect(await printed(sample.editionId)).toContain('1.6 ἐξ … ἐρίσαντε A : not in p');

@@ -6,7 +6,6 @@
   import CitationPicker from '$lib/components/bibliography/CitationPicker.svelte';
   import {
     Button,
-    Checkbox,
     Dialog,
     Field,
     Input,
@@ -31,18 +30,9 @@
     example: string;
     /** The id of a datalist of the work's labels, for suggestions. */
     labelsList?: string;
-    /** Whether the user may publish it (the owner, or an administrator). */
-    canPublish: boolean;
   }
 
-  let {
-    open = $bindable(false),
-    conjecture = null,
-    scheme,
-    example,
-    labelsList,
-    canPublish,
-  }: Props = $props();
+  let { open = $bindable(false), conjecture = null, scheme, example, labelsList }: Props = $props();
 
   const s = registry.conjecture;
   const uid = $props.id();
@@ -180,15 +170,6 @@
         <Textarea {...control} name="note" value={conjecture?.note ?? ''} rows={3} />
       {/snippet}
     </Field>
-    {#if canPublish}
-      <Checkbox
-        name="published"
-        checked={conjecture?.visibility === 'published'}
-        hint={s.publishHint}
-      >
-        {s.publish}
-      </Checkbox>
-    {/if}
   </form>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (open = false)}>{registry.common.cancel}</Button>

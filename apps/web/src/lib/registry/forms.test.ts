@@ -258,12 +258,11 @@ describe('parseConjectureForm', () => {
         proposer: null,
         note: null,
         extent: 'one line',
-        published: false,
       },
     });
   });
 
-  it('keeps the extent for a lacuna only, and reads the published box', () => {
+  it('keeps the extent for a lacuna only, and has no state of publication', () => {
     const parsed = parseConjectureForm(
       form({
         segment: ' 1.5 ',
@@ -279,8 +278,8 @@ describe('parseConjectureForm', () => {
       segment: '1.5',
       extent: null,
       proposer: 'Zenodotus',
-      published: true,
     });
+    expect(parsed.ok && parsed.data).not.toHaveProperty('published');
     expect(parseConjectureForm(form({ segment: '', kind: 'addition', reading: 'x' })).ok).toBe(
       false,
     );
@@ -309,7 +308,6 @@ describe('parseReadingForm', () => {
         reading: '',
         source: 'Allen',
         note: null,
-        published: false,
       },
     });
   });

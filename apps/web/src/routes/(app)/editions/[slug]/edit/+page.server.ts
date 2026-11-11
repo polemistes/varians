@@ -43,13 +43,10 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
   if (!access.canEdit) throw redirect(303, `/editions/${access.edition.slug}`);
   const edition = access.edition;
   // The editor opens on the first segments, and asks for the others as the caret reaches them, and for the outline of the whole text once it is open.
-  const view = await editionView(
-    locals.db,
-    edition.id,
-    null,
-    { kind: 'editor', viewer: user },
-    { first: OPENING_SEGMENTS, lines: false },
-  );
+  const view = await editionView(locals.db, edition.id, null, {
+    first: OPENING_SEGMENTS,
+    lines: false,
+  });
   const [work] = await locals.db
     .select({ slug: works.slug, title: works.title })
     .from(works)

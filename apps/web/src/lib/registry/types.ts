@@ -10,7 +10,6 @@ export type RecordVisibility = 'draft' | 'published';
 export interface RowRights {
   edit: boolean;
   delete: boolean;
-  publish: boolean;
 }
 
 export interface SearchHit {
@@ -128,7 +127,6 @@ export interface ConjectureRow {
   note: string | null;
   ownerId: string;
   ownerName: string;
-  visibility: RecordVisibility;
 }
 
 export interface ReadingRow {
@@ -147,7 +145,6 @@ export interface ReadingRow {
   note: string | null;
   ownerId: string;
   ownerName: string;
-  visibility: RecordVisibility;
 }
 
 export interface PageRow {

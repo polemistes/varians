@@ -535,7 +535,6 @@ export const conjectures = pgTable(
     ownerId: text()
       .notNull()
       .references(() => users.id),
-    visibility: text({ enum: VISIBILITIES }).notNull().default('draft'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -566,7 +565,6 @@ export const reportedReadings = pgTable(
     ownerId: text()
       .notNull()
       .references(() => users.id),
-    visibility: text({ enum: VISIBILITIES }).notNull().default('draft'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

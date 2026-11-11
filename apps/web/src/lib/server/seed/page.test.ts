@@ -313,11 +313,7 @@ describe('seedPage, with a page of made-up Greek', () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  const editorView = () =>
-    editionView(db, result.editionId, null, {
-      kind: 'editor',
-      viewer: { id: ownerId, role: 'member' },
-    });
+  const editorView = () => editionView(db, result.editionId, null);
 
   it('makes the work, the witnesses (the cited ones too) and a transcript of those transcribed', async () => {
     expect(result.existed).toBe(false);
@@ -611,10 +607,7 @@ describe.skipIf(localPages.length === 0)('the descriptions under local/', () => 
           .values({ id: owner, email: `${owner}@test`, name: 'Page Seeder', passwordHash: 'x' });
         const seeded = await seedPage(db, owner, parsed);
         expect(seeded.existed).toBe(false);
-        const view = await editionView(db, seeded.editionId, null, {
-          kind: 'editor',
-          viewer: { id: owner, role: 'member' },
-        });
+        const view = await editionView(db, seeded.editionId, null);
         // The view is given in passages: every line of the page is a segment of one of them.
         expect(
           Object.values(view.segments)

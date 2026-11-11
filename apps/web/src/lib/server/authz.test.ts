@@ -10,7 +10,6 @@ import {
   canMaintainWitness,
   canMaintainWork,
   canPublishEdition,
-  canViewConjecture,
   canViewEdition,
   canViewTranscription,
   emptyGrants,
@@ -37,13 +36,7 @@ const publishedTranscription = { id: 't2', ownerId: 'owner', visibility: 'publis
 const draftEdition = { id: 'e1', ownerId: 'owner', visibility: 'draft' as const };
 const publishedEdition = { id: 'e2', ownerId: 'owner', visibility: 'published' as const };
 
-const draftConjecture = { id: 'c1', ownerId: 'owner', workId: 'w2', visibility: 'draft' as const };
-const publishedConjecture = {
-  id: 'c2',
-  ownerId: 'owner',
-  workId: 'w2',
-  visibility: 'published' as const,
-};
+const conjecture = { id: 'c1', ownerId: 'owner', workId: 'w2' };
 
 /** What the collaborator reaches: edition e1 of work w2, owned by owner, naming transcription t1. */
 function collaboratorGrants(): Grants {
@@ -145,29 +138,29 @@ describe('conjectures', () => {
   const noContext = { workMaintainerIds: [], grants: emptyGrants() };
 
   it("are edited by the owner, the collaborators of the owner's editions of the work, the work's maintainers and site editors", () => {
-    expect(canEditConjecture(owner, draftConjecture, noContext)).toBe(true);
+    expect(canEditConjecture(owner, conjecture, noContext)).toBe(true);
     expect(
-      canEditConjecture(collaborator, draftConjecture, {
+      canEditConjecture(collaborator, conjecture, {
         workMaintainerIds: [],
         grants: collaboratorGrants(),
       }),
     ).toBe(true);
     expect(
-      canEditConjecture(stranger, draftConjecture, {
+      canEditConjecture(stranger, conjecture, {
         workMaintainerIds: ['stranger'],
         grants: emptyGrants(),
       }),
     ).toBe(true);
-    expect(canEditConjecture(editor, draftConjecture, noContext)).toBe(true);
-    expect(canEditConjecture(stranger, draftConjecture, noContext)).toBe(false);
-    expect(canEditConjecture(visitor, draftConjecture, noContext)).toBe(false);
+    expect(canEditConjecture(editor, conjecture, noContext)).toBe(true);
+    expect(canEditConjecture(stranger, conjecture, noContext)).toBe(false);
+    expect(canEditConjecture(visitor, conjecture, noContext)).toBe(false);
   });
 
   it('do not reach a collaborator through an edition of another work or another owner', () => {
     const otherWork = emptyGrants();
     otherWork.editions.set('e9', { workId: 'w1', ownerId: 'owner' });
     expect(
-      canEditConjecture(collaborator, draftConjecture, {
+      canEditConjecture(collaborator, conjecture, {
         workMaintainerIds: [],
         grants: otherWork,
       }),
@@ -175,16 +168,11 @@ describe('conjectures', () => {
     const otherOwner = emptyGrants();
     otherOwner.editions.set('e8', { workId: 'w2', ownerId: 'someone-else' });
     expect(
-      canEditConjecture(collaborator, draftConjecture, {
+      canEditConjecture(collaborator, conjecture, {
         workMaintainerIds: [],
         grants: otherOwner,
       }),
     ).toBe(false);
-  });
-
-  it('are seen by everyone once published', () => {
-    expect(canViewConjecture(visitor, publishedConjecture, noContext)).toBe(true);
-    expect(canViewConjecture(stranger, draftConjecture, noContext)).toBe(false);
   });
 });
 

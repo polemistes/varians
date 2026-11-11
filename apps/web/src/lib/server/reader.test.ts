@@ -4,7 +4,6 @@ import {
   collationCache,
   conjectures,
   createDatabase,
-  editionCollaborators,
   editions,
   referenceSchemes,
   transcriptions,
@@ -18,12 +17,10 @@ import pg from 'pg';
 import { setSiteKind } from './collation.ts';
 import { registerConjecture } from './conjectures.ts';
 import {
-  PUBLIC,
   editionOutline,
   editionView,
   refreshView,
   segmentViewsFor,
-  type Audience,
   type EditionView,
   type SegmentView,
 } from './reader.ts';
@@ -39,8 +36,6 @@ let db: Database;
 let pool: pg.Pool;
 const userId = newId();
 const strangerId = newId();
-const helperId = newId();
-const owner: Audience = { kind: 'editor', viewer: { id: userId, role: 'member' } };
 const SLUGS = ['venetus-a', 'venetus-b', 'laurentianus-c', 'townleianus-t'];
 
 /** The passage of a view that holds the segment of this label. */
@@ -61,7 +56,6 @@ beforeAll(async () => {
   await db.insert(users).values([
     { id: userId, email: `${userId}@test`, name: 'Reader', passwordHash: 'x' },
     { id: strangerId, email: `${strangerId}@test`, name: 'Stranger', passwordHash: 'x' },
-    { id: helperId, email: `${helperId}@test`, name: 'Helper', passwordHash: 'x' },
   ]);
 });
 
@@ -69,14 +63,14 @@ afterAll(async () => {
   await db.delete(works).where(eq(works.slug, 'iliad'));
   await db.delete(witnesses).where(inArray(witnesses.slug, SLUGS));
   await db.delete(referenceSchemes).where(eq(referenceSchemes.createdBy, userId));
-  await db.delete(users).where(inArray(users.id, [userId, strangerId, helperId]));
+  await db.delete(users).where(inArray(users.id, [userId, strangerId]));
   await pool.end();
 });
 
 describe('editionView', () => {
   it('assembles lines, sigla and apparatus entries with conjectures and reported readings placed', async () => {
     const sample = await seedSample(db, userId);
-    const view = await editionView(db, sample.editionId, null, owner);
+    const view = await editionView(db, sample.editionId, null);
     expect(view.lines).toHaveLength(10);
     expect(view.lines[0]!.label).toBe('1.1');
     expect(view.lines[4]!.label).toBe('1.5');
@@ -111,26 +105,21 @@ describe('editionView', () => {
     );
     // B has no line 1.6 but every other line in the edition's order; nobody reorders whole lines.
     expect(view.order).toEqual([]);
-    const some = await segmentViewsFor(
-      db,
-      sample.editionId,
-      [five.segmentId, one.segmentId],
-      owner,
-    );
+    const some = await segmentViewsFor(db, sample.editionId, [five.segmentId, one.segmentId]);
     expect(Object.keys(some)).toHaveLength(five === one ? 1 : 2);
     expect(some[five.segmentId]!.entries.length).toBe(five.entries.length);
   });
 
   it('puts the editor’s kind of a site over what the letters say, and goes back to the letters', async () => {
     const sample = await seedSample(db, userId);
-    const view = await editionView(db, sample.editionId, null, owner);
+    const view = await editionView(db, sample.editionId, null);
     const segment = Object.values(view.segments).find((s) =>
       s.collation.sites.some((site) => site.kind === 'textual'),
     )!;
     const site = segment.collation.sites.find((x) => x.kind === 'textual')!;
     const key = siteKey(site, segment.baseUnits);
     const kindNow = async () =>
-      (await segmentViewsFor(db, sample.editionId, [segment.segmentId], owner))[
+      (await segmentViewsFor(db, sample.editionId, [segment.segmentId]))[
         segment.segmentId
       ]!.collation.sites.find((x) => x.index === site.index)!;
     await setSiteKind(db, sample.editionId, segment.segmentId, key, 'interpretative', userId);
@@ -143,14 +132,14 @@ describe('editionView', () => {
 
   it('says nothing of how a reading is formed: no relation to the edition’s words is given', async () => {
     const sample = await seedSample(db, userId);
-    const view = await editionView(db, sample.editionId, null, owner);
+    const view = await editionView(db, sample.editionId, null);
     for (const segment of Object.values(view.segments))
       expect(segment).not.toHaveProperty('relations');
   });
 
-  it('shows readers published records only, and each editor the drafts they may see', async () => {
+  it('shows every conjecture of the work, whoever entered it', async () => {
     const sample = await seedSample(db, userId);
-    const view = await editionView(db, sample.editionId, null, owner);
+    const view = await editionView(db, sample.editionId, null);
     const passage = passageAt(view, '1.4');
     const four = passage.segments.find((s) => s.label === '1.4')!;
     const conjecture = await registerConjecture(
@@ -165,38 +154,18 @@ describe('editionView', () => {
       },
       strangerId,
     );
-    const named = async (audience: Audience) => {
-      const some = await segmentViewsFor(db, sample.editionId, [four.segmentId], audience);
-      return some[passage.segmentId]!.entries.flatMap((e) =>
-        e.variants.map((v) => v.attachment?.name),
-      ).concat(some[passage.segmentId]!.unplaced.map((u) => u.name));
-    };
-    const stranger: Audience = { kind: 'editor', viewer: { id: strangerId, role: 'member' } };
-    const helper: Audience = { kind: 'editor', viewer: { id: helperId, role: 'member' } };
-    // Readers see neither the owner's draft (Berge) nor the stranger's.
-    expect(await named(PUBLIC)).not.toContain('Berge');
-    expect(await named(PUBLIC)).not.toContain('Stranger');
-    // The owner maintains the work, and maintainers see every draft on it.
-    expect(await named(owner)).toEqual(expect.arrayContaining(['Berge', 'Stranger']));
-    // A collaborator sees the owner's drafts, not a stranger's; the stranger sees their own only.
-    await db.insert(editionCollaborators).values({ editionId: sample.editionId, userId: helperId });
-    expect(await named(helper)).toContain('Berge');
-    expect(await named(helper)).not.toContain('Stranger');
-    expect(await named(stranger)).toContain('Stranger');
-    expect(await named(stranger)).not.toContain('Berge');
-    await db.delete(editionCollaborators).where(eq(editionCollaborators.userId, helperId));
-    // Published, it is everyone's.
-    await db
-      .update(conjectures)
-      .set({ visibility: 'published' })
-      .where(eq(conjectures.id, conjecture.id));
-    expect(await named(PUBLIC)).toContain('Stranger');
+    const some = await segmentViewsFor(db, sample.editionId, [four.segmentId]);
+    const named = some[passage.segmentId]!.entries.flatMap((e) =>
+      e.variants.map((v) => v.attachment?.name),
+    ).concat(some[passage.segmentId]!.unplaced.map((u) => u.name));
+    // The edition owner's conjecture (Berge) and a stranger's are both laid at their variants.
+    expect(named).toEqual(expect.arrayContaining(['Berge', 'Stranger']));
     await db.delete(conjectures).where(eq(conjectures.id, conjecture.id));
   });
 
   it('notices words of the edition whose source witness now reads otherwise', async () => {
     const sample = await seedSample(db, userId);
-    const before = await editionView(db, sample.editionId, null, owner);
+    const before = await editionView(db, sample.editionId, null);
     expect(Object.values(before.segments).flatMap((v) => v.drift)).toEqual([]);
     const taken = before.content.items.find(
       (i): i is Token => i.kind === 'token' && i.source?.kind === 'witness',
@@ -211,7 +180,7 @@ describe('editionView', () => {
     word.norm = 'ἄλλο';
     await db.update(transcriptions).set({ content: changed }).where(eq(transcriptions.id, row!.id));
     try {
-      const after = await editionView(db, sample.editionId, null, owner);
+      const after = await editionView(db, sample.editionId, null);
       const drift = Object.values(after.segments).flatMap((v) => v.drift);
       expect(drift).toEqual([
         { tokenId: taken.id, siglum: 'A', transcriptionId: row!.id, now: 'ἄλλο' },
@@ -259,7 +228,7 @@ describe('an edition with divided words and paragraphs of both kinds', () => {
     const sample = await seedSample(db, userId);
     const { original, word, rest } = await withDivisions(sample.editionId);
     try {
-      const view = await editionView(db, sample.editionId, null, owner);
+      const view = await editionView(db, sample.editionId, null);
       // The ten lines are eleven with the divided word, and the paragraph of three is one.
       expect(view.lines.map((l) => l.lineation)).toEqual([
         'verse',
@@ -293,11 +262,11 @@ describe('what a page needs of an edition, by stretches', () => {
 
   it('makes the views of the first segments only, as the whole edition would have them', async () => {
     const sample = await seedSample(db, userId);
-    const whole = await editionView(db, sample.editionId, null, owner);
+    const whole = await editionView(db, sample.editionId, null);
     const ids = Object.keys(whole.segments);
     expect(ids.length).toBeGreaterThan(4);
     const order = segmentsOf(whole.segments);
-    const some = await editionView(db, sample.editionId, null, owner, { first: 3, lines: false });
+    const some = await editionView(db, sample.editionId, null, { first: 3, lines: false });
     // The passages that hold the first three segments, as the whole edition has them.
     const holding = ids.filter((id) =>
       whole.segments[id]!.segments.some((s) => order.slice(0, 3).includes(s.segmentId)),
@@ -308,7 +277,7 @@ describe('what a page needs of an edition, by stretches', () => {
     // The words of the text and its apparatus conventions come whole.
     expect(some.content).toEqual(whole.content);
     expect(some.order).toEqual(whole.order);
-    const named = await editionView(db, sample.editionId, null, owner, {
+    const named = await editionView(db, sample.editionId, null, {
       segments: [ids[4]!, ids[1]!, 'no-such-segment'],
       order: false,
     });
@@ -319,8 +288,8 @@ describe('what a page needs of an edition, by stretches', () => {
 
   it('leaves out of a lean view what the reader makes for itself, and nothing else', async () => {
     const sample = await seedSample(db, userId);
-    const whole = await editionView(db, sample.editionId, null, owner);
-    const lean = await editionView(db, sample.editionId, null, owner, { lean: true });
+    const whole = await editionView(db, sample.editionId, null);
+    const lean = await editionView(db, sample.editionId, null, { lean: true });
     for (const [id, view] of Object.entries(whole.segments)) {
       const other = lean.segments[id]!;
       expect(other.entries).toEqual([]);
@@ -331,8 +300,8 @@ describe('what a page needs of an edition, by stretches', () => {
 
   it('gives the outline of every segment as the segment itself gives it, with the labels', async () => {
     const sample = await seedSample(db, userId);
-    const whole = await editionView(db, sample.editionId, null, owner);
-    const { outline, labelOf } = await editionOutline(db, sample.editionId, owner);
+    const whole = await editionView(db, sample.editionId, null);
+    const { outline, labelOf } = await editionOutline(db, sample.editionId);
     expect(Object.keys(outline)).toEqual(Object.keys(whole.segments));
     for (const [id, view] of Object.entries(whole.segments))
       expect(asJson(outline[id])).toEqual(asJson(outlineOf(view)));
@@ -340,7 +309,7 @@ describe('what a page needs of an edition, by stretches', () => {
     expect(Object.values(outline).some((o) => o.sites.length > 0)).toBe(true);
     // What the editor refreshes after a change gives the same outline.
     const [id] = Object.keys(whole.segments);
-    const fresh = await refreshView(db, sample.editionId, [id!], owner);
+    const fresh = await refreshView(db, sample.editionId, [id!]);
     expect(asJson(outlineOf(fresh.segments[id!]!))).toEqual(asJson(outline[id!]));
   });
 
@@ -349,7 +318,7 @@ describe('what a page needs of an edition, by stretches', () => {
     const actor = { id: userId, role: 'member' as const };
     const wire = await loadReader(db, actor, sample.editionSlug, {});
     const page = unpackReader(wire);
-    const whole = await editionView(db, sample.editionId, null, owner);
+    const whole = await editionView(db, sample.editionId, null);
     expect(Object.keys(page.segments)).toEqual(Object.keys(whole.segments));
     for (const [id, view] of Object.entries(whole.segments)) {
       const got = page.segments[id]!;
@@ -400,7 +369,7 @@ describe('a page that does not wait for the whole edition to be collated', () =>
   const asJson = (x: unknown) => JSON.parse(JSON.stringify(x)) as unknown;
   it('makes the views of the segments nearest the one asked for, names the others, and gives them when asked', async () => {
     const sample = await seedSample(db, userId);
-    const whole = await editionView(db, sample.editionId, null, owner);
+    const whole = await editionView(db, sample.editionId, null);
     const order = segmentsOf(whole.segments);
     const printed = order.filter((id) =>
       whole.content.items.some((i) => i.kind === 'token' && i.segment?.segmentId === id),
@@ -411,7 +380,7 @@ describe('a page that does not wait for the whole edition to be collated', () =>
     // whole, with the boundaries on either side (1.2–1.4 is one passage, and the boundary after it
     // is known from 1.5).
     const near = printed[1]!;
-    const some = await editionView(db, sample.editionId, null, owner, {
+    const some = await editionView(db, sample.editionId, null, {
       lean: true,
       lines: false,
       order: false,
@@ -430,7 +399,7 @@ describe('a page that does not wait for the whole edition to be collated', () =>
     const at = (id: string) => Math.abs(order.indexOf(id) - order.indexOf(near));
     expect(at(some.pending[0]!)).toBeLessThanOrEqual(at(some.pending[some.pending.length - 1]!));
     // Without a budget nothing is left.
-    expect((await editionView(db, sample.editionId, null, owner)).pending).toEqual([]);
+    expect((await editionView(db, sample.editionId, null)).pending).toEqual([]);
     // And the places of those left come as the page asks, in the passages that hold them, as it would have been sent them.
     const actor = { id: userId, role: 'member' as const };
     const sites = await readerSites(db, actor, sample.editionSlug, {}, some.pending);

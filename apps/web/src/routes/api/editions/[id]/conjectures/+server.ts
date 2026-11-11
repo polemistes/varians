@@ -63,9 +63,9 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
       anchor: input.anchorTokenIds?.length
         ? { editionId: access.edition.id, tokenIds: input.anchorTokenIds }
         : null,
-      visibility: access.edition.visibility === 'published' ? 'published' : 'draft',
     },
-    // A conjecture entered in an edition is the edition's, like its text: its owner and collaborators see it, and publishing publishes it.
+    // A conjecture entered in an edition is owned by the edition's owner, so that its collaborators may change it too.
+    // It is public at once, as every conjecture is.
     access.edition.ownerId,
   );
   if (input.citations?.length)

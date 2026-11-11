@@ -32,7 +32,6 @@ export interface NewConjecture {
     | { transcriptionId: string; tokenIds: string[] }
     | { editionId: string; tokenIds: string[] }
     | null;
-  visibility?: 'draft' | 'published';
 }
 
 /** Record a conjecture in the work's catalogue. */
@@ -57,7 +56,6 @@ export async function registerConjecture(
       supplementsId: input.supplementsId ?? null,
       anchor: input.anchor ?? null,
       ownerId,
-      visibility: input.visibility ?? 'draft',
     })
     .returning();
   return row!;
@@ -125,7 +123,6 @@ export interface NewReportedReading {
   reading: string;
   source?: string | null;
   note?: string | null;
-  visibility?: 'draft' | 'published';
 }
 
 export async function reportReading(
@@ -145,7 +142,6 @@ export async function reportReading(
       source: input.source?.trim() || null,
       note: input.note?.trim() || null,
       ownerId,
-      visibility: input.visibility ?? 'draft',
     })
     .returning();
   return row!;

@@ -1138,7 +1138,8 @@ async function importInto(
       'conjectures',
     )) ?? [];
   for (const c of conjectureList) {
-    const fields = stripped(c) as typeof c;
+    // An archive written before a conjecture was public from the start may give its `visibility`; it is not read.
+    const fields = stripped(c, 'visibility') as typeof c;
     const values = {
       ...fields,
       workId: work.id,
@@ -1163,7 +1164,7 @@ async function importInto(
       'readings',
     )) ?? [];
   for (const r of reportedList) {
-    const fields = stripped(r) as typeof r;
+    const fields = stripped(r, 'visibility') as typeof r;
     const values = {
       ...fields,
       workId: work.id,

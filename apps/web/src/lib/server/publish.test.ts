@@ -17,35 +17,38 @@ import {
   adoptConjecture,
   adoptionsOf,
   registerConjecture,
+  reportReading,
   reviewSite,
   reviewedSites,
 } from './conjectures.ts';
 import { saveOps } from './documents/service.ts';
 import { PublishRefused, publishEdition, publishedVersions, unpublishEdition } from './publish.ts';
-import { PUBLIC, editionView, type Audience } from './reader.ts';
+import { editionView } from './reader.ts';
 import { seedSample } from './seed/sample.ts';
 
 const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329/varians_test';
 let db: Database;
 let pool: pg.Pool;
 const userId = newId();
-const owner: Audience = { kind: 'editor', viewer: { id: userId, role: 'member' } };
+/** Someone else, who enters conjectures and reported readings on the work. */
+const entererId = newId();
 const SLUGS = ['venetus-a', 'venetus-b', 'laurentianus-c', 'townleianus-t'];
 
 beforeAll(async () => {
   ({ db, pool } = createDatabase(url));
   await db.delete(works).where(eq(works.slug, 'iliad'));
   await db.delete(witnesses).where(inArray(witnesses.slug, SLUGS));
-  await db
-    .insert(users)
-    .values({ id: userId, email: `${userId}@test`, name: 'Publisher', passwordHash: 'x' });
+  await db.insert(users).values([
+    { id: userId, email: `${userId}@test`, name: 'Publisher', passwordHash: 'x' },
+    { id: entererId, email: `${entererId}@test`, name: 'Enterer', passwordHash: 'x' },
+  ]);
 });
 
 afterAll(async () => {
   await db.delete(works).where(eq(works.slug, 'iliad'));
   await db.delete(witnesses).where(inArray(witnesses.slug, SLUGS));
   await db.delete(referenceSchemes).where(eq(referenceSchemes.createdBy, userId));
-  await db.delete(users).where(eq(users.id, userId));
+  await db.delete(users).where(inArray(users.id, [userId, entererId]));
   await pool.end();
 });
 
@@ -85,7 +88,7 @@ describe('publishing and conjectures', () => {
       .select()
       .from(editions)
       .where(eq(editions.slug, 'iliad-1-working-edition'));
-    const view = await editionView(db, edition!.id, null, owner);
+    const view = await editionView(db, edition!.id, null);
     const segment = Object.values(view.segments).find((s) => s.label === '1.1')!;
     const conjecture = await registerConjecture(
       db,
@@ -105,7 +108,7 @@ describe('publishing and conjectures', () => {
     await reviewSite(db, edition!.id, segment.segmentId, 'e1,e2', userId);
     const reviewed = await reviewedSites(db, edition!.id);
     expect(reviewed.get(segment.segmentId)?.has('e1,e2')).toBe(true);
-    const again = await editionView(db, edition!.id, null, owner);
+    const again = await editionView(db, edition!.id, null);
     const one = Object.values(again.segments).find((s) => s.label === '1.1')!;
     expect(
       one.entries.some(
@@ -121,14 +124,9 @@ describe('publishing and conjectures', () => {
       .from(editions)
       .where(eq(editions.slug, 'iliad-1-working-edition'));
     const published = await publishEdition(db, edition!.id, userId);
-    // Readers see the published version; the editor, the current text with their drafts.
+    // Readers see the published version; the editor, the current text.
     const printed = async (atVersion: number | null) => {
-      const view = await editionView(
-        db,
-        edition!.id,
-        atVersion,
-        atVersion === null ? owner : PUBLIC,
-      );
+      const view = await editionView(db, edition!.id, atVersion);
       const one = Object.values(view.segments).find((x) => x.label === '1.1')!;
       return one.entries.map((e) => formatEntry(e, view.apparatus)).join(' | ');
     };
@@ -149,7 +147,7 @@ describe('publishing and conjectures', () => {
     await saveOps(db, 'transcription', b!.id, userId, b!.version, [
       { t: 'set', id: word.id, fields: { form: 'ΘΕΟΣ', norm: 'θεός' } },
     ]);
-    const view = await editionView(db, edition!.id, null, owner);
+    const view = await editionView(db, edition!.id, null);
     const segment = Object.values(view.segments).find((x) => x.label === '1.1')!;
     await registerConjecture(
       db,
@@ -168,6 +166,63 @@ describe('publishing and conjectures', () => {
     expect(await printed(published.version)).toBe(before);
   });
 
+  it('shows a published version every conjecture and reported reading entered before it, whoever entered them, and none entered after', async () => {
+    const sample = await seedSample(db, userId);
+    const [edition] = await db.select().from(editions).where(eq(editions.id, sample.editionId));
+    const view = await editionView(db, edition!.id, null);
+    const segment = Object.values(view.segments).find((x) => x.label === '1.1')!;
+    const [reported] = await db.select().from(witnesses).where(eq(witnesses.slug, 'townleianus-t'));
+    const names = async (atVersion: number | null) => {
+      const shown = await editionView(db, edition!.id, atVersion);
+      const one = Object.values(shown.segments).find((x) => x.label === '1.1')!;
+      return [
+        ...one.entries.flatMap((e) => e.variants.map((v) => v.attachment?.name)),
+        ...one.unplaced.map((u) => u.name),
+      ];
+    };
+    const enter = async (name: string) => {
+      await registerConjecture(
+        db,
+        {
+          workId: edition!.workId,
+          segmentId: segment.segmentId,
+          kind: 'substitution',
+          lemma: 'μῆνιν',
+          reading: `μῆνις ${name}`,
+          proposer: name,
+        },
+        entererId,
+      );
+      await reportReading(
+        db,
+        {
+          workId: edition!.workId,
+          segmentId: segment.segmentId,
+          witnessId: reported!.id,
+          lemma: 'μῆνιν',
+          reading: `μῆνιν ${name}`,
+        },
+        entererId,
+      );
+    };
+    // Entered by someone else, with nothing done to publish it, before the edition is published.
+    await enter('Before');
+    const published = await publishEdition(db, edition!.id, userId);
+    // Entered after: the draft has it at once, and the published version does not.
+    await new Promise((done) => setTimeout(done, 20));
+    await enter('After');
+    expect(await names(null)).toEqual(expect.arrayContaining(['Before', 'After']));
+    const then = await names(published.version);
+    expect(then).toContain('Before');
+    expect(then).not.toContain('After');
+    // A reported reading takes part in the variants as a witness that is there: the one entered before does, the one after does not.
+    const words = async (atVersion: number | null) =>
+      JSON.stringify((await editionView(db, edition!.id, atVersion)).segments);
+    expect(await words(published.version)).toContain('μῆνιν Before');
+    expect(await words(published.version)).not.toContain('μῆνιν After');
+    expect(await words(null)).toContain('μῆνιν After');
+  });
+
   it('reads a version published while the edition still had the setting for Latin abbreviations in English words', async () => {
     const [edition] = await db
       .select()
@@ -176,7 +231,7 @@ describe('publishing and conjectures', () => {
     const old = { ...edition!.conventions, latin: true };
     await db.update(editions).set({ conventions: old }).where(eq(editions.id, edition!.id));
     const published = await publishEdition(db, edition!.id, userId);
-    const view = await editionView(db, edition!.id, published.version, PUBLIC);
+    const view = await editionView(db, edition!.id, published.version);
     expect(view.apparatus).not.toHaveProperty('latin');
     const six = Object.values(view.segments)
       .flatMap((p) => p.entries)

@@ -49,7 +49,6 @@ import {
 } from '@varians/db';
 import { and, desc, eq, getTableColumns, inArray, lte } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
-import { MAX_REFRESH, PUBLIC, recordFilter, type Audience } from './audience.ts';
 import { citationsByRecord } from './bibliography.ts';
 import {
   loadEditionContext,
@@ -491,7 +490,6 @@ export async function editionView(
   db: Database,
   editionId: string,
   atVersion: number | null = null,
-  audience: Audience = PUBLIC,
   options: ViewOptions = {},
 ): Promise<EditionView> {
   const { context, asOf } = await contextAt(db, editionId, atVersion);
@@ -527,21 +525,11 @@ export async function editionView(
     ...(options.budget !== undefined ? { budget: options.budget } : {}),
     ...(near !== undefined ? { near } : {}),
   });
-  const views = await buildSegmentViews(
-    db,
-    context,
-    row,
-    passages,
-    labelOf,
-    witnessById,
-    asOf,
-    audience,
-    {
-      entries: options.lean !== true,
-      drift: options.lean !== true,
-      notes: options.detail !== false,
-    },
-  );
+  const views = await buildSegmentViews(db, context, row, passages, labelOf, witnessById, asOf, {
+    entries: options.lean !== true,
+    drift: options.lean !== true,
+    notes: options.detail !== false,
+  });
   const order = options.order === false ? null : orderOf(context);
   const lineation = row.conventions.lineation ?? 'verse';
   return {
@@ -689,7 +677,6 @@ async function applyBasis(
 export async function editionOutline(
   db: Database,
   editionId: string,
-  audience: Audience = PUBLIC,
 ): Promise<{ outline: Record<string, SegmentOutline>; labelOf: Record<string, string> }> {
   const [context, row] = await Promise.all([
     loadEditionContext(db, editionId),
@@ -700,17 +687,10 @@ export async function editionOutline(
     witnessesOf(db, context),
     labelsOfWork(db, row.workId),
   ]);
-  const views = await buildSegmentViews(
-    db,
-    context,
-    row,
-    passages,
-    labelOf,
-    witnessById,
-    null,
-    audience,
-    { entries: false, notes: false },
-  );
+  const views = await buildSegmentViews(db, context, row, passages, labelOf, witnessById, null, {
+    entries: false,
+    notes: false,
+  });
   return {
     outline: Object.fromEntries(
       passages.map((p) => [p.segmentId, outlineOf(views[p.segmentId]!)] as const),
@@ -730,14 +710,16 @@ async function labelsOfWork(db: Database, workId: string): Promise<Record<string
   return labelOf;
 }
 
+/** Segments a refresh may ask for at once. */
+export const MAX_REFRESH = 100;
+
 /** The views of the passages that hold some segments, for the editor after a change: collated from the current content. */
 export async function segmentViewsFor(
   db: Database,
   editionId: string,
   segmentIds: string[],
-  audience: Audience = PUBLIC,
 ): Promise<Record<string, SegmentView>> {
-  return (await refreshView(db, editionId, segmentIds, audience)).segments;
+  return (await refreshView(db, editionId, segmentIds)).segments;
 }
 
 /**
@@ -750,7 +732,6 @@ export async function refreshView(
   db: Database,
   editionId: string,
   segmentIds: string[],
-  audience: Audience = PUBLIC,
 ): Promise<{
   segments: Record<string, SegmentView>;
   order: OrderStatement[];
@@ -766,16 +747,7 @@ export async function refreshView(
   const wanted = asked.filter((id) => labelOf[id] !== undefined);
   const witnessById = await witnessesOf(db, context);
   const { passages } = await collatePassagesFor(db, context, wanted);
-  const views = await buildSegmentViews(
-    db,
-    context,
-    row,
-    passages,
-    labelOf,
-    witnessById,
-    null,
-    audience,
-  );
+  const views = await buildSegmentViews(db, context, row, passages, labelOf, witnessById, null);
   const order = orderOf(context);
   return { segments: views, order: order.statements, orderVariants: order.variants };
 }
@@ -901,7 +873,6 @@ async function buildSegmentViews(
   labelOf: Record<string, string>,
   witnessById: Map<string, typeof witnesses.$inferSelect>,
   asOf: Date | null = null,
-  audience: Audience = PUBLIC,
   parts: ViewParts = {},
 ): Promise<Record<string, SegmentView>> {
   const editionId = row.id;
@@ -914,35 +885,30 @@ async function buildSegmentViews(
       (a) => a.conjectureId,
     ),
   );
-  // The work's published records are a commons every reader sees; drafts only those who may see them, in the editor.
-  const sees = await recordFilter(db, row.workId, audience);
+  // The work's conjectures and reported readings are a commons, all of them seen: for a published version, those entered by the time it was published.
   const conjectureRows = segmentIds.length
-    ? (
-        await db
-          .select()
-          .from(conjectures)
-          .where(
-            and(
-              eq(conjectures.workId, row.workId),
-              inArray(conjectures.segmentId, segmentIds),
-              asOf ? lte(conjectures.createdAt, asOf) : undefined,
-            ),
-          )
-      ).filter(sees)
+    ? await db
+        .select()
+        .from(conjectures)
+        .where(
+          and(
+            eq(conjectures.workId, row.workId),
+            inArray(conjectures.segmentId, segmentIds),
+            asOf ? lte(conjectures.createdAt, asOf) : undefined,
+          ),
+        )
     : [];
   const reportedRows = segmentIds.length
-    ? (
-        await db
-          .select()
-          .from(reportedReadings)
-          .where(
-            and(
-              eq(reportedReadings.workId, row.workId),
-              inArray(reportedReadings.segmentId, segmentIds),
-              asOf ? lte(reportedReadings.createdAt, asOf) : undefined,
-            ),
-          )
-      ).filter(sees)
+    ? await db
+        .select()
+        .from(reportedReadings)
+        .where(
+          and(
+            eq(reportedReadings.workId, row.workId),
+            inArray(reportedReadings.segmentId, segmentIds),
+            asOf ? lte(reportedReadings.createdAt, asOf) : undefined,
+          ),
+        )
     : [];
   const withNotes = parts.notes !== false;
   const noteRows = withNotes
@@ -1102,4 +1068,3 @@ function labelledEntries(
 }
 
 export type { EditionContext };
-export { PUBLIC, recordFilter, type Audience } from './audience.ts';

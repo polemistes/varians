@@ -33,7 +33,7 @@ import { replaceContent, saveOps } from './documents/service.ts';
 import { editionText } from './archive/archive.ts';
 import { publishEdition } from './publish.ts';
 import { readerTei } from './reader-pages.ts';
-import { editionOutline, editionView, refreshView, type Audience } from './reader.ts';
+import { editionOutline, editionView, refreshView } from './reader.ts';
 import { DEFAULT_CONVENTIONS } from './seed/sample.ts';
 import { resolveLabels, schemeOfWork } from './segments.ts';
 import { setChosenWorks } from './transcription-works.ts';
@@ -43,7 +43,6 @@ const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329
 let db: Database;
 let pool: pg.Pool;
 const userId = newId();
-const owner: Audience = { kind: 'editor', viewer: { id: userId, role: 'member' } };
 const PREFIX = 'passages-test';
 const LABELS = ['1.1', '1.2', '1.3', '1.4'];
 
@@ -197,7 +196,7 @@ describe('collation in passages', () => {
         B: stream('1.1: alpha beta gamma', '1.2: delta epsilon zeta'),
       },
     );
-    const view = await editionView(db, editionId, null, owner);
+    const view = await editionView(db, editionId, null);
     expect(variants(view)).toEqual([]);
     // The boundary is crossed by A's word: the two segments are one passage.
     expect(plan(view)).toEqual([['1.1', '1.2']]);
@@ -212,7 +211,7 @@ describe('collation in passages', () => {
         B: stream('1.1: alpha beta gamma', '1.2: delta epsilon zeta', '1.3: eta theta iota'),
       },
     );
-    const view = await editionView(db, editionId, null, owner);
+    const view = await editionView(db, editionId, null);
     expect(variants(view)).toEqual([]);
     expect(plan(view)).toEqual([['1.1', '1.2', '1.3']]);
   });
@@ -227,7 +226,7 @@ describe('collation in passages', () => {
         B: stream('1.1: alpha beta gamma kappa', '1.2: lambda zeta eta theta'),
       },
     );
-    const view = await editionView(db, editionId, null, owner);
+    const view = await editionView(db, editionId, null);
     expect(variants(view)).toEqual(['1.1–1.2 *delta epsilon: ed. A | kappa lambda: B']);
     // The entry of the apparatus has the same label, and the outline stands it in 1.1.
     const [passage] = Object.values(view.segments);
@@ -259,12 +258,12 @@ describe('collation in passages', () => {
       Object.values(view.segments)
         .find((p) => p.segmentId === at)!
         .collation.sites.find((s) => s.transposition)?.transposition;
-    const whole = await refreshView(db, editionId, [one, two], owner);
+    const whole = await refreshView(db, editionId, [one, two]);
     expect(plan(whole)).toEqual([['1.1'], ['1.2']]);
     expect(linked(whole, one)).toMatchObject({ inPassage: two });
     expect(linked(whole, two)).toMatchObject({ inPassage: one });
     // Asked for one passage alone, it has its link all the same.
-    expect(linked(await refreshView(db, editionId, [two], owner), two)).toEqual(linked(whole, two));
+    expect(linked(await refreshView(db, editionId, [two]), two)).toEqual(linked(whole, two));
   });
 
   it('draws the passages again after an edit: two segments become one, and two again when it is undone', async () => {
@@ -275,7 +274,7 @@ describe('collation in passages', () => {
         B: stream('1.1: alpha beta gamma delta', '1.2: epsilon zeta eta theta'),
       },
     );
-    const two = await editionView(db, editionId, null, owner);
+    const two = await editionView(db, editionId, null);
     expect(plan(two)).toEqual([['1.1'], ['1.2']]);
     // The editor reads otherwise on both sides of the boundary, next to it.
     const items = two.content.items.filter((i): i is Token => i.kind === 'token');
@@ -292,19 +291,19 @@ describe('collation in passages', () => {
     };
     await save(['deltas', 'epsilom']);
     // What the editor asks for after the edit is the passage as it now is, from either segment.
-    const after = await refreshView(db, editionId, [segmentIdOf('1.2')], owner);
+    const after = await refreshView(db, editionId, [segmentIdOf('1.2')]);
     expect(plan(after)).toEqual([['1.1', '1.2']]);
-    const one = await editionView(db, editionId, null, owner);
+    const one = await editionView(db, editionId, null);
     expect(plan(one)).toEqual([['1.1', '1.2']]);
     // The two words the witnesses read alike are one variant across the boundary.
     expect(variants(one)).toEqual(['1.1–1.2 *deltas epsilom: ed. | delta epsilon: A B']);
-    const { outline } = await editionOutline(db, editionId, owner);
+    const { outline } = await editionOutline(db, editionId);
     expect(Object.keys(outline)).toEqual([segmentIdOf('1.1')]);
     // Undone: two passages again.
     await save(['delta', 'epsilon']);
-    const again = await refreshView(db, editionId, [segmentIdOf('1.1')], owner);
+    const again = await refreshView(db, editionId, [segmentIdOf('1.1')]);
     expect(plan(again)).toEqual([['1.1']]);
-    expect(plan(await editionView(db, editionId, null, owner))).toEqual([['1.1'], ['1.2']]);
+    expect(plan(await editionView(db, editionId, null))).toEqual([['1.1'], ['1.2']]);
   });
 
   it('keeps a published version as it was when a transcript is edited afterwards', async () => {
@@ -332,7 +331,7 @@ describe('collation in passages', () => {
       row!.version,
       stream('1.1: alpha beta gamma', ': delta epsilon zeta', '1.3: eta omega iota'),
     );
-    const draft = await editionView(db, editionId, null, owner);
+    const draft = await editionView(db, editionId, null);
     expect(plan(draft)).not.toEqual(plan(before));
     expect(variants(draft)).toContain('1.3 *theta: ed. B | omega: A');
     // The published version shows what it showed.
@@ -402,7 +401,7 @@ function readBack(
 describe('the TEI of a variant across a boundary', () => {
   /** The TEI as the reader is given it and as the archive writes it. */
   async function teiFiles(editionId: string) {
-    const view = await editionView(db, editionId, null, owner);
+    const view = await editionView(db, editionId, null);
     const archived = await editionText(db, editionId, new Map(Object.entries(view.labelOf)));
     return {
       view,

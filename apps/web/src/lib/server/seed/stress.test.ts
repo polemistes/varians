@@ -87,10 +87,7 @@ describe('seedStress at a small size', () => {
   });
 
   it('has an edition whose view runs and finds places of variation', async () => {
-    const view = await editionView(db, result.editionId, null, {
-      kind: 'editor',
-      viewer: { id: ownerId, role: 'member' },
-    });
+    const view = await editionView(db, result.editionId, null);
     const sites = Object.values(view.segments).flatMap((s) => s.collation.sites);
     expect(Object.keys(view.segments).length).toBeGreaterThan(30);
     expect(sites.length).toBeGreaterThan(10);
