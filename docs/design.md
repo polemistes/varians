@@ -273,7 +273,9 @@ The files conform to the **Varians Data Format, version 2**, specified in [forma
 
 The TEI carries the scholarship: edition words point at the witness tokens or conjecture they came from, segments carry passage URNs, headers carry the licence and the contributors. Process state (reviews, history, unchecked flags) stays in JSON.
 
-An edition's TEI has one element for each segment, with the variants in place among its words. A variant whose words lie in more than one segment (section 3.10) is written in parts, one in each segment, each true of that segment read alone and all linked as one variant: the edition's words of the segment against each witness's own words of it, a word of the edition that the boundary divides in a part on either side. A lemma is written as the text outside a variant is, with the breaks that stand inside it.
+The TEI follows TEI P5 as closely as the model allows, and the model has a standard counterpart at each point. A segment is an address and no container (section 3.10), which is TEI's milestone: in a transcript's TEI and in an edition's alike a segment begins with `<milestone unit="segment">` and encloses nothing, and the header declares by TEI's milestone method that the text is cited so. A line begins with `<lb>`. A break or a segment start inside a word says that it does not end the word (`break="no"`), so that a divided word is one word in the TEI as in the stream, each part in its segment.
+
+An edition's TEI is its text in one block in its own order, with the apparatus by parallel segmentation. Every variant is one `<app>` where its words stand, whatever boundaries it crosses, and its lemma is written as the text outside a variant is, with the breaks and segment starts that stand inside it. The one case in which variants overlap nests: the variant of a witness without whole segments stands around the variants inside them, and where another variant lies across one of its ends it is in pieces linked as one, since that a witness has nothing is true of every piece. A reading has the witness's words; where the witness begins a segment is said in its transcript, except for a segment the edition does not print, which begins in the reading. The conjectures and the reported readings stand at their variants, in the reader's file those a reader sees and in the archive's those the archive holds. A conjecture or report is laid at a variant in one place for the reader, the editor and the files (`attachRecords`), and an adopted conjecture is found by the edition's words that were taken from it.
 
 Every record has an address, `/id/<id>`, which resolves to its page, or as JSON to its archive representation, under the same visibility rules as the pages.
 
@@ -344,7 +346,7 @@ Designed or wanted, and not there:
   - The reader finds which variants to mark through the entries of the print apparatus, so the print setting for interpretative variants governs the screen as well.
   - A reading cannot be shown in the text.
   - A note cannot be added from a variant, only on a selection or a segment.
-  - The order of segments as a variant cannot be marked minor or reviewed, and is not in the TEI or the plain text. A segment the edition does not print is in the TEI as a reading at the end of the segment before it, without its label.
+  - The order of segments as a variant cannot be marked minor or reviewed, and is not in the TEI or the plain text.
   - A segment that a witness has before the first or after the last segment the edition prints is not reported.
   - The print conventions are offered among the edition's settings and the reader's as if they were the apparatus.
 - Further ways of reading the variants in the text: the readings of a chosen witness or group shown in the line, chosen witnesses in parallel, the variants filtered by witness, group and kind.
@@ -367,9 +369,10 @@ Known gaps in what is built:
 - Adopting the absence of a whole segment removes the segment from the edition's text, where it then stands as a variant the edition does not print, unless it was the first or the last segment. A segment the edition leaves out cannot yet be printed in brackets.
 - Undoing a move of text to another page does not bring back the boxes the move detached.
 - The pages endpoint of a witness reads every transcript to count the words on each page, which will be slow for many long transcripts. A count kept with the segment index is the remedy.
-- In the edition's TEI an adopted conjecture's name and a conjecture's source are text in pointer attributes; they should be `conj:` pointers.
-- In the edition's TEI a word divided across two segments is written as two words, one in each segment's element, with nothing that joins them, unless a variant is over it. The segment is a container there and a milestone in a transcript's TEI.
-- The archive's TEI of an edition has no conjectures or reported readings; the reader's has them.- A merged or deleted work's archive directory stays on disk.
+- In the edition's TEI the name of who proposed a conjecture and the source of a conjecture or a report are text in `resp` and `source`, which TEI defines as pointers. They should point at entries of a list in the header (a `<bibl>` for each scholar and source, as editions of classical texts in TEI do), or at the record (`conj:`).
+- A transcript's TEI does not say where text of no segment begins after a segment (TEI has `<milestone unit="unnumbered"/>` for it), so the file reads as if the segment went on; the JSON has it. An edition's TEI leaves text of no segment out. The importer does not read `part` on a `<w>`.
+- In an edition's TEI a variant at a point between two segments, whose witnesses have words of both, stands once, at the end of the first.
+- A merged or deleted work's archive directory stays on disk.
 - Client-only packages are runtime dependencies, which enlarges the production install.
 - Records published before licences existed have none until published again; images uploaded before rights statements existed stay out of archives until given one.
 - Narrow screens are unchecked.

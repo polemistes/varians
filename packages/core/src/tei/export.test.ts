@@ -79,7 +79,7 @@ describe('exportTranscriptionTei', () => {
       '<milestone unit="segment" n="1.1"/><w xml:id="w-t1" facs="#z-z1"><choice><abbr>ΚΣ</abbr><expan>Κύριος</expan></choice></w>',
     );
     expect(xml).toContain(
-      '<w xml:id="w-t2" facs="#z-z2">ἄνδ</w><lb break="no"/><w xml:id="w-t3" facs="#z-z2"><supplied reason="lost">ρ</supplied>α</w>',
+      '<w xml:id="w-t2" part="I" facs="#z-z2">ἄνδ</w><lb break="no"/><w xml:id="w-t3" part="F" facs="#z-z2"><supplied reason="lost">ρ</supplied>α</w>',
     );
     expect(xml).toContain('<gap reason="lost" quantity="3" unit="character"/>');
     expect(xml).toContain(
@@ -113,11 +113,32 @@ describe('exportTranscriptionTei', () => {
     const a: Item = { kind: 'token', id: 'a', form: 'ἄνδ', joinNext: true };
     const line: Item = { kind: 'break', id: 'l', type: 'line' };
     expect(exportTranscriptionTei(items(a))).toContain(
-      '<w xml:id="w-a">ἄνδ</w><lb break="no"/></ab>',
+      '<w xml:id="w-a" part="I">ἄνδ</w><lb break="no"/></ab>',
     );
     // With a line break of its own after it, a second break says so.
     expect(exportTranscriptionTei(items(a, line))).toContain(
-      '<w xml:id="w-a">ἄνδ</w><lb break="no"/>\n      <lb/></ab>',
+      '<w xml:id="w-a" part="I">ἄνδ</w><lb break="no"/>\n      <lb/></ab>',
+    );
+  });
+
+  it('says of a segment that begins inside a word that it does not end the word, and of each token which part of the word it is', () => {
+    const list: Item[] = [
+      { kind: 'token', id: 'a', form: 'ἀνα', joinNext: true, segment: { segmentId: 's1' } },
+      { kind: 'token', id: 'b', form: 'στα', joinNext: true, segment: { segmentId: 's2' } },
+      { kind: 'break', id: 'l', type: 'line' },
+      { kind: 'token', id: 'c', form: 'σις' },
+      { kind: 'token', id: 'd', form: 'δε', segment: { segmentId: 's3' } },
+    ];
+    const input: TranscriptionExport = {
+      stream: { items: list },
+      title: 'T',
+      segmentLabels: { s1: '1', s2: '2', s3: '3' },
+    };
+    expect(exportTranscriptionTei(input)).toContain(
+      '<milestone unit="segment" n="1"/>ἀνα<milestone unit="segment" n="2" break="no"/>στα<lb break="no"/>σις <milestone unit="segment" n="3"/>δε</ab>',
+    );
+    expect(exportTranscriptionTei({ ...input, words: true })).toContain(
+      '<w xml:id="w-a" part="I">ἀνα</w><milestone unit="segment" n="2" break="no"/><w xml:id="w-b" part="M">στα</w><lb break="no"/><w xml:id="w-c" part="F">σις</w> <milestone unit="segment" n="3"/><w xml:id="w-d">δε</w></ab>',
     );
   });
 

@@ -17,7 +17,6 @@ import {
   type Attachment,
   type AttachmentCandidate,
   type Collation,
-  type FoldOptions,
   type Item,
   type LayoutLine,
   type OrderVariant,
@@ -415,8 +414,6 @@ export interface EditionView {
     states: ReaderSiglumState[];
     variantSiglum: string | null;
   }[];
-  /** How the work compares words: the fold the collation was made under. */
-  fold: FoldOptions;
   /** The passages made, by their first segment. */
   segments: Record<string, SegmentView>;
   labelOf: Record<string, string>;
@@ -579,7 +576,6 @@ export async function editionView(
             }),
           ),
     sigla,
-    fold: context.profile.fold,
     segments: views,
     labelOf,
     order: order?.statements ?? [],
@@ -784,6 +780,119 @@ export async function refreshView(
   return { segments: views, order: order.statements, orderVariants: order.variants };
 }
 
+/** Rows by the segment they name. */
+export function bySegment<T extends { segmentId: string }>(rows: readonly T[]): Map<string, T[]> {
+  const out = new Map<string, T[]>();
+  for (const row of rows) {
+    const list = out.get(row.segmentId);
+    if (list) list.push(row);
+    else out.set(row.segmentId, [row]);
+  }
+  return out;
+}
+
+/** The edition's words taken from each conjecture, by conjecture id: found once for a text, and kept while the text is. */
+const wordsFromConjectures = new WeakMap<Stream, Map<string, string[]>>();
+function sourcedFrom(content: Stream): Map<string, string[]> {
+  let known = wordsFromConjectures.get(content);
+  if (!known) {
+    known = new Map();
+    for (const item of content.items) {
+      if (item.kind !== 'token' || item.source?.kind !== 'conjecture') continue;
+      const id = item.source.conjectureId;
+      known.set(id, [...(known.get(id) ?? []), item.id]);
+    }
+    wordsFromConjectures.set(content, known);
+  }
+  return known;
+}
+
+/** The conjectures and reported readings that may be laid at the variants of an edition's passages. */
+export interface PassageRecords {
+  conjecturesAt: ReadonlyMap<string, (typeof conjectures.$inferSelect)[]>;
+  reportedAt: ReadonlyMap<string, (typeof reportedReadings.$inferSelect)[]>;
+  /** The conjectures the edition adopts. */
+  adopted: ReadonlySet<string>;
+  /** The siglum a reading reported for a witness is given under: that of the conspectus, or the witness's own. */
+  siglumOf: (witnessId: string) => string;
+}
+
+/**
+ * The conjectures and reported readings of a passage's segments, laid at
+ * its variants: the collation with the places they make, under the editors'
+ * marks, the records by the index of their variant, those no variant took,
+ * and the segment each record names. The one place where the records of a
+ * passage are attached, for the reader, the editor and the files.
+ */
+export function attachRecords(
+  context: EditionContext,
+  passage: PassageResult,
+  records: PassageRecords,
+): {
+  collation: Collation;
+  bySite: Record<number, Attachment[]>;
+  unplaced: Attachment[];
+  segmentOf: Map<string, string>;
+} {
+  const { baseUnits, collation } = passage;
+  const here = passage.segments.map((s) => s.segmentId);
+  // A record is looked for in its own segment only, so that the same words in a neighbouring one are not taken.
+  const rangeOf = (id: string) => {
+    const part = passage.segments.find((s) => s.segmentId === id);
+    return part ? { range: { from: part.from, to: part.to } } : {};
+  };
+  const segmentOf = new Map<string, string>();
+  const sourced = sourcedFrom(context.edition.content);
+  const candidates: AttachmentCandidate[] = [
+    ...here
+      .flatMap((id) => records.conjecturesAt.get(id) ?? [])
+      .map((c) => {
+        segmentOf.set(c.id, c.segmentId);
+        const candidate: AttachmentCandidate = {
+          id: c.id,
+          kind: 'conjecture',
+          lemma: c.lemma,
+          reading: c.reading,
+          name: c.proposer ?? 'this edition',
+          conjectureKind: c.kind,
+          ...rangeOf(c.segmentId),
+        };
+        if (records.adopted.has(c.id)) candidate.adopted = true;
+        // A conjecture stands where it was registered, and where the edition has its words: an adopted one
+        // is found by them when its lemma is printed no longer.
+        const anchor = [
+          ...(c.anchor && 'tokenIds' in c.anchor ? c.anchor.tokenIds : []),
+          ...(sourced.get(c.id) ?? []),
+        ];
+        if (anchor.length) candidate.anchorTokenIds = anchor;
+        return candidate;
+      }),
+    ...here
+      .flatMap((id) => records.reportedAt.get(id) ?? [])
+      .map((r) => {
+        segmentOf.set(r.id, r.segmentId);
+        const candidate: AttachmentCandidate = {
+          id: r.id,
+          kind: 'reported',
+          lemma: r.lemma,
+          reading: r.reading,
+          name: records.siglumOf(r.witnessId),
+          ...rangeOf(r.segmentId),
+        };
+        if (r.source) candidate.source = `(${r.source})`;
+        return candidate;
+      }),
+  ];
+  const attached = attachToSites(collation, baseUnits, candidates, context.profile.fold);
+  return {
+    // The places a conjecture or reported reading makes take the editor's marks too.
+    collation: applySiteKinds(attached.collation, baseUnits, marksOf(context, passage)),
+    bySite: attached.bySite,
+    unplaced: attached.unplaced,
+    segmentOf,
+  };
+}
+
 async function buildSegmentViews(
   db: Database,
   context: EditionContext,
@@ -884,17 +993,13 @@ async function buildSegmentViews(
         ),
       ])
     : new Map<string, string[]>();
-  const bySegment = <T extends { segmentId: string }>(rows: T[]) => {
-    const out = new Map<string, T[]>();
-    for (const row of rows) {
-      const list = out.get(row.segmentId);
-      if (list) list.push(row);
-      else out.set(row.segmentId, [row]);
-    }
-    return out;
+  const records: PassageRecords = {
+    conjecturesAt: bySegment(conjectureRows),
+    reportedAt: bySegment(reportedRows),
+    adopted,
+    siglumOf: (witnessId) =>
+      siglumOfWitness.get(witnessId) ?? witnessById.get(witnessId)?.siglum ?? '?',
   };
-  const conjecturesAt = bySegment(conjectureRows);
-  const reportedAt = bySegment(reportedRows);
   const notesAt = bySegment(noteRows);
   const siglaOrder = siglaOrderOf(context.sigla);
   const siglumOfText = new Map<string, string>();
@@ -905,47 +1010,10 @@ async function buildSegmentViews(
   for (const passage of passages) {
     const { segmentId, baseUnits, collation } = passage;
     const here = passage.segments.map((s) => s.segmentId);
-    const conjecturesHere = here.flatMap((id) => conjecturesAt.get(id) ?? []);
-    const reportedHere = here.flatMap((id) => reportedAt.get(id) ?? []);
-    // A record is looked for in its own segment only, so that the same words in a neighbouring one are not taken.
-    const rangeOf = (id: string) => {
-      const part = passage.segments.find((s) => s.segmentId === id);
-      return part ? { range: { from: part.from, to: part.to } } : {};
-    };
-    const segmentOfRecord = new Map<string, string>();
-    const candidates: AttachmentCandidate[] = [
-      ...conjecturesHere.map((c) => {
-        segmentOfRecord.set(c.id, c.segmentId);
-        const candidate: AttachmentCandidate = {
-          id: c.id,
-          kind: 'conjecture',
-          lemma: c.lemma,
-          reading: c.reading,
-          name: c.proposer ?? 'this edition',
-          conjectureKind: c.kind,
-          ...rangeOf(c.segmentId),
-        };
-        if (adopted.has(c.id)) candidate.adopted = true;
-        if (c.anchor && 'tokenIds' in c.anchor) candidate.anchorTokenIds = c.anchor.tokenIds;
-        return candidate;
-      }),
-      ...reportedHere.map((r) => {
-        segmentOfRecord.set(r.id, r.segmentId);
-        const candidate: AttachmentCandidate = {
-          id: r.id,
-          kind: 'reported',
-          lemma: r.lemma,
-          reading: r.reading,
-          name: siglumOfWitness.get(r.witnessId) ?? witnessById.get(r.witnessId)?.siglum ?? '?',
-          ...rangeOf(r.segmentId),
-        };
-        if (r.source) candidate.source = `(${r.source})`;
-        return candidate;
-      }),
-    ];
-    const attached = attachToSites(collation, baseUnits, candidates, context.profile.fold);
-    // The places a conjecture or reported reading makes take the editor's marks too.
-    attached.collation = applySiteKinds(attached.collation, baseUnits, marksOf(context, passage));
+    const conjecturesHere = here.flatMap((id) => records.conjecturesAt.get(id) ?? []);
+    const reportedHere = here.flatMap((id) => records.reportedAt.get(id) ?? []);
+    const attached = attachRecords(context, passage, records);
+    const segmentOfRecord = attached.segmentOf;
     const siteSegments = segmentsOfSites(attached.collation.sites, baseUnits, passage.segments);
     const label = labelOf[segmentId] ?? segmentId;
     const absent = collation.absent.map((id) => siglumOfText.get(id) ?? id);

@@ -10,7 +10,19 @@ import {
   type Stream,
 } from '@varians/core';
 import { DEFAULT_SIGLA } from './marks';
-import { plainText, segmentItems, teiSegments, type ExportSegment } from './export';
+import { plainText, segmentItems, teiText, type ExportSegment } from './export';
+
+/** The start of a segment, as the text of an edition has it in TEI. */
+const M = (label: string) => `<milestone unit="segment" n="${label}"/>`;
+
+/** The lines of the edition's block in a TEI document: one for each segment that begins between words. */
+function blockLines(tei: string): string[] {
+  return tei
+    .slice(tei.indexOf('<ab>') + 4, tei.indexOf('</ab>'))
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
 
 /** Two verse segments; the second is printed in two places (a transposed half line) and has a supplement. */
 const content: Stream = {
@@ -131,20 +143,46 @@ describe('plainText, divided words and prose', () => {
   });
 });
 
-describe('teiSegments', () => {
-  it('gives the TEI exporter each segment with its units, sites and attachments', () => {
-    const out = teiSegments(content, segments, {});
-    expect(out.map((s) => s.label)).toEqual(['1.1', '1.2']);
-    expect(out[0]!.items.map((i) => i.id)).toEqual(['e1', 'e2', 'e3', 'b1']);
-    expect(Object.keys(out[0]!.attachments ?? {})).toHaveLength(1);
+describe('teiText', () => {
+  it('gives the TEI exporter the runs of the segments in the order of the text, and the passages with their units, sites and attachments', () => {
+    const out = teiText(content, Object.values(segments), { s1: '1.1', s2: '1.2' });
+    expect(out.runs.map((run) => run.label)).toEqual(['1.1', '1.2']);
+    expect(out.runs[0]!.items.map((i) => i.id)).toEqual(['e1', 'e2', 'e3', 'b1']);
+    expect(Object.keys(out.passages[0]!.attachments ?? {})).toHaveLength(1);
     const tei = exportEditionTei({
       title: 'Iliad 1',
       baseSiglum: 'ed.',
       witnesses: [{ siglum: 'A' }],
-      segments: out,
+      ...out,
     });
     expect(tei).toContain('<rdg type="conjecture" resp="Bentley">θεά</rdg>');
     expect(tei).toContain('<rdg wit="#wit-A">μυρία</rdg>');
+    expect(blockLines(tei).map((line) => line.slice(0, M('1.1').length))).toEqual([
+      M('1.1'),
+      M('1.2'),
+    ]);
+  });
+
+  it('begins the text with the paragraph break that opens it, before the first segment, and a segment printed in two places begins twice', () => {
+    const stream: Stream = {
+      items: [
+        { kind: 'break', id: 'p0', type: 'paragraph', lineation: 'prose' },
+        { kind: 'token', id: 'a1', form: 'alpha', segment: { segmentId: 's1' } },
+        { kind: 'token', id: 'a2', form: 'beta', segment: { segmentId: 's2' } },
+        { kind: 'token', id: 'a3', form: 'gamma', segment: { segmentId: 's1', part: 2 } },
+      ] satisfies Item[],
+    };
+    const tei = exportEditionTei({
+      title: 'Runs',
+      witnesses: [],
+      ...teiText(stream, [], { s1: '1.1', s2: '1.2' }, { ids: true }),
+    });
+    expect(blockLines(tei)).toEqual([
+      '<lb/><lb type="prose"/>',
+      '<milestone unit="segment" n="1.1" xml:id="seg-s1"/>alpha',
+      '<milestone unit="segment" n="1.2" xml:id="seg-s2"/>beta',
+      `${M('1.1')}gamma`,
+    ]);
   });
 });
 
@@ -233,74 +271,50 @@ describe('a variant across the boundary of two segments', () => {
     return { stream, labelOf, exported, passages };
   }
 
-  it('writes the variant in a part in each segment, each true of its own segment', () => {
-    const { stream, labelOf, exported, passages } = crossing({
-      A: ['s1: alpha beta gamma delta', 's2: epsilon zeta eta theta'],
-      B: ['s1: alpha beta gamma kappa', 's2: lambda zeta eta theta'],
-    });
-    expect(passages.map((p) => p.segments.length)).toEqual([2]);
-    const tei = exportEditionTei({
+  /** The TEI of what `crossing` gives. */
+  function teiOf({ stream, labelOf, exported }: ReturnType<typeof crossing>): string {
+    return exportEditionTei({
       title: 'Crossing',
       baseSiglum: 'ed.',
       witnesses: [{ siglum: 'A' }, { siglum: 'B' }],
-      segments: teiSegments(stream, exported, labelOf),
+      ...teiText(stream, Object.values(exported), labelOf),
     });
-    const abs = tei.match(/<ab [^>]*>.*<\/ab>/gu)!;
-    expect(abs).toHaveLength(2);
-    // Each segment says what its own witnesses have: B's second word is not in the first segment, nor the edition's in B's.
-    expect(abs[0]).toMatch(
-      /^<ab n="1.1">alpha beta gamma <app xml:id="([^"]+)" next="#[^"]+"><lem wit="#wit-A">delta<\/lem><rdg wit="#wit-B">kappa<\/rdg><\/app><lb\/><\/ab>$/u,
-    );
-    expect(abs[1]).toMatch(
-      /^<ab n="1.2"><app xml:id="([^"]+)" prev="#[^"]+"><lem wit="#wit-A">epsilon<\/lem><rdg wit="#wit-B">lambda<\/rdg><\/app> zeta eta theta<\/ab>$/u,
-    );
+  }
+
+  it('writes the variant once, around the words of both segments, the start of the second inside its lemma', () => {
+    const made = crossing({
+      A: ['s1: alpha beta gamma delta', 's2: epsilon zeta eta theta'],
+      B: ['s1: alpha beta gamma kappa', 's2: lambda zeta eta theta'],
+    });
+    expect(made.passages.map((p) => p.segments.length)).toEqual([2]);
+    expect(blockLines(teiOf(made))).toEqual([
+      `${M('1.1')}alpha beta gamma <app><lem wit="#wit-A">delta<lb/>${M('1.2')}epsilon</lem><rdg wit="#wit-B">kappa lambda</rdg></app> zeta eta theta`,
+    ]);
   });
 
-  it('writes a variant at a point whose words lie in two segments in a part at the end of the one and the start of the other', () => {
-    const { stream, labelOf, exported } = crossing(
+  it('writes a variant at a point whose words lie in two segments once, after the last word of the first', () => {
+    const made = crossing(
       {
         A: ['s1: alpha beta', 's2: gamma delta'],
         B: ['s1: alpha beta kappa', 's2: lambda gamma delta'],
       },
       ['s1: alpha beta', 's2: gamma delta'],
     );
-    const tei = exportEditionTei({
-      title: 'Point',
-      baseSiglum: 'ed.',
-      witnesses: [{ siglum: 'A' }, { siglum: 'B' }],
-      segments: teiSegments(stream, exported, labelOf),
-    });
-    const abs = tei.match(/<ab [^>]*>.*<\/ab>/gu)!;
-    expect(abs[0]).toMatch(
-      /^<ab n="1.1">alpha beta(?:<lb\/>)?<app xml:id="[^"]+" next="#[^"]+"><lem wit="#wit-A"\/><rdg wit="#wit-B">kappa<\/rdg><\/app><\/ab>$/u,
-    );
-    expect(abs[1]).toMatch(
-      /^<ab n="1.2"><app xml:id="[^"]+" prev="#[^"]+"><lem wit="#wit-A"\/><rdg wit="#wit-B">lambda<\/rdg><\/app> gamma delta<\/ab>$/u,
-    );
+    expect(blockLines(teiOf(made))).toEqual([
+      `${M('1.1')}alpha beta <app><lem wit="#wit-A"/><rdg wit="#wit-B">kappa lambda</rdg></app><lb/>`,
+      `${M('1.2')}gamma delta`,
+    ]);
   });
 
-  it('writes a variant over a word the edition divides across the two segments in a part in each, the rest of the word in the lemma of the second', () => {
+  it('writes a variant over a word the edition divides across the two segments around the whole word, the break and the start inside it', () => {
     const edition = ['s1: alpha beta gam-', 's2: ma delta epsilon'];
-    const { stream, labelOf, exported } = crossing(
-      {
-        A: edition,
-        B: ['s1: alpha beta kappa', 's2: delta epsilon'],
-      },
+    const made = crossing(
+      { A: edition, B: ['s1: alpha beta kappa', 's2: delta epsilon'] },
       edition,
     );
-    const tei = exportEditionTei({
-      title: 'Divided',
-      baseSiglum: 'ed.',
-      witnesses: [{ siglum: 'A' }, { siglum: 'B' }],
-      segments: teiSegments(stream, exported, labelOf),
-    });
-    const abs = tei.match(/<ab [^>]*>.*<\/ab>/gu)!;
-    expect(abs[0]).toMatch(
-      /^<ab n="1.1">alpha beta <app xml:id="[^"]+" next="#[^"]+"><lem wit="#wit-A">gam<\/lem><rdg wit="#wit-B">kappa<\/rdg><\/app><lb\/><\/ab>$/u,
-    );
-    expect(abs[1]).toMatch(
-      /^<ab n="1.2"><app xml:id="[^"]+" prev="#[^"]+"><lem wit="#wit-A">ma<\/lem><rdg wit="#wit-B"\/><\/app> delta epsilon<\/ab>$/u,
-    );
+    expect(blockLines(teiOf(made))).toEqual([
+      `${M('1.1')}alpha beta <app><lem wit="#wit-A">gam<lb break="no"/><milestone unit="segment" n="1.2" break="no"/>ma</lem><rdg wit="#wit-B">kappa</rdg></app> delta epsilon`,
+    ]);
   });
 
   it('leaves the plain text as it was: the whole variant once, under the segment it begins in, labelled by both', () => {
@@ -329,41 +343,32 @@ describe('a variant across the boundary of two segments', () => {
     );
   });
 
-  it('writes a variant within one segment whole, with no name and no links', () => {
-    const { stream, labelOf, exported } = crossing({
+  it('writes a variant within one segment in its segment, with no name and no links', () => {
+    const made = crossing({
       A: ['s1: alpha beta gamma delta', 's2: epsilon zeta eta theta'],
       B: ['s1: alpha beta kappa delta', 's2: epsilon zeta eta theta'],
     });
-    const tei = exportEditionTei({
-      title: 'Within',
-      baseSiglum: 'ed.',
-      witnesses: [{ siglum: 'A' }, { siglum: 'B' }],
-      segments: teiSegments(stream, exported, labelOf),
-    });
-    expect(tei).toContain(
-      '<ab n="1.1">alpha beta <app><lem wit="#wit-A">gamma</lem><rdg wit="#wit-B">kappa</rdg></app> delta<lb/></ab>',
-    );
+    const tei = teiOf(made);
+    expect(blockLines(tei)).toEqual([
+      `${M('1.1')}alpha beta <app><lem wit="#wit-A">gamma</lem><rdg wit="#wit-B">kappa</rdg></app> delta<lb/>`,
+      `${M('1.2')}epsilon zeta eta theta`,
+    ]);
     expect(tei).not.toContain('xml:id="app');
   });
 
   it('gives a segment the edition does not print as words a witness has after the segment before it', () => {
-    const { stream, labelOf, exported } = crossing(
+    const made = crossing(
       {
         A: ['s1: alpha beta', 's2: gamma delta', 's3: epsilon zeta'],
         B: ['s1: alpha beta', 's3: epsilon zeta'],
       },
       ['s1: alpha beta', 's3: epsilon zeta'],
     );
-    const tei = exportEditionTei({
-      title: 'Not printed',
-      baseSiglum: 'ed.',
-      witnesses: [{ siglum: 'A' }, { siglum: 'B' }],
-      segments: teiSegments(stream, exported, labelOf),
-    });
-    // In the TEI: a reading at the end of the printed segment before it, the edition's side empty.
-    expect(tei.match(/<ab [^>]*>.*<\/ab>/gu)).toEqual([
-      '<ab n="1.1">alpha beta<lb/><app><lem wit="#wit-B"/><rdg wit="#wit-A">gamma delta</rdg></app></ab>',
-      '<ab n="1.3">epsilon zeta</ab>',
+    const { stream, labelOf, exported } = made;
+    // In the TEI: a reading between the two segments the edition prints, begun by the segment's own start, the edition's side empty.
+    expect(blockLines(teiOf(made))).toEqual([
+      `${M('1.1')}alpha beta<lb/><app><lem wit="#wit-B"/><rdg wit="#wit-A">${M('1.2')}gamma delta</rdg></app>`,
+      `${M('1.3')}epsilon zeta`,
     ]);
     // In the print apparatus: words added, under the label of the segment they are.
     const text = plainText({

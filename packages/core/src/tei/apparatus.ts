@@ -1,16 +1,24 @@
 /**
  * TEI export of an edition: the critical text with its apparatus encoded
- * by the parallel-segmentation method. Every site becomes an `<app>` whose
- * `<lem>` is the edition's words and whose `<rdg>` elements are the
- * witnesses' readings, with the conjectures attached to the site. A variant
- * whose words lie in several segments is written in parts, one `<app>` in the
- * `<ab>` of each, each given as it stands in its own segment and linked to
- * the others by `next` and `prev` (see `variantParts`, which makes them).
+ * by the parallel-segmentation method. The text is one block in the order of
+ * the edition, in which a segment begins with a `<milestone>` and a line
+ * with an `<lb>`, so that no boundary of either walls a variant in. Every
+ * variant is an `<app>` whose `<lem>` is the edition's words, with whatever
+ * begins among them, and whose `<rdg>` elements are the witnesses' readings,
+ * with the conjectures attached to it (docs/formats/tei-subset.md).
  */
 
 import { printedKind, type Attachment } from '../apparatus/render.ts';
-import type { Site } from '../collate/collate.ts';
-import { isNotTranscribed, NOT_TRANSCRIBED_ATTRS, type Item, type Token } from '../stream/items.ts';
+import type { Reading, Site } from '../collate/collate.ts';
+import { siteSegments } from '../collate/passage.ts';
+import {
+  isNotTranscribed,
+  NOT_TRANSCRIBED_ATTRS,
+  type Id,
+  type Item,
+  type Obj,
+  type Token,
+} from '../stream/items.ts';
 import type { Unit } from '../stream/words.ts';
 import {
   encodingDesc,
@@ -21,7 +29,6 @@ import {
   sourcesBibl,
   type Contributor,
 } from './export.ts';
-import type { VariantLink } from './parts.ts';
 import { escapeAttr, escapeText, ncName } from './xml.ts';
 
 export interface EditionWitness {
@@ -32,28 +39,36 @@ export interface EditionWitness {
   description?: string;
 }
 
-export interface EditionSegmentExport {
-  label: string;
-  /** The segment's id: the `<ab>` gets `xml:id="seg-<id>"`. */
+/** A run of the edition's text: where a segment begins, and its items up to where the next one does. */
+export interface EditionRunExport {
+  /**
+   * The label of the segment that begins here, written as the `n` of its
+   * `<milestone>`. Absent for what stands before the first segment (a
+   * paragraph break that opens the text).
+   */
+  label?: string;
+  /** The segment's id: where the segment first begins, the milestone gets `xml:id="seg-<id>"`. */
   id?: string;
-  /** The passage's CTS URN, written as the `<ab>`'s `corresp`. */
+  /** The passage's CTS URN, written as the milestone's `corresp` where the segment first begins. */
   urn?: string;
-  /** The edition's items of the segment, in order (tokens, breaks, objects). */
+  /** The edition's items of the run, in order (tokens, breaks, objects). */
   items: Item[];
-  /** The edition's collation units for the segment (as given to collate). */
+}
+
+/** A passage as it was collated: one segment, or several whose boundaries something may cross. */
+export interface EditionPassageExport {
+  /** The edition's collation units of the passage (as given to collate). */
   baseUnits: Unit[];
   /** The places of variation; one the editor judges minor (`minor`) is written as such. */
   sites: Site[];
   /** Conjectures and reported readings by site index. */
   attachments?: Record<number, Attachment[]>;
   /**
-   * By site index, the sites that are one part of a variant written across
-   * segments (`variantParts`): the part is written with its `xml:id`, `prev`
-   * and `next`, and the kind of the whole variant, and with the later tokens of
-   * a word of the edition that begins in the segment before in its lemma. A
-   * site not here stands alone.
+   * The passage's segments in order, where it has more than one: which of
+   * them the edition prints, and the label of each it does not, which a
+   * witness's reading there begins with.
    */
-  links?: Record<number, VariantLink>;
+  segments?: readonly { segmentId: Id; printed: boolean; label?: string }[];
 }
 
 export interface EditionExport {
@@ -75,7 +90,10 @@ export interface EditionExport {
   /** Who publishes it: the installation's name. */
   authority?: string;
   witnesses: EditionWitness[];
-  segments: EditionSegmentExport[];
+  /** The text in its order: the runs of the segments the edition prints. */
+  runs: EditionRunExport[];
+  /** The passages the text was collated in, with their variants. */
+  passages: EditionPassageExport[];
   /** Write every word as `<w xml:id>`, with `corresp` to the witness tokens it was taken from or `source` to its conjecture. */
   words?: boolean;
   /** The installation's address, for the prefixes that resolve record ids. */
@@ -86,6 +104,8 @@ export interface EditionExport {
 interface WitnessRefs {
   baseSiglum: string;
   witId: (siglum: string) => string;
+  /** Whether a siglum is a witness of the edition's list. */
+  listed: (siglum: string) => boolean;
   /** Whether words are written as `<w>` with their provenance. */
   words: boolean;
 }
@@ -105,7 +125,12 @@ function witnessRefs(witnesses: readonly EditionWitness[], baseSiglum: string): 
     ids.set(siglum, id);
     taken.add(id);
   }
-  return { baseSiglum, witId: (siglum) => ids.get(siglum) ?? ncName(siglum, 'wit-'), words: false };
+  return {
+    baseSiglum,
+    witId: (siglum) => ids.get(siglum) ?? ncName(siglum, 'wit-'),
+    listed: (siglum) => ids.has(siglum),
+    words: false,
+  };
 }
 
 /** A complete TEI document of the edition. */
@@ -144,8 +169,7 @@ export function exportEditionTei(input: EditionExport): string {
   if (input.witnesses.length === 0 && !bibl) out.push('        <p>Edition.</p>');
   out.push('      </sourceDesc>');
   out.push('    </fileDesc>');
-  const encoding = encodingDesc(input.origin);
-  if (encoding) out.push(`    ${encoding}`);
+  out.push(`    ${encodingDesc(input.origin, { apparatus: true })}`);
   if (input.language)
     out.push(
       `    <profileDesc><langUsage><language ident="${escapeAttr(input.language)}"/></langUsage></profileDesc>`,
@@ -156,7 +180,7 @@ export function exportEditionTei(input: EditionExport): string {
     out.push(`    <front><div type="preface"><p>${escapeText(input.preface)}</p></div></front>`);
   out.push('    <body>');
   out.push('      <div type="edition">');
-  for (const segment of input.segments) out.push(segmentXml(segment, refs));
+  out.push(bodyXml(input, refs));
   out.push('      </div>');
   out.push('    </body>');
   out.push('  </text>');
@@ -168,55 +192,47 @@ export function exportEditionTei(input: EditionExport): string {
  * A word of the edition with its marks; a variant noted in a witness's
  * carrier is not the edition's. With words on, it is a `<w>` naming where it
  * comes from: the witness tokens (`corresp="tok:…"`) or the conjecture
- * (`source="conj:…"`); an editor's own word names nothing.
+ * (`source="conj:…"`); an editor's own word names nothing. A token of a word
+ * in several tokens says which part of the word it is (`part`: I the first,
+ * M one in the middle, F the last).
  */
-function tokenXml(token: Token, refs?: WitnessRefs): string {
+function tokenXml(token: Token, refs: WitnessRefs, part?: 'I' | 'M' | 'F'): string {
   const inner = markupToken(
     token.form,
     (token.marks ?? []).filter((m) => m.kind !== 'variant'),
   );
-  if (!refs?.words) return inner;
+  if (!refs.words) return inner;
   const source = token.source;
   let provenance = '';
   if (source?.kind === 'witness' && source.tokenIds.length)
     provenance = ` corresp="${source.tokenIds.map((id) => `tok:${escapeAttr(id)}`).join(' ')}"`;
   else if (source?.kind === 'conjecture')
     provenance = ` source="conj:${escapeAttr(source.conjectureId)}"`;
-  return `<w xml:id="${ncName(token.id, 'w-')}"${provenance}>${inner}</w>`;
+  const fragment = part ? ` part="${part}"` : '';
+  return `<w xml:id="${ncName(token.id, 'w-')}"${fragment}${provenance}>${inner}</w>`;
 }
 
-function itemXml(item: Item, refs?: WitnessRefs): string {
-  switch (item.kind) {
-    case 'token':
-      return tokenXml(item, refs);
-    case 'break':
-      // A paragraph is two line breaks, the second typed where the paragraph has a kind of its own.
-      return item.type === 'paragraph'
-        ? `<lb/><lb${item.lineation ? ` type="${item.lineation}"` : ''}/>`
-        : '<lb/>';
-    case 'object': {
-      const attrs = item.attrs ?? {};
-      if (item.type === 'gap' && isNotTranscribed(attrs))
-        return `<gap reason="${NOT_TRANSCRIBED_ATTRS.reason}"><desc>${escapeText(NOT_TRANSCRIBED_ATTRS.desc)}</desc></gap>`;
-      if (item.type === 'gap' || item.type === 'lacuna') {
-        const parts = ['reason="lost"'];
-        if (typeof attrs.quantity === 'number')
-          parts.push(
-            `quantity="${attrs.quantity}" unit="${escapeAttr(String(attrs.unit ?? 'character'))}"`,
-          );
-        if (typeof attrs.extent === 'string') parts.push(`extent="${escapeAttr(attrs.extent)}"`);
-        return `<gap ${parts.join(' ')}/>`;
-      }
-      if (item.type === 'paratext')
-        return paratextXml(
-          typeof attrs.type === 'string' ? { type: attrs.type } : undefined,
-          item.text ?? '',
-        );
-      if (item.type === 'note') return `<note>${escapeText(item.text ?? '')}</note>`;
-      if (item.type === 'space') return '<space/>';
-      return item.text ? `<seg type="${escapeAttr(item.type)}">${escapeText(item.text)}</seg>` : '';
-    }
+function objectXml(item: Obj): string {
+  const attrs = item.attrs ?? {};
+  if (item.type === 'gap' && isNotTranscribed(attrs))
+    return `<gap reason="${NOT_TRANSCRIBED_ATTRS.reason}"><desc>${escapeText(NOT_TRANSCRIBED_ATTRS.desc)}</desc></gap>`;
+  if (item.type === 'gap' || item.type === 'lacuna') {
+    const parts = ['reason="lost"'];
+    if (typeof attrs.quantity === 'number')
+      parts.push(
+        `quantity="${attrs.quantity}" unit="${escapeAttr(String(attrs.unit ?? 'character'))}"`,
+      );
+    if (typeof attrs.extent === 'string') parts.push(`extent="${escapeAttr(attrs.extent)}"`);
+    return `<gap ${parts.join(' ')}/>`;
   }
+  if (item.type === 'paratext')
+    return paratextXml(
+      typeof attrs.type === 'string' ? { type: attrs.type } : undefined,
+      item.text ?? '',
+    );
+  if (item.type === 'note') return `<note>${escapeText(item.text ?? '')}</note>`;
+  if (item.type === 'space') return '<space/>';
+  return item.text ? `<seg type="${escapeAttr(item.type)}">${escapeText(item.text)}</seg>` : '';
 }
 
 function witAttr(sigla: string[], refs: WitnessRefs): string {
@@ -225,134 +241,387 @@ function witAttr(sigla: string[], refs: WitnessRefs): string {
 }
 
 /**
- * Items written as the text of an `<ab>` is: a space between two words, none
- * where a break stands or where a word is joined to the next (as where a line
- * break divides it).
+ * Items written as running text: a space between two words, none where a
+ * break stands, none after the start of a segment, and none inside a word
+ * that goes on (as where a line break or the start of a segment divides
+ * it). A segment that begins between words of the text itself (`top`, not
+ * inside a variant) begins a line of the file.
  */
-function textWriter(refs: WitnessRefs) {
+function textWriter(refs: WitnessRefs, top: boolean) {
   const parts: string[] = [];
-  let joinNext = false;
-  const push = (xml: string) => {
+  /** The last word written joins the next: what stands between them divides one word. */
+  let open = false;
+  let last: 'break' | 'start' | 'other' | null = null;
+  const push = (xml: string, kind: 'break' | 'start' | 'other', line = false) => {
     if (xml === '') return;
-    const previous = parts[parts.length - 1];
-    if (
-      previous !== undefined &&
-      !joinNext &&
-      !previous.startsWith('<lb') &&
-      !xml.startsWith('<lb')
-    )
+    if (line) parts.push('\n          ');
+    else if (last !== null && !open && kind !== 'break' && last !== 'break' && last !== 'start')
       parts.push(' ');
     parts.push(xml);
-    joinNext = false;
+    last = kind;
   };
+  /** What stands inside a word does not end it: `break="no"`, as TEI says it of a break or a milestone. */
+  const inWord = () => (open ? ' break="no"' : '');
   return {
-    push,
-    /** An item of the text: a word that joins the next stays against it. */
+    /** Something that is no item of the text: a variant. */
+    push(xml: string) {
+      push(xml, 'other');
+      open = false;
+    },
     item(item: Item) {
       if (item.kind === 'token') {
-        push(tokenXml(item, refs));
-        joinNext = item.joinNext === true;
-      } else push(itemXml(item, refs));
+        const part = open ? (item.joinNext ? 'M' : 'F') : item.joinNext ? 'I' : undefined;
+        push(tokenXml(item, refs, part), 'other');
+        open = item.joinNext === true;
+      } else if (item.kind === 'break') {
+        // A paragraph is two line breaks, the second typed where the paragraph has a kind of its own.
+        const first = `<lb${inWord()}/>`;
+        push(
+          item.type === 'paragraph'
+            ? `${first}<lb${item.lineation ? ` type="${item.lineation}"` : ''}/>`
+            : first,
+          'break',
+        );
+      } else {
+        // An object between two tokens ends the word, as the words are read.
+        open = false;
+        push(objectXml(item), 'other');
+      }
+    },
+    /** The start of a segment: its label, and where the segment first begins its id and the passage's URN. */
+    start(run: EditionRunExport, first: boolean) {
+      const id = first && run.id ? ` xml:id="${ncName(run.id, 'seg-')}"` : '';
+      const corresp = first && run.urn ? ` corresp="${escapeAttr(run.urn)}"` : '';
+      push(
+        `<milestone unit="segment" n="${escapeAttr(run.label ?? '')}"${id}${corresp}${inWord()}/>`,
+        'start',
+        top && !open,
+      );
     },
     xml: () => parts.join(''),
   };
 }
 
-function segmentXml(segment: EditionSegmentExport, refs: WitnessRefs): string {
-  // Which tokens each site covers, and where insertion sites stand.
-  const siteOfToken = new Map<string, Site>();
-  const insertionBefore = new Map<string, Site[]>();
-  const insertionsAtEnd: Site[] = [];
-  for (const site of segment.sites) {
-    // The later tokens of a word of the edition that begins in the segment before are this place's too.
-    const tail = segment.links?.[site.index]?.tail ?? [];
-    if (site.baseTo > site.baseFrom || tail.length > 0) {
-      if (site.baseTo > site.baseFrom)
-        for (let i = site.baseFrom; i < site.baseTo; i++)
-          for (const id of segment.baseUnits[i]?.tokenIds ?? []) siteOfToken.set(id, site);
-      for (const id of tail) siteOfToken.set(id, site);
-    } else {
-      const next = segment.baseUnits[site.baseFrom]?.tokenIds[0];
-      if (next) insertionBefore.set(next, [...(insertionBefore.get(next) ?? []), site]);
-      else insertionsAtEnd.push(site);
-    }
-  }
-  // Where the tokens of each site stand among the items.
-  const span = new Map<Site, { first: number; last: number }>();
-  segment.items.forEach((item, k) => {
-    const site = item.kind === 'token' ? siteOfToken.get(item.id) : undefined;
-    if (!site) return;
-    const known = span.get(site);
-    if (known) known.last = k;
-    else span.set(site, { first: k, last: k });
-  });
-  const emitted = new Set<Site>();
-  const out = textWriter(refs);
-  for (let k = 0; k < segment.items.length; k++) {
-    const item = segment.items[k]!;
-    if (item.kind !== 'token') {
-      out.item(item);
-      continue;
-    }
-    for (const site of insertionBefore.get(item.id) ?? []) {
-      if (!emitted.has(site)) {
-        emitted.add(site);
-        out.push(appXml(site, '', segment, refs));
-      }
-    }
-    const site = siteOfToken.get(item.id);
-    if (!site) {
-      out.item(item);
-      continue;
-    }
-    if (emitted.has(site)) continue;
-    emitted.add(site);
-    const { first, last } = span.get(site)!;
-    const within = segment.items.slice(first, last + 1);
-    // The lemma is the stretch of the text from its first word to its last, breaks and objects between them
-    // included, as the text outside a variant is written. Another place's word among them, or a place that
-    // is to stand inside the stretch, would be lost in it: the lemma is then the words alone.
-    const whole =
-      within.every((i) => i.kind !== 'token' || siteOfToken.get(i.id) === site) &&
-      within.slice(1).every((i) => i.kind !== 'token' || !insertionBefore.has(i.id));
-    if (whole) {
-      const lemma = textWriter(refs);
-      for (const i of within) lemma.item(i);
-      out.push(appXml(site, lemma.xml(), segment, refs));
-      k = last;
-    } else {
-      const lemma = within
-        .filter((i): i is Token => i.kind === 'token' && siteOfToken.get(i.id) === site)
-        .map((t) => tokenXml(t, refs))
-        .join(' ');
-      out.push(appXml(site, lemma, segment, refs));
-    }
-  }
-  for (const site of insertionsAtEnd) {
-    if (!emitted.has(site)) {
-      emitted.add(site);
-      out.push(appXml(site, '', segment, refs));
-    }
-  }
-  const id = segment.id ? ` xml:id="${ncName(segment.id, 'seg-')}"` : '';
-  const corresp = segment.urn ? ` corresp="${escapeAttr(segment.urn)}"` : '';
-  return `        <ab n="${escapeAttr(segment.label)}"${id}${corresp}>${out.xml()}</ab>`;
+/** What the text is written from, in order: the start of a segment, or an item. */
+type Entry = { start: EditionRunExport; first: boolean; item?: undefined } | { item: Item };
+
+/** A variant with words of the edition, over a stretch of the entries: the whole of it, or one piece. */
+interface Stretch {
+  site: Site;
+  passage: EditionPassageExport;
+  first: number;
+  last: number;
+  /** The variants written inside its lemma, in order. */
+  inside: Stretch[];
+  /** Its name and its neighbours', where the variant is written in pieces. */
+  link?: { id: string; prev?: string; next?: string };
+  /** A piece after the first: a conjecture or a reported reading is named in it without its words. */
+  later?: boolean;
 }
 
-/** The name of a part of a variant: a name of the file's own, which no word, segment or witness has. */
-function partName(id: string): string {
+/** A variant written at one place: one at a point, or one whose words do not stand together. */
+interface Placed {
+  site: Site;
+  passage: EditionPassageExport;
+  lemma: string;
+}
+
+/**
+ * The text of the edition in one `<ab>`, in its own order.
+ *
+ * A variant with words of the edition is an `<app>` around them: its lemma is
+ * the stretch of the text from its first word to its last, with the breaks,
+ * the starts of segments and the objects between them. A variant at a point
+ * stands where the words would. Variants do not overlap, with one exception,
+ * and that one nests: where a witness is without one or more whole segments
+ * (`wanting`), the variant that says so stands around the others over the
+ * same words, which are found without that witness. Where its stretch and
+ * another's cross (a variant across the boundary of a segment that a third
+ * witness is without), it is written in pieces, each around what it can
+ * hold, linked by `next` and `prev`: that a witness has nothing is true of
+ * every piece.
+ */
+function bodyXml(input: EditionExport, refs: WitnessRefs): string {
+  const seq: Entry[] = [];
+  const begun = new Set<string>();
+  for (const run of input.runs) {
+    if (run.label !== undefined) {
+      const first = run.id === undefined || !begun.has(run.id);
+      if (run.id !== undefined) begun.add(run.id);
+      seq.push({ start: run, first });
+    }
+    for (const item of run.items) seq.push({ item });
+  }
+  const at = new Map<Id, number>();
+  seq.forEach((entry, i) => {
+    if (entry.item) at.set(entry.item.id, i);
+  });
+  /** Where a unit of the edition stands: its tokens, or the gap it is. */
+  const placesOf = (unit: Unit | undefined): number[] =>
+    unit
+      ? [...unit.tokenIds, ...(unit.gap ? [unit.gap.id] : [])]
+          .map((id) => at.get(id))
+          .filter((i): i is number => i !== undefined)
+      : [];
+
+  const top: Stretch[] = [];
+  /** Variants at a point and variants gathered, by the entry they stand before (the number of entries: at the end). */
+  const before = new Map<number, Placed[]>();
+  const stand = (i: number, placed: Placed) => before.set(i, [...(before.get(i) ?? []), placed]);
+  /** Words written in the lemma of a variant gathered, and so not where they stand. */
+  const taken = new Set<number>();
+  /** Entries some variant is around. */
+  const covered = new Set<number>();
+
+  /**
+   * Puts a variant over the entries [x, y] among `list`, the variants of one
+   * level, sorted. What lies wholly inside it goes into it; inside one that
+   * holds it whole, it goes there. Where another's stretch reaches over one
+   * of its ends, a variant that may be written in pieces goes on inside that
+   * one and has a piece outside it; any other is refused, and nothing is changed.
+   */
+  const insert = (
+    list: Stretch[],
+    x: number,
+    y: number,
+    own: ReadonlySet<number>,
+    make: (first: number, last: number) => Stretch,
+    pieces: boolean,
+  ): boolean => {
+    let lo = x;
+    let hi = y;
+    for (const other of [...list]) {
+      if (other.last < lo || other.first > hi) continue;
+      if (other.first >= lo && other.last <= hi) continue;
+      if (other.first <= lo && other.last >= hi)
+        return insert(other.inside, lo, hi, own, make, pieces);
+      if (!pieces) return false;
+      if (other.first < lo) {
+        insert(other.inside, lo, other.last, own, make, pieces);
+        lo = other.last + 1;
+      } else {
+        insert(other.inside, other.first, hi, own, make, pieces);
+        hi = other.first - 1;
+      }
+    }
+    while (lo <= hi && !own.has(lo)) lo++;
+    while (hi >= lo && !own.has(hi)) hi--;
+    if (lo > hi) return true;
+    const stretch = make(lo, hi);
+    const within = (s: Stretch) => s.first >= lo && s.last <= hi;
+    stretch.inside = list.filter(within);
+    const rest = list.filter((s) => !within(s));
+    list.length = 0;
+    list.push(...rest, stretch);
+    list.sort((a, b) => a.first - b.first);
+    return true;
+  };
+
+  input.passages.forEach((passage, p) => {
+    // The variants over words first, and then those that stand around them.
+    const ordered = [...passage.sites].sort(
+      (a, b) => Number(a.wanting === true) - Number(b.wanting === true),
+    );
+    for (const site of ordered) {
+      if (site.baseTo <= site.baseFrom) {
+        stand(pointOf(site, passage, seq, placesOf), { site, passage, lemma: '' });
+        continue;
+      }
+      const own = new Set<number>();
+      for (let i = site.baseFrom; i < site.baseTo; i++)
+        for (const k of placesOf(passage.baseUnits[i])) own.add(k);
+      // Words that are not in the text written have no place in it.
+      if (own.size === 0) continue;
+      const first = Math.min(...own);
+      const last = Math.max(...own);
+      let whole = true;
+      for (let k = first; k <= last && whole; k++)
+        if (seq[k]!.item?.kind === 'token' && !own.has(k)) whole = false;
+      const made: Stretch[] = [];
+      const make = (from: number, to: number): Stretch => {
+        const stretch: Stretch = { site, passage, first: from, last: to, inside: [] };
+        made.push(stretch);
+        return stretch;
+      };
+      if (whole && insert(top, first, last, own, make, site.wanting === true)) {
+        for (const k of own) covered.add(k);
+        made.sort((a, b) => a.first - b.first);
+        if (made.length > 1)
+          made.forEach((piece, n) => {
+            const name = (m: number) => `${p + 1}-${site.index + 1}-${m + 1}`;
+            piece.link = {
+              id: name(n),
+              ...(n > 0 ? { prev: name(n - 1) } : {}),
+              ...(n < made.length - 1 ? { next: name(n + 1) } : {}),
+            };
+            if (n > 0) piece.later = true;
+          });
+        continue;
+      }
+      // Its words do not stand together, or another variant's stretch crosses its own: the words that no
+      // other variant has are gathered in its lemma, where the first of them stands.
+      const mine = [...own].filter((k) => !covered.has(k)).sort((a, b) => a - b);
+      if (mine.length === 0) continue;
+      for (const k of mine) {
+        covered.add(k);
+        taken.add(k);
+      }
+      const lemma = mine
+        .map((k) => seq[k]!.item)
+        .filter((item): item is Token => item?.kind === 'token')
+        .map((token) => tokenXml(token, refs))
+        .join(' ');
+      stand(mine[0]!, { site, passage, lemma });
+    }
+  });
+
+  const placedXml = (i: number, out: ReturnType<typeof textWriter>) => {
+    const here = before.get(i);
+    if (!here) return;
+    // Written once: the stretch that begins here is walked again from the same entry.
+    before.delete(i);
+    for (const placed of here) out.push(appXml(placed.site, placed.passage, placed.lemma, refs));
+  };
+  const walk = (first: number, last: number, inside: readonly Stretch[], level: number): string => {
+    const out = textWriter(refs, level === 0);
+    let next = 0;
+    for (let i = first; i <= last; i++) {
+      placedXml(i, out);
+      while (inside[next] && inside[next]!.first < i) next++;
+      const stretch = inside[next];
+      if (stretch && stretch.first === i) {
+        const lemma = walk(stretch.first, stretch.last, stretch.inside, level + 1);
+        out.push(appXml(stretch.site, stretch.passage, lemma, refs, stretch));
+        i = stretch.last;
+        next++;
+        continue;
+      }
+      if (taken.has(i)) continue;
+      const entry = seq[i]!;
+      if (entry.item) out.item(entry.item);
+      else out.start(entry.start, entry.first);
+    }
+    if (level === 0) placedXml(seq.length, out);
+    return out.xml();
+  };
+  const text = walk(0, seq.length - 1, top, 0);
+  // The segments begin lines of the file; a text without one is written on the line of its block.
+  return text.includes('\n') ? `        <ab>${text}\n        </ab>` : `        <ab>${text}</ab>`;
+}
+
+/**
+ * The entry a variant at a point stands before (the number of entries: at
+ * the end). Inside a segment it stands before the edition's word that
+ * follows. Where the word before it and the word after it are of two
+ * segments, the segments of the witnesses' words say where: in the first,
+ * directly after its last word, before the break that ends the line; in the
+ * second, before its first word; and in a segment the edition does not
+ * print, between the two, after what ends the first and before the start of
+ * the second.
+ */
+function pointOf(
+  site: Site,
+  passage: EditionPassageExport,
+  seq: readonly Entry[],
+  placesOf: (unit: Unit | undefined) => number[],
+): number {
+  const units = passage.baseUnits;
+  let before: number | undefined;
+  let unitBefore: Unit | undefined;
+  for (let i = site.baseFrom - 1; i >= 0 && before === undefined; i--) {
+    const places = placesOf(units[i]);
+    if (places.length === 0) continue;
+    before = Math.max(...places);
+    unitBefore = units[i];
+  }
+  let after: number | undefined;
+  let unitAfter: Unit | undefined;
+  for (let i = site.baseFrom; i < units.length && after === undefined; i++) {
+    const places = placesOf(units[i]);
+    if (places.length === 0) continue;
+    after = Math.min(...places);
+    unitAfter = units[i];
+  }
+  const ids = siteSegments(site, units);
+  const home = (passage.segments ?? []).find((s) => ids.includes(s.segmentId));
+  if (home && !home.printed) {
+    if (before !== undefined) {
+      for (let k = before + 1; k < seq.length; k++) if (!seq[k]!.item) return k;
+      return seq.length;
+    }
+    if (after !== undefined) {
+      for (let k = after; k >= 0; k--) if (!seq[k]!.item) return k;
+      return 0;
+    }
+    return seq.length;
+  }
+  const inFirst = home !== undefined && unitBefore?.segmentId === home.segmentId;
+  const inSecond = home !== undefined && unitAfter?.segmentId === home.segmentId;
+  if (before !== undefined && (after === undefined || (inFirst && !inSecond))) return before + 1;
+  return after ?? seq.length;
+}
+
+/**
+ * A witness's words in a reading. Where they lie in a segment the edition
+ * does not print, the segment begins among them with its `<milestone>`: the
+ * edition's text has no start of it, and the reading is where it is. Nothing
+ * is said of where a witness begins a segment the edition prints; that is in
+ * its transcript.
+ */
+function readingXml(reading: Reading, passage: EditionPassageExport): string {
+  const plain = escapeText(reading.text);
+  const labels = new Map(
+    (passage.segments ?? [])
+      .filter((s) => !s.printed && s.label !== undefined)
+      .map((s) => [s.segmentId, s.label!] as const),
+  );
+  if (labels.size === 0) return plain;
+  /** The words of a witness, each with the label of the segment it begins, where the edition does not print it. */
+  const wordsOf = (id: Id) => {
+    const words = (reading.units[id] ?? []).filter((u) => !u.gap);
+    return words.map((unit, k) => ({
+      text: unit.text,
+      begins:
+        unit.segmentId !== undefined && unit.segmentId !== words[k - 1]?.segmentId
+          ? labels.get(unit.segmentId)
+          : undefined,
+    }));
+  };
+  const first = wordsOf(reading.textIds[0] ?? '');
+  // The witnesses of a reading must begin the segment at the same word, and the words must be the reading's.
+  const same = reading.textIds.every((id) => {
+    const words = wordsOf(id);
+    return words.length === first.length && words.every((w, k) => w.begins === first[k]!.begins);
+  });
+  if (
+    !same ||
+    !first.some((w) => w.begins !== undefined) ||
+    first.map((w) => w.text).join(' ') !== reading.text
+  )
+    return plain;
+  return first
+    .map((w) =>
+      w.begins === undefined
+        ? escapeText(w.text)
+        : `<milestone unit="segment" n="${escapeAttr(w.begins)}"/>${escapeText(w.text)}`,
+    )
+    .join(' ');
+}
+
+/** The name of a piece of a variant: a name of the file's own, which no word, segment or witness has. */
+function pieceName(id: string): string {
   return ncName(id, 'app-');
 }
 
 function appXml(
   site: Site,
+  passage: EditionPassageExport,
   lemmaXml: string,
-  segment: EditionSegmentExport,
   refs: WitnessRefs,
+  piece?: Pick<Stretch, 'link' | 'later'>,
 ): string {
   const base = site.readings.find((r) => r.base);
-  const attachments = segment.attachments?.[site.index] ?? [];
-  const link = segment.links?.[site.index];
+  const attachments = passage.attachments?.[site.index] ?? [];
   const adopted = attachments.find((a) => a.adopted);
   const lemWit = base ? witAttr(base.sigla, refs) : '';
   const lemResp = adopted ? ` resp="${escapeAttr(adopted.name)}"` : '';
@@ -365,26 +634,32 @@ function appXml(
     const wit = witAttr(reading.sigla, refs);
     // A witness that has lost the words is in no reading, and so in no <rdg>.
     if (reading.omission) out.push(`<rdg${wit}/>`);
-    else out.push(`<rdg${wit}>${escapeText(reading.text)}</rdg>`);
+    else out.push(`<rdg${wit}>${readingXml(reading, passage)}</rdg>`);
   }
   for (const attachment of attachments) {
     if (attachment.adopted) continue;
     const type = attachment.kind === 'conjecture' ? 'conjecture' : 'reported';
-    const resp = ` resp="${escapeAttr(attachment.name)}"`;
+    // A reading reported for a witness of the list is that witness's, as a reading collated is; a conjecture names who proposed it.
+    const resp =
+      attachment.kind === 'reported' && refs.listed(attachment.name)
+        ? ` wit="#${refs.witId(attachment.name)}"`
+        : ` resp="${escapeAttr(attachment.name)}"`;
     const source = attachment.source ? ` source="${escapeAttr(attachment.source)}"` : '';
-    if (attachment.text === '') out.push(`<rdg type="${type}"${resp}${source}/>`);
+    // In a piece after the first the record is named without its words, so that it is not read as keeping the lemma there.
+    if (attachment.text === '' || piece?.later) out.push(`<rdg type="${type}"${resp}${source}/>`);
     else out.push(`<rdg type="${type}"${resp}${source}>${escapeText(attachment.text)}</rdg>`);
   }
   // A minor place says its kind besides: a subtype stands only beside a type.
-  const kind = link?.kind ?? printedKind(site, attachments);
+  const kind = printedKind(site, attachments);
   const typed = site.minor
     ? ` type="${kind}" subtype="minor"`
     : kind === 'interpretative'
       ? ' type="interpretative"'
       : '';
-  // The parts of one variant name themselves and each other, as TEI's global linking attributes do.
+  // The pieces of one variant name themselves and each other, as TEI's global linking attributes do.
+  const link = piece?.link;
   const linked = link
-    ? ` xml:id="${partName(link.id)}"${typed}${link.prev ? ` prev="#${partName(link.prev)}"` : ''}${link.next ? ` next="#${partName(link.next)}"` : ''}`
+    ? ` xml:id="${pieceName(link.id)}"${typed}${link.prev ? ` prev="#${pieceName(link.prev)}"` : ''}${link.next ? ` next="#${pieceName(link.next)}"` : ''}`
     : typed;
   return `<app${linked}>${out.join('')}</app>`;
 }

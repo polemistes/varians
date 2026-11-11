@@ -91,6 +91,24 @@ describe('the example archive of the format', () => {
     );
   });
 
+  it('gives in the files of its edition the segments by their milestones, and the conjectures and the reported reading it holds', async () => {
+    const [dir] = await exampleWorks(example);
+    const edition = path.join(dir!, 'editions', 'iliad-1-working-edition');
+    const tei = await readFile(path.join(edition, 'edition.tei.xml'), 'utf8');
+    expect(tei).toMatch(
+      /<milestone unit="segment" n="1\.1" xml:id="seg-[0-9A-Z]+" corresp="urn:cts:[^"]+"\/>/u,
+    );
+    expect(tei).not.toContain('<ab n=');
+    // A conjecture that is not adopted, one whose word the edition prints, and a reading reported for a witness.
+    expect(tei).toMatch(/<rdg type="conjecture" resp="[^"]+">ἑλώριον<\/rdg>/u);
+    expect(tei).toMatch(/<lem resp="Zenodotus"><w [^>]*source="conj:[0-9A-Z]+">δαῖτα<\/w>/u);
+    expect(tei).toMatch(/<rdg type="reported" wit="#wit-T" source="[^"]+">θεά<\/rdg>/u);
+    const text = await readFile(path.join(edition, 'edition.txt'), 'utf8');
+    expect(text).toMatch(/1\.4 ἑλώρια A C : ἕλωρα B : ἑλώριον \S+ \(coni\.\)/u);
+    expect(text).toContain('Zenodotus');
+    expect(text).toContain('θεά T');
+  });
+
   it('is read back by the import', async () => {
     const [dir] = await exampleWorks(example);
     const report = await importArchive(db, dir!, importer);

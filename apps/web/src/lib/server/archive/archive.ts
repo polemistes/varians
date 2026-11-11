@@ -25,10 +25,8 @@ import {
   passageUrn,
   REGISTRY_LICENCE,
   segmentRuns,
-  tokenSegments,
   serializeBiblatex,
   toText,
-  units,
 } from '@varians/core';
 import {
   alignmentConstraints,
@@ -83,10 +81,17 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { and, asc, desc, eq, inArray, isNotNull, lte, or } from 'drizzle-orm';
 import { collateEdition } from '../passages.ts';
-import { segmentShares, teiShares } from '../../reader/export.ts';
+import { segmentShares, teiText } from '../../reader/export.ts';
 import { documentAt } from '../documents/service.ts';
 import { exportHands, teiForm } from '../witness-format.ts';
-import { apparatusConventionsOf, contextAt, segmentsOfSites } from '../reader.ts';
+import {
+  apparatusConventionsOf,
+  attachRecords,
+  bySegment,
+  contextAt,
+  segmentsOfSites,
+  type PassageRecords,
+} from '../reader.ts';
 import { basisForArchive } from '../site-marks.ts';
 import { labelOfSegments, siglaOrderOf } from '../../reader/sites.ts';
 import { chosenWorksOf } from '../transcription-works.ts';
@@ -1191,7 +1196,18 @@ async function writeEditionFiles(ctx: WorkContext, edition: EditionRow): Promise
     await historyFiles(ctx, edir, 'edition', edition.id, shownVersion);
     return;
   }
-  const text = await editionText(db, edition.id, labelOf, shownVersion, ctx.urnOf);
+  // The conjectures and reported readings the archive holds, as they were when the version shown was published.
+  const until = <T extends { createdAt: Date }>(rows: T[]) =>
+    asOf ? rows.filter((row) => row.createdAt <= asOf) : rows;
+  const ownSiglum = new Map(ctx.witnessRows.map((w) => [w.id, w.siglum] as const));
+  const records: PassageRecords = {
+    conjecturesAt: bySegment(until(ctx.conjectureRows)),
+    reportedAt: bySegment(until(ctx.reported)),
+    adopted: new Set(adoptions.map((a) => a.conjectureId)),
+    siglumOf: (witnessId) =>
+      sigla.find((s) => s.witnessId === witnessId)?.siglum ?? ownSiglum.get(witnessId) ?? '?',
+  };
+  const text = await editionText(db, edition.id, labelOf, shownVersion, ctx.urnOf, records);
   if (writers.readable !== false) {
     await writeText(path.join(edir, 'edition.txt'), text.plain);
     await writeText(path.join(edir, 'edition.md'), text.markdown);
@@ -1214,7 +1230,7 @@ async function writeEditionFiles(ctx: WorkContext, edition: EditionRow): Promise
           id: s.witnessId,
           ...(witnessNames.get(s.witnessId) ? { name: witnessNames.get(s.witnessId)! } : {}),
         })),
-        segments: text.segments,
+        ...text.tei,
         words: true,
         origin: originOf(writers),
       }),
@@ -1348,17 +1364,23 @@ export function formatsDir(): string | null {
   return null;
 }
 
-/** The critical text with its apparatus under each segment, as plain text, as Markdown, and as the input of the TEI export. */
+/**
+ * The critical text with its apparatus under each segment, as plain text,
+ * as Markdown, and as the text and passages of the TEI export. The
+ * conjectures and reported readings given are laid at its variants, as the
+ * reader and the editor have them.
+ */
 export async function editionText(
   db: Database,
   editionId: string,
   labelOf: Map<string, string>,
   atVersion: number | null = null,
   urnOf: Map<string, string> = new Map(),
+  records: PassageRecords | null = null,
 ): Promise<{
   plain: string;
   markdown: string;
-  segments: Parameters<typeof exportEditionTei>[0]['segments'];
+  tei: Pick<Parameters<typeof exportEditionTei>[0], 'runs' | 'passages'>;
 }> {
   const { context } = await contextAt(db, editionId, atVersion);
   const [row] = await db
@@ -1368,47 +1390,44 @@ export async function editionText(
   const conventions = apparatusConventionsOf(row!.conventions);
   // The text as the edition shows it: the lines of a prose paragraph run on, and a divided word is hyphenated where a shown line ends.
   const shown = shownBreaks(context.edition.content.items, row!.conventions.lineation ?? 'verse');
-  const leading = context.edition.content.items[0];
   const passages = await collateEdition(db, context);
   const labels = Object.fromEntries(labelOf);
-  const exported = passages.map((p) => ({
-    segmentId: p.segmentId,
-    label: labelOf.get(p.segmentId) ?? p.segmentId,
-    segments: p.segments,
-    siteSegments: segmentsOfSites(p.collation.sites, p.baseUnits, p.segments),
-    collation: p.collation,
-    baseUnits: p.baseUnits,
-    attachments: {},
-  }));
-  // The apparatus of the plain text is kept as built; the TEI writes a variant across segments in parts.
+  const exported = passages.map((p) => {
+    const attached = records ? attachRecords(context, p, records) : null;
+    const collation = attached?.collation ?? p.collation;
+    return {
+      segmentId: p.segmentId,
+      label: labelOf.get(p.segmentId) ?? p.segmentId,
+      segments: p.segments,
+      siteSegments: segmentsOfSites(collation.sites, p.baseUnits, p.segments),
+      collation,
+      baseUnits: p.baseUnits,
+      attachments: attached?.bySite ?? {},
+    };
+  });
+  // The apparatus of the plain text is kept as built, segment by segment; the TEI has every variant where its words stand.
   const shares = segmentShares(exported);
-  const teiParts = teiShares(
-    exported,
-    context.profile.fold,
-    tokenSegments(context.edition.content),
-  );
   const plain: string[] = [];
   const markdown: string[] = [];
-  const segmentsOut: Parameters<typeof exportEditionTei>[0]['segments'] = [];
   const runs = segmentRuns(context.edition.content).filter((r) => r.segmentId !== null);
   const siglaOrder = siglaOrderOf(context.sigla);
   // Runs of one segment are gathered, so that a segment printed in two places is one entry.
-  const bySegment = new Map<string, typeof runs>();
-  for (const run of runs)
-    bySegment.set(run.segmentId!, [...(bySegment.get(run.segmentId!) ?? []), run]);
-  for (const [segmentId, segmentRunsHere] of bySegment) {
+  const runsOf = new Map<string, typeof runs>();
+  for (const run of runs) runsOf.set(run.segmentId!, [...(runsOf.get(run.segmentId!) ?? []), run]);
+  for (const [segmentId, segmentRunsHere] of runsOf) {
     const label = labelOf.get(segmentId) ?? segmentId;
     const items = segmentRunsHere.flatMap((run) =>
       context.edition.content.items.slice(run.from, run.to),
     );
-    const text = toText({ items }, { form: 'read', shown });
+    // The break that ends the segment's last line is the line's own end here.
+    const text = toText({ items }, { form: 'read', shown }).trimEnd();
     const share = shares.get(segmentId);
     // A variant stands under the segment its words begin in, labelled by the segments they lie in.
     const entries = share
       ? apparatusEntries(
           { ...share.passage.collation, sites: share.sites } as Collation,
           label,
-          {},
+          share.attachments,
           conventions,
           siglaOrder,
         ).map((entry) => {
@@ -1425,27 +1444,11 @@ export async function editionText(
     for (const line of app) plain.push(`    ${line}`);
     markdown.push(`**${label}** ${text}  `);
     for (const line of app) markdown.push(`> ${line}  `);
-    const baseUnits =
-      share?.baseUnits ??
-      segmentRunsHere.flatMap((run) => units(context.edition.content, run.from, run.to));
-    segmentsOut.push({
-      label,
-      id: segmentId,
-      ...(urnOf.get(segmentId) ? { urn: urnOf.get(segmentId)! } : {}),
-      // A paragraph break that begins the text gives its first paragraph its kind: it goes with the first segment.
-      items:
-        segmentsOut.length === 0 && leading?.kind === 'break' && leading.type === 'paragraph'
-          ? [leading, ...items]
-          : items,
-      baseUnits,
-      sites: teiParts.get(segmentId)?.sites ?? [],
-      links: teiParts.get(segmentId)?.links ?? {},
-    });
   }
   return {
     plain: plain.join('\n') + '\n',
     markdown: markdown.join('\n') + '\n',
-    segments: segmentsOut,
+    tei: teiText(context.edition.content, exported, labels, { ids: true, urnOf }),
   };
 }
 

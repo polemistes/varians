@@ -6,14 +6,13 @@
 
 import type { Attachment } from '../apparatus/render.ts';
 import { collate, type CollationText, type Site } from '../collate/collate.ts';
-import { collatePassages, siteSegments, type Passage } from '../collate/passage.ts';
+import { collatePassages, type Passage } from '../collate/passage.ts';
 import { sequentialIds } from '../ids.ts';
 import type { Item, Mark, Stream } from '../stream/items.ts';
 import { fromText } from '../stream/text.ts';
-import { units } from '../stream/words.ts';
-import type { EditionExport, EditionSegmentExport } from './apparatus.ts';
+import { segmentRuns, units } from '../stream/words.ts';
+import type { EditionExport, EditionPassageExport, EditionRunExport } from './apparatus.ts';
 import type { ExportPage, ExportZone, TranscriptionExport } from './export.ts';
-import { tokenSegments, variantParts } from './parts.ts';
 
 /** A short transcription with a witness described in full, a page with its image and two zones, and a segment label. */
 export function exportInput(): TranscriptionExport & { pages: ExportPage[]; zones: ExportZone[] } {
@@ -245,23 +244,31 @@ export function collationText(id: string, siglum: string, words: string): Collat
   return { id, siglum, units: units(s, 0, s.items.length) };
 }
 
-/** One segment of an edition collated against witnesses given as plain words, with attachments by site index. */
-export function editionSegment(
-  label: string,
-  text: string,
-  witnesses: CollationText[],
-  attachments?: Record<number, Attachment[]>,
-): EditionSegmentExport {
-  const edition = fromText(text, { ids: sequentialIds(`e${label}-`) });
-  const baseUnits = units(edition, 0, edition.items.length);
-  const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, witnesses);
-  return {
-    label,
-    items: edition.items,
-    baseUnits,
-    sites: c.sites,
-    ...(attachments ? { attachments } : {}),
-  };
+/** The text and the variants of an edition, as the exporter takes them. */
+export type EditionText = Pick<EditionExport, 'runs' | 'passages'>;
+
+/**
+ * Segments of an edition, each collated by itself against witnesses given
+ * as plain words, with attachments by site index: a run and a passage for each.
+ */
+export function editionSegments(
+  ...segments: {
+    label: string;
+    text: string;
+    witnesses: CollationText[];
+    attachments?: Record<number, Attachment[]>;
+  }[]
+): EditionText {
+  const runs: EditionRunExport[] = [];
+  const passages: EditionPassageExport[] = [];
+  for (const { label, text, witnesses, attachments } of segments) {
+    const edition = fromText(text, { ids: sequentialIds(`e${label}-`) });
+    const baseUnits = units(edition, 0, edition.items.length);
+    const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, witnesses);
+    runs.push({ label, items: edition.items });
+    passages.push({ baseUnits, sites: c.sites, ...(attachments ? { attachments } : {}) });
+  }
+  return { runs, passages };
 }
 
 /** An edition with substitution, omission, addition, a conjecture, an adopted conjecture, a witness that has lost a word and a reported reading. */
@@ -279,16 +286,16 @@ export function editionInput(): EditionExport {
       { siglum: 'C' },
       { siglum: 'P' },
     ],
-    segments: [
-      editionSegment(
-        '1.1',
-        'the quick brown fox\njumps',
-        [
+    ...editionSegments(
+      {
+        label: '1.1',
+        text: 'the quick brown fox\njumps',
+        witnesses: [
           collationText('A', 'A', 'the quick brown fox jumps'),
           collationText('B', 'B', 'the slow fox jumps'),
           collationText('C', 'C', 'the quick brown red fox jumps'),
         ],
-        {
+        attachments: {
           0: [
             {
               kind: 'conjecture',
@@ -300,15 +307,15 @@ export function editionInput(): EditionExport {
             { kind: 'reported', id: 'r1', text: 'quick', name: 'D', source: 'teste Allen' },
           ],
         },
-      ),
-      editionSegment(
-        '1.2',
-        'a b c',
-        [
+      },
+      {
+        label: '1.2',
+        text: 'a b c',
+        witnesses: [
           collationText('A', 'A', 'a x c'),
           { id: 'P', siglum: 'P', units: units(lacunose, 0, lacunose.items.length) },
         ],
-        {
+        attachments: {
           0: [
             {
               kind: 'conjecture',
@@ -321,8 +328,8 @@ export function editionInput(): EditionExport {
             },
           ],
         },
-      ),
-    ],
+      },
+    ),
   };
 }
 
@@ -356,17 +363,6 @@ export function linesStream(prefix: string, ...lines: string[]): Stream {
   return { items };
 }
 
-/** The edition's items of a segment: from the token that begins it up to the one that begins the next. */
-function itemsOfSegment(edition: Stream, segmentId: string): Item[] {
-  const out: Item[] = [];
-  let current: string | null | undefined;
-  for (const item of edition.items) {
-    if (item.kind === 'token' && item.segment) current = item.segment.segmentId;
-    if (current === segmentId) out.push(item);
-  }
-  return out;
-}
-
 /** A passage of an edition collated, and the edition's stream. */
 export interface CollatedLines {
   passage: Passage;
@@ -392,59 +388,31 @@ export function collatedLines(
 }
 
 /**
- * The segments of a passage as the exporter is given them: each printed
- * segment's items and units, with the variants of the passage in parts where
- * they lie across segments (`variantParts`) and whole in the first segment
- * of their words, or in the printed segment before an unprinted one, where
- * they do not.
+ * The text of an edition collated in a passage, as the exporter is given
+ * it: the runs of its segments in the order of the text, labelled by their
+ * ids, and the passage with its segments, those the edition does not print
+ * labelled too.
  */
-export function passageSegments(
+export function passageText(
   { passage, edition }: CollatedLines,
   options: { attachments?: Record<number, Attachment[]>; mark?: (site: Site) => Site } = {},
-): EditionSegmentExport[] {
-  const shares = new Map<string, EditionSegmentExport>();
-  const tokens = tokenSegments(edition);
-  for (const part of passage.segments)
-    if (part.printed)
-      shares.set(part.segmentId, {
-        label: part.segmentId,
-        items: itemsOfSegment(edition, part.segmentId),
-        baseUnits: passage.base.units.slice(part.from, part.to),
-        sites: [],
-        attachments: {},
-        links: {},
-      });
-  for (const site of passage.collation.sites.map(options.mark ?? ((s: Site) => s))) {
-    const attached = options.attachments?.[site.index] ?? [];
-    const split = variantParts(
-      site,
-      { segments: passage.segments, baseUnits: passage.base.units },
-      attached,
-      { key: `p-${site.index}`, tokens },
-    );
-    if (split) {
-      for (const part of split) {
-        const share = shares.get(part.segmentId)!;
-        share.sites.push(part.site);
-        share.attachments![site.index] = part.attachments;
-        share.links![site.index] = part.link;
-      }
-      continue;
-    }
-    const ids = siteSegments(site, passage.base.units);
-    let at = passage.segments.findIndex((s) => s.printed && ids.includes(s.segmentId));
-    if (at < 0) {
-      at = passage.segments.findIndex((s) => s.segmentId === ids[0]);
-      while (!passage.segments[at]!.printed) at--;
-    }
-    const home = passage.segments[at]!;
-    const share = shares.get(home.segmentId)!;
-    share.sites.push({
-      ...site,
-      baseFrom: Math.max(0, site.baseFrom - home.from),
-      baseTo: Math.max(0, site.baseTo - home.from),
-    });
-    share.attachments![site.index] = attached;
-  }
-  return [...shares.values()];
+): EditionText {
+  const runs: EditionRunExport[] = segmentRuns(edition)
+    .filter((run) => run.segmentId !== null)
+    .map((run) => ({ label: run.segmentId!, items: edition.items.slice(run.from, run.to) }));
+  return {
+    runs,
+    passages: [
+      {
+        baseUnits: passage.base.units,
+        sites: passage.collation.sites.map(options.mark ?? ((s: Site) => s)),
+        ...(options.attachments ? { attachments: options.attachments } : {}),
+        segments: passage.segments.map((s) => ({
+          segmentId: s.segmentId,
+          printed: s.printed,
+          label: s.segmentId,
+        })),
+      },
+    ],
+  };
 }

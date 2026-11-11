@@ -5,6 +5,10 @@ import type { Token } from '../stream/items.ts';
 import { fromText } from '../stream/text.ts';
 import { units } from '../stream/words.ts';
 import { exportEditionTei } from './apparatus.ts';
+import { collatedLines, passageText, type CollatedLines } from './fixtures.ts';
+
+/** The start of a segment, as the text of an edition has it. */
+const M = (label: string) => `<milestone unit="segment" n="${label}"/>`;
 
 function text(id: string, siglum: string, words: string): CollationText {
   const s = fromText(words, { ids: sequentialIds(id) });
@@ -30,10 +34,9 @@ describe('exportEditionTei', () => {
         { siglum: 'B', name: 'Codex B' },
         { siglum: 'C' },
       ],
-      segments: [
+      runs: [{ label: '1.1', items: edition.items }],
+      passages: [
         {
-          label: '1.1',
-          items: edition.items,
           baseUnits,
           sites: c.sites,
           attachments: {
@@ -52,11 +55,11 @@ describe('exportEditionTei', () => {
     });
     expect(xml).toContain('<witness xml:id="wit-A" n="A">Codex A</witness>');
     expect(xml).toContain(
-      '<ab n="1.1">the <app><lem wit="#wit-A #wit-C">quick brown</lem><rdg wit="#wit-B">slow</rdg><rdg type="conjecture" resp="Bentley">swift</rdg></app> <app><lem wit="#wit-A #wit-B"/><rdg wit="#wit-C">red</rdg></app> fox<lb/>jumps</ab>',
+      `${M('1.1')}the <app><lem wit="#wit-A #wit-C">quick brown</lem><rdg wit="#wit-B">slow</rdg><rdg type="conjecture" resp="Bentley">swift</rdg></app> <app><lem wit="#wit-A #wit-B"/><rdg wit="#wit-C">red</rdg></app> fox<lb/>jumps\n        </ab>`,
     );
   });
 
-  it('writes a word that a line break divides with the break inside it, and a paragraph break typed by its kind', () => {
+  it('writes a word that a line break divides with the break inside it, said not to end the word, and a paragraph break typed by its kind', () => {
     const edition = fromText('ἀνα στασις δε μῦθος', { ids: sequentialIds('e') });
     (edition.items[0] as Token).joinNext = true;
     edition.items.splice(1, 0, { kind: 'break', id: 'b1', type: 'line' });
@@ -67,9 +70,12 @@ describe('exportEditionTei', () => {
     const xml = exportEditionTei({
       title: 'Test edition',
       witnesses: [],
-      segments: [{ label: '1', items: edition.items, baseUnits, sites: [] }],
+      runs: [{ label: '1', items: edition.items }],
+      passages: [{ baseUnits, sites: [] }],
     });
-    expect(xml).toContain('<ab n="1">ἀνα<lb/>στασις δε<lb/><lb type="prose"/>μῦθος<lb/><lb/></ab>');
+    expect(xml).toContain(
+      `${M('1')}ἀνα<lb break="no"/>στασις δε<lb/><lb type="prose"/>μῦθος<lb/><lb/>\n        </ab>`,
+    );
   });
 
   it('writes a lemma over a word that a line break divides with the break inside it, as text outside a variant is written', () => {
@@ -84,10 +90,11 @@ describe('exportEditionTei', () => {
     const xml = exportEditionTei({
       title: 't',
       witnesses: [{ siglum: 'B' }],
-      segments: [{ label: '1', items: edition.items, baseUnits, sites: c.sites }],
+      runs: [{ label: '1', items: edition.items }],
+      passages: [{ baseUnits, sites: c.sites }],
     });
     expect(xml).toContain(
-      '<ab n="1">the <app><lem>won<lb/>der</lem><rdg wit="#wit-B">wander</rdg></app> grows</ab>',
+      `${M('1')}the <app><lem>won<lb break="no"/>der</lem><rdg wit="#wit-B">wander</rdg></app> grows\n        </ab>`,
     );
   });
 
@@ -102,10 +109,11 @@ describe('exportEditionTei', () => {
     const xml = exportEditionTei({
       title: 't',
       witnesses: [{ siglum: 'B' }],
-      segments: [{ label: '1', items: edition.items, baseUnits, sites: c.sites }],
+      runs: [{ label: '1', items: edition.items }],
+      passages: [{ baseUnits, sites: c.sites }],
     });
     expect(xml).toContain(
-      '<ab n="1"><app><lem>alpha<lb/>beta</lem><rdg wit="#wit-B">kappa lambda</rdg></app> gamma</ab>',
+      `${M('1')}<app><lem>alpha<lb/>beta</lem><rdg wit="#wit-B">kappa lambda</rdg></app> gamma\n        </ab>`,
     );
   });
 
@@ -116,9 +124,10 @@ describe('exportEditionTei', () => {
     const xml = exportEditionTei({
       title: 'Test edition',
       witnesses: [],
-      segments: [{ label: '1', items: edition.items, baseUnits, sites: [] }],
+      runs: [{ label: '1', items: edition.items }],
+      passages: [{ baseUnits, sites: [] }],
     });
-    expect(xml).toContain('<ab n="1">ἀναστασις δε</ab>');
+    expect(xml).toContain(`${M('1')}ἀναστασις δε\n        </ab>`);
   });
 
   it('marks an adopted conjecture on the lemma and names a witness that has lost the words nowhere', () => {
@@ -138,10 +147,9 @@ describe('exportEditionTei', () => {
     const xml = exportEditionTei({
       title: 't',
       witnesses: [{ siglum: 'A' }, { siglum: 'P' }],
-      segments: [
+      runs: [{ label: '1', items: edition.items }],
+      passages: [
         {
-          label: '1',
-          items: edition.items,
           baseUnits,
           sites: c.sites,
           attachments: {
@@ -162,6 +170,32 @@ describe('exportEditionTei', () => {
     expect(xml).toContain('<app><lem resp="Editor">b</lem><rdg wit="#wit-A">x</rdg></app>');
   });
 
+  it('names the witness of a reported reading as a witness where the edition lists it, and its siglum as said where it does not', () => {
+    const edition = fromText('a b c', { ids: sequentialIds('e') });
+    const baseUnits = units(edition, 0, edition.items.length);
+    const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [text('A', 'A', 'a x c')]);
+    const xml = exportEditionTei({
+      title: 't',
+      witnesses: [{ siglum: 'A' }, { siglum: 'T' }],
+      runs: [{ label: '1', items: edition.items }],
+      passages: [
+        {
+          baseUnits,
+          sites: c.sites,
+          attachments: {
+            0: [
+              { kind: 'reported', id: 'r1', text: 'y', name: 'T', source: '(Allen)' },
+              { kind: 'reported', id: 'r2', text: 'z', name: 'D' },
+            ],
+          },
+        },
+      ],
+    });
+    expect(xml).toContain(
+      '<rdg wit="#wit-A">x</rdg><rdg type="reported" wit="#wit-T" source="(Allen)">y</rdg><rdg type="reported" resp="D">z</rdg>',
+    );
+  });
+
   it('types the places of the same letters read otherwise as interpretative', () => {
     const edition = fromText('ἦ μέγα', { ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
@@ -169,7 +203,8 @@ describe('exportEditionTei', () => {
     const xml = exportEditionTei({
       title: 't',
       witnesses: [{ siglum: 'A' }],
-      segments: [{ label: '1', items: edition.items, baseUnits, sites: c.sites }],
+      runs: [{ label: '1', items: edition.items }],
+      passages: [{ baseUnits, sites: c.sites }],
     });
     expect(xml).toContain('<app type="interpretative"><lem>ἦ</lem><rdg wit="#wit-A">ἢ</rdg></app>');
   });
@@ -194,7 +229,8 @@ describe('exportEditionTei', () => {
     const xml = exportEditionTei({
       title: 't',
       witnesses: [{ siglum: 'A' }, { siglum: 'B' }],
-      segments: [{ label: '1', items: edition.items, baseUnits, sites: marked.sites }],
+      runs: [{ label: '1', items: edition.items }],
+      passages: [{ baseUnits, sites: marked.sites }],
     });
     expect(xml).toContain(
       '<app type="textual" subtype="minor"><lem wit="#wit-B">fox</lem><rdg wit="#wit-A">dog</rdg></app>',
@@ -219,12 +255,231 @@ describe('exportEditionTei', () => {
     const xml = exportEditionTei({
       title: 't',
       witnesses: [],
-      segments: [{ label: '1', items: edition.items, baseUnits, sites: [] }],
+      runs: [{ label: '1', items: edition.items }],
+      passages: [{ baseUnits, sites: [] }],
     });
     expect(xml).toContain(
-      '<ab n="1"><label type="speaker">ΧΟ.</label> <label type="head">Α</label> <label type="margin">5</label> <stage>exit</stage> a b</ab>',
+      `${M('1')}<label type="speaker">ΧΟ.</label> <label type="head">Α</label> <label type="margin">5</label> <stage>exit</stage> a b\n        </ab>`,
     );
     expect(xml).not.toContain('<listWit>');
     expect(xml).toContain('<sourceDesc>\n        <p>Edition.</p>\n      </sourceDesc>');
+  });
+});
+
+/** The text between the tags of the edition's block, the lines of the file run together. */
+function block(xml: string): string {
+  const from = xml.indexOf('<ab>') + 4;
+  return xml.slice(from, xml.indexOf('</ab>')).replace(/\n\s*/gu, ' ').trim();
+}
+
+/** The same edition with a line break before each segment after the first, as a text in lines has. */
+function inLines(collated: CollatedLines): CollatedLines {
+  const items = collated.edition.items.flatMap((item, k) =>
+    k > 0 && item.kind === 'token' && item.segment
+      ? [{ kind: 'break' as const, id: `br${k}`, type: 'line' as const }, item]
+      : [item],
+  );
+  return { ...collated, edition: { items } };
+}
+
+function tei(
+  collated: CollatedLines,
+  sigla: string[],
+  options: Parameters<typeof passageText>[1] = {},
+): string {
+  return block(
+    exportEditionTei({
+      title: 't',
+      baseSiglum: 'ed.',
+      witnesses: sigla.map((siglum) => ({ siglum })),
+      ...passageText(collated, options),
+    }),
+  );
+}
+
+describe('the text of an edition in TEI, its segments begun by milestones', () => {
+  it('declares in the header that the text is cited by milestones and that the apparatus is by parallel segmentation', () => {
+    const xml = exportEditionTei({ title: 't', witnesses: [], runs: [], passages: [] });
+    expect(xml).toContain(
+      '<encodingDesc><refsDecl><refState unit="segment"/></refsDecl><variantEncoding method="parallel-segmentation" location="internal"/></encodingDesc>',
+    );
+    expect(xml).toContain('<div type="edition">\n        <ab></ab>\n      </div>');
+  });
+
+  it('begins each segment on a line of the file, with its id and URN where it first begins', () => {
+    const edition = fromText('alpha beta gamma', { ids: sequentialIds('e') });
+    const [a, b, c] = edition.items as Token[];
+    const xml = exportEditionTei({
+      title: 't',
+      witnesses: [],
+      runs: [
+        { items: [{ kind: 'break', id: 'p', type: 'paragraph', lineation: 'prose' }] },
+        { label: '1.1', id: 'S1', urn: 'urn:cts:x:1.1', items: [a!] },
+        { label: '1.2', id: 'S2', items: [b!] },
+        { label: '1.1', id: 'S1', urn: 'urn:cts:x:1.1', items: [c!] },
+      ],
+      passages: [],
+    });
+    expect(xml).toContain(
+      [
+        '        <ab><lb/><lb type="prose"/>',
+        '          <milestone unit="segment" n="1.1" xml:id="seg-S1" corresp="urn:cts:x:1.1"/>alpha',
+        '          <milestone unit="segment" n="1.2" xml:id="seg-S2"/>beta',
+        '          <milestone unit="segment" n="1.1"/>gamma',
+        '        </ab>',
+      ].join('\n'),
+    );
+  });
+
+  it('writes a word divided across two segments as one word, the start of the second inside it', () => {
+    const collated = collatedLines(['1: alpha gam-', '2: ma delta'], {
+      A: ['1: alpha gam-', '2: ma delta'],
+    });
+    expect(tei(collated, ['A'])).toBe(
+      `${M('1')}alpha gam<milestone unit="segment" n="2" break="no"/>ma delta`,
+    );
+    // In lines, the break and the start both stand inside the word.
+    expect(tei(inLines(collated), ['A'])).toBe(
+      `${M('1')}alpha gam<lb break="no"/><milestone unit="segment" n="2" break="no"/>ma delta`,
+    );
+    const words = exportEditionTei({
+      title: 't',
+      witnesses: [],
+      words: true,
+      ...passageText(collated),
+    });
+    expect(block(words)).toBe(
+      `${M('1')}<w xml:id="w-E1">alpha</w> <w xml:id="w-E2" part="I">gam</w><milestone unit="segment" n="2" break="no"/><w xml:id="w-E3" part="F">ma</w> <w xml:id="w-E4">delta</w>`,
+    );
+  });
+
+  it('writes a variant across a boundary as one variant, the start of the segment inside its lemma', () => {
+    const collated = inLines(
+      collatedLines(['1: alpha beta', '2: gamma delta'], {
+        A: ['1: alpha beta', '2: gamma delta'],
+        B: ['1: alpha kappa', '2: lambda delta'],
+      }),
+    );
+    expect(tei(collated, ['A', 'B'])).toBe(
+      `${M('1')}alpha <app><lem wit="#wit-A">beta<lb/>${M('2')}gamma</lem><rdg wit="#wit-B">kappa lambda</rdg></app> delta`,
+    );
+  });
+
+  it('writes a variant over a word the segments divide with the start inside the word, in the lemma', () => {
+    const collated = collatedLines(['1: alpha gam-', '2: ma delta'], {
+      A: ['1: alpha gam-', '2: ma delta'],
+      B: ['1: alpha kappa', '2: delta'],
+    });
+    expect(tei(collated, ['A', 'B'])).toBe(
+      `${M('1')}alpha <app><lem wit="#wit-A">gam<milestone unit="segment" n="2" break="no"/>ma</lem><rdg wit="#wit-B">kappa</rdg></app> delta`,
+    );
+  });
+
+  it('writes the variant of a witness without a whole segment around the variants inside the segment', () => {
+    const collated = inLines(
+      collatedLines(['1: alpha beta', '2: gamma delta epsilon', '3: zeta eta'], {
+        A: ['1: alpha beta', '2: gamma delta epsilon', '3: zeta eta'],
+        B: ['1: alpha beta', '2: gamma kappa epsilon', '3: zeta eta'],
+        C: ['1: alpha beta', '3: zeta eta'],
+      }),
+    );
+    expect(tei(collated, ['A', 'B', 'C'])).toBe(
+      `${M('1')}alpha beta<lb/> ${M('2')}<app><lem wit="#wit-A #wit-B">gamma <app><lem wit="#wit-A">delta</lem><rdg wit="#wit-B">kappa</rdg></app> epsilon</lem><rdg wit="#wit-C"/></app><lb/> ${M('3')}zeta eta`,
+    );
+  });
+
+  it('writes a segment the edition does not print between the two it prints, begun by its own milestone in the reading', () => {
+    const collated = inLines(
+      collatedLines(['1: alpha beta', '3: epsilon zeta'], {
+        A: ['1: alpha beta', '2: gamma delta', '3: epsilon zeta'],
+        B: ['1: alpha beta', '3: epsilon zeta'],
+      }),
+    );
+    expect(tei(collated, ['A', 'B'])).toBe(
+      `${M('1')}alpha beta<lb/><app><lem wit="#wit-B"/><rdg wit="#wit-A">${M('2')}gamma delta</rdg></app> ${M('3')}epsilon zeta`,
+    );
+  });
+
+  it('puts words a witness adds at the end of a segment before the break that ends it, and words added at the start of one after its start', () => {
+    const atEnd = inLines(
+      collatedLines(['1: alpha beta', '2: gamma delta'], {
+        A: ['1: alpha beta extra', '2: gamma delta'],
+        B: ['1: alpha beta', '2: gamma delta'],
+      }),
+    );
+    expect(tei(atEnd, ['A', 'B'])).toBe(
+      `${M('1')}alpha beta <app><lem wit="#wit-B"/><rdg wit="#wit-A">extra</rdg></app><lb/> ${M('2')}gamma delta`,
+    );
+    const atStart = inLines(
+      collatedLines(['1: alpha beta', '2: gamma delta'], {
+        A: ['1: alpha beta', '2: more gamma delta'],
+        B: ['1: alpha beta', '2: gamma delta'],
+      }),
+    );
+    expect(tei(atStart, ['A', 'B'])).toBe(
+      `${M('1')}alpha beta<lb/> ${M('2')}<app><lem wit="#wit-B"/><rdg wit="#wit-A">more</rdg></app> gamma delta`,
+    );
+  });
+
+  it('writes a variant over a lacuna of the edition around the lacuna', () => {
+    const collated = collatedLines(['1: alpha [] gamma'], { A: ['1: alpha beta gamma'] });
+    expect(tei(collated, ['A'])).toBe(
+      `${M('1')}alpha <app><lem><gap reason="lost"/></lem><rdg wit="#wit-A">beta</rdg></app> gamma`,
+    );
+  });
+
+  it('writes the variant of a witness without a segment in pieces where another variant lies across its start', () => {
+    // Made by hand: the collation divides a variant at the start of a segment that a witness is without.
+    const collated = collatedLines(['1: alpha beta', '2: gamma delta'], {
+      A: ['1: alpha beta', '2: gamma delta'],
+      B: ['1: alpha kappa', '2: lambda delta'],
+    });
+    const [across] = collated.passage.collation.sites;
+    expect(across).toMatchObject({ baseFrom: 1, baseTo: 3 });
+    const reading = (sigla: string[], text: string, base = false) => ({
+      text,
+      fold: text,
+      textIds: sigla,
+      sigla,
+      units: {},
+      omission: text === '',
+      lacunose: false,
+      base,
+    });
+    const without = {
+      index: 1,
+      columnFrom: 2,
+      columnTo: 4,
+      baseFrom: 2,
+      baseTo: 4,
+      readings: [reading(['ed.', 'A', 'B'], 'gamma delta', true), reading(['C'], '')],
+      kind: 'textual' as const,
+      wanting: true,
+    };
+    const input = passageText(collated, {
+      attachments: {
+        1: [
+          {
+            kind: 'conjecture',
+            id: 'c',
+            text: 'omega',
+            name: 'West',
+            conjectureKind: 'substitution',
+          },
+        ],
+      },
+    });
+    input.passages[0]!.sites.push(without);
+    const xml = block(
+      exportEditionTei({
+        title: 't',
+        baseSiglum: 'ed.',
+        witnesses: ['A', 'B', 'C'].map((siglum) => ({ siglum })),
+        ...input,
+      }),
+    );
+    expect(xml).toBe(
+      `${M('1')}alpha <app><lem wit="#wit-A">beta ${M('2')}<app xml:id="app-1-2-1" next="#app-1-2-2"><lem wit="#wit-A #wit-B">gamma</lem><rdg wit="#wit-C"/><rdg type="conjecture" resp="West">omega</rdg></app></lem><rdg wit="#wit-B">kappa lambda</rdg></app> <app xml:id="app-1-2-2" prev="#app-1-2-1"><lem wit="#wit-A #wit-B">delta</lem><rdg wit="#wit-C"/><rdg type="conjecture" resp="West"/></app>`,
+    );
   });
 });

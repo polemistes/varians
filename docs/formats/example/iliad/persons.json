@@ -2,12 +2,12 @@
   "$schema": "https://varians.eu/formats/2/persons.schema.json",
   "persons": [
     {
-      "id": "01M73MSVQFECQAWPHZWR6GBBRV",
+      "id": "01M74DME420ZQT3P3SGZEE2VZY",
       "name": "Example Editor",
       "orcid": null
     },
     {
-      "id": "01M73MSVQH4WFPKCS0FVCYJBK2",
+      "id": "01M74DME444WJY3MZ071GKP1EK",
       "name": "Example Collaborator",
       "orcid": null
     }

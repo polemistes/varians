@@ -19,7 +19,7 @@ import { loadEditionAccess, type EditionAccess } from './edition-access';
 import { publishedVersions } from './publish';
 import { PUBLIC, editionView, type Audience, type EditionView } from './reader';
 import { editionWorksCited } from './bibliography.ts';
-import { plainText, teiSegments } from '$lib/reader/export';
+import { plainText, teiText } from '$lib/reader/export';
 import { alignedUnits, siglaOrderOf } from '$lib/reader/sites';
 import { DEFAULT_SIGLA } from '$lib/reader/marks';
 import type { ReaderData, ReaderMode, ReaderVersion } from '$lib/reader/types';
@@ -402,7 +402,7 @@ export function readerTei(view: EditionView): string {
       siglum: s.siglum,
       ...(s.witnessName ? { name: s.witnessName } : {}),
     })),
-    segments: teiSegments(view.content, view.segments, view.labelOf, view.fold),
+    ...teiText(view.content, Object.values(view.segments), view.labelOf),
   });
 }
 

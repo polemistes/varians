@@ -1,8 +1,9 @@
 /**
  * The edition as files: the plain text with the apparatus under each
- * segment (the layout of the archive's edition.txt), and the segments the
- * TEI exporter takes. Built from the edition view at the version a visitor
- * sees, so that a download always matches the page it came from.
+ * segment (the layout of the archive's edition.txt), and the text and
+ * passages the TEI exporter takes. Built from the edition view at the
+ * version a visitor sees, so that a download always matches the page it
+ * came from.
  */
 import {
   apparatusEntries,
@@ -10,22 +11,17 @@ import {
   formatApparatus,
   segmentRuns,
   shownBreaks,
-  tokenSegments,
-  variantParts,
-  DEFAULT_FOLD,
   type ApparatusConventions,
   type Attachment,
   type Collation,
-  type EditionSegmentExport,
-  type FoldOptions,
-  type Id,
+  type EditionExport,
+  type EditionRunExport,
   type Item,
   type Lineation,
   type Shown,
   type Site,
   type Stream,
   type Unit,
-  type VariantLink,
 } from '@varians/core';
 import { plainLine, printLine, type EditionSigla } from './marks';
 import { labelOfSegments } from './sites';
@@ -36,7 +32,13 @@ export interface ExportSegment {
   segmentId: string;
   label: string;
   /** Its segments, each with the edition's units it holds. */
-  segments: readonly { segmentId: string; from: number; to: number; printed: boolean }[];
+  segments: readonly {
+    segmentId: string;
+    from: number;
+    to: number;
+    printed: boolean;
+    label?: string;
+  }[];
   /** The segments of each site's words, by site index, in the order of the passage. */
   siteSegments: Record<number, string[]>;
   collation: Pick<Collation, 'sites'> & Partial<Collation>;
@@ -53,8 +55,6 @@ export interface SegmentShare {
   /** The variants that begin in the segment, placed among its own units: a variant that runs on into the next segment reaches past them. */
   sites: Site[];
   attachments: Record<number, Attachment[]>;
-  /** The sites that are one part of a variant written across segments, by site index (`teiShares`). */
-  links: Record<number, VariantLink>;
   notes: { text: string; author: string | null }[];
 }
 
@@ -66,32 +66,6 @@ export interface SegmentShare {
  * boundary under the segment it begins in.
  */
 export function segmentShares(passages: Iterable<ExportSegment>): Map<string, SegmentShare> {
-  return sharesOf(passages, null);
-}
-
-/**
- * Each segment's share of the passages as the TEI writes them. A variant
- * whose words lie in several of the edition's printed segments is given in
- * parts, to each of those segments as it stands in that segment alone
- * (`variantParts`); every other variant is placed as `segmentShares` places it.
- * `tokens` is the segment of each of the edition's tokens (`tokenSegments`),
- * which puts a variant over a word the edition divides across segments in a
- * part in each.
- */
-export function teiShares(
-  passages: Iterable<ExportSegment>,
-  fold: FoldOptions = DEFAULT_FOLD,
-  tokens?: ReadonlyMap<Id, Id>,
-): Map<string, SegmentShare> {
-  return sharesOf(passages, fold, tokens);
-}
-
-/** The shares, the variants across segments in parts where a fold is given and whole where it is not. */
-function sharesOf(
-  passages: Iterable<ExportSegment>,
-  fold: FoldOptions | null,
-  tokens?: ReadonlyMap<Id, Id>,
-): Map<string, SegmentShare> {
   const out = new Map<string, SegmentShare>();
   for (const passage of passages) {
     const parts = passage.segments;
@@ -111,31 +85,12 @@ function sharesOf(
         baseUnits: passage.baseUnits.slice(part.from, part.to),
         sites: [],
         attachments: {},
-        links: {},
         notes: (passage.notes ?? []).filter(
           (n) => (n.segmentId ?? passage.segmentId) === part.segmentId,
         ),
       });
     }
     for (const site of passage.collation.sites) {
-      const split =
-        fold &&
-        variantParts(
-          site,
-          { segments: parts, baseUnits: passage.baseUnits },
-          passage.attachments[site.index] ?? [],
-          { key: `${passage.segmentId}-${site.index}`, fold, ...(tokens ? { tokens } : {}) },
-        );
-      if (split) {
-        for (const part of split) {
-          const share = out.get(part.segmentId);
-          if (!share) continue;
-          share.sites.push(part.site);
-          share.attachments[site.index] = part.attachments;
-          share.links[site.index] = part.link;
-        }
-        continue;
-      }
       const id = home(site);
       const share = id ? out.get(id) : undefined;
       const part = parts.find((p) => p.segmentId === id);
@@ -187,15 +142,16 @@ function shareEntries(
 }
 
 /**
- * The items of each segment, in the order of the text. What opens a line
- * before its first word (a speaker, a heading, a mark) stands in the stream
- * after the break that ends the line above, and so in the run of the segment
- * above: it is given to the segment it opens.
+ * The runs of the segments the edition prints, in the order of the text:
+ * each from where a segment begins to where the next does. What opens a
+ * line before its first word (a speaker, a heading, a mark) stands in the
+ * stream after the break that ends the line above, and so in the run of the
+ * segment above: it is given to the segment it opens. Text of no segment
+ * is not printed.
  */
-export function segmentItems(content: Stream): { segmentId: string; items: Item[] }[] {
-  const bySegment = new Map<string, Item[]>();
+export function printedRuns(content: Stream): { segmentId: string; items: Item[] }[] {
+  const out: { segmentId: string; items: Item[] }[] = [];
   let opening: Item[] = [];
-  let last: Item[] | null = null;
   for (const run of segmentRuns(content)) {
     let items = content.items.slice(run.from, run.to);
     let next: Item[] = [];
@@ -206,24 +162,37 @@ export function segmentItems(content: Stream): { segmentId: string; items: Item[
       next = after;
       items = items.slice(0, lastBreak + 1);
     }
-    if (run.segmentId === null) {
-      // Text of no segment is not printed; what opens the line after it still is.
-      opening = next;
-      continue;
-    }
-    const list = bySegment.get(run.segmentId) ?? [];
-    list.push(...opening, ...items);
-    bySegment.set(run.segmentId, list);
+    if (run.segmentId !== null)
+      out.push({ segmentId: run.segmentId, items: [...opening, ...items] });
+    // What opens the line after text of no segment is still printed.
     opening = next;
-    last = list;
   }
   // Nothing follows: what stood after the last break stays with the last segment.
-  if (opening.length > 0 && last) last.push(...opening);
-  const out = [...bySegment].map(([segmentId, items]) => ({ segmentId, items }));
-  // A paragraph break that begins the text gives its first paragraph its kind: it goes with the first segment.
+  if (opening.length > 0) out[out.length - 1]?.items.push(...opening);
+  return out;
+}
+
+/** The paragraph break that begins the text, which gives its first paragraph its kind. */
+function leadingBreak(content: Stream): Item | undefined {
   const leading = content.items[0];
-  if (leading?.kind === 'break' && leading.type === 'paragraph' && out[0])
-    out[0].items.unshift(leading);
+  return leading?.kind === 'break' && leading.type === 'paragraph' ? leading : undefined;
+}
+
+/**
+ * The items of each segment, its runs gathered, in the order in which the
+ * segments first begin: a segment printed in two places is one entry.
+ */
+export function segmentItems(content: Stream): { segmentId: string; items: Item[] }[] {
+  const bySegment = new Map<string, Item[]>();
+  for (const run of printedRuns(content)) {
+    const list = bySegment.get(run.segmentId);
+    if (list) list.push(...run.items);
+    else bySegment.set(run.segmentId, [...run.items]);
+  }
+  const out = [...bySegment].map(([segmentId, items]) => ({ segmentId, items }));
+  // The break that begins the text goes with the first segment.
+  const leading = leadingBreak(content);
+  if (leading && out[0]) out[0].items.unshift(leading);
   return out;
 }
 
@@ -294,23 +263,42 @@ export function plainText(input: PlainTextInput): string {
   return out.join('\n') + '\n';
 }
 
-/** The segments of the TEI export: items, the units collation saw, the sites and what is attached to them. */
-export function teiSegments(
+/**
+ * The text and the passages of the TEI export: the runs of the segments in
+ * the order of the text, each begun by its label, and every passage with
+ * the units collation saw, its variants and what is attached to them. With
+ * `ids`, each segment is given with its id and, where `urnOf` has one, the
+ * URN of its passage.
+ */
+export function teiText(
   content: Stream,
-  segments: Record<string, ExportSegment>,
+  passages: Iterable<ExportSegment>,
   labelOf: Record<string, string>,
-  fold: FoldOptions = DEFAULT_FOLD,
-): EditionSegmentExport[] {
-  const shares = teiShares(Object.values(segments), fold, tokenSegments(content));
-  return segmentItems(content).map(({ segmentId, items }) => {
-    const share = shares.get(segmentId);
-    return {
-      label: labelIn(segmentId, share, labelOf),
-      items,
-      baseUnits: share?.baseUnits ?? [],
-      sites: share?.sites ?? [],
-      attachments: share?.attachments ?? {},
-      links: share?.links ?? {},
-    };
-  });
+  options: { ids?: boolean; urnOf?: ReadonlyMap<string, string> } = {},
+): Pick<EditionExport, 'runs' | 'passages'> {
+  const runs: EditionRunExport[] = [];
+  const leading = leadingBreak(content);
+  if (leading) runs.push({ items: [leading] });
+  for (const run of printedRuns(content)) {
+    const urn = options.urnOf?.get(run.segmentId);
+    runs.push({
+      label: labelOf[run.segmentId] ?? run.segmentId,
+      ...(options.ids ? { id: run.segmentId } : {}),
+      ...(urn ? { urn } : {}),
+      items: run.items,
+    });
+  }
+  return {
+    runs,
+    passages: [...passages].map((passage) => ({
+      baseUnits: passage.baseUnits,
+      sites: passage.collation.sites,
+      attachments: passage.attachments,
+      segments: passage.segments.map((part) => ({
+        segmentId: part.segmentId,
+        printed: part.printed,
+        label: labelOf[part.segmentId] ?? part.label ?? part.segmentId,
+      })),
+    })),
+  };
 }

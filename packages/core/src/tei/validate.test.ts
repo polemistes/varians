@@ -26,9 +26,9 @@ import {
   collatedLines,
   collationText,
   editionInput,
-  editionSegment,
+  editionSegments,
   exportInput,
-  passageSegments,
+  passageText,
   richPages,
   richSegmentLabels,
   richStream,
@@ -450,15 +450,20 @@ describe.skipIf(!xmllint)('edition TEI is valid', slow, () => {
   });
 
   it('with interpretative places, paratext, gaps, notes, paragraphs and adopted supplements', () => {
-    const segment = editionSegment('2', 'ἦ μέγα\nἔργον', [collationText('A', 'A', 'ἢ μέγα ἔργον')]);
+    const text = editionSegments({
+      label: '2',
+      text: 'ἦ μέγα\nἔργον',
+      witnesses: [collationText('A', 'A', 'ἢ μέγα ἔργον')],
+    });
+    const items = text.runs[0]!.items;
     const ids = sequentialIds('o');
-    segment.items.unshift(
+    items.unshift(
       { kind: 'object', id: ids(), type: 'paratext', attrs: { type: 'speaker' }, text: 'ΧΟ.' },
       { kind: 'object', id: ids(), type: 'paratext', attrs: { type: 'head' }, text: 'Α' },
       { kind: 'object', id: ids(), type: 'paratext', attrs: { type: 'stage' }, text: 'exit' },
       { kind: 'object', id: ids(), type: 'paratext', attrs: { type: 'margin' }, text: '5' },
     );
-    segment.items.push(
+    items.push(
       { kind: 'object', id: ids(), type: 'lacuna', attrs: { extent: 'a line' } },
       {
         kind: 'object',
@@ -491,28 +496,29 @@ describe.skipIf(!xmllint)('edition TEI is valid', slow, () => {
       title: 't',
       language: 'grc',
       witnesses: [{ siglum: 'A', name: 'Codex A', description: 'Iliad' }],
-      segments: [segment],
+      ...text,
     });
     expect(errors(xml)).toEqual([]);
   });
 
   it('with minor places of either kind, the grade as a subtype beside the type', () => {
-    const segment = editionSegment('2', 'ἦ μέγα ἔργον', [
-      collationText('A', 'A', 'ἢ μέγα ἔργον'),
-      collationText('B', 'B', 'ἦ μέγα ἔπος'),
-    ]);
-    for (const site of segment.sites) site.minor = true;
+    const text = editionSegments({
+      label: '2',
+      text: 'ἦ μέγα ἔργον',
+      witnesses: [collationText('A', 'A', 'ἢ μέγα ἔργον'), collationText('B', 'B', 'ἦ μέγα ἔπος')],
+    });
+    for (const site of text.passages[0]!.sites) site.minor = true;
     const xml = exportEditionTei({
       title: 't',
       witnesses: [{ siglum: 'A' }, { siglum: 'B' }],
-      segments: [segment],
+      ...text,
     });
     expect(xml).toContain('<app type="interpretative" subtype="minor">');
     expect(xml).toContain('<app type="textual" subtype="minor">');
     expect(errors(xml)).toEqual([]);
   });
 
-  it('with a variant written in parts across three segments: xml:id, prev and next on the app', () => {
+  it('with a variant across three segments, the starts of two of them inside its lemma, a conjecture and a reported reading', () => {
     const edition = ['s1: alpha beta gamma', 's2: delta', 's3: epsilon zeta eta'];
     const crossing = collatedLines(edition, {
       A: edition,
@@ -528,10 +534,11 @@ describe.skipIf(!xmllint)('edition TEI is valid', slow, () => {
       const xml = exportEditionTei({
         title: 't',
         witnesses: [{ siglum: 'A' }, { siglum: 'B' }],
-        segments: passageSegments(crossing, { attachments, mark }),
+        ...passageText(crossing, { attachments, mark }),
       });
-      expect(xml).toContain('<app xml:id="app-p-0-1"');
-      expect(xml).toContain('prev="#app-p-0-1" next="#app-p-0-3"');
+      expect(xml).toContain(
+        '<lem wit="#wit-A">gamma <milestone unit="segment" n="s2"/>delta <milestone unit="segment" n="s3"/>epsilon</lem><rdg wit="#wit-B">kappa lambda mu</rdg><rdg type="conjecture" resp="Bentley" source="(Ath.)">rho sigma tau</rdg>',
+      );
       expect(errors(xml)).toEqual([]);
     }
   });
@@ -548,43 +555,66 @@ describe.skipIf(!xmllint)('edition TEI is valid', slow, () => {
     const xml = exportEditionTei({
       title: 't',
       witnesses: [{ siglum: 'B' }],
-      segments: [{ label: '1', items: edition.items, baseUnits, sites: c.sites }],
+      runs: [{ label: '1', items: edition.items }],
+      passages: [{ baseUnits, sites: c.sites }],
     });
-    expect(xml).toContain('<lem>won<lb/>der</lem>');
+    expect(xml).toContain('<lem>won<lb break="no"/>der</lem>');
     expect(xml).toContain('<lem>alpha<lb/>beta</lem>');
     expect(errors(xml)).toEqual([]);
   });
 
-  it('with a part in which every witness stands with the lemma, an app that has no rdg', () => {
-    const edition = ['s1: alpha beta gamma', 's2: delta epsilon'];
-    const crossing = collatedLines(edition, {
-      A: edition,
-      B: ['s1: alpha beta kappa', 's2: lambda epsilon'],
+  it('with a word the segments divide, a witness without a whole segment around a variant inside it, and a segment the edition does not print', () => {
+    const divided = collatedLines(['s1: alpha gam-', 's2: ma delta'], {
+      A: ['s1: alpha gam-', 's2: ma delta'],
+      B: ['s1: alpha kappa', 's2: delta'],
     });
-    const xml = exportEditionTei({
+    for (const words of [false, true]) {
+      const xml = exportEditionTei({
+        title: 't',
+        witnesses: [{ siglum: 'A' }, { siglum: 'B' }],
+        words,
+        ...passageText(divided),
+      });
+      expect(xml).toContain('<milestone unit="segment" n="s2" break="no"/>');
+      if (words) expect(xml).toContain(' part="I">gam</w>');
+      expect(errors(xml)).toEqual([]);
+    }
+    const without = collatedLines(['s1: alpha beta', 's2: gamma delta epsilon', 's3: zeta'], {
+      A: ['s1: alpha beta', 's2: gamma delta epsilon', 's3: zeta'],
+      B: ['s1: alpha beta', 's2: gamma kappa epsilon', 's3: zeta'],
+      C: ['s1: alpha beta', 's3: zeta'],
+    });
+    const around = exportEditionTei({
+      title: 't',
+      witnesses: [{ siglum: 'A' }, { siglum: 'B' }, { siglum: 'C' }],
+      ...passageText(without),
+    });
+    expect(around).toContain('<lem wit="#wit-A #wit-B">gamma <app><lem wit="#wit-A">delta</lem>');
+    expect(errors(around)).toEqual([]);
+    const unprinted = collatedLines(['s1: alpha beta', 's3: zeta'], {
+      A: ['s1: alpha beta', 's2: gamma delta', 's3: zeta'],
+      B: ['s1: alpha beta', 's3: zeta'],
+    });
+    const added = exportEditionTei({
       title: 't',
       witnesses: [{ siglum: 'A' }, { siglum: 'B' }],
-      segments: passageSegments(crossing, {
-        // B’s second word has the edition’s letters.
-        mark: (site) => ({
-          ...site,
-          readings: site.readings.map((r) =>
-            r.base
-              ? r
-              : {
-                  ...r,
-                  units: {
-                    B: r.units.B!.map((u) => ({
-                      ...u,
-                      text: u.text === 'lambda' ? 'delta' : u.text,
-                    })),
-                  },
-                },
-          ),
-        }),
-      }),
+      ...passageText(unprinted),
     });
-    expect(xml).toContain('<lem wit="#wit-A #wit-B">delta</lem></app>');
+    expect(added).toContain(
+      '<rdg wit="#wit-A"><milestone unit="segment" n="s2"/>gamma delta</rdg>',
+    );
+    expect(errors(added)).toEqual([]);
+  });
+
+  it('with a variant in pieces, each naming the next by xml:id, prev and next', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader><fileDesc><titleStmt><title>t</title></titleStmt><publicationStmt><p>Exported from Varians.</p></publicationStmt><sourceDesc><listWit><witness xml:id="wit-A" n="A">A</witness><witness xml:id="wit-B" n="B">B</witness><witness xml:id="wit-C" n="C">C</witness></listWit></sourceDesc></fileDesc><encodingDesc><refsDecl><refState unit="segment"/></refsDecl><variantEncoding method="parallel-segmentation" location="internal"/></encodingDesc></teiHeader>
+  <text><body><div type="edition"><ab>
+    <milestone unit="segment" n="1"/>alpha <app><lem wit="#wit-A">beta <milestone unit="segment" n="2"/><app xml:id="app-1-2-1" next="#app-1-2-2"><lem wit="#wit-A #wit-B">gamma</lem><rdg wit="#wit-C"/></app></lem><rdg wit="#wit-B">kappa lambda</rdg></app> <app xml:id="app-1-2-2" prev="#app-1-2-1"><lem wit="#wit-A #wit-B">delta</lem><rdg wit="#wit-C"/></app>
+  </ab></div></body></text>
+</TEI>
+`;
     expect(errors(xml)).toEqual([]);
   });
 
@@ -597,13 +627,15 @@ describe.skipIf(!xmllint)('edition TEI is valid', slow, () => {
     const xml = exportEditionTei({
       title: 't',
       witnesses: [{ siglum: 'A' }, { siglum: 'B' }],
-      segments: passageSegments(crossing, {
+      ...passageText(crossing, {
         attachments: {
           0: [{ kind: 'conjecture', id: 'c1', text: 'ἦ μέγα', name: 'Bentley', adopted: true }],
         },
       }),
     });
-    expect(xml).toContain('<app xml:id="app-p-0-1" type="interpretative" next="#app-p-0-2">');
+    expect(xml).toContain(
+      '<app type="interpretative"><lem wit="#wit-A" resp="Bentley">ἦ <milestone unit="segment" n="s2"/>μέγα</lem>',
+    );
     expect(errors(xml)).toEqual([]);
   });
 
@@ -615,7 +647,7 @@ describe.skipIf(!xmllint)('edition TEI is valid', slow, () => {
     const xml = exportEditionTei({
       title: 't',
       witnesses: sigla.map((siglum) => ({ siglum })),
-      segments: [editionSegment('1', 'the quick fox', witnesses)],
+      ...editionSegments({ label: '1', text: 'the quick fox', witnesses }),
     });
     expect(xml).toContain('<witness xml:id="wit-Π" n="Π">');
     expect(xml).toContain('<witness xml:id="wit-A_" n="A¹">');
@@ -625,14 +657,16 @@ describe.skipIf(!xmllint)('edition TEI is valid', slow, () => {
   });
 
   it('with no witnesses and no segments', () => {
-    expect(errors(exportEditionTei({ title: 'Empty', witnesses: [], segments: [] }))).toEqual([]);
+    expect(
+      errors(exportEditionTei({ title: 'Empty', witnesses: [], runs: [], passages: [] })),
+    ).toEqual([]);
   });
 });
 
 describe.skipIf(!xmllint)('the record pointers the exporters write', slow, () => {
   it('in an edition: the prefixes, every word as <w> with its provenance, segments with ids and passage URNs, witnesses pointing at their records', () => {
     const input = editionInput();
-    const [first, ...rest] = input.segments;
+    const [first, ...rest] = input.runs;
     const tokens = first!.items.filter((i) => i.kind === 'token');
     tokens[0]!.source = {
       kind: 'witness',
@@ -649,7 +683,7 @@ describe.skipIf(!xmllint)('the record pointers the exporters write', slow, () =>
         ...w,
         id: `01JWITNESS00000000000000${String(i).padStart(2, '0')}`,
       })),
-      segments: [
+      runs: [
         { ...first!, id: '01JSEGMENT000000000000001', urn: 'urn:cts:greekLit:tlg0012.tlg001:1.1' },
         ...rest,
       ],
@@ -658,7 +692,7 @@ describe.skipIf(!xmllint)('the record pointers the exporters write', slow, () =>
       '<prefixDef ident="tok" matchPattern="([0-9A-HJKMNP-TV-Z]{26})" replacementPattern="https://varians.example/id/$1"/>',
     );
     expect(xml).toContain(
-      '<ab n="1.1" xml:id="seg-01JSEGMENT000000000000001" corresp="urn:cts:greekLit:tlg0012.tlg001:1.1">',
+      '<milestone unit="segment" n="1.1" xml:id="seg-01JSEGMENT000000000000001" corresp="urn:cts:greekLit:tlg0012.tlg001:1.1"/>',
     );
     expect(xml).toContain(
       'corresp="tok:01JTOKEN0000000000000000A1 tok:01JTOKEN0000000000000000A2">the</w>',
@@ -700,7 +734,9 @@ describe.skipIf(!xmllint)('the record pointers the exporters write', slow, () =>
 
   it('in a transcription: the prefixes', () => {
     const xml = exportTranscriptionTei({ ...exportInput(), origin: 'https://varians.example' });
-    expect(xml).toContain('<encodingDesc><listPrefixDef>');
+    expect(xml).toContain(
+      '<encodingDesc><refsDecl><refState unit="segment"/></refsDecl><listPrefixDef>',
+    );
     expect(errors(xml)).toEqual([]);
   });
 });
@@ -718,6 +754,8 @@ describe.skipIf(!xmllint)('what milestone B5 adds is valid', slow, () => {
       <sourceDesc>${extra}</sourceDesc>
     </fileDesc>
     <encodingDesc>
+      <refsDecl><refState unit="segment"/></refsDecl>
+      <variantEncoding method="parallel-segmentation" location="internal"/>
       <listPrefixDef>
         <prefixDef ident="tok" matchPattern="([0-9A-HJKMNP-TV-Z]{26})" replacementPattern="https://varians.eu/id/$1"/>
         <prefixDef ident="seg" matchPattern="([0-9A-HJKMNP-TV-Z]{26})" replacementPattern="https://varians.eu/id/$1"/>
@@ -736,7 +774,7 @@ describe.skipIf(!xmllint)('what milestone B5 adds is valid', slow, () => {
   <text xml:lang="grc">
     <body>
       <div type="edition">
-        <ab n="1.1" xml:id="seg-01JSEGMENT000000000000001" corresp="urn:cts:greekLit:tlg0012.tlg001:1.1"><w xml:id="w-01JWORD0000000000000000001" corresp="tok:01JTOKEN0000000000000000A1 tok:01JTOKEN0000000000000000A2">μῆνιν</w> <app><lem wit="#wit-A"><w xml:id="w-01JWORD0000000000000000002" source="conj:01JCONJECTURE000000000001">ἄειδε</w></lem><rdg type="conjecture" source="conj:01JCONJECTURE000000000002">ἔννεπε</rdg></app> <w xml:id="w-01JWORD0000000000000000003">θεὰ</w></ab>
+        <ab><milestone unit="segment" n="1.1" xml:id="seg-01JSEGMENT000000000000001" corresp="urn:cts:greekLit:tlg0012.tlg001:1.1"/><w xml:id="w-01JWORD0000000000000000001" corresp="tok:01JTOKEN0000000000000000A1 tok:01JTOKEN0000000000000000A2">μῆνιν</w> <app><lem wit="#wit-A"><w xml:id="w-01JWORD0000000000000000002" source="conj:01JCONJECTURE000000000001">ἄειδε</w></lem><rdg type="conjecture" source="conj:01JCONJECTURE000000000002">ἔννεπε</rdg></app> <w xml:id="w-01JWORD0000000000000000003">θεὰ</w></ab>
       </div>
     </body>
   </text>

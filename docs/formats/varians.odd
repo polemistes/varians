@@ -72,8 +72,15 @@
             is <val>verse</val> or <val>prose</val> where the paragraph has a kind of its own;
             without a type, the paragraph is of the edition's own convention.</item>
           <label>Segments</label>
-          <item>The only milestone written is <tag>milestone unit="segment" n="…"</tag>,
-            the start of a segment of the work's reference scheme in a transcription.</item>
+          <item>A segment of the work's reference scheme begins with
+            <tag>milestone unit="segment" n="…"</tag>, in a transcription and in an edition: a
+            segment is an address and no container, so that a word, a line or a variant may lie
+            across its start. One that begins inside a word has <att>break</att>
+            <val>no</val>, as a line break there has, and the tokens of such a word say which
+            part of it they are (<att>part</att> on <gi>w</gi>). The header declares the scheme
+            by the milestone method, <gi>refsDecl</gi> with <tag>refState unit="segment"</tag>.
+            The only other milestone written is a sign on the carrier, which numbers
+            nothing.</item>
           <label>Apparatus</label>
           <item><gi>app</gi> is typed only as <val>textual</val> or <val>interpretative</val>
             (the same letters read otherwise), and subtyped only as <val>minor</val>, which an
@@ -100,12 +107,13 @@
         <moduleRef key="textstructure" include="TEI text front body div"/>
 
         <!-- The header: title and contributors, the licence, the source
-             (witness or witness list), the language, and the prefixes that
-             make tok:ID and the like resolvable. -->
+             (witness or witness list), the language, how the text is cited
+             (refsDecl with refState: by the milestones of unit segment), and
+             the prefixes that make tok:ID and the like resolvable. -->
         <moduleRef key="header"
           include="teiHeader fileDesc titleStmt publicationStmt authority availability licence
                    sourceDesc idno extent handNote profileDesc langUsage language
-                   encodingDesc listPrefixDef prefixDef"/>
+                   encodingDesc refsDecl refState listPrefixDef prefixDef"/>
 
         <!-- Core: header parts, breaks, the editorial and transcriptional
              features, notes and the paratext that may stand inside a line.
@@ -138,9 +146,9 @@
         <!-- Words. -->
         <moduleRef key="analysis" include="w"/>
 
-        <!-- ab for the blocks of a transcription and the segments of an
-             edition, seg for a crux and for features with no element of their
-             own; the module also gives every element corresp. -->
+        <!-- ab for the blocks of a transcription and the text of an edition,
+             seg for a crux and for features with no element of their own; the
+             module also gives every element corresp. -->
         <moduleRef key="linking" include="ab seg"/>
 
         <!-- Figures in the carrier, with their description. -->
@@ -149,8 +157,9 @@
         <!-- Signs of the carrier that are not letters, by the names EpiDoc gives them. -->
         <moduleRef key="gaiji" include="g"/>
 
-        <!-- The apparatus by parallel segmentation, and the witness list. -->
-        <moduleRef key="textcrit" include="app lem rdg listWit witness"/>
+        <!-- The apparatus by parallel segmentation, the declaration of that
+             method in the header, and the witness list. -->
+        <moduleRef key="textcrit" include="app lem rdg listWit witness variantEncoding"/>
 
         <!-- Restricted values. -->
 

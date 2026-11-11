@@ -8,7 +8,7 @@
  * nothing of the installation it runs on reaches it.
  */
 
-import { newId, siteKey } from '@varians/core';
+import { adoptConjecture as adoptedWords, newId, siteKey } from '@varians/core';
 import { conjectures, createDatabase, pages, users } from '@varians/db';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -22,6 +22,7 @@ import pg from 'pg';
 import sharp from 'sharp';
 import { setSiteMinor } from '../collation.ts';
 import { adoptConjecture } from '../conjectures.ts';
+import { saveOps } from '../documents/service.ts';
 import { publishEdition } from '../publish.ts';
 import { editionView } from '../reader.ts';
 import { seedSample } from '../seed/sample.ts';
@@ -93,12 +94,35 @@ export async function writeExample(serverUrl: string, outDir: string): Promise<s
         .from(conjectures)
         .where(eq(conjectures.workId, sample.workId))
         .limit(1);
+      // The first conjecture is adopted as an editor adopts it: its word is put in the text at its place, and the adoption is recorded.
+      const viewer = { kind: 'editor' as const, viewer: { id: editor, role: 'member' as const } };
+      const before = await editionView(db, sample.editionId, null, viewer);
+      const names = (list: { id: string }[]) => list.some((a) => a.id === conjecture!.id);
+      const held = Object.values(before.segments).find((s) =>
+        Object.values(s.attachments).some(names),
+      )!;
+      const at = Number(Object.entries(held.attachments).find(([, list]) => names(list))![0]);
+      await saveOps(
+        db,
+        'edition',
+        sample.editionId,
+        editor,
+        before.edition.version,
+        adoptedWords(
+          before.content,
+          held.collation.sites.find((site) => site.index === at)!,
+          held.baseUnits,
+          {
+            id: conjecture!.id,
+            reading: conjecture!.reading,
+            kind: conjecture!.kind,
+            segmentId: conjecture!.segmentId,
+          },
+        ),
+      );
       await adoptConjecture(db, sample.editionId, conjecture!.id);
       // One place the editor judges minor, as a spelling of the same word that the edition does not record.
-      const view = await editionView(db, sample.editionId, null, {
-        kind: 'editor',
-        viewer: { id: editor, role: 'member' },
-      });
+      const view = await editionView(db, sample.editionId, null, viewer);
       const left = Object.values(view.segments).find((s) => s.label === '1.8')!;
       const place = left.collation.sites.find((site) =>
         site.readings.some((r) => r.text === 'συνέηκε'),

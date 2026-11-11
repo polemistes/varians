@@ -66,8 +66,9 @@ describe('archive validation', () => {
       'utf8',
     );
     expect(tei).toContain('<listPrefixDef>');
+    expect(tei).toContain('<refsDecl><refState unit="segment"/></refsDecl>');
     expect(tei).toMatch(
-      /<ab n="1\.1" xml:id="seg-[0-9A-Z]+" corresp="urn:cts:greekLit:tlg0012\.tlg001:1\.1">/,
+      /<milestone unit="segment" n="1\.1" xml:id="seg-[0-9A-Z]+" corresp="urn:cts:greekLit:tlg0012\.tlg001:1\.1"\/>/,
     );
     expect(tei).toMatch(/<w xml:id="w-[0-9A-Z]+" corresp="tok:[0-9A-Z]+">/);
     // The first member of every JSON file is its schema's address.

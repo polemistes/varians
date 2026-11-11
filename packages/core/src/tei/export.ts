@@ -119,15 +119,28 @@ export function respStmts(contributors: readonly Contributor[] | undefined): str
 /** The prefixes by which a document's pointers name records of the installation (tok:, seg:, wit:, conj:, person:), resolved at its /id/ addresses. */
 export const RECORD_PREFIXES = ['tok', 'seg', 'wit', 'conj', 'person'] as const;
 
-/** The encoding description declaring the record prefixes for an installation's origin, or nothing without one. */
-export function encodingDesc(origin: string | undefined): string | null {
-  if (!origin) return null;
+/**
+ * The encoding description. It declares how the text is cited: by the
+ * milestone method of TEI, the label of a segment being the `n` of the
+ * `<milestone unit="segment">` that begins it. An edition declares besides
+ * that its apparatus is encoded by parallel segmentation, in the text. With
+ * an installation's origin it declares the record prefixes too.
+ */
+export function encodingDesc(
+  origin: string | undefined,
+  options: { apparatus?: boolean } = {},
+): string {
+  const refs = '<refsDecl><refState unit="segment"/></refsDecl>';
+  const method = options.apparatus
+    ? '<variantEncoding method="parallel-segmentation" location="internal"/>'
+    : '';
+  if (!origin) return `<encodingDesc>${refs}${method}</encodingDesc>`;
   const base = origin.replace(/\/+$/u, '');
   const defs = RECORD_PREFIXES.map(
     (ident) =>
       `<prefixDef ident="${ident}" matchPattern="([0-9A-HJKMNP-TV-Z]{26})" replacementPattern="${escapeAttr(base)}/id/$1"/>`,
   ).join('');
-  return `<encodingDesc><listPrefixDef>${defs}</listPrefixDef></encodingDesc>`;
+  return `<encodingDesc>${refs}${method}<listPrefixDef>${defs}</listPrefixDef></encodingDesc>`;
 }
 
 /**
@@ -232,8 +245,7 @@ function header(input: TranscriptionExport): string[] {
   if (!input.witness && !bibl) lines.push(...indent(4, '<p>Transcription.</p>'));
   lines.push(...indent(3, '</sourceDesc>'));
   lines.push(...indent(2, '</fileDesc>'));
-  const encoding = encodingDesc(input.origin);
-  if (encoding) lines.push(...indent(2, encoding));
+  lines.push(...indent(2, encodingDesc(input.origin)));
   if (input.language !== undefined) {
     lines.push(...indent(2, '<profileDesc>'), ...indent(3, '<langUsage>'));
     lines.push(...indent(4, elementXml('language', { ident: input.language }, input.language)));
@@ -416,6 +428,8 @@ function body(input: TranscriptionExport): string {
   let out = `      <${block}>`;
   /** What stands before the next inline element: nothing at a line start or after a joined token, else a space. */
   let separator = '';
+  /** The last word written joins the next: a token that follows is a further part of it. */
+  let open = false;
   items.forEach((item, index) => {
     if (item.kind === 'break') {
       if (item.type === 'paragraph') {
@@ -431,18 +445,24 @@ function body(input: TranscriptionExport): string {
     const segmentId = item.segment?.segmentId;
     const label = segmentId === null || segmentId === undefined ? undefined : labels[segmentId];
     if (label !== undefined) {
-      out += `${separator}<milestone unit="segment" n="${escapeAttr(label)}"/>`;
+      // A segment that begins inside a word does not end the word: `break="no"`, as on a line break there.
+      const inWord = open && item.kind === 'token' ? ' break="no"' : '';
+      out += `${separator}<milestone unit="segment" n="${escapeAttr(label)}"${inWord}/>`;
       separator = '';
     }
     if (item.kind === 'token') {
       const variant = variantEdges(items, index);
+      // A word in several tokens says of each which part of the word it is.
+      const part = open ? (item.joinNext ? 'M' : 'F') : item.joinNext ? 'I' : undefined;
       out += separator + (variant.opens ? '<app><lem>' : '');
-      out += tokenXml(item, words, regularizations, zonesByToken.get(item.id) ?? [], write);
+      out += tokenXml(item, words, regularizations, zonesByToken.get(item.id) ?? [], write, part);
       if (variant.closes) out += `</lem>${readingXml(variant.closes, write)}</app>`;
       separator = item.joinNext ? '' : ' ';
+      open = item.joinNext === true;
     } else {
       out += separator + objectXml(item);
       separator = ' ';
+      open = false;
     }
   });
   // A word divided with nothing after it is told by a break that divides a word. When a line break
@@ -526,6 +546,7 @@ function tokenXml(
   regularizations: boolean,
   zones: string[],
   options: MarkWriteOptions = {},
+  part?: 'I' | 'M' | 'F',
 ): string {
   // A variant noted in the carrier is written around the words as an <app>, not as an element of the token.
   const all = (token.marks ?? []).filter((m) => m.kind !== 'variant');
@@ -540,7 +561,8 @@ function tokenXml(
   }
   if (!words) return inner;
   const facs = zones.length > 0 ? ` facs="${zones.map((z) => `#${z}`).join(' ')}"` : '';
-  const word = `<w xml:id="${ncName(token.id, 'w-')}"${facs}>${inner}</w>`;
+  const fragment = part ? ` part="${part}"` : '';
+  const word = `<w xml:id="${ncName(token.id, 'w-')}"${fragment}${facs}>${inner}</w>`;
   return around.reduceRight((xml, mark) => openTag(mark, options) + xml + closeTag(mark), word);
 }
 

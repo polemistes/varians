@@ -667,6 +667,13 @@ class Importer {
       n: value,
     }));
     const start = [...this.divParts, ...parts];
+    // A start that does not end the word it stands in (`break="no"`): the letters before it are a token
+    // joined to the next, which the start is given to.
+    if (attr(element, 'break') === 'no' && this.wordDepth === 0) {
+      this.flush(true);
+      this.addPending(start);
+      return;
+    }
     // After a word that is closed but not yet made a token the start is the next token's: it would else
     // be given to the word, which is made when the next one begins.
     if (this.afterWord && this.builder.length > 0) this.deferred.push(start);

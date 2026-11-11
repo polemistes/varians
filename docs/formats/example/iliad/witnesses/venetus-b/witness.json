@@ -1,6 +1,6 @@
 {
   "$schema": "https://varians.eu/formats/2/witness.schema.json",
-  "id": "01M73MSVV2KV3W90Q6VFNTN6J5",
+  "id": "01M74DME6PMWK423GD1KW5QE1B",
   "slug": "venetus-b",
   "siglum": "B",
   "name": "Venetus B",
@@ -22,14 +22,14 @@
   "iiifManifest": null,
   "imageRights": null,
   "imageAttribution": null,
-  "createdBy": "01M73MSVQFECQAWPHZWR6GBBRV",
-  "createdAt": "2026-11-10T21:11:10.435Z",
-  "updatedAt": "2026-11-10T21:11:10.435Z",
+  "createdBy": "01M74DME420ZQT3P3SGZEE2VZY",
+  "createdAt": "2026-11-11T04:25:07.031Z",
+  "updatedAt": "2026-11-11T04:25:07.031Z",
   "maintainers": [
     {
-      "id": "01M73MSVQFECQAWPHZWR6GBBRV",
+      "id": "01M74DME420ZQT3P3SGZEE2VZY",
       "name": "Example Editor",
-      "since": "2026-11-10T21:11:10.438Z"
+      "since": "2026-11-11T04:25:07.033Z"
     }
   ],
   "mergedIds": []

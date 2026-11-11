@@ -343,33 +343,60 @@ describe('collation in passages', () => {
 });
 
 /**
- * What a witness has in each segment, as the TEI says it: the words outside
- * any variant, and at each variant the words of the reading the witness is
- * in. The edition's own words are the lemma's. A witness in no reading of a
- * variant is not there, and has nothing from it.
+ * What a text has, as the TEI says it: the words outside any variant, and at
+ * each variant the words of the reading it is in, a variant inside a lemma
+ * read the same way. The edition's own words are the lemma's. A witness in no
+ * reading of a variant is not there, and has nothing from it. `text` is the
+ * words in order, a word that a break or the start of a segment divides
+ * written as one; `bySegment` is the words from each start of a segment that
+ * the text passes to the next, which for the edition is its segments.
  */
-function readBack(tei: string, siglum: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const ab of tei.matchAll(/<ab n="([^"]+)"[^>]*>(.*?)<\/ab>/gu)) {
-    const words: string[] = [];
-    for (const piece of ab[2]!.replace(/<lb\/>/gu, ' ').split(/(<app[^>]*>.*?<\/app>)/gu)) {
-      if (!piece.startsWith('<app')) {
-        words.push(piece);
-        continue;
-      }
-      const lem = /<lem([^>]*?)(?:\/>|>(.*?)<\/lem>)/u.exec(piece)!;
-      const stands = (attrs: string) => attrs.split(/wit="([^"]*)"/u)[1]?.split(' ') ?? [];
-      const mine = `#wit-${siglum}`;
-      if (siglum === 'ed.' || stands(lem[1]!).includes(mine)) {
-        words.push(lem[2] ?? '');
-        continue;
-      }
-      for (const rdg of piece.matchAll(/<rdg([^>]*?)(?:\/>|>(.*?)<\/rdg>)/gu))
-        if (stands(rdg[1]!).includes(mine)) words.push(rdg[2] ?? '');
+function readBack(
+  tei: string,
+  siglum: string,
+): { text: string; bySegment: Record<string, string> } {
+  const body = tei.slice(tei.indexOf('<ab>') + 4, tei.indexOf('</ab>'));
+  const mine = `#wit-${siglum}`;
+  const stands = (tag: string) =>
+    /wit="([^"]*)"/u.exec(tag)?.[1]?.split(' ').includes(mine) ?? false;
+  /** Whether what is read now belongs to the text, by element; a variant remembers that its lemma was taken. */
+  const frames: { take: boolean; chosen?: boolean }[] = [{ take: true }];
+  const bySegment: Record<string, string> = {};
+  let segment = '';
+  let text = '';
+  for (const [piece] of body.matchAll(/<[^>]+>|[^<]+/gu)) {
+    const top = frames.at(-1)!;
+    if (!piece.startsWith('<')) {
+      if (!top.take) continue;
+      text += piece;
+      bySegment[segment] = (bySegment[segment] ?? '') + piece;
+    } else if (piece.startsWith('</')) frames.pop();
+    else if (piece.startsWith('<app')) frames.push({ take: top.take, chosen: false });
+    else if (piece.startsWith('<lem') || piece.startsWith('<rdg')) {
+      const take =
+        top.take &&
+        (piece.startsWith('<lem')
+          ? siglum === 'ed.' || stands(piece)
+          : !top.chosen && siglum !== 'ed.' && stands(piece));
+      if (take) top.chosen = true;
+      if (!piece.endsWith('/>')) frames.push({ take });
+    } else if (piece.startsWith('<milestone')) {
+      if (top.take) segment = /n="([^"]*)"/u.exec(piece)![1]!;
+      if (top.take && !piece.includes('break="no"')) text += ' ';
+    } else if (piece.startsWith('<lb') && top.take && !piece.includes('break="no"')) {
+      text += ' ';
+      bySegment[segment] = (bySegment[segment] ?? '') + ' ';
     }
-    out[ab[1]!] = words.join(' ').split(/\s+/u).filter(Boolean).join(' ');
   }
-  return out;
+  const tidy = (words: string) => words.split(/\s+/u).filter(Boolean).join(' ');
+  return {
+    text: tidy(text),
+    bySegment: Object.fromEntries(
+      Object.entries(bySegment)
+        .map(([n, words]) => [n, tidy(words)] as const)
+        .filter(([, words]) => words !== ''),
+    ),
+  };
 }
 
 describe('the TEI of a variant across a boundary', () => {
@@ -385,15 +412,21 @@ describe('the TEI of a variant across a boundary', () => {
           title: view.edition.title,
           baseSiglum: 'ed.',
           witnesses: view.sigla.map((s) => ({ siglum: s.siglum })),
-          segments: archived.segments,
+          ...archived.tei,
         }),
       },
     };
   }
   const words = (rows: string[]) =>
     Object.fromEntries(rows.map((row) => row.split(': ') as [string, string]));
+  /** The words of a text given in rows, in order, a divided word as one. */
+  const running = (rows: string[]) =>
+    rows
+      .map((row) => row.split(': ')[1]!)
+      .join(' ')
+      .replace(/- /gu, '');
 
-  it('gives each witness its own words of each segment, in the reader’s file and in the archive’s', async () => {
+  it('gives the variant once, the edition its words of each segment and each witness its own words, in the reader’s file and in the archive’s', async () => {
     const own = {
       A: ['1.1: alpha beta gamma delta', '1.2: epsilon zeta eta theta'],
       // B has a word in each segment; C has both in the first, where the edition has the one.
@@ -408,25 +441,25 @@ describe('the TEI of a variant across a boundary', () => {
     expect(plan(view)).toEqual([['1.1', '1.2']]);
     expect(variants(view)).toEqual(['1.1–1.2 *delta epsilon: ed. A | kappa lambda: B C']);
     for (const tei of Object.values(files)) {
-      expect(readBack(tei, 'ed.')).toEqual(
+      expect(readBack(tei, 'ed.').bySegment).toEqual(
         words(['1.1: alpha beta gamma delta', '1.2: epsilon zeta eta theta']),
       );
       for (const [siglum, rows] of Object.entries(own))
-        expect(readBack(tei, siglum), siglum).toEqual(words(rows));
-      // The two parts name each other, and stand in the two segments.
-      const apps = [...tei.matchAll(/<app xml:id="([^"]+)"([^>]*)>/gu)];
-      expect(apps).toHaveLength(2);
-      expect(apps[0]![2]).toBe(` next="#${apps[1]![1]}"`);
-      expect(apps[1]![2]).toBe(` prev="#${apps[0]![1]}"`);
+        expect(readBack(tei, siglum).text, siglum).toBe(running(rows));
+      // One variant, with no name, and the second segment begins inside its lemma.
+      expect(tei.match(/<app/gu)).toHaveLength(1);
+      expect(tei).not.toContain('<app xml:id');
+      expect(tei).toMatch(
+        /<lem wit="#wit-A">delta(?:<lb\/>)?\s?<milestone unit="segment" n="1\.2"[^>]*\/>epsilon<\/lem><rdg wit="#wit-B #wit-C">kappa lambda<\/rdg>/u,
+      );
     }
   });
 
-  it('gives a word the edition divides across the two segments, inside a variant, in a part in each', async () => {
+  it('gives a word the edition divides across the two segments, inside a variant, whole in the lemma, the second segment begun inside it', async () => {
     const edition = ['1.1: alpha beta gam-', '1.2: ma delta epsilon theta'];
     const own = {
       A: edition,
-      // B has another word where the edition has the divided one; C has a divided word of its own,
-      // which stays whole in the segment where it begins.
+      // B has another word where the edition has the divided one; C has a divided word of its own.
       B: ['1.1: alpha beta kappa', '1.2: delta epsilon theta'],
       C: ['1.1: alpha beta kap-', '1.2: pa delta epsilon theta'],
     };
@@ -438,18 +471,18 @@ describe('the TEI of a variant across a boundary', () => {
     expect(plan(view)).toEqual([['1.1', '1.2']]);
     expect(variants(view)).toEqual(['1.1 *gamma: ed. A | kappa: B C']);
     for (const tei of Object.values(files)) {
-      // The edition has the two parts of its word in the two segments.
-      expect(readBack(tei, 'ed.')).toEqual(
+      // The edition has the two parts of its word in the two segments, and they are one word.
+      expect(readBack(tei, 'ed.').bySegment).toEqual(
         words(['1.1: alpha beta gam', '1.2: ma delta epsilon theta']),
       );
-      expect(readBack(tei, 'A')).toEqual(readBack(tei, 'ed.'));
+      expect(readBack(tei, 'ed.').text).toBe('alpha beta gamma delta epsilon theta');
+      expect(readBack(tei, 'A').text).toBe(readBack(tei, 'ed.').text);
       for (const siglum of ['B', 'C'])
-        expect(readBack(tei, siglum), siglum).toEqual(
-          words(['1.1: alpha beta kappa', '1.2: delta epsilon theta']),
-        );
-      const apps = [...tei.matchAll(/<app xml:id="([^"]+)"([^>]*)>/gu)];
-      expect(apps).toHaveLength(2);
-      expect(tei).toContain('<lem wit="#wit-A">ma</lem><rdg wit="#wit-B #wit-C"/>');
+        expect(readBack(tei, siglum).text, siglum).toBe('alpha beta kappa delta epsilon theta');
+      expect(tei.match(/<app/gu)).toHaveLength(1);
+      expect(tei).toMatch(
+        /<lem wit="#wit-A">gam(?:<lb break="no"\/>)?<milestone unit="segment" n="1\.2"[^>]*break="no"\/>ma<\/lem><rdg wit="#wit-B #wit-C">kappa<\/rdg>/u,
+      );
     }
   });
 });

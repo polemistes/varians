@@ -381,6 +381,25 @@ describe('importTei: tokens and marks', () => {
     expect(result.segmentStarts.map((start) => start.itemIndex)).toEqual([1, 2]);
   });
 
+  it('divides a word at a segment start that is said not to end it, in running text and between two ws apart', () => {
+    const running = read(
+      `<ab><milestone unit="segment" n="1"/>ἀνα<milestone unit="segment" n="2" break="no"/>στα<lb break="no"/>σις <milestone unit="segment" n="3"/>δε</ab>`,
+    );
+    expect(sketch(running.stream.items)).toEqual([
+      { form: 'ἀνα', join: true },
+      { form: 'στα', join: true },
+      { break: 'line' },
+      { form: 'σις' },
+      { form: 'δε' },
+    ]);
+    expect(running.segmentStarts.map((start) => start.itemIndex)).toEqual([0, 1, 4]);
+    const apart = read(
+      `<ab><w part="I">ἀνα</w>\n<milestone unit="segment" n="2" break="no"/>\n<w part="F">στασις</w></ab>`,
+    );
+    expect(sketch(apart.stream.items)).toEqual([{ form: 'ἀνα', join: true }, { form: 'στασις' }]);
+    expect(apart.segmentStarts.map((start) => start.itemIndex)).toEqual([1]);
+  });
+
   it('reads a correction and a regularization as the read form, and a space between words', () => {
     const result = read(
       `<ab><choice><sic>θεος</sic><corr>θεὸς</corr></choice> πρ<choice><orig>ο</orig><reg>ω</reg></choice>τος <space quantity="2" unit="character"/> x</ab>`,

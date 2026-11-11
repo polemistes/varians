@@ -34,7 +34,17 @@ The format becomes a specification ([specification.md](specification.md)) with J
 
 - A paragraph break of an edition's text may carry `lineation`, `verse` or `prose`: the kind of the paragraph it opens, which where absent is the kind the edition's `conventions.lineation` gives. The line breaks of a prose paragraph are kept and not shown. In the edition's TEI the second `<lb>` of a paragraph break is typed `verse` or `prose`, and the ODD allows `lb/@type` those two values.
 - `joinNext` joins a word that a segment boundary divides as well as one that a line break divides, and in an edition a word divided by a line break is kept divided. Nothing in the files changes: the hyphen was never stored.
-- In an edition's TEI, a variant whose words lie in more than one printed segment is written in parts: one `<app>` in the `<ab>` of each segment, each true of its own segment, with an `xml:id`, and `prev` and `next` linking the parts of the one variant (TEI's global linking attributes, which `varians.rng` already allows). Before, such a variant was written whole in the segment it begins in, with the witnesses' words of the next segment in its readings and the edition's words of it outside. A witness that reads as the edition does in a part stands in that part's `<lem wit>` and has no `<rdg>` there. A word of the edition that a segment boundary divides, inside a variant, is in the parts of both segments, the later `<lem>` holding the rest of the word. A variant within one segment is written as before, except that a `<lem>` is now written as the text outside an `<app>` is: the `<lb/>` and other objects between its first word and its last stand inside it (`<lem>won<lb/>der</lem>`), where they stood after the `<app>` and the lemma read as two words.
+
+**Changed, November 2026**
+
+Varians has no users but its maker yet, and the TEI of an edition is changed within version 2 to follow TEI more closely; the JSON files are as they were.
+
+- An edition's text is one `<ab>` in which a segment begins with `<milestone unit="segment" n="…">`, as in a transcription, and no longer an `<ab n="…">` for each segment: a segment is an address and encloses nothing. The milestone has the `xml:id="seg-…"` and the `corresp` that the `<ab>` had. A word that a segment boundary divides is thereby one word in the TEI too.
+- A segment start or a line break inside a word has `break="no"`, in a transcription and in an edition (an edition wrote a bare `<lb/>` there), and each `<w>` of a word in several tokens has `part` (`I`, `M`, `F`). The importer reads a segment start with `break="no"` as dividing a word.
+- Every variant of an edition is one `<app>` where its words stand, with the breaks and segment starts between its words inside its `<lem>`. For a day a variant across segments was written in parts linked by `prev` and `next`; that is gone. Only the variant of a witness without whole segments may be in pieces so linked, where another variant lies across one of its ends, and it now stands around the variants inside those segments, which were lost from the file before.
+- A variant at a point at the end of a segment stands before the break that ends the line, and a segment the edition does not print stands between the segments around it, its reading begun by its own milestone, which gives its label.
+- The header has `<refsDecl><refState unit="segment"/></refsDecl>`, and in an edition `<variantEncoding method="parallel-segmentation" location="internal"/>`; the ODD and `varians.rng` have the three elements.
+- The archive's `edition.tei.xml`, `edition.txt` and `edition.md` have the conjectures and the reported readings the archive holds, as the reader's downloads have those a reader sees; before, they had none.
 
 **Clarified, November 2026**
 

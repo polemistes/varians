@@ -10,7 +10,7 @@ import { toLeidenPlus } from '../import/leidenplus-write.ts';
 import { toLeiden } from '../import/leiden.ts';
 import { exportEditionTei } from '../tei/apparatus.ts';
 import { exportTranscriptionTei } from '../tei/export.ts';
-import { collationText, editionSegment } from '../tei/fixtures.ts';
+import { collationText, editionSegments } from '../tei/fixtures.ts';
 import { importTei } from '../tei/import.ts';
 import {
   NOT_TRANSCRIBED_ATTRS,
@@ -106,13 +106,17 @@ describe('a gap that is not transcribed', () => {
   });
 
   it('is written in an edition as the same ellipsis, never as a loss', () => {
-    const segment = editionSegment('1', 'a b', [collationText('A', 'A', 'a b')]);
-    segment.items.splice(1, 0, gap('n', { ...NOT_TRANSCRIBED_ATTRS }));
+    const text = editionSegments({
+      label: '1',
+      text: 'a b',
+      witnesses: [collationText('A', 'A', 'a b')],
+    });
+    text.runs[0]!.items.splice(1, 0, gap('n', { ...NOT_TRANSCRIBED_ATTRS }));
     const xml = exportEditionTei({
       title: 't',
       language: 'grc',
       witnesses: [{ siglum: 'A' }],
-      segments: [segment],
+      ...text,
     });
     expect(xml).toContain('<gap reason="ellipsis"><desc>non transcribed</desc></gap>');
     expect(xml).not.toContain('<gap reason="lost"');
