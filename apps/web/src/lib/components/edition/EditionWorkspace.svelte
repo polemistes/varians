@@ -1209,9 +1209,11 @@
     ),
   );
 
-  function openCopy() {
+  /** Open the window once what the editor has typed is saved, so that it counts against the text as it is. */
+  async function openCopy() {
     if (!canEdit || copyTranscripts.length === 0) return;
     copyError = null;
+    await session.flush();
     copyOpen = true;
   }
 
@@ -1423,7 +1425,7 @@
             <MenuItem onSelect={() => openInsert('lacuna')}>{s.dialogs.insert.lacuna}…</MenuItem>
             <MenuItem onSelect={() => openConjecture()}>{s.dialogs.insert.conjecture}</MenuItem>
             <MenuSeparator />
-            <MenuItem disabled={copyTranscripts.length === 0} onSelect={openCopy}
+            <MenuItem disabled={copyTranscripts.length === 0} onSelect={() => void openCopy()}
               >{s.dialogs.copyText.menu}</MenuItem
             >
           </Menu>
@@ -1439,7 +1441,7 @@
               size="sm"
               variant="secondary"
               disabled={copyTranscripts.length === 0}
-              onclick={openCopy}>{s.dialogs.copyText.menu}</Button
+              onclick={() => void openCopy()}>{s.dialogs.copyText.menu}</Button
             >
           {/if}
         </div>
