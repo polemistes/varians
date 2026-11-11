@@ -84,6 +84,9 @@ src/
       reader.ts             the view of an edition (whole, by stretch, or its outline): lines, sites, apparatus entries, drift
       site-marks.ts         the editors' word on variants (a kind, and whether minor) as a published version fixes them
       registry.ts           works, witnesses, transcriptions, maintainers, search
+      registry-forms.ts     a work, witness or transcript made from its form, for the full pages and the windows alike
+      edition-form.ts       the conspectus, the name and the settings as Make New Edition and Edition Settings read and check them
+      edition-page.ts       the windows' form actions of those pages (Add New Work, Add New Witness, Make New Transcript)
       pages.ts, images/     witness pages, uploads, tiles, IIIF manifests
       workbench.ts          the transcription workbench's loads and imports
       seed/                 the sample edition; the stress edition (stress-text.ts makes its text, stress.ts writes it); a printed page worked backwards (page.ts)
