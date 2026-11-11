@@ -161,8 +161,8 @@ function originOf(writers: ArchiveWriters): string {
 export interface ArchiveFilter {
   transcription(row: typeof transcriptions.$inferSelect): boolean;
   edition(row: typeof editions.$inferSelect): boolean;
-  conjecture(row: typeof conjectures.$inferSelect): boolean;
-  reported(row: typeof reportedReadings.$inferSelect): boolean;
+  /** Whether the work's conjectures and reported readings are taken: they are everyone's, but a package of one transcript carries none. */
+  records: boolean;
   /** Whether the person sees an edition's working state; otherwise the archive holds its published version only. */
   editionWorking(row: typeof editions.$inferSelect): boolean;
   /** The version of a transcription to write, when not its current one: for a package of a published edition, the version its apparatus was collated against. */
@@ -324,20 +324,22 @@ async function loadWorkContext(
     const urn = passageUrn(work.identifier, s.address, scheme?.levels ?? []);
     if (urn) urnOf.set(s.id, urn);
   }
-  const conjectureRows = (
-    await db
-      .select()
-      .from(conjectures)
-      .where(eq(conjectures.workId, workId))
-      .orderBy(asc(conjectures.id))
-  ).filter((c) => !only || only.conjecture(c));
-  const reported = (
-    await db
-      .select()
-      .from(reportedReadings)
-      .where(eq(reportedReadings.workId, workId))
-      .orderBy(asc(reportedReadings.id))
-  ).filter((r) => !only || only.reported(r));
+  // The work's conjectures and reported readings are public records; a package of one transcript leaves them out.
+  const withRecords = !only || only.records;
+  const conjectureRows = withRecords
+    ? await db
+        .select()
+        .from(conjectures)
+        .where(eq(conjectures.workId, workId))
+        .orderBy(asc(conjectures.id))
+    : [];
+  const reported = withRecords
+    ? await db
+        .select()
+        .from(reportedReadings)
+        .where(eq(reportedReadings.workId, workId))
+        .orderBy(asc(reportedReadings.id))
+    : [];
 
   // An edition someone may not edit is in their export only as published.
   const editionRows = (
@@ -634,6 +636,16 @@ async function writeWorkFiles(ctx: WorkContext): Promise<void> {
       ),
     ].join('\n') + '\n',
   );
+  // A conjecture entered in an edition's editor names that edition and its words. The conjecture is public, but a draft
+  // edition is not: an export for someone who may not see the edition names neither it nor a transcript they may not see.
+  const shownAnchor = (anchor: (typeof conjectureRows)[number]['anchor']) => {
+    if (!anchor || !ctx.writers.only) return anchor;
+    const known =
+      'editionId' in anchor
+        ? ctx.editionRows.some((e) => e.id === anchor.editionId)
+        : ctx.transcriptionRows.some((t) => t.id === anchor.transcriptionId);
+    return known ? anchor : null;
+  };
   await writeJson(
     path.join(dir, 'conjectures.json'),
     list(
@@ -641,6 +653,7 @@ async function writeWorkFiles(ctx: WorkContext): Promise<void> {
       'conjectures',
       conjectureRows.map((c) => ({
         ...c,
+        anchor: shownAnchor(c.anchor),
         segmentLabel: labelOf.get(c.segmentId) ?? null,
         createdAt: iso(c.createdAt),
         updatedAt: iso(c.updatedAt),

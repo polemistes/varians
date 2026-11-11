@@ -22,14 +22,13 @@ import {
 } from './conjectures.ts';
 import { saveOps } from './documents/service.ts';
 import { PublishRefused, publishEdition, publishedVersions, unpublishEdition } from './publish.ts';
-import { PUBLIC, editionView, type Audience } from './reader.ts';
+import { editionView } from './reader.ts';
 import { seedSample } from './seed/sample.ts';
 
 const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329/varians_test';
 let db: Database;
 let pool: pg.Pool;
 const userId = newId();
-const owner: Audience = { kind: 'editor', viewer: { id: userId, role: 'member' } };
 const SLUGS = ['venetus-a', 'venetus-b', 'laurentianus-c', 'townleianus-t'];
 
 beforeAll(async () => {
@@ -85,7 +84,7 @@ describe('publishing and conjectures', () => {
       .select()
       .from(editions)
       .where(eq(editions.slug, 'iliad-1-working-edition'));
-    const view = await editionView(db, edition!.id, null, owner);
+    const view = await editionView(db, edition!.id, null);
     const segment = Object.values(view.segments).find((s) => s.label === '1.1')!;
     const conjecture = await registerConjecture(
       db,
@@ -105,7 +104,7 @@ describe('publishing and conjectures', () => {
     await reviewSite(db, edition!.id, segment.segmentId, 'e1,e2', userId);
     const reviewed = await reviewedSites(db, edition!.id);
     expect(reviewed.get(segment.segmentId)?.has('e1,e2')).toBe(true);
-    const again = await editionView(db, edition!.id, null, owner);
+    const again = await editionView(db, edition!.id, null);
     const one = Object.values(again.segments).find((s) => s.label === '1.1')!;
     expect(
       one.entries.some(
@@ -121,14 +120,9 @@ describe('publishing and conjectures', () => {
       .from(editions)
       .where(eq(editions.slug, 'iliad-1-working-edition'));
     const published = await publishEdition(db, edition!.id, userId);
-    // Readers see the published version; the editor, the current text with their drafts.
+    // Readers see the published version; the editor, the current text.
     const printed = async (atVersion: number | null) => {
-      const view = await editionView(
-        db,
-        edition!.id,
-        atVersion,
-        atVersion === null ? owner : PUBLIC,
-      );
+      const view = await editionView(db, edition!.id, atVersion);
       const one = Object.values(view.segments).find((x) => x.label === '1.1')!;
       return one.entries.map((e) => formatEntry(e, view.apparatus)).join(' | ');
     };
@@ -149,7 +143,7 @@ describe('publishing and conjectures', () => {
     await saveOps(db, 'transcription', b!.id, userId, b!.version, [
       { t: 'set', id: word.id, fields: { form: 'ΘΕΟΣ', norm: 'θεός' } },
     ]);
-    const view = await editionView(db, edition!.id, null, owner);
+    const view = await editionView(db, edition!.id, null);
     const segment = Object.values(view.segments).find((x) => x.label === '1.1')!;
     await registerConjecture(
       db,
@@ -176,7 +170,7 @@ describe('publishing and conjectures', () => {
     const old = { ...edition!.conventions, latin: true };
     await db.update(editions).set({ conventions: old }).where(eq(editions.id, edition!.id));
     const published = await publishEdition(db, edition!.id, userId);
-    const view = await editionView(db, edition!.id, published.version, PUBLIC);
+    const view = await editionView(db, edition!.id, published.version);
     expect(view.apparatus).not.toHaveProperty('latin');
     const six = Object.values(view.segments)
       .flatMap((p) => p.entries)

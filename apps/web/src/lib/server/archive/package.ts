@@ -27,7 +27,6 @@ import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { and, desc, eq } from 'drizzle-orm';
 import type { Actor } from '../authz.ts';
-import { workBySlug } from '../registry.ts';
 import { dataLicence, siteName } from '../settings.ts';
 import { FORMAT_BASE, FORMAT_VERSION, writeArchive, type ArchiveFilter } from './archive.ts';
 import { worksOfDocument } from './commits.ts';
@@ -61,8 +60,7 @@ function union(a: ArchiveFilter, b: ArchiveFilter): ArchiveFilter {
     transcription: (r) => a.transcription(r) || b.transcription(r),
     edition: (r) => a.edition(r) || b.edition(r),
     editionWorking: (r) => a.editionWorking(r) || b.editionWorking(r),
-    conjecture: (r) => a.conjecture(r) || b.conjecture(r),
-    reported: (r) => a.reported(r) || b.reported(r),
+    records: a.records || b.records,
     transcriptionVersion: (r) => a.transcriptionVersion?.(r) ?? b.transcriptionVersion?.(r) ?? null,
   };
 }
@@ -78,28 +76,21 @@ export async function scopeFilters(
   const out = new Map<string, ArchiveFilter>();
   const add = (workId: string, filter: ArchiveFilter) =>
     out.set(workId, out.has(workId) ? union(out.get(workId)!, filter) : filter);
-  const workRecord = async (workId: string) => {
-    const [row] = await db.select({ slug: works.slug }).from(works).where(eq(works.id, workId));
-    return row ? await workBySlug(db, row.slug) : null;
-  };
+  const base = await viewerFilter(db, viewer);
   for (const scope of scopes) {
     if (scope.kind === 'work' || scope.kind === 'installation') {
-      const ids =
-        scope.kind === 'work'
-          ? [scope.workId]
-          : (await db.select({ id: works.id }).from(works)).map((w) => w.id);
-      for (const workId of ids) {
-        const record = await workRecord(workId);
-        if (record) add(workId, await viewerFilter(db, viewer, record.maintainerIds));
-      }
+      const ids = (
+        await db
+          .select({ id: works.id })
+          .from(works)
+          .where(scope.kind === 'work' ? eq(works.id, scope.workId) : undefined)
+      ).map((w) => w.id);
+      for (const workId of ids) add(workId, base);
       continue;
     }
     if (scope.kind === 'edition') {
       const [edition] = await db.select().from(editions).where(eq(editions.id, scope.editionId));
       if (!edition) continue;
-      const record = await workRecord(edition.workId);
-      if (!record) continue;
-      const base = await viewerFilter(db, viewer, record.maintainerIds);
       if (!base.edition(edition)) continue;
       const working = base.editionWorking(edition);
       // The transcriptions the conspectus names: as it stands for those who edit the edition, as published for others, at the versions the apparatus was collated against.
@@ -140,8 +131,7 @@ export async function scopeFilters(
         transcription: (r) => named.has(r.id) && base.transcription(r),
         edition: (r) => r.id === edition.id && base.edition(r),
         editionWorking: base.editionWorking,
-        conjecture: base.conjecture,
-        reported: base.reported,
+        records: base.records,
         transcriptionVersion: (r) => (working ? null : (versions[r.id] ?? null)),
       });
       continue;
@@ -153,16 +143,12 @@ export async function scopeFilters(
       .where(eq(transcriptions.id, scope.transcriptionId));
     if (!t) continue;
     for (const workId of await worksOfDocument(db, 'transcription', t.id)) {
-      const record = await workRecord(workId);
-      if (!record) continue;
-      const base = await viewerFilter(db, viewer, record.maintainerIds);
       if (!base.transcription(t)) continue;
       add(workId, {
         transcription: (r) => r.id === t.id && base.transcription(r),
         edition: NOTHING,
         editionWorking: NOTHING,
-        conjecture: NOTHING,
-        reported: NOTHING,
+        records: false,
       });
     }
   }

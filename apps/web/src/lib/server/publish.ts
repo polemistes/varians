@@ -1,16 +1,15 @@
 /**
  * Publishing an edition: a numbered, named moment readers link to; the
- * transcriptions of its conspectus and the conjectures it adopts become
- * public with it. Unpublishing takes them back unless
- * another published edition still needs them.
+ * transcriptions of its conspectus become public with it. Unpublishing takes
+ * them back unless another published edition still needs them. Conjectures
+ * and reported readings are public from the moment they are entered, so
+ * publishing has nothing to do with them.
  */
 
 import {
-  conjectures,
   editionSigla,
   editions,
   moments,
-  reportedReadings,
   transcriptions,
   witnesses,
   type Database,
@@ -39,9 +38,8 @@ export class PublishRefused extends Error {
 /**
  * Publish the edition at its current version. What it rests on becomes
  * public with it, as far as it is the owner's: their transcriptions in the
- * conspectus, and their conjectures and reported readings on the work. A
- * conspectus naming another person's unpublished transcription is refused,
- * since only that person may publish it.
+ * conspectus. A conspectus naming another person's unpublished transcription
+ * is refused, since only that person may publish it.
  */
 export async function publishEdition(
   db: Database,
@@ -159,21 +157,6 @@ export async function publishEdition(
           ),
         );
     }
-    // The owner's conjectures and reported readings on the work, adopted or not, as the apparatus reports them and the catalogue is a commons.
-    // Anyone else's that the edition adopted were already published: only published ones can be adopted from another person.
-    await tx
-      .update(conjectures)
-      .set({ visibility: 'published' })
-      .where(and(eq(conjectures.workId, edition.workId), eq(conjectures.ownerId, edition.ownerId)));
-    await tx
-      .update(reportedReadings)
-      .set({ visibility: 'published' })
-      .where(
-        and(
-          eq(reportedReadings.workId, edition.workId),
-          eq(reportedReadings.ownerId, edition.ownerId),
-        ),
-      );
     return { version: edition.version, number, momentId };
   });
 }

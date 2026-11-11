@@ -239,7 +239,6 @@
   scheme={data.scheme}
   example={data.example}
   labelsList={data.labels.length ? labelsList : undefined}
-  canPublish={conjecture ? conjecture.can.publish : true}
 />
 <ConfirmDialog
   confirmLabel={ra.conjecture.deleteVerb}
@@ -258,7 +257,6 @@
   example={data.example}
   labelsList={data.labels.length ? labelsList : undefined}
   witnesses={data.witnesses}
-  canPublish={reading ? reading.can.publish : true}
 />
 <ConfirmDialog
   confirmLabel={ra.reading.deleteVerb}

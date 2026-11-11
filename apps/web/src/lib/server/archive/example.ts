@@ -95,8 +95,7 @@ export async function writeExample(serverUrl: string, outDir: string): Promise<s
         .where(eq(conjectures.workId, sample.workId))
         .limit(1);
       // The first conjecture is adopted as an editor adopts it: its word is put in the text at its place, and the adoption is recorded.
-      const viewer = { kind: 'editor' as const, viewer: { id: editor, role: 'member' as const } };
-      const before = await editionView(db, sample.editionId, null, viewer);
+      const before = await editionView(db, sample.editionId, null);
       const names = (list: { id: string }[]) => list.some((a) => a.id === conjecture!.id);
       const held = Object.values(before.segments).find((s) =>
         Object.values(s.attachments).some(names),
@@ -122,7 +121,7 @@ export async function writeExample(serverUrl: string, outDir: string): Promise<s
       );
       await adoptConjecture(db, sample.editionId, conjecture!.id);
       // One place the editor judges minor, as a spelling of the same word that the edition does not record.
-      const view = await editionView(db, sample.editionId, null, viewer);
+      const view = await editionView(db, sample.editionId, null);
       const left = Object.values(view.segments).find((s) => s.label === '1.8')!;
       const place = left.collation.sites.find((site) =>
         site.readings.some((r) => r.text === 'συνέηκε'),

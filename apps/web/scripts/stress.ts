@@ -292,7 +292,6 @@ interface Collated {
 
 async function collation(c: Context, keepCache: boolean): Promise<Collated> {
   section('2. Collation');
-  const audience = { kind: 'editor' as const, viewer: c.owner };
   if (keepCache)
     note(
       '--keep-cache: the collation cache was not emptied, so the first view below is as warm as the cache is.',
@@ -302,14 +301,14 @@ async function collation(c: Context, keepCache: boolean): Promise<Collated> {
     // What the process remembers of collations goes too, so that the view is cold.
     forgetCollations();
   }
-  const cold = await timed(() => editionView(c.db, c.editionId, null, audience));
+  const cold = await timed(() => editionView(c.db, c.editionId, null));
   report(
     keepCache ? 'editionView, first call (cache as it was)' : 'editionView, cold (cache emptied)',
     cold.ms / 1000,
     's',
     'the whole edition, as the editor',
   );
-  const warm = await timed(() => editionView(c.db, c.editionId, null, audience));
+  const warm = await timed(() => editionView(c.db, c.editionId, null));
   report(
     'editionView, warm (cache filled)',
     warm.ms / 1000,
@@ -437,7 +436,6 @@ async function collation(c: Context, keepCache: boolean): Promise<Collated> {
 
 async function sent(c: Context, view: EditionView): Promise<void> {
   section('3. What the editor and the reader are sent');
-  const audience = { kind: 'editor' as const, viewer: c.owner };
   report(
     'editor, GET /api/editions/[id]/view (JSON)',
     mb(bytesOf({ ...view, segments: lighten(view.segments) })),
@@ -449,7 +447,7 @@ async function sent(c: Context, view: EditionView): Promise<void> {
   // What the process remembers of collations goes too, so that the view is cold.
   forgetCollations();
   const openingCold = await timed(() =>
-    editionView(c.db, c.editionId, null, audience, { first: OPENING_SEGMENTS, lines: false }),
+    editionView(c.db, c.editionId, null, { first: OPENING_SEGMENTS, lines: false }),
   );
   report(
     'editor, edit page load, cold cache: time',
@@ -481,7 +479,7 @@ async function sent(c: Context, view: EditionView): Promise<void> {
     's',
     'readerSites',
   );
-  const outlineCold = await timed(() => editionOutline(c.db, c.editionId, audience));
+  const outlineCold = await timed(() => editionOutline(c.db, c.editionId));
   report(
     'editor, the outline of the whole text, cold cache: time',
     outlineCold.ms / 1000,
@@ -489,10 +487,10 @@ async function sent(c: Context, view: EditionView): Promise<void> {
     'editionOutline, asked once the editor is open; fills the cache',
   );
   const opening = await timed(() =>
-    editionView(c.db, c.editionId, null, audience, { first: OPENING_SEGMENTS, lines: false }),
+    editionView(c.db, c.editionId, null, { first: OPENING_SEGMENTS, lines: false }),
   );
   const openingMs = await medianOf(5, () =>
-    editionView(c.db, c.editionId, null, audience, { first: OPENING_SEGMENTS, lines: false }),
+    editionView(c.db, c.editionId, null, { first: OPENING_SEGMENTS, lines: false }),
   );
   report(
     'editor, edit page load: time',
@@ -506,8 +504,8 @@ async function sent(c: Context, view: EditionView): Promise<void> {
     'MB',
     'what the page is sent: the text, its first segments and what goes with them',
   );
-  const outlineMs = await medianOf(3, () => editionOutline(c.db, c.editionId, audience));
-  const outline = await editionOutline(c.db, c.editionId, audience);
+  const outlineMs = await medianOf(3, () => editionOutline(c.db, c.editionId));
+  const outline = await editionOutline(c.db, c.editionId);
   report(
     'editor, the outline of the whole text: time',
     outlineMs,
@@ -537,8 +535,8 @@ async function sent(c: Context, view: EditionView): Promise<void> {
   );
   const order = segmentIds(view.content);
   const window = order.slice(Math.floor(order.length / 2), Math.floor(order.length / 2) + 17);
-  const stretch = await timed(() => refreshView(c.db, c.editionId, window, audience));
-  const stretchMs = await medianOf(5, () => refreshView(c.db, c.editionId, window, audience));
+  const stretch = await timed(() => refreshView(c.db, c.editionId, window));
+  const stretchMs = await medianOf(5, () => refreshView(c.db, c.editionId, window));
   report(
     'editor, a stretch of 17 segments (refreshView): time',
     stretchMs,

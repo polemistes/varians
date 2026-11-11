@@ -43,9 +43,7 @@ async function fromArchive(
   part: Parameters<typeof writeRecordPart>[2],
   file: (paths: Awaited<ReturnType<typeof writeRecordPart>>['paths']) => string | null,
 ): Promise<unknown> {
-  const [work] = await db.select({ slug: works.slug }).from(works).where(eq(works.id, workId));
-  const record = work ? await workBySlug(db, work.slug) : null;
-  const only = await viewerFilter(db, user, record?.maintainerIds ?? []);
+  const only = await viewerFilter(db, user);
   const written = await writeRecordPart(db, workId, part, only);
   try {
     const relative = file(written.paths);

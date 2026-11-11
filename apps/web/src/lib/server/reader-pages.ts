@@ -22,14 +22,13 @@ import { eq } from 'drizzle-orm';
 import { editionRights, type Actor } from './authz';
 import { loadEditionAccess, type EditionAccess } from './edition-access';
 import { publishedVersions } from './publish';
-import { PUBLIC, editionView, type Audience, type EditionView } from './reader';
+import { MAX_REFRESH, editionView, type EditionView } from './reader';
 import { editionBibliographyFor, editionWorksCited } from './bibliography.ts';
 import { plainText, teiText } from '$lib/reader/export';
 import { alignedUnits, siglaOrderOf } from '$lib/reader/sites';
 import { DEFAULT_SIGLA } from '$lib/reader/marks';
 import type { ReaderData, ReaderMode, ReaderVersion } from '$lib/reader/types';
 import { detailOf, packSegments, type ReaderWireData, type SegmentDetail } from '$lib/reader/wire';
-import { MAX_REFRESH } from './audience';
 import { reader as r } from '$lib/strings/reader';
 
 /** What the URL asks for: a published version by number, or the draft. */
@@ -108,13 +107,6 @@ export function decideReaderView(
     };
   }
   return { atVersion: null, mode: { kind: 'draft', version: edition.version } };
-}
-
-/** Published versions show the work's published records only; a draft or a preview, to its editors, what they may see. */
-function audienceOf(mode: ReaderMode, user: Actor | null): Audience {
-  return (mode.kind === 'draft' || mode.kind === 'preview') && user
-    ? { kind: 'editor', viewer: user }
-    : PUBLIC;
 }
 
 /** The request a URL makes of the downloads: `?v=n` for a published version, `?draft=1` for the draft. */
@@ -222,9 +214,8 @@ export async function loadReader(
 ): Promise<ReaderWireData> {
   const resolved = await resolveReader(db, user, slug, request);
   const { access, mode, moments } = resolved;
-  const audience = audienceOf(mode, user);
   // The order of whole segments is given as variants: comparing two orders is quick, and remembered for the pair.
-  const view = await editionView(db, access.edition.id, resolved.atVersion, audience, {
+  const view = await editionView(db, access.edition.id, resolved.atVersion, {
     lean: true,
     budget: READER_BUDGET,
     ...(request.focus ? { near: request.focus } : {}),
@@ -257,7 +248,7 @@ export async function loadReader(
     texts,
     baseId: access.edition.id,
     pending: view.pending,
-    worksCited: await editionWorksCited(db, access.edition.id, audience),
+    worksCited: await editionWorksCited(db, access.edition.id),
     labelOf,
     orderVariants: view.orderVariants,
     mode,
@@ -283,18 +274,12 @@ export async function readerSites(
   segmentIds: string[],
 ): Promise<Pick<ReaderWireData, 'segments' | 'texts'>> {
   const resolved = await resolveReader(db, user, slug, request);
-  const view = await editionView(
-    db,
-    resolved.access.edition.id,
-    resolved.atVersion,
-    audienceOf(resolved.mode, user),
-    {
-      segments: [...new Set(segmentIds)].slice(0, MAX_REFRESH),
-      lean: true,
-      lines: false,
-      order: false,
-    },
-  );
+  const view = await editionView(db, resolved.access.edition.id, resolved.atVersion, {
+    segments: [...new Set(segmentIds)].slice(0, MAX_REFRESH),
+    lean: true,
+    lines: false,
+    order: false,
+  });
   return packSegments(Object.values(view.segments));
 }
 
@@ -311,19 +296,13 @@ export async function readerDetail(
   segmentIds: string[],
 ): Promise<Record<string, SegmentDetail>> {
   const resolved = await resolveReader(db, user, slug, request);
-  const view = await editionView(
-    db,
-    resolved.access.edition.id,
-    resolved.atVersion,
-    audienceOf(resolved.mode, user),
-    {
-      segments: [...new Set(segmentIds)].slice(0, MAX_REFRESH),
-      lean: true,
-      lines: false,
-      order: false,
-      detail: false,
-    },
-  );
+  const view = await editionView(db, resolved.access.edition.id, resolved.atVersion, {
+    segments: [...new Set(segmentIds)].slice(0, MAX_REFRESH),
+    lean: true,
+    lines: false,
+    order: false,
+    detail: false,
+  });
   const out: Record<string, SegmentDetail> = {};
   for (const segment of Object.values(view.segments))
     out[segment.segmentId] = detailOf(
@@ -416,8 +395,7 @@ export async function readerDownload(
   kind: 'text' | 'tei',
 ): Promise<Response> {
   const resolved = await resolveReader(db, user, slug, request);
-  const audience = audienceOf(resolved.mode, user);
-  const view = await editionView(db, resolved.access.edition.id, resolved.atVersion, audience);
+  const view = await editionView(db, resolved.access.edition.id, resolved.atVersion);
   const draft = resolved.mode.kind === 'draft' || resolved.mode.kind === 'preview';
   const name =
     resolved.access.edition.slug +
@@ -437,6 +415,6 @@ export async function readerDownload(
   const body =
     kind === 'text'
       ? readerPlainText(view, resolved.mode)
-      : readerTei(view, await editionBibliographyFor(db, resolved.access.edition.id, audience));
+      : readerTei(view, await editionBibliographyFor(db, resolved.access.edition.id));
   return new Response(body, { headers });
 }

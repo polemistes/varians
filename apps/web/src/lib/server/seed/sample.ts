@@ -271,7 +271,6 @@ export async function seedSample(
       proposer: 'Zenodotus',
       note: 'Reported as the reading of Zenodotus by Athenaeus, Deipnosophistae 1.12e; no surviving manuscript has it.',
       ownerId,
-      visibility: 'published',
     },
     {
       id: newId(),
@@ -305,7 +304,6 @@ export async function seedSample(
     reading: 'θεά',
     source: "Allen's apparatus (1931)",
     ownerId,
-    visibility: 'published',
   });
   await db
     .insert(editionSigla)

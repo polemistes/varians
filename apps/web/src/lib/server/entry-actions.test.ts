@@ -132,7 +132,6 @@ beforeAll(async () => {
       witnessId: witness.id,
       lemma: 'arma',
       reading: 'armo',
-      visibility: 'published',
     },
     creator.id,
   );

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { Badge } from '$lib/components/ui';
   import { citedText } from '$lib/registry/citations';
   import type { Cited, ReadingRow, RowRights } from '$lib/registry/types';
   import { recordActions } from '$lib/strings/record-actions';
@@ -58,7 +57,6 @@
         </p>
       </div>
       <div class="flex items-center gap-2">
-        {#if item.visibility === 'draft'}<Badge>{registry.common.draft}</Badge>{/if}
         <RowActions
           kind="reading"
           rights={item.can}

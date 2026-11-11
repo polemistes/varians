@@ -6,7 +6,6 @@
   import CitationPicker from '$lib/components/bibliography/CitationPicker.svelte';
   import {
     Button,
-    Checkbox,
     Dialog,
     Field,
     Input,
@@ -28,7 +27,6 @@
     example: string;
     labelsList?: string;
     witnesses: WitnessOption[];
-    canPublish: boolean;
   }
 
   let {
@@ -38,7 +36,6 @@
     example,
     labelsList,
     witnesses,
-    canPublish,
   }: Props = $props();
 
   const s = registry.reading;
@@ -189,15 +186,6 @@
           <Textarea {...control} name="note" value={reading?.note ?? ''} rows={3} />
         {/snippet}
       </Field>
-      {#if canPublish}
-        <Checkbox
-          name="published"
-          checked={reading?.visibility === 'published'}
-          hint={registry.conjecture.publishHint}
-        >
-          {registry.conjecture.publish}
-        </Checkbox>
-      {/if}
     </form>
   {/if}
   {#snippet footer()}

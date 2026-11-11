@@ -121,10 +121,7 @@ async function main(): Promise<void> {
       .where(eq(editions.workId, work.id))
       .orderBy(editions.createdAt);
     if (!edition) throw new Error('the work has no edition');
-    const view = await editionView(db, edition.id, null, {
-      kind: 'editor',
-      viewer: { id: edition.ownerId, role: 'administrator' },
-    });
+    const view = await editionView(db, edition.id, null);
     console.log(`${redactUrl(url)}  edition ${edition.slug}  version ${view.edition.version}`);
 
     // What each line has, printed and derived

@@ -20,7 +20,7 @@ import { eq, inArray } from 'drizzle-orm';
 import type pg from 'pg';
 import type { CurrentUser } from '$lib/types';
 import { actions as settingsActions } from '../../routes/(app)/editions/[slug]/settings/+page.server';
-import { editionView, type Audience } from './reader.ts';
+import { editionView } from './reader.ts';
 import { seedSample, type SampleResult } from './seed/sample.ts';
 
 const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329/varians_test';
@@ -37,7 +37,6 @@ const owner: CurrentUser = {
   preferences: {} as CurrentUser['preferences'],
   termsVersion: 1,
 };
-const audience: Audience = { kind: 'editor', viewer: { id: userId, role: 'member' } };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Action = (event: any) => unknown;
@@ -125,7 +124,7 @@ describe('the conventions of the print apparatus', () => {
       all: 'codd.',
       numberEvery: 10,
     });
-    const view = await editionView(db, sample.editionId, null, audience);
+    const view = await editionView(db, sample.editionId, null);
     expect(view.apparatus).toMatchObject({
       form: 'negative',
       interpretative: 'none',
@@ -188,7 +187,7 @@ describe('an edition stored with the setting for Latin abbreviations, which edit
   }
   /** What the print apparatus says at 1.6, where two witnesses are without the words the others have. */
   async function printedAtSix(): Promise<string[]> {
-    const view = await editionView(db, sample.editionId, null, audience);
+    const view = await editionView(db, sample.editionId, null);
     return Object.values(view.segments)
       .flatMap((p) => p.entries)
       .filter((e) => e.label === '1.6')
@@ -198,7 +197,7 @@ describe('an edition stored with the setting for Latin abbreviations, which edit
   it('loads, and prints in English words whatever the stored member says', async () => {
     for (const latin of [true, false]) {
       await storeLatin(latin);
-      const view = await editionView(db, sample.editionId, null, audience);
+      const view = await editionView(db, sample.editionId, null);
       expect(view.apparatus).not.toHaveProperty('latin');
       expect(await printedAtSix()).toEqual(['1.6 ἐξ … ἐρίσαντε A : not in B C']);
     }

@@ -1044,7 +1044,6 @@ async function workOn(work: Work, from: number, to: number): Promise<void> {
         reading: t.reading,
         proposer: 'The editor',
         anchor: { editionId, tokenIds: [t.token.id] },
-        visibility: (await publishedAlready(db, editionId)) ? 'published' : 'draft',
       },
       s.ownerId,
     );
@@ -1083,14 +1082,6 @@ async function workOn(work: Work, from: number, to: number): Promise<void> {
       }
     }
   }
-}
-
-async function publishedAlready(db: Database, editionId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ visibility: editions.visibility })
-    .from(editions)
-    .where(eq(editions.id, editionId));
-  return row?.visibility === 'published';
 }
 
 /** The operations that adopt a conjecture the editors take, or none where it cannot be put in the text. */

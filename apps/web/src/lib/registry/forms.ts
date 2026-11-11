@@ -353,7 +353,6 @@ const conjectureSchema = z
     proposer: optional(200, t.common.tooLong),
     note: optional(4000, t.common.tooLong),
     extent: optional(200, t.common.tooLong),
-    published: z.boolean(),
   })
   .superRefine((value, ctx) => {
     const needsLemma =
@@ -375,7 +374,6 @@ export interface ConjectureForm {
   note: string | null;
   /** Only for a lacuna. */
   extent: string | null;
-  published: boolean;
 }
 
 const CONJECTURE_FIELDS = [
@@ -390,7 +388,7 @@ const CONJECTURE_FIELDS = [
 
 export function parseConjectureForm(form: FormData): Parsed<ConjectureForm> {
   const typed = values(form, CONJECTURE_FIELDS);
-  const parsed = run(conjectureSchema, { ...typed, published: checked(form, 'published') }, typed);
+  const parsed = run(conjectureSchema, typed, typed);
   if (!parsed.ok) return parsed;
   const d = parsed.data;
   return {
@@ -403,7 +401,6 @@ export function parseConjectureForm(form: FormData): Parsed<ConjectureForm> {
       proposer: d.proposer || null,
       note: d.note || null,
       extent: d.kind === 'lacuna' ? d.extent || null : null,
-      published: d.published,
     },
   };
 }
@@ -416,7 +413,6 @@ const readingSchema = z
     reading: optional(500, t.common.tooLong),
     source: optional(500, t.common.tooLong),
     note: optional(4000, t.common.tooLong),
-    published: z.boolean(),
   })
   .superRefine((value, ctx) => {
     if (!value.lemma && !value.reading) {
@@ -431,14 +427,13 @@ export interface ReadingForm {
   reading: string;
   source: string | null;
   note: string | null;
-  published: boolean;
 }
 
 const READING_FIELDS = ['segment', 'witnessId', 'lemma', 'reading', 'source', 'note'] as const;
 
 export function parseReadingForm(form: FormData): Parsed<ReadingForm> {
   const typed = values(form, READING_FIELDS);
-  const parsed = run(readingSchema, { ...typed, published: checked(form, 'published') }, typed);
+  const parsed = run(readingSchema, typed, typed);
   if (!parsed.ok) return parsed;
   const d = parsed.data;
   return {

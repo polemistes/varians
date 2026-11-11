@@ -196,12 +196,11 @@ describe('the bibliography', () => {
     expect((await citationsByRecord(db, 'note', [noteId])).get(noteId)?.[0]?.text).toBe(
       'cf. West 1998',
     );
-    const asOwner = { kind: 'editor' as const, viewer: owner };
-    const cited = await editionWorksCited(db, ids.edition, asOwner);
+    const cited = await editionWorksCited(db, ids.edition);
     expect(cited.map((c) => c.label)).toEqual(['West 1998a', 'West 1998b']);
     expect(cited[0]!.reference).toContain('Homeri Ilias');
     // The same bibliography as the edition's TEI lists it: the works under those labels, and what the conjecture cites of them.
-    const listed = await editionBibliographyFor(db, ids.edition, asOwner);
+    const listed = await editionBibliographyFor(db, ids.edition);
     expect(listed.works.map((w) => [w.id, w.label])).toEqual([
       [west!.id, 'West 1998a'],
       [westb!.id, 'West 1998b'],
@@ -210,20 +209,13 @@ describe('the bibliography', () => {
     expect(listed.citations).toEqual({
       [conjectureId]: [{ itemId: west!.id, prenote: null, postnote: '45' }],
     });
-    // A reader is given neither the draft conjecture's citation nor the work only it cites.
-    const published = await editionBibliographyFor(db, ids.edition);
-    expect(published.works.map((w) => w.id)).toEqual([westb!.id]);
-    expect(published.citations).toEqual({});
-    // Readers see the published record only: the owner's draft conjecture, and what it cites, is not theirs to see.
-    expect((await editionWorksCited(db, ids.edition)).map((c) => c.key)).toEqual([
-      key('west1998b'),
-    ]);
-    // A stranger's draft conjecture is not printed by this edition, so what it cites is not listed.
+    // A conjecture belongs to the work whoever owns it: what another person's conjecture cites is listed too.
     await db
       .update(conjectures)
       .set({ ownerId: ids.other })
       .where(eq(conjectures.id, conjectureId));
-    expect((await editionWorksCited(db, ids.edition, asOwner)).map((c) => c.key)).toEqual([
+    expect((await editionWorksCited(db, ids.edition)).map((c) => c.key)).toEqual([
+      key('west1998'),
       key('west1998b'),
     ]);
     const refused = await deleteEntry(db, west!.id, owner);

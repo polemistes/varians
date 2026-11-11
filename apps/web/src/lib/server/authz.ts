@@ -342,23 +342,6 @@ export function canEditConjecture(
   );
 }
 
-/** Published records are seen by everyone; drafts by those who may edit them. */
-export function canViewConjecture(
-  user: Maybe<Actor>,
-  conjecture: Pick<Conjecture, 'id' | 'ownerId' | 'workId' | 'visibility'>,
-  context: ConjectureContext,
-): boolean {
-  if (conjecture.visibility === 'published') return true;
-  return canEditConjecture(user, conjecture, context);
-}
-
-export function canPublishConjecture(
-  user: Maybe<Actor>,
-  conjecture: Pick<Conjecture, 'ownerId'>,
-): boolean {
-  return ownsOrAdministers(user, conjecture);
-}
-
 export function canDeleteConjecture(
   user: Maybe<Actor>,
   conjecture: Pick<Conjecture, 'ownerId'>,
@@ -372,11 +355,10 @@ export function conjectureRights(
   conjecture: Pick<Conjecture, 'id' | 'ownerId' | 'workId'>,
   context: ConjectureContext,
 ): RowRights {
-  if (!user) return { edit: false, delete: false, publish: false };
+  if (!user) return { edit: false, delete: false };
   return {
     edit: canEditConjecture(user, conjecture, context),
     delete: canDeleteConjecture(user, conjecture),
-    publish: canPublishConjecture(user, conjecture),
   };
 }
 

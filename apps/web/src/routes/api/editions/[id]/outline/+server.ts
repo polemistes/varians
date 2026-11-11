@@ -13,8 +13,6 @@ import { editionOutline } from '$lib/server/reader';
 export const GET: RequestHandler = async ({ locals, params }) => {
   const access = await loadEditionAccess(locals.db, locals.user, params.id);
   if (!access || !access.canView) throw error(404, 'No such edition');
-  if (!access.canEdit || !locals.user) throw error(403, 'You may not edit this edition');
-  return json(
-    await editionOutline(locals.db, access.edition.id, { kind: 'editor', viewer: locals.user }),
-  );
+  if (!access.canEdit) throw error(403, 'You may not edit this edition');
+  return json(await editionOutline(locals.db, access.edition.id));
 };

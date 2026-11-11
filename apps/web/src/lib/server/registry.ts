@@ -91,7 +91,6 @@ import { promisify } from 'node:util';
 import { archiveWork, folderName } from './archive/archive.ts';
 import {
   canDeleteTranscription,
-  canViewConjecture,
   canViewEdition,
   canViewTranscription,
   isAdministrator,
@@ -1193,7 +1192,7 @@ export async function transcriptionsOfWitness(
 
 /**
  * The works a witness is connected to: through transcriptions made for them or assigning text to them, and through reported readings.
- * Only what the viewer may see is counted and connects: another person's draft is no trace of a work on the witness's page.
+ * Of the transcriptions only what the viewer may see is counted and connects: another person's draft is no trace of a work on the witness's page.
  */
 export async function worksOfWitness(
   db: Database,
@@ -1232,17 +1231,10 @@ export async function worksOfWitness(
       .innerJoin(transcriptions, eq(transcriptions.id, transcriptionWorks.transcriptionId))
       .where(eq(transcriptions.witnessId, witnessId))
   ).filter((r) => canViewTranscription(viewer, { ...r, id: r.transcriptionId }, grants));
-  const viaReadings = (
-    await db
-      .select({
-        id: reportedReadings.id,
-        workId: reportedReadings.workId,
-        ownerId: reportedReadings.ownerId,
-        visibility: reportedReadings.visibility,
-      })
-      .from(reportedReadings)
-      .where(eq(reportedReadings.witnessId, witnessId))
-  ).filter((r) => canViewConjecture(viewer, r, { workMaintainerIds: [], grants }));
+  const viaReadings = await db
+    .select({ id: reportedReadings.id, workId: reportedReadings.workId })
+    .from(reportedReadings)
+    .where(eq(reportedReadings.witnessId, witnessId));
 
   const tally = new Map<
     string,
@@ -1337,7 +1329,6 @@ export async function conjecturesOfWork(db: Database, workId: string): Promise<C
       note: conjectures.note,
       ownerId: conjectures.ownerId,
       ownerName: users.name,
-      visibility: conjectures.visibility,
     })
     .from(conjectures)
     .innerJoin(segments, eq(segments.id, conjectures.segmentId))
@@ -1365,7 +1356,6 @@ async function selectReadings(db: Database, where: SQL): Promise<ReadingRow[]> {
       note: reportedReadings.note,
       ownerId: reportedReadings.ownerId,
       ownerName: users.name,
-      visibility: reportedReadings.visibility,
     })
     .from(reportedReadings)
     .innerJoin(works, eq(works.id, reportedReadings.workId))
@@ -1402,7 +1392,6 @@ export interface ReadingUpdate {
   reading?: string;
   source?: string | null;
   note?: string | null;
-  visibility?: 'draft' | 'published';
 }
 
 /** Updates a reported reading; conjectures.ts has no counterpart of updateConjecture for these. */
@@ -1414,7 +1403,6 @@ export async function updateReportedReading(db: Database, id: string, fields: Re
   if (fields.reading !== undefined) set.reading = fields.reading.trim();
   if (fields.source !== undefined) set.source = clean(fields.source);
   if (fields.note !== undefined) set.note = clean(fields.note);
-  if (fields.visibility !== undefined) set.visibility = fields.visibility;
   if (Object.keys(set).length === 0) {
     const [row] = await db.select().from(reportedReadings).where(eq(reportedReadings.id, id));
     return row ?? null;

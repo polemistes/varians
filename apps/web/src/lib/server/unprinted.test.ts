@@ -47,7 +47,7 @@ import { setSiteMinor } from './collation.ts';
 import { replaceContent, saveOps } from './documents/service.ts';
 import { publishEdition } from './publish.ts';
 import { loadReader, readerSites } from './reader-pages.ts';
-import { editionOutline, editionView, refreshView, type Audience } from './reader.ts';
+import { editionOutline, editionView, refreshView } from './reader.ts';
 import { DEFAULT_CONVENTIONS } from './seed/sample.ts';
 import { resolveLabels, schemeOfWork } from './segments.ts';
 import { setChosenWorks } from './transcription-works.ts';
@@ -56,7 +56,6 @@ const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329
 let db: Database;
 let pool: pg.Pool;
 const userId = newId();
-const owner: Audience = { kind: 'editor', viewer: { id: userId, role: 'member' } };
 const actor = { id: userId, role: 'member' as const };
 const WORK = 'unprinted-lines';
 const SLUGS = ['unprinted-a', 'unprinted-b', 'unprinted-c', 'unprinted-d'];
@@ -241,7 +240,7 @@ function sitesOver(passage: Passage, segmentId: string): Site[] {
 
 describe('a segment the edition does not print', () => {
   it('is a variant after the line before it, with the witnesses that are there', async () => {
-    const view = await editionView(db, editionId, null, owner);
+    const view = await editionView(db, editionId, null);
     const three = segmentIdOf('1.3');
     const found = unprintedVariant(view.segments, three)!;
     expect(found).not.toBeNull();
@@ -294,13 +293,13 @@ describe('a segment the edition does not print', () => {
 
   it('is given to the editor among the first segments, again after a change, and in the outline it counts', async () => {
     const three = segmentIdOf('1.3');
-    const first = await editionView(db, editionId, null, owner, { first: 2, lines: false });
+    const first = await editionView(db, editionId, null, { first: 2, lines: false });
     expect(unprintedVariant(first.segments, three)).not.toBeNull();
-    const fresh = await refreshView(db, editionId, [three], owner);
+    const fresh = await refreshView(db, editionId, [three]);
     const passage = unprintedVariant(fresh.segments, three)!.passage;
     expect(Object.keys(fresh.segments)).toEqual([passage.segmentId]);
 
-    const { outline } = await editionOutline(db, editionId, owner);
+    const { outline } = await editionOutline(db, editionId);
     const sites = outline[passage.segmentId]!.sites.filter((s) => s.unprinted);
     expect(sites).toHaveLength(1);
     expect(sites[0]!.unprinted).toEqual({ segmentId: three, after: segmentIdOf('1.2') });
@@ -352,7 +351,7 @@ describe('a segment the edition does not print', () => {
       tokenIds: [t.id],
     }));
 
-    const before = await editionView(db, editionId, null, owner);
+    const before = await editionView(db, editionId, null);
     const original = before.content;
     const { passage: variant, site } = unprintedVariant(before.segments, three)!;
     const reading = site.readings.find((r) => r.sigla.includes('A'))!;
@@ -360,7 +359,7 @@ describe('a segment the edition does not print', () => {
     await save(opsForReading(original, variant, site, reading, transcriptionOf.A!));
 
     // Printed from A, after 1.2: collated as a printed line, the variant over the whole of it says B has it not.
-    const printed = await editionView(db, editionId, null, owner);
+    const printed = await editionView(db, editionId, null);
     expect(unprintedVariant(printed.segments, three)).toBeNull();
     expect(toText(printed.content).split('\n')).toEqual(
       ['1.1', '1.2', '1.3', '1.4', '1.5'].map((l) => LINES[l]),
@@ -383,7 +382,7 @@ describe('a segment the edition does not print', () => {
     const wanting = sitesOver(line, three).find((s) => s.wanting)!;
     const notIn = wanting.readings.find((r) => r.sigla.includes('B'))!;
     await save(opsForReading(printed.content, line, wanting, notIn, transcriptionOf.B!));
-    const without = await editionView(db, editionId, null, owner);
+    const without = await editionView(db, editionId, null);
     expect(unprintedVariant(without.segments, three)).not.toBeNull();
     expect(toText(without.content)).not.toContain('theta');
 
@@ -391,7 +390,7 @@ describe('a segment the edition does not print', () => {
     const again = unprintedVariant(without.segments, three)!;
     const its = again.site.readings.find((r) => r.sigla.includes('A'))!;
     await save(opsForReading(without.content, again.passage, again.site, its, transcriptionOf.A!));
-    const back = await editionView(db, editionId, null, owner);
+    const back = await editionView(db, editionId, null);
     expect(toText(back.content)).toBe(toText(printed.content));
     expect(back.content.items.map((i) => i.kind)).toEqual(printed.content.items.map((i) => i.kind));
     expect(sourcesOf(back.content)).toEqual(fromA);
@@ -407,14 +406,14 @@ describe('a segment the edition does not print', () => {
 
   it('takes the editor’s marks by its segment and its site key', async () => {
     const three = segmentIdOf('1.3');
-    const view = await editionView(db, editionId, null, owner);
+    const view = await editionView(db, editionId, null);
     const { passage, site } = unprintedVariant(view.segments, three)!;
     const key = siteKey(site, passage.baseUnits);
     await setSiteMinor(db, editionId, three, key, true, userId);
-    const after = await editionView(db, editionId, null, owner);
+    const after = await editionView(db, editionId, null);
     expect(unprintedVariant(after.segments, three)!.site.minor).toBe(true);
     await setSiteMinor(db, editionId, three, key, false, userId);
-    const again = await editionView(db, editionId, null, owner);
+    const again = await editionView(db, editionId, null);
     expect(unprintedVariant(again.segments, three)!.site.minor).toBeUndefined();
   });
 
@@ -438,7 +437,7 @@ describe('a segment the edition does not print', () => {
     // A loses line 3 from its text, which now runs on without it, and B is given it.
     await setContent('A', stream(of(['1.1', '1.2', '1.4', '1.5', '1.6'])));
     await setContent('B', stream(of(['1.1', '1.2', '1.3', '1.4', '1.5', '1.6'])));
-    const now = await editionView(db, editionId, null, owner);
+    const now = await editionView(db, editionId, null);
     expect(readingsOf([unprintedVariant(now.segments, three)!.site])).toEqual([
       ['*(nothing): ed. A', 'eta theta iota: B'],
     ]);
@@ -448,7 +447,7 @@ describe('a segment the edition does not print', () => {
     ]);
     // A line no witness has any more is no variant.
     await setContent('B', stream(of(['1.1', '1.2', '1.4', '1.5', '1.6'])));
-    const none = await editionView(db, editionId, null, owner);
+    const none = await editionView(db, editionId, null);
     expect(unprintedVariant(none.segments, three)).toBeNull();
     expect(
       Object.values(none.segments).some((p) => p.segments.some((s) => s.segmentId === three)),
@@ -472,7 +471,7 @@ describe('the order of whole segments', () => {
       position: 3,
     });
     const [four, five] = [segmentIdOf('1.4'), segmentIdOf('1.5')];
-    const view = await editionView(db, editionId, null, owner);
+    const view = await editionView(db, editionId, null);
     expect(view.order).toEqual([{ siglum: 'D', moved: [four], after: five }]);
     expect(view.orderVariants).toEqual([
       {
@@ -491,7 +490,7 @@ describe('the order of whole segments', () => {
     ]);
     const data = await loadReader(db, actor, EDITION, { draft: true });
     expect(data.orderVariants).toEqual(view.orderVariants);
-    const fresh = await refreshView(db, editionId, [four], owner);
+    const fresh = await refreshView(db, editionId, [four]);
     expect(fresh.orderVariants).toEqual(view.orderVariants);
   });
 });

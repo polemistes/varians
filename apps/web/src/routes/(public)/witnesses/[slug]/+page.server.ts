@@ -1,6 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import {
-  canViewConjecture,
   canViewTranscription,
   conjectureRights,
   grantsFor,
@@ -61,11 +60,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
     mergesInto(db, 'witness', witness.id),
   ]);
   const context = { workMaintainerIds: [] as string[], grants };
-  const readings = readingRows.filter((r) => canViewConjecture(user, r, context));
   const citations = await citationsByRecord(
     db,
     'reported',
-    readings.map((r) => r.id),
+    readingRows.map((r) => r.id),
   );
   return {
     crumb: { label: witness.name },
@@ -98,7 +96,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       .filter((r) => canViewTranscription(user, r, grants))
       .map((r) => ({ ...r, can: transcriptionRights(user, r, grants) })),
     works: workRows,
-    readings: readings.map((r) => ({
+    readings: readingRows.map((r) => ({
       ...r,
       can: conjectureRights(user, r, context),
       citations: (citations.get(r.id) ?? []).map(({ itemId, label, prenote, postnote, text }) => ({
