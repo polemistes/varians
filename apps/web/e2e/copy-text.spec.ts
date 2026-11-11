@@ -233,7 +233,8 @@ test('an empty edition without transcripts cannot copy, and is typed into as bef
   page.on('pageerror', (error) => errors.push(error.message));
   await signIn(page);
   await page.goto(`/editions/${BARE}/edit`);
-  await expect(page.locator('.cm-content')).toBeVisible();
+  // The first opening of the editor on a server just started takes longer than an expectation waits.
+  await page.waitForSelector('.cm-content');
   await expect(page.getByText(t.empty)).toBeVisible();
   await expect(page.getByRole('button', { name: t.menu })).toBeDisabled();
   await page.getByRole('button', { name: ed.dialogs.insert.menu, exact: true }).click();
