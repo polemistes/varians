@@ -9,8 +9,8 @@ export const editor = {
   keep: 'Keep the Text',
   kept: 'Reviewed',
   unreview: 'Review Again',
-  textual: 'textual',
-  interpretative: 'interpretative',
+  textual: 'Textual',
+  interpretative: 'Interpretative',
   kindTitle: (kind: 'textual' | 'interpretative', byEditor: boolean) =>
     (kind === 'textual'
       ? 'Textual: the witnesses have different letters here.'
@@ -76,9 +76,9 @@ export const editor = {
       insert: 'Insert',
       speaker: 'Speaker',
       head: 'Heading',
-      stage: 'Stage direction',
-      margin: 'Marginal note',
-      /** The same two as items of the Insert menu, where each is a title and not an option of the kind. */
+      stage: 'Stage Direction',
+      margin: 'Marginal Note',
+      /** The same two as items of the Insert menu. */
       stageMenu: 'Stage Direction',
       marginMenu: 'Marginal Note',
       lacuna: 'Lacuna',
@@ -125,7 +125,7 @@ export const editor = {
     image: 'Image',
     written: 'Diplomatic',
     read: 'Normalized',
-    form: 'Form shown',
+    form: 'Form Shown',
     noTranscription: 'This witness is not transcribed; only reported readings enter the apparatus.',
     noImage: 'No image for this page.',
     noImageOf: (label: string) => `${label} has no image`,
@@ -138,8 +138,8 @@ export const editor = {
   workspace: {
     witnesses: 'Witnesses',
     history: 'History',
-    resizeSide: 'Resize the side pane',
-    resizeBand: 'Resize the apparatus',
+    resizeSide: 'Resize the Side Pane',
+    resizeBand: 'Resize the Apparatus',
     witnessList: 'Witnesses and Sigla…',
     colourBySource: 'Colour words by source',
     toReview: (left: number, all: number) => `${left} of ${all} variants to review`,
