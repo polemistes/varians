@@ -43,9 +43,9 @@
 
   /** Owners pass the strings from $lib/strings; these are the fallbacks. */
   const DEFAULT_LABELS: Labels = {
-    zoomIn: 'Zoom in',
-    zoomOut: 'Zoom out',
-    fit: 'Fit the page',
+    zoomIn: 'Zoom In',
+    zoomOut: 'Zoom Out',
+    fit: 'Fit the Page',
     controls: 'Zoom',
   };
 
