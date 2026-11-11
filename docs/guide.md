@@ -50,9 +50,9 @@ When a work has been registered twice, the duplicate is merged into the other wi
 
 ### Conjectures and reported readings
 
-The work's page keeps the catalogue of conjectures. **Add conjecture** asks for the segment (such as 1.5), the kind (substitution, deletion, addition, lacuna, supplement, transposition), the words it concerns, the reading, the scholar who proposed it, the works where it was proposed, and a note. A conjecture starts as a draft that only you and the editors you work with see. Tick **Published** to make it part of the shared catalogue; publishing an edition does this for your conjectures on its work.
+The work's page keeps the catalogue of conjectures. **Add conjecture** asks for the segment (such as 1.5), the kind (substitution, deletion, addition, lacuna, supplement, transposition), the words it concerns, the reading, the scholar who proposed it, the works where it was proposed, and a note. A conjecture is public as soon as it is saved: everyone sees it in the catalogue and any edition of the work may adopt it, so look before adding one. You, the editors you work with and the work's maintainers may change or delete it. What you want to keep back until your edition appears belongs in the draft edition: an emendation typed into its text, or a note.
 
-A **reported reading** is what a witness is said to have at a variant, by another edition's apparatus or a collation, without a transcript of that witness. It stands among the readings of the variant under the witness's siglum, with its source.
+A **reported reading** is what a witness is said to have at a variant, by another edition's apparatus or a collation, without a transcript of that witness. It stands among the readings of the variant under the witness's siglum, with its source. Like a conjecture it is public as soon as it is saved.
 
 ## A witness
 
@@ -319,7 +319,7 @@ A conjecture belongs to the work, not to your edition: once registered, every ed
 - Select the words the conjecture concerns and choose **Conjecture…** in the small toolbar that appears under the selection, or press Alt+C.
 - Choose the kind: substitution, deletion, addition or lacuna. Type the reading, the scholar who proposed it, and, under **References**, the works where it was proposed or discussed, with pages. References come from the shared bibliography.
 - **Save** records the conjecture; **Save and Adopt** also puts it into your text. A conjecture registered in an edition belongs to the edition's owner, like the edition's text, so that every collaborator sees it.
-- The apparatus band shows the work's published conjectures, and the drafts you may see: your own, and the edition owner's when you collaborate. Another person's draft can be adopted once they publish it.
+- The apparatus band shows the work's conjectures, whoever entered them, and any of them can be adopted. Which conjectures a draft edition has adopted stays private with the draft.
 - A conjecture registered on the work's page that concerns words of your text appears in the apparatus band at its variant, with its proposer, and can be adopted from there.
 
 ### Marks, objects and notes
@@ -336,7 +336,7 @@ With words selected, the small toolbar under the selection offers:
 
 **Publish** makes the edition public as it stands, as a numbered version. Readers see that version, and it stays citable when you go on editing: each published version keeps its own address, and its variants stay as they were published, compared with the witnesses as they then stood, with the kinds the editors had given them and the variants they had marked minor. **Read** in the editor shows the reader on your current draft. **Unpublish…** in the **⋯** menu takes the edition back to a draft. Publishing, unpublishing and deleting an edition each ask first, in a window that says what goes with the action.
 
-Publishing an edition also publishes what it rests on, as far as it is yours: your transcripts it compares, and your conjectures and reported readings on the work. A transcript of someone else's that is still a draft cannot be published by you: publishing is refused until its owner publishes it, or you take it out of **Witnesses and Sigla…**.
+Publishing an edition also publishes what it rests on, as far as it is yours: your transcripts that it compares. A transcript of someone else's that is still a draft cannot be published by you: publishing is refused until its owner publishes it, or you take it out of **Witnesses and Sigla…**.
 
 Readers only ever see published versions. The working state of your edition, its history and its notes as they stand now are for you and your collaborators.
 
@@ -438,7 +438,7 @@ The files follow the **Varians Data Format**, whose specification, JSON Schemas 
 
 ### Publishing
 
-Publishing an edition or a transcript licenses it under the data licence of the installation: CC BY-SA 4.0 on varians.eu, or CC0 1.0 or CC BY 4.0 where an installation has chosen so. The licence is fixed at the first publication and stays with the record: unpublishing and publishing again, later versions, or a later change of the installation's licence do not change it. Conjectures, reported readings and notes published with a work fall under the same licence. The reader names the licence, linked to its text, and the TEI and the archive carry it with every published record. What you write in the **Note on Rights** of a transcript or an edition is shown beside the licence: the rights in a text you started from, say, or a request about how the work is to be credited. It adds to the licence and cannot take anything from it.
+Publishing an edition or a transcript licenses it under the data licence of the installation: CC BY-SA 4.0 on varians.eu, or CC0 1.0 or CC BY 4.0 where an installation has chosen so. The licence is fixed at the first publication and stays with the record: unpublishing and publishing again, later versions, or a later change of the installation's licence do not change it. Conjectures and reported readings, which are public from the moment they are entered, and the notes published with an edition fall under the same licence. The reader names the licence, linked to its text, and the TEI and the archive carry it with every published record. What you write in the **Note on Rights** of a transcript or an edition is shown beside the licence: the rights in a text you started from, say, or a request about how the work is to be credited. It adds to the licence and cannot take anything from it.
 
 You keep the rights you have in what you contribute; the licence is non-exclusive. The **terms of contribution**, at [/terms](/terms), say this and the rest in full: what publishing licenses, that a text you start from must be in the public domain or openly licensed (its history is published with your work), and what you promise about images. They are accepted at registration, and again before you next edit or publish when a new version of them comes into force.
 
