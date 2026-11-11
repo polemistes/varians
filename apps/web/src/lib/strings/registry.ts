@@ -321,9 +321,10 @@ export const registry = {
     /** The name proposed for a new transcript: it is of its witness, whatever works it has text of. */
     defaultName: (witness: string) => `Transcript of ${witness}`,
     nameRequired: 'Give the transcript a name.',
-    keepsWritten: 'Keep a Diplomatic Form beside the Normalized',
-    startFrom: 'Start from Another Transcript',
-    startFromNone: 'An Empty Text',
+    keepsWritten: 'Keep a diplomatic form beside the normalized',
+    startFrom: 'Start from another transcript',
+    /** The name, for a screen reader, of the list shown when that is ticked. */
+    startFromWhich: 'Transcript to Start From',
     create: 'Save',
     created: 'The transcript has been created.',
     createdFor: (witness: string) => `A transcript of ${witness} has been created.`,

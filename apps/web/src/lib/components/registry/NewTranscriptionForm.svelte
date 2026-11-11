@@ -64,16 +64,17 @@
     { value: '', label: s.workNone },
     ...works.map((w) => ({ value: w.id, label: w.author ? `${w.title} (${w.author})` : w.title })),
   ]);
-  const sourceOptions = $derived([
-    { value: '', label: s.startFromNone },
-    ...sources.map((t) => ({
+  const sourceOptions = $derived(
+    sources.map((t) => ({
       value: t.id,
       label: `${t.witnessSiglum}: ${t.witnessName}, ${t.name} (${t.ownerName})`,
     })),
-  ]);
+  );
 
   let name = $state('');
   let workId = $state('');
+  /** Whether the transcript starts from another; the transcripts to start from are shown only then. */
+  let startsFrom = $state(false);
   let submitting = $state(false);
   let errors = $state<Record<string, string[] | undefined>>({});
   let formError = $state<string | null>(null);
@@ -83,6 +84,7 @@
       const of = witness?.name ?? witnessName;
       name = of ? s.defaultName(of) : '';
       workId = witness ? (work?.id ?? '') : '';
+      startsFrom = false;
       errors = {};
       formError = null;
     }
@@ -166,11 +168,22 @@
       {/snippet}
     </Field>
     <Checkbox name="keepsWrittenForm">{s.keepsWritten}</Checkbox>
-    <Field label={s.startFrom} error={errors.fromTranscriptionId}>
-      {#snippet children(control)}
-        <Select {...control} name="fromTranscriptionId" value="" options={sourceOptions} />
-      {/snippet}
-    </Field>
+    {#if sources.length}
+      <Checkbox bind:checked={startsFrom}>{s.startFrom}</Checkbox>
+      {#if startsFrom}
+        <div class="flex flex-col gap-1.5 font-sans">
+          <Select
+            name="fromTranscriptionId"
+            options={sourceOptions}
+            aria-label={s.startFromWhich}
+            aria-invalid={errors.fromTranscriptionId ? 'true' : undefined}
+          />
+          {#if errors.fromTranscriptionId}
+            <p class="text-xs text-danger" role="alert">{errors.fromTranscriptionId[0]}</p>
+          {/if}
+        </div>
+      {/if}
+    {/if}
   </form>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (open = false)}>{registry.common.cancel}</Button>
