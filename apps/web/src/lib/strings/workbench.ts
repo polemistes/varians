@@ -24,9 +24,9 @@ export const workbench = {
 
   pages: {
     label: 'Page',
-    previous: 'Previous page',
-    next: 'Next page',
-    choose: 'Choose a page',
+    previous: 'Previous Page',
+    next: 'Next Page',
+    choose: 'Choose a Page',
     /** The text on no page of the witness. */
     unplaced: 'Not on a page',
     unplacedWords: (n: number) => plural(n, 'word', 'words'),
@@ -34,7 +34,7 @@ export const workbench = {
     wholeHint: 'Every page in one view, read only; double-click a word to open its page',
     /** The title of the mark beside a page with text in this transcript. */
     hasText: 'Has text in this transcript',
-    manage: 'Pages…',
+    manage: 'Pages',
     manageHint: 'Every page of the witness, with its image, in the side pane',
     /** After a save: the witness's pages changed meanwhile, and the text was made to follow them. */
     reorganized: 'Pages reorganized',
@@ -60,22 +60,22 @@ export const workbench = {
     title: 'Normalize diacritics, remove marks, change case',
     scopeSelection: (n: number) => `For the ${n === 1 ? 'selected word' : `${n} selected words`}`,
     scopePage: 'For every word of the page shown (select words to act on fewer)',
-    normalize: 'Normalize diacritics',
+    normalize: 'Normalize Diacritics',
     normalizeHint:
       'Accents, breathings and diaereses of the normalized forms, from the analyser. Where one form fits it is set; the others are marked for you to choose.',
     normalizeHintOneForm:
       'Accents, breathings and diaereses of the words, from the analyser. Where one form fits it is set; the others are marked for you to choose.',
-    removeHeading: 'Remove from the diplomatic text',
-    removeHeadingOneForm: 'Remove from the text',
+    removeHeading: 'Remove from the Diplomatic Text',
+    removeHeadingOneForm: 'Remove from the Text',
     removeAccents: 'Accents',
     removeBreathings: 'Breathings',
     removeDiaereses: 'Diaereses',
-    removeIotaSubscripts: 'Iota subscripts',
-    removeAll: 'All four',
+    removeIotaSubscripts: 'Iota Subscripts',
+    removeAll: 'All Four',
     caseHeading: (diplomatic: boolean) =>
-      diplomatic ? 'Case of the diplomatic text' : 'Case of the text shown',
-    lower: 'All lower case',
-    upper: 'All upper case',
+      diplomatic ? 'Case of the Diplomatic Text' : 'Case of the Text Shown',
+    lower: 'All Lower Case',
+    upper: 'All Upper Case',
     changed: (n: number) => `${plural(n, 'word', 'words')} changed.`,
     nothingChanged: 'Nothing to change.',
     failed: 'The analyser could not be reached.',
@@ -87,11 +87,11 @@ export const workbench = {
       ]
         .filter((x) => x)
         .join(', ') + '.',
-    takeFrom: 'Take normalized forms from another text…',
+    takeFrom: 'Take Normalized Forms from Another Text…',
     takeFromHint:
       'Where a word has the same letters as the word it stands against in another transcript or an edition, its form there.',
     take: {
-      title: 'Take normalized forms from another text',
+      title: 'Take Normalized Forms from Another Text',
       description: (n: number | null) =>
         `${n ? `For the ${n === 1 ? 'selected word' : `${n} selected words`}` : 'For every word of the page shown'}: where a word has the same letters as the word it stands against in the text chosen, it takes that text's normalized form, accented for its place here. Words with other letters are textual variants and are left alone.`,
       source: 'Text',
@@ -100,7 +100,7 @@ export const workbench = {
       loading: 'Finding the texts of the work',
       none: "There is no other text of this transcript's works that you may see.",
       failed: 'The other text could not be read.',
-      take: 'Take the forms',
+      take: 'Take the Forms',
       cancel: 'Cancel',
       done: (taken: number, differing: number) =>
         `${plural(taken, 'word', 'words')} took the other text's form${differing ? `; ${plural(differing, 'word stands', 'words stand')} against other letters, left alone` : ''}.`,
@@ -111,8 +111,8 @@ export const workbench = {
       disagrees: 'No form agrees with the accents the witness writes. Choose one:',
       unknown: 'The analyser does not know this word. Type its normalized form in the text.',
       keep: 'Leave as it is',
-      previous: 'Previous word to choose',
-      next: 'Next word to choose',
+      previous: 'Previous Word to Choose',
+      next: 'Next Word to Choose',
       count: (n: number) => `${plural(n, 'word', 'words')} to choose`,
     },
   },
@@ -120,9 +120,9 @@ export const workbench = {
   insert: {
     label: 'Insert',
     title: 'Insert a break or an object where the caret is',
-    breaksHeading: (line: number) => `Before line ${line}`,
-    column: 'Column break',
-    paragraph: 'Paragraph break',
+    breaksHeading: (line: number) => `Before Line ${line}`,
+    column: 'Column Break',
+    paragraph: 'Paragraph Break',
     /** What a break would do, shown under it. */
     begins: {
       column: (line: number) => `Line ${line} will begin a new column`,
@@ -134,7 +134,7 @@ export const workbench = {
       column: (line: number) => `Line ${line} begins a column already`,
       paragraph: (line: number) => `Line ${line} begins a paragraph already`,
     },
-    objectsHeading: 'At the caret',
+    objectsHeading: 'At the Caret',
     gap: 'Gap',
     gapHint: 'Text lost or illegible',
     notTranscribed: 'Not Transcribed',
@@ -155,7 +155,7 @@ export const workbench = {
     delete: 'Delete…',
     copy: 'Make a Copy…',
     witness: 'Open the Witness',
-    togglePane: 'Show or hide the side pane',
+    togglePane: 'Show or Hide the Side Pane',
     /** A checked item: the side pane stands left of the text. */
     paneLeft: 'Facsimile on the Left',
   },
@@ -164,7 +164,7 @@ export const workbench = {
     label: 'Side pane',
     resize: 'Resize the side pane',
     facsimile: 'Facsimile',
-    otherForm: 'Other form',
+    otherForm: 'Other Form',
     history: 'History',
     pages: 'Pages',
     otherWritten: 'The diplomatic text, not editable here',
@@ -177,11 +177,11 @@ export const workbench = {
     saving: 'Saving…',
     unsaved: (n: number) => `${n} unsaved`,
     notSaved: (message: string) => `Not saved: ${message}`,
-    retry: 'Try again',
+    retry: 'Try Again',
     lines: (n: number) => plural(n, 'line', 'lines'),
     unmapped: (n: number) => `${plural(n, 'word', 'words')} unmapped`,
     unchecked: (n: number) => `${plural(n, 'word', 'words')} to check`,
-    proposals: (n: number) => `Normalized forms proposed (${n})`,
+    proposals: (n: number) => `Normalized Forms Proposed (${n})`,
     wholeText: 'whole text',
     /** Words on no page, in the status line of a page or the whole text. */
     unplaced: (n: number) => `${plural(n, 'word', 'words')} not on a page`,
@@ -208,12 +208,12 @@ export const workbench = {
     mapTitle: 'Draw the selected words on the facsimile',
     confirm: 'Confirm',
     confirmTitle: 'Confirm the normalized forms of the selected words as they stand',
-    numberLines: 'Number lines…',
+    numberLines: 'Number Lines…',
     variant: 'Variant…',
     variantTitle:
       'Note a variant the manuscript gives for the selected words, in the margin or between the lines',
-    editVariant: 'Edit variant…',
-    removeVariant: 'Remove variant',
+    editVariant: 'Edit Variant…',
+    removeVariant: 'Remove Variant',
     removeVariantTitle: 'Remove the variant noted on these words',
     correction: 'Correction…',
     correctionTitle: 'Say which hand made the selected deletion or addition, and at which stage',
@@ -240,7 +240,7 @@ export const workbench = {
   },
 
   variant: {
-    title: 'Variant noted in the manuscript',
+    title: 'Variant Noted in the Manuscript',
     description:
       'Stays with this witness; an edition can collate it under a siglum of its own (A v.l.).',
     words: 'For the words',
@@ -266,8 +266,8 @@ export const workbench = {
     partHint: (n: number) =>
       `This segment already begins elsewhere in the text; this is its part ${n}.`,
     set: 'Set',
-    unassign: 'Unassigned from here',
-    remove: 'Remove this start',
+    unassign: 'Unassigned from Here',
+    remove: 'Remove This Start',
     cancel: 'Cancel',
     noWork:
       'This transcript is not made for a work yet. Choose its work in the registry to name segments.',
@@ -276,7 +276,7 @@ export const workbench = {
   },
 
   numbering: {
-    title: 'Number lines',
+    title: 'Number Lines',
     description:
       'Each line from the caret to the end of the page gets the next label on its first word.',
     start: 'First label',
@@ -291,7 +291,7 @@ export const workbench = {
   },
 
   proposals: {
-    title: 'Normalized forms proposed',
+    title: 'Normalized Forms Proposed',
     description:
       'From the normalization profile and the forms you confirmed before. Accepting remembers each pair.',
     scope: 'Where',
@@ -302,8 +302,8 @@ export const workbench = {
     source: 'From',
     memory: 'memory',
     profile: 'profile',
-    all: 'Select all',
-    none: 'Select none',
+    all: 'Select All',
+    none: 'Select None',
     accept: (n: number) => (n === 1 ? 'Accept 1' : `Accept ${n}`),
     cancel: 'Cancel',
     empty: 'Nothing to propose here.',
@@ -314,11 +314,11 @@ export const workbench = {
   facsimile: {
     noPage: 'This view has no page. Choose a page to see its image.',
     noImage: (label: string) => `Page ${label} has no image yet.`,
-    addImage: 'Add an image…',
+    addImage: 'Add an Image…',
     addImageHint: (maxMb: number) =>
       `JPEG, PNG, TIFF or WebP, up to ${maxMb} MB. You can also drop the file here.`,
     dropHere: 'Drop the image here',
-    allPages: 'All pages',
+    allPages: 'All Pages',
     uploading: (percent: number) => `Uploading ${percent}%`,
     processing: 'Making tiles',
     tools: 'Mapping tools',
@@ -326,9 +326,9 @@ export const workbench = {
     pan: 'Move',
     rect: 'Rectangle',
     polygon: 'Polygon',
-    mapSelection: 'Map selection',
+    mapSelection: 'Map Selection',
     mapSelectionHint: 'Select words in the text, then draw a rectangle or polygon around them.',
-    mapLines: 'Map lines',
+    mapLines: 'Map Lines',
     mapLinesHint: 'Select whole lines in the text, then draw one box around them on the image.',
     feature: 'Feature',
     featureHint:
@@ -379,10 +379,10 @@ export const workbench = {
       selected: (n: number) => (n ? `The Selected Boxes (${n})` : 'The Selected Boxes'),
       orphans: (n: number) => `Boxes Whose Words Are Gone (${n})`,
       all: (n: number) => `All Word Boxes on This Page (${n})…`,
-      confirmTitle: 'Delete all word boxes on this page?',
+      confirmTitle: 'Delete All Word Boxes on This Page?',
       confirmBody: (n: number, page: string) =>
         `${plural(n, 'word box', 'word boxes')} on ${page} will be deleted. Features stay. Undo brings the boxes back as long as the page stays open.`,
-      confirm: (n: number) => `Delete ${plural(n, 'box', 'boxes')}`,
+      confirm: (n: number) => `Delete ${plural(n, 'Box', 'Boxes')}`,
       cancel: 'Cancel',
     },
     deletedMessage: (n: number) =>
@@ -404,12 +404,12 @@ export const workbench = {
         bottom: 'Make the boxes taller or lower from the bottom',
       },
     },
-    controls: { zoomIn: 'Zoom in', zoomOut: 'Zoom out', fit: 'Fit the page', controls: 'Zoom' },
+    controls: { zoomIn: 'Zoom In', zoomOut: 'Zoom Out', fit: 'Fit the Page', controls: 'Zoom' },
     zones: (n: number) => plural(n, 'zone', 'zones'),
   },
 
   feature: {
-    title: 'A feature of the page',
+    title: 'A Feature of the Page',
     kind: 'Kind',
     description: 'Description',
     save: 'Save',
@@ -427,7 +427,7 @@ export const workbench = {
     title: 'Import',
     description:
       'The import is one change in the history. Text is added at the end of the place chosen, or of the pages of the witness the file names; an empty transcript is replaced.',
-    tabs: { tei: 'TEI', text: 'Plain text', leiden: 'Leiden', layout: 'PAGE or ALTO' },
+    tabs: { tei: 'TEI', text: 'Plain Text', leiden: 'Leiden', layout: 'PAGE or ALTO' },
     replace: 'Replace the whole text',
     replaceHint: 'Instead of adding to what is there. The history keeps the old text.',
     placement: 'Place',
@@ -452,9 +452,9 @@ export const workbench = {
     tei: {
       source: 'URL or CTS URN',
       sourceHint: 'A TEI file on the web, or a CTS URN.',
-      preview: 'Read the file',
+      preview: 'Read the File',
       reading: 'Reading…',
-      structure: 'Structure found',
+      structure: 'Structure Found',
       unit: 'Unit',
       count: 'Count',
       example: 'Example',
@@ -560,7 +560,7 @@ export const workbench = {
   },
 
   delete: {
-    title: 'Delete transcript',
+    title: 'Delete Transcript',
     body: (name: string) =>
       `Delete "${name}" with its zones and history? The witness and its pages stay.`,
     confirm: 'Delete',
