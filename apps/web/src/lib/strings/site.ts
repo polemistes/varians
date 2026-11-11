@@ -228,12 +228,6 @@ export const site = {
   },
 
   start: {
-    edition: {
-      title: 'Make New Edition',
-      chooseWork: 'Choose a Work for the Edition',
-      choose: 'Choose',
-      register: 'Add New Work',
-    },
     transcription: {
       title: 'Transcribe a witness',
       choose: 'Transcribe witness',

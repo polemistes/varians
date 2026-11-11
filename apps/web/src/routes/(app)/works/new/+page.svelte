@@ -8,7 +8,7 @@
   import { registry as t } from '$lib/strings/registry';
   import type { PageProps } from './$types';
 
-  let { data, form }: PageProps = $props();
+  let { form }: PageProps = $props();
 
   let submitting = $state(false);
   const errors = $derived((form?.errors ?? {}) as Record<string, string[] | undefined>);
@@ -38,9 +38,7 @@
     <SchemeEditor choice={values.scheme || undefined} {levels} error={errors.scheme} />
     <div class="flex items-center gap-3 border-t border-line pt-6">
       <Button type="submit" variant="primary" loading={submitting}>{t.work.create}</Button>
-      <Button href={data.forEdition ? '/start/edition' : '/'} variant="ghost"
-        >{t.common.cancel}</Button
-      >
+      <Button href="/" variant="ghost">{t.common.cancel}</Button>
     </div>
   </form>
 </PageFrame>

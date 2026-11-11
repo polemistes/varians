@@ -11,19 +11,39 @@
     Select,
     toasts,
   } from '$lib/components/ui';
+  import type { TranscriptChoice } from '$lib/edition/conspectus';
   import type { TranscriptionOption, WorkOption } from '$lib/registry/types';
   import { registry } from '$lib/strings/registry';
   import { autofocus } from './focus';
 
   interface Props {
     open?: boolean;
-    /** Every work, to choose among. */
-    works: WorkOption[];
+    /** The window's title. */
+    title?: string;
+    /** Every work, to choose from; not needed when the work is given. */
+    works?: WorkOption[];
     /** The transcriptions the user may view, to start from. */
     sources: TranscriptionOption[];
+    /** The form action; the witness page's own when omitted. */
+    action?: string;
+    /** The work the transcript is made for, shown and not chosen. */
+    work?: { id: string; title: string } | null;
+    /** The witness transcribed, for an action that does not know it from its page. */
+    witnessId?: string;
+    /** Called with the transcript made, in place of going to its workbench. */
+    oncreated?: (transcript: TranscriptChoice) => void;
   }
 
-  let { open = $bindable(false), works, sources }: Props = $props();
+  let {
+    open = $bindable(false),
+    title = registry.witness.newTranscription,
+    works = [],
+    sources,
+    action = '?/newTranscription',
+    work = null,
+    witnessId,
+    oncreated,
+  }: Props = $props();
 
   const s = registry.transcription;
   const uid = $props.id();
@@ -49,8 +69,8 @@
 
   $effect(() => {
     if (open) {
-      name = '';
-      workId = '';
+      name = work?.title ?? '';
+      workId = work?.id ?? '';
       errors = {};
       formError = null;
     }
@@ -75,7 +95,11 @@
     formError = null;
     return async ({ result, update }) => {
       submitting = false;
-      if (result.type === 'redirect' || result.type === 'success') {
+      if (result.type === 'success' && oncreated) {
+        open = false;
+        toasts.success(s.created);
+        oncreated(result.data?.transcript as TranscriptChoice);
+      } else if (result.type === 'redirect' || result.type === 'success') {
         toasts.success(s.created);
         await update();
       } else if (result.type === 'failure') {
@@ -88,11 +112,11 @@
   };
 </script>
 
-<Dialog bind:open title={registry.witness.newTranscription} size="md">
+<Dialog bind:open {title} size="md">
   <form
     id={formId}
     method="post"
-    action="?/newTranscription"
+    {action}
     class="flex flex-col gap-4"
     novalidate
     oninput={forget}
@@ -101,18 +125,27 @@
     {#if formError}
       <Notice kind="error">{formError}</Notice>
     {/if}
-    <Field label={s.work} error={errors.workId}>
-      {#snippet children(control)}
-        <Select
-          {...control}
-          name="workId"
-          value={workId}
-          options={workOptions}
-          onchange={(e) => chooseWork(e.currentTarget.value)}
-          {@attach autofocus}
-        />
-      {/snippet}
-    </Field>
+    {#if witnessId}<input type="hidden" name="witnessId" value={witnessId} />{/if}
+    {#if work}
+      <input type="hidden" name="workId" value={work.id} />
+      <div class="flex flex-col gap-1.5 font-sans">
+        <span class="text-sm font-medium text-ink">{s.work}</span>
+        <span class="font-serif text-base text-ink">{work.title}</span>
+      </div>
+    {:else}
+      <Field label={s.work} error={errors.workId}>
+        {#snippet children(control)}
+          <Select
+            {...control}
+            name="workId"
+            value={workId}
+            options={workOptions}
+            onchange={(e) => chooseWork(e.currentTarget.value)}
+            {@attach autofocus}
+          />
+        {/snippet}
+      </Field>
+    {/if}
     <Field label={s.name} error={errors.name} required>
       {#snippet children(control)}
         <Input
@@ -122,6 +155,9 @@
           autocomplete="off"
           class="font-serif text-base"
           required
+          {@attach (node: HTMLElement) => {
+            if (work) autofocus(node);
+          }}
         />
       {/snippet}
     </Field>

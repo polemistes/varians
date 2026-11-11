@@ -1,12 +1,13 @@
 /**
  * The whole way through, as an editor goes: register a work and two
  * witnesses, transcribe both (the text is saved through the editors' save
- * endpoint, as the workbench saves it), make an edition, adopt a reading
+ * endpoint, as the workbench saves it), make an edition on Make New Edition
+ * (its text put in through the same endpoint), adopt a reading
  * of the second witness, publish, read the published edition as a visitor
  * would, and download the work's archive.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { fromText, newId, type Item, type Token } from '@varians/core';
+import { deriveEdition, fromText, newId, type Item, type Token } from '@varians/core';
 import {
   createDatabase,
   editions,
@@ -18,6 +19,7 @@ import {
 } from '@varians/db';
 import { eq, inArray } from 'drizzle-orm';
 import { s } from '../src/lib/strings/en';
+import { edition as ed } from '../src/lib/strings/edition';
 import { pageStrings as t } from '../src/lib/strings/pages';
 import { workbench as w } from '../src/lib/strings/workbench';
 import { registry as reg } from '../src/lib/strings/registry';
@@ -167,14 +169,42 @@ test('from a new work to a published edition and its archive', async ({ page }) 
     expect(response.ok(), await response.text()).toBe(true);
   }
 
-  // An edition based on X, comparing X and Y.
-  await page.goto(`/editions/new?work=${workSlug}`);
+  // An edition comparing X and Y, made on Make New Edition from the work's page.
+  await page.goto(`/works/${workSlug}`);
+  await page.getByRole('link', { name: ed.newTitle }).click();
+  await page.waitForURL(/\/editions\/new\?work=/);
   await page.waitForLoadState('networkidle');
-  await page.locator('input[name=title]').fill(`Aeneis 1, ${stamp}`);
-  await page.locator('select[name=base]').selectOption(transcriptionIds[0]!);
-  await page.getByRole('button', { name: 'Create the edition' }).click();
-  await page.waitForURL(/\/editions\/[^/]+\/edit$/);
+  await page.getByLabel(ed.title).fill(`Aeneis 1, ${stamp}`);
+  for (const name of [`Codex Probandi ${stamp}`, `Codex Alter ${stamp}`]) {
+    await page.getByRole('button', { name: ed.conspectus.addWitness, exact: true }).click();
+    const picker = page.getByRole('dialog', { name: ed.conspectus.picker.title });
+    await picker.getByText(name).click();
+    await picker.getByRole('button', { name: ed.conspectus.picker.add, exact: true }).click();
+    await expect(picker).toBeHidden();
+  }
+  await page.getByRole('button', { name: ed.save, exact: true }).click();
+  await page.waitForURL(/\/editions\/[^/]+\/settings$/);
   editionSlug = new URL(page.url()).pathname.split('/')[2]!;
+
+  // The edition starts empty; its text is X's, put in through the editors' save endpoint.
+  {
+    const { db, pool } = createDatabase(DATABASE_URL);
+    const [made] = await db.select().from(editions).where(eq(editions.slug, editionSlug));
+    const [x] = await db
+      .select()
+      .from(transcriptions)
+      .where(eq(transcriptions.id, transcriptionIds[0]!));
+    await pool.end();
+    const response = await page.request.post(`/api/documents/edition/${made!.id}/ops`, {
+      data: {
+        fromVersion: 0,
+        ops: [{ t: 'insert', after: null, items: deriveEdition(x!.content, x!.id).items }],
+      },
+    });
+    expect(response.ok(), await response.text()).toBe(true);
+  }
+  await page.getByRole('link', { name: ed.editText }).click();
+  await page.waitForURL(/\/editions\/[^/]+\/edit$/);
   await page.waitForSelector('.cm-content');
   await expect(page.locator('.cm-content .cm-line').nth(1)).toHaveText(/Laviniaque/);
 

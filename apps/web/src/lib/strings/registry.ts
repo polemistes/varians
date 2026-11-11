@@ -57,7 +57,7 @@ export const registry = {
     notFound: 'There is no work with this address.',
     unknownAuthor: 'Unknown author',
     edit: 'Edit',
-    newEdition: 'New edition',
+    newEdition: 'Make New Edition',
     maintainers: 'Maintainers',
     maintainedBy: (names: string) => `Maintained by ${names}`,
     noMaintainers: 'No maintainers',

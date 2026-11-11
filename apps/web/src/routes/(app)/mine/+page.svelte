@@ -13,7 +13,7 @@
 
 <PageFrame title={t.title}>
   {#snippet actions()}
-    <Button href="/start/edition" variant="secondary" size="sm">{t.newEdition}</Button>
+    <Button href="/editions/new" variant="secondary" size="sm">{t.newEdition}</Button>
     <Button href="/start/transcription" variant="secondary" size="sm">{t.newTranscription}</Button>
   {/snippet}
   <div class="flex flex-col gap-12">

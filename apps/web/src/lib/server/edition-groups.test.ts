@@ -19,6 +19,7 @@ import { eq, inArray } from 'drizzle-orm';
 import type pg from 'pg';
 import type { CurrentUser } from '$lib/types';
 import { actions } from '../../routes/(app)/editions/[slug]/edit/+page.server';
+import { actions as settingsActions } from '../../routes/(app)/editions/[slug]/settings/+page.server';
 import { editionView, type Audience } from './reader.ts';
 import { parseDescription, removePage, seedPage, type PageSeedResult } from './seed/page.ts';
 import { seedSample, type SampleResult } from './seed/sample.ts';
@@ -254,7 +255,7 @@ describe('an edition with a group and the two words', () => {
   }, 60_000);
 
   const settings = (fields: Record<string, string>) =>
-    run(actions.settings, page.editionSlug, settingsForm(fields));
+    run(settingsActions.save, page.editionSlug, settingsForm(fields));
 
   it('names every witness until the editor chooses the words and the group', async () => {
     await settings({ apparatus: 'negative' });

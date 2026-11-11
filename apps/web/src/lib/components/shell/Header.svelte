@@ -34,12 +34,13 @@
 
   function current(href: string): boolean {
     const path = page.url.pathname;
-    // The editor of an edition is work, not reading: it belongs to no list.
+    // The editor of an edition and its settings are work, not reading: they belong to no list.
     if (href === '/editions')
       return (
         path === '/editions' ||
         (path.startsWith('/editions/') &&
           !path.endsWith('/edit') &&
+          !path.endsWith('/settings') &&
           !path.startsWith('/editions/new'))
       );
     return path === href || path.startsWith(`${href}/`);

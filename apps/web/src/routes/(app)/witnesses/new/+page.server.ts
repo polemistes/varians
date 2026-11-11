@@ -1,8 +1,7 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { canCreateRegistryEntry } from '$lib/server/authz';
 import { requireUser, safeRedirect } from '$lib/server/guards';
-import { createWitness } from '$lib/server/registry';
-import { parseWitnessForm, WITNESS_FIELDS, field, withParam } from '$lib/registry/forms';
+import { witnessFromForm } from '$lib/server/registry-forms';
+import { withParam } from '$lib/registry/forms';
 import { registry as t } from '$lib/strings/registry';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -20,16 +19,12 @@ export const load: PageServerLoad = ({ locals, url }) => {
 export const actions: Actions = {
   default: async ({ locals, request, url }) => {
     const user = requireUser(locals);
-    if (!canCreateRegistryEntry(user)) error(403, t.common.forbidden);
-    const form = await request.formData();
-    const parsed = parseWitnessForm(form);
-    if (!parsed.ok) {
-      return fail(400, {
-        errors: parsed.errors,
-        values: Object.fromEntries(WITNESS_FIELDS.map((name) => [name, field(form, name)])),
-      });
+    const made = await witnessFromForm(locals.db, user, await request.formData());
+    if (!made.ok) {
+      if (made.status === 403) error(403, made.error ?? t.common.forbidden);
+      return fail(made.status, { errors: made.errors ?? {}, values: made.values ?? {} });
     }
-    const witness = await createWitness(locals.db, parsed.data, user.id);
+    const witness = made.record;
     const back = returnTarget(url);
     // The page we came from learns which witness was made, so that it can use it straight away.
     redirect(303, back ? withParam(back, 'witness', witness.id) : `/witnesses/${witness.slug}`);
