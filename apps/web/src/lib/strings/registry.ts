@@ -48,6 +48,8 @@ export const registry = {
       'Anyone may see the work, transcribe its witnesses and make editions of it; its published conjectures are a commons any edition may adopt.',
     privateHint: 'Visible only to its maintainers and to the collaborators of editions of it.',
     scheme: 'Reference scheme',
+    publicNote:
+      'A work is always public and can be listed by all users. Please do not create a duplicate of a work already registered.',
     create: 'Register the work',
     save: 'Save',
     saved: 'The work has been saved.',
@@ -62,7 +64,7 @@ export const registry = {
     notFound: 'There is no work with this address.',
     unknownAuthor: 'Unknown author',
     edit: 'Edit',
-    newEdition: 'New edition',
+    newEdition: 'Make New Edition',
     maintainers: 'Maintainers',
     maintainedBy: (names: string) => `Maintained by ${names}`,
     noMaintainers: 'No maintainers',

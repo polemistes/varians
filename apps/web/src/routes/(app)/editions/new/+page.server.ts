@@ -1,156 +1,113 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { compareAddresses, parseLabel } from '@varians/core';
-import { referenceSchemes, segments, workMaintainers, works } from '@varians/db';
+import { workMaintainers, works, type Database } from '@varians/db';
 import { eq } from 'drizzle-orm';
-import { z } from 'zod';
-import { editorNames } from '$lib/edition/editors';
-import { canViewWork, grantsFor } from '$lib/server/authz';
-import { candidateWitnesses, createEdition } from '$lib/server/editions';
+import { field } from '$lib/registry/forms';
+import { canViewWork, grantsFor, type Actor, type Grants } from '$lib/server/authz';
+import {
+  conspectusRefusal,
+  parseConspectus,
+  parseName,
+  saveConspectus,
+  suggestedWitnesses,
+} from '$lib/server/edition-form';
+import { windowActions } from '$lib/server/edition-page';
+import { createEdition } from '$lib/server/editions';
 import { requireUser } from '$lib/server/guards';
+import { searchWorks } from '$lib/server/library';
+import { viewableTranscriptions } from '$lib/server/registry';
 import { edition as s } from '$lib/strings/edition';
 import type { Actions, PageServerLoad } from './$types';
 
-async function loadWork(db: App.Locals['db'], slug: string) {
-  const [work] = await db.select().from(works).where(eq(works.slug, slug));
-  if (!work) return null;
-  const [scheme] = await db
+/** The work by slug or id, when it exists and the person may see it. */
+async function visibleWork(
+  db: Database,
+  user: Actor,
+  grants: Grants,
+  key: { slug?: string; id?: string },
+) {
+  const [work] = await db
     .select()
-    .from(referenceSchemes)
-    .where(eq(referenceSchemes.id, work.schemeId));
+    .from(works)
+    .where(key.id ? eq(works.id, key.id) : eq(works.slug, key.slug ?? ''));
+  if (!work) return null;
   const maintainerIds = (
     await db
       .select({ userId: workMaintainers.userId })
       .from(workMaintainers)
       .where(eq(workMaintainers.workId, work.id))
   ).map((m) => m.userId);
-  return { work, scheme: scheme ?? null, maintainerIds };
+  return canViewWork(user, work, maintainerIds, grants) ? work : null;
 }
 
 export const load: PageServerLoad = async ({ locals, url }) => {
   const user = requireUser(locals, url.pathname + url.search);
-  const slug = url.searchParams.get('work');
-  if (!slug) throw error(400, s.errors.workMissing);
-  const loaded = await loadWork(locals.db, slug);
-  if (!loaded) throw error(404, 'No such work');
   const grants = await grantsFor(locals.db, user);
-  if (!canViewWork(user, loaded.work, loaded.maintainerIds, grants))
-    throw error(404, 'No such work');
-  const candidates = await candidateWitnesses(locals.db, loaded.work.id, user, grants);
+  const slug = url.searchParams.get('work');
+  const q = (url.searchParams.get('q') ?? '').trim().slice(0, 200);
+  const work = slug ? await visibleWork(locals.db, user, grants, { slug }) : null;
+  if (slug && !work) throw error(404, s.errors.workUnknown);
   return {
-    crumb: { label: loaded.work.title, href: `/works/${loaded.work.slug}` },
-    work: {
-      id: loaded.work.id,
-      slug: loaded.work.slug,
-      title: loaded.work.title,
-      author: loaded.work.author,
-    },
-    candidates,
+    crumb: { label: s.newTitle },
+    q,
+    work: work ? { id: work.id, slug: work.slug, title: work.title, author: work.author } : null,
+    // The registry's works to choose from, while none is chosen.
+    works: work ? [] : await searchWorks(locals.db, user, q),
+    suggestions: work ? await suggestedWitnesses(locals.db, user, grants, work.id) : [],
+    sources: await viewableTranscriptions(locals.db, user, grants),
+    editors: user.name ? [user.name] : [],
   };
 };
 
-const schema = z.object({
-  title: z.string().trim().min(1, s.errors.titleRequired).max(200),
-  editors: z.array(z.string().max(200, s.errors.editorTooLong)).max(20, s.errors.editorsTooMany),
-  base: z.string().optional(),
-  from: z.string().trim().optional(),
-  to: z.string().trim().optional(),
-  lineation: z.enum(['verse', 'prose']).default('verse'),
-  numberEvery: z.coerce.number().int().min(1).max(100).default(5),
-  apparatus: z.enum(['positive', 'negative']).default('positive'),
-  latin: z.boolean().default(true),
-});
+/** Refusing to save, with the errors by field and a message for the conspectus. */
+class Refused extends Error {
+  constructor(readonly sigla: string) {
+    super(sigla);
+  }
+}
 
 export const actions: Actions = {
-  default: async ({ locals, request, url }) => {
+  /** Save: the edition made with its name, editors and conspectus, and an empty text. */
+  create: async ({ locals, request }) => {
     const user = requireUser(locals);
-    const slug = url.searchParams.get('work');
-    if (!slug) throw error(400, s.errors.workMissing);
-    const loaded = await loadWork(locals.db, slug);
-    if (!loaded || !loaded.scheme) throw error(404, 'No such work');
     const grants = await grantsFor(locals.db, user);
-    if (!canViewWork(user, loaded.work, loaded.maintainerIds, grants))
-      throw error(404, 'No such work');
     const form = await request.formData();
-    const text = (name: string) => String(form.get(name) ?? '');
-    const editors = editorNames(form.getAll('editors'));
-    const parsed = schema.safeParse({
-      title: text('title'),
-      editors,
-      base: text('base'),
-      from: text('from'),
-      to: text('to'),
-      lineation: text('lineation') || 'verse',
-      numberEvery: text('numberEvery') || '5',
-      apparatus: text('apparatus') || 'positive',
-      latin: form.get('latin') === 'on',
-    });
-    const values = {
-      title: text('title'),
-      editors,
-      base: text('base'),
-      from: text('from'),
-      to: text('to'),
-    };
-    if (!parsed.success)
-      return fail(400, { errors: z.flattenError(parsed.error).fieldErrors, values });
-    const data = parsed.data;
+    const errors: Record<string, string[] | undefined> = {};
+    const workId = field(form, 'workId');
+    const work = workId ? await visibleWork(locals.db, user, grants, { id: workId }) : null;
+    if (!work) errors.work = [workId ? s.errors.workUnknown : s.errors.workRequired];
+    const name = parseName(form);
+    if (!name.ok) Object.assign(errors, name.errors);
+    const conspectus = parseConspectus(form);
+    let sigla = conspectus.ok ? null : conspectus.message;
+    if (conspectus.ok)
+      sigla = await conspectusRefusal(locals.db, user, grants, conspectus.rows, null);
+    if (!work || !name.ok || !conspectus.ok || sigla)
+      return fail(400, { errors: { ...errors, ...(sigla ? { sigla: [sigla] } : {}) } });
 
-    // The conspectus: every candidate ticked, with its siglum. Only what this person may see can be named.
-    const candidates = await candidateWitnesses(locals.db, loaded.work.id, user, grants);
-    if (data.base && !candidates.some((c) => c.transcriptionId === data.base))
-      return fail(400, { errors: { base: [s.errors.baseUnknown] }, values });
-    const sigla: { witnessId: string; transcriptionId: string | null; siglum: string }[] = [];
-    const seen = new Set<string>();
-    for (const c of candidates) {
-      if (form.get(`include:${c.transcriptionId}`) !== 'on') continue;
-      const siglum = text(`siglum:${c.transcriptionId}`).trim() || c.siglum;
-      if (seen.has(siglum))
-        return fail(400, { errors: { sigla: [s.errors.duplicateSiglum(siglum)] }, values });
-      seen.add(siglum);
-      sigla.push({ witnessId: c.witnessId, transcriptionId: c.transcriptionId, siglum });
+    let slug: string;
+    try {
+      slug = await locals.db.transaction(async (tx) => {
+        const db = tx as unknown as Database;
+        const made = await createEdition(
+          db,
+          {
+            workId: work.id,
+            title: name.title,
+            editors: name.editors,
+            baseTranscriptionId: null,
+            sigla: [],
+          },
+          user.id,
+        );
+        const problem = await saveConspectus(db, made.id, conspectus.rows, conspectus.groups);
+        if (problem) throw new Refused(problem);
+        return made.slug;
+      });
+    } catch (cause) {
+      if (cause instanceof Refused) return fail(400, { errors: { sigla: [cause.sigla] } });
+      throw cause;
     }
-
-    // The range, as labels of the scheme.
-    let segmentIds: string[] | undefined;
-    if (data.from || data.to) {
-      const scheme = { levels: loaded.scheme.levels };
-      const fromAddress = data.from ? parseLabel(scheme, data.from) : null;
-      const toAddress = data.to ? parseLabel(scheme, data.to) : null;
-      if (data.from && !fromAddress)
-        return fail(400, { errors: { from: [s.errors.rangeUnknown(data.from)] }, values });
-      if (data.to && !toAddress)
-        return fail(400, { errors: { to: [s.errors.rangeUnknown(data.to)] }, values });
-      const all = await locals.db
-        .select()
-        .from(segments)
-        .where(eq(segments.workId, loaded.work.id));
-      segmentIds = all
-        .filter(
-          (seg) =>
-            (!fromAddress || compareAddresses(scheme, seg.address, fromAddress) >= 0) &&
-            (!toAddress || compareAddresses(scheme, seg.address, toAddress) <= 0),
-        )
-        .map((seg) => seg.id);
-    }
-
-    const created = await createEdition(
-      locals.db,
-      {
-        workId: loaded.work.id,
-        title: data.title,
-        editors: data.editors,
-        baseTranscriptionId: data.base || null,
-        ...(segmentIds ? { segmentIds } : {}),
-        sigla,
-        conventions: {
-          lineation: data.lineation,
-          numberEvery: data.numberEvery,
-          apparatus: data.apparatus,
-          latin: data.latin,
-        },
-      },
-      user.id,
-    );
-    throw redirect(303, `/editions/${created.slug}/edit`);
+    redirect(303, `/editions/${slug}/settings`);
   },
+  ...windowActions,
 };

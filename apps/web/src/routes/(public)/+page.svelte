@@ -11,7 +11,7 @@
 
   /** What someone signed in starts from here; making an edition comes first. */
   const menu = [
-    { href: '/start/edition', label: t.makeEdition },
+    { href: '/editions/new', label: t.makeEdition },
     { href: '/works/new', label: t.registerWork },
     { href: '/witnesses/new', label: t.registerWitness },
     { href: '/start/transcription', label: t.transcribeWitness },

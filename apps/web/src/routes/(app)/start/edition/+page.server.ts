@@ -1,14 +1,7 @@
-import { searchWorks } from '$lib/server/library';
-import { requireUser } from '$lib/server/guards';
-import { site } from '$lib/strings/site';
+import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ locals, url }) => {
-  requireUser(locals, url.pathname + url.search);
-  const q = (url.searchParams.get('q') ?? '').trim().slice(0, 200);
-  return {
-    crumb: { label: site.start.edition.title },
-    q,
-    works: await searchWorks(locals.db, locals.user, q),
-  };
+/** Making an edition starts on a page of its own; old links lead there. */
+export const load: PageServerLoad = () => {
+  redirect(308, '/editions/new');
 };

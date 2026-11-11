@@ -1,5 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { eq, transcriptions, works } from '@varians/db';
+import { eq, transcriptions } from '@varians/db';
 import {
   canDeleteTranscription,
   canMaintainWitness,
@@ -12,8 +12,8 @@ import {
 } from '$lib/server/authz';
 import { citationsByRecord } from '$lib/server/bibliography';
 import { requireUser } from '$lib/server/guards';
+import { transcriptionFromForm } from '$lib/server/registry-forms';
 import {
-  createTranscription,
   deleteTranscription,
   governs,
   maintainersOf,
@@ -29,7 +29,7 @@ import {
   worksOfWitness,
 } from '$lib/server/registry';
 import { mergesInto } from '$lib/server/registry-merge';
-import { describeDependents, field, parseName, parseTranscriptionForm } from '$lib/registry/forms';
+import { describeDependents, field, parseName } from '$lib/registry/forms';
 import type { WorkRef } from '$lib/registry/types';
 import { registry as t } from '$lib/strings/registry';
 import type { Actions, PageServerLoad } from './$types';
@@ -157,42 +157,14 @@ export const actions: Actions = {
   newTranscription: async ({ locals, params, request }) => {
     const user = requireUser(locals);
     const { witness } = await witnessOr404(locals, params.slug);
-    const parsed = parseTranscriptionForm(await request.formData());
-    if (!parsed.ok) return fail(400, { errors: parsed.errors, values: parsed.values });
-    const d = parsed.data;
-    const grants = await grantsFor(locals.db, user);
-    if (d.fromTranscriptionId) {
-      const [source] = await locals.db
-        .select()
-        .from(transcriptions)
-        .where(eq(transcriptions.id, d.fromTranscriptionId));
-      if (!source || !canViewTranscription(user, source, grants)) {
-        return fail(403, { errors: { fromTranscriptionId: [t.transcription.sourceNotAllowed] } });
-      }
-    }
-    if (d.workId) {
-      const [work] = await locals.db.select().from(works).where(eq(works.id, d.workId));
-      if (!work || !seesWork(user, grants)(work))
-        return fail(400, { errors: { workId: [t.work.notFound] } });
-    }
-    let id: string;
-    try {
-      const created = await createTranscription(
-        locals.db,
-        {
-          witnessId: witness.id,
-          workIds: d.workId ? [d.workId] : undefined,
-          name: d.name,
-          keepsWrittenForm: d.keepsWrittenForm,
-          fromTranscriptionId: d.fromTranscriptionId,
-        },
-        user.id,
-      );
-      id = created.id;
-    } catch (e) {
-      throw e;
-    }
-    redirect(303, `/transcriptions/${id}`);
+    const made = await transcriptionFromForm(locals.db, user, witness.id, await request.formData());
+    if (!made.ok)
+      return fail(made.status, {
+        errors: made.errors ?? {},
+        values: made.values,
+        ...(made.error ? { error: made.error } : {}),
+      });
+    redirect(303, `/transcriptions/${made.record.id}`);
   },
 
   renameTranscription: async ({ locals, params, request }) => {

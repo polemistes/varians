@@ -5,7 +5,6 @@
     type WorkspaceController,
     type WorkspaceStatus,
   } from '$lib/components/edition/EditionWorkspace.svelte';
-  import EditionSettingsDialog from '$lib/components/edition/EditionSettingsDialog.svelte';
   import SiglaDialog from '$lib/components/edition/SiglaDialog.svelte';
   import CollaboratorsDialog from '$lib/components/edition/CollaboratorsDialog.svelte';
   import {
@@ -32,7 +31,6 @@
   let controller = $state<WorkspaceController | null>(null);
   let status = $state<WorkspaceStatus>({ pending: 0, saving: false, error: null, version: 0 });
   let publishing = $state(false);
-  let settingsOpen = $state(false);
   let siglaOpen = $state(false);
   let collaboratorsOpen = $state(false);
   let ownershipOpen = $state(false);
@@ -105,9 +103,7 @@
     {/if}
     <Menu label={s.dialogs.more} triggerVariant="ghost" triggerSize="sm" align="end">
       {#snippet trigger()}⋯{/snippet}
-      <MenuItem onSelect={() => beforeDialog(() => (settingsOpen = true))}
-        >{s.workspace.settings}</MenuItem
-      >
+      <MenuItem href={`/editions/${data.edition.slug}/settings`}>{s.workspace.settings}</MenuItem>
       <MenuItem onSelect={() => beforeDialog(() => (siglaOpen = true))}
         >{s.workspace.witnessList}</MenuItem
       >
@@ -165,18 +161,13 @@
   />
 {/key}
 
-<EditionSettingsDialog
-  bind:open={settingsOpen}
-  edition={data.edition}
-  onsaved={() => toasts.success(s.dialogs.saved)}
-/>
 <SiglaDialog
   bind:open={siglaOpen}
-  sigla={data.sigla}
-  candidates={data.candidates}
-  reportedOnly={data.reportedOnly}
-  witnessHands={data.witnessHands}
-  groups={data.groups}
+  editionSlug={data.edition.slug}
+  work={data.work}
+  conspectus={data.conspectus}
+  suggestions={data.suggestions}
+  sources={data.sources}
   onsaved={() => toasts.success(s.dialogs.saved)}
 />
 {#if data.can.grant}
