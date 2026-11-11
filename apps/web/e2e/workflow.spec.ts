@@ -7,7 +7,7 @@
  * would, and download the work's archive.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { deriveEdition, fromText, newId, type Item, type Token } from '@varians/core';
+import { fromText, newId, type Item, type Token } from '@varians/core';
 import {
   createDatabase,
   editions,
@@ -20,6 +20,7 @@ import {
 import { eq, inArray } from 'drizzle-orm';
 import { s } from '../src/lib/strings/en';
 import { edition as ed } from '../src/lib/strings/edition';
+import { editor } from '../src/lib/strings/editor';
 import { pageStrings as t } from '../src/lib/strings/pages';
 import { workbench as w } from '../src/lib/strings/workbench';
 import { registry as reg } from '../src/lib/strings/registry';
@@ -186,25 +187,16 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   await page.waitForURL(/\/editions\/[^/]+\/settings$/);
   editionSlug = new URL(page.url()).pathname.split('/')[2]!;
 
-  // The edition starts empty; its text is X's, put in through the editors' save endpoint.
-  {
-    const { db, pool } = createDatabase(DATABASE_URL);
-    const [made] = await db.select().from(editions).where(eq(editions.slug, editionSlug));
-    const [x] = await db
-      .select()
-      .from(transcriptions)
-      .where(eq(transcriptions.id, transcriptionIds[0]!));
-    await pool.end();
-    const response = await page.request.post(`/api/documents/edition/${made!.id}/ops`, {
-      data: {
-        fromVersion: 0,
-        ops: [{ t: 'insert', after: null, items: deriveEdition(x!.content, x!.id).items }],
-      },
-    });
-    expect(response.ok(), await response.text()).toBe(true);
-  }
+  // The edition starts empty; its text is copied from X's transcript, the first of the conspectus.
   await page.getByRole('link', { name: ed.editText }).click();
   await page.waitForURL(/\/editions\/[^/]+\/edit$/);
+  await page.getByRole('button', { name: editor.dialogs.copyText.menu }).click();
+  const copy = page.getByRole('dialog', { name: editor.dialogs.copyText.title });
+  await copy.getByLabel(editor.dialogs.copyText.transcript).selectOption({ index: 0 });
+  await Promise.all([
+    page.waitForEvent('load', { timeout: 15_000 }),
+    copy.getByRole('button', { name: editor.dialogs.copyText.copy }).click(),
+  ]);
   await page.waitForSelector('.cm-content');
   await expect(page.locator('.cm-content .cm-line').nth(1)).toHaveText(/Laviniaque/);
 
