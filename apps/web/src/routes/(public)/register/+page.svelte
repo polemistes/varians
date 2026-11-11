@@ -62,7 +62,7 @@
       </Field>
       {#snippet aside()}
         {s.auth.haveAccount}
-        <a href="/login" class="text-accent underline">{s.auth.logInTitle}</a>
+        <a href="/login" class="text-accent underline">{s.auth.logInLink}</a>
       {/snippet}
     </AuthForm>
   </PageFrame>

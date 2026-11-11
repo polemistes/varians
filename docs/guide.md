@@ -22,7 +22,7 @@ The header leads everywhere else: **Your Work** (all your editions and transcrip
 
 ## Your account
 
-**Register** in the header makes an account. Where the installation sends mail, a link to confirm the address is sent first, valid for a day, and the account can be used once the address is confirmed; logging in before then sends a new link. **Forgotten Your Password?** on the login page sends a link to set a new one, valid for an hour; where the installation sends no mail, its administrator gives you such a link. Setting a new password ends every other session of the account.
+**Register** in the header makes an account. Where the installation sends mail, a link to confirm the address is sent first, valid for a day, and the account can be used once the address is confirmed; logging in before then sends a new link. **Forgotten your password?** on the login page sends a link to set a new one, valid for an hour; where the installation sends no mail, its administrator gives you such a link. Setting a new password ends every other session of the account.
 
 The footer of every page names the version of Varians that runs the site and links its source code.
 
@@ -339,7 +339,7 @@ Readers only ever see published versions. The working state of your edition, its
 
 ### Sources and rights
 
-**Edition Settings** has fields for the edition's **Sources** (what it rests on beyond its witnesses: an earlier edition, a commentary) and a **Note on rights**, for what the licence does not say. The licence is not a field: the hint under the note names the installation's licence, which the first publication fixes for the edition (see _Licences and rights_), or the licence it was published under. Readers find the sources, the licence, the note and the citation under _About This Edition_, followed by a link to **Sources and Licences**, the page that lists the data and resources Varians itself uses (typefaces, dictionaries) with their licences. The page is linked from the foot of every page too. A copied edition keeps the original's sources and note until you change them, and takes its own licence when it is first published.
+**Edition Settings** has fields for the edition's **Sources** (what it rests on beyond its witnesses: an earlier edition, a commentary) and a **Note on rights**, for what the licence does not say. The licence is not a field: the hint under the note names the installation's licence, which the first publication fixes for the edition (see _Licences and rights_), or the licence it was published under. Readers find the sources, the licence, the note and the citation under _About This Edition_, followed by a link, **Sources and licences of the data Varians uses**, to the page that lists the data and resources Varians itself uses (typefaces, dictionaries) with their licences. The page is linked from the foot of every page too, as **Sources and licences**. A copied edition keeps the original's sources and note until you change them, and takes its own licence when it is first published.
 
 ### Copying an edition
 

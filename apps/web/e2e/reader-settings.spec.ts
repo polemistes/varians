@@ -366,6 +366,9 @@ test('the edition menu and the foot of the reader offer no plain text with an ap
   // The foot links the TEI and the package, and no plain text.
   const foot = page.locator('.colophon');
   await expect(foot.getByRole('link', { name: recordActions.edition.tei })).toBeVisible();
+  await expect(foot.getByRole('link', { name: rd.colophon.usedByVarians })).toHaveText(
+    'Sources and licences of the data Varians uses',
+  );
   await expect(foot.locator('a[href*=".txt"]')).toHaveCount(0);
   await expect(page.locator('a[href*=".txt"]')).toHaveCount(0);
   await foot.scrollIntoViewIfNeeded();

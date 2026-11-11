@@ -24,11 +24,11 @@ export const reader = {
     previewLabel: 'Preview of the draft',
     previewText: 'This is the current draft, as readers will see it once it is published.',
     previewReaders: (n: number) => `Readers now see version ${n}.`,
-    showPublished: 'Show the Published Version',
+    showPublished: 'Show the published version',
     versionTitle: (n: number) => `Version ${n}, published`,
     versionText: 'You are reading the edition as it was published then.',
     versionIsCurrent: 'This is the current version.',
-    readCurrent: 'Read the Current Version',
+    readCurrent: 'Read the current version',
     segmentMissing: (label: string) => `This edition has no segment ${label}.`,
   },
 
@@ -227,7 +227,7 @@ export const reader = {
       licence: string | null,
     ) =>
       `${editors ? `${editors}, ` : ''}${title}, ${version} (${date}), ${address}.${licence ? ` ${licence}.` : ''}`,
-    usedByVarians: 'Sources and Licences of the Data Varians Uses',
+    usedByVarians: 'Sources and licences of the data Varians uses',
     copiedFrom: 'Based on',
     copiedVersion: (n: number) => `version ${n}`,
     copiedDraft: 'a draft',
