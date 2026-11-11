@@ -28,7 +28,8 @@
   class="flex flex-col gap-2 font-sans"
   aria-describedby={message ? `editors-${uid}-error` : undefined}
 >
-  <legend class="mb-1.5 text-sm font-medium text-ink">{s.editors}</legend>
+  <!-- The section the fields stand in is headed Editors; the legend names the group for a screen reader. -->
+  <legend class="sr-only">{s.editors}</legend>
   {#each list as _, k (k)}
     <div class="flex items-center gap-2">
       <Input

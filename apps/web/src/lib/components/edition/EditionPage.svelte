@@ -264,22 +264,28 @@
     {/if}
 
     {#key generation}
-      <div class="flex flex-col gap-5">
-        <Field label={s.title} error={errors.title} required>
-          {#snippet children(control)}
-            <Input
-              {...control}
-              name="title"
-              bind:value={title}
-              autocomplete="off"
-              class="font-serif text-base"
-              maxlength={200}
-              required
-            />
-          {/snippet}
-        </Field>
+      <Section title={s.nameHeading}>
+        <div class="flex flex-col gap-1.5 font-sans">
+          <Input
+            name="title"
+            bind:value={title}
+            aria-label={s.title}
+            aria-invalid={errors.title ? 'true' : undefined}
+            aria-describedby={errors.title ? 'edition-name-error' : undefined}
+            autocomplete="off"
+            class="font-serif text-base"
+            maxlength={200}
+            required
+          />
+          {#if errors.title}<p id="edition-name-error" class="text-xs text-danger" role="alert">
+              {errors.title[0]}
+            </p>{/if}
+        </div>
+      </Section>
+
+      <Section title={s.editors}>
         <EditorsField names={editors} error={errors.editors} />
-      </div>
+      </Section>
 
       <Section title={s.witnesses}>
         <ConspectusEditor

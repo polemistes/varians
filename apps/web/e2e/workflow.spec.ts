@@ -177,7 +177,7 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   await page.getByRole('link', { name: ed.newTitle }).click();
   await page.waitForURL(/\/editions\/new\?work=/);
   await page.waitForLoadState('networkidle');
-  await page.getByLabel(ed.title).fill(`Aeneis 1, ${stamp}`);
+  await page.getByRole('textbox', { name: ed.title }).fill(`Aeneis 1, ${stamp}`);
   for (const name of [`Codex Probandi ${stamp}`, `Codex Alter ${stamp}`]) {
     await page.getByRole('button', { name: ed.conspectus.addWitness, exact: true }).click();
     const picker = page.getByRole('dialog', { name: ed.conspectus.picker.title });

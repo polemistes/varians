@@ -14,6 +14,8 @@ export const edition = {
   noWorksFor: (q: string) => `Nothing matches “${q}”.`,
   unknownAuthor: 'Unknown author',
 
+  /** The heading over the field, and the field's own name for a screen reader. */
+  nameHeading: 'Name of Edition',
   title: 'Name of edition',
   editors: 'Editors',
   editorName: (n: number) => `Editor ${n}`,

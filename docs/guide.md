@@ -254,7 +254,8 @@ The name of an edition always opens the reader: on the front page, under Continu
 **Make New Edition**, on the front page, on Your Work and on a work's page, opens one page, and nothing is asked on another.
 
 - **Work**: choose it from the list, which the search field narrows, or add it with **Add New Work** in a window over the page. Coming from a work's page, the work is already chosen.
-- **Name of edition**, as it will be printed, and the editors' names, one in each field (**Add Editor** for another).
+- **Name of Edition**, as it will be printed.
+- **Editors**: their names, one in each field (**Add Editor** for another).
 - **Witnesses**: **Add Witness** finds a witness in the registry, those with a transcript of the work listed first, and **Add New Witness** there registers one in a window. Each witness has the siglum it goes by in this edition, which you can change (a witness can have different sigla in different editions), and its transcript, chosen among those you may use or made with **Make New Transcript**. A witness may be without a transcript: one known only from reported readings, or one you have yet to transcribe. The arrows set the order of the witnesses.
 
 Only the work and the name are needed; the rest can wait. **Save** makes the edition, with an empty text, and the page stays: it is from then on **Edition Settings**, where the same things are changed and, under them, the preface, the sources, the note on rights and the conventions. Beside the edition's name there, **Read** opens the reader and **Edit** the editor, and **Open Transcript** under a witness opens its transcript in the workbench. A work, a witness or a transcript made in a window is saved at once, being a record of its own; the edition and its settings are saved by **Save**, and leaving the page with changes not saved asks first. **Edition Settings** is also in the **⋯** menu of the editor.

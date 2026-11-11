@@ -115,7 +115,7 @@ test('an edition made from scratch on one page, which stays as Edition Settings'
   await expect(page.getByRole('heading', { name: ed.work, exact: true })).toBeVisible();
 
   // The name.
-  await page.getByLabel(ed.title).fill(editionName);
+  await page.getByRole('textbox', { name: ed.title }).fill(editionName);
   await page.screenshot({ path: `${SHOTS}/2-work-chosen.png`, fullPage: true });
 
   // Add Witness, then Add New Witness in its own window.
@@ -156,7 +156,7 @@ test('an edition made from scratch on one page, which stays as Edition Settings'
   const settingsUrl = page.url();
   const check = async () => {
     await expect(page.locator('h1')).toHaveText(editionName);
-    await expect(page.getByLabel(ed.title)).toHaveValue(editionName);
+    await expect(page.getByRole('textbox', { name: ed.title })).toHaveValue(editionName);
     await expect(
       page.getByLabel(`${ed.conspectus.siglum}: ${witnessName}`, { exact: true }),
     ).toHaveValue('R');
@@ -175,15 +175,17 @@ test('an edition made from scratch on one page, which stays as Edition Settings'
   await page.waitForLoadState('networkidle');
 
   // A change not saved is asked about before leaving; staying keeps it.
-  await page.getByLabel(ed.title).fill(`${editionName}, altered`);
+  await page.getByRole('textbox', { name: ed.title }).fill(`${editionName}, altered`);
   await page.getByRole('link', { name: ea.edit, exact: true }).click();
   const leave = page.getByRole('dialog', { name: ed.leave.title });
   await expect(leave).toBeVisible();
   await leave.getByRole('button', { name: ed.leave.stay }).click();
   await expect(page).toHaveURL(settingsUrl);
-  await expect(page.getByLabel(ed.title)).toHaveValue(`${editionName}, altered`);
+  await expect(page.getByRole('textbox', { name: ed.title })).toHaveValue(
+    `${editionName}, altered`,
+  );
   await page.getByRole('button', { name: ed.cancel, exact: true }).click();
-  await expect(page.getByLabel(ed.title)).toHaveValue(editionName);
+  await expect(page.getByRole('textbox', { name: ed.title })).toHaveValue(editionName);
 
   // Edit opens the editor.
   await page.getByRole('link', { name: ea.edit, exact: true }).click();
