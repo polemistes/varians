@@ -257,12 +257,12 @@ describe('the rights the witness’s page gives each reported reading', () => {
   };
 
   it('are the same as the work’s page gives: the owner edits and deletes, a maintainer of the work edits', async () => {
-    expect(await rightsOf(creator)).toEqual({ edit: true, delete: true, publish: true });
-    expect(await rightsOf(administrator)).toEqual({ edit: true, delete: true, publish: true });
-    expect(await rightsOf(maintainer)).toEqual({ edit: true, delete: false, publish: false });
-    expect(await rightsOf(siteEditor)).toEqual({ edit: true, delete: false, publish: false });
+    expect(await rightsOf(creator)).toEqual({ edit: true, delete: true });
+    expect(await rightsOf(administrator)).toEqual({ edit: true, delete: true });
+    expect(await rightsOf(maintainer)).toEqual({ edit: true, delete: false });
+    expect(await rightsOf(siteEditor)).toEqual({ edit: true, delete: false });
     for (const who of [stranger, null])
-      expect(await rightsOf(who)).toEqual({ edit: false, delete: false, publish: false });
+      expect(await rightsOf(who)).toEqual({ edit: false, delete: false });
   });
 });
 

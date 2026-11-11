@@ -94,10 +94,10 @@ schema('persons', 'Persons', 'persons.json: every person the files of an archive
   ('persons', obj({'id': ref('id'), 'name': {'type': 'string'}, 'orcid': {'type': ['string', 'null'], 'pattern': '^[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]$'}}, ['id', 'name'])))
 conj = obj({'id': ref('id'), 'workId': ref('id'), 'segmentId': ref('id'), 'segmentLabel': NS, 'kind': {'enum': ['substitution', 'deletion', 'addition', 'lacuna', 'supplement', 'transposition']},
   'lemma': {'type': 'string'}, 'reading': {'type': 'string'}, 'extent': NS, 'proposer': NS, 'note': NS, 'sequence': {'type': ['array', 'null'], 'items': ref('id')}, 'supplementsId': ref('idOrNull'),
-  'anchor': {'type': ['object', 'null']}, 'ownerId': ref('id'), 'visibility': ref('visibility'), 'createdAt': ref('timeOrNull'), 'updatedAt': ref('timeOrNull')}, ['id', 'segmentId', 'kind', 'lemma', 'reading'])
+  'anchor': {'type': ['object', 'null']}, 'ownerId': ref('id'), 'createdAt': ref('timeOrNull'), 'updatedAt': ref('timeOrNull')}, ['id', 'segmentId', 'kind', 'lemma', 'reading'])
 schema('conjectures', 'Conjectures', 'conjectures.json: the conjectures on a work (specification 4.4).', None, ('conjectures', conj))
 rr = obj({'id': ref('id'), 'workId': ref('id'), 'segmentId': ref('id'), 'segmentLabel': NS, 'witnessId': ref('id'), 'lemma': {'type': 'string'}, 'reading': {'type': 'string'}, 'source': NS, 'note': NS,
-  'ownerId': ref('id'), 'visibility': ref('visibility'), 'createdAt': ref('timeOrNull'), 'updatedAt': ref('timeOrNull')}, ['id', 'segmentId', 'witnessId', 'lemma', 'reading'])
+  'ownerId': ref('id'), 'createdAt': ref('timeOrNull'), 'updatedAt': ref('timeOrNull')}, ['id', 'segmentId', 'witnessId', 'lemma', 'reading'])
 schema('reported-readings', 'Reported readings', 'reported-readings.json: readings reported for witnesses (specification 4.4).', None, ('readings', rr))
 schema('bibliography', 'Bibliography', 'bibliography.json: every bibliography entry cited in an archive (specification 4.5).', None,
   ('items', obj({'id': ref('id'), 'entryType': {'type': 'string'}, 'citationKey': {'type': 'string'}, 'fields': {'type': 'object', 'additionalProperties': {'type': 'string'}}, 'label': {'type': 'string'},

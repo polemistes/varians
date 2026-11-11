@@ -52,9 +52,6 @@
           "ownerId": {
             "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
           },
-          "visibility": {
-            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/visibility"
-          },
           "createdAt": {
             "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
           },

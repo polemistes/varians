@@ -63,7 +63,7 @@ An archive holds one work, in a directory named by the work's slug:
   tei-subset.md                  a readable account of the TEI used (informative)
 ```
 
-A witness is in a work's archive when one of its transcriptions is, when an edition's conspectus names it, or when a reading is reported for it. A transcription is in a work's archive when its owner chose it for the work, when its text is assigned to a segment of the work, or when a conspectus of one of the work's editions names it. An archive written for one person (a download) holds only the records that person may see; an edition they may not edit is written as its latest published version, with its history up to that version.
+A witness is in a work's archive when one of its transcriptions is, when an edition's conspectus names it, or when a reading is reported for it. A transcription is in a work's archive when its owner chose it for the work, when its text is assigned to a segment of the work, or when a conspectus of one of the work's editions names it. An archive written for one person (a download) holds only the records that person may see (not a draft transcription or edition, but every conjecture and reported reading); an edition they may not edit is written as its latest published version, with its history up to that version.
 
 `.txt`, `.md`, `README.md`, `schemas/` and `tei-subset.md` are for people and other tools; a reader rebuilding the records must not depend on them.
 
@@ -88,7 +88,7 @@ Each file below lists its members. The schema is the full statement; types are g
 | `licence`                | The licence of the records in this archive that have no licence of their own (conjectures, reported readings, notes), as an SPDX identifier (section 10).                              |
 | `createdBy`, `createdAt` | The account that registered the work, and when.                                                                                                                                        |
 
-A work has no visibility: every work is public, and what is not yet public is a transcription, an edition, a conjecture or a reported reading, each with its own `visibility` (`draft` or `published`). Archives and packages written before 11 November 2026 may give `visibility` in `work.json`, `public` or `private`; a reader ignores it and registers the work as public.
+A work has no visibility: every work is public, and what is not yet public is a transcription or an edition, each with its own `visibility` (`draft` or `published`); a conjecture and a reported reading are public from the moment they are entered, and have none. Archives and packages written before 11 November 2026 may give `visibility` in `work.json`, `public` or `private`; a reader ignores it and registers the work as public.
 
 ### 4.2 `persons.json`
 
@@ -102,7 +102,9 @@ Tab-separated, with a header line: `id`, `label`, `sort_key`, `address`, `urn`, 
 
 ### 4.4 `conjectures.json`, `reported-readings.json`
 
-`{ "conjectures": [...] }` and `{ "readings": [...] }`. A conjecture: `id`, `workId`, `segmentId`, `segmentLabel` (informative), `kind` (`substitution`, `deletion`, `addition`, `lacuna`, `supplement`, `transposition`), `lemma` (the words concerned), `reading` (the proposed words; empty for a deletion or lacuna), `extent` (of a lacuna), `proposer`, `note`, `sequence` (segment ids, for a transposition), `supplementsId` (the lacuna a supplement fills), `anchor` (the witness or edition tokens it was registered from), `ownerId`, `visibility` (`draft` or `published`), `createdAt`, `updatedAt`. A reported reading: `id`, `workId`, `segmentId`, `witnessId`, `lemma`, `reading`, `source` (where the report comes from), `note`, `ownerId`, `visibility`, `createdAt`, `updatedAt`.
+`{ "conjectures": [...] }` and `{ "readings": [...] }`. A conjecture: `id`, `workId`, `segmentId`, `segmentLabel` (informative), `kind` (`substitution`, `deletion`, `addition`, `lacuna`, `supplement`, `transposition`), `lemma` (the words concerned), `reading` (the proposed words; empty for a deletion or lacuna), `extent` (of a lacuna), `proposer`, `note`, `sequence` (segment ids, for a transposition), `supplementsId` (the lacuna a supplement fills), `anchor` (the witness or edition tokens it was registered from: `{ transcriptionId, tokenIds }` or `{ editionId, tokenIds }`), `ownerId`, `createdAt`, `updatedAt`. A reported reading: `id`, `workId`, `segmentId`, `witnessId`, `lemma`, `reading`, `source` (where the report comes from), `note`, `ownerId`, `createdAt`, `updatedAt`.
+
+A conjecture and a reported reading have no visibility: each is public from the moment it is entered, so that every person's archive holds all of them, and a draft edition's adoption of a conjecture (`adoptions` in 4.10) is told only with the draft edition. In an archive written for a person who may not see the edition or the transcription an `anchor` names, `anchor` is null. Archives and packages written in November 2026 or earlier may give `visibility` (`draft` or `published`) for a conjecture or a reported reading; a reader ignores it and registers the record as public.
 
 ### 4.5 `bibliography.json`, `bibliography.bib`, `citations.json`
 
@@ -288,7 +290,7 @@ The CC0 dedication, the Public Domain Mark, the Creative Commons licences and th
 
 ## 11. Sync between installations
 
-An installation exposes, for each work, `GET <origin>/works/<slug>/sync.json`: `{ "$schema", "formatVersion", "origin", "workId", "licence", "documents": [ { "id", "kind", "head", "version" } ] }`, and the work's package. Another installation compares the heads with its own, downloads the package, and reconciles as section 5.3 says. The published records answer anyone; drafts answer to a bearer token whose account may see them.
+An installation exposes, for each work, `GET <origin>/works/<slug>/sync.json`: `{ "$schema", "formatVersion", "origin", "workId", "licence", "documents": [ { "id", "kind", "head", "version" } ] }`, and the work's package. Another installation compares the heads with its own, downloads the package, and reconciles as section 5.3 says. The published transcriptions and editions answer anyone; their drafts answer to a bearer token whose account may see them. Conjectures and reported readings are in the work's package for anyone.
 
 ## 12. Versioning
 
