@@ -462,7 +462,7 @@
 {#if mode === 'new'}
   <RecordWindow
     bind:open={addingWork}
-    title={s.addWork}
+    title={s.addWorkTitle}
     description={registry.work.publicNote}
     action={`${here}?/addWork`}
     onsaved={(data) => {

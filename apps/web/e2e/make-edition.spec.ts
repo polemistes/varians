@@ -89,7 +89,7 @@ test('an edition made from scratch on one page, which stays as Edition Settings'
 
   // Add New Work, in a window over the page.
   await page.getByRole('button', { name: ed.addWork }).click();
-  const workWindow = page.getByRole('dialog', { name: ed.addWork });
+  const workWindow = page.getByRole('dialog', { name: ed.addWorkTitle });
   await expect(workWindow).toContainText(reg.work.publicNote);
   await workWindow.locator('input[name=title]').fill(workTitle);
   await workWindow.locator('input[name=author]').fill('Anonymus');
@@ -123,7 +123,7 @@ test('an edition made from scratch on one page, which stays as Edition Settings'
   await page.waitForTimeout(400);
   await page.screenshot({ path: `${SHOTS}/4-add-witness.png` });
   await picker.getByRole('button', { name: ed.conspectus.addNewWitness }).click();
-  const witnessWindow = page.getByRole('dialog', { name: ed.conspectus.addNewWitness });
+  const witnessWindow = page.getByRole('dialog', { name: ed.conspectus.addNewWitnessTitle });
   await witnessWindow.locator('input[name=name]').fill(witnessName);
   await witnessWindow.locator('input[name=siglum]').fill('R');
   await witnessWindow.getByRole('button', { name: ed.save, exact: true }).click();
@@ -139,7 +139,7 @@ test('an edition made from scratch on one page, which stays as Edition Settings'
   await page
     .getByRole('button', { name: `${ed.conspectus.makeTranscript}: ${witnessName}` })
     .click();
-  const transcriptWindow = page.getByRole('dialog', { name: ed.conspectus.makeTranscript });
+  const transcriptWindow = page.getByRole('dialog', { name: ed.conspectus.makeTranscriptTitle });
   await expect(transcriptWindow).toContainText(workTitle);
   await expect(transcriptWindow.locator('input[name=name]')).toHaveValue(workTitle);
   await transcriptWindow.getByRole('button', { name: reg.transcription.create }).click();

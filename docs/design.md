@@ -304,7 +304,7 @@ The Greek forms and the two dictionaries are not part of Varians. They are built
 
 - **Written for scholars of textual criticism.** No lead paragraph under a heading, no hint under a field unless it states a convention of Varians that cannot be inferred (an identifier's form, that a work is public, what a deletion takes with it). Explanations belong in the guide, which every installation serves at `/guide`.
 - **Fixed terms**: work, witness, transcript, edition, segment, page, siglum, group, conjecture, variant, reading, diplomatic and normalized, interpretative and minor variants, addition, Not on a page. A variant is a stretch where the witnesses differ, with its readings. "Text" is never a synonym for a work.
-- **Labels** are nouns and short verbs, without example placeholders. What one clicks to act (a button, a menu item) and every heading is in Title Case, as an English title is, its substantial words capitalized. A field's label, a message and a hint are in sentence case.
+- **Labels** are nouns and short verbs, without example placeholders. What one clicks to act (a button, a menu item) and every heading is in Title Case, as an English title is, its substantial words capitalized. A field's label, a message and a hint are in sentence case. A button or menu item that opens a window in which more is asked ends in an ellipsis; one that leads to a page or acts at once has none.
 - **One name for an action**, wherever it is offered: Make New Edition, Make New Transcript, Add New Work, Add New Witness. What belongs to the registry is added; what is one's own is made.
 - **One search**, in the header.
 - **Arranged by the work a scholar does**, not by kinds of data. For a witness: describe it, add its pages and images, transcribe, segment, map. For a work: register it, gather its witnesses, make the edition, publish. The workbench is arranged this way; the other screens are still to follow (section 7).
@@ -361,7 +361,6 @@ Designed or wanted, and not there:
 - Further ways of reading the variants in the text: the readings of a chosen witness or group shown in the line, chosen witnesses in parallel, the variants filtered by witness, group and kind.
 - The arrangement of the witness, work and edition screens along the workflows of section 4.
 - The name and the menu beside it (section 4): the cards and rows of one's own work open the editor, and each kind of record has its menu and its deletion in a place of its own.
-- Title Case and the one name for an action (section 4), which only the screens reworked so far follow.
 - Dissemination: DTS, IIIF Presentation manifests with word annotations, a CollateX export.
 - An interface for alignment constraints, and for splitting and merging variants.
 - Thinning of old history (the core has the function; nothing applies it).

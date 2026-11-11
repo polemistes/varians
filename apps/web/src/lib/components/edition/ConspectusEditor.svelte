@@ -517,7 +517,7 @@
 
 <RecordWindow
   bind:open={registering}
-  title={t.addNewWitness}
+  title={t.addNewWitnessTitle}
   action={`${actions}?/addWitness`}
   onsaved={(data) => add(data.witness as ConspectusWitness)}
 >
@@ -528,7 +528,7 @@
 
 <NewTranscriptionForm
   bind:open={transcribing}
-  title={t.makeTranscript}
+  title={t.makeTranscriptTitle}
   action={`${actions}?/newTranscript`}
   {work}
   witnessId={transcriptFor ?? undefined}
