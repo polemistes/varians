@@ -4,7 +4,7 @@ import { conjectures, eq, reportedReadings, witnesses } from '@varians/db';
 import {
   canDeleteConjecture,
   canEditConjecture,
-  canEditEdition,
+  editionRights,
   canMaintainWork,
   canPublishConjecture,
   canViewConjecture,
@@ -167,7 +167,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
       .filter((e) => canViewEdition(user, e, e.collaboratorIds))
       .map(({ collaboratorIds, ...e }) => ({
         ...e,
-        canEdit: canEditEdition(user, e, collaboratorIds),
+        can: editionRights(user, e, collaboratorIds),
       })),
     transcriptions: transcriptionRows.filter((r) => canViewTranscription(user, r, grants)),
     conjectures: visibleConjectures.map((c) => ({

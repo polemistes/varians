@@ -1,10 +1,13 @@
 <script lang="ts">
-  import { Badge, Button, LocalDate } from '$lib/components/ui';
+  /** The editions of a work: the name leads to the reader; Read, Edit and the menu for those who may edit. */
+  import EditionActions from '$lib/components/edition/EditionActions.svelte';
+  import { Badge, LocalDate } from '$lib/components/ui';
+  import type { EditionRights } from '$lib/edition/actions';
   import type { WorkEditionRow } from '$lib/registry/types';
   import { and } from '$lib/strings/names';
   import { registry } from '$lib/strings/registry';
 
-  type Item = Omit<WorkEditionRow, 'collaboratorIds'> & { canEdit: boolean };
+  type Item = Omit<WorkEditionRow, 'collaboratorIds'> & { can: EditionRights };
 
   interface Props {
     items: Item[];
@@ -29,27 +32,17 @@
           <LocalDate date={item.updatedAt} />
         </p>
       </div>
-      <div class="flex shrink-0 items-center gap-2">
-        {#if item.visibility === 'draft'}<Badge>{registry.common.draft}</Badge>{/if}
-        <Button
-          href="/editions/{item.slug}"
-          size="sm"
-          variant={item.visibility === 'published' ? 'primary' : 'secondary'}
-          aria-label={`${s.read}: ${item.title}`}
-        >
-          {s.read}
-        </Button>
-        {#if item.canEdit}
-          <Button
-            href="/editions/{item.slug}/edit"
-            size="sm"
-            variant="secondary"
-            aria-label={`${s.editEdition}: ${item.title}`}
-          >
-            {s.editEdition}
-          </Button>
-        {/if}
-      </div>
+      {#if item.visibility === 'draft'}<Badge>{registry.common.draft}</Badge>{/if}
+      <EditionActions
+        edition={{
+          id: item.id,
+          slug: item.slug,
+          title: item.title,
+          published: item.visibility === 'published',
+        }}
+        rights={item.can}
+        place="list"
+      />
     </li>
   {/each}
 </ul>

@@ -2,8 +2,6 @@
 export const edition = {
   newTitle: 'Make New Edition',
   settingsTitle: 'Edition Settings',
-  read: 'Read',
-  editText: 'Edit Text',
 
   chooseWork: 'Choose a Work for the Edition',
   work: 'Work',

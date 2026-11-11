@@ -60,8 +60,6 @@
   import ApparatusBlock from './ApparatusBlock.svelte';
   import EntryPopover, { type PopoverEntry } from './EntryPopover.svelte';
   import FacsimilePanel from './FacsimilePanel.svelte';
-  import CopyDialog from '$lib/components/registry/CopyDialog.svelte';
-  import { registry } from '$lib/strings/registry';
   import ReaderBar from './ReaderBar.svelte';
   import DictionaryPanel from './DictionaryPanel.svelte';
   import { trimPunctuation } from '@varians/core';
@@ -81,8 +79,6 @@
   }
 
   let { data }: Props = $props();
-
-  let copyOpen = $state(false);
 
   // The reader's settings: defaults on the server and in the first render, the stored ones once live.
   let settings = $state<ReaderSettings>({ ...DEFAULT_SETTINGS });
@@ -689,20 +685,7 @@
   <meta name="description" content={description} />
   <!-- The header's tools need the page to be live; without scripts the text, the apparatus and the colophon remain. -->
   <!-- Without scripts no word can be opened, so the print apparatus shows under the text. -->
-  <noscript
-    >{#if data.copy}
-      <CopyDialog
-        bind:open={copyOpen}
-        title={registry.copy.editionTitle}
-        description={data.canEdit
-          ? registry.copy.editionBodyEditor
-          : registry.copy.editionBodyReader}
-        proposed={registry.copy.proposed(data.edition.title)}
-        action={data.copy}
-        label={registry.copy.title}
-      />
-    {/if}
-
+  <noscript>
     <style>
       :global(.word-addressed) {
         outline: 2px solid var(--color-accent, currentColor);
@@ -735,7 +718,6 @@
     bind:dictionaryOpen
     {hasDictionary}
     showTitle={!titleInView}
-    oncopy={data.copy ? () => (copyOpen = true) : undefined}
   />
 
   <div

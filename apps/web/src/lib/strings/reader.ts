@@ -37,7 +37,7 @@ export const reader = {
     facsimile: 'Facsimile',
     variants: 'Variants',
     dictionary: 'Dictionary',
-    more: 'Downloads and versions',
+    versions: 'Versions',
     search: 'Search the text',
     searchPlaceholder: 'Search',
     searchNext: 'Next match',
@@ -48,17 +48,11 @@ export const reader = {
   },
 
   menu: {
-    downloads: 'Download',
-    plainText: 'Plain Text with Apparatus',
-    tei: 'TEI XML',
-    package: 'Package',
     versions: 'Published Versions',
     noVersions: 'Not Published Yet',
     current: 'current',
     preview: 'Preview the Draft',
     published: 'Show the Published Version',
-    editor: 'Open in the Editor',
-    copy: 'Make a Copy…',
   },
 
   /** The gear. */

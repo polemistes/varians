@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import { Badge, LocalDate } from '$lib/components/ui';
 
   interface Props {
@@ -10,9 +11,11 @@
     /** ISO date; shown in the reader's locale after mount. */
     date: string;
     badge?: string;
+    /** What may be done with the record, at the row's end. */
+    actions?: Snippet;
   }
 
-  let { href, title, subtitle, subtitleHref, owner, date, badge }: Props = $props();
+  let { href, title, subtitle, subtitleHref, owner, date, badge, actions }: Props = $props();
 </script>
 
 <li class="flex flex-wrap items-baseline gap-x-6 gap-y-1 px-4 py-3 sm:flex-nowrap">
@@ -37,4 +40,5 @@
     {#if owner}<span class="max-w-40 truncate">{owner}</span>{/if}
     <LocalDate {date} />
   </div>
+  {#if actions}{@render actions()}{/if}
 </li>

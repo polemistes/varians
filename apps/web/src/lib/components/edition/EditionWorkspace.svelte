@@ -101,6 +101,8 @@
     userName: string;
     controller?: WorkspaceController | null;
     onstatus?: (status: WorkspaceStatus) => void;
+    /** Opens the window of the witnesses and their sigla, from the witness pane. */
+    onsigla?: () => void;
   }
 
   let {
@@ -110,6 +112,7 @@
     userName,
     controller = $bindable(null),
     onstatus,
+    onsigla,
   }: Props = $props();
 
   const editionId = untrack(() => view.edition.id);
@@ -1560,6 +1563,7 @@
             bind:selected={witnessSiglum}
             bind:mode={witnessMode}
             onpick={pickWitnessWord}
+            {onsigla}
           />
         {/if}
       </div>

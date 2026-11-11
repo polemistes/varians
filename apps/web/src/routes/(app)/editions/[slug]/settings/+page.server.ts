@@ -1,9 +1,10 @@
 import { error, fail } from '@sveltejs/kit';
 import { licenceInfo } from '@varians/core';
-import { works, type Database } from '@varians/db';
+import { users, works, type Database } from '@varians/db';
 import { eq } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
-import { grantsFor } from '$lib/server/authz';
+import { canGrantOnEdition, editionRights, grantsFor } from '$lib/server/authz';
+import { addCollaborator, listCollaborators, removeCollaborator } from '$lib/server/collaborators';
 import { loadEditionAccess } from '$lib/server/edition-access';
 import {
   conspectusRefusal,
@@ -16,9 +17,11 @@ import {
 import { windowActions } from '$lib/server/edition-page';
 import { updateEditionMeta } from '$lib/server/editions';
 import { requireUser } from '$lib/server/guards';
+import { offerOwnership, openOfferOf } from '$lib/server/ownership';
 import { viewableTranscriptions } from '$lib/server/registry';
 import { dataLicence } from '$lib/server/settings';
 import { edition as s } from '$lib/strings/edition';
+import { recordActions } from '$lib/strings/record-actions';
 import type { Actions, PageServerLoad } from './$types';
 
 /** The edition, when the person may change its settings: the right the editor's forms ask for. */
@@ -39,6 +42,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     .from(works)
     .where(eq(works.id, edition.workId));
   const conspectus = await editionConspectus(locals.db, user, grants, edition);
+  const grant = canGrantOnEdition(user, edition);
   // Changes whenever something the page shows is saved, so that the page starts afresh from it.
   const revision = createHash('sha1')
     .update(
@@ -58,9 +62,12 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     crumb: { label: s.settingsTitle },
     revision,
     work: work ?? null,
+    rights: editionRights(user, edition, access.collaboratorIds),
+    people: grant ? await peopleOf(locals.db, edition.id, edition.ownerId) : null,
     edition: {
       id: edition.id,
       slug: edition.slug,
+      published: edition.visibility === 'published',
       title: edition.title,
       editors: edition.editors,
       preface: edition.preface,
@@ -75,6 +82,25 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     sources: await viewableTranscriptions(locals.db, user, grants),
   };
 };
+
+/** The owner, the collaborators and an open offer of the ownership, for those who may grant. */
+async function peopleOf(db: Database, editionId: string, ownerId: string) {
+  const [owner] = await db.select({ name: users.name }).from(users).where(eq(users.id, ownerId));
+  return {
+    owner: owner?.name ?? '',
+    collaborators: await listCollaborators(db, editionId),
+    offer: await openOfferOf(db, 'edition', editionId),
+  };
+}
+
+/** The edition, when the person may invite, remove and offer: its owner or an administrator. */
+async function grantable(locals: App.Locals, slug: string) {
+  const { user, access } = await editable(locals, slug);
+  if (!canGrantOnEdition(user, access.edition)) return null;
+  return { user, access };
+}
+
+const people = recordActions.edition.people;
 
 class Refused extends Error {
   constructor(readonly sigla: string) {
@@ -125,6 +151,61 @@ export const actions: Actions = {
       throw cause;
     }
     return { ok: true };
+  },
+  /** Owner and Collaborators acts at once, not through Save: collaborators and offers are records of their own. */
+  addCollaborator: async ({ locals, params, request }) => {
+    const granted = await grantable(locals, params.slug);
+    if (!granted) return fail(403, { error: recordActions.edition.onlyOwner });
+    const email = String((await request.formData()).get('email') ?? '').trim();
+    if (!email) return fail(400, { error: people.emailRequired });
+    const result = await addCollaborator(
+      locals.db,
+      granted.access.edition.id,
+      email,
+      granted.user.id,
+    );
+    if (!result.ok)
+      return fail(400, {
+        error:
+          result.error === 'no-user'
+            ? people.noAccount
+            : result.error === 'owner'
+              ? people.isOwner
+              : people.already,
+      });
+    return { message: people.invited(result.collaborator.name) };
+  },
+
+  removeCollaborator: async ({ locals, params, request }) => {
+    const granted = await grantable(locals, params.slug);
+    if (!granted) return fail(403, { error: recordActions.edition.onlyOwner });
+    const userId = String((await request.formData()).get('userId') ?? '');
+    const [person] = (await listCollaborators(locals.db, granted.access.edition.id)).filter(
+      (c) => c.userId === userId,
+    );
+    if (!person) return fail(400, { error: people.notACollaborator });
+    await removeCollaborator(locals.db, granted.access.edition.id, userId);
+    return { message: people.removed(person.name) };
+  },
+
+  offerOwnership: async ({ locals, params, request }) => {
+    const granted = await grantable(locals, params.slug);
+    if (!granted) return fail(403, { error: recordActions.edition.onlyOwner });
+    const email = String((await request.formData()).get('email') ?? '').trim();
+    if (!email) return fail(400, { error: people.emailRequired });
+    const edition = granted.access.edition;
+    // An administrator offers it in the owner's name.
+    const result = await offerOwnership(locals.db, 'edition', edition.id, edition.ownerId, email);
+    if (!result.ok)
+      return fail(400, {
+        error: {
+          'no-user': people.noAccount,
+          self: people.ownsAlready,
+          'open-offer': people.offerOpen,
+          'not-owner': recordActions.edition.onlyOwner,
+        }[result.error],
+      });
+    return { message: people.offered };
   },
   ...windowActions,
 };

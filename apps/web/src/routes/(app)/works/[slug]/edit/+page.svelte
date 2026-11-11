@@ -2,9 +2,8 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { PageFrame } from '$lib/components/shell';
-  import { Button, toasts } from '$lib/components/ui';
+  import { Button, ConfirmDialog, toasts } from '$lib/components/ui';
   import {
-    ConfirmDialog,
     FormSection,
     MaintainersEditor,
     SchemeEditor,
@@ -115,6 +114,7 @@
 </PageFrame>
 
 <ConfirmDialog
+  confirmLabel={t.common.confirmDelete}
   bind:open={deleteOpen}
   title={t.work.deleteTitle}
   description={t.work.deleteConfirm(work.title)}

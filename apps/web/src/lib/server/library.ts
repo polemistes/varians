@@ -19,7 +19,8 @@ import {
   type Database,
   type SQL,
 } from '@varians/db';
-import type { Actor, Grants } from './authz';
+import type { EditionRights } from '$lib/edition/actions';
+import { editionRightsFromGrants, type Actor, type Grants } from './authz';
 import { identifierMatches } from './identifier-search.ts';
 
 export interface EditionRow {
@@ -30,10 +31,14 @@ export interface EditionRow {
   workSlug: string;
   workAuthor: string | null;
   editors: string[];
+  ownerId: string;
   ownerName: string;
   visibility: 'draft' | 'published';
   updatedAt: string;
 }
+
+/** An edition in a list, with what the viewer may do with it. */
+export type EditionListRow<T extends EditionRow = EditionRow> = T & { can: EditionRights };
 
 export interface TranscriptionRow {
   id: string;
@@ -103,6 +108,7 @@ function editionColumns() {
     workSlug: works.slug,
     workAuthor: works.author,
     editors: editions.editors,
+    ownerId: editions.ownerId,
     ownerName: owner.name,
     visibility: editions.visibility,
     updatedAt: editions.updatedAt,
@@ -214,6 +220,15 @@ export async function searchWitnesses(db: Database, query: string): Promise<Witn
     .orderBy(witnesses.name)
     .limit(LIMIT);
   return rows.map(withIsoCreated);
+}
+
+/** The editions of a list with the viewer's rights on each, from the grants loaded once for the page. */
+export function withEditionRights<T extends EditionRow>(
+  rows: T[],
+  user: Actor | null,
+  grants: Grants,
+): EditionListRow<T>[] {
+  return rows.map((row) => ({ ...row, can: editionRightsFromGrants(user, row, grants) }));
 }
 
 /** Published editions. A draft is listed only to those who may edit it, on their own pages. */

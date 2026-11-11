@@ -69,7 +69,6 @@ export const registry = {
     maintainersHint:
       'Maintainers edit the metadata and the scheme. Using the work needs no permission.',
     editions: 'Editions',
-    read: 'Read',
     workOn: 'Actions',
     editDetails: 'Edit the details',
     about: 'About this work',
@@ -78,7 +77,6 @@ export const registry = {
     maintainersLabel: 'Maintained by',
     noEditions: 'No edition of this work yet.',
     editionEditors: (names: string) => `edited by ${names}`,
-    editEdition: 'Edit',
     witnesses: 'Witnesses',
     noWitnesses: 'No witness has been transcribed for this work yet.',
     transcribe: 'Transcribe a witness',

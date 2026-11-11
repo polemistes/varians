@@ -7,6 +7,7 @@
    */
   import ChevronLeft from '@lucide/svelte/icons/chevron-left';
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
+  import ListOrdered from '@lucide/svelte/icons/list-ordered';
   import { isNotTranscribed, type Item, type ZoneGeometry } from '@varians/core';
   import ImageCredit from '$lib/components/facsimile/ImageCredit.svelte';
   import { IconButton, Select, Spinner, Tabs, type Tab } from '$lib/components/ui';
@@ -26,6 +27,8 @@
     mode?: 'text' | 'image';
     onpick?: (segmentId: string, tokenId: string) => void;
     onhover?: (tokenId: string | null) => void;
+    /** Opens the window where the witnesses and their sigla are chosen. */
+    onsigla?: () => void;
   }
 
   let {
@@ -37,6 +40,7 @@
     mode = $bindable('text'),
     onpick,
     onhover,
+    onsigla,
   }: Props = $props();
 
   const current = $derived(sigla.find((x) => x.siglum === selected) ?? sigla[0] ?? null);
@@ -290,6 +294,16 @@
           >
         {/each}
       </div>
+    {/if}
+    {#if onsigla}
+      <IconButton
+        label={s.workspace.witnessList}
+        size="sm"
+        class={mode === 'text' && keepsWrittenForm ? '' : 'ml-auto'}
+        onclick={onsigla}
+      >
+        <ListOrdered aria-hidden="true" />
+      </IconButton>
     {/if}
   </div>
 
