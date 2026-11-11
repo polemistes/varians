@@ -57,6 +57,13 @@
     dirty?: boolean;
     /** Add New Witness… above the list; false where the page has the button in the section's heading. */
     newWitnessButton?: boolean;
+    /**
+     * Whether the finer points of how the apparatus cites a witness are set here: its states under
+     * sigla of their own, the variants it notes, the groups. The editor's Witnesses and Sigla window
+     * has them; the page on which an edition is made asks only which witnesses, under which sigla,
+     * with which transcripts, and keeps the rest as it is.
+     */
+    finer?: boolean;
   }
 
   let {
@@ -70,6 +77,7 @@
     error = null,
     dirty = $bindable(false),
     newWitnessButton = true,
+    finer = false,
   }: Props = $props();
 
   /** A state as the rows edit it: every field present, the kind deciding which count. */
@@ -359,13 +367,8 @@
             <td></td>
             <td colspan="3" class="pt-1 pb-3">
               <div class="-ml-2.5 flex flex-wrap items-center gap-x-1 gap-y-1">
-                <!-- Every control of a row is there whatever the row has; what needs a transcript is disabled without one, with the reason. -->
-                {#if r.transcript}
+                {#if finer && r.transcript}
                   <Button href={`/transcriptions/${r.transcript}`} variant="ghost" size="sm"
-                    >{t.openTranscript}</Button
-                  >
-                {:else}
-                  <Button variant="ghost" size="sm" disabled title={t.needsTranscript}
                     >{t.openTranscript}</Button
                   >
                 {/if}
@@ -378,24 +381,23 @@
                   <Plus class="size-4" aria-hidden="true" />
                   {t.makeTranscript}
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={!r.transcript}
-                  onclick={() => addState(r)}
-                  title={r.transcript ? t.statesHint : t.needsTranscript}
-                  aria-label={`${t.addState}: ${name}`}
-                >
-                  <Plus class="size-4" aria-hidden="true" />
-                  {t.addState}
-                </Button>
-                <span class="ml-2.5" title={r.transcript ? t.variantsHint : t.needsTranscript}>
-                  <Checkbox bind:checked={r.withVariants} disabled={!r.transcript}
-                    >{t.variants}</Checkbox
+                {#if finer && r.transcript}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onclick={() => addState(r)}
+                    title={t.statesHint}
+                    aria-label={`${t.addState}: ${name}`}
                   >
-                </span>
+                    <Plus class="size-4" aria-hidden="true" />
+                    {t.addState}
+                  </Button>
+                  <span class="ml-2.5" title={t.variantsHint}>
+                    <Checkbox bind:checked={r.withVariants}>{t.variants}</Checkbox>
+                  </span>
+                {/if}
               </div>
-              {#if r.transcript && r.states.length}
+              {#if finer && r.transcript && r.states.length}
                 <div
                   class="mt-2 flex flex-col gap-1.5"
                   role="group"
@@ -454,56 +456,59 @@
     </table>
   {/if}
 
-  <!-- The groups are there from the start; one can be added once two witnesses are. -->
-  <section class="flex flex-col gap-2" aria-labelledby="conspectus-groups">
-    <h3 id="conspectus-groups" class="text-sm font-semibold text-ink" title={t.groupsHint}>
-      {t.groups}
-    </h3>
-    {#if groupRows.length}
-      <ul class="flex flex-col gap-2">
-        {#each groupRows as group, g (g)}
-          <li class="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-line pt-2">
-            <Input
-              bind:value={group.siglum}
-              class="w-20 font-serif"
-              aria-label={t.groupSiglum}
-              maxlength={20}
-            />
-            <span class="flex flex-wrap gap-x-3 gap-y-1" role="group" aria-label={t.groupWitnesses}>
-              {#each rows as member (member.witnessId)}
-                <Checkbox
-                  class="font-serif"
-                  checked={group.witnessIds.includes(member.witnessId)}
-                  onchange={() => toggleMember(group, member.witnessId)}>{member.siglum}</Checkbox
-                >
-              {/each}
-            </span>
-            <Input
-              bind:value={group.note}
-              class="min-w-40 flex-1"
-              aria-label={t.groupNote}
-              maxlength={200}
-            />
-            <IconButton label={t.removeGroup} size="sm" onclick={() => groupRows.splice(g, 1)}
-              ><X aria-hidden="true" /></IconButton
-            >
-          </li>
-        {/each}
-      </ul>
-    {/if}
-    <div class="-ml-2.5">
-      <Button
-        variant="ghost"
-        size="sm"
-        disabled={rows.length < 2}
-        title={rows.length < 2 ? t.groupNeedsTwo : undefined}
-        onclick={() => groupRows.push({ siglum: '', note: '', witnessIds: [] })}
-      >
-        <Plus class="size-4" aria-hidden="true" />
-        {t.addGroup}
-      </Button>
-    </div>
-  </section>
+  {#if finer && (rows.length >= 2 || groupRows.length)}
+    <section class="flex flex-col gap-2" aria-labelledby="conspectus-groups">
+      <h3 id="conspectus-groups" class="text-sm font-semibold text-ink" title={t.groupsHint}>
+        {t.groups}
+      </h3>
+      {#if groupRows.length}
+        <ul class="flex flex-col gap-2">
+          {#each groupRows as group, g (g)}
+            <li class="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-line pt-2">
+              <Input
+                bind:value={group.siglum}
+                class="w-20 font-serif"
+                aria-label={t.groupSiglum}
+                maxlength={20}
+              />
+              <span
+                class="flex flex-wrap gap-x-3 gap-y-1"
+                role="group"
+                aria-label={t.groupWitnesses}
+              >
+                {#each rows as member (member.witnessId)}
+                  <Checkbox
+                    class="font-serif"
+                    checked={group.witnessIds.includes(member.witnessId)}
+                    onchange={() => toggleMember(group, member.witnessId)}>{member.siglum}</Checkbox
+                  >
+                {/each}
+              </span>
+              <Input
+                bind:value={group.note}
+                class="min-w-40 flex-1"
+                aria-label={t.groupNote}
+                maxlength={200}
+              />
+              <IconButton label={t.removeGroup} size="sm" onclick={() => groupRows.splice(g, 1)}
+                ><X aria-hidden="true" /></IconButton
+              >
+            </li>
+          {/each}
+        </ul>
+      {/if}
+      <div class="-ml-2.5">
+        <Button
+          variant="ghost"
+          size="sm"
+          onclick={() => groupRows.push({ siglum: '', note: '', witnessIds: [] })}
+        >
+          <Plus class="size-4" aria-hidden="true" />
+          {t.addGroup}
+        </Button>
+      </div>
+    </section>
+  {/if}
 
   {#if newWitnessButton}
     <div class="flex justify-end">

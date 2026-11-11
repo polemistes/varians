@@ -67,6 +67,7 @@
     }}
   >
     <ConspectusEditor
+      finer
       rows={conspectus.rows}
       witnesses={conspectus.witnesses}
       groups={conspectus.groups}

@@ -149,7 +149,6 @@ test('an edition made from scratch on one page, which stays as Edition Settings'
   await expect(transcript.locator('option:checked')).toHaveText(
     reg.transcription.defaultName(witnessName),
   );
-  await expect(page.getByRole('link', { name: ed.conspectus.openTranscript })).toBeVisible();
 
   // Save: the page stays, now as Edition Settings.
   await page.getByRole('button', { name: ed.save, exact: true }).click();

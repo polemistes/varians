@@ -89,8 +89,6 @@ export const edition = {
         .filter(Boolean)
         .join(' '),
     openTranscript: 'Open Transcript',
-    /** Why a control of a row cannot be used. */
-    needsTranscript: 'This witness has no transcript.',
     makeTranscript: 'Make New Transcript…',
     makeTranscriptTitle: 'Make New Transcript',
     search: 'Search the witnesses',
@@ -125,7 +123,6 @@ export const edition = {
     groupWitnesses: 'Witnesses of the Group',
     groupNote: 'Note',
     addGroup: 'Add Group',
-    groupNeedsTwo: 'A group stands for at least two witnesses.',
     removeGroup: 'Remove This Group',
     picker: {
       title: 'Add Witness',

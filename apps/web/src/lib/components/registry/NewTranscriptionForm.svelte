@@ -168,13 +168,9 @@
       {/snippet}
     </Field>
     <Checkbox name="keepsWrittenForm">{s.keepsWritten}</Checkbox>
-    <!-- Shown also when there is nothing to start from, and then disabled with the reason: the window is the same whatever the registry holds. -->
-    <Checkbox
-      bind:checked={startsFrom}
-      disabled={sources.length === 0}
-      hint={sources.length === 0 ? s.noSources : undefined}>{s.startFrom}</Checkbox
-    >
-    {#if startsFrom && sources.length}
+    <!-- The window is the same whatever the registry holds: where there is no transcript to start from, the list is empty. -->
+    <Checkbox bind:checked={startsFrom}>{s.startFrom}</Checkbox>
+    {#if startsFrom}
       <div class="flex flex-col gap-1.5 font-sans">
         <Select
           name="fromTranscriptionId"

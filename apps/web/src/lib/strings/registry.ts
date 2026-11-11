@@ -325,7 +325,6 @@ export const registry = {
     startFrom: 'Start from another transcript',
     /** The name, for a screen reader, of the list shown when that is ticked. */
     startFromWhich: 'Transcript to Start From',
-    noSources: 'There is no transcript to start from.',
     create: 'Save',
     created: 'The transcript has been created.',
     createdFor: (witness: string) => `A transcript of ${witness} has been created.`,
