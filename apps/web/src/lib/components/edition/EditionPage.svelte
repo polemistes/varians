@@ -355,6 +355,7 @@
                 <label class="flex items-center gap-2"
                   ><input
                     type="radio"
+                    class="accent-accent"
                     name="lineation"
                     value={kind}
                     checked={conventions.lineation === kind}
@@ -366,15 +367,16 @@
             <Field label={s.numberEvery} error={errors.numberEvery}>
               {#snippet children(control)}
                 <span class="flex items-center gap-2">
-                  <Input
-                    {...control}
-                    name="numberEvery"
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={String(conventions.numberEvery)}
-                    class="w-20"
-                  />
+                  <span class="w-20"
+                    ><Input
+                      {...control}
+                      name="numberEvery"
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={String(conventions.numberEvery)}
+                    /></span
+                  >
                   <span class="text-ink-soft">{s.numberEveryUnit}</span>
                 </span>
               {/snippet}
@@ -404,6 +406,7 @@
                 <label class="flex items-center gap-2"
                   ><input
                     type="radio"
+                    class="accent-accent"
                     name="apparatus"
                     value={form}
                     checked={conventions.apparatus === form}
@@ -419,6 +422,7 @@
                 <label class="flex items-center gap-2"
                   ><input
                     type="radio"
+                    class="accent-accent"
                     name="interpretative"
                     value={placement}
                     checked={(conventions.interpretative ?? 'separate') === placement}
@@ -454,7 +458,7 @@
     {/key}
 
     <div
-      class="sticky bottom-0 -mx-6 flex items-center gap-3 border-t border-line bg-page px-6 py-4 sm:-mx-8 sm:px-8"
+      class="sticky bottom-0 flex items-center gap-3 border-t border-line bg-page py-4"
       style="padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px))"
     >
       <Button type="submit" variant="primary" loading={saving}>{s.save}</Button>
