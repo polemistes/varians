@@ -168,21 +168,24 @@
       {/snippet}
     </Field>
     <Checkbox name="keepsWrittenForm">{s.keepsWritten}</Checkbox>
-    {#if sources.length}
-      <Checkbox bind:checked={startsFrom}>{s.startFrom}</Checkbox>
-      {#if startsFrom}
-        <div class="flex flex-col gap-1.5 font-sans">
-          <Select
-            name="fromTranscriptionId"
-            options={sourceOptions}
-            aria-label={s.startFromWhich}
-            aria-invalid={errors.fromTranscriptionId ? 'true' : undefined}
-          />
-          {#if errors.fromTranscriptionId}
-            <p class="text-xs text-danger" role="alert">{errors.fromTranscriptionId[0]}</p>
-          {/if}
-        </div>
-      {/if}
+    <!-- Shown also when there is nothing to start from, and then disabled with the reason: the window is the same whatever the registry holds. -->
+    <Checkbox
+      bind:checked={startsFrom}
+      disabled={sources.length === 0}
+      hint={sources.length === 0 ? s.noSources : undefined}>{s.startFrom}</Checkbox
+    >
+    {#if startsFrom && sources.length}
+      <div class="flex flex-col gap-1.5 font-sans">
+        <Select
+          name="fromTranscriptionId"
+          options={sourceOptions}
+          aria-label={s.startFromWhich}
+          aria-invalid={errors.fromTranscriptionId ? 'true' : undefined}
+        />
+        {#if errors.fromTranscriptionId}
+          <p class="text-xs text-danger" role="alert">{errors.fromTranscriptionId[0]}</p>
+        {/if}
+      </div>
     {/if}
   </form>
   {#snippet footer()}
