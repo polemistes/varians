@@ -41,18 +41,13 @@ export const registry = {
     identifierHint:
       'A canonical identifier where one exists, such as a CTS URN: urn:cts:greekLit:tlg0012.tlg001.',
     description: 'Description',
-    visibility: 'Visibility',
-    public: 'Public',
-    private: 'Private',
-    publicHint:
-      'Anyone may see the work, transcribe its witnesses and make editions of it; its published conjectures are a commons any edition may adopt.',
-    privateHint: 'Visible only to its maintainers and to the collaborators of editions of it.',
+    publicNote:
+      'A work is always public and can be listed by all users. Please do not create a duplicate of a work already registered.',
     scheme: 'Reference scheme',
     create: 'Register the work',
     save: 'Save',
     saved: 'The work has been saved.',
     created: (title: string) => `${title} has been registered.`,
-    visibilitySaved: (visibility: string) => `The work is now ${visibility}.`,
     schemeSaved: 'The reference scheme has been saved.',
     titleRequired: 'Give the work a title.',
     titleTooLong: 'Use at most 200 characters.',
@@ -67,7 +62,6 @@ export const registry = {
     maintainedBy: (names: string) => `Maintained by ${names}`,
     noMaintainers: 'No maintainers',
     detailsSection: 'Details',
-    visibilitySection: 'Visibility',
     schemeSection: 'Reference scheme',
     schemeLocked:
       'The work has segments, so the keys and types of its levels are fixed. Labels and separators can still change.',
@@ -81,7 +75,6 @@ export const registry = {
     about: 'About this work',
     numbering: 'Numbering',
     identifierLabel: 'Identifier',
-    visibilityLabel: 'Visibility',
     maintainersLabel: 'Maintained by',
     noEditions: 'No edition of this work yet.',
     editionEditors: (names: string) => `edited by ${names}`,
@@ -113,8 +106,7 @@ export const registry = {
     coverageTitle: 'Segments transcribed',
     witnessPage: 'About the witness',
     notMaintainer: 'Only the maintainers of this work may edit it.',
-    notGoverning:
-      'Only the creator of the work, or an administrator, may change its visibility and maintainers.',
+    notGoverning: 'Only the creator of the work, or an administrator, may change its maintainers.',
     schemeLockedError: 'The work has segments, so the keys and types of its levels cannot change.',
     labelCollision: (labels: string) =>
       `Two segments would share a label (${labels}). Choose other separators.`,
@@ -323,7 +315,7 @@ export const registry = {
       removeLabel: (title: string) => `Remove ${title}`,
       raise: 'Move up',
       raiseLabel: (title: string) => `Move ${title} up`,
-      notVisible: 'A work chosen does not exist or is not open to you.',
+      notFound: 'A work chosen does not exist.',
     },
     name: 'Name',
     nameRequired: 'Give the transcript a name.',
@@ -414,7 +406,7 @@ export const registry = {
     readingRequired: 'Give the proposed words.',
     publish: 'Published',
     publishHint:
-      'Visible to everyone who can see the work and open to adoption by its editions. A draft is seen only by you and those who may edit it.',
+      'Visible to everyone and open to adoption by its editions. A draft is seen only by you and those who may edit it.',
     lacuna: (extent: string | null) => (extent ? `lacuna of ${extent}` : 'lacuna'),
     proposedBy: (name: string) => name,
   },

@@ -13,7 +13,6 @@ import {
   canViewConjecture,
   canViewEdition,
   canViewTranscription,
-  canViewWork,
   emptyGrants,
   foldGrants,
   isAdministrator,
@@ -29,8 +28,7 @@ const collaborator: Actor = { id: 'collab', role: 'member' };
 const stranger: Actor = { id: 'stranger', role: 'member' };
 const visitor = null;
 
-const publicWork = { id: 'w1', visibility: 'public' as const, createdBy: 'owner' };
-const privateWork = { id: 'w2', visibility: 'private' as const, createdBy: 'owner' };
+const work = { id: 'w1', createdBy: 'owner' };
 const witness = { id: 'ms1', createdBy: 'owner' };
 
 const draftTranscription = { id: 't1', ownerId: 'owner', visibility: 'draft' as const };
@@ -53,7 +51,6 @@ function collaboratorGrants(): Grants {
   grants.editions.set('e1', { workId: 'w2', ownerId: 'owner' });
   grants.collaboratingEditionIds.add('e1');
   grants.transcriptionIds.add('t1');
-  grants.workIds.add('w2');
   return grants;
 }
 
@@ -75,13 +72,13 @@ describe('site roles', () => {
 
 describe('registry maintainers', () => {
   it('are the creator, the named maintainers and site editors', () => {
-    expect(canMaintainWork(owner, publicWork, [])).toBe(true);
-    expect(canMaintainWork(collaborator, publicWork, ['collab'])).toBe(true);
-    expect(canMaintainWork(collaborator, publicWork, new Set(['collab']))).toBe(true);
-    expect(canMaintainWork(editor, publicWork, [])).toBe(true);
-    expect(canMaintainWork(admin, publicWork, [])).toBe(true);
-    expect(canMaintainWork(stranger, publicWork, [])).toBe(false);
-    expect(canMaintainWork(visitor, publicWork, [])).toBe(false);
+    expect(canMaintainWork(owner, work, [])).toBe(true);
+    expect(canMaintainWork(collaborator, work, ['collab'])).toBe(true);
+    expect(canMaintainWork(collaborator, work, new Set(['collab']))).toBe(true);
+    expect(canMaintainWork(editor, work, [])).toBe(true);
+    expect(canMaintainWork(admin, work, [])).toBe(true);
+    expect(canMaintainWork(stranger, work, [])).toBe(false);
+    expect(canMaintainWork(visitor, work, [])).toBe(false);
   });
 
   it('apply to witnesses alike', () => {
@@ -89,22 +86,6 @@ describe('registry maintainers', () => {
     expect(canMaintainWitness(collaborator, witness, ['collab'])).toBe(true);
     expect(canMaintainWitness(editor, witness, [])).toBe(true);
     expect(canMaintainWitness(stranger, witness, [])).toBe(false);
-  });
-});
-
-describe('seeing works', () => {
-  it('shows a public work to everyone', () => {
-    expect(canViewWork(visitor, publicWork, [], emptyGrants())).toBe(true);
-    expect(canViewWork(stranger, publicWork, [], emptyGrants())).toBe(true);
-  });
-
-  it('shows a private work to its creator, maintainers, site editors and edition collaborators only', () => {
-    expect(canViewWork(owner, privateWork, [], emptyGrants())).toBe(true);
-    expect(canViewWork(stranger, privateWork, ['stranger'], emptyGrants())).toBe(true);
-    expect(canViewWork(editor, privateWork, [], emptyGrants())).toBe(true);
-    expect(canViewWork(collaborator, privateWork, [], collaboratorGrants())).toBe(true);
-    expect(canViewWork(stranger, privateWork, [], emptyGrants())).toBe(false);
-    expect(canViewWork(visitor, privateWork, [], emptyGrants())).toBe(false);
   });
 });
 
@@ -220,7 +201,6 @@ describe('foldGrants', () => {
     expect(grants.editions.get('e2')).toEqual({ workId: 'w2', ownerId: 'other' });
     expect([...grants.collaboratingEditionIds]).toEqual(['e2']);
     expect([...grants.transcriptionIds]).toEqual(['t1']);
-    expect([...grants.workIds]).toEqual(['w1', 'w2']);
     expect([...grants.maintainedWorkIds]).toEqual(['w3']);
     expect([...grants.maintainedWitnessIds]).toEqual(['ms1']);
   });

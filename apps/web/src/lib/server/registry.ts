@@ -91,6 +91,8 @@ import { promisify } from 'node:util';
 import { archiveWork, folderName } from './archive/archive.ts';
 import {
   canDeleteTranscription,
+  canViewConjecture,
+  canViewTranscription,
   isAdministrator,
   isSiteEditor,
   type Actor,
@@ -251,7 +253,6 @@ export interface NewWork {
   /** Further canonical identifiers, checked by parseIdentifiers. */
   identifiers?: CanonicalIdentifier[];
   description?: string | null;
-  visibility?: 'public' | 'private';
   scheme: SchemeInput;
 }
 
@@ -320,7 +321,6 @@ export async function createWork(db: Database, input: NewWork, userId: string): 
           description: clean(input.description),
           schemeId,
           profile: defaultProfile(language),
-          visibility: input.visibility ?? 'public',
           createdBy: userId,
         })
         .returning();
@@ -440,14 +440,6 @@ export async function updateWork(db: Database, workId: string, fields: WorkUpdat
     const [updated] = await tx.update(works).set(set).where(eq(works.id, workId)).returning();
     return updated!;
   });
-}
-
-export async function setWorkVisibility(
-  db: Database,
-  workId: string,
-  visibility: 'public' | 'private',
-): Promise<void> {
-  await db.update(works).set({ visibility }).where(eq(works.id, workId));
 }
 
 // Maintainers
@@ -1110,8 +1102,6 @@ export async function transcriptionsOfWitness(
           id: works.id,
           slug: works.slug,
           title: works.title,
-          visibility: works.visibility,
-          createdBy: works.createdBy,
         })
         .from(works)
         .where(inArray(works.id, workIds))
@@ -1134,31 +1124,58 @@ export async function transcriptionsOfWitness(
   }));
 }
 
-/** The works a witness is connected to: through transcriptions made for them or assigning text to them, and through reported readings. */
-export async function worksOfWitness(db: Database, witnessId: string): Promise<WitnessWorkRow[]> {
-  const viaText = await db
-    .select({
-      workId: transcriptionSegments.workId,
-      transcriptionId: transcriptionSegments.transcriptionId,
-      n: countDistinct(transcriptionSegments.segmentId),
-    })
-    .from(transcriptionSegments)
-    .innerJoin(transcriptions, eq(transcriptions.id, transcriptionSegments.transcriptionId))
-    .where(eq(transcriptions.witnessId, witnessId))
-    .groupBy(transcriptionSegments.workId, transcriptionSegments.transcriptionId);
-  const declared = await db
-    .select({
-      workId: transcriptionWorks.workId,
-      transcriptionId: transcriptionWorks.transcriptionId,
-    })
-    .from(transcriptionWorks)
-    .innerJoin(transcriptions, eq(transcriptions.id, transcriptionWorks.transcriptionId))
-    .where(eq(transcriptions.witnessId, witnessId));
-  const viaReadings = await db
-    .select({ workId: reportedReadings.workId, n: sql<number>`count(*)::int` })
-    .from(reportedReadings)
-    .where(eq(reportedReadings.witnessId, witnessId))
-    .groupBy(reportedReadings.workId);
+/**
+ * The works a witness is connected to: through transcriptions made for them or assigning text to them, and through reported readings.
+ * Only what the viewer may see is counted and connects: another person's draft is no trace of a work on the witness's page.
+ */
+export async function worksOfWitness(
+  db: Database,
+  witnessId: string,
+  viewer: Actor | null | undefined,
+  grants: Grants,
+): Promise<WitnessWorkRow[]> {
+  const viaText = (
+    await db
+      .select({
+        workId: transcriptionSegments.workId,
+        transcriptionId: transcriptionSegments.transcriptionId,
+        ownerId: transcriptions.ownerId,
+        visibility: transcriptions.visibility,
+        n: countDistinct(transcriptionSegments.segmentId),
+      })
+      .from(transcriptionSegments)
+      .innerJoin(transcriptions, eq(transcriptions.id, transcriptionSegments.transcriptionId))
+      .where(eq(transcriptions.witnessId, witnessId))
+      .groupBy(
+        transcriptionSegments.workId,
+        transcriptionSegments.transcriptionId,
+        transcriptions.ownerId,
+        transcriptions.visibility,
+      )
+  ).filter((r) => canViewTranscription(viewer, { ...r, id: r.transcriptionId }, grants));
+  const declared = (
+    await db
+      .select({
+        workId: transcriptionWorks.workId,
+        transcriptionId: transcriptionWorks.transcriptionId,
+        ownerId: transcriptions.ownerId,
+        visibility: transcriptions.visibility,
+      })
+      .from(transcriptionWorks)
+      .innerJoin(transcriptions, eq(transcriptions.id, transcriptionWorks.transcriptionId))
+      .where(eq(transcriptions.witnessId, witnessId))
+  ).filter((r) => canViewTranscription(viewer, { ...r, id: r.transcriptionId }, grants));
+  const viaReadings = (
+    await db
+      .select({
+        id: reportedReadings.id,
+        workId: reportedReadings.workId,
+        ownerId: reportedReadings.ownerId,
+        visibility: reportedReadings.visibility,
+      })
+      .from(reportedReadings)
+      .where(eq(reportedReadings.witnessId, witnessId))
+  ).filter((r) => canViewConjecture(viewer, r, { workMaintainerIds: [], grants }));
 
   const tally = new Map<
     string,
@@ -1176,7 +1193,7 @@ export async function worksOfWitness(db: Database, witnessId: string): Promise<W
     e.segments = Math.max(e.segments, Number(row.n));
   }
   for (const row of declared) entry(row.workId).transcriptions.add(row.transcriptionId);
-  for (const row of viaReadings) entry(row.workId).readings = Number(row.n);
+  for (const row of viaReadings) entry(row.workId).readings++;
   const ids = [...tally.keys()];
   if (ids.length === 0) return [];
   const rows = await db
@@ -1185,8 +1202,6 @@ export async function worksOfWitness(db: Database, witnessId: string): Promise<W
       slug: works.slug,
       title: works.title,
       author: works.author,
-      visibility: works.visibility,
-      createdBy: works.createdBy,
     })
     .from(works)
     .where(inArray(works.id, ids));
@@ -1271,8 +1286,6 @@ async function selectReadings(db: Database, where: SQL): Promise<ReadingRow[]> {
       workId: reportedReadings.workId,
       workSlug: works.slug,
       workTitle: works.title,
-      workVisibility: works.visibility,
-      workCreatedBy: works.createdBy,
       segmentId: reportedReadings.segmentId,
       label: segments.label,
       witnessId: witnesses.id,
@@ -1299,15 +1312,9 @@ async function selectReadings(db: Database, where: SQL): Promise<ReadingRow[]> {
       asc(witnesses.siglum),
       asc(reportedReadings.createdAt),
     );
-  return rows.map(({ workSlug, workTitle, workVisibility, workCreatedBy, ...r }) => ({
+  return rows.map(({ workSlug, workTitle, ...r }) => ({
     ...r,
-    work: {
-      id: r.workId,
-      slug: workSlug,
-      title: workTitle,
-      visibility: workVisibility,
-      createdBy: workCreatedBy,
-    },
+    work: { id: r.workId, slug: workSlug, title: workTitle },
   }));
 }
 
@@ -1372,16 +1379,11 @@ export function witnessOptions(db: Database): Promise<WitnessOption[]> {
     .limit(1000);
 }
 
-/** The works a user may see, for the select of a new transcription. */
-export function workOptions(
-  db: Database,
-  user: Actor | null | undefined,
-  grants: Grants,
-): Promise<WorkOption[]> {
+/** Every work, for the select of a new transcription. */
+export function workOptions(db: Database): Promise<WorkOption[]> {
   return db
     .select({ id: works.id, title: works.title, author: works.author })
     .from(works)
-    .where(visibleWorks(user, grants))
     .orderBy(asc(works.title))
     .limit(500);
 }
@@ -1422,26 +1424,11 @@ export type RegistryKind = 'work' | 'witness';
 
 export const SEARCH_LIMIT = 8;
 
-/** The works a user may see: public ones and the private ones they created, maintain or reach through an edition. */
-export function visibleWorks(user: Actor | null | undefined, grants: Grants): SQL | undefined {
-  if (isSiteEditor(user)) return undefined;
-  const isPublic = eq(works.visibility, 'public');
-  if (!user) return isPublic;
-  const reached = [...new Set([...grants.maintainedWorkIds, ...grants.workIds])];
-  return or(
-    isPublic,
-    eq(works.createdBy, user.id),
-    reached.length ? inArray(works.id, reached) : undefined,
-  );
-}
-
-/** Up to eight entries the user may see whose title or author (name, siglum or shelfmark) contain the query, or with the query as an identifier. */
+/** Up to eight entries whose title or author (name, siglum or shelfmark) contain the query, or with the query as an identifier. */
 export async function searchRegistry(
   db: Database,
   kind: RegistryKind,
   q: string,
-  user: Actor | null | undefined,
-  grants: Grants,
 ): Promise<SearchHit[]> {
   const query = q.trim().slice(0, 200);
   if (!query) return [];
@@ -1451,13 +1438,10 @@ export async function searchRegistry(
       .select({ id: works.id, slug: works.slug, title: works.title, author: works.author })
       .from(works)
       .where(
-        and(
-          visibleWorks(user, grants),
-          or(
-            sql`${works.title} ilike ${pattern}`,
-            sql`${works.author} ilike ${pattern}`,
-            identifierMatches(works, query),
-          ),
+        or(
+          sql`${works.title} ilike ${pattern}`,
+          sql`${works.author} ilike ${pattern}`,
+          identifierMatches(works, query),
         ),
       )
       .orderBy(asc(works.title))

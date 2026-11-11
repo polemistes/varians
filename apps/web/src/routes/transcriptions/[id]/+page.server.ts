@@ -32,7 +32,8 @@ import {
 } from '$lib/server/workbench';
 import { workbench as t } from '$lib/strings/workbench';
 import { registry } from '$lib/strings/registry';
-import { seesWork } from '$lib/server/edition-access';
+import { works } from '@varians/db';
+import { inArray } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import {
   createTranscription,
@@ -200,7 +201,7 @@ export const actions: Actions = {
     const parsed = settingsSchema.safeParse({ name: text(form, 'name') });
     if (!parsed.success)
       return fail(400, { message: parsed.error.issues[0]?.message ?? t.settings.nameRequired });
-    // The works chosen, each one that exists and is open to the user.
+    // The works chosen, each one that exists.
     const workIds = [
       ...new Set(
         form
@@ -209,9 +210,13 @@ export const actions: Actions = {
           .filter((id) => id.length > 0 && id.length <= 64),
       ),
     ].slice(0, 200);
-    for (const id of workIds) {
-      if (!(await seesWork(event.locals.db, user, id)))
-        return fail(400, { message: registry.transcription.works.notVisible });
+    if (workIds.length) {
+      const found = await event.locals.db
+        .select({ id: works.id })
+        .from(works)
+        .where(inArray(works.id, workIds));
+      if (found.length !== workIds.length)
+        return fail(400, { message: registry.transcription.works.notFound });
     }
     try {
       const settings = await saveSettings(event.locals.db, data.transcription.id, {

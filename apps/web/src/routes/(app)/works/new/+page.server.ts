@@ -14,7 +14,6 @@ const FIELDS = [
   'identifier',
   'identifiers',
   'description',
-  'visibility',
   'scheme',
   'levels',
 ];

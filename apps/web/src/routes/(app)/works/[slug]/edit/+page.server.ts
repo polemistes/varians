@@ -7,7 +7,6 @@ import {
   maintainersOf,
   RegistryError,
   removeMaintainer,
-  setWorkVisibility,
   updateWork,
   workBySlug,
 } from '$lib/server/registry';
@@ -18,7 +17,7 @@ import { registry as t } from '$lib/strings/registry';
 import type { Actions, PageServerLoad } from './$types';
 
 /**
- * Who decides about the entry itself: its visibility and its maintainers.
+ * Who decides about the entry itself: its maintainers.
  * Its creator and administrators; other maintainers edit, but do not hand on.
  */
 function governs(user: Actor, work: { createdBy: string | null }): boolean {
@@ -51,7 +50,6 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
       identifier: work.identifier,
       identifiers: JSON.stringify(work.identifiers),
       description: work.description,
-      visibility: work.visibility,
     },
     scheme,
     locked: segments.length > 0,
@@ -82,22 +80,6 @@ export const actions: Actions = {
       description,
     });
     return { form: 'details' as const, message: t.work.saved };
-  },
-
-  visibility: async ({ locals, params, request }) => {
-    const user = requireUser(locals);
-    const { work } = await maintained(locals, params.slug, user);
-    if (!governs(user, work)) error(403, t.work.notGoverning);
-    const value = field(await request.formData(), 'visibility');
-    if (value !== 'public' && value !== 'private')
-      return fail(400, { form: 'visibility' as const, error: t.common.invalidForm });
-    await setWorkVisibility(locals.db, work.id, value);
-    return {
-      form: 'visibility' as const,
-      message: t.work.visibilitySaved(
-        (value === 'public' ? t.work.public : t.work.private).toLowerCase(),
-      ),
-    };
   },
 
   scheme: async ({ locals, params, request }) => {

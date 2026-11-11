@@ -21,9 +21,8 @@ import type { RequestHandler } from './$types';
 import { isDocumentKind, loadDocumentAccess } from '$lib/server/document-access';
 import { VersionConflict, loadDocument, saveOps } from '$lib/server/documents/service';
 import { parseOps, segmentIdsIn } from '$lib/server/ops-schema';
-import { canViewWork, grantsFor } from '$lib/server/authz';
-import { segments, workMaintainers, works } from '@varians/db';
-import { eq, inArray } from 'drizzle-orm';
+import { segments } from '@varians/db';
+import { inArray } from 'drizzle-orm';
 
 const body = z.object({
   fromVersion: z.number().int().min(0),
@@ -48,7 +47,7 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
   if (!parsed.success) throw error(400, 'fromVersion and ops are required');
   const ops = parseOps(parsed.data.ops);
   if (!ops.ok) return json({ message: ops.message }, { status: 400 });
-  const refused = await refusedSegments(locals, access.workId, segmentIdsIn(ops.ops));
+  const refused = await refusedSegments(locals.db, access.workId, segmentIdsIn(ops.ops));
   if (refused) return json({ message: refused }, { status: 400 });
   try {
     const saved = await saveOps(
@@ -82,53 +81,21 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
 };
 
 /**
- * Segment starts name segments of works: an edition's must be of its own
- * work, a transcription's of works the user may see, so that text is never
- * assigned to a private work by someone outside it.
+ * Segment starts name segments that exist: an edition's must be of its own
+ * work, a transcription's may be of any.
  */
 async function refusedSegments(
-  locals: App.Locals,
+  db: App.Locals['db'],
   editionWorkId: string | null,
   ids: string[],
 ): Promise<string | null> {
   if (ids.length === 0) return null;
-  const rows = await locals.db
-    .select({
-      id: segments.id,
-      workId: works.id,
-      visibility: works.visibility,
-      createdBy: works.createdBy,
-    })
+  const rows = await db
+    .select({ id: segments.id, workId: segments.workId })
     .from(segments)
-    .innerJoin(works, eq(works.id, segments.workId))
     .where(inArray(segments.id, ids));
   if (rows.length !== ids.length) return 'A segment named is unknown.';
-  if (editionWorkId !== null)
-    return rows.every((r) => r.workId === editionWorkId)
-      ? null
-      : 'A segment named is not of this work.';
-  const privateWorks = [
-    ...new Set(rows.filter((r) => r.visibility !== 'public').map((r) => r.workId)),
-  ];
-  if (privateWorks.length === 0) return null;
-  const grants = await grantsFor(locals.db, locals.user);
-  for (const workId of privateWorks) {
-    const row = rows.find((r) => r.workId === workId)!;
-    const maintainerIds = (
-      await locals.db
-        .select({ id: workMaintainers.userId })
-        .from(workMaintainers)
-        .where(eq(workMaintainers.workId, workId))
-    ).map((m) => m.id);
-    if (
-      !canViewWork(
-        locals.user,
-        { id: workId, visibility: row.visibility, createdBy: row.createdBy },
-        maintainerIds,
-        grants,
-      )
-    )
-      return 'A segment named is not of a work you may see.';
-  }
+  if (editionWorkId !== null && !rows.every((r) => r.workId === editionWorkId))
+    return 'A segment named is not of this work.';
   return null;
 }

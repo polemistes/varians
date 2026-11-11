@@ -17,6 +17,7 @@ import {
   segments,
   transcriptions,
   witnesses,
+  workMaintainers,
   works,
   type Database,
 } from '@varians/db';
@@ -27,12 +28,10 @@ import {
   canViewConjecture,
   canViewEdition,
   canViewTranscription,
-  canViewWork,
   grantsFor,
   type Actor,
   type Grants,
 } from './authz.ts';
-import { workBySlug } from './registry.ts';
 import { documentAt } from './documents/service.ts';
 
 export type Resolved =
@@ -160,20 +159,12 @@ export interface Visibility {
   edits: boolean;
 }
 
-async function workVisible(
-  db: Database,
-  user: Actor | null,
-  grants: Grants,
-  workId: string,
-): Promise<{ visible: boolean; maintainerIds: string[] }> {
-  const [row] = await db.select({ slug: works.slug }).from(works).where(eq(works.id, workId));
-  if (!row) return { visible: false, maintainerIds: [] };
-  const record = await workBySlug(db, row.slug);
-  if (!record) return { visible: false, maintainerIds: [] };
-  return {
-    visible: canViewWork(user, record.work, record.maintainerIds, grants),
-    maintainerIds: record.maintainerIds,
-  };
+async function maintainerIdsOf(db: Database, workId: string): Promise<string[]> {
+  const rows = await db
+    .select({ userId: workMaintainers.userId })
+    .from(workMaintainers)
+    .where(eq(workMaintainers.workId, workId));
+  return rows.map((r) => r.userId);
 }
 
 async function documentVisibility(
@@ -209,8 +200,6 @@ async function documentVisibility(
     .where(eq(editions.id, id));
   if (!e) return { visible: false, edits: false };
   const collaborators = user && grants.collaboratingEditionIds.has(e.id) ? [user.id] : [];
-  if (!(await workVisible(db, user, grants, e.workId)).visible)
-    return { visible: false, edits: false };
   return {
     visible: canViewEdition(user, e, collaborators),
     edits: canEditEdition(user, e, collaborators),
@@ -232,14 +221,9 @@ export async function visibilityOf(
       return { visible: true, edits: false };
     case 'work':
     case 'segment':
-      return {
-        visible: (await workVisible(db, user, grants, resolved.workId)).visible,
-        edits: false,
-      };
+      return { visible: true, edits: false };
     case 'conjecture':
     case 'reported-reading': {
-      const work = await workVisible(db, user, grants, resolved.workId);
-      if (!work.visible) return { visible: false, edits: false };
       const table = resolved.kind === 'conjecture' ? conjectures : reportedReadings;
       const [row] = await db
         .select({
@@ -252,7 +236,10 @@ export async function visibilityOf(
         .where(eq(table.id, resolved.id));
       if (!row) return { visible: false, edits: false };
       return {
-        visible: canViewConjecture(user, row, { workMaintainerIds: work.maintainerIds, grants }),
+        visible: canViewConjecture(user, row, {
+          workMaintainerIds: await maintainerIdsOf(db, row.workId),
+          grants,
+        }),
         edits: false,
       };
     }

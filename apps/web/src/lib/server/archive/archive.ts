@@ -592,7 +592,6 @@ async function writeWorkFiles(ctx: WorkContext): Promise<void> {
       language: work.language,
       identifier: work.identifier,
       description: work.description,
-      visibility: work.visibility,
       scheme: scheme
         ? {
             id: scheme.id,

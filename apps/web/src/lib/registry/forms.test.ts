@@ -52,16 +52,22 @@ describe('parseWorkForm', () => {
         identifier: '',
         identifiers: [],
         description: '',
-        visibility: 'public',
       },
     });
   });
 
   it('takes the code typed for Other', () => {
     const parsed = parseWorkForm(
-      form({ title: 'Genesis', language: 'other', languageCode: ' hbo ', visibility: 'private' }),
+      form({ title: 'Genesis', language: 'other', languageCode: ' hbo ' }),
     );
-    expect(parsed.ok && parsed.data).toMatchObject({ language: 'hbo', visibility: 'private' });
+    expect(parsed.ok && parsed.data).toMatchObject({ language: 'hbo' });
+  });
+
+  it('knows nothing of a work being private: a form that says so gives a work like any other', () => {
+    const parsed = parseWorkForm(
+      form({ title: 'Genesis', language: 'hbo', visibility: 'private' }),
+    );
+    expect(parsed.ok && parsed.data).not.toHaveProperty('visibility');
   });
 
   it('reports what is wrong with what was typed', () => {

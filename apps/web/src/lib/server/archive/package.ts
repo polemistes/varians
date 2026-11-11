@@ -26,7 +26,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { and, desc, eq } from 'drizzle-orm';
-import { canViewWork, grantsFor, type Actor } from '../authz.ts';
+import type { Actor } from '../authz.ts';
 import { workBySlug } from '../registry.ts';
 import { dataLicence, siteName } from '../settings.ts';
 import { FORMAT_BASE, FORMAT_VERSION, writeArchive, type ArchiveFilter } from './archive.ts';
@@ -78,12 +78,9 @@ export async function scopeFilters(
   const out = new Map<string, ArchiveFilter>();
   const add = (workId: string, filter: ArchiveFilter) =>
     out.set(workId, out.has(workId) ? union(out.get(workId)!, filter) : filter);
-  const grants = await grantsFor(db, viewer);
-  const visibleWork = async (workId: string) => {
+  const workRecord = async (workId: string) => {
     const [row] = await db.select({ slug: works.slug }).from(works).where(eq(works.id, workId));
-    const record = row ? await workBySlug(db, row.slug) : null;
-    if (!record || !canViewWork(viewer, record.work, record.maintainerIds, grants)) return null;
-    return record;
+    return row ? await workBySlug(db, row.slug) : null;
   };
   for (const scope of scopes) {
     if (scope.kind === 'work' || scope.kind === 'installation') {
@@ -92,7 +89,7 @@ export async function scopeFilters(
           ? [scope.workId]
           : (await db.select({ id: works.id }).from(works)).map((w) => w.id);
       for (const workId of ids) {
-        const record = await visibleWork(workId);
+        const record = await workRecord(workId);
         if (record) add(workId, await viewerFilter(db, viewer, record.maintainerIds));
       }
       continue;
@@ -100,7 +97,7 @@ export async function scopeFilters(
     if (scope.kind === 'edition') {
       const [edition] = await db.select().from(editions).where(eq(editions.id, scope.editionId));
       if (!edition) continue;
-      const record = await visibleWork(edition.workId);
+      const record = await workRecord(edition.workId);
       if (!record) continue;
       const base = await viewerFilter(db, viewer, record.maintainerIds);
       if (!base.edition(edition)) continue;
@@ -156,7 +153,7 @@ export async function scopeFilters(
       .where(eq(transcriptions.id, scope.transcriptionId));
     if (!t) continue;
     for (const workId of await worksOfDocument(db, 'transcription', t.id)) {
-      const record = await visibleWork(workId);
+      const record = await workRecord(workId);
       if (!record) continue;
       const base = await viewerFilter(db, viewer, record.maintainerIds);
       if (!base.transcription(t)) continue;

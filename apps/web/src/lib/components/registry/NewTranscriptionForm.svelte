@@ -17,7 +17,7 @@
 
   interface Props {
     open?: boolean;
-    /** The works the user may see. */
+    /** Every work, to choose among. */
     works: WorkOption[];
     /** The transcriptions the user may view, to start from. */
     sources: TranscriptionOption[];

@@ -5,10 +5,8 @@ import {
   canMaintainWitness,
   canViewConjecture,
   canViewTranscription,
-  canViewWork,
   grantsFor,
   type Actor,
-  type Grants,
 } from '$lib/server/authz';
 import { citationsByRecord } from '$lib/server/bibliography';
 import { requireUser } from '$lib/server/guards';
@@ -30,7 +28,6 @@ import {
 } from '$lib/server/registry';
 import { mergesInto } from '$lib/server/registry-merge';
 import { describeDependents, field, parseName, parseTranscriptionForm } from '$lib/registry/forms';
-import type { WorkRef } from '$lib/registry/types';
 import { registry as t } from '$lib/strings/registry';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -40,19 +37,12 @@ async function witnessOr404(locals: App.Locals, slug: string) {
   return record;
 }
 
-/** Whether the user sees a work; the grants hold the works they maintain or reach through an edition. */
-const seesWork =
-  (user: Actor | null, grants: Grants) =>
-  (work: Pick<WorkRef, 'id' | 'visibility' | 'createdBy'>) =>
-    canViewWork(user, work, [], grants);
-
 /** The witness page is public like the registry; what it offers to do needs a user. */
 export const load: PageServerLoad = async ({ locals, params }) => {
   const user = locals.user;
   const { witness, maintainerIds } = await witnessOr404(locals, params.slug);
   const db = locals.db;
   const grants = await grantsFor(db, user);
-  const sees = seesWork(user, grants);
   const [
     maintainers,
     pageRows,
@@ -66,14 +56,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
     maintainersOf(db, 'witness', witness.id),
     pagesOfWitness(db, witness.id),
     transcriptionsOfWitness(db, witness.id),
-    worksOfWitness(db, witness.id),
+    worksOfWitness(db, witness.id, user, grants),
     readingsOfWitness(db, witness.id),
-    user ? workOptions(db, user, grants) : Promise.resolve([]),
+    user ? workOptions(db) : Promise.resolve([]),
     user ? viewableTranscriptions(db, user, grants) : Promise.resolve([]),
     mergesInto(db, 'witness', witness.id),
   ]);
   const context = { workMaintainerIds: [] as string[], grants };
-  const readings = readingRows.filter((r) => sees(r.work) && canViewConjecture(user, r, context));
+  const readings = readingRows.filter((r) => canViewConjecture(user, r, context));
   const citations = await citationsByRecord(
     db,
     'reported',
@@ -110,11 +100,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       .filter((r) => canViewTranscription(user, r, grants))
       .map((r) => ({
         ...r,
-        works: r.works.filter(sees),
-        assigned: r.assigned.filter(sees),
         can: { rename: canDeleteTranscription(user, r), delete: canDeleteTranscription(user, r) },
       })),
-    works: workRows.filter(sees),
+    works: workRows,
     readings: readings.map((r) => ({
       ...r,
       citations: (citations.get(r.id) ?? []).map(({ itemId, label, prenote, postnote, text }) => ({
@@ -172,8 +160,7 @@ export const actions: Actions = {
     }
     if (d.workId) {
       const [work] = await locals.db.select().from(works).where(eq(works.id, d.workId));
-      if (!work || !seesWork(user, grants)(work))
-        return fail(400, { errors: { workId: [t.work.notFound] } });
+      if (!work) return fail(400, { errors: { workId: [t.work.notFound] } });
     }
     let id: string;
     try {

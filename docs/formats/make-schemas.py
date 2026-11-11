@@ -85,7 +85,7 @@ def top(name): return {'$schema': {'const': BASE + name + '.schema.json'}}
 level = obj({'key': {'type': 'string'}, 'label': {'type': 'string'}, 'type': {'type': 'string'}, 'separator': {'type': 'string'}}, ['key', 'label', 'type'])
 schema('work', 'Work', 'work.json: the work, its reference scheme and normalization profile (specification 4.1).', obj({
   **top('work'), 'formatVersion': {'type': 'integer', 'minimum': 1}, 'id': ref('id'), 'slug': {'type': 'string', 'pattern': '^[a-z0-9-]+$'}, 'title': {'type': 'string'},
-  'author': NS, 'language': {'type': 'string'}, 'identifier': NS, 'identifiers': ref('identifiers'), 'description': NS, 'visibility': {'enum': ['public', 'private']},
+  'author': NS, 'language': {'type': 'string'}, 'identifier': NS, 'identifiers': ref('identifiers'), 'description': NS,
   'scheme': obj({'id': ref('id'), 'name': {'type': 'string'}, 'levels': arr(level), 'createdBy': ref('idOrNull'), 'createdAt': ref('timeOrNull')}, ['id', 'name', 'levels']),
   'profile': obj({'language': {'type': 'string'}, 'fold': {'type': 'object'}}, ['language', 'fold']),
   'maintainers': arr(ref('account')), 'licence': ref('spdx'), 'createdBy': ref('idOrNull'), 'createdAt': ref('timeOrNull')},

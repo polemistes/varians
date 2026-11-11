@@ -2,7 +2,7 @@
   import { enhance } from '$app/forms';
   import { PageFrame } from '$lib/components/shell';
   import { Button, Notice, toasts } from '$lib/components/ui';
-  import { SchemeEditor, VisibilityField, WorkFields } from '$lib/components/registry';
+  import { SchemeEditor, WorkFields } from '$lib/components/registry';
   import { CUSTOM_SCHEME } from '$lib/registry/constants';
   import { parseLevels } from '$lib/registry/scheme';
   import { registry as t } from '$lib/strings/registry';
@@ -18,7 +18,7 @@
   );
 </script>
 
-<PageFrame title={t.work.newTitle} width="reading">
+<PageFrame title={t.work.newTitle} lead={t.work.publicNote} width="reading">
   <form
     method="post"
     novalidate
@@ -35,7 +35,6 @@
   >
     {#if form?.errors}<Notice kind="error">{t.common.invalidForm}</Notice>{/if}
     <WorkFields {values} {errors} search />
-    <VisibilityField value={values.visibility === 'private' ? 'private' : 'public'} />
     <SchemeEditor choice={values.scheme || undefined} {levels} error={errors.scheme} />
     <div class="flex items-center gap-3 border-t border-line pt-6">
       <Button type="submit" variant="primary" loading={submitting}>{t.work.create}</Button>

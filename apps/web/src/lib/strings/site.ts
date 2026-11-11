@@ -59,7 +59,6 @@ export const site = {
     none: 'No work has been registered yet.',
     newWork: 'New work',
     unknownAuthor: 'Unknown author',
-    private: 'Private',
   },
 
   witnesses: {
@@ -155,7 +154,7 @@ export const site = {
     address: 'Address of the work there',
     addressHint: 'Such as https://example.org/works/iliad',
     token: 'Token of your account there',
-    tokenHint: 'Needed to send changes there, and to bring drafts or a private work here.',
+    tokenHint: 'Needed to send changes there, and to bring drafts here.',
     add: 'Add',
     none: 'No other installation has been added.',
     compare: 'Compare',

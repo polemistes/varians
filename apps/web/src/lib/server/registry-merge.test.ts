@@ -38,7 +38,7 @@ import {
 } from '@varians/db';
 import { and, eq, inArray } from 'drizzle-orm';
 import pg from 'pg';
-import { grantsFor, type Actor } from './authz';
+import type { Actor } from './authz';
 import { replaceContent, saveOps } from './documents/service.ts';
 import { searchWitnesses, searchWorks } from './library';
 import {
@@ -252,55 +252,38 @@ describe('pure helpers', () => {
 });
 
 describe('search by identifier', () => {
-  it('finds a work by any of its identifiers, letter for letter but for case, among those the user may see', async () => {
+  it('finds a work by any of its identifiers, letter for letter but for case', async () => {
     const q = `Q${digits}`;
-    const open = await work('Identified', alice, epic, {
+    const first = await work('Identified', alice, epic, {
       identifiers: [{ scheme: 'wikidata', value: q }],
     });
-    const closed = await work('Identified privately', alice, epic, {
+    const second = await work('Identified again', alice, epic, {
       identifiers: [{ scheme: 'wikidata', value: q }],
-      visibility: 'private',
     });
     const urn = await work('By URN', alice, epic, {
       identifier: `urn:cts:greekLit:tlg${digits}.tlg001`,
     });
-    expect(
-      (await searchRegistry(db, 'work', q.toLowerCase(), bob, await grantsFor(db, bob))).map(
-        (h) => h.id,
-      ),
-    ).toEqual([open.id]);
-    expect(
-      (await searchRegistry(db, 'work', ` ${q} `, alice, await grantsFor(db, alice)))
-        .map((h) => h.id)
-        .sort(),
-    ).toEqual([open.id, closed.id].sort());
+    expect((await searchRegistry(db, 'work', q.toLowerCase())).map((h) => h.id).sort()).toEqual(
+      [first.id, second.id].sort(),
+    );
+    expect((await searchRegistry(db, 'work', ` ${q} `)).map((h) => h.id).sort()).toEqual(
+      [first.id, second.id].sort(),
+    );
     // Exactly: a part of the value finds nothing.
+    expect(await searchRegistry(db, 'work', q.slice(0, -1))).toEqual([]);
     expect(
-      await searchRegistry(db, 'work', q.slice(0, -1), alice, await grantsFor(db, alice)),
-    ).toEqual([]);
-    expect(
-      (
-        await searchRegistry(
-          db,
-          'work',
-          `URN:CTS:greekLit:tlg${digits}.tlg001`,
-          bob,
-          await grantsFor(db, bob),
-        )
-      ).map((h) => h.id),
+      (await searchRegistry(db, 'work', `URN:CTS:greekLit:tlg${digits}.tlg001`)).map((h) => h.id),
     ).toEqual([urn.id]);
-    expect((await searchWorks(db, bob, q)).map((w) => w.id)).toEqual([open.id]);
+    expect((await searchWorks(db, q)).map((w) => w.id).sort()).toEqual(
+      [first.id, second.id].sort(),
+    );
   });
 
   it('finds a witness by a Diktyon number', async () => {
     const found = await witness('Diktyon', alice, {
       identifiers: [{ scheme: 'diktyon', value: digits }],
     });
-    expect(
-      (await searchRegistry(db, 'witness', digits, null, await grantsFor(db, null))).map(
-        (h) => h.id,
-      ),
-    ).toEqual([found.id]);
+    expect((await searchRegistry(db, 'witness', digits)).map((h) => h.id)).toEqual([found.id]);
     expect((await searchWitnesses(db, digits)).map((w) => w.id)).toEqual([found.id]);
   });
 });

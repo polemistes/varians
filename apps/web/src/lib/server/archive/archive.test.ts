@@ -67,6 +67,7 @@ describe('archive', () => {
     expect((await readdir(path.join(dir, 'schemas'))).length).toBeGreaterThanOrEqual(9);
     const work = JSON.parse(await readFile(path.join(dir, 'work.json'), 'utf8'));
     expect(work.title).toBe('Iliad');
+    expect(work).not.toHaveProperty('visibility');
     expect(work.scheme.levels).toHaveLength(2);
     const segmentsTsv = await readFile(path.join(dir, 'segments.tsv'), 'utf8');
     expect(segmentsTsv.split('\n').filter((l) => l).length).toBe(11);
