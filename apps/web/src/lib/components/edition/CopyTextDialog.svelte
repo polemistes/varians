@@ -139,11 +139,9 @@
       {:else if preview && preview.segments === 0}
         <p class="text-ink-soft">{t.nothing}</p>
       {:else if preview && preview.replaced > 0}
-        <Notice kind="warning"
-          >{t.segments(preview.segments)} {t.replaced(preview.replaced, preview.segments)}</Notice
-        >
+        <Notice kind="warning">{t.count(preview.segments, preview.replaced)}</Notice>
       {:else if preview}
-        <p class="text-ink">{t.segments(preview.segments)}</p>
+        <p class="text-ink">{t.count(preview.segments, 0)}</p>
       {/if}
     </div>
     {#if error}<Notice kind="error">{error}</Notice>{/if}

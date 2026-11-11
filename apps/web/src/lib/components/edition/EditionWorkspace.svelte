@@ -1430,7 +1430,9 @@
         </div>
       {/if}
       {#if stream.items.length === 0}
-        <div class="flex shrink-0 flex-wrap items-center gap-3 px-6 pt-4 font-sans text-sm">
+        <div
+          class="flex shrink-0 flex-wrap items-center gap-3 bg-surface px-6 pt-4 font-sans text-sm"
+        >
           <span class="text-ink-soft">{s.dialogs.copyText.empty}</span>
           {#if canEdit}
             <Button

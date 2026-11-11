@@ -177,14 +177,14 @@ export const editor = {
       copy: 'Copy Text',
       cancel: 'Cancel',
       counting: 'Counting…',
-      segments: (n: number) =>
-        n === 1 ? '1 segment will be copied.' : `${n} segments will be copied.`,
-      replaced: (n: number, of: number) =>
-        n === of
-          ? of === 1
-            ? 'The edition has text for it, which will be replaced.'
-            : `The edition has text for all ${n} of them, which will be replaced.`
-          : `The edition has text for ${n} of them, which will be replaced.`,
+      /** How many segments a copy brings, and of them how many the edition has text for, which it replaces. */
+      count: (n: number, replaced: number) => {
+        const copied = n === 1 ? '1 segment will be copied' : `${n} segments will be copied`;
+        if (replaced === 0) return `${copied}.`;
+        const which =
+          replaced < n ? `${replaced} of them` : n === 1 ? 'it' : n === 2 ? 'both' : `all ${n}`;
+        return `${copied}; the edition’s text of ${which} will be replaced.`;
+      },
       nothing: 'The transcript has no text of this work in this range.',
       empty: 'This edition has no text.',
       unknownLabel: (label: string) => `There is no segment ${label} in this work.`,
@@ -193,7 +193,6 @@ export const editor = {
       failed: 'The text could not be copied.',
       /** The message of the change in the edition's history. */
       message: (range: string, siglum: string) => `Text of ${range} copied from ${siglum}`,
-      copied: (n: number) => (n === 1 ? '1 segment copied.' : `${n} segments copied.`),
     },
   },
   witness: {
