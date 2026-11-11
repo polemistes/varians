@@ -12,6 +12,7 @@ export * from './collate/passage.ts';
 export * from './history/changeset.ts';
 export * from './apparatus/render.ts';
 export * from './edition/adopt.ts';
+export * from './edition/copy.ts';
 export * from './edition/derive.ts';
 export * from './edition/print.ts';
 export * from './scheme/mapping.ts';

@@ -111,6 +111,32 @@ export const editor = {
       prose: 'Prose',
       begin: 'New Paragraph',
     },
+    copyText: {
+      menu: 'Copy Text from Transcript…',
+      title: 'Copy Text from Transcript',
+      transcript: 'Transcript',
+      from: 'From',
+      to: 'To',
+      copy: 'Copy Text',
+      cancel: 'Cancel',
+      counting: 'Counting…',
+      /** How many segments a copy brings, and of them how many the edition has text for, which it replaces. */
+      count: (n: number, replaced: number) => {
+        const copied = n === 1 ? '1 segment will be copied' : `${n} segments will be copied`;
+        if (replaced === 0) return `${copied}.`;
+        const which =
+          replaced < n ? `${replaced} of them` : n === 1 ? 'it' : n === 2 ? 'both' : `all ${n}`;
+        return `${copied}; the edition’s text of ${which} will be replaced.`;
+      },
+      nothing: 'The transcript has no text of this work in this range.',
+      empty: 'This edition has no text.',
+      unknownLabel: (label: string) => `There is no segment ${label} in this work.`,
+      notInConspectus: 'This transcript is not among the edition’s witnesses.',
+      changed: 'The edition changed while the text was being copied; try again.',
+      failed: 'The text could not be copied.',
+      /** The message of the change in the edition's history. */
+      message: (range: string, siglum: string) => `Text of ${range} copied from ${siglum}`,
+    },
   },
   witness: {
     title: 'Witness',

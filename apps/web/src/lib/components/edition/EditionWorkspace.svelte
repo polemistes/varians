@@ -38,6 +38,7 @@
   } from '$lib/components/ui';
   import ApparatusBand, { type Choice } from './ApparatusBand.svelte';
   import ConjectureDialog, { type ConjectureDraft } from './ConjectureDialog.svelte';
+  import CopyTextDialog, { type CopyRange } from './CopyTextDialog.svelte';
   import NoteDialog from './NoteDialog.svelte';
   import { PaneSize } from '$lib/layout/pane-size.svelte';
   import { formatCitation } from '$lib/bibliography/format';
@@ -1195,6 +1196,54 @@
     refocus();
   }
 
+  // Copying text from a transcript of the conspectus
+
+  let copyOpen = $state(false);
+  let copyBusy = $state(false);
+  let copyError = $state<string | null>(null);
+  const copyTranscripts = $derived(
+    sigla.flatMap((x) =>
+      x.transcriptionId
+        ? [{ transcriptionId: x.transcriptionId, siglum: x.siglum, witnessName: x.witnessName }]
+        : [],
+    ),
+  );
+
+  /** Open the window once what the editor has typed is saved, so that it counts against the text as it is. */
+  async function openCopy() {
+    if (!canEdit || copyTranscripts.length === 0) return;
+    copyError = null;
+    await session.flush();
+    copyOpen = true;
+  }
+
+  /** Copy on the server, against the text with every change of the editor saved, and start again from what it then has. */
+  async function copyText(range: CopyRange) {
+    copyBusy = true;
+    copyError = null;
+    try {
+      await session.flush();
+      if (session.state.pending > 0)
+        throw new Error(session.state.error ?? s.dialogs.copyText.failed);
+      const response = await fetch(`/api/editions/${editionId}/copy-text`, {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ ...range, fromVersion: session.state.version }),
+      });
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(data?.message ?? s.dialogs.copyText.failed);
+      }
+      copyOpen = false;
+      // A change made on the server, as an undo in the history is: the editor starts again from it.
+      await onHistoryChanged();
+    } catch (cause) {
+      copyError = cause instanceof Error ? cause.message : s.dialogs.copyText.failed;
+    } finally {
+      copyBusy = false;
+    }
+  }
+
   /** Back to the text once a dialog has closed and handed focus back to its trigger. */
   function refocus() {
     setTimeout(() => api?.focus(), 250);
@@ -1375,7 +1424,26 @@
             <MenuItem onSelect={() => openInsert('margin')}>{s.dialogs.insert.margin}…</MenuItem>
             <MenuItem onSelect={() => openInsert('lacuna')}>{s.dialogs.insert.lacuna}…</MenuItem>
             <MenuItem onSelect={() => openConjecture()}>{s.dialogs.insert.conjecture}</MenuItem>
+            <MenuSeparator />
+            <MenuItem disabled={copyTranscripts.length === 0} onSelect={() => void openCopy()}
+              >{s.dialogs.copyText.menu}</MenuItem
+            >
           </Menu>
+        </div>
+      {/if}
+      {#if stream.items.length === 0}
+        <div
+          class="flex shrink-0 flex-wrap items-center gap-3 bg-surface px-6 pt-4 font-sans text-sm"
+        >
+          <span class="text-ink-soft">{s.dialogs.copyText.empty}</span>
+          {#if canEdit}
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={copyTranscripts.length === 0}
+              onclick={() => void openCopy()}>{s.dialogs.copyText.menu}</Button
+            >
+          {/if}
         </div>
       {/if}
       <TextEditor
@@ -1577,6 +1645,15 @@
   </section>
 </div>
 
+<CopyTextDialog
+  bind:open={copyOpen}
+  {editionId}
+  transcripts={copyTranscripts}
+  busy={copyBusy}
+  error={copyError}
+  oncopy={(range) => void copyText(range)}
+  oncancel={() => (copyOpen = false)}
+/>
 <ConjectureDialog
   bind:open={conjectureOpen}
   draft={conjectureDraft}
