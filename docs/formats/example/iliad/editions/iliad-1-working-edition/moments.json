@@ -2,17 +2,17 @@
   "$schema": "https://varians.eu/formats/2/moments.schema.json",
   "moments": [
     {
-      "id": "01M74KBWYBCQP17M3Z1EKBDNF5",
+      "id": "01M74M31XB7EG60N8AXCXTHQ8Y",
       "version": 1,
       "name": "Collated against A, B and C",
       "kind": "named",
       "number": null,
       "basis": null,
-      "personId": "01M74KBWRYP1RAA0Y9WD1G5S37",
-      "at": "2026-11-11T06:05:18.667Z"
+      "personId": "01M74M31NPV2Z4QD3Y12W6ADR6",
+      "at": "2026-11-11T06:17:57.419Z"
     },
     {
-      "id": "01M74KBX1MX9HK3Y6SKHXXJF52",
+      "id": "01M74M323HRA62XZ43DGKXJC2Z",
       "version": 2,
       "name": "Version 1 (2026-11-11)",
       "kind": "published",
@@ -22,52 +22,52 @@
           {
             "siglum": "A",
             "states": [],
-            "witnessId": "01M74KBWTGCGD9HJSP10GEK8NP",
+            "witnessId": "01M74M31QGMJB60BSYS4BTPCSS",
             "variantSiglum": null,
-            "transcriptionId": "01M74KBWTX6Z3RZJBAMJCFAY03"
+            "transcriptionId": "01M74M31QYRWTCAY52C7AXTQ8S"
           },
           {
             "siglum": "B",
             "states": [],
-            "witnessId": "01M74KBWVMFAQDM40N72DYD3GZ",
+            "witnessId": "01M74M31S8QWTQ85Q9BZPD5K3H",
             "variantSiglum": null,
-            "transcriptionId": "01M74KBWVRR6FG7S9JP6GXCVEK"
+            "transcriptionId": "01M74M31SEVWMVR45T2CVDZ0YX"
           },
           {
             "siglum": "C",
             "states": [],
-            "witnessId": "01M74KBWW3YK8JHHB0NVE1HYVE",
+            "witnessId": "01M74M31T4J4B9D11X7939MX8P",
             "variantSiglum": null,
-            "transcriptionId": "01M74KBWW7QTR6YN3RE5AN7SVB"
+            "transcriptionId": "01M74M31TAK0BGCS1YBXS9KZ9J"
           },
           {
             "siglum": "T",
             "states": [],
-            "witnessId": "01M74KBWX1KRH6QXXY2VYTN0S5",
+            "witnessId": "01M74M31VJS3YP8JF4ZX2X36DF",
             "variantSiglum": null,
             "transcriptionId": null
           }
         ],
         "versions": {
-          "01M74KBWTX6Z3RZJBAMJCFAY03": 1,
-          "01M74KBWVRR6FG7S9JP6GXCVEK": 1,
-          "01M74KBWW7QTR6YN3RE5AN7SVB": 1
+          "01M74M31QYRWTCAY52C7AXTQ8S": 1,
+          "01M74M31SEVWMVR45T2CVDZ0YX": 1,
+          "01M74M31TAK0BGCS1YBXS9KZ9J": 1
         },
         "siteKinds": [
           {
-            "segmentId": "01M74KBWSWD9SSPX27FZYWQXA0",
-            "siteKey": "01M74KBWSWD9SSPX27FZYWQXA0:0",
+            "segmentId": "01M74M31PSZFQVWGFH4BT3XB6T",
+            "siteKey": "01M74M31PSZFQVWGFH4BT3XB6T:0",
             "kind": "textual"
           },
           {
-            "segmentId": "01M74KBWT9MZ17FDH1HHWN0QQ5",
-            "siteKey": "01M74KBWWMD4ZE66284BVJGCC0",
+            "segmentId": "01M74M31Q9FXVH32H0APCNZ242",
+            "siteKey": "01M74M31TX6BFSVKQ4MJ7WY0WJ",
             "minor": true
           }
         ]
       },
-      "personId": "01M74KBWRYP1RAA0Y9WD1G5S37",
-      "at": "2026-11-11T06:05:18.770Z"
+      "personId": "01M74M31NPV2Z4QD3Y12W6ADR6",
+      "at": "2026-11-11T06:17:57.613Z"
     }
   ]
 }

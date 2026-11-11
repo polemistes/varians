@@ -149,4 +149,4 @@ Beyond the choice of elements, the ODD closes the values of a few attributes tha
 
 ## What is not in TEI
 
-Attested separators (`sep`), the `unchecked` flag, edition token sources, segment run parts, review marks and the change history live only in the JSON files of the archive.
+Attested separators (`sep`), the `unchecked` flag, segment run parts, review marks and the change history live only in the JSON files of the archive. So do an edition's notes on its words and segments, and what a note cites: the works are in the list of works cited, the note and its citation are not. The note a conjecture or a reported reading carries is in the JSON only too.

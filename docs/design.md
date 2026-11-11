@@ -370,6 +370,7 @@ Known gaps in what is built:
 - Adopting the absence of a whole segment removes the segment from the edition's text, where it then stands as a variant the edition does not print, unless it was the first or the last segment. A segment the edition leaves out cannot yet be printed in brackets.
 - Undoing a move of text to another page does not bring back the boxes the move detached.
 - The pages endpoint of a witness reads every transcript to count the words on each page, which will be slow for many long transcripts. A count kept with the segment index is the remedy.
+- An edition's notes on its words and segments are not in its TEI, nor the note a conjecture or a reported reading carries; the works a note cites are listed, its citation of them is not.
 - A transcript's TEI does not say where text of no segment begins after a segment (TEI has `<milestone unit="unnumbered"/>` for it), so the file reads as if the segment went on; the JSON has it. An edition's TEI leaves text of no segment out. The importer does not read `part` on a `<w>`.
 - In an edition's TEI a variant at a point between two segments, whose witnesses have words of both, stands once, at the end of the first.
 - A merged or deleted work's archive directory stays on disk.
