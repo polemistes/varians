@@ -2,6 +2,7 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import {
   canViewConjecture,
   canViewTranscription,
+  conjectureRights,
   grantsFor,
   transcriptionRights,
   witnessRights,
@@ -99,6 +100,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
     works: workRows,
     readings: readings.map((r) => ({
       ...r,
+      can: conjectureRights(user, r, context),
       citations: (citations.get(r.id) ?? []).map(({ itemId, label, prenote, postnote, text }) => ({
         itemId,
         label,

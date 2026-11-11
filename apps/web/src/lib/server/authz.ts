@@ -23,6 +23,7 @@ import type {
 } from '@varians/db';
 import { sql } from '@varians/db';
 import type { EditionRights } from '$lib/edition/actions';
+import type { RowRights } from '$lib/registry/types';
 import type { TranscriptionRights } from '$lib/transcription/actions';
 import type { WitnessRights } from '$lib/witness/actions';
 import type { WorkRights } from '$lib/work/actions';
@@ -363,6 +364,20 @@ export function canDeleteConjecture(
   conjecture: Pick<Conjecture, 'ownerId'>,
 ): boolean {
   return ownsOrAdministers(user, conjecture);
+}
+
+/** What a viewer may do with a conjecture or a reported reading, as its row's menu and window ask. */
+export function conjectureRights(
+  user: Maybe<Actor>,
+  conjecture: Pick<Conjecture, 'id' | 'ownerId' | 'workId'>,
+  context: ConjectureContext,
+): RowRights {
+  if (!user) return { edit: false, delete: false, publish: false };
+  return {
+    edit: canEditConjecture(user, conjecture, context),
+    delete: canDeleteConjecture(user, conjecture),
+    publish: canPublishConjecture(user, conjecture),
+  };
 }
 
 // The loader

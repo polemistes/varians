@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
+  import { replaceState } from '$app/navigation';
   import Plus from '@lucide/svelte/icons/plus';
   import { PageFrame } from '$lib/components/shell';
   import { Button, ConfirmDialog } from '$lib/components/ui';
@@ -17,6 +19,7 @@
     WitnessPicker,
     WorkActions,
   } from '$lib/components/registry';
+  import { recordActions as ra } from '$lib/strings/record-actions';
   import { registry as t } from '$lib/strings/registry';
   import type { PageProps } from './$types';
 
@@ -41,6 +44,20 @@
   let reading = $state<ReadingItem | null>(null);
   let readingDeleteOpen = $state(false);
   let readingToDelete = $state<ReadingItem | null>(null);
+
+  // A witness's page leads here to edit a reported reading it lists (?editReading=<id>): its window opens once.
+  onMount(() => {
+    const url = new URL(location.href);
+    const id = url.searchParams.get('editReading');
+    if (!id) return;
+    const found = data.readings.find((r) => r.id === id);
+    if (found?.can.edit) {
+      reading = found;
+      readingOpen = true;
+    }
+    url.searchParams.delete('editReading');
+    replaceState(url, {});
+  });
 
   // Back from registering a witness: the picker opens once with it chosen.
   let pickedShown = '';
@@ -225,13 +242,13 @@
   canPublish={conjecture ? conjecture.can.publish : true}
 />
 <ConfirmDialog
-  confirmLabel={t.common.confirmDelete}
+  confirmLabel={ra.conjecture.deleteVerb}
   bind:open={conjectureDeleteOpen}
-  title={t.conjecture.deleteTitle}
-  description={t.conjecture.deleteConfirm}
+  title={ra.conjecture.deleteTitle}
+  description={ra.conjecture.deleteBody}
   action="?/deleteConjecture"
   fields={{ id: conjectureToDelete?.id ?? '' }}
-  done={t.conjecture.deleted}
+  done={ra.conjecture.deleted}
 />
 
 <ReportedReadingForm
@@ -244,11 +261,11 @@
   canPublish={reading ? reading.can.publish : true}
 />
 <ConfirmDialog
-  confirmLabel={t.common.confirmDelete}
+  confirmLabel={ra.reading.deleteVerb}
   bind:open={readingDeleteOpen}
-  title={t.reading.deleteTitle}
-  description={t.reading.deleteConfirm}
+  title={ra.reading.deleteTitle}
+  description={ra.reading.deleteBody}
   action="?/deleteReading"
   fields={{ id: readingToDelete?.id ?? '' }}
-  done={t.reading.deleted}
+  done={ra.reading.deleted}
 />

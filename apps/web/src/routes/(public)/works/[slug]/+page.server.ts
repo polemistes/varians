@@ -4,6 +4,7 @@ import { conjectures, eq, reportedReadings, witnesses } from '@varians/db';
 import {
   canDeleteConjecture,
   canEditConjecture,
+  conjectureRights,
   editionRights,
   canPublishConjecture,
   canViewConjecture,
@@ -53,7 +54,8 @@ import {
 } from '$lib/registry/forms';
 import { languageName } from '$lib/registry/languages';
 import { exampleLabel, labelRanges, schemeSentence } from '$lib/registry/scheme';
-import type { Cited, RowRights, SearchHit } from '$lib/registry/types';
+import type { Cited, SearchHit } from '$lib/registry/types';
+import { recordActions } from '$lib/strings/record-actions';
 import { registry as t } from '$lib/strings/registry';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 
@@ -75,19 +77,6 @@ function cited(views: CitationView[] | undefined): Cited[] {
     postnote,
     text,
   }));
-}
-
-function rights(
-  user: Actor | null,
-  record: { id: string; ownerId: string; workId: string },
-  context: ConjectureContext,
-): RowRights {
-  if (!user) return { edit: false, delete: false, publish: false };
-  return {
-    edit: canEditConjecture(user, record, context),
-    delete: canDeleteConjecture(user, record),
-    publish: canPublishConjecture(user, record),
-  };
 }
 
 /** The work page is public like the work; what it offers to do needs a user. */
@@ -178,12 +167,12 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
       .map((r) => ({ ...r, can: transcriptionRights(user, r, grants) })),
     conjectures: visibleConjectures.map((c) => ({
       ...c,
-      can: rights(user, c, context),
+      can: conjectureRights(user, c, context),
       citations: cited(conjectureCitations.get(c.id)),
     })),
     readings: visibleReadings.map((r) => ({
       ...r,
-      can: rights(user, r, context),
+      can: conjectureRights(user, r, context),
       citations: cited(readingCitations.get(r.id)),
     })),
     segmentCount: segmentRows.length,
@@ -338,7 +327,7 @@ export const actions: Actions = {
     if (!row || row.workId !== work.id) return fail(404, { error: t.conjecture.notFound });
     if (!canDeleteConjecture(user, row)) return fail(403, { error: t.common.forbidden });
     await deleteConjecture(event.locals.db, row.id);
-    return { message: t.conjecture.deleted };
+    return { message: recordActions.conjecture.deleted };
   },
 
   addReading: async (event) => {
@@ -418,6 +407,6 @@ export const actions: Actions = {
     if (!row || row.workId !== work.id) return fail(404, { error: t.reading.notFound });
     if (!canDeleteConjecture(user, row)) return fail(403, { error: t.common.forbidden });
     await deleteReportedReading(event.locals.db, row.id);
-    return { message: t.reading.deleted };
+    return { message: recordActions.reading.deleted };
   },
 };

@@ -300,9 +300,9 @@ test('text on no page is placed page by page, and goes back when its page is rem
   await expect(card.getByText(t.card.lines(2))).toBeVisible();
   await card.getByRole('button', { name: t.card.menu('1v') }).click();
   await page.getByRole('menuitem', { name: t.menu.remove }).click();
-  const removal = page.getByRole('dialog', { name: t.remove.title('1v') });
+  const removal = page.getByRole('dialog', { name: t.remove.title });
   await expect(removal).toContainText(t.remove.description('1v', 6, 1, 0, false));
-  await removal.getByRole('button', { name: t.remove.submit }).click();
+  await removal.getByRole('button', { name: t.remove.verb, exact: true }).click();
   await expect(page.getByText(t.remove.moved('1v', 6, 1))).toBeVisible();
   const after = await content();
   expect(shape(after, pageLabels)).toBe(

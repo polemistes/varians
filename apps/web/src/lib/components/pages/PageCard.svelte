@@ -17,22 +17,14 @@
   import { tick } from 'svelte';
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
-  import ArrowDown from '@lucide/svelte/icons/arrow-down';
-  import ArrowUp from '@lucide/svelte/icons/arrow-up';
-  import ArrowUpDown from '@lucide/svelte/icons/arrow-up-down';
-  import ArrowRightLeft from '@lucide/svelte/icons/arrow-right-left';
-  import ChevronsDown from '@lucide/svelte/icons/chevrons-down';
-  import Ellipsis from '@lucide/svelte/icons/ellipsis';
-  import Eye from '@lucide/svelte/icons/eye';
   import ImageOff from '@lucide/svelte/icons/image-off';
   import ImageUp from '@lucide/svelte/icons/image-up';
   import Pencil from '@lucide/svelte/icons/pencil';
-  import Scale from '@lucide/svelte/icons/scale';
-  import Trash2 from '@lucide/svelte/icons/trash-2';
   import X from '@lucide/svelte/icons/x';
-  import { Menu, MenuItem, MenuSeparator, Spinner, toasts } from '$lib/components/ui';
+  import { RecordActions, Spinner, toasts } from '$lib/components/ui';
   import { s } from '$lib/strings';
   import { pageStrings as t } from '$lib/strings/pages';
+  import { pageActions } from './actions';
   import { actionUrl, failureMessage } from './client';
   import { rightsLabel } from './rights';
   import type { PageView } from './types';
@@ -126,6 +118,34 @@
     void page.thumbnail;
     thumbFailed = false;
   });
+
+  const menu = $derived(
+    pageActions({
+      index: page.index,
+      count,
+      hasImage: page.imageKind !== null,
+      canView: !!onview && !!page.source,
+      busy: !!busy,
+    }),
+  );
+
+  /** What the menu's items do: the card renames in place, its grid does the rest. */
+  function act(id: string) {
+    // Let the menu close and hand focus back before a window takes it.
+    setTimeout(() => {
+      if (id === 'view') onview?.(page);
+      else if (id === 'rename') void startEditing();
+      else if (id === 'moveUp') onmove(page, page.index - 1);
+      else if (id === 'moveDown') onmove(page, page.index + 1);
+      else if (id === 'moveTo') onmoveto(page);
+      else if (id === 'image') onreplaceimage(page);
+      else if (id === 'moveImage') onmoveimage(page);
+      else if (id === 'rights') onrights(page);
+      else if (id === 'removeImage') onremoveimage(page);
+      else if (id === 'shiftImages') onshiftimages(page);
+      else if (id === 'remove') onremove(page);
+    }, 0);
+  }
 
   async function startEditing() {
     if (readonly) return;
@@ -383,73 +403,7 @@
     </div>
 
     {#if !readonly}
-      <Menu
-        label={t.card.menu(page.label)}
-        triggerSize="sm"
-        triggerClass="w-8 px-0! text-ink-soft"
-        align="end"
-      >
-        {#snippet trigger()}
-          <Ellipsis class="size-4" strokeWidth={2.25} aria-hidden="true" />
-        {/snippet}
-        {#if onview && page.source}
-          <MenuItem onSelect={() => onview(page)}>
-            {#snippet icon()}<Eye />{/snippet}
-            {t.menu.view}
-          </MenuItem>
-        {/if}
-        <MenuItem disabled={!!busy} onSelect={() => void startEditing()}>
-          {#snippet icon()}<Pencil />{/snippet}
-          {t.menu.rename}
-        </MenuItem>
-        <MenuSeparator />
-        <MenuItem
-          disabled={page.index <= 1 || !!busy}
-          onSelect={() => onmove(page, page.index - 1)}
-        >
-          {#snippet icon()}<ArrowUp />{/snippet}
-          {t.menu.moveUp}
-        </MenuItem>
-        <MenuItem
-          disabled={page.index >= count || !!busy}
-          onSelect={() => onmove(page, page.index + 1)}
-        >
-          {#snippet icon()}<ArrowDown />{/snippet}
-          {t.menu.moveDown}
-        </MenuItem>
-        <MenuItem disabled={count < 2 || !!busy} onSelect={() => onmoveto(page)}>
-          {#snippet icon()}<ArrowUpDown />{/snippet}
-          {t.menu.moveTo}
-        </MenuItem>
-        <MenuSeparator />
-        <MenuItem disabled={!!busy} onSelect={() => onreplaceimage(page)}>
-          {#snippet icon()}<ImageUp />{/snippet}
-          {page.imageKind ? t.menu.replaceImage : t.menu.addImage}
-        </MenuItem>
-        {#if page.imageKind}
-          <MenuItem disabled={count < 2 || !!busy} onSelect={() => onmoveimage(page)}>
-            {#snippet icon()}<ArrowRightLeft />{/snippet}
-            {t.menu.moveImage}
-          </MenuItem>
-          <MenuItem disabled={!!busy} onSelect={() => onrights(page)}>
-            {#snippet icon()}<Scale />{/snippet}
-            {t.menu.rights}
-          </MenuItem>
-          <MenuItem disabled={!!busy} onSelect={() => onremoveimage(page)}>
-            {#snippet icon()}<ImageOff />{/snippet}
-            {t.menu.removeImage}
-          </MenuItem>
-        {/if}
-        <MenuItem disabled={!!busy} onSelect={() => onshiftimages(page)}>
-          {#snippet icon()}<ChevronsDown />{/snippet}
-          {t.menu.shiftImages}
-        </MenuItem>
-        <MenuSeparator />
-        <MenuItem danger disabled={!!busy} onSelect={() => onremove(page)}>
-          {#snippet icon()}<Trash2 />{/snippet}
-          {t.menu.remove}
-        </MenuItem>
-      </Menu>
+      <RecordActions actions={menu} label={t.card.menu(page.label)} onaction={act} class="gap-0" />
     {/if}
   </div>
 </article>

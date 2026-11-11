@@ -31,7 +31,6 @@ export const editor = {
   variantAt: (labels: string) => `See ${labels}`,
   saving: 'saving…',
   note: 'Note…',
-  removeNote: 'Remove',
   noteTitle: 'Note on',
   noteSave: 'Add Note',
   noSegments: 'Nothing on screen yet.',

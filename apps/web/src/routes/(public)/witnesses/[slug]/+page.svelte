@@ -1,9 +1,10 @@
 <script lang="ts">
   import Images from '@lucide/svelte/icons/images';
   import Plus from '@lucide/svelte/icons/plus';
+  import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { PageFrame } from '$lib/components/shell';
-  import { Button } from '$lib/components/ui';
+  import { Button, ConfirmDialog } from '$lib/components/ui';
   import {
     DescriptionItem,
     DescriptionList,
@@ -18,6 +19,7 @@
     WitnessActions,
   } from '$lib/components/registry';
   import { materialLabel } from '$lib/registry/witness';
+  import { recordActions as ra } from '$lib/strings/record-actions';
   import { registry as t } from '$lib/strings/registry';
   import type { PageProps } from './$types';
 
@@ -32,6 +34,8 @@
 
   // Arriving from the list of witnesses under Make New Transcript, the form is open at once.
   let creating = $state(page.url.searchParams.get('transcribe') === '1');
+  let readingDeleteOpen = $state(false);
+  let readingToDelete = $state<{ id: string; workSlug: string } | null>(null);
 </script>
 
 <PageFrame>
@@ -187,7 +191,16 @@
       empty={s.noReadings}
       isEmpty={data.readings.length === 0}
     >
-      <ReadingList items={data.readings} show="work" />
+      <!-- A reading is edited on the page of its work, where its window is; deleting asks here. -->
+      <ReadingList
+        items={data.readings}
+        show="work"
+        onedit={(item) => void goto(`/works/${item.work.slug}?editReading=${item.id}`)}
+        ondelete={(item) => {
+          readingToDelete = { id: item.id, workSlug: item.work.slug };
+          readingDeleteOpen = true;
+        }}
+      />
     </Section>
   </div>
 </PageFrame>
@@ -195,3 +208,13 @@
 {#if data.can.newTranscription}
   <NewTranscriptionForm bind:open={creating} works={data.workOptions} sources={data.sources} />
 {/if}
+
+<ConfirmDialog
+  confirmLabel={ra.reading.deleteVerb}
+  bind:open={readingDeleteOpen}
+  title={ra.reading.deleteTitle}
+  description={ra.reading.deleteBody}
+  action={`/works/${encodeURIComponent(readingToDelete?.workSlug ?? '')}?/deleteReading`}
+  fields={{ id: readingToDelete?.id ?? '' }}
+  done={ra.reading.deleted}
+/>

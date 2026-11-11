@@ -97,7 +97,6 @@ export const s = {
     tokenName: 'Name of a new token',
     makeToken: 'Make New Token',
     tokenMade: 'Copy the token now: it is not shown again.',
-    revoke: 'Revoke',
     tokenRevoked: 'The token has been revoked.',
     lastUsed: 'last used',
     neverUsed: 'not used yet',

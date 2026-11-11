@@ -19,7 +19,6 @@ export { default as PageList } from './PageList.svelte';
 export { default as ReadingList } from './ReadingList.svelte';
 export { default as RegistrySearch } from './RegistrySearch.svelte';
 export { default as ReportedReadingForm } from './ReportedReadingForm.svelte';
-export { default as RowMenu } from './RowMenu.svelte';
 export { default as SchemeEditor } from './SchemeEditor.svelte';
 export { default as Section } from './Section.svelte';
 export { default as SegmentLabels } from './SegmentLabels.svelte';

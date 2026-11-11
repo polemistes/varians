@@ -107,6 +107,7 @@
       maintainers={data.maintainers}
       canManage={data.can.govern}
       selfId={data.user?.id ?? null}
+      entry="witness"
     />
   </FormSection>
 </PageFrame>

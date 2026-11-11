@@ -93,7 +93,7 @@ export const recordActions = {
     delete: 'Delete…',
     deleteOf: (segment: string) => `Delete the note on ${segment}`,
     deleteTitle: 'Delete Note',
-    deleteBody: 'Delete this note? It leaves the edition and its history keeps no copy.',
+    deleteBody: 'Delete this note? It leaves the edition.',
     deleteVerb: 'Delete',
     deleted: 'The note has been deleted.',
   },

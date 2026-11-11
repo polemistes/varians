@@ -384,12 +384,6 @@ export const registry = {
     visibility: 'Visibility',
     added: 'The conjecture has been added.',
     updated: 'The conjecture has been saved.',
-    deleted: 'The conjecture has been deleted.',
-    deleteTitle: 'Delete This Conjecture?',
-    deleteConfirm:
-      'It is removed from the catalogue of the work and from every edition that adopted it.',
-    edit: 'Edit…',
-    delete: 'Delete…',
     save: 'Save',
     notFound: 'This conjecture no longer exists.',
     draft: 'Draft',
@@ -416,17 +410,11 @@ export const registry = {
     note: 'Note',
     added: 'The reading has been reported.',
     updated: 'The reported reading has been saved.',
-    deleted: 'The reported reading has been deleted.',
-    deleteTitle: 'Delete This Reported Reading?',
-    deleteConfirm:
-      'It is removed from the catalogue of the work and from the apparatus of every edition that reports it.',
     notFound: 'This reported reading no longer exists.',
     work: 'Work',
     lemmaOrReading: 'Give the lemma, the reading or both.',
     omits: 'omits',
     chooseWitness: 'Choose a witness',
-    edit: 'Edit…',
-    delete: 'Delete…',
     save: 'Save',
   },
 
@@ -439,7 +427,6 @@ export const registry = {
     already: 'This person already maintains the entry.',
     creator: 'Creator',
     cannotRemoveCreator: 'The creator cannot be removed.',
-    remove: (name: string) => `Remove ${name}`,
     invalidEmail: 'Enter an email address.',
   },
 

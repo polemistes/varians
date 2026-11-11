@@ -2,8 +2,17 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import UserMinus from '@lucide/svelte/icons/user-minus';
-  import { Badge, Button, Field, IconButton, Input, toasts } from '$lib/components/ui';
+  import {
+    Badge,
+    Button,
+    ConfirmDialog,
+    Field,
+    IconButton,
+    Input,
+    toasts,
+  } from '$lib/components/ui';
   import type { Maintainer } from '$lib/registry/types';
+  import { recordActions as ra } from '$lib/strings/record-actions';
   import { registry } from '$lib/strings/registry';
 
   interface Props {
@@ -12,13 +21,16 @@
     canManage?: boolean;
     /** Whoever looks may always step down. */
     selfId?: string | null;
+    /** What the entry is, for the window that asks before one is removed. */
+    entry?: 'work' | 'witness';
   }
 
-  let { maintainers, canManage = true, selfId = null }: Props = $props();
+  let { maintainers, canManage = true, selfId = null, entry = 'work' }: Props = $props();
 
   const s = registry.maintainers;
   let adding = $state(false);
-  let removing = $state<string | null>(null);
+  let asking = $state<Maintainer | null>(null);
+  let askOpen = $state(false);
   let error = $state<string | null>(null);
 
   const add: SubmitFunction = () => {
@@ -40,21 +52,6 @@
       }
     };
   };
-
-  const remove: SubmitFunction = ({ formData }) => {
-    removing = String(formData.get('userId'));
-    return async ({ result, update }) => {
-      removing = null;
-      if (result.type === 'success') {
-        toasts.success(s.removed(String(result.data?.name ?? '')));
-        await update();
-      } else if (result.type === 'failure') {
-        toasts.error(String(result.data?.error ?? registry.common.forbidden));
-      } else {
-        await update();
-      }
-    };
-  };
 </script>
 
 <div class="flex flex-col gap-6">
@@ -69,16 +66,15 @@
           <p class="truncate text-xs text-ink-soft">{maintainer.email}</p>
         </div>
         {#if !maintainer.isCreator && (canManage || maintainer.id === selfId)}
-          <form method="post" action="?/removeMaintainer" use:enhance={remove}>
-            <input type="hidden" name="userId" value={maintainer.id} />
-            <IconButton
-              type="submit"
-              label={s.remove(maintainer.name)}
-              disabled={removing === maintainer.id}
-            >
-              <UserMinus aria-hidden="true" />
-            </IconButton>
-          </form>
+          <IconButton
+            label={ra.maintainer.remove(maintainer.name)}
+            onclick={() => {
+              asking = maintainer;
+              askOpen = true;
+            }}
+          >
+            <UserMinus aria-hidden="true" />
+          </IconButton>
         {/if}
       </li>
     {/each}
@@ -103,3 +99,15 @@
     </form>
   {/if}
 </div>
+
+<ConfirmDialog
+  bind:open={askOpen}
+  title={ra.maintainer.removeTitle}
+  description={asking?.id === selfId
+    ? ra.maintainer.removeSelfBody(entry)
+    : ra.maintainer.removeBody(asking?.name ?? '', entry)}
+  confirmLabel={ra.maintainer.removeVerb}
+  action="?/removeMaintainer"
+  fields={{ userId: asking?.id ?? '' }}
+  done={s.removed(asking?.name ?? '')}
+/>
