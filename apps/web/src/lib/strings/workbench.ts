@@ -110,7 +110,7 @@ export const workbench = {
       several: 'The letters can be several words:',
       disagrees: 'No form agrees with the accents the witness writes. Choose one:',
       unknown: 'The analyser does not know this word. Type its normalized form in the text.',
-      keep: 'Leave as it is',
+      keep: 'Leave as It Is',
       previous: 'Previous Word to Choose',
       next: 'Next Word to Choose',
       count: (n: number) => `${plural(n, 'word', 'words')} to choose`,
