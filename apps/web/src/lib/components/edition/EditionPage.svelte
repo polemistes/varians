@@ -264,24 +264,22 @@
     {/if}
 
     {#key generation}
-      <Section title={s.nameAndEditors}>
-        <div class="flex flex-col gap-5">
-          <Field label={s.title} error={errors.title} required>
-            {#snippet children(control)}
-              <Input
-                {...control}
-                name="title"
-                bind:value={title}
-                autocomplete="off"
-                class="font-serif text-base"
-                maxlength={200}
-                required
-              />
-            {/snippet}
-          </Field>
-          <EditorsField names={editors} error={errors.editors} />
-        </div>
-      </Section>
+      <div class="flex flex-col gap-5">
+        <Field label={s.title} error={errors.title} required>
+          {#snippet children(control)}
+            <Input
+              {...control}
+              name="title"
+              bind:value={title}
+              autocomplete="off"
+              class="font-serif text-base"
+              maxlength={200}
+              required
+            />
+          {/snippet}
+        </Field>
+        <EditorsField names={editors} error={errors.editors} />
+      </div>
 
       <Section title={s.witnesses}>
         <ConspectusEditor

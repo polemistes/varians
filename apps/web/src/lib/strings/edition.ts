@@ -14,7 +14,6 @@ export const edition = {
   noWorksFor: (q: string) => `Nothing matches “${q}”.`,
   unknownAuthor: 'Unknown author',
 
-  nameAndEditors: 'Name and Editors',
   title: 'Name of edition',
   editors: 'Editors',
   editorName: (n: number) => `Editor ${n}`,
