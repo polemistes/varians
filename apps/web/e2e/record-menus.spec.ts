@@ -147,10 +147,17 @@ async function menuOf(page: Page, trigger: Locator): Promise<string[]> {
 /** The menu of the record whose own page this is: its name is `Actions`. */
 const ownMenu = (page: Page) => page.getByRole('button', { name: ra.menu, exact: true });
 
-async function shot(page: Page, name: string, options: { clip?: boolean } = {}) {
+/**
+ * A screenshot, with the fade of a menu or a window finished. A window is
+ * taken as the viewport shows it; the rest as whole pages, or a strip of the top.
+ */
+async function shot(page: Page, name: string, options: { clip?: boolean; window?: boolean } = {}) {
   await page.screenshot({
     path: `${SHOTS}/${name}.png`,
-    ...(options.clip ? { clip: { x: 0, y: 0, width: 1500, height: 420 } } : { fullPage: true }),
+    animations: 'disabled',
+    ...(options.clip
+      ? { clip: { x: 0, y: 0, width: 1500, height: 420 } }
+      : { fullPage: !options.window }),
   });
 }
 
@@ -430,7 +437,7 @@ test('a work is refused deletion with a reason that names no draft of another pe
   await page.getByRole('menuitem', { name: ra.work.delete }).click();
   const window = page.getByRole('dialog', { name: ra.work.deleteTitle });
   await expect(window).toContainText(ra.work.deleteBody);
-  await shot(page, '3-confirm-delete');
+  await shot(page, '3-confirm-delete', { window: true });
   await window.getByRole('button', { name: ra.cancel }).click();
   await expect(window).toBeHidden();
   expect(await db.select().from(works).where(eq(works.id, ids.doomedWork!))).toHaveLength(1);
@@ -454,7 +461,10 @@ test('the Works list and search give those who may change a work Edit and the me
   await shot(page, '4-works-list');
   await page.goto(`/search?q=${stamp}`);
   await page.waitForLoadState('networkidle');
-  const row = page.locator('main li').filter({ hasText: WORK.title }).first();
+  const row = page
+    .getByRole('region', { name: /^Works/ })
+    .locator('li')
+    .filter({ hasText: WORK.title });
   await expect(row.getByRole('link', { name: ra.work.editOf(WORK.title) })).toHaveAttribute(
     'href',
     `/works/${WORK.slug}/edit`,
@@ -482,7 +492,11 @@ test('the Works list and search give those who may change a work Edit and the me
       .getByRole('button', { name: /^Actions/ }),
   ).toHaveCount(0);
   await expect(
-    other.locator('main li').filter({ hasText: WITNESS.name }).getByRole('link', { name: /^Edit/ }),
+    other
+      .getByRole('region', { name: /^Witnesses/ })
+      .locator('li')
+      .filter({ hasText: WITNESS.name })
+      .getByRole('link', { name: /^Edit/ }),
   ).toHaveCount(0);
   await other.goto(`/witnesses/${WITNESS.slug}`);
   await other.waitForLoadState('networkidle');
@@ -530,7 +544,10 @@ test('a witness is deleted from a list through the window, and stays there', asy
   await signIn(page, OWNER);
   await page.goto(`/search?q=${stamp}`);
   await page.waitForLoadState('networkidle');
-  const row = page.locator('main li').filter({ hasText: DOOMED_WITNESS.name });
+  const row = page
+    .getByRole('region', { name: /^Witnesses/ })
+    .locator('li')
+    .filter({ hasText: DOOMED_WITNESS.name });
   await row.getByRole('button', { name: ra.menuOf(DOOMED_WITNESS.name) }).click();
   await page.getByRole('menuitem', { name: ra.witness.delete }).click();
   const window = page.getByRole('dialog', { name: ra.witness.deleteTitle });
@@ -838,7 +855,7 @@ test('a maintainer and a remote are removed only after the window asks', async (
   await page.getByRole('button', { name: ra.maintainer.remove(OTHER.name) }).click();
   const window = page.getByRole('dialog', { name: ra.maintainer.removeTitle });
   await expect(window).toContainText(ra.maintainer.removeBody(OTHER.name, 'work'));
-  await shot(page, '10-confirm-remove');
+  await shot(page, '10-confirm-remove', { window: true });
   await window.getByRole('button', { name: ra.cancel }).click();
   expect(
     await db.select().from(workMaintainers).where(eq(workMaintainers.workId, ids.work!)),
@@ -880,7 +897,7 @@ test('a token is revoked only after the window asks', async ({ page }) => {
   await page.getByRole('button', { name: ra.token.revokeOf(name) }).click();
   const window = page.getByRole('dialog', { name: ra.token.revokeTitle });
   await expect(window).toContainText(ra.token.revokeBody(name));
-  await shot(page, '11-confirm-revoke');
+  await shot(page, '11-confirm-revoke', { window: true });
   await window.getByRole('button', { name: ra.cancel }).click();
   await expect(page.getByRole('button', { name: ra.token.revokeOf(name) })).toBeVisible();
   await page.getByRole('button', { name: ra.token.revokeOf(name) }).click();

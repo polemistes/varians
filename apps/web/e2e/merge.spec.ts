@@ -83,10 +83,12 @@ test('a witness registered twice is merged into the other', async ({ page }) => 
     page.getByRole('link', { name: t.identifiers.lookUp('Diktyon', diktyon) }),
   ).toHaveAttribute('href', `https://pinakes.irht.cnrs.fr/notices/cote/${diktyon}/`);
   await page.goto(`/search?q=${diktyon}`);
-  await expect(page.getByRole('link', { name: survivor })).toBeVisible();
+  await expect(page.locator(`a[href="/witnesses/${survivorSlug}"]`)).toBeVisible();
 
   // Merge the duplicate into the survivor from the menu of its page.
   await page.goto(`/witnesses/${duplicateSlug}`);
+  // The menu opens once the page has hydrated.
+  await page.waitForLoadState('networkidle');
   await page.getByRole('button', { name: recordActions.menu, exact: true }).click();
   await page.getByRole('menuitem', { name: recordActions.witness.merge }).click();
   await page.waitForURL(new RegExp(`/witnesses/${duplicateSlug}/merge`));
