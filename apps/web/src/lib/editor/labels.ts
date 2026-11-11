@@ -68,7 +68,7 @@ export const editorStrings = {
   notOnAPage: 'Not on a page',
   /** The title of a gutter label a page's first line inherits from the page before. */
   runningSegment: 'The segment continues from before; click to set the segment of this word',
-  editor: 'Transcription text',
+  editor: 'Transcription Text',
   /** A variant noted in the carrier, by where it stands. */
   variantPlaces: {
     margin: 'in the margin',
@@ -122,7 +122,7 @@ export const markButtonLabels: Record<string, string> = {
   add: 'Added',
   abbr: 'Abbr.',
   hi: 'Highlight',
-  sic: 'sic',
+  sic: 'Sic',
   damage: 'Damage',
   surplus: 'Surplus',
 };
