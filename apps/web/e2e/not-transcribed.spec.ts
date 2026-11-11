@@ -60,16 +60,16 @@ test('a stretch is marked as not transcribed from the Insert menu', async ({ pag
   await page.waitForLoadState('networkidle');
   await page.locator('input[name=name]').fill(witnessName);
   await page.locator('input[name=siglum]').fill('O');
-  await page.getByRole('button', { name: 'Register the witness' }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await page.waitForURL(
     (url) => /^\/witnesses\/[^/]+$/.test(url.pathname) && url.pathname !== '/witnesses/new',
   );
   witnessSlug = new URL(page.url()).pathname.split('/').pop()!;
   await page.waitForLoadState('networkidle');
-  await page.getByRole('button', { name: 'New transcript' }).first().click();
+  await page.getByRole('button', { name: 'Make New Transcript' }).first().click();
   const dialog = page.getByRole('dialog');
   await dialog.locator('input[name=name]').fill('Probatio');
-  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await page.waitForURL(/\/transcriptions\/[^/]+$/);
   transcriptionId = new URL(page.url()).pathname.split('/').pop()!;
   await page.waitForLoadState('networkidle');

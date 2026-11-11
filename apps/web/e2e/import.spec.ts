@@ -88,7 +88,7 @@ test('a TEI file is taken as a text to start from, or as a transcript of the wit
   await page.locator('input[name=title]').fill(workTitle);
   await page.locator('input[name=author]').fill('Aristophanes');
   await page.locator('select[name=language]').selectOption('grc');
-  await page.getByRole('button', { name: 'Register the work' }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await page.waitForURL(
     (url) => /^\/works\/[^/]+$/.test(url.pathname) && url.pathname !== '/works/new',
   );
@@ -97,19 +97,19 @@ test('a TEI file is taken as a text to start from, or as a transcript of the wit
   await page.waitForLoadState('networkidle');
   await page.locator('input[name=name]').fill(`Codex Importatus ${stamp}`);
   await page.locator('input[name=siglum]').fill('R');
-  await page.getByRole('button', { name: 'Register the witness' }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await page.waitForURL(
     (url) => /^\/witnesses\/[^/]+$/.test(url.pathname) && url.pathname !== '/witnesses/new',
   );
   witnessSlug = new URL(page.url()).pathname.split('/').pop()!;
   await page.waitForLoadState('networkidle');
-  await page.getByRole('button', { name: 'New transcript' }).first().click();
+  await page.getByRole('button', { name: 'Make New Transcript' }).first().click();
   const create = page.getByRole('dialog');
   await create
     .locator('select[name=workId]')
     .selectOption({ label: `${workTitle} (Aristophanes)` });
   await create.locator('input[name=name]').fill('Lysistrata');
-  await create.getByRole('button', { name: 'Create', exact: true }).click();
+  await create.getByRole('button', { name: 'Save', exact: true }).click();
   await page.waitForURL(/\/transcriptions\/[^/]+$/);
   transcriptionId = new URL(page.url()).pathname.split('/').pop()!;
   await page.waitForLoadState('networkidle');
