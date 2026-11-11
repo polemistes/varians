@@ -885,7 +885,7 @@ async function buildSegmentViews(
       (a) => a.conjectureId,
     ),
   );
-  // The work's conjectures and reported readings are a commons: every record of the work, as entered by the time the version was published.
+  // The work's conjectures and reported readings are a commons, all of them seen: for a published version, those entered by the time it was published.
   const conjectureRows = segmentIds.length
     ? await db
         .select()
