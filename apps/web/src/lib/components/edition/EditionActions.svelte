@@ -106,18 +106,17 @@
   );
 </script>
 
+{#snippet publishing()}
+  <Button size="sm" variant="primary" onclick={() => act('publish')}>{t.publishButton}</Button>
+{/snippet}
+
 <RecordActions
   {actions}
   label={place === 'list' ? recordActions.menuOf(edition.title) : recordActions.menu}
   onaction={act}
+  before={publishButton && rights.publish ? publishing : undefined}
   class={className}
->
-  {#snippet before()}
-    {#if publishButton && rights.publish}
-      <Button size="sm" variant="primary" onclick={() => act('publish')}>{t.publishButton}</Button>
-    {/if}
-  {/snippet}
-</RecordActions>
+/>
 
 {#if rights.publish || rights.delete}
   {#if asking === 'delete'}
