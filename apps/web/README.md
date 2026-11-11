@@ -99,6 +99,7 @@ src/
     editor/                 the CodeMirror bridge between text and token streams
     edition/, workbench/, reader/, history/, bibliography/, registry/
                             pure helpers of each screen, with tests
+    record/                 the shape of a record's buttons and ⋯ menu, which each kind fills (edition/actions.ts for an edition)
     strings/                every user-facing string, one module per screen
   routes/
     (public)/               library, login, register, works and witnesses, the reader, the bibliography
