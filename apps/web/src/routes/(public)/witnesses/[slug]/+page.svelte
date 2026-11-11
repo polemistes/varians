@@ -1,11 +1,9 @@
 <script lang="ts">
-  import Ellipsis from '@lucide/svelte/icons/ellipsis';
   import Images from '@lucide/svelte/icons/images';
-  import Pencil from '@lucide/svelte/icons/pencil';
   import Plus from '@lucide/svelte/icons/plus';
   import { page } from '$app/state';
   import { PageFrame } from '$lib/components/shell';
-  import { Button, ConfirmDialog, Menu, MenuItem } from '$lib/components/ui';
+  import { Button, ConfirmDialog } from '$lib/components/ui';
   import {
     DescriptionItem,
     DescriptionList,
@@ -18,6 +16,7 @@
     RenameDialog,
     Section,
     TranscriptionList,
+    WitnessActions,
   } from '$lib/components/registry';
   import { materialLabel } from '$lib/registry/witness';
   import { registry as t } from '$lib/strings/registry';
@@ -40,45 +39,13 @@
   let renaming = $state<TranscriptionItem | null>(null);
   let deleteOpen = $state(false);
   let deleting = $state<TranscriptionItem | null>(null);
-  let deleteWitnessOpen = $state(false);
 </script>
 
 <PageFrame>
   <div class="flex flex-col gap-14">
     <EntryHeader title={witness.name} subtitle={place || null}>
       {#snippet actions()}
-        {#if data.can.maintain}
-          <Button href="/witnesses/{witness.slug}/edit" variant="secondary" size="sm">
-            <Pencil class="size-4" aria-hidden="true" />
-            {s.edit}
-          </Button>
-        {/if}
-        {#if data.can.merge || data.deletion}
-          <Menu label={s.menu} triggerSize="sm" triggerClass="w-8 px-0">
-            {#snippet trigger()}
-              <Ellipsis class="size-4" aria-hidden="true" />
-            {/snippet}
-            {#if data.can.merge}
-              <MenuItem href="/witnesses/{witness.slug}/merge">{s.menuMerge}</MenuItem>
-            {/if}
-            {#if data.deletion}
-              {@const deletion = data.deletion}
-              <MenuItem
-                danger
-                disabled={!deletion.allowed}
-                onSelect={() => (deleteWitnessOpen = true)}
-              >
-                <span class="flex flex-col" title={deletion.reason ?? undefined}>
-                  <span>{s.menuDelete}</span>
-                  {#if deletion.reason}<span
-                      class="max-w-72 text-xs whitespace-normal text-ink-muted"
-                      >{deletion.reason}</span
-                    >{/if}
-                </span>
-              </MenuItem>
-            {/if}
-          </Menu>
-        {/if}
+        <WitnessActions {witness} rights={data.rights} place="page" deletion={data.deletion} />
       {/snippet}
       {#snippet meta()}
         <span>{s.siglum}</span>
@@ -160,7 +127,7 @@
       isEmpty={data.pages.length === 0}
     >
       {#snippet actions()}
-        {#if data.can.maintain}
+        {#if data.rights.maintain}
           <Button href="/witnesses/{witness.slug}/pages" variant="secondary" size="sm">
             <Images class="size-4" aria-hidden="true" />
             {s.managePages}
@@ -255,14 +222,3 @@
   fields={{ id: deleting?.id ?? '' }}
   done={t.transcription.deleted}
 />
-
-{#if data.deletion?.allowed}
-  <ConfirmDialog
-    confirmLabel={t.common.confirmDelete}
-    bind:open={deleteWitnessOpen}
-    title={s.deleteTitle}
-    description={s.deleteConfirm(witness.name)}
-    action="/witnesses/{witness.slug}/edit?/delete"
-    done={s.deleted(witness.name)}
-  />
-{/if}

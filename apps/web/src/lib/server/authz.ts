@@ -23,6 +23,8 @@ import type {
 } from '@varians/db';
 import { sql } from '@varians/db';
 import type { EditionRights } from '$lib/edition/actions';
+import type { WitnessRights } from '$lib/witness/actions';
+import type { WorkRights } from '$lib/work/actions';
 
 export interface Actor {
   id: string;
@@ -119,6 +121,73 @@ export function canMergeEntries(
   const maintains = (entry: typeof from) =>
     entry.createdBy === user.id || has(entry.maintainerIds, user.id);
   return maintains(from) && maintains(into);
+}
+
+/** Who decides about the entry itself: its creator, and administrators. */
+function governsEntry(user: Maybe<Actor>, entry: { createdBy: string | null }): boolean {
+  return !!user && (entry.createdBy === user.id || isAdministrator(user));
+}
+
+/**
+ * Starting a merge from an entry: administrators, and those who maintain it
+ * as its creator or a listed maintainer. The page then asks for the other
+ * entry, and canMergeEntries decides with both.
+ */
+function maintainsEntry(
+  user: Maybe<Actor>,
+  entry: { createdBy: string | null },
+  maintainerIds: Iterable<string>,
+): boolean {
+  return !!user && (entry.createdBy === user.id || has(maintainerIds, user.id));
+}
+
+/** What a viewer may do with a work, as its buttons and menu ask (lib/work/actions.ts). */
+export function workRights(
+  user: Maybe<Actor>,
+  work: Pick<Work, 'id' | 'createdBy'>,
+  maintainerIds: Iterable<string>,
+): WorkRights {
+  return {
+    maintain: canMaintainWork(user, work, maintainerIds),
+    merge: isAdministrator(user) || maintainsEntry(user, work, maintainerIds),
+    delete: governsEntry(user, work),
+    administrator: isAdministrator(user),
+  };
+}
+
+/** The same from the user's grants, for every work of a list at once without a query of each. */
+export function workRightsFromGrants(
+  user: Maybe<Actor>,
+  work: Pick<Work, 'id' | 'createdBy'>,
+  grants: Grants,
+): WorkRights {
+  return workRights(user, work, user && grants.maintainedWorkIds.has(work.id) ? [user.id] : []);
+}
+
+/** What a viewer may do with a witness, as its buttons and menu ask (lib/witness/actions.ts). */
+export function witnessRights(
+  user: Maybe<Actor>,
+  witness: Pick<Witness, 'id' | 'createdBy'>,
+  maintainerIds: Iterable<string>,
+): WitnessRights {
+  return {
+    maintain: canMaintainWitness(user, witness, maintainerIds),
+    merge: isAdministrator(user) || maintainsEntry(user, witness, maintainerIds),
+    delete: governsEntry(user, witness),
+  };
+}
+
+/** The same from the user's grants, for every witness of a list at once. */
+export function witnessRightsFromGrants(
+  user: Maybe<Actor>,
+  witness: Pick<Witness, 'id' | 'createdBy'>,
+  grants: Grants,
+): WitnessRights {
+  return witnessRights(
+    user,
+    witness,
+    user && grants.maintainedWitnessIds.has(witness.id) ? [user.id] : [],
+  );
 }
 
 // Transcriptions

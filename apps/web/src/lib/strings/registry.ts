@@ -56,7 +56,6 @@ export const registry = {
     languageInvalid: 'Use a language code of letters and hyphens, such as grc or la.',
     notFound: 'There is no work with this address.',
     unknownAuthor: 'Unknown author',
-    edit: 'Edit',
     newEdition: 'Make New Edition',
     maintainers: 'Maintainers',
     maintainedBy: (names: string) => `Maintained by ${names}`,
@@ -69,8 +68,6 @@ export const registry = {
     maintainersHint:
       'Maintainers edit the metadata and the scheme. Using the work needs no permission.',
     editions: 'Editions',
-    workOn: 'Actions',
-    editDetails: 'Edit the Details',
     about: 'About This Work',
     numbering: 'Numbering',
     identifierLabel: 'Identifier',
@@ -89,11 +86,6 @@ export const registry = {
     showSegments: 'Show the Labels',
     noSegments:
       'No segment yet. Segments come into being when text is assigned to them or a conjecture names them.',
-    archive: 'Archive',
-    archiveHint:
-      'Everything in this work as open files: TEI, JSON with schemas, plain text, the bibliography and the images whose rights allow it, in a package with checksums and a description of its contents. The package holds what you may see.',
-    download: 'Download Package',
-    downloadRepository: 'The Server’s Archive, with Its History',
     // Complete or partial is a matter of the work: the same codex may hold all of one text and part of another.
     coverage: (n: number, total: number) =>
       total > 0 && n >= total ? `Complete, ${n} of ${total}` : `Partial, ${n} of ${total}`,
@@ -109,14 +101,6 @@ export const registry = {
     labelCollision: (labels: string) =>
       `Two segments would share a label (${labels}). Choose other separators.`,
     removedSelf: 'You no longer maintain this work.',
-    deleteSection: 'Delete the Work',
-    deleteHint:
-      'The work goes with its segments, its editions and their history, its conjectures and its reported readings. Refused while anything of someone else depends on it.',
-    deleteAction: 'Delete This Work…',
-    deleteTitle: 'Delete This Work?',
-    deleteConfirm: (title: string) =>
-      `${title} will be deleted with its segments, its editions and their history, its conjectures and its reported readings. Transcripts keep their text. This cannot be undone.`,
-    deleted: (title: string) => `${title} has been deleted.`,
     inUse: (parts: string) =>
       `This work cannot be deleted while other people's records depend on it: ${parts}.`,
     notCreator: 'Only the creator of the work or an administrator may delete it.',
@@ -245,7 +229,6 @@ export const registry = {
     nameRequired: 'Give the witness a name.',
     tooLong: 'This is too long.',
     notFound: 'There is no witness with this address.',
-    edit: 'Edit',
     detailsSection: 'Description',
     maintainersSection: 'Maintainers',
     maintainersHint:
@@ -285,18 +268,6 @@ export const registry = {
       'Only the creator of the witness, or an administrator, may change its maintainers.',
     removedSelf: 'You no longer maintain this witness.',
     siglumShort: (siglum: string) => `siglum ${siglum}`,
-    deleteSection: 'Delete the Witness',
-    deleteHint:
-      'The witness goes with its pages, its images and your transcripts of it. Refused while an edition names it or anything of someone else depends on it.',
-    deleteAction: 'Delete This Witness',
-    /** The witness page's menu beside Edit. */
-    menu: 'More actions',
-    menuMerge: 'Merge into…',
-    menuDelete: 'Delete Witness…',
-    deleteTitle: 'Delete This Witness?',
-    deleteConfirm: (name: string) =>
-      `${name} will be deleted with its pages, its images and your transcripts of it. This cannot be undone.`,
-    deleted: (name: string) => `${name} has been deleted.`,
     inUse: (parts: string) => `This witness cannot be deleted while ${parts} depend on it.`,
     notCreator: 'Only the creator of the witness or an administrator may delete it.',
     pageCount: (n: number) => (n === 1 ? '1 page' : `${n} pages`),
@@ -486,11 +457,6 @@ export const registry = {
   },
 
   merge: {
-    section: 'Merge into Another Entry',
-    workHint:
-      'The segments, conjectures, reported readings, editions and transcripts of this work go to the work it is merged into, and this entry is removed. Its address and identifiers lead to the surviving work.',
-    witnessHint:
-      'The transcripts, reported readings, sigla, pages and maintainers of this witness go to the witness it is merged into, and this entry is removed. Its address and identifiers lead to the surviving witness.',
     action: 'Merge into\u2026',
     title: (name: string) => `Merge ${name} into Another Entry`,
     findWork: 'Find the work by title, author or identifier',
@@ -580,7 +546,10 @@ export const registry = {
     and,
     /** What depends on an entry, for the refusal of a deletion. */
     dependents: (d: {
+      /** The editions the person may see, by title. */
       editions: string[];
+      /** Another person's drafts: counted, never named. */
+      hiddenEditions: number;
       transcriptions: number;
       records: number;
       recordsName: 'conjectures' | 'readings';
@@ -588,6 +557,14 @@ export const registry = {
       const parts: string[] = [];
       if (d.editions.length === 1) parts.push(`the edition ${d.editions[0]}`);
       else if (d.editions.length > 1) parts.push(`the editions ${and(d.editions)}`);
+      if (d.hiddenEditions) {
+        const other = d.editions.length > 0;
+        parts.push(
+          d.hiddenEditions === 1
+            ? `${other ? 'another' : 'an'} edition that is not published`
+            : `${d.hiddenEditions} ${other ? 'other ' : ''}editions that are not published`,
+        );
+      }
       if (d.transcriptions)
         parts.push(d.transcriptions === 1 ? 'a transcript' : `${d.transcriptions} transcripts`);
       if (d.records) {

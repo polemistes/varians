@@ -2,10 +2,10 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { eq, transcriptions } from '@varians/db';
 import {
   canDeleteTranscription,
-  canMaintainWitness,
   canViewConjecture,
   canViewTranscription,
   grantsFor,
+  witnessRights,
   type Actor,
 } from '$lib/server/authz';
 import { citationsByRecord } from '$lib/server/bibliography';
@@ -13,7 +13,7 @@ import { requireUser } from '$lib/server/guards';
 import { transcriptionFromForm } from '$lib/server/registry-forms';
 import {
   deleteTranscription,
-  governs,
+  isDepended,
   maintainersOf,
   pagesOfWitness,
   readingsOfWitness,
@@ -44,6 +44,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   const { witness, maintainerIds } = await witnessOr404(locals, params.slug);
   const db = locals.db;
   const grants = await grantsFor(db, user);
+  const rights = witnessRights(user, witness, maintainerIds);
   const [
     maintainers,
     pageRows,
@@ -116,14 +117,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
     })),
     workOptions: workChoices,
     sources,
-    can: {
-      maintain: canMaintainWitness(user, witness, maintainerIds),
-      merge: canMaintainWitness(user, witness, maintainerIds),
-      govern: !!user && governs(user, witness),
-      newTranscription: !!user,
-    },
-    /** Whether the witness may be deleted now, and why not (E1); null for those who do not govern it. */
-    deletion: user && governs(user, witness) ? await deletionOf(locals, witness.id, user) : null,
+    rights,
+    /** Why the witness cannot be deleted now, for those who may delete it; the menu says so. */
+    deletion: user && rights.delete ? await deletionOf(locals, witness.id, user) : null,
+    can: { newTranscription: !!user },
   };
 };
 
@@ -132,14 +129,11 @@ async function deletionOf(
   locals: App.Locals,
   witnessId: string,
   user: Actor,
-): Promise<{ allowed: boolean; reason: string | null }> {
-  const dependents = await witnessDependents(locals.db, witnessId, user.id);
-  const blocked =
-    dependents.editions.length > 0 || dependents.transcriptions > 0 || dependents.records > 0;
-  return {
-    allowed: !blocked,
-    reason: blocked ? t.witness.inUse(describeDependents(dependents, 'readings')) : null,
-  };
+): Promise<string | null> {
+  const dependents = await witnessDependents(locals.db, witnessId, user);
+  return isDepended(dependents)
+    ? t.witness.inUse(describeDependents(dependents, 'readings'))
+    : null;
 }
 
 export const actions: Actions = {

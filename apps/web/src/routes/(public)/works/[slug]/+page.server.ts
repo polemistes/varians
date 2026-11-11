@@ -5,12 +5,12 @@ import {
   canDeleteConjecture,
   canEditConjecture,
   editionRights,
-  canMaintainWork,
   canPublishConjecture,
   canViewConjecture,
   canViewEdition,
   canViewTranscription,
   grantsFor,
+  workRights,
   type Actor,
   type ConjectureContext,
 } from '$lib/server/authz';
@@ -27,6 +27,7 @@ import {
   conjecturesOfWork,
   createTranscription,
   editionRowsOfWork,
+  isDepended,
   maintainersOf,
   readingsOfWork,
   RegistryError,
@@ -34,11 +35,13 @@ import {
   updateReportedReading,
   witnessOptions,
   workBySlug,
+  workDependents,
 } from '$lib/server/registry';
 import { mergesInto } from '$lib/server/registry-merge';
 import { resolveSegment, segmentsOfWork } from '$lib/server/segments';
 import {
   checked,
+  describeDependents,
   field,
   parseCitations,
   parseConjectureForm,
@@ -144,7 +147,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     ),
   ]);
 
-  const maintains = canMaintainWork(user, work, maintainerIds);
+  const viewerRights = workRights(user, work, maintainerIds);
   return {
     crumb: { label: work.title },
     work: {
@@ -186,16 +189,29 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     labels: segmentRows.length <= 2000 ? segmentRows.map((s) => s.label) : [],
     witnesses: witnessList,
     pickedWitness,
+    rights: viewerRights,
+    /** Why the work cannot be deleted now, for those who may delete it; the menu says so. */
+    deletion: user && viewerRights.delete ? await deletionOf(db, work.id, user) : null,
     can: {
-      maintain: maintains,
       newEdition: !!user,
       transcribe: !!user,
       addConjecture: !!user,
       addReading: !!user,
-      archive: !!user,
     },
   };
 };
+
+/** The checks deleteWork makes, made in advance so that the menu can say why it is refused. */
+async function deletionOf(
+  db: App.Locals['db'],
+  workId: string,
+  user: Actor,
+): Promise<string | null> {
+  const dependents = await workDependents(db, workId, user);
+  return isDepended(dependents)
+    ? t.work.inUse(describeDependents(dependents, 'conjectures'))
+    : null;
+}
 
 /** The segment a form names, created on the way when the label fits the scheme. */
 function segmentFor(event: RequestEvent, workId: string, scheme: Scheme, label: string) {

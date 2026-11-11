@@ -11,6 +11,7 @@ import {
 import {
   changesets,
   createDatabase,
+  editionCollaborators,
   editionSigla,
   editions,
   notes,
@@ -33,6 +34,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import pg from 'pg';
+import { describeDependents } from '$lib/registry/forms';
 import { grantsFor, type Actor } from './authz';
 import { replaceContent } from './documents/service.ts';
 import {
@@ -56,6 +58,8 @@ import {
   uniqueSlug,
   updateWitness,
   updateWork,
+  witnessDependents,
+  workDependents,
   worksOfWitness,
 } from './registry';
 import { DEFAULT_CONVENTIONS } from './seed/sample.ts';
@@ -563,7 +567,8 @@ describe('deleting works', () => {
     const refused = await deleteWork(db, row.id, alice);
     expect(refused.ok).toBe(false);
     if (!refused.ok && refused.error === 'in-use') {
-      expect(refused.dependents.editions.map((e) => e.ownerName)).toEqual([bob.name]);
+      // Bob's edition is a draft Alice may not see: it is counted, not named.
+      expect(refused.dependents).toMatchObject({ editions: [], hiddenEditions: 1 });
     } else {
       expect.unreachable();
     }
@@ -597,6 +602,71 @@ describe('deleting works', () => {
     expect(
       await db.select().from(referenceSchemes).where(eq(referenceSchemes.id, row.schemeId)),
     ).toHaveLength(0);
+  });
+});
+
+describe('what a refusal to delete tells', () => {
+  async function titleOf(id: string) {
+    const [row] = await db
+      .select({ title: editions.title })
+      .from(editions)
+      .where(eq(editions.id, id));
+    return row!.title;
+  }
+
+  it('names the editions of others the person may see and counts the drafts they may not', async () => {
+    const row = await work('Counted');
+    const published = await edition(row.id, bob);
+    await db.update(editions).set({ visibility: 'published' }).where(eq(editions.id, published));
+    const shared = await edition(row.id, bob);
+    await db.insert(editionCollaborators).values({ editionId: shared, userId: alice.id });
+    const secret = await edition(row.id, bob);
+
+    const asAlice = await workDependents(db, row.id, alice);
+    expect(asAlice.editions.map((e) => e.title).sort()).toEqual(
+      [await titleOf(published), await titleOf(shared)].sort(),
+    );
+    expect(asAlice.hiddenEditions).toBe(1);
+    // Nothing of the draft Alice may not see is in what comes back, nor in what is said of it.
+    expect(JSON.stringify(asAlice)).not.toContain(await titleOf(secret));
+    expect(JSON.stringify(asAlice)).not.toContain(bob.name);
+    const said = describeDependents(asAlice, 'conjectures');
+    expect(said).not.toContain(await titleOf(secret));
+    expect(said).toContain('another edition that is not published');
+
+    // An administrator may see every edition, and no draft is hidden from them.
+    const asAdmin = await workDependents(db, row.id, admin);
+    expect(asAdmin.editions).toHaveLength(3);
+    expect(asAdmin.hiddenEditions).toBe(0);
+
+    // The refusal of the deletion itself says the same.
+    const refused = await deleteWork(db, row.id, alice);
+    expect(refused).toMatchObject({
+      ok: false,
+      error: 'in-use',
+      dependents: { hiddenEditions: 1 },
+    });
+  });
+
+  it('does the same for a witness the editions of others name', async () => {
+    const row = await witness('Named by drafts');
+    const poem = await work('Poem of drafts');
+    const own = await edition(poem.id, alice, [{ witnessId: row.id, transcriptionId: null }]);
+    const secret = await edition(poem.id, bob, [{ witnessId: row.id, transcriptionId: null }]);
+    const asAlice = await witnessDependents(db, row.id, alice);
+    // Her own draft is hers to see; Bob's is only counted.
+    expect(asAlice.editions.map((e) => e.title)).toEqual([await titleOf(own)]);
+    expect(asAlice.hiddenEditions).toBe(1);
+    expect(JSON.stringify(asAlice)).not.toContain(await titleOf(secret));
+    const refused = await deleteWitness(db, row.id, alice);
+    expect(refused).toMatchObject({
+      ok: false,
+      error: 'in-use',
+      dependents: { hiddenEditions: 1 },
+    });
+    const asAdmin = await witnessDependents(db, row.id, admin);
+    expect(asAdmin.editions).toHaveLength(2);
+    expect(asAdmin.hiddenEditions).toBe(0);
   });
 });
 

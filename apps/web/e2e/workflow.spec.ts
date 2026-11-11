@@ -319,8 +319,8 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   // A witness an edition names cannot be deleted: its page says so in the menu.
   await page.goto(`/witnesses/${witnessSlugs[0]}`);
   await page.waitForLoadState('networkidle');
-  await page.getByRole('button', { name: reg.witness.menu }).click();
-  const remove = page.getByRole('menuitem', { name: new RegExp(reg.witness.menuDelete) });
+  await page.getByRole('button', { name: actions.menu, exact: true }).click();
+  const remove = page.getByRole('menuitem', { name: new RegExp(actions.witness.delete) });
   await expect(remove).toHaveAttribute('data-disabled', '');
   await expect(remove).toContainText(`Aeneis 1, ${stamp}`);
 });

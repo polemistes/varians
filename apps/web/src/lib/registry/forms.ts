@@ -509,6 +509,7 @@ export function parseEmail(form: FormData): Parsed<{ email: string }> {
 export function describeDependents(d: Dependents, recordsName: 'conjectures' | 'readings'): string {
   return t.common.dependents({
     editions: d.editions.map((e) => e.title),
+    hiddenEditions: d.hiddenEditions,
     transcriptions: d.transcriptions,
     records: d.records,
     recordsName,

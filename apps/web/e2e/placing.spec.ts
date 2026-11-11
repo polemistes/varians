@@ -20,6 +20,7 @@ import {
 import { and, eq } from 'drizzle-orm';
 import { s } from '../src/lib/strings/en';
 import { pageStrings as t } from '../src/lib/strings/pages';
+import { recordActions } from '../src/lib/strings/record-actions';
 import { registry as reg } from '../src/lib/strings/registry';
 import { workbench as w } from '../src/lib/strings/workbench';
 
@@ -346,11 +347,13 @@ test('text on no page is placed page by page, and goes back when its page is rem
   // The witness is deleted from its own page, with its pages and the transcript of its creator.
   await page.goto(`/witnesses/${witnessSlug}`);
   await page.waitForLoadState('networkidle');
-  await page.getByRole('button', { name: reg.witness.menu }).click();
-  await page.getByRole('menuitem', { name: reg.witness.menuDelete }).click();
-  const confirm = page.getByRole('dialog', { name: reg.witness.deleteTitle });
-  await expect(confirm).toContainText(reg.witness.deleteConfirm(`Codex Paginatus ${stamp}`));
-  await confirm.getByRole('button', { name: reg.common.confirmDelete }).click();
+  await page.getByRole('button', { name: recordActions.menu, exact: true }).click();
+  await page.getByRole('menuitem', { name: recordActions.witness.delete }).click();
+  const confirm = page.getByRole('dialog', { name: recordActions.witness.deleteTitle });
+  await expect(confirm).toContainText(recordActions.witness.deleteBody);
+  await confirm
+    .getByRole('button', { name: recordActions.witness.deleteVerb, exact: true })
+    .click();
   await page.waitForURL((url) => url.pathname === '/');
   const { db: db3, pool: pool3 } = createDatabase(DATABASE_URL);
   expect(await db3.select().from(witnesses).where(eq(witnesses.slug, witnessSlug))).toEqual([]);

@@ -92,6 +92,7 @@ import { archiveWork, folderName } from './archive/archive.ts';
 import {
   canDeleteTranscription,
   canViewConjecture,
+  canViewEdition,
   canViewTranscription,
   isAdministrator,
   isSiteEditor,
@@ -868,30 +869,113 @@ export function governs(user: Actor, entry: { createdBy: string | null }): boole
   return entry.createdBy === user.id || isAdministrator(user);
 }
 
-/** What of others depends on a witness and refuses its deletion by `userId`: editions naming it, others' transcripts and reported readings. */
+/**
+ * Splits editions into those `user` may see, which a refusal may name, and
+ * the number of the rest: another person's draft leaves no trace in what is
+ * said to someone who may not see it.
+ */
+async function nameVisibleEditions(
+  db: Database,
+  user: Actor,
+  rows: {
+    id: string;
+    slug: string;
+    title: string;
+    ownerId: string;
+    visibility: 'draft' | 'published';
+  }[],
+): Promise<Pick<Dependents, 'editions' | 'hiddenEditions'>> {
+  if (rows.length === 0) return { editions: [], hiddenEditions: 0 };
+  const collaborating = await db
+    .select({ editionId: editionCollaborators.editionId })
+    .from(editionCollaborators)
+    .where(
+      and(
+        eq(editionCollaborators.userId, user.id),
+        inArray(
+          editionCollaborators.editionId,
+          rows.map((r) => r.id),
+        ),
+      ),
+    );
+  const collaborates = new Set(collaborating.map((c) => c.editionId));
+  const named = rows
+    .filter((r) => canViewEdition(user, r, collaborates.has(r.id) ? [user.id] : []))
+    .map((r) => ({ slug: r.slug, title: r.title }))
+    .sort((a, b) => a.title.localeCompare(b.title));
+  return { editions: named, hiddenEditions: rows.length - named.length };
+}
+
+/** Whether anything depends on the entry: its deletion is refused while it does. */
+export function isDepended(d: Dependents): boolean {
+  return d.editions.length > 0 || d.hiddenEditions > 0 || d.transcriptions > 0 || d.records > 0;
+}
+
+/** What of others depends on a witness and refuses its deletion by `user`: editions naming it, others' transcripts and reported readings. */
 export async function witnessDependents(
   db: Database,
   witnessId: string,
-  userId: string,
+  user: Actor,
 ): Promise<Dependents> {
   const naming = await db
-    .selectDistinct({ slug: editions.slug, title: editions.title, ownerName: users.name })
+    .selectDistinct({
+      id: editions.id,
+      slug: editions.slug,
+      title: editions.title,
+      ownerId: editions.ownerId,
+      visibility: editions.visibility,
+    })
     .from(editionSigla)
     .innerJoin(editions, eq(editions.id, editionSigla.editionId))
-    .innerJoin(users, eq(users.id, editions.ownerId))
     .where(eq(editionSigla.witnessId, witnessId));
   const [othersTranscriptions] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(transcriptions)
-    .where(and(eq(transcriptions.witnessId, witnessId), ne(transcriptions.ownerId, userId)));
+    .where(and(eq(transcriptions.witnessId, witnessId), ne(transcriptions.ownerId, user.id)));
   const [othersReadings] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(reportedReadings)
-    .where(and(eq(reportedReadings.witnessId, witnessId), ne(reportedReadings.ownerId, userId)));
+    .where(and(eq(reportedReadings.witnessId, witnessId), ne(reportedReadings.ownerId, user.id)));
   return {
-    editions: naming.sort((a, b) => a.title.localeCompare(b.title)),
+    ...(await nameVisibleEditions(db, user, naming)),
     transcriptions: Number(othersTranscriptions?.n ?? 0),
     records: Number(othersReadings?.n ?? 0),
+  };
+}
+
+/** What of others depends on a work and refuses its deletion by `user`: editions of it, text assigned to it, conjectures and reported readings on it. */
+export async function workDependents(
+  db: Database,
+  workId: string,
+  user: Actor,
+): Promise<Dependents> {
+  const othersEditions = await db
+    .select({
+      id: editions.id,
+      slug: editions.slug,
+      title: editions.title,
+      ownerId: editions.ownerId,
+      visibility: editions.visibility,
+    })
+    .from(editions)
+    .where(and(eq(editions.workId, workId), ne(editions.ownerId, user.id)));
+  const [othersTranscriptions] = await db
+    .select({ n: countDistinct(transcriptionSegments.transcriptionId) })
+    .from(transcriptionSegments)
+    .innerJoin(transcriptions, eq(transcriptions.id, transcriptionSegments.transcriptionId))
+    .where(and(eq(transcriptionSegments.workId, workId), ne(transcriptions.ownerId, user.id)));
+  const [othersConjectures] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(conjectures)
+    .where(and(eq(conjectures.workId, workId), ne(conjectures.ownerId, user.id)));
+  const [othersReadings] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(reportedReadings)
+    .where(and(eq(reportedReadings.workId, workId), ne(reportedReadings.ownerId, user.id)));
+  return {
+    ...(await nameVisibleEditions(db, user, othersEditions)),
+    transcriptions: Number(othersTranscriptions?.n ?? 0),
+    records: Number(othersConjectures?.n ?? 0) + Number(othersReadings?.n ?? 0),
   };
 }
 
@@ -911,33 +995,8 @@ export async function deleteWork(
   if (!work) return { ok: false, error: 'not-found' };
   if (!mayDeleteEntry(user, work)) return { ok: false, error: 'forbidden' };
 
-  const othersEditions = await db
-    .select({ slug: editions.slug, title: editions.title, ownerName: users.name })
-    .from(editions)
-    .innerJoin(users, eq(users.id, editions.ownerId))
-    .where(and(eq(editions.workId, workId), ne(editions.ownerId, user.id)))
-    .orderBy(asc(editions.title));
-  const [othersTranscriptions] = await db
-    .select({ n: countDistinct(transcriptionSegments.transcriptionId) })
-    .from(transcriptionSegments)
-    .innerJoin(transcriptions, eq(transcriptions.id, transcriptionSegments.transcriptionId))
-    .where(and(eq(transcriptionSegments.workId, workId), ne(transcriptions.ownerId, user.id)));
-  const [othersConjectures] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(conjectures)
-    .where(and(eq(conjectures.workId, workId), ne(conjectures.ownerId, user.id)));
-  const [othersReadings] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(reportedReadings)
-    .where(and(eq(reportedReadings.workId, workId), ne(reportedReadings.ownerId, user.id)));
-  const dependents: Dependents = {
-    editions: othersEditions,
-    transcriptions: Number(othersTranscriptions?.n ?? 0),
-    records: Number(othersConjectures?.n ?? 0) + Number(othersReadings?.n ?? 0),
-  };
-  if (dependents.editions.length || dependents.transcriptions || dependents.records) {
-    return { ok: false, error: 'in-use', dependents };
-  }
+  const dependents = await workDependents(db, workId, user);
+  if (isDepended(dependents)) return { ok: false, error: 'in-use', dependents };
 
   await db.transaction(async (tx) => {
     const editionIds = (
@@ -979,10 +1038,8 @@ export async function deleteWitness(
   if (!witness) return { ok: false, error: 'not-found' };
   if (!mayDeleteEntry(user, witness)) return { ok: false, error: 'forbidden' };
 
-  const dependents = await witnessDependents(db, witnessId, user.id);
-  if (dependents.editions.length || dependents.transcriptions || dependents.records) {
-    return { ok: false, error: 'in-use', dependents };
-  }
+  const dependents = await witnessDependents(db, witnessId, user);
+  if (isDepended(dependents)) return { ok: false, error: 'in-use', dependents };
 
   const pageIds = (
     await db.select({ id: pages.id }).from(pages).where(eq(pages.witnessId, witnessId))

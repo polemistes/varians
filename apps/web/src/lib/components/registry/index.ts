@@ -28,4 +28,6 @@ export { default as TranscriptionList } from './TranscriptionList.svelte';
 export { default as WitnessFields } from './WitnessFields.svelte';
 export { default as WitnessList } from './WitnessList.svelte';
 export { default as WitnessPicker } from './WitnessPicker.svelte';
+export { default as WitnessActions } from './WitnessActions.svelte';
+export { default as WorkActions } from './WorkActions.svelte';
 export { default as WorkFields } from './WorkFields.svelte';

@@ -20,7 +20,15 @@ import {
   type SQL,
 } from '@varians/db';
 import type { EditionRights } from '$lib/edition/actions';
-import { editionRightsFromGrants, type Actor, type Grants } from './authz';
+import type { WitnessRights } from '$lib/witness/actions';
+import type { WorkRights } from '$lib/work/actions';
+import {
+  editionRightsFromGrants,
+  witnessRightsFromGrants,
+  workRightsFromGrants,
+  type Actor,
+  type Grants,
+} from './authz';
 import { identifierMatches } from './identifier-search.ts';
 
 export interface EditionRow {
@@ -56,9 +64,14 @@ export interface WorkRow {
   title: string;
   author: string | null;
   language: string;
+  /** Who added it, for the rights of a list; never sent to the browser. */
+  createdBy: string | null;
   createdByName: string | null;
   createdAt: string;
 }
+
+/** A work in a list, with what the viewer may do with it. */
+export type WorkListRow = Omit<WorkRow, 'createdBy'> & { can: WorkRights };
 
 export interface WitnessRow {
   id: string;
@@ -69,9 +82,13 @@ export interface WitnessRow {
   repository: string | null;
   settlement: string | null;
   shelfmark: string | null;
+  createdBy: string | null;
   createdByName: string | null;
   createdAt: string;
 }
+
+/** A witness in a list, with what the viewer may do with it. */
+export type WitnessListRow = Omit<WitnessRow, 'createdBy'> & { can: WitnessRights };
 
 export interface Library {
   query: string;
@@ -179,6 +196,7 @@ export async function searchWorks(db: Database, query: string): Promise<WorkRow[
       title: works.title,
       author: works.author,
       language: works.language,
+      createdBy: works.createdBy,
       createdByName: creator.name,
       createdAt: works.createdAt,
     })
@@ -211,6 +229,7 @@ export async function searchWitnesses(db: Database, query: string): Promise<Witn
       repository: witnesses.repository,
       settlement: witnesses.settlement,
       shelfmark: witnesses.shelfmark,
+      createdBy: witnesses.createdBy,
       createdByName: creator.name,
       createdAt: witnesses.createdAt,
     })
@@ -229,6 +248,26 @@ export function withEditionRights<T extends EditionRow>(
   grants: Grants,
 ): EditionListRow<T>[] {
   return rows.map((row) => ({ ...row, can: editionRightsFromGrants(user, row, grants) }));
+}
+
+/** The works of a list with the viewer's rights on each, from the grants loaded once for the page. */
+export function withWorkRights(rows: WorkRow[], user: Actor | null, grants: Grants): WorkListRow[] {
+  return rows.map(({ createdBy, ...row }) => ({
+    ...row,
+    can: workRightsFromGrants(user, { id: row.id, createdBy }, grants),
+  }));
+}
+
+/** The witnesses of a list with the viewer's rights on each, from the grants loaded once for the page. */
+export function withWitnessRights(
+  rows: WitnessRow[],
+  user: Actor | null,
+  grants: Grants,
+): WitnessListRow[] {
+  return rows.map(({ createdBy, ...row }) => ({
+    ...row,
+    can: witnessRightsFromGrants(user, { id: row.id, createdBy }, grants),
+  }));
 }
 
 /** Published editions. A draft is listed only to those who may edit it, on their own pages. */

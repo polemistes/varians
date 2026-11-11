@@ -2,7 +2,7 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { PageFrame } from '$lib/components/shell';
-  import { Button, ConfirmDialog, toasts } from '$lib/components/ui';
+  import { Button, toasts } from '$lib/components/ui';
   import {
     FormSection,
     MaintainersEditor,
@@ -35,7 +35,6 @@
   );
 
   let pending = $state<string | null>(null);
-  let deleteOpen = $state(false);
 
   /** Saves a section in place: a toast on success, the errors beside the fields otherwise. */
   function saving(name: string): SubmitFunction {
@@ -97,27 +96,4 @@
       selfId={data.user?.id ?? null}
     />
   </FormSection>
-
-  {#if data.can.merge}
-    <FormSection title={t.merge.section} hint={t.merge.workHint}>
-      <div>
-        <Button href="/works/{work.slug}/merge" variant="secondary">{t.merge.action}</Button>
-      </div>
-    </FormSection>
-  {/if}
-
-  {#if data.can.delete}
-    <FormSection title={t.work.deleteSection} hint={t.work.deleteHint} danger>
-      <Button variant="danger" onclick={() => (deleteOpen = true)}>{t.work.deleteAction}</Button>
-    </FormSection>
-  {/if}
 </PageFrame>
-
-<ConfirmDialog
-  confirmLabel={t.common.confirmDelete}
-  bind:open={deleteOpen}
-  title={t.work.deleteTitle}
-  description={t.work.deleteConfirm(work.title)}
-  action="?/delete"
-  done={t.work.deleted(work.title)}
-/>

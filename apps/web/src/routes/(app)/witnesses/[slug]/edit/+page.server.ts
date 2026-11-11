@@ -1,5 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { canMaintainWitness, isAdministrator, type Actor } from '$lib/server/authz';
+import { canMaintainWitness, type Actor } from '$lib/server/authz';
 import { requireUser } from '$lib/server/guards';
 import { removePageFiles } from '$lib/server/images/storage';
 import {
@@ -26,6 +26,7 @@ import {
   parseWitnessForm,
 } from '$lib/registry/forms';
 import { materialFormValues } from '$lib/registry/witness';
+import { recordActions } from '$lib/strings/record-actions';
 import { registry as t } from '$lib/strings/registry';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -40,7 +41,7 @@ async function maintained(locals: App.Locals, slug: string, user: Actor) {
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
   const user = requireUser(locals, url.pathname + url.search);
-  const { witness, maintainerIds } = await maintained(locals, params.slug, user);
+  const { witness } = await maintained(locals, params.slug, user);
   const maintainers = await maintainersOf(locals.db, 'witness', witness.id);
   return {
     crumb: { label: witness.name, href: `/witnesses/${witness.slug}` },
@@ -71,11 +72,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
       withoutRights: await pagesWithoutRights(locals.db, witness.id),
     },
     maintainers,
-    can: {
-      govern: governs(user, witness),
-      merge:
-        isAdministrator(user) || witness.createdBy === user.id || maintainerIds.includes(user.id),
-    },
+    can: { govern: governs(user, witness) },
   };
 };
 
@@ -165,10 +162,14 @@ export const actions: Actions = {
     return { form: 'maintainers' as const, name: result.name };
   },
 
-  /** Deleting the witness; asked for on the witness's page. */
-  delete: async ({ locals, params }) => {
+  /**
+   * Delete the witness, from wherever its menu stands. From its own page this
+   * leads to the front page; from a list (`stay`) the list stays, and is told.
+   */
+  delete: async ({ locals, params, request }) => {
     const user = requireUser(locals);
     const { witness } = await maintained(locals, params.slug, user);
+    const stay = (await request.formData()).get('stay') === '1';
     const result = await deleteWitness(locals.db, witness.id, user);
     if (!result.ok) {
       if (result.error === 'in-use') {
@@ -185,6 +186,8 @@ export const actions: Actions = {
     // The images go after the rows; a file left behind is harmless, a row without its file is not.
     const root = storageRoot();
     await Promise.all(result.pageIds.map((id) => removePageFiles(id, root).catch(() => undefined)));
+    if (stay)
+      return { form: 'delete' as const, message: recordActions.witness.deleted(result.title) };
     redirect(303, '/');
   },
 };
