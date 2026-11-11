@@ -1,7 +1,7 @@
 /**
- * The shape of the reading page: lines grouped into blocks, each with its
- * apparatus at the foot; which segments stand on which line; the labels
- * printed in the margin; the segment a permalink asks for.
+ * The shape of the reading page: lines grouped into blocks; which segments
+ * stand on which line; the labels printed in the margin; the segment a
+ * permalink asks for.
  */
 import { defaultLastNumber, type LayoutLine } from '@varians/core';
 
@@ -14,7 +14,7 @@ export interface Block {
   /** Line indexes in `lines`, end exclusive. */
   from: number;
   to: number;
-  /** The segments whose text begins in this block, in order; their entries stand at its foot. */
+  /** The segments whose text begins in this block, in order. */
   segmentIds: string[];
 }
 
@@ -58,7 +58,7 @@ export function blocksOf(lines: LayoutLine[], options: BlockOptions): Block[] {
     if (!courtesy) close(i + 1);
   });
   close(lines.length);
-  // Each segment's entries stand once, in the block where its text begins.
+  // Each segment belongs to one block, the one where its text begins.
   const placed = new Set<string>();
   for (const block of blocks) {
     for (let i = block.from; i < block.to; i++) {

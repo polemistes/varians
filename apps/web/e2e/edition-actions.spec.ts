@@ -64,17 +64,8 @@ const LINES: Record<string, string> = {
 };
 
 /** Every item of an edition's menu for its owner, in order, on a page other than Edition Settings. */
-const OWNER_MENU = [
-  ea.settings,
-  ea.publish,
-  ea.unpublish,
-  ea.copy,
-  ea.plainText,
-  ea.tei,
-  ea.package,
-  ea.delete,
-];
-const READER_MENU = [ea.copy, ea.plainText, ea.tei, ea.package];
+const OWNER_MENU = [ea.settings, ea.publish, ea.unpublish, ea.copy, ea.tei, ea.package, ea.delete];
+const READER_MENU = [ea.copy, ea.tei, ea.package];
 
 let db: Database;
 let pool: ReturnType<typeof createDatabase>['pool'];

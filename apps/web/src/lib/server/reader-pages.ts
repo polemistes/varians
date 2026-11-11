@@ -181,7 +181,6 @@ export function readerLinks(
     basePath,
     query,
     exports: {
-      text: `${base}.txt${exportQuery}`,
       tei: `${base}.tei.xml${exportQuery}`,
       package: `${base}/package.zip`,
     },
@@ -252,7 +251,6 @@ export async function loadReader(
   return {
     edition: view.edition,
     work: view.work,
-    apparatus: view.apparatus,
     lines: view.lines.map(trimLine),
     sigla: view.sigla,
     segments,

@@ -427,7 +427,7 @@ test('opens a variant as a list, and a variant at a point between two words by i
   await page.keyboard.press('Escape');
   await expect(point).toBeHidden();
   await expect(mark).toBeFocused();
-  // Printed, the page has no marks: the apparatus carries the variants.
+  // Printed, the page has no marks.
   await page.emulateMedia({ media: 'print' });
   await expect(mark).toBeHidden();
   await page.emulateMedia({ media: 'screen' });

@@ -35,7 +35,7 @@
     </Field>
     {#snippet aside()}
       {s.auth.noAccount}
-      <a href="/register" class="text-accent underline">{s.auth.registerTitle}</a>
+      <a href="/register" class="text-accent underline">{s.auth.registerLink}</a>
       <br />
       <a href="/reset" class="text-accent underline">{s.auth.forgotPassword}</a>
     {/snippet}

@@ -6,7 +6,14 @@
  * kind and the grade are separate words.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { formatEntry, newId, siteKey, siteTokenIds, type Site } from '@varians/core';
+import {
+  DEFAULT_CONVENTIONS,
+  formatEntry,
+  newId,
+  siteKey,
+  siteTokenIds,
+  type Site,
+} from '@varians/core';
 import {
   conjectures,
   createDatabase,
@@ -22,9 +29,8 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type pg from 'pg';
 import {
   entriesBySegment,
-  entryBySite,
-  listingMinor,
   markSites,
+  shownSites,
   siglaOrderOf,
   siteByToken,
   withMinor,
@@ -100,19 +106,16 @@ const rows = (p: Place) =>
 const reader = async (request: ReaderRequest) =>
   unpackReader(await loadReader(db, request.draft ? actor : null, sample.editionSlug, request));
 
-/** What a reader's page prints for a segment in the print apparatus, as the page works it out from its data. */
+/** What the print apparatus has for a segment of a reader's page, as it is worked out from the page's data. */
 function printed(data: ReaderData, segmentId: string): string[] {
-  const entries = entriesBySegment(data.segments, data.apparatus, siglaOrderOf(data.sigla));
-  return (entries.get(segmentId) ?? []).map((entry) => formatEntry(entry, data.apparatus));
+  const entries = entriesBySegment(data.segments, DEFAULT_CONVENTIONS, siglaOrderOf(data.sigla));
+  return (entries.get(segmentId) ?? []).map((entry) => formatEntry(entry, DEFAULT_CONVENTIONS));
 }
 
 /** The words of the reader's page that are marked as having a variant, with the minor variants shown or not as the reader chose. */
 function markedWords(data: ReaderData, showMinor = false): Set<string> {
   const segments = withMinor(data.segments, showMinor);
-  const entries = entryBySite(
-    entriesBySegment(listingMinor(segments), data.apparatus, siglaOrderOf(data.sigla)),
-  );
-  return markSites(siteByToken({ segments }), entries, segments).marked;
+  return markSites(siteByToken({ segments }), shownSites(segments, true), segments).marked;
 }
 
 const download = async (kind: 'text' | 'tei', request: ReaderRequest = DRAFT) =>
@@ -127,6 +130,8 @@ describe('a minor variant', () => {
     expect(words.length).toBeGreaterThan(0);
     const id = p.segment.segmentId;
     const before = await reader(DRAFT);
+    // The page is not given the edition's print conventions: nothing on screen is made from them.
+    expect(before).not.toHaveProperty('apparatus');
     expect(printed(before, id)).toEqual(['1.8 ξυνέηκε A C : συνέηκε B']);
     expect(words.every((w) => markedWords(before).has(w))).toBe(true);
 

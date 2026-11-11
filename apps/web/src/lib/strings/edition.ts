@@ -45,25 +45,6 @@ export const edition = {
   speakerInline: 'Among the words',
   speakerOwnLine: 'On a line of their own',
 
-  printApparatus: 'Print Apparatus',
-  apparatusForm: 'Form',
-  positive: 'Positive',
-  negative: 'Negative',
-  interpretative: 'Interpretative variants',
-  interpretativeHint:
-    'Accents, breathings, punctuation and word division: the same letters read otherwise.',
-  interpretativeOptions: {
-    apparatus: 'In the apparatus, with the others',
-    separate: 'In a list of their own, under the apparatus',
-    none: 'Not printed',
-  },
-  rest: 'The other witnesses',
-  restHint:
-    'Printed for the most widely attested reading of a place, when it has three sigla or more.',
-  all: 'All the witnesses',
-  allHint: 'Printed where the lemma is in no witness and all have one reading.',
-  wordNone: 'None',
-
   save: 'Save',
   cancel: 'Cancel',
   saved: 'The edition has been saved.',
@@ -118,7 +99,8 @@ export const edition = {
     variantsHint:
       'Collate the variants the manuscript notes in its margins or between its lines as a siglum of their own (A v.l.)',
     groups: 'Groups',
-    groupsHint: "A group's siglum is printed where all its witnesses have a reading.",
+    groupsHint:
+      'A group is named by its siglum, with its members beside it, where all of them have a reading.',
     groupSiglum: 'Siglum of the Group',
     groupWitnesses: 'Witnesses of the Group',
     groupNote: 'Note',

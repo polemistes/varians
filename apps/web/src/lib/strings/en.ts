@@ -28,6 +28,9 @@ export const s = {
       `Too many attempts. Try again in ${minutes === 1 ? 'a minute' : `${minutes} minutes`}.`,
     logInTitle: 'Log In',
     registerTitle: 'Create an Account',
+    /** The same words as links that stand in a sentence or under a form: not headings. */
+    logInLink: 'Log in',
+    registerLink: 'Create an account',
     email: 'Email',
     name: 'Name',
     password: 'Password',
@@ -48,7 +51,7 @@ export const s = {
     passwordTooLong: 'Use at most 200 characters.',
     nameRequired: 'Enter a name.',
     nameTooLong: 'Use at most 120 characters.',
-    forgotPassword: 'Forgotten Your Password?',
+    forgotPassword: 'Forgotten your password?',
     // Confirming the address.
     confirmTitle: 'Confirm Your Address',
     confirmSent: (email: string) =>
@@ -76,7 +79,7 @@ export const s = {
     setPassword: 'Set Password',
     resetInvalid:
       'This link is no longer valid: a link can be used once, and only for a limited time.',
-    resetAgain: 'Ask for a New Link',
+    resetAgain: 'Ask for a new link',
   },
 
   account: {
@@ -138,7 +141,7 @@ export const s = {
     usersTitle: 'Users',
     usersLead:
       'Editors may edit anything but not delete, publish or grant; administrators may do everything.',
-    exportInstallation: 'Export the Installation as a Package',
+    exportInstallation: 'Export the installation as a package',
     user: 'User',
     email: 'Email',
     role: 'Role',

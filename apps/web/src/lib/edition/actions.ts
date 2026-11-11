@@ -30,7 +30,6 @@ export type EditionActionId = 'publish' | 'unpublish' | 'copy' | 'delete';
 
 /** The addresses of the downloads; in the reader, of the state shown. */
 export interface EditionDownloads {
-  text: string;
   tei: string;
   package: string;
 }
@@ -44,7 +43,7 @@ export const NO_RIGHTS: EditionRights = {
 
 export function editionDownloads(slug: string): EditionDownloads {
   const base = `/editions/${encodeURIComponent(slug)}`;
-  return { text: `${base}.txt`, tei: `${base}.tei.xml`, package: `${base}/package.zip` };
+  return { tei: `${base}.tei.xml`, package: `${base}/package.zip` };
 }
 
 /**
@@ -95,7 +94,6 @@ export function editionActions(
       : [];
   const downloading: MenuEntry[] = [
     { kind: 'label', label: t.download },
-    { kind: 'link', id: 'text', label: t.plainText, href: downloads.text, file: true },
     { kind: 'link', id: 'tei', label: t.tei, href: downloads.tei, file: true },
     { kind: 'link', id: 'package', label: t.package, href: downloads.package, file: true },
   ];

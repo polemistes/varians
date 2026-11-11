@@ -1,11 +1,10 @@
 <script lang="ts">
   /**
-   * The gear: how the reader likes to read. Text size, whether the print
-   * apparatus shows on screen and where (with its form), where interpretative
-   * variants show, whether the minor ones do, the margin labels, the dotted underline. The page keeps the choices per browser.
+   * The gear: how the reader likes to read. Text size, whether the
+   * interpretative variants and the minor ones are marked and listed, the margin
+   * labels, the dotted underline. The page keeps the choices per browser.
    */
   import Settings2 from '@lucide/svelte/icons/settings-2';
-  import type { ApparatusConventions } from '@varians/core';
   import { Checkbox, Popover } from '$lib/components/ui';
   import {
     DEFAULT_SETTINGS,
@@ -17,15 +16,10 @@
 
   interface Props {
     settings: ReaderSettings;
-    /** What the edition sets, shown as the default of each choice. */
-    edition: ApparatusConventions;
     onchange: (settings: ReaderSettings) => void;
   }
 
-  let { settings, edition, onchange }: Props = $props();
-
-  const form = $derived(settings.form ?? edition.form);
-  const interpretative = $derived(settings.interpretative ?? edition.interpretative);
+  let { settings, onchange }: Props = $props();
 
   function set<K extends keyof ReaderSettings>(key: K, value: ReaderSettings[K]) {
     onchange({ ...settings, [key]: value });
@@ -34,17 +28,6 @@
   const segment =
     'flex-1 cursor-pointer rounded px-2 py-1 text-center text-xs text-ink-soft transition-colors hover:text-ink has-[:checked]:bg-surface has-[:checked]:text-ink has-[:checked]:shadow-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent';
   const group = 'flex gap-0.5 rounded-md border border-line bg-sunken p-0.5';
-  const option =
-    'cursor-pointer rounded px-2.5 py-1.5 text-xs text-ink-soft transition-colors hover:text-ink has-[:checked]:bg-surface has-[:checked]:text-ink has-[:checked]:shadow-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent';
-  const placements = [
-    { value: 'none', label: r.settings.apparatusNone },
-    { value: 'foot', label: r.settings.apparatusFoot },
-    { value: 'side', label: r.settings.apparatusSide },
-  ] as const;
-  const interpretativePlacements = (['apparatus', 'separate', 'none'] as const).map((value) => ({
-    value,
-    label: r.settings.interpretativeOptions[value],
-  }));
 </script>
 
 <Popover
@@ -83,80 +66,30 @@
     </fieldset>
 
     <fieldset class="flex flex-col gap-1.5">
-      <legend class="mb-1.5 text-xs font-medium text-ink-soft">{r.settings.apparatus}</legend>
-      <div class="flex flex-col gap-0.5 rounded-md border border-line bg-sunken p-0.5">
-        {#each placements as placement (placement.value)}
-          <label class={option}>
-            <input
-              class="sr-only"
-              type="radio"
-              name="reader-apparatus"
-              value={placement.value}
-              checked={settings.apparatus === placement.value}
-              onchange={() => set('apparatus', placement.value)}
-            />
-            {placement.label}
-          </label>
-        {/each}
-      </div>
-      {#if settings.apparatus === 'none'}
-        <p class="text-xs text-ink-muted">{r.settings.apparatusNoneHint}</p>
-      {:else}
-        {#if settings.apparatus === 'side'}<p class="text-xs text-ink-muted">
-            {r.settings.apparatusSideHint}
-          </p>{/if}
-        <p class="mt-1.5 text-xs text-ink-soft" id="reader-form-label">{r.settings.form}</p>
-        <div class={group} role="radiogroup" aria-labelledby="reader-form-label">
-          <label class={segment}>
-            <input
-              class="sr-only"
-              type="radio"
-              name="reader-form"
-              checked={form === 'positive'}
-              onchange={() => set('form', edition.form === 'positive' ? null : 'positive')}
-            />
-            {r.settings.positive}
-          </label>
-          <label class={segment}>
-            <input
-              class="sr-only"
-              type="radio"
-              name="reader-form"
-              checked={form === 'negative'}
-              onchange={() => set('form', edition.form === 'negative' ? null : 'negative')}
-            />
-            {r.settings.negative}
-          </label>
-        </div>
-        <p class="text-xs text-ink-muted">{r.settings.editionForm(edition.form)}</p>
-      {/if}
-    </fieldset>
-
-    <fieldset class="flex flex-col gap-1.5">
       <legend class="mb-1.5 text-xs font-medium text-ink-soft">{r.settings.interpretative}</legend>
-      <div class="flex flex-col gap-0.5 rounded-md border border-line bg-sunken p-0.5">
-        {#each interpretativePlacements as placement (placement.value)}
-          <label class={option}>
-            <input
-              class="sr-only"
-              type="radio"
-              name="reader-interpretative"
-              value={placement.value}
-              checked={interpretative === placement.value}
-              onchange={() =>
-                set(
-                  'interpretative',
-                  edition.interpretative === placement.value ? null : placement.value,
-                )}
-            />
-            {placement.label}
-          </label>
-        {/each}
+      <div class={group}>
+        <label class={segment}>
+          <input
+            class="sr-only"
+            type="radio"
+            name="reader-interpretative"
+            checked={settings.showInterpretative}
+            onchange={() => set('showInterpretative', true)}
+          />
+          {r.settings.interpretativeShown}
+        </label>
+        <label class={segment}>
+          <input
+            class="sr-only"
+            type="radio"
+            name="reader-interpretative"
+            checked={!settings.showInterpretative}
+            onchange={() => set('showInterpretative', false)}
+          />
+          {r.settings.interpretativeHidden}
+        </label>
       </div>
-      <p class="text-xs text-ink-muted">
-        {r.settings.interpretativeHint}
-        {r.settings.editionInterpretative(edition.interpretative)}
-      </p>
+      <p class="text-xs text-ink-muted">{r.settings.interpretativeHint}</p>
     </fieldset>
 
     <fieldset class="flex flex-col gap-1.5">

@@ -4,41 +4,26 @@
  * client render agree. Whatever the storage holds is parsed into a complete,
  * valid settings object; anything unknown falls back to the default.
  */
-import type { ApparatusConventions, InterpretativePlacement } from '@varians/core';
-
 export const TEXT_SIZES = ['small', 'normal', 'large'] as const;
 export type TextSize = (typeof TEXT_SIZES)[number];
 
-export const APPARATUS_PLACEMENTS = ['none', 'foot', 'side'] as const;
-export type ApparatusPlacement = (typeof APPARATUS_PLACEMENTS)[number];
-
 export interface ReaderSettings {
   size: TextSize;
-  /**
-   * The print apparatus on screen: not shown (the words with variants explain
-   * themselves when opened), at the foot of each block, or beside it on wide
-   * screens. Printing always shows it at the foot.
-   */
-  apparatus: ApparatusPlacement;
-  /** Positive or negative form; null follows the edition. */
-  form: 'positive' | 'negative' | null;
-  /** Interpretative variants among the others, in a list of their own, or not shown; null follows the edition. */
-  interpretative: InterpretativePlacement | null;
   /** Margin labels as the edition sets them, or at every line where a segment begins. */
   labels: 'edition' | 'every';
   /** The dotted underline under words with variants. */
   underline: boolean;
+  /** The variants whose witnesses have the same letters read otherwise: marked and listed when shown, neither when not. */
+  showInterpretative: boolean;
   /** The variants the editor judges minor: marked and listed like the others when shown, neither when not. */
   showMinor: boolean;
 }
 
 export const DEFAULT_SETTINGS: ReaderSettings = {
   size: 'normal',
-  apparatus: 'none',
-  form: null,
-  interpretative: null,
   labels: 'edition',
   underline: true,
+  showInterpretative: true,
   showMinor: false,
 };
 
@@ -50,7 +35,13 @@ function oneOf<T extends string>(value: unknown, options: readonly T[], fallback
     : fallback;
 }
 
-/** Settings from what storage holds: a JSON string, an object, or nothing. */
+/**
+ * Settings from what storage holds: a JSON string, an object, or nothing.
+ * What an earlier version stored for choices that are gone (where the print
+ * apparatus stands, its form) is left unread. A reader who had chosen not to
+ * see interpretative variants, which was stored as `interpretative: 'none'`,
+ * still does not see them.
+ */
 export function parseSettings(raw: unknown): ReaderSettings {
   let source: unknown = raw;
   if (typeof raw === 'string') {
@@ -65,16 +56,14 @@ export function parseSettings(raw: unknown): ReaderSettings {
   ) as Record<string, unknown>;
   return {
     size: oneOf(s.size, TEXT_SIZES, DEFAULT_SETTINGS.size),
-    apparatus: oneOf(s.apparatus, APPARATUS_PLACEMENTS, DEFAULT_SETTINGS.apparatus),
-    form: s.form === 'positive' || s.form === 'negative' ? s.form : null,
-    interpretative:
-      s.interpretative === 'apparatus' ||
-      s.interpretative === 'separate' ||
-      s.interpretative === 'none'
-        ? s.interpretative
-        : null,
     labels: oneOf(s.labels, ['edition', 'every'] as const, DEFAULT_SETTINGS.labels),
     underline: typeof s.underline === 'boolean' ? s.underline : DEFAULT_SETTINGS.underline,
+    showInterpretative:
+      typeof s.showInterpretative === 'boolean'
+        ? s.showInterpretative
+        : s.interpretative === 'none'
+          ? false
+          : DEFAULT_SETTINGS.showInterpretative,
     showMinor: typeof s.showMinor === 'boolean' ? s.showMinor : DEFAULT_SETTINGS.showMinor,
   };
 }
@@ -91,23 +80,6 @@ export function serializeSettings(settings: ReaderSettings): string {
 
 export function isDefault(settings: ReaderSettings): boolean {
   return serializeSettings(settings) === '{}';
-}
-
-/**
- * The apparatus conventions in force: the edition's, with the reader's
- * choices of form and of where interpretative variants stand over them. The
- * edition's family sigla and its words for the other witnesses and for all
- * of them are how it names witnesses, not a choice of the reader's.
- */
-export function effectiveConventions(
-  edition: ApparatusConventions,
-  settings: ReaderSettings,
-): ApparatusConventions {
-  return {
-    ...edition,
-    form: settings.form ?? edition.form,
-    interpretative: settings.interpretative ?? edition.interpretative,
-  };
 }
 
 /** Read the stored settings; storage may be missing or refuse access. */

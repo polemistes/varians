@@ -86,7 +86,6 @@ describe('readerLinks', () => {
       basePath: '/editions/iliad-1',
       query: '',
       exports: {
-        text: '/editions/iliad-1.txt',
         tei: '/editions/iliad-1.tei.xml',
         package: '/editions/iliad-1/package.zip',
       },
@@ -104,7 +103,7 @@ describe('readerLinks', () => {
     ).toMatchObject({
       basePath: '/editions/iliad-1/v/1',
       query: '',
-      exports: { text: '/editions/iliad-1.txt?v=1', tei: '/editions/iliad-1.tei.xml?v=1' },
+      exports: { tei: '/editions/iliad-1.tei.xml?v=1' },
       detail: '/editions/iliad-1/detail.json?v=1',
       sites: '/editions/iliad-1/sites.json?v=1',
       links: { preview: '/editions/iliad-1?draft=1' },
@@ -113,7 +112,7 @@ describe('readerLinks', () => {
       readerLinks('iliad-1', { kind: 'preview', version: 7, publishedNumber: 2 }, editor, true),
     ).toMatchObject({
       query: '?draft=1',
-      exports: { text: '/editions/iliad-1.txt?draft=1' },
+      exports: { tei: '/editions/iliad-1.tei.xml?draft=1' },
       detail: '/editions/iliad-1/detail.json?draft=1',
       sites: '/editions/iliad-1/sites.json?draft=1',
     });

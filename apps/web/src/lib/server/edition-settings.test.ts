@@ -1,7 +1,9 @@
 /**
- * What Edition Settings does to an edition's apparatus conventions: the
- * words for the other witnesses and for all of them, through the page's own
- * form action.
+ * What Edition Settings does to the conventions an edition has stored for its
+ * print apparatus (its form, where interpretative variants are printed, the
+ * words for the other witnesses and for all of them): the page does not offer
+ * them, and saving it leaves them as they were. Through the page's own form
+ * action.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { formatEntry, newId } from '@varians/core';
@@ -63,8 +65,6 @@ const form = (extra: Record<string, string> = {}): Record<string, string> => ({
   rightsNote: '',
   lineation: 'verse',
   numberEvery: '5',
-  apparatus: 'positive',
-  interpretative: 'separate',
   speakerDisplay: 'margin',
   ...extra,
 });
@@ -95,45 +95,88 @@ afterAll(async () => {
 const conventionsOf = async () =>
   (await db.select().from(editions).where(eq(editions.id, sample.editionId)))[0]!.conventions;
 
-describe('the words for the other witnesses and for all of them', () => {
-  it('are none for an edition made without them', async () => {
-    const conventions = await conventionsOf();
-    expect(conventions.rest).toBeUndefined();
-    expect(conventions.all).toBeUndefined();
+/** The edition's stored conventions replaced, as an edition made another way (an import, an earlier version) has them. */
+async function storeConventions(
+  change: (conventions: Awaited<ReturnType<typeof conventionsOf>>) => object,
+): Promise<void> {
+  const next = change(await conventionsOf());
+  await db
+    .update(editions)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .set({ conventions: next as any })
+    .where(eq(editions.id, sample.editionId));
+}
+
+describe('the conventions of the print apparatus', () => {
+  it('are not changed by saving the settings, whatever they are', async () => {
+    await storeConventions((c) => ({
+      ...c,
+      apparatus: 'negative',
+      interpretative: 'none',
+      rest: 'rell.',
+      all: 'codd.',
+    }));
+    const saved = await run(settingsActions.save, sample.editionSlug, form({ numberEvery: '10' }));
+    expect(saved).toMatchObject({ ok: true });
+    expect(await conventionsOf()).toMatchObject({
+      apparatus: 'negative',
+      interpretative: 'none',
+      rest: 'rell.',
+      all: 'codd.',
+      numberEvery: 10,
+    });
+    const view = await editionView(db, sample.editionId, null, audience);
+    expect(view.apparatus).toMatchObject({
+      form: 'negative',
+      interpretative: 'none',
+      rest: 'rell.',
+      all: 'codd.',
+    });
   });
 
-  it('are saved by the settings and read back by the view', async () => {
+  it('are not changed by a page that still sends them', async () => {
+    const before = await conventionsOf();
     const saved = await run(
       settingsActions.save,
       sample.editionSlug,
-      form({ rest: 'rell.', all: 'codd.' }),
+      form({
+        numberEvery: String(before.numberEvery),
+        apparatus: 'positive',
+        interpretative: 'separate',
+        rest: 'cett.',
+        all: '',
+      }),
     );
     expect(saved).toMatchObject({ ok: true });
-    expect(await conventionsOf()).toMatchObject({ rest: 'rell.', all: 'codd.' });
-    const view = await editionView(db, sample.editionId, null, audience);
-    expect(view.apparatus).toMatchObject({ rest: 'rell.', all: 'codd.' });
-    expect(view.edition.conventions).toMatchObject({ rest: 'rell.', all: 'codd.' });
+    expect(await conventionsOf()).toEqual(before);
   });
 
-  it('go back to none, which stores nothing', async () => {
-    await run(settingsActions.save, sample.editionSlug, form({ rest: 'cett.', all: 'codd.' }));
-    await run(settingsActions.save, sample.editionSlug, form({ rest: '', all: '' }));
-    const conventions = await conventionsOf();
-    expect('rest' in conventions).toBe(false);
-    expect('all' in conventions).toBe(false);
-    const view = await editionView(db, sample.editionId, null, audience);
-    expect(view.apparatus.rest).toBeUndefined();
-    expect(view.apparatus.all).toBeUndefined();
+  it('are not added to an edition that has none, which stays as it was', async () => {
+    await storeConventions((c) => {
+      const { rest: _rest, all: _all, interpretative: _interpretative, ...kept } = c;
+      return { ...kept, apparatus: 'positive' };
+    });
+    const before = await conventionsOf();
+    await run(settingsActions.save, sample.editionSlug, form({ numberEvery: '7' }));
+    const after = await conventionsOf();
+    expect(after).toEqual({ ...before, numberEvery: 7 });
+    expect('rest' in after).toBe(false);
+    expect('all' in after).toBe(false);
+    expect('interpretative' in after).toBe(false);
   });
 
-  it('are refused when they are none of the offered words, and a form without them leaves them', async () => {
-    await run(settingsActions.save, sample.editionSlug, form({ rest: 'cett.', all: 'codd.' }));
-    const refused = await run(settingsActions.save, sample.editionSlug, form({ rest: 'ceteri' }));
-    expect(refused.status).toBe(400);
-    expect(await conventionsOf()).toMatchObject({ rest: 'cett.', all: 'codd.' });
-    await run(settingsActions.save, sample.editionSlug, form({ numberEvery: '10' }));
-    expect(await conventionsOf()).toMatchObject({ rest: 'cett.', all: 'codd.', numberEvery: 10 });
-    await run(settingsActions.save, sample.editionSlug, form({ rest: '', all: '' }));
+  it('leave the text conventions to the page, which saves them', async () => {
+    await run(
+      settingsActions.save,
+      sample.editionSlug,
+      form({ lineation: 'prose', numberEvery: '3', speakerDisplay: 'inline' }),
+    );
+    expect(await conventionsOf()).toMatchObject({
+      lineation: 'prose',
+      numberEvery: 3,
+      speakerDisplay: 'inline',
+    });
+    await run(settingsActions.save, sample.editionSlug, form());
   });
 });
 
@@ -162,9 +205,7 @@ describe('an edition stored with the setting for Latin abbreviations, which edit
   });
 
   it('saves without error and drops the member, keeping every other convention', async () => {
-    await storeLatin(true);
-    await run(settingsActions.save, sample.editionSlug, form({ rest: 'cett.', all: 'codd.' }));
-    await storeLatin(true);
+    await storeConventions((c) => ({ ...c, latin: true, rest: 'cett.', all: 'codd.' }));
     const saved = await run(settingsActions.save, sample.editionSlug, form({ numberEvery: '10' }));
     expect(saved).toMatchObject({ ok: true });
     const conventions = await conventionsOf();
@@ -176,7 +217,7 @@ describe('an edition stored with the setting for Latin abbreviations, which edit
       rest: 'cett.',
       all: 'codd.',
     });
-    await run(settingsActions.save, sample.editionSlug, form({ rest: '', all: '' }));
+    await storeConventions(({ rest: _rest, all: _all, ...kept }) => kept);
   });
 
   it('is saved by a page that still sends the setting, which is ignored', async () => {

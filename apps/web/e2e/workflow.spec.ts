@@ -21,6 +21,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { s } from '../src/lib/strings/en';
 import { edition as ed } from '../src/lib/strings/edition';
 import { editor } from '../src/lib/strings/editor';
+import { reader as rd } from '../src/lib/strings/reader';
 import { recordActions as actions } from '../src/lib/strings/record-actions';
 import { pageStrings as t } from '../src/lib/strings/pages';
 import { workbench as w } from '../src/lib/strings/workbench';
@@ -219,18 +220,22 @@ test('from a new work to a published edition and its archive', async ({ page }) 
     .click();
   await expect(page.getByText(/Published as version 1/)).toBeVisible({ timeout: 15_000 });
 
-  // The reader, signed out: the published text with X's reading in the apparatus.
+  // The reader, signed out: the published text, and X's reading in the window of the variant.
   const visitor = await page.context().browser()!.newContext();
   const reader = await visitor.newPage();
   await reader.goto(`/editions/${editionSlug}`);
   await expect(reader.locator('h1')).toHaveText(`Aeneis 1, ${stamp}`);
   await expect(reader.getByText('Lavinaque').first()).toBeVisible();
-  await expect(reader.locator('main')).toContainText('Laviniaque');
-  // The download links load the files, not an edition page of that name.
-  for (const [name, ending] of [
-    ['Plain Text with Apparatus', '.txt'],
-    ['TEI XML', '.tei.xml'],
-  ] as const) {
+  await reader.locator('[data-sites]', { hasText: 'Lavinaque' }).first().click();
+  await expect(reader.getByRole('dialog', { name: rd.entry.title('1.2') })).toContainText(
+    'Laviniaque',
+  );
+  await reader.keyboard.press('Escape');
+  // The download links load the files, not an edition page of that name; the plain text is not among them.
+  await reader.getByRole('button', { name: actions.menu, exact: true }).click();
+  await expect(reader.getByRole('menuitem', { name: /Plain Text/ })).toHaveCount(0);
+  await reader.keyboard.press('Escape');
+  for (const [name, ending] of [['TEI XML', '.tei.xml']] as const) {
     await reader.waitForLoadState('networkidle');
     await reader.getByRole('button', { name: actions.menu, exact: true }).click();
     const [answer] = await Promise.all([
@@ -240,6 +245,7 @@ test('from a new work to a published edition and its archive', async ({ page }) 
     expect(answer.status()).toBe(200);
     await reader.goto(`/editions/${editionSlug}`);
   }
+  // The plain text is kept at its address, linked from nowhere.
   const text = await reader.request.get(`/editions/${editionSlug}.txt`);
   expect(text.ok()).toBe(true);
   expect(await text.text()).toContain('Laviniaque X');

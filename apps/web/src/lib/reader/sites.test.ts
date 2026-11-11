@@ -11,17 +11,15 @@ import {
 } from '@varians/core';
 import {
   alignedUnits,
-  anyMinor,
   editionTokensAt,
   entriesBySegment,
   entryBySite,
-  listingMinor,
   isOrderKey,
   markSites,
-  minorAsOthers,
   orderKey,
   parseOrderKey,
   parseSiteKey,
+  shownSites,
   siteByToken,
   siteKey,
   withMinor,
@@ -196,12 +194,8 @@ describe('variants over whole segments in prose', () => {
 });
 
 describe('the marks at points between two words', () => {
-  const printed = (segments: Record<string, ReturnType<typeof segment>>) => {
-    const entries = entryBySite(
-      entriesBySegment(segments, { form: 'positive', interpretative: 'separate' }, ['A', 'B']),
-    );
-    return markSites(siteByToken({ segments }), entries, segments);
-  };
+  const printed = (segments: Record<string, ReturnType<typeof segment>>) =>
+    markSites(siteByToken({ segments }), shownSites(segments, true), segments);
 
   it('follows the word before the point, and is no stop of a word', () => {
     const ed = text('e', 'ed.', 'ἄλγε ἔθηκε κύνεσσιν');
@@ -265,7 +259,7 @@ describe('the marks at points between two words', () => {
   });
 });
 
-describe('entries under the reader settings', () => {
+describe('the entries of the print apparatus of a page', () => {
   it('reports different words only: a grave for an acute is no variant', () => {
     const ed = text('e', 'ed.', 'ἄειδε θεὰ');
     const same = segment(ed, [text('a', 'A', 'ἄειδε θεὰ'), text('b', 'B', 'ἄειδε θεά')]);
@@ -321,9 +315,7 @@ describe('markSites', () => {
     const seg = segment(ed, [text('a', 'A', 'ἄειδε θεοί Πηληϊάδεω Ἀχιλλῆος οὐλομένην')]);
     expect(seg.collation.sites).toHaveLength(2);
     const segments = { s1: seg };
-    const all = entryBySite(
-      entriesBySegment(segments, { form: 'positive', interpretative: 'separate' }, ['A']),
-    );
+    const all = shownSites(segments, true);
     expect(all.size).toBe(2);
     const marking = markSites(siteByToken({ segments }), all, segments);
     for (const key of all.keys()) {
@@ -366,14 +358,18 @@ describe('a minor variant', () => {
     interpretative: 'separate' as const,
   };
 
-  it('has no print entry and so no marked words, though its site is still in the data', () => {
+  it('is not shown and so marks no words, though its site is still in the data', () => {
     const { dog, segments } = marked();
-    const entries = entryBySite(entriesBySegment(segments, conventions, ['A', 'B']));
-    expect([...entries.keys()]).toHaveLength(1);
-    expect(entries.has(siteKey('s1', dog.index))).toBe(false);
-    const marking = markSites(siteByToken({ segments }), entries, segments);
+    // The page works with the segments it was sent, less the minor variants.
+    const asked = withMinor(segments, false);
+    const shown = shownSites(asked, true);
+    expect([...shown]).toHaveLength(1);
+    expect(shown.has(siteKey('s1', dog.index))).toBe(false);
+    const marking = markSites(siteByToken({ segments: asked }), shown, asked);
     expect(marking.marked.has('e1')).toBe(false);
     expect(marking.marked.has('e2')).toBe(true);
+    // The print apparatus leaves it out by its flag.
+    expect(entriesBySegment(segments, conventions, ['A', 'B']).get('s1')).toHaveLength(1);
   });
 
   it('is left out, with what stood at it, of a page that has not asked for it', () => {
@@ -386,26 +382,72 @@ describe('a minor variant', () => {
     expect(segments.s1.collation.sites.some((site) => site.minor)).toBe(true);
     const plain = segment(text('e', 'ed.', 'a b'), [text('a', 'A', 'a c')]);
     expect(withoutMinor(plain)).toBe(plain);
-    expect(minorAsOthers(plain)).toBe(plain);
   });
 
   it('stands in a page that has asked for it, flagged, and listed like any other', () => {
     const { dog, segments } = marked();
-    expect(anyMinor(segments)).toBe(true);
-    expect(anyMinor(withMinor(segments, false))).toBe(false);
     const shown = withMinor(segments, true);
     // The flag stays, so that the window can say the place is minor.
-    expect(anyMinor(shown)).toBe(true);
+    expect(shown.s1.collation.sites.some((site) => site.minor)).toBe(true);
     expect(shown.s1.collation.sites).toHaveLength(segments.s1.collation.sites.length);
     expect(shown.s1.attachments[dog.index]).toHaveLength(1);
-    const listed = listingMinor(shown);
-    expect(anyMinor(listed)).toBe(false);
-    const entries = entryBySite(entriesBySegment(listed, conventions, ['A', 'B']));
-    expect(entries.has(siteKey('s1', dog.index))).toBe(true);
-    expect(markSites(siteByToken({ segments: shown }), entries, shown).marked.has('e1')).toBe(true);
-    // The sent segments, whose sites keep their flag, print nothing of it.
-    expect(entriesBySegment(segments, conventions, ['A', 'B']).get('s1')).toHaveLength(1);
-    // Taking the flag off leaves the sent site as it was.
+    const sites = shownSites(shown, true);
+    expect(sites.has(siteKey('s1', dog.index))).toBe(true);
+    expect(markSites(siteByToken({ segments: shown }), sites, shown).marked.has('e1')).toBe(true);
+    // The sent segments keep their flag.
     expect(segments.s1.collation.sites.find((site) => site.index === dog.index)!.minor).toBe(true);
+  });
+});
+
+describe('shownSites', () => {
+  /** A textual variant (fox, cat), an interpretative one (ὅτι, ὅ τι: the same letters, divided otherwise) and a place that only a conjecture opens. */
+  function mixed() {
+    const ed = text('e', 'ed.', 'ὅτι red fox runs');
+    const seg = segment(ed, [
+      text('a', 'A', 'ὅ τι red cat runs'),
+      text('b', 'B', 'ὅτι red fox runs'),
+    ]);
+    const textual = seg.collation.sites.find((site) =>
+      site.readings.some((r) => r.text === 'cat'),
+    )!;
+    const interpretative = seg.collation.sites.find((site) =>
+      site.readings.some((r) => r.text === 'ὅ τι'),
+    )!;
+    return { seg, textual, interpretative };
+  }
+
+  it('lists every place where some witness reads otherwise, the interpretative ones among them', () => {
+    const { seg, textual, interpretative } = mixed();
+    expect(textual.kind).toBe('textual');
+    expect(interpretative.kind).toBe('interpretative');
+    const shown = shownSites({ s1: seg }, true);
+    expect([...shown].sort()).toEqual(
+      [siteKey('s1', textual.index), siteKey('s1', interpretative.index)].sort(),
+    );
+  });
+
+  it('leaves the interpretative ones out when they are not shown, and no others', () => {
+    const { seg, textual, interpretative } = mixed();
+    const shown = shownSites({ s1: seg }, false);
+    expect(shown.has(siteKey('s1', interpretative.index))).toBe(false);
+    expect([...shown]).toEqual([siteKey('s1', textual.index)]);
+  });
+
+  it('counts a place a conjecture of other words opens as textual, whatever the witnesses have', () => {
+    const { seg, interpretative } = mixed();
+    const attachment: Attachment = { kind: 'conjecture', id: 'c1', text: 'ὅττι', name: 'Quill' };
+    const withConjecture = { ...seg, attachments: { [interpretative.index]: [attachment] } };
+    expect(shownSites({ s1: withConjecture }, false).has(siteKey('s1', interpretative.index))).toBe(
+      true,
+    );
+  });
+
+  it('is independent of the order the passages are given in and spans passages', () => {
+    const one = mixed().seg;
+    const ed = text('f', 'ed.', 'blue sky');
+    const two = segment(ed, [text('c', 'C', 'blue sea')], 's2', '1.2');
+    const shown = shownSites({ s2: two, s1: one }, true);
+    expect([...shown].filter((key) => key.startsWith('s2:'))).toHaveLength(1);
+    expect([...shown].filter((key) => key.startsWith('s1:'))).toHaveLength(2);
   });
 });

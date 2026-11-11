@@ -78,7 +78,7 @@ export const bibStrings = {
     postnote: 'Pages',
     postnotePlaceholder: '45–47',
     remove: (label: string) => `Remove ${label}`,
-    manage: 'Open the Bibliography',
+    manage: 'Open the bibliography',
   },
 
   worksCited: 'Works Cited',

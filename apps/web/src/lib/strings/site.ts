@@ -34,7 +34,7 @@ export const site = {
     transcribeWitness: 'Make New Transcript',
     makeEdition: 'Make New Edition',
     continue: 'Continue',
-    allYourWork: (n: number) => `All Your Work (${n})`,
+    allYourWork: (n: number) => `All your work (${n})`,
     edition: 'Edition',
     transcription: 'Transcript',
     shared: 'shared with you',
@@ -77,12 +77,12 @@ export const site = {
     use: 'Used for',
     source: 'Source',
     licence: 'Licence',
-    footer: 'Sources and Licences',
+    footer: 'Sources and licences',
   },
 
   footer: {
     /** The link to the source of the running version. */
-    source: 'Source Code',
+    source: 'Source code',
   },
 
   guide: {
@@ -195,11 +195,13 @@ export const site = {
 
   formats: {
     title: 'Data Format',
+    /** The link in the footer, which is not the page's heading. */
+    footer: 'Data format',
     files: 'Files',
     schemas: 'JSON Schemas',
     tei: 'TEI customization (ODD) and RelaxNG schema',
     changelog: 'Changes',
-    example: 'Example Archive',
+    example: 'Example archive',
   },
 
   search: {

@@ -93,7 +93,7 @@ export const registry = {
     archiveHint:
       'Everything in this work as open files: TEI, JSON with schemas, plain text, the bibliography and the images whose rights allow it, in a package with checksums and a description of its contents. The package holds what you may see.',
     download: 'Download Package',
-    downloadRepository: 'The Server’s Archive, with Its History',
+    downloadRepository: 'The server’s archive, with its history',
     // Complete or partial is a matter of the work: the same codex may hold all of one text and part of another.
     coverage: (n: number, total: number) =>
       total > 0 && n >= total ? `Complete, ${n} of ${total}` : `Partial, ${n} of ${total}`,
@@ -102,7 +102,7 @@ export const registry = {
         ? `Complete: all ${total} passages known here`
         : `Partial: ${n} of ${total} passages known here`,
     coverageTitle: 'Segments transcribed',
-    witnessPage: 'About the Witness',
+    witnessPage: 'About the witness',
     notMaintainer: 'Only the maintainers of this work may edit it.',
     notGoverning: 'Only the creator of the work, or an administrator, may change its maintainers.',
     schemeLockedError: 'The work has segments, so the keys and types of its levels cannot change.',

@@ -19,7 +19,6 @@ import { eq, inArray } from 'drizzle-orm';
 import type pg from 'pg';
 import type { CurrentUser } from '$lib/types';
 import { actions } from '../../routes/(app)/editions/[slug]/edit/+page.server';
-import { actions as settingsActions } from '../../routes/(app)/editions/[slug]/settings/+page.server';
 import { editionView, type Audience } from './reader.ts';
 import { parseDescription, removePage, seedPage, type PageSeedResult } from './seed/page.ts';
 import { seedSample, type SampleResult } from './seed/sample.ts';
@@ -58,20 +57,6 @@ function run(
     action!({ request, locals: { db, user: owner }, params: { slug } }),
   ) as Promise<Result>;
 }
-
-/** The fields the settings form always sends. */
-const settingsForm = (extra: Record<string, string> = {}): Record<string, string> => ({
-  title: 'An edition',
-  preface: '',
-  sources: '',
-  rightsNote: '',
-  lineation: 'verse',
-  numberEvery: '5',
-  apparatus: 'positive',
-  interpretative: 'separate',
-  speakerDisplay: 'margin',
-  ...extra,
-});
 
 /** The conspectus as the dialog sends it back. */
 async function conspectusOf(editionId: string) {
@@ -231,7 +216,7 @@ describe('the family sigla of the sample edition', () => {
   });
 });
 
-describe('an edition with a group and the two words', () => {
+describe('an edition that stores a group and the two words', () => {
   let page: PageSeedResult;
   const description = parseDescription({
     work: { slug: PAGE, title: 'The Invented Line', author: 'Nobody', language: 'grc' },
@@ -253,11 +238,28 @@ describe('an edition with a group and the two words', () => {
     page = await seedPage(db, userId, description);
   }, 60_000);
 
-  const settings = (fields: Record<string, string>) =>
-    run(settingsActions.save, page.editionSlug, settingsForm(fields));
+  /** The conventions of the print apparatus as an import or an earlier version stored them: no page of the interface sets them. */
+  async function store(fields: {
+    apparatus: 'positive' | 'negative';
+    rest?: string;
+    all?: string;
+  }) {
+    const { rest: _rest, all: _all, ...kept } = await conventionsOf(page.editionId);
+    await db
+      .update(editions)
+      .set({
+        conventions: {
+          ...kept,
+          apparatus: fields.apparatus,
+          ...(fields.rest ? { rest: fields.rest } : {}),
+          ...(fields.all ? { all: fields.all } : {}),
+        },
+      })
+      .where(eq(editions.id, page.editionId));
+  }
 
-  it('names every witness until the editor chooses the words and the group', async () => {
-    await settings({ apparatus: 'negative' });
+  it('names every witness until the words and the group are stored', async () => {
+    await store({ apparatus: 'negative' });
     expect(await printed(page.editionId)).toEqual([
       '1 ἔγραψε : ἔγραφε G V H',
       '1 μικρόν : βραχύ G V H B',
@@ -266,7 +268,7 @@ describe('an edition with a group and the two words', () => {
   });
 
   it('prints the family, the other witnesses and all the witnesses as an entry of the core does', async () => {
-    await settings({ apparatus: 'negative', rest: 'cett.', all: 'codd.' });
+    await store({ apparatus: 'negative', rest: 'cett.', all: 'codd.' });
     const conspectus = await conspectusOf(page.editionId);
     const witness = (siglum: string) => conspectus.find((e) => e.siglum === siglum)!.witnessId;
     const saved = await run(actions.sigla, page.editionSlug, {
@@ -282,7 +284,7 @@ describe('an edition with a group and the two words', () => {
       '1 μικρόν R : βραχύ cett.',
       '1 πάνυ : σφόδρα codd.',
     ]);
-    await settings({ apparatus: 'positive', rest: 'cett.', all: 'codd.' });
+    await store({ apparatus: 'positive', rest: 'cett.', all: 'codd.' });
     expect(await printed(page.editionId)).toEqual([
       '1 ἔγραψε R B : ἔγραφε G g',
       '1 μικρόν R : βραχύ cett.',
@@ -290,8 +292,8 @@ describe('an edition with a group and the two words', () => {
     ]);
   });
 
-  it('names every witness again when the words are none, and drops the family with a witness', async () => {
-    await settings({ apparatus: 'negative', rest: '', all: '' });
+  it('names every witness again when the words are stored as none, and drops the family with a witness', async () => {
+    await store({ apparatus: 'negative' });
     expect(await printed(page.editionId)).toEqual([
       '1 ἔγραψε : ἔγραφε G g',
       '1 μικρόν : βραχύ G g B',

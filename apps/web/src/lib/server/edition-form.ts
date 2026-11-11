@@ -17,7 +17,7 @@ import {
 import { and, asc, countDistinct, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import type { ConspectusRow, ConspectusWitness, SuggestedWitness } from '$lib/edition/conspectus';
-import { ALL_WORDS, REST_WORDS, withWords, withoutLatin } from '$lib/edition/conventions';
+import { withoutLatin } from '$lib/edition/conventions';
 import { editorNames } from '$lib/edition/editors';
 import { draftsOf, type GroupDraft, type GroupProblem } from '$lib/edition/groups';
 import { edition as s } from '$lib/strings/edition';
@@ -385,10 +385,6 @@ const settingsSchema = nameSchema.extend({
   rightsNote: z.string().trim().max(300),
   lineation: z.enum(['verse', 'prose']),
   numberEvery: z.coerce.number().int().min(1).max(100),
-  apparatus: z.enum(['positive', 'negative']),
-  interpretative: z.enum(['apparatus', 'separate', 'none']),
-  rest: z.enum(['', ...REST_WORDS]),
-  all: z.enum(['', ...ALL_WORDS]),
   speakerDisplay: z.enum(['inline', 'margin', 'own-line']),
 });
 
@@ -400,9 +396,10 @@ export type SettingsFields = Pick<
 /**
  * The fields of Edition Settings over the edition's conventions as they
  * are: the name, editors, preface, sources, note on rights, and how the
- * text and the print apparatus are laid out. A form that does not carry the
- * words for the other witnesses and for all of them leaves them. A stored
- * `latin`, which editions made before had, is dropped.
+ * text is laid out. What an edition has stored for its print apparatus
+ * (`apparatus`, `interpretative`, `rest`, `all`) is not a field of the page
+ * and stays as it was. A stored `latin`, which editions made before had, is
+ * dropped.
  */
 export function parseSettings(
   form: FormData,
@@ -419,10 +416,6 @@ export function parseSettings(
     rightsNote: text('rightsNote'),
     lineation: text('lineation') || 'verse',
     numberEvery: text('numberEvery') || '5',
-    apparatus: text('apparatus') || 'positive',
-    interpretative: text('interpretative') || 'separate',
-    rest: text('rest'),
-    all: text('all'),
     speakerDisplay: text('speakerDisplay') || 'margin',
   });
   if (!parsed.success) return { ok: false, errors: z.flattenError(parsed.error).fieldErrors };
@@ -435,20 +428,12 @@ export function parseSettings(
       preface: data.preface.trim() || null,
       sources: data.sources.trim() || null,
       rightsNote: data.rightsNote || null,
-      conventions: withWords(
-        {
-          ...withoutLatin(conventions),
-          lineation: data.lineation,
-          numberEvery: data.numberEvery,
-          apparatus: data.apparatus,
-          interpretative: data.interpretative,
-          speakerDisplay: data.speakerDisplay,
-        },
-        {
-          rest: form.has('rest') ? data.rest : (conventions.rest ?? ''),
-          all: form.has('all') ? data.all : (conventions.all ?? ''),
-        },
-      ),
+      conventions: {
+        ...withoutLatin(conventions),
+        lineation: data.lineation,
+        numberEvery: data.numberEvery,
+        speakerDisplay: data.speakerDisplay,
+      },
     },
   };
 }
