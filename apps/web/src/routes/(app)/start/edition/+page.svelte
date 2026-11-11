@@ -11,7 +11,13 @@
 </script>
 
 <PageFrame title={t.edition.title} width="reading">
-  <div class="flex flex-col gap-6">
+  <section aria-labelledby="choose-work" class="flex flex-col gap-6">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h2 id="choose-work" class="font-serif text-xl text-ink">{t.edition.chooseWork}</h2>
+      <Button href="/works/new?for=edition" variant="secondary" size="sm"
+        >{t.edition.register}</Button
+      >
+    </div>
     <SearchForm
       action="/start/edition"
       query={data.q}
@@ -27,8 +33,5 @@
     {:else}
       <p class="font-sans text-sm text-ink-soft">{data.q ? t.noneFor(data.q) : t.none}</p>
     {/if}
-    <div>
-      <Button href="/works/new" variant="secondary" size="sm">{t.edition.register}</Button>
-    </div>
-  </div>
+  </section>
 </PageFrame>

@@ -14,11 +14,11 @@ Works, witnesses and the bibliography form a shared **registry**: before you add
 
 ## Finding your way
 
-The **front page** shows visitors what Varians is and the recently published editions. Signed in, it offers the ways in: **Read Edition**, **Register Work**, **Register Witness**, **Transcribe Witness** and **Make Edition**; under **Continue** are your most recent editions and transcripts, so that one click takes you back into them.
+The **front page** shows visitors what Varians is and lists the published editions. Signed in, it offers the ways in: **Make New Edition**, **Register Work**, **Register Witness** and **Transcribe Witness**; under **Continue** are your most recent editions and transcripts, so that one click takes you back into them; and under **Editions** the published editions, as for visitors.
 
 The header leads everywhere else: **Your Work** (all your editions and transcripts, and what others share with you), **Editions** (everything published, to read), **Works** and **Witnesses** (the registry), and **Bibliography**. **Search:** in the header is the one search: it finds published editions, works, witnesses and bibliography entries at once. This guide is at **Guide** in the footer of every page.
 
-**Make Edition** asks which work, then leads to the new edition's form. **Transcribe Witness** asks which witness, then opens its form for a new transcript.
+**Make New Edition** asks which work, then leads to the new edition's form; **Add New Work** there registers a work that is not yet in the list and leads on to the new edition's form for it. **Transcribe Witness** asks which witness, then opens its form for a new transcript.
 
 ## Your account
 
@@ -249,7 +249,7 @@ An edition is a text you edit like any other text, with variants that Varians de
 
 ### Making one
 
-On a work's page, choose **New edition**. Give it a title as it will be printed and the editors' names, one in each field (**Add editor** for another), and choose:
+On a work's page, choose **New edition**. Give it a name as it will be printed (**Name of Edition**) and the editors' names, one in each field (**Add editor** for another), and choose:
 
 - **Base transcript**: the transcript whose normalized text becomes the first text. Usually the witness you trust most. You can also start from an empty text.
 - **Segments**: all the segments that transcript has, or a range such as 1.1 to 1.100.

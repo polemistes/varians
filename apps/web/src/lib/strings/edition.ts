@@ -1,7 +1,7 @@
 /** Strings of the edition pages: creating an edition and the edition editor. */
 export const edition = {
   newTitle: (work: string) => `New edition: ${work}`,
-  title: 'Title',
+  title: 'Name of Edition',
   editors: 'Editors',
   editorName: (n: number) => `Editor ${n}`,
   addEditor: 'Add editor',
@@ -39,7 +39,7 @@ export const edition = {
   create: 'Create the edition',
   creating: 'Creating…',
   errors: {
-    titleRequired: 'Give the edition a title.',
+    titleRequired: 'Give the edition a name.',
     editorsTooMany: 'Use at most 20 editors.',
     editorTooLong: 'A name is too long.',
     workMissing: 'No work was given.',

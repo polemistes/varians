@@ -13,10 +13,10 @@ test('a new user registers, logs out and logs back in', async ({ page }) => {
   const password = 'correct horse battery';
   const accountNav = page.getByRole('banner');
 
-  // A visitor sees what Varians is, the editions to read, and the way to log in.
+  // A visitor sees what Varians is, the published editions, and the way to log in.
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1, name: site.home.title })).toBeVisible();
-  await expect(page.getByRole('link', { name: site.home.read })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: site.home.editions })).toBeVisible();
   await expect(accountNav.getByRole('link', { name: s.shell.logIn })).toBeVisible();
 
   // Register.

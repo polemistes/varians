@@ -56,6 +56,12 @@ What changed in each release of Varians, for those who run it. The section of a 
 - **A transcript keeps the shape of its pages whatever happens meanwhile.** Text typed on a page that someone removed in the meantime, a page begun by two people at once, or the undoing of a page's removal no longer leaves a page break without its page: the save puts the text in order, the status line says so, and the History shows it as _Pages reorganized_.
 - **Importing and pulling no longer let a word slip into another segment.** Changes made here and on another installation to different words could together carry a word into a segment neither side gave it (one side moving a word to the head of a line, the other changing the segment that begins before it). Such a text is now reported as changed on both sides, for you to keep yours or take theirs. The same holds where both sides put words at the very start of a text: each installation would have set the other's words first, and the two would have differed for good.
 
+- **Making an edition starts at Make New Edition**, on the front page and on Your Work. It asks for the work; **Add New Work** there registers one that is not yet in the list and leads on to the new edition's form for it, where it led to the work's page. The form asks for the **Name of Edition**, where it said Title. Signed in, the front page lists the published editions under **Editions**, as it does for visitors, and has no **Read Edition** button.
+
+### For readers
+
+- **The front page for visitors** says what Varians is and lists the published editions under the heading **Editions**, or says that there are none yet. The buttons it had are gone: **Log in** and **Register** are in the header.
+
 ## 0.2.0
 
 The first public release.

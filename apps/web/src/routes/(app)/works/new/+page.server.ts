@@ -19,13 +19,16 @@ const FIELDS = [
   'levels',
 ];
 
+/** Whether the work is being registered on the way to making an edition of it. */
+const forEdition = (url: URL) => url.searchParams.get('for') === 'edition';
+
 export const load: PageServerLoad = ({ locals, url }) => {
   requireUser(locals, url.pathname + url.search);
-  return { crumb: { label: t.work.newTitle } };
+  return { crumb: { label: t.work.newTitle }, forEdition: forEdition(url) };
 };
 
 export const actions: Actions = {
-  default: async ({ locals, request }) => {
+  default: async ({ locals, request, url }) => {
     const user = requireUser(locals);
     if (!canCreateRegistryEntry(user)) error(403, t.common.forbidden);
     const form = await request.formData();
@@ -57,6 +60,6 @@ export const actions: Actions = {
       }
       throw e;
     }
-    redirect(303, `/works/${slug}`);
+    redirect(303, forEdition(url) ? `/editions/new?work=${slug}` : `/works/${slug}`);
   },
 };

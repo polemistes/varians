@@ -24,20 +24,15 @@ export const site = {
     // For visitors.
     title: 'Scholarly digital editions of ancient texts',
     lead: 'Varians is a workbench for creating and presenting scholarly digital editions of ancient texts. It provides the fundamental tools for transcribing witnesses, collecting conjectures and assembling editions based on this.',
-    read: 'Read the editions',
-    logIn: 'Log in',
-    register: 'Create an account',
-    recent: 'Recently published',
-    allEditions: 'All editions',
-    noEditions: 'No edition has been published yet.',
+    editions: 'Editions',
+    noEditions: 'There are no published editions yet.',
 
     // For someone signed in: a menu, then their recent work.
     menu: 'Start',
-    readEdition: 'Read Edition',
     registerWork: 'Register Work',
     registerWitness: 'Register Witness',
     transcribeWitness: 'Transcribe Witness',
-    makeEdition: 'Make Edition',
+    makeEdition: 'Make New Edition',
     continue: 'Continue',
     allYourWork: (n: number) => `All your work (${n})`,
     edition: 'Edition',
@@ -52,7 +47,7 @@ export const site = {
 
   editions: {
     title: 'Editions',
-    none: 'No edition has been published yet.',
+    none: 'There are no published editions yet.',
     editedBy: (names: string) => `edited by ${names}`,
     count: (n: number) => plural(n, 'edition', 'editions'),
   },
@@ -229,15 +224,16 @@ export const site = {
     noEditions: 'No editions yet.',
     noTranscriptions: 'No transcripts yet.',
     noShared: 'Nothing has been shared with you.',
-    newEdition: 'Make edition',
+    newEdition: 'Make New Edition',
     newTranscription: 'Transcribe witness',
   },
 
   start: {
     edition: {
-      title: 'Make an edition',
-      choose: 'Make edition',
-      register: 'Register the work',
+      title: 'Make New Edition',
+      chooseWork: 'Choose a Work for the Edition',
+      choose: 'Choose',
+      register: 'Add New Work',
     },
     transcription: {
       title: 'Transcribe a witness',
