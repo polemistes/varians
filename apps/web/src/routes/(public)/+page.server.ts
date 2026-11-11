@@ -1,5 +1,10 @@
 import { grantsFor } from '$lib/server/authz';
-import { publishedEditions, recentWork, withEditionRights } from '$lib/server/library';
+import {
+  publishedEditions,
+  recentWork,
+  withEditionRights,
+  withTranscriptionRights,
+} from '$lib/server/library';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -18,7 +23,9 @@ export const load: PageServerLoad = async ({ locals }) => {
     recent: {
       total: recent.total,
       items: recent.items.map((item) =>
-        item.kind === 'edition' ? withEditionRights([item], user, grants)[0]! : item,
+        item.kind === 'edition'
+          ? withEditionRights([item], user, grants)[0]!
+          : withTranscriptionRights([item], user, grants)[0]!,
       ),
     },
   };

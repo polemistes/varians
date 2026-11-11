@@ -1,15 +1,15 @@
 <script lang="ts">
   import Download from '@lucide/svelte/icons/download';
-  import Ellipsis from '@lucide/svelte/icons/ellipsis';
   import Plus from '@lucide/svelte/icons/plus';
   import Upload from '@lucide/svelte/icons/upload';
-  import DeleteDialog from '$lib/components/bibliography/DeleteDialog.svelte';
   import EntryDialog from '$lib/components/bibliography/EntryDialog.svelte';
   import ImportDialog from '$lib/components/bibliography/ImportDialog.svelte';
   import Reference from '$lib/components/bibliography/Reference.svelte';
   import { PageFrame } from '$lib/components/shell';
-  import { Button, EmptyState, Menu, MenuItem } from '$lib/components/ui';
+  import RowActions from '$lib/components/registry/RowActions.svelte';
+  import { Button, ConfirmDialog, EmptyState } from '$lib/components/ui';
   import { bibStrings as t } from '$lib/strings/bibliography';
+  import { recordActions } from '$lib/strings/record-actions';
   import { site } from '$lib/strings/site';
   import type { PageProps } from './$types';
 
@@ -87,26 +87,19 @@
               <Reference pieces={item.pieces} class="text-[0.95rem] leading-snug text-ink" />
               <span class="font-sans text-xs text-ink-muted">{t.cited(item.cited)}</span>
             </div>
-            {#if item.canEdit}
-              <Menu label={t.actions(item.label)} triggerSize="sm">
-                {#snippet trigger()}<Ellipsis class="size-4" aria-hidden="true" />{/snippet}
-                <MenuItem
-                  onSelect={() => {
-                    editing = { id: item.id, bib: item.bib };
-                    entryOpen = true;
-                  }}>{t.edit}</MenuItem
-                >
-                {#if item.canDelete}
-                  <MenuItem
-                    danger
-                    onSelect={() => {
-                      deleting = { id: item.id, label: item.label };
-                      deleteOpen = true;
-                    }}>{t.remove}</MenuItem
-                  >
-                {/if}
-              </Menu>
-            {/if}
+            <RowActions
+              kind="bibliography"
+              rights={{ edit: item.canEdit, delete: item.canDelete }}
+              label={recordActions.menuOf(item.label)}
+              onedit={() => {
+                editing = { id: item.id, bib: item.bib };
+                entryOpen = true;
+              }}
+              ondelete={() => {
+                deleting = { id: item.id, label: item.label };
+                deleteOpen = true;
+              }}
+            />
           </li>
         {/each}
       </ul>
@@ -132,4 +125,12 @@
 
 <EntryDialog bind:open={entryOpen} entry={editing} />
 <ImportDialog bind:open={importOpen} />
-<DeleteDialog bind:open={deleteOpen} entry={deleting} />
+<ConfirmDialog
+  bind:open={deleteOpen}
+  title={recordActions.bibliography.deleteTitle}
+  description={recordActions.bibliography.deleteBody(deleting?.label ?? '')}
+  confirmLabel={recordActions.bibliography.deleteVerb}
+  action="?/delete"
+  fields={{ id: deleting?.id ?? '' }}
+  done={recordActions.bibliography.deleted}
+/>

@@ -31,6 +31,7 @@ import {
   type WorkbenchPageRow,
 } from '$lib/server/workbench';
 import { workbench as t } from '$lib/strings/workbench';
+import { recordActions } from '$lib/strings/record-actions';
 import { registry } from '$lib/strings/registry';
 import { works } from '@varians/db';
 import { inArray } from 'drizzle-orm';
@@ -254,10 +255,16 @@ export const actions: Actions = {
     throw redirect(303, `/transcriptions/${copy.id}`);
   },
 
+  /**
+   * Delete the transcript, from wherever its menu stands. From the workbench
+   * this leads to the witness's page; from a list (`stay`) the list stays,
+   * and is told.
+   */
   delete: async (event) => {
     const data = await loadWorkbench(event.locals.db, event.locals.user, event.params.id);
     if (!data) throw error(404, t.errors.notFound);
     if (!data.canDelete) throw error(403, t.errors.forbidden);
+    const stay = (await event.request.formData()).get('stay') === '1';
     // The registry's rule: not while an edition compares it, for that edition would lose a witness.
     const result = await deleteRegisteredTranscription(
       event.locals.db,
@@ -267,13 +274,17 @@ export const actions: Actions = {
     if (!result.ok) {
       if (result.error === 'in-conspectus')
         return fail(409, {
-          deleteError: t.delete.inConspectus(result.editions.map((e) => e.title).join(', ')),
+          error: registry.transcription.inConspectus({
+            editions: result.editions.map((e) => e.title),
+            hiddenEditions: result.hiddenEditions,
+          }),
         });
       throw error(
         result.error === 'forbidden' ? 403 : 404,
         result.error === 'forbidden' ? t.errors.forbidden : t.errors.notFound,
       );
     }
+    if (stay) return { message: recordActions.transcription.deleted };
     throw redirect(303, `/witnesses/${data.witness.slug}`);
   },
 

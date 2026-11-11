@@ -46,9 +46,14 @@ export interface EditionRef {
   title: string;
 }
 
-/** What other people have that depends on an entry; any of it refuses a deletion. */
+/**
+ * What other people have that depends on an entry; any of it refuses a
+ * deletion. The editions are those the person asking may see, named; the
+ * rest are another person's drafts, counted and never named.
+ */
 export interface Dependents {
-  editions: (EditionRef & { ownerName: string })[];
+  editions: EditionRef[];
+  hiddenEditions: number;
   transcriptions: number;
   records: number;
 }

@@ -116,8 +116,8 @@ test('a TEI file is taken as a text to start from, or as a transcript of the wit
 
   const file = { name: 'lysistrata.xml', mimeType: 'text/xml', buffer: Buffer.from(FILE) };
   const open = async () => {
-    await page.getByRole('button', { name: w.menu.label }).click();
-    await page.getByRole('menuitem', { name: w.menu.import }).click();
+    await page.getByRole('button', { name: w.tools.label, exact: true }).click();
+    await page.getByRole('menuitem', { name: w.tools.import }).click();
     const dialog = page.getByRole('dialog', { name: w.importer.title });
     await dialog.locator('input[name=file][accept*=".tei"]').setInputFiles(file);
     return dialog;

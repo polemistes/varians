@@ -1,51 +1,38 @@
 <script lang="ts">
   /**
-   * The workbench's header: the witness and the
-   * transcript, and at the right the side pane's toggle and the menu of
-   * whole-text actions, with the side the facsimile stands on. The page
-   * chooser and the text's tools are in the bar above the text.
+   * The workbench's header: the witness and the transcript, and at the right
+   * the view controls (the side the facsimile stands on, the side pane's
+   * toggle) and the transcript's menu, the same as in every list the
+   * transcript stands in. What is done to the text and not to the record is
+   * in the Tools menu above the text. The page chooser is in the bar above
+   * the text.
    */
-  import { DropdownMenu } from 'bits-ui';
-  import Check from '@lucide/svelte/icons/check';
-  import Ellipsis from '@lucide/svelte/icons/ellipsis';
+  import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
   import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
   import PanelLeftOpen from '@lucide/svelte/icons/panel-left-open';
   import PanelRightClose from '@lucide/svelte/icons/panel-right-close';
   import PanelRightOpen from '@lucide/svelte/icons/panel-right-open';
-  import { Badge, IconButton, Menu, MenuItem, MenuSeparator } from '$lib/components/ui';
+  import TranscriptionActions from '$lib/components/transcription/TranscriptionActions.svelte';
+  import { Badge, IconButton } from '$lib/components/ui';
+  import type { TranscriptionRights } from '$lib/transcription/actions';
   import { workbench as t } from '$lib/strings/workbench';
   import type { Workbench } from './workbench.svelte';
 
   interface Props {
     wb: Workbench;
+    rights: TranscriptionRights;
     paneOpen: boolean;
     ontogglepane: () => void;
-    onimport: () => void;
     onsettings: () => void;
-    ondelete: () => void;
-    onnumber: () => void;
-    /** Make a copy of one's own; absent for a visitor. */
-    oncopy?: () => void;
+    /** Make a copy of one's own; the window opens at once. */
+    oncopy: () => void;
     /** The side pane stands left of the text. */
     paneLeft: boolean;
     onpaneleft: (left: boolean) => void;
   }
 
-  let {
-    wb,
-    paneOpen,
-    ontogglepane,
-    onimport,
-    onsettings,
-    ondelete,
-    onnumber,
-    oncopy,
-    paneLeft,
-    onpaneleft,
-  }: Props = $props();
-
-  const itemClass =
-    'flex w-full cursor-default items-center gap-2 rounded px-2 py-1.5 text-left text-ink outline-none select-none data-highlighted:bg-sunken data-disabled:pointer-events-none data-disabled:opacity-50';
+  let { wb, rights, paneOpen, ontogglepane, onsettings, oncopy, paneLeft, onpaneleft }: Props =
+    $props();
 </script>
 
 <div
@@ -70,6 +57,15 @@
   <div class="ml-auto flex flex-wrap items-center gap-3">
     <div class="flex items-center gap-0.5">
       <IconButton
+        label={t.menu.paneLeft}
+        size="sm"
+        aria-pressed={paneLeft}
+        class="aria-pressed:bg-sunken aria-pressed:text-ink"
+        onclick={() => onpaneleft(!paneLeft)}
+      >
+        <ArrowLeftRight aria-hidden="true" />
+      </IconButton>
+      <IconButton
         label={t.menu.togglePane}
         size="sm"
         aria-pressed={paneOpen}
@@ -83,51 +79,15 @@
             aria-hidden="true"
           />{/if}
       </IconButton>
-      <Menu label={t.menu.label} triggerSize="sm" triggerClass="w-8 px-0">
-        {#snippet trigger()}
-          <Ellipsis class="size-4" aria-hidden="true" />
-        {/snippet}
-        {#if wb.canEdit}
-          <MenuItem onSelect={onimport}>{t.menu.import}</MenuItem>
-          <MenuItem onSelect={onnumber}>{t.menu.numberLines}</MenuItem>
-          <MenuItem onSelect={onsettings}>{t.menu.settings}</MenuItem>
-          <MenuSeparator />
-        {/if}
-        <DropdownMenu.Item class={itemClass}>
-          {#snippet child({ props })}
-            <a {...props} href="/transcriptions/{wb.id}/tei" download data-sveltekit-reload
-              >{t.menu.downloadTei}</a
-            >
-          {/snippet}
-        </DropdownMenu.Item>
-        <DropdownMenu.Item class={itemClass}>
-          {#snippet child({ props })}
-            <a {...props} href="/transcriptions/{wb.id}/leiden" download data-sveltekit-reload
-              >{t.menu.downloadLeiden}</a
-            >
-          {/snippet}
-        </DropdownMenu.Item>
-        <MenuItem href="/witnesses/{wb.witness.slug}">{t.menu.witness}</MenuItem>
-        <DropdownMenu.CheckboxItem
-          class={itemClass}
-          checked={paneLeft}
-          onCheckedChange={(checked) => onpaneleft(checked)}
-        >
-          {#snippet children({ checked })}
-            <span class="flex w-4 justify-center"
-              >{#if checked}<Check class="size-3.5" aria-hidden="true" />{/if}</span
-            >
-            <span>{t.menu.paneLeft}</span>
-          {/snippet}
-        </DropdownMenu.CheckboxItem>
-        {#if oncopy}
-          <MenuItem onSelect={oncopy}>{t.menu.copy}</MenuItem>
-        {/if}
-        {#if wb.canDelete}
-          <MenuSeparator />
-          <MenuItem danger onSelect={ondelete}>{t.menu.delete}</MenuItem>
-        {/if}
-      </Menu>
     </div>
+    <TranscriptionActions
+      transcription={{ id: wb.id, name: wb.name }}
+      {rights}
+      place="workbench"
+      {onsettings}
+      {oncopy}
+      ondeletestart={() => wb.stop()}
+      ondeleterefused={() => location.reload()}
+    />
   </div>
 </div>

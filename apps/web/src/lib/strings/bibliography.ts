@@ -17,9 +17,6 @@ export const bibStrings = {
   empty: 'The bibliography is empty',
   noResults: (q: string) => `Nothing matches “${q}”.`,
   cited: (n: number) => (n === 0 ? 'Not cited yet' : `Cited ${plural(n, 'time', 'times')}`),
-  actions: (label: string) => `Actions for ${label}`,
-  edit: 'Edit…',
-  remove: 'Delete…',
   previous: 'Previous',
   next: 'Next',
   page: (n: number, of: number) => `Page ${n} of ${of}`,
@@ -57,15 +54,11 @@ export const bibStrings = {
     nothing: 'Nothing could be read from that text.',
   },
 
+  /** What the server says when it refuses to delete an entry; the window is the application's (record-actions). */
   deleteDialog: {
-    title: (label: string) => `Delete ${label}?`,
-    description: 'The entry leaves the bibliography for everyone.',
-    confirm: 'Delete',
-    cancel: 'Cancel',
     cited: (n: number) =>
       `It is cited ${plural(n, 'time', 'times')}; remove those citations first.`,
     forbidden: 'Only whoever added the entry, or a site editor, may delete it.',
-    deleted: 'Entry deleted.',
   },
 
   picker: {

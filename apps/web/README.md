@@ -97,9 +97,13 @@ src/
       import/               TEI and CTS import
     components/<feature>/   ui, shell, library, registry, pages, editor, workbench, edition, reader, history, bibliography, facsimile; variant (what the reader's window and the editor's band share: sigla, the rows of a variant, who is there)
     editor/                 the CodeMirror bridge between text and token streams
-    edition/, workbench/, reader/, history/, bibliography/, registry/
+    edition/, work/, witness/, transcription/, workbench/, reader/, history/, bibliography/, registry/
                             pure helpers of each screen, with tests
-    record/                 the shape of a record's buttons and ⋯ menu, which each kind fills (edition/actions.ts for an edition)
+    record/                 the shape of a record's buttons and ⋯ menu, which each kind fills: edition/, work/, witness/ and
+                            transcription/actions.ts, record/row-actions.ts for a conjecture, a reported reading and a
+                            bibliography entry, components/pages/actions.ts for a page of a witness; the components that draw
+                            them are ui/RecordActions.svelte and one wrapper per kind (edition/EditionActions,
+                            registry/WorkActions, WitnessActions, RowActions, transcription/TranscriptionActions)
     strings/                every user-facing string, one module per screen
   routes/
     (public)/               library, login, register, works and witnesses, the reader, the bibliography

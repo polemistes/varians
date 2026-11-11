@@ -9,7 +9,7 @@
    */
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
-  import { Button, Dialog, Field, Input, Select, toasts } from '$lib/components/ui';
+  import { Button, ConfirmDialog, Dialog, Field, Input, Select, toasts } from '$lib/components/ui';
   import { s } from '$lib/strings';
   import { pageStrings as t } from '$lib/strings/pages';
   import { followingLabel } from './labels';
@@ -239,18 +239,23 @@
     rightsErrors = {};
   }
 
-  // Taking an image away
+  // Taking an image away, and removing a page: each asks in the application's window.
 
   let unimaging = $state<PageView | null>(null);
-  let unimageSubmitting = $state(false);
-
-  // Removing
-
   let removing = $state<PageView | null>(null);
-  let removeSubmitting = $state(false);
 
   function openRemove(page: PageView) {
     removing = page;
+  }
+
+  /** Does what the window asked of the page; the refusal, if any, is shown in the window. */
+  async function confirmed(action: 'removeImage' | 'remove', page: PageView | null) {
+    if (!page) return null;
+    const result = await postAction(action, { pageId: page.id }, base);
+    if (result.type !== 'success') return failureMessage(result);
+    await onchanged();
+    succeeded(result.data);
+    return null;
   }
 </script>
 
@@ -582,59 +587,32 @@
     {/snippet}
   </Dialog>
 
-  <Dialog
+  <ConfirmDialog
     bind:open={
       () => unimaging !== null,
       (open) => {
         if (!open) unimaging = null;
       }
     }
-    title={unimaging ? t.removeImage.title(unimaging.label) : ''}
-    description={t.removeImage.description}
-    size="sm"
-  >
-    {#if unimaging}
-      {@const page = unimaging}
-      <form
-        id="remove-image-form"
-        method="post"
-        action={actionUrl('removeImage', base)}
-        use:enhance={() => {
-          unimageSubmitting = true;
-          return async ({ result }) => {
-            unimageSubmitting = false;
-            unimaging = null;
-            if (result.type === 'success') {
-              await onchanged();
-              succeeded(result.data);
-            } else {
-              toasts.error(failureMessage(result));
-            }
-          };
-        }}
-      >
-        <input type="hidden" name="pageId" value={page.id} />
-        {#if page.zones > 0}
-          <p class="text-ink-soft">{t.removeImage.zones(page.zones)}</p>
-        {/if}
-      </form>
-    {/if}
-    {#snippet footer()}
-      <Button onclick={() => (unimaging = null)}>{s.common.cancel}</Button>
-      <Button type="submit" form="remove-image-form" variant="danger" loading={unimageSubmitting}
-        >{t.removeImage.submit}</Button
-      >
-    {/snippet}
-  </Dialog>
+    title={t.removeImage.title}
+    description={unimaging
+      ? [
+          t.removeImage.description(unimaging.label),
+          ...(unimaging.zones > 0 ? [t.removeImage.zones(unimaging.zones)] : []),
+        ].join(' ')
+      : ''}
+    confirmLabel={t.removeImage.verb}
+    onconfirm={() => confirmed('removeImage', unimaging)}
+  />
 
-  <Dialog
+  <ConfirmDialog
     bind:open={
       () => removing !== null,
       (open) => {
         if (!open) removing = null;
       }
     }
-    title={removing ? t.remove.title(removing.label) : ''}
+    title={t.remove.title}
     description={removing
       ? t.remove.description(
           removing.label,
@@ -643,38 +621,8 @@
           removing.zones,
           removing.imageKind !== null,
         )
-      : undefined}
-    size="md"
-  >
-    {#if removing}
-      {@const page = removing}
-      <form
-        id="remove-form"
-        method="post"
-        action={actionUrl('remove', base)}
-        use:enhance={() => {
-          removeSubmitting = true;
-          return async ({ result }) => {
-            removeSubmitting = false;
-            if (result.type === 'success') {
-              removing = null;
-              await onchanged();
-              succeeded(result.data);
-            } else {
-              removing = null;
-              toasts.error(failureMessage(result));
-            }
-          };
-        }}
-      >
-        <input type="hidden" name="pageId" value={page.id} />
-      </form>
-    {/if}
-    {#snippet footer()}
-      <Button onclick={() => (removing = null)}>{s.common.cancel}</Button>
-      <Button type="submit" form="remove-form" variant="danger" loading={removeSubmitting}>
-        {t.remove.submit}
-      </Button>
-    {/snippet}
-  </Dialog>
+      : ''}
+    confirmLabel={t.remove.verb}
+    onconfirm={() => confirmed('remove', removing)}
+  />
 {/if}

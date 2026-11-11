@@ -6,11 +6,15 @@
   import SettingsSection from '$lib/components/account/SettingsSection.svelte';
   import { enhance } from '$app/forms';
   import { PageFrame } from '$lib/components/shell';
-  import { Button, LocalDate, Notice } from '$lib/components/ui';
+  import { Button, ConfirmDialog, LocalDate, Notice } from '$lib/components/ui';
   import { s } from '$lib/strings';
+  import { recordActions as ra } from '$lib/strings/record-actions';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
+
+  let revoking = $state<{ id: string; name: string } | null>(null);
+  let revokeOpen = $state(false);
 </script>
 
 <PageFrame title={s.account.title} width="reading">
@@ -81,10 +85,16 @@
                 ><LocalDate date={token.createdAt} />, {#if token.lastUsedAt}{s.account.lastUsed}
                   <LocalDate date={token.lastUsedAt} />{:else}{s.account.neverUsed}{/if}</span
               >
-              <form method="POST" action="?/revoke" use:enhance class="ml-auto">
-                <input type="hidden" name="id" value={token.id} />
-                <Button size="sm" variant="ghost" type="submit">{s.account.revoke}</Button>
-              </form>
+              <Button
+                size="sm"
+                variant="ghost"
+                class="ml-auto"
+                aria-label={ra.token.revokeOf(token.name)}
+                onclick={() => {
+                  revoking = { id: token.id, name: token.name };
+                  revokeOpen = true;
+                }}>{ra.token.revoke}</Button
+              >
             </li>
           {/each}
         </ul>
@@ -108,3 +118,13 @@
     </SettingsSection>
   {/if}
 </PageFrame>
+
+<ConfirmDialog
+  bind:open={revokeOpen}
+  title={ra.token.revokeTitle}
+  description={ra.token.revokeBody(revoking?.name ?? '')}
+  confirmLabel={ra.token.revokeVerb}
+  action="?/revoke"
+  fields={{ id: revoking?.id ?? '' }}
+  done={s.account.tokenRevoked}
+/>

@@ -4,6 +4,7 @@ import {
   sharedWith,
   transcriptionsOwnedBy,
   withEditionRights,
+  withTranscriptionRights,
 } from '$lib/server/library';
 import { requireUser } from '$lib/server/guards';
 import { site } from '$lib/strings/site';
@@ -20,10 +21,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   return {
     crumb: { label: site.mine.title },
     editions: withEditionRights(editions, user, grants),
-    transcriptions,
+    transcriptions: withTranscriptionRights(transcriptions, user, grants),
     shared: {
       editions: withEditionRights(shared.editions, user, grants),
-      transcriptions: shared.transcriptions,
+      transcriptions: withTranscriptionRights(shared.transcriptions, user, grants),
     },
   };
 };

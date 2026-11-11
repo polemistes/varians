@@ -107,14 +107,7 @@
       maintainers={data.maintainers}
       canManage={data.can.govern}
       selfId={data.user?.id ?? null}
+      entry="witness"
     />
   </FormSection>
-
-  {#if data.can.merge}
-    <FormSection title={t.merge.section} hint={t.merge.witnessHint}>
-      <div>
-        <Button href="/witnesses/{witness.slug}/merge" variant="secondary">{t.merge.action}</Button>
-      </div>
-    </FormSection>
-  {/if}
 </PageFrame>

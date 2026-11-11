@@ -41,7 +41,8 @@ export const pageStrings = {
     view: (label: string) => `View ${label}`,
     rename: (label: string) => `Rename ${label}`,
     renameField: 'Label',
-    menu: (label: string) => `Actions for ${label}`,
+    /** The accessible name of a card's menu, as every record's is. */
+    menu: (label: string) => `Actions: ${label}`,
     zones: (n: number) => plural(n, 'box', 'boxes'),
     breaks: (n: number) => (n === 1 ? 'text in 1 transcript' : `text in ${n} transcripts`),
     /** In the workbench: the page's text in the transcript shown. */
@@ -66,6 +67,11 @@ export const pageStrings = {
     shiftImages: 'Shift Images from Here…',
     rights: 'Rights of the Image…',
     remove: 'Remove Page…',
+    /** Why an item is disabled. */
+    busy: 'A change is under way.',
+    first: 'It is the first page.',
+    last: 'It is the last page.',
+    onlyPage: 'There is only one page.',
   },
 
   /** The pages tab of the transcription workbench. */
@@ -244,18 +250,18 @@ export const pageStrings = {
   },
 
   removeImage: {
-    title: (label: string) => `Remove the Image of ${label}?`,
-    description:
-      'The page stays, without an image. An uploaded image is deleted; a IIIF image is only unlinked.',
+    title: 'Remove Image',
+    description: (label: string) =>
+      `Remove the image of ${label}? The page stays, without an image. An uploaded image is deleted; a IIIF image is only unlinked.`,
     zones: (n: number) =>
       `${n === 1 ? 'The zone drawn on it stays' : `The ${n} zones drawn on it stay`} and will be shown on any image that takes its place.`,
-    submit: 'Remove Image',
+    verb: 'Remove',
     removed: (label: string) => `The image of ${label} has been removed.`,
   },
 
   remove: {
-    title: (label: string) => `Remove ${label}?`,
-    /** What the removal does, from the words on the page and the boxes drawn on it. */
+    title: 'Remove Page',
+    /** What the removal says it does, from the words on the page and the boxes drawn on it. */
     description: (
       label: string,
       words: number,
@@ -263,7 +269,7 @@ export const pageStrings = {
       boxes: number,
       image: boolean,
     ) => {
-      const parts: string[] = [];
+      const parts: string[] = [`Remove ${label}?`];
       if (words > 0) {
         parts.push(
           `The ${plural(words, 'word', 'words')} on ${label} in ${plural(transcripts, 'transcript', 'transcripts')} ${words === 1 ? 'goes' : 'go'} to Not on a page.`,
@@ -276,7 +282,7 @@ export const pageStrings = {
       parts.push('This cannot be undone.');
       return parts.join(' ');
     },
-    submit: 'Remove Page',
+    verb: 'Remove',
     removed: (label: string) => `${label} has been removed.`,
     /** After the removal, when text moved. */
     moved: (label: string, words: number, transcripts: number) =>

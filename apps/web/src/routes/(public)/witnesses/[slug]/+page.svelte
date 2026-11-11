@@ -1,11 +1,10 @@
 <script lang="ts">
-  import Ellipsis from '@lucide/svelte/icons/ellipsis';
   import Images from '@lucide/svelte/icons/images';
-  import Pencil from '@lucide/svelte/icons/pencil';
   import Plus from '@lucide/svelte/icons/plus';
+  import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { PageFrame } from '$lib/components/shell';
-  import { Button, ConfirmDialog, Menu, MenuItem } from '$lib/components/ui';
+  import { Button, ConfirmDialog } from '$lib/components/ui';
   import {
     DescriptionItem,
     DescriptionList,
@@ -15,17 +14,16 @@
     NewTranscriptionForm,
     PageList,
     ReadingList,
-    RenameDialog,
     Section,
     TranscriptionList,
+    WitnessActions,
   } from '$lib/components/registry';
   import { materialLabel } from '$lib/registry/witness';
+  import { recordActions as ra } from '$lib/strings/record-actions';
   import { registry as t } from '$lib/strings/registry';
   import type { PageProps } from './$types';
 
   let { data }: PageProps = $props();
-
-  type TranscriptionItem = (typeof data.transcriptions)[number];
 
   const s = t.witness;
   const witness = $derived(data.witness);
@@ -36,49 +34,15 @@
 
   // Arriving from the list of witnesses under Make New Transcript, the form is open at once.
   let creating = $state(page.url.searchParams.get('transcribe') === '1');
-  let renameOpen = $state(false);
-  let renaming = $state<TranscriptionItem | null>(null);
-  let deleteOpen = $state(false);
-  let deleting = $state<TranscriptionItem | null>(null);
-  let deleteWitnessOpen = $state(false);
+  let readingDeleteOpen = $state(false);
+  let readingToDelete = $state<{ id: string; workSlug: string } | null>(null);
 </script>
 
 <PageFrame>
   <div class="flex flex-col gap-14">
     <EntryHeader title={witness.name} subtitle={place || null}>
       {#snippet actions()}
-        {#if data.can.maintain}
-          <Button href="/witnesses/{witness.slug}/edit" variant="secondary" size="sm">
-            <Pencil class="size-4" aria-hidden="true" />
-            {s.edit}
-          </Button>
-        {/if}
-        {#if data.can.merge || data.deletion}
-          <Menu label={s.menu} triggerSize="sm" triggerClass="w-8 px-0">
-            {#snippet trigger()}
-              <Ellipsis class="size-4" aria-hidden="true" />
-            {/snippet}
-            {#if data.can.merge}
-              <MenuItem href="/witnesses/{witness.slug}/merge">{s.menuMerge}</MenuItem>
-            {/if}
-            {#if data.deletion}
-              {@const deletion = data.deletion}
-              <MenuItem
-                danger
-                disabled={!deletion.allowed}
-                onSelect={() => (deleteWitnessOpen = true)}
-              >
-                <span class="flex flex-col" title={deletion.reason ?? undefined}>
-                  <span>{s.menuDelete}</span>
-                  {#if deletion.reason}<span
-                      class="max-w-72 text-xs whitespace-normal text-ink-muted"
-                      >{deletion.reason}</span
-                    >{/if}
-                </span>
-              </MenuItem>
-            {/if}
-          </Menu>
-        {/if}
+        <WitnessActions {witness} rights={data.rights} place="page" deletion={data.deletion} />
       {/snippet}
       {#snippet meta()}
         <span>{s.siglum}</span>
@@ -160,7 +124,7 @@
       isEmpty={data.pages.length === 0}
     >
       {#snippet actions()}
-        {#if data.can.maintain}
+        {#if data.rights.maintain}
           <Button href="/witnesses/{witness.slug}/pages" variant="secondary" size="sm">
             <Images class="size-4" aria-hidden="true" />
             {s.managePages}
@@ -184,17 +148,7 @@
           </Button>
         {/if}
       {/snippet}
-      <TranscriptionList
-        items={data.transcriptions}
-        onrename={(item) => {
-          renaming = item;
-          renameOpen = true;
-        }}
-        ondelete={(item) => {
-          deleting = item;
-          deleteOpen = true;
-        }}
-      />
+      <TranscriptionList items={data.transcriptions} />
     </Section>
 
     <Section
@@ -237,7 +191,16 @@
       empty={s.noReadings}
       isEmpty={data.readings.length === 0}
     >
-      <ReadingList items={data.readings} show="work" />
+      <!-- A reading is edited on the page of its work, where its window is; deleting asks here. -->
+      <ReadingList
+        items={data.readings}
+        show="work"
+        onedit={(item) => void goto(`/works/${item.work.slug}?editReading=${item.id}`)}
+        ondelete={(item) => {
+          readingToDelete = { id: item.id, workSlug: item.work.slug };
+          readingDeleteOpen = true;
+        }}
+      />
     </Section>
   </div>
 </PageFrame>
@@ -250,24 +213,13 @@
     witnessName={witness.name}
   />
 {/if}
-<RenameDialog bind:open={renameOpen} transcription={renaming} />
-<ConfirmDialog
-  confirmLabel={t.common.confirmDelete}
-  bind:open={deleteOpen}
-  title={t.transcription.deleteTitle}
-  description={t.transcription.deleteConfirm(deleting?.name ?? '')}
-  action="?/deleteTranscription"
-  fields={{ id: deleting?.id ?? '' }}
-  done={t.transcription.deleted}
-/>
 
-{#if data.deletion?.allowed}
-  <ConfirmDialog
-    confirmLabel={t.common.confirmDelete}
-    bind:open={deleteWitnessOpen}
-    title={s.deleteTitle}
-    description={s.deleteConfirm(witness.name)}
-    action="/witnesses/{witness.slug}/edit?/delete"
-    done={s.deleted(witness.name)}
-  />
-{/if}
+<ConfirmDialog
+  confirmLabel={ra.reading.deleteVerb}
+  bind:open={readingDeleteOpen}
+  title={ra.reading.deleteTitle}
+  description={ra.reading.deleteBody}
+  action={`/works/${encodeURIComponent(readingToDelete?.workSlug ?? '')}?/deleteReading`}
+  fields={{ id: readingToDelete?.id ?? '' }}
+  done={ra.reading.deleted}
+/>

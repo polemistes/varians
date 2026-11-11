@@ -1,12 +1,13 @@
 /**
  * Identifiers and merging: register two witnesses, give one
  * a Diktyon number, find it by that number, and merge the other into it
- * from its edit page; the survivor lists the merged witness.
+ * from its page's menu; the survivor lists the merged witness.
  */
 import { expect, test } from '@playwright/test';
 import { createDatabase, registryMerges, users, witnesses } from '@varians/db';
 import { eq, inArray } from 'drizzle-orm';
 import { s } from '../src/lib/strings/en';
+import { recordActions } from '../src/lib/strings/record-actions';
 import { registry as t } from '../src/lib/strings/registry';
 
 const DATABASE_URL = 'postgres://varians@127.0.0.1:54329/varians_test';
@@ -82,11 +83,14 @@ test('a witness registered twice is merged into the other', async ({ page }) => 
     page.getByRole('link', { name: t.identifiers.lookUp('Diktyon', diktyon) }),
   ).toHaveAttribute('href', `https://pinakes.irht.cnrs.fr/notices/cote/${diktyon}/`);
   await page.goto(`/search?q=${diktyon}`);
-  await expect(page.getByRole('link', { name: survivor })).toBeVisible();
+  await expect(page.locator(`a[href="/witnesses/${survivorSlug}"]`)).toBeVisible();
 
-  // Merge the duplicate into the survivor from its edit page.
-  await page.goto(`/witnesses/${duplicateSlug}/edit`);
-  await page.getByRole('link', { name: t.merge.action }).click();
+  // Merge the duplicate into the survivor from the menu of its page.
+  await page.goto(`/witnesses/${duplicateSlug}`);
+  // The menu opens once the page has hydrated.
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: recordActions.menu, exact: true }).click();
+  await page.getByRole('menuitem', { name: recordActions.witness.merge }).click();
   await page.waitForURL(new RegExp(`/witnesses/${duplicateSlug}/merge`));
   await page.getByLabel(t.merge.findWitness).fill(diktyon);
   await page.getByRole('button', { name: t.merge.find }).click();

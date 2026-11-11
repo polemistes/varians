@@ -4,13 +4,15 @@ import { conjectures, eq, reportedReadings, witnesses } from '@varians/db';
 import {
   canDeleteConjecture,
   canEditConjecture,
+  conjectureRights,
   editionRights,
-  canMaintainWork,
   canPublishConjecture,
   canViewConjecture,
   canViewEdition,
   canViewTranscription,
   grantsFor,
+  transcriptionRights,
+  workRights,
   type Actor,
   type ConjectureContext,
 } from '$lib/server/authz';
@@ -27,6 +29,7 @@ import {
   conjecturesOfWork,
   createTranscription,
   editionRowsOfWork,
+  isDepended,
   maintainersOf,
   readingsOfWork,
   RegistryError,
@@ -34,11 +37,13 @@ import {
   updateReportedReading,
   witnessOptions,
   workBySlug,
+  workDependents,
 } from '$lib/server/registry';
 import { mergesInto } from '$lib/server/registry-merge';
 import { resolveSegment, segmentsOfWork } from '$lib/server/segments';
 import {
   checked,
+  describeDependents,
   field,
   parseCitations,
   parseConjectureForm,
@@ -49,7 +54,8 @@ import {
 } from '$lib/registry/forms';
 import { languageName } from '$lib/registry/languages';
 import { exampleLabel, labelRanges, schemeSentence } from '$lib/registry/scheme';
-import type { Cited, RowRights, SearchHit } from '$lib/registry/types';
+import type { Cited, SearchHit } from '$lib/registry/types';
+import { recordActions } from '$lib/strings/record-actions';
 import { registry as t } from '$lib/strings/registry';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 
@@ -71,19 +77,6 @@ function cited(views: CitationView[] | undefined): Cited[] {
     postnote,
     text,
   }));
-}
-
-function rights(
-  user: Actor | null,
-  record: { id: string; ownerId: string; workId: string },
-  context: ConjectureContext,
-): RowRights {
-  if (!user) return { edit: false, delete: false, publish: false };
-  return {
-    edit: canEditConjecture(user, record, context),
-    delete: canDeleteConjecture(user, record),
-    publish: canPublishConjecture(user, record),
-  };
 }
 
 /** The work page is public like the work; what it offers to do needs a user. */
@@ -144,7 +137,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     ),
   ]);
 
-  const maintains = canMaintainWork(user, work, maintainerIds);
+  const viewerRights = workRights(user, work, maintainerIds);
   return {
     crumb: { label: work.title },
     work: {
@@ -169,15 +162,17 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
         ...e,
         can: editionRights(user, e, collaboratorIds),
       })),
-    transcriptions: transcriptionRows.filter((r) => canViewTranscription(user, r, grants)),
+    transcriptions: transcriptionRows
+      .filter((r) => canViewTranscription(user, r, grants))
+      .map((r) => ({ ...r, can: transcriptionRights(user, r, grants) })),
     conjectures: visibleConjectures.map((c) => ({
       ...c,
-      can: rights(user, c, context),
+      can: conjectureRights(user, c, context),
       citations: cited(conjectureCitations.get(c.id)),
     })),
     readings: visibleReadings.map((r) => ({
       ...r,
-      can: rights(user, r, context),
+      can: conjectureRights(user, r, context),
       citations: cited(readingCitations.get(r.id)),
     })),
     segmentCount: segmentRows.length,
@@ -186,16 +181,29 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     labels: segmentRows.length <= 2000 ? segmentRows.map((s) => s.label) : [],
     witnesses: witnessList,
     pickedWitness,
+    rights: viewerRights,
+    /** Why the work cannot be deleted now, for those who may delete it; the menu says so. */
+    deletion: user && viewerRights.delete ? await deletionOf(db, work.id, user) : null,
     can: {
-      maintain: maintains,
       newEdition: !!user,
       transcribe: !!user,
       addConjecture: !!user,
       addReading: !!user,
-      archive: !!user,
     },
   };
 };
+
+/** The checks deleteWork makes, made in advance so that the menu can say why it is refused. */
+async function deletionOf(
+  db: App.Locals['db'],
+  workId: string,
+  user: Actor,
+): Promise<string | null> {
+  const dependents = await workDependents(db, workId, user);
+  return isDepended(dependents)
+    ? t.work.inUse(describeDependents(dependents, 'conjectures'))
+    : null;
+}
 
 /** The segment a form names, created on the way when the label fits the scheme. */
 function segmentFor(event: RequestEvent, workId: string, scheme: Scheme, label: string) {
@@ -319,7 +327,7 @@ export const actions: Actions = {
     if (!row || row.workId !== work.id) return fail(404, { error: t.conjecture.notFound });
     if (!canDeleteConjecture(user, row)) return fail(403, { error: t.common.forbidden });
     await deleteConjecture(event.locals.db, row.id);
-    return { message: t.conjecture.deleted };
+    return { message: recordActions.conjecture.deleted };
   },
 
   addReading: async (event) => {
@@ -399,6 +407,6 @@ export const actions: Actions = {
     if (!row || row.workId !== work.id) return fail(404, { error: t.reading.notFound });
     if (!canDeleteConjecture(user, row)) return fail(403, { error: t.common.forbidden });
     await deleteReportedReading(event.locals.db, row.id);
-    return { message: t.reading.deleted };
+    return { message: recordActions.reading.deleted };
   },
 };

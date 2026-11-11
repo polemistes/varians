@@ -6,6 +6,8 @@ import {
   searchWitnesses,
   searchWorks,
   withEditionRights,
+  withWitnessRights,
+  withWorkRights,
 } from '$lib/server/library';
 import { site } from '$lib/strings/site';
 import type { PageServerLoad } from './$types';
@@ -36,8 +38,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     crumb,
     q,
     editions: withEditionRights(editions, locals.user, grants),
-    works,
-    witnesses,
+    works: withWorkRights(works, locals.user, grants),
+    witnesses: withWitnessRights(witnesses, locals.user, grants),
     bibliography: {
       total: bibliography.total,
       items: bibliography.items.map((item) => ({

@@ -1,18 +1,17 @@
 <script lang="ts">
+  import TranscriptionActions from '$lib/components/transcription/TranscriptionActions.svelte';
   import { Badge } from '$lib/components/ui';
   import type { WitnessTranscriptionRow } from '$lib/registry/types';
   import { registry } from '$lib/strings/registry';
-  import RowMenu from './RowMenu.svelte';
+  import type { TranscriptionRights } from '$lib/transcription/actions';
 
-  type Item = WitnessTranscriptionRow & { can: { rename: boolean; delete: boolean } };
+  type Item = WitnessTranscriptionRow & { can: TranscriptionRights };
 
   interface Props {
     items: Item[];
-    onrename: (item: Item) => void;
-    ondelete: (item: Item) => void;
   }
 
-  let { items, onrename, ondelete }: Props = $props();
+  let { items }: Props = $props();
 
   const s = registry.transcription;
 
@@ -51,15 +50,10 @@
       </div>
       <div class="flex shrink-0 items-center gap-2">
         {#if item.visibility === 'draft'}<Badge>{s.draft}</Badge>{/if}
-        {#if item.can.rename || item.can.delete}
-          <RowMenu
-            label={`${s.menu}: ${item.name}`}
-            editLabel={s.rename}
-            deleteLabel={s.delete}
-            onedit={item.can.rename ? () => onrename(item) : undefined}
-            ondelete={item.can.delete ? () => ondelete(item) : undefined}
-          />
-        {/if}
+        <!-- A row without a menu keeps its room, so that the badges stand in line. -->
+        <div class="w-8 shrink-0">
+          <TranscriptionActions transcription={item} rights={item.can} place="list" />
+        </div>
       </div>
     </li>
   {/each}

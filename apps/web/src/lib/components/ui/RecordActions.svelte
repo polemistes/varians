@@ -61,7 +61,8 @@
             >
               <span class="flex flex-col">
                 <span>{entry.label}</span>
-                {#if entry.disabled}<span class="text-xs text-ink-muted">{entry.disabled}</span
+                {#if entry.disabled}<span class="max-w-72 text-xs whitespace-normal text-ink-muted"
+                    >{entry.disabled}</span
                   >{/if}
               </span>
             </MenuItem>

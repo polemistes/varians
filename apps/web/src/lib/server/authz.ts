@@ -23,6 +23,10 @@ import type {
 } from '@varians/db';
 import { sql } from '@varians/db';
 import type { EditionRights } from '$lib/edition/actions';
+import type { RowRights } from '$lib/registry/types';
+import type { TranscriptionRights } from '$lib/transcription/actions';
+import type { WitnessRights } from '$lib/witness/actions';
+import type { WorkRights } from '$lib/work/actions';
 
 export interface Actor {
   id: string;
@@ -121,6 +125,73 @@ export function canMergeEntries(
   return maintains(from) && maintains(into);
 }
 
+/** Who decides about the entry itself: its creator, and administrators. */
+function governsEntry(user: Maybe<Actor>, entry: { createdBy: string | null }): boolean {
+  return !!user && (entry.createdBy === user.id || isAdministrator(user));
+}
+
+/**
+ * Starting a merge from an entry: administrators, and those who maintain it
+ * as its creator or a listed maintainer. The page then asks for the other
+ * entry, and canMergeEntries decides with both.
+ */
+function maintainsEntry(
+  user: Maybe<Actor>,
+  entry: { createdBy: string | null },
+  maintainerIds: Iterable<string>,
+): boolean {
+  return !!user && (entry.createdBy === user.id || has(maintainerIds, user.id));
+}
+
+/** What a viewer may do with a work, as its buttons and menu ask (lib/work/actions.ts). */
+export function workRights(
+  user: Maybe<Actor>,
+  work: Pick<Work, 'id' | 'createdBy'>,
+  maintainerIds: Iterable<string>,
+): WorkRights {
+  return {
+    maintain: canMaintainWork(user, work, maintainerIds),
+    merge: isAdministrator(user) || maintainsEntry(user, work, maintainerIds),
+    delete: governsEntry(user, work),
+    administrator: isAdministrator(user),
+  };
+}
+
+/** The same from the user's grants, for every work of a list at once without a query of each. */
+export function workRightsFromGrants(
+  user: Maybe<Actor>,
+  work: Pick<Work, 'id' | 'createdBy'>,
+  grants: Grants,
+): WorkRights {
+  return workRights(user, work, user && grants.maintainedWorkIds.has(work.id) ? [user.id] : []);
+}
+
+/** What a viewer may do with a witness, as its buttons and menu ask (lib/witness/actions.ts). */
+export function witnessRights(
+  user: Maybe<Actor>,
+  witness: Pick<Witness, 'id' | 'createdBy'>,
+  maintainerIds: Iterable<string>,
+): WitnessRights {
+  return {
+    maintain: canMaintainWitness(user, witness, maintainerIds),
+    merge: isAdministrator(user) || maintainsEntry(user, witness, maintainerIds),
+    delete: governsEntry(user, witness),
+  };
+}
+
+/** The same from the user's grants, for every witness of a list at once. */
+export function witnessRightsFromGrants(
+  user: Maybe<Actor>,
+  witness: Pick<Witness, 'id' | 'createdBy'>,
+  grants: Grants,
+): WitnessRights {
+  return witnessRights(
+    user,
+    witness,
+    user && grants.maintainedWitnessIds.has(witness.id) ? [user.id] : [],
+  );
+}
+
 // Transcriptions
 
 export function canEditTranscription(
@@ -158,6 +229,22 @@ export function canDeleteTranscription(
   transcription: Pick<Transcription, 'ownerId'>,
 ): boolean {
   return ownsOrAdministers(user, transcription);
+}
+
+/**
+ * What a viewer may do with a transcript, as its menu asks (lib/transcription/actions.ts),
+ * from the grants loaded once for a page, so that a list needs no query of each row.
+ */
+export function transcriptionRights(
+  user: Maybe<Actor>,
+  transcription: Pick<Transcription, 'id' | 'ownerId'>,
+  grants: Grants,
+): TranscriptionRights {
+  return {
+    signedIn: !!user,
+    edit: canEditTranscription(user, transcription, grants),
+    delete: canDeleteTranscription(user, transcription),
+  };
 }
 
 // Editions
@@ -277,6 +364,20 @@ export function canDeleteConjecture(
   conjecture: Pick<Conjecture, 'ownerId'>,
 ): boolean {
   return ownsOrAdministers(user, conjecture);
+}
+
+/** What a viewer may do with a conjecture or a reported reading, as its row's menu and window ask. */
+export function conjectureRights(
+  user: Maybe<Actor>,
+  conjecture: Pick<Conjecture, 'id' | 'ownerId' | 'workId'>,
+  context: ConjectureContext,
+): RowRights {
+  if (!user) return { edit: false, delete: false, publish: false };
+  return {
+    edit: canEditConjecture(user, conjecture, context),
+    delete: canDeleteConjecture(user, conjecture),
+    publish: canPublishConjecture(user, conjecture),
+  };
 }
 
 // The loader

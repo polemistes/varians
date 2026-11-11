@@ -2,8 +2,9 @@
   import { Badge } from '$lib/components/ui';
   import { citedText } from '$lib/registry/citations';
   import type { Cited, ConjectureRow, RowRights } from '$lib/registry/types';
+  import { recordActions } from '$lib/strings/record-actions';
   import { registry } from '$lib/strings/registry';
-  import RowMenu from './RowMenu.svelte';
+  import RowActions from './RowActions.svelte';
 
   type Item = ConjectureRow & { can: RowRights; citations?: Cited[] };
 
@@ -47,13 +48,13 @@
       </div>
       <div class="flex items-center gap-2">
         {#if item.visibility === 'draft'}<Badge>{s.draft}</Badge>{/if}
-        {#if item.can.edit || item.can.delete}
-          <RowMenu
-            label={`${registry.common.actions}: ${item.label} ${item.lemma}`.trim()}
-            onedit={item.can.edit ? () => onedit(item) : undefined}
-            ondelete={item.can.delete ? () => ondelete(item) : undefined}
-          />
-        {/if}
+        <RowActions
+          kind="conjecture"
+          rights={item.can}
+          label={recordActions.menuOf(`${item.label} ${item.lemma}`.trim())}
+          onedit={() => onedit(item)}
+          ondelete={() => ondelete(item)}
+        />
       </div>
     </li>
   {/each}

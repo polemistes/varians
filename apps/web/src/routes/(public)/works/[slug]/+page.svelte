@@ -1,10 +1,9 @@
 <script lang="ts">
-  import { site } from '$lib/strings/site';
-  import Download from '@lucide/svelte/icons/download';
-  import Pencil from '@lucide/svelte/icons/pencil';
+  import { onMount } from 'svelte';
+  import { replaceState } from '$app/navigation';
   import Plus from '@lucide/svelte/icons/plus';
   import { PageFrame } from '$lib/components/shell';
-  import { Button, buttonClasses, ConfirmDialog } from '$lib/components/ui';
+  import { Button, ConfirmDialog } from '$lib/components/ui';
   import {
     ConjectureForm,
     ConjectureList,
@@ -18,7 +17,9 @@
     SegmentLabels,
     WitnessList,
     WitnessPicker,
+    WorkActions,
   } from '$lib/components/registry';
+  import { recordActions as ra } from '$lib/strings/record-actions';
   import { registry as t } from '$lib/strings/registry';
   import type { PageProps } from './$types';
 
@@ -44,6 +45,20 @@
   let readingDeleteOpen = $state(false);
   let readingToDelete = $state<ReadingItem | null>(null);
 
+  // A witness's page leads here to edit a reported reading it lists (?editReading=<id>): its window opens once.
+  onMount(() => {
+    const url = new URL(location.href);
+    const id = url.searchParams.get('editReading');
+    if (!id) return;
+    const found = data.readings.find((r) => r.id === id);
+    if (found?.can.edit) {
+      reading = found;
+      readingOpen = true;
+    }
+    url.searchParams.delete('editReading');
+    replaceState(url, {});
+  });
+
   // Back from registering a witness: the picker opens once with it chosen.
   let pickedShown = '';
   $effect(() => {
@@ -58,37 +73,11 @@
 <PageFrame>
   <div class="flex flex-col gap-14">
     <EntryHeader title={work.title} subtitle={work.author ?? t.work.unknownAuthor}>
+      {#snippet actions()}
+        <WorkActions {work} rights={data.rights} place="page" deletion={data.deletion} />
+      {/snippet}
       {#if work.description}
         <p class="max-w-reading font-serif text-reading text-ink">{work.description}</p>
-      {/if}
-      {#if data.can.newEdition || data.can.transcribe || data.can.maintain}
-        <div
-          class="flex flex-wrap items-center gap-2 font-sans"
-          role="group"
-          aria-label={t.work.workOn}
-        >
-          {#if data.can.newEdition}
-            <Button href="/editions/new?work={work.slug}" variant="primary" size="sm">
-              <Plus class="size-4" aria-hidden="true" />
-              {t.work.newEdition}
-            </Button>
-          {/if}
-          {#if data.can.transcribe}
-            <Button size="sm" variant="secondary" onclick={() => (picking = true)}>
-              <Plus class="size-4" aria-hidden="true" />
-              {t.work.transcribe}
-            </Button>
-          {/if}
-          {#if data.can.maintain}
-            <Button href="/works/{work.slug}/edit" variant="ghost" size="sm">
-              <Pencil class="size-4" aria-hidden="true" />
-              {t.work.editDetails}
-            </Button>
-            <Button href="/works/{work.slug}/remotes" variant="ghost" size="sm"
-              >{site.remotes.title}</Button
-            >
-          {/if}
-        </div>
       {/if}
     </EntryHeader>
 
@@ -98,6 +87,14 @@
       empty={t.work.noEditions}
       isEmpty={data.editions.length === 0}
     >
+      {#snippet actions()}
+        {#if data.can.newEdition}
+          <Button href="/editions/new?work={work.slug}" size="sm" variant="secondary">
+            <Plus class="size-4" aria-hidden="true" />
+            {t.work.newEdition}
+          </Button>
+        {/if}
+      {/snippet}
       <EditionList items={data.editions} />
     </Section>
 
@@ -107,6 +104,14 @@
       empty={t.work.noWitnesses}
       isEmpty={data.transcriptions.length === 0}
     >
+      {#snippet actions()}
+        {#if data.can.transcribe}
+          <Button size="sm" variant="secondary" onclick={() => (picking = true)}>
+            <Plus class="size-4" aria-hidden="true" />
+            {t.work.transcribe}
+          </Button>
+        {/if}
+      {/snippet}
       <WitnessList items={data.transcriptions} total={data.segmentCount} />
     </Section>
 
@@ -214,29 +219,6 @@
           <dd class="text-ink"><MergedEntries items={data.merged} /></dd>
         {/if}
       </dl>
-      {#if data.can.archive}
-        <div class="mt-6 flex flex-col gap-2">
-          <p class="max-w-reading font-sans text-sm text-ink-soft">{t.work.archiveHint}</p>
-          <div>
-            <a
-              href="/works/{work.slug}/package.zip"
-              download="{work.slug}.zip"
-              class={buttonClasses('secondary', 'sm')}
-            >
-              <Download class="size-4" aria-hidden="true" />
-              {t.work.download}
-            </a>
-            {#if data.user?.role === 'administrator'}
-              <a
-                href="/works/{work.slug}/archive.zip"
-                download="{work.slug}-archive.zip"
-                class="ml-3 font-sans text-sm text-ink-soft underline"
-                >{t.work.downloadRepository}</a
-              >
-            {/if}
-          </div>
-        </div>
-      {/if}
     </Section>
   </div>
 </PageFrame>
@@ -260,13 +242,13 @@
   canPublish={conjecture ? conjecture.can.publish : true}
 />
 <ConfirmDialog
-  confirmLabel={t.common.confirmDelete}
+  confirmLabel={ra.conjecture.deleteVerb}
   bind:open={conjectureDeleteOpen}
-  title={t.conjecture.deleteTitle}
-  description={t.conjecture.deleteConfirm}
+  title={ra.conjecture.deleteTitle}
+  description={ra.conjecture.deleteBody}
   action="?/deleteConjecture"
   fields={{ id: conjectureToDelete?.id ?? '' }}
-  done={t.conjecture.deleted}
+  done={ra.conjecture.deleted}
 />
 
 <ReportedReadingForm
@@ -279,11 +261,11 @@
   canPublish={reading ? reading.can.publish : true}
 />
 <ConfirmDialog
-  confirmLabel={t.common.confirmDelete}
+  confirmLabel={ra.reading.deleteVerb}
   bind:open={readingDeleteOpen}
-  title={t.reading.deleteTitle}
-  description={t.reading.deleteConfirm}
+  title={ra.reading.deleteTitle}
+  description={ra.reading.deleteBody}
   action="?/deleteReading"
   fields={{ id: readingToDelete?.id ?? '' }}
-  done={t.reading.deleted}
+  done={ra.reading.deleted}
 />

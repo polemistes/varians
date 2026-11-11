@@ -1,13 +1,17 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { PageFrame } from '$lib/components/shell';
-  import { Button, LocalDate, Notice } from '$lib/components/ui';
+  import { Button, ConfirmDialog, LocalDate, Notice } from '$lib/components/ui';
   import { s } from '$lib/strings';
+  import { recordActions as ra } from '$lib/strings/record-actions';
   import { site } from '$lib/strings/site';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
   const t = site.remotes;
+
+  let removing = $state<{ id: string; address: string } | null>(null);
+  let removeOpen = $state(false);
 </script>
 
 <PageFrame title={t.title} lead={t.lead} width="reading">
@@ -60,13 +64,15 @@
               >
             </form>
           {/if}
-          <form method="POST" action="?/remove" use:enhance>
-            <input type="hidden" name="id" value={remote.id} /><Button
-              size="sm"
-              variant="ghost"
-              type="submit">{t.remove}</Button
-            >
-          </form>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label={ra.remote.removeOf(`${remote.origin}/works/${remote.slug}`)}
+            onclick={() => {
+              removing = { id: remote.id, address: `${remote.origin}/works/${remote.slug}` };
+              removeOpen = true;
+            }}>{ra.remote.remove}</Button
+          >
         </div>
         {#if form && 'remoteId' in form && form.remoteId === remote.id}
           {#if form.done === 'compare' && 'differences' in form}
@@ -149,3 +155,13 @@
     <div><Button type="submit" variant="primary">{t.add}</Button></div>
   </form>
 </PageFrame>
+
+<ConfirmDialog
+  bind:open={removeOpen}
+  title={ra.remote.removeTitle}
+  description={ra.remote.removeBody}
+  confirmLabel={ra.remote.removeVerb}
+  action="?/remove"
+  fields={{ id: removing?.id ?? '' }}
+  done={ra.remote.removed}
+/>

@@ -28,6 +28,7 @@
   import {
     Button,
     Checkbox,
+    ConfirmDialog,
     Menu,
     MenuItem,
     MenuSeparator,
@@ -81,6 +82,7 @@
   } from '$lib/edition/workspace';
   import type { ActiveSite, EditionViewClient, SegmentViewClient } from '$lib/edition/types';
   import { editor as s } from '$lib/strings/editor';
+  import { recordActions as ra } from '$lib/strings/record-actions';
 
   export interface WorkspaceStatus {
     pending: number;
@@ -1164,19 +1166,32 @@
     }
   }
 
-  async function deleteNote(segmentId: Id, noteId: Id) {
+  /** The note the window asks about: it is deleted only when the window is confirmed. */
+  let noteToDelete = $state<{ segmentId: Id; noteId: Id } | null>(null);
+  let noteDeleteOpen = $state(false);
+
+  function askDeleteNote(segmentId: Id, noteId: Id) {
+    noteToDelete = { segmentId, noteId };
+    noteDeleteOpen = true;
+  }
+
+  /** Deletes the note; a refusal is returned to the window. */
+  async function deleteNote(): Promise<string | null> {
+    if (!noteToDelete) return null;
+    const { segmentId, noteId } = noteToDelete;
     const response = await fetch(`/api/editions/${editionId}/notes`, {
       method: 'DELETE',
       headers: json,
       body: JSON.stringify({ id: noteId }),
     });
-    if (!response.ok) return;
+    if (!response.ok) return ra.failed;
     const segment = viewOf(segmentId);
     if (segment)
       views = {
         ...views,
         [segment.segmentId]: { ...segment, notes: segment.notes.filter((n) => n.id !== noteId) },
       };
+    return null;
   }
 
   // Inserting objects at the caret
@@ -1640,7 +1655,7 @@
           noteSegment = segmentId;
           noteOpen = true;
         }}
-        ondeletenote={(segmentId, noteId) => void deleteNote(segmentId, noteId)}
+        ondeletenote={askDeleteNote}
         ontakecurrent={takeCurrent}
       />
     </div>
@@ -1681,6 +1696,14 @@
   bind:kind={objectKind}
   oninsert={insertObject}
   oncancel={() => (objectOpen = false)}
+/>
+<ConfirmDialog
+  bind:open={noteDeleteOpen}
+  title={ra.note.deleteTitle}
+  description={ra.note.deleteBody}
+  confirmLabel={ra.note.deleteVerb}
+  onconfirm={deleteNote}
+  done={ra.note.deleted}
 />
 <NoteDialog
   bind:open={noteOpen}

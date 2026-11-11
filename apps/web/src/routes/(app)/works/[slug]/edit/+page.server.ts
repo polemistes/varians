@@ -13,6 +13,7 @@ import {
 import { segmentsOfWork } from '$lib/server/segments';
 import { describeDependents, field, parseEmail, parseWorkForm } from '$lib/registry/forms';
 import { parseLevels, schemeProblems } from '$lib/registry/scheme';
+import { recordActions } from '$lib/strings/record-actions';
 import { registry as t } from '$lib/strings/registry';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -34,7 +35,7 @@ async function maintained(locals: App.Locals, slug: string, user: Actor) {
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
   const user = requireUser(locals, url.pathname + url.search);
-  const { work, scheme, maintainerIds } = await maintained(locals, params.slug, user);
+  const { work, scheme } = await maintained(locals, params.slug, user);
   const [maintainers, segments] = await Promise.all([
     maintainersOf(locals.db, 'work', work.id),
     segmentsOfWork(locals.db, work.id),
@@ -54,11 +55,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     scheme,
     locked: segments.length > 0,
     maintainers,
-    can: {
-      delete: governs(user, work),
-      govern: governs(user, work),
-      merge: isAdministrator(user) || work.createdBy === user.id || maintainerIds.includes(user.id),
-    },
+    can: { govern: governs(user, work) },
   };
 };
 
@@ -148,9 +145,14 @@ export const actions: Actions = {
     return { form: 'maintainers' as const, name: result.name };
   },
 
-  delete: async ({ locals, params }) => {
+  /**
+   * Delete the work, from wherever its menu stands. From its own page this
+   * leads to the front page; from a list (`stay`) the list stays, and is told.
+   */
+  delete: async ({ locals, params, request }) => {
     const user = requireUser(locals);
     const { work } = await maintained(locals, params.slug, user);
+    const stay = (await request.formData()).get('stay') === '1';
     const result = await deleteWork(locals.db, work.id, user);
     if (!result.ok) {
       if (result.error === 'in-use') {
@@ -164,6 +166,7 @@ export const actions: Actions = {
         error: result.error === 'not-found' ? t.work.notFound : t.work.notCreator,
       });
     }
+    if (stay) return { form: 'delete' as const, message: recordActions.work.deleted(result.title) };
     redirect(303, '/');
   },
 };

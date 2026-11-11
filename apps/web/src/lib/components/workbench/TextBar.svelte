@@ -23,9 +23,12 @@
     wb: Workbench;
     /** Show the Pages tab of the side pane. */
     onpages: () => void;
+    /** The Tools menu's windows. */
+    onimport: () => void;
+    onnumber: () => void;
   }
 
-  let { wb, onpages }: Props = $props();
+  let { wb, onpages, onimport, onnumber }: Props = $props();
 
   let takeOpen = $state(false);
 
@@ -133,7 +136,10 @@
     </div>
   {/if}
 
-  {#if editable}<InsertMenu {wb} /><ToolsMenu {wb} ontake={() => (takeOpen = true)} />{/if}
+  {#if wb.canEdit}
+    {#if editable}<InsertMenu {wb} />{/if}
+    <ToolsMenu {wb} ontake={() => (takeOpen = true)} {onimport} {onnumber} />
+  {/if}
 </div>
 
 {#if wb.canEdit}<TakeFormsDialog {wb} bind:open={takeOpen} />{/if}

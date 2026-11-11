@@ -2,6 +2,7 @@
   import LibrarySection from '$lib/components/library/LibrarySection.svelte';
   import RecordRow from '$lib/components/library/RecordRow.svelte';
   import EditionActions from '$lib/components/edition/EditionActions.svelte';
+  import TranscriptionActions from '$lib/components/transcription/TranscriptionActions.svelte';
   import { PageFrame } from '$lib/components/shell';
   import { Button } from '$lib/components/ui';
   import { site } from '$lib/strings/site';
@@ -23,6 +24,10 @@
     rights={edition.can}
     place="list"
   />
+{/snippet}
+
+{#snippet transcriptionActions(transcription: (typeof data.transcriptions)[number])}
+  <TranscriptionActions {transcription} rights={transcription.can} place="list" />
 {/snippet}
 
 <PageFrame title={t.title}>
@@ -58,7 +63,9 @@
           subtitleHref="/witnesses/{transcription.witnessSlug}"
           date={transcription.updatedAt}
           badge={transcription.visibility === 'published' ? h.published : h.draft}
-        />
+        >
+          {#snippet actions()}{@render transcriptionActions(transcription)}{/snippet}
+        </RecordRow>
       {/each}
     </LibrarySection>
     <LibrarySection
@@ -86,7 +93,9 @@
           subtitleHref="/witnesses/{transcription.witnessSlug}"
           owner={transcription.ownerName}
           date={transcription.updatedAt}
-        />
+        >
+          {#snippet actions()}{@render transcriptionActions(transcription)}{/snippet}
+        </RecordRow>
       {/each}
     </LibrarySection>
   </div>

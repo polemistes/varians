@@ -161,7 +161,6 @@ export const site = {
     preview: 'Look at What a Pull Would Do',
     pull: 'Bring Changes Here',
     push: 'Send Changes There',
-    remove: 'Remove',
     lastPulled: 'last brought here',
     never: 'not yet',
     every: 'Bring changes here every',

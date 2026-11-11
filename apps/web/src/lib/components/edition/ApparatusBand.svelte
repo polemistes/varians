@@ -26,6 +26,7 @@
     type VariantContext,
   } from '$lib/reader/variant';
   import { editor as s } from '$lib/strings/editor';
+  import { recordActions as ra } from '$lib/strings/record-actions';
 
   /** What adopting a row takes: a witness's reading, a reported reading or a conjecture. */
   export type Choice = RowOrigin;
@@ -411,7 +412,9 @@
                 <button
                   type="button"
                   class="ml-auto text-ink-muted hover:text-danger"
-                  onclick={() => ondeletenote?.(section.segmentId, note.id)}>{s.removeNote}</button
+                  aria-label={ra.note.deleteOf(section.label)}
+                  onclick={() => ondeletenote?.(section.segmentId, note.id)}
+                  >{ra.note.delete}</button
                 >
               {/if}
             </div>

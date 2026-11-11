@@ -11,6 +11,119 @@ export const recordActions = {
   /** When the server gives no reason. */
   failed: 'That could not be done.',
 
+  work: {
+    edit: 'Edit',
+    /** Edit in a list, where several rows have it. */
+    editOf: (title: string) => `Edit: ${title}`,
+
+    remotes: 'Other Installations',
+    download: 'Download',
+    package: 'Package',
+    archive: 'Archive with History',
+    merge: 'Merge into…',
+    delete: 'Delete Work…',
+
+    deleteTitle: 'Delete Work',
+    deleteBody:
+      'Delete this work? Its segments, its editions with their history, its conjectures and its reported readings go with it. Transcripts keep their text.',
+    deleteVerb: 'Delete',
+    deleted: (title: string) => `${title} has been deleted.`,
+  },
+
+  witness: {
+    edit: 'Edit',
+    editOf: (name: string) => `Edit: ${name}`,
+
+    merge: 'Merge into…',
+    delete: 'Delete Witness…',
+
+    deleteTitle: 'Delete Witness',
+    deleteBody: 'Delete this witness? Its pages, its images and your transcripts of it go with it.',
+    deleteVerb: 'Delete',
+    deleted: (name: string) => `${name} has been deleted.`,
+  },
+
+  /** A transcript: read where it is edited, so it has no Read and Edit buttons. */
+  transcription: {
+    settings: 'Settings…',
+    copy: 'Make a Copy…',
+    download: 'Download',
+    tei: 'TEI XML',
+    leiden: 'Leiden+',
+    delete: 'Delete Transcript…',
+
+    deleteTitle: 'Delete Transcript',
+    deleteBody:
+      'Delete this transcript? Its text and history go with it. The witness and its pages stay.',
+    deleteVerb: 'Delete',
+    deleted: 'The transcript has been deleted.',
+  },
+
+  /** A smaller record, which has no page: its row's menu opens with Edit and ends with Delete. */
+  conjecture: {
+    edit: 'Edit…',
+    delete: 'Delete…',
+    deleteTitle: 'Delete Conjecture',
+    deleteBody:
+      'Delete this conjecture? It leaves the catalogue of the work and every edition that adopted it.',
+    deleteVerb: 'Delete',
+    deleted: 'The conjecture has been deleted.',
+  },
+  reading: {
+    edit: 'Edit…',
+    delete: 'Delete…',
+    deleteTitle: 'Delete Reported Reading',
+    deleteBody:
+      'Delete this reported reading? It leaves the catalogue of the work and the apparatus of every edition that reports it.',
+    deleteVerb: 'Delete',
+    deleted: 'The reported reading has been deleted.',
+  },
+  bibliography: {
+    edit: 'Edit…',
+    delete: 'Delete…',
+    deleteTitle: 'Delete Entry',
+    deleteBody: (label: string) =>
+      `Delete ${label}? The entry leaves the bibliography for everyone.`,
+    deleteVerb: 'Delete',
+    deleted: 'The entry has been deleted.',
+  },
+
+  /** What is taken out of a list or ended, and asks first. */
+  note: {
+    delete: 'Delete…',
+    deleteOf: (segment: string) => `Delete the note on ${segment}`,
+    deleteTitle: 'Delete Note',
+    deleteBody: 'Delete this note? It leaves the edition.',
+    deleteVerb: 'Delete',
+    deleted: 'The note has been deleted.',
+  },
+  maintainer: {
+    remove: (name: string) => `Remove ${name}`,
+    removeTitle: 'Remove Maintainer',
+    removeBody: (name: string, entry: 'work' | 'witness') =>
+      `Remove ${name} from the maintainers? They will no longer edit this ${entry}.`,
+    removeSelfBody: (entry: 'work' | 'witness') =>
+      `Remove yourself from the maintainers? You will no longer edit this ${entry}.`,
+    removeVerb: 'Remove',
+  },
+  remote: {
+    remove: 'Remove…',
+    removeOf: (address: string) => `Remove ${address}`,
+    removeTitle: 'Remove Installation',
+    removeBody:
+      'Remove this installation from the list? The work there stays as it is, and the schedule and the token kept for it here are forgotten.',
+    removeVerb: 'Remove',
+    removed: 'The installation has been removed.',
+  },
+  token: {
+    revoke: 'Revoke…',
+    revokeOf: (name: string) => `Revoke ${name}`,
+    revokeTitle: 'Revoke Token',
+    revokeBody: (name: string) =>
+      `Revoke the token ${name}? Whatever uses it will be refused from now on.`,
+    revokeVerb: 'Revoke',
+  },
+
   edition: {
     read: 'Read',
     edit: 'Edit',

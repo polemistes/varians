@@ -2,17 +2,18 @@
   import { Badge } from '$lib/components/ui';
   import { citedText } from '$lib/registry/citations';
   import type { Cited, ReadingRow, RowRights } from '$lib/registry/types';
+  import { recordActions } from '$lib/strings/record-actions';
   import { registry } from '$lib/strings/registry';
-  import RowMenu from './RowMenu.svelte';
+  import RowActions from './RowActions.svelte';
 
-  type Item = ReadingRow & { can?: RowRights; citations?: Cited[] };
+  type Item = ReadingRow & { can: RowRights; citations?: Cited[] };
 
   interface Props {
     items: Item[];
     /** On a witness's page: name the work of each reading instead of the witness. */
     show?: 'witness' | 'work';
-    onedit?: (item: Item) => void;
-    ondelete?: (item: Item) => void;
+    onedit: (item: Item) => void;
+    ondelete: (item: Item) => void;
   }
 
   let { items, show = 'witness', onedit, ondelete }: Props = $props();
@@ -58,15 +59,13 @@
       </div>
       <div class="flex items-center gap-2">
         {#if item.visibility === 'draft'}<Badge>{registry.common.draft}</Badge>{/if}
-        {#if item.can && (item.can.edit || item.can.delete) && (onedit || ondelete)}
-          <RowMenu
-            label={`${registry.common.actions}: ${item.label} ${item.witnessSiglum}`}
-            editLabel={s.edit}
-            deleteLabel={s.delete}
-            onedit={item.can.edit && onedit ? () => onedit(item) : undefined}
-            ondelete={item.can.delete && ondelete ? () => ondelete(item) : undefined}
-          />
-        {/if}
+        <RowActions
+          kind="reading"
+          rights={item.can}
+          label={recordActions.menuOf(`${item.label} ${item.witnessSiglum}`)}
+          onedit={() => onedit(item)}
+          ondelete={() => ondelete(item)}
+        />
       </div>
     </li>
   {/each}
