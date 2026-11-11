@@ -1,8 +1,8 @@
 /**
  * GET /works/[slug]/package.zip: the work as a package, for anyone, with
- * what the visitor may see of it: the published records, and the drafts
- * of those who may edit them (by session, or by token for another
- * installation pulling).
+ * what the visitor may see of it: the published transcripts and editions,
+ * the conjectures and reported readings, and the drafts of those who may
+ * edit them (by session, or by token for another installation pulling).
  */
 import { error } from '@sveltejs/kit';
 import { buildPackage } from '$lib/server/archive/package';
