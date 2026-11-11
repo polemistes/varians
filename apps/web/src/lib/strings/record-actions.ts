@@ -91,7 +91,7 @@ export const recordActions = {
   /** What is taken out of a list or ended, and asks first. */
   note: {
     delete: 'Delete…',
-    deleteOf: (segment: string) => `Delete the note on ${segment}`,
+    deleteOf: (segment: string) => `Delete the Note on ${segment}`,
     deleteTitle: 'Delete Note',
     deleteBody: 'Delete this note? It leaves the edition.',
     deleteVerb: 'Delete',

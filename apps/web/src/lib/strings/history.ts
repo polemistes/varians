@@ -6,7 +6,7 @@
 export const historyStrings = {
   title: 'History',
   tabs: { moments: 'Moments', review: 'Review' },
-  tabsLabel: 'History views',
+  tabsLabel: 'History Views',
 
   loading: 'Loading the history',
   loadingText: 'Loading the text',
