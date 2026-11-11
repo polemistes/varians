@@ -226,6 +226,7 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   await reader.goto(`/editions/${editionSlug}`);
   await expect(reader.locator('h1')).toHaveText(`Aeneis 1, ${stamp}`);
   await expect(reader.getByText('Lavinaque').first()).toBeVisible();
+  await reader.waitForLoadState('networkidle');
   await reader.locator('[data-sites]', { hasText: 'Lavinaque' }).first().click();
   await expect(reader.getByRole('dialog', { name: rd.entry.title('1.2') })).toContainText(
     'Laviniaque',

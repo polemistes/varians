@@ -165,7 +165,7 @@ test('an edition made from scratch on one page, which stays as Edition Settings'
       page
         .getByLabel(`${ed.conspectus.transcript}: ${witnessName}`, { exact: true })
         .locator('option:checked'),
-    ).toHaveText(workTitle);
+    ).toHaveText(reg.transcription.defaultName(witnessName));
     await expect(page.getByRole('heading', { name: ed.conventions })).toBeVisible();
   };
   await check();

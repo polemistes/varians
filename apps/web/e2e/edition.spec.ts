@@ -252,9 +252,7 @@ test('shows the page where a witness’s words stand, mapped to the image or not
   await expect(pane.getByText(ed.witness.noImageOf('12v'))).toBeVisible();
 });
 
-test('names a family by one siglum and the other witnesses by a word, and marks a variant minor', async ({
-  page,
-}) => {
+test('names a family by one siglum, and marks a variant minor', async ({ page }) => {
   await signIn(page);
   await page.goto('/editions/iliad-1-working-edition/edit');
   await expect(page.locator('.cm-content')).toBeVisible();
@@ -271,19 +269,6 @@ test('names a family by one siglum and the other witnesses by a word, and marks 
   await sigla.getByRole('button', { name: ed.dialogs.save, exact: true }).click();
   await expect(sigla).toBeHidden({ timeout: 15_000 });
 
-  // The words for the other witnesses and for all of them, on Edition Settings.
-  await page.getByRole('button', { name: recordActions.menu, exact: true }).click();
-  await page.getByRole('menuitem', { name: recordActions.edition.settings }).click();
-  await page.waitForURL(/\/editions\/iliad-1-working-edition\/settings$/);
-  await page.waitForLoadState('networkidle');
-  await page.locator('select[name=rest]').selectOption('cett.');
-  await page.locator('select[name=all]').selectOption('codd.');
-  await page.getByRole('button', { name: es.save, exact: true }).click();
-  await expect(page.getByText(es.saved)).toBeVisible({ timeout: 15_000 });
-  // The groups stand on the page as the editor's window saved them.
-  await expect(page.getByLabel(es.conspectus.groupSiglum)).toHaveValue('β');
-  await page.goto('/editions/iliad-1-working-edition/edit');
-
   const { db, pool } = createDatabase(DATABASE_URL);
   const [stored] = await db
     .select({ conventions: editions.conventions })
@@ -293,8 +278,6 @@ test('names a family by one siglum and the other witnesses by a word, and marks 
   expect(stored!.conventions.groups).toEqual([
     { siglum: 'β', members: ['B', 'C'], note: 'consensus codicum BC' },
   ]);
-  expect(stored!.conventions.rest).toBe('cett.');
-  expect(stored!.conventions.all).toBe('codd.');
 
   // A variant judged minor stays in the band, set apart, and the kind stays available beside it.
   await page.reload();

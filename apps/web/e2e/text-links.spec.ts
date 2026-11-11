@@ -43,7 +43,9 @@ test('the login page has a heading and buttons in Title Case, and links in sente
   await expect(main.getByRole('link', { name: s.auth.registerLink })).toHaveText(
     'Create an account',
   );
-  await expect(main.getByRole('link', { name: 'Forgotten Your Password?' })).toHaveCount(0);
+  await expect(
+    main.getByRole('link', { name: 'Forgotten Your Password?', exact: true }),
+  ).toHaveCount(0);
   await expectFooter(page);
   await page.screenshot({ path: `${SHOTS}/login.png`, fullPage: true });
   expect(problems).toEqual([]);

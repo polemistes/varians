@@ -238,7 +238,9 @@ test('the reading settings offer interpretative variants as Shown or Not shown, 
 
   await page.getByRole('button', { name: rd.toolbar.settings }).click();
   const interpretative = page.getByRole('group', { name: rd.settings.interpretative });
-  await expect(interpretative.getByLabel(rd.settings.interpretativeShown)).toBeChecked();
+  await expect(
+    interpretative.getByLabel(rd.settings.interpretativeShown, { exact: true }),
+  ).toBeChecked();
   await expect(page.getByRole('group', { name: rd.settings.minor })).toBeVisible();
   await expect(page.getByRole('group', { name: rd.settings.labels })).toBeVisible();
   // Nothing of the print apparatus: no choice of it, of its form, no word of print.
@@ -250,7 +252,9 @@ test('the reading settings offer interpretative variants as Shown or Not shown, 
 
   // Not shown: the interpretative variant is neither marked nor listed; the textual one is.
   await interpretative.getByText(rd.settings.interpretativeHidden, { exact: true }).click();
-  await expect(interpretative.getByLabel(rd.settings.interpretativeHidden)).toBeChecked();
+  await expect(
+    interpretative.getByLabel(rd.settings.interpretativeHidden, { exact: true }),
+  ).toBeChecked();
   await expect(division).toHaveCount(0);
   await expect(marked(page)).toHaveCount(1);
   await expect(marked(page)).toHaveText('ἄειδε');
@@ -308,7 +312,7 @@ test('a reader who remembers the old choices gets the page without an apparatus 
   await expect(
     page
       .getByRole('group', { name: rd.settings.interpretative })
-      .getByLabel(rd.settings.interpretativeHidden),
+      .getByLabel(rd.settings.interpretativeHidden, { exact: true }),
   ).toBeChecked();
   // What is stored is rewritten without what is gone.
   await expect
