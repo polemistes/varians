@@ -68,8 +68,6 @@
   {/if}
   <p class="mt-2">
     {r.colophon.downloads}:
-    <a href={exports.text} data-sveltekit-reload>{e.plainText}</a>
-    <span class="text-ink-muted" aria-hidden="true">·</span>
     <a href={exports.tei} data-sveltekit-reload>{e.tei}</a>
     <span class="text-ink-muted" aria-hidden="true">·</span>
     <a href={exports.package} data-sveltekit-reload>{e.package}</a>

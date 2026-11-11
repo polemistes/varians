@@ -29,7 +29,7 @@
   interface Props {
     data: Pick<
       ReaderData,
-      'edition' | 'apparatus' | 'mode' | 'versions' | 'exports' | 'links' | 'rights' | 'published'
+      'edition' | 'mode' | 'versions' | 'exports' | 'links' | 'rights' | 'published'
     >;
     settings: ReaderSettings;
     onsettings: (settings: ReaderSettings) => void;
@@ -90,7 +90,7 @@
       <span class="ml-2 hidden font-sans text-xs text-ink-muted sm:inline">{shown}</span>
     </p>
     <ReaderSearch {query} count={hits} current={hit} oninput={onsearch} {onstep} />
-    <ReaderGear {settings} edition={data.apparatus} onchange={onsettings} />
+    <ReaderGear {settings} onchange={onsettings} />
     <IconButton
       label={r.toolbar.variants}
       aria-pressed={variantsOpen}

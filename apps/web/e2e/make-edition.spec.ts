@@ -165,7 +165,7 @@ test('an edition made from scratch on one page, which stays as Edition Settings'
         .getByLabel(`${ed.conspectus.transcript}: ${witnessName}`, { exact: true })
         .locator('option:checked'),
     ).toHaveText(workTitle);
-    await expect(page.getByRole('heading', { name: ed.printApparatus })).toBeVisible();
+    await expect(page.getByRole('heading', { name: ed.conventions })).toBeVisible();
   };
   await check();
   await page.waitForLoadState('networkidle');

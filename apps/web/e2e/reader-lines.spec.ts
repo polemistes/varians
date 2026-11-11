@@ -370,7 +370,7 @@ test('draws the marks as the setting for marked words says, and hides them in pr
   const color = await mark.evaluate((el) => getComputedStyle(el).color);
   expect(color).not.toBe('rgba(0, 0, 0, 0)');
 
-  // Printed, the page has no marks: the apparatus carries the variants.
+  // Printed, the page has no marks.
   await page.emulateMedia({ media: 'print' });
   await expect(mark).toBeHidden();
   await expect(page.locator('.reader .mm.order').first()).toBeHidden();

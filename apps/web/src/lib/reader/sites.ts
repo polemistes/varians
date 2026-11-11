@@ -1,10 +1,13 @@
 /**
  * Variant sites as the reader uses them: which words of the text stand at
- * which site, the entries the apparatus prints under the reader's settings,
- * and which words of a witness a site's reading was read from.
+ * which site, which sites the reader is shown under the reader's settings,
+ * and which words of a witness a site's reading was read from. The print
+ * apparatus's entries for a page (`entriesBySegment`) are kept for the print
+ * rendition; nothing on screen is made from them.
  */
 import {
   apparatusEntries,
+  printedKind,
   siteTokenIds,
   trimPunctuation,
   type ApparatusConventions,
@@ -159,23 +162,6 @@ export function withoutMinor<T extends MinorSegment>(segment: T): T {
 }
 
 /**
- * A segment whose minor variants stand like any other. The flag is what the
- * print apparatus leaves a place out by, as a printed edition does; taken
- * off, the place is marked in the text and listed like the rest. For the
- * apparatus entries only: a variant window still says which places are minor.
- */
-export function minorAsOthers<T extends MinorSegment>(segment: T): T {
-  if (!segment.collation.sites.some((s) => s.minor)) return segment;
-  return {
-    ...segment,
-    collation: {
-      ...segment.collation,
-      sites: segment.collation.sites.map(({ minor: _minor, ...site }) => site),
-    },
-  };
-}
-
-/**
  * The segments as a reader's page works with them: the minor variants out
  * or, when the reader asks for them, in, with their flag kept so that the
  * window can say they are minor.
@@ -188,20 +174,6 @@ export function withMinor<T extends MinorSegment>(
   const out: Record<string, T> = {};
   for (const [id, segment] of Object.entries(segments)) out[id] = withoutMinor(segment);
   return out;
-}
-
-/** The segments with every minor variant standing like any other, for the entries a reader who asks for them is shown. */
-export function listingMinor<T extends MinorSegment>(
-  segments: Record<string, T>,
-): Record<string, T> {
-  const out: Record<string, T> = {};
-  for (const [id, segment] of Object.entries(segments)) out[id] = minorAsOthers(segment);
-  return out;
-}
-
-/** Whether any place of the segments is minor. */
-export function anyMinor(segments: Record<string, MinorSegment>): boolean {
-  return Object.values(segments).some((s) => s.collation.sites.some((site) => site.minor));
 }
 
 /** The key of a site in maps and data attributes: `segmentId:siteIndex`. */
@@ -269,7 +241,32 @@ export function siteByToken(
 const NO_WORDS: ReadonlySet<string> = new Set();
 
 /**
- * The apparatus entries under the given conventions, by the segment each
+ * The keys of the variants a reader is shown, of the segments as the page
+ * works with them (the minor variants are in them only where the reader asked
+ * for them): every place where some witness reads otherwise or a conjecture or
+ * a reported reading is attached, the interpretative ones (the same letters
+ * read otherwise) left out unless `interpretative` says they are shown. These
+ * are the places that are marked in the text and listed in the variant window
+ * and the Variants panel.
+ */
+export function shownSites(
+  segments: Record<string, SegmentSites>,
+  interpretative: boolean,
+): Set<string> {
+  const shown = new Set<string>();
+  for (const segment of Object.values(segments)) {
+    for (const site of segment.collation.sites) {
+      const attached = segment.attachments[site.index] ?? [];
+      if (attached.length === 0 && site.readings.every((reading) => reading.base)) continue;
+      if (!interpretative && printedKind(site, attached) === 'interpretative') continue;
+      shown.add(siteKey(segment.segmentId, site.index));
+    }
+  }
+  return shown;
+}
+
+/**
+ * The print apparatus's entries under the given conventions, by the segment each
  * variant stands in (the first its words lie in), each labelled by the
  * segments of its words and keyed by its passage. A segment the edition does
  * not print has the entry of its variant under its own id.
@@ -400,14 +397,14 @@ export interface SiteMarking {
 }
 
 /**
- * Which words open an entry under the entries in force. A segment the
+ * Which words open a variant, of the sites shown. A segment the
  * edition does not print is marked at the point after the word before it
  * where that word stands in a prose paragraph (`prose`, the ids of the words
  * that do); in a verse paragraph it is marked between two lines, in the margin.
  */
 export function markSites(
   sitesOfToken: Map<string, SiteRef[]>,
-  entries: Map<string, unknown>,
+  shown: { has(key: string): boolean; keys(): Iterable<string> },
   segments: Record<string, SegmentSites | undefined>,
   prose: ReadonlySet<string> = NO_WORDS,
 ): SiteMarking {
@@ -416,7 +413,7 @@ export function markSites(
   for (const [tokenId, refs] of sitesOfToken) {
     const keys = refs
       .map((ref) => siteKey(ref.segmentId, ref.siteIndex))
-      .filter((key) => entries.has(key));
+      .filter((key) => shown.has(key));
     if (keys.length === 0) continue;
     marked.add(tokenId);
     keysOf.set(tokenId, keys.join(' '));
@@ -428,7 +425,7 @@ export function markSites(
     const there = map.get(tokenId);
     map.set(tokenId, there ? { ...there, keys: `${there.keys} ${mark.keys}` } : mark);
   };
-  for (const key of entries.keys()) {
+  for (const key of shown.keys()) {
     const ref = parseSiteKey(key);
     const segment = ref ? segments[ref.segmentId] : undefined;
     const site = ref ? siteOf(segment, ref.siteIndex) : undefined;

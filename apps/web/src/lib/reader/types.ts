@@ -3,14 +3,7 @@
  * version the visitor may see, trimmed for the browser. Only types here, so
  * that components never import server modules.
  */
-import type {
-  ApparatusConventions,
-  Attachment,
-  Collation,
-  LayoutLine,
-  OrderVariant,
-  Unit,
-} from '@varians/core';
+import type { Attachment, Collation, LayoutLine, OrderVariant, Unit } from '@varians/core';
 import type { EditionConventions } from '@varians/db';
 import type { EditionRights } from '$lib/edition/actions';
 
@@ -123,8 +116,6 @@ export interface ReaderData {
     conventions: EditionConventions;
   };
   work: { id: string; title: string; author: string | null; language: string };
-  /** The apparatus conventions the edition sets. */
-  apparatus: ApparatusConventions;
   lines: LayoutLine[];
   sigla: ReaderSiglum[];
   /** The passages sent, by their first segment. */
@@ -153,7 +144,7 @@ export interface ReaderData {
   basePath: string;
   /** The query links within this view keep: `?draft=1` in a preview, else empty. */
   query: string;
-  exports: { text: string; tei: string; package: string };
+  exports: { tei: string; package: string };
   /** Where the detail of some segments is asked for, as a query is added to it: `/editions/slug/detail.json` with the state of the edition kept. */
   detail: string;
   /** Where the places of some segments are asked for (`sites.json`), those in `pending`. */

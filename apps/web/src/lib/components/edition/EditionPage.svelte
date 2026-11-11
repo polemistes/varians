@@ -4,8 +4,8 @@
    * in the order of the work. The work, chosen from the registry or added in
    * a window; the name and the editors; for an edition that exists, its
    * preface, sources and note on rights; the witnesses; for an edition that
-   * exists, the conventions of its text and of its print apparatus. One Save
-   * for the whole page. Leaving it with changes unsaved asks first.
+   * exists, the conventions of its text. One Save for the whole page. Leaving
+   * it with changes unsaved asks first.
    */
   import { untrack, type Snippet } from 'svelte';
   import { enhance } from '$app/forms';
@@ -18,7 +18,6 @@
   import { PageFrame } from '$lib/components/shell';
   import { Button, Dialog, Field, Input, Select, Textarea, toasts } from '$lib/components/ui';
   import type { ConspectusRow, ConspectusWitness, SuggestedWitness } from '$lib/edition/conspectus';
-  import { ALL_WORDS, REST_WORDS } from '$lib/edition/conventions';
   import type { GroupDraft } from '$lib/edition/groups';
   import type { TranscriptionOption } from '$lib/registry/types';
   import { edition as s } from '$lib/strings/edition';
@@ -149,10 +148,6 @@
     formDirty = true;
   }
 
-  const wordOptions = (words: readonly string[]) => [
-    { value: '', label: s.wordNone },
-    ...words.map((word) => ({ value: word, label: word })),
-  ];
   const conventions = $derived(edition?.conventions);
 </script>
 
@@ -384,62 +379,6 @@
                     { value: 'inline', label: s.speakerInline },
                     { value: 'own-line', label: s.speakerOwnLine },
                   ]}
-                />
-              {/snippet}
-            </Field>
-          </div>
-        </Section>
-
-        <Section title={s.printApparatus}>
-          <div class="flex flex-col gap-5 font-sans text-sm">
-            <fieldset class="flex flex-col gap-2">
-              <legend class="mb-1.5 font-medium text-ink">{s.apparatusForm}</legend>
-              {#each ['positive', 'negative'] as const as form (form)}
-                <label class="flex items-center gap-2"
-                  ><input
-                    type="radio"
-                    class="accent-accent"
-                    name="apparatus"
-                    value={form}
-                    checked={conventions.apparatus === form}
-                  />
-                  {s[form]}</label
-                >
-              {/each}
-            </fieldset>
-            <fieldset class="flex flex-col gap-2">
-              <legend class="mb-1.5 font-medium text-ink">{s.interpretative}</legend>
-              {#each ['apparatus', 'separate', 'none'] as const as placement (placement)}
-                <label class="flex items-center gap-2"
-                  ><input
-                    type="radio"
-                    class="accent-accent"
-                    name="interpretative"
-                    value={placement}
-                    checked={(conventions.interpretative ?? 'separate') === placement}
-                  />
-                  {s.interpretativeOptions[placement]}</label
-                >
-              {/each}
-              <p class="text-xs text-ink-soft">{s.interpretativeHint}</p>
-            </fieldset>
-            <Field label={s.rest} hint={s.restHint} error={errors.rest}>
-              {#snippet children(control)}
-                <Select
-                  {...control}
-                  name="rest"
-                  value={conventions.rest ?? ''}
-                  options={wordOptions(REST_WORDS)}
-                />
-              {/snippet}
-            </Field>
-            <Field label={s.all} hint={s.allHint} error={errors.all}>
-              {#snippet children(control)}
-                <Select
-                  {...control}
-                  name="all"
-                  value={conventions.all ?? ''}
-                  options={wordOptions(ALL_WORDS)}
                 />
               {/snippet}
             </Field>

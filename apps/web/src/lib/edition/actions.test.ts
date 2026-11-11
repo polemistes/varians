@@ -17,7 +17,7 @@ function shape(menu: MenuEntry[]): string[] {
   );
 }
 
-const downloads = ['[Download]', 'text', 'tei', 'package'];
+const downloads = ['[Download]', 'tei', 'package'];
 
 describe('the menu of an edition', () => {
   it('has every item in its fixed order for the owner of a published edition', () => {
@@ -40,7 +40,6 @@ describe('the menu of an edition', () => {
       'Unpublish…',
       'Make a Copy…',
       'Download',
-      'Plain Text with Apparatus',
       'TEI XML',
       'Package',
       'Delete Edition…',
@@ -108,17 +107,22 @@ describe('the menu of an edition', () => {
     expect(menu.at(-1)).toMatchObject({ kind: 'action', id: 'delete', danger: true });
   });
 
+  it('offers no plain text with an apparatus among the downloads', () => {
+    const { menu } = editionActions(published, owner, 'reader');
+    expect(menu.some((m) => 'id' in m && m.id === 'text')).toBe(false);
+    expect(menu.some((m) => 'href' in m && m.href.endsWith('.txt'))).toBe(false);
+  });
+
   it('links the downloads to the addresses given, else to the edition as readers see it', () => {
     const plain = editionActions(published, visitor, 'reader').menu;
     expect(plain).toContainEqual(
-      expect.objectContaining({ id: 'text', href: '/editions/liber-1.txt' }),
+      expect.objectContaining({ id: 'tei', href: '/editions/liber-1.tei.xml', file: true }),
     );
     expect(plain).toContainEqual(
       expect.objectContaining({ id: 'package', href: '/editions/liber-1/package.zip', file: true }),
     );
     const version = editionActions(published, visitor, 'reader', {
       downloads: {
-        text: '/editions/liber-1.txt?v=2',
         tei: '/editions/liber-1.tei.xml?v=2',
         package: '/editions/liber-1/package.zip',
       },

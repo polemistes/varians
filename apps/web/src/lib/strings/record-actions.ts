@@ -23,7 +23,6 @@ export const recordActions = {
     unpublish: 'Unpublish…',
     copy: 'Make a Copy…',
     download: 'Download',
-    plainText: 'Plain Text with Apparatus',
     tei: 'TEI XML',
     package: 'Package',
     delete: 'Delete Edition…',

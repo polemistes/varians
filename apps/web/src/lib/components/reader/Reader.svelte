@@ -7,11 +7,9 @@
    * the margin beside the lines (in prose they are marked in the text: on
    * the words, at the point, and on the labels), each opening the variant
    * window, the variants of the lines on screen, the witnesses and the facsimile in panels, search, and a print
-   * stylesheet. The print apparatus is in the page for printing, for readers
-   * without JavaScript, and on screen when the reader asks for it in the
-   * gear (at the foot of each block or beside it). Server-rendered: the
-   * settings are applied once the page is live, so that the first render
-   * matches the server's.
+   * stylesheet that sets the text with its labels and preface and nothing of
+   * the interface. Server-rendered: the settings are applied once the page is
+   * live, so that the first render matches the server's.
    */
   import { onMount, untrack } from 'svelte';
   import { PageFrame } from '$lib/components/shell';
@@ -22,7 +20,6 @@
     proseTokens,
     segmentOfItems,
     segmentsByLine,
-    type Block,
   } from '$lib/reader/blocks';
   import { DEFAULT_SIGLA, printLine } from '$lib/reader/marks';
   import { findHits, searchIndex, type SearchHit, type SearchLine } from '$lib/reader/search';
@@ -32,24 +29,19 @@
   import { labelMarks, lineMarks } from '$lib/reader/line-marks';
   import {
     DEFAULT_SETTINGS,
-    effectiveConventions,
     loadSettings,
     saveSettings,
     type ReaderSettings,
   } from '$lib/reader/settings';
   import {
-    anyMinor,
     asPassage,
-    entriesBySegment,
-    entryBySite,
-    listingMinor,
     markSites,
     orderKey,
     parseOrderKey,
     parseSiteKey,
     segmentParts,
     siteByToken,
-    siglaOrderOf,
+    shownSites,
     siteOf,
     withMinor,
     witnessTokensAt,
@@ -57,7 +49,6 @@
   import type { ReaderPageData, ReaderSegment } from '$lib/reader/types';
   import { reader as r } from '$lib/strings/reader';
   import { s } from '$lib/strings';
-  import ApparatusBlock from './ApparatusBlock.svelte';
   import EntryPopover, { type PopoverEntry } from './EntryPopover.svelte';
   import FacsimilePanel from './FacsimilePanel.svelte';
   import ReaderBar from './ReaderBar.svelte';
@@ -99,7 +90,6 @@
   // What the edition is: fixed for a page.
   const conventionsOfEdition = $derived(data.edition.conventions);
   const sigla = $derived(conventionsOfEdition.sigla ?? DEFAULT_SIGLA);
-  const siglaOrder = $derived(siglaOrderOf(data.sigla));
   const printed = $derived(
     data.lines.map((line) => printLine(line.items, sigla, 'read', line.hyphen)),
   );
@@ -168,23 +158,11 @@
   });
 
   const sizes = { small: '1.0625rem', normal: 'var(--text-reading)', large: '1.375rem' } as const;
-  const side = $derived(settings.apparatus === 'side');
-  /** The print apparatus on screen; printing and pages without scripts always show it. */
-  const apparatusOnScreen = $derived(settings.apparatus !== 'none');
 
-  // The apparatus under the settings in force.
-  const conventions = $derived(effectiveConventions(data.apparatus, settings));
-  /** The print apparatus, which leaves a minor variant out as a printed edition does. */
-  const printEntries = $derived(entriesBySegment(sent, conventions, siglaOrder));
-  /** The entries that mark words, open in the popover and fill the list of variants: those of the print apparatus, and the minor variants when asked for. */
-  const entries = $derived(
-    settings.showMinor && anyMinor(sent)
-      ? entriesBySegment(listingMinor(segments), conventions, siglaOrder)
-      : printEntries,
-  );
-  const entryMap = $derived(entryBySite(entries));
+  /** The variants the reader is shown: those that mark words, open in the popover and fill the list of variants. */
+  const shown = $derived(shownSites(segments, settings.showInterpretative));
 
-  const marking = $derived(markSites(sitesOfToken, entryMap, segments, prose));
+  const marking = $derived(markSites(sitesOfToken, shown, segments, prose));
   /** The edition's words as it prints them, for the first row of a variant window. */
   const editionText = $derived(
     new EditionText(
@@ -210,7 +188,7 @@
       segmentsOfLine,
       lineation: data.lines.map((line) => line.lineation),
       segments,
-      shown: entryMap,
+      shown,
       orders: data.orderVariants,
       context: variantContext,
     }),
@@ -232,15 +210,6 @@
 
   function segmentHref(label: string): string {
     return `${data.basePath}/${encodeURIComponent(label)}${data.query}`;
-  }
-
-  function blockHasApparatus(block: Block): boolean {
-    return block.segmentIds.some(
-      (id) =>
-        (printEntries.get(id)?.length ?? 0) > 0 ||
-        (parts[id]?.unplaced.length ?? 0) > 0 ||
-        (parts[id]?.notes.length ?? 0) > 0,
-    );
   }
 
   // The permalink's segment: scrolled to once the page is live, and lit for a moment (by CSS, so also without scripts).
@@ -329,7 +298,7 @@
       } catch {
         return;
       }
-      // Each stretch that comes makes the apparatus again: the page takes a breath between.
+      // Each stretch that comes marks its variants as well: the page takes a breath between.
       await new Promise((resolve) => setTimeout(resolve, 150));
     }
   }
@@ -456,7 +425,7 @@
       const ref = parseSiteKey(key);
       const segment = ref ? segments[ref.segmentId] : undefined;
       const variant =
-        segment && entryMap.has(key) ? variantOf(segment, ref!.siteIndex, variantContext) : null;
+        segment && shown.has(key) ? variantOf(segment, ref!.siteIndex, variantContext) : null;
       if (!variant) return [];
       // A segment the edition does not print is at no address of the edition's; another goes to its first segment.
       const permalink = unprintedAt(asPassage(segment!), ref!.siteIndex)
@@ -468,7 +437,7 @@
 
   /** The variants of the lines on screen, with the segments the edition does not print that follow them, while the list of variants is open. */
   const variantGroups = $derived(
-    variantsOpen ? variantsOf(visibleSegments, segments, entryMap, variantContext) : [],
+    variantsOpen ? variantsOf(visibleSegments, segments, shown, variantContext) : [],
   );
 
   /** Light the words and entries of some sites, by a data attribute the components style. */
@@ -492,7 +461,7 @@
   /** Open the popover on a word: for all its sites, or for the ones given. */
   function openEntry(word: HTMLElement, only?: string[]) {
     const keys = (only ?? (word.dataset.sites ?? '').split(' ')).filter(
-      (key) => entryMap.has(key) || orderKeys.has(key),
+      (key) => shown.has(key) || orderKeys.has(key),
     );
     if (keys.length === 0) return;
     activeKeys = keys;
@@ -564,7 +533,7 @@
     }
   }
 
-  // Clicks, keys and hovering in the text and the apparatus, delegated from the reading column.
+  // Clicks, keys and hovering in the text, delegated from the reading column.
   $effect(() => {
     const root = reading;
     if (!root) return;
@@ -683,8 +652,7 @@
 <svelte:head>
   <title>{data.edition.title} · {authorAndWork} · {s.app.name}</title>
   <meta name="description" content={description} />
-  <!-- The header's tools need the page to be live; without scripts the text, the apparatus and the colophon remain. -->
-  <!-- Without scripts no word can be opened, so the print apparatus shows under the text. -->
+  <!-- The header's tools need the page to be live; without scripts the text and the colophon remain. -->
   <noscript>
     <style>
       :global(.word-addressed) {
@@ -694,9 +662,6 @@
       }
       .reader-bar-root {
         display: none !important;
-      }
-      .apparatus-wrap.apparatus-hidden {
-        display: block !important;
       }
     </style></noscript
   >
@@ -726,13 +691,12 @@
     style:--panels-width="{panelsWidth.value}px"
   >
     <div class="reader-main" bind:this={reading}>
-      <PageFrame width="reading" class={side ? 'max-w-[67rem]!' : undefined}>
+      <PageFrame width="reading">
         <ReaderHeading {data} {missingSegment} />
 
         <article
           class={[
             'text-root',
-            side && 'side',
             marginSpeakers && 'margin-speakers',
             marginLanes && 'margin-lanes',
             !hasLabels && 'no-labels',
@@ -778,18 +742,6 @@
                   />
                 {/each}
               </div>
-              {#if blockHasApparatus(block)}
-                <div class={['apparatus-wrap', !apparatusOnScreen && 'apparatus-hidden']}>
-                  <ApparatusBlock
-                    segmentIds={block.segmentIds}
-                    entries={printEntries}
-                    segments={parts}
-                    labelOf={data.labelOf}
-                    {conventions}
-                    {side}
-                  />
-                </div>
-              {/if}
             </section>
           {:else}
             <p class="font-sans text-sm text-ink-muted">{r.text.empty}</p>
@@ -941,25 +893,6 @@
     margin-top: 0.4em;
   }
 
-  /* The print apparatus, when the reader has not asked for it on screen. */
-  .apparatus-hidden {
-    display: none;
-  }
-
-  /* The apparatus beside the text, where the column is wide enough. */
-  @container (min-width: 50rem) {
-    .side .block {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 17rem;
-      column-gap: 2rem;
-      align-items: start;
-    }
-
-    .side .block + .block {
-      margin-top: 1em;
-    }
-  }
-
   /* Panels: a column on the right on wide screens, a sheet at the foot on narrow ones. */
   /* The divider on the panels' left edge, where the panels stand beside the text. */
   .panels-edge {
@@ -1014,7 +947,7 @@
     }
   }
 
-  /* Print: the text with the apparatus under each block and the labels in the margin; nothing of the interface. */
+  /* Print: the text with its labels in the margin, and the preface; nothing of the interface. */
   @media print {
     :global(:root) {
       --color-page: #fff !important;
@@ -1046,14 +979,6 @@
       --label-column: 2.6rem;
       font-size: 11.5pt;
       line-height: 1.45;
-    }
-
-    .side .block {
-      display: block;
-    }
-
-    .apparatus-hidden {
-      display: block;
     }
   }
 

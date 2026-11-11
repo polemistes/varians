@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SETTINGS,
   SETTINGS_KEY,
-  effectiveConventions,
   isDefault,
   loadSettings,
   parseSettings,
@@ -14,23 +13,19 @@ describe('parseSettings', () => {
   it('reads what was stored', () => {
     const stored = JSON.stringify({
       size: 'large',
-      apparatus: 'side',
-      form: 'negative',
-      interpretative: 'none',
       labels: 'every',
       underline: false,
+      showInterpretative: false,
       showMinor: true,
     });
     expect(parseSettings(stored)).toEqual({
       size: 'large',
-      apparatus: 'side',
-      form: 'negative',
-      interpretative: 'none',
       labels: 'every',
       underline: false,
+      showInterpretative: false,
       showMinor: true,
     });
-    // A choice stored before the apparatus stopped printing spellings is simply dropped.
+    // A choice stored for something the reader no longer has is simply dropped.
     expect(parseSettings(JSON.stringify({ size: 'large', orthographica: true }))).toEqual({
       ...DEFAULT_SETTINGS,
       size: 'large',
@@ -44,29 +39,46 @@ describe('parseSettings', () => {
     expect(
       parseSettings({
         size: 'huge',
-        apparatus: 'top',
-        form: 'both',
         labels: 7,
         underline: 'no',
+        showInterpretative: 'no',
         showMinor: 'yes',
       }),
     ).toEqual(DEFAULT_SETTINGS);
   });
 
-  it('shows no print apparatus on screen by default, and keeps the placements stored before', () => {
-    expect(DEFAULT_SETTINGS.apparatus).toBe('none');
-    expect(parseSettings(null).apparatus).toBe('none');
-    expect(parseSettings('{"apparatus":"foot"}').apparatus).toBe('foot');
-    expect(parseSettings('{"apparatus":"side"}').apparatus).toBe('side');
-    expect(parseSettings('{"apparatus":"none"}').apparatus).toBe('none');
-    expect(parseSettings('{"apparatus":"margin"}').apparatus).toBe('none');
+  it('shows the interpretative variants by default, and stores the choice not to', () => {
+    expect(DEFAULT_SETTINGS.showInterpretative).toBe(true);
+    expect(parseSettings(null).showInterpretative).toBe(true);
+    expect(serializeSettings({ ...DEFAULT_SETTINGS, showInterpretative: false })).toBe(
+      '{"showInterpretative":false}',
+    );
+    expect(parseSettings('{"showInterpretative":false}').showInterpretative).toBe(false);
+    expect(serializeSettings({ ...DEFAULT_SETTINGS, showInterpretative: true })).toBe('{}');
   });
 
-  it('stores a chosen placement and nothing for the default', () => {
-    expect(serializeSettings({ ...DEFAULT_SETTINGS, apparatus: 'foot' })).toBe(
-      '{"apparatus":"foot"}',
+  it('gives a reader who remembers the old choices the page without a print apparatus', () => {
+    // Where the print apparatus stood, and its form, are no longer choices: they read as the defaults.
+    for (const apparatus of ['none', 'foot', 'side', 'margin']) {
+      for (const form of ['positive', 'negative']) {
+        const old = JSON.stringify({ size: 'small', apparatus, form });
+        expect(parseSettings(old)).toEqual({ ...DEFAULT_SETTINGS, size: 'small' });
+      }
+    }
+    // Interpretative variants set in a list of their own, or among the others, are shown; not shown stays so.
+    expect(parseSettings('{"interpretative":"apparatus"}').showInterpretative).toBe(true);
+    expect(parseSettings('{"interpretative":"separate"}').showInterpretative).toBe(true);
+    expect(parseSettings('{"interpretative":"none"}').showInterpretative).toBe(false);
+    expect(parseSettings('{"interpretative":"sideways"}').showInterpretative).toBe(true);
+    // The new choice wins over an old one stored beside it.
+    expect(
+      parseSettings('{"interpretative":"none","showInterpretative":true}').showInterpretative,
+    ).toBe(true);
+    // Saving them again stores nothing of what is gone.
+    expect(serializeSettings(parseSettings('{"apparatus":"foot","form":"negative"}'))).toBe('{}');
+    expect(serializeSettings(parseSettings('{"interpretative":"none","apparatus":"side"}'))).toBe(
+      '{"showInterpretative":false}',
     );
-    expect(serializeSettings({ ...DEFAULT_SETTINGS, apparatus: 'none' })).toBe('{}');
   });
 
   it('does not show the minor variants by default, and stores the choice to show them', () => {
@@ -92,32 +104,6 @@ describe('serializeSettings', () => {
     expect(JSON.parse(serializeSettings(changed))).toEqual({ size: 'small', labels: 'every' });
     expect(parseSettings(serializeSettings(changed))).toEqual(changed);
     expect(isDefault(changed)).toBe(false);
-  });
-});
-
-describe('effectiveConventions', () => {
-  const edition = { form: 'negative' as const, interpretative: 'separate' as const };
-  it('follows the edition where the reader has not chosen', () => {
-    expect(effectiveConventions(edition, DEFAULT_SETTINGS)).toEqual(edition);
-  });
-  it('puts the choices of form and of interpretative variants of the reader over it', () => {
-    expect(effectiveConventions(edition, { ...DEFAULT_SETTINGS, form: 'positive' })).toEqual({
-      form: 'positive',
-      interpretative: 'separate',
-    });
-  });
-  it('keeps how the edition names its witnesses', () => {
-    const naming = {
-      ...edition,
-      groups: [{ siglum: 'p', members: ['V', 'H'] }],
-      rest: 'cett.',
-      all: 'codd.',
-    };
-    expect(effectiveConventions(naming, DEFAULT_SETTINGS)).toEqual(naming);
-    expect(effectiveConventions(naming, { ...DEFAULT_SETTINGS, form: 'positive' })).toEqual({
-      ...naming,
-      form: 'positive',
-    });
   });
 });
 

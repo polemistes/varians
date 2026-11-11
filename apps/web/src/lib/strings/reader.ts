@@ -62,34 +62,11 @@ export const reader = {
     title: 'Reading Settings',
     textSize: 'Text size',
     sizes: { small: 'Small', normal: 'Normal', large: 'Large' },
-    apparatus: 'Apparatus',
-    apparatusNone: 'Not shown',
-    apparatusFoot: 'Below the text, as in print',
-    apparatusSide: 'Beside the text, as in print',
-    apparatusNoneHint:
-      'Click a word with a dotted line to see its variants, or open the list of variants.',
-    apparatusSideHint: 'Beside the text on wide screens.',
-    form: 'Form',
-    positive: 'Positive',
-    negative: 'Negative',
-    editionForm: (form: 'positive' | 'negative') =>
-      form === 'positive'
-        ? 'The edition names the witnesses that agree with its text.'
-        : 'The edition names only the witnesses that differ from its text.',
     interpretative: 'Interpretative variants',
-    interpretativeOptions: {
-      apparatus: 'With the others',
-      separate: 'In a list of their own',
-      none: 'Not shown',
-    },
+    interpretativeShown: 'Shown',
+    interpretativeHidden: 'Not shown',
     interpretativeHint:
       'Accents, breathings, punctuation and word division: the same letters read otherwise.',
-    editionInterpretative: (placement: 'apparatus' | 'separate' | 'none') =>
-      placement === 'apparatus'
-        ? 'The edition prints them with the others.'
-        : placement === 'separate'
-          ? 'The edition prints them in a list of their own.'
-          : 'The edition does not print them.',
     minor: 'Minor variants',
     minorShown: 'Shown',
     minorHidden: 'Not shown',
