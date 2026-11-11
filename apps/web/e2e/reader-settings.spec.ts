@@ -254,7 +254,7 @@ test('the reading settings offer interpretative variants as Shown or Not shown, 
   await expect(division).toHaveCount(0);
   await expect(marked(page)).toHaveCount(1);
   await expect(marked(page)).toHaveText('ἄειδε');
-  expect(await storedSettings(page)).toBe('{"showInterpretative":false}');
+  await expect.poll(() => storedSettings(page)).toBe('{"showInterpretative":false}');
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: rd.toolbar.variants, exact: true }).click();
   const panel = page.getByRole('region', { name: rd.panels.variants });
@@ -272,7 +272,7 @@ test('the reading settings offer interpretative variants as Shown or Not shown, 
     .getByText(rd.settings.interpretativeShown, { exact: true })
     .click();
   await expect(marked(page)).toHaveCount(2);
-  expect(await storedSettings(page)).toBeNull();
+  await expect.poll(() => storedSettings(page)).toBeNull();
   expect(problems).toEqual([]);
 });
 
@@ -299,10 +299,11 @@ test('a reader who remembers the old choices gets the page without an apparatus 
   // No block of an apparatus anywhere on the page.
   await expect(page.locator('.reader .apparatus, .reader .entry')).toHaveCount(0);
   await expect(page.getByText(rd.text.apparatus('1.1–1.2'))).toHaveCount(0);
-  // What still means something is kept: the size and the underline, and interpretative variants out of sight.
-  await expect(page.locator('.reader')).toHaveCSS('--reader-size', '1.375rem');
-  await expect(marked(page)).toHaveCount(0);
-  await expect(page.locator('.reader [data-sites]:not(.variant)').first()).toBeVisible();
+  // What still means something is kept: the size, the underline, and interpretative variants out of sight (the textual variant is still marked).
+  await expect(page.locator('.reader .text-root')).toHaveCSS('font-size', '22px');
+  await expect(marked(page)).toHaveCount(1);
+  await expect(marked(page)).toHaveText('ἄειδε');
+  await expect(marked(page)).not.toHaveClass(/dotted/);
   await page.getByRole('button', { name: rd.toolbar.settings }).click();
   await expect(
     page
@@ -310,11 +311,9 @@ test('a reader who remembers the old choices gets the page without an apparatus 
       .getByLabel(rd.settings.interpretativeHidden),
   ).toBeChecked();
   // What is stored is rewritten without what is gone.
-  expect(JSON.parse((await storedSettings(page)) ?? '{}')).toEqual({
-    size: 'large',
-    underline: false,
-    showInterpretative: false,
-  });
+  await expect
+    .poll(async () => JSON.parse((await storedSettings(page)) ?? '{}'))
+    .toEqual({ size: 'large', underline: false, showInterpretative: false });
   expect(problems).toEqual([]);
 });
 
