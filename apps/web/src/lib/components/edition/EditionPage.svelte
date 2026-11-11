@@ -16,16 +16,7 @@
   import type { EditionConventions } from '@varians/db';
   import { SchemeEditor, Section, WorkFields } from '$lib/components/registry';
   import { PageFrame } from '$lib/components/shell';
-  import {
-    Button,
-    Checkbox,
-    Dialog,
-    Field,
-    Input,
-    Select,
-    Textarea,
-    toasts,
-  } from '$lib/components/ui';
+  import { Button, Dialog, Field, Input, Select, Textarea, toasts } from '$lib/components/ui';
   import type { ConspectusRow, ConspectusWitness, SuggestedWitness } from '$lib/edition/conspectus';
   import { ALL_WORDS, REST_WORDS } from '$lib/edition/conventions';
   import type { GroupDraft } from '$lib/edition/groups';
@@ -414,7 +405,6 @@
                   {s[form]}</label
                 >
               {/each}
-              <Checkbox name="latin" checked={conventions.latin}>{s.latin}</Checkbox>
             </fieldset>
             <fieldset class="flex flex-col gap-2">
               <legend class="mb-1.5 font-medium text-ink">{s.interpretative}</legend>

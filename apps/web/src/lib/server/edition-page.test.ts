@@ -80,7 +80,6 @@ const settingsForm = (extra: Record<string, string | string[]> = {}) => ({
   lineation: 'verse',
   numberEvery: '5',
   apparatus: 'positive',
-  latin: 'on',
   interpretative: 'separate',
   speakerDisplay: 'margin',
   ...extra,

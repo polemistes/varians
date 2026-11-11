@@ -89,7 +89,7 @@ describe('editionView', () => {
         .flatMap((p) => p.entries)
         .filter((e) => e.label === label);
     const lines = at('1.5').map((e) => formatEntry(e, view.apparatus));
-    expect(lines).toContain('1.5 πᾶσι A B C : δαῖτα Zenodotus (coni.)');
+    expect(lines).toContain('1.5 πᾶσι A B C : δαῖτα Zenodotus (conjectured)');
     // C has lost words of 1.5: it is named only where it is there.
     expect(lines.some((l) => l.includes('lac.'))).toBe(false);
     const one = passageAt(view, '1.1');
@@ -104,7 +104,7 @@ describe('editionView', () => {
     expect(six.segments.map((s) => s.label)).toEqual(expect.arrayContaining(['1.5', '1.6', '1.7']));
     expect(six.absent).toEqual([]);
     expect(at('1.6').map((e) => formatEntry(e, view.apparatus))).toEqual([
-      '1.6 ἐξ … ἐρίσαντε A : om. B C',
+      '1.6 ἐξ … ἐρίσαντε A : not in B C',
     ]);
     expect(at('1.4').some((e) => e.variants.some((v) => v.attachment?.name === 'Berge'))).toBe(
       true,

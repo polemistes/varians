@@ -22,6 +22,7 @@ import {
   type EditionOrigin,
 } from '@varians/db';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { withoutLatin } from '$lib/edition/conventions';
 import { canViewTranscription, grantsFor, type Actor } from './authz.ts';
 import { replaceContent } from './documents/service.ts';
 import { loadEditionAccess } from './edition-access.ts';
@@ -113,7 +114,7 @@ export async function copyEdition(
     sources: source.sources,
     rightsNote: source.rightsNote,
     ownerId: user.id,
-    conventions: source.conventions,
+    conventions: withoutLatin(source.conventions),
     copiedFrom: origin,
   });
   try {

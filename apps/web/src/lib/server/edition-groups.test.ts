@@ -68,7 +68,6 @@ const settingsForm = (extra: Record<string, string> = {}): Record<string, string
   lineation: 'verse',
   numberEvery: '5',
   apparatus: 'positive',
-  latin: 'on',
   interpretative: 'separate',
   speakerDisplay: 'margin',
   ...extra,
@@ -158,7 +157,7 @@ describe('the family sigla of the sample edition', () => {
     const view = await editionView(db, sample.editionId, null, audience);
     expect(view.apparatus.groups).toEqual([{ siglum: 'p', members: ['B', 'C'] }]);
     expect(view.edition.conventions.groups?.[0]?.note).toBe('consensus codicum BC');
-    expect(await printed(sample.editionId)).toContain('1.6 ἐξ … ἐρίσαντε A : om. p');
+    expect(await printed(sample.editionId)).toContain('1.6 ἐξ … ἐρίσαντε A : not in p');
     await reset();
   });
 

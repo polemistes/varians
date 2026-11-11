@@ -20,7 +20,7 @@ import {
 } from '@varians/db';
 import { eq, getTableColumns, getTableName, inArray, is } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import pg from 'pg';
@@ -197,6 +197,31 @@ describe('archive round trip', () => {
     // Nothing else of the text moved, and it is told as it was told before.
     expect(restored!.content).toEqual(saved!.content);
     expect(toText(restored!.content)).toContain('(not transcribed)');
+    await clean();
+  }, 60_000);
+
+  it('writes no setting for Latin abbreviations, and reads an archive that has one with the member ignored', async () => {
+    const sample = await seedSample(db, userId);
+    // An edition made before the setting went still has it in its row.
+    const [edition] = await db.select().from(editions).where(eq(editions.id, sample.editionId));
+    const old = { ...edition!.conventions, latin: true };
+    await db.update(editions).set({ conventions: old }).where(eq(editions.id, sample.editionId));
+    const dir = await writeArchive(db, sample.workId, root);
+    const editionDir = path.join(dir, 'editions', sample.editionSlug);
+    const file = path.join(editionDir, 'edition.json');
+    const written = JSON.parse(await readFile(file, 'utf8'));
+    expect(written.conventions).not.toHaveProperty('latin');
+    expect(written.conventions).toMatchObject({ apparatus: 'positive', numberEvery: 5 });
+    // The plain text says its words in English, as the print apparatus does.
+    expect(await readFile(path.join(editionDir, 'edition.txt'), 'utf8')).toContain(': not in B C');
+    // An archive written before the setting went has it: it is read, and the member is not kept.
+    written.conventions.latin = false;
+    await writeFile(file, JSON.stringify(written));
+    await removeWorkCompletely(db, sample.workId);
+    await importArchive(db, dir, userId);
+    const [back] = await db.select().from(editions).where(eq(editions.id, sample.editionId));
+    expect(back!.conventions).not.toHaveProperty('latin');
+    expect(back!.conventions).toMatchObject({ apparatus: 'positive', numberEvery: 5 });
     await clean();
   }, 60_000);
 

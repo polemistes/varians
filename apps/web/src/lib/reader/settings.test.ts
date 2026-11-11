@@ -96,14 +96,13 @@ describe('serializeSettings', () => {
 });
 
 describe('effectiveConventions', () => {
-  const edition = { form: 'negative' as const, latin: false, interpretative: 'separate' as const };
+  const edition = { form: 'negative' as const, interpretative: 'separate' as const };
   it('follows the edition where the reader has not chosen', () => {
     expect(effectiveConventions(edition, DEFAULT_SETTINGS)).toEqual(edition);
   });
-  it('puts the reader choices over it, never the Latin', () => {
+  it('puts the choices of form and of interpretative variants of the reader over it', () => {
     expect(effectiveConventions(edition, { ...DEFAULT_SETTINGS, form: 'positive' })).toEqual({
       form: 'positive',
-      latin: false,
       interpretative: 'separate',
     });
   });

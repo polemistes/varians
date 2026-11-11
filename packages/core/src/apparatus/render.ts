@@ -10,8 +10,6 @@ import { archetypeLetters, trimPunctuation } from '../normalize/fold.ts';
 export interface ApparatusConventions {
   /** Positive: name the witnesses that agree with the lemma. Negative: name only those that differ. */
   form: 'positive' | 'negative';
-  /** Latin abbreviations (om., add., del.) rather than English words. */
-  latin: boolean;
   /**
    * Interpretative variants (the same letters read otherwise): among the
    * others, in a list of their own under the apparatus, or not printed.
@@ -49,7 +47,6 @@ export type InterpretativePlacement = 'apparatus' | 'separate' | 'none';
 
 export const DEFAULT_CONVENTIONS: ApparatusConventions = {
   form: 'positive',
-  latin: true,
   interpretative: 'separate',
 };
 
@@ -124,20 +121,21 @@ export interface ApparatusVariant {
   reported?: Attachment[];
 }
 
+/**
+ * What the apparatus says of a reading, in English words written out, as the
+ * screen does. The words an edition chooses for "the other witnesses" and for
+ * "all the witnesses" are its conventions' (`rest`, `all`), not these.
+ */
 const words = {
-  om: { latin: 'om.', english: 'omitted' },
-  add: { latin: 'add.', english: 'added' },
-  del: { latin: 'del.', english: 'deleted' },
-  coni: { latin: 'coni.', english: 'conjectured' },
-  suppl: { latin: 'suppl.', english: 'supplied' },
-  transp: { latin: 'transp.', english: 'transposed' },
-  post: { latin: 'post', english: 'after' },
-  codd: { latin: 'codd.', english: 'all witnesses' },
+  /** A reading without words: they are not in the witnesses, which says nothing of a loss or of an omission. */
+  notIn: 'not in',
+  added: 'added',
+  deleted: 'deleted',
+  conjectured: 'conjectured',
+  supplied: 'supplied',
+  transposed: 'transposed',
+  lacuna: 'posits a lacuna',
 };
-
-function word(key: keyof typeof words, latin: boolean): string {
-  return latin ? words[key].latin : words[key].english;
-}
 
 /**
  * Entries for one segment: one per site that the conventions print, with
@@ -172,7 +170,7 @@ export function apparatusEntries(
     const adopted = attached.find((a) => a.adopted && a.kind === 'conjecture');
     const support = attached.filter((a) => a.adopted && a.kind === 'reported');
     const variants: ApparatusVariant[] = others.map((reading) =>
-      renderReading(reading, base, conventions, siglaOrder),
+      renderReading(reading, base, siglaOrder),
     );
     // The edition's own siglum comes first and is not printed.
     const named = nameWitnesses(
@@ -200,11 +198,11 @@ export function apparatusEntries(
               (v) =>
                 v.attachment?.kind !== 'conjecture' &&
                 sameWords(v.text, attachment.text) &&
-                (v.text !== '' || v.note === word('om', conventions.latin)),
+                (v.text !== '' || v.note === words.notIn),
             )
           : undefined;
       if (same) (same.reported ??= []).push(attachment);
-      else variants.push(renderAttachment(attachment, conventions));
+      else variants.push(renderAttachment(attachment));
     }
     const entry: ApparatusEntry = {
       siteIndex: site.index,
@@ -227,8 +225,7 @@ export function apparatusEntries(
       site.transposition &&
       (site.transposition.inPassage !== undefined || site.transposition.withSite !== site.index)
     ) {
-      entry.transposition =
-        `${word('transp', conventions.latin)} ${site.transposition.textIds.length} `.trim();
+      entry.transposition = `${words.transposed} ${site.transposition.textIds.length} `.trim();
     }
     entries.push({ entry, site });
   }
@@ -367,44 +364,39 @@ function lemmaOf(base: Reading, abridge: boolean): string {
 function renderReading(
   reading: Reading,
   base: Reading | undefined,
-  conventions: ApparatusConventions,
   siglaOrder: string[],
 ): ApparatusVariant {
   const sigla = sortSigla(printedSigla(reading), siglaOrder);
   const variant: ApparatusVariant = { text: trimPunctuation(reading.text), sigla };
-  if (reading.omission) variant.note = word('om', conventions.latin);
-  else if (base && base.text === '') variant.note = word('add', conventions.latin);
+  if (reading.omission) variant.note = words.notIn;
+  else if (base && base.text === '') variant.note = words.added;
   return variant;
 }
 
-function renderAttachment(
-  attachment: Attachment,
-  conventions: ApparatusConventions,
-): ApparatusVariant {
-  const latin = conventions.latin;
+function renderAttachment(attachment: Attachment): ApparatusVariant {
   const variant: ApparatusVariant = {
     text: attachment.text,
     sigla: [attachment.name + (attachment.source ? ` ${attachment.source}` : '')],
     attachment,
   };
-  // A source reported to have nothing here leaves the words out.
-  if (attachment.kind === 'reported' && attachment.text === '') variant.note = word('om', latin);
+  // A source reported to have nothing here: the words are not in it.
+  if (attachment.kind === 'reported' && attachment.text === '') variant.note = words.notIn;
   if (attachment.kind === 'conjecture') {
     switch (attachment.conjectureKind) {
       case 'deletion':
-        variant.note = word('del', latin);
+        variant.note = words.deleted;
         break;
       case 'lacuna':
-        variant.note = latin ? 'lacunam statuit' : 'posits a lacuna';
+        variant.note = words.lacuna;
         break;
       case 'supplement':
-        variant.note = word('suppl', latin);
+        variant.note = words.supplied;
         break;
       case 'transposition':
-        variant.note = word('transp', latin);
+        variant.note = words.transposed;
         break;
       default:
-        variant.note = attachment.text === '' ? word('del', latin) : word('coni', latin);
+        variant.note = attachment.text === '' ? words.deleted : words.conjectured;
     }
   }
   return variant;
@@ -449,21 +441,18 @@ export function attachmentName(attachment: Pick<Attachment, 'name' | 'source'>):
 
 /**
  * What an adopted conjecture did, printed before its proposer where it is
- * not plain from the reading: "suppl. Meineke", "lacunam statuit Hermann".
+ * not plain from the reading: "supplied Meineke", "posits a lacuna Hermann".
  */
-export function adoptedNote(
-  adopted: Pick<Attachment, 'conjectureKind'>,
-  conventions: Pick<ApparatusConventions, 'latin'>,
-): string {
+export function adoptedNote(adopted: Pick<Attachment, 'conjectureKind'>): string {
   switch (adopted.conjectureKind) {
     case 'supplement':
-      return word('suppl', conventions.latin);
+      return words.supplied;
     case 'lacuna':
-      return conventions.latin ? 'lacunam statuit' : 'posits a lacuna';
+      return words.lacuna;
     case 'deletion':
-      return word('del', conventions.latin);
+      return words.deleted;
     case 'transposition':
-      return word('transp', conventions.latin);
+      return words.transposed;
     default:
       return '';
   }
@@ -476,9 +465,7 @@ export function formatEntry(
 ): string {
   const parts: string[] = [];
   const witnesses = entry.adopted
-    ? [adoptedNote(entry.adopted, conventions), attachmentName(entry.adopted)]
-        .filter((p) => p !== '')
-        .join(' ')
+    ? [adoptedNote(entry.adopted), attachmentName(entry.adopted)].filter((p) => p !== '').join(' ')
     : conventions.form === 'positive' || entry.lemmaNamed
       ? entry.lemmaSigla.join(' ')
       : '';
@@ -505,7 +492,7 @@ export function formatEntry(
       variant.attachment.kind === 'conjecture' &&
       variant.attachment.conjectureKind !== 'deletion' &&
       variant.text
-        ? `${variant.text} ${sigla}${variant.note && variant.attachment.conjectureKind && variant.attachment.conjectureKind !== 'substitution' ? ` (${variant.note})` : variant.note === words.coni.latin || variant.note === words.coni.english ? ` (${variant.note})` : ''}`
+        ? `${variant.text} ${sigla}${variant.note && variant.attachment.conjectureKind && variant.attachment.conjectureKind !== 'substitution' ? ` (${variant.note})` : variant.note === words.conjectured ? ` (${variant.note})` : ''}`
         : `${text} ${sigla}`;
     parts.push(printed.trim());
   }

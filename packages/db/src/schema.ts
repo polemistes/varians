@@ -578,8 +578,6 @@ export const reportedReadings = pgTable(
 
 export interface EditionConventions {
   apparatus: 'positive' | 'negative';
-  /** Latin abbreviations (om., add., del.) or full words. */
-  latin: boolean;
   lineation: 'verse' | 'prose';
   /** Print a segment label every n lines in verse. */
   numberEvery: number;

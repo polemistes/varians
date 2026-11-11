@@ -284,7 +284,6 @@ function readerState(
 export function apparatusConventionsOf(conventions: EditionConventions): ApparatusConventions {
   const out: ApparatusConventions = {
     form: conventions.apparatus,
-    latin: conventions.latin,
     interpretative: conventions.interpretative ?? 'separate',
   };
   if (conventions.groups?.length)

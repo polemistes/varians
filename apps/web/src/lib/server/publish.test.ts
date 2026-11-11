@@ -3,6 +3,7 @@ import { formatEntry, newId, type Token } from '@varians/core';
 import {
   createDatabase,
   editions,
+  moments,
   referenceSchemes,
   transcriptions,
   users,
@@ -165,6 +166,27 @@ describe('publishing and conjectures', () => {
     expect(await printed(null)).toContain('θεός');
     expect(await printed(null)).toContain('Later');
     expect(await printed(published.version)).toBe(before);
+  });
+
+  it('reads a version published while the edition still had the setting for Latin abbreviations in English words', async () => {
+    const [edition] = await db
+      .select()
+      .from(editions)
+      .where(eq(editions.slug, 'iliad-1-working-edition'));
+    const old = { ...edition!.conventions, latin: true };
+    await db.update(editions).set({ conventions: old }).where(eq(editions.id, edition!.id));
+    const published = await publishEdition(db, edition!.id, userId);
+    const view = await editionView(db, edition!.id, published.version, PUBLIC);
+    expect(view.apparatus).not.toHaveProperty('latin');
+    const six = Object.values(view.segments)
+      .flatMap((p) => p.entries)
+      .filter((e) => e.label === '1.6');
+    expect(six.map((e) => formatEntry(e, view.apparatus))).toEqual([
+      '1.6 ἐξ … ἐρίσαντε A : not in B C',
+    ]);
+    // A published version records the sigla, the versions of the witnesses and the marks on its places, and no conventions: they are the edition's.
+    const [moment] = await db.select().from(moments).where(eq(moments.id, published.momentId));
+    expect(moment!.basis).not.toHaveProperty('conventions');
   });
 
   it("refuses to publish another person's unpublished transcription", async () => {

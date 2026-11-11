@@ -79,7 +79,7 @@ describe('plainText', () => {
       content,
       segments,
       labelOf: { s1: '1.1', s2: '1.2' },
-      conventions: { form: 'positive', latin: true, interpretative: 'separate' },
+      conventions: { form: 'positive', interpretative: 'separate' },
       siglaOrder: ['A'],
       sigla: DEFAULT_SIGLA,
       noteWord: 'Note',
@@ -92,7 +92,7 @@ describe('plainText', () => {
         'Version 1, published 2026-10-02',
         '',
         '1.1  μῆνιν ἄειδε θεὰ',
-        '    Interpretative: 1.1 θεὰ A : θεά Bentley (coni.)',
+        '    Interpretative: 1.1 θεὰ A : θεά Bentley (conjectured)',
         '1.2  οὐλομένην ⟨ἣ⟩',
         '     μυρί᾽',
         '    1.2 μυρί᾽ : μυρία A',
@@ -124,7 +124,7 @@ describe('plainText, divided words and prose', () => {
     content: stream,
     segments: {},
     labelOf: { s1: '1', s2: '2' },
-    conventions: { form: 'positive' as const, latin: true, interpretative: 'separate' as const },
+    conventions: { form: 'positive' as const, interpretative: 'separate' as const },
     siglaOrder: [],
     sigla: DEFAULT_SIGLA,
     noteWord: 'Note',
@@ -328,7 +328,7 @@ describe('a variant across the boundary of two segments', () => {
       content: stream,
       segments: exported,
       labelOf,
-      conventions: { form: 'positive', latin: true, interpretative: 'separate' },
+      conventions: { form: 'positive', interpretative: 'separate' },
       siglaOrder: ['A', 'B'],
       sigla: DEFAULT_SIGLA,
       noteWord: 'Note',
@@ -377,14 +377,14 @@ describe('a variant across the boundary of two segments', () => {
       content: stream,
       segments: exported,
       labelOf,
-      conventions: { form: 'positive', latin: true, interpretative: 'separate' },
+      conventions: { form: 'positive', interpretative: 'separate' },
       siglaOrder: ['A', 'B'],
       sigla: DEFAULT_SIGLA,
       noteWord: 'Note',
       interpretativeWord: 'Interpretative',
     });
     expect(text).toBe(
-      ['1.1  alpha beta', '    1.2 B : gamma delta add. A', '1.3  epsilon zeta', ''].join('\n'),
+      ['1.1  alpha beta', '    1.2 B : gamma delta added A', '1.3  epsilon zeta', ''].join('\n'),
     );
   });
 });

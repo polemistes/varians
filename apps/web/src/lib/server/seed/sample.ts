@@ -46,7 +46,6 @@ import { setChosenWorks } from '../transcription-works.ts';
 
 export const DEFAULT_CONVENTIONS = {
   apparatus: 'positive' as const,
-  latin: true,
   lineation: 'verse' as const,
   numberEvery: 5,
   speakerDisplay: 'margin' as const,

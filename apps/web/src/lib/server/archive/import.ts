@@ -17,6 +17,7 @@
  * the same import rolled back.
  */
 
+import { withoutLatin } from '$lib/edition/conventions';
 import { normalizeSiglum } from '../sigla.ts';
 import { markOfBasis } from '../site-marks.ts';
 import {
@@ -1254,7 +1255,8 @@ async function importInto(
       ownerId: owner(ctx, e.ownerId),
       visibility: e.visibility,
       publishedVersion: e.publishedVersion,
-      conventions: e.conventions,
+      // An archive written before November 2026 may carry `latin`, which is ignored.
+      conventions: withoutLatin(e.conventions),
       copiedFrom: e.copiedFrom
         ? { ...e.copiedFrom, editors: editorList((e.copiedFrom as { editors?: unknown }).editors) }
         : null,
