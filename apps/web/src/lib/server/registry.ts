@@ -823,11 +823,12 @@ export async function deleteHistory(
 export type DeleteTranscriptionResult =
   | { ok: true; name: string }
   | { ok: false; error: 'not-found' | 'forbidden' }
-  | { ok: false; error: 'in-conspectus'; editions: EditionRef[] };
+  | { ok: false; error: 'in-conspectus'; editions: EditionRef[]; hiddenEditions: number };
 
 /**
  * Deletes a transcription with its history. Owner or administrator only,
- * and refused while an edition's conspectus names it.
+ * and refused while an edition's conspectus names it. The refusal names the
+ * editions the person may see and counts the drafts of others they may not.
  */
 export async function deleteTranscription(
   db: Database,
@@ -841,11 +842,20 @@ export async function deleteTranscription(
   if (!row) return { ok: false, error: 'not-found' };
   if (!canDeleteTranscription(user, row)) return { ok: false, error: 'forbidden' };
   const naming = await db
-    .selectDistinct({ slug: editions.slug, title: editions.title })
+    .selectDistinct({
+      id: editions.id,
+      slug: editions.slug,
+      title: editions.title,
+      ownerId: editions.ownerId,
+      visibility: editions.visibility,
+    })
     .from(editionSigla)
     .innerJoin(editions, eq(editions.id, editionSigla.editionId))
     .where(eq(editionSigla.transcriptionId, id));
-  if (naming.length) return { ok: false, error: 'in-conspectus', editions: naming };
+  if (naming.length) {
+    // `canDeleteTranscription` has let a person through, so `user` is not null.
+    return { ok: false, error: 'in-conspectus', ...(await nameVisibleEditions(db, user!, naming)) };
+  }
   await db.transaction(async (tx) => {
     await deleteHistory(tx, 'transcription', [id]);
     await tx.delete(transcriptions).where(eq(transcriptions.id, id));

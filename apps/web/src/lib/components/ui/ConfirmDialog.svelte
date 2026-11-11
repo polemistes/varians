@@ -30,6 +30,10 @@
     onconfirm?: () => Promise<string | null | void>;
     /** Shown when the action succeeds or redirects; an action's own `message` wins. */
     done?: string;
+    /** Called as the deed begins, for a page that must stop what it is doing first. */
+    onstart?: () => void;
+    /** Called when a refusal is shown in the window. */
+    onrefused?: () => void;
   }
 
   let {
@@ -42,6 +46,8 @@
     fields = {},
     onconfirm,
     done,
+    onstart,
+    onrefused,
   }: Props = $props();
 
   const uid = $props.id();
@@ -55,10 +61,12 @@
 
   const submit: SubmitFunction = () => {
     submitting = true;
+    onstart?.();
     return async ({ result, update }) => {
       submitting = false;
       if (result.type === 'failure') {
         refusal = String(result.data?.error ?? result.data?.message ?? recordActions.failed);
+        onrefused?.();
         return;
       }
       if (result.type === 'error') {
@@ -75,10 +83,12 @@
 
   async function confirmed() {
     submitting = true;
+    onstart?.();
     try {
       const refused = await onconfirm!();
       if (refused) {
         refusal = refused;
+        onrefused?.();
         return;
       }
       if (done) toasts.success(done);

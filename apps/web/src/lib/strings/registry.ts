@@ -6,6 +6,25 @@
 
 import { and } from './names';
 
+/**
+ * Editions as a refusal names them, in parts: those the person may see by
+ * title, and the rest, another person's drafts, only counted.
+ */
+function editionParts(d: { editions: string[]; hiddenEditions: number }): string[] {
+  const parts: string[] = [];
+  if (d.editions.length === 1) parts.push(`the edition ${d.editions[0]}`);
+  else if (d.editions.length > 1) parts.push(`the editions ${and(d.editions)}`);
+  if (d.hiddenEditions) {
+    const other = d.editions.length > 0;
+    parts.push(
+      d.hiddenEditions === 1
+        ? `${other ? 'another' : 'an'} edition that is not published`
+        : `${d.hiddenEditions} ${other ? 'other ' : ''}editions that are not published`,
+    );
+  }
+  return parts;
+}
+
 export const registry = {
   copy: {
     make: 'Make the Copy',
@@ -305,8 +324,8 @@ export const registry = {
     deleteTitle: 'Delete This Transcript?',
     deleteConfirm: (name: string) =>
       `${name} and its history will be deleted. Editions that collate it would lose a witness, so this is refused while any edition names it.`,
-    inConspectus: (editions: string) =>
-      `This transcript cannot be deleted: it stands behind a siglum in ${editions}. Remove it from the conspectus first.`,
+    inConspectus: (d: { editions: string[]; hiddenEditions: number }) =>
+      `This transcript cannot be deleted: it stands behind a siglum in ${and(editionParts(d))}. Remove it from the conspectus first.`,
     notOwner: 'Only the owner or an administrator may do this.',
     notFound: 'This transcript no longer exists.',
     sourceNotAllowed: 'You may not view the transcript to start from.',
@@ -554,17 +573,7 @@ export const registry = {
       records: number;
       recordsName: 'conjectures' | 'readings';
     }): string => {
-      const parts: string[] = [];
-      if (d.editions.length === 1) parts.push(`the edition ${d.editions[0]}`);
-      else if (d.editions.length > 1) parts.push(`the editions ${and(d.editions)}`);
-      if (d.hiddenEditions) {
-        const other = d.editions.length > 0;
-        parts.push(
-          d.hiddenEditions === 1
-            ? `${other ? 'another' : 'an'} edition that is not published`
-            : `${d.hiddenEditions} ${other ? 'other ' : ''}editions that are not published`,
-        );
-      }
+      const parts = editionParts(d);
       if (d.transcriptions)
         parts.push(d.transcriptions === 1 ? 'a transcript' : `${d.transcriptions} transcripts`);
       if (d.records) {

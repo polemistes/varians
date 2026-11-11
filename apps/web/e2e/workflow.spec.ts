@@ -278,8 +278,8 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   });
 
   // A copy of the transcription, from the workbench's menu: a draft of one's own with the same text.
-  await page.getByRole('button', { name: 'More actions' }).click();
-  await page.getByRole('menuitem', { name: w.menu.copy }).click();
+  await page.getByRole('button', { name: actions.menu, exact: true }).click();
+  await page.getByRole('menuitem', { name: actions.transcription.copy }).click();
   await expect(page.getByRole('dialog').locator('input[name=name]')).toHaveValue('Copy of Liber 1');
   await page.getByRole('dialog').getByRole('button', { name: reg.copy.make }).click();
   await page.waitForURL(
@@ -292,8 +292,8 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   await expect(page.locator('.cm-content .cm-line').nth(0)).toHaveText(words);
   // The copy is for the same work; Settings shows it as the first of its works.
   await page.waitForLoadState('networkidle');
-  await page.getByRole('button', { name: 'More actions' }).click();
-  await page.getByRole('menuitem', { name: 'Settings…' }).click();
+  await page.getByRole('button', { name: actions.menu, exact: true }).click();
+  await page.getByRole('menuitem', { name: actions.transcription.settings }).click();
   await expect(page.getByRole('dialog').getByRole('group', { name: 'Works' })).toContainText(
     workTitle,
   );

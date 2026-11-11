@@ -7,13 +7,12 @@
    * Edits are saved by the workbench's session as they are made.
    */
   import { onMount, tick as nextTick, untrack } from 'svelte';
-  import { beforeNavigate } from '$app/navigation';
+  import { beforeNavigate, replaceState } from '$app/navigation';
   import type { Id, Token } from '@varians/core';
   import TextEditor from '$lib/components/editor/TextEditor.svelte';
   import { Splitter } from '$lib/components/ui';
   import { PaneSize } from '$lib/layout/pane-size.svelte';
   import ConflictNotice from '$lib/components/workbench/ConflictNotice.svelte';
-  import DeleteDialog from '$lib/components/workbench/DeleteDialog.svelte';
   import CopyDialog from '$lib/components/registry/CopyDialog.svelte';
   import { registry } from '$lib/strings/registry';
   import ImportDialog from '$lib/components/workbench/ImportDialog.svelte';
@@ -61,7 +60,6 @@
   );
   let importOpen = $state(false);
   let settingsOpen = $state(false);
-  let deleteOpen = $state(false);
   let copyOpen = $state(false);
   let numberOpen = $state(false);
   let proposalsOpen = $state(false);
@@ -92,6 +90,19 @@
     viewRestored = true;
     wb.start();
     return () => wb.stop();
+  });
+
+  // A list's Settings… and Make a Copy… lead here with the window to open (?settings=1, ?copy=1).
+  onMount(() => {
+    const url = new URL(location.href);
+    const settings = url.searchParams.get('settings') === '1';
+    const copy = url.searchParams.get('copy') === '1';
+    if (!settings && !copy) return;
+    if (settings && wb.canEdit) settingsOpen = true;
+    else if (copy && data.user) copyOpen = true;
+    url.searchParams.delete('settings');
+    url.searchParams.delete('copy');
+    replaceState(url, {});
   });
 
   $effect(() => {
@@ -307,13 +318,11 @@
 <div class="workbench flex h-[calc(100dvh-3.5rem-1px)] min-h-[28rem] flex-col">
   <WorkbenchHeader
     {wb}
+    rights={{ signedIn: !!data.user, edit: wb.canEdit, delete: wb.canDelete }}
     {paneOpen}
     ontogglepane={() => (paneOpen = !paneOpen)}
-    onimport={() => (importOpen = true)}
     onsettings={() => (settingsOpen = true)}
-    ondelete={() => (deleteOpen = true)}
-    onnumber={() => (numberOpen = true)}
-    oncopy={data.user ? () => (copyOpen = true) : undefined}
+    oncopy={() => (copyOpen = true)}
     {paneLeft}
     onpaneleft={placePane}
   />
@@ -333,7 +342,12 @@
     style:--wb-pane="{sidePane.value}px"
   >
     <div class={['flex min-h-0 flex-col bg-surface', paneOpen && paneLeft && 'lg:order-3']}>
-      <TextBar {wb} onpages={showPages} />
+      <TextBar
+        {wb}
+        onpages={showPages}
+        onimport={() => (importOpen = true)}
+        onnumber={() => (numberOpen = true)}
+      />
       <div
         class="relative min-h-0 flex-1 bg-surface"
         bind:this={editorArea}
@@ -425,9 +439,6 @@
     onsave={saveCorrection}
     oncancel={() => wb.api?.focus()}
   />
-{/if}
-{#if wb.canDelete}
-  <DeleteDialog {wb} bind:open={deleteOpen} />
 {/if}
 {#if data.user}
   <CopyDialog

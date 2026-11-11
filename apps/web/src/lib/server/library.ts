@@ -20,10 +20,12 @@ import {
   type SQL,
 } from '@varians/db';
 import type { EditionRights } from '$lib/edition/actions';
+import type { TranscriptionRights } from '$lib/transcription/actions';
 import type { WitnessRights } from '$lib/witness/actions';
 import type { WorkRights } from '$lib/work/actions';
 import {
   editionRightsFromGrants,
+  transcriptionRights,
   witnessRightsFromGrants,
   workRightsFromGrants,
   type Actor,
@@ -45,12 +47,18 @@ export interface EditionRow {
   updatedAt: string;
 }
 
+/** A transcript in a list, with what the viewer may do with it. */
+export type TranscriptionListRow<T extends TranscriptionRow = TranscriptionRow> = T & {
+  can: TranscriptionRights;
+};
+
 /** An edition in a list, with what the viewer may do with it. */
 export type EditionListRow<T extends EditionRow = EditionRow> = T & { can: EditionRights };
 
 export interface TranscriptionRow {
   id: string;
   name: string;
+  ownerId: string;
   witnessName: string;
   witnessSlug: string;
   ownerName: string;
@@ -136,6 +144,7 @@ function transcriptionColumns() {
   return {
     id: transcriptions.id,
     name: transcriptions.name,
+    ownerId: transcriptions.ownerId,
     witnessName: witnesses.name,
     witnessSlug: witnesses.slug,
     ownerName: owner.name,
@@ -248,6 +257,15 @@ export function withEditionRights<T extends EditionRow>(
   grants: Grants,
 ): EditionListRow<T>[] {
   return rows.map((row) => ({ ...row, can: editionRightsFromGrants(user, row, grants) }));
+}
+
+/** The transcripts of a list with the viewer's rights on each, from the grants loaded once for the page. */
+export function withTranscriptionRights<T extends TranscriptionRow>(
+  rows: T[],
+  user: Actor | null,
+  grants: Grants,
+): TranscriptionListRow<T>[] {
+  return rows.map((row) => ({ ...row, can: transcriptionRights(user, row, grants) }));
 }
 
 /** The works of a list with the viewer's rights on each, from the grants loaded once for the page. */

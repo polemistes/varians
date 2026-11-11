@@ -57,7 +57,9 @@ export const workbench = {
 
   tools: {
     label: 'Tools',
-    title: 'Normalize diacritics, remove marks, change case',
+    title: 'Import, number lines, normalize diacritics, remove marks, change case',
+    import: 'Import…',
+    numberLines: 'Number Lines from Here…',
     scopeSelection: (n: number) => `For the ${n === 1 ? 'selected word' : `${n} selected words`}`,
     scopePage: 'For every word of the page shown (select words to act on fewer)',
     normalize: 'Normalize Diacritics',
@@ -145,18 +147,10 @@ export const workbench = {
     noCaret: 'Click in the text to choose where.',
   },
 
+  /** The header's view controls: the side pane. */
   menu: {
-    label: 'More actions',
-    import: 'Import…',
-    settings: 'Settings…',
-    numberLines: 'Number Lines from Here…',
-    downloadTei: 'Download TEI',
-    downloadLeiden: 'Download Leiden+',
-    delete: 'Delete…',
-    copy: 'Make a Copy…',
-    witness: 'Open the Witness',
     togglePane: 'Show or Hide the Side Pane',
-    /** A checked item: the side pane stands left of the text. */
+    /** A pressed button: the side pane stands left of the text. */
     paneLeft: 'Facsimile on the Left',
   },
 
@@ -557,16 +551,6 @@ export const workbench = {
     cancel: 'Cancel',
     saved: 'Settings saved.',
     nameRequired: 'Give the transcript a name.',
-  },
-
-  delete: {
-    title: 'Delete Transcript',
-    body: (name: string) =>
-      `Delete "${name}" with its zones and history? The witness and its pages stay.`,
-    confirm: 'Delete',
-    cancel: 'Cancel',
-    inConspectus: (editions: string) =>
-      `Not deleted: the edition ${editions} compares this transcript. Take it out of that edition's witnesses first.`,
   },
 
   errors: {

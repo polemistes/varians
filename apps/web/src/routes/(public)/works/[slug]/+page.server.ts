@@ -10,6 +10,7 @@ import {
   canViewEdition,
   canViewTranscription,
   grantsFor,
+  transcriptionRights,
   workRights,
   type Actor,
   type ConjectureContext,
@@ -172,7 +173,9 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
         ...e,
         can: editionRights(user, e, collaboratorIds),
       })),
-    transcriptions: transcriptionRows.filter((r) => canViewTranscription(user, r, grants)),
+    transcriptions: transcriptionRows
+      .filter((r) => canViewTranscription(user, r, grants))
+      .map((r) => ({ ...r, can: transcriptionRights(user, r, grants) })),
     conjectures: visibleConjectures.map((c) => ({
       ...c,
       can: rights(user, c, context),

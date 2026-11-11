@@ -2,12 +2,15 @@
   /**
    * A piece of one's own work, to go straight back to it. An edition's name
    * leads to the reader, with Read, Edit and its menu at the card's foot; a
-   * transcription's card is one link to the workbench.
+   * transcript's name leads to the workbench, with its menu there. The name
+   * is the link, stretched over the card, so that no control lies inside it.
    */
   import EditionActions from '$lib/components/edition/EditionActions.svelte';
+  import TranscriptionActions from '$lib/components/transcription/TranscriptionActions.svelte';
   import { Badge, LocalDate } from '$lib/components/ui';
   import type { EditionRights } from '$lib/edition/actions';
   import { site } from '$lib/strings/site';
+  import type { TranscriptionRights } from '$lib/transcription/actions';
 
   type Common = {
     id: string;
@@ -23,7 +26,12 @@
         workTitle: string;
         can: EditionRights;
       })
-    | (Common & { kind: 'transcription'; name: string; witnessName: string });
+    | (Common & {
+        kind: 'transcription';
+        name: string;
+        witnessName: string;
+        can: TranscriptionRights;
+      });
 
   interface Props {
     item: RecentItem;
@@ -75,11 +83,22 @@
     />
   </article>
 {:else}
-  <a href="/transcriptions/{item.id}" class={cardClass}>
+  <article class={['relative', cardClass]}>
     {@render head(t.transcription)}
-    <span class="font-serif text-lg leading-snug text-ink group-hover:text-accent">{item.name}</span
-    >
+    <span class="font-serif text-lg leading-snug text-ink group-hover:text-accent">
+      <a
+        href="/transcriptions/{item.id}"
+        class="rounded-lg outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:after:ring-2 focus-visible:after:ring-accent"
+        >{item.name}</a
+      >
+    </span>
     <span class="font-sans text-sm text-ink-soft">{t.transcriptionOf(item.witnessName)}</span>
     {@render changed()}
-  </a>
+    <TranscriptionActions
+      transcription={item}
+      rights={item.can}
+      place="list"
+      class="relative z-10 justify-end pt-2"
+    />
+  </article>
 {/if}

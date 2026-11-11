@@ -23,6 +23,7 @@ import type {
 } from '@varians/db';
 import { sql } from '@varians/db';
 import type { EditionRights } from '$lib/edition/actions';
+import type { TranscriptionRights } from '$lib/transcription/actions';
 import type { WitnessRights } from '$lib/witness/actions';
 import type { WorkRights } from '$lib/work/actions';
 
@@ -227,6 +228,22 @@ export function canDeleteTranscription(
   transcription: Pick<Transcription, 'ownerId'>,
 ): boolean {
   return ownsOrAdministers(user, transcription);
+}
+
+/**
+ * What a viewer may do with a transcript, as its menu asks (lib/transcription/actions.ts),
+ * from the grants loaded once for a page, so that a list needs no query of each row.
+ */
+export function transcriptionRights(
+  user: Maybe<Actor>,
+  transcription: Pick<Transcription, 'id' | 'ownerId'>,
+  grants: Grants,
+): TranscriptionRights {
+  return {
+    signedIn: !!user,
+    edit: canEditTranscription(user, transcription, grants),
+    delete: canDeleteTranscription(user, transcription),
+  };
 }
 
 // Editions

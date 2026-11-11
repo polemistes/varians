@@ -1,12 +1,14 @@
 <script lang="ts">
+  import TranscriptionActions from '$lib/components/transcription/TranscriptionActions.svelte';
   import { Badge } from '$lib/components/ui';
   import type { WorkTranscriptionRow } from '$lib/registry/types';
   import { registry } from '$lib/strings/registry';
+  import type { TranscriptionRights } from '$lib/transcription/actions';
   import CoverageBar from './CoverageBar.svelte';
 
   interface Props {
     /** The work's transcriptions, one row each, by siglum. */
-    items: WorkTranscriptionRow[];
+    items: (WorkTranscriptionRow & { can: TranscriptionRights })[];
     /** The work's segments, for the coverage of each. */
     total: number;
   }
@@ -37,6 +39,10 @@
       <div class="flex shrink-0 items-center gap-4">
         {#if item.visibility === 'draft'}<Badge>{registry.common.draft}</Badge>{/if}
         <CoverageBar n={item.segmentCount} {total} />
+      </div>
+      <!-- A row without a menu keeps its room, so that the coverage of every row stands in line. -->
+      <div class="w-8 shrink-0">
+        <TranscriptionActions transcription={item} rights={item.can} place="list" />
       </div>
     </li>
   {/each}

@@ -3,7 +3,7 @@
   import Plus from '@lucide/svelte/icons/plus';
   import { page } from '$app/state';
   import { PageFrame } from '$lib/components/shell';
-  import { Button, ConfirmDialog } from '$lib/components/ui';
+  import { Button } from '$lib/components/ui';
   import {
     DescriptionItem,
     DescriptionList,
@@ -13,7 +13,6 @@
     NewTranscriptionForm,
     PageList,
     ReadingList,
-    RenameDialog,
     Section,
     TranscriptionList,
     WitnessActions,
@@ -24,8 +23,6 @@
 
   let { data }: PageProps = $props();
 
-  type TranscriptionItem = (typeof data.transcriptions)[number];
-
   const s = t.witness;
   const witness = $derived(data.witness);
   /** Where the witness is kept, as it is cited: place, repository, shelfmark. */
@@ -35,10 +32,6 @@
 
   // Arriving from the list of witnesses under Make New Transcript, the form is open at once.
   let creating = $state(page.url.searchParams.get('transcribe') === '1');
-  let renameOpen = $state(false);
-  let renaming = $state<TranscriptionItem | null>(null);
-  let deleteOpen = $state(false);
-  let deleting = $state<TranscriptionItem | null>(null);
 </script>
 
 <PageFrame>
@@ -151,17 +144,7 @@
           </Button>
         {/if}
       {/snippet}
-      <TranscriptionList
-        items={data.transcriptions}
-        onrename={(item) => {
-          renaming = item;
-          renameOpen = true;
-        }}
-        ondelete={(item) => {
-          deleting = item;
-          deleteOpen = true;
-        }}
-      />
+      <TranscriptionList items={data.transcriptions} />
     </Section>
 
     <Section
@@ -212,13 +195,3 @@
 {#if data.can.newTranscription}
   <NewTranscriptionForm bind:open={creating} works={data.workOptions} sources={data.sources} />
 {/if}
-<RenameDialog bind:open={renameOpen} transcription={renaming} />
-<ConfirmDialog
-  confirmLabel={t.common.confirmDelete}
-  bind:open={deleteOpen}
-  title={t.transcription.deleteTitle}
-  description={t.transcription.deleteConfirm(deleting?.name ?? '')}
-  action="?/deleteTranscription"
-  fields={{ id: deleting?.id ?? '' }}
-  done={t.transcription.deleted}
-/>
