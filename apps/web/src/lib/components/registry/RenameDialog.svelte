@@ -63,6 +63,8 @@
   {/if}
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (open = false)}>{registry.common.cancel}</Button>
-    <Button type="submit" form={formId} variant="primary" loading={submitting}>{s.rename}</Button>
+    <Button type="submit" form={formId} variant="primary" loading={submitting}
+      >{s.renameConfirm}</Button
+    >
   {/snippet}
 </Dialog>

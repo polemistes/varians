@@ -192,8 +192,6 @@
   </form>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (open = false)}>{registry.common.cancel}</Button>
-    <Button type="submit" form={formId} variant="primary" loading={submitting}
-      >{editing ? s.save : s.add}</Button
-    >
+    <Button type="submit" form={formId} variant="primary" loading={submitting}>{s.save}</Button>
   {/snippet}
 </Dialog>
