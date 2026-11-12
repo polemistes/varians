@@ -486,6 +486,7 @@ export function describeDependents(d: Dependents, recordsName: 'conjectures' | '
     hiddenEditions: d.hiddenEditions,
     transcriptions: d.transcriptions,
     records: d.records,
+    versioned: d.versioned,
     recordsName,
   });
 }

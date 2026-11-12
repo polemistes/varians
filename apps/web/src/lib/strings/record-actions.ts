@@ -57,6 +57,8 @@ export const recordActions = {
       'Delete this transcript? Its text and history go with it. The witness and its pages stay.',
     deleteVerb: 'Delete',
     deleted: 'The transcript has been deleted.',
+    hasVersion:
+      'This transcript cannot be deleted: it has a version, which someone may have cited. Withdraw the version instead.',
   },
 
   /** A smaller record, which has no page: its row's menu opens with Edit and ends with Delete. */
@@ -157,6 +159,8 @@ export const recordActions = {
       'Delete this edition? Its text, notes and history go with it. The witnesses and conjectures stay.',
     deleteVerb: 'Delete',
     deleted: (title: string) => `${title} has been deleted.`,
+    hasVersion:
+      'This edition cannot be deleted: it has a version, which someone may have cited. Withdraw the version instead.',
     onlyOwner: 'Only the owner may do that.',
 
     /** Edition Settings: who owns the edition and who edits it with the owner. */

@@ -13,7 +13,7 @@ import {
   suggestedWitnesses,
 } from '$lib/server/edition-form';
 import { requireUser } from '$lib/server/guards';
-import { versionsOf } from '$lib/server/versions';
+import { hasAnyVersion, versionsOf } from '$lib/server/versions';
 import { editionView, type SegmentView } from '$lib/server/reader';
 import { deleteHistory, viewableTranscriptions } from '$lib/server/registry';
 import { OPENING_SEGMENTS } from '$lib/edition/workspace';
@@ -128,6 +128,9 @@ export const actions: Actions = {
     const { user, access } = await editable(locals, params.slug);
     if (!canDeleteEdition(user, access.edition))
       return fail(403, { error: recordActions.edition.onlyOwner });
+    // A version is withdrawn, never deleted: someone may have cited its address.
+    if (await hasAnyVersion(locals.db, 'edition', access.edition.id))
+      return fail(409, { error: recordActions.edition.hasVersion });
     const stay = (await request.formData()).get('stay') === '1';
     const [work] = await locals.db
       .select({ slug: works.slug })

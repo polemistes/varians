@@ -62,7 +62,13 @@ import {
   type Work,
 } from '@varians/db';
 import { identifierMatches } from './identifier-search.ts';
-import { hasVersionSql, latestVersionSql, latestVersionWithSnapshot } from './versions.ts';
+import {
+  anyVersionSql,
+  hasAnyVersion,
+  hasVersionSql,
+  latestVersionSql,
+  latestVersionWithSnapshot,
+} from './versions.ts';
 import { joinLevelLabels, keepsAddresses, relabel, separatorsChanged } from '$lib/registry/scheme';
 import type {
   ConjectureRow,
@@ -826,13 +832,15 @@ export async function deleteHistory(
 
 export type DeleteTranscriptionResult =
   | { ok: true; name: string }
-  | { ok: false; error: 'not-found' | 'forbidden' }
+  | { ok: false; error: 'not-found' | 'forbidden' | 'has-version' }
   | { ok: false; error: 'in-conspectus'; editions: EditionRef[]; hiddenEditions: number };
 
 /**
- * Deletes a transcription with its history. Owner or administrator only,
- * and refused while an edition's conspectus names it. The refusal names the
- * editions the person may see and counts the drafts of others they may not.
+ * Deletes a transcription with its history. Owner or administrator only;
+ * refused while it has a version, withdrawn or not, whose address someone
+ * may cite, and while an edition's conspectus or a version of an edition
+ * names it. The refusal names the editions the person may see and counts the
+ * drafts of others they may not.
  */
 export async function deleteTranscription(
   db: Database,
@@ -845,6 +853,7 @@ export async function deleteTranscription(
     .where(eq(transcriptions.id, id));
   if (!row) return { ok: false, error: 'not-found' };
   if (!canDeleteTranscription(user, row)) return { ok: false, error: 'forbidden' };
+  if (await hasAnyVersion(db, 'transcription', id)) return { ok: false, error: 'has-version' };
   const editionColumns = {
     id: editions.id,
     slug: editions.slug,
@@ -937,7 +946,13 @@ async function nameVisibleEditions(
 
 /** Whether anything depends on the entry: its deletion is refused while it does. */
 export function isDepended(d: Dependents): boolean {
-  return d.editions.length > 0 || d.hiddenEditions > 0 || d.transcriptions > 0 || d.records > 0;
+  return (
+    d.editions.length > 0 ||
+    d.hiddenEditions > 0 ||
+    d.transcriptions > 0 ||
+    d.records > 0 ||
+    d.versioned > 0
+  );
 }
 
 /** What of others depends on a witness and refuses its deletion by `user`: editions naming it, others' transcripts and reported readings. */
@@ -946,17 +961,32 @@ export async function witnessDependents(
   witnessId: string,
   user: Actor,
 ): Promise<Dependents> {
-  const naming = await db
-    .selectDistinct({
-      id: editions.id,
-      slug: editions.slug,
-      title: editions.title,
-      ownerId: editions.ownerId,
-      hasVersion: hasVersionSql('edition', editions.id),
-    })
+  const editionColumns = {
+    id: editions.id,
+    slug: editions.slug,
+    title: editions.title,
+    ownerId: editions.ownerId,
+    hasVersion: hasVersionSql('edition', editions.id),
+  };
+  const inConspectus = await db
+    .selectDistinct(editionColumns)
     .from(editionSigla)
     .innerJoin(editions, eq(editions.id, editionSigla.editionId))
     .where(eq(editionSigla.witnessId, witnessId));
+  // A version of an edition names the witness in its own conspectus, whatever the draft's says now.
+  const inVersions = await db
+    .selectDistinct(editionColumns)
+    .from(versions)
+    .innerJoin(editions, eq(editions.id, versions.documentId))
+    .where(
+      and(
+        eq(versions.documentKind, 'edition'),
+        sql`${versions.snapshot} -> 'sigla' @> ${JSON.stringify([{ witnessId }])}::jsonb`,
+      ),
+    );
+  const naming = [
+    ...new Map([...inConspectus, ...inVersions].map((e) => [e.id, e] as const)).values(),
+  ];
   const [othersTranscriptions] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(transcriptions)
@@ -965,10 +995,22 @@ export async function witnessDependents(
     .select({ n: sql<number>`count(*)::int` })
     .from(reportedReadings)
     .where(and(eq(reportedReadings.witnessId, witnessId), ne(reportedReadings.ownerId, user.id)));
+  // The person's own transcripts go with the witness, unless one has a version.
+  const [ownVersioned] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(transcriptions)
+    .where(
+      and(
+        eq(transcriptions.witnessId, witnessId),
+        eq(transcriptions.ownerId, user.id),
+        anyVersionSql('transcription', transcriptions.id),
+      ),
+    );
   return {
     ...(await nameVisibleEditions(db, user, naming)),
     transcriptions: Number(othersTranscriptions?.n ?? 0),
     records: Number(othersReadings?.n ?? 0),
+    versioned: Number(ownVersioned?.n ?? 0),
   };
 }
 
@@ -1001,10 +1043,33 @@ export async function workDependents(
     .select({ n: sql<number>`count(*)::int` })
     .from(reportedReadings)
     .where(and(eq(reportedReadings.workId, workId), ne(reportedReadings.ownerId, user.id)));
+  // The person's own editions go with the work, and their transcripts lose its segments, unless one has a version.
+  const [ownEditions] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(editions)
+    .where(
+      and(
+        eq(editions.workId, workId),
+        eq(editions.ownerId, user.id),
+        anyVersionSql('edition', editions.id),
+      ),
+    );
+  const [ownTranscriptions] = await db
+    .select({ n: countDistinct(transcriptionSegments.transcriptionId) })
+    .from(transcriptionSegments)
+    .innerJoin(transcriptions, eq(transcriptions.id, transcriptionSegments.transcriptionId))
+    .where(
+      and(
+        eq(transcriptionSegments.workId, workId),
+        eq(transcriptions.ownerId, user.id),
+        anyVersionSql('transcription', transcriptions.id),
+      ),
+    );
   return {
     ...(await nameVisibleEditions(db, user, othersEditions)),
     transcriptions: Number(othersTranscriptions?.n ?? 0),
     records: Number(othersConjectures?.n ?? 0) + Number(othersReadings?.n ?? 0),
+    versioned: Number(ownEditions?.n ?? 0) + Number(ownTranscriptions?.n ?? 0),
   };
 }
 

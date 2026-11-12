@@ -708,6 +708,71 @@ describe('deleting witnesses', () => {
   });
 });
 
+describe('what a version keeps from deletion', () => {
+  it('refuses to delete a transcript that has a version, withdrawn or not', async () => {
+    const place = await witness('Versioned witness');
+    const poem = await work('Versioned poem');
+    const text = await createTranscription(db, { witnessId: place.id, name: 'Kept' }, alice.id);
+    await replaceContent(
+      db,
+      'transcription',
+      text.id,
+      alice.id,
+      0,
+      await textOf(poem.id, { '1.1': 'menin aeide' }),
+      'test',
+    );
+    await publishTranscription(db, text.id, alice.id);
+    expect(await deleteTranscription(db, text.id, alice)).toEqual({
+      ok: false,
+      error: 'has-version',
+    });
+    await withdrawVersion(db, 'transcription', text.id, 1, alice.id, null);
+    expect(await deleteTranscription(db, text.id, admin)).toEqual({
+      ok: false,
+      error: 'has-version',
+    });
+
+    // Nor the witness it is of, nor the work it assigns text to, though the transcript is the person's own.
+    const byWitness = await deleteWitness(db, place.id, alice);
+    expect(byWitness).toMatchObject({ ok: false, error: 'in-use', dependents: { versioned: 1 } });
+    if (!byWitness.ok && byWitness.error === 'in-use')
+      expect(describeDependents(byWitness.dependents, 'readings')).toBe(
+        'a record of yours that has a version',
+      );
+    expect(await deleteWork(db, poem.id, alice)).toMatchObject({
+      ok: false,
+      error: 'in-use',
+      dependents: { versioned: 1, transcriptions: 0 },
+    });
+  });
+
+  it('refuses to delete a work whose own edition has a version', async () => {
+    const poem = await work('Poem of a version');
+    const id = await edition(poem.id, alice);
+    await publishEdition(db, id, alice.id);
+    await withdrawVersion(db, 'edition', id, 1, alice.id, null);
+    const refused = await deleteWork(db, poem.id, alice);
+    expect(refused).toMatchObject({ ok: false, error: 'in-use', dependents: { versioned: 1 } });
+    if (!refused.ok && refused.error === 'in-use')
+      expect(describeDependents(refused.dependents, 'conjectures')).toBe(
+        'a record of yours that has a version',
+      );
+  });
+
+  it('refuses to delete a witness that a version of an edition names, though the draft no longer does', async () => {
+    const place = await witness('Witness of a version');
+    const poem = await work('Poem naming a witness');
+    const id = await edition(poem.id, alice, [{ witnessId: place.id, transcriptionId: null }]);
+    await publishEdition(db, id, alice.id);
+    await db.delete(editionSigla).where(eq(editionSigla.editionId, id));
+    const refused = await deleteWitness(db, place.id, alice);
+    expect(refused).toMatchObject({ ok: false, error: 'in-use' });
+    if (!refused.ok && refused.error === 'in-use')
+      expect(refused.dependents.editions).toHaveLength(1);
+  });
+});
+
 describe('the archive as a download', () => {
   it('commits to a repository of its own, never to an enclosing checkout, and zips its head', async () => {
     const checkout = await mkdtemp(path.join(tmpdir(), 'varians-registry-'));

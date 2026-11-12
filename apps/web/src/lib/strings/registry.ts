@@ -120,8 +120,7 @@ export const registry = {
     labelCollision: (labels: string) =>
       `Two segments would share a label (${labels}). Choose other separators.`,
     removedSelf: 'You no longer maintain this work.',
-    inUse: (parts: string) =>
-      `This work cannot be deleted while other people's records depend on it: ${parts}.`,
+    inUse: (parts: string) => `This work cannot be deleted while records depend on it: ${parts}.`,
     notCreator: 'Only the creator of the work or an administrator may delete it.',
     editionBy: (name: string) => `owned by ${name}`,
     segmentLabels: 'Labels of the segments',
@@ -287,7 +286,8 @@ export const registry = {
       'Only the creator of the witness, or an administrator, may change its maintainers.',
     removedSelf: 'You no longer maintain this witness.',
     siglumShort: (siglum: string) => `siglum ${siglum}`,
-    inUse: (parts: string) => `This witness cannot be deleted while ${parts} depend on it.`,
+    inUse: (parts: string) =>
+      `This witness cannot be deleted while records depend on it: ${parts}.`,
     notCreator: 'Only the creator of the witness or an administrator may delete it.',
     pageCount: (n: number) => (n === 1 ? '1 page' : `${n} pages`),
     readingsHint: 'Edited on the page of each work.',
@@ -530,6 +530,8 @@ export const registry = {
       hiddenEditions: number;
       transcriptions: number;
       records: number;
+      /** The person's own records that have a version. */
+      versioned: number;
       recordsName: 'conjectures' | 'readings';
     }): string => {
       const parts = editionParts(d);
@@ -544,6 +546,12 @@ export const registry = {
             : 'reported readings';
         parts.push(d.records === 1 ? `a ${noun}` : `${d.records} ${plural}`);
       }
+      if (d.versioned)
+        parts.push(
+          d.versioned === 1
+            ? 'a record of yours that has a version'
+            : `${d.versioned} records of yours that have versions`,
+        );
       return and(parts);
     },
   },

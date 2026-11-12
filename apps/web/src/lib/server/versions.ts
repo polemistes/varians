@@ -70,6 +70,28 @@ export function hasVersionSql(kind: DocumentKind, column: AnyPgColumn) {
   return sql<boolean>`exists (select 1 from "versions" as "v" where "v"."document_kind" = ${kind} and "v"."document_id" = ${outer(column)} and "v"."withdrawn_at" is null)`;
 }
 
+/**
+ * Whether the record in `column` has ever had a version, withdrawn or not:
+ * what keeps it, and the work or witness it is of, from being deleted.
+ */
+export function anyVersionSql(kind: DocumentKind, column: AnyPgColumn) {
+  return sql<boolean>`exists (select 1 from "versions" as "v" where "v"."document_kind" = ${kind} and "v"."document_id" = ${outer(column)})`;
+}
+
+/** Whether a record has a version, withdrawn or not: a record that has one is not deleted. */
+export async function hasAnyVersion(
+  db: Database,
+  kind: DocumentKind,
+  documentId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: versions.id })
+    .from(versions)
+    .where(and(eq(versions.documentKind, kind), eq(versions.documentId, documentId)))
+    .limit(1);
+  return !!row;
+}
+
 /** The number of the latest version of the record in `column` that is not withdrawn, or null: one subquery, for the lists. */
 export function latestVersionSql(kind: DocumentKind, column: AnyPgColumn) {
   return sql<

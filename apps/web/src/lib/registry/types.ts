@@ -47,15 +47,18 @@ export interface EditionRef {
 }
 
 /**
- * What other people have that depends on an entry; any of it refuses a
- * deletion. The editions are those the person asking may see, named; the
- * rest are another person's drafts, counted and never named.
+ * What depends on an entry; any of it refuses a deletion: other people's
+ * records, and the person's own that have a version. The editions are those
+ * the person asking may see, named; the rest are another person's drafts,
+ * counted and never named.
  */
 export interface Dependents {
   editions: EditionRef[];
   hiddenEditions: number;
   transcriptions: number;
   records: number;
+  /** The person's own records of the entry that have a version, withdrawn or not, and so are not deleted. */
+  versioned: number;
 }
 
 export interface WorkTranscriptionRow {

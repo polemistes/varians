@@ -30,7 +30,7 @@ import {
   load as settingsPage,
 } from '../../routes/(app)/editions/[slug]/settings/+page.server';
 import { DEFAULT_CONVENTIONS } from './seed/sample.ts';
-import { publishEdition } from './publish.ts';
+import { publishEdition, withdrawVersion } from './publish.ts';
 
 const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329/varians_test';
 let db: Database;
@@ -217,6 +217,22 @@ describe('deleting an edition', () => {
       data: { message: recordActions.edition.deleted(slugs.doomed) },
     });
     expect(await db.select().from(editions).where(eq(editions.id, ids.doomed))).toEqual([]);
+  });
+
+  it('is refused, in words, for an edition with a version, withdrawn or not', async () => {
+    const refused = await run(editActions.delete, owner, slugs.published, { stay: '1' });
+    expect(refused).toMatchObject({
+      status: 409,
+      data: { error: recordActions.edition.hasVersion },
+    });
+    await withdrawVersion(db, 'edition', ids.published, 1, ids.owner, null);
+    expect(await run(editActions.delete, administrator, slugs.published, {})).toMatchObject({
+      status: 409,
+      data: { error: recordActions.edition.hasVersion },
+    });
+    expect(await db.select().from(editions).where(eq(editions.id, ids.published))).toHaveLength(1);
+    // Published again for the tests that follow, which read it as published.
+    await publishEdition(db, ids.published, ids.owner);
   });
 
   it("from the edition's own pages leads to the work's page", async () => {

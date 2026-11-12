@@ -226,13 +226,15 @@ export const actions: Actions = {
     if (!data) throw error(404, t.errors.notFound);
     if (!data.canDelete) throw error(403, t.errors.forbidden);
     const stay = (await event.request.formData()).get('stay') === '1';
-    // The registry's rule: not while an edition compares it, for that edition would lose a witness.
+    // The registry's rule: not while it has a version, whose address someone may cite, nor while an edition compares it.
     const result = await deleteRegisteredTranscription(
       event.locals.db,
       data.transcription.id,
       event.locals.user,
     );
     if (!result.ok) {
+      if (result.error === 'has-version')
+        return fail(409, { error: recordActions.transcription.hasVersion });
       if (result.error === 'in-conspectus')
         return fail(409, {
           error: registry.transcription.inConspectus({
