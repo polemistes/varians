@@ -1,8 +1,8 @@
 <script lang="ts">
   /**
    * The bar above the text: the page chooser with its arrows,
-   * the form shown where the transcript keeps both, and the Insert and
-   * Tools menus. The chooser lists Staging (with its words when it
+   * the form shown where the transcript keeps both, Language, and the
+   * Insert and Tools menus. The chooser lists Staging (with its words when it
    * has any), every page of the witness with a mark where it has text in
    * this transcript, the whole text, and Pages…. A witness without pages
    * has no chooser: its text is the text.
@@ -12,6 +12,7 @@
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
   import ChevronDown from '@lucide/svelte/icons/chevron-down';
   import { IconButton } from '$lib/components/ui';
+  import LanguageControl from '$lib/components/editor/LanguageControl.svelte';
   import { workbench as t } from '$lib/strings/workbench';
   import { UNPLACED, WHOLE } from '$lib/workbench/pages';
   import InsertMenu from './InsertMenu.svelte';
@@ -135,6 +136,8 @@
       {/each}
     </div>
   {/if}
+
+  {#if editable}<LanguageControl language={wb.language} />{/if}
 
   {#if wb.canEdit}
     {#if editable}<InsertMenu {wb} />{/if}

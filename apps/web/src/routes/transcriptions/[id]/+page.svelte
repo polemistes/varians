@@ -375,6 +375,7 @@
             oncut={(cut) => wb.editorCut(cut)}
             oncopy={() => wb.editorCopy()}
             onpaste={(text) => wb.editorPaste(text)}
+            onlanguage={(lang) => (wb.language.current = lang)}
             onworddblclick={(id) => void openWord(id)}
           />
         {/key}

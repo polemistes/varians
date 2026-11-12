@@ -248,6 +248,8 @@ export interface EditorApi {
   focus(): void;
   tokenAtCaret(): Id | null;
   selectedTokens(): Id[];
+  /** Text is selected, not only a caret placed. */
+  hasRange(): boolean;
   /**
    * The language in force at the caret: the one chosen for typing, else that
    * of the word at the caret, else of the nearest word before it with one;
@@ -1284,6 +1286,10 @@ export class VariansEditor implements EditorApi {
   tokenAtCaret(): Id | null {
     const model = this.model;
     return tokenAt(model.ledger, model.byId, this.view.state.selection.main.head)?.id ?? null;
+  }
+
+  hasRange(): boolean {
+    return !this.view.state.selection.main.empty;
   }
 
   languageInForce(): string | null {

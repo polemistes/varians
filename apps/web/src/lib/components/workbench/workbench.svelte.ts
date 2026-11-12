@@ -34,6 +34,7 @@ import {
 import { DEFAULT_MAX_UPLOAD_BYTES } from '$lib/components/pages/files';
 import type { ImageDefaults, PageView, WitnessPagesData } from '$lib/components/pages/types';
 import type { CutRecord, EditorApi } from '$lib/editor/editor';
+import { EditorLanguage } from '$lib/components/editor/language.svelte';
 import { pageView } from '$lib/editor/page';
 import {
   caseOps,
@@ -233,6 +234,19 @@ export class Workbench {
   showUnmapped = $state(false);
   /** The selection toolbar asked to map the selected words: the facsimile takes the request once. */
   mapRequested = $state(false);
+  /**
+   * The language of the words: the language in force at the caret, and the
+   * chooser that holds what is typed where no language is in force.
+   */
+  readonly language = new EditorLanguage({
+    stream: () => this.stream,
+    api: () => this.api,
+    selected: () => (this.api?.hasRange() ? this.api.selectedTokens() : []),
+    pass: (ops, next) => this.takeEditorOps(ops, next),
+    apply: (ops) => void this.apply(ops),
+    // Made anew from the text, the editor no longer shows the words typed.
+    rebuild: () => this.generation++,
+  });
 
   // Zones of the pages seen, by page id
   zones = $state.raw<Record<string, Zone[]>>({});
@@ -507,8 +521,15 @@ export class Workbench {
     return true;
   }
 
-  /** The editor made an edit: `next` is the stream after it. */
+  /**
+   * The editor made an edit: `next` is the stream after it. An edit that
+   * brings in words without a language waits for the chooser.
+   */
   editorOps(ops: Op[], next: Stream): void {
+    this.language.receive(ops, next);
+  }
+
+  private takeEditorOps(ops: Op[], next: Stream): void {
     this.stream = next;
     this.session?.apply(ops, next);
     if (!this.canEdit) return;

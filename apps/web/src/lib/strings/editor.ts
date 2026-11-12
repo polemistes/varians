@@ -41,6 +41,19 @@ export const editor = {
   takeAllCurrent: (siglum: string, n: number) => `Take ${siglum}'s ${n} Readings in This Segment`,
   toReview: (n: number) => (n === 1 ? '1 variant to review' : `${n} variants to review`),
   allReviewed: 'Every variant reviewed',
+  /** The language of the words, above the text in the workbench and in the edition editor. */
+  language: {
+    label: 'Language',
+    other: 'Other…',
+    code: 'Language Code',
+    codeHint: 'A BCP 47 language tag, such as grc, la or hbo.',
+    codeInvalid:
+      'A BCP 47 language tag is letters, digits and hyphens, such as grc or grc-x-doric.',
+    /** The window that opens at the first word typed where no language is in force. */
+    ask: 'Choose the language of the text.',
+    choose: 'Choose',
+    cancel: 'Cancel',
+  },
   conjecture: {
     title: 'Add New Conjecture',
     reading: 'Reading',
