@@ -43,6 +43,7 @@ import {
   importTeiInto,
   layoutKind,
   loadWorkbench,
+  workbenchWorks,
   matchPageLabels,
   matchPages,
   namePageBreaks,
@@ -304,6 +305,13 @@ describe('loadWorkbench', () => {
     expect(data?.canMaintainWitness).toBe(true);
     expect(await loadWorkbench(db, stranger(), ids.transcription)).toBeNull();
     expect(await loadWorkbench(db, null, 'no-such-id')).toBeNull();
+  });
+
+  it('learns any work as the workbench needs it, when one is chosen where text is assigned', async () => {
+    const [work] = await workbenchWorks(db, ['no-such-work', ids.work]);
+    expect(work).toMatchObject({ id: ids.work, language: expect.any(String) });
+    expect(work!.levels.map((l) => l.key)).toEqual(['book', 'line']);
+    expect(await workbenchWorks(db, ['no-such-work'])).toEqual([]);
   });
 });
 

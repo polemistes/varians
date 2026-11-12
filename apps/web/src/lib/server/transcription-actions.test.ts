@@ -23,14 +23,19 @@ import { eq, inArray } from 'drizzle-orm';
 import type pg from 'pg';
 import type { CurrentUser } from '$lib/types';
 import { recordActions } from '$lib/strings/record-actions';
+import { registry } from '$lib/strings/registry';
 import { load as frontPage } from '../../routes/(public)/+page.server';
 import { load as witnessPage } from '../../routes/(public)/witnesses/[slug]/+page.server';
-import { load as workPage } from '../../routes/(public)/works/[slug]/+page.server';
+import {
+  actions as workActions,
+  load as workPage,
+} from '../../routes/(public)/works/[slug]/+page.server';
 import { load as minePage } from '../../routes/(app)/mine/+page.server';
 import { actions as workbenchActions } from '../../routes/transcriptions/[id]/+page.server';
 import { replaceContent } from './documents/service.ts';
 import { createTranscription, createWitness, createWork } from './registry';
 import { resolveLabels, schemeOfWork } from './segments.ts';
+import { worksOfTranscription } from './transcription-works.ts';
 import { DEFAULT_CONVENTIONS } from './seed/sample.ts';
 
 const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329/varians_test';
@@ -305,6 +310,28 @@ describe('the rights a list gives each transcript', () => {
     const transcripts = recent.filter((r) => r.kind === 'transcription');
     expect(transcripts.length).toBeGreaterThan(0);
     for (const item of transcripts) expect(item.can).toEqual(ownerRights);
+  });
+});
+
+describe('making a transcript', () => {
+  it('from a work’s page makes one of the witness chosen, named after it, with no work of its own', async () => {
+    const made = await run(workActions.transcribe, owner, {
+      slug: workSlug,
+      fields: { witnessId: ids.witness2 },
+    });
+    expect(made.status).toBe(303);
+    const id = made.location!.split('/').pop()!;
+    const [row] = await db.select().from(transcriptions).where(eq(transcriptions.id, id));
+    expect(row).toMatchObject({
+      witnessId: ids.witness2,
+      name: registry.transcription.defaultName(`Second transcript witness ${tag}`),
+      ownerId: owner.id,
+    });
+    expect(await worksOfTranscription(db, id)).toEqual([]);
+    // Nothing of it is assigned to the work, so the work's page does not list it.
+    const listed = (await run(workPage, owner, { slug: workSlug })).data!.transcriptions as Row[];
+    expect(listed.map((r) => r.id)).not.toContain(id);
+    await db.delete(transcriptions).where(eq(transcriptions.id, id));
   });
 });
 
