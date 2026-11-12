@@ -20,6 +20,8 @@ import {
   notes,
   reportedReadings,
   type Database,
+  type EditionSnapshot,
+  type Stored,
 } from '@varians/db';
 import { and, asc, count, eq, ilike, inArray, isNotNull, or, sql } from 'drizzle-orm';
 import { formatCitation, referenceText } from '$lib/bibliography/format';
@@ -518,4 +520,54 @@ export async function editionBibliographyFor(
     .where(eq(editions.id, editionId));
   if (!edition) return { works: [], citations: {} };
   return editionBibliography(db, editionId, await recordsOfWork(db, edition.workId));
+}
+
+/** The works a version of an edition cites, as the snapshot keeps them, in label order with the labels the edition prints. */
+function snapshotWorks(snapshot: EditionSnapshot): { item: Stored<BibItem>; label: string }[] {
+  const items = [...snapshot.bibliography].sort(
+    (a, b) => a.label.localeCompare(b.label) || a.citationKey.localeCompare(b.citationKey),
+  );
+  const labels = disambiguateLabels(items.map((i) => i.label));
+  return items.map((item, i) => ({ item, label: labels[i]! }));
+}
+
+/** A version's works cited, as `editionWorksCited` gives the draft's. */
+export function snapshotWorksCited(snapshot: EditionSnapshot): WorkCited[] {
+  return snapshotWorks(snapshot).map(({ item, label }) => ({
+    id: item.id,
+    key: item.citationKey,
+    label,
+    reference: referenceText(entryOf(item)),
+  }));
+}
+
+/** A version's bibliography as its TEI lists it, as `editionBibliography` gives the draft's. */
+export function snapshotBibliography(snapshot: EditionSnapshot): EditionBibliography {
+  const cited: EditionBibliography['citations'] = {};
+  for (const c of [...snapshot.citations].sort((a, b) => a.position - b.position)) {
+    const owner = c.conjectureId ?? c.reportedReadingId;
+    if (!owner) continue;
+    (cited[owner] ??= []).push({ itemId: c.itemId, prenote: c.prenote, postnote: c.postnote });
+  }
+  return {
+    works: snapshotWorks(snapshot).map(({ item, label }) => ({
+      id: item.id,
+      label,
+      entry: entryOf(item),
+    })),
+    citations: cited,
+  };
+}
+
+/** What each conjecture, reported reading and note of a version cites, as text ("cf. West 1998, 45"), by record id. */
+export function snapshotCitationTexts(snapshot: EditionSnapshot): Map<string, string[]> {
+  const items = new Map(snapshot.bibliography.map((i) => [i.id, i] as const));
+  const out = new Map<string, string[]>();
+  for (const c of [...snapshot.citations].sort((a, b) => a.position - b.position)) {
+    const owner = c.conjectureId ?? c.reportedReadingId ?? c.noteId;
+    const item = items.get(c.itemId);
+    if (!owner || !item) continue;
+    out.set(owner, [...(out.get(owner) ?? []), formatCitation(item.label, c.prenote, c.postnote)]);
+  }
+  return out;
 }

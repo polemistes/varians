@@ -3,9 +3,11 @@
  * may see at a URL, the page data for it, and the plain-text and TEI
  * downloads of the same state.
  *
- * A published edition shows its published version to everyone; its editors
- * may preview the current draft with `?draft=1`. A draft is shown only to
- * those who may view it. `/v/n` shows the published version numbered n.
+ * An edition with a version shows its latest version that is not withdrawn
+ * to everyone; its editors may preview the draft with `?draft=1`. An edition
+ * with no version is shown, as its draft, only to those who may edit it.
+ * `/v/n` shows version n, read from its snapshot; a withdrawn version has a
+ * page of its own, with its citation and the withdrawal and no text.
  * Anything a visitor may not see is a 404, so that a draft's existence is
  * never revealed.
  */
@@ -17,21 +19,31 @@ import {
   type Item,
   type LayoutLine,
 } from '@varians/core';
-import { editions, type Database, type EditionOrigin } from '@varians/db';
+import { editions, type Database, type EditionOrigin, type EditionSnapshot } from '@varians/db';
 import { eq } from 'drizzle-orm';
 import { editionRights, type Actor } from './authz';
 import { loadEditionAccess, type EditionAccess } from './edition-access';
-import { publishedVersions } from './publish';
-import { MAX_REFRESH, editionView, type EditionView } from './reader';
-import { editionBibliographyFor, editionWorksCited } from './bibliography.ts';
+import { MAX_REFRESH, editionSource, viewOf, type EditionView } from './reader';
+import {
+  editionBibliographyFor,
+  editionWorksCited,
+  snapshotBibliography,
+  snapshotWorksCited,
+} from './bibliography.ts';
+import { hasVersionSql, versionByNumber, versionsOf, type VersionSummary } from './versions';
 import { plainText, teiText } from '$lib/reader/export';
 import { alignedUnits, siglaOrderOf } from '$lib/reader/sites';
 import { DEFAULT_SIGLA } from '$lib/reader/marks';
-import type { ReaderData, ReaderMode, ReaderVersion } from '$lib/reader/types';
+import type {
+  ReaderData,
+  ReaderMode,
+  ReaderVersion,
+  WithdrawnVersionData,
+} from '$lib/reader/types';
 import { detailOf, packSegments, type ReaderWireData, type SegmentDetail } from '$lib/reader/wire';
 import { reader as r } from '$lib/strings/reader';
 
-/** What the URL asks for: a published version by number, or the draft. */
+/** What the URL asks for: a version by number, or the draft. */
 export interface ReaderRequest {
   version?: number | null;
   draft?: boolean;
@@ -45,71 +57,71 @@ export interface ReaderRequest {
  */
 export const READER_BUDGET = 100;
 
-export interface PublishedMoment {
-  number: number;
-  version: number;
-  at: Date;
-}
+/** A version as the reader decides by it: its number, when it was published, the note, and whether it is withdrawn. */
+export type PublishedMoment = Pick<VersionSummary, 'number' | 'version' | 'at' | 'note'> & {
+  withdrawn: VersionSummary['withdrawn'];
+};
 
-export interface ReaderDecision {
-  /** The document version to show; null for the current content. */
-  atVersion: number | null;
-  mode: ReaderMode;
-}
+export type ReaderDecision =
+  | {
+      /** The number of the version to show; null for the draft. */
+      versionNumber: number | null;
+      mode: ReaderMode;
+    }
+  /** A withdrawn version, whose page has no text. */
+  | { withdrawn: PublishedMoment };
 
 /**
  * Which state of the edition to show, from the edition, the visitor's rights
- * and the published moments (newest first); null when the visitor may not
- * see what the URL asks for.
+ * and its versions (newest first); null when the visitor may not see what the
+ * URL asks for.
  */
 export function decideReaderView(
-  edition: { visibility: 'draft' | 'published'; version: number; publishedVersion: number | null },
+  edition: { version: number },
   rights: { canView: boolean; canEdit: boolean },
-  moments: PublishedMoment[],
+  versions: PublishedMoment[],
   request: ReaderRequest,
 ): ReaderDecision | null {
-  if (!rights.canView) return null;
-  const published = edition.visibility === 'published' && edition.publishedVersion !== null;
-  const currentMoment = published
-    ? (moments.find((m) => m.version === edition.publishedVersion) ?? null)
-    : null;
+  const latest = versions.find((v) => !v.withdrawn) ?? null;
   if (request.version !== undefined && request.version !== null) {
-    const moment = moments.find((m) => m.number === request.version);
-    if (!moment) return null;
+    const asked = versions.find((v) => v.number === request.version);
+    if (!asked) return null;
+    // A withdrawn version keeps its address for everyone who may have cited it.
+    if (asked.withdrawn) return { withdrawn: asked };
     return {
-      atVersion: moment.version,
+      versionNumber: asked.number,
       mode: {
         kind: 'version',
-        number: moment.number,
-        at: moment.at.toISOString(),
-        isCurrent: currentMoment?.number === moment.number,
+        number: asked.number,
+        at: asked.at.toISOString(),
+        note: asked.note,
+        isCurrent: latest?.number === asked.number,
       },
     };
   }
-  if (published) {
+  if (!rights.canView) return null;
+  if (latest) {
     if (request.draft && rights.canEdit) {
       return {
-        atVersion: null,
-        mode: {
-          kind: 'preview',
-          version: edition.version,
-          publishedNumber: currentMoment?.number ?? null,
-        },
+        versionNumber: null,
+        mode: { kind: 'preview', version: edition.version, publishedNumber: latest.number },
       };
     }
     return {
-      atVersion: edition.publishedVersion,
+      versionNumber: latest.number,
       mode: {
         kind: 'published',
-        number: currentMoment?.number ?? null,
-        at: currentMoment ? currentMoment.at.toISOString() : null,
+        number: latest.number,
+        at: latest.at.toISOString(),
+        note: latest.note,
       },
     };
   }
-  return { atVersion: null, mode: { kind: 'draft', version: edition.version } };
+  if (!rights.canEdit) return null;
+  return { versionNumber: null, mode: { kind: 'draft', version: edition.version } };
 }
 
-/** The request a URL makes of the downloads: `?v=n` for a published version, `?draft=1` for the draft. */
+/** The request a URL makes of the downloads: `?v=n` for a version, `?draft=1` for the draft. */
 export function readerRequestFromUrl(url: URL): ReaderRequest {
   const v = url.searchParams.get('v');
   const request: ReaderRequest = { draft: url.searchParams.get('draft') === '1' };
@@ -123,28 +135,76 @@ export function parseVersionNumber(raw: string): number {
   return Number(raw);
 }
 
-export interface ResolvedReader extends ReaderDecision {
+export interface ResolvedReader {
+  versionNumber: number | null;
+  mode: ReaderMode;
   access: EditionAccess;
-  moments: PublishedMoment[];
+  versions: VersionSummary[];
 }
 
-/** Load the edition and decide what the visitor sees; a 404 for anything they may not see. */
+/** The edition's access and versions, and what the visitor sees; a 404 for anything they may not see. */
+async function decideFor(
+  db: Database,
+  user: Actor | null,
+  slug: string,
+  request: ReaderRequest,
+): Promise<{ access: EditionAccess; versions: VersionSummary[]; decision: ReaderDecision }> {
+  const access = await loadEditionAccess(db, user, slug);
+  if (!access) error(404, 'No such edition');
+  const versions = await versionsOf(db, 'edition', access.edition.id);
+  const decision = decideReaderView(access.edition, access, versions, request);
+  if (!decision) error(404, 'No such edition');
+  return { access, versions, decision };
+}
+
+/** Load the edition and decide what the visitor sees; a 404 for anything they may not see, a withdrawn version among them. */
 export async function resolveReader(
   db: Database,
   user: Actor | null,
   slug: string,
   request: ReaderRequest,
 ): Promise<ResolvedReader> {
-  const access = await loadEditionAccess(db, user, slug);
-  if (!access || !access.canView) error(404, 'No such edition');
-  const moments = (await publishedVersions(db, access.edition.id)).map((m) => ({
-    number: m.number,
-    version: m.version,
-    at: m.at,
-  }));
-  const decision = decideReaderView(access.edition, access, moments, request);
-  if (!decision) error(404, 'No such edition');
-  return { ...decision, access, moments };
+  const { access, versions, decision } = await decideFor(db, user, slug, request);
+  if ('withdrawn' in decision) error(404, 'No such version');
+  return { ...decision, access, versions };
+}
+
+/**
+ * The page of version n when it is withdrawn: the citation's parts (the
+ * edition's title and editors as the version had them, its number and date)
+ * and the withdrawal's date and note, and no text. Null when version n is not
+ * withdrawn; a 404 when there is no such version.
+ */
+export async function loadWithdrawnVersion(
+  db: Database,
+  user: Actor | null,
+  slug: string,
+  number: number,
+): Promise<WithdrawnVersionData | null> {
+  const { access, versions, decision } = await decideFor(db, user, slug, { version: number });
+  if (!('withdrawn' in decision)) return null;
+  const asked = decision.withdrawn;
+  const row = await versionByNumber(db, 'edition', access.edition.id, number);
+  const snapshot = row?.snapshot as EditionSnapshot | undefined;
+  const work = await db.query.works.findFirst({
+    where: (t, { eq }) => eq(t.id, access.edition.workId),
+  });
+  const latest = versions.find((v) => !v.withdrawn);
+  return {
+    edition: {
+      id: access.edition.id,
+      slug: access.edition.slug,
+      title: snapshot?.title ?? access.edition.title,
+      editors: snapshot?.editors ?? access.edition.editors,
+    },
+    work: { id: access.edition.workId, title: work?.title ?? '', author: work?.author ?? null },
+    number: asked.number,
+    at: asked.at.toISOString(),
+    note: asked.note,
+    withdrawn: { at: asked.withdrawn!.at.toISOString(), note: asked.withdrawn!.note },
+    current: latest ? `/editions/${encodeURIComponent(access.edition.slug)}` : null,
+    versions: readerVersions(access.edition.slug, versions, latest?.number ?? null),
+  };
 }
 
 /** Tokens without their sources: the reader does not show where a word was taken from. */
@@ -185,18 +245,31 @@ export function readerLinks(
   };
 }
 
-/** The published versions as the menu lists them, newest first; the current one links to the edition itself. */
+/** The versions as the menu lists them, newest first, withdrawn ones marked; the current one links to the edition itself. */
 export function readerVersions(
   slug: string,
-  moments: PublishedMoment[],
+  versions: (PublishedMoment & Partial<Pick<VersionSummary, 'changes'>>)[],
   currentNumber: number | null,
 ): ReaderVersion[] {
   const base = `/editions/${encodeURIComponent(slug)}`;
-  return moments.map((m) => ({
-    number: m.number,
-    at: m.at.toISOString(),
-    href: m.number === currentNumber ? base : `${base}/v/${m.number}`,
-    current: m.number === currentNumber,
+  return versions.map((v) => ({
+    number: v.number,
+    at: v.at.toISOString(),
+    note: v.note,
+    withdrawn: v.withdrawn
+      ? { at: v.withdrawn.at.toISOString(), note: v.withdrawn.note }
+      : null,
+    changes: v.changes ?? {
+      from: 0,
+      to: v.version,
+      described: [],
+      segments: [],
+      added: 0,
+      changed: 0,
+      removed: 0,
+    },
+    href: v.number === currentNumber ? base : `${base}/v/${v.number}`,
+    current: v.number === currentNumber,
   }));
 }
 
@@ -213,18 +286,16 @@ export async function loadReader(
   request: ReaderRequest,
 ): Promise<ReaderWireData> {
   const resolved = await resolveReader(db, user, slug, request);
-  const { access, mode, moments } = resolved;
+  const { access, mode, versions } = resolved;
+  const source = await editionSource(db, access.edition.id, resolved.versionNumber);
   // The order of whole segments is given as variants: comparing two orders is quick, and remembered for the pair.
-  const view = await editionView(db, access.edition.id, resolved.atVersion, {
+  const view = await viewOf(db, source, {
     lean: true,
     budget: READER_BUDGET,
     ...(request.focus ? { near: request.focus } : {}),
   });
-  const published =
-    access.edition.visibility === 'published' && access.edition.publishedVersion !== null;
-  const currentNumber = published
-    ? (moments.find((m) => m.version === access.edition.publishedVersion)?.number ?? null)
-    : null;
+  const published = access.edition.hasVersion;
+  const currentNumber = versions.find((v) => !v.withdrawn)?.number ?? null;
 
   const { segments, texts } = packSegments(Object.values(view.segments));
   // Labels of the segments this edition has, not of the whole work.
@@ -249,15 +320,17 @@ export async function loadReader(
     texts,
     baseId: access.edition.id,
     pending: view.pending,
-    worksCited: await editionWorksCited(db, access.edition.id),
+    worksCited: source.version
+      ? snapshotWorksCited(source.version.snapshot as EditionSnapshot)
+      : await editionWorksCited(db, access.edition.id),
     labelOf,
     orderVariants: view.orderVariants,
     mode,
-    versions: readerVersions(access.edition.slug, moments, currentNumber),
+    versions: readerVersions(access.edition.slug, versions, currentNumber),
     canEdit: access.canEdit,
     published,
     rights: editionRights(user, access.edition, access.collaboratorIds),
-    origin: await originOf(db, access.edition.copiedFrom),
+    origin: await originOf(db, source.meta.copiedFrom),
     ...readerLinks(access.edition.slug, mode, access, published),
   };
 }
@@ -275,7 +348,7 @@ export async function readerSites(
   segmentIds: string[],
 ): Promise<Pick<ReaderWireData, 'segments' | 'texts'>> {
   const resolved = await resolveReader(db, user, slug, request);
-  const view = await editionView(db, resolved.access.edition.id, resolved.atVersion, {
+  const view = await viewOf(db, await editionSource(db, resolved.access.edition.id, resolved.versionNumber), {
     segments: [...new Set(segmentIds)].slice(0, MAX_REFRESH),
     lean: true,
     lines: false,
@@ -297,7 +370,7 @@ export async function readerDetail(
   segmentIds: string[],
 ): Promise<Record<string, SegmentDetail>> {
   const resolved = await resolveReader(db, user, slug, request);
-  const view = await editionView(db, resolved.access.edition.id, resolved.atVersion, {
+  const view = await viewOf(db, await editionSource(db, resolved.access.edition.id, resolved.versionNumber), {
     segments: [...new Set(segmentIds)].slice(0, MAX_REFRESH),
     lean: true,
     lines: false,
@@ -313,17 +386,14 @@ export async function readerDetail(
   return out;
 }
 
-/** Where a copied edition came from, linked while the original is still published. */
+/** Where a copied edition came from, linked while the original has a version that is not withdrawn. */
 async function originOf(db: Database, origin: EditionOrigin | null): Promise<ReaderData['origin']> {
   if (!origin) return null;
   const [source] = await db
-    .select({ slug: editions.slug, visibility: editions.visibility })
+    .select({ slug: editions.slug, hasVersion: hasVersionSql('edition', editions.id) })
     .from(editions)
     .where(eq(editions.id, origin.editionId));
-  const href =
-    source && source.visibility === 'published'
-      ? `/editions/${encodeURIComponent(source.slug)}`
-      : null;
+  const href = source?.hasVersion ? `/editions/${encodeURIComponent(source.slug)}` : null;
   return { title: origin.title, editors: origin.editors, number: origin.number, href };
 }
 
@@ -331,9 +401,6 @@ async function originOf(db: Database, origin: EditionOrigin | null): Promise<Rea
 export function versionLine(mode: ReaderMode): string {
   switch (mode.kind) {
     case 'published':
-      return mode.number !== null && mode.at
-        ? `${r.version(mode.number)}, ${r.published} ${mode.at.slice(0, 10)}`
-        : r.unnumbered;
     case 'version':
       return `${r.version(mode.number)}, ${r.published} ${mode.at.slice(0, 10)}`;
     case 'draft':
@@ -395,7 +462,8 @@ export async function readerDownload(
   kind: 'text' | 'tei',
 ): Promise<Response> {
   const resolved = await resolveReader(db, user, slug, request);
-  const view = await editionView(db, resolved.access.edition.id, resolved.atVersion);
+  const source = await editionSource(db, resolved.access.edition.id, resolved.versionNumber);
+  const view = await viewOf(db, source);
   const draft = resolved.mode.kind === 'draft' || resolved.mode.kind === 'preview';
   const name =
     resolved.access.edition.slug +
@@ -415,6 +483,11 @@ export async function readerDownload(
   const body =
     kind === 'text'
       ? readerPlainText(view, resolved.mode)
-      : readerTei(view, await editionBibliographyFor(db, resolved.access.edition.id));
+      : readerTei(
+          view,
+          source.version
+            ? snapshotBibliography(source.version.snapshot as EditionSnapshot)
+            : await editionBibliographyFor(db, resolved.access.edition.id),
+        );
   return new Response(body, { headers });
 }

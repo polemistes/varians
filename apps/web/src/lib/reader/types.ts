@@ -4,7 +4,7 @@
  * that components never import server modules.
  */
 import type { Attachment, Collation, LayoutLine, OrderVariant, Unit } from '@varians/core';
-import type { EditionConventions } from '@varians/db';
+import type { EditionConventions, VersionChanges } from '@varians/db';
 import type { EditionRights } from '$lib/edition/actions';
 
 /** A segment of a passage: its label, and the edition's units it holds, [from, to); one the edition does not print holds none. */
@@ -84,20 +84,41 @@ export interface ReaderSiglum {
 
 /** Which state of the edition is shown, and why. */
 export type ReaderMode =
-  /** The published version, to everyone. `number` is null when no published moment names it. */
-  | { kind: 'published'; number: number | null; at: string | null }
-  /** A draft, to those who may see it. */
+  /** The latest version that is not withdrawn, to everyone, at the edition's own address. */
+  | { kind: 'published'; number: number; at: string; note: string | null }
+  /** The draft of an edition with no version, to those who may edit it. */
   | { kind: 'draft'; version: number }
-  /** The current draft of a published edition, to its editors. */
+  /** The draft of an edition with a version, to those who may edit it; `publishedNumber` is the latest version's. */
   | { kind: 'preview'; version: number; publishedNumber: number | null }
-  /** A published version by its number. */
-  | { kind: 'version'; number: number; at: string; isCurrent: boolean };
+  /** A version by its number, at its own address. */
+  | { kind: 'version'; number: number; at: string; note: string | null; isCurrent: boolean };
 
+/** A version as the Versions menu lists it, withdrawn ones among them. */
 export interface ReaderVersion {
   number: number;
   at: string;
+  /** The editors' note on the version. */
+  note: string | null;
+  /** When it was withdrawn and the note readers see; null while it stands. */
+  withdrawn: { at: string; note: string | null } | null;
+  /** What changed since the version before, made from the history (What Changed). */
+  changes: VersionChanges;
   href: string;
   current: boolean;
+}
+
+/** The page of a withdrawn version: its citation and the withdrawal, and no text. */
+export interface WithdrawnVersionData {
+  edition: { id: string; slug: string; title: string; editors: string[] };
+  work: { id: string; title: string; author: string | null };
+  number: number;
+  /** When the version was published, and the editors' note on it. */
+  at: string;
+  note: string | null;
+  withdrawn: { at: string; note: string | null };
+  /** The edition's address, which shows its latest version, or null when it has none any more. */
+  current: string | null;
+  versions: ReaderVersion[];
 }
 
 export interface ReaderData {
@@ -133,10 +154,10 @@ export interface ReaderData {
    */
   orderVariants: OrderVariant[];
   mode: ReaderMode;
-  /** Published versions, newest first. */
+  /** The versions, newest first, withdrawn ones among them. */
   versions: ReaderVersion[];
   canEdit: boolean;
-  /** The edition is published (whatever state of it is shown). */
+  /** The edition has a version that is not withdrawn (whatever state of it is shown). */
   published: boolean;
   /** What the viewer may do with the edition: its buttons and menu. */
   rights: EditionRights;

@@ -32,16 +32,20 @@ import {
   transcriptions,
   witnesses,
   type Database,
+  type EditionSnapshot,
   type WitnessHand,
 } from '@varians/db';
 import { collationStateOf, normalizeSiglum, stateTextId, type ConspectusEntry } from './sigla.ts';
 import { loadEditionText, loadTranscriptions } from './loaded-streams.ts';
-import type { Marks } from './site-marks.ts';
+import { marksOfSnapshot, type Marks } from './site-marks.ts';
+import { transcriptionVersions } from './versions.ts';
 import { createHash } from 'node:crypto';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 export interface EditionContext {
   edition: { id: string; workId: string; content: Stream; version: number };
+  /** The number of the version read, whose rows the collation cache keeps apart; absent for the draft. */
+  versionNumber?: number;
   /** The conspectus in order: siglum, witness, transcription (null when only reported readings), and the states collated under sigla of their own. */
   sigla: ConspectusEntry[];
   /** The hands of the witnesses named, by witness id, for the states that name a hand. */
@@ -170,6 +174,67 @@ export async function loadEditionContext(db: Database, editionId: string): Promi
     witnessHands,
     transcriptions: new Map(rows.map((r) => [r.id, r] as const)),
     siteKinds,
+  };
+}
+
+/**
+ * The context of a version of an edition, from its snapshot and from nothing
+ * live but the registry: the edition's text, conspectus and marks as they
+ * stood, and each transcription at the version of it the snapshot names. A
+ * witness whose transcript version cannot be found is absent from the
+ * apparatus.
+ */
+export async function contextOfVersion(
+  db: Database,
+  edition: { id: string; workId: string },
+  version: { number: number; version: number; snapshot: EditionSnapshot },
+): Promise<EditionContext> {
+  const snapshot = version.snapshot;
+  const [found, keyRows] = await Promise.all([
+    transcriptionVersions(db, snapshot.witnessVersions),
+    db
+      .select({ id: segments.id, sortKey: segments.sortKey })
+      .from(segments)
+      .where(eq(segments.workId, edition.workId)),
+  ]);
+  const rows = [...found].map(([id, t]) => ({
+    id,
+    content: t.snapshot.content,
+    version: t.version.version,
+    witnessId: t.snapshot.witnessId,
+  }));
+  const sigla = snapshot.sigla
+    .map(normalizeSiglum)
+    .filter((s) => s.transcriptionId === null || found.has(s.transcriptionId));
+  const segmentKeys = new Map(keyRows.map((r) => [r.id, r.sortKey] as const));
+  let coverage: Map<string, Coverage> | undefined;
+  return {
+    edition: {
+      id: edition.id,
+      workId: edition.workId,
+      content: snapshot.content,
+      version: version.version,
+    },
+    versionNumber: version.number,
+    segmentKeys,
+    get coverage() {
+      if (!coverage) {
+        coverage = new Map();
+        const sorted = sortedByKey(segmentKeys);
+        for (const r of rows) {
+          const covered = coverageOf(r.content, segmentKeys, sorted);
+          if (covered) coverage.set(r.id, covered);
+        }
+      }
+      return coverage;
+    },
+    sigla,
+    witnessHands: await loadWitnessHands(
+      db,
+      sigla.map((s) => s.witnessId),
+    ),
+    transcriptions: new Map(rows.map((r) => [r.id, r] as const)),
+    siteKinds: marksOfSnapshot(snapshot.siteKinds),
   };
 }
 

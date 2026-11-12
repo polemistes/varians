@@ -12,16 +12,20 @@ import { eq } from 'drizzle-orm';
 import {
   canDeleteTranscription,
   canEditTranscription,
+  canPublishTranscription,
   canViewTranscription,
   grantsFor,
   type Actor,
 } from './authz';
+import { hasVersionSql } from './versions';
 
 export interface TranscriptionAccess {
-  transcription: Transcription;
+  /** The transcription, with whether it has a version that is not withdrawn. */
+  transcription: Transcription & { hasVersion: boolean };
   witness: Witness;
   canView: boolean;
   canEdit: boolean;
+  canPublish: boolean;
   canDelete: boolean;
 }
 
@@ -31,18 +35,24 @@ export async function loadTranscriptionAccess(
   id: string,
 ): Promise<TranscriptionAccess | null> {
   const [row] = await db
-    .select({ transcription: transcriptions, witness: witnesses })
+    .select({
+      transcription: transcriptions,
+      witness: witnesses,
+      hasVersion: hasVersionSql('transcription', transcriptions.id),
+    })
     .from(transcriptions)
     .innerJoin(witnesses, eq(witnesses.id, transcriptions.witnessId))
     .where(eq(transcriptions.id, id));
   if (!row) return null;
+  const transcription = { ...row.transcription, hasVersion: row.hasVersion };
   const grants = await grantsFor(db, user);
-  const canEdit = canEditTranscription(user, row.transcription, grants);
+  const canEdit = canEditTranscription(user, transcription, grants);
   return {
-    transcription: row.transcription,
+    transcription,
     witness: row.witness,
-    canView: canViewTranscription(user, row.transcription, grants),
+    canView: canViewTranscription(user, transcription, grants),
     canEdit,
-    canDelete: canDeleteTranscription(user, row.transcription),
+    canPublish: canPublishTranscription(user, transcription),
+    canDelete: canDeleteTranscription(user, transcription),
   };
 }

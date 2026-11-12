@@ -36,34 +36,33 @@ import {
   conjectures,
   editionAdoptions,
   editions,
-  moments,
   notes,
-  transcriptions,
   reportedReadings,
   segments,
   users,
   witnesses,
   type Database,
   type EditionConventions,
-  type MomentBasis,
+  type EditionOrigin,
+  type EditionSnapshot,
+  type Version,
   type WitnessHand,
 } from '@varians/db';
-import { and, desc, eq, getTableColumns, inArray, lte } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
-import { citationsByRecord } from './bibliography.ts';
+import { citationsByRecord, snapshotCitationTexts } from './bibliography.ts';
 import {
+  contextOfVersion,
   loadEditionContext,
-  loadWitnessHands,
   segmentOrderOf,
   type EditionContext,
 } from './collation.ts';
 import { collatePassagesFor, marksOf, type PassageResult } from './passages.ts';
-import { marksAtPublication } from './site-marks.ts';
-import { collationStateOf, normalizeSiglum, type ConspectusEntry } from './sigla.ts';
+import { collationStateOf, type ConspectusEntry } from './sigla.ts';
+import { revived, versionByNumber } from './versions.ts';
 import { handLabel } from '../registry/witness.ts';
 import type { ReaderSiglumState } from '../reader/types.ts';
 import { reader as r } from '../strings/reader.ts';
-import { documentAt } from './documents/service.ts';
 import { labelOfSegments, siglaOrderOf } from '../reader/sites.ts';
 import { outlineOf, type SegmentOutline } from '../edition/outline.ts';
 
@@ -378,14 +377,269 @@ const ordersOf = new WeakMap<
   { content: Stream; result: { statements: OrderStatement[]; variants: OrderVariant[] } }
 >();
 
-/** An edition's row without its text, which a collation context holds already. */
-type EditionMeta = Omit<typeof editions.$inferSelect, 'content'>;
+/** What a view needs of an edition besides its text: of the draft from its row, of a version from its snapshot. */
+export interface EditionMeta {
+  id: string;
+  workId: string;
+  slug: string;
+  title: string;
+  editors: string[];
+  preface: string | null;
+  sources: string | null;
+  rightsNote: string | null;
+  licenceId: string | null;
+  conventions: EditionConventions;
+  copiedFrom: EditionOrigin | null;
+}
 
 async function editionMeta(db: Database, editionId: string): Promise<EditionMeta> {
-  const { content: _content, ...columns } = getTableColumns(editions);
-  const [row] = await db.select(columns).from(editions).where(eq(editions.id, editionId));
+  const [row] = await db
+    .select({
+      id: editions.id,
+      workId: editions.workId,
+      slug: editions.slug,
+      title: editions.title,
+      editors: editions.editors,
+      preface: editions.preface,
+      sources: editions.sources,
+      rightsNote: editions.rightsNote,
+      licenceId: editions.licenceId,
+      conventions: editions.conventions,
+      copiedFrom: editions.copiedFrom,
+    })
+    .from(editions)
+    .where(eq(editions.id, editionId));
   if (!row) throw new Error(`no edition ${editionId}`);
   return row;
+}
+
+type ConjectureRow = typeof conjectures.$inferSelect;
+type ReportedRow = typeof reportedReadings.$inferSelect;
+
+/** The records a view lays at the variants of some segments, with the notes and what they all cite. */
+export interface ViewRecords {
+  adopted: Set<string>;
+  conjectures: ConjectureRow[];
+  reported: ReportedRow[];
+  notes: {
+    id: string;
+    segmentId: string;
+    tokenIds: string[];
+    text: string;
+    author: string | null;
+  }[];
+  /** What each note, conjecture and reported reading cites, as text, by its id. */
+  cites: Map<string, string[]>;
+}
+
+/**
+ * What a view of an edition reads: the draft, from the live tables, or a
+ * version, from its snapshot and the transcript versions it names, and from
+ * nothing else.
+ */
+export interface EditionSource {
+  context: EditionContext;
+  meta: EditionMeta;
+  /** The version read; null for the draft. */
+  version: Version | null;
+  /** The records of some segments, with the notes and their citations where `notes` is asked for. */
+  records(segmentIds: string[], notes: boolean): Promise<ViewRecords>;
+}
+
+/** The draft as a source of views: the edition's text, conspectus and records as they are now. */
+export async function draftSource(db: Database, editionId: string): Promise<EditionSource> {
+  const [context, meta] = await Promise.all([
+    loadEditionContext(db, editionId),
+    editionMeta(db, editionId),
+  ]);
+  return { context, meta, version: null, records: (ids, withNotes) => liveRecords(db, meta, ids, withNotes) };
+}
+
+/**
+ * The source of the views of an edition: its draft (null), or the version
+ * with this number, read from its snapshot. A version that does not exist is
+ * an error; whether the visitor may see it is the caller's to decide.
+ */
+export async function editionSource(
+  db: Database,
+  editionId: string,
+  number: number | null,
+): Promise<EditionSource> {
+  if (number === null) return draftSource(db, editionId);
+  const [version, live] = await Promise.all([
+    versionByNumber(db, 'edition', editionId, number),
+    db
+      .select({ id: editions.id, workId: editions.workId, slug: editions.slug })
+      .from(editions)
+      .where(eq(editions.id, editionId)),
+  ]);
+  const row = live[0];
+  if (!version || !row) throw new Error(`no version ${number} of edition ${editionId}`);
+  return versionSource(db, row, version);
+}
+
+/** A version as a source of views, from its snapshot. */
+export async function versionSource(
+  db: Database,
+  edition: { id: string; workId: string; slug: string },
+  version: Version,
+): Promise<EditionSource> {
+  const snapshot = version.snapshot as EditionSnapshot;
+  const context = await contextOfVersion(db, edition, {
+    number: version.number,
+    version: version.version,
+    snapshot,
+  });
+  const meta: EditionMeta = {
+    id: edition.id,
+    workId: edition.workId,
+    slug: edition.slug,
+    title: snapshot.title,
+    editors: snapshot.editors,
+    preface: snapshot.preface,
+    sources: snapshot.sources,
+    rightsNote: snapshot.rightsNote,
+    licenceId: snapshot.licenceId,
+    conventions: snapshot.conventions,
+    copiedFrom: snapshot.copiedFrom,
+  };
+  const all = snapshotRecords(snapshot);
+  return {
+    context,
+    meta,
+    version,
+    records: async (ids, withNotes) => {
+      const here = new Set(ids);
+      return {
+        adopted: all.adopted,
+        conjectures: all.conjectures.filter((c) => here.has(c.segmentId)),
+        reported: all.reported.filter((r) => here.has(r.segmentId)),
+        notes: withNotes ? all.notes.filter((n) => here.has(n.segmentId)) : [],
+        cites: withNotes ? all.cites : new Map(),
+      };
+    },
+  };
+}
+
+/** Every record of a version's snapshot, as the live tables would give them. */
+const recordsOfSnapshots = new WeakMap<EditionSnapshot, ViewRecords>();
+export function snapshotRecords(snapshot: EditionSnapshot): ViewRecords {
+  let known = recordsOfSnapshots.get(snapshot);
+  if (!known) {
+    known = {
+      adopted: new Set(snapshot.adoptions.map((a) => a.conjectureId)),
+      conjectures: snapshot.conjectures.map((c) => revived(c, 'createdAt', 'updatedAt')),
+      reported: snapshot.readings.map((r) => revived(r, 'createdAt', 'updatedAt')),
+      notes: snapshot.notes.map((n) => ({
+        id: n.id,
+        segmentId: n.segmentId,
+        tokenIds: n.tokenIds,
+        text: n.text,
+        author: n.author,
+      })),
+      cites: snapshotCitationTexts(snapshot),
+    };
+    recordsOfSnapshots.set(snapshot, known);
+  }
+  return known;
+}
+
+/** The records of some segments of the draft, from the live tables: the work's conjectures and reported readings being a commons, all of them. */
+async function liveRecords(
+  db: Database,
+  row: EditionMeta,
+  segmentIds: string[],
+  withNotes: boolean,
+): Promise<ViewRecords> {
+  const editionId = row.id;
+  const [adoptedRows, conjectureRows, reportedRows, noteRows] = await Promise.all([
+    db.select().from(editionAdoptions).where(eq(editionAdoptions.editionId, editionId)),
+    segmentIds.length
+      ? db
+          .select()
+          .from(conjectures)
+          .where(
+            and(eq(conjectures.workId, row.workId), inArray(conjectures.segmentId, segmentIds)),
+          )
+      : Promise.resolve([]),
+    segmentIds.length
+      ? db
+          .select()
+          .from(reportedReadings)
+          .where(
+            and(
+              eq(reportedReadings.workId, row.workId),
+              inArray(reportedReadings.segmentId, segmentIds),
+            ),
+          )
+      : Promise.resolve([]),
+    withNotes
+      ? db
+          .select({
+            id: notes.id,
+            segmentId: notes.segmentId,
+            tokenIds: notes.tokenIds,
+            text: notes.text,
+            author: users.name,
+          })
+          .from(notes)
+          .leftJoin(users, eq(users.id, notes.authorId))
+          .where(
+            and(
+              eq(notes.editionId, editionId),
+              segmentIds.length ? inArray(notes.segmentId, segmentIds) : undefined,
+            ),
+          )
+      : Promise.resolve([]),
+  ]);
+  const cites = new Map<string, string[]>();
+  if (withNotes) {
+    const found = await Promise.all([
+      citationsByRecord(
+        db,
+        'note',
+        noteRows.map((n) => n.id),
+      ),
+      citationsByRecord(
+        db,
+        'conjecture',
+        conjectureRows.map((c) => c.id),
+      ),
+      citationsByRecord(
+        db,
+        'reported',
+        reportedRows.map((r) => r.id),
+      ),
+    ]);
+    for (const map of found)
+      for (const [id, list] of map)
+        cites.set(
+          id,
+          list.map((c) => c.text),
+        );
+  }
+  return {
+    adopted: new Set(adoptedRows.map((a) => a.conjectureId)),
+    conjectures: conjectureRows,
+    reported: reportedRows,
+    notes: noteRows,
+    cites,
+  };
+}
+
+/** The conjectures and reported readings of a source laid at its variants by `attachRecords`: every segment's. */
+export async function passageRecordsOf(
+  source: EditionSource,
+  segmentIds: string[],
+  siglumOf: (witnessId: string) => string,
+): Promise<PassageRecords> {
+  const records = await source.records(segmentIds, false);
+  return {
+    conjecturesAt: bySegment(records.conjectures),
+    reportedAt: bySegment(records.reported),
+    adopted: records.adopted,
+    siglumOf,
+  };
 }
 
 export interface EditionView {
@@ -423,7 +677,7 @@ export interface EditionView {
   order: OrderStatement[];
   /** The same as variants: over a stretch of the edition's segments, the segments in each order. */
   orderVariants: OrderVariant[];
-  /** The version shown, when not the current one. */
+  /** The number of the version shown; null for the draft. */
   atVersion: number | null;
   /** Segments wanted whose views were not made, for want of the collation budget: nearest the one asked for first. */
   pending: string[];
@@ -482,21 +736,28 @@ export interface ViewOptions {
 }
 
 /**
- * Assemble the view of an edition, at its current content or as it stood at
- * a version. A published version is collated against the witnesses as they
- * stood when it was published, with the conjectures, reported readings and
- * notes there were then, so that it reads the same for as long as it is cited.
+ * Assemble the view of an edition: of its draft (null), or of the version
+ * with this number, which is read from its snapshot and the transcript
+ * versions it names, so that it reads the same for as long as it is cited.
  * Views are made of every segment unless some are named, and only those are
  * collated.
  */
 export async function editionView(
   db: Database,
   editionId: string,
-  atVersion: number | null = null,
+  number: number | null = null,
   options: ViewOptions = {},
 ): Promise<EditionView> {
-  const { context, asOf } = await contextAt(db, editionId, atVersion);
-  const row = await editionMeta(db, editionId);
+  return viewOf(db, await editionSource(db, editionId, number), options);
+}
+
+/** The view of an edition from a source: its draft or one of its versions. */
+export async function viewOf(
+  db: Database,
+  source: EditionSource,
+  options: ViewOptions = {},
+): Promise<EditionView> {
+  const { context, meta: row } = source;
   const work = await db.query.works.findFirst({ where: (t, { eq }) => eq(t.id, row.workId) });
   const segmentRows = await db.select().from(segments).where(eq(segments.workId, row.workId));
   const labelOf: Record<string, string> = {};
@@ -528,7 +789,7 @@ export async function editionView(
     ...(options.budget !== undefined ? { budget: options.budget } : {}),
     ...(near !== undefined ? { near } : {}),
   });
-  const views = await buildSegmentViews(db, context, row, passages, labelOf, witnessById, asOf, {
+  const views = await buildSegmentViews(source, passages, labelOf, witnessById, {
     entries: options.lean !== true,
     drift: options.lean !== true,
     notes: options.detail !== false,
@@ -571,103 +832,9 @@ export async function editionView(
     labelOf,
     order: order?.statements ?? [],
     orderVariants: order?.variants ?? [],
-    atVersion: atVersion !== null && atVersion !== row.version ? atVersion : null,
+    atVersion: source.version?.number ?? null,
     pending,
   };
-}
-
-/**
- * An edition's collation context as it stood at a version (the current one
- * when null). A published version brings its basis: the conspectus and the
- * transcription versions it was published with, and the time after which
- * records are left out (`asOf`).
- */
-export async function contextAt(
-  db: Database,
-  editionId: string,
-  atVersion: number | null,
-): Promise<{ context: EditionContext; asOf: Date | null }> {
-  const context = await loadEditionContext(db, editionId);
-  if (atVersion !== null && atVersion !== context.edition.version) {
-    context.edition = {
-      ...context.edition,
-      content: await documentAt(db, 'edition', editionId, atVersion),
-      version: atVersion,
-    };
-  }
-  let asOf: Date | null = null;
-  if (atVersion !== null) {
-    const [published] = await db
-      .select({ basis: moments.basis, at: moments.at })
-      .from(moments)
-      .where(
-        and(
-          eq(moments.documentKind, 'edition'),
-          eq(moments.documentId, editionId),
-          eq(moments.kind, 'published'),
-          eq(moments.version, atVersion),
-        ),
-      )
-      .orderBy(desc(moments.at))
-      .limit(1);
-    if (published?.basis) {
-      await applyBasis(db, context, published.basis);
-      asOf = published.at;
-      // The kinds, and the places judged minor, as the editors had them when it was published.
-      context.siteKinds = marksAtPublication(context.siteKinds, published.basis, published.at);
-    }
-  }
-  return { context, asOf };
-}
-
-/** Put a publication's conspectus and transcription versions in place of the current ones. */
-async function applyBasis(
-  db: Database,
-  context: EditionContext,
-  basis: MomentBasis,
-): Promise<void> {
-  // Bases published before variants could be collated have no variant siglum; those before states name the state before correction alone.
-  context.sigla = basis.sigla.map(normalizeSiglum);
-  context.witnessHands = await loadWitnessHands(
-    db,
-    context.sigla.map((s) => s.witnessId),
-  );
-  const ids = basis.sigla.map((s) => s.transcriptionId).filter((id): id is string => id !== null);
-  // What the context holds of the transcriptions, as they are now, is not read again.
-  const held = context.transcriptions;
-  const absent = ids.filter((id) => !held.has(id));
-  const rows = [
-    ...ids.flatMap((id) => held.get(id) ?? []),
-    ...(absent.length
-      ? await db
-          .select({
-            id: transcriptions.id,
-            content: transcriptions.content,
-            version: transcriptions.version,
-            witnessId: transcriptions.witnessId,
-          })
-          .from(transcriptions)
-          .where(inArray(transcriptions.id, absent))
-      : []),
-  ];
-  const loaded = new Map<
-    string,
-    { id: string; content: Stream; version: number; witnessId: string }
-  >();
-  for (const row of rows) {
-    const version = basis.versions[row.id] ?? row.version;
-    loaded.set(
-      row.id,
-      version >= row.version
-        ? row
-        : { ...row, content: await documentAt(db, 'transcription', row.id, version), version },
-    );
-  }
-  // A transcription deleted since is simply absent from the apparatus.
-  context.sigla = context.sigla.filter(
-    (s) => s.transcriptionId === null || loaded.has(s.transcriptionId),
-  );
-  context.transcriptions = loaded;
 }
 
 /**
@@ -681,16 +848,14 @@ export async function editionOutline(
   db: Database,
   editionId: string,
 ): Promise<{ outline: Record<string, SegmentOutline>; labelOf: Record<string, string> }> {
-  const [context, row] = await Promise.all([
-    loadEditionContext(db, editionId),
-    editionMeta(db, editionId),
-  ]);
+  const source = await draftSource(db, editionId);
+  const { context, meta: row } = source;
   const [{ passages }, witnessById, labelOf] = await Promise.all([
     collatePassagesFor(db, context, null),
     witnessesOf(db, context),
     labelsOfWork(db, row.workId),
   ]);
-  const views = await buildSegmentViews(db, context, row, passages, labelOf, witnessById, null, {
+  const views = await buildSegmentViews(source, passages, labelOf, witnessById, {
     entries: false,
     notes: false,
   });
@@ -740,17 +905,15 @@ export async function refreshView(
   order: OrderStatement[];
   orderVariants: OrderVariant[];
 }> {
-  const [context, row] = await Promise.all([
-    loadEditionContext(db, editionId),
-    editionMeta(db, editionId),
-  ]);
+  const source = await draftSource(db, editionId);
+  const { context, meta: row } = source;
   // Segments of this work only, and a bounded number of them: the editor asks for those it has on screen.
   const asked = [...new Set(segmentIds)].slice(0, MAX_REFRESH);
   const labelOf = await labelsOfWork(db, row.workId);
   const wanted = asked.filter((id) => labelOf[id] !== undefined);
   const witnessById = await witnessesOf(db, context);
   const { passages } = await collatePassagesFor(db, context, wanted);
-  const views = await buildSegmentViews(db, context, row, passages, labelOf, witnessById, null);
+  const views = await buildSegmentViews(source, passages, labelOf, witnessById);
   const order = orderOf(context);
   return { segments: views, order: order.statements, orderVariants: order.variants };
 }
@@ -869,99 +1032,25 @@ export function attachRecords(
 }
 
 async function buildSegmentViews(
-  db: Database,
-  context: EditionContext,
-  row: EditionMeta,
+  source: EditionSource,
   passages: readonly PassageResult[],
   labelOf: Record<string, string>,
   witnessById: Map<string, typeof witnesses.$inferSelect>,
-  asOf: Date | null = null,
   parts: ViewParts = {},
 ): Promise<Record<string, SegmentView>> {
-  const editionId = row.id;
+  const { context, meta: row } = source;
   const siglumOfWitness = new Map(context.sigla.map((s) => [s.witnessId, s.siglum] as const));
   const conventions = apparatusConventionsOf(row.conventions);
   // The records of every segment of the passages: those the edition does not print among them.
   const segmentIds = passages.flatMap((p) => p.segments.map((s) => s.segmentId));
-  const adopted = new Set(
-    (await db.select().from(editionAdoptions).where(eq(editionAdoptions.editionId, editionId))).map(
-      (a) => a.conjectureId,
-    ),
-  );
-  // The work's conjectures and reported readings are a commons, all of them seen: for a published version, those entered by the time it was published.
-  const conjectureRows = segmentIds.length
-    ? await db
-        .select()
-        .from(conjectures)
-        .where(
-          and(
-            eq(conjectures.workId, row.workId),
-            inArray(conjectures.segmentId, segmentIds),
-            asOf ? lte(conjectures.createdAt, asOf) : undefined,
-          ),
-        )
-    : [];
-  const reportedRows = segmentIds.length
-    ? await db
-        .select()
-        .from(reportedReadings)
-        .where(
-          and(
-            eq(reportedReadings.workId, row.workId),
-            inArray(reportedReadings.segmentId, segmentIds),
-            asOf ? lte(reportedReadings.createdAt, asOf) : undefined,
-          ),
-        )
-    : [];
   const withNotes = parts.notes !== false;
-  const noteRows = withNotes
-    ? await db
-        .select({
-          id: notes.id,
-          segmentId: notes.segmentId,
-          tokenIds: notes.tokenIds,
-          text: notes.text,
-          author: users.name,
-        })
-        .from(notes)
-        .leftJoin(users, eq(users.id, notes.authorId))
-        .where(
-          and(
-            eq(notes.editionId, editionId),
-            segmentIds.length ? inArray(notes.segmentId, segmentIds) : undefined,
-            asOf ? lte(notes.createdAt, asOf) : undefined,
-          ),
-        )
-    : [];
-  const texts = (map: Map<string, { text: string }[]>) =>
-    new Map([...map].map(([id, list]) => [id, list.map((c) => c.text)] as const));
-  const noteCites = withNotes
-    ? texts(
-        await citationsByRecord(
-          db,
-          'note',
-          noteRows.map((n) => n.id),
-        ),
-      )
-    : new Map<string, string[]>();
-  const recordCites = withNotes
-    ? new Map([
-        ...texts(
-          await citationsByRecord(
-            db,
-            'conjecture',
-            conjectureRows.map((c) => c.id),
-          ),
-        ),
-        ...texts(
-          await citationsByRecord(
-            db,
-            'reported',
-            reportedRows.map((r) => r.id),
-          ),
-        ),
-      ])
-    : new Map<string, string[]>();
+  const found = await source.records(segmentIds, withNotes);
+  const adopted = found.adopted;
+  const conjectureRows = found.conjectures;
+  const reportedRows = found.reported;
+  const noteRows = found.notes;
+  const noteCites = found.cites;
+  const recordCites = found.cites;
   const records: PassageRecords = {
     conjecturesAt: bySegment(conjectureRows),
     reportedAt: bySegment(reportedRows),

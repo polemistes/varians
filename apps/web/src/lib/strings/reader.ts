@@ -30,6 +30,8 @@ export const reader = {
     versionIsCurrent: 'This is the current version.',
     readCurrent: 'Read the current version',
     segmentMissing: (label: string) => `This edition has no segment ${label}.`,
+    withdrawnTitle: (n: number) => `Version ${n}, withdrawn`,
+    withdrawnOn: (date: string) => `Withdrawn on ${date}.`,
   },
 
   /** The toolbar. */

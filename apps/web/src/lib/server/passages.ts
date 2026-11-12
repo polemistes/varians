@@ -211,6 +211,7 @@ export async function collatePassagesFor(
         fact.dirty = false;
         return {
           editionId: context.edition.id,
+          versionNumber: context.versionNumber ?? 0,
           segmentId: fact.segmentId,
           inputHash: fact.hash,
           result: fact.stored!,
@@ -220,7 +221,7 @@ export async function collatePassagesFor(
         .insert(collationCache)
         .values(rows)
         .onConflictDoUpdate({
-          target: [collationCache.editionId, collationCache.segmentId],
+          target: [collationCache.editionId, collationCache.versionNumber, collationCache.segmentId],
           set: {
             inputHash: sql`excluded.input_hash`,
             result: sql`excluded.result`,
@@ -263,6 +264,7 @@ export async function collatePassagesFor(
         .where(
           and(
             eq(collationCache.editionId, context.edition.id),
+            eq(collationCache.versionNumber, context.versionNumber ?? 0),
             inArray(
               collationCache.segmentId,
               chunk.map((i) => order[i]!),
@@ -535,6 +537,7 @@ export async function collatePassagesFor(
       .where(
         and(
           eq(collationCache.editionId, context.edition.id),
+            eq(collationCache.versionNumber, context.versionNumber ?? 0),
           inArray(
             collationCache.segmentId,
             chunk.map((i) => order[i]!),
@@ -739,6 +742,7 @@ export async function collateSegment(
     .where(
       and(
         eq(collationCache.editionId, context.edition.id),
+            eq(collationCache.versionNumber, context.versionNumber ?? 0),
         eq(collationCache.segmentId, segmentId),
       ),
     );
@@ -752,12 +756,13 @@ export async function collateSegment(
       .insert(collationCache)
       .values({
         editionId: context.edition.id,
+          versionNumber: context.versionNumber ?? 0,
         segmentId,
         inputHash: hash,
         result: { alone: serializeCollation(collation) } satisfies Stored,
       })
       .onConflictDoUpdate({
-        target: [collationCache.editionId, collationCache.segmentId],
+        target: [collationCache.editionId, collationCache.versionNumber, collationCache.segmentId],
         set: {
           inputHash: hash,
           result: { alone: serializeCollation(collation) },

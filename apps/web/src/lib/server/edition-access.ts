@@ -4,9 +4,11 @@
 import { editionCollaborators, editions, type Database, type Edition } from '@varians/db';
 import { eq, or } from 'drizzle-orm';
 import { canEditEdition, canPublishEdition, canViewEdition, type Actor } from './authz';
+import { hasVersionSql } from './versions';
 
 export interface EditionAccess {
-  edition: Edition;
+  /** The edition, with whether it has a version that is not withdrawn. */
+  edition: Edition & { hasVersion: boolean };
   collaboratorIds: string[];
   canView: boolean;
   canEdit: boolean;
@@ -19,12 +21,13 @@ export async function loadEditionAccess(
   user: Actor | null,
   idOrSlug: string,
 ): Promise<EditionAccess | null> {
-  const [edition] = await db
-    .select()
+  const [row] = await db
+    .select({ edition: editions, hasVersion: hasVersionSql('edition', editions.id) })
     .from(editions)
     .where(or(eq(editions.id, idOrSlug), eq(editions.slug, idOrSlug)))
     .limit(1);
-  if (!edition) return null;
+  if (!row) return null;
+  const edition = { ...row.edition, hasVersion: row.hasVersion };
   const collaboratorIds = (
     await db
       .select({ userId: editionCollaborators.userId })
