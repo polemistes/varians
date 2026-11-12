@@ -31,6 +31,8 @@ import {
 } from './publish.ts';
 import { editionView } from './reader.ts';
 import { forgetCollations } from './passages.ts';
+import { exportTei, loadWithdrawnTranscriptionVersion, loadWorkbench } from './workbench.ts';
+import { changesRequest, publishRequest, versionsRequest, withdrawRequest } from './version-api.ts';
 import { loadReader, loadWithdrawnVersion, readerDownload } from './reader-pages.ts';
 import { seedSample } from './seed/sample.ts';
 import { hasVersion, latestVersion, versionByNumber, versionsOf } from './versions.ts';
@@ -374,6 +376,106 @@ describe('publishing and conjectures', () => {
     await withdrawVersion(db, 'edition', sample.editionId, 1, userId, null);
     await expect(loadReader(db, null, slug, {})).rejects.toMatchObject({ status: 404 });
     expect(await loadWithdrawnVersion(db, null, slug, 1)).toMatchObject({ current: null });
+  });
+
+  it('answers the editors through the API: the changes since the version before, publishing with a note, the versions, withdrawing', async () => {
+    const [edition] = await db
+      .select()
+      .from(editions)
+      .where(eq(editions.slug, 'iliad-1-working-edition'));
+    const owner = { id: userId, role: 'member' as const };
+    const post = (body: unknown) =>
+      new Request('http://x/', { method: 'POST', body: JSON.stringify(body) });
+    const read = async (response: Response) => [response.status, await response.json()];
+    // Someone who may not see the edition, whose every version is withdrawn, does not learn of it.
+    const stranger = { id: newId(), role: 'member' as const };
+    await expect(changesRequest(db, stranger, 'edition', edition!.id)).rejects.toMatchObject({
+      status: 404,
+    });
+    const [, before] = await read(await changesRequest(db, owner, 'edition', edition!.id));
+    const [status, made] = await read(
+      await publishRequest(db, owner, 'edition', edition!.id, post({ note: 'Through the API.' })),
+    );
+    expect(status).toBe(200);
+    expect(made.number).toBe(before.number);
+    const [, listed] = await read(await versionsRequest(db, owner, 'edition', edition!.id));
+    expect(listed.versions[0]).toMatchObject({
+      number: made.number,
+      note: 'Through the API.',
+      withdrawn: null,
+      changes: { to: made.version },
+    });
+    const [, after] = await read(await changesRequest(db, owner, 'edition', edition!.id));
+    expect(after).toMatchObject({ number: made.number + 1, changes: { segments: [] } });
+    const [withdrawn] = await read(
+      await withdrawRequest(
+        db,
+        owner,
+        'edition',
+        edition!.id,
+        post({ number: made.number, note: 'Not this one.' }),
+      ),
+    );
+    expect(withdrawn).toBe(200);
+    // One who may see the edition but does not own it is refused.
+    await publishEdition(db, edition!.id, userId);
+    await expect(changesRequest(db, stranger, 'edition', edition!.id)).rejects.toMatchObject({
+      status: 403,
+    });
+    const [again, refused] = await read(
+      await withdrawRequest(db, owner, 'edition', edition!.id, post({ number: made.number })),
+    );
+    expect(again).toBe(409);
+    expect(refused.message).toBe('That version is withdrawn already.');
+    await expect(
+      withdrawRequest(db, owner, 'edition', edition!.id, post({ number: 'one' })),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('shows a reader of a transcript its latest version, read only, and its draft to its editors', async () => {
+    const [b] = await db
+      .select()
+      .from(transcriptions)
+      .where(
+        eq(
+          transcriptions.witnessId,
+          (await db.select().from(witnesses).where(eq(witnesses.slug, 'venetus-b')))[0]!.id,
+        ),
+      );
+    const owner = { id: userId, role: 'member' as const };
+    const made = await publishTranscription(db, b!.id, userId, 'As read.');
+    const word = b!.content.items.find((i): i is Token => i.kind === 'token')!;
+    await saveOps(db, 'transcription', b!.id, userId, b!.version, [
+      { t: 'set', id: word.id, fields: { form: 'ΔΡΑΦΤ' } },
+    ]);
+    const formOf = (data: Awaited<ReturnType<typeof loadWorkbench>>) =>
+      data!.transcription.content.items.find((i) => i.id === word.id)!;
+    const reader = await loadWorkbench(db, null, b!.id);
+    expect(reader!.transcription).toMatchObject({
+      shownVersion: made.number,
+      latestVersion: made.number,
+    });
+    expect(reader!.canEdit).toBe(false);
+    expect(formOf(reader)).toMatchObject({ form: word.form });
+    const editor = await loadWorkbench(db, owner, b!.id);
+    expect(editor!.transcription.shownVersion).toBeNull();
+    expect(formOf(editor)).toMatchObject({ form: 'ΔΡΑΦΤ' });
+    // A version at its address is read only, to its editors too.
+    const atVersion = await loadWorkbench(db, owner, b!.id, made.number);
+    expect(atVersion!.canEdit).toBe(false);
+    expect(formOf(atVersion)).toMatchObject({ form: word.form });
+    // Its downloads for a reader are the version's.
+    expect((await exportTei(db, b!.id, 'http://x', false))!.xml).not.toContain('ΔΡΑΦΤ');
+    expect((await exportTei(db, b!.id, 'http://x', true))!.xml).toContain('ΔΡΑΦΤ');
+
+    await withdrawVersion(db, 'transcription', b!.id, made.number, userId, 'Misread.');
+    expect(await loadWorkbench(db, null, b!.id, made.number)).toBeNull();
+    expect(await loadWithdrawnTranscriptionVersion(db, b!.id, made.number)).toMatchObject({
+      number: made.number,
+      note: 'As read.',
+      withdrawn: { note: 'Misread.' },
+    });
+    expect(await loadWithdrawnTranscriptionVersion(db, b!.id, 1)).toBeNull();
   });
 
   it("refuses to publish another person's transcription at a text they have not published, and names the witness", async () => {

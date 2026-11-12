@@ -162,6 +162,52 @@ export interface WorkbenchData {
   canMaintainWitness: boolean;
 }
 
+/** The page of a withdrawn version of a transcription: its citation and the withdrawal, and no text. */
+export interface WithdrawnTranscriptionVersion {
+  transcription: { id: string; name: string };
+  witness: { name: string; siglum: string; slug: string };
+  number: number;
+  /** When the version was published, and the note on it. */
+  at: string;
+  note: string | null;
+  withdrawn: { at: string; note: string | null };
+  /** The transcription's address, which shows its latest version, or null when it has none any more. */
+  current: string | null;
+}
+
+/**
+ * Version `number` of a transcription when it is withdrawn, for its page,
+ * which anyone may open since someone may have cited it; null when that
+ * version is not withdrawn or does not exist.
+ */
+export async function loadWithdrawnTranscriptionVersion(
+  db: Database,
+  id: string,
+  number: number,
+): Promise<WithdrawnTranscriptionVersion | null> {
+  const all = await versionsOf(db, 'transcription', id);
+  const asked = all.find((v) => v.number === number);
+  if (!asked?.withdrawn) return null;
+  const version = await versionByNumber(db, 'transcription', id, number);
+  const snapshot = version!.snapshot as TranscriptionSnapshot;
+  const witness = await db.query.witnesses.findFirst({
+    where: (w, { eq }) => eq(w.id, snapshot.witnessId),
+  });
+  return {
+    transcription: { id, name: snapshot.name },
+    witness: {
+      name: witness?.name ?? '',
+      siglum: witness?.siglum ?? '',
+      slug: witness?.slug ?? '',
+    },
+    number,
+    at: asked.at.toISOString(),
+    note: asked.note,
+    withdrawn: { at: asked.withdrawn.at.toISOString(), note: asked.withdrawn.note },
+    current: all.some((v) => !v.withdrawn) ? `/transcriptions/${encodeURIComponent(id)}` : null,
+  };
+}
+
 /**
  * Everything the workbench page needs, or null when the transcription does
  * not exist or may not be viewed. Those who may edit it see the draft; others
