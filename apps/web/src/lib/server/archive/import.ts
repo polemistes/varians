@@ -76,6 +76,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { and, asc, desc, eq, inArray, isNotNull, lt, sql } from 'drizzle-orm';
 import { changesBetween } from '../../history/changes.ts';
+import { changesSince } from '../versions.ts';
 import { citationsOfWork } from './archive.ts';
 import { nameMoment, rebuildSegmentIndex, replaceContent } from '../documents/service.ts';
 import { conformStored } from '../conform.ts';
@@ -1111,7 +1112,7 @@ async function importInto(
         if (rows.length) await db.insert(zones).values(rows).onConflictDoNothing();
       }
       await importReviewStates(ctx, tdir, 'transcription', t.id);
-      await importVersions(ctx, tdir, 'transcription', t.id, wordsOf);
+      await importVersions(ctx, tdir, 'transcription', t.id, wordsOf, outcome.result);
     }
   }
 
@@ -1428,7 +1429,7 @@ async function importInto(
       }
     }
     await importReviewStates(ctx, edir, 'edition', e.id);
-    await importVersions(ctx, edir, 'edition', e.id, wordsOf);
+    await importVersions(ctx, edir, 'edition', e.id, wordsOf, outcome.result);
   }
 
   const items =
@@ -1885,8 +1886,11 @@ async function importVersions(
   kind: 'transcription' | 'edition',
   documentId: string,
   wordsOf: (content: Stream) => Stream,
+  /** How the document's history came in: where it is the archive's, numbered as there, the changes are made from it. */
+  result: DocumentResult,
 ): Promise<void> {
   if (ctx.guard.restricted) return;
+  const sameHistory = result === 'created' || result === 'fast-forward' || result === 'unchanged';
   const { db, reader } = ctx;
   const list =
     (await reader.list<{
@@ -1940,7 +1944,7 @@ async function importVersions(
       .select({ id: versions.id })
       .from(versions)
       .where(eq(versions.id, v.id));
-    // versions.json lists no changes: they are made here, from the text of the version before and of this one.
+    // versions.json lists no changes: they are made here, from the history where it is the archive's, else from the text of the version before and of this one.
     const [before] = await db
       .select({ version: versions.version, snapshot: versions.snapshot })
       .from(versions)
@@ -1953,14 +1957,17 @@ async function importVersions(
       )
       .orderBy(desc(versions.number))
       .limit(1);
-    const changes = changesBetween(
-      before?.snapshot.content ?? { items: [] },
-      snapshot.content,
-      before?.version ?? 0,
-      v.version,
-      [],
-      (id) => ctx.segmentLabel.get(id) ?? null,
-    );
+    const changes =
+      sameHistory && (await historyReaches(ctx, kind, documentId, v.version))
+        ? await changesSince(db, kind, documentId, before?.version ?? 0, v.version)
+        : changesBetween(
+            before?.snapshot.content ?? { items: [] },
+            snapshot.content,
+            before?.version ?? 0,
+            v.version,
+            [],
+            (id) => ctx.segmentLabel.get(id) ?? null,
+          );
     await db.insert(versions).values({
       id: taken ? newId() : v.id,
       documentKind: kind,
@@ -1979,6 +1986,27 @@ async function importVersions(
       changes,
     });
   }
+}
+
+/** Whether this installation holds a document's history up to a changeset version. */
+async function historyReaches(
+  ctx: Context,
+  kind: 'transcription' | 'edition',
+  documentId: string,
+  version: number,
+): Promise<boolean> {
+  if (version === 0) return true;
+  const [row] = await ctx.db
+    .select({ id: changesets.id })
+    .from(changesets)
+    .where(
+      and(
+        eq(changesets.documentKind, kind),
+        eq(changesets.documentId, documentId),
+        eq(changesets.version, version),
+      ),
+    );
+  return !!row;
 }
 
 /** A row of a version's file with its times kept as the strings they are. */
@@ -2097,7 +2125,7 @@ async function editionSnapshotFrom(
   );
   const licence = licenceFields(e.licence, e.rightsNote);
   // What the writer adds for people (labels) is not part of the record.
-  const withoutLabel = <T extends FileRow>(row: T) => stripped(row, 'segmentLabel') as T;
+  const withoutLabel = <T extends FileRow>({ segmentLabel: _label, ...row }: T) => row;
   return {
     title: e.title,
     editors: editorList(e.editors ?? null),
@@ -2217,6 +2245,7 @@ export async function removeWorkCompletely(db: Database, workId: string): Promis
   const documentIds = [...transcriptionIds, ...editionIds];
   if (documentIds.length) {
     await db.delete(changesets).where(inArray(changesets.documentId, documentIds));
+    await db.delete(versions).where(inArray(versions.documentId, documentIds));
     await db.delete(moments).where(inArray(moments.documentId, documentIds));
     await db.delete(reviewState).where(inArray(reviewState.documentId, documentIds));
     await db.delete(checkpoints).where(inArray(checkpoints.documentId, documentIds));

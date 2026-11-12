@@ -30,6 +30,7 @@ import {
   load as settingsPage,
 } from '../../routes/(app)/editions/[slug]/settings/+page.server';
 import { DEFAULT_CONVENTIONS } from './seed/sample.ts';
+import { publishEdition } from './publish.ts';
 
 const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329/varians_test';
 let db: Database;
@@ -128,22 +129,22 @@ beforeAll(async () => {
     title: 'W',
     schemeId: ids.scheme,
   });
-  const edition = (id: string, slug: string, published: boolean) => ({
+  const edition = (id: string, slug: string) => ({
     id,
     workId: ids.work,
     slug,
     title: slug,
     ownerId: ids.owner,
     conventions: DEFAULT_CONVENTIONS,
-    ...(published ? { visibility: 'published' as const, publishedVersion: 0 } : {}),
   });
   await db
     .insert(editions)
     .values([
-      edition(ids.draft, slugs.draft, false),
-      edition(ids.published, slugs.published, true),
-      edition(ids.doomed, slugs.doomed, false),
+      edition(ids.draft, slugs.draft),
+      edition(ids.published, slugs.published),
+      edition(ids.doomed, slugs.doomed),
     ]);
+  await publishEdition(db, ids.published, ids.owner);
   await db
     .insert(editionCollaborators)
     .values({ editionId: ids.draft, userId: ids.collaborator, grantedBy: ids.owner });

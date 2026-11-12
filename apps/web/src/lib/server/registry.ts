@@ -1217,6 +1217,7 @@ export async function worksOfWitness(
       .groupBy(
         transcriptionSegments.workId,
         transcriptionSegments.transcriptionId,
+        transcriptions.id,
         transcriptions.ownerId,
       )
   ).filter((r) => canViewTranscription(viewer, { ...r, id: r.transcriptionId }, grants));

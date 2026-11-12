@@ -36,6 +36,7 @@ import { registry as reg } from '../src/lib/strings/registry';
 import { workbench as w } from '../src/lib/strings/workbench';
 import { site } from '../src/lib/strings/site';
 import { replaceContent } from '../src/lib/server/documents/service.ts';
+import { publishEdition } from '../src/lib/server/publish.ts';
 import { DEFAULT_CONVENTIONS } from '../src/lib/server/seed/sample.ts';
 import { resolveLabels, schemeOfWork } from '../src/lib/server/segments.ts';
 
@@ -238,7 +239,6 @@ async function build(ownerId: string, otherId: string) {
       title,
       ownerId: owner,
       conventions: DEFAULT_CONVENTIONS,
-      ...(published ? { visibility: 'published' as const, publishedVersion: 0 } : {}),
     });
     if (naming)
       await db.insert(editionSigla).values({
@@ -249,6 +249,7 @@ async function build(ownerId: string, otherId: string) {
         position: 0,
       });
     if (workId === ids.work) await replaceContent(db, 'edition', id, owner, 0, stream(), 'seed');
+    if (published) await publishEdition(db, id, owner);
   };
   ids.draft = newId();
   ids.published = newId();

@@ -2,72 +2,20 @@
   "$schema": "https://varians.eu/formats/2/moments.schema.json",
   "moments": [
     {
-      "id": "01M77HWSBQ38P705D4S243EHHM",
+      "id": "01M77QT5GHQ3QAN3FFZSP3HM3F",
       "version": 1,
       "name": "Collated against A, B and C",
       "kind": "named",
-      "number": null,
-      "basis": null,
-      "personId": "01M77HWS57EHH2N9DW8ZHPKZAD",
-      "at": "2026-11-12T09:37:18.199Z"
+      "personId": "01M77QT58ZETMKKCR4GMGGTFKG",
+      "at": "2026-11-12T11:20:43.793Z"
     },
     {
-      "id": "01M77HWSHD22VHRTND75X6A14Y",
+      "id": "01M77QT5QCRH5QCJXHBG03Z8HM",
       "version": 2,
       "name": "Version 1 (2026-11-12)",
       "kind": "published",
-      "number": 1,
-      "basis": {
-        "sigla": [
-          {
-            "siglum": "A",
-            "states": [],
-            "witnessId": "01M77HWS71EBAM7T3KW3RJVA2B",
-            "variantSiglum": null,
-            "transcriptionId": "01M77HWS7CY87TVXSFFDWFN1DT"
-          },
-          {
-            "siglum": "B",
-            "states": [],
-            "witnessId": "01M77HWS87AZ5Y184XMV67M9A4",
-            "variantSiglum": null,
-            "transcriptionId": "01M77HWS8CMCY6X7C5MVQ5WF0K"
-          },
-          {
-            "siglum": "C",
-            "states": [],
-            "witnessId": "01M77HWS8SADQFCWEKZD8SJH5G",
-            "variantSiglum": null,
-            "transcriptionId": "01M77HWS8XWEE8PDWWRSXKDJ3C"
-          },
-          {
-            "siglum": "T",
-            "states": [],
-            "witnessId": "01M77HWSA0B2ZKKNJRV7Z9YRD7",
-            "variantSiglum": null,
-            "transcriptionId": null
-          }
-        ],
-        "versions": {
-          "01M77HWS7CY87TVXSFFDWFN1DT": 1,
-          "01M77HWS8CMCY6X7C5MVQ5WF0K": 1,
-          "01M77HWS8XWEE8PDWWRSXKDJ3C": 1
-        },
-        "siteKinds": [
-          {
-            "segmentId": "01M77HWS6982946N5KYJ1KDDM6",
-            "siteKey": "01M77HWS6982946N5KYJ1KDDM6:0",
-            "kind": "textual"
-          },
-          {
-            "segmentId": "01M77HWS6TE4KDZBK2VSPSDBA1",
-            "siteKey": "01M77HWS9FK8GVMKR4C2STH2CZ",
-            "minor": true
-          }
-        ]
-      },
-      "personId": "01M77HWS57EHH2N9DW8ZHPKZAD",
-      "at": "2026-11-12T09:37:18.378Z"
+      "personId": "01M77QT58ZETMKKCR4GMGGTFKG",
+      "at": "2026-11-12T11:20:44.002Z"
     }
   ]
 }

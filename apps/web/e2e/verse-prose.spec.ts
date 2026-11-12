@@ -36,6 +36,7 @@ import { eq } from 'drizzle-orm';
 import { editor as ed } from '../src/lib/strings/editor';
 import { s } from '../src/lib/strings/en';
 import { replaceContent } from '../src/lib/server/documents/service.ts';
+import { publishTranscription } from '../src/lib/server/publish.ts';
 import { DEFAULT_CONVENTIONS } from '../src/lib/server/seed/sample.ts';
 import { resolveLabels, schemeOfWork } from '../src/lib/server/segments.ts';
 
@@ -111,9 +112,10 @@ async function build(userId: string) {
     name: 'Book 1',
     ownerId: userId,
     keepsWrittenForm: false,
-    visibility: 'published',
   });
   await replaceContent(db, 'transcription', transcriptionId, userId, 0, { items }, 'seed');
+  // Published, as a version of its own, for readers to see.
+  await publishTranscription(db, transcriptionId, userId);
 
   // The edition, made from the witness as an edition is: its divided words stay divided.
   const content: Stream = deriveEdition({ items }, transcriptionId);

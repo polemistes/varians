@@ -244,7 +244,7 @@ describe('archive round trip', () => {
         },
       })
       .where(eq(editions.id, sample.editionId));
-    // A variant the editor gives a kind and judges minor: both words are archived as data, and so is the basis of the publication that fixes them.
+    // A variant the editor gives a kind and judges minor: both words are archived as data, and so is the version that fixes them.
     const eight = await placeOf(sample.editionId, '1.8', 'συνέηκε');
     await setSiteKind(db, sample.editionId, eight.segmentId, eight.key, 'textual', userId);
     await setSiteMinor(db, sample.editionId, eight.segmentId, eight.key, true, userId);
@@ -268,12 +268,16 @@ describe('archive round trip', () => {
     expect(written.siteKinds).toContainEqual(
       expect.objectContaining({ segmentId: eight.segmentId, kind: 'textual', minor: true }),
     );
-    const moment = JSON.parse(await readFile(path.join(editionDir, 'moments.json'), 'utf8'));
-    expect(
-      moment.moments.find((m: { kind: string }) => m.kind === 'published').basis.siteKinds,
-    ).toContainEqual(
+    // The version that fixes them has them too, in its directory.
+    const listed = JSON.parse(await readFile(path.join(editionDir, 'versions.json'), 'utf8'));
+    expect(listed.versions.map((v: { number: number }) => v.number)).toEqual([1]);
+    const version = JSON.parse(
+      await readFile(path.join(editionDir, 'versions', '1', 'edition.json'), 'utf8'),
+    );
+    expect(version.siteKinds).toContainEqual(
       expect.objectContaining({ segmentId: eight.segmentId, kind: 'textual', minor: true }),
     );
+    expect(Object.keys(version.witnessVersions)).toHaveLength(3);
     expect(await validateArchiveDir(dir)).toEqual([]);
     // The plain text leaves the variant out, as a printed edition does; the TEI has it, as a minor one.
     expect(await readFile(path.join(editionDir, 'edition.txt'), 'utf8')).not.toContain('συνέηκε');

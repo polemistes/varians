@@ -33,25 +33,48 @@ import {
   type VersionChanges,
 } from '@varians/db';
 import type { Stream } from '@varians/core';
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  getTableName,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  or,
+  sql,
+} from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { withoutLatin } from '../edition/conventions.ts';
 import { changesBetween } from '../history/changes.ts';
 import { documentAt, loadDocument } from './documents/service.ts';
 
 /**
+ * The column a list's row is known by, qualified by its table: a query of
+ * one table writes its columns unqualified, and inside the subquery an
+ * unqualified id would be the version's own.
+ */
+function outer(column: AnyPgColumn) {
+  const name = column.name.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+  return sql`${sql.identifier(getTableName(column.table))}.${sql.identifier(name)}`;
+}
+
+/**
  * Whether the record in `column` has a version that is not withdrawn: one
  * EXISTS subquery, for the lists that ask it of every row.
  */
 export function hasVersionSql(kind: DocumentKind, column: AnyPgColumn) {
-  return sql<boolean>`exists (select 1 from ${versions} where ${versions.documentKind} = ${kind} and ${versions.documentId} = ${column} and ${versions.withdrawnAt} is null)`;
+  return sql<boolean>`exists (select 1 from "versions" as "v" where "v"."document_kind" = ${kind} and "v"."document_id" = ${outer(column)} and "v"."withdrawn_at" is null)`;
 }
 
 /** The number of the latest version of the record in `column` that is not withdrawn, or null: one subquery, for the lists. */
 export function latestVersionSql(kind: DocumentKind, column: AnyPgColumn) {
   return sql<
     number | null
-  >`(select max(${versions.number}) from ${versions} where ${versions.documentKind} = ${kind} and ${versions.documentId} = ${column} and ${versions.withdrawnAt} is null)`;
+  >`(select max("v"."number") from "versions" as "v" where "v"."document_kind" = ${kind} and "v"."document_id" = ${outer(column)} and "v"."withdrawn_at" is null)`;
 }
 
 /** Whether a record has a version that is not withdrawn. */

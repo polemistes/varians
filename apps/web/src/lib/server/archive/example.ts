@@ -34,7 +34,7 @@ export const EXAMPLE_ORIGIN = 'https://varians.eu';
 
 const EXAMPLE_README = `# The example archive
 
-\`iliad/\` is a complete archive in the Varians Data Format, version 2: the opening of Iliad 1 in three transcribed witnesses and one known from a reported reading, an edition with its apparatus, a conjecture adopted and one not, a note citing the literature, a zone on a page with a small image, an alignment constraint, sites looked at and classed, one place judged minor, review positions, a named and a published moment, and a collaborator.
+\`iliad/\` is a complete archive in the Varians Data Format, version 2: the opening of Iliad 1 in three transcribed witnesses and one known from a reported reading, an edition with its apparatus, a conjecture adopted and one not, a note citing the literature, a zone on a page with a small image, an alignment constraint, sites looked at and classed, one place judged minor, review positions, a named moment, a collaborator, and a version of the edition with its note and of each transcript it compares, each in its directory under \`versions/\`.
 
 \`iliad.zip\` is the same work as a package: a BagIt bag with RO-Crate metadata, as one installation sends a work to another.
 
@@ -134,7 +134,12 @@ export async function writeExample(serverUrl: string, outDir: string): Promise<s
         true,
         editor,
       );
-      await publishEdition(db, sample.editionId, editor);
+      await publishEdition(
+        db,
+        sample.editionId,
+        editor,
+        'The first version: Iliad 1.1 to 1.10, collated against three witnesses.',
+      );
       // One small image on A's first page, so that the archive shows how images travel.
       const [page] = await db
         .select()

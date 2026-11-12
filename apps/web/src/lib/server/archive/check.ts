@@ -36,7 +36,12 @@ async function filesUnder(dir: string, prefix = ''): Promise<string[]> {
   return out;
 }
 
-/** Compare two archive directories, ignoring `.git`. */
+/** A file of a version's directory: written once, at the publication, and kept as it was whatever a full write would give now. */
+function ofVersion(file: string): boolean {
+  return /(^|[\\/])versions[\\/]\d+[\\/]/u.test(file);
+}
+
+/** Compare two archive directories, ignoring `.git`, and the contents of the files of versions that both have. */
 export async function compareArchiveDirs(
   expected: string,
   actual: string,
@@ -46,6 +51,7 @@ export async function compareArchiveDirs(
   const differences: ArchiveDifferences = { missing: [], extra: [], changed: [] };
   for (const file of want) {
     if (!have.has(file)) differences.missing.push(file);
+    else if (ofVersion(file)) continue;
     else if (
       !(await readFile(path.join(expected, file))).equals(await readFile(path.join(actual, file)))
     )

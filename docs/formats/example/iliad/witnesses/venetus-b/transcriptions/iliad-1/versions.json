@@ -1,0 +1,15 @@
+{
+  "$schema": "https://varians.eu/formats/2/versions.schema.json",
+  "versions": [
+    {
+      "id": "01M77QT5HBJ64S5J5AQTEEFQSH",
+      "number": 1,
+      "version": 1,
+      "momentId": "01M77QT5H7T7T5G44GX7B6257E",
+      "note": null,
+      "personId": "01M77QT58ZETMKKCR4GMGGTFKG",
+      "at": "2026-11-12T11:20:43.813Z",
+      "withdrawn": null
+    }
+  ]
+}

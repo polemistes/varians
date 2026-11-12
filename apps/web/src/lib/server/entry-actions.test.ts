@@ -30,6 +30,7 @@ import { reportReading } from './conjectures';
 import { addMaintainer, createWitness, createWork } from './registry';
 import { resolveLabels, schemeOfWork } from './segments';
 import { DEFAULT_CONVENTIONS } from './seed/sample.ts';
+import { publishEdition } from './publish.ts';
 
 const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329/varians_test';
 const tag = newId().slice(-8).toLowerCase();
@@ -138,21 +139,17 @@ beforeAll(async () => {
   await addMaintainer(db, 'work', work.id, maintainer.email);
   await addMaintainer(db, 'witness', witness.id, maintainer.email);
 
-  const edition = (id: string, title: string, published: boolean) => ({
+  const edition = (id: string, title: string) => ({
     id,
     workId: work.id,
     slug: `entry-${id}`,
     title,
     ownerId: drafter.id,
     conventions: DEFAULT_CONVENTIONS,
-    ...(published ? { visibility: 'published' as const, publishedVersion: 0 } : {}),
   });
   await db
     .insert(editions)
-    .values([
-      edition(ids.draft, DRAFT_TITLE, false),
-      edition(ids.published, PUBLISHED_TITLE, true),
-    ]);
+    .values([edition(ids.draft, DRAFT_TITLE), edition(ids.published, PUBLISHED_TITLE)]);
   // Both editions name the witness, so that it too is depended on.
   await db.insert(editionSigla).values(
     [ids.draft, ids.published].map((editionId, position) => ({
@@ -163,6 +160,7 @@ beforeAll(async () => {
       position,
     })),
   );
+  await publishEdition(db, ids.published, drafter.id);
 });
 
 afterAll(async () => {

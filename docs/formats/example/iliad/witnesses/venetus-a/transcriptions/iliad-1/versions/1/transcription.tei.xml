@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader>
+    <fileDesc>
+      <titleStmt>
+        <title>Iliad: Venetus A, Iliad 1</title>
+        <respStmt><resp>transcription</resp><persName ref="person:01M77QT58ZETMKKCR4GMGGTFKG">Example Editor</persName></respStmt>
+      </titleStmt>
+      <publicationStmt><authority>Varians</authority><availability><licence target="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</licence></availability></publicationStmt>
+      <sourceDesc>
+        <msDesc>
+          <msIdentifier>
+            <settlement>Venice</settlement>
+            <repository>Biblioteca Nazionale Marciana</repository>
+            <idno>Marc. gr. Z. 454 (= 822)</idno>
+            <altIdentifier type="siglum"><idno>A</idno></altIdentifier>
+          </msIdentifier>
+          <head>Venetus A</head>
+          <msContents><summary>The principal manuscript of the Iliad, with scholia.</summary></msContents>
+          <physDesc>
+            <objectDesc>
+              <supportDesc>
+                <support><material>Parchment</material></support>
+              </supportDesc>
+            </objectDesc>
+          </physDesc>
+          <history><origin><origDate>s. X</origDate></origin></history>
+        </msDesc>
+      </sourceDesc>
+    </fileDesc>
+    <encodingDesc><refsDecl><refState unit="segment"/></refsDecl><listPrefixDef><prefixDef ident="tok" matchPattern="([0-9A-HJKMNP-TV-Z]{26})" replacementPattern="https://varians.eu/id/$1"/><prefixDef ident="seg" matchPattern="([0-9A-HJKMNP-TV-Z]{26})" replacementPattern="https://varians.eu/id/$1"/><prefixDef ident="wit" matchPattern="([0-9A-HJKMNP-TV-Z]{26})" replacementPattern="https://varians.eu/id/$1"/><prefixDef ident="conj" matchPattern="([0-9A-HJKMNP-TV-Z]{26})" replacementPattern="https://varians.eu/id/$1"/><prefixDef ident="person" matchPattern="([0-9A-HJKMNP-TV-Z]{26})" replacementPattern="https://varians.eu/id/$1"/></listPrefixDef></encodingDesc>
+    <profileDesc>
+      <langUsage>
+        <language ident="grc">grc</language>
+      </langUsage>
+    </profileDesc>
+  </teiHeader>
+  <facsimile>
+    <surface xml:id="p-01M77QT5B95E51AG59ZHM79TBX" n="12r">
+      <graphic url="images/01M77QT5B95E51AG59ZHM79TBX/original.jpg" width="64px" height="96px"/>
+      <zone xml:id="z-01M77QT5FMSN7BFTVDSVMSE7NF" ulx="8" uly="8" lrx="14" lry="11"/>
+    </surface>
+    <surface xml:id="p-01M77QT5B95E51AG59ZHM79TBY" n="12v">
+    </surface>
+    <surface xml:id="p-01M77QT5B95E51AG59ZHM79TBZ" n="13r">
+    </surface>
+  </facsimile>
+  <text xml:lang="grc">
+    <body>
+      <ab>
+      <pb n="12r" facs="#p-01M77QT5B95E51AG59ZHM79TBX"/><milestone unit="segment" n="1.1"/><w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDT7" facs="#z-01M77QT5FMSN7BFTVDSVMSE7NF"><choice><orig>ΜΗΝΙΝ</orig><reg>μῆνιν</reg></choice></w> <w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDT8"><choice><orig><supplied reason="lost">ΑΕΙΔΕ</supplied></orig><reg>ἄειδε</reg></choice></w> <w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDT9"><choice><orig>ΘΕΑ</orig><reg>θεὰ</reg></choice></w> <w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDTA"><choice><orig>ΠΗΛΗΙΑΔΕΩ</orig><reg>Πηληϊάδεω</reg></choice></w> <w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDTB"><choice><orig>ΑΧΙΛΗΟΣ</orig><reg>Ἀχιλῆος</reg></choice></w>
+      <lb/><milestone unit="segment" n="1.2"/><w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDTD"><choice><orig>ΟΥΛΟΜΕΝΗΝ</orig><reg>οὐλομένην,</reg></choice></w> <w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDTE"><choice><orig><unclear>Η</unclear></orig><reg>ἣ</reg></choice></w> <w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDTF"><choice><orig>ΜΥΡΙ᾽</orig><reg>μυρί᾽</reg></choice></w> <w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDTG"><choice><orig>ΑΧΑΙΟΙΣ</orig><reg>Ἀχαιοῖς</reg></choice></w> <w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDTH"><choice><orig>ΑΛΓΕ᾽</orig><reg>ἄλγε᾽</reg></choice></w> <w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDTJ"><choice><orig>ΕΘΗΚΕ</orig><reg>ἔθηκε,</reg></choice></w>
+      <lb/><milestone unit="segment" n="1.3"/><w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDTM"><choice><orig>ΠΟΛΛΑΣ</orig><reg>πολλὰς</reg></choice></w> <w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDTN"><choice><orig>Δ᾽</orig><reg>δ᾽</reg></choice></w> <w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDTP"><choice><orig>ΙΦΘΙΜΟΥΣ</orig><reg>ἰφθίμους</reg></choice></w> <w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDTQ"><choice><orig>ΨΥΧΑΣ</orig><reg>ψυχὰς</reg></choice></w> <w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDTR"><choice><orig>ΑΙΔΙ</orig><reg>Ἄϊδι</reg></choice></w> <w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDTS"><choice><orig>ΠΡΟΙΑΨΕΝ</orig><reg>προΐαψεν</reg></choice></w>
+      <lb/><milestone unit="segment" n="1.4"/><w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDTV"><choice><orig>ΗΡΩΩΝ</orig><reg>ἡρώων,</reg></choice></w> <w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDTW"><choice><orig>ΑΥΤΟΥΣ</orig><reg>αὐτοὺς</reg></choice></w> <w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDTX"><choice><orig>ΔΕ</orig><reg>δὲ</reg></choice></w> <w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDTY"><choice><orig>ΕΛΩΡΙΑ</orig><reg>ἑλώρια</reg></choice></w> <w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDTZ"><choice><orig>ΤΕΥΧΕ</orig><reg>τεῦχε</reg></choice></w> <w xml:id="w-01M77QT5BD4JY1JH2Y2AGZTDV0"><choice><orig>ΚΥΝΕΣΣΙΝ</orig><reg>κύνεσσιν</reg></choice></w>
+      <lb/><milestone unit="segment" n="1.5"/><w xml:id="w-01M77QT5BED9ZS2P77W7WSQWBF"><choice><orig>ΟΙΩΝΟΙΣΙ</orig><reg>οἰωνοῖσί</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWBG"><choice><orig>ΤΕ</orig><reg>τε</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWBH"><choice><orig>ΠΑΣΙ</orig><reg>πᾶσι,</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWBJ"><choice><orig>ΔΙΟΣ</orig><reg>Διὸς</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWBK"><choice><orig>Δ᾽</orig><reg>δ᾽</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWBM"><choice><orig>ΕΤΕΛΕΙΕΤΟ</orig><reg>ἐτελείετο</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWBN"><choice><orig>ΒΟΥΛΗ</orig><reg>βουλή,</reg></choice></w>
+      <pb n="12v" facs="#p-01M77QT5B95E51AG59ZHM79TBY"/><milestone unit="segment" n="1.6"/><w xml:id="w-01M77QT5BED9ZS2P77W7WSQWBQ"><choice><orig>ΕΞ</orig><reg>ἐξ</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWBR"><choice><orig>ΟΥ</orig><reg>οὗ</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWBS"><choice><orig>ΔΗ</orig><reg>δὴ</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWBT"><choice><orig>ΤΑ</orig><reg>τὰ</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWBV"><choice><orig>ΠΡΩΤΑ</orig><reg>πρῶτα</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWBW"><choice><orig>ΔΙΑΣΤΗΤΗΝ</orig><reg>διαστήτην</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWBX"><choice><orig>ΕΡΙΣΑΝΤΕ</orig><reg>ἐρίσαντε</reg></choice></w>
+      <lb/><milestone unit="segment" n="1.7"/><w xml:id="w-01M77QT5BED9ZS2P77W7WSQWBZ"><choice><orig>ΑΤΡΕΙΔΗΣ</orig><reg>Ἀτρεΐδης</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWC0"><choice><orig>ΤΕ</orig><reg>τε</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWC1"><choice><orig>ΑΝΑΞ</orig><reg>ἄναξ</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWC2"><choice><orig>ΑΝΔΡΩΝ</orig><reg>ἀνδρῶν</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWC3"><choice><orig>ΚΑΙ</orig><reg>καὶ</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWC4"><choice><orig>ΔΙΟΣ</orig><reg>δῖος</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWC5"><choice><orig>ΑΧΙΛΛΕΥΣ</orig><reg>Ἀχιλλεύς.</reg></choice></w>
+      <lb/><milestone unit="segment" n="1.8"/><w xml:id="w-01M77QT5BED9ZS2P77W7WSQWC7"><choice><orig>ΤΙΣ</orig><reg>τίς</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWC8"><choice><orig>Τ᾽</orig><reg>τ᾽</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWC9"><choice><orig>ΑΡ</orig><reg>ἄρ</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWCA"><choice><orig>ΣΦΩΕ</orig><reg>σφωε</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWCB"><choice><orig>ΘΕΩΝ</orig><reg>θεῶν</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWCC"><choice><orig>ΕΡΙΔΙ</orig><reg>ἔριδι</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWCD"><choice><orig>ΞΥΝΕΗΚΕ</orig><reg>ξυνέηκε</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWCE"><choice><orig>ΜΑΧΕΣΘΑΙ</orig><reg>μάχεσθαι;</reg></choice></w>
+      <pb n="13r" facs="#p-01M77QT5B95E51AG59ZHM79TBZ"/><milestone unit="segment" n="1.9"/><w xml:id="w-01M77QT5BED9ZS2P77W7WSQWCG"><choice><orig>ΛΗΤΟΥΣ</orig><reg>Λητοῦς</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWCH"><choice><orig>ΚΑΙ</orig><reg>καὶ</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWCJ"><choice><orig>ΔΙΟΣ</orig><reg>Διὸς</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWCK"><choice><orig>ΥΙΟΣ</orig><reg>υἱός·</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWCM"><choice><orig>Ο</orig><reg>ὁ</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWCN"><choice><orig>ΓΑΡ</orig><reg>γὰρ</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWCP"><choice><orig>ΒΑΣΙΛΗΙ</orig><reg>βασιλῆϊ</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWCQ"><choice><orig>ΧΟΛΩΘΕΙΣ</orig><reg>χολωθεὶς</reg></choice></w>
+      <lb/><milestone unit="segment" n="1.10"/><w xml:id="w-01M77QT5BED9ZS2P77W7WSQWCS"><choice><orig>ΝΟΥΣΟΝ</orig><reg>νοῦσον</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWCT"><choice><orig>ΑΝΑ</orig><reg>ἀνὰ</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWCV"><choice><orig>ΣΤΡΑΤΟΝ</orig><reg>στρατὸν</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWCW"><choice><orig>ΟΡΣΕ</orig><reg>ὄρσε</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWCX"><choice><orig>ΚΑΚΗΝ</orig><reg>κακήν,</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWCY"><choice><orig>ΟΛΕΚΟΝΤΟ</orig><reg>ὀλέκοντο</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWCZ"><choice><orig>ΔΕ</orig><reg>δὲ</reg></choice></w> <w xml:id="w-01M77QT5BED9ZS2P77W7WSQWD0"><choice><orig>ΛΑΟΙ</orig><reg>λαοί,</reg></choice></w></ab>
+    </body>
+  </text>
+</TEI>

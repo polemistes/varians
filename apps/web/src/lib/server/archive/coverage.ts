@@ -28,6 +28,7 @@ export const ARCHIVED_TABLES = [
   'edition_collaborators',
   'changesets',
   'moments',
+  'versions',
   'review_state',
   'persons',
   'registry_merges',

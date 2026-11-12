@@ -1,17 +1,19 @@
 /**
  * Zones of a transcription.
- *   GET    ?page=ID | ?tokens=a,b,c    the zones of a page, or of some tokens (with each page's image source)
+ *   GET    ?page=ID | ?tokens=a,b,c [&v=N]   the zones of a page, or of some tokens (with each page's image source):
+ *          of the draft for those who may edit it, else of the latest version; of version N when asked
  *   POST   { zones: [{ id?, pageId, geometry, tokenIds, feature? }] }   (an id brings back a zone an undo restores)
  *   PATCH  { id, geometry?, tokenIds?, feature? } | { zones: [{ id, geometry }] }   (several shapes at once, all or none)
  *   DELETE { ids: [...] }
  */
 import { error, json } from '@sveltejs/kit';
-import { pages } from '@varians/db';
+import { pages, type TranscriptionSnapshot } from '@varians/db';
 import { inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import type { RequestHandler } from './$types';
 import { loadTranscriptionAccess } from '$lib/server/transcription-access';
 import { pageSource } from '$lib/server/page-source';
+import { latestVersionWithSnapshot, versionByNumber } from '$lib/server/versions';
 import {
   createZones,
   deleteZones,
@@ -66,16 +68,44 @@ const deleteBody = z.object({ ids: z.array(id).min(1).max(5000) });
 
 export const GET: RequestHandler = async ({ locals, params, url }) => {
   const access = await loadTranscriptionAccess(locals.db, locals.user, params.id);
-  if (!access || !access.canView) throw error(404, 'No such transcription');
+  if (!access) throw error(404, 'No such transcription');
   const pageId = url.searchParams.get('page');
   const tokens = url.searchParams.get('tokens');
-  const rows = tokens
-    ? await zonesOfTokens(
-        locals.db,
-        params.id,
-        tokens.split(',').filter((s) => s),
-      )
-    : await zonesOf(locals.db, params.id, pageId ?? undefined);
+  const asked = url.searchParams.get('v');
+  // A version's zones are those of its snapshot: version N when asked, the latest for one who may not edit the draft.
+  const number = asked !== null ? Number(asked) : null;
+  if (number !== null && !(Number.isInteger(number) && number > 0))
+    throw error(404, 'No such version');
+  if (number === null && !access.canView) throw error(404, 'No such transcription');
+  const version =
+    number !== null
+      ? await versionByNumber(locals.db, 'transcription', params.id, number)
+      : access.canEdit
+        ? null
+        : await latestVersionWithSnapshot(locals.db, 'transcription', params.id);
+  if ((number !== null || !access.canEdit) && (!version || version.withdrawnAt))
+    throw error(404, 'No such version');
+  let rows: {
+    id: string;
+    pageId: string;
+    geometry: unknown;
+    tokenIds: string[];
+    feature: unknown;
+  }[];
+  if (version) {
+    const all = (version.snapshot as TranscriptionSnapshot).zones;
+    const wanted = tokens ? new Set(tokens.split(',').filter((s) => s)) : null;
+    rows = all.filter((z) =>
+      wanted ? z.tokenIds.some((t) => wanted.has(t)) : !pageId || z.pageId === pageId,
+    );
+  } else
+    rows = tokens
+      ? await zonesOfTokens(
+          locals.db,
+          params.id,
+          tokens.split(',').filter((s) => s),
+        )
+      : await zonesOf(locals.db, params.id, pageId ?? undefined);
   const pageIds = [...new Set(rows.map((z) => z.pageId).concat(pageId ? [pageId] : []))];
   const pageRows = pageIds.length
     ? await locals.db.select().from(pages).where(inArray(pages.id, pageIds))

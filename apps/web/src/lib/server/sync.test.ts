@@ -107,10 +107,16 @@ afterAll(async () => {
 });
 
 /** Installation A as B reaches it: its public state and package; a push imported by A's editor, keeping A's text in conflicts. */
+/**
+ * A as B reaches it with a token of A's owner: the drafts and their
+ * histories, which a pull without one does not carry (only the versions).
+ */
+const ownerAtA = () => ({ id: userA, role: 'member' as const });
+
 function transportToA(workId: string): RemoteTransport {
   return {
-    sync: async () => (await syncState(a.db, null, workId, 'https://a.example'))!,
-    download: () => buildPackage(a.db, null, [{ kind: 'work', workId }]),
+    sync: async () => (await syncState(a.db, ownerAtA(), workId, 'https://a.example'))!,
+    download: () => buildPackage(a.db, ownerAtA(), [{ kind: 'work', workId }]),
     upload: (file) =>
       importPackage(a.db, file, userA, {
         actor: { id: userA, role: 'member' },
@@ -147,8 +153,8 @@ describe('sync between two installations', () => {
     await publishEdition(a.db, sample.editionId, userA);
     const transport = transportToA(sample.workId);
 
-    // B makes its copy from A's public package.
-    const first = await buildPackage(a.db, null, [{ kind: 'work', workId: sample.workId }]);
+    // B makes its copy from A's package, as A's owner may have it made.
+    const first = await buildPackage(a.db, ownerAtA(), [{ kind: 'work', workId: sample.workId }]);
     try {
       const report = await importPackage(b.db, first.file, userB, {
         actor: { id: userB, role: 'member' },

@@ -1,0 +1,408 @@
+{
+  "$schema": "https://varians.eu/formats/2/transcription.schema.json",
+  "id": "01M77QT5DDPNSA5R5X5DMYS7W0",
+  "name": "Iliad 1",
+  "witnessId": "01M77QT5D75GG7BT6BYZ8Q3NBC",
+  "ownerId": "01M77QT58ZETMKKCR4GMGGTFKG",
+  "ownerName": "Example Editor",
+  "version": 1,
+  "head": "01M77QT5DMYMXZSS3A15V84TJJ",
+  "keepsWrittenForm": false,
+  "displayAsWritten": false,
+  "description": null,
+  "sources": null,
+  "licence": "CC-BY-SA-4.0",
+  "rightsNote": null,
+  "createdAt": "2026-11-12T11:20:43.694Z",
+  "content": {
+    "items": [
+      {
+        "id": "01M77QT5DC1ZJAY6MMQYE6TYJ7",
+        "form": "μῆνιν",
+        "kind": "token",
+        "lang": "grc",
+        "segment": {
+          "segmentId": "01M77QT5A1AKJ7B34EGNNVVR3A"
+        }
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7T2",
+        "form": "ἄειδε",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7T3",
+        "form": "θεὰ",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7T4",
+        "form": "Πηληϊάδεω",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7T5",
+        "form": "Ἀχιλῆος",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7T6",
+        "kind": "break",
+        "type": "line"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7T7",
+        "form": "οὐλομένην,",
+        "kind": "token",
+        "lang": "grc",
+        "segment": {
+          "segmentId": "01M77QT5A6AQ0SEVZTQRCQQXDM"
+        }
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7T8",
+        "form": "ἣ",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7T9",
+        "form": "μυρί᾽",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7TA",
+        "form": "Ἀχαιοῖς",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7TB",
+        "form": "ἄλγε᾽",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7TC",
+        "form": "ἔθηκε,",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7TD",
+        "kind": "break",
+        "type": "line"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7TE",
+        "form": "ἡρώων,",
+        "kind": "token",
+        "lang": "grc",
+        "segment": {
+          "segmentId": "01M77QT5ADWB0Y90J9DACHWNJM"
+        }
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7TF",
+        "form": "αὐτοὺς",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7TG",
+        "form": "δὲ",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7TH",
+        "form": "ἑλώρια",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7TJ",
+        "form": "τεῦχε",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7TK",
+        "form": "κύνεσσιν",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7TM",
+        "kind": "break",
+        "type": "line"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7TN",
+        "form": "οἰωνοῖσί",
+        "kind": "token",
+        "lang": "grc",
+        "segment": {
+          "segmentId": "01M77QT5AHG0MKC1Z9B4BPVDV9"
+        }
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7TP",
+        "form": "τε",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7TQ",
+        "form": "πᾶσι,",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VZ",
+        "kind": "object",
+        "type": "gap",
+        "attrs": {
+          "unit": "character",
+          "reason": "lost",
+          "quantity": 6
+        }
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7TT",
+        "form": "ἐτελείετο",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7TV",
+        "form": "βουλή,",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7TW",
+        "kind": "break",
+        "type": "line"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7TX",
+        "form": "Ἀτρεΐδης",
+        "kind": "token",
+        "lang": "grc",
+        "segment": {
+          "segmentId": "01M77QT5ARYGBBTPNK0GYV8TRE"
+        }
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7TY",
+        "form": "τε",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7TZ",
+        "form": "ἄναξ",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7V0",
+        "form": "ἀνδρῶν",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7V1",
+        "form": "καὶ",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7V2",
+        "form": "δῖος",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7V3",
+        "form": "Ἀχιλλεύς.",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7V4",
+        "kind": "break",
+        "type": "line"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7V5",
+        "form": "τίς",
+        "kind": "token",
+        "lang": "grc",
+        "segment": {
+          "segmentId": "01M77QT5AV13PMEJVDKA1YFZG2"
+        }
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7V6",
+        "form": "τ᾽",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7V7",
+        "form": "ἄρ",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7V8",
+        "form": "σφωε",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7V9",
+        "form": "θεῶν",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VA",
+        "form": "ἔριδι",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VB",
+        "form": "ξυνέηκε",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VC",
+        "form": "μάχεσθαι;",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VD",
+        "kind": "break",
+        "type": "line"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VE",
+        "form": "Λητοῦς",
+        "kind": "token",
+        "lang": "grc",
+        "segment": {
+          "segmentId": "01M77QT5AZT3CHY9V65X6MQ8NC"
+        }
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VF",
+        "form": "καὶ",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VG",
+        "form": "Διὸς",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VH",
+        "form": "υἱός·",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VJ",
+        "form": "ὁ",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VK",
+        "form": "γὰρ",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VM",
+        "form": "βασιλῆϊ",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VN",
+        "form": "χολωθεὶς",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VP",
+        "kind": "break",
+        "type": "line"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VQ",
+        "form": "νοῦσον",
+        "kind": "token",
+        "lang": "grc",
+        "segment": {
+          "segmentId": "01M77QT5B1M3T0YHAEWFCQFP8K"
+        }
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VR",
+        "form": "ἀνὰ",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VS",
+        "form": "στρατὸν",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VT",
+        "form": "ὄρσε",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VV",
+        "form": "κακά,",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VW",
+        "form": "ὀλέκοντο",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VX",
+        "form": "δὲ",
+        "kind": "token",
+        "lang": "grc"
+      },
+      {
+        "id": "01M77QT5DDPNSA5R5X5DMYS7VY",
+        "form": "λαοί,",
+        "kind": "token",
+        "lang": "grc"
+      }
+    ]
+  }
+}

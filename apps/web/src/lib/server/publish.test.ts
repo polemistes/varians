@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { formatEntry, newId, type Token } from '@varians/core';
 import {
+  collationCache,
   createDatabase,
   editions,
   referenceSchemes,
@@ -29,6 +30,8 @@ import {
   withdrawVersion,
 } from './publish.ts';
 import { editionView } from './reader.ts';
+import { forgetCollations } from './passages.ts';
+import { loadReader, loadWithdrawnVersion, readerDownload } from './reader-pages.ts';
 import { seedSample } from './seed/sample.ts';
 import { hasVersion, latestVersion, versionByNumber, versionsOf } from './versions.ts';
 
@@ -302,6 +305,75 @@ describe('publishing and conjectures', () => {
     // The version keeps the conventions without the setting no longer had.
     const version = await versionByNumber(db, 'edition', edition!.id, published.number);
     expect((version!.snapshot as EditionSnapshot).conventions).not.toHaveProperty('latin');
+  });
+
+  it('shows readers the latest version, each version at its address, and a withdrawn one without its text', async () => {
+    // A sample of its own, with no version yet.
+    await db.delete(works).where(eq(works.slug, 'iliad'));
+    await db.delete(witnesses).where(inArray(witnesses.slug, SLUGS));
+    const sample = await seedSample(db, userId);
+    const slug = sample.editionSlug;
+    const owner = { id: userId, role: 'member' as const };
+    // No version: the edition is its editors' alone.
+    await expect(loadReader(db, null, slug, {})).rejects.toMatchObject({ status: 404 });
+    expect((await loadReader(db, owner, slug, {})).mode).toEqual({
+      kind: 'draft',
+      version: expect.any(Number),
+    });
+    const first = await publishEdition(db, sample.editionId, userId, 'First.');
+    // The draft changes after: a reader does not see it, an editor previews it.
+    await db
+      .update(editions)
+      .set({ title: 'Iliad 1, renamed in the draft' })
+      .where(eq(editions.id, sample.editionId));
+    // Nothing remembered in the process: what is collated is read from, and written to, the cache.
+    forgetCollations();
+    const shown = await loadReader(db, null, slug, {});
+    expect(shown.mode).toMatchObject({ kind: 'published', number: 1, note: 'First.' });
+    expect(shown.edition.title).toBe('Iliad 1, a working edition');
+    expect(shown.versions.map((v) => [v.number, v.note, v.current, v.withdrawn])).toEqual([
+      [1, 'First.', true, null],
+    ]);
+    expect(shown.versions[0]!.changes.added).toBeGreaterThan(0);
+    const preview = await loadReader(db, owner, slug, { draft: true });
+    expect(preview.mode).toMatchObject({ kind: 'preview', publishedNumber: 1 });
+    expect(preview.edition.title).toBe('Iliad 1, renamed in the draft');
+    // The version and the draft are collated apart: the cache keeps rows of each.
+    const kept = await db
+      .selectDistinct({ number: collationCache.versionNumber })
+      .from(collationCache)
+      .where(eq(collationCache.editionId, sample.editionId));
+    expect(kept.map((r) => r.number).sort()).toEqual([0, 1]);
+
+    const second = await publishEdition(db, sample.editionId, userId, 'Renamed.');
+    expect((await loadReader(db, null, slug, {})).edition.title).toBe(
+      'Iliad 1, renamed in the draft',
+    );
+    const old = await loadReader(db, null, slug, { version: first.number });
+    expect(old.mode).toMatchObject({ kind: 'version', number: 1, isCurrent: false });
+    expect(old.edition.title).toBe('Iliad 1, a working edition');
+    // The plain text of a version is the version's.
+    const text = await (await readerDownload(db, null, slug, { version: 1 }, 'text')).text();
+    expect(text).toContain('Iliad 1, a working edition');
+
+    await withdrawVersion(db, 'edition', sample.editionId, second.number, userId, 'Too soon.');
+    expect((await loadReader(db, null, slug, {})).mode).toMatchObject({ number: 1 });
+    await expect(loadReader(db, null, slug, { version: 2 })).rejects.toMatchObject({
+      status: 404,
+    });
+    const withdrawn = await loadWithdrawnVersion(db, null, slug, 2);
+    expect(withdrawn).toMatchObject({
+      number: 2,
+      note: 'Renamed.',
+      withdrawn: { note: 'Too soon.' },
+      edition: { title: 'Iliad 1, renamed in the draft' },
+      current: `/editions/${slug}`,
+    });
+    expect(await loadWithdrawnVersion(db, null, slug, 1)).toBeNull();
+    // Every version withdrawn: no public page, and each version's address stays.
+    await withdrawVersion(db, 'edition', sample.editionId, 1, userId, null);
+    await expect(loadReader(db, null, slug, {})).rejects.toMatchObject({ status: 404 });
+    expect(await loadWithdrawnVersion(db, null, slug, 1)).toMatchObject({ current: null });
   });
 
   it("refuses to publish another person's transcription at a text they have not published, and names the witness", async () => {

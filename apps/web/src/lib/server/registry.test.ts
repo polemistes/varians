@@ -443,7 +443,6 @@ describe('transcriptions', () => {
     expect(row).toMatchObject({
       ownerId: alice.id,
       version: 0,
-      visibility: 'draft',
       keepsWrittenForm: false,
     });
     // A second one of the same witness is allowed.

@@ -33,6 +33,7 @@ import { s } from '../src/lib/strings/en';
 import { reader as rd } from '../src/lib/strings/reader';
 import { recordActions } from '../src/lib/strings/record-actions';
 import { replaceContent } from '../src/lib/server/documents/service.ts';
+import { publishTranscription } from '../src/lib/server/publish.ts';
 import { DEFAULT_CONVENTIONS } from '../src/lib/server/seed/sample.ts';
 import { resolveLabels, schemeOfWork } from '../src/lib/server/segments.ts';
 
@@ -102,9 +103,10 @@ async function build(userId: string) {
       name: 'Book 1',
       ownerId: userId,
       keepsWrittenForm: false,
-      visibility: 'published',
     });
     await replaceContent(db, 'transcription', transcriptionId, userId, 0, stream(which), 'seed');
+    // Published, as a version of its own, for readers to see.
+    await publishTranscription(db, transcriptionId, userId);
     sigla.push({ witnessId, transcriptionId, siglum });
   }
   editionId = newId();

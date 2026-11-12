@@ -1,0 +1,15 @@
+{
+  "$schema": "https://varians.eu/formats/2/versions.schema.json",
+  "versions": [
+    {
+      "id": "01M77QT5QHND6TRC7WX9QCWVSV",
+      "number": 1,
+      "version": 2,
+      "momentId": "01M77QT5QCRH5QCJXHBG03Z8HM",
+      "note": "The first version: Iliad 1.1 to 1.10, collated against three witnesses.",
+      "personId": "01M77QT58ZETMKKCR4GMGGTFKG",
+      "at": "2026-11-12T11:20:44.002Z",
+      "withdrawn": null
+    }
+  ]
+}

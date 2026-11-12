@@ -1,4 +1,13 @@
 {
   "$schema": "https://varians.eu/formats/2/moments.schema.json",
-  "moments": []
+  "moments": [
+    {
+      "id": "01M77QT5GR3QADHY8NEEPN0CRR",
+      "version": 1,
+      "name": "Version 1 (2026-11-12)",
+      "kind": "published",
+      "personId": "01M77QT58ZETMKKCR4GMGGTFKG",
+      "at": "2026-11-12T11:20:43.796Z"
+    }
+  ]
 }
