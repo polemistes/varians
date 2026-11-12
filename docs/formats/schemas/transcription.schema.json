@@ -72,12 +72,6 @@
         "null"
       ]
     },
-    "workIds": {
-      "type": "array",
-      "items": {
-        "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
-      }
-    },
     "createdAt": {
       "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/timeOrNull"
     },

@@ -63,7 +63,7 @@ An archive holds one work, in a directory named by the work's slug:
   tei-subset.md                  a readable account of the TEI used (informative)
 ```
 
-A witness is in a work's archive when one of its transcriptions is, when an edition's conspectus names it, or when a reading is reported for it. A transcription is in a work's archive when its owner chose it for the work, when its text is assigned to a segment of the work, or when a conspectus of one of the work's editions names it. An archive written for one person (a download) holds only the records that person may see (not a draft transcription or edition, but every conjecture and reported reading); an edition they may not edit is written as its latest published version, with its history up to that version.
+A witness is in a work's archive when one of its transcriptions is, when an edition's conspectus names it, or when a reading is reported for it. A transcription is in a work's archive when its text is assigned to a segment of the work, or when a conspectus of one of the work's editions names it. An archive written for one person (a download) holds only the records that person may see (not a draft transcription or edition, but every conjecture and reported reading); an edition they may not edit is written as its latest published version, with its history up to that version.
 
 `.txt`, `.md`, `README.md`, `schemas/` and `tei-subset.md` are for people and other tools; a reader rebuilding the records must not depend on them.
 
@@ -120,7 +120,9 @@ The witness: `id`, `slug`, `siglum` (proposed for conspectus), `name`, `category
 
 ### 4.8 `transcription.json` and the stream
 
-`id`, `name`, `witnessId`, `ownerId`, `ownerName`, `visibility`, `version` (the number of changesets applied here), `head` (the id of the last changeset, or null), `keepsWrittenForm`, `displayAsWritten`, `profile` (overrides of the work's profile, or null), `description`, `sources`, `licence` (SPDX identifier, set at publication, or null), `rightsNote` (free text, or null), `workIds` (the works its owner chose it for, in order), `createdAt`, `content` (the stream).
+`id`, `name`, `witnessId`, `ownerId`, `ownerName`, `visibility`, `version` (the number of changesets applied here), `head` (the id of the last changeset, or null), `keepsWrittenForm`, `displayAsWritten`, `profile` (overrides of the work's profile, or null), `description`, `sources`, `licence` (SPDX identifier, set at publication, or null), `rightsNote` (free text, or null), `createdAt`, `content` (the stream).
+
+A transcription is of its witness and has no works of its own: its works are those to whose segments its text is assigned, by the segment starts of its stream, and its text may be assigned to segments of any number of works. Archives and packages written on or before 12 November 2026 may give `workIds`, the works its owner chose it for; a reader ignores it.
 
 The **stream** is the text, `{ "items": [...] }`, an ordered list of items, each with a permanent `id`:
 

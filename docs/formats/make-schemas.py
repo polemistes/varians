@@ -118,7 +118,7 @@ schema('pages', 'Pages', 'pages.json: the pages of a witness in order, with thei
 schema('transcription', 'Transcription', 'transcription.json: a transcription of a witness, with its text (specification 4.8).', obj({
   **top('transcription'), 'id': ref('id'), 'name': {'type': 'string'}, 'witnessId': ref('id'), 'ownerId': ref('id'), 'ownerName': NS, 'visibility': ref('visibility'),
   'version': {'type': 'integer', 'minimum': 0}, 'head': ref('idOrNull'), 'keepsWrittenForm': {'type': 'boolean'}, 'displayAsWritten': {'type': 'boolean'}, 'profile': {'type': ['object', 'null']},
-  'description': NS, 'sources': NS, 'licence': NS, 'rightsNote': NS, 'workIds': arr(ref('id')), 'createdAt': ref('timeOrNull'), 'content': {'$ref': BASE + 'stream.schema.json'}},
+  'description': NS, 'sources': NS, 'licence': NS, 'rightsNote': NS, 'createdAt': ref('timeOrNull'), 'content': {'$ref': BASE + 'stream.schema.json'}},
   ['$schema', 'id', 'name', 'witnessId', 'version', 'content']))
 geometry = obj({'rect': obj({'x': {'type': 'number'}, 'y': {'type': 'number'}, 'w': {'type': 'number'}, 'h': {'type': 'number'}}, ['x', 'y', 'w', 'h']),
                 'polygon': arr(obj({'x': {'type': 'number'}, 'y': {'type': 'number'}}, ['x', 'y'])), 'rotate': {'type': 'number'}})
