@@ -44,8 +44,6 @@ const updatedAt = () =>
 
 export const ROLES = ['member', 'editor', 'administrator'] as const;
 export type Role = (typeof ROLES)[number];
-export const VISIBILITIES = ['draft', 'published'] as const;
-export type Visibility = (typeof VISIBILITIES)[number];
 /** What a witness's carrier is. The material (papyrus, parchment, paper) and the format (codex, roll) are fields of their own. */
 export const WITNESS_CATEGORIES = [
   'manuscript',
@@ -367,7 +365,6 @@ export const transcriptions = pgTable(
     ownerId: text()
       .notNull()
       .references(() => users.id),
-    visibility: text({ enum: VISIBILITIES }).notNull().default('draft'),
     content: jsonb().$type<Stream>().notNull().default({ items: [] }),
     version: integer().notNull().default(0),
     /** Whether the editor keeps a written form apart from the read form. */
@@ -581,10 +578,11 @@ export interface EditionOrigin {
   editionId: string;
   title: string;
   editors: string[];
-  /** The version copied: a published one, or the draft's version when an editor copied it. */
+  /** The changeset version copied: that of a version, or the draft's when an editor copied the draft. */
   version: number;
+  /** Whether a version was copied, rather than the draft. */
   published: boolean;
-  /** The published version's number, as readers cite it; null for a draft. */
+  /** The number of the version copied, as readers cite it; null for a draft. */
   number: number | null;
 }
 
@@ -603,11 +601,8 @@ export const editions = pgTable(
     ownerId: text()
       .notNull()
       .references(() => users.id),
-    visibility: text({ enum: VISIBILITIES }).notNull().default('draft'),
     content: jsonb().$type<Stream>().notNull().default({ items: [] }),
     version: integer().notNull().default(0),
-    /** The version readers see; null while never published. */
-    publishedVersion: integer(),
     conventions: jsonb().$type<EditionConventions>().notNull(),
     /** The edition this one was copied from, as it was then; null for an edition made afresh. */
     copiedFrom: jsonb().$type<EditionOrigin>(),
@@ -857,34 +852,6 @@ export const checkpoints = pgTable(
 
 export const MOMENT_KINDS = ['named', 'published'] as const;
 
-/** The conspectus of an edition and the versions of its transcriptions at a publication. */
-export interface MomentBasis {
-  sigla: {
-    siglum: string;
-    witnessId: string;
-    transcriptionId: string | null;
-    states?: SiglumState[];
-    /** Bases published before states: the siglum of the state before correction. */
-    originalSiglum?: string | null;
-    variantSiglum?: string | null;
-  }[];
-  /** Transcription id to the version the apparatus was collated against. */
-  versions: Record<string, number>;
-  /**
-   * The editors' word on places of variation as it stood at the publication:
-   * the kind they gave over the letters', and whether the place was minor.
-   * A basis from before it was recorded lacks it; the marks set before the
-   * publication stand. The first bases to record it wrote `kind: 'unreported'`
-   * for a place left out of the apparatus, which is read as minor.
-   */
-  siteKinds?: {
-    segmentId: string;
-    siteKey: string;
-    kind?: SiteKind | 'unreported';
-    minor?: true;
-  }[];
-}
-
 export const moments = pgTable(
   'moments',
   {
@@ -894,15 +861,47 @@ export const moments = pgTable(
     version: integer().notNull(),
     name: text().notNull(),
     kind: text({ enum: MOMENT_KINDS }).notNull().default('named'),
-    /** For a published moment: the number shown to readers (1, 2, 3...). */
-    number: integer(),
-    /** For a published edition: what its apparatus was collated against, so that the version stays as it was published. */
-    basis: jsonb().$type<MomentBasis>(),
     createdBy: text().references(() => users.id, { onDelete: 'set null' }),
     personId: text().references(() => persons.id, { onDelete: 'set null' }),
     at: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('moments_document_idx').on(t.documentKind, t.documentId, t.version)],
+);
+
+/**
+ * A version of a transcription or an edition: the record as its owner
+ * published it at one moment, numbered 1, 2, 3 in the order of publication.
+ * It is read from its snapshot and from nothing live, and is withdrawn, never
+ * deleted. A record is public where it has a version that is not withdrawn.
+ */
+export const versions = pgTable(
+  'versions',
+  {
+    id: id(),
+    documentKind: text({ enum: DOCUMENT_KINDS }).notNull(),
+    documentId: text().notNull(),
+    /** The number readers cite. */
+    number: integer().notNull(),
+    /** The changeset version of the document at the publication. */
+    version: integer().notNull(),
+    /** The published moment that marks it in the history. */
+    momentId: text().references(() => moments.id, { onDelete: 'set null' }),
+    /** The editors' note on the version: what it is or what has changed. */
+    note: text(),
+    /** Who published it: the account, for the permission checks, and the person. */
+    createdBy: text().references(() => users.id, { onDelete: 'set null' }),
+    personId: text().references(() => persons.id, { onDelete: 'set null' }),
+    at: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    /** Set when the version is withdrawn: when, by whom, and the note readers see. */
+    withdrawnAt: timestamp({ withTimezone: true }),
+    withdrawnBy: text().references(() => persons.id, { onDelete: 'set null' }),
+    withdrawalNote: text(),
+    /** Everything a reader of the version needs, as it stood at the publication. */
+    snapshot: jsonb().$type<EditionSnapshot | TranscriptionSnapshot>().notNull(),
+    /** The changes since the version before (or since the beginning), made from the history. */
+    changes: jsonb().$type<VersionChanges>().notNull(),
+  },
+  (t) => [uniqueIndex('versions_document_number_idx').on(t.documentKind, t.documentId, t.number)],
 );
 
 export const reviewState = pgTable(
@@ -1036,11 +1035,13 @@ export const collationCache = pgTable(
     segmentId: text()
       .notNull()
       .references(() => segments.id, { onDelete: 'cascade' }),
+    /** The number of the version the rows are of; 0 for the draft, which no version shares rows with. */
+    versionNumber: integer().notNull().default(0),
     inputHash: text().notNull(),
     result: jsonb().$type<unknown>().notNull(),
     computedAt: createdAt(),
   },
-  (t) => [primaryKey({ columns: [t.editionId, t.segmentId] })],
+  (t) => [primaryKey({ columns: [t.editionId, t.versionNumber, t.segmentId] })],
 );
 
 // Relations (for the relational query API)
@@ -1189,8 +1190,104 @@ export type BibliographyItem = typeof bibliographyItems.$inferSelect;
 export type Citation = typeof citations.$inferSelect;
 export type ChangesetRow = typeof changesets.$inferSelect;
 export type Moment = typeof moments.$inferSelect;
+export type Version = typeof versions.$inferSelect;
 export type ReferenceScheme = typeof referenceSchemes.$inferSelect;
 
 /** The core changeset type, re-exported so that server code needs one import. */
 export type Changeset = CoreChangeset;
 export type { Item, TokenSource };
+
+/** A row as a snapshot keeps it: its times as ISO strings. */
+export type Stored<T> = {
+  [K in keyof T]: T[K] extends Date ? string : T[K] extends Date | null ? string | null : T[K];
+};
+
+/**
+ * Everything a reader of an edition's version needs, as it stood at the
+ * publication: the edition's own fields and text, the conspectus with the
+ * version of each transcription compared, the editors' word on places of
+ * variation, and the records of the work the version shows. The members
+ * are those of the version's edition.json (specification 4.12).
+ */
+export interface EditionSnapshot {
+  title: string;
+  editors: string[];
+  preface: string | null;
+  sources: string | null;
+  rightsNote: string | null;
+  licenceId: string | null;
+  conventions: EditionConventions;
+  copiedFrom: EditionOrigin | null;
+  content: Stream;
+  sigla: {
+    siglum: string;
+    witnessId: string;
+    transcriptionId: string | null;
+    states: SiglumState[];
+    variantSiglum: string | null;
+  }[];
+  /** Transcription id to the number of the version of that transcription the apparatus compares. */
+  witnessVersions: Record<string, number>;
+  adoptions: { conjectureId: string; at: string | null }[];
+  notes: {
+    id: string;
+    segmentId: string;
+    tokenIds: string[];
+    text: string;
+    personId: string | null;
+    /** The name of the note's author as it was, which the reader shows. */
+    author: string | null;
+    createdAt: string | null;
+  }[];
+  siteKinds: {
+    segmentId: string;
+    siteKey: string;
+    kind?: SiteKind;
+    minor?: true;
+    personId: string | null;
+    setAt: string | null;
+  }[];
+  conjectures: Stored<Conjecture>[];
+  readings: Stored<ReportedReading>[];
+  citations: Stored<Citation>[];
+  bibliography: Stored<BibliographyItem>[];
+  constraints: Omit<Stored<typeof alignmentConstraints.$inferSelect>, 'editionId'>[];
+}
+
+/** Everything a reader of a transcription's version needs, as it stood at the publication. */
+export interface TranscriptionSnapshot {
+  name: string;
+  witnessId: string;
+  description: string | null;
+  sources: string | null;
+  rightsNote: string | null;
+  licenceId: string | null;
+  keepsWrittenForm: boolean;
+  displayAsWritten: boolean;
+  content: Stream;
+  zones: Omit<Stored<Zone>, 'transcriptionId' | 'updatedAt'>[];
+}
+
+/**
+ * The changes between two versions of a document, made from the changesets
+ * between them: what changesets said of themselves, and the words added,
+ * changed and removed, by segment.
+ */
+export interface VersionChanges {
+  /** The changeset versions compared: that of the version before (0 for none) and this one's. */
+  from: number;
+  to: number;
+  /** What changesets between said of themselves (an import, a copy, pages reorganized), in order. */
+  described: { version: number; at: string; message: string }[];
+  /** Words by segment, in the order of the text; a segmentId of null for words assigned to no segment. */
+  segments: {
+    segmentId: string | null;
+    label: string | null;
+    added: number;
+    changed: number;
+    removed: number;
+  }[];
+  added: number;
+  changed: number;
+  removed: number;
+}

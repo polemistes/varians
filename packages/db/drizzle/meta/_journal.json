@@ -162,6 +162,13 @@
       "when": 1794474877054,
       "tag": "0022_language_on_text",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1794479633800,
+      "tag": "0023_versions",
+      "breakpoints": true
     }
   ]
 }
