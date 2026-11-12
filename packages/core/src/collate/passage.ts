@@ -21,11 +21,12 @@ import {
   type SegmentRun,
   type Unit,
 } from '../stream/words.ts';
-import { DEFAULT_FOLD, fold as foldText } from '../normalize/fold.ts';
+import { fold as foldText } from '../normalize/fold.ts';
 import {
   collate,
   FAR_REACH,
   TRANSPOSITION_REACH,
+  unitFold,
   type Collation,
   type CollationOptions,
   type CollationText,
@@ -384,14 +385,14 @@ function baseLength(collation: Collation): number {
 export function linkPassages(
   left: Pick<Passage, 'segments' | 'collation' | 'base' | 'witnesses'>,
   right: Pick<Passage, 'segments' | 'collation' | 'base' | 'witnesses'>,
-  options: Pick<CollationOptions, 'farReach' | 'fold'> & {
+  options: Pick<CollationOptions, 'farReach'> & {
     /** The edition's units in the passages between the two, where they are not neighbours. */
     between?: number;
   } = {},
 ): [Collation, Collation] {
   const farReach = options.farReach ?? FAR_REACH;
   const between = options.between ?? 0;
-  const letters = { ...(options.fold ?? DEFAULT_FOLD), stripDiacritics: true };
+  const letters = (unit: Unit) => ({ ...unitFold(unit.lang), stripDiacritics: true });
   const leftId = left.segments[0]!.segmentId;
   const rightId = right.segments[0]!.segmentId;
   const one = { ...left.collation, sites: left.collation.sites.map((s) => ({ ...s })) };
@@ -434,7 +435,7 @@ export function linkPassages(
           const transposed =
             site?.transposition?.withSite === site?.index && !site?.transposition?.inPassage;
           if (site && !transposed)
-            out.push({ letters: foldText(unit.text, letters), at: baseCell.unitIndex, site });
+            out.push({ letters: foldText(unit.text, letters(unit)), at: baseCell.unitIndex, site });
         }
         slot = baseCell.unitIndex + 1;
         continue;
@@ -446,7 +447,7 @@ export function linkPassages(
       const site = collation.sites.find((s) =>
         s.readings.some((r) => !r.base && (r.units[textId] ?? []).some((u) => unitKey(u) === key)),
       );
-      if (site) out.push({ letters: foldText(unit.text, letters), at: slot, site });
+      if (site) out.push({ letters: foldText(unit.text, letters(unit)), at: slot, site });
     }
     // A witness that stands in no column (one without any text of the passage) is without nothing here.
     return seen ? out : [];
@@ -730,7 +731,7 @@ export function collatePassages(
  */
 export function linkAll(
   passages: Pick<Passage, 'segments' | 'collation' | 'base' | 'witnesses'>[],
-  options: Pick<CollationOptions, 'farReach' | 'fold'> = {},
+  options: Pick<CollationOptions, 'farReach'> = {},
 ): void {
   const farReach = options.farReach ?? FAR_REACH;
   for (let gap = 1; gap < passages.length; gap++)

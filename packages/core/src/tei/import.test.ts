@@ -14,6 +14,7 @@ function sketch(items: Item[]): unknown[] {
   return items.map((item) => {
     if (isToken(item)) {
       const out: Record<string, unknown> = { form: item.form };
+      if (item.lang !== undefined) out.lang = item.lang;
       if (item.norm !== undefined) out.norm = item.norm;
       if (item.joinNext) out.join = true;
       if (item.marks) out.marks = item.marks;
@@ -224,19 +225,20 @@ describe('importTei: an EpiDoc inscription', () => {
 
   it('reads supplied, unclear, gaps, expansions and a word divided at a line end', () => {
     expect(sketch(result.stream.items)).toEqual([
-      { form: 'ὁ' },
-      { form: 'δῆμος' },
+      { lang: 'grc', form: 'ὁ' },
+      { lang: 'grc', form: 'δῆμος' },
       // What its editor supplied where the stone is lost is not the stone's: the gap is.
       { object: 'gap', attrs: { reason: 'lost', unit: 'character', quantity: 3 } },
-      { form: 'δεῖνα' },
-      { form: 'ἄ', join: true },
+      { lang: 'grc', form: 'δεῖνα' },
+      { lang: 'grc', form: 'ἄ', join: true },
       { break: 'line', label: '2' },
-      { form: 'ρχοντα' },
+      { lang: 'grc', form: 'ρχοντα' },
       { object: 'gap', attrs: { reason: 'lost', quantity: 3, unit: 'character' } },
-      { form: 'ἀρετῆς', marks: [{ kind: 'unclear', from: 3, to: 4 }] },
+      { lang: 'grc', form: 'ἀρετῆς', marks: [{ kind: 'unclear', from: 3, to: 4 }] },
       { break: 'line', label: '3' },
-      { form: 'Ἀπολ', marks: [{ kind: 'abbr', attrs: { expan: 'Ἀπολλωνίου' } }] },
+      { lang: 'grc', form: 'Ἀπολ', marks: [{ kind: 'abbr', attrs: { expan: 'Ἀπολλωνίου' } }] },
       {
+        lang: 'grc',
         form: 'ἀνρα',
         marks: [
           {
@@ -248,6 +250,7 @@ describe('importTei: an EpiDoc inscription', () => {
         ],
       },
       {
+        lang: 'grc',
         form: 'κας',
         marks: [
           {
@@ -617,14 +620,61 @@ describe('importTei: a text to start from', () => {
   });
 });
 
+describe('importTei: the language of the words', () => {
+  const tei = (header: string, text: string) =>
+    `<TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader>${header}</teiHeader>${text}</TEI>`;
+  const langs = (xml: string) =>
+    importTei(xml, { ids: sequentialIds() })
+      .stream.items.filter(isToken)
+      .map((t) => `${t.form}:${t.lang ?? '-'}`);
+
+  it('gives each word the xml:lang in force at it, from <text>, a <div>, a <w> or a <foreign>', () => {
+    expect(
+      langs(
+        tei(
+          '',
+          '<text xml:lang="grc"><body><div xml:lang="la"><ab>arma <w xml:lang="grc">μῆνιν</w></ab></div><ab>ἄειδε <foreign xml:lang="la">virum cano</foreign> θεά</ab></body></text>',
+        ),
+      ),
+    ).toEqual(['arma:la', 'μῆνιν:grc', 'ἄειδε:grc', 'virum:la', 'cano:la', 'θεά:grc']);
+  });
+
+  it('takes the language the header declares where no element around a word declares one', () => {
+    const xml = tei(
+      '<profileDesc><langUsage><language ident="la">Latin</language></langUsage></profileDesc>',
+      '<text><body><ab>arma virumque</ab></body></text>',
+    );
+    expect(langs(xml)).toEqual(['arma:la', 'virumque:la']);
+    expect(importTei(xml).header.language).toBe('la');
+  });
+
+  it('gives a whole word the language of a <foreign> inside its <w>, and the parts of a divided word one language', () => {
+    expect(
+      langs(
+        tei(
+          '',
+          '<text xml:lang="grc"><body><ab><w>κα<foreign xml:lang="la">i</foreign></w> <w part="I" xml:lang="la">ar</w><lb break="no"/><w part="F">ma</w></ab></body></text>',
+        ),
+      ),
+    ).toEqual(['καi:la', 'ar:la', 'ma:la']);
+  });
+
+  it('leaves the words of a file that declares no language without one', () => {
+    expect(langs(tei('', '<text><body><ab>μῆνιν ἄειδε</ab></body></text>'))).toEqual([
+      'μῆνιν:-',
+      'ἄειδε:-',
+    ]);
+  });
+});
+
 describe('importTei: the signs of a papyrus', () => {
-  it('reads numbers, another language, a quotation and a doubt as marks', () => {
+  it('reads numbers, a quotation and a doubt as marks, and another language as the words’ own', () => {
     const result = read(
       `<ab><num value="16">ιϛ</num> <num value="4"/> <foreign xml:lang="la">comes</foreign> <q>ὁ γὰρ</q> <add place="above">ὅλων<certainty match=".." locus="name"/></add></ab>`,
     );
     expect(sketch(result.stream.items)).toEqual([
       { form: 'ιϛ', marks: [{ kind: 'num', attrs: { value: '16' } }] },
-      { form: 'comes', marks: [{ kind: 'foreign', attrs: { lang: 'la' } }] },
+      { form: 'comes', lang: 'la' },
       { form: 'ὁ', marks: [{ kind: 'q' }] },
       { form: 'γὰρ', marks: [{ kind: 'q' }] },
       { form: 'ὅλων', marks: [{ kind: 'add', attrs: { place: 'above', cert: 'low' } }] },

@@ -6,7 +6,7 @@ import { diffStreams, summarizeDiff } from './diff.ts';
 
 describe('diffStreams', () => {
   it('reports a retyped word as one change, an insertion as added, a deletion as removed', () => {
-    const a = fromText('the quick fox\njumps', { ids: sequentialIds() });
+    const a = fromText('the quick fox\njumps', { lang: 'en', ids: sequentialIds() });
     const b = applyOps(a, [
       { t: 'set', id: 't2', fields: { form: 'slow' } },
       { t: 'insert', after: 't3', items: [{ kind: 'token', id: 'n1', form: 'now' }] },
@@ -24,7 +24,7 @@ describe('diffStreams', () => {
   });
 
   it('reports a moved line as moves, not as removals and additions', () => {
-    const a = fromText('a b\nc d', { ids: sequentialIds() });
+    const a = fromText('a b\nc d', { lang: 'en', ids: sequentialIds() });
     const b = applyOps(a, [{ t: 'move', ids: ['t4', 't5'], after: null }]).stream;
     const diff = diffStreams(a, b);
     expect(diff.added).toBe(0);
@@ -33,7 +33,7 @@ describe('diffStreams', () => {
   });
 
   it('finds no change between identical states', () => {
-    const a = fromText('a b', { ids: sequentialIds() });
+    const a = fromText('a b', { lang: 'en', ids: sequentialIds() });
     expect(summarizeDiff(diffStreams(a, { items: [...a.items] }))).toBe('no change');
   });
 });

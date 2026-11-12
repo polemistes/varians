@@ -49,6 +49,15 @@ export type Separator = 'space' | 'none' | 'interpunct' | 'other';
 export interface Token {
   kind: 'token';
   id: Id;
+  /**
+   * The language of the word: a BCP 47 tag (grc, la, he, cop, grc-x-doric).
+   * Every word Varians writes has one, the parts of a divided word the same
+   * one; it is optional here only because words stored before languages
+   * belonged to words, and words a client sends before it is chosen, may
+   * lack it. A word without one is read by the general rules, and nothing
+   * marks its language.
+   */
+  lang?: string;
   /** The diplomatic form: the word as the witness writes it. In a transcription without a diplomatic record, the only form, normalized. */
   form: string;
   /** The normalized form, where it differs from the diplomatic form. May contain spaces: the token is read as several words. */

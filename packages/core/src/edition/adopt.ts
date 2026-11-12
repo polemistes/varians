@@ -89,6 +89,8 @@ export function tokensFromReading(
     .map((u) => ({
       kind: 'token' as const,
       id: ids(),
+      // The word keeps the language the witness gives it.
+      ...(u.lang !== undefined ? { lang: u.lang } : {}),
       form: u.text,
       // A witness collated in its state before correction goes by "<id>:original", with the variants it notes by
       // "<id>:variant"; the source is the transcription either way.
@@ -104,7 +106,7 @@ export function tokensFromReading(
 export function tokensFromConjecture(
   text: string,
   conjectureId: Id,
-  options: AdoptOptions & { supplied?: boolean } = {},
+  options: AdoptOptions & { supplied?: boolean; lang?: string | undefined } = {},
 ): Token[] {
   const ids = options.ids ?? newId;
   return text
@@ -114,6 +116,7 @@ export function tokensFromConjecture(
       const token: Token = {
         kind: 'token',
         id: ids(),
+        ...(options.lang !== undefined ? { lang: options.lang } : {}),
         form,
         source: { kind: 'conjecture', conjectureId },
       };
@@ -420,9 +423,32 @@ export function adoptReading(
 }
 
 /**
+ * The language of the edition's words at a site, for words that come with
+ * none of their own: that of the first word the site covers, else of the
+ * nearest word before it, else of the nearest after it. Undefined where no
+ * word near has one.
+ */
+export function languageAtSite(site: Site, baseUnits: Unit[]): string | undefined {
+  for (let i = site.baseFrom; i < site.baseTo; i++) {
+    const unit = baseUnits[i];
+    if (unit && !unit.gap && unit.lang !== undefined) return unit.lang;
+  }
+  for (let i = site.baseFrom - 1; i >= 0; i--) {
+    const unit = baseUnits[i]!;
+    if (!unit.gap && unit.lang !== undefined) return unit.lang;
+  }
+  for (let i = site.baseTo; i < baseUnits.length; i++) {
+    const unit = baseUnits[i]!;
+    if (!unit.gap && unit.lang !== undefined) return unit.lang;
+  }
+  return undefined;
+}
+
+/**
  * Adopt a conjecture at a site: its reading becomes the edition's; an empty
  * reading deletes the words. Its words take the conjecture's segment
- * (`segmentId`) where given, else the segment of the place.
+ * (`segmentId`) where given, else the segment of the place, and the
+ * language of the words at the place (`languageAtSite`).
  */
 export function adoptConjecture(
   stream: Stream,
@@ -438,6 +464,7 @@ export function adoptConjecture(
       : tokensFromConjecture(conjecture.reading, conjecture.id, {
           ...options,
           supplied: conjecture.kind === 'supplement',
+          lang: languageAtSite(site, baseUnits),
         });
   return replaceAtSite(stream, site, baseUnits, items, {
     ...options,

@@ -94,6 +94,8 @@ export function gapText(attrs: Record<string, unknown>): string {
 }
 
 export interface FromTextOptions {
+  /** The language of every word made (a BCP 47 tag): text never has a default one. */
+  lang: string;
   ids?: () => Id;
   /** Two newlines make a paragraph break instead of two line breaks. */
   paragraphs?: boolean;
@@ -102,7 +104,7 @@ export interface FromTextOptions {
 }
 
 /** A stream from plain text: whitespace divides words, newlines divide lines. */
-export function fromText(text: string, options: FromTextOptions = {}): Stream {
+export function fromText(text: string, options: FromTextOptions): Stream {
   const ids = options.ids ?? newId;
   const items: Item[] = [];
   const normalized = text.replace(/\r\n?/g, '\n');
@@ -127,7 +129,7 @@ export function fromText(text: string, options: FromTextOptions = {}): Stream {
     }
     const tokens = line.split(/\s+/u).filter((t) => t.length > 0);
     tokens.forEach((form, k) => {
-      const token: Token = { kind: 'token', id: ids(), form };
+      const token: Token = { kind: 'token', id: ids(), lang: options.lang, form };
       if (pendingJoin && k === 0) pendingJoin = false;
       if (joinsNext && k === tokens.length - 1) token.joinNext = true;
       items.push(token);

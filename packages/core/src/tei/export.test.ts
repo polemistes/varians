@@ -179,6 +179,50 @@ describe('exportTranscriptionTei', () => {
     );
     expect(() => parseXml(out)).not.toThrow();
   });
+
+  it('gives <text> the language most of the words have, lists them all, and marks a word in another', () => {
+    const items: Item[] = [
+      { kind: 'token', id: 'a', lang: 'la', form: 'arma' },
+      { kind: 'token', id: 'b', lang: 'grc', form: 'μῆνιν' },
+      { kind: 'token', id: 'c', lang: 'grc', form: 'ἄειδε' },
+      { kind: 'token', id: 'd', form: 'nescio' },
+    ];
+    for (const words of [true, false]) {
+      const out = exportTranscriptionTei({ stream: { items }, title: 'T', words });
+      expect(out).toContain('<text xml:lang="grc">');
+      expect(out).toContain(
+        '<langUsage>\n        <language ident="grc">grc</language>\n        <language ident="la">la</language>',
+      );
+      expect(out).toMatch(/<w[^>]* xml:lang="la">arma<\/w>/u);
+      // A word without a language says none, and a word in the language of the text says nothing.
+      expect(out).not.toMatch(/xml:lang="[^"]*">(nescio|μῆνιν)/u);
+      const back = importTei(out).stream.items.map((i) => (i.kind === 'token' ? i.lang : null));
+      expect(back).toEqual(['la', 'grc', 'grc', 'grc']);
+    }
+    // The first language met wins where two have as many words.
+    const even = exportTranscriptionTei({ stream: { items: items.slice(0, 2) }, title: 'T' });
+    expect(even).toContain('<text xml:lang="la">');
+  });
+
+  it('writes no language where the words have none, and no foreign mark', () => {
+    const out = exportTranscriptionTei({
+      stream: {
+        items: [
+          {
+            kind: 'token',
+            id: 'a',
+            form: 'x',
+            marks: [{ kind: 'foreign', attrs: { lang: 'la' } }],
+          },
+        ],
+      },
+      title: 'T',
+      words: true,
+    });
+    expect(out).not.toContain('xml:lang');
+    expect(out).not.toContain('langUsage');
+    expect(out).not.toContain('foreign');
+  });
 });
 
 describe('markupToken', () => {

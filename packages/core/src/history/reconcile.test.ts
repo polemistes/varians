@@ -13,7 +13,10 @@ import { ReconcileError, reconcile, type Reconciliation } from './reconcile.ts';
  * t6 jumps, t7 over, t8 the, t9 lazy, t10 dog. Segment s1 begins at t1, s2 at t6.
  */
 function initial(): Stream {
-  const stream = fromText('the quick brown fox\njumps over the lazy dog', { ids: sequentialIds() });
+  const stream = fromText('the quick brown fox\njumps over the lazy dog', {
+    lang: 'en',
+    ids: sequentialIds(),
+  });
   (stream.items[0] as Token).segment = { segmentId: 's1' };
   (stream.items[5] as Token).segment = { segmentId: 's2' };
   return stream;

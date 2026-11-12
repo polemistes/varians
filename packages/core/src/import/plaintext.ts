@@ -24,6 +24,8 @@ export interface NumberingPattern {
 }
 
 export interface PlainTextOptions {
+  /** The language of the words (a BCP 47 tag): plain text declares none, so the person importing gives it. */
+  lang: string;
   /** The numbering to strip and attach; none when null or undefined, so `detectNumbering(text)[0]` can be passed as it is. */
   pattern?: NumberingPattern | null | undefined;
   ids?: () => string;
@@ -155,7 +157,7 @@ interface Place {
 }
 
 /** Import plain text, stripping the numbers of a pattern and attaching their labels to tokens. */
-export function importPlainText(text: string, options: PlainTextOptions = {}): PlainTextImport {
+export function importPlainText(text: string, options: PlainTextOptions): PlainTextImport {
   const warnings: string[] = [];
   const lines = splitLines(text);
   const next = options.nextLabel ?? nextValue;
@@ -174,7 +176,7 @@ export function importPlainText(text: string, options: PlainTextOptions = {}): P
       ({ cleaned, places } = lineStart(lines, regex));
     }
   }
-  const textOptions: FromTextOptions = { ids: options.ids ?? newId };
+  const textOptions: FromTextOptions = { lang: options.lang, ids: options.ids ?? newId };
   if (options.paragraphs !== undefined) textOptions.paragraphs = options.paragraphs;
   if (options.hyphenJoins !== undefined) textOptions.hyphenJoins = options.hyphenJoins;
   const stream = fromText(cleaned.join('\n'), textOptions);

@@ -114,7 +114,6 @@ describe('a gap that is not transcribed', () => {
     text.runs[0]!.items.splice(1, 0, gap('n', { ...NOT_TRANSCRIBED_ATTRS }));
     const xml = exportEditionTei({
       title: 't',
-      language: 'grc',
       witnesses: [{ siglum: 'A' }],
       ...text,
     });

@@ -74,7 +74,7 @@ describe('importPlainText', () => {
   it('strips line-start numbers and labels the first token after each', () => {
     const text = '1 Ἐπειδὴ πάντες ἄνθρωποι\nτοῦ εἰδέναι ὀρέγονται\n2 σημεῖον δὲ';
     const [pattern] = detectNumbering(text);
-    const result = importPlainText(text, { pattern, ids: sequentialIds() });
+    const result = importPlainText(text, { lang: 'grc', pattern, ids: sequentialIds() });
     expect(toText(result.stream)).toBe('Ἐπειδὴ πάντες ἄνθρωποι\nτοῦ εἰδέναι ὀρέγονται\nσημεῖον δὲ');
     expect(result.segmentStarts).toEqual([
       { itemIndex: 0, label: '1' },
@@ -86,7 +86,7 @@ describe('importPlainText', () => {
   it('strips bracketed numbers in the middle of a line', () => {
     const text = '[1] Ἐπειδὴ πάντες [2] σημεῖον δὲ\n[3] καὶ γάρ';
     const [pattern] = detectNumbering(text);
-    const result = importPlainText(text, { pattern, ids: sequentialIds() });
+    const result = importPlainText(text, { lang: 'grc', pattern, ids: sequentialIds() });
     expect(toText(result.stream)).toBe('Ἐπειδὴ πάντες σημεῖον δὲ\nκαὶ γάρ');
     expect(result.segmentStarts).toEqual([
       { itemIndex: 0, label: '1' },
@@ -100,6 +100,7 @@ describe('importPlainText', () => {
     const [pattern] = detectNumbering(text);
     expect(pattern?.kind).toBe('every-line');
     const result = importPlainText(text, {
+      lang: 'grc',
       pattern,
       ids: sequentialIds(),
       startLabel: '1.1',
@@ -119,6 +120,7 @@ describe('importPlainText', () => {
 
   it('needs a start label to number every line', () => {
     const result = importPlainText('a\nb', {
+      lang: 'grc',
       pattern: { kind: 'every-line', regex: '^.+$', matches: 2, sample: 'a' },
     });
     expect(result.segmentStarts).toEqual([]);
@@ -128,7 +130,12 @@ describe('importPlainText', () => {
   it('counts the lines between margin numbers and checks the count', () => {
     const text = verse.map((line, i) => ((i + 1) % 5 === 0 ? `${line} ${i + 1}` : line)).join('\n');
     const [pattern] = detectNumbering(text);
-    const result = importPlainText(text, { pattern, ids: sequentialIds(), startLabel: '1' });
+    const result = importPlainText(text, {
+      lang: 'grc',
+      pattern,
+      ids: sequentialIds(),
+      startLabel: '1',
+    });
     expect(toText(result.stream)).toBe(verse.join('\n'));
     expect(result.segmentStarts.map((s) => s.label)).toEqual([
       '1',
@@ -153,7 +160,11 @@ describe('importPlainText', () => {
     expect(result.segmentStarts.map((s) => s.itemIndex)).toEqual(firstTokens);
     expect(result.warnings).toEqual([]);
 
-    const wrong = importPlainText(text.replace(/ 10$/u, ' 11'), { pattern, startLabel: '1' });
+    const wrong = importPlainText(text.replace(/ 10$/u, ' 11'), {
+      lang: 'grc',
+      pattern,
+      startLabel: '1',
+    });
     expect(wrong.warnings).toEqual([
       'Line 10 is numbered 11, but counting from the previous number gives 10.',
     ]);
@@ -164,7 +175,7 @@ describe('importPlainText', () => {
     const text = verse.map((line, i) => ((i + 1) % 5 === 0 ? `${i + 1} ${line}` : line)).join('\n');
     const [pattern] = detectNumbering(text);
     expect(pattern?.kind).toBe('margin-every-n');
-    const result = importPlainText(text, { pattern });
+    const result = importPlainText(text, { lang: 'grc', pattern });
     expect(result.segmentStarts.map((s) => s.label)).toEqual(['5', '6', '7', '8', '9', '10']);
     expect(result.warnings).toEqual([
       '4 lines before the first number have no label; give a start label to count them.',
@@ -175,6 +186,7 @@ describe('importPlainText', () => {
     const text = 'α β\nγ δ\nε ζ';
     const labels = ['3.1', '3.2'];
     const result = importPlainText(text, {
+      lang: 'grc',
       pattern: { kind: 'every-line', regex: '^.+$', matches: 3, sample: 'α β' },
       startLabel: '3.1',
       nextLabel: (label) => labels[labels.indexOf(label) + 1] ?? null,
@@ -186,7 +198,12 @@ describe('importPlainText', () => {
   it('keeps the labels in step with hyphen joins', () => {
     const text = '1 ἄνδ-\nρα μοι\n2 ἔννεπε';
     const [pattern] = detectNumbering(text);
-    const result = importPlainText(text, { pattern, ids: sequentialIds(), hyphenJoins: true });
+    const result = importPlainText(text, {
+      lang: 'grc',
+      pattern,
+      ids: sequentialIds(),
+      hyphenJoins: true,
+    });
     expect(result.stream.items[0]).toMatchObject({ form: 'ἄνδ', joinNext: true });
     expect(result.segmentStarts).toEqual([
       { itemIndex: 0, label: '1' },
@@ -196,26 +213,27 @@ describe('importPlainText', () => {
 
   it('warns about labels with no text after them and about repeated labels', () => {
     const pattern = detectNumbering('[1] a [2] b')[0];
-    const dangling = importPlainText('Ἐπειδὴ πάντες [2]', { pattern });
+    const dangling = importPlainText('Ἐπειδὴ πάντες [2]', { lang: 'grc', pattern });
     expect(dangling.segmentStarts).toEqual([]);
     expect(dangling.warnings).toEqual(['Label 2 has no text after it and was dropped.']);
 
-    const empty = importPlainText('[1] [2] Ἐπειδὴ', { pattern });
+    const empty = importPlainText('[1] [2] Ἐπειδὴ', { lang: 'grc', pattern });
     expect(empty.segmentStarts).toEqual([{ itemIndex: 0, label: '2' }]);
     expect(empty.warnings).toEqual(['Label 1 has no text before label 2 and was dropped.']);
 
-    const repeated = importPlainText('[1] a [1] b', { pattern });
+    const repeated = importPlainText('[1] a [1] b', { lang: 'grc', pattern });
     expect(repeated.warnings).toEqual(['Label 1 appears more than once.']);
   });
 
   it('imports without a pattern as plain text', () => {
-    const result = importPlainText('μῆνιν ἄειδε\nθεά', { ids: sequentialIds() });
+    const result = importPlainText('μῆνιν ἄειδε\nθεά', { lang: 'grc', ids: sequentialIds() });
     expect(toText(result.stream)).toBe('μῆνιν ἄειδε\nθεά');
     expect(result.segmentStarts).toEqual([]);
   });
 
   it('reports an unusable regular expression', () => {
     const result = importPlainText('1 a', {
+      lang: 'grc',
       pattern: { kind: 'line-start-number', regex: '(', matches: 1, sample: '1' },
     });
     expect(result.warnings[0]).toMatch(/not a valid regular expression/u);

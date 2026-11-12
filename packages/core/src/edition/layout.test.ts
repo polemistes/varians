@@ -14,7 +14,7 @@ import {
 
 function verse(): ReturnType<typeof fromText> {
   const lines = Array.from({ length: 12 }, (_, i) => `word${i + 1} more`);
-  const s = fromText(lines.join('\n'), { ids: sequentialIds() });
+  const s = fromText(lines.join('\n'), { lang: 'grc', ids: sequentialIds() });
   let n = 1;
   for (const item of s.items) {
     if (item.kind === 'token' && item.form.startsWith('word'))
@@ -45,7 +45,7 @@ describe('layoutLines', () => {
   });
 
   it('prints every label when asked, and notes paragraphs and pages', () => {
-    const s = fromText('a b\nc d', { ids: sequentialIds() });
+    const s = fromText('a b\nc d', { lang: 'en', ids: sequentialIds() });
     (s.items[0] as Token).segment = { segmentId: 'x' };
     (s.items[3] as Token).segment = { segmentId: 'y' };
     s.items[2] = { kind: 'break', id: 'pb', type: 'page', pageId: 'p1' };

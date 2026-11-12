@@ -52,7 +52,13 @@ const placeOf = [
 function unit(rng: Rng, combos: boolean): Item[] {
   const form = rng.pick(FORMS);
   const length = Array.from(form).length;
-  const token = (extra: Partial<Token> = {}): Token => ({ kind: 'token', id: '', form, ...extra });
+  const token = (extra: Partial<Token> = {}): Token => ({
+    kind: 'token',
+    id: '',
+    lang: 'grc',
+    form,
+    ...extra,
+  });
   const object = (type: Obj['type'], attrs?: Obj['attrs'], text?: string): Obj => ({
     kind: 'object',
     id: '',
@@ -67,7 +73,7 @@ function unit(rng: Rng, combos: boolean): Item[] {
   });
   if (combos && rng.chance(0.5)) {
     // Several marks on one word, over ranges of its letters, perhaps with a regularization.
-    const kinds = rng.shuffle(['unclear', 'gap', 'del', 'add', 'hi', 'foreign', 'q', 'handShift']);
+    const kinds = rng.shuffle(['unclear', 'gap', 'del', 'add', 'hi', 'q', 'handShift']);
     const marks: Mark[] = [];
     for (const kind of kinds.slice(0, rng.between(2, 3))) {
       const from = rng.between(0, length - 1);
@@ -92,9 +98,6 @@ function unit(rng: Rng, combos: boolean): Item[] {
           break;
         case 'hi':
           marks.push(mark('hi', { rend: 'superscript' }, range[0], range[1]));
-          break;
-        case 'foreign':
-          marks.push(mark('foreign', { lang: 'la' }, range[0], range[1]));
           break;
         case 'q':
           marks.push(mark('q', undefined, range[0], range[1]));
@@ -154,7 +157,8 @@ function unit(rng: Rng, combos: boolean): Item[] {
         }),
       ];
     case 10:
-      return [token({ marks: [mark('foreign', { lang: 'la' })] })];
+      // A word in another language than most.
+      return [token({ lang: 'la' })];
     case 11:
       return [token({ marks: [mark('q')] })];
     case 12:
@@ -278,6 +282,27 @@ function shape(stream: Stream, how: Tidy = {}): Stream {
   };
 }
 
+/**
+ * The parts of a divided word have one language, the first part's, and so do
+ * the two words of the scribe's correction, which Leiden+ writes as one.
+ */
+function oneLanguagePerWord(stream: Stream): Stream {
+  const correction = (item: Item | undefined, kind: string): boolean =>
+    isToken(item) &&
+    !!item.marks?.some((m) => m.kind === 'subst') &&
+    !!item.marks.some((m) => m.kind === kind);
+  let lang: string | undefined | null = null;
+  return {
+    items: stream.items.map((item, i) => {
+      if (!isToken(item)) return item;
+      const out = lang === null || lang === item.lang ? item : { ...item, lang: lang as string };
+      const pairs = correction(item, 'add') && correction(stream.items[i + 1], 'del');
+      lang = item.joinNext || pairs ? (lang ?? item.lang) : null;
+      return out;
+    }),
+  };
+}
+
 interface Case {
   stream: Stream;
 }
@@ -286,7 +311,8 @@ const show = (c: Case): string =>
   `stream: ${picture(c.stream)}\nwritten:\n${toLeidenPlus(c.stream)}marks: ${JSON.stringify(c.stream.items.flatMap((i) => (isToken(i) && i.marks ? [[i.id, i.marks]] : [])))}`;
 
 function* shrink(c: Case, how: Tidy = {}): Generator<Case> {
-  for (const stream of shrinkStream(c.stream)) yield { stream: shape(stream, how) };
+  for (const stream of shrinkStream(c.stream))
+    yield { stream: oneLanguagePerWord(shape(stream, how)) };
 }
 
 /** A mark over every letter of the token is the mark of the whole token. */
@@ -306,6 +332,7 @@ function essence(items: Item[]): unknown[] {
   return items.map((item) => {
     if (isToken(item)) {
       const out: Record<string, unknown> = { form: item.form };
+      if (item.lang !== undefined) out.lang = item.lang;
       if (item.norm !== undefined) out.norm = item.norm;
       if (item.joinNext) out.joinNext = true;
       if (item.marks) {
@@ -327,7 +354,9 @@ function essence(items: Item[]): unknown[] {
 }
 
 const property = (how: Tidy = {}, combos = false): Property<Case> => ({
-  generate: (rng, size) => ({ stream: shape(generate(rng, size, combos), how) }),
+  generate: (rng, size) => ({
+    stream: oneLanguagePerWord(shape(generate(rng, size, combos), how)),
+  }),
   show,
   shrink: (c) => shrink(c, how),
   check({ stream }) {
@@ -351,6 +380,7 @@ function stream(...items: Item[]): Stream {
 const word = (form: string, extra: Partial<Token> = {}): Token => ({
   kind: 'token',
   id: '',
+  lang: 'grc',
   form,
   ...extra,
 });
@@ -397,15 +427,12 @@ describe('Leiden+ round trip (random)', () => {
   // Where the delimiters of two marks touch they can read as another
   // construct: `~|` then `|^` as `~||`, `\` then `|^` as `\|`. The writer
   // nests such marks the other way round.
-  it('a word with a foreign phrase mark and a superscript comes back as it was', () => {
+  it('a word in another language that is a superscript comes back as it was', () => {
     property().check({
       stream: stream(
-        word('αειδε', {
-          marks: [
-            { kind: 'foreign', attrs: { lang: 'la' } },
-            { kind: 'hi', attrs: { rend: 'superscript' } },
-          ],
-        }),
+        word('μῆνιν'),
+        word('θεὰ'),
+        word('αειδε', { lang: 'la', marks: [{ kind: 'hi', attrs: { rend: 'superscript' } }] }),
       ),
     });
   });

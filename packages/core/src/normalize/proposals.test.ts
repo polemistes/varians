@@ -10,7 +10,7 @@ const grc = defaultProfile('grc');
 
 describe('proposeNorms', () => {
   it('reads each token by its own profile when given one per token', () => {
-    const s = fromText('VIRVM VIRVM', { ids: sequentialIds() });
+    const s = fromText('VIRVM VIRVM', { lang: 'la', ids: sequentialIds() });
     const lat = defaultProfile('lat');
     const byToken = proposeNorms(s, (token) => (token.id === 't1' ? lat : grc));
     const asLatin = proposeNorms(s, lat)[0]!.norm;
@@ -19,8 +19,18 @@ describe('proposeNorms', () => {
     expect(byToken.map((p) => p.norm)).toEqual([asLatin, asGreek]);
   });
 
+  it('reads each word by the rules of its own language by default', () => {
+    const s = fromText('VIRVM VIRVM ΜΗΝΙΝ', { lang: 'la', ids: sequentialIds() });
+    (s.items[1] as Token).lang = 'grc';
+    (s.items[2] as Token).lang = 'grc';
+    delete (s.items[0] as Token).lang;
+    expect(proposeNorms(s).map((p) => p.norm)).toEqual(['virvm', 'virvm', 'μηνιν']);
+    (s.items[0] as Token).lang = 'la';
+    expect(proposeNorms(s)[0]!.norm).toBe('uirum');
+  });
+
   it('proposes from the memory first, then from the profile, and skips tokens that need nothing', () => {
-    const s = fromText('ΜΗΝΗΝ ΑΕΙΔΕ θεὰ', { ids: sequentialIds() });
+    const s = fromText('ΜΗΝΗΝ ΑΕΙΔΕ θεὰ', { lang: 'grc', ids: sequentialIds() });
     const memory = new NormalizationMemory();
     memory.remember('ΜΗΝΗΝ', 'μῆνιν');
     const proposals = proposeNorms(s, grc, memory);
@@ -35,7 +45,7 @@ describe('proposeNorms', () => {
   });
 
   it('leaves an unchecked token alone when written and read forms agree under the fold', () => {
-    const s = fromText('ΜΗΝΙΝ', { ids: sequentialIds() });
+    const s = fromText('ΜΗΝΙΝ', { lang: 'grc', ids: sequentialIds() });
     (s.items[0] as Token).norm = 'μῆνιν';
     (s.items[0] as Token).unchecked = true;
     expect(proposeNorms(s, grc)).toEqual([]);

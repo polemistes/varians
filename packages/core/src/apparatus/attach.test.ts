@@ -6,13 +6,13 @@ import { units } from '../stream/words.ts';
 import { attachToSites, lemmaOccursIn } from './attach.ts';
 
 function witness(id: string, siglum: string, text: string): CollationText {
-  const s = fromText(text, { ids: sequentialIds(id) });
+  const s = fromText(text, { lang: 'grc', ids: sequentialIds(id) });
   return { id, siglum, units: units(s, 0, s.items.length) };
 }
 
 describe('attachToSites', () => {
   it('places a conjecture by its lemma, and marks one whose reading is printed as adopted', () => {
-    const edition = fromText('οἰωνοῖσί τε δαῖτα Διὸς', { ids: sequentialIds('e') });
+    const edition = fromText('οἰωνοῖσί τε δαῖτα Διὸς', { lang: 'grc', ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
     const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [
       witness('A', 'A', 'οἰωνοῖσί τε πᾶσι Διὸς'),
@@ -44,7 +44,7 @@ describe('attachToSites', () => {
   });
 
   it('opens a site for a conjecture on words every witness agrees about', () => {
-    const edition = fromText('οἰωνοῖσί τε πᾶσι Διὸς', { ids: sequentialIds('e') });
+    const edition = fromText('οἰωνοῖσί τε πᾶσι Διὸς', { lang: 'grc', ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
     const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [
       witness('A', 'A', 'οἰωνοῖσί τε πᾶσι Διὸς'),
@@ -83,9 +83,9 @@ describe('attachToSites', () => {
   });
 
   it('leaves a witness that has lost the words out of a site opened for a conjecture', () => {
-    const edition = fromText('a b c d', { ids: sequentialIds('e') });
+    const edition = fromText('a b c d', { lang: 'en', ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
-    const lost = fromText('a d', { ids: sequentialIds('p') });
+    const lost = fromText('a d', { lang: 'en', ids: sequentialIds('p') });
     lost.items.splice(1, 0, { kind: 'object', id: 'g', type: 'gap', attrs: { reason: 'lost' } });
     const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [
       witness('A', 'A', 'a b c d'),
@@ -102,7 +102,7 @@ describe('attachToSites', () => {
   });
 
   it('places a reported reading by the base words, and a record by its anchor tokens', () => {
-    const edition = fromText('a b c', { ids: sequentialIds('e') });
+    const edition = fromText('a b c', { lang: 'en', ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
     const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [witness('A', 'A', 'a x c')]);
     const attached = attachToSites(c, baseUnits, [
@@ -120,7 +120,7 @@ describe('attachToSites', () => {
   });
 
   it('keeps a record on one word off the site over the whole segment', () => {
-    const edition = fromText('a b c', { ids: sequentialIds('e') });
+    const edition = fromText('a b c', { lang: 'en', ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
     // B's text runs on without the segment, which makes the site over all of it.
     const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [
@@ -166,7 +166,7 @@ describe('attachToSites', () => {
   });
 
   it('opens the site at the occurrence the anchor names when the words stand twice', () => {
-    const edition = fromText('a b a c', { ids: sequentialIds('e') });
+    const edition = fromText('a b a c', { lang: 'en', ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
     const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [witness('A', 'A', 'a b a c')]);
     const attached = attachToSites(c, baseUnits, [
@@ -177,7 +177,7 @@ describe('attachToSites', () => {
   });
 
   it('finds where a lemma occurs in a segment', () => {
-    const edition = fromText('the quick brown fox', { ids: sequentialIds('e') });
+    const edition = fromText('the quick brown fox', { lang: 'en', ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
     expect(lemmaOccursIn(baseUnits, 'quick brown')).toEqual([{ from: 1, to: 3 }]);
     expect(lemmaOccursIn(baseUnits, 'Fox')).toEqual([{ from: 3, to: 4 }]);
@@ -188,7 +188,7 @@ describe('attachToSites', () => {
 describe('attachToSites in a passage of several segments', () => {
   it('looks for a lemma among the units of its own segment only', () => {
     // Two segments, the same word in each; a witness reads it otherwise in both.
-    const edition = fromText('a b c a d', { ids: sequentialIds('e') });
+    const edition = fromText('a b c a d', { lang: 'en', ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
     const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [
       witness('A', 'A', 'x b c x d'),

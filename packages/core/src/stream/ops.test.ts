@@ -5,7 +5,7 @@ import { applyOp, applyOps, touchedIds, type Op } from './ops.ts';
 import { fromText, toText } from './text.ts';
 
 function sample(): Stream {
-  return fromText('the quick fox\njumps over', { ids: sequentialIds() });
+  return fromText('the quick fox\njumps over', { lang: 'en', ids: sequentialIds() });
 }
 
 function token(stream: Stream, id: string): Token {
@@ -106,6 +106,19 @@ describe('applyOp', () => {
     expect(before.form).toBe('quick');
   });
 
+  it('gives both halves of a split word its language, and a joined word the first part’s', () => {
+    const s = fromText('arma', { lang: 'la', ids: sequentialIds() });
+    const { stream } = applyOp(s, { t: 'split', id: 't1', at: 2, newId: 'n1', join: true });
+    expect(stream.items.map((i) => (i as Token).lang)).toEqual(['la', 'la']);
+    const mixed: Stream = {
+      items: [
+        { kind: 'token', id: 'a', lang: 'la', form: 'ar' },
+        { kind: 'token', id: 'b', lang: 'grc', form: 'ma' },
+      ],
+    };
+    expect((applyOp(mixed, { t: 'join', id: 'a' }).stream.items[0] as Token).lang).toBe('la');
+  });
+
   it('splits a word at a line end as two joined tokens', () => {
     const { stream } = applyOp(sample(), { t: 'split', id: 't2', at: 2, newId: 'n1', join: true });
     expect(token(stream, 't2').joinNext).toBe(true);
@@ -157,7 +170,7 @@ describe('applyOp', () => {
 
 describe('set over JSON', () => {
   it('removes a field set to null and records an absent field as null in the reverse', () => {
-    const s = fromText('a b', { ids: sequentialIds() });
+    const s = fromText('a b', { lang: 'en', ids: sequentialIds() });
     const { stream, reverse } = applyOp(s, { t: 'set', id: 't1', fields: { norm: 'α' } });
     expect(reverse).toEqual([{ t: 'set', id: 't1', fields: { norm: null } }]);
     const wire = JSON.parse(JSON.stringify(reverse)) as Op[];

@@ -229,6 +229,8 @@ function split(stream: Stream, id: Id, at: number, newId: Id, joinHalves: boolea
     id: newId,
     form: chars.slice(at).join(''),
   };
+  // The parts of a word have one language.
+  if (token.lang !== undefined) second.lang = token.lang;
   if (token.joinNext) second.joinNext = true;
   if (leftMarks) first.marks = leftMarks;
   else delete first.marks;

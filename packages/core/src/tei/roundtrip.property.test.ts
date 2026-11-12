@@ -271,7 +271,6 @@ function roundTrip(c: TeiCase) {
   const xml = exportTranscriptionTei({
     stream: c.stream,
     title: 'T',
-    language: 'grc',
     pages: PAGES,
     segmentLabels: SEGMENT_LABELS,
     words: c.words,

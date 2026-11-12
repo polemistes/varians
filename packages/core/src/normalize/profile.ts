@@ -32,6 +32,28 @@ export function defaultProfile(language: string): NormalizationProfile {
   };
 }
 
+/** One profile per language, made once: the rules of a language never change. */
+const profilesByLanguage = new Map<string, NormalizationProfile>();
+
+/**
+ * The spelling rules a word is read and compared by: the defaults of its own
+ * language, or the general rules when it has none.
+ */
+export function languageProfile(lang: string | undefined): NormalizationProfile {
+  const key = lang ?? '';
+  let profile = profilesByLanguage.get(key);
+  if (!profile) {
+    profile = defaultProfile(key);
+    profilesByLanguage.set(key, profile);
+  }
+  return profile;
+}
+
+/** The spelling rules of a token: those of its word's language. */
+export function tokenProfile(token: { lang?: string }): NormalizationProfile {
+  return languageProfile(token.lang);
+}
+
 /**
  * The read form the profile proposes for a written form, or undefined when
  * the written form stands as it is. Only mechanical steps: it never adds

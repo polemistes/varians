@@ -9,6 +9,7 @@ import { isToken, readForm, type Id, type Stream, type Token } from '../stream/i
 import {
   agreeUnderFold,
   proposeReadForm,
+  tokenProfile,
   type NormalizationMemory,
   type NormalizationProfile,
 } from './profile.ts';
@@ -24,8 +25,8 @@ export interface Proposal {
 
 /**
  * The profile to read a token by: one for the whole stream, or one per
- * token (a transcription running through works of several languages reads
- * each stretch by its own work's profile).
+ * token. Varians reads every word by the rules of its own language
+ * (`tokenProfile`), which is the default.
  */
 export type ProfileFor = NormalizationProfile | ((token: Token) => NormalizationProfile);
 
@@ -41,7 +42,7 @@ export function profileOf(profiles: ProfileFor, token: Token): NormalizationProf
  */
 export function proposeNorms(
   stream: Stream,
-  profiles: ProfileFor,
+  profiles: ProfileFor = tokenProfile,
   memory?: NormalizationMemory,
 ): Proposal[] {
   const out: Proposal[] = [];

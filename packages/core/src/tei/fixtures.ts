@@ -23,15 +23,17 @@ export function exportInput(): TranscriptionExport & { pages: ExportPage[]; zone
         {
           kind: 'token',
           id: 't1',
+          lang: 'grc',
           form: 'ΚΣ',
           marks: [{ kind: 'abbr', attrs: { expan: 'Κύριος' } }],
           segment: { segmentId: 's1' },
         },
-        { kind: 'token', id: 't2', form: 'ἄνδ', joinNext: true },
+        { kind: 'token', id: 't2', lang: 'grc', form: 'ἄνδ', joinNext: true },
         { kind: 'break', id: 'b2', type: 'line' },
         {
           kind: 'token',
           id: 't3',
+          lang: 'grc',
           form: 'ρα',
           marks: [{ kind: 'supplied', attrs: { reason: 'lost' }, from: 0, to: 1 }],
         },
@@ -41,11 +43,17 @@ export function exportInput(): TranscriptionExport & { pages: ExportPage[]; zone
           type: 'gap',
           attrs: { reason: 'lost', quantity: 3, unit: 'character' },
         },
-        { kind: 'token', id: 't4', form: 'a&b<c', norm: 'abc', segment: { segmentId: 's2' } },
+        {
+          kind: 'token',
+          id: 't4',
+          lang: 'grc',
+          form: 'a&b<c',
+          norm: 'abc',
+          segment: { segmentId: 's2' },
+        },
       ],
     },
     title: 'Test & trial',
-    language: 'grc',
     witness: {
       siglum: 'A',
       name: 'Venetus A',
@@ -95,7 +103,7 @@ export function exportInput(): TranscriptionExport & { pages: ExportPage[]; zone
 /** A transcription with pages, columns, paragraphs, every kind of mark, gaps, a joined word and segment starts. Ids are a1, a2, … */
 export function richStream(): Stream {
   const id = sequentialIds('a');
-  return {
+  return withLanguages({
     items: [
       { kind: 'break', id: id(), type: 'page', pageId: 'p1' },
       { kind: 'object', id: id(), type: 'paratext', attrs: { type: 'head' }, text: 'Ἰλιάδος Α' },
@@ -183,6 +191,17 @@ export function richStream(): Stream {
       },
       { kind: 'token', id: id(), form: 'ΚΑΓΩ', norm: 'καὶ ἐγώ' },
     ],
+  });
+}
+
+/** Every word in Greek but those in Latin letters, which are in Latin: a text in two languages. */
+function withLanguages(stream: Stream): Stream {
+  return {
+    items: stream.items.map((item) => {
+      if (item.kind !== 'token') return item;
+      const { kind, id, ...rest } = item;
+      return { kind, id, lang: /[a-z]/u.test(item.form) ? 'la' : 'grc', ...rest };
+    }),
   };
 }
 
@@ -240,7 +259,7 @@ export function variantStream(): Stream {
 
 /** A witness text for collation, made from plain words. */
 export function collationText(id: string, siglum: string, words: string): CollationText {
-  const s = fromText(words, { ids: sequentialIds(id) });
+  const s = fromText(words, { lang: 'en', ids: sequentialIds(id) });
   return { id, siglum, units: units(s, 0, s.items.length) };
 }
 
@@ -262,7 +281,7 @@ export function editionSegments(
   const runs: EditionRunExport[] = [];
   const passages: EditionPassageExport[] = [];
   for (const { label, text, witnesses, attachments } of segments) {
-    const edition = fromText(text, { ids: sequentialIds(`e${label}-`) });
+    const edition = fromText(text, { lang: 'en', ids: sequentialIds(`e${label}-`) });
     const baseUnits = units(edition, 0, edition.items.length);
     const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, witnesses);
     runs.push({ label, items: edition.items });
@@ -273,12 +292,11 @@ export function editionSegments(
 
 /** An edition with substitution, omission, addition, a conjecture, an adopted conjecture, a witness that has lost a word and a reported reading. */
 export function editionInput(): EditionExport {
-  const lacunose = fromText('a c', { ids: sequentialIds('p') });
+  const lacunose = fromText('a c', { lang: 'en', ids: sequentialIds('p') });
   lacunose.items.splice(1, 0, { kind: 'object', id: 'g', type: 'gap', attrs: { reason: 'lost' } });
   return {
     title: 'Test edition',
     editors: ['Someone'],
-    language: 'en',
     baseSiglum: 'ed.',
     witnesses: [
       { siglum: 'A', name: 'Codex A' },

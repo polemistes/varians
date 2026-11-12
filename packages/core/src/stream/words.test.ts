@@ -14,7 +14,10 @@ import {
 } from './words.ts';
 
 function withSegments(): Stream {
-  const s = fromText('μῆνιν ἄειδε θεὰ\nοὐλομένην ἣ\nπολλὰς δ᾽', { ids: sequentialIds() });
+  const s = fromText('μῆνιν ἄειδε θεὰ\nοὐλομένην ἣ\nπολλὰς δ᾽', {
+    lang: 'grc',
+    ids: sequentialIds(),
+  });
   // t1 t2 t3 | t4 (break) t5 t6 | t7 (break) t8 t9
   (s.items[0] as { segment?: unknown }).segment = { segmentId: 's1' };
   (s.items[4] as { segment?: unknown }).segment = { segmentId: 's2' };
@@ -24,14 +27,14 @@ function withSegments(): Stream {
 
 describe('words', () => {
   it('reads one token as one word and joined tokens as one word across a break', () => {
-    const s = fromText('ἄνδ-\nρα μοι', { ids: sequentialIds(), hyphenJoins: true });
+    const s = fromText('ἄνδ-\nρα μοι', { lang: 'grc', ids: sequentialIds(), hyphenJoins: true });
     const w = words(s);
     expect(w.map((x) => x.form)).toEqual(['ἄνδρα', 'μοι']);
     expect(w[0]!.tokens.map((t) => t.id)).toEqual(['t1', 't3']);
   });
 
   it('uses the first token’s read form for the whole word', () => {
-    const s = fromText('ἄνδ-\nρα', { ids: sequentialIds(), hyphenJoins: true });
+    const s = fromText('ἄνδ-\nρα', { lang: 'grc', ids: sequentialIds(), hyphenJoins: true });
     (s.items[0] as { norm?: string }).norm = 'ἄνδρας';
     expect(words(s)[0]!.norm).toBe('ἄνδρας');
   });
@@ -49,13 +52,13 @@ describe('segmentRuns', () => {
   });
 
   it('treats text before the first start as unassigned', () => {
-    const s = fromText('a b\nc', { ids: sequentialIds() });
+    const s = fromText('a b\nc', { lang: 'en', ids: sequentialIds() });
     (s.items[3] as { segment?: unknown }).segment = { segmentId: 's1' };
     expect(segmentRuns(s).map((r) => r.segmentId)).toEqual([null, 's1']);
   });
 
   it('orders a segment’s runs by part, not by position', () => {
-    const s = fromText('one two three four', { ids: sequentialIds() });
+    const s = fromText('one two three four', { lang: 'en', ids: sequentialIds() });
     (s.items[0] as { segment?: unknown }).segment = { segmentId: 's1', part: 2 };
     (s.items[2] as { segment?: unknown }).segment = { segmentId: 's1', part: 1 };
     expect(runsOfSegment(s, 's1').map((r) => r.from)).toEqual([2, 0]);
@@ -65,7 +68,7 @@ describe('segmentRuns', () => {
 
 describe('runsBySegment', () => {
   it('gives each segment the runs runsOfSegment gives it, and none to unassigned text', () => {
-    const s = fromText('x y\none two three four five', { ids: sequentialIds() });
+    const s = fromText('x y\none two three four five', { lang: 'en', ids: sequentialIds() });
     // Unassigned text first, then s1 in parts 2 and 1 and s2 between them.
     (s.items[3] as { segment?: unknown }).segment = { segmentId: 's1', part: 2 };
     (s.items[4] as { segment?: unknown }).segment = { segmentId: 's2' };
@@ -80,7 +83,7 @@ describe('runsBySegment', () => {
 
 describe('units', () => {
   it('divides a read form with spaces into several units sharing the token', () => {
-    const s = fromText('ΚΑΓΩ εἶπον', { ids: sequentialIds() });
+    const s = fromText('ΚΑΓΩ εἶπον', { lang: 'grc', ids: sequentialIds() });
     (s.items[0] as { norm?: string }).norm = 'καὶ ἐγώ';
     const u = units(s, 0, s.items.length);
     expect(u.map((x) => x.text)).toEqual(['καὶ', 'ἐγώ', 'εἶπον']);
@@ -89,7 +92,7 @@ describe('units', () => {
   });
 
   it('leaves out words the scribe deleted, and in the original state words the scribe added', () => {
-    const s = fromText('a b c', { ids: sequentialIds() });
+    const s = fromText('a b c', { lang: 'en', ids: sequentialIds() });
     (s.items[1] as { marks?: unknown }).marks = [{ kind: 'del' }];
     (s.items[2] as { marks?: unknown }).marks = [{ kind: 'add', attrs: { place: 'above' } }];
     expect(units(s, 0, 3).map((u) => u.text)).toEqual(['a', 'c']);
@@ -97,7 +100,7 @@ describe('units', () => {
   });
 
   it('reads the variants noted in the carrier in place of the words they concern', () => {
-    const s = fromText('a b c d e', { ids: sequentialIds() });
+    const s = fromText('a b c d e', { lang: 'en', ids: sequentialIds() });
     const variant = (group: string, reading: string) => ({
       kind: 'variant',
       attrs: { group, reading, place: 'margin' },
@@ -120,7 +123,7 @@ describe('units', () => {
   });
 
   it('reads nothing for a variant that leaves the words out, and keeps neighbouring variants apart', () => {
-    const s = fromText('a b c d', { ids: sequentialIds() });
+    const s = fromText('a b c d', { lang: 'en', ids: sequentialIds() });
     (s.items[1] as { marks?: unknown }).marks = [
       { kind: 'variant', attrs: { group: 'g1', reading: '', place: 'interlinear' } },
     ];
@@ -131,7 +134,7 @@ describe('units', () => {
   });
 
   it('reads a variant across a line break once, where its span begins', () => {
-    const s = fromText('a b\nc d', { ids: sequentialIds() });
+    const s = fromText('a b\nc d', { lang: 'en', ids: sequentialIds() });
     const mark = { kind: 'variant', attrs: { group: 'g', reading: 'bc', place: 'margin' } };
     const tokens = s.items.filter((i) => i.kind === 'token');
     (tokens[1] as { marks?: unknown }).marks = [mark];
@@ -143,7 +146,7 @@ describe('units', () => {
   });
 
   it('keeps a gap as a unit of its own', () => {
-    const s = fromText('a c', { ids: sequentialIds() });
+    const s = fromText('a c', { lang: 'en', ids: sequentialIds() });
     s.items.splice(1, 0, {
       kind: 'object',
       id: 'g1',
@@ -156,7 +159,7 @@ describe('units', () => {
   });
 
   it('counts a word that a gap breaks with the gap, and reads nothing of it', () => {
-    const s = fromText('a bc d e', { ids: sequentialIds() });
+    const s = fromText('a bc d e', { lang: 'en', ids: sequentialIds() });
     const tokens = s.items.filter((i) => i.kind === 'token');
     const lost = { reason: 'lost', unit: 'character', quantity: 2 };
     (tokens[1] as { marks?: unknown }).marks = [{ kind: 'gap', from: 0, to: 0, attrs: lost }];
@@ -193,7 +196,7 @@ describe('lines', () => {
 
 describe('units: states by stage and by hand', () => {
   it('applies the corrections of the stages up to the one asked, and those of the hands named', () => {
-    const s = fromText('a b c d', { ids: sequentialIds() });
+    const s = fromText('a b c d', { lang: 'en', ids: sequentialIds() });
     // b added by hand h2 at stage 2; c deleted by the scribe (h1) at stage 1; d deleted by an unknown hand, no stage.
     (s.items[1] as { marks?: unknown }).marks = [{ kind: 'add', attrs: { hand: 'h2', seq: 2 } }];
     (s.items[2] as { marks?: unknown }).marks = [{ kind: 'del', attrs: { hand: 'h1', seq: 1 } }];

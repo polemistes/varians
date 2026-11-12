@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { defaultProfile } from '../normalize/profile.ts';
 import type { Unit } from '../stream/words.ts';
 import {
   additionIn,
@@ -11,14 +10,14 @@ import {
 } from './collate.ts';
 
 let counter = 0;
-function text(id: string, siglum: string, words: string): CollationText {
+function text(id: string, siglum: string, words: string, lang?: string): CollationText {
   const units: Unit[] = words
     .split(/\s+/u)
     .filter((w) => w.length > 0)
     .map((w) =>
       w === '[gap]'
         ? { text: '', tokenIds: [], gap: { kind: 'object', id: `g${++counter}`, type: 'gap' } }
-        : { text: w, tokenIds: [`${id}-${++counter}`] },
+        : { text: w, tokenIds: [`${id}-${++counter}`], ...(lang ? { lang } : {}) },
     );
   return { id, siglum, units };
 }
@@ -33,8 +32,6 @@ function summary(c: Collation): string[] {
       .join(' : '),
   );
 }
-
-const grc = defaultProfile('grc');
 
 describe('collate', () => {
   it('finds a single-word substitution', () => {
@@ -164,15 +161,19 @@ describe('collate', () => {
     expect(summary(c)).toEqual(['b ed : x A']);
   });
 
-  it('compares with the work’s fold', () => {
-    const c = collate(text('E', 'ed', 'σφῶε θεῶν'), [text('B', 'B', 'σφωε θεῶν')], {
-      fold: grc.fold,
-    });
+  it('compares each word by the fold of its own language', () => {
+    const c = collate(text('E', 'ed', 'σφῶε θεῶν', 'grc'), [text('B', 'B', 'σφωε θεῶν', 'grc')]);
     expect(summary(c)).toEqual(['σφῶε ed : σφωε B']);
-    const lax = collate(text('E', 'ed', 'σφῶε θεῶν'), [text('B', 'B', 'σφωε θεῶν')], {
-      fold: { ...grc.fold, stripDiacritics: true },
-    });
-    expect(lax.sites).toEqual([]);
+    // Latin reads v as u; the general rules, for a word without a language, do not.
+    const latin = collate(text('E', 'ed', 'uirum cano', 'la'), [
+      text('B', 'B', 'virum cano', 'la'),
+    ]);
+    expect(latin.sites).toEqual([]);
+    const none = collate(text('E', 'ed', 'uirum cano'), [text('B', 'B', 'virum cano')]);
+    expect(summary(none)).toEqual(['uirum ed : virum B']);
+    // Hebrew is compared without its points.
+    const hebrew = collate(text('E', 'ed', 'שָׁלוֹם', 'he'), [text('B', 'B', 'שלום', 'he')]);
+    expect(hebrew.sites).toEqual([]);
   });
 
   it('reports a whole-line omission as one site', () => {

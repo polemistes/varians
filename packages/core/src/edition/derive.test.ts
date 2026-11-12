@@ -6,7 +6,7 @@ import { deriveEdition, deriveTranscription } from './derive.ts';
 
 describe('deriveEdition', () => {
   it('prints read forms, keeps lines and segment starts, drops page breaks and marks', () => {
-    const s = fromText('ΜΗΝΙΝ ΑΕΙΔΕ\nΘΕΑ', { ids: sequentialIds('a') });
+    const s = fromText('ΜΗΝΙΝ ΑΕΙΔΕ\nΘΕΑ', { lang: 'grc', ids: sequentialIds('a') });
     (s.items[0] as Token).norm = 'μῆνιν';
     (s.items[0] as Token).segment = { segmentId: 's1' };
     (s.items[0] as Token).marks = [{ kind: 'unclear' }];
@@ -22,8 +22,15 @@ describe('deriveEdition', () => {
     ).toEqual(['line']);
   });
 
+  it('keeps the language of every word', () => {
+    const s = fromText('arma virumque', { lang: 'la', ids: sequentialIds('a') });
+    (s.items[1] as Token).lang = 'grc';
+    const e = deriveEdition(s, 'T', { ids: sequentialIds('e') });
+    expect(e.items.map((i) => (i as Token).lang)).toEqual(['la', 'grc']);
+  });
+
   it('keeps only the segments asked for', () => {
-    const s = fromText('a b\nc d\ne f', { ids: sequentialIds('a') });
+    const s = fromText('a b\nc d\ne f', { lang: 'en', ids: sequentialIds('a') });
     (s.items[0] as Token).segment = { segmentId: 's1' };
     (s.items[3] as Token).segment = { segmentId: 's2' };
     (s.items[6] as Token).segment = { segmentId: 's3' };
@@ -35,7 +42,7 @@ describe('deriveEdition', () => {
 describe('deriveEdition, divided words', () => {
   /** A witness text where a part marked with a trailing + joins the next token. */
   function witness(text: string): ReturnType<typeof fromText> {
-    const s = fromText(text, { ids: sequentialIds('a') });
+    const s = fromText(text, { lang: 'grc', ids: sequentialIds('a') });
     for (const item of s.items) {
       if (item.kind === 'token' && item.form.endsWith('+')) {
         item.form = item.form.slice(0, -1);
@@ -131,7 +138,7 @@ describe('deriveEdition, divided words', () => {
 
 describe('deriveTranscription', () => {
   it('copies everything with new ids and no sources', () => {
-    const s = fromText('a b', { ids: sequentialIds('a') });
+    const s = fromText('a b', { lang: 'en', ids: sequentialIds('a') });
     (s.items[0] as Token).source = { kind: 'editor' };
     (s.items[0] as Token).marks = [{ kind: 'unclear' }];
     const t = deriveTranscription(s, { ids: sequentialIds('n') });

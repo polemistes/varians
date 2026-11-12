@@ -126,7 +126,7 @@ describe.skipIf(!xmllint)('transcription TEI is valid', slow, () => {
   });
 
   it('with the signs of a papyrus: numbers, glyphs, rules, another language, quotations, symbols, what is said of a gap', () => {
-    const epidoc = `<TEI xmlns="http://www.tei-c.org/ns/1.0"><text><body><ab><lb n="1"/><num value="16">ιϛ</num> <num value="1/32" rend="tick">λβ</num> <foreign xml:lang="la">comes</foreign> <q>ὁ γὰρ</q> <g type="stauros"/> <unclear><g type="check"/></unclear> <g type="chirho">☧</g> <expan><ex>ἔτους</ex></expan> <expan>Καρ<ex cert="low">ανίδι</ex></expan> <milestone rend="paragraphos" unit="undefined"/> <lb n="2"/><gap reason="illegible" quantity="15" unit="line"><desc>vestiges</desc></gap> <add place="above">ὅλων<certainty match=".." locus="name"/></add> κα<gap reason="illegible" quantity="2" unit="character"><desc>vestiges</desc></gap>ς <hi rend="diaeresis">ἱ</hi>οῦ <handShift new="m2" cert="low"/>τοῦ <del rend="slashes">τῆς</del></ab></body></text></TEI>`;
+    const epidoc = `<TEI xmlns="http://www.tei-c.org/ns/1.0"><text xml:lang="grc"><body><ab><lb n="1"/><num value="16">ιϛ</num> <num value="1/32" rend="tick">λβ</num> <foreign xml:lang="la">comes</foreign> <q>ὁ γὰρ</q> <g type="stauros"/> <unclear><g type="check"/></unclear> <g type="chirho">☧</g> <expan><ex>ἔτους</ex></expan> <expan>Καρ<ex cert="low">ανίδι</ex></expan> <milestone rend="paragraphos" unit="undefined"/> <lb n="2"/><gap reason="illegible" quantity="15" unit="line"><desc>vestiges</desc></gap> <add place="above">ὅλων<certainty match=".." locus="name"/></add> κα<gap reason="illegible" quantity="2" unit="character"><desc>vestiges</desc></gap>ς <hi rend="diaeresis">ἱ</hi>οῦ <handShift new="m2" cert="low"/>τοῦ <del rend="slashes">τῆς</del></ab></body></text></TEI>`;
     const read = importTei(epidoc, { ids: sequentialIds() });
     expect(read.warnings).toEqual([]);
     for (const words of [true, false]) {
@@ -143,7 +143,6 @@ describe.skipIf(!xmllint)('transcription TEI is valid', slow, () => {
       const xml = transcription({
         stream: richStream(),
         title: 'Iliad',
-        language: 'grc',
         pages: richPages,
         zones: richZones,
         segmentLabels: richSegmentLabels,
@@ -494,7 +493,6 @@ describe.skipIf(!xmllint)('edition TEI is valid', slow, () => {
     );
     const xml = exportEditionTei({
       title: 't',
-      language: 'grc',
       witnesses: [{ siglum: 'A', name: 'Codex A', description: 'Iliad' }],
       ...text,
     });
@@ -544,7 +542,10 @@ describe.skipIf(!xmllint)('edition TEI is valid', slow, () => {
   });
 
   it('with a line break inside a lemma, over a divided word and between two words', () => {
-    const edition = fromText('the won der grows alpha beta gamma', { ids: sequentialIds('e') });
+    const edition = fromText('the won der grows alpha beta gamma', {
+      lang: 'en',
+      ids: sequentialIds('e'),
+    });
     (edition.items[1] as Token).joinNext = true;
     edition.items.splice(2, 0, { kind: 'break', id: 'b1', type: 'line' });
     edition.items.splice(6, 0, { kind: 'break', id: 'b2', type: 'line' });

@@ -71,6 +71,8 @@ export function deriveEdition(
     const token: Token = {
       kind: 'token',
       id: ids(),
+      // The word keeps its language in the edition.
+      ...(item.lang !== undefined ? { lang: item.lang } : {}),
       form: readForm(item),
       source: { kind: 'witness', transcriptionId, tokenIds: [item.id] },
     };

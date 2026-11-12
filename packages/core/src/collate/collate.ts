@@ -5,7 +5,8 @@
  * writing them, which the normalized forms have already evened out.
  *
  * Words are compared by their normalized forms as the editor typed them,
- * under the work's fold (case, punctuation): a different accent or
+ * each under the fold of its own language (case, punctuation, and what the
+ * language counts as one letter): a different accent or
  * breathing is a different word, but a grave counts as an acute. The
  * diplomatic forms play no part: whatever differs between a witness's
  * diplomatic and normalized text is normalization.
@@ -44,9 +45,9 @@
 import {
   agreementFold,
   archetypeLetters,
+  defaultFold,
   fold as foldText,
   type FoldOptions,
-  DEFAULT_FOLD,
 } from '../normalize/fold.ts';
 import type { Id } from '../stream/items.ts';
 import type { Unit } from '../stream/words.ts';
@@ -77,7 +78,6 @@ export interface CollationText {
 }
 
 export interface CollationOptions {
-  fold?: FoldOptions;
   /** Similarity of diacritic-stripped fold keys at or above which two words are a near match. */
   nearThreshold?: number;
   /** Anchor columns between two transposed sites at or below which the sites are merged into one. */
@@ -254,20 +254,35 @@ interface Aligned {
   outside?: boolean;
 }
 
+/** The folds of the languages met, made once each. */
+const folds = new Map<string, FoldOptions>();
+
+/** The fold a word is compared by: that of its own language, the general one where it has none. */
+export function unitFold(lang: string | undefined): FoldOptions {
+  const key = lang ?? '';
+  let options = folds.get(key);
+  if (!options) {
+    options = defaultFold(key);
+    folds.set(key, options);
+  }
+  return options;
+}
+
 export function collate(
   base: CollationText,
   witnesses: CollationText[],
   options: CollationOptions = {},
 ): Collation {
-  const fold = options.fold ?? DEFAULT_FOLD;
   const near = options.nearThreshold ?? 0.6;
   const reach = options.transpositionReach ?? TRANSPOSITION_REACH;
   const farReach = options.farReach ?? FAR_REACH;
   // Words are placed by their letters, so that ἦ stands against ἤ; whether they agree is decided by their accents too.
   const bareOf = (text: CollationText) =>
-    text.units.map((u) => (u.gap ? '' : foldText(u.text, { ...fold, stripDiacritics: true })));
+    text.units.map((u) =>
+      u.gap ? '' : foldText(u.text, { ...unitFold(u.lang), stripDiacritics: true }),
+    );
   const keysOf = (text: CollationText) =>
-    text.units.map((u) => (u.gap ? '' : agreementFold(u.text, fold)));
+    text.units.map((u) => (u.gap ? '' : agreementFold(u.text, unitFold(u.lang))));
   const baseBare = bareOf(base);
   const baseKeys = keysOf(base);
   const n = base.units.length;

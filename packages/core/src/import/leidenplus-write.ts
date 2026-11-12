@@ -4,17 +4,25 @@
  * Everything Leiden+ has a way of saying is written that way: the lines
  * with their numbers, the pages and columns as divisions, gaps, vacats,
  * unclear letters, the scribe's deletions and additions, abbreviations,
- * numbers, glyphs, hands, and a normalized form that differs from the
- * written one as a regularization. What it has no way of saying (the
+ * numbers, glyphs, hands, a normalized form that differs from the written
+ * one as a regularization, and the language: the head names the language
+ * most of the words have, and a run of words in another is written
+ * `~|…|~la`. What it has no way of saying (the
  * segments of a work, boxes on an image, a variant noted in the margin) is
  * left out: Leiden+ is a way out of Varians for a text, not a copy of it.
  */
 
 import type { Break, Id, Item, Mark, Obj, Stream, Token } from '../stream/items.ts';
+import { languagesOf } from '../stream/languages.ts';
+
+/**
+ * The language Leiden+ names at the head of a text whose words have none:
+ * the notation requires one, and BCP 47 calls this one undetermined. The
+ * reader gives the words of such a text no language.
+ */
+export const UNDETERMINED_LANGUAGE = 'und';
 
 export interface LeidenPlusWriteOptions {
-  /** The language of the text, as Leiden+ names it at its head: grc, la, cop. Default grc. */
-  language?: string;
   /** The labels of the witness's pages by id, for the divisions. */
   pageLabels?: Readonly<Record<Id, string>>;
 }
@@ -163,8 +171,6 @@ function brackets(mark: Mark, letters: number): [string, string] | null {
         value = `${attrs.atLeast}-${attrs.atMost ?? '?'}`;
       return ['<#', `${tick}=${value}#>`];
     }
-    case 'foreign':
-      return ['~|', `|~${typeof attrs?.lang === 'string' ? attrs.lang : 'la'} `];
     case 'q':
       return ['"', '"'];
     case 'orig':
@@ -365,8 +371,11 @@ function divisionName(label: string): string {
 
 /** A stream as Leiden+. */
 export function toLeidenPlus(stream: Stream, options: LeidenPlusWriteOptions = {}): string {
-  const out: string[] = [`<S=.${options.language ?? 'grc'}`];
   const items = stream.items;
+  const head = languagesOf(items)[0];
+  const out: string[] = [`<S=.${head ?? UNDETERMINED_LANGUAGE}`];
+  /** The language of the run of words in another language than the head being written, if one is open. */
+  let foreign: string | null = null;
   /** Divisions open: a page, and a column within it. */
   let page = false;
   let column = false;
@@ -393,7 +402,14 @@ export function toLeidenPlus(stream: Stream, options: LeidenPlusWriteOptions = {
     block = true;
     numbered = false;
   };
+  const closeForeign = (): void => {
+    if (foreign === null) return;
+    // The reader takes a space after the language as part of the close, so one is written.
+    line += `|~${foreign} `;
+    foreign = null;
+  };
   const closeBlock = (): void => {
+    closeForeign();
     flushLine();
     if (block) out.push('=>');
     block = false;
@@ -431,6 +447,7 @@ export function toLeidenPlus(stream: Stream, options: LeidenPlusWriteOptions = {
   let skip = -1;
   items.forEach((item: Item, index) => {
     if (index === skip) return;
+    if (item.kind !== 'token') closeForeign();
     if (item.kind === 'break') {
       const previous = items[index - 1];
       runsOn = previous?.kind === 'token' && previous.joinNext === true;
@@ -463,19 +480,28 @@ export function toLeidenPlus(stream: Stream, options: LeidenPlusWriteOptions = {
       return;
     }
     if (item.kind === 'token') {
+      // A word in another language than the head's opens a run of that language, or goes on in it.
+      const lang = item.lang !== undefined && item.lang !== head ? item.lang : null;
+      if (lang !== foreign) closeForeign();
+      const opens = lang !== null && foreign === null ? '~|' : '';
+      foreign = lang;
       // The scribe's correction of a word: what was added, then what it replaced.
       const next = items[index + 1];
+      // `~|` before a mark that opens with `|` would read as another sign (`~||`): a space parts them.
+      const opening = (text: string): string =>
+        opens === '' ? text : `${opens}${text.startsWith('|') ? ' ' : ''}${text}`;
       if (sideOfCorrection(item, 'add') && sideOfCorrection(next, 'del')) {
-        write(`<:${side(item)}|subst|${side(next)}:>`);
+        write(opening(`<:${side(item)}|subst|${side(next)}:>`));
         skip = index + 1;
         return;
       }
-      write(word(item));
+      write(opening(word(item)));
       if (item.joinNext) glue = true;
       return;
     }
     write(object(item));
   });
+  closeForeign();
   closeDivisions(true);
   return `${out.filter((piece, k) => piece !== '' || k === 0).join('\n')}\n`;
 }

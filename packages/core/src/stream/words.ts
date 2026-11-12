@@ -310,6 +310,8 @@ export function brokenByGap(tokens: readonly Token[]): Obj | undefined {
 export interface Unit {
   /** The normalized form. */
   text: string;
+  /** The language of the word, by which it is folded; absent for a gap and for a word without one. */
+  lang?: string;
   /** Ids of the tokens the unit was read from (all tokens of its word, in whatever segments they stand). */
   tokenIds: Id[];
   /** The gap object this unit stands for, when it is a gap. */
@@ -414,7 +416,7 @@ export function units(
         const parts = (typeof reading === 'string' ? reading : '')
           .split(/\s+/u)
           .filter((p) => p.length > 0);
-        for (const part of parts) out.push({ text: part, tokenIds });
+        for (const part of parts) out.push(unitOf(part, tokenIds, marked!.lang));
         if (parts.length > 0) lastAt = begin;
         continue;
       }
@@ -432,10 +434,14 @@ export function units(
     const tokenIds = word.tokens.map((t) => t.id);
     const parts = word.norm.split(/\s+/u).filter((p) => p.length > 0);
     if (parts.length === 0) continue;
-    for (const part of parts) out.push({ text: part, tokenIds });
+    for (const part of parts) out.push(unitOf(part, tokenIds, word.tokens[0]!.lang));
     lastAt = begin;
   }
   return out;
+}
+
+function unitOf(text: string, tokenIds: Id[], lang: string | undefined): Unit {
+  return lang === undefined ? { text, tokenIds } : { text, lang, tokenIds };
 }
 
 /** The collation units of one segment, every run in content order. A word that begins in it and runs on into the next is read whole here and not again there. */

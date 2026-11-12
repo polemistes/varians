@@ -11,13 +11,13 @@ import { collatedLines, passageText, type CollatedLines } from './fixtures.ts';
 const M = (label: string) => `<milestone unit="segment" n="${label}"/>`;
 
 function text(id: string, siglum: string, words: string): CollationText {
-  const s = fromText(words, { ids: sequentialIds(id) });
+  const s = fromText(words, { lang: 'grc', ids: sequentialIds(id) });
   return { id, siglum, units: units(s, 0, s.items.length) };
 }
 
 describe('exportEditionTei', () => {
   it('writes the text with app, lem and rdg for substitution, omission, addition and lacuna', () => {
-    const edition = fromText('the quick brown fox\njumps', { ids: sequentialIds('e') });
+    const edition = fromText('the quick brown fox\njumps', { lang: 'en', ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
     const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [
       text('A', 'A', 'the quick brown fox jumps'),
@@ -27,7 +27,6 @@ describe('exportEditionTei', () => {
     const xml = exportEditionTei({
       title: 'Test edition',
       editors: ['Someone'],
-      language: 'en',
       baseSiglum: 'ed.',
       witnesses: [
         { siglum: 'A', name: 'Codex A' },
@@ -69,7 +68,7 @@ describe('exportEditionTei', () => {
   });
 
   it('writes a word that a line break divides with the break inside it, said not to end the word, and a paragraph break typed by its kind', () => {
-    const edition = fromText('ἀνα στασις δε μῦθος', { ids: sequentialIds('e') });
+    const edition = fromText('ἀνα στασις δε μῦθος', { lang: 'grc', ids: sequentialIds('e') });
     (edition.items[0] as Token).joinNext = true;
     edition.items.splice(1, 0, { kind: 'break', id: 'b1', type: 'line' });
     // A paragraph, and one marked as prose; one of the edition's own kind.
@@ -88,7 +87,7 @@ describe('exportEditionTei', () => {
   });
 
   it('writes a lemma over a word that a line break divides with the break inside it, as text outside a variant is written', () => {
-    const edition = fromText('the won der grows', { ids: sequentialIds('e') });
+    const edition = fromText('the won der grows', { lang: 'en', ids: sequentialIds('e') });
     (edition.items[1] as Token).joinNext = true;
     edition.items.splice(2, 0, { kind: 'break', id: 'b1', type: 'line' });
     const baseUnits = units(edition, 0, edition.items.length);
@@ -108,7 +107,7 @@ describe('exportEditionTei', () => {
   });
 
   it('writes a lemma of two words with a line break between them with the break inside it', () => {
-    const edition = fromText('alpha beta gamma', { ids: sequentialIds('e') });
+    const edition = fromText('alpha beta gamma', { lang: 'en', ids: sequentialIds('e') });
     edition.items.splice(1, 0, { kind: 'break', id: 'b1', type: 'line' });
     const baseUnits = units(edition, 0, edition.items.length);
     const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [
@@ -127,7 +126,7 @@ describe('exportEditionTei', () => {
   });
 
   it('writes words joined without a break between them as one', () => {
-    const edition = fromText('ἀνα στασις δε', { ids: sequentialIds('e') });
+    const edition = fromText('ἀνα στασις δε', { lang: 'grc', ids: sequentialIds('e') });
     (edition.items[0] as Token).joinNext = true;
     const baseUnits = units(edition, 0, edition.items.length);
     const xml = exportEditionTei({
@@ -140,9 +139,9 @@ describe('exportEditionTei', () => {
   });
 
   it('marks an adopted conjecture on the lemma and names a witness that has lost the words nowhere', () => {
-    const edition = fromText('a b c', { ids: sequentialIds('e') });
+    const edition = fromText('a b c', { lang: 'en', ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
-    const lacunose = fromText('a c', { ids: sequentialIds('p') });
+    const lacunose = fromText('a c', { lang: 'en', ids: sequentialIds('p') });
     lacunose.items.splice(1, 0, {
       kind: 'object',
       id: 'g',
@@ -181,7 +180,7 @@ describe('exportEditionTei', () => {
   });
 
   it('names the witness of a reported reading as a witness, listing one that the conspectus does not have, and points at the source stated', () => {
-    const edition = fromText('a b c', { ids: sequentialIds('e') });
+    const edition = fromText('a b c', { lang: 'en', ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
     const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [text('A', 'A', 'a x c')]);
     const xml = exportEditionTei({
@@ -209,7 +208,7 @@ describe('exportEditionTei', () => {
   });
 
   it('points a conjecture of the edition itself at its editors, a conjecture with an address at its record, and two scholars whose names make one name at two', () => {
-    const edition = fromText('a b c', { ids: sequentialIds('e') });
+    const edition = fromText('a b c', { lang: 'en', ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
     const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [text('A', 'A', 'a x c')]);
     const input = {
@@ -264,7 +263,7 @@ describe('exportEditionTei', () => {
   });
 
   it('types the places of the same letters read otherwise as interpretative', () => {
-    const edition = fromText('ἦ μέγα', { ids: sequentialIds('e') });
+    const edition = fromText('ἦ μέγα', { lang: 'grc', ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
     const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [text('A', 'A', 'ἢ μέγα')]);
     const xml = exportEditionTei({
@@ -277,7 +276,7 @@ describe('exportEditionTei', () => {
   });
 
   it('writes a place the editor judges minor with its kind, the grade as a subtype of it', () => {
-    const edition = fromText('red fox runs', { ids: sequentialIds('e') });
+    const edition = fromText('red fox runs', { lang: 'en', ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
     const c = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [
       text('A', 'A', 'red dog runs'),
@@ -308,7 +307,7 @@ describe('exportEditionTei', () => {
   });
 
   it('writes speakers, headings and marginal notes as typed labels, leaves out variants noted in a carrier, and has no empty witness list', () => {
-    const edition = fromText('a b', { ids: sequentialIds('e') });
+    const edition = fromText('a b', { lang: 'en', ids: sequentialIds('e') });
     edition.items.unshift(
       { kind: 'object', id: 's', type: 'paratext', attrs: { type: 'speaker' }, text: 'ΧΟ.' },
       { kind: 'object', id: 'h', type: 'paratext', attrs: { type: 'head' }, text: 'Α' },
@@ -374,7 +373,7 @@ describe('the text of an edition in TEI, its segments begun by milestones', () =
   });
 
   it('begins each segment on a line of the file, with its id and URN where it first begins', () => {
-    const edition = fromText('alpha beta gamma', { ids: sequentialIds('e') });
+    const edition = fromText('alpha beta gamma', { lang: 'en', ids: sequentialIds('e') });
     const [a, b, c] = edition.items as Token[];
     const xml = exportEditionTei({
       title: 't',

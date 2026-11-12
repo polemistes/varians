@@ -2,19 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { collate, type CollationText } from '../collate/collate.ts';
 import { sequentialIds } from '../ids.ts';
 import { applyOps } from '../stream/ops.ts';
-import type { Stream } from '../stream/items.ts';
+import type { Stream, Token } from '../stream/items.ts';
 import { fromText, toText } from '../stream/text.ts';
 import { units, type Unit } from '../stream/words.ts';
 import { adoptConjecture, adoptReading, replaceAtSite } from './adopt.ts';
 
 function witness(id: string, siglum: string, text: string): CollationText {
-  const stream = fromText(text, { ids: sequentialIds(id) });
+  const stream = fromText(text, { lang: 'grc', ids: sequentialIds(id) });
   return { id, siglum, units: units(stream, 0, stream.items.length) };
 }
 
 describe('adopting', () => {
   it('replaces the edition’s words by a witness’s reading, with provenance', () => {
-    const edition = fromText('the quick brown fox', { ids: sequentialIds('e') });
+    const edition = fromText('the quick brown fox', { lang: 'en', ids: sequentialIds('e') });
     (edition.items[0] as { segment?: unknown }).segment = { segmentId: 's1' };
     const baseUnits: Unit[] = units(edition, 0, edition.items.length);
     const b = witness('B', 'B', 'the slow fox');
@@ -32,10 +32,10 @@ describe('adopting', () => {
   });
 
   it('adopts a variant noted in a witness with the transcription as its source', () => {
-    const edition = fromText('the quick brown fox', { ids: sequentialIds('e') });
+    const edition = fromText('the quick brown fox', { lang: 'en', ids: sequentialIds('e') });
     (edition.items[0] as { segment?: unknown }).segment = { segmentId: 's1' };
     const baseUnits: Unit[] = units(edition, 0, edition.items.length);
-    const stream = fromText('the quick brown fox', { ids: sequentialIds('B') });
+    const stream = fromText('the quick brown fox', { lang: 'en', ids: sequentialIds('B') });
     for (const index of [1, 2])
       (stream.items[index] as { marks?: unknown }).marks = [
         { kind: 'variant', attrs: { group: 'g', reading: 'swift', place: 'margin' } },
@@ -60,7 +60,7 @@ describe('adopting', () => {
   });
 
   it('adopts an omission by removing the words and keeps the segment start', () => {
-    const edition = fromText('the quick fox', { ids: sequentialIds('e') });
+    const edition = fromText('the quick fox', { lang: 'en', ids: sequentialIds('e') });
     (edition.items[0] as { segment?: unknown }).segment = { segmentId: 's1' };
     const baseUnits = units(edition, 0, edition.items.length);
     const b = witness('B', 'B', 'quick fox');
@@ -73,7 +73,7 @@ describe('adopting', () => {
   });
 
   it('adopts the omission of a whole segment without taking the next segment', () => {
-    const edition = fromText('the quick fox\njumps over', { ids: sequentialIds('e') });
+    const edition = fromText('the quick fox\njumps over', { lang: 'en', ids: sequentialIds('e') });
     (edition.items[0] as { segment?: unknown }).segment = { segmentId: 's1' };
     (edition.items[4] as { segment?: unknown }).segment = { segmentId: 's2' };
     const baseUnits = units(edition, 0, 3);
@@ -101,7 +101,8 @@ describe('adopting', () => {
       const omission = site.readings.find((r) => r.omission)!;
       return applyOps(edition, adoptReading(edition, site, baseUnits, omission, 'B')).stream;
     }
-    const lines = () => fromText('one two\nthree four\nfive', { ids: sequentialIds('e') });
+    const lines = () =>
+      fromText('one two\nthree four\nfive', { lang: 'en', ids: sequentialIds('e') });
     // one(0) two(1) /(2) three(3) four(4) /(5) five(6)
 
     it('takes its line break with it, from the middle, the start and the end of the text', () => {
@@ -111,7 +112,9 @@ describe('adopting', () => {
     });
 
     it('leaves nothing of a text that is that one line', () => {
-      expect(toText(absent(fromText('one two', { ids: sequentialIds('e') }), [0], 0, 2))).toBe('');
+      expect(
+        toText(absent(fromText('one two', { lang: 'en', ids: sequentialIds('e') }), [0], 0, 2)),
+      ).toBe('');
     });
 
     it('takes a line at the end of a page and one at the start of the next, as the page breaks stand', () => {
@@ -132,7 +135,7 @@ describe('adopting', () => {
     });
 
     it('leaves the line breaks where other words stand on the line', () => {
-      const shared = () => fromText('one two three\nfour', { ids: sequentialIds('e') });
+      const shared = () => fromText('one two three\nfour', { lang: 'en', ids: sequentialIds('e') });
       // one(0) two(1) three(2) /(3) four(4), where s2 is the last word of the first line.
       expect(toText(absent(shared(), [0, 2, 4], 2, 3))).toBe('one two\nfour');
       expect(toText(absent(shared(), [0, 2, 4], 0, 2))).toBe('three\nfour');
@@ -156,7 +159,7 @@ describe('adopting', () => {
   });
 
   it('adopts an addition by inserting after the preceding word', () => {
-    const edition = fromText('the quick fox', { ids: sequentialIds('e') });
+    const edition = fromText('the quick fox', { lang: 'en', ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
     const c = witness('C', 'C', 'the quick brown fox');
     const col = collate({ id: 'E', siglum: 'ed', units: baseUnits }, [c]);
@@ -170,7 +173,7 @@ describe('adopting', () => {
   });
 
   it('adopts a conjecture, a supplement and a lacuna', () => {
-    const edition = fromText('οἰωνοῖσί τε πᾶσι Διὸς', { ids: sequentialIds('e') });
+    const edition = fromText('οἰωνοῖσί τε πᾶσι Διὸς', { lang: 'grc', ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
     const a = witness('A', 'A', 'οἰωνοῖσί τε πάντα Διὸς');
     const c = collate({ id: 'E', siglum: 'ed', units: baseUnits }, [a]);
@@ -215,8 +218,38 @@ describe('adopting', () => {
     expect(lac.stream.items[2]).toMatchObject({ kind: 'object', type: 'lacuna' });
   });
 
+  it('gives adopted words the language the witness gives them, and a conjecture’s the language of the place', () => {
+    const edition = fromText('arma virumque cano', { lang: 'la', ids: sequentialIds('e') });
+    const baseUnits = units(edition, 0, edition.items.length);
+    const greek = fromText('arma ἄνδρα cano', { lang: 'grc', ids: sequentialIds('G') });
+    const g: CollationText = { id: 'G', siglum: 'G', units: units(greek, 0, greek.items.length) };
+    const c = collate({ id: 'E', siglum: 'ed', units: baseUnits }, [g]);
+    const site = c.sites[0]!;
+    const reading = site.readings.find((r) => r.textIds.includes('G'))!;
+    const adopted = applyOps(
+      edition,
+      adoptReading(edition, site, baseUnits, reading, 'G', { ids: sequentialIds('n') }),
+    ).stream;
+    expect(adopted.items.map((i) => (i.kind === 'token' ? `${i.form}:${i.lang}` : ''))).toEqual([
+      'arma:la',
+      'ἄνδρα:grc',
+      'cano:la',
+    ]);
+    const conjectured = applyOps(
+      edition,
+      adoptConjecture(
+        edition,
+        site,
+        baseUnits,
+        { id: 'c1', reading: 'virum', kind: 'substitution' },
+        { ids: sequentialIds('n') },
+      ),
+    ).stream;
+    expect((conjectured.items[1] as Token).lang).toBe('la');
+  });
+
   it('replaces a discontinuous site piecewise', () => {
-    const edition = fromText('a b c d', { ids: sequentialIds('e') });
+    const edition = fromText('a b c d', { lang: 'en', ids: sequentialIds('e') });
     const baseUnits = units(edition, 0, edition.items.length);
     const site = {
       index: 0,

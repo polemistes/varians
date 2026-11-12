@@ -21,6 +21,7 @@ import {
   type Token,
 } from '../stream/items.ts';
 import type { Unit } from '../stream/words.ts';
+import { languagesOf } from '../stream/languages.ts';
 import {
   encodingDesc,
   markupToken,
@@ -87,7 +88,6 @@ export interface EditionBibliography {
 export interface EditionExport {
   title: string;
   editors?: string[];
-  language?: string;
   preface?: string;
   /** The base's siglum as collate used it, so that it is left out of `wit`. */
   baseSiglum?: string;
@@ -125,6 +125,8 @@ interface WitnessRefs {
   witId: (siglum: string) => string;
   /** Whether words are written as `<w>` with their provenance. */
   words: boolean;
+  /** The language of `<text>`: a word in another one says its own. */
+  textLang: string | undefined;
   /** ` resp="#…"` for who proposed a conjecture: the scholar's entry, or the edition's editors for one of its own; nothing where none is named. */
   resp: (name: string) => string;
   /** ` source="…"` for a record: the record itself where it has an address in the file, and the entry of the source stated for it. */
@@ -227,7 +229,8 @@ function witnessRefs(
 
 /** A complete TEI document of the edition. */
 export function exportEditionTei(input: EditionExport): string {
-  const lang = input.language ? ` xml:lang="${escapeAttr(input.language)}"` : '';
+  const languages = languagesOf(input.runs.flatMap((run) => run.items));
+  const lang = languages[0] ? ` xml:lang="${escapeAttr(languages[0])}"` : '';
   const out: string[] = [];
   out.push('<?xml version="1.0" encoding="UTF-8"?>');
   out.push('<TEI xmlns="http://www.tei-c.org/ns/1.0">');
@@ -257,6 +260,7 @@ export function exportEditionTei(input: EditionExport): string {
   const refs: WitnessRefs = {
     ...witnessRefs(witnesses, input.baseSiglum ?? 'ed.'),
     words: input.words ?? false,
+    textLang: languages[0],
     resp(name) {
       const to =
         name === EDITION_ITSELF
@@ -317,9 +321,9 @@ export function exportEditionTei(input: EditionExport): string {
   out.push('      </sourceDesc>');
   out.push('    </fileDesc>');
   out.push(`    ${encodingDesc(input.origin, { apparatus: true })}`);
-  if (input.language)
+  if (languages.length > 0)
     out.push(
-      `    <profileDesc><langUsage><language ident="${escapeAttr(input.language)}"/></langUsage></profileDesc>`,
+      `    <profileDesc><langUsage>${languages.map((l) => `<language ident="${escapeAttr(l)}"/>`).join('')}</langUsage></profileDesc>`,
     );
   out.push('  </teiHeader>');
   out.push(`  <text${lang}>`);
@@ -346,17 +350,22 @@ export function exportEditionTei(input: EditionExport): string {
 function tokenXml(token: Token, refs: WitnessRefs, part?: 'I' | 'M' | 'F'): string {
   const inner = markupToken(
     token.form,
-    (token.marks ?? []).filter((m) => m.kind !== 'variant'),
+    (token.marks ?? []).filter((m) => m.kind !== 'variant' && m.kind !== 'foreign'),
   );
-  if (!refs.words) return inner;
+  const lang =
+    token.lang !== undefined && token.lang !== refs.textLang
+      ? ` xml:lang="${escapeAttr(token.lang)}"`
+      : '';
+  const fragment = part ? ` part="${part}"` : '';
+  // Without word elements, a word in another language than the text is still a <w>, to say so.
+  if (!refs.words) return lang === '' ? inner : `<w${fragment}${lang}>${inner}</w>`;
   const source = token.source;
   let provenance = '';
   if (source?.kind === 'witness' && source.tokenIds.length)
     provenance = ` corresp="${source.tokenIds.map((id) => `tok:${escapeAttr(id)}`).join(' ')}"`;
   else if (source?.kind === 'conjecture')
     provenance = ` source="conj:${escapeAttr(source.conjectureId)}"`;
-  const fragment = part ? ` part="${part}"` : '';
-  return `<w xml:id="${ncName(token.id, 'w-')}"${fragment}${provenance}>${inner}</w>`;
+  return `<w xml:id="${ncName(token.id, 'w-')}"${fragment}${provenance}${lang}>${inner}</w>`;
 }
 
 function objectXml(item: Obj): string {

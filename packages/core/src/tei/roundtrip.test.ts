@@ -25,6 +25,7 @@ function essence(items: Item[]): unknown[] {
   return items.map((item) => {
     if (isToken(item)) {
       const out: Record<string, unknown> = { form: item.form };
+      if (item.lang !== undefined) out.lang = item.lang;
       if (item.norm !== undefined) out.norm = item.norm;
       if (item.joinNext) out.joinNext = true;
       const marks = sortedMarks(item.marks);
@@ -58,7 +59,6 @@ describe('TEI round trip', () => {
     const xml = exportTranscriptionTei({
       stream: original,
       title: 'Iliad',
-      language: 'grc',
       pages,
       zones,
       segmentLabels,

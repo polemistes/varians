@@ -22,6 +22,7 @@
 
 import { importTei, type TeiImport, type TeiImportOptions } from '../tei/import.ts';
 import { escapeAttr, escapeText } from '../tei/xml.ts';
+import { UNDETERMINED_LANGUAGE } from './leidenplus-write.ts';
 
 export interface LeidenPlusXml {
   /** A `<div type="edition">` holding the text as EpiDoc. */
@@ -102,7 +103,8 @@ class Reader {
 
   document(): string {
     const head = this.match(/\s*<S=\.([A-Za-z-]+)/y);
-    const lang = head?.[1];
+    // A head that names the language undetermined gives the words none.
+    const lang = head?.[1] === UNDETERMINED_LANGUAGE ? undefined : head?.[1];
     let body = this.blocks();
     this.skipSpace();
     if (this.i < this.s.length) {

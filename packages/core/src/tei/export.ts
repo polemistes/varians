@@ -8,6 +8,7 @@
 import { rotatedCorners, type ZoneGeometry } from '../image/zones.ts';
 import type { Break, Item, Mark, Obj, Stream, Token } from '../stream/items.ts';
 import { variantGroup, variantMark } from '../stream/words.ts';
+import { languagesOf } from '../stream/languages.ts';
 import {
   attrsXml,
   elementXml,
@@ -66,7 +67,6 @@ export interface ExportZone {
 export interface TranscriptionExport {
   stream: Stream;
   title: string;
-  language?: string;
   witness?: ExportWitness;
   pages?: ExportPage[];
   zones?: ExportZone[];
@@ -195,18 +195,19 @@ const SEG_KINDS = new Set(['crux', 'note']);
  * starts are milestones, marks are their elements, objects their elements.
  */
 export function exportTranscriptionTei(input: TranscriptionExport): string {
+  const languages = languagesOf(input.stream.items);
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     `<TEI xmlns="${TEI_NS}">`,
-    ...header(input),
+    ...header(input, languages),
   ];
   if (input.pages && input.pages.length > 0)
     lines.push(...facsimile(input.pages, input.zones ?? []));
-  const lang = input.language === undefined ? '' : ` xml:lang="${escapeAttr(input.language)}"`;
+  const lang = languages[0] === undefined ? '' : ` xml:lang="${escapeAttr(languages[0])}"`;
   lines.push(
     `  <text${lang}>`,
     '    <body>',
-    body(input),
+    body(input, languages[0]),
     '    </body>',
     '  </text>',
     '</TEI>',
@@ -219,7 +220,7 @@ function indent(level: number, ...content: string[]): string[] {
   return content.map((line) => `${'  '.repeat(level)}${line}`);
 }
 
-function header(input: TranscriptionExport): string[] {
+function header(input: TranscriptionExport, languages: readonly string[]): string[] {
   const lines = indent(1, '<teiHeader>');
   lines.push(...indent(2, '<fileDesc>'));
   lines.push(
@@ -246,9 +247,10 @@ function header(input: TranscriptionExport): string[] {
   lines.push(...indent(3, '</sourceDesc>'));
   lines.push(...indent(2, '</fileDesc>'));
   lines.push(...indent(2, encodingDesc(input.origin)));
-  if (input.language !== undefined) {
+  if (languages.length > 0) {
     lines.push(...indent(2, '<profileDesc>'), ...indent(3, '<langUsage>'));
-    lines.push(...indent(4, elementXml('language', { ident: input.language }, input.language)));
+    for (const language of languages)
+      lines.push(...indent(4, elementXml('language', { ident: language }, language)));
     lines.push(...indent(3, '</langUsage>'), ...indent(2, '</profileDesc>'));
   }
   lines.push(...indent(1, '</teiHeader>'));
@@ -410,7 +412,8 @@ function zoneAttrs(geometry: ZoneGeometry, page: ExportPage): string {
   return '';
 }
 
-function body(input: TranscriptionExport): string {
+/** The body; `textLang` is the language of `<text>`, which a word in another one says it is not in. */
+function body(input: TranscriptionExport, textLang: string | undefined): string {
   const write: MarkWriteOptions = { handRef: handRefFor(input.witness?.hands) };
   const items = input.stream.items;
   const words = input.words ?? false;
@@ -455,7 +458,15 @@ function body(input: TranscriptionExport): string {
       // A word in several tokens says of each which part of the word it is.
       const part = open ? (item.joinNext ? 'M' : 'F') : item.joinNext ? 'I' : undefined;
       out += separator + (variant.opens ? '<app><lem>' : '');
-      out += tokenXml(item, words, regularizations, zonesByToken.get(item.id) ?? [], write, part);
+      out += tokenXml(
+        item,
+        words,
+        regularizations,
+        zonesByToken.get(item.id) ?? [],
+        write,
+        part,
+        item.lang !== textLang ? item.lang : undefined,
+      );
       if (variant.closes) out += `</lem>${readingXml(variant.closes, write)}</app>`;
       separator = item.joinNext ? '' : ' ';
       open = item.joinNext === true;
@@ -547,10 +558,12 @@ function tokenXml(
   zones: string[],
   options: MarkWriteOptions = {},
   part?: 'I' | 'M' | 'F',
+  lang?: string,
 ): string {
   // A variant noted in the carrier is written around the words as an <app>, not as an element of the token.
-  const all = (token.marks ?? []).filter((m) => m.kind !== 'variant');
-  // TEI has no number or foreign phrase inside a <w>: over a whole word they stand around it.
+  // A stretch in another language is no mark but words of their own language, said on the <w>.
+  const all = (token.marks ?? []).filter((m) => m.kind !== 'variant' && m.kind !== 'foreign');
+  // TEI has no number inside a <w>: over a whole word it stands around it.
   const around = words
     ? all.filter((m) => AROUND_WORD.has(m.kind) && m.from === undefined && m.to === undefined)
     : [];
@@ -559,15 +572,17 @@ function tokenXml(
   if (regularizations && token.norm !== undefined && token.norm !== token.form) {
     inner = `<choice><orig>${inner}</orig><reg>${escapeText(token.norm)}</reg></choice>`;
   }
-  if (!words) return inner;
-  const facs = zones.length > 0 ? ` facs="${zones.map((z) => `#${z}`).join(' ')}"` : '';
+  const language = lang === undefined ? '' : ` xml:lang="${escapeAttr(lang)}"`;
   const fragment = part ? ` part="${part}"` : '';
-  const word = `<w xml:id="${ncName(token.id, 'w-')}"${fragment}${facs}>${inner}</w>`;
+  // Without word elements, a word in another language than the text is still a <w>, to say so.
+  if (!words) return lang === undefined ? inner : `<w${fragment}${language}>${inner}</w>`;
+  const facs = zones.length > 0 ? ` facs="${zones.map((z) => `#${z}`).join(' ')}"` : '';
+  const word = `<w xml:id="${ncName(token.id, 'w-')}"${fragment}${facs}${language}>${inner}</w>`;
   return around.reduceRight((xml, mark) => openTag(mark, options) + xml + closeTag(mark), word);
 }
 
 /** Marks whose TEI elements may not stand inside a `<w>`. */
-const AROUND_WORD = new Set(['num', 'foreign']);
+const AROUND_WORD = new Set(['num']);
 
 interface RangeMark {
   mark: Mark;
@@ -584,7 +599,7 @@ interface RangeMark {
 /** How marks are written: `handRef` turns a mark's `hand` into the value of the attribute, or drops it. */
 export interface MarkWriteOptions {
   handRef?: (value: string) => string | undefined;
-  /** The marks are written inside a `<w>`, where a number or a foreign phrase over part of the word can only be a `<seg>`. */
+  /** The marks are written inside a `<w>`, where a number over part of the word can only be a `<seg>`. */
   inWord?: boolean;
 }
 

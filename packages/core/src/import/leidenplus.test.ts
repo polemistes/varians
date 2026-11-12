@@ -471,8 +471,18 @@ describe('Leiden+ read into a transcript', () => {
     );
     expect(result.warnings).toEqual([]);
     expect(brief(result.stream.items)).toBe(
-      'ἔτους<abbr> ιϛ<num> {mark:stauros} στρατηγ<abbr> comes<handShift,foreign> {space} {mark:paragraphos} [illegible:2] α',
+      'ἔτους<abbr> ιϛ<num> {mark:stauros} στρατηγ<abbr> comes<handShift> {space} {mark:paragraphos} [illegible:2] α',
     );
+    // The language of the head is the words', and a stretch in another language is its words' own.
+    const tokens = result.stream.items.filter((item) => item.kind === 'token');
+    expect(tokens.map((t) => t.lang)).toEqual(['grc', 'grc', 'grc', 'la', 'grc']);
+  });
+
+  it('gives the words of a text whose head names its language undetermined no language', () => {
+    const result = importLeidenPlus('<S=.und<=1. αειδε ~|arma|~la=>', { ids: sequentialIds() });
+    expect(result.warnings).toEqual([]);
+    const tokens = result.stream.items.filter((item) => item.kind === 'token');
+    expect(tokens.map((t) => t.lang)).toEqual([undefined, 'la']);
   });
 });
 
@@ -508,7 +518,7 @@ describe('a transcript written as Leiden+', () => {
       '<S=.grc<=',
       '1. ((ἔτους)) <#ιϛ=16#> (στρατηγ(ός)) (Καρ(ανίδι?)) (|ομυο|) θ̣εὰ̣ [.3]δε ἄλ.2γε [ca.5] .? lost.2lin',
       '2. <:Πηληϊάδεω|reg|Πηλειαδεω:> 〚Ἀχιλλ〛 \\Ἀχιλῆος/ <:τοῦ|subst|της:> //κάτω\\\\ ||left:καὶ|| 〚/οὐλ〛 οὐλο',
-      '3.- μένην *stauros* $m2 ~|comes|~la  vac.3 ---- /*a note*/ "ἣ" "μυρί" |^α^| ¯β¯ υ ἱ(¨)οῦ vestig.2lin',
+      '3.- μένην *stauros* ~|$m2 comes|~la  vac.3 ---- /*a note*/ "ἣ" "μυρί" |^α^| ¯β¯ υ ἱ(¨)οῦ vestig.2lin',
       "(4, inverse) (Lines: 3 non transcribed) vac.?lin #seal  *chirho,☧* <#λβ '=1/32#>",
       '=>',
       '',
@@ -518,17 +528,17 @@ describe('a transcript written as Leiden+', () => {
   it('writes pages and columns as divisions, and a normalized form as a regularization', () => {
     const stream = {
       items: [
-        { kind: 'token', id: 'a', form: 'ἄνδρα' },
+        { kind: 'token', id: 'a', lang: 'grc', form: 'ἄνδρα' },
         { kind: 'break', id: 'p1', type: 'page', pageId: 'P1' },
-        { kind: 'token', id: 'b', form: 'μηνιν', norm: 'μῆνιν' },
+        { kind: 'token', id: 'b', lang: 'grc', form: 'μηνιν', norm: 'μῆνιν' },
         { kind: 'break', id: 'l1', type: 'line' },
-        { kind: 'token', id: 'c', form: 'αειδε' },
+        { kind: 'token', id: 'c', lang: 'grc', form: 'αειδε' },
         { kind: 'break', id: 'p2', type: 'page', pageId: 'P2' },
         { kind: 'break', id: 'c1', type: 'column', label: 'i' },
-        { kind: 'token', id: 'd', form: 'θεα' },
+        { kind: 'token', id: 'd', lang: 'grc', form: 'θεα' },
       ],
     } as { items: Item[] };
-    expect(toLeidenPlus(stream, { language: 'grc', pageLabels: { P1: '12r', P2: '12 v.' } })).toBe(
+    expect(toLeidenPlus(stream, { pageLabels: { P1: '12r', P2: '12 v.' } })).toBe(
       [
         '<S=.grc<=',
         '1. ἄνδρα',
@@ -549,7 +559,7 @@ describe('a transcript written as Leiden+', () => {
   it('keeps the space that closes a figure or a trace of letters at the end of a line', () => {
     const stream = {
       items: [
-        { kind: 'token', id: 'a', form: 'αειδε' },
+        { kind: 'token', id: 'a', lang: 'grc', form: 'αειδε' },
         { kind: 'object', id: 'f', type: 'figure', text: 'seal' },
         { kind: 'break', id: 'l1', type: 'line' },
         { kind: 'object', id: 'v', type: 'gap', attrs: { reason: 'illegible', desc: 'vestiges' } },
@@ -578,14 +588,15 @@ describe('a transcript written as Leiden+', () => {
       'under a line': { kind: 'hi', attrs: { rend: 'supraline' } },
       'under a line and underlined': { kind: 'hi', attrs: { rend: 'supraline-underline' } },
       number: { kind: 'num', attrs: { value: '5' } },
-      foreign: { kind: 'foreign', attrs: { lang: 'la' } },
       quoted: { kind: 'q' },
       'in its original form': { kind: 'orig' },
       abbreviated: { kind: 'abbr' },
     };
 
     const trip = (form: string, list: Mark[]) => {
-      const written = toLeidenPlus({ items: [{ kind: 'token', id: 'a', form, marks: list }] });
+      const written = toLeidenPlus({
+        items: [{ kind: 'token', id: 'a', lang: 'grc', form, marks: list }],
+      });
       const read = importLeidenPlus(written, { ids: sequentialIds() });
       return { written, read };
     };
@@ -611,7 +622,7 @@ describe('a transcript written as Leiden+', () => {
 
     it('are written so that marks that begin together but end apart read back', () => {
       const { written, read } = trip('αειδε', [
-        { kind: 'foreign', attrs: { lang: 'la' } },
+        { kind: 'q' },
         { kind: 'add', attrs: { place: 'bottom' }, from: 0, to: 3 },
         { kind: 'hi', attrs: { rend: 'superscript' }, from: 0, to: 2 },
       ]);
@@ -619,12 +630,46 @@ describe('a transcript written as Leiden+', () => {
       const token = read.stream.items[0] as Token;
       expect(canonical(token.marks), written).toEqual(
         canonical([
-          { kind: 'foreign', attrs: { lang: 'la' } },
+          { kind: 'q' },
           { kind: 'add', attrs: { place: 'bottom' }, from: 0, to: 3 },
           { kind: 'hi', attrs: { rend: 'superscript' }, from: 0, to: 2 },
         ]),
       );
     });
+  });
+
+  it('names at its head the language most of the words have, and writes a run in another as ~|…|~', () => {
+    const stream = {
+      items: [
+        { kind: 'token', id: 'a', lang: 'grc', form: 'μῆνιν' },
+        { kind: 'token', id: 'b', lang: 'la', form: 'arma' },
+        { kind: 'token', id: 'c', lang: 'la', form: 'virumque' },
+        { kind: 'break', id: 'l', type: 'line' },
+        { kind: 'token', id: 'd', lang: 'la', form: 'cano' },
+        { kind: 'token', id: 'e', lang: 'grc', form: 'ἄειδε' },
+        { kind: 'token', id: 'f', lang: 'grc', form: 'θεά' },
+      ],
+    } as { items: Item[] };
+    const written = toLeidenPlus(stream);
+    expect(written.split('\n')).toEqual([
+      '<S=.grc<=',
+      '1. μῆνιν ~|arma virumque|~la',
+      '2. ~|cano|~la  ἄειδε θεά',
+      '=>',
+      '',
+    ]);
+    const read = importLeidenPlus(written, { ids: sequentialIds() });
+    expect(read.warnings).toEqual([]);
+    expect(read.stream.items.flatMap((item) => (item.kind === 'token' ? [item.lang] : []))).toEqual(
+      ['grc', 'la', 'la', 'la', 'grc', 'grc'],
+    );
+  });
+
+  it('names the language undetermined at the head of a text whose words have none', () => {
+    const written = toLeidenPlus({ items: [{ kind: 'token', id: 'a', form: 'αειδε' }] });
+    expect(written.split('\n')[0]).toBe('<S=.und<=');
+    const read = importLeidenPlus(written, { ids: sequentialIds() });
+    expect((read.stream.items[0] as Token).lang).toBeUndefined();
   });
 
   it('gives the scribe’s correction as two words, read one before and one after it', () => {

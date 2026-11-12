@@ -78,7 +78,7 @@ describe('addressFromParts and resolveStarts', () => {
 
 describe('applyStarts', () => {
   it('puts starts on tokens, moving off breaks', () => {
-    const s = fromText('a b\nc d', { ids: sequentialIds() });
+    const s = fromText('a b\nc d', { lang: 'en', ids: sequentialIds() });
     const out = applyStarts(s, [
       { itemIndex: 0, segmentId: 's1' },
       { itemIndex: 2, segmentId: 's2' },

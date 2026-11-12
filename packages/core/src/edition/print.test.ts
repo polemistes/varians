@@ -213,7 +213,7 @@ describe('printing a segment the edition does not print', () => {
   describe('a line taken out of the text', () => {
     // The edition prints s1 s2 s3; A has them all, B runs on without the one at issue.
     const segmentOf = (spec: string, id: string, segmentId: string) => {
-      const stream = fromText(spec, { ids: sequentialIds(id) });
+      const stream = fromText(spec, { lang: 'grc', ids: sequentialIds(id) });
       (stream.items[0] as Token).segment = { segmentId };
       return stream;
     };
@@ -235,7 +235,7 @@ describe('printing a segment the edition does not print', () => {
     /** Take the line `segmentId` out of the edition by adopting that B has nothing there. */
     function takeOut(segmentId: 's2' | 's3') {
       const stream = edition();
-      const a = fromText(text[segmentId], { ids: sequentialIds('A') });
+      const a = fromText(text[segmentId], { lang: 'grc', ids: sequentialIds('A') });
       const witnesses = [{ id: 'A', siglum: 'A', units: units(a, 0, a.items.length) }];
       const absent = { id: 'B', siglum: 'B', units: [], present: true };
       const run = runsOfSegment(stream, segmentId)[0]!;

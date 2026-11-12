@@ -355,6 +355,10 @@ class TokenBuilder {
   readonly after: Obj[] = [];
   /** A gap of unknown extent stood inside a supplement of this word: so is the gap it leaves. */
   lostUnknown = false;
+  /** The language in force at the word's first letter. */
+  lang: string | undefined;
+  /** The language a `<foreign>` inside the `<w>` gives the whole word. */
+  wordLang: string | undefined;
 
   get length(): number {
     return this.chars.length;
@@ -464,6 +468,8 @@ class Importer {
   private suppliedDepth = 0;
   /** The gap last made from supplied words, which the next supplied word joins. */
   private lastLostGap: Obj | null = null;
+  /** The `xml:lang` in force: that of the nearest element around that declares one, the document's at the bottom. */
+  private readonly langs: (string | undefined)[] = [];
 
   constructor(
     private readonly ids: () => string,
@@ -473,6 +479,24 @@ class Importer {
     /** A text to start from: its pages and columns are its own edition's, and are passed over as if not there. */
     private readonly pageless: boolean,
   ) {}
+
+  /** Read nodes in the language in force where they stand (undefined where none is declared). */
+  walkIn(nodes: XmlNode[], lang: string | undefined): void {
+    this.langs.push(lang);
+    this.walk(nodes);
+    this.langs.pop();
+  }
+
+  private get lang(): string | undefined {
+    return this.langs.at(-1);
+  }
+
+  /** Letters of the word being read; the first of them fixes the language it is in. */
+  private letters(...chars: string[]): void {
+    if (chars.length === 0) return;
+    if (this.builder.chars.length === 0) this.builder.lang = this.lang;
+    this.builder.chars.push(...chars);
+  }
 
   walk(nodes: XmlNode[]): void {
     for (const node of nodes) {
@@ -484,6 +508,16 @@ class Importer {
   /** Flush the last token and collect the warnings. */
   finish(): void {
     this.flush(false);
+    // The parts of a divided word have one language, its first part's.
+    let word: Token | undefined;
+    for (const item of this.items) {
+      if (item.kind !== 'token') continue;
+      if (word) {
+        if (word.lang === undefined) delete item.lang;
+        else item.lang = word.lang;
+      }
+      word = item.joinNext ? (word ?? item) : undefined;
+    }
     // A break that only said the last word is divided, with nothing after it, is not a line of its own.
     if (this.joinBreak !== null && this.items.at(-1) === this.joinBreak) this.items.pop();
     if (this.unknown.size > 0) {
@@ -500,11 +534,21 @@ class Importer {
         continue;
       }
       if (this.afterWord && !ATTACHABLE.test(ch)) this.flush(false);
-      this.builder.chars.push(ch);
+      this.letters(ch);
     }
   }
 
   private element(element: XmlElement): void {
+    const lang = attr(element, 'lang');
+    if (lang === undefined) return this.read(element);
+    // A <foreign> inside a <w> gives the whole word its language.
+    if (element.name === 'foreign' && this.wordDepth > 0) this.builder.wordLang = lang;
+    this.langs.push(lang);
+    this.read(element);
+    this.langs.pop();
+  }
+
+  private read(element: XmlElement): void {
     const name = element.name;
     if (SKIPPED_ELEMENTS.has(name)) return;
     if (SPAN_MARKERS.has(name)) {
@@ -575,6 +619,8 @@ class Importer {
         if (textContent(element) === '' && childElements(element).length === 0) return;
         return this.mark(element, 'num');
       case 'foreign':
+        // No mark: the words inside have the language it declares.
+        return this.walk(element.children);
       case 'q':
         return this.mark(element, name);
       case 'figure':
@@ -769,7 +815,7 @@ class Importer {
       // Nothing but the expansion: a symbol stands for the word, which is then its form.
       if (this.builder.length === before && expan !== '') {
         attrs.symbol = true;
-        this.builder.chars.push(...expan.replace(/\s+/gu, ''));
+        this.letters(...expan.replace(/\s+/gu, ''));
       }
     });
     this.expanDepth--;
@@ -886,7 +932,7 @@ class Importer {
       if (kind !== 'gap') return;
       const quantity = Number(attr(element, 'quantity'));
       if (Number.isInteger(quantity) && quantity > 0 && attr(element, 'unit') === 'character')
-        this.builder.chars.push(...LOST_LETTER.repeat(quantity));
+        this.letters(...LOST_LETTER.repeat(quantity));
       else this.builder.lostUnknown = true;
       return;
     }
@@ -1011,9 +1057,11 @@ class Importer {
       this.resetBuilder();
       return;
     }
+    const lang = builder.wordLang ?? builder.lang ?? this.lang;
     const token: Token = {
       kind: 'token',
       id: this.ids(),
+      ...(lang !== undefined ? { lang } : {}),
       form: kept.map((i) => chars[i]).join(''),
     };
     const marks: Mark[] = this.pendingMarks;
@@ -1220,6 +1268,23 @@ function regText(frame: RegFrame): string {
 }
 
 /** The `<body>` elements not nested in another body, in document order. */
+/** The xml:lang in force at an element from the elements around it (not its own), or undefined. */
+function inheritedLang(root: XmlElement, target: XmlElement): string | undefined {
+  const search = (
+    element: XmlElement,
+    inherited: string | undefined,
+  ): string | undefined | null => {
+    if (element === target) return inherited;
+    const lang = attr(element, 'lang') ?? inherited;
+    for (const child of childElements(element)) {
+      const found = search(child, lang);
+      if (found !== null) return found;
+    }
+    return null;
+  };
+  return search(root, undefined) ?? undefined;
+}
+
 function bodies(root: XmlElement): XmlElement[] {
   if (root.name === 'body') return [root];
   const out: XmlElement[] = [];
@@ -1347,11 +1412,17 @@ export function importTei(xml: string, options: TeiImportOptions = {}): TeiImpor
     reading === 'text',
   );
   const found = bodies(root);
+  // A word's language is the xml:lang in force at it, else the language the header declares.
+  const teiHeader = root.name === 'teiHeader' ? undefined : firstChild(root, 'teiHeader');
+  const declared = teiHeader
+    ? descendant(teiHeader, ['profileDesc', 'langUsage', 'language'])
+    : undefined;
+  const headerLang = declared ? attr(declared, 'ident') : undefined;
   if (found.length === 0) {
     importer.warnings.push('No <body> element was found; the whole document was read as text.');
-    importer.walk([root]);
+    importer.walkIn([root], headerLang);
   } else {
-    importer.walk(found);
+    for (const body of found) importer.walkIn([body], inheritedLang(root, body) ?? headerLang);
   }
   importer.finish();
   const result: TeiImport = {
@@ -1402,7 +1473,12 @@ function startingText(read: TeiImport): TeiImport {
           ? expanded
           : (item.norm ?? item.form);
     if (word === '') continue;
-    const token: Token = { kind: 'token', id: item.id, form: word };
+    const token: Token = {
+      kind: 'token',
+      id: item.id,
+      ...(item.lang !== undefined ? { lang: item.lang } : {}),
+      form: word,
+    };
     if (item.joinNext) token.joinNext = true;
     now[now.length - 1] = items.length;
     items.push(token);
