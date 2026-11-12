@@ -45,7 +45,6 @@ import {
   segments,
   sql,
   transcriptionSegments,
-  transcriptionWorks,
   transcriptions,
   zones,
   users,
@@ -62,7 +61,6 @@ import {
   type Work,
 } from '@varians/db';
 import { identifierMatches } from './identifier-search.ts';
-import { chosenWorks, chosenWorksOf, setChosenWorks } from './transcription-works.ts';
 import { joinLevelLabels, keepsAddresses, relabel, separatorsChanged } from '$lib/registry/scheme';
 import type {
   ConjectureRow,
@@ -658,8 +656,6 @@ export async function updateWitness(
 
 export interface NewTranscription {
   witnessId: string;
-  /** The works the transcription is for, in order; by default the source's when copying. */
-  workIds?: string[];
   name: string;
   keepsWrittenForm?: boolean;
   /** Copy this transcription's text, with new ids, as the starting point. */
@@ -669,10 +665,12 @@ export interface NewTranscription {
 /**
  * Creates a transcription, empty or copied from another through
  * deriveTranscription and saved as its first changeset. A copy keeps the
- * source's works, settings and normalization memory; a copy of the same
- * witness keeps its boxes on the images too, each naming the copied words.
- * Anyone may have any number of transcriptions of a witness, for the same
- * work or others: an edition's conspectus names the one behind each siglum.
+ * source's settings and normalization memory; a copy of the same witness
+ * keeps its boxes on the images too, each naming the copied words. A
+ * transcription has no works of its own: its works are those its text is
+ * assigned to, so a copy has those of the text it copies. Anyone may have
+ * any number of transcriptions of a witness: an edition's conspectus names
+ * the one behind each siglum.
  */
 export async function createTranscription(
   db: Database,
@@ -694,12 +692,6 @@ export async function createTranscription(
     if (!row) throw new RegistryError('not-found', `no transcription ${input.fromTranscriptionId}`);
     source = { ...row.transcription, witnessName: row.witnessName };
   }
-  const workIds = [...new Set(input.workIds ?? (source ? await chosenWorks(db, source.id) : []))];
-  if (workIds.length) {
-    const found = await db.select({ id: works.id }).from(works).where(inArray(works.id, workIds));
-    const missing = workIds.find((w) => !found.some((f) => f.id === w));
-    if (missing) throw new RegistryError('not-found', `no work ${missing}`);
-  }
   const derived = source ? deriveTranscription(source.content) : null;
 
   const id = newId();
@@ -719,7 +711,6 @@ export async function createTranscription(
       description: source ? t.transcription.startedFrom(source.witnessName, source.name) : null,
     })
     .returning();
-  if (workIds.length) await setChosenWorks(db, id, workIds);
   if (derived && derived.items.length > 0) {
     try {
       await replaceContent(
@@ -1071,8 +1062,7 @@ export async function deleteWitness(
 
 /**
  * The transcriptions of a work: those assigning text to its segments
- * (through the derived segment index) and those made for it that have none
- * yet, ordered by siglum.
+ * (through the derived segment index), ordered by siglum.
  */
 export async function transcriptionsOfWork(
   db: Database,
@@ -1088,6 +1078,7 @@ export async function transcriptionsOfWork(
     .groupBy(transcriptionSegments.transcriptionId);
   const segmentCount = new Map(counts.map((c) => [c.id, Number(c.n)] as const));
   const ids = [...segmentCount.keys()];
+  if (ids.length === 0) return [];
   const rows = await db
     .select({
       id: transcriptions.id,
@@ -1104,18 +1095,7 @@ export async function transcriptionsOfWork(
     .from(transcriptions)
     .innerJoin(witnesses, eq(witnesses.id, transcriptions.witnessId))
     .innerJoin(users, eq(users.id, transcriptions.ownerId))
-    .where(
-      or(
-        inArray(
-          transcriptions.id,
-          db
-            .select({ id: transcriptionWorks.transcriptionId })
-            .from(transcriptionWorks)
-            .where(eq(transcriptionWorks.workId, workId)),
-        ),
-        ...(ids.length ? [inArray(transcriptions.id, ids)] : []),
-      ),
-    )
+    .where(inArray(transcriptions.id, ids))
     .orderBy(asc(witnesses.siglum), asc(witnesses.name), asc(transcriptions.name));
   return rows.map((r) => ({
     ...r,
@@ -1124,7 +1104,7 @@ export async function transcriptionsOfWork(
   }));
 }
 
-/** The transcriptions of a witness with the works they are made for and assign text to. */
+/** The transcriptions of a witness with the works their text is assigned to. */
 export async function transcriptionsOfWitness(
   db: Database,
   witnessId: string,
@@ -1157,11 +1137,7 @@ export async function transcriptionsOfWitness(
       ),
     )
     .groupBy(transcriptionSegments.transcriptionId, transcriptionSegments.workId);
-  const chosen = await chosenWorksOf(
-    db,
-    rows.map((r) => r.id),
-  );
-  const workIds = [...new Set([...[...chosen.values()].flat(), ...counts.map((c) => c.workId)])];
+  const workIds = [...new Set(counts.map((c) => c.workId))];
   const workRows = workIds.length
     ? await db
         .select({
@@ -1180,9 +1156,6 @@ export async function transcriptionsOfWitness(
     ownerName: r.ownerName,
     visibility: r.visibility,
     updatedAt: iso(r.updatedAt),
-    works: (chosen.get(r.id) ?? [])
-      .map((w) => workById.get(w))
-      .filter((w): w is NonNullable<typeof w> => !!w),
     assigned: counts
       .filter((c) => c.transcriptionId === r.id && workById.has(c.workId))
       .map((c) => ({ ...workById.get(c.workId)!, segmentCount: Number(c.n) }))
@@ -1191,7 +1164,7 @@ export async function transcriptionsOfWitness(
 }
 
 /**
- * The works a witness is connected to: through transcriptions made for them or assigning text to them, and through reported readings.
+ * The works a witness is connected to: through transcriptions assigning text to them, and through reported readings.
  * Of the transcriptions only what the viewer may see is counted and connects: another person's draft is no trace of a work on the witness's page.
  */
 export async function worksOfWitness(
@@ -1219,18 +1192,6 @@ export async function worksOfWitness(
         transcriptions.visibility,
       )
   ).filter((r) => canViewTranscription(viewer, { ...r, id: r.transcriptionId }, grants));
-  const declared = (
-    await db
-      .select({
-        workId: transcriptionWorks.workId,
-        transcriptionId: transcriptionWorks.transcriptionId,
-        ownerId: transcriptions.ownerId,
-        visibility: transcriptions.visibility,
-      })
-      .from(transcriptionWorks)
-      .innerJoin(transcriptions, eq(transcriptions.id, transcriptionWorks.transcriptionId))
-      .where(eq(transcriptions.witnessId, witnessId))
-  ).filter((r) => canViewTranscription(viewer, { ...r, id: r.transcriptionId }, grants));
   const viaReadings = await db
     .select({ id: reportedReadings.id, workId: reportedReadings.workId })
     .from(reportedReadings)
@@ -1251,7 +1212,6 @@ export async function worksOfWitness(
     e.transcriptions.add(row.transcriptionId);
     e.segments = Math.max(e.segments, Number(row.n));
   }
-  for (const row of declared) entry(row.workId).transcriptions.add(row.transcriptionId);
   for (const row of viaReadings) entry(row.workId).readings++;
   const ids = [...tally.keys()];
   if (ids.length === 0) return [];

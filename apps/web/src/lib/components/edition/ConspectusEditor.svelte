@@ -43,7 +43,7 @@
     /** The witnesses the rows name, with the transcripts each may collate. */
     witnesses: Record<string, ConspectusWitness>;
     groups: GroupDraft[];
-    /** The edition's work; a transcript is made for it, so none is made before it is chosen. */
+    /** The edition's work, for the segments of it each transcript of a witness added has text of. */
     work: { id: string; title: string } | null;
     /** Offered first when a witness is added. */
     suggestions: SuggestedWitness[];
@@ -536,7 +536,6 @@
   bind:open={transcribing}
   title={t.makeTranscriptTitle}
   action={`${actions}?/newTranscript`}
-  {work}
   witness={transcriptFor ? { id: transcriptFor, name: nameOf(transcriptFor) } : null}
   {sources}
   oncreated={transcriptMade}

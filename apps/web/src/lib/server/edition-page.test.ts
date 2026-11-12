@@ -193,11 +193,7 @@ describe('Make New Edition', () => {
 
   it("refuses a conspectus naming another person's draft, or a siglum twice, and makes nothing", async () => {
     const c = await witnessOf('laurentianus-c');
-    const draft = await createTranscription(
-      db,
-      { witnessId: c.id, workIds: [sample.workId], name: 'Not yours' },
-      strangerId,
-    );
+    const draft = await createTranscription(db, { witnessId: c.id, name: 'Not yours' }, strangerId);
     const title = `Refused ${stamp}`;
     const theirs = await run(newActions.create, {
       workId: sample.workId,

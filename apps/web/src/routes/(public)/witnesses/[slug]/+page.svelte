@@ -208,9 +208,8 @@
 {#if data.can.newTranscription}
   <NewTranscriptionForm
     bind:open={creating}
-    works={data.workOptions}
     sources={data.sources}
-    witnessName={witness.name}
+    witness={{ id: witness.id, name: witness.name }}
   />
 {/if}
 

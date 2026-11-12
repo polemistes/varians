@@ -26,7 +26,6 @@ import {
   reportedReadings,
   segments,
   transcriptionSegments,
-  transcriptionWorks,
   transcriptions,
   users,
   witnessMaintainers,
@@ -342,11 +341,7 @@ describe('merging witnesses', () => {
       { id: page3v, witnessId: from.id, label: '3v', position: 7 },
       { id: page3r, witnessId: from.id, label: '3r', position: 5 },
     ]);
-    const tr = await createTranscription(
-      db,
-      { witnessId: from.id, workIds: [w.id], name: 'T' },
-      bob.id,
-    );
+    const tr = await createTranscription(db, { witnessId: from.id, name: 'T' }, bob.id);
     const paged: Stream = {
       items: [
         { kind: 'break', id: newId(), type: 'page', pageId: page3r },
@@ -537,13 +532,9 @@ describe('merging works', () => {
     const oldShared = await segmentId(from.id, '1.1');
     const oldOwn = await segmentId(from.id, '1.2');
 
-    // A transcription of the duplicate, one of both works, and one only chosen for the duplicate.
+    // A transcription of the duplicate, and one of both works.
     const wit = await witness('Work merge witness');
-    const tr = await createTranscription(
-      db,
-      { witnessId: wit.id, workIds: [from.id], name: 'T' },
-      bob.id,
-    );
+    const tr = await createTranscription(db, { witnessId: wit.id, name: 'T' }, bob.id);
     await replaceContent(
       db,
       'transcription',
@@ -552,21 +543,12 @@ describe('merging works', () => {
       0,
       await textOf(from.id, { '1.1': 'μῆνιν ἄειδε', '1.2': 'οὐλομένην' }),
     );
-    const trBoth = await createTranscription(
-      db,
-      { witnessId: wit.id, workIds: [into.id, from.id], name: 'Both' },
-      bob.id,
-    );
+    const trBoth = await createTranscription(db, { witnessId: wit.id, name: 'Both' }, bob.id);
     const both = await textOf(into.id, { '1:1': 'μῆνιν' });
     const extra = await textOf(from.id, { '1.1': 'ἄειδε' });
     await replaceContent(db, 'transcription', trBoth.id, bob.id, 0, {
       items: [...both.items, { kind: 'break', id: newId(), type: 'line' }, ...extra.items],
     });
-    const trChosen = await createTranscription(
-      db,
-      { witnessId: wit.id, workIds: [from.id], name: 'Chosen' },
-      bob.id,
-    );
 
     // Records on the shared segment.
     const [conj] = await db
@@ -644,7 +626,7 @@ describe('merging works', () => {
       segmentsMoved: 1,
       conjectures: 2,
       readings: 1,
-      transcriptions: 3,
+      transcriptions: 2,
     });
     expect(preview!.moves.editions).toHaveLength(1);
     expect(preview!.moves.maintainers).toEqual([carol.name]);
@@ -736,16 +718,6 @@ describe('merging works', () => {
         .from(transcriptionSegments)
         .where(eq(transcriptionSegments.transcriptionId, trBoth.id)),
     ).toHaveLength(2);
-    const chosen = await db
-      .select()
-      .from(transcriptionWorks)
-      .where(inArray(transcriptionWorks.transcriptionId, [trBoth.id, trChosen.id]));
-    expect(chosen.map((c) => [c.transcriptionId, c.workId]).sort()).toEqual(
-      [
-        [trBoth.id, into.id],
-        [trChosen.id, into.id],
-      ].sort(),
-    );
 
     // Saving the transcription afterwards goes on from its version as before.
     const saved = await saveOps(db, 'transcription', tr.id, bob.id, 1, [

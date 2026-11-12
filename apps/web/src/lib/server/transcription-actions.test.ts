@@ -5,8 +5,9 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { isRedirect } from '@sveltejs/kit';
-import { SCHEME_PRESETS, newId } from '@varians/core';
+import { SCHEME_PRESETS, newId, type Stream } from '@varians/core';
 import {
+  changesets,
   createDatabase,
   editionCollaborators,
   editionSigla,
@@ -27,7 +28,9 @@ import { load as witnessPage } from '../../routes/(public)/witnesses/[slug]/+pag
 import { load as workPage } from '../../routes/(public)/works/[slug]/+page.server';
 import { load as minePage } from '../../routes/(app)/mine/+page.server';
 import { actions as workbenchActions } from '../../routes/transcriptions/[id]/+page.server';
+import { replaceContent } from './documents/service.ts';
 import { createTranscription, createWitness, createWork } from './registry';
+import { resolveLabels, schemeOfWork } from './segments.ts';
 import { DEFAULT_CONVENTIONS } from './seed/sample.ts';
 
 const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329/varians_test';
@@ -140,8 +143,17 @@ beforeAll(async () => {
     owner.id,
   );
   ids.witness2 = second.id;
-  const make = async (name: string, witnessId = witness.id) =>
-    (await createTranscription(db, { witnessId, workIds: [work.id], name }, owner.id)).id;
+  // Each has a line of the work, which makes it a transcript of the work.
+  const scheme = await schemeOfWork(db, work.id);
+  const segment = (await resolveLabels(db, scheme, ['1.1'])).get('1.1')!;
+  const make = async (name: string, witnessId = witness.id) => {
+    const { id } = await createTranscription(db, { witnessId, name }, owner.id);
+    const line: Stream = {
+      items: [{ kind: 'token', id: newId(), form: 'μῆνιν', segment: { segmentId: segment.id } }],
+    };
+    await replaceContent(db, 'transcription', id, owner.id, 0, line, 'test');
+    return id;
+  };
   ids.published = await make(`Published ${tag}`);
   await db
     .update(transcriptions)
@@ -195,6 +207,14 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await db
+    .delete(changesets)
+    .where(
+      inArray(
+        changesets.documentId,
+        [ids.published, ids.draft, ids.named, ids.spare].filter(Boolean),
+      ),
+    );
   await db.delete(works).where(inArray(works.id, [ids.work].filter(Boolean)));
   await db
     .delete(witnesses)

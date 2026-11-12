@@ -171,7 +171,7 @@ beforeAll(async () => {
   const [segment] = await db.select().from(segments).where(eq(segments.workId, workId)).limit(1);
   const created = await createTranscription(
     db,
-    { witnessId: sample.witnessIds.A!, workIds: [workId], name: `Transcript ${DRAFT_WORDS}` },
+    { witnessId: sample.witnessIds.A!, name: `Transcript ${DRAFT_WORDS}` },
     ownerId,
   );
   await replaceContent(

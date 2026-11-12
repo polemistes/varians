@@ -227,20 +227,29 @@ function readRecord<T>(
 }
 
 export const actions: Actions = {
+  /**
+   * Make New Transcript from the work's page: a transcript of the witness
+   * chosen, which like any other has no works of its own until its text is
+   * assigned to segments.
+   */
   transcribe: async (event) => {
     const user = requireUser(event.locals);
-    const { work } = await access(event.locals, event.params.slug);
+    await access(event.locals, event.params.slug);
     const form = await event.request.formData();
     const witnessId = field(form, 'witnessId');
     if (!witnessId) return fail(400, { error: t.reading.witnessRequired });
+    const [witness] = await event.locals.db
+      .select({ name: witnesses.name })
+      .from(witnesses)
+      .where(eq(witnesses.id, witnessId));
+    if (!witness) return fail(404, { error: t.witness.notFound });
     let id: string;
     try {
       const created = await createTranscription(
         event.locals.db,
         {
           witnessId,
-          workIds: [work.id],
-          name: work.title,
+          name: t.transcription.defaultName(witness.name),
           keepsWrittenForm: checked(form, 'keepsWrittenForm'),
         },
         user.id,

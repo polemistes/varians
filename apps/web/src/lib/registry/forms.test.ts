@@ -222,11 +222,11 @@ describe('parseTranscriptionForm and parseName', () => {
   it('turns empty choices into null', () => {
     expect(
       parseTranscriptionForm(
-        form({ name: ' Iliad 1 ', workId: '', fromTranscriptionId: '', keepsWrittenForm: 'on' }),
+        form({ name: ' Iliad 1 ', fromTranscriptionId: '', keepsWrittenForm: 'on' }),
       ),
     ).toEqual({
       ok: true,
-      data: { name: 'Iliad 1', workId: null, keepsWrittenForm: true, fromTranscriptionId: null },
+      data: { name: 'Iliad 1', keepsWrittenForm: true, fromTranscriptionId: null },
     });
     expect(parseTranscriptionForm(form({ name: '' })).ok).toBe(false);
     expect(parseName(form({ name: '  New ' }))).toEqual({ ok: true, data: { name: 'New' } });

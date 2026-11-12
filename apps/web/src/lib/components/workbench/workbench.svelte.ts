@@ -113,7 +113,6 @@ export interface WorkbenchInput {
     rightsNote: string | null;
     licence?: string | null;
     installationLicence?: string;
-    workIds: string[];
     profile: Partial<NormalizationProfile> | null;
   };
   witness: {
@@ -174,10 +173,6 @@ export class Workbench {
   readonly canMaintainWitness: boolean;
   readonly maxUploadBytes: number;
   readonly visibility: string;
-  /** The works the transcription is for, in order: the first gives the defaults (segment labels, spelling rules for text not yet assigned). */
-  readonly workIds: string[];
-  /** The first of them, else the first work its text is assigned to. */
-  readonly workId: string | null;
   readonly profileOverrides: Partial<NormalizationProfile> | null;
 
   // What the server knows
@@ -195,7 +190,19 @@ export class Workbench {
   pageViews = $state.raw<PageView[] | null>(null);
   /** The rights statement and credit line new images of the witness are given. */
   imageDefaults = $state.raw<ImageDefaults>({ rights: null, attribution: null });
+  /**
+   * The works the workbench knows: those the text is assigned to, in the
+   * order they first occur in it, then any chosen during this visit where
+   * text is assigned.
+   */
   works = $state.raw<WorkbenchWork[]>([]);
+  /**
+   * The work chosen last in this visit where text is assigned, proposed
+   * there for the rest of the visit; stored nowhere. Null until one is
+   * chosen: then the work of the segment before is proposed, else the first
+   * the text is assigned to.
+   */
+  workId = $state<string | null>(null);
   segments = $state.raw<Record<string, SegmentInfo>>({});
 
   // The document
@@ -259,8 +266,6 @@ export class Workbench {
     this.canMaintainWitness = input.canMaintainWitness;
     this.maxUploadBytes = input.maxUploadBytes ?? DEFAULT_MAX_UPLOAD_BYTES;
     this.visibility = input.transcription.visibility;
-    this.workIds = input.transcription.workIds;
-    this.workId = input.transcription.workIds[0] ?? input.works[0]?.id ?? null;
     this.profileOverrides = input.transcription.profile;
     this.sources = input.transcription.sources;
     this.rightsNote = input.transcription.rightsNote;
@@ -1072,6 +1077,24 @@ export class Workbench {
 
   // Segments
 
+  /**
+   * Choose a work where text is assigned: learnt from the server when the
+   * workbench does not know it yet, and proposed for the rest of the visit.
+   * Null when the server has no such work.
+   */
+  async chooseWork(workId: string): Promise<WorkbenchWork | null> {
+    let work = this.works.find((w) => w.id === workId);
+    if (!work) {
+      const response = await fetch(`/api/works/${encodeURIComponent(workId)}`);
+      if (!response.ok) return null;
+      work = (await response.json()) as WorkbenchWork;
+      // Another choice may have learnt it meanwhile.
+      if (!this.works.some((w) => w.id === workId)) this.works = [...this.works, work];
+    }
+    this.workId = workId;
+    return work;
+  }
+
   /** Learn segments: their labels and works. */
   addSegments(segments: Record<string, SegmentInfo>): void {
     this.segments = { ...this.segments, ...segments };
@@ -1128,7 +1151,11 @@ export class Workbench {
     works: WorkbenchWork[];
   }): void {
     this.pages = result.pages;
-    this.works = result.works;
+    // The works the text is now assigned to, and those chosen in this visit that it is not.
+    this.works = [
+      ...result.works,
+      ...this.works.filter((w) => !result.works.some((r) => r.id === w.id)),
+    ];
     this.segments = result.segments;
     this.zones = {};
     this.replaceDocument(result.outcome);

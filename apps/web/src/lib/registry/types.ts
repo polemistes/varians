@@ -79,9 +79,7 @@ export interface WitnessTranscriptionRow {
   ownerName: string;
   visibility: RecordVisibility;
   updatedAt: string;
-  /** The works it is for, in order. */
-  works: WorkRef[];
-  /** The works it assigns text to, with the number of segments of each. */
+  /** The works its text is assigned to, with the number of segments of each. */
   assigned: (WorkRef & { segmentCount: number })[];
 }
 

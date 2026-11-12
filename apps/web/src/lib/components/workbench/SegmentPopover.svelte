@@ -2,15 +2,17 @@
   /**
    * Setting the segment that begins at a word, in a small
    * popover at the word: the label (the one shown, else the one after the
-   * previous start), the work, and the two other answers, "unassigned from
-   * here" and "remove this start".
+   * previous start), the work (that of the segment before, else the one
+   * chosen last in this visit, else the first the text is assigned to), and
+   * the two other answers, "unassigned from here" and "remove this start".
    */
   import { untrack } from 'svelte';
   import { Popover } from 'bits-ui';
   import { parseLabel, segmentStartOf, type Id } from '@varians/core';
-  import { Button, Field, Input, Select } from '$lib/components/ui';
+  import { Button, Field, Input } from '$lib/components/ui';
   import { otherRuns, partFor, proposeLabel, segmentOp } from '$lib/workbench/segments';
   import { workbench as t } from '$lib/strings/workbench';
+  import WorkField from './WorkField.svelte';
   import type { Workbench } from './workbench.svelte';
 
   interface Props {
@@ -36,7 +38,6 @@
     request ? wb.stream.items.find((i) => i.id === request.tokenId) : undefined,
   );
   const hasStart = $derived(token ? Boolean(segmentStartOf(token)) : false);
-  const works = $derived(wb.works);
   const scheme = $derived(workId ? wb.schemeOf(workId) : undefined);
   const example = $derived(
     scheme
@@ -62,7 +63,7 @@
     untrack(() => {
       const proposal = proposeLabel(wb.stream, asked.tokenId, wb.segments, wb.schemeOf);
       label = proposal.label;
-      workId = proposal.workId ?? wb.workId ?? works[0]?.id ?? '';
+      workId = proposal.workId ?? wb.workId ?? wb.works[0]?.id ?? '';
       error = null;
       busy = false;
       part = null;
@@ -96,7 +97,7 @@
     event.preventDefault();
     if (!request || busy) return;
     const text = label.trim();
-    if (!text) return;
+    if (!text || !workId) return;
     if (!scheme || !parseLabel(scheme, text)) {
       error = t.segment.invalid(text);
       return;
@@ -108,6 +109,7 @@
       error = resolved.message || t.segment.failed;
       return;
     }
+    wb.workId = workId;
     const segmentId = resolved.ids[0]!;
     const number =
       elsewhere && part !== null ? part : partFor(wb.stream, segmentId, request.tokenId);
@@ -145,53 +147,33 @@
     >
       <form class="flex flex-col gap-3" onsubmit={submit} aria-label={t.segment.title}>
         <p class="font-medium">{t.segment.title}</p>
-        {#if works.length === 0}
-          <p class="text-ink-soft">{t.segment.noWork}</p>
-        {:else}
-          <Field
-            label={t.segment.label}
-            hint={example ? t.segment.hint(example) : undefined}
-            {error}
-          >
+        <Field label={t.segment.label} hint={example ? t.segment.hint(example) : undefined} {error}>
+          {#snippet children(control)}
+            <Input
+              {...control}
+              bind:value={label}
+              autocomplete="off"
+              spellcheck="false"
+              class="font-serif"
+            />
+          {/snippet}
+        </Field>
+        <WorkField {wb} bind:value={workId} />
+        {#if elsewhere}
+          <Field label={t.segment.part} hint={t.segment.partHint(part ?? 2)}>
             {#snippet children(control)}
-              <Input
-                {...control}
-                bind:value={label}
-                autocomplete="off"
-                spellcheck="false"
-                class="font-serif"
-              />
+              <Input {...control} type="number" min="1" bind:value={part} class="w-20" />
             {/snippet}
           </Field>
-          {#if works.length > 1}
-            <Field label={t.segment.work}>
-              {#snippet children(control)}
-                <Select
-                  {...control}
-                  bind:value={workId}
-                  options={works.map((w) => ({ value: w.id, label: w.title }))}
-                />
-              {/snippet}
-            </Field>
-          {/if}
-          {#if elsewhere}
-            <Field label={t.segment.part} hint={t.segment.partHint(part ?? 2)}>
-              {#snippet children(control)}
-                <Input {...control} type="number" min="1" bind:value={part} class="w-20" />
-              {/snippet}
-            </Field>
-          {/if}
         {/if}
         <div class="flex flex-wrap items-center gap-2">
-          {#if works.length > 0}
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              loading={busy}
-              disabled={!label.trim()}>{t.segment.set}</Button
-            >
-          {/if}
+          <Button
+            type="submit"
+            variant="primary"
+            size="sm"
+            loading={busy}
+            disabled={!label.trim() || !workId}>{t.segment.set}</Button
+          >
           <Button size="sm" variant="ghost" onclick={close}>{t.segment.cancel}</Button>
         </div>
         <div class="flex flex-col items-start gap-1 border-t border-line pt-2">

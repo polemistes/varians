@@ -7,10 +7,11 @@
    */
   import { untrack } from 'svelte';
   import { isToken, nextLabel, parseLabel } from '@varians/core';
-  import { Button, Dialog, Field, Input, Notice, Select, toasts } from '$lib/components/ui';
+  import { Button, Dialog, Field, Input, toasts } from '$lib/components/ui';
   import { labelSequence, lineStarts, numberingOps } from '$lib/workbench/numbering';
   import { proposeLabel } from '$lib/workbench/segments';
   import { workbench as t } from '$lib/strings/workbench';
+  import WorkField from './WorkField.svelte';
   import type { Workbench } from './workbench.svelte';
 
   interface Props {
@@ -43,7 +44,7 @@
 
   async function run(event: Event) {
     event.preventDefault();
-    if (busy || !from) return;
+    if (busy || !from || !workId) return;
     const scheme = wb.schemeOf(workId);
     const first = start.trim();
     if (!scheme || !parseLabel(scheme, first)) {
@@ -63,6 +64,7 @@
       error = resolved.message || t.segment.failed;
       return;
     }
+    wb.workId = workId;
     wb.apply(numberingOps(tokens, resolved.ids));
     toasts.success(t.numbering.done(resolved.ids.length));
     if (labels.length < tokens.length) toasts.info(t.numbering.stopped(labels[labels.length - 1]!));
@@ -73,31 +75,17 @@
 
 <Dialog bind:open title={t.numbering.title} description={t.numbering.description} size="sm">
   <form id="wb-number-lines" class="flex flex-col gap-4" onsubmit={run}>
-    {#if wb.works.length === 0}
-      <Notice kind="warning">{t.segment.noWork}</Notice>
-    {:else}
-      <Field label={t.numbering.start} {error}>
-        {#snippet children(control)}
-          <Input {...control} bind:value={start} autocomplete="off" class="font-serif" />
-        {/snippet}
-      </Field>
-      <Field label={t.numbering.count} hint={t.numbering.countHint}>
-        {#snippet children(control)}
-          <Input {...control} type="number" min="1" bind:value={count} class="w-28" />
-        {/snippet}
-      </Field>
-      {#if wb.works.length > 1}
-        <Field label={t.numbering.work}>
-          {#snippet children(control)}
-            <Select
-              {...control}
-              bind:value={workId}
-              options={wb.works.map((w) => ({ value: w.id, label: w.title }))}
-            />
-          {/snippet}
-        </Field>
-      {/if}
-    {/if}
+    <Field label={t.numbering.start} {error}>
+      {#snippet children(control)}
+        <Input {...control} bind:value={start} autocomplete="off" class="font-serif" />
+      {/snippet}
+    </Field>
+    <Field label={t.numbering.count} hint={t.numbering.countHint}>
+      {#snippet children(control)}
+        <Input {...control} type="number" min="1" bind:value={count} class="w-28" />
+      {/snippet}
+    </Field>
+    <WorkField {wb} bind:value={workId} />
   </form>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (open = false)}>{t.numbering.cancel}</Button>
@@ -106,7 +94,7 @@
       form="wb-number-lines"
       variant="primary"
       loading={busy}
-      disabled={wb.works.length === 0 || !start.trim()}
+      disabled={!workId || !start.trim()}
     >
       {t.numbering.run}
     </Button>

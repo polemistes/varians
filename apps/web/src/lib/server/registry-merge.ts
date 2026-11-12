@@ -38,7 +38,6 @@ import {
   segments,
   sql,
   transcriptionSegments,
-  transcriptionWorks,
   transcriptions,
   users,
   witnessMaintainers,
@@ -534,11 +533,7 @@ async function workPlan(db: Db, from: Entry, into: Entry): Promise<WorkPlan> {
     .selectDistinct({ id: transcriptionSegments.transcriptionId })
     .from(transcriptionSegments)
     .where(eq(transcriptionSegments.workId, from.id));
-  const viaChoice = await db
-    .select({ id: transcriptionWorks.transcriptionId })
-    .from(transcriptionWorks)
-    .where(eq(transcriptionWorks.workId, from.id));
-  const transcriptionIds = [...new Set([...viaText, ...viaChoice].map((r) => r.id))];
+  const transcriptionIds = viaText.map((r) => r.id);
   const maintainers = await newMaintainers(db, from, into);
   const extra = [
     ...(fromRow.identifier && fromRow.identifier !== intoRow.identifier
@@ -822,18 +817,6 @@ export async function mergeWorks(
       .set({ workId: into.id })
       .where(eq(reportedReadings.workId, from.id));
     await tx.update(editions).set({ workId: into.id }).where(eq(editions.workId, from.id));
-    const chosen = await tx
-      .select()
-      .from(transcriptionWorks)
-      .where(eq(transcriptionWorks.workId, from.id));
-    if (chosen.length) {
-      await tx
-        .insert(transcriptionWorks)
-        .values(chosen.map((c) => ({ ...c, workId: into.id })))
-        .onConflictDoNothing();
-      await tx.delete(transcriptionWorks).where(eq(transcriptionWorks.workId, from.id));
-    }
-
     // The texts: segment ids moved in place, and the index of each transcription built again.
     for (const id of plan.transcriptionIds) {
       const content = pairs.length

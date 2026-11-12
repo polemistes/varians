@@ -5,7 +5,7 @@
  * and the windows over Make New Edition and Edition Settings share these, so
  * that a record is checked and made the same way wherever it is made.
  */
-import { transcriptions, works, type Transcription, type Witness, type Work } from '@varians/db';
+import { transcriptions, type Transcription, type Witness, type Work } from '@varians/db';
 import { eq } from 'drizzle-orm';
 import {
   field,
@@ -97,7 +97,7 @@ export async function witnessFromForm(
 
 /**
  * A transcript of a witness made from the fields of the New Transcript form:
- * its name, its work, whether it keeps a diplomatic form, and the transcript
+ * its name, whether it keeps a diplomatic form, and the transcript
  * it starts from, which must be one the person may view.
  */
 export async function transcriptionFromForm(
@@ -122,16 +122,11 @@ export async function transcriptionFromForm(
         errors: { fromTranscriptionId: [t.transcription.sourceNotAllowed] },
       };
   }
-  if (d.workId) {
-    const [work] = await db.select().from(works).where(eq(works.id, d.workId));
-    if (!work) return { ok: false, status: 400, errors: { workId: [t.work.notFound] } };
-  }
   try {
     const created = await createTranscription(
       db,
       {
         witnessId,
-        workIds: d.workId ? [d.workId] : undefined,
         name: d.name,
         keepsWrittenForm: d.keepsWrittenForm,
         fromTranscriptionId: d.fromTranscriptionId,

@@ -19,7 +19,6 @@ import {
   viewableTranscriptions,
   witnessBySlug,
   witnessDependents,
-  workOptions,
   worksOfWitness,
 } from '$lib/server/registry';
 import { mergesInto } from '$lib/server/registry-merge';
@@ -40,25 +39,16 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   const db = locals.db;
   const grants = await grantsFor(db, user);
   const rights = witnessRights(user, witness, maintainerIds);
-  const [
-    maintainers,
-    pageRows,
-    transcriptionRows,
-    workRows,
-    readingRows,
-    workChoices,
-    sources,
-    merged,
-  ] = await Promise.all([
-    maintainersOf(db, 'witness', witness.id),
-    pagesOfWitness(db, witness.id),
-    transcriptionsOfWitness(db, witness.id),
-    worksOfWitness(db, witness.id, user, grants),
-    readingsOfWitness(db, witness.id),
-    user ? workOptions(db) : Promise.resolve([]),
-    user ? viewableTranscriptions(db, user, grants) : Promise.resolve([]),
-    mergesInto(db, 'witness', witness.id),
-  ]);
+  const [maintainers, pageRows, transcriptionRows, workRows, readingRows, sources, merged] =
+    await Promise.all([
+      maintainersOf(db, 'witness', witness.id),
+      pagesOfWitness(db, witness.id),
+      transcriptionsOfWitness(db, witness.id),
+      worksOfWitness(db, witness.id, user, grants),
+      readingsOfWitness(db, witness.id),
+      user ? viewableTranscriptions(db, user, grants) : Promise.resolve([]),
+      mergesInto(db, 'witness', witness.id),
+    ]);
   const context = { workMaintainerIds: [] as string[], grants };
   const citations = await citationsByRecord(
     db,
@@ -107,7 +97,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
         text,
       })),
     })),
-    workOptions: workChoices,
     sources,
     rights,
     /** Why the witness cannot be deleted now, for those who may delete it; the menu says so. */

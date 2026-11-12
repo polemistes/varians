@@ -294,19 +294,6 @@ export const registry = {
   },
 
   transcription: {
-    works: {
-      label: 'Works',
-      hint: 'The first gives the defaults: the segment labels offered, and the spelling rules for text not yet assigned to a work.',
-      none: 'No work chosen.',
-      first: 'first',
-      find: 'Find a work by title or author',
-      add: 'Add',
-      remove: 'Remove',
-      removeLabel: (title: string) => `Remove ${title}`,
-      raise: 'Move Up',
-      raiseLabel: (title: string) => `Move ${title} Up`,
-      notFound: 'A work chosen does not exist.',
-    },
     name: 'Name of Transcript',
     /** The name proposed for a new transcript: it is of its witness, whatever works it has text of. */
     defaultName: (witness: string) => `Transcript of ${witness}`,
@@ -333,9 +320,7 @@ export const registry = {
     startedFrom: (witness: string, name: string) =>
       `Started from the transcript ${name} of ${witness}.`,
     copiedFrom: (name: string) => `copied from ${name}`,
-    work: 'Work',
     witness: 'Witness',
-    workNone: 'No Work',
     segmentCount: (n: number) => (n === 1 ? '1 segment' : `${n} segments`),
   },
 

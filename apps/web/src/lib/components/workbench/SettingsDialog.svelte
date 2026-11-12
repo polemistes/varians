@@ -18,7 +18,6 @@
     Textarea,
     toasts,
   } from '$lib/components/ui';
-  import WorksField, { type ChosenWork } from '$lib/components/registry/WorksField.svelte';
   import { workbench as t } from '$lib/strings/workbench';
   import type { Workbench } from './workbench.svelte';
 
@@ -32,7 +31,6 @@
   let name = $state('');
   let keepsWrittenForm = $state(false);
   let displayAsWritten = $state(false);
-  let works = $state<ChosenWork[]>([]);
   let sources = $state('');
   let rightsNote = $state('');
   let error = $state<string | null>(null);
@@ -43,7 +41,6 @@
     name = wb.name;
     keepsWrittenForm = wb.keepsWrittenForm;
     displayAsWritten = wb.displayAsWritten;
-    works = wb.workIds.map((id) => ({ id, title: wb.works.find((w) => w.id === id)?.title ?? id }));
     sources = wb.sources ?? '';
     rightsNote = wb.rightsNote ?? '';
     error = null;
@@ -69,7 +66,6 @@
               name: string;
               keepsWrittenForm: boolean;
               displayAsWritten: boolean;
-              workIds: string[];
               sources: string | null;
               rightsNote: string | null;
               version: number;
@@ -82,8 +78,6 @@
         wb.applySettings(settings);
         toasts.success(t.settings.saved);
         open = false;
-        // Other works bring other segment labels and spelling rules: the page loads them afresh.
-        if (settings.workIds.join() !== wb.workIds.join()) location.reload();
       } else if (result.type === 'failure') {
         const data = result.data as { message?: string; conflict?: boolean } | undefined;
         error = data?.message ?? null;
@@ -119,7 +113,6 @@
     <Checkbox name="displayAsWritten" bind:checked={displayAsWritten}
       >{t.settings.asWritten}</Checkbox
     >
-    <WorksField bind:works />
     <Field label={t.settings.sources} hint={t.settings.sourcesHint}>
       {#snippet children(control)}
         <Textarea {...control} name="sources" bind:value={sources} rows={3} maxlength={5000} />

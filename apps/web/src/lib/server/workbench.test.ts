@@ -23,7 +23,6 @@ import {
   pages,
   referenceSchemes,
   segments,
-  transcriptionWorks,
   transcriptions,
   users,
   witnesses,
@@ -113,9 +112,6 @@ beforeAll(async () => {
     },
     { id: ids.draft, witnessId: ids.witness, name: 'Draft', ownerId: ids.owner },
   ]);
-  await db
-    .insert(transcriptionWorks)
-    .values({ transcriptionId: ids.transcription, workId: ids.work });
 });
 
 afterAll(async () => {
@@ -301,8 +297,8 @@ describe('loadWorkbench', () => {
     const data = await loadWorkbench(db, owner(), ids.transcription);
     expect(data?.witness).toMatchObject({ siglum: 'A', name: 'Venetus A' });
     expect(data?.pages.map((p) => p.label)).toEqual(['12r', '12v']);
-    expect(data?.works.map((w) => w.id)).toEqual([ids.work]);
-    expect(data?.works[0]?.levels.map((l) => l.key)).toEqual(['book', 'line']);
+    // No text is assigned to a work yet, and a transcription has no other works.
+    expect(data?.works).toEqual([]);
     expect(data?.canEdit).toBe(true);
     expect(data?.canDelete).toBe(true);
     expect(data?.canMaintainWitness).toBe(true);
@@ -324,6 +320,8 @@ describe('imports', () => {
     expect(first.segments).toBe(2);
     expect(toText(first.content)).toBe(text);
     const data = await loadWorkbench(db, owner(), ids.transcription);
+    expect(data?.works.map((w) => w.id)).toEqual([ids.work]);
+    expect(data?.works[0]?.levels.map((l) => l.key)).toEqual(['book', 'line']);
     expect(
       Object.values(data!.segments)
         .map((s) => s.label)

@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * A witness found in the registry, to be transcribed from a work's page:
-   * the form posts ?/transcribe.
+   * the form posts ?/transcribe, which makes a transcript of the witness.
    */
   import { untrack } from 'svelte';
   import { enhance } from '$app/forms';

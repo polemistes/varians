@@ -33,8 +33,7 @@ import {
 import { workbench as t } from '$lib/strings/workbench';
 import { recordActions } from '$lib/strings/record-actions';
 import { registry } from '$lib/strings/registry';
-import { works } from '@varians/db';
-import { inArray } from 'drizzle-orm';
+import { eq, works } from '@varians/db';
 import type { Actions, PageServerLoad } from './$types';
 import {
   createTranscription,
@@ -75,7 +74,7 @@ function clientData(data: WorkbenchData) {
 export const load: PageServerLoad = async ({ locals, params }) => {
   const data = await loadWorkbench(locals.db, locals.user, params.id);
   if (!data) throw error(404, t.errors.notFound);
-  const work = data.works.find((w) => w.id === data.transcription.workIds[0]) ?? data.works[0];
+  const work = data.works[0];
   return {
     ...clientData(data),
     crumb: work
@@ -119,10 +118,19 @@ function teiKindOf(form: FormData): TeiKind | null {
   return as === 'text' || as === 'transcript' ? as : null;
 }
 
-/** The work an import names: one of the transcription's works, or none. */
-function workOf(data: WorkbenchData, form: FormData): string | null {
+/**
+ * The work an import names, or none: any registered work, chosen in the
+ * import window, since a transcription's works are only those its text is
+ * assigned to.
+ */
+async function workOf(event: RequestEvent<{ id: string }>, form: FormData): Promise<string | null> {
   const id = text(form, 'workId');
-  return data.works.some((w) => w.id === id) ? id : null;
+  if (!id || id.length > 64) return null;
+  const [found] = await event.locals.db
+    .select({ id: works.id })
+    .from(works)
+    .where(eq(works.id, id));
+  return found?.id ?? null;
 }
 
 /** A file field read as text, or the text field of the same purpose. */
@@ -202,29 +210,11 @@ export const actions: Actions = {
     const parsed = settingsSchema.safeParse({ name: text(form, 'name') });
     if (!parsed.success)
       return fail(400, { message: parsed.error.issues[0]?.message ?? t.settings.nameRequired });
-    // The works chosen, each one that exists.
-    const workIds = [
-      ...new Set(
-        form
-          .getAll('workIds')
-          .map(String)
-          .filter((id) => id.length > 0 && id.length <= 64),
-      ),
-    ].slice(0, 200);
-    if (workIds.length) {
-      const found = await event.locals.db
-        .select({ id: works.id })
-        .from(works)
-        .where(inArray(works.id, workIds));
-      if (found.length !== workIds.length)
-        return fail(400, { message: registry.transcription.works.notFound });
-    }
     try {
       const settings = await saveSettings(event.locals.db, data.transcription.id, {
         name: parsed.data.name,
         keepsWrittenForm: flag(form, 'keepsWrittenForm'),
         displayAsWritten: flag(form, 'displayAsWritten'),
-        workIds,
         fromVersion: Number(text(form, 'fromVersion')) || 0,
         userId: user.id,
         sources: text(form, 'sources').trim().slice(0, 5000) || null,
@@ -238,7 +228,7 @@ export const actions: Actions = {
     }
   },
 
-  /** A copy of one's own: the text, works, settings and boxes; the history starts afresh. */
+  /** A copy of one's own: the text, settings and boxes; the history starts afresh. */
   copy: async (event) => {
     const user = event.locals.user;
     if (!user) throw error(403, t.errors.forbidden);
@@ -297,7 +287,7 @@ export const actions: Actions = {
       const xml = await teiText(form);
       const preview = await teiPreview(
         event.locals.db,
-        workOf(data, form),
+        await workOf(event, form),
         xml,
         mappingOf(form),
         as,
@@ -323,7 +313,7 @@ export const actions: Actions = {
         const xml = await teiText(form);
         return importTeiInto(event.locals.db, target(data, form, user.id), {
           xml,
-          workId: workOf(data, form),
+          workId: await workOf(event, form),
           mapping: mappingOf(form) ?? {},
           as,
         });
@@ -341,6 +331,7 @@ export const actions: Actions = {
     const kind = text(form, 'pattern');
     const pattern = kind ? (detectNumbering(body).find((p) => p.kind === kind) ?? null) : null;
     const startLabel = text(form, 'startLabel').trim();
+    const workId = await workOf(event, form);
     // Plain text is a text to start from: it has no source to record.
     return imported(
       event,
@@ -349,7 +340,7 @@ export const actions: Actions = {
         importPlainTextInto(event.locals.db, target(data, form, user.id), {
           text: body,
           pattern,
-          workId: workOf(data, form),
+          workId,
           paragraphs: flag(form, 'paragraphs'),
           hyphenJoins: flag(form, 'hyphenJoins'),
           ...(startLabel ? { startLabel } : {}),

@@ -26,6 +26,7 @@
     toasts,
   } from '$lib/components/ui';
   import { workbench as t } from '$lib/strings/workbench';
+  import WorkField from './WorkField.svelte';
   import type { Workbench } from './workbench.svelte';
 
   interface Props {
@@ -176,6 +177,7 @@
         }
         if (data.imported) {
           wb.applyImport(data.imported);
+          if (workId) wb.workId = workId;
           const summary = t.importer.summary(data.imported.outcome);
           done = { summary: summary || t.importer.done, warnings: data.imported.outcome.warnings };
           toasts.success(summary ? `${t.importer.done} ${summary}.` : t.importer.done);
@@ -209,19 +211,8 @@
 </script>
 
 {#snippet common()}
-  {#if wb.works.length > 0 && tab !== 'leiden' && tab !== 'layout'}
-    <Field label={t.importer.work}>
-      {#snippet children(control)}
-        <Select
-          {...control}
-          bind:value={workId}
-          options={[
-            ...wb.works.map((w) => ({ value: w.id, label: w.title })),
-            { value: '', label: t.importer.noWork },
-          ]}
-        />
-      {/snippet}
-    </Field>
+  {#if tab !== 'leiden' && tab !== 'layout'}
+    <WorkField {wb} bind:value={workId} none={t.importer.noWork} />
   {/if}
   {#if wb.pages.length > 0 && tab !== 'layout'}
     <Field

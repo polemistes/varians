@@ -64,7 +64,7 @@ import {
 } from './registry';
 import { DEFAULT_CONVENTIONS } from './seed/sample.ts';
 import { resolveLabels, resolveSegment, schemeOfWork } from './segments.ts';
-import { chosenWorks, worksOfTranscription } from './transcription-works.ts';
+import { worksOfTranscription } from './transcription-works.ts';
 import { loadTranscriptionAccess } from './transcription-access.ts';
 import { copyEdition } from './edition-copy.ts';
 import { createZones, zonesOf } from './zones.ts';
@@ -436,38 +436,30 @@ describe('transcriptions', () => {
     second = await witness('Second witness');
   });
 
-  it('creates one for a work, and any number more of the same witness and work', async () => {
-    const row = await createTranscription(
-      db,
-      { witnessId: first.id, workIds: [poem.id], name: 'Poem' },
-      alice.id,
-    );
+  it('creates one with no works of its own, and any number more of the same witness', async () => {
+    const row = await createTranscription(db, { witnessId: first.id, name: 'Poem' }, alice.id);
     source = row.id;
-    expect(await chosenWorks(db, row.id)).toEqual([poem.id]);
+    expect(await worksOfTranscription(db, row.id)).toEqual([]);
     expect(row).toMatchObject({
       ownerId: alice.id,
       version: 0,
       visibility: 'draft',
       keepsWrittenForm: false,
     });
-    // A second one of the same witness for the same work is allowed.
-    const again = await createTranscription(
-      db,
-      { witnessId: first.id, workIds: [poem.id], name: 'Again' },
-      alice.id,
-    );
+    // A second one of the same witness is allowed.
+    const again = await createTranscription(db, { witnessId: first.id, name: 'Again' }, alice.id);
     expect(again.id).not.toBe(source);
     await db.delete(transcriptions).where(eq(transcriptions.id, again.id));
     const other = await createTranscription(
       db,
-      { witnessId: first.id, workIds: [poem.id], name: 'Bob’s', keepsWrittenForm: true },
+      { witnessId: first.id, name: 'Bob’s', keepsWrittenForm: true },
       bob.id,
     );
     bobs = other.id;
     expect(other.keepsWrittenForm).toBe(true);
   });
 
-  it('starts one from another: the text copied with new ids, the work kept, saved as the first change', async () => {
+  it('starts one from another: the text copied with new ids, and with it the work, saved as the first change', async () => {
     const text = await textOf(poem.id, { '1.1': 'arma virumque cano', '1.2': 'Troiae qui primus' });
     await replaceContent(db, 'transcription', source, alice.id, 0, text, 'test');
     const row = await createTranscription(
@@ -477,7 +469,7 @@ describe('transcriptions', () => {
     );
     copy = row.id;
     created.documents.push(copy);
-    expect(await chosenWorks(db, copy)).toEqual([poem.id]);
+    expect(await worksOfTranscription(db, copy)).toEqual([poem.id]);
     expect(row.version).toBe(1);
     expect(toText(row.content)).toBe(toText(text));
     const sourceIds = new Set(text.items.map((i) => i.id));
@@ -501,12 +493,12 @@ describe('transcriptions', () => {
     await db.delete(transcriptions).where(eq(transcriptions.id, twice.id));
   });
 
-  it('lists the transcriptions of a work, with or without text in it', async () => {
+  it('lists the transcriptions with text of a work, and not one without', async () => {
     const rows = await transcriptionsOfWork(db, poem.id);
     const byId = new Map(rows.map((r) => [r.id, r]));
     expect(byId.get(source)?.segmentCount).toBe(2);
     expect(byId.get(copy)?.segmentCount).toBe(2);
-    expect(byId.get(bobs)?.segmentCount).toBe(0);
+    expect(byId.has(bobs)).toBe(false);
     expect(byId.get(copy)).toMatchObject({
       witnessName: second.name,
       witnessSiglum: 'X',
@@ -517,8 +509,21 @@ describe('transcriptions', () => {
   it('lists the transcriptions and works of a witness', async () => {
     const rows = await transcriptionsOfWitness(db, first.id);
     expect(rows.map((r) => r.id).sort()).toEqual([source, bobs].sort());
+    expect(rows.find((r) => r.id === bobs)!.assigned).toEqual([]);
+    // A transcription without text assigned to the work is no trace of it.
+    expect(
+      (await worksOfWitness(db, first.id, bob, await grantsFor(db, bob))).map((w) => w.id),
+    ).toEqual([]);
+    await replaceContent(
+      db,
+      'transcription',
+      bobs,
+      bob.id,
+      0,
+      await textOf(poem.id, { '1.1': 'arma' }),
+      'test',
+    );
     const mine = rows.find((r) => r.id === source)!;
-    expect(mine.works.map((w) => w.id)).toEqual([poem.id]);
     expect(mine.assigned).toEqual([expect.objectContaining({ id: poem.id, segmentCount: 2 })]);
     // Bob's draft is no trace of the work to anyone but Bob and those who may edit it.
     const forAlice = await worksOfWitness(db, first.id, alice, await grantsFor(db, alice));
@@ -532,7 +537,7 @@ describe('transcriptions', () => {
     ]);
     const forBob = await worksOfWitness(db, first.id, bob, await grantsFor(db, bob));
     expect(forBob.map((w) => w.transcriptionCount)).toEqual([1]);
-    expect(forBob[0]!.segmentCount).toBe(0);
+    expect(forBob[0]!.segmentCount).toBe(1);
     const forAdmin = await worksOfWitness(db, first.id, admin, await grantsFor(db, admin));
     expect(forAdmin.map((w) => w.transcriptionCount)).toEqual([2]);
     expect(await worksOfWitness(db, first.id, null, await grantsFor(db, null))).toEqual([]);
@@ -576,7 +581,7 @@ describe('deleting works', () => {
 
     const bobsText = await createTranscription(
       db,
-      { witnessId: place.id, workIds: [row.id], name: 'Bob reads' },
+      { witnessId: place.id, name: 'Bob reads' },
       bob.id,
     );
     await replaceContent(
@@ -802,23 +807,24 @@ describe('search', () => {
 });
 
 describe('transcriptions of several works, and copies', () => {
-  it('keeps the works chosen in order, and counts the works the text is assigned to as well', async () => {
+  it('has the works its text is assigned to, in the order they first occur', async () => {
     const greek = await work('Greek part');
     const latin = await work('Latin part');
     const place = await witness('Miscellany');
-    const row = await createTranscription(
-      db,
-      { witnessId: place.id, workIds: [latin.id, greek.id, latin.id], name: 'All of it' },
-      alice.id,
-    );
-    expect(await chosenWorks(db, row.id)).toEqual([latin.id, greek.id]);
-    const third = await work('Third part');
-    const text = await textOf(third.id, { '1.1': 'alpha beta' });
-    await replaceContent(db, 'transcription', row.id, alice.id, 0, text, 'test');
+    const row = await createTranscription(db, { witnessId: place.id, name: 'All of it' }, alice.id);
     created.documents.push(row.id);
-    expect(await worksOfTranscription(db, row.id)).toEqual([latin.id, greek.id, third.id]);
+    expect(await worksOfTranscription(db, row.id)).toEqual([]);
+    const text: Stream = {
+      items: [
+        ...(await textOf(latin.id, { '1.1': 'arma virumque' })).items,
+        ...(await textOf(greek.id, { '1.1': 'alpha beta' })).items,
+        ...(await textOf(latin.id, { '1.2': 'cano' })).items,
+      ],
+    };
+    await replaceContent(db, 'transcription', row.id, alice.id, 0, text, 'test');
+    expect(await worksOfTranscription(db, row.id)).toEqual([latin.id, greek.id]);
     // Listed with every one of its works.
-    for (const w of [latin, greek, third])
+    for (const w of [latin, greek])
       expect((await transcriptionsOfWork(db, w.id)).map((t) => t.id)).toContain(row.id);
   });
 
@@ -835,11 +841,7 @@ describe('transcriptions of several works, and copies', () => {
     );
     created.works.push(other.id);
     const place = await witness('Shared codex');
-    const row = await createTranscription(
-      db,
-      { witnessId: place.id, workIds: [open.id], name: 'Codex' },
-      alice.id,
-    );
+    const row = await createTranscription(db, { witnessId: place.id, name: 'Codex' }, alice.id);
     await replaceContent(
       db,
       'transcription',
@@ -862,7 +864,7 @@ describe('transcriptions of several works, and copies', () => {
     expect((await loadTranscriptionAccess(db, bob, row.id))!.canView).toBe(true);
   });
 
-  it('copies a transcription with its works, memory and boxes; boxes only within the same witness', async () => {
+  it('copies a transcription with its text and so its works, its memory and boxes; boxes only within the same witness', async () => {
     const poem = await work('Copied poem');
     const place = await witness('Copied codex');
     const other = await witness('Other codex');
@@ -870,11 +872,7 @@ describe('transcriptions of several works, and copies', () => {
       .insert(pages)
       .values({ id: newId(), witnessId: place.id, label: '1r', position: 1 })
       .returning();
-    const row = await createTranscription(
-      db,
-      { witnessId: place.id, workIds: [poem.id], name: 'Original' },
-      alice.id,
-    );
+    const row = await createTranscription(db, { witnessId: place.id, name: 'Original' }, alice.id);
     const text = await textOf(poem.id, { '1.1': 'arma virumque' });
     await replaceContent(db, 'transcription', row.id, alice.id, 0, text, 'test');
     await db
@@ -908,7 +906,7 @@ describe('transcriptions of several works, and copies', () => {
       bob.id,
     );
     created.documents.push(copy.id);
-    expect(await chosenWorks(db, copy.id)).toEqual([poem.id]);
+    expect(await worksOfTranscription(db, copy.id)).toEqual([poem.id]);
     expect(copy.memory).toEqual([{ form: 'ARMA', norm: 'arma', count: 2 }]);
     const copiedTokens = copy.content.items.filter((i) => i.kind === 'token').map((i) => i.id);
     const boxes = await zonesOf(db, copy.id);
@@ -932,18 +930,14 @@ describe('transcriptions of several works, and copies', () => {
     const poem = await work('Edited poem');
     const place = await witness('Edited codex');
     const second = await witness('Unseen codex');
-    const base = await createTranscription(
-      db,
-      { witnessId: place.id, workIds: [poem.id], name: 'Base' },
-      alice.id,
-    );
+    const base = await createTranscription(db, { witnessId: place.id, name: 'Base' }, alice.id);
     await db
       .update(transcriptions)
       .set({ visibility: 'published' })
       .where(eq(transcriptions.id, base.id));
     const hidden = await createTranscription(
       db,
-      { witnessId: second.id, workIds: [poem.id], name: 'Hidden' },
+      { witnessId: second.id, name: 'Hidden' },
       alice.id,
     );
     const id = await edition(poem.id, alice, [

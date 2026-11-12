@@ -255,7 +255,6 @@ export const workbench = {
     title: 'Segment',
     label: 'Label',
     hint: (example: string) => `As the work numbers it, for example ${example}.`,
-    work: 'Work',
     part: 'Part',
     partHint: (n: number) =>
       `This segment already begins elsewhere in the text; this is its part ${n}.`,
@@ -263,10 +262,16 @@ export const workbench = {
     unassign: 'Unassigned from Here',
     remove: 'Remove This Start',
     cancel: 'Cancel',
-    noWork:
-      'This transcript is not made for a work yet. Choose its work in the registry to name segments.',
     invalid: (label: string) => `${label} is not a label of this work.`,
     failed: 'The segment could not be set.',
+  },
+
+  /** The work text is assigned to, where segments are named, lines numbered and text imported. */
+  workField: {
+    label: 'Work',
+    another: 'Choose another work',
+    search: 'Search the works',
+    failed: 'The work could not be loaded.',
   },
 
   numbering: {
@@ -276,7 +281,6 @@ export const workbench = {
     start: 'First Label',
     count: 'Lines',
     countHint: 'Leave empty to number to the end of the page.',
-    work: 'Work',
     run: 'Number',
     cancel: 'Cancel',
     nothing: 'There are no lines to number from the caret.',
@@ -439,7 +443,6 @@ export const workbench = {
     kindTranscript: 'A transcript of this witness',
     kindTranscriptHint:
       'Its features and pages are kept. What its editor supplied is left out, and the gap kept.',
-    work: 'Work',
     noWork: 'No work: the text comes in without segment labels.',
     file: 'File',
     or: 'or',

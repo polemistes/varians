@@ -69,7 +69,7 @@ import { SafeFetchError, readTextCapped, safeFetch } from './safe-fetch.ts';
 import { previewTei } from './import/tei.ts';
 import { resolveLabels, schemeOfWork } from './segments.ts';
 import { loadTranscriptionAccess } from './transcription-access.ts';
-import { chosenWorks, setChosenWorks, worksOfTranscription } from './transcription-works.ts';
+import { worksOfTranscription } from './transcription-works.ts';
 import { grantsFor } from './authz.ts';
 import { candidateWitnesses, editionsOfWork } from './editions.ts';
 import { loadEditionAccess } from './edition-access.ts';
@@ -87,6 +87,25 @@ export interface WorkbenchWork {
   language: string;
   levels: Level[];
   profile: NormalizationProfile;
+}
+
+/** Works as the workbench needs them, in the order of the ids given; an id of no work is left out. */
+export async function workbenchWorks(db: Database, ids: string[]): Promise<WorkbenchWork[]> {
+  if (ids.length === 0) return [];
+  const rows = await db
+    .select({
+      id: works.id,
+      slug: works.slug,
+      title: works.title,
+      language: works.language,
+      levels: referenceSchemes.levels,
+      profile: works.profile,
+    })
+    .from(works)
+    .innerJoin(referenceSchemes, eq(referenceSchemes.id, works.schemeId))
+    .where(inArray(works.id, ids));
+  const order = new Map(ids.map((w, i) => [w, i] as const));
+  return rows.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 }
 
 export interface WorkbenchPageRow {
@@ -120,8 +139,6 @@ export interface WorkbenchData {
     /** The licence fixed at publication, by name, and the installation's, which publication would give. */
     licence: string | null;
     installationLicence: string;
-    /** The works the transcription is for, in order; the works its text is assigned to are in `works`. */
-    workIds: string[];
     profile: Partial<NormalizationProfile> | null;
   };
   witness: {
@@ -134,7 +151,7 @@ export interface WorkbenchData {
     imageDefaults: { rights: string | null; attribution: string | null };
   };
   pages: WorkbenchPageRow[];
-  /** The works the transcription is for first, then the other works its text is assigned to. */
+  /** The works the transcription's text is assigned to, in the order they first occur in it. */
   works: WorkbenchWork[];
   /** Label and work of every segment the content names. */
   segments: Record<string, { label: string; workId: string }>;
@@ -161,26 +178,11 @@ export async function loadWorkbench(
         .from(segments)
         .where(inArray(segments.id, named))
     : [];
-  const chosen = await chosenWorks(db, id);
+  const workOf = new Map(segmentRows.map((s) => [s.id, s.workId] as const));
   const workIds = [
-    ...new Set([...(await worksOfTranscription(db, id)), ...segmentRows.map((s) => s.workId)]),
+    ...new Set(named.map((s) => workOf.get(s)).filter((w): w is string => w !== undefined)),
   ];
-  const workRows = workIds.length
-    ? await db
-        .select({
-          id: works.id,
-          slug: works.slug,
-          title: works.title,
-          language: works.language,
-          levels: referenceSchemes.levels,
-          profile: works.profile,
-        })
-        .from(works)
-        .innerJoin(referenceSchemes, eq(referenceSchemes.id, works.schemeId))
-        .where(inArray(works.id, workIds))
-    : [];
-  const order = new Map(workIds.map((w, i) => [w, i] as const));
-  workRows.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+  const workRows = await workbenchWorks(db, workIds);
   const maintainers = await db
     .select({ userId: witnessMaintainers.userId })
     .from(witnessMaintainers)
@@ -199,7 +201,6 @@ export async function loadWorkbench(
       rightsNote: transcription.rightsNote,
       licence: licenceInfo(transcription.licenceId)?.name ?? null,
       installationLicence: licenceInfo(dataLicence())!.name,
-      workIds: chosen,
       profile: transcription.profile,
     },
     witness: {
@@ -962,8 +963,6 @@ export interface SettingsInput {
   name: string;
   keepsWrittenForm: boolean;
   displayAsWritten: boolean;
-  /** The works it is for, in order; left as they are when absent. */
-  workIds?: string[];
   /** What it rests on and its rightsNote; left as they are when absent. */
   sources?: string | null;
   rightsNote?: string | null;
@@ -975,7 +974,6 @@ export interface SettingsOutcome {
   name: string;
   keepsWrittenForm: boolean;
   displayAsWritten: boolean;
-  workIds: string[];
   sources: string | null;
   rightsNote: string | null;
   version: number;
@@ -1029,8 +1027,6 @@ export async function saveSettings(
         ...(input.rightsNote !== undefined ? { rightsNote: input.rightsNote } : {}),
       })
       .where(eq(transcriptions.id, transcriptionId));
-    if (input.workIds) await setChosenWorks(tx, transcriptionId, input.workIds);
-    const workIds = await chosenWorks(tx, transcriptionId);
     const [after] = await tx
       .select({ sources: transcriptions.sources, rightsNote: transcriptions.rightsNote })
       .from(transcriptions)
@@ -1039,7 +1035,6 @@ export async function saveSettings(
       name: input.name,
       keepsWrittenForm: input.keepsWrittenForm,
       displayAsWritten: input.displayAsWritten,
-      workIds,
       sources: after?.sources ?? null,
       rightsNote: after?.rightsNote ?? null,
       version,

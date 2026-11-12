@@ -301,20 +301,18 @@ export function parseHands(
 
 const transcriptionSchema = z.object({
   name: z.string().trim().min(1, t.transcription.nameRequired).max(200, t.witness.tooLong),
-  workId: z.string().trim().max(64),
   keepsWrittenForm: z.boolean(),
   fromTranscriptionId: z.string().trim().max(64),
 });
 
 export interface TranscriptionForm {
   name: string;
-  workId: string | null;
   keepsWrittenForm: boolean;
   fromTranscriptionId: string | null;
 }
 
 export function parseTranscriptionForm(form: FormData): Parsed<TranscriptionForm> {
-  const typed = values(form, ['name', 'workId', 'fromTranscriptionId']);
+  const typed = values(form, ['name', 'fromTranscriptionId']);
   const parsed = run(
     transcriptionSchema,
     { ...typed, keepsWrittenForm: checked(form, 'keepsWrittenForm') },
@@ -325,7 +323,6 @@ export function parseTranscriptionForm(form: FormData): Parsed<TranscriptionForm
     ok: true,
     data: {
       name: parsed.data.name,
-      workId: parsed.data.workId || null,
       keepsWrittenForm: parsed.data.keepsWrittenForm,
       fromTranscriptionId: parsed.data.fromTranscriptionId || null,
     },

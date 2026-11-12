@@ -15,14 +15,9 @@
 
   const s = registry.transcription;
 
-  /** The works a row names: those it assigns text to, and the work it was made for when that has none yet. */
+  /** The works a row names: those its text is assigned to. */
   function worksOf(item: Item) {
-    const list = item.assigned.map((w) => ({ slug: w.slug, title: w.title, n: w.segmentCount }));
-    for (const work of [...item.works].reverse()) {
-      if (!list.some((w) => w.slug === work.slug))
-        list.unshift({ slug: work.slug, title: work.title, n: 0 });
-    }
-    return list;
+    return item.assigned.map((w) => ({ slug: w.slug, title: w.title, n: w.segmentCount }));
   }
 </script>
 
