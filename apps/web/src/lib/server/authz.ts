@@ -207,13 +207,17 @@ export function canEditTranscription(
   );
 }
 
-/** Published, or owner, or reached through an edition that names it, or site editor. */
+/**
+ * A transcript with a version that is not withdrawn is seen by everyone (its
+ * latest version); otherwise by those who may edit it: its owner, those
+ * reached through an edition that names it, and site editors.
+ */
 export function canViewTranscription(
   user: Maybe<Actor>,
-  transcription: Pick<Transcription, 'id' | 'ownerId' | 'visibility'>,
+  transcription: Pick<Transcription, 'id' | 'ownerId'> & { hasVersion: boolean },
   grants: Grants,
 ): boolean {
-  if (transcription.visibility === 'published') return true;
+  if (transcription.hasVersion) return true;
   return canEditTranscription(user, transcription, grants);
 }
 
@@ -258,12 +262,13 @@ export function canEditEdition(
   return isSiteEditor(user) || isOwner(user, edition) || has(collaboratorIds, user.id);
 }
 
+/** An edition with a version that is not withdrawn is seen by everyone (its versions); otherwise by those who may edit it. */
 export function canViewEdition(
   user: Maybe<Actor>,
-  edition: Pick<Edition, 'id' | 'ownerId' | 'visibility'>,
+  edition: Pick<Edition, 'id' | 'ownerId'> & { hasVersion: boolean },
   collaboratorIds: Iterable<string>,
 ): boolean {
-  if (edition.visibility === 'published') return true;
+  if (edition.hasVersion) return true;
   return canEditEdition(user, edition, collaboratorIds);
 }
 
