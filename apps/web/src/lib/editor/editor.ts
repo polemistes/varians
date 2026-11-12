@@ -111,6 +111,8 @@ import {
   modelExtensions,
   modelField,
   setModel,
+  setTypingLanguage,
+  typingField,
   wholeEdit,
 } from './state.ts';
 
@@ -162,6 +164,8 @@ export interface EditorCallbacks {
   onworddblclick?: (tokenId: Id) => void;
   /** A mark in the margin between lines was clicked: its key. */
   onmarginmark?: (key: string) => void;
+  /** The language in force changed (see `languageInForce`); null where none is. */
+  onlanguage?: (lang: string | null) => void;
 }
 
 /** What a cut takes from the text shown. */
@@ -244,6 +248,14 @@ export interface EditorApi {
   focus(): void;
   tokenAtCaret(): Id | null;
   selectedTokens(): Id[];
+  /**
+   * The language in force at the caret: the one chosen for typing, else that
+   * of the word at the caret, else of the nearest word before it with one;
+   * null where there is none.
+   */
+  languageInForce(): string | null;
+  /** Choose the language the next words typed take, until the caret leaves the word it is in; null lets it go. */
+  setTypingLanguage(lang: string | null): void;
   undo(): boolean;
   redo(): boolean;
 }
@@ -456,6 +468,7 @@ export class VariansEditor implements EditorApi {
   private readonly undoHistory = new Compartment();
   private readonly margin = new Compartment();
   private lastSelection = '';
+  private lastLanguage: string | null | undefined = undefined;
   private hovered: Id | null = null;
   /** The pointer's last place over the text, read once a frame. */
   private hoverAt: { x: number; y: number } | null = null;
@@ -490,6 +503,7 @@ export class VariansEditor implements EditorApi {
       this.requestSegment(tokenId);
     });
     this.emitSelection();
+    this.emitLanguage();
   }
 
   /** The stream as the editor last knew it: the parent's, or the one the last edit produced. */
@@ -729,6 +743,14 @@ export class VariansEditor implements EditorApi {
     }
     if (rebuild || update.state.field(modelField).model.misaligned) this.resync();
     if (update.selectionSet || update.docChanged || modelChanged) this.emitSelection();
+    this.emitLanguage();
+  }
+
+  private emitLanguage(): void {
+    const lang = this.languageInForce();
+    if (lang === this.lastLanguage) return;
+    this.lastLanguage = lang;
+    this.callbacks.onlanguage?.(lang);
   }
 
   private emit(ops: Op[]): void {
@@ -1262,6 +1284,26 @@ export class VariansEditor implements EditorApi {
   tokenAtCaret(): Id | null {
     const model = this.model;
     return tokenAt(model.ledger, model.byId, this.view.state.selection.main.head)?.id ?? null;
+  }
+
+  languageInForce(): string | null {
+    const typing = this.view.state.field(typingField, false);
+    if (typing) return typing.lang;
+    const model = this.model;
+    const head = this.view.state.selection.main.head;
+    const at = tokenAt(model.ledger, model.byId, head);
+    if (at?.lang !== undefined) return at.lang;
+    const spans = model.ledger.spans;
+    for (let i = spans.length - 1; i >= 0; i--) {
+      if (spans[i]!.to > head) continue;
+      const item = model.byId.get(spans[i]!.id);
+      if (isToken(item) && item.lang !== undefined) return item.lang;
+    }
+    return model.outside.before ?? null;
+  }
+
+  setTypingLanguage(lang: string | null): void {
+    this.view.dispatch({ effects: setTypingLanguage.of(lang) });
   }
 
   selectedTokens(): Id[] {

@@ -97,11 +97,11 @@ describe('editing one page through the bridge', () => {
       },
     );
     expect(r.ops).toEqual([
-      { t: 'insert', after: null, items: [{ kind: 'token', id: 'n1', form: 'new' }] },
+      { t: 'insert', after: null, items: [{ kind: 'token', id: 'n1', form: 'new', lang: 'en' }] },
     ]);
     const lifted = liftToWhole(r.ops, view, sequentialIds('b'));
     expect(lifted.ops).toEqual([
-      { t: 'insert', after: 't5', items: [{ kind: 'token', id: 'n1', form: 'new' }] },
+      { t: 'insert', after: 't5', items: [{ kind: 'token', id: 'n1', form: 'new', lang: 'en' }] },
     ]);
     const next = applyOps(whole, lifted.ops).stream;
     expect(toText(next)).toBe('x\na b\nnew c d\ne');

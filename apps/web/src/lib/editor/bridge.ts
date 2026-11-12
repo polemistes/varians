@@ -96,12 +96,22 @@ export interface ReconcileOptions {
   ids?: () => Id;
   /** Whether a written form changed under an existing read form needs the editor's check. */
   needsCheck?: (token: Token, newForm: string) => boolean;
+  /** The language the person typing chose: new words take it instead of their neighbours'. */
+  typingLanguage?: string;
+  /**
+   * The languages of the nearest words outside the stream given (a page shown
+   * alone), before and after it: a new word with no neighbour in the stream
+   * that has a language takes these.
+   */
+  outside?: { before?: string; after?: string };
 }
 
 export interface Reconciled {
   ops: Op[];
   stream: Stream;
   ledger: Ledger;
+  /** New words that have no language: no word with one stands before or after them, and none was chosen. */
+  unlanguaged: Id[];
 }
 
 interface Slot {
@@ -159,7 +169,7 @@ export function reconcile(
 ): Reconciled {
   const ids = options.ids ?? newId;
   const needsCheck = options.needsCheck ?? ((token: Token) => token.norm !== undefined);
-  if (changes.empty) return { ops: [], stream, ledger };
+  if (changes.empty) return { ops: [], stream, ledger, unlanguaged: [] };
   const oldDoc = Text.of(ledger.text.split('\n'));
   const newDoc = changes.apply(oldDoc);
   const inverted = changes.invert(oldDoc);
@@ -289,13 +299,66 @@ export function reconcile(
     if (index >= 0) newItems[index] = give(newItems[index]!, segment);
   }
 
+  const unlanguaged = giveLanguages(ledger, oldFrom, oldTo, newItems, byId, options);
   const ops = structuralOps(stream, oldIds, newItems, byId);
   for (const op of setOps) if (op.t === 'set' && newItems.some((n) => n.id === op.id)) ops.push(op);
   for (const [id, segment] of desiredSegment) {
     if (byId.has(id) && !removed.includes(id)) ops.push({ t: 'set', id, fields: { segment } });
   }
   const applied = applyOps(stream, ops);
-  return { ops, stream: applied.stream, ledger: render(applied.stream, form) };
+  return { ops, stream: applied.stream, ledger: render(applied.stream, form), unlanguaged };
+}
+
+/**
+ * Give each new word of the range its language, in place: the language
+ * chosen for typing, else that of the nearest word before it with one, else
+ * of the nearest after, looking through the range, then the stream around
+ * it, then what lies outside the stream. Words kept keep theirs. Returns the
+ * ids of the new words left without a language.
+ */
+function giveLanguages(
+  ledger: Ledger,
+  oldFrom: number,
+  oldTo: number,
+  newItems: Item[],
+  byId: Map<Id, Item>,
+  options: ReconcileOptions,
+): Id[] {
+  const fresh = newItems.flatMap((item, i) => (isToken(item) && !byId.has(item.id) ? [i] : []));
+  if (fresh.length === 0) return [];
+  const setLang = (i: number, lang: string) => {
+    newItems[i] = { ...(newItems[i] as Token), lang };
+  };
+  if (options.typingLanguage) {
+    for (const i of fresh) setLang(i, options.typingLanguage);
+    return [];
+  }
+  // The items of the stream before and after the range read back, by where they stood.
+  const before = ledger.spans.filter((s) => s.to <= oldFrom).map((s) => byId.get(s.id));
+  const after = ledger.spans.filter((s) => s.from >= oldTo).map((s) => byId.get(s.id));
+  const langOf = (item: Item | undefined): string | undefined =>
+    isToken(item) ? item.lang : undefined;
+  let carried = findLast(before, langOf) ?? options.outside?.before;
+  for (let i = 0; i < newItems.length; i++) {
+    const lang = langOf(newItems[i]);
+    if (lang !== undefined) carried = lang;
+    else if (carried !== undefined && fresh.includes(i)) setLang(i, carried);
+  }
+  carried = after.map(langOf).find((lang) => lang !== undefined) ?? options.outside?.after;
+  for (let i = newItems.length - 1; i >= 0; i--) {
+    const lang = langOf(newItems[i]);
+    if (lang !== undefined) carried = lang;
+    else if (carried !== undefined && fresh.includes(i)) setLang(i, carried);
+  }
+  return fresh.filter((i) => langOf(newItems[i]) === undefined).map((i) => newItems[i]!.id);
+}
+
+function findLast<T, U>(items: T[], pick: (item: T) => U | undefined): U | undefined {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const value = pick(items[i]!);
+    if (value !== undefined) return value;
+  }
+  return undefined;
 }
 
 /** Old word items whose mapped range still overlaps a slot, in order, not yet taken. */

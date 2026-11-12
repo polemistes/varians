@@ -64,7 +64,7 @@ describe('reconcile', () => {
     const r = edit(sample(), 'quick fox', 'quick brown fox');
     expect(toText(r.stream)).toBe('the quick brown fox\njumps over');
     expect(r.ops).toEqual([
-      { t: 'insert', after: 't2', items: [{ kind: 'token', id: 'n1', form: 'brown' }] },
+      { t: 'insert', after: 't2', items: [{ kind: 'token', id: 'n1', form: 'brown', lang: 'en' }] },
     ]);
   });
 
@@ -78,7 +78,7 @@ describe('reconcile', () => {
     const r = edit(sample(), 'quick', 'qu ick');
     expect(toText(r.stream)).toBe('the qu ick fox\njumps over');
     expect(r.ops).toEqual([
-      { t: 'insert', after: 't2', items: [{ kind: 'token', id: 'n1', form: 'ick' }] },
+      { t: 'insert', after: 't2', items: [{ kind: 'token', id: 'n1', form: 'ick', lang: 'en' }] },
       { t: 'set', id: 't2', fields: { form: 'qu' } },
     ]);
   });
@@ -169,8 +169,8 @@ describe('reconcile', () => {
         after: 't6',
         items: [
           { kind: 'break', id: 'n1', type: 'line' },
-          { kind: 'token', id: 'n2', form: 'the' },
-          { kind: 'token', id: 'n3', form: 'end' },
+          { kind: 'token', id: 'n2', form: 'the', lang: 'en' },
+          { kind: 'token', id: 'n3', form: 'end', lang: 'en' },
         ],
       },
     ]);
@@ -187,6 +187,7 @@ describe('reconcile', () => {
       { ids: sequentialIds('n') },
     );
     expect(toText(r.stream)).toBe('μῆνιν ἄειδε');
+    expect(r.unlanguaged).toEqual(['n1', 'n2']);
     expect(r.ops).toEqual([
       {
         t: 'insert',
@@ -236,5 +237,91 @@ describe('a word divided across lines', () => {
     const r = edit(s, 'ab\ncd', 'abcd');
     expect((r.stream.items[0] as Token).joinNext).toBe(true);
     expect(r.ops).toContainEqual({ t: 'set', id: 't1', fields: { form: 'abcd' } });
+  });
+});
+
+describe('the language of new words', () => {
+  function mixed(): Stream {
+    const s = fromText('arma virumque\nμῆνιν ἄειδε', { lang: 'la', ids: sequentialIds() });
+    for (const item of s.items.slice(3)) if (item.kind === 'token') item.lang = 'grc';
+    return s;
+  }
+
+  function type(stream: Stream, at: number, insert: string, options = {}) {
+    const ledger = render(stream, 'written');
+    return reconcile(stream, ledger, change(ledger, at, at, insert), 'written', {
+      ids: sequentialIds('n'),
+      ...options,
+    });
+  }
+
+  const langOf = (stream: Stream, form: string) =>
+    (stream.items.find((i) => i.kind === 'token' && i.form === form) as Token | undefined)?.lang;
+
+  it('takes the language of the word before it', () => {
+    const s = mixed();
+    const r = type(s, 'arma virumque'.length, ' cano');
+    expect(langOf(r.stream, 'cano')).toBe('la');
+    expect(r.unlanguaged).toEqual([]);
+  });
+
+  it('takes the language of the word before it across a line break', () => {
+    const s = mixed();
+    const r = type(s, render(s, 'written').text.length, ' θεά');
+    expect(langOf(r.stream, 'θεά')).toBe('grc');
+  });
+
+  it('takes the language of the word after it where none stands before', () => {
+    const s = fromText('μῆνιν ἄειδε', { lang: 'grc', ids: sequentialIds() });
+    const r = type(s, 0, 'καὶ ');
+    expect(langOf(r.stream, 'καὶ')).toBe('grc');
+  });
+
+  it('takes the language chosen for typing over its neighbours', () => {
+    const s = mixed();
+    const r = type(s, 'arma'.length, ' et', { typingLanguage: 'grc' });
+    expect(langOf(r.stream, 'et')).toBe('grc');
+    expect(langOf(r.stream, 'arma')).toBe('la');
+  });
+
+  it('takes the language of the text outside a page shown alone', () => {
+    const empty: Stream = { items: [] };
+    const r = type(empty, 0, 'καὶ', { outside: { before: 'grc' } });
+    expect(langOf(r.stream, 'καὶ')).toBe('grc');
+    expect(r.unlanguaged).toEqual([]);
+    const later = type(empty, 0, 'et', { outside: { after: 'la' } });
+    expect(langOf(later.stream, 'et')).toBe('la');
+  });
+
+  it('names the words of a paste into a text without a language', () => {
+    const empty: Stream = { items: [] };
+    const r = type(empty, 0, 'arma virumque\ncano');
+    expect(r.unlanguaged).toEqual(['n1', 'n2', 'n4']);
+    expect(r.stream.items.filter((i) => i.kind === 'token' && i.lang)).toEqual([]);
+  });
+
+  it('keeps the language of a word whose text is edited', () => {
+    const r = edit(mixed(), 'ἄειδε', 'ἀείδω');
+    expect(r.ops).toEqual([{ t: 'set', id: 't5', fields: { form: 'ἀείδω' } }]);
+    expect(langOf(r.stream, 'ἀείδω')).toBe('grc');
+  });
+
+  it('gives both halves of a word divided by a space its language', () => {
+    const r = edit(mixed(), 'virumque', 'virum que');
+    expect(langOf(r.stream, 'virum')).toBe('la');
+    expect(langOf(r.stream, 'que')).toBe('la');
+  });
+
+  it('keeps the language of words joined by deleting the space', () => {
+    const r = edit(mixed(), 'arma virumque', 'armavirumque');
+    expect(langOf(r.stream, 'armavirumque')).toBe('la');
+  });
+
+  it('gives a word typed on an empty line in the middle the language of the word before it', () => {
+    const s = fromText('arma\n\nμῆνιν', { lang: 'la', ids: sequentialIds() });
+    const greek = s.items.find((i) => i.kind === 'token' && i.form === 'μῆνιν') as Token;
+    greek.lang = 'grc';
+    const r = type(s, 'arma\n'.length, 'cano');
+    expect(langOf(r.stream, 'cano')).toBe('la');
   });
 });

@@ -46,6 +46,8 @@
     onpaste?: (text: string) => boolean;
     onworddblclick?: (tokenId: Id) => void;
     onmarginmark?: (key: string) => void;
+    /** The language in force at the caret, whenever it changes; null where none is. */
+    onlanguage?: (lang: string | null) => void;
     onready?: (api: EditorApi) => void;
     /** The editor's commands, available once mounted. */
     api?: EditorApi | null;
@@ -75,6 +77,7 @@
     onpaste,
     onworddblclick,
     onmarginmark,
+    onlanguage,
     onready,
     api = $bindable(null),
     class: className = '',
@@ -111,6 +114,7 @@
         onpaste: (text) => onpaste?.(text) ?? false,
         onworddblclick: (id) => onworddblclick?.(id),
         onmarginmark: (key) => onmarginmark?.(key),
+        onlanguage: (lang) => onlanguage?.(lang),
       },
     );
     api = editor;

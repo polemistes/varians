@@ -40,6 +40,12 @@ export interface Model {
    * segment of its own. Edits on the page do not change it.
    */
   inherited: SegmentStart | null;
+  /**
+   * The languages of the nearest words before and after the items shown,
+   * in the rest of the stream, when one page is shown alone: a word typed
+   * on a page with no word in a language takes these.
+   */
+  outside: { before?: string; after?: string };
   /** Where each shown item stands in the document text. */
   ledger: Ledger;
   byId: Map<Id, Item>;
@@ -119,6 +125,7 @@ export function buildModel(whole: Stream, options: ModelOptions, docText?: strin
     page,
     view,
     inherited: inheritedSegment(whole, view, page),
+    outside: outsideLanguages(whole, view, page),
     segmentLabels: options.segmentLabels ?? {},
     pageLabels: options.pageLabels ?? {},
     lineation: options.lineation ?? null,
@@ -136,6 +143,44 @@ function inheritedSegment(whole: Stream, view: PageView, page: string | null): S
       : -1;
   const start = before >= 0 ? segmentAt(whole, before) : undefined;
   return start && start.segmentId !== null ? start : null;
+}
+
+/** The languages of the nearest words with one before and after the items shown, in the rest of the stream. */
+function outsideLanguages(
+  whole: Stream,
+  view: PageView,
+  page: string | null,
+): { before?: string; after?: string } {
+  if (page === null) return {};
+  const items = whole.items;
+  const shown = view.stream.items;
+  let start: number;
+  let end: number;
+  if (shown.length) {
+    start = items.indexOf(shown[0]!);
+    end = items.indexOf(shown[shown.length - 1]!);
+  } else if (view.anchor) {
+    start = end = items.indexOf(view.anchor);
+  } else {
+    const after = view.missing?.after;
+    start = end = after ? items.findIndex((item) => item.id === after) : -1;
+  }
+  const out: { before?: string; after?: string } = {};
+  for (let i = shown.length ? start - 1 : start; i >= 0; i--) {
+    const item = items[i];
+    if (isToken(item) && item.lang !== undefined) {
+      out.before = item.lang;
+      break;
+    }
+  }
+  for (let i = end + 1; i < items.length; i++) {
+    const item = items[i];
+    if (isToken(item) && item.lang !== undefined) {
+      out.after = item.lang;
+      break;
+    }
+  }
+  return out;
 }
 
 /** The canonical text of the shown items. */
@@ -243,8 +288,13 @@ export function reconcileModel(
   docText: string,
   intent?: Intent,
   ids: () => Id = newId,
+  typingLanguage?: string,
 ): ModelChange {
-  const r = reconcile(model.view.stream, model.ledger, changes, model.form, { ids });
+  const r = reconcile(model.view.stream, model.ledger, changes, model.form, {
+    ids,
+    outside: model.outside,
+    ...(typingLanguage ? { typingLanguage } : {}),
+  });
   let ops = r.ops;
   let sub = r.stream;
   let canonical: Ledger | undefined = r.ledger;

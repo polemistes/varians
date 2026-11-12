@@ -68,7 +68,7 @@ describe('reconcileModel', () => {
       sequentialIds('n'),
     );
     expect(r2.ops).toEqual([
-      { t: 'insert', after: 't2', items: [{ kind: 'token', id: 'n1', form: 'x' }] },
+      { t: 'insert', after: 't2', items: [{ kind: 'token', id: 'n1', form: 'x', lang: 'en' }] },
     ]);
     expect(r2.model.ledger.text).toBe('one two x\nthree');
     expect(toText(applyOps(whole, r2.ops).stream)).toBe('one two x\nthree');
@@ -95,7 +95,7 @@ describe('reconcileModel', () => {
         after: 't2',
         items: [
           { kind: 'break', id: 'n1', type: 'line' },
-          { kind: 'token', id: 'n2', form: 'o' },
+          { kind: 'token', id: 'n2', form: 'o', lang: 'en' },
         ],
       },
       { t: 'set', id: 't2', fields: { form: 'tw' } },
@@ -132,7 +132,7 @@ describe('reconcileModel', () => {
     const typed = change(model, 0, 0, 'b ');
     const r = reconcileModel(model, typed.changes, typed.docText, undefined, sequentialIds('n'));
     expect(r.ops).toEqual([
-      { t: 'insert', after: 't5', items: [{ kind: 'token', id: 'n1', form: 'b' }] },
+      { t: 'insert', after: 't5', items: [{ kind: 'token', id: 'n1', form: 'b', lang: 'en' }] },
     ]);
     expect(toText(applyOps(whole, r.ops).stream)).toBe('x\na b\nb c d');
   });
@@ -149,7 +149,7 @@ describe('reconcileModel', () => {
         after: 't7',
         items: [{ kind: 'break', id: 'n2', type: 'page', pageId: 'p3' }],
       },
-      { t: 'insert', after: 'n2', items: [{ kind: 'token', id: 'n1', form: 'e' }] },
+      { t: 'insert', after: 'n2', items: [{ kind: 'token', id: 'n1', form: 'e', lang: 'en' }] },
     ]);
     expect(r.model.view.anchor?.id).toBe('n2');
     expect(r.model.view.missing).toBeNull();
@@ -165,7 +165,7 @@ describe('typing on an empty line', () => {
     const typed = change(model, 2, 2, 'x');
     const r = reconcileModel(model, typed.changes, typed.docText, undefined, sequentialIds('n'));
     expect(r.ops).toEqual([
-      { t: 'insert', after: 't2', items: [{ kind: 'token', id: 'n1', form: 'x' }] },
+      { t: 'insert', after: 't2', items: [{ kind: 'token', id: 'n1', form: 'x', lang: 'en' }] },
     ]);
     expect(toText(applyOps(whole, r.ops).stream)).toBe('a\nx\nb');
     expect(r.model.ledger.text).toBe('a\nx\nb');
@@ -195,7 +195,7 @@ describe('typing on an empty line', () => {
       sequentialIds('n'),
     );
     expect(r2.ops).toEqual([
-      { t: 'insert', after: null, items: [{ kind: 'token', id: 'n1', form: 'y' }] },
+      { t: 'insert', after: null, items: [{ kind: 'token', id: 'n1', form: 'y', lang: 'en' }] },
     ]);
     expect(r2.model.ledger.text).toBe('y\na b\nc d');
   });
@@ -205,7 +205,7 @@ describe('typing on an empty line', () => {
     const typed = change(model, 7, 7, ' x');
     const r = reconcileModel(model, typed.changes, typed.docText, undefined, sequentialIds('n'));
     expect(r.ops).toEqual([
-      { t: 'insert', after: 't2', items: [{ kind: 'token', id: 'n1', form: 'x' }] },
+      { t: 'insert', after: 't2', items: [{ kind: 'token', id: 'n1', form: 'x', lang: 'en' }] },
     ]);
   });
 
@@ -219,7 +219,7 @@ describe('typing on an empty line', () => {
         after: 't4',
         items: [
           { kind: 'break', id: 'n1', type: 'line' },
-          { kind: 'token', id: 'n2', form: 'x' },
+          { kind: 'token', id: 'n2', form: 'x', lang: 'en' },
         ],
       },
     ]);
@@ -307,5 +307,55 @@ describe('page labels', () => {
     expect(() =>
       pageLabel(model, { kind: 'break', id: 'b', type: 'page', pageId: 'gone' }),
     ).toThrow(MissingPageLabel);
+  });
+});
+
+describe('the language of a word typed on a page shown alone', () => {
+  function languages(): Stream {
+    // Staging "x" in Latin, page p1 "a b" in Greek, page p2 empty, page p3 "e" in Hebrew.
+    const s = fromText('x\na b\n\ne', { lang: 'la', ids: sequentialIds() });
+    const breaks = s.items.filter((i): i is Break => i.kind === 'break');
+    breaks.forEach((b, i) => {
+      b.type = 'page';
+      b.pageId = `p${i + 1}`;
+    });
+    for (const item of s.items) {
+      if (item.kind !== 'token') continue;
+      if (item.form === 'a' || item.form === 'b') item.lang = 'grc';
+      if (item.form === 'e') item.lang = 'he';
+    }
+    return s;
+  }
+
+  function typeOn(page: string, typingLanguage?: string) {
+    const model = buildModel(languages(), { form: 'written', page });
+    const typed = change(model, 0, 0, 'new');
+    const r = reconcileModel(
+      model,
+      typed.changes,
+      typed.docText,
+      undefined,
+      sequentialIds('n'),
+      typingLanguage,
+    );
+    return applyOps(languages(), r.ops).stream.items.find(
+      (i): i is Token => i.kind === 'token' && i.form === 'new',
+    );
+  }
+
+  it('takes the language of the last word of the pages before', () => {
+    expect(typeOn('p2')?.lang).toBe('grc');
+  });
+
+  it('takes the language of the words after where none stands before', () => {
+    const s = languages();
+    const model = buildModel({ items: s.items.slice(1) }, { form: 'written', page: 'p2' });
+    expect(model.outside).toEqual({ before: 'grc', after: 'he' });
+    const first = buildModel({ items: s.items.slice(1) }, { form: 'written', page: 'p1' });
+    expect(first.outside).toEqual({ after: 'he' });
+  });
+
+  it('takes the language chosen for typing over the text around', () => {
+    expect(typeOn('p2', 'cop')?.lang).toBe('cop');
   });
 });

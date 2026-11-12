@@ -9,11 +9,12 @@
  * stream that arrived from outside.
  */
 
-import { Annotation, StateEffect, StateField } from '@codemirror/state';
+import { Annotation, StateEffect, StateField, type EditorState } from '@codemirror/state';
 import { invertedEffects } from '@codemirror/commands';
 import { Decoration, EditorView, type DecorationSet } from '@codemirror/view';
-import type { Op } from '@varians/core';
+import type { Id, Op } from '@varians/core';
 import { buildDecorations, buildRunOn } from './decorations.ts';
+import { tokenSpanAt } from './selection.ts';
 import { editModel, reconcileModel, withForm, type Intent, type Model } from './model.ts';
 
 export interface ModelEdit {
@@ -33,6 +34,21 @@ export const modelEdit = StateEffect.define<ModelEdit>();
  */
 export const wholeEdit = StateEffect.define<ModelEdit>();
 export const editIntent = Annotation.define<Intent>();
+
+/**
+ * The language chosen for what is typed next, with no words selected: new
+ * words take it instead of their neighbours' while the caret stays in the
+ * word it was in, or in the words typed since; moved elsewhere, the caret
+ * lets it go.
+ */
+export interface Typing {
+  lang: string;
+  /** The word at the caret when it was chosen or last typed; null between words. */
+  word: Id | null;
+}
+
+/** Choose the language of what is typed next; null lets it go. */
+export const setTypingLanguage = StateEffect.define<string | null>();
 
 export interface ModelState {
   model: Model;
@@ -87,12 +103,35 @@ export const modelField = StateField.define<ModelState>({
         tr.changes,
         tr.newDoc.toString(),
         tr.annotation(editIntent),
+        undefined,
+        tr.startState.field(typingField, false)?.lang,
       );
       return { model: result.model, ops: result.ops, typed: result.typed };
     } catch (error) {
       console.error('[editor] the change could not be read back into the stream', error);
       return { model: { ...value.model, misaligned: true }, ops: [] };
     }
+  },
+});
+
+/** The word at the main caret of a state, by its model's ledger. */
+function wordAtCaret(state: EditorState): Id | null {
+  const model = state.field(modelField).model;
+  return tokenSpanAt(model.ledger, state.selection.main.head)?.id ?? null;
+}
+
+export const typingField = StateField.define<Typing | null>({
+  create: () => null,
+  update(value, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(setTypingLanguage))
+        return effect.value ? { lang: effect.value, word: wordAtCaret(tr.state) } : null;
+    }
+    if (!value || (!tr.docChanged && !tr.selection)) return value;
+    const word = wordAtCaret(tr.state);
+    if (word === value.word) return value;
+    // Typing carries the choice on to the word typed; moving the caret elsewhere ends it.
+    return tr.docChanged ? { ...value, word } : null;
   },
 });
 
@@ -152,4 +191,4 @@ export const modelHistory = invertedEffects.of((tr) => {
   return typed ? [modelEdit.of({ ops: typed.reverse, reverse: typed.ops })] : [];
 });
 
-export const modelExtensions = [decorationField, runOnField, modelHistory];
+export const modelExtensions = [typingField, decorationField, runOnField, modelHistory];
