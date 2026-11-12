@@ -42,12 +42,6 @@
     "displayAsWritten": {
       "type": "boolean"
     },
-    "profile": {
-      "type": [
-        "object",
-        "null"
-      ]
-    },
     "description": {
       "type": [
         "string",

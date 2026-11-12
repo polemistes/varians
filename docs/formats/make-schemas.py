@@ -71,8 +71,8 @@ stream = {
       obj({'kind': {'const': 'conjecture'}, 'conjectureId': ref('id')}, ['kind', 'conjectureId']),
       obj({'kind': {'const': 'editor'}}, ['kind']),
     ]},
-    'token': obj({'kind': {'const': 'token'}, 'id': ref('id'), 'form': {'type': 'string'}, 'norm': {'type': 'string'}, 'unchecked': {'type': 'boolean'}, 'joinNext': {'type': 'boolean'},
-                  'sep': {'enum': ['space', 'none', 'interpunct', 'other']}, 'segment': sref('segmentStart'), 'marks': arr(sref('mark')), 'source': sref('source')}, ['kind', 'id', 'form']),
+    'token': obj({'kind': {'const': 'token'}, 'id': ref('id'), 'form': {'type': 'string'}, 'lang': {'type': 'string', 'minLength': 2, 'description': 'The language of the word, a BCP 47 language tag (grc, la, cop).'}, 'norm': {'type': 'string'}, 'unchecked': {'type': 'boolean'}, 'joinNext': {'type': 'boolean'},
+                  'sep': {'enum': ['space', 'none', 'interpunct', 'other']}, 'segment': sref('segmentStart'), 'marks': arr(sref('mark')), 'source': sref('source')}, ['kind', 'id', 'form', 'lang']),
     'break': obj({'kind': {'const': 'break'}, 'id': ref('id'), 'type': {'enum': ['line', 'column', 'page', 'paragraph']}, 'pageId': ref('id'), 'label': {'type': 'string'}, 'rend': {'type': 'string'}, 'lineation': {'enum': ['verse', 'prose']}}, ['kind', 'id', 'type']),
     'object': obj({'kind': {'const': 'object'}, 'id': ref('id'), 'type': {'enum': ['gap', 'figure', 'mark', 'note', 'lacuna', 'paratext', 'space']}, 'attrs': attrs, 'text': {'type': 'string'}, 'segment': sref('segmentStart')}, ['kind', 'id', 'type']),
     'item': {'oneOf': [sref('token'), sref('break'), sref('object')]},
@@ -83,13 +83,12 @@ stream = {
 
 def top(name): return {'$schema': {'const': BASE + name + '.schema.json'}}
 level = obj({'key': {'type': 'string'}, 'label': {'type': 'string'}, 'type': {'type': 'string'}, 'separator': {'type': 'string'}}, ['key', 'label', 'type'])
-schema('work', 'Work', 'work.json: the work, its reference scheme and normalization profile (specification 4.1).', obj({
+schema('work', 'Work', 'work.json: the work and its reference scheme (specification 4.1).', obj({
   **top('work'), 'formatVersion': {'type': 'integer', 'minimum': 1}, 'id': ref('id'), 'slug': {'type': 'string', 'pattern': '^[a-z0-9-]+$'}, 'title': {'type': 'string'},
-  'author': NS, 'language': {'type': 'string'}, 'identifier': NS, 'identifiers': ref('identifiers'), 'description': NS,
+  'author': NS, 'identifier': NS, 'identifiers': ref('identifiers'), 'description': NS,
   'scheme': obj({'id': ref('id'), 'name': {'type': 'string'}, 'levels': arr(level), 'createdBy': ref('idOrNull'), 'createdAt': ref('timeOrNull')}, ['id', 'name', 'levels']),
-  'profile': obj({'language': {'type': 'string'}, 'fold': {'type': 'object'}}, ['language', 'fold']),
   'maintainers': arr(ref('account')), 'licence': ref('spdx'), 'createdBy': ref('idOrNull'), 'createdAt': ref('timeOrNull')},
-  ['$schema', 'formatVersion', 'id', 'slug', 'title', 'language', 'scheme', 'profile']))
+  ['$schema', 'formatVersion', 'id', 'slug', 'title', 'scheme']))
 schema('persons', 'Persons', 'persons.json: every person the files of an archive refer to (specification 4.2).', None,
   ('persons', obj({'id': ref('id'), 'name': {'type': 'string'}, 'orcid': {'type': ['string', 'null'], 'pattern': '^[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]$'}}, ['id', 'name'])))
 conj = obj({'id': ref('id'), 'workId': ref('id'), 'segmentId': ref('id'), 'segmentLabel': NS, 'kind': {'enum': ['substitution', 'deletion', 'addition', 'lacuna', 'supplement', 'transposition']},
@@ -117,7 +116,7 @@ schema('pages', 'Pages', 'pages.json: the pages of a witness in order, with thei
   ('pages', obj({'id': ref('id'), 'label': {'type': 'string'}, 'position': {'type': 'number'}, 'image': image, 'createdAt': ref('timeOrNull')}, ['id', 'label', 'position'])))
 schema('transcription', 'Transcription', 'transcription.json: a transcription of a witness, with its text (specification 4.8).', obj({
   **top('transcription'), 'id': ref('id'), 'name': {'type': 'string'}, 'witnessId': ref('id'), 'ownerId': ref('id'), 'ownerName': NS, 'visibility': ref('visibility'),
-  'version': {'type': 'integer', 'minimum': 0}, 'head': ref('idOrNull'), 'keepsWrittenForm': {'type': 'boolean'}, 'displayAsWritten': {'type': 'boolean'}, 'profile': {'type': ['object', 'null']},
+  'version': {'type': 'integer', 'minimum': 0}, 'head': ref('idOrNull'), 'keepsWrittenForm': {'type': 'boolean'}, 'displayAsWritten': {'type': 'boolean'},
   'description': NS, 'sources': NS, 'licence': NS, 'rightsNote': NS, 'createdAt': ref('timeOrNull'), 'content': {'$ref': BASE + 'stream.schema.json'}},
   ['$schema', 'id', 'name', 'witnessId', 'version', 'content']))
 geometry = obj({'rect': obj({'x': {'type': 'number'}, 'y': {'type': 'number'}, 'w': {'type': 'number'}, 'h': {'type': 'number'}}, ['x', 'y', 'w', 'h']),

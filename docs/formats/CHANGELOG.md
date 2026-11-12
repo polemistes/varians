@@ -24,6 +24,10 @@ The format becomes a specification ([specification.md](specification.md)) with J
 - In TEI: `<listPrefixDef>` resolving `tok:`, `seg:`, `wit:`, `conj:` and `person:` to the installation's `/id/` addresses; every edition word as `<w>` with `corresp` or `source`; `<availability><licence>`; `<respStmt>` with ORCID.
 - Packages: BagIt with RO-Crate 1.2 metadata.
 
+**Changed, 12 November 2026**
+
+- Every token carries `lang`, the language of its word as a BCP 47 language tag; the parts of a divided word have the same. A work has no language and no spelling rules: `language` and `profile` are no longer written in `work.json`, nor `profile` in `transcription.json`, and a reader ignores them, except that a token without `lang` in an archive written on or before this date takes its `work.json`'s `language`. The mark kind `foreign` is no longer written: a stretch in another language is words whose `lang` differs, and a reader gives the token of a `foreign` mark the mark's language. In the TEI, `<text>` carries the language most of the words have, `<langUsage>` lists them all, and a `<w>` in another language carries its own `xml:lang`; reading, a word has the `xml:lang` in force at it, and a `<foreign>` inside a `<w>` gives the whole word its language.
+
 **Added, November 2026**
 
 - In the TEI: `<num>`, `<foreign>`, `<q>`, `<g>` for a sign that is not a letter, `<ex>` in the `<expan>` of a symbol, `<desc>` in a `<gap>`, and `<milestone unit="undefined" rend>` for a paragraphos, a rule or a coronis, as EpiDoc writes them. In the stream: the mark kinds `num`, `foreign` and `q`, `symbol` on an abbreviation, `cert` on a mark or object, `desc` on a gap, and mark objects named by `g`.
