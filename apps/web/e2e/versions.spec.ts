@@ -280,7 +280,7 @@ test('withdraws a version through its window, and its address gives the citation
     reader.getByText(vs.withdrawnPage.withdrawn, { exact: false }).first(),
   ).toBeVisible();
   await expect(reader.getByText('Superseded: the second line was misread.')).toBeVisible();
-  await expect(reader.getByText('The first version.')).toBeVisible();
+  await expect(reader.getByText('The first version.').first()).toBeVisible();
   await expect(reader.getByText(`/editions/${TWICE.slug}/v/1`)).toBeVisible();
   await expect(reader.getByRole('link', { name: vs.withdrawnPage.readLatest })).toHaveAttribute(
     'href',
@@ -325,6 +325,10 @@ test('a transcript is published and withdrawn from its menu, and a reader sees i
   await expect(reader.getByText(w.readOnly, { exact: true })).toBeVisible();
   const menu = await openVersions(reader);
   await expect(menu).toContainText('Leaves 1 and 2.');
+  await reader.screenshot({
+    path: `${SHOTS}/6-workbench-reader.png`,
+    clip: { x: 0, y: 0, width: 1500, height: 320 },
+  });
   await expect(menu.getByRole('menuitem', { name: /Version 1/ })).toHaveAttribute(
     'href',
     `/transcriptions/${ids.loose}/v/1`,
