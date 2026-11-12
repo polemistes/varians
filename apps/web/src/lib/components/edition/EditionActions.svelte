@@ -2,12 +2,13 @@
   /**
    * An edition's buttons and menu, the same wherever they stand: on a card,
    * at the end of a row, in the reader's bar, in the editor's header, on
-   * Edition Settings. Every item works from here: Publish… and Withdraw
-   * Version… open their windows, deleting asks in the application's window,
-   * copying opens its own.
+   * Edition Settings. Every item works from here: Publish…, Withdraw
+   * Version… and an administrator's Delete Version… open their windows,
+   * deleting asks in the application's window, copying opens its own.
    */
   import { Button, ConfirmDialog, RecordActions } from '$lib/components/ui';
   import CopyDialog from '$lib/components/registry/CopyDialog.svelte';
+  import DeleteVersionDialog from '$lib/components/version/DeleteVersionDialog.svelte';
   import PublishDialog from '$lib/components/version/PublishDialog.svelte';
   import WithdrawDialog from '$lib/components/version/WithdrawDialog.svelte';
   import {
@@ -53,6 +54,7 @@
 
   let publishOpen = $state(false);
   let withdrawOpen = $state(false);
+  let deleteVersionOpen = $state(false);
   let deleteOpen = $state(false);
   let copyOpen = $state(false);
 
@@ -62,6 +64,7 @@
       copyOpen = true;
     } else if (id === 'publish') publishOpen = true;
     else if (id === 'withdraw') withdrawOpen = true;
+    else if (id === 'delete-version') deleteVersionOpen = true;
     else if (id === 'delete') deleteOpen = true;
   }
 </script>
@@ -81,6 +84,10 @@
 {#if rights.publish}
   <PublishDialog bind:open={publishOpen} kind="edition" id={edition.id} {flush} />
   <WithdrawDialog bind:open={withdrawOpen} kind="edition" id={edition.id} />
+{/if}
+
+{#if rights.deleteVersion}
+  <DeleteVersionDialog bind:open={deleteVersionOpen} kind="edition" id={edition.id} />
 {/if}
 
 {#if rights.delete}

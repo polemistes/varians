@@ -71,14 +71,15 @@ export function hasVersionSql(kind: DocumentKind, column: AnyPgColumn) {
 }
 
 /**
- * Whether the record in `column` has ever had a version, withdrawn or not:
- * what keeps it, and the work or witness it is of, from being deleted.
+ * Whether the record in `column` has a version, withdrawn or not: what keeps
+ * it, and the work or witness it is of, from being deleted by anyone but an
+ * administrator.
  */
 export function anyVersionSql(kind: DocumentKind, column: AnyPgColumn) {
   return sql<boolean>`exists (select 1 from "versions" as "v" where "v"."document_kind" = ${kind} and "v"."document_id" = ${outer(column)})`;
 }
 
-/** Whether a record has a version, withdrawn or not: a record that has one is not deleted. */
+/** Whether a record has a version, withdrawn or not: only an administrator deletes one that has. */
 export async function hasAnyVersion(
   db: Database,
   kind: DocumentKind,
@@ -245,6 +246,14 @@ function keepSnapshot(id: string, snapshot: Version['snapshot']): void {
     snapshots.delete(oldest);
     snapshotItems -= entry.items;
   }
+}
+
+/** Forget the snapshot read of a version that has been deleted. */
+export function forgetSnapshot(id: string): void {
+  const kept = snapshots.get(id);
+  if (!kept) return;
+  snapshots.delete(id);
+  snapshotItems -= kept.items;
 }
 
 /** Forget the snapshots read, for tests. */

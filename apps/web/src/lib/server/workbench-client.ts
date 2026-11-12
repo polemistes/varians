@@ -34,6 +34,7 @@ export function clientData(data: WorkbenchData) {
     canPublish: data.canPublish,
     canEditDraft: data.canEditDraft,
     canDelete: data.canDelete,
+    canDeleteVersion: data.canDeleteVersion,
     canMaintainWitness: data.canMaintainWitness,
     maxUploadBytes: DEFAULT_MAX_UPLOAD_BYTES,
   };

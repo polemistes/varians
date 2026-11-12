@@ -1,9 +1,11 @@
 <script lang="ts">
   /**
    * The head of the edition: what state of it is shown (the draft, a
-   * preview of it, a version at its own address), the author and work, the
-   * title, the editors, the version line with the editors' note on the
-   * version, and the preface, folded until opened and printed open.
+   * preview of it, a version at its own address, with the warning where that
+   * version is withdrawn), the author and work, the title, the editors, the
+   * version line with the editors' note on the version, and the preface,
+   * folded until opened and printed open. The version line says of a
+   * withdrawn version that it is, so that a printed copy says so too.
    */
   import { LocalDate, Notice } from '$lib/components/ui';
   import type { ReaderData } from '$lib/reader/types';
@@ -59,6 +61,21 @@
         {#if mode.publishedNumber !== null}{r.notices.previewReaders(mode.publishedNumber)}{/if}
         <a href={data.links.current} class="text-accent underline">{r.notices.showPublished}</a>
       </Notice>
+    {:else if versionMode?.withdrawn}
+      <Notice kind="warning">
+        <span class="font-medium text-ink"
+          >{v.withdrawnNotice.withdrawn(versionMode.number)}
+          <LocalDate date={versionMode.withdrawn.at} /></span
+        >.
+        {#if versionMode.withdrawn.note}<span class="mt-1 block whitespace-pre-line"
+            >{versionMode.withdrawn.note}</span
+          >{/if}
+        {#if versionMode.latest !== null}<a
+            href={data.links.current}
+            class="mt-1 block text-accent underline"
+            >{v.withdrawnNotice.readLatest(versionMode.latest)}</a
+          >{/if}
+      </Notice>
     {:else if versionMode}
       <Notice kind="info">
         <span class="font-medium text-ink"
@@ -86,7 +103,9 @@
     </p>{/if}
   <p class="mt-3 font-sans text-xs text-ink-muted">
     {#if shown}
-      {v.published(shown.number)} <LocalDate date={shown.at} />
+      {v.published(shown.number)}
+      <LocalDate date={shown.at} />{#if versionMode?.withdrawn}, {v.withdrawnNotice.line}
+        <LocalDate date={versionMode.withdrawn.at} />{/if}
     {:else if mode.kind === 'draft'}
       {r.draft}
     {:else}

@@ -49,7 +49,15 @@ describe('decideReaderView', () => {
   it('shows a version by its number, and says whether it is the latest', () => {
     expect(decideReaderView(edition, reader, moments, { version: 1 })).toEqual({
       versionNumber: 1,
-      mode: { kind: 'version', number: 1, at: at(1).toISOString(), note: null, isCurrent: false },
+      mode: {
+        kind: 'version',
+        number: 1,
+        at: at(1).toISOString(),
+        note: null,
+        isCurrent: false,
+        withdrawn: null,
+        latest: 2,
+      },
     });
     expect(decideReaderView(edition, reader, moments, { version: 2 })).toMatchObject({
       mode: { kind: 'version', isCurrent: true },
@@ -57,22 +65,34 @@ describe('decideReaderView', () => {
     expect(decideReaderView(edition, reader, moments, { version: 3 })).toBeNull();
   });
 
-  it('gives a withdrawn version its page of its own, and the latest that stands at the edition', () => {
+  it('shows a withdrawn version at its address, with its withdrawal and the latest that stands, which the edition shows', () => {
     const withdrawn = { at: at(4), personId: null, personName: null, note: 'Wrong text.' };
     const versions: PublishedMoment[] = [{ ...moments[0]!, withdrawn }, moments[1]!];
     expect(decideReaderView(edition, reader, versions, { version: 2 })).toEqual({
-      withdrawn: versions[0],
+      versionNumber: 2,
+      mode: {
+        kind: 'version',
+        number: 2,
+        at: at(2).toISOString(),
+        note: 'Second.',
+        isCurrent: false,
+        withdrawn: { at: at(4).toISOString(), note: 'Wrong text.' },
+        latest: 1,
+      },
     });
     expect(decideReaderView(edition, reader, versions, {})).toMatchObject({
       versionNumber: 1,
       mode: { kind: 'published', number: 1 },
     });
-    // Every version withdrawn: no longer public, but each still has its page.
+    // Every version withdrawn: the edition is no longer public, but each version is still read at its address.
     const none = versions.map((v) => ({ ...v, withdrawn }));
     expect(decideReaderView(edition, { canView: false, canEdit: false }, none, {})).toBeNull();
     expect(
       decideReaderView(edition, { canView: false, canEdit: false }, none, { version: 1 }),
-    ).toEqual({ withdrawn: none[1] });
+    ).toMatchObject({
+      versionNumber: 1,
+      mode: { kind: 'version', withdrawn: { note: 'Wrong text.' }, latest: null },
+    });
   });
 });
 
@@ -94,7 +114,15 @@ describe('readerLinks', () => {
     expect(
       readerLinks(
         'iliad-1',
-        { kind: 'version', number: 1, at: '', note: null, isCurrent: false },
+        {
+          kind: 'version',
+          number: 1,
+          at: '',
+          note: null,
+          isCurrent: false,
+          withdrawn: null,
+          latest: 2,
+        },
         editor,
         true,
       ),
@@ -152,6 +180,19 @@ describe('versionLine', () => {
   it('says which state the text is in', () => {
     expect(versionLine({ kind: 'published', number: 2, at: at(2).toISOString(), note: null })).toBe(
       'Version 2, published 2026-10-02',
+    );
+    // A withdrawn version says so, in the plain text too.
+    const version = {
+      kind: 'version' as const,
+      number: 1,
+      at: at(1).toISOString(),
+      note: null,
+      isCurrent: false,
+      latest: 2,
+    };
+    expect(versionLine({ ...version, withdrawn: null })).toBe('Version 1, published 2026-10-01');
+    expect(versionLine({ ...version, withdrawn: { at: at(4).toISOString(), note: null } })).toBe(
+      'Version 1, published 2026-10-01, withdrawn 2026-10-04',
     );
     // The draft has no number: a version is what is published.
     expect(versionLine({ kind: 'draft', version: 4 })).toBe('Draft');

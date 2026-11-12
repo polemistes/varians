@@ -4,6 +4,7 @@ import {
   collationCache,
   createDatabase,
   editions,
+  moments,
   referenceSchemes,
   transcriptions,
   users,
@@ -12,7 +13,7 @@ import {
   type Database,
   type EditionSnapshot,
 } from '@varians/db';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import pg from 'pg';
 import {
   adoptConjecture,
@@ -25,15 +26,22 @@ import {
 import { saveOps } from './documents/service.ts';
 import {
   PublishRefused,
+  deleteVersion,
   publishEdition,
   publishTranscription,
   withdrawVersion,
 } from './publish.ts';
 import { editionView } from './reader.ts';
 import { forgetCollations } from './passages.ts';
-import { exportTei, loadWithdrawnTranscriptionVersion, loadWorkbench } from './workbench.ts';
-import { changesRequest, publishRequest, versionsRequest, withdrawRequest } from './version-api.ts';
-import { loadReader, loadWithdrawnVersion, readerDownload } from './reader-pages.ts';
+import { exportTei, loadWorkbench } from './workbench.ts';
+import {
+  changesRequest,
+  deleteVersionRequest,
+  publishRequest,
+  versionsRequest,
+  withdrawRequest,
+} from './version-api.ts';
+import { loadReader, readerDownload } from './reader-pages.ts';
 import { seedSample } from './seed/sample.ts';
 import { hasVersion, latestVersion, versionByNumber, versionsOf } from './versions.ts';
 
@@ -309,7 +317,7 @@ describe('publishing and conjectures', () => {
     expect((version!.snapshot as EditionSnapshot).conventions).not.toHaveProperty('latin');
   });
 
-  it('shows readers the latest version, each version at its address, and a withdrawn one without its text', async () => {
+  it('shows readers the latest version, each version at its address, and a withdrawn one with its text and its withdrawal', async () => {
     // A sample of its own, with no version yet.
     await db.delete(works).where(eq(works.slug, 'iliad'));
     await db.delete(witnesses).where(inArray(witnesses.slug, SLUGS));
@@ -360,22 +368,32 @@ describe('publishing and conjectures', () => {
 
     await withdrawVersion(db, 'edition', sample.editionId, second.number, userId, 'Too soon.');
     expect((await loadReader(db, null, slug, {})).mode).toMatchObject({ number: 1 });
-    await expect(loadReader(db, null, slug, { version: 2 })).rejects.toMatchObject({
-      status: 404,
-    });
-    const withdrawn = await loadWithdrawnVersion(db, null, slug, 2);
-    expect(withdrawn).toMatchObject({
+    // The withdrawn version is still read at its address, and says that it is withdrawn and which version stands.
+    const withdrawn = await loadReader(db, null, slug, { version: 2 });
+    expect(withdrawn.mode).toMatchObject({
+      kind: 'version',
       number: 2,
       note: 'Renamed.',
+      isCurrent: false,
       withdrawn: { note: 'Too soon.' },
-      edition: { title: 'Iliad 1, renamed in the draft' },
-      current: `/editions/${slug}`,
+      latest: 1,
     });
-    expect(await loadWithdrawnVersion(db, null, slug, 1)).toBeNull();
-    // Every version withdrawn: no public page, and each version's address stays.
+    expect(withdrawn.edition.title).toBe('Iliad 1, renamed in the draft');
+    expect(withdrawn.lines.length).toBeGreaterThan(0);
+    expect(await (await readerDownload(db, null, slug, { version: 2 }, 'text')).text()).toMatch(
+      /Version 2, published \d{4}-\d\d-\d\d, withdrawn \d{4}-\d\d-\d\d/,
+    );
+    expect((await loadReader(db, null, slug, { version: 1 })).mode).toMatchObject({
+      withdrawn: null,
+      latest: 1,
+    });
+    // Every version withdrawn: no public page, and each version is still read at its address.
     await withdrawVersion(db, 'edition', sample.editionId, 1, userId, null);
     await expect(loadReader(db, null, slug, {})).rejects.toMatchObject({ status: 404 });
-    expect(await loadWithdrawnVersion(db, null, slug, 1)).toMatchObject({ current: null });
+    expect((await loadReader(db, null, slug, { version: 1 })).mode).toMatchObject({
+      withdrawn: { note: null },
+      latest: null,
+    });
   });
 
   it('answers the editors through the API: the changes since the version before, publishing with a note, the versions, withdrawing', async () => {
@@ -468,14 +486,18 @@ describe('publishing and conjectures', () => {
     expect((await exportTei(db, b!.id, 'http://x', false))!.xml).not.toContain('ΔΡΑΦΤ');
     expect((await exportTei(db, b!.id, 'http://x', true))!.xml).toContain('ΔΡΑΦΤ');
 
+    expect(atVersion!.transcription.shown).toMatchObject({ note: 'As read.', withdrawn: null });
+
+    // A withdrawn version is still read at its address, read only, and says that it is withdrawn.
     await withdrawVersion(db, 'transcription', b!.id, made.number, userId, 'Misread.');
-    expect(await loadWorkbench(db, null, b!.id, made.number)).toBeNull();
-    expect(await loadWithdrawnTranscriptionVersion(db, b!.id, made.number)).toMatchObject({
-      number: made.number,
-      note: 'As read.',
-      withdrawn: { note: 'Misread.' },
+    const withdrawn = await loadWorkbench(db, null, b!.id, made.number);
+    expect(withdrawn!.transcription).toMatchObject({
+      shownVersion: made.number,
+      shown: { note: 'As read.', personName: 'Publisher', withdrawn: { note: 'Misread.' } },
     });
-    expect(await loadWithdrawnTranscriptionVersion(db, b!.id, 1)).toBeNull();
+    expect(withdrawn!.canEdit).toBe(false);
+    expect(formOf(withdrawn)).toMatchObject({ form: word.form });
+    expect(await loadWorkbench(db, null, b!.id, made.number + 50)).toBeNull();
   });
 
   it("refuses to publish another person's transcription at a text they have not published, and names the witness", async () => {
@@ -533,5 +555,95 @@ describe('publishing and conjectures', () => {
       await db.update(transcriptions).set({ ownerId: userId }).where(eq(transcriptions.id, b!.id));
       await db.delete(users).where(eq(users.id, strangerId));
     }
+  });
+
+  it('lets an administrator alone delete a version, with its moment and its collation, and nothing is left at its address', async () => {
+    await db.delete(works).where(eq(works.slug, 'iliad'));
+    await db.delete(witnesses).where(inArray(witnesses.slug, SLUGS));
+    const sample = await seedSample(db, userId);
+    const slug = sample.editionSlug;
+    const owner = { id: userId, role: 'member' as const };
+    const administrator = { id: entererId, role: 'administrator' as const };
+    const first = await publishEdition(db, sample.editionId, userId, 'First.');
+    const second = await publishEdition(db, sample.editionId, userId, 'Second.');
+    // Read once, so that its collation is kept.
+    forgetCollations();
+    await loadReader(db, null, slug, { version: first.number });
+    const cached = async () =>
+      (
+        await db
+          .selectDistinct({ number: collationCache.versionNumber })
+          .from(collationCache)
+          .where(eq(collationCache.editionId, sample.editionId))
+      )
+        .map((r) => r.number)
+        .sort();
+    expect(await cached()).toContain(first.number);
+    const publishedMoments = async () =>
+      (
+        await db
+          .select({ id: moments.id })
+          .from(moments)
+          .where(
+            and(
+              eq(moments.documentKind, 'edition'),
+              eq(moments.documentId, sample.editionId),
+              eq(moments.kind, 'published'),
+            ),
+          )
+      ).map((m) => m.id);
+    expect(await publishedMoments()).toContain(first.momentId);
+
+    // The owner may not; an administrator may.
+    await expect(
+      deleteVersionRequest(db, owner, 'edition', sample.editionId, String(first.number)),
+    ).rejects.toMatchObject({ status: 403 });
+    const done = await deleteVersionRequest(
+      db,
+      administrator,
+      'edition',
+      sample.editionId,
+      String(first.number),
+    );
+    expect(done.status).toBe(200);
+    expect((await versionsOf(db, 'edition', sample.editionId)).map((v) => v.number)).toEqual([
+      second.number,
+    ]);
+    expect(await cached()).not.toContain(first.number);
+    expect(await publishedMoments()).not.toContain(first.momentId);
+    await expect(loadReader(db, null, slug, { version: first.number })).rejects.toMatchObject({
+      status: 404,
+    });
+    expect((await loadReader(db, null, slug, {})).mode).toMatchObject({ number: second.number });
+    // One that is not there is not found.
+    const missing = await deleteVersionRequest(
+      db,
+      administrator,
+      'edition',
+      sample.editionId,
+      String(first.number),
+    );
+    expect(missing.status).toBe(404);
+
+    // A transcript's version that a version of an edition compares stays until that version is deleted.
+    const [transcriptId, compared] = Object.entries(second.witnessVersions)[0]!;
+    const refusal = await deleteVersion(db, 'transcription', transcriptId, compared).catch(
+      (e: unknown) => e,
+    );
+    expect(refusal).toBeInstanceOf(PublishRefused);
+    expect((refusal as Error).message).toBe(
+      'Version 2 of Iliad 1, a working edition compares this version of the transcript. Delete that version first.',
+    );
+    // A withdrawn version is deleted like any other; the last one gone, the edition is its editors' alone again.
+    await withdrawVersion(db, 'edition', sample.editionId, second.number, userId, null);
+    await deleteVersion(db, 'edition', sample.editionId, second.number);
+    expect(await hasVersion(db, 'edition', sample.editionId)).toBe(false);
+    await expect(loadReader(db, null, slug, {})).rejects.toMatchObject({ status: 404 });
+    await deleteVersion(db, 'transcription', transcriptId, compared);
+    expect(
+      (await versionsOf(db, 'transcription', transcriptId)).map((v) => v.number),
+    ).not.toContain(compared);
+    // The next version takes the number after the last there is.
+    expect((await publishEdition(db, sample.editionId, userId)).number).toBe(1);
   });
 });

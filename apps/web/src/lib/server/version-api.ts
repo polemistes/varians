@@ -1,23 +1,26 @@
 /**
  * The JSON endpoints of versions, for editions and transcriptions alike:
- * publish with a note, withdraw with a note, list the versions with their
- * changes, and the changes since the version before for the Publish… window.
- * Only the owner or an administrator publishes and withdraws, and only they
- * are answered here; readers are given the versions with the reader's page.
+ * publish with a note, withdraw with a note, delete, list the versions with
+ * their changes, and the changes since the version before for the Publish…
+ * window. Only the owner or an administrator publishes and withdraws, only an
+ * administrator deletes, and only they are answered here; readers are given
+ * the versions with the reader's page.
  */
 import { error, json } from '@sveltejs/kit';
 import { z } from 'zod';
 import type { Database, DocumentKind } from '@varians/db';
 import { commitDocument } from './archive/commits';
-import type { Actor } from './authz';
+import { canDeleteVersions, type Actor } from './authz';
 import { loadEditionAccess } from './edition-access';
 import {
   MAX_NOTE,
   PublishRefused,
+  deleteVersion,
   publishEdition,
   publishTranscription,
   withdrawVersion,
 } from './publish';
+import { parseVersionNumber } from './reader-pages';
 import { archiveRoot, storageRoot } from './startup';
 import { loadTranscriptionAccess } from './transcription-access';
 import { changesSinceLatest, versionsOf } from './versions';
@@ -123,6 +126,28 @@ export async function withdrawRequest(
     throw cause;
   }
   await archiveAfter(db, kind, record.id, `withdrew version ${body.number}`, userId);
+  return json({ ok: true });
+}
+
+/** DELETE …/versions/n: the version is deleted, by an administrator alone; answers `{ ok: true }`. */
+export async function deleteVersionRequest(
+  db: Database,
+  user: Actor | null,
+  kind: DocumentKind,
+  id: string,
+  n: string,
+): Promise<Response> {
+  const record = await accessOf(db, user, kind, id);
+  if (!canDeleteVersions(user)) error(403, v.onlyAdministrator);
+  const number = parseVersionNumber(n);
+  try {
+    await deleteVersion(db, kind, record.id, number);
+  } catch (cause) {
+    if (cause instanceof PublishRefused)
+      return json({ message: cause.message }, { status: cause.status });
+    throw cause;
+  }
+  await archiveAfter(db, kind, record.id, `deleted version ${number}`, user?.id ?? null);
   return json({ ok: true });
 }
 

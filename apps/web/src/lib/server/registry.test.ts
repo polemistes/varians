@@ -25,6 +25,7 @@ import {
   works,
   type Database,
   type Role,
+  versions,
 } from '@varians/db';
 import { eq, inArray } from 'drizzle-orm';
 import { execFile } from 'node:child_process';
@@ -709,7 +710,7 @@ describe('deleting witnesses', () => {
 });
 
 describe('what a version keeps from deletion', () => {
-  it('refuses to delete a transcript that has a version, withdrawn or not', async () => {
+  it('refuses to delete a transcript that has a version, withdrawn or not, to all but an administrator', async () => {
     const place = await witness('Versioned witness');
     const poem = await work('Versioned poem');
     const text = await createTranscription(db, { witnessId: place.id, name: 'Kept' }, alice.id);
@@ -728,7 +729,7 @@ describe('what a version keeps from deletion', () => {
       error: 'has-version',
     });
     await withdrawVersion(db, 'transcription', text.id, 1, alice.id, null);
-    expect(await deleteTranscription(db, text.id, admin)).toEqual({
+    expect(await deleteTranscription(db, text.id, alice)).toEqual({
       ok: false,
       error: 'has-version',
     });
@@ -758,6 +759,37 @@ describe('what a version keeps from deletion', () => {
       expect(describeDependents(refused.dependents, 'conjectures')).toBe(
         'a record of yours that has a version',
       );
+  });
+
+  it('lets an administrator delete a transcript, a witness and a work of their own whose records have versions, which go with them', async () => {
+    const place = await witness('Witness an administrator deletes', admin);
+    const other = await witness('Another an administrator deletes', admin);
+    const poem = await work('Poem an administrator deletes', admin);
+    const one = await createTranscription(db, { witnessId: place.id, name: 'One' }, admin.id);
+    const two = await createTranscription(db, { witnessId: other.id, name: 'Two' }, admin.id);
+    for (const t of [one, two]) await publishTranscription(db, t.id, admin.id);
+    const id = await edition(poem.id, admin);
+    await publishEdition(db, id, admin.id);
+    const versionsLeft = async (ids: string[]) =>
+      (await db.select().from(versions).where(inArray(versions.documentId, ids))).length;
+    expect(await versionsLeft([one.id, two.id, id])).toBe(3);
+
+    expect(await deleteTranscription(db, one.id, admin)).toMatchObject({ ok: true });
+    expect(await deleteWitness(db, other.id, admin)).toMatchObject({ ok: true });
+    expect(await deleteWork(db, poem.id, admin)).toMatchObject({ ok: true });
+    expect(await versionsLeft([one.id, two.id, id])).toBe(0);
+  });
+
+  it('refuses even an administrator a transcript that a version of an edition compares, and names the edition', async () => {
+    const place = await witness('Witness compared', admin);
+    const poem = await work('Poem comparing', admin);
+    const text = await createTranscription(db, { witnessId: place.id, name: 'Compared' }, admin.id);
+    const id = await edition(poem.id, admin, [{ witnessId: place.id, transcriptionId: text.id }]);
+    await publishEdition(db, id, admin.id);
+    await db.delete(editionSigla).where(eq(editionSigla.editionId, id));
+    const refused = await deleteTranscription(db, text.id, admin);
+    expect(refused).toMatchObject({ ok: false, error: 'in-conspectus' });
+    if (!refused.ok && refused.error === 'in-conspectus') expect(refused.editions).toHaveLength(1);
   });
 
   it('refuses to delete a witness that a version of an edition names, though the draft no longer does', async () => {

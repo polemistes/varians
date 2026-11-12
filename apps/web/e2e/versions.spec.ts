@@ -4,11 +4,13 @@
  * changes since the version before, and takes a note; the reader's Versions
  * menu then lists the version with its note, and What Changed shows its
  * changes. Withdraw Version… asks which version and for the note readers
- * see, and the withdrawn version's address gives its citation and that note
- * and no text. A transcript is published and withdrawn from its own menu,
- * and a reader of it sees its latest version in the workbench with the same
- * Versions menu. A record that has a version is not deleted, and the window
- * says why. Every list badges a record Version n or Draft.
+ * see, and the withdrawn version is still read at its address, under a
+ * warning with that note and the way to the latest version. A transcript is
+ * published and withdrawn from its own menu, and a reader of it sees its
+ * latest version in the workbench with the same Versions menu, and how to
+ * cite it. A record that has a version is not deleted by its owner, and the
+ * window says why; an administrator has Delete Version… and deletes a record
+ * with its versions. Every list badges a record Version n or Draft.
  */
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
@@ -245,7 +247,7 @@ test('publishes an edition through its window with a note, and the reader lists 
   expect(errors).toEqual([]);
 });
 
-test('withdraws a version through its window, and its address gives the citation and the note and no text', async ({
+test('withdraws a version through its window, and its address still gives its text, under a warning with the note', async ({
   page,
 }) => {
   const errors = watch(page);
@@ -270,24 +272,26 @@ test('withdraws a version through its window, and its address gives the citation
   await expect(menu.getByRole('menuitem', { name: /Version 1/ })).toContainText(vs.menu.withdrawn);
   await page.keyboard.press('Escape');
 
-  // Its own address: the citation and the withdrawal, and no text.
+  // Its own address: the text as it was published, under the warning, with the note and the way to the latest.
   const visitor = await page.context().browser()!.newContext();
   const reader = await visitor.newPage();
+  const readerErrors = watch(reader);
   const answer = await reader.goto(`/editions/${TWICE.slug}/v/1`);
   expect(answer?.status()).toBe(200);
+  await reader.waitForLoadState('networkidle');
   await expect(reader.locator('h1')).toHaveText(TWICE.title);
+  const warning = reader.getByRole('status').filter({ hasText: vs.withdrawnNotice.withdrawn(1) });
+  await expect(warning).toBeVisible();
+  await expect(warning).toContainText('Superseded: the second line was misread.');
   await expect(
-    reader.getByText(vs.withdrawnPage.withdrawn, { exact: false }).first(),
-  ).toBeVisible();
-  await expect(reader.getByText('Superseded: the second line was misread.')).toBeVisible();
+    warning.getByRole('link', { name: vs.withdrawnNotice.readLatest(2) }),
+  ).toHaveAttribute('href', `/editions/${TWICE.slug}`);
   await expect(reader.getByText('The first version.').first()).toBeVisible();
-  await expect(reader.getByText(`/editions/${TWICE.slug}/v/1`)).toBeVisible();
-  await expect(reader.getByRole('link', { name: vs.withdrawnPage.readLatest })).toHaveAttribute(
-    'href',
-    `/editions/${TWICE.slug}`,
-  );
-  await expect(reader.getByText('virumque')).toHaveCount(0);
-  await reader.screenshot({ path: `${SHOTS}/4-withdrawn-page.png`, fullPage: true });
+  // The citation of the version, in the colophon.
+  await expect(reader.getByText(`/editions/${TWICE.slug}/v/1`).first()).toBeVisible();
+  await expect(reader.getByText('virumque').first()).toBeVisible();
+  await reader.screenshot({ path: `${SHOTS}/4-withdrawn-version.png`, fullPage: true });
+  expect(readerErrors).toEqual([]);
   await visitor.close();
   expect(errors).toEqual([]);
 });
@@ -323,6 +327,10 @@ test('a transcript is published and withdrawn from its menu, and a reader sees i
   await reader.waitForLoadState('networkidle');
   await expect(reader.getByText(vs.published(1))).toBeVisible();
   await expect(reader.getByText(w.readOnly, { exact: true })).toBeVisible();
+  // Under the header, how the version is cited: by its own address.
+  await expect(reader.locator('[data-version-notes]')).toContainText(
+    `/transcriptions/${ids.loose}/v/1`,
+  );
   const menu = await openVersions(reader);
   await expect(menu).toContainText('Leaves 1 and 2.');
   await reader.screenshot({
@@ -347,22 +355,34 @@ test('a transcript is published and withdrawn from its menu, and a reader sees i
   await withdraw.getByRole('button', { name: vs.withdraw.verb, exact: true }).click();
   await expect(page.getByText(vs.withdraw.done(1))).toBeVisible({ timeout: 15_000 });
 
-  // Its address now gives the citation and the note, to anyone.
+  // Its address still gives the text, read only, to anyone, under the warning with the note.
   await reader.goto(`/transcriptions/${ids.loose}/v/1`);
+  await reader.locator('.cm-content').waitFor();
   await expect(reader.locator('h1')).toHaveText(LOOSE);
-  await expect(reader.getByText('Taken back.')).toBeVisible();
-  await expect(reader.locator('.cm-content')).toHaveCount(0);
+  const notes = reader.locator('[data-version-notes]');
+  await expect(notes).toContainText(vs.withdrawnNotice.withdrawn(1));
+  await expect(notes).toContainText('Taken back.');
+  await expect(notes).toContainText(`/transcriptions/${ids.loose}/v/1`);
+  await expect(reader.locator('.cm-content')).toContainText('virumque');
+  await reader.screenshot({
+    path: `${SHOTS}/7-workbench-withdrawn.png`,
+    clip: { x: 0, y: 0, width: 1500, height: 320 },
+  });
   await visitor.close();
   expect(errors).toEqual([]);
 });
 
-test('an edition that has a version is not deleted, and the window says why', async ({ page }) => {
+test('an edition that has a version is not deleted by its owner, and the window says why', async ({
+  page,
+}) => {
   const errors = watch(page);
   await signIn(page);
   await page.goto('/mine');
   await page.waitForLoadState('networkidle');
   const row = page.locator('main li').filter({ hasText: KEPT.title });
   await row.getByRole('button', { name: ra.menuOf(KEPT.title) }).click();
+  // Delete Version… is an administrator's alone.
+  await expect(page.getByRole('menuitem', { name: ra.edition.deleteVersion })).toHaveCount(0);
   await page.getByRole('menuitem', { name: ra.edition.delete }).click();
   const window = page.getByRole('dialog', { name: ra.edition.deleteTitle });
   await window.getByRole('button', { name: ra.edition.deleteVerb, exact: true }).click();
@@ -403,5 +423,41 @@ test('every list badges a record Version n or Draft', async ({ page }) => {
   await expect(page.locator('.cm-content')).toBeVisible();
   const header = page.locator('h1', { hasText: TWICE.title }).locator('..');
   await expect(header.getByText(vs.version(2), { exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('an administrator deletes a version through its window, and an edition with its versions', async ({
+  page,
+}) => {
+  const errors = watch(page);
+  await db.update(users).set({ role: 'administrator' }).where(eq(users.email, OWNER.email));
+  await signIn(page);
+  await page.goto('/mine');
+  await page.waitForLoadState('networkidle');
+
+  // Delete Version… lists the versions there are; the one deleted leaves the edition a draft.
+  const kept = page.locator('main li').filter({ hasText: KEPT.title });
+  await kept.getByRole('button', { name: ra.menuOf(KEPT.title) }).click();
+  await page.getByRole('menuitem', { name: ra.edition.deleteVersion }).click();
+  const window = page.getByRole('dialog', { name: vs.delete.title });
+  await expect(window).toContainText(vs.delete.body);
+  await expect(window.getByLabel(vs.delete.which, { exact: true })).toHaveValue('1');
+  await page.screenshot({ path: `${SHOTS}/8-delete-version-window.png` });
+  await window.getByRole('button', { name: vs.delete.verb, exact: true }).click();
+  await expect(page.getByText(vs.delete.done(1))).toBeVisible({ timeout: 15_000 });
+  await expect(kept.locator('span.rounded-full')).toHaveText(vs.draft);
+  const gone = await page.request.get(`/editions/${KEPT.slug}/v/1`);
+  expect(gone.status()).toBe(404);
+
+  // An edition with versions, one of them withdrawn, goes with them.
+  const twice = page.locator('main li').filter({ hasText: TWICE.title });
+  await twice.getByRole('button', { name: ra.menuOf(TWICE.title) }).click();
+  await page.getByRole('menuitem', { name: ra.edition.delete }).click();
+  const confirm = page.getByRole('dialog', { name: ra.edition.deleteTitle });
+  await expect(confirm).toContainText(ra.edition.deleteBody);
+  await confirm.getByRole('button', { name: ra.edition.deleteVerb, exact: true }).click();
+  await expect(page.getByText(ra.edition.deleted(TWICE.title))).toBeVisible({ timeout: 15_000 });
+  await expect(twice).toHaveCount(0);
+  expect(await db.select().from(editions).where(eq(editions.id, ids.twice!))).toHaveLength(0);
   expect(errors).toEqual([]);
 });

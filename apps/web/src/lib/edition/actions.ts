@@ -19,6 +19,8 @@ export interface EditionRights {
   edit: boolean;
   publish: boolean;
   delete: boolean;
+  /** Delete a version, or the edition while it has one: an administrator alone. */
+  deleteVersion: boolean;
 }
 
 export interface EditionSubject {
@@ -28,7 +30,7 @@ export interface EditionSubject {
 }
 
 /** The ids of the menu's items that the page does, rather than leads to. */
-export type EditionActionId = 'publish' | 'withdraw' | 'copy' | 'delete';
+export type EditionActionId = 'publish' | 'withdraw' | 'copy' | 'delete-version' | 'delete';
 
 /** The addresses of the downloads; in the reader, of the state shown. */
 export interface EditionDownloads {
@@ -41,6 +43,7 @@ export const NO_RIGHTS: EditionRights = {
   edit: false,
   publish: false,
   delete: false,
+  deleteVersion: false,
 };
 
 export function editionDownloads(slug: string): EditionDownloads {
@@ -106,9 +109,15 @@ export function editionActions(
     { kind: 'link', id: 'tei', label: t.tei, href: downloads.tei, file: true },
     { kind: 'link', id: 'package', label: t.package, href: downloads.package, file: true },
   ];
-  const deleting: MenuEntry[] = rights.delete
-    ? [{ kind: 'action', id: 'delete', label: t.delete, danger: true }]
-    : [];
+  // Delete Version… is an administrator's alone, and lists the versions there are, which may be none.
+  const deleting: MenuEntry[] = [
+    ...(rights.deleteVersion
+      ? [{ kind: 'action', id: 'delete-version', label: t.deleteVersion, danger: true } as const]
+      : []),
+    ...(rights.delete
+      ? [{ kind: 'action', id: 'delete', label: t.delete, danger: true } as const]
+      : []),
+  ];
 
   return { buttons, menu: joinGroups([settings, publishing, copying, downloading, deleting]) };
 }

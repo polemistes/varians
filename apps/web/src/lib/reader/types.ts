@@ -90,8 +90,21 @@ export type ReaderMode =
   | { kind: 'draft'; version: number }
   /** The draft of an edition with a version, to those who may edit it; `publishedNumber` is the latest version's. */
   | { kind: 'preview'; version: number; publishedNumber: number | null }
-  /** A version by its number, at its own address. */
-  | { kind: 'version'; number: number; at: string; note: string | null; isCurrent: boolean };
+  /**
+   * A version by its number, at its own address. A withdrawn one is read
+   * there still, and says when it was withdrawn and the note readers were
+   * left; `latest` is the number of the latest version that stands, null
+   * where none does.
+   */
+  | {
+      kind: 'version';
+      number: number;
+      at: string;
+      note: string | null;
+      isCurrent: boolean;
+      withdrawn: { at: string; note: string | null } | null;
+      latest: number | null;
+    };
 
 /** A version as the Versions menu lists it, withdrawn ones among them. */
 export interface ReaderVersion {
@@ -105,22 +118,6 @@ export interface ReaderVersion {
   changes: VersionChanges;
   href: string;
   current: boolean;
-}
-
-/** The page of a withdrawn version: its citation and the withdrawal, and no text. */
-export interface WithdrawnVersionData {
-  edition: { id: string; slug: string; title: string; editors: string[] };
-  work: { id: string; title: string; author: string | null };
-  number: number;
-  /** When the version was published, and the editors' note on it. */
-  at: string;
-  note: string | null;
-  withdrawn: { at: string; note: string | null };
-  /** The licence the version was published under, by name, for its citation. */
-  licence: string | null;
-  /** The edition's address, which shows its latest version, or null when it has none any more. */
-  current: string | null;
-  versions: ReaderVersion[];
 }
 
 export interface ReaderData {

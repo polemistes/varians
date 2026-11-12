@@ -6,8 +6,8 @@
  * An edition with a version shows its latest version that is not withdrawn
  * to everyone; its editors may preview the draft with `?draft=1`. An edition
  * with no version is shown, as its draft, only to those who may edit it.
- * `/v/n` shows version n, read from its snapshot; a withdrawn version has a
- * page of its own, with its citation and the withdrawal and no text.
+ * `/v/n` shows version n, read from its snapshot, to anyone: a withdrawn
+ * version too, which says that it is, since someone may have cited it.
  * Anything a visitor may not see is a 404, so that a draft's existence is
  * never revealed.
  */
@@ -35,12 +35,7 @@ import { hasVersionSql, versionByNumber, versionsOf, type VersionSummary } from 
 import { plainText, teiText } from '$lib/reader/export';
 import { alignedUnits, siglaOrderOf } from '$lib/reader/sites';
 import { DEFAULT_SIGLA } from '$lib/reader/marks';
-import type {
-  ReaderData,
-  ReaderMode,
-  ReaderVersion,
-  WithdrawnVersionData,
-} from '$lib/reader/types';
+import type { ReaderData, ReaderMode, ReaderVersion } from '$lib/reader/types';
 import { detailOf, packSegments, type ReaderWireData, type SegmentDetail } from '$lib/reader/wire';
 import { reader as r } from '$lib/strings/reader';
 
@@ -63,14 +58,11 @@ export type PublishedMoment = Pick<VersionSummary, 'number' | 'version' | 'at' |
   withdrawn: VersionSummary['withdrawn'];
 };
 
-export type ReaderDecision =
-  | {
-      /** The number of the version to show; null for the draft. */
-      versionNumber: number | null;
-      mode: ReaderMode;
-    }
-  /** A withdrawn version, whose page has no text. */
-  | { withdrawn: PublishedMoment };
+export interface ReaderDecision {
+  /** The number of the version to show; null for the draft. */
+  versionNumber: number | null;
+  mode: ReaderMode;
+}
 
 /**
  * Which state of the edition to show, from the edition, the visitor's rights
@@ -87,8 +79,7 @@ export function decideReaderView(
   if (request.version !== undefined && request.version !== null) {
     const asked = versions.find((v) => v.number === request.version);
     if (!asked) return null;
-    // A withdrawn version keeps its address for everyone who may have cited it.
-    if (asked.withdrawn) return { withdrawn: asked };
+    // A version keeps its address and its text for everyone who may have cited it, withdrawn or not.
     return {
       versionNumber: asked.number,
       mode: {
@@ -97,6 +88,10 @@ export function decideReaderView(
         at: asked.at.toISOString(),
         note: asked.note,
         isCurrent: latest?.number === asked.number,
+        withdrawn: asked.withdrawn
+          ? { at: asked.withdrawn.at.toISOString(), note: asked.withdrawn.note }
+          : null,
+        latest: latest?.number ?? null,
       },
     };
   }
@@ -158,7 +153,7 @@ async function decideFor(
   return { access, versions, decision };
 }
 
-/** Load the edition and decide what the visitor sees; a 404 for anything they may not see, a withdrawn version among them. */
+/** Load the edition and decide what the visitor sees; a 404 for anything they may not see. */
 export async function resolveReader(
   db: Database,
   user: Actor | null,
@@ -166,47 +161,7 @@ export async function resolveReader(
   request: ReaderRequest,
 ): Promise<ResolvedReader> {
   const { access, versions, decision } = await decideFor(db, user, slug, request);
-  if ('withdrawn' in decision) error(404, 'No such version');
   return { ...decision, access, versions };
-}
-
-/**
- * The page of version n when it is withdrawn: the citation's parts (the
- * edition's title and editors as the version had them, its number and date)
- * and the withdrawal's date and note, and no text. Null when version n is not
- * withdrawn; a 404 when there is no such version.
- */
-export async function loadWithdrawnVersion(
-  db: Database,
-  user: Actor | null,
-  slug: string,
-  number: number,
-): Promise<WithdrawnVersionData | null> {
-  const { access, versions, decision } = await decideFor(db, user, slug, { version: number });
-  if (!('withdrawn' in decision)) return null;
-  const asked = decision.withdrawn;
-  const row = await versionByNumber(db, 'edition', access.edition.id, number);
-  const snapshot = row?.snapshot as EditionSnapshot | undefined;
-  const work = await db.query.works.findFirst({
-    where: (t, { eq }) => eq(t.id, access.edition.workId),
-  });
-  const latest = versions.find((v) => !v.withdrawn);
-  return {
-    edition: {
-      id: access.edition.id,
-      slug: access.edition.slug,
-      title: snapshot?.title ?? access.edition.title,
-      editors: snapshot?.editors ?? access.edition.editors,
-    },
-    work: { id: access.edition.workId, title: work?.title ?? '', author: work?.author ?? null },
-    number: asked.number,
-    at: asked.at.toISOString(),
-    note: asked.note,
-    withdrawn: { at: asked.withdrawn!.at.toISOString(), note: asked.withdrawn!.note },
-    licence: licenceInfo(snapshot?.licenceId ?? access.edition.licenceId)?.name ?? null,
-    current: latest ? `/editions/${encodeURIComponent(access.edition.slug)}` : null,
-    versions: readerVersions(access.edition.slug, versions, latest?.number ?? null),
-  };
 }
 
 /** Tokens without their sources: the reader does not show where a word was taken from. */
@@ -409,8 +364,12 @@ async function originOf(db: Database, origin: EditionOrigin | null): Promise<Rea
 export function versionLine(mode: ReaderMode): string {
   switch (mode.kind) {
     case 'published':
-    case 'version':
       return `${r.version(mode.number)}, ${r.published} ${mode.at.slice(0, 10)}`;
+    case 'version':
+      return (
+        `${r.version(mode.number)}, ${r.published} ${mode.at.slice(0, 10)}` +
+        (mode.withdrawn ? `, ${r.withdrawn} ${mode.withdrawn.at.slice(0, 10)}` : '')
+      );
     case 'draft':
       return r.draft;
     case 'preview':

@@ -5,10 +5,13 @@
    * toggle) and the transcript's menu, the same as in every list the
    * transcript stands in. Beside the name, which state is shown: Draft, or
    * the version read only with its date, and the Versions menu with, for
-   * those who may edit, the way back to the draft. What is done to the text
-   * and not to the record is in the Tools menu above the text. The page
-   * chooser is in the bar above the text.
+   * those who may edit, the way back to the draft. Under the header of a
+   * version, how it is cited, and of a withdrawn one the warning with the
+   * note readers were left and the way to the latest version. What is done
+   * to the text and not to the record is in the Tools menu above the text.
+   * The page chooser is in the bar above the text.
    */
+  import { page } from '$app/state';
   import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
   import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
   import PanelLeftOpen from '@lucide/svelte/icons/panel-left-open';
@@ -16,10 +19,12 @@
   import PanelRightOpen from '@lucide/svelte/icons/panel-right-open';
   import Pencil from '@lucide/svelte/icons/pencil';
   import TranscriptionActions from '$lib/components/transcription/TranscriptionActions.svelte';
-  import { Badge, IconButton, LocalDate, MenuItem } from '$lib/components/ui';
+  import { Badge, IconButton, LocalDate, MenuItem, Notice } from '$lib/components/ui';
   import VersionsMenu from '$lib/components/version/VersionsMenu.svelte';
+  import { versionCitation } from '$lib/reader/citation';
   import type { ReaderVersion } from '$lib/reader/types';
   import type { TranscriptionRights } from '$lib/transcription/actions';
+  import { reader as r } from '$lib/strings/reader';
   import { versions as v } from '$lib/strings/versions';
   import { workbench as t } from '$lib/strings/workbench';
   import type { Workbench } from './workbench.svelte';
@@ -38,9 +43,14 @@
     /** The versions, newest first, as the page's data has them now. */
     versions: ReaderVersion[];
     latestVersion: number | null;
-    /** The version shown read only, with its date and note; null for the draft. */
+    /** The version shown read only, with its date, its note, who published it and its withdrawal; null for the draft. */
     shownVersion: number | null;
-    shown: { at: string; note: string | null } | null;
+    shown: {
+      at: string;
+      note: string | null;
+      personName: string | null;
+      withdrawn: { at: string; note: string | null } | null;
+    } | null;
     /** The viewer may edit the draft: a version shown leads back to it. */
     canEditDraft: boolean;
   }
@@ -62,6 +72,19 @@
   }: Props = $props();
 
   const draftHref = $derived(`/transcriptions/${encodeURIComponent(wb.id)}`);
+  /** The citation of the version shown: its lasting address is the page's own. */
+  const citation = $derived(
+    shownVersion !== null && shown
+      ? versionCitation({
+          editors: shown.personName ? [shown.personName] : [],
+          title: v.transcriptCited(wb.witness.name, wb.name),
+          number: shownVersion,
+          at: shown.at,
+          address: `${page.url.origin}${draftHref}/v/${shownVersion}`,
+          licence: wb.licence,
+        })
+      : null,
+  );
 </script>
 
 {#snippet draftItem()}
@@ -92,6 +115,7 @@
       <span class="text-xs whitespace-nowrap text-ink-soft" title={shown.note ?? undefined}
         >{v.published(shownVersion)} <LocalDate date={shown.at} /></span
       >
+      {#if shown.withdrawn}<Badge tone="warning">{v.withdrawn}</Badge>{/if}
     {/if}
     {#if !wb.canEdit}<Badge tone="accent">{t.readOnly}</Badge>{/if}
     {#if shownVersion !== null && canEditDraft}
@@ -143,3 +167,28 @@
     />
   </div>
 </div>
+
+{#if shownVersion !== null && shown && citation}
+  <div
+    class="space-y-1.5 border-b border-line bg-surface px-4 py-2 font-sans text-xs text-ink-soft"
+    data-version-notes
+  >
+    {#if shown.withdrawn}
+      <Notice kind="warning">
+        <span class="font-medium text-ink"
+          >{v.withdrawnNotice.withdrawn(shownVersion)}
+          <LocalDate date={shown.withdrawn.at} /></span
+        >.
+        {#if shown.withdrawn.note}<span class="mt-1 block whitespace-pre-line"
+            >{shown.withdrawn.note}</span
+          >{/if}
+        {#if latestVersion !== null}<a
+            href="{draftHref}/v/{latestVersion}"
+            class="mt-1 block text-accent underline"
+            >{v.withdrawnNotice.readLatest(latestVersion)}</a
+          >{/if}
+      </Notice>
+    {/if}
+    <p>{r.colophon.cite}: {citation}</p>
+  </div>
+{/if}

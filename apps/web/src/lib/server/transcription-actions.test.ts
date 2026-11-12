@@ -240,7 +240,15 @@ afterAll(async () => {
 type Row = { id: string; can: Record<string, boolean> };
 const canOf = (rows: unknown, id: string) => (rows as Row[]).find((r) => r.id === id)?.can;
 
-const ownerRights = { signedIn: true, edit: true, publish: true, delete: true };
+const ownerRights = {
+  signedIn: true,
+  edit: true,
+  publish: true,
+  delete: true,
+  deleteVersion: false,
+};
+/** An administrator may besides delete a version, and a transcript that has one. */
+const administratorRights = { ...ownerRights, deleteVersion: true };
 
 describe('the rights a list gives each transcript', () => {
   it('on Your Work: the owner may do everything with their own', async () => {
@@ -256,6 +264,7 @@ describe('the rights a list gives each transcript', () => {
       edit: true,
       publish: false,
       delete: false,
+      deleteVersion: false,
     });
     expect(canOf(shared.transcriptions, ids.spare)).toBeUndefined();
   });
@@ -264,25 +273,28 @@ describe('the rights a list gives each transcript', () => {
     const forViewer = async (who: CurrentUser | null, id: string) =>
       canOf((await run(witnessPage, who, { slug: witnessSlug })).data!.transcriptions, id);
     expect(await forViewer(owner, ids.published)).toEqual(ownerRights);
-    expect(await forViewer(administrator, ids.published)).toEqual(ownerRights);
+    expect(await forViewer(administrator, ids.published)).toEqual(administratorRights);
     // A site editor may edit anything and publish and delete nothing.
     expect(await forViewer(siteEditor, ids.published)).toEqual({
       signedIn: true,
       edit: true,
       publish: false,
       delete: false,
+      deleteVersion: false,
     });
     expect(await forViewer(stranger, ids.published)).toEqual({
       signedIn: true,
       edit: false,
       publish: false,
       delete: false,
+      deleteVersion: false,
     });
     expect(await forViewer(null, ids.published)).toEqual({
       signedIn: false,
       edit: false,
       publish: false,
       delete: false,
+      deleteVersion: false,
     });
     // A draft is seen by those who may edit it only.
     expect(await forViewer(stranger, ids.draft)).toBeUndefined();
@@ -291,6 +303,7 @@ describe('the rights a list gives each transcript', () => {
       edit: true,
       publish: false,
       delete: false,
+      deleteVersion: false,
     });
   });
 
@@ -377,7 +390,7 @@ describe('deleting a transcript', () => {
     expect(said).toContain(SECRET);
   });
 
-  it('is refused, in words, for a transcript that has a version', async () => {
+  it('is refused, in words, to the owner of a transcript that has a version', async () => {
     const refused = await run(workbenchActions.delete, owner, {
       id: ids.published,
       fields: { stay: '1' },

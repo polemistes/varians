@@ -2,9 +2,28 @@ import { describe, expect, it } from 'vitest';
 import type { MenuEntry } from '$lib/record/actions';
 import { editionActions, NO_RIGHTS, type EditionRights } from './actions';
 
-const owner: EditionRights = { signedIn: true, edit: true, publish: true, delete: true };
-const collaborator: EditionRights = { signedIn: true, edit: true, publish: false, delete: false };
-const reader: EditionRights = { signedIn: true, edit: false, publish: false, delete: false };
+const owner: EditionRights = {
+  signedIn: true,
+  edit: true,
+  publish: true,
+  delete: true,
+  deleteVersion: false,
+};
+const administrator: EditionRights = { ...owner, deleteVersion: true };
+const collaborator: EditionRights = {
+  signedIn: true,
+  edit: true,
+  publish: false,
+  delete: false,
+  deleteVersion: false,
+};
+const reader: EditionRights = {
+  signedIn: true,
+  edit: false,
+  publish: false,
+  delete: false,
+  deleteVersion: false,
+};
 const visitor = NO_RIGHTS;
 
 const draft = { slug: 'liber-1', published: false };
@@ -44,6 +63,16 @@ describe('the menu of an edition', () => {
       'Package',
       'Delete Edition…',
     ]);
+  });
+
+  it('gives an administrator Delete Version… before Delete Edition…, whatever versions there are', () => {
+    for (const edition of [draft, published]) {
+      const { menu } = editionActions(edition, administrator, 'list');
+      expect(shape(menu).slice(-3)).toEqual(['|', 'delete-version', 'delete']);
+      expect(menu.at(-2)).toMatchObject({ label: 'Delete Version…', danger: true });
+      expect(menu.at(-2)).not.toHaveProperty('disabled');
+    }
+    expect(shape(editionActions(published, owner, 'list').menu)).not.toContain('delete-version');
   });
 
   it('offers Publish… and Withdraw Version… for a draft as for an edition with a version', () => {

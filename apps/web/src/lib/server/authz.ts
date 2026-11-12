@@ -203,6 +203,14 @@ export function hasPublicVersion(record: Versioned): boolean {
   return 'hasVersion' in record ? record.hasVersion : record.latestVersion !== null;
 }
 
+/**
+ * Deleting a version, and a record that has one: an administrator alone,
+ * since someone may have cited the version's address.
+ */
+export function canDeleteVersions(user: Maybe<Actor>): boolean {
+  return isAdministrator(user);
+}
+
 // Transcriptions
 
 export function canEditTranscription(
@@ -260,6 +268,7 @@ export function transcriptionRights(
     edit: canEditTranscription(user, transcription, grants),
     publish: canPublishTranscription(user, transcription),
     delete: canDeleteTranscription(user, transcription),
+    deleteVersion: canDeleteVersions(user),
   };
 }
 
@@ -308,6 +317,7 @@ export function editionRights(
     edit: canEditEdition(user, edition, collaboratorIds),
     publish: canPublishEdition(user, edition),
     delete: canDeleteEdition(user, edition),
+    deleteVersion: canDeleteVersions(user),
   };
 }
 

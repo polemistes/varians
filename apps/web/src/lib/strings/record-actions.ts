@@ -52,15 +52,16 @@ export const recordActions = {
     download: 'Download',
     tei: 'TEI XML',
     leiden: 'Leiden+',
+    deleteVersion: 'Delete Version…',
     delete: 'Delete Transcript…',
 
     deleteTitle: 'Delete Transcript',
     deleteBody:
-      'Delete this transcript? Its text and history go with it. The witness and its pages stay.',
+      'Delete this transcript? Its text, its history and its versions go with it. The witness and its pages stay.',
     deleteVerb: 'Delete',
     deleted: 'The transcript has been deleted.',
     hasVersion:
-      'This transcript cannot be deleted: it has a version, which someone may have cited. Withdraw the version instead.',
+      'This transcript has a version, which someone may have cited. Only an administrator deletes a record that has a version.',
   },
 
   /** A smaller record, which has no page: its row's menu opens with Edit and ends with Delete. */
@@ -142,6 +143,7 @@ export const recordActions = {
     download: 'Download',
     tei: 'TEI XML',
     package: 'Package',
+    deleteVersion: 'Delete Version…',
     delete: 'Delete Edition…',
 
     /** The editor's own button, besides the menu's item. */
@@ -149,11 +151,11 @@ export const recordActions = {
 
     deleteTitle: 'Delete Edition',
     deleteBody:
-      'Delete this edition? Its text, notes and history go with it. The witnesses and conjectures stay.',
+      'Delete this edition? Its text, its notes, its history and its versions go with it. The witnesses and conjectures stay.',
     deleteVerb: 'Delete',
     deleted: (title: string) => `${title} has been deleted.`,
     hasVersion:
-      'This edition cannot be deleted: it has a version, which someone may have cited. Withdraw the version instead.',
+      'This edition has a version, which someone may have cited. Only an administrator deletes a record that has a version.',
     onlyOwner: 'Only the owner may do that.',
 
     /** Edition Settings: who owns the edition and who edits it with the owner. */

@@ -16,6 +16,7 @@ import {
   works,
   type Database,
   type Role,
+  versions,
 } from '@varians/db';
 import { and, eq } from 'drizzle-orm';
 import type pg from 'pg';
@@ -161,10 +162,18 @@ afterAll(async () => {
 type Row = { id: string; can: Record<string, boolean> };
 const rowOf = (rows: unknown, id: string) => (rows as Row[]).find((r) => r.id === id)?.can;
 
-const ownerRights = { signedIn: true, edit: true, publish: true, delete: true };
-const collaboratorRights = { signedIn: true, edit: true, publish: false, delete: false };
-const readerRights = { signedIn: true, edit: false, publish: false, delete: false };
-const visitorRights = { signedIn: false, edit: false, publish: false, delete: false };
+const ownerRights = {
+  signedIn: true,
+  edit: true,
+  publish: true,
+  delete: true,
+  deleteVersion: false,
+};
+/** An administrator may besides delete a version, and an edition that has one. */
+const administratorRights = { ...ownerRights, deleteVersion: true };
+const collaboratorRights = { ...ownerRights, publish: false, delete: false };
+const readerRights = { ...collaboratorRights, edit: false };
+const visitorRights = { ...readerRights, signedIn: false };
 
 describe('the rights a list gives each edition', () => {
   it('on Your Work: the owner may do everything, a collaborator edit only', async () => {
@@ -196,7 +205,7 @@ describe('the rights a list gives each edition', () => {
 
   it('on the list of editions, an administrator may do everything', async () => {
     expect(rowOf((await run(editionsPage, administrator)).data!.editions, ids.published)).toEqual(
-      ownerRights,
+      administratorRights,
     );
   });
 });
@@ -219,20 +228,43 @@ describe('deleting an edition', () => {
     expect(await db.select().from(editions).where(eq(editions.id, ids.doomed))).toEqual([]);
   });
 
-  it('is refused, in words, for an edition with a version, withdrawn or not', async () => {
+  it('is refused, in words, to the owner of an edition with a version, withdrawn or not', async () => {
     const refused = await run(editActions.delete, owner, slugs.published, { stay: '1' });
     expect(refused).toMatchObject({
       status: 409,
       data: { error: recordActions.edition.hasVersion },
     });
     await withdrawVersion(db, 'edition', ids.published, 1, ids.owner, null);
-    expect(await run(editActions.delete, administrator, slugs.published, {})).toMatchObject({
+    expect(await run(editActions.delete, owner, slugs.published, {})).toMatchObject({
       status: 409,
       data: { error: recordActions.edition.hasVersion },
     });
     expect(await db.select().from(editions).where(eq(editions.id, ids.published))).toHaveLength(1);
     // Published again for the tests that follow, which read it as published.
     await publishEdition(db, ids.published, ids.owner);
+  });
+
+  it('is done by an administrator for an edition with versions, which go with it', async () => {
+    const id = newId();
+    await db.insert(editions).values({
+      id,
+      workId: ids.work,
+      slug: `versioned-${id}`,
+      title: 'Versioned',
+      ownerId: ids.owner,
+      conventions: DEFAULT_CONVENTIONS,
+    });
+    await publishEdition(db, id, ids.owner);
+    await publishEdition(db, id, ids.owner);
+    await withdrawVersion(db, 'edition', id, 1, ids.owner, null);
+    expect(await run(editActions.delete, owner, `versioned-${id}`, { stay: '1' })).toMatchObject({
+      status: 409,
+    });
+    expect(
+      await run(editActions.delete, administrator, `versioned-${id}`, { stay: '1' }),
+    ).toMatchObject({ data: { message: recordActions.edition.deleted('Versioned') } });
+    expect(await db.select().from(editions).where(eq(editions.id, id))).toEqual([]);
+    expect(await db.select().from(versions).where(eq(versions.documentId, id))).toEqual([]);
   });
 
   it("from the edition's own pages leads to the work's page", async () => {

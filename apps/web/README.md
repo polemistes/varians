@@ -91,7 +91,7 @@ src/
       workbench.ts          the transcription workbench's loads and imports
       seed/                 the sample edition; the stress edition (stress-text.ts makes its text, stress.ts writes it); a printed page worked backwards (page.ts)
       history.ts            sessions, moments, undo, bringing back, review
-      publish.ts            publishing and the published versions
+      publish.ts            publishing, withdrawing and deleting versions
       bibliography.ts       the shared biblatex list and citations
       archive/              the open-format git archive per work, its scheduler and import
       import/               TEI and CTS import

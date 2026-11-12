@@ -323,6 +323,7 @@
       edit: wb.canEdit,
       publish: data.canPublish,
       delete: wb.canDelete,
+      deleteVersion: data.canDeleteVersion,
     }}
     versions={data.transcription.versions}
     latestVersion={data.transcription.latestVersion}

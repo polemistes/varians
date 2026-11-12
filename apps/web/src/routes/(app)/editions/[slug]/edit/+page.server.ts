@@ -2,7 +2,7 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { editions, works } from '@varians/db';
 import { eq } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
-import { canDeleteEdition, editionRights, grantsFor } from '$lib/server/authz';
+import { canDeleteEdition, canDeleteVersions, editionRights, grantsFor } from '$lib/server/authz';
 import { reviewedSites } from '$lib/server/conjectures';
 import { loadEditionAccess } from '$lib/server/edition-access';
 import {
@@ -128,15 +128,15 @@ export const actions: Actions = {
     const { user, access } = await editable(locals, params.slug);
     if (!canDeleteEdition(user, access.edition))
       return fail(403, { error: recordActions.edition.onlyOwner });
-    // A version is withdrawn, never deleted: someone may have cited its address.
-    if (await hasAnyVersion(locals.db, 'edition', access.edition.id))
+    // Someone may have cited a version's address: only an administrator deletes an edition that has one.
+    if (!canDeleteVersions(user) && (await hasAnyVersion(locals.db, 'edition', access.edition.id)))
       return fail(409, { error: recordActions.edition.hasVersion });
     const stay = (await request.formData()).get('stay') === '1';
     const [work] = await locals.db
       .select({ slug: works.slug })
       .from(works)
       .where(eq(works.id, access.edition.workId));
-    // The edition goes with its history, its moments and any open offer of it.
+    // The edition goes with its history, its moments, its versions and any open offer of it.
     await locals.db.transaction(async (tx) => {
       await deleteHistory(tx, 'edition', [access.edition.id]);
       await tx.delete(editions).where(eq(editions.id, access.edition.id));

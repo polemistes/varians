@@ -1,8 +1,9 @@
 /**
- * Publishing and withdrawing versions (docs/design.md, section 3.11). A
- * version is the record as it stands at the publication, written once as a
- * snapshot with the editors' note and the list of changes since the version
- * before; it is withdrawn, never deleted. Publishing an edition publishes the
+ * Publishing, withdrawing and deleting versions (docs/design.md, section
+ * 3.11). A version is the record as it stands at the publication, written
+ * once as a snapshot with the editors' note and the list of changes since the
+ * version before. Its owner withdraws it, and it is read on under a warning;
+ * only an administrator deletes it. Publishing an edition publishes the
  * owner's transcripts it compares as versions of their own, and is refused
  * while it compares another person's transcript at a text they have not
  * published. Conjectures and reported readings are public from the moment
@@ -10,8 +11,10 @@
  */
 
 import {
+  collationCache,
   editionSigla,
   editions,
+  moments,
   persons,
   transcriptions,
   versions,
@@ -23,7 +26,12 @@ import { newId } from '@varians/core';
 import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
 import { nameMoment } from './documents/service.ts';
 import { dataLicence } from './settings.ts';
-import { changesSince, editionSnapshot, transcriptionSnapshot } from './versions.ts';
+import {
+  changesSince,
+  editionSnapshot,
+  forgetSnapshot,
+  transcriptionSnapshot,
+} from './versions.ts';
 import { versionStrings as v } from '../strings/versions.ts';
 
 export {
@@ -254,9 +262,9 @@ export async function publishEdition(
 }
 
 /**
- * Withdraw a version: it keeps its address and its files, and says from now
- * on that it is withdrawn, with the date, the person and the note readers see.
- * A version withdrawn already is refused; nothing brings one back.
+ * Withdraw a version: it keeps its address, its text and its files, and says
+ * from now on that it is withdrawn, with the date, the person and the note
+ * readers see. A version withdrawn already is refused; nothing brings one back.
  */
 export async function withdrawVersion(
   db: Database,
@@ -288,4 +296,60 @@ export async function withdrawVersion(
   throw exists
     ? new PublishRefused(v.alreadyWithdrawn, 409)
     : new PublishRefused(v.noSuchVersion, 404);
+}
+
+/**
+ * Delete a version, withdrawn or not: its snapshot, the moment that marks it
+ * in the history and the collation kept for it. Nothing is left at its
+ * address, and its number is free again if it was the last. The caller sees
+ * to it that only an administrator does this. A version of a transcript is
+ * not deleted while a version of an edition compares it, which would be left
+ * without that witness's text: the refusal names those versions.
+ */
+export async function deleteVersion(
+  db: Database,
+  kind: DocumentKind,
+  documentId: string,
+  number: number,
+): Promise<void> {
+  const [row] = await db
+    .select({ id: versions.id, momentId: versions.momentId })
+    .from(versions)
+    .where(
+      and(
+        eq(versions.documentKind, kind),
+        eq(versions.documentId, documentId),
+        eq(versions.number, number),
+      ),
+    );
+  if (!row) throw new PublishRefused(v.noSuchVersion, 404);
+  if (kind === 'transcription') {
+    const comparing = await db
+      .select({ number: versions.number, title: editions.title })
+      .from(versions)
+      .innerJoin(editions, eq(editions.id, versions.documentId))
+      .where(
+        and(
+          eq(versions.documentKind, 'edition'),
+          sql`(${versions.snapshot} -> 'witnessVersions' ->> ${documentId})::int = ${number}`,
+        ),
+      )
+      .orderBy(asc(editions.title), asc(versions.number));
+    if (comparing.length)
+      throw new PublishRefused(v.compared(comparing.map((c) => v.versionOf(c.number, c.title))));
+  }
+  await db.transaction(async (tx) => {
+    await tx.delete(versions).where(eq(versions.id, row.id));
+    if (row.momentId)
+      await tx
+        .delete(moments)
+        .where(and(eq(moments.id, row.momentId), eq(moments.kind, 'published')));
+    if (kind === 'edition')
+      await tx
+        .delete(collationCache)
+        .where(
+          and(eq(collationCache.editionId, documentId), eq(collationCache.versionNumber, number)),
+        );
+  });
+  forgetSnapshot(row.id);
 }

@@ -25,6 +25,8 @@ export interface TranscriptionRights {
   publish: boolean;
   /** Delete it: the owner, or an administrator. */
   delete: boolean;
+  /** Delete a version, or the transcript while it has one: an administrator alone. */
+  deleteVersion: boolean;
 }
 
 export const NO_TRANSCRIPTION_RIGHTS: TranscriptionRights = {
@@ -32,6 +34,7 @@ export const NO_TRANSCRIPTION_RIGHTS: TranscriptionRights = {
   edit: false,
   publish: false,
   delete: false,
+  deleteVersion: false,
 };
 
 export interface TranscriptionSubject {
@@ -41,7 +44,13 @@ export interface TranscriptionSubject {
 }
 
 /** The ids of the menu's items that the page does, rather than leads to. */
-export type TranscriptionActionId = 'settings' | 'publish' | 'withdraw' | 'copy' | 'delete';
+export type TranscriptionActionId =
+  | 'settings'
+  | 'publish'
+  | 'withdraw'
+  | 'copy'
+  | 'delete-version'
+  | 'delete';
 
 /** The addresses of the downloads. */
 export function transcriptionDownloads(id: string): { tei: string; leiden: string } {
@@ -59,7 +68,13 @@ export function transcriptionActions(
   rights: TranscriptionRights,
   place: TranscriptionPlace,
 ): RecordActions {
-  if (place === 'list' && !rights.edit && !rights.publish && !rights.delete)
+  if (
+    place === 'list' &&
+    !rights.edit &&
+    !rights.publish &&
+    !rights.delete &&
+    !rights.deleteVersion
+  )
     return { buttons: [], menu: [] };
 
   const downloads = transcriptionDownloads(transcription.id);
@@ -85,9 +100,15 @@ export function transcriptionActions(
     { kind: 'link', id: 'tei', label: t.tei, href: downloads.tei, file: true },
     { kind: 'link', id: 'leiden', label: t.leiden, href: downloads.leiden, file: true },
   ];
-  const deleting: MenuEntry[] = rights.delete
-    ? [{ kind: 'action', id: 'delete', label: t.delete, danger: true }]
-    : [];
+  // Delete Version… is an administrator's alone, and lists the versions there are, which may be none.
+  const deleting: MenuEntry[] = [
+    ...(rights.deleteVersion
+      ? [{ kind: 'action', id: 'delete-version', label: t.deleteVersion, danger: true } as const]
+      : []),
+    ...(rights.delete
+      ? [{ kind: 'action', id: 'delete', label: t.delete, danger: true } as const]
+      : []),
+  ];
 
   return {
     buttons: [],

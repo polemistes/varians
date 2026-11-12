@@ -97,6 +97,7 @@ import { promisify } from 'node:util';
 import { archiveWork, folderName } from './archive/archive.ts';
 import {
   canDeleteTranscription,
+  canDeleteVersions,
   canViewEdition,
   canViewTranscription,
   isAdministrator,
@@ -836,11 +837,12 @@ export type DeleteTranscriptionResult =
   | { ok: false; error: 'in-conspectus'; editions: EditionRef[]; hiddenEditions: number };
 
 /**
- * Deletes a transcription with its history. Owner or administrator only;
- * refused while it has a version, withdrawn or not, whose address someone
- * may cite, and while an edition's conspectus or a version of an edition
- * names it. The refusal names the editions the person may see and counts the
- * drafts of others they may not.
+ * Deletes a transcription with its history and its versions. Owner or
+ * administrator only; while it has a version, withdrawn or not, whose address
+ * someone may cite, an administrator only; and refused to everyone while an
+ * edition's conspectus or a version of an edition names it. The refusal names
+ * the editions the person may see and counts the drafts of others they may
+ * not.
  */
 export async function deleteTranscription(
   db: Database,
@@ -853,7 +855,8 @@ export async function deleteTranscription(
     .where(eq(transcriptions.id, id));
   if (!row) return { ok: false, error: 'not-found' };
   if (!canDeleteTranscription(user, row)) return { ok: false, error: 'forbidden' };
-  if (await hasAnyVersion(db, 'transcription', id)) return { ok: false, error: 'has-version' };
+  if (!canDeleteVersions(user) && (await hasAnyVersion(db, 'transcription', id)))
+    return { ok: false, error: 'has-version' };
   const editionColumns = {
     id: editions.id,
     slug: editions.slug,
@@ -995,17 +998,19 @@ export async function witnessDependents(
     .select({ n: sql<number>`count(*)::int` })
     .from(reportedReadings)
     .where(and(eq(reportedReadings.witnessId, witnessId), ne(reportedReadings.ownerId, user.id)));
-  // The person's own transcripts go with the witness, unless one has a version.
-  const [ownVersioned] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(transcriptions)
-    .where(
-      and(
-        eq(transcriptions.witnessId, witnessId),
-        eq(transcriptions.ownerId, user.id),
-        anyVersionSql('transcription', transcriptions.id),
-      ),
-    );
+  // The person's own transcripts go with the witness, unless one has a version, which only an administrator deletes.
+  const [ownVersioned] = canDeleteVersions(user)
+    ? []
+    : await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(transcriptions)
+        .where(
+          and(
+            eq(transcriptions.witnessId, witnessId),
+            eq(transcriptions.ownerId, user.id),
+            anyVersionSql('transcription', transcriptions.id),
+          ),
+        );
   return {
     ...(await nameVisibleEditions(db, user, naming)),
     transcriptions: Number(othersTranscriptions?.n ?? 0),
@@ -1043,17 +1048,20 @@ export async function workDependents(
     .select({ n: sql<number>`count(*)::int` })
     .from(reportedReadings)
     .where(and(eq(reportedReadings.workId, workId), ne(reportedReadings.ownerId, user.id)));
-  // The person's own editions go with the work, and their transcripts lose its segments, unless one has a version.
-  const [ownEditions] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(editions)
-    .where(
-      and(
-        eq(editions.workId, workId),
-        eq(editions.ownerId, user.id),
-        anyVersionSql('edition', editions.id),
-      ),
-    );
+  // The person's own editions go with the work, unless one has a version, which only an administrator deletes.
+  const [ownEditions] = canDeleteVersions(user)
+    ? []
+    : await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(editions)
+        .where(
+          and(
+            eq(editions.workId, workId),
+            eq(editions.ownerId, user.id),
+            anyVersionSql('edition', editions.id),
+          ),
+        );
+  // Their transcripts lose its segments, unless one has a version: the version would then read otherwise than it was published.
   const [ownTranscriptions] = await db
     .select({ n: countDistinct(transcriptionSegments.transcriptionId) })
     .from(transcriptionSegments)

@@ -2,14 +2,15 @@
   /**
    * A transcript's menu, the same wherever it stands: in the workbench's
    * header, in the rows of a witness's page and a work's page, on Your Work
-   * and on the front page's Continue. Publish… and Withdraw Version… open
-   * their windows wherever the menu stands, and deleting asks in the
-   * application's window. Settings and the copy are windows of the
+   * and on the front page's Continue. Publish…, Withdraw Version… and an
+   * administrator's Delete Version… open their windows wherever the menu
+   * stands, and deleting asks in the application's window. Settings and the copy are windows of the
    * workbench: there they open at once, and from a list the item leads to
    * the workbench with the window open.
    */
   import { goto } from '$app/navigation';
   import { ConfirmDialog, RecordActions } from '$lib/components/ui';
+  import DeleteVersionDialog from '$lib/components/version/DeleteVersionDialog.svelte';
   import PublishDialog from '$lib/components/version/PublishDialog.svelte';
   import WithdrawDialog from '$lib/components/version/WithdrawDialog.svelte';
   import { recordActions } from '$lib/strings/record-actions';
@@ -55,6 +56,7 @@
   let deleteOpen = $state(false);
   let publishOpen = $state(false);
   let withdrawOpen = $state(false);
+  let deleteVersionOpen = $state(false);
   let refused = $state(false);
 
   // A page that stopped as the deletion began goes on once the refusal has been read.
@@ -69,6 +71,7 @@
     if (action === 'delete') deleteOpen = true;
     else if (action === 'publish') publishOpen = true;
     else if (action === 'withdraw') withdrawOpen = true;
+    else if (action === 'delete-version') deleteVersionOpen = true;
     else if (action === 'settings') {
       if (place === 'workbench') onsettings?.();
       else void goto(`/transcriptions/${id}?settings=1`);
@@ -89,6 +92,10 @@
 {#if rights.publish}
   <PublishDialog bind:open={publishOpen} kind="transcription" id={transcription.id} {flush} />
   <WithdrawDialog bind:open={withdrawOpen} kind="transcription" id={transcription.id} />
+{/if}
+
+{#if rights.deleteVersion}
+  <DeleteVersionDialog bind:open={deleteVersionOpen} kind="transcription" id={transcription.id} />
 {/if}
 
 {#if rights.delete}

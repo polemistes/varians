@@ -11,6 +11,8 @@ export const reader = {
   authorAndWork: (author: string | null, work: string) => (author ? `${author}, ${work}` : work),
   version: (n: number) => `Version ${n}`,
   published: 'published',
+  /** In the version line of the plain text, before the date of the withdrawal. */
+  withdrawn: 'withdrawn',
   draft: 'Draft',
   /** The draft of an edition that has a version, as its editors preview it. */
   preview: 'Preview of the draft',

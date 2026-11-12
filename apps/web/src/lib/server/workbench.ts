@@ -63,7 +63,7 @@ import { dropWrittenFormOps, keepWrittenFormOps } from '$lib/workbench/normaliza
 
 const t = strings.importer;
 import type { Actor } from './authz.ts';
-import { canMaintainWitness } from './authz.ts';
+import { canDeleteVersions, canMaintainWitness } from './authz.ts';
 import { loadDocument, replaceContent, saveOps, type SaveResult } from './documents/service.ts';
 import { fetchCtsPassage, isCtsUrn, teiFromCtsReply } from './import/cts.ts';
 import { SafeFetchError, readTextCapped, safeFetch } from './safe-fetch.ts';
@@ -142,8 +142,17 @@ export interface WorkbenchData {
     latestVersion: number | null;
     /** The number of the version shown, read only; null for the draft. */
     shownVersion: number | null;
-    /** When the version shown was published, and the note on it; null for the draft. */
-    shown: { at: string; note: string | null } | null;
+    /**
+     * Of the version shown: when it was published, by whom (the name its
+     * citation gives) and the note on it, and when it was withdrawn with the
+     * note readers see; null for the draft.
+     */
+    shown: {
+      at: string;
+      note: string | null;
+      personName: string | null;
+      withdrawn: { at: string; note: string | null } | null;
+    } | null;
     /** Every version, newest first, withdrawn ones among them, each at its own address. */
     versions: ReaderVersion[];
     sources: string | null;
@@ -172,26 +181,10 @@ export interface WorkbenchData {
   /** May edit the draft, whether or not it is the state shown. */
   canEditDraft: boolean;
   canDelete: boolean;
+  /** May delete a version: an administrator alone. */
+  canDeleteVersion: boolean;
   /** May add pages to the witness (an import that brings pages the witness lacks). */
   canMaintainWitness: boolean;
-}
-
-/** The page of a withdrawn version of a transcription: its citation and the withdrawal, and no text. */
-export interface WithdrawnTranscriptionVersion {
-  transcription: { id: string; name: string };
-  witness: { name: string; siglum: string; slug: string };
-  number: number;
-  /** When the version was published, by whom (the name the citation gives), and the note on it. */
-  at: string;
-  personName: string | null;
-  note: string | null;
-  withdrawn: { at: string; note: string | null };
-  /** The licence the version was published under, by name, for its citation. */
-  licence: string | null;
-  /** The transcription's address, which shows its latest version, or null when it has none any more. */
-  current: string | null;
-  /** Every version, newest first, withdrawn ones among them, each at its own address. */
-  versions: ReaderVersion[];
 }
 
 /**
@@ -213,39 +206,13 @@ function transcriptionVersionList(id: string, all: VersionSummary[]): ReaderVers
   }));
 }
 
-/**
- * Version `number` of a transcription when it is withdrawn, for its page,
- * which anyone may open since someone may have cited it; null when that
- * version is not withdrawn or does not exist.
- */
-export async function loadWithdrawnTranscriptionVersion(
-  db: Database,
-  id: string,
-  number: number,
-): Promise<WithdrawnTranscriptionVersion | null> {
-  const all = await versionsOf(db, 'transcription', id);
-  const asked = all.find((v) => v.number === number);
-  if (!asked?.withdrawn) return null;
-  const version = await versionByNumber(db, 'transcription', id, number);
-  const snapshot = version!.snapshot as TranscriptionSnapshot;
-  const witness = await db.query.witnesses.findFirst({
-    where: (w, { eq }) => eq(w.id, snapshot.witnessId),
-  });
+/** What the workbench says of the version it shows. */
+function shownVersion(v: VersionSummary): NonNullable<WorkbenchData['transcription']['shown']> {
   return {
-    transcription: { id, name: snapshot.name },
-    witness: {
-      name: witness?.name ?? '',
-      siglum: witness?.siglum ?? '',
-      slug: witness?.slug ?? '',
-    },
-    number,
-    at: asked.at.toISOString(),
-    personName: asked.personName,
-    note: asked.note,
-    withdrawn: { at: asked.withdrawn.at.toISOString(), note: asked.withdrawn.note },
-    licence: licenceInfo(snapshot.licenceId)?.name ?? null,
-    current: all.some((v) => !v.withdrawn) ? `/transcriptions/${encodeURIComponent(id)}` : null,
-    versions: transcriptionVersionList(id, all),
+    at: v.at.toISOString(),
+    note: v.note,
+    personName: v.personName,
+    withdrawn: v.withdrawn ? { at: v.withdrawn.at.toISOString(), note: v.withdrawn.note } : null,
   };
 }
 
@@ -253,7 +220,8 @@ export async function loadWithdrawnTranscriptionVersion(
  * Everything the workbench page needs, or null when the transcription does
  * not exist or may not be viewed. Those who may edit it see the draft; others
  * its latest version that is not withdrawn, read only. Version `number`, when
- * asked for, is shown read only to anyone, unless it is withdrawn.
+ * asked for, is shown read only to anyone, a withdrawn one too, which says
+ * that it is: someone may have cited its address.
  */
 export async function loadWorkbench(
   db: Database,
@@ -266,7 +234,7 @@ export async function loadWorkbench(
   const all = await versionsOf(db, 'transcription', id);
   const latest = all.find((v) => !v.withdrawn) ?? null;
   const asked = number === null ? null : (all.find((v) => v.number === number) ?? null);
-  if (number !== null && (!asked || asked.withdrawn)) return null;
+  if (number !== null && !asked) return null;
   if (number === null && !access.canView) return null;
   const shownNumber = asked?.number ?? (access.canEdit ? null : (latest?.number ?? null));
   const shown =
@@ -316,12 +284,7 @@ export async function loadWorkbench(
       memory: transcription.memory,
       latestVersion: latest?.number ?? null,
       shownVersion: shownNumber,
-      shown: shown
-        ? {
-            at: shown.at.toISOString(),
-            note: all.find((v) => v.number === shownNumber)?.note ?? null,
-          }
-        : null,
+      shown: shown ? shownVersion(all.find((v) => v.number === shownNumber)!) : null,
       versions: transcriptionVersionList(id, all),
       sources: transcription.sources,
       rightsNote: transcription.rightsNote,
@@ -346,6 +309,7 @@ export async function loadWorkbench(
     canPublish: access.canPublish,
     canEditDraft: access.canEdit,
     canDelete: access.canDelete,
+    canDeleteVersion: canDeleteVersions(user),
     canMaintainWitness: canMaintainWitness(
       user,
       witness,

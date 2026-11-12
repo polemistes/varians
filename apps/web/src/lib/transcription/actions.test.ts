@@ -2,19 +2,28 @@ import { describe, expect, it } from 'vitest';
 import type { MenuEntry } from '$lib/record/actions';
 import { NO_TRANSCRIPTION_RIGHTS, transcriptionActions, type TranscriptionRights } from './actions';
 
-const owner: TranscriptionRights = { signedIn: true, edit: true, publish: true, delete: true };
+const owner: TranscriptionRights = {
+  signedIn: true,
+  edit: true,
+  publish: true,
+  delete: true,
+  deleteVersion: false,
+};
+const administrator: TranscriptionRights = { ...owner, deleteVersion: true };
 /** One who edits it through an edition that names it, or a site editor: may not publish or delete. */
 const collaborator: TranscriptionRights = {
   signedIn: true,
   edit: true,
   publish: false,
   delete: false,
+  deleteVersion: false,
 };
 const stranger: TranscriptionRights = {
   signedIn: true,
   edit: false,
   publish: false,
   delete: false,
+  deleteVersion: false,
 };
 const visitor = NO_TRANSCRIPTION_RIGHTS;
 
@@ -55,6 +64,18 @@ describe('the menu of a transcript', () => {
       'Leiden+',
       'Delete Transcript…',
     ]);
+  });
+
+  it('gives an administrator Delete Version… before Delete Transcript…, whatever versions there are', () => {
+    for (const subject of [draft, transcription]) {
+      const { menu } = transcriptionActions(subject, administrator, 'list');
+      expect(shape(menu).slice(-3)).toEqual(['|', 'delete-version', 'delete']);
+      expect(menu.at(-2)).toMatchObject({ label: 'Delete Version…', danger: true });
+      expect(menu.at(-2)).not.toHaveProperty('disabled');
+    }
+    expect(shape(transcriptionActions(transcription, owner, 'list').menu)).not.toContain(
+      'delete-version',
+    );
   });
 
   it('offers publishing and withdrawing to the owner only', () => {

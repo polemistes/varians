@@ -1024,7 +1024,7 @@ async function clearRecordDir(dir: string): Promise<void> {
 /**
  * versions.json, and the directory of each version not yet written. A
  * withdrawal writes versions.json again and leaves the version's directory
- * as it is.
+ * as it is; the directory of a version that has been deleted is removed.
  */
 async function writeVersionFiles(
   ctx: WorkContext,
@@ -1034,8 +1034,14 @@ async function writeVersionFiles(
   write: (dir: string, version: Version) => Promise<void>,
 ): Promise<void> {
   const rows = ctx.versionRows.get(`${kind}:${id}`) ?? [];
+  const numbers = new Set(rows.map((v) => String(v.number)));
+  const written = await readdir(path.join(dir, 'versions')).catch(() => [] as string[]);
+  for (const name of written)
+    if (!numbers.has(name))
+      await rm(path.join(dir, 'versions', name), { recursive: true, force: true });
   if (rows.length === 0) {
     await rm(path.join(dir, 'versions.json'), { force: true });
+    await rm(path.join(dir, 'versions'), { recursive: true, force: true });
     return;
   }
   await writeJson(
